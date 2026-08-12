@@ -10,6 +10,147 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
+## Q66 · The bug list is growing faster than it drains — what changes? — **answered 2026-08-12: fix rather than file, and a blocked run asks in a PR**
+
+Raised by the owner: *"I notice a lot more bugs being reported by the agentic
+system. Most seemingly not resolved only recorded. Which increases the bug list.
+I want the agentic system to auto fix any bugs they encounter and prompt me
+questions in this interface whenever a major decision had to be made."*
+
+**The observation is right, and measuring it made it sharper than the
+impression.** Share of each block of ids still open:
+
+```
+B1–B60      9%
+B61–B120   14%
+B121–B160  18%
+B161–B179  79%
+```
+
+That is a regime change rather than a drift, and it is not explained by the
+newest entries having had least time: four P1s were open at the time of asking
+— B144, B168, B178, B179, all `canvas` — and B144 had been open for
+thirty-one merges. The mechanism is visible in the log: recent work had settled
+into diagnose-and-file (`B178: file the frame-wait fault the first GPU-on report
+exposed`, `B179: report what memory is actually held`), which is exactly right
+for a hard performance problem and became the default for everything.
+
+**Two things needed deciding rather than assuming, because each collided with a
+rule already in `CLAUDE.md`.** Both were put to the owner with a recommendation
+and both recommendations were taken.
+
+**(a) Auto-fixing collides with "a branch is one objective."** That rule is
+emphatic — *if the sentence describing the branch needs an "and", it is two
+branches* — and "fix everything you encounter" is an instruction to grow an
+"and". **Answer: fix it, on its own branch, after finishing the one in hand.**
+So the two rules now say the same thing from different directions: finding a
+second defect produces another branch, in sequence, each doing one thing. It
+costs more pull requests, and that is the price of not accumulating. Severity
+sets the bar — P1 and P2 always, P3 when small — and filing instead is an
+exception that must name its reason in the entry.
+
+**Rejected: fixing it in the current branch.** Faster to green and it would have
+required relaxing the branch rule in the same change, which trades a measurable
+problem for the one the repo's own history says causes drift.
+
+**(b) "Prompt me in this interface" is already the rule, and the runs doing the
+filing cannot obey it.** `AskUserQuestion` needs an interface; a scheduled or
+background run has none, which is precisely why its questions went to a file.
+Restating the rule harder would not have changed that. **Answer: such a run
+stops, pushes what is finished, and puts the question at the top of the pull
+request, titled `[needs a decision]`.** The point is to move unanswered
+questions to where the owner already looks — an open PR is visible, and the
+evidence of this file is that a line in it is not.
+
+`QUESTIONS.md` still records the answer once it arrives. What changed is where
+the *question* waits.
+
+**What would show this worked**, and is worth checking rather than assuming: the
+share of open ids in the next block of twenty. If B180–B199 sits near the
+historical 9–18% rather than near 79%, the rule took. If it does not, the
+constraint is not the instruction and this entry should be reopened rather than
+the instruction reworded — which is the failure mode the questions section
+already has a paragraph about.
+
+---
+
+## Q65 · Should strokes be merged to shrink a document? — **answered 2026-08-10: no — compress and quantise instead**
+
+Raised by the owner with a detailed proposal: merge expired strokes at the undo
+horizon, union paths with CSG, run Ramer–Douglas–Peucker over committed
+strokes, chain strokes that meet end-to-end, and fall back to raster caches —
+all under the constraint *avoid rasterisation, because the application promises
+both raster and vector*.
+
+**The constraint is right and the answer is no anyway**, because the cheap wins
+are elsewhere and every merge on that list is either a determinism break or
+worth nothing. Measured on a 400-stroke 1920×1080 painting with one brush
+preset, which is the ordinary case for a painting:
+
+```
+                        raw          gzip
+as saved (indented)   9,792,336    1,541,012
+compact               3,952,622    1,367,127
+points alone          3,675,740    1,353,826   91% of stroke bytes
+400 brush blocks        237,601        1,521
+points at 2dp         1,920,418      371,661
+```
+
+**Three findings, and the third is the one that changes the plan.**
+
+- **The file is uncompressed pretty-printed JSON.** `DocJson.Options` sets
+  `WriteIndented = true` and `Save` writes the string straight out. Compressing
+  it is 6.4× for no semantic change at all, and it keeps the readable formatting
+  the serializer's own comment chose on purpose.
+- **Deduplicating brush settings is worth nothing.** This was the most promising
+  idea going in — 41 properties inlined on every stroke while `ClipRegion` is
+  already a content-hashed registry, so the house pattern existed and the
+  retrofit was obvious. 400 identical brush blocks are 238 KB raw and **1.5 KB
+  gzipped**: gzip already does the dedupe, and the change would buy ~0.1% of a
+  compressed file. Worth recording precisely because it looked like the answer.
+- **Coordinate precision is the whole game.** Points are 91% of stroke bytes,
+  and storing two decimal places rather than a round-trippable double takes them
+  from 1,354 KB to 372 KB gzipped — a 73% cut of the 91%, without touching one
+  piece of geometry.
+
+**Why every merge on the list is refused.**
+
+- **RDP is a determinism break, not a compression.** "Reduces coordinates by 70%
+  without altering the shape" is true of a plain vector outline and false here:
+  every dab dynamic is seeded from the IEEE-754 bits of the dab's position
+  through `Hash01`, so moving a control point does not give the same mark with
+  fewer points, it gives **a different mark**. That is invariant 2, and invariant
+  7 exists because the identical trap bit once already at output scale.
+- **Chaining strokes end-to-end breaks the dab walk.** The walk is a fold
+  carrying spacing phase, travelled distance and heading; concatenating gives the
+  second stroke's dabs the first one's accumulated state, so the dabs move and
+  the seeds move with them. B45 is this bug, already paid for once.
+- **There is nothing to union.** A stroke is a centreline with width, pressure
+  and per-dab dynamics, not an outline. CSG would require outlining it first,
+  which destroys the thing that makes the mark.
+- **Merging at the undo horizon makes the document depend on session length**
+  and on a UI preference — the same drawing saved twice would differ.
+- **The raster cache already exists** and is better than the proposal's version:
+  `TileStore`, `TilePyramid`, `FramePrewarmer`. Vectors on disk, pixels in
+  memory, non-destructive. That part is a no-op.
+
+**And one cost the proposal could not see: stroke identity is an input to the
+inbetweener.** It matches strokes between frames. Merging strokes to save bytes
+spends the thing the headline feature runs on — which is a worse trade than any
+byte count makes it look.
+
+**So the order of work, if this is ever picked up:** compress the container
+first; quantise coordinates second, and *at capture, never at save* — rounding a
+committed point is RDP's bug wearing a smaller hat, and it has to happen before
+the point enters the record so the live preview and the commit see the same
+numbers. Flat point arrays third, reusing Q18's answer. Together roughly 10×
+before a single stroke is merged.
+
+**Not filed as a bug**, because nothing is broken: a large file is a cost, not a
+defect. It belongs on the roadmap when file size actually hurts somebody.
+
+---
+
 ## Q61 · Resize canvas and resize image: what is allowed to change the grain? — **answered 2026-08-08, three recommendations taken and one overruled**
 
 **What forced the question.** `ROADMAP.md` carried *Resize canvas and resize
@@ -2228,3 +2369,160 @@ nearly flat on (`n^0.83`) — and never varied the one it is quadratic in (`n^2.
 was reachable from the existing scenario's own numbers by nobody, because the
 scenario asked the wrong question competently. When a report disagrees with a
 person using the application, the report is measuring something adjacent.
+
+## Q63 · GPU compositing is at its measurement gate — measure, build past it, or switch axes? — **answered 2026-08-10: switch to the layer axis (B165)**
+
+B125 stages 1 through 4 have landed: the lifetime protocol, the pixel-identity
+harness, the pass list crossing to the render thread, the culled composite moving
+into the draw op, and a GPU surface behind `LIGHTBOX_GPU_COMPOSITE=1`. Stage 4 is
+deliberately a **gate** rather than a feature — it uploads every layer every frame,
+which is the worst case by construction, and the number that decides whether that
+is a 20× win or a 3× one can only come from real hardware. There is no graphics
+context in this repository, which is the same reason B122 shipped as an inference
+and the render report exists at all.
+
+So the question was genuinely the owner's to answer, and three options were put:
+run the measurement first, build stage 5's residency blind, or leave GPU work at
+the gate and attack the other axis.
+
+**The recommendation was to measure first.** Stage 5's design is what has to carry
+the whole win if the upload dominates, and building it before knowing that means
+committing to an invalidation strategy on an assumption.
+
+**The answer was to switch to B165**, and it is a better call than the
+recommendation for a reason the recommendation underweighted: B165 is **fully
+testable in this repository**, and stage 5 is not. Every line of a resident-texture
+cache would land unguarded here, which is the opposite of what the last six pull
+requests have been about — and B165 attacks the axis GPU compositing does nothing
+whatever for. Ten layers at 4K is 224% of the playback budget *after* a 20× GPU
+win. The two axes multiply, so the second one has to be answered regardless of what
+the first measures.
+
+**What the choice costs, stated so it is a decision rather than a drift.** Stage 4
+remains unmeasured, so `LIGHTBOX_GPU_COMPOSITE` stays an opt-in nobody has taken
+and B125's checkbox stays open on a stage that is *built but unproven*. That is a
+real hazard: code that exists and has never run on the hardware it was written for
+rots quietly, and the longer the gap the more likely the first real run finds
+something the CPU fallback was hiding. The mitigation is that the measurement is
+one render report whenever the owner wants to spend five minutes on it — it does
+not need a session, and it does not block B165.
+
+## Q64 · What is the minimum spec, and should budgets be derived from it? — **answered 2026-08-10: indie 2D game work on 8 GB with integrated graphics; budgets derived, not chosen**
+
+Raised by the owner while reviewing the GPU and cache work, and it is a
+correction rather than a question: **every performance decision in this session
+had been reasoned from one laptop.** A Ryzen 7 PRO 5850U with 32 GB and shared
+graphics memory is not the machine this has to run on — it is one sample, and
+the conclusions drawn from it were being treated as facts about the product.
+
+Two specific consequences the owner named, both correct:
+
+- **A path that is bad on that machine is not necessarily bad in general.** The
+  5850U shares memory between processor and card, so an upload competes with the
+  compositing beside it; a discrete card crosses PCIe once and then blends from
+  dedicated memory. Residency (B167 phase 5) helps the second case *more*, so
+  killing it on the first machine's number would repeat B125's mis-aim exactly.
+- **Budgets tuned to 32 GB are wrong in both directions.** `FrameBitmapCache`
+  held 512 MB and `LayerTextureCache` 192 MB, both constants chosen while looking
+  at that machine. On a 64 GB workstation they leave performance unclaimed; on a
+  minimum-spec laptop they are more than can be spared.
+
+### The minimum spec, from the production flow rather than from a spec sheet
+
+**Indie 2D game work.** The output is often 4K, but the *documents* are sprite
+sheets and character cycles, which are typically well under it — so the floor
+has to make a sprite document comfortable rather than make a 4K film document
+possible. The machine: an ordinary laptop, integrated graphics, **8 GB of RAM**.
+
+That is what every floor in `MemoryBudget` is chosen against, and it is what
+makes "works on minimum specs" checkable instead of a hope.
+
+### The rule: derive, clamp, allow an override
+
+A fraction of what the machine actually has, floored so the minimum spec works
+and ceilinged so a large machine is not handed more than it can usefully spend.
+The artist's setting stays the final word; this fixes the *default*, which is the
+thing that was wrong. Frame cache takes an eighth (1 GB on the minimum spec,
+4 GB ceiling); layer textures a sixteenth, deliberately meaner because on
+integrated graphics they are the same memory the compositor is competing for;
+tiles a thirty-second, both because a tiled frame holds only the tiles a stroke
+touched and so buys far more frames per byte, and because **the three budgets are
+additive in the worst case** — an eighth plus two sixteenths is a full quarter of
+an 8 GB laptop, which is a machine that swaps rather than one with a fast cache.
+`MemoryBudgetTests.TheFloorsAreAffordableOnTheMinimumSpec` is where that sum is
+checked, and it is the test that caught it.
+
+**The artist's floor is allowed below the derived floor, and that is deliberate
+rather than an inconsistency the clamps failed to catch.** The derived floor is
+what a minimum-spec machine needs for the cache to be worth having at all; the
+setting's floor is how far somebody may go when they have decided they would
+rather have the memory back — which is exactly what the Configure page offers in
+its own words. The *ceiling* is shared, because past it the cache holds bytes it
+will never spend no matter who asked for them.
+
+**What it cannot see is VRAM**, and there is no portable way to ask. System
+memory is the proxy: exact on integrated graphics, an underestimate on a discrete
+card — which errs toward not exhausting it, and a refused allocation falls back
+to the processor rather than failing.
+
+### The cost of generalising, so it is a decision rather than a reflex
+
+Every alternative path is one more thing that can rot, and **none of the GPU
+paths can be exercised in this repository at all**. The mitigation is to
+parameterise one implementation rather than branch into two — which is what the
+composite already does, taking a surface whose provenance is the only difference.
+Generalising by *guessing* at machines nobody has measured would be the same
+error in a new direction; the render report is what turns guesses into data over
+time.
+
+## Q67 · Should strong anticipation be licensable when it reads exactly like a copied key? — **answered 2026-08-12: (a) keep the band; anticipation is authored, in a breakdown**
+
+Raised by art-director in the G12 review of the Phase 0 verifier (2026-08-12),
+prompted in-conversation, and answered the same day on the `[needs a decision]`
+PR (#179): **(a)**, the recommendation.
+
+The betweenness band refuses a matched stroke sitting more than ~40% of its own
+travel from where interpolation puts it. That number was calibrated so a copied
+key refuses — the failure a small model most often produces — and it does its
+job. The cost the review measured: **a strong anticipation pose drawn into an
+inbetween is geometrically the same signature** — deviation opposite the
+travel, similar magnitude — so anticipation past roughly a third of the travel
+is refused, and the verifier cannot tell a directorial choice from the failure
+it exists to catch. On an 80px swing, 30px of wind-back passes and 55px is
+refused as "did not stay between the keys".
+
+The decision: **the band stays as calibrated, and anticipation is routed
+through authorship.** An artist who wants a strong anticipation draws it as a
+breakdown, which Phase 1 makes a hard constraint the arc must pass through;
+the copied-key refusal — the commonest small-model failure — stays intact.
+The accepted cost, recorded so it is not rediscovered as a bug: **the AI
+cannot invent strong anticipation mid-run**, only follow one the artist
+stated, and a model that tries will see "did not stay between the keys".
+
+The options not taken: (b) widening `TravelSlack` admits anticipation
+everywhere and reopens the copied-key hole the band was tuned against;
+(c) a shape signal — a copied key matches the key's *shape* near-exactly,
+real anticipation redraws it — stays the upgrade to prototype **if (a)
+pinches in practice**, and (b) stays rejected even then.
+
+## Q68 · Does the distorted-silhouette smear deserve a licence? — **answered 2026-08-12: (a) no — the 2× band stays, that frame is hand-drawn**
+
+Same review, same day, answered alongside Q67 on PR #179: **(a)**, the
+recommendation. `AreaSlack = 2.0` refuses a
+closed shape whose area moves past 2× the interpolated expectation in either
+direction. Area-conserving squash and stretch passes — a 10:1 streak that keeps
+its area is fine — and a collapse to an eighth refuses, both as designed. The
+edge the review named: **a smear style that deliberately draws the silhouette
+larger than the character** (≈3.5× area, to sell a fast whip in some 2D/cutout
+styles) is refused as a volume gain.
+
+The decision: **the 2× band stays the documented line.** Most smears are drawn
+as separate streak strokes, which drag and interpretation already license; the
+distorted-silhouette variant is rare and stays a frame the artist draws by
+hand. The accepted cost: one stylised technique the AI cannot propose.
+
+The options not taken: (b) an asymmetric band (collapse strict at 0.5×, gain
+loose to ~4×) lets a model that balloons a shape mid-motion — a real
+small-model failure — pass as a "smear" nobody asked for; (c) tying the band
+to the latitude dial makes one dial move two unrelated tolerances, so turning
+it up for looser new ink would also weaken the collapse check.

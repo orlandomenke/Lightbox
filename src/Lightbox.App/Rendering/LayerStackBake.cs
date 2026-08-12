@@ -86,6 +86,9 @@ public sealed class LayerStackBake : IDisposable
 
     private readonly Segment _below = new();
     private readonly Segment _above = new();
+    private readonly Segment _held = new();
+    private List<PassKey>? _pendingHeld;
+    private bool _servedHeld;
     private List<PassKey>? _pendingBelow;
     private List<PassKey>? _pendingAbove;
     private bool _servedBelow;
@@ -178,11 +181,63 @@ public sealed class LayerStackBake : IDisposable
     {
         _below.Dispose();
         _above.Dispose();
+        _held.Dispose();
         _pendingBelow = _pendingAbove = null;
         _servedBelow = _servedAbove = false;
     }
 
     public void Dispose() => Reset();
+
+    /// <summary>
+    /// Fold the bottom <paramref name="count"/> passes into one baked bitmap —
+    /// the layers holding still for the whole playback range (B165).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The playback counterpart to <see cref="Fold"/>, and it exists because
+    /// this class already said why it could not help here:</b> <i>"the caller also
+    /// skips folding outright during playback, where keys never repeat by
+    /// construction."</i> True of the key <see cref="Fold"/> uses — the whole
+    /// not-being-drawn-on segment, which changes the moment any layer in it
+    /// exposes a new cel. False of the held prefix, whose key is identical on
+    /// every frame of the range.
+    /// </para>
+    /// <para>
+    /// <b>The caller chooses the count from the exposure sheet</b>
+    /// (<see cref="UnchangedLayerRun.HeldPrefix"/>) rather than this class
+    /// guessing from the passes. Two different questions: which layers hold still
+    /// over time is a property of the document, and whether a run of passes may be
+    /// pre-folded at all is a property of their blends — the second is checked
+    /// here, as it is for every other segment.
+    /// </para>
+    /// <para>
+    /// Everything else is <see cref="FoldSegment"/>'s: the key includes bitmap
+    /// identity and content version, a changed key rebuilds, and a key must be
+    /// seen twice before a bake is paid for.
+    /// </para>
+    /// </remarks>
+    public List<RenderPass> FoldHeldRun(
+        List<RenderPass> passes, int count, int width, int height, out bool transitioned)
+    {
+        if (!Enabled || count < 2 || count > passes.Count)
+        {
+            _pendingHeld = null;
+            transitioned = _servedHeld;
+            _servedHeld = false;
+            return passes;
+        }
+
+        var held = passes.GetRange(0, count);
+        var baked = FoldSegment(_held, ref _pendingHeld, held, width, height);
+        transitioned = (baked is not null) != _servedHeld;
+        _servedHeld = baked is not null;
+        if (baked is null) return passes;
+
+        var folded = new List<RenderPass>(passes.Count - count + 1) { baked };
+        folded.AddRange(passes.GetRange(count, passes.Count - count));
+        FoldedPublishes++;
+        return folded;
+    }
 
     private RenderPass? FoldSegment(
         Segment segment, ref List<PassKey>? pending, List<RenderPass> passes, int width, int height)

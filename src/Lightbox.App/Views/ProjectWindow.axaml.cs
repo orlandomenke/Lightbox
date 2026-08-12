@@ -76,8 +76,24 @@ public partial class ProjectWindow : Window
     /// </remarks>
     private BoardRow? _draggedCard;
 
+    /// <summary>The token the drag carries, so <c>DoDragDropAsync</c> has a payload.</summary>
+    /// <remarks>
+    /// <para>
+    /// In-process, like every other drag in the application, because the drop
+    /// handler reads <see cref="_draggedCard"/> and never unpacks this — the
+    /// card is not going anywhere another application could receive it.
+    /// </para>
+    /// <para>
+    /// It was <c>CreateStringApplicationFormat</c>, which is the cross-application
+    /// one, and Avalonia validates those identifiers: a <c>/</c> is rejected, so
+    /// <c>"lightbox/status-card"</c> threw out of this field initialiser and took
+    /// the whole window's type initialiser with it (B163). The name loses its
+    /// slash as well as its constructor, so a later move back to an application
+    /// format cannot resurrect the crash.
+    /// </para>
+    /// </remarks>
     private static readonly DataFormat<string> CardFormat =
-        DataFormat.CreateStringApplicationFormat("lightbox/status-card");
+        DataFormat.CreateInProcessFormat<string>("lightbox-status-card");
 
     private async void OnStatusCardPressed(object? sender, PointerPressedEventArgs e)
     {

@@ -111,7 +111,10 @@
               -->
               <!-- Transparent, not a band: the card is one surface and the header is
                    the top of it. Transparent (rather than no background) keeps it
-                   hit-testable — it is still the drag grip and the drop target. -->
+                   hit-testable, which it still needs to be — it is the drop TARGET
+                   (drop here to tab into this slot) and it carries the pointer
+                   handlers. It is no longer the drag grip: the tab is, and the rest
+                   of the header ignores a press. See Docker.LandedOnTheGrip. -->
               <!-- No bottom padding: the active tab's ground has to run INTO the
                    content below it — a 2px strip of header between them reads as
                    a seam across what should be one element. -->
@@ -182,7 +185,10 @@
                     right until the first retune and then be a visible step in
                     the middle of a straight line.
                   -->
-                  <TextBlock DockPanel.Dock="Left"
+                  <!-- Named because it is the drag grip when there is no tab
+                       strip to be one, and no type test separates it from any
+                       other TextBlock in the title bar. See Docker.LandedOnTheGrip. -->
+                  <TextBlock x:Name="PART_Title" DockPanel.Dock="Left"
                              Text="{TemplateBinding Title}" FontSize="11" FontWeight="SemiBold"
                              Opacity="0.9" VerticalAlignment="Center"
                              IsVisible="{TemplateBinding Tabs, Converter={x:Static ObjectConverters.IsNull}}" />

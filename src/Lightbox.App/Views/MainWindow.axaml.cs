@@ -22,6 +22,9 @@ public partial class MainWindow : Window
 
     private Services.IpcServer? _ipc;
 
+    /// <summary>The momentary tool key currently down, and what it borrowed (B176).</summary>
+    private (Avalonia.Input.Key Key, ToolId Tool)? _momentaryToolKey;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -35,6 +38,36 @@ public partial class MainWindow : Window
         // once, here — a per-move re-render would repaint the whole frame from its
         // strokes, which is exactly what invariant 6 forbids.
         Canvas.SelectedLinesDragged += (dx, dy) => _vm.MoveSelectedStrokes(dx, dy);
+        // Reshaping one line (vector phase 2). The canvas owns the gesture and
+        // nothing else: every decision — what was grabbed, where it may go, when
+        // it becomes an undo step — is the view model's, so all of it is
+        // reachable by a test with no window attached.
+        Canvas.SetPathEditEntry(_vm.BeginPathEditAt);
+        Canvas.SetPathEditHandlers(
+            _vm.GrabPathPart,
+            _vm.DragPathPart,
+            () => _vm.CommitPathEdit(),
+            _vm.HoverPathAt);
+        // One subscription for both halves, because they are one fact: the nodes
+        // the overlay draws must be the nodes the hit test will find. B147 is the
+        // cost of a canvas keeping a copy that something forgets to refresh.
+        _vm.PathEditChanged += PublishPathNodes;
+        // The pen (vector phase 3). Same division as above: the canvas turns
+        // pointer events into document coordinates and modifier flags, and every
+        // decision about what those mean lives in the view model.
+        Canvas.SetPenHandlers(
+            _vm.PenPress,
+            _vm.PenDrag,
+            _vm.PenRelease,
+            _vm.PenHover);
+        _vm.PenChanged += PublishPenPath;
+        // The width tool (vector phase 4b). Same split again: the canvas turns
+        // pointer events into document coordinates, and what they mean is the
+        // view model's.
+        Canvas.SetWidthHandlers(
+            _vm.GrabWidthAt,
+            _vm.DragWidth,
+            () => _vm.EndWidthDrag());
         TimelineTrackView.KeyDragged += OnTrackKeyDragged;
         // The clip bars (Q57): body slides, edges trim, right-click splits;
         // the view model owns what that does to the record. An audio bar's
@@ -125,10 +158,31 @@ public partial class MainWindow : Window
         Canvas.CameraZoomedBy += factor => _vm.ZoomCameraBy(factor);
         Canvas.CameraRotatedBy += deg => _vm.RotateCameraBy(deg);
 
-        LayersDocker.PointerEntered += (_, _) => _pointerInLayersDocker = true;
-        LayersDocker.PointerExited += (_, _) => _pointerInLayersDocker = false;
-        TimelineDocker.PointerEntered += (_, _) => _pointerInTimeline = true;
-        TimelineDocker.PointerExited += (_, _) => _pointerInTimeline = false;
+        // One handler on the window instead of a pair per docker. Tunnelling, so
+        // it sees the move even when a child marks it handled — a docker whose
+        // content swallows pointer events would otherwise be invisible to the
+        // shortcut scope and silently lose its bindings.
+        AddHandler(
+            PointerMovedEvent,
+            (_, e) =>
+            {
+                _hoveredElement = e.Source as Visual;
+                // Everything that is NOT the canvas. The canvas counts itself in
+                // its own handler, because the question the two counters answer
+                // is whether a frame reaching the screen depends on the canvas's
+                // own invalidate — and the reported symptom is that moving over
+                // a docker does not help. See InputPulse.
+                if (!IsInsideCanvas(_hoveredElement)) Rendering.InputPulse.Elsewhere();
+            },
+            Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        PointerExited += (_, _) => _hoveredElement = null;
+
+        bool IsInsideCanvas(Visual? from)
+        {
+            for (var v = from; v is not null; v = v.GetVisualParent())
+                if (ReferenceEquals(v, Canvas)) return true;
+            return false;
+        }
         Canvas.PickClicked += _vm.PickColorAt;
         Canvas.GradientDragStarted += _vm.BeginGradient;
         Canvas.GradientDragMoved += _vm.MoveGradient;
@@ -170,6 +224,18 @@ public partial class MainWindow : Window
                 RefreshReferenceBoxes();
             }
         };
+        // B164: while the transport runs, the canvas keeps a compositor frame on
+        // request so the loop ticks at display rate instead of at the scene's
+        // frame rate. Driven from here because the canvas does not know about
+        // playback and should not — it only knows whether to keep asking.
+        _vm.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(MainViewModel.IsPlaying))
+            {
+                Canvas.KeepPresenting = _vm.IsPlaying;
+            }
+        };
+
         _vm.ReferenceChanged += RefreshReferenceBoxes;
         _vm.GuidesChanged += RefreshGuides;
 
@@ -292,6 +358,8 @@ public partial class MainWindow : Window
         // If canvas input ever fails, say so in the status bar instead of dying silently.
         Canvas.CanvasError += message => _vm.AiStatus = message;
 
+        Canvas.PointerHovered += (x, y, mods) => _vm.UpdatePointerContext(x, y, mods);
+        Canvas.PointerExited += (_, _) => _vm.ClearPointerContext();
         Canvas.ViewChanged += () =>
         {
             // The text, not the Content: the readout's content is a TextBlock that carries
@@ -306,6 +374,32 @@ public partial class MainWindow : Window
         _shortcuts.Load();
         ShowSaveGestures();
         KeyDown += OnKeyDown;
+        // The release edge, so a borrowed tool comes back. Tunnelling, because a
+        // focused control that swallows the key-up would otherwise leave the
+        // modifier stuck down and the artist holding an eyedropper they let go
+        // of — the failure mode that makes a momentary tool worse than none.
+        AddHandler(
+            KeyUpEvent,
+            (_, e) =>
+            {
+                _vm.ApplyHeldModifiers(e.KeyModifiers);
+                // The other half of a momentary tool key (B176): matched on the
+                // physical key rather than the gesture, so a modifier pressed
+                // mid-hold cannot orphan the release.
+                if (_momentaryToolKey is { } held && e.Key == held.Key)
+                {
+                    _momentaryToolKey = null;
+                    _vm.EndMomentaryTool(held.Tool);
+                }
+            },
+            Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        // And a window that loses focus mid-hold never sees the key-up at all.
+        Deactivated += (_, _) =>
+        {
+            _vm.ApplyHeldModifiers(Avalonia.Input.KeyModifiers.None);
+            _momentaryToolKey = null;
+            _vm.CancelMomentaryTool();
+        };
         RecentMenu.SubmenuOpened += (_, _) => RefreshRecentMenu();
         ConvertProjectMenu.SubmenuOpened += (_, _) => RefreshConvertMenu();
         TemplatesMenu.SubmenuOpened += (_, _) => RefreshTemplatesMenu();
@@ -800,6 +894,102 @@ public partial class MainWindow : Window
     /// diagnostic that reaches across the app to collect itself is a diagnostic
     /// that breaks when any of them move.
     /// </remarks>
+    /// <summary>
+    /// Hand the canvas the nodes to draw, or nothing when isolation ends.
+    /// </summary>
+    /// <remarks>
+    /// Derived from the session on every change rather than kept in step by
+    /// hand. The session is the single source — the overlay is a view of it, and
+    /// the hit test the artist's pointer meets is the session's own, so the two
+    /// cannot disagree about where a node is.
+    /// </remarks>
+    private void PublishPathNodes()
+    {
+        if (_vm.PathEdit is not { } session)
+        {
+            // Nothing isolated: show what the white arrow is hovering, if
+            // anything. Same channel as isolation and the pen, because it is
+            // the same overlay and only one of the three can be live — see
+            // PublishPenPath for why two node lists would be a question with no
+            // answer. Nothing is drawn selected: a hover is a preview of what
+            // is there, not a claim about what is picked.
+            Canvas.SetPathTrace(null);
+            Canvas.SetPathNodes(HoverGlyphs());
+            return;
+        }
+
+        // The line's current shape, retraced on every session change, so a
+        // node drag moves the path on screen and not only the glyphs — the
+        // raster stroke cannot follow until the commit (invariant 6), but the
+        // trace can and does. The same flatten the commit will run, so the
+        // preview cannot promise a shape the release then changes.
+        Canvas.SetPathTrace(Core.Geometry.PathFlattener.Flatten(session.Path));
+
+        var glyphs = new List<Rendering.CanvasControl.PathNodeGlyph>(session.NodeCount);
+        for (var i = 0; i < session.Path.Nodes.Count; i++)
+        {
+            var n = session.Path.Nodes[i];
+            glyphs.Add(new Rendering.CanvasControl.PathNodeGlyph(
+                n.X, n.Y, n.InX, n.InY, n.OutX, n.OutY, n.Corner, session.IsNodeSelected(i)));
+        }
+        Canvas.SetPathNodes(glyphs);
+    }
+
+    /// <summary>The hovered line's points, or null when nothing is hovered.</summary>
+    private IReadOnlyList<Rendering.CanvasControl.PathNodeGlyph>? HoverGlyphs()
+    {
+        if (_vm.PathHover is not { } hover) return null;
+
+        var glyphs = new List<Rendering.CanvasControl.PathNodeGlyph>(hover.Path.Nodes.Count);
+        foreach (var n in hover.Path.Nodes)
+        {
+            glyphs.Add(new Rendering.CanvasControl.PathNodeGlyph(
+                n.X, n.Y, n.InX, n.InY, n.OutX, n.OutY, n.Corner, Selected: false));
+        }
+        return glyphs;
+    }
+
+    /// <summary>
+    /// Hand the pen's path to the canvas: the traced shape and its nodes.
+    /// </summary>
+    /// <remarks>
+    /// <b>Through the same node channel as isolation</b>, because they are the
+    /// same overlay and only one can be live at a time — the pen finishes its
+    /// path when the tool changes, and isolation ends the same way. Two
+    /// independent node lists would mean deciding which wins, which is a
+    /// question with no answer that would show up on screen as both.
+    /// <para>
+    /// The node the pointer is shaping carries the handles, so it is the one
+    /// marked selected — that is exactly the rule <c>DrawPathNodes</c> uses, and
+    /// making it the <em>last</em> node rather than the shaped one would draw
+    /// handles for a node nobody is holding.
+    /// </para>
+    /// </remarks>
+    private void PublishPenPath()
+    {
+        if (_vm.Pen is not { NodeCount: > 0 } session)
+        {
+            Canvas.SetPenPreview(null);
+            if (!_vm.PathEditActive) Canvas.SetPathNodes(null);
+            return;
+        }
+
+        Canvas.SetPenPreview(session.Preview());
+
+        var live = session.Shaping >= 0 ? session.Shaping : session.NodeCount - 1;
+        var glyphs = new List<Rendering.CanvasControl.PathNodeGlyph>(session.NodeCount);
+        for (var i = 0; i < session.Path.Nodes.Count; i++)
+        {
+            var n = session.Path.Nodes[i];
+            glyphs.Add(new Rendering.CanvasControl.PathNodeGlyph(
+                n.X, n.Y, n.InX, n.InY, n.OutX, n.OutY, n.Corner, i == live,
+                // The closing indicator: ring the first node while a click
+                // would join the path back to it.
+                CloseHint: i == 0 && _vm.PenWouldClose));
+        }
+        Canvas.SetPathNodes(glyphs);
+    }
+
     private Services.RenderReport.Facts RenderFacts()
     {
         var totals = Canvas.PresentedFrameTotals;
@@ -816,7 +1006,25 @@ public partial class MainWindow : Window
             _vm.ReportComposeScale,
             Rendering.CanvasControl.DurableFrameEnabled,
             totals.Presents > 0,
-            _vm.ReportTileFallbacks);
+            _vm.ReportTileFallbacks,
+            _vm.Prewarm,
+            _vm.PlaybackPacing,
+            Canvas.PresentWait,
+            _vm.TickProfile.Snapshot(),
+            _vm.TickProfile.Ticks,
+            _vm.FrameCacheTraffic,
+            _vm.SceneShape,
+            Canvas.AnimationFrames,
+            // The work the tick breakdown cannot see: drawing the composited
+            // frame to the screen happens outside the tick entirely (B161).
+            _vm.Performance.FrameMs,
+            Canvas.TextureResidency,
+            Rendering.GpuComposite.OptedIn,
+            _vm.FramesReused,
+            _vm.FlattenCacheTraffic,
+            _vm.AwaitingUnpinBytes,
+            _vm.PinnedBitmaps,
+            _vm.TileStoreBytes);
     }
 
     /// <summary>
@@ -1248,13 +1456,55 @@ public partial class MainWindow : Window
 
     // Shortcut contexts follow the pointer: the same key can mean different
     // things over the canvas, the timeline, or the Layers docker.
-    private bool _pointerInLayersDocker;
-    private bool _pointerInTimeline;
 
-    private Services.ShortcutContext CurrentShortcutContext() =>
-        _pointerInLayersDocker ? Services.ShortcutContext.LayersDocker
-        : _pointerInTimeline ? Services.ShortcutContext.Timeline
-        : Services.ShortcutContext.Canvas;
+    /// <summary>
+    /// Which docker the key press belongs to, or the canvas scope when none.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Derived by walking the tree, not by a flag per docker.</b> The old
+    /// form kept a bool for the layers docker and another for the timeline, set
+    /// from hand-wired <c>PointerEntered</c> handlers — so a docker could only
+    /// own a binding if somebody had added a third bool, and eleven of the twelve
+    /// never got one. Asking the element which <see cref="Controls.Docker"/>
+    /// contains it works for every docker, including ones that do not exist yet.
+    /// </para>
+    /// <para>
+    /// <b>Hover beats focus, and that is a choice.</b> Focus is sticky and
+    /// invisible: leave it in the timeline, move the pointer to the colour
+    /// docker, and a focus-first rule would have the same key do two different
+    /// things with nothing on screen explaining why. The pointer is where the
+    /// artist is looking. Focus is the fallback for the keyboard-only case,
+    /// where there is no pointer to consult.
+    /// </para>
+    /// <para>
+    /// <b>A docker's scope is its visible tab</b>, not the docker's own id: a
+    /// tabbed docker showing the palette is the palette as far as a key press is
+    /// concerned, whatever is behind it.
+    /// </para>
+    /// </remarks>
+    private Services.ShortcutScope CurrentShortcutScope()
+    {
+        if (PanelUnder(_hoveredElement) is { } hovered) return Services.ShortcutScope.In(hovered);
+        if (PanelUnder(FocusManager?.GetFocusedElement() as Visual) is { } focused)
+        {
+            return Services.ShortcutScope.In(focused);
+        }
+        return Services.ShortcutScope.Canvas;
+    }
+
+    /// <summary>The visible panel of the docker containing this element, if any.</summary>
+    private static Docking.DockPanelId? PanelUnder(Visual? from)
+    {
+        for (var v = from; v is not null; v = v.GetVisualParent())
+        {
+            if (v is Controls.Docker docker) return docker.ActiveTab;
+        }
+        return null;
+    }
+
+    /// <summary>What the pointer is over, for <see cref="CurrentShortcutScope"/>.</summary>
+    private Visual? _hoveredElement;
 
     /// <summary>Clicking anywhere on a layer-docker row makes that layer active.</summary>
     private void OnLayerRowPressed(object? sender, PointerPressedEventArgs e)
@@ -2209,6 +2459,9 @@ public partial class MainWindow : Window
             // picking a placement, guide or anchor has been unreachable. The
             // black arrow is what that code was always for.
             ToolId.Arrow => Rendering.CanvasControl.CanvasToolMode.Select,
+            ToolId.DirectSelect => Rendering.CanvasControl.CanvasToolMode.PathEdit,
+            ToolId.Pen => Rendering.CanvasControl.CanvasToolMode.Pen,
+            ToolId.Width => Rendering.CanvasControl.CanvasToolMode.Width,
             ToolId.Select => _vm.ActiveSelectVariant switch
             {
                 SelectVariant.Polygon => Rendering.CanvasControl.CanvasToolMode.SelectPolygon,
@@ -2235,11 +2488,32 @@ public partial class MainWindow : Window
     /// the columns sit centred. Dragged past 150 px the rail becomes the
     /// labelled single-column list it always was.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Two modes, told apart by whether the column is still <c>Auto</c>.</b>
+    /// Until the rail is dragged it sizes itself: the column count comes from
+    /// the height alone and the column then measures to exactly that many
+    /// tiles. Deriving the count from the width as well would be circular now
+    /// that the width follows the count — and the fixed 88px that used to break
+    /// the circle is what left a one-column rail sitting in the middle of 27px
+    /// of nothing down each side.
+    /// </para>
+    /// <para>
+    /// A drag writes pixels into the column, and from then on the artist's
+    /// width is the input and the count follows it, exactly as before. That is
+    /// also the only way to reach the three-column and labelled layouts, which
+    /// is what the manual has always said: three columns need the rail
+    /// <i>dragged</i> wide enough.
+    /// </para>
+    /// </remarks>
     private void ReflowToolRail(double width, double height)
     {
-        if (width <= 0 || height <= 0) return;
+        if (height <= 0) return;
 
-        if (width >= 150)
+        var chosen = !WorkArea.ColumnDefinitions[0].Width.IsAuto;
+        if (chosen && width <= 0) return;
+
+        if (chosen && width >= 150)
         {
             Toolbar.Classes.Set("labels", true);
             ToolButtons.ItemWidth = Math.Max(40, width - 14);
@@ -2254,9 +2528,11 @@ public partial class MainWindow : Window
         var first = ToolButtons.Children.First(c => c.IsVisible);
         var tileH = first.Bounds.Height > 1 ? first.Bounds.Height + 4 : 32;
 
-        var maxByWidth = Math.Clamp((int)((width - 8) / tile), 1, 3);
+        // Self-sizing stops at two. A third column is worth the canvas it costs
+        // only when somebody has asked for it, and asking is the drag.
+        var most = chosen ? Math.Clamp((int)((width - 8) / tile), 1, 3) : 2;
         var cols = 1;
-        while (cols < maxByWidth && Math.Ceiling(visible / (double)cols) * tileH > height - 8) cols++;
+        while (cols < most && Math.Ceiling(visible / (double)cols) * tileH > height - 8) cols++;
 
         ToolButtons.ItemWidth = tile;
         ToolButtons.Width = cols * tile;
@@ -2944,7 +3220,65 @@ public partial class MainWindow : Window
             }
         }
 
-        switch (_shortcuts.IdFor(e, CurrentShortcutContext()))
+        // Isolation owns Escape and Enter for the same reason, and above the
+        // shortcut switch for the same reason: a mode you cannot leave with the
+        // key everybody tries first is a mode you are stuck in. Both keys mean
+        // "done" here rather than "keep" and "discard" — every node drag was
+        // already its own undo step, so there is nothing left to discard.
+        if (_vm.PathEditActive && e.Key is Key.Escape or Key.Enter)
+        {
+            _vm.EndPathEdit();
+            e.Handled = true;
+            return;
+        }
+
+        // A pen path in progress owns the same two keys, and Backspace as well.
+        // Above the shortcut switch for isolation's reason and one more: Delete
+        // is `lines.delete` down there, and a pen halfway through a path is the
+        // one moment where that key plainly means "take the last point off".
+        // Only while the pen is in hand: a parked path (the session survives a
+        // tool switch now) must not swallow Delete from the arrow's selection
+        // or Escape from whatever mode the current tool is in.
+        if (_vm.PenActive && _vm.IsPenTool)
+        {
+            if (e.Key is Key.Escape or Key.Enter)
+            {
+                // Both mean "done", and neither discards — see FinishPen. What
+                // was drawn is one undo step, so Ctrl+Z is the way to lose it.
+                _vm.FinishPen();
+                e.Handled = true;
+                return;
+            }
+            if (e.Key is Key.Back or Key.Delete)
+            {
+                _vm.RemoveLastPenNode();
+                e.Handled = true;
+                return;
+            }
+        }
+
+        // Both edges go through one call: a press and a release are the same
+        // question — what should the tool be now — and answering it in two
+        // handlers is how a modifier gets stuck down when a key-up goes missing.
+        _vm.ApplyHeldModifiers(e.KeyModifiers);
+
+        var shortcutId = _shortcuts.IdFor(e, CurrentShortcutScope());
+
+        // A momentary tool key (B176): the press borrows, and the release
+        // decides — a tap latches, a hold restores. The physical key is
+        // remembered here because the release may arrive with different
+        // modifiers than the press and would no longer resolve to the same
+        // gesture; the key itself is the identity that survives that.
+        if (shortcutId is not null
+            && _shortcuts.Find(shortcutId)?.MomentaryTool is { } momentary)
+        {
+            _momentaryToolKey = (e.Key, momentary);
+            _vm.BeginMomentaryTool(momentary);
+            e.Handled = true;
+            return;
+        }
+
+        switch (shortcutId)
         {
             case "file.save":
                 // Deliberately the same path as the menu item rather than _vm.Save(): a
@@ -2974,8 +3308,13 @@ public partial class MainWindow : Window
                 _ = OpenProjectWindowAsync();
                 e.Handled = true;
                 break;
-            case "canvas.pickColor":
-                _vm.ActiveTool = ToolId.Picker;
+            case "image.resizeCanvas":
+                _ = ResizeAsync(ViewModels.ResizeMode.Canvas);
+                e.Handled = true;
+                break;
+            case "image.resizeImage":
+                _ = ResizeAsync(ViewModels.ResizeMode.Image);
+                e.Handled = true;
                 break;
             case "timeline.insertKey":
                 _vm.InsertKeyframeAtPlayhead();
@@ -3004,9 +3343,9 @@ public partial class MainWindow : Window
             case "tool.brush":
                 _vm.ActiveTool = ToolId.Brush; // back to the last-configured brush
                 break;
-            case "tool.eraser":
-                _vm.ActiveTool = ToolId.Eraser;
-                break;
+            // tool.eraser and canvas.pickColor never reach this switch: they
+            // carry MomentaryTool, so the branch above owns both their tap
+            // (latch) and their hold (borrow and restore).
             case "tool.fill":
                 _vm.ActiveTool = ToolId.Fill;
                 break;
@@ -3095,8 +3434,34 @@ public partial class MainWindow : Window
             case "tool.arrow":
                 _vm.SelectToolCommand.Execute(ToolId.Arrow);
                 break;
+            case "tool.directselect":
+                _vm.SelectToolCommand.Execute(ToolId.DirectSelect);
+                break;
+            case "tool.pen":
+                _vm.SelectToolCommand.Execute(ToolId.Pen);
+                break;
+            case "tool.shape":
+                _vm.SelectToolCommand.Execute(ToolId.Shape);
+                break;
+            case "tool.width":
+                _vm.SelectToolCommand.Execute(ToolId.Width);
+                break;
+            case "lines.simplify":
+                _vm.SimplifyLineCommand.Execute(null);
+                break;
             case "lines.delete":
                 _vm.DeleteSelectedLinesCommand.Execute(null);
+                break;
+            // B173. Delete asks the marquee first and falls back to the lines,
+            // so the decision lives in the command rather than being split
+            // between here and there — this is the case the shortcut registry
+            // exists to keep honest, and a branch in the key handler is exactly
+            // what the Configure window cannot see.
+            case "select.clear":
+                _vm.DeleteSelectionContentsCommand.Execute(null);
+                break;
+            case "select.fillBackground":
+                _vm.FillSelectionWithBackgroundCommand.Execute(null);
                 break;
             case "lines.recolour":
                 _vm.RecolourSelectedLinesCommand.Execute(null);
@@ -3143,6 +3508,28 @@ public partial class MainWindow : Window
 
     private async void OnProjectWindowClicked(object? sender, RoutedEventArgs e) =>
         await OpenProjectWindowAsync();
+
+    private async void OnResizeCanvasClicked(object? sender, RoutedEventArgs e) =>
+        await ResizeAsync(ViewModels.ResizeMode.Canvas);
+
+    private async void OnResizeImageClicked(object? sender, RoutedEventArgs e) =>
+        await ResizeAsync(ViewModels.ResizeMode.Image);
+
+    /// <summary>
+    /// Ask for a size, then hand it to the view model and refit the view.
+    /// </summary>
+    /// <remarks>
+    /// The view is refitted because the paper is a different size than the one
+    /// the current zoom and pan were chosen for — leaving a grown canvas half
+    /// off-screen reads as the resize having gone wrong.
+    /// </remarks>
+    private async Task ResizeAsync(ViewModels.ResizeMode mode)
+    {
+        var dialog = new Views.ResizeDialog(_vm.Doc.Scene, mode);
+        await dialog.ShowDialog(this);
+        if (!dialog.Confirmed) return;
+        if (_vm.ApplyResize(dialog.Choice)) Canvas.ResetView();
+    }
 
     /// <summary>
     /// The tip workshop. A window rather than a docker because making a tip is
@@ -4259,28 +4646,22 @@ public partial class MainWindow : Window
             : $"Exported {written.Count} PNG frame(s) and audio.wav.";
     }
 
+    /// <summary>
+    /// <c>File ▸ Export video…</c> — the settings window owns the whole
+    /// render (B146). It used to be a save picker whose every answer, the
+    /// missing encoder included, went to the AI bar; that row is hidden
+    /// whenever assistance is off, so the export looked like it did nothing.
+    /// </summary>
     private async void OnExportVideoClicked(object? sender, RoutedEventArgs e)
     {
-        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            Title = "Export video",
-            SuggestedFileName = "animation",
-            DefaultExtension = "mp4",
-            FileTypeChoices =
-            [
-                new FilePickerFileType("MP4 video (H.264)") { Patterns = ["*.mp4"] },
-                new FilePickerFileType("ProRes 422 (MOV)") { Patterns = ["*.mov"] },
-            ],
-        });
-        if (file?.TryGetLocalPath() is not { } path) return;
-
-        var format = Path.GetExtension(path).Equals(".mov", StringComparison.OrdinalIgnoreCase)
-            ? Services.VideoFormat.ProRes
-            : Services.VideoFormat.Mp4;
-        var audio = _vm.ResolvedAudioPathForExport();
-        _vm.AiStatus = "Rendering video…";
-        var error = await Task.Run(() => Services.VideoExporter.Export(_vm.Doc, format, path, audio));
-        _vm.AiStatus = error ?? $"Exported “{Path.GetFileName(path)}”.";
+        var dialog = new VideoExportWindow(
+            _vm.Doc,
+            () => _vm.ResolvedAudioPathForExport(),
+            _vm.ActiveTab?.Title ?? "animation");
+        await dialog.ShowDialog(this);
+        // Echoed into the status strip as well, for the artist who has closed
+        // the window and wants to know what happened.
+        if (dialog.Reported is { Length: > 0 } said) _vm.AiStatus = said;
     }
 
     /// <summary>

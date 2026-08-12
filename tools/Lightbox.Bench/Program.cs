@@ -16,6 +16,17 @@ Console.WriteLine("Calibrating…");
 var calibration = Runner.CalibrationMs();
 Console.WriteLine($"  {calibration:F0} ms for the reference loop\n");
 
+// B177: the per-preset table is not a swept curve — the axis is categorical, and
+// it reports two numbers per row rather than one. Run before the curves so a
+// filtered investigation gets it first, and printed rather than written into
+// PERFORMANCE.md, because it is a diagnosis rather than a ratchet.
+if (filter is null || "brushes".Contains(filter, StringComparison.OrdinalIgnoreCase))
+{
+    Console.WriteLine("Measuring each shipped brush…\n");
+    Console.WriteLine(BrushPresetSweeps.Report(BrushPresetSweeps.Measure()));
+    Console.WriteLine(BrushPresetSweeps.Isolate());
+}
+
 var scenarios = AnimationSweeps.All()
     .Concat(DrawingSweeps.All())
     .Where(s => filter is null || s.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)

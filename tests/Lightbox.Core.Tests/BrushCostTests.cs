@@ -88,6 +88,34 @@ public class BrushCostTests
         Assert.Equal(BrushCost.Fast, BrushCostOf.Settings(brush));
     }
 
+    /// <summary>
+    /// <b>B177: the badge said Fast and the stopwatch said otherwise.</b>
+    /// Granulation and wet edge are full-stroke passes at pen-lift — measured
+    /// at 57–74% of the commit cost of the presets an artist reported as
+    /// laggy — so they cost the middle tier, and the tooltip names what to
+    /// turn off to get the speed back.
+    /// </summary>
+    [Fact]
+    public void GranulationCostsWhatTheBadgeSaysItCosts()
+    {
+        var pencilish = new BrushSettings { Granulation = 0.15 };
+        Assert.Equal(BrushCost.Textured, BrushCostOf.Settings(pencilish));
+        Assert.Contains("grain", BrushCostOf.Why(pencilish));
+
+        var wet = new BrushSettings { WetEdge = 0.6 };
+        Assert.Equal(BrushCost.Textured, BrushCostOf.Settings(wet));
+        Assert.Contains("wet edge", BrushCostOf.Why(wet));
+
+        // A medium outranks the texture pass: the brush already carries the
+        // heavier badge, and two badges would be noise.
+        var both = new BrushSettings
+        {
+            Granulation = 0.3,
+            Medium = new MediumSettings { Kind = MediumKind.Watercolour },
+        };
+        Assert.Equal(BrushCost.Expressive, BrushCostOf.Settings(both));
+    }
+
     [Fact]
     public void TheReasonNamesEveryCauseSoItCanBeActedOn()
     {

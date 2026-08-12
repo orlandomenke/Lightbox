@@ -1,9 +1,35 @@
 # Vector tooling: making the lines you already drew editable
 
-Status: **agreed design; phase 0 landed except rotate and scale, phases 1–4 not
-started.** Decisions Q47–Q53, answered 2026-08-07. Unblocked by Q26, which has
-been answered since the same day and which two other documents still describe as
-open — see *Corrections* at the end.
+Status: **agreed design; phase 0 landed except rotate and scale, phases 1 and 2
+landed 2026-08-08, phases 3, 4a (pinch), 4b (width) and 4c
+(simplify) landed 2026-08-09; cut and join not started.** Decisions Q47–Q53, answered 2026-08-07.
+Unblocked by Q26, which has been answered since the same day and which two other
+documents still describe as open — see *Corrections* at the end.
+
+Two things phase 1 learned that the design did not predict, both worth having
+before phase 2 builds on them:
+
+- **The fit's tolerance is not the flatten's tolerance, and they pull opposite
+  ways.** Flattening is a rendering step and wants to be invisible (0.25 px);
+  fitting is an *authoring* step and wants a handful of nodes a hand can work
+  with (1.5 px). A fit tight enough to be invisible puts a node on every wobble,
+  which is a path nobody can edit — the tool would appear to work and be useless.
+- **Reshaping loses the line's weight unless something carries it, and phase 2
+  had to add that.** A drawn stroke has a pressure at every one of its hundreds
+  of points; a fit keeps only the pressures at the handful of places its nodes
+  landed, so re-flattening turns a confident taper into three straight ramps.
+  Measured on an ordinary tapered arc: the peak drops from 1.00 to **0.89** on
+  the first node drag. `PressureProfile` re-applies the original weight by
+  normalised arc length, so it stretches with the edit instead of being
+  resampled away. This is not a nicety — the roadmap item is worded *"a drawn
+  line can be re-shaped **and keeps the mark it was drawn with**"*, and pressure
+  is the part of the mark an animator notices first.
+- **Flatten had to be uniform rather than recursive-adaptive, and pressure is
+  why.** De Casteljau subdivision is the textbook answer and it loses the curve
+  parameter as it goes, so pressure would have to be carried through the
+  recursion or interpolated along the wrong variable. Uniform steps keep `t` in
+  hand at every sample; the cost is a few extra points on an S-curve, in a record
+  that already holds hundreds of drawn points per stroke.
 
 Two things happened alongside phase 0 that are not phases and are worth finding
 here rather than only in the ledgers: **B132** (a symbol could not be placed on a
@@ -176,6 +202,32 @@ like a tolerance bug.
 exist and are **orphaned** — `SyncCanvasToolMode` never assigns that mode, so
 none of it is reachable. Phase 0 revives it rather than writing a parallel one.
 
+## What phase 3 learned
+
+The pen is the first tool here that **creates** a path, which breaks this
+document's own title — the rest of it is about lines you already drew. Two
+things fell out of that, neither predicted:
+
+- **A live preview a pen can afford is not the preview a shape tool uses.** The
+  shape tool stamps the real brush into the scratch surface on every pointer
+  move, which is right for a gesture that lasts one drag and is exactly wrong for
+  one that lasts a dozen clicks: a full-canvas clear and re-stamp per move, for
+  as long as the artist is thinking. So the pen traces the flattened path as
+  chrome and stamps the brush once, at the commit. **The general form is worth
+  keeping: the cost of a preview is set by how long the gesture lives, not by how
+  much work one frame of it is.**
+- **Escape had to mean the opposite of what the neighbouring tool does.** The
+  polygon selection cancels on Escape, and copying that would have thrown away a
+  minute of placed nodes on the key everybody presses to mean "I'm done". The
+  line is whether the thing in progress is *artwork*: a selection is not, a path
+  of twelve nodes is. Both Enter and Escape finish and keep, and losing it is
+  `Ctrl+Z` — which works because the whole path is one undo step.
+
+A third thing was found rather than learned, and it belongs to phase 2: the node
+overlay is drawn whatever the tool is, so leaving isolation for the brush left
+glyphs on screen over a line nothing could reshape any more. B147's exact shape,
+one tool along. Both arrows keep the session now and everything else ends it.
+
 ## Phases
 
 One branch, one objective.
@@ -185,10 +237,26 @@ One branch, one objective.
 | **0** | `feat/canvas/stroke-selection` | `StrokePicker`; `SelectedStrokeIds`; the black arrow; move/rotate/scale/delete/recolour selected strokes through the existing transform session with a stroke-id filter. **No record change** |
 | **0** | *landed, partly* | Picker, selection, arrow, move, delete and recolour shipped (PRs #74, #75). **Rotate and scale did not**, and neither did the route this row specifies: no `TransformScope` can mean *"these strokes inside this cel"*, so move/delete/recolour went through `DocumentEditor.PerformDelta` instead of the transform session. Finishing phase 0 means adding that scope, and it is a separate objective |
 | **—** | `fix/project/B132-one-frame-class` | Not a phase. `PaintedFrame` + `VectorFrame` → one `Frame` with a nullable baseline and nullable placements; the Raster/Vector picker and the R/V badge removed. **A record and format change**: closes B132, completes Q52's UI half, and drops `kind` and empty `pngBase64` from the file |
-| **1** | `feat/core/stroke-path` | `StrokePath`, `PathNode`, `Stroke.Path`, flatten, Schneider fit, the agreement invariant. **No UI** |
-| **2** | `feat/canvas/path-editing` | `PathEditSession`, isolation, the white arrow, the node overlay. Closes `ROADMAP.md:158` and ships Q26's manual line |
-| **3** | `feat/canvas/pen-tool` | The pen and its four modifiers |
-| **4** | `feat/canvas/line-correction` | Pinch, width, simplify, cut, join |
+| **1** | *landed* | `StrokePath`, `PathNode`, `Stroke.Path`, `PathFlattener`, `CurveFitter` (Schneider), the agreement invariant obeyed at all three callers that map points. **No UI**, as specified. A 121-point arc fits to 4 nodes and flattens back within 1.2 px |
+| **2** | *landed* | `PathEditSession`, isolation, the white arrow, the node overlay — plus `PressureProfile`, which the design did not predict and the roadmap item's own wording requires. The white arrow is `N`, not `A`: `A` is this application's black arrow and has been documented as such |
+| **3** | *landed* | The pen and its four modifiers, plus its icon and `P`. `PenSession` authors a `StrokePath` and the view model writes one ordinary stroke from it — the preview is a traced overlay rather than a stamped one, because a pen session outlasts a drag |
+| **4** | *splitting; pinch landed 2026-08-09 as* `feat/canvas/pinch-a-segment` | Pinch, width, simplify, cut, join — **four branches rather than one**, see below |
+
+**Phase 4 is four objectives wearing one number.** The row above was written as
+a set because CSP presents it as one — *Correct line* — and that is a fair
+description of what an artist reaches for, not of what gets built. Pinching a
+segment is a solve over two control points; width is the pressure array and
+nothing else; simplify is the fitter with its tolerance turned up; cut and join
+change how many strokes exist. They share a session and share nothing else, and
+`CLAUDE.md`'s test applies unchanged — *if the sentence describing the branch
+needs an "and", it is two branches*. So:
+
+| | Branch | What |
+| --- | --- | --- |
+| **4a** | *landed* `feat/canvas/pinch-a-segment` | Drag the curve between two nodes. `SegmentDrag` in Core, because the interesting part is arithmetic |
+| **4b** | *landed* `feat/canvas/line-width` | Illustrator's Width tool over the `Pressure` array — editing `PressureProfile` rather than the flattened points, because the flatten regenerates those on every commit. Resamples **up and never down**, so a drawn taper is not coarsened by the tool being picked up |
+| **4c** | *landed* `feat/canvas/simplify-a-line` | `CurveFitter.Fit` at a larger tolerance — of the **flattened current path**, not the drawn points, or a reshape would be silently undone by a button labelled *simplify*. The count is reported per press; a live slider would sit on the same primitive and is not built |
+| **4d** | `feat/canvas/cut-and-join` | The only one that changes how many strokes a frame holds, which is why it is last and alone |
 
 **Named so scope cannot drift into them:** cross-frame reshaping (needs the
 correspondence work the inbetweener's verifier depends on); SVG export

@@ -1,0 +1,82 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Lightbox.App.Views.VideoExportWindow"
+        Title="Export video"
+        Icon="/Assets/lightbox.ico"
+        Width="480" SizeToContent="Height" MaxHeight="720"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+  <StackPanel Margin="14" Spacing="10">
+
+    <!-- FFmpeg first, and loudly. The encoder being absent is the one thing
+         that stops every setting below from mattering, and the version of
+         this feature that reported it into a hidden status row is exactly
+         why an export looked like it did nothing at all (B146). -->
+    <Border x:Name="EncoderBanner" CornerRadius="3" Padding="8,6" IsVisible="False"
+            Background="{DynamicResource SurfacePanelBrush}">
+      <TextBlock x:Name="EncoderText" TextWrapping="Wrap" FontSize="11" />
+    </Border>
+
+    <!-- 120 label column and 10px stack spacing to match the other
+         settings dialogs (ExportWindow, UpdateFromTemplateWindow) — a window
+         that is denser than its siblings reads as a different application. -->
+    <Grid ColumnDefinitions="120,*" ColumnSpacing="8" RowSpacing="8"
+          RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+      <TextBlock Grid.Row="0" Grid.Column="0" Text="Format" VerticalAlignment="Center" />
+      <ComboBox Grid.Row="0" Grid.Column="1" x:Name="FormatBox" HorizontalAlignment="Stretch"
+                SelectionChanged="OnFormatChanged"
+                ToolTip.Tip="MP4 plays anywhere and is the one to send for review. ProRes is what an editor wants: bigger files, no generation loss." />
+
+      <TextBlock Grid.Row="1" Grid.Column="0" Text="Quality" VerticalAlignment="Center" />
+      <ComboBox Grid.Row="1" Grid.Column="1" x:Name="QualityBox" HorizontalAlignment="Stretch"
+                SelectionChanged="OnSettingChanged" />
+
+      <TextBlock Grid.Row="2" Grid.Column="0" Text="Size" VerticalAlignment="Center" />
+      <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <ComboBox x:Name="ScaleBox" SelectionChanged="OnSettingChanged"
+                  ToolTip.Tip="The surface is rendered at this size — the drawing is not resampled, so a 200% render is a sharper mark rather than a bigger pixel." />
+        <TextBlock x:Name="SizeText" VerticalAlignment="Center" Opacity="0.7" FontSize="11" />
+      </StackPanel>
+
+      <TextBlock Grid.Row="3" Grid.Column="0" Text="Frames" VerticalAlignment="Center" />
+      <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <CheckBox x:Name="WholeTimelineBox" Content="All" IsChecked="True"
+                  IsCheckedChanged="OnWholeTimelineChanged" />
+        <TextBox x:Name="FromBox" Width="70" TextChanged="OnSettingChanged" />
+        <TextBlock Text="to" VerticalAlignment="Center" Opacity="0.7" />
+        <TextBox x:Name="ToBox" Width="70" TextChanged="OnSettingChanged" />
+      </StackPanel>
+
+      <TextBlock Grid.Row="4" Grid.Column="0" Text="Frame rate" VerticalAlignment="Center" />
+      <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <TextBox x:Name="FpsBox" Width="70" TextChanged="OnSettingChanged" />
+        <TextBlock x:Name="DurationText" VerticalAlignment="Center" Opacity="0.7" FontSize="11" />
+      </StackPanel>
+
+      <TextBlock Grid.Row="5" Grid.Column="0" Text="Sound" VerticalAlignment="Center" />
+      <CheckBox Grid.Row="5" Grid.Column="1" x:Name="AudioBox" Content="Mux the scratch track"
+                IsChecked="True"
+                ToolTip.Tip="Off when the document has no sound, or the track is muted." />
+    </Grid>
+
+    <Separator />
+
+    <Grid ColumnDefinitions="120,*,Auto" ColumnSpacing="8">
+      <TextBlock Grid.Column="0" Text="Save to" VerticalAlignment="Center" />
+      <TextBox Grid.Column="1" x:Name="PathBox" TextChanged="OnSettingChanged"
+               PlaceholderText="Choose where the file goes" />
+      <Button Grid.Column="2" Classes="text" Content="Browse…" Click="OnBrowse" />
+    </Grid>
+
+    <!-- Deliberately below the control scale: this is a readout rather
+         than something to hit, and a full-height bar in a settings dialog
+         reads as another control. -->
+    <ProgressBar x:Name="Progress" Height="6" Minimum="0" Maximum="1" IsVisible="False" />
+    <TextBlock x:Name="StatusText" TextWrapping="Wrap" FontSize="11" Opacity="0.85" />
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="Close" Click="OnClose" x:Name="CloseButton" />
+      <Button Classes="primary" Content="Export" Click="OnExport" x:Name="ExportButton" IsDefault="True" />
+    </StackPanel>
+  </StackPanel>
+</Window>

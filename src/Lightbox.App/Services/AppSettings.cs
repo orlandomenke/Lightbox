@@ -135,6 +135,26 @@ public sealed class AppSettings
     /// </remarks>
     public bool CanvasQualityChosen { get; set; }
 
+    /// <summary>
+    /// Composite layers on the GPU instead of the CPU (B125, experimental).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Off by default, and it is a measurement instrument rather than a
+    /// preference.</b> The GPU path uploads every layer every frame until its
+    /// textures are resident, which on integrated graphics competes with the CPU
+    /// for the same memory bus — so it may be *slower*, and the only way to find
+    /// out on a given machine is to switch it on and write a render report.
+    /// </para>
+    /// <para>
+    /// It became a setting because it needs to be switchable by the person doing
+    /// the measuring, and an environment variable is a poor instrument for that.
+    /// <c>LIGHTBOX_GPU_COMPOSITE=1</c> still forces it on, which is what a
+    /// headless or scripted run needs.
+    /// </para>
+    /// </remarks>
+    public bool GpuCompositing { get; set; }
+
     /// <summary>What a mark on a held cel does. See <c>HoldDrawing</c>.</summary>
     public string DrawingOnAHold { get; set; } = "StartANewDrawing";
 

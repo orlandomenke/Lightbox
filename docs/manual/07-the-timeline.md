@@ -211,4 +211,11 @@ rather than the animation running slow. After a real interruption — a dialog, 
 laptop lid, a breakpoint — playback picks up from where it is rather than racing
 to catch up on what it missed.
 
+**While it plays, the frames just ahead of the playhead are being built on
+another processor core**, so a drawing you have not reached yet is usually ready
+before you get to it. The first run through a scene used to be the rough one for
+exactly that reason — every drawing was built at the moment it was needed. There
+is nothing to switch on and nothing to wait for; if you want to know whether it
+is keeping up on your machine, **Help ▸ Write a render report** says so.
+
 ---

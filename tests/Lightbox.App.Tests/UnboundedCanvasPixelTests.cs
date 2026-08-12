@@ -49,7 +49,11 @@ public class UnboundedCanvasPixelTests : BrushStateIsolated
 
     private static SKBitmap GetLatestPixels(RenderSnapshot snapshot)
     {
-        var bmp = SKBitmap.FromImage(snapshot.Image);
+        // B167 phase 3b: the tiled route hands over a description rather than
+        // pixels, so the composite is performed here — on the CPU, since a test
+        // has no lease to take a GRContext from.
+        using var composed = snapshot.Materialise(null);
+        var bmp = SKBitmap.FromImage(composed);
         Assert.NotNull(bmp);
         return bmp!;
     }
@@ -427,8 +431,9 @@ public class UnboundedCanvasPixelTests : BrushStateIsolated
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
             vm.PublishSnapshot();
             Assert.NotNull(latest);
-            var bmp = new SKBitmap(latest!.Image.Width, latest.Image.Height);
-            latest.Image.ReadPixels(bmp.Info, bmp.GetPixels(), bmp.RowBytes, 0, 0);
+            using var img = latest!.Materialise(null);
+            var bmp = new SKBitmap(img.Width, img.Height);
+            img.ReadPixels(bmp.Info, bmp.GetPixels(), bmp.RowBytes, 0, 0);
             return bmp;
         }
 

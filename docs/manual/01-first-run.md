@@ -64,7 +64,11 @@ Each panel's header is three things at once:
 - **A title** — or **tabs**, when more than one panel shares the slot. Click a
   tab to bring that panel forward. No panel is ever open twice, so "where is the
   palette" always has one answer.
-- **A grip.** Press and drag the header to move the panel.
+- **A grip — and it is the tab.** Drag a panel by its tab, the way you would
+  anywhere else. The rest of the header is not draggable: pressing the empty
+  space beside the tabs does nothing, which is deliberate, because that space is
+  there to give the title room rather than to be the biggest target in the
+  panel.
 - **A close button.**
 
 **Panels share a slot by being dragged onto each other's headers.** Drop a panel
@@ -91,7 +95,7 @@ where it would land:
 - At a panel's **very top or bottom edge**, a slim band shows where the panel
   would slot in between its neighbours instead.
 - Let go **over the canvas** and the panel floats in a window of its own. Drag
-  its header back to a dock zone to put it away again.
+  its tab back to a dock zone to put it away again.
 
 Every panel also has a **⧉ button** beside its close button: it floats the
 panel where it stands. On a floating panel the same button reads **⇱** and

@@ -302,6 +302,17 @@
                   IsChecked="{Binding ShowStartScreen, Mode=TwoWay}"
                   ToolTip.Tip="The start screen. Escape on it opens nothing — you can always ask again from the empty canvas or File ▸ New." />
       </MenuItem>
+      <!--
+        Image: the two resizes. A menu of its own rather than four more items
+        under Edit, because every application an artist arrives from puts them
+        here and because the pair will grow (crop to selection, trim).
+      -->
+      <MenuItem Header="_Image" Classes="top">
+        <MenuItem Header="Resize _canvas..." Click="OnResizeCanvasClicked"
+                  ToolTip.Tip="More paper, or less. Nothing drawn moves." />
+        <MenuItem Header="Resize _image..." Click="OnResizeImageClicked"
+                  ToolTip.Tip="Scale the artwork itself. The marks change with it." />
+      </MenuItem>
       <MenuItem Header="_View" Classes="top">
         <!--
           Guides are document data, like the camera, so they live under View
@@ -1161,6 +1172,16 @@
                 ToolTip.Tip="Cancel the AI request" />
         <ProgressBar IsIndeterminate="True" Width="90" IsVisible="{Binding AiBusy}" VerticalAlignment="Center" />
         <TextBlock Text="{Binding AiStatus}" VerticalAlignment="Center" Opacity="0.85" TextTrimming="CharacterEllipsis" />
+        <!--
+          Why the tool will do nothing here. Beside the status line rather than
+          replacing it: this one follows the pointer and that one records what a
+          command did, so sharing a slot would have each wiping the other out
+          the moment the artist moved the mouse. Absent unless there is a
+          refusal, so it costs no room in the ordinary case.
+        -->
+        <TextBlock Text="{Binding PointerRefusal}" IsVisible="{Binding HasPointerRefusal}"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                   Foreground="{DynamicResource Warning}" />
       </StackPanel>
     </Border>
 
@@ -1264,9 +1285,16 @@
 
       <Grid x:Name="WorkArea" Grid.Row="2">
         <Grid.ColumnDefinitions>
-          <!-- 88: two centred 34px tool columns fit with the border and
-               margins paid (Q56). 76 held exactly one. -->
-          <ColumnDefinition Width="88" MinWidth="40" MaxWidth="220" />
+          <!-- Auto, not a number. It was 88 — chosen so two centred 34px
+               columns fit with the border and margins paid — and then Q56 made
+               the column COUNT follow the window height, so on any ordinarily
+               tall window the rail laid out one 34px column inside 88px and
+               showed 27px of dead space down each side. A width that has to be
+               guessed for a layout that is decided at runtime is a width that
+               will be wrong; the content is measurable, so measure it.
+               A drag replaces this with pixels and ReflowToolRail then keeps
+               its hands off — see there. -->
+          <ColumnDefinition Width="Auto" MinWidth="40" MaxWidth="220" />
           <ColumnDefinition Width="Auto" />
           <ColumnDefinition Width="Auto" />
           <ColumnDefinition Width="Auto" />
@@ -1331,7 +1359,7 @@
                 <Panel HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                   <StackPanel Orientation="Horizontal" Spacing="6"
                               HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding ShapeGlyph}" FontSize="15" />
+                    <Path Data="{Binding ShapeGlyph}" />
                     <TextBlock Text="Shape" Classes="toolname" VerticalAlignment="Center" />
                   </StackPanel>
                   <Path Classes="variantmark" />
@@ -1366,8 +1394,37 @@
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Arrow}"
                             ToolTip.Tip="Arrow (A) — click to select a whole line, a guide, a placed symbol or a rig anchor. Shift adds. Selects things, not areas of pixels.">
                 <StackPanel Orientation="Horizontal" Spacing="6">
-                  <TextBlock Text="➤" FontSize="15" />
+                  <Path Data="{StaticResource IconArrow}" />
                   <TextBlock Text="Arrow" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
+              <!-- The white arrow. A hollow glyph beside the black one's solid
+                   glyph, which is the pairing every vector application uses and
+                   the only way the two read as a pair rather than as two
+                   unrelated pointers. Phase 2 shipped the tool with a key and no
+                   button, so it was findable only by knowing it existed. -->
+              <ToggleButton Classes="tool" IsChecked="{Binding IsDirectSelectTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.DirectSelect}"
+                            ToolTip.Tip="Direct select (N) — reshape one line by its points. Double-click a line with the arrow to go inside it, drag its points and handles, Esc to finish.">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Path Data="{StaticResource IconPoints}" />
+                  <TextBlock Text="Points" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="tool" IsChecked="{Binding IsPenTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Pen}"
+                            ToolTip.Tip="Pen (P) — click to place a corner, click and drag to curve it. Shift constrains to 45°, Alt breaks a handle pair, clicking the first point closes the line. Enter finishes, Backspace takes a point back.">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Path Data="{StaticResource IconPen}" />
+                  <TextBlock Text="Pen" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="tool" IsChecked="{Binding IsWidthTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Width}"
+                            ToolTip.Tip="Width (W) — drag away from a line to make it heavier, back towards it to make it lighter. Works inside a line you have gone into with the arrow.">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Path Data="{StaticResource IconWidth}" />
+                  <TextBlock Text="Width" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
               <ToggleButton x:Name="SelectToolButton" Classes="tool" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" IsChecked="{Binding IsSelectTool, Mode=OneWay}"
@@ -1376,7 +1433,7 @@
                 <Panel HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                   <StackPanel Orientation="Horizontal" Spacing="6"
                               HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding SelectVariantGlyph}" FontSize="15" />
+                    <Path Data="{Binding SelectVariantGlyph}" />
                     <TextBlock Text="Select" Classes="toolname" VerticalAlignment="Center" />
                   </StackPanel>
                   <Path Classes="variantmark" />
@@ -1402,7 +1459,11 @@
           </ScrollViewer>
         </Border>
 
-        <GridSplitter Grid.Column="1" Width="5" ResizeDirection="Columns" />
+        <!-- RailSplitter, not GridSplitter: the column to its right is the left
+             dock strip, which is 0px with nothing docked there, so a stock
+             splitter had nothing to take width from and the rail could only
+             ever shrink. See RailSplitter. -->
+        <controls:RailSplitter Grid.Column="1" Width="5" ResizeDirection="Columns" />
 
         <!-- No ScrollViewer: a sidebar never scrolls. Its dockers share the
              height proportionally and their content scrolls inside them. -->
@@ -1426,6 +1487,8 @@
 
         <Panel x:Name="CanvasHost" Grid.Row="0">
           <render:CanvasControl x:Name="Canvas" BrushCursorSize="{Binding BrushCursorDiameter}" LazyRadius="{Binding LazyRadiusForCursor}"
+                                PointerIntent="{Binding PointerIntent}"
+                                DocumentOrigin="{Binding DocumentOrigin}"
                                 BrushCursorTipId="{Binding BrushCursorTipId}"
                                 BrushCursorRoundness="{Binding BrushCursorRoundness}"
                                 BrushCursorAngle="{Binding BrushCursorAngle}" />
@@ -3224,11 +3287,25 @@
                 there because how much room each half deserves depends on
                 whether you are organising or painting.
               -->
-              <Grid RowDefinitions="Auto,Auto,*">
+              <!--
+                B174: the tree's row is a pixel row the splitter can write, not
+                an Auto row measuring a hard-coded Height — that shape made the
+                splitter inert, because the row re-measured to 128 whatever it
+                was dragged to. The minimums keep either pane from being dragged
+                out of existence, and the tree scrolls inside its row rather
+                than clipping a deep folder.
+              -->
+              <Grid>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="128" MinHeight="56" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="*" MinHeight="72" />
+                </Grid.RowDefinitions>
                 <TreeView x:Name="PaletteTree" Grid.Row="0"
                           ItemsSource="{Binding PaletteDocker.Tree}"
                           SelectedItem="{Binding PaletteDocker.SelectedNode, Mode=TwoWay}"
-                          Height="128" Background="Transparent" BorderThickness="0"
+                          Background="Transparent" BorderThickness="0"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto"
                           DragDrop.AllowDrop="True">
                   <TreeView.ItemTemplate>
                     <TreeDataTemplate x:DataType="vm:PaletteNode" ItemsSource="{Binding Children}">
@@ -3259,8 +3336,14 @@
                   </TreeView.ItemTemplate>
                 </TreeView>
 
+                <!--
+                  No Background override: the window's GridSplitter style draws
+                  the scored 1px-style line every other splitter wears, which is
+                  also what separates the two panes visually — Transparent here
+                  was both the invisible divider and half of B174.
+                -->
                 <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch"
-                              Background="Transparent" ResizeDirection="Rows" />
+                              ResizeDirection="Rows" />
 
                 <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
                   <ListBox ItemsSource="{Binding PaletteDocker.Swatches}"

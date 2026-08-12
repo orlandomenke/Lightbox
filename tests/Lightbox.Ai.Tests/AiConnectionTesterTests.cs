@@ -118,7 +118,7 @@ public class AiConnectionTesterTests
 
         Assert.False(check.Ok);
         Assert.True(check.Connected);
-        Assert.Contains("dot, not a line", check.Message);
+        Assert.Contains("dot, not a drawing", check.Message);
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public class AiConnectionTesterTests
         var check = await Run(AiTestDepth.Quick, Tween(0.5, (9000, 9000), (9100, 9000)));
 
         Assert.False(check.Ok);
-        Assert.Contains("dot, not a line", check.Message);
+        Assert.Contains("dot, not a drawing", check.Message);
     }
 
     [Fact]
@@ -168,7 +168,7 @@ public class AiConnectionTesterTests
 
         Assert.False(check.Ok);
         Assert.True(check.Connected);
-        Assert.Contains("outside the two keys", check.Message);
+        Assert.Contains("did not stay between the keys", check.Message);
         Assert.Contains("too small for inbetweening", check.Message);
     }
 
@@ -184,10 +184,11 @@ public class AiConnectionTesterTests
     [Fact]
     public void TheChecksNameTheProblemRatherThanJustFailing()
     {
+        var swing = AiConnectionTester.Swing();
         Assert.Contains("nothing was drawn", AiConnectionTester.BadStrokes([])!);
-        Assert.Null(AiConnectionTester.BadInbetween([Frame(0.5, (20, 60), (100, 60))]));
-        Assert.Contains("not between the keys", AiConnectionTester.BadInbetween([Frame(0, (20, 60))])!);
-        Assert.Contains("no frames came back", AiConnectionTester.BadInbetween([])!);
+        Assert.Null(AiConnectionTester.BadInbetween(swing, [Frame(0.5, (20, 60), (100, 60))]));
+        Assert.Contains("not between the keys", AiConnectionTester.BadInbetween(swing, [Frame(0, (20, 60))])!);
+        Assert.Contains("no frames came back", AiConnectionTester.BadInbetween(swing, [])!);
     }
 
     // ---- what the Configure window narrates -----------------------------------

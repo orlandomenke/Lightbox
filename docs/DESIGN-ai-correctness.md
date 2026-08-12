@@ -1,7 +1,32 @@
 # Making the AI trustworthy
 
-Status: **design, nothing built.** The taxonomy half of the subject reading
-(`DESIGN-subject-reading.md`) is the only part of this that exists.
+Status: **Phase 0 built** (2026-08-12) — `InbetweenVerifier` in
+`Lightbox.Core/Inbetween`, the per-frame refusal path in `AiInbetweenAsync`,
+and `AiProvenance` on the frame, each with the tests the *Verification*
+section below asked for. The connection tester now judges with the same
+verifier rather than its own embryo. Phases 1–4 — the matcher upgrades, the
+golden set, repair, and adaptive shaping — remain design. The taxonomy half of
+the subject reading (`DESIGN-subject-reading.md`) predates all of this.
+
+Two things Phase 0 taught that the tier table did not state, both about drag:
+
+- **Drag must hang off the thing it follows.** A first cut licensed any ink
+  behind a mover's travel, which quietly re-licensed everything disocclusion's
+  continuation rule exists to refuse — anything in the wake trails the mover by
+  construction. `RevealedInkThatContinuesNothingIsRefused` caught it.
+- **Proximity is measured at the ink's nearest point, and licensed ink anchors
+  further ink.** The second cut measured the ink's *centroid* against the
+  mover, which refuses secondary action in proportion to its own length — a
+  tail passed only up to about half the mover's stroke length, and a longer
+  hair strand failed at any latitude because the "distance" grew with the
+  strand rather than with the invention. That was the art-director's veto in
+  the G12 review: the design's own flagship case (fur, cloth, tails) was
+  functionally forbidden beyond a stub, silently, because no test drew a
+  stroke longer than one. The shipped check samples the ink's own points, and
+  a stroke licensed this frame becomes an anchor for the next — a tail of
+  three strokes licenses from the attachment outwards.
+  `AThreeStrokeTailTrailingTheMotionIsLicensed` and
+  `ALongStrandHangingOffTheDrawingIsLicensed` are the tests that pin it.
 
 The AI features are meant to be the flagship — artistry × time, the artist in
 control, the machine taking the tedious and managerial work. That only holds if
@@ -54,10 +79,10 @@ AI request without being asked for.
 | --- | --- | --- |
 | 1 | **Schema** — structural validity | Exists |
 | 2 | **Clamp** — value validity, bounds, colour | Exists |
-| 3 | **Verify** — is it a correct inbetween | New |
-| 4 | **Repair** — bounded re-ask naming the fault | New |
-| 5 | **Refuse** — no frame, and a sentence naming which `t` and why | New |
-| 6 | **Report** — the artist knows which frames to look at | New |
+| 3 | **Verify** — is it a correct inbetween | **Built** — `InbetweenVerifier` |
+| 4 | **Repair** — bounded re-ask naming the fault | New (Phase 3) |
+| 5 | **Refuse** — no frame, and a sentence naming which `t` and why | **Built** — per frame, in `AiInbetweenAsync` |
+| 6 | **Report** — the artist knows which frames to look at | **Built** — the status line names each refused `t` |
 
 Stage 5 is what makes this a guarantee rather than an effort — and per Q32 it
 guarantees by **refusing**, not by substituting: **the AI never produces a frame
@@ -200,7 +225,7 @@ risking the work.
 
 | Phase | What | Why here |
 | --- | --- | --- |
-| **0** | Verifier, refusal path, provenance | Biggest win; no new model calls |
+| **0** | Verifier, refusal path, provenance — **done** | Biggest win; no new model calls |
 | **1** | Matcher: shape cost, breakdowns as constraints | Deterministic; improves the non-AI path too |
 | **2** | Golden set + capability profile | Makes reliability a number |
 | **3** | Repair loop | Needs specific findings first |

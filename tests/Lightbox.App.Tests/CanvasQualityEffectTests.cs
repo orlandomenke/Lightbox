@@ -32,7 +32,13 @@ public class CanvasQualityEffectTests : BrushStateIsolated
     private static (int W, int H) Publish(MainViewModel vm)
     {
         (int, int) size = (0, 0);
-        void Capture(RenderSnapshot s) => size = (s.Image.Width, s.Image.Height);
+        void Capture(RenderSnapshot s)
+        {
+            // Materialise on the CPU: since B125 stage 3b the culled route hands
+            // over a description, so there is nothing to measure until it runs.
+            using var img = s.Materialise(null);
+            size = (img.Width, img.Height);
+        }
         vm.SnapshotChanged += Capture;
         try
         {
@@ -83,7 +89,8 @@ public class CanvasQualityEffectTests : BrushStateIsolated
         Assert.NotNull(seen);
         Assert.Equal(vm.Doc.Scene.Width, seen!.DocWidth);
         Assert.Equal(vm.Doc.Scene.Height, seen.DocHeight);
-        Assert.True(seen.Image.Width < seen.DocWidth);
+        using var composed = seen.Materialise(null);
+        Assert.True(composed.Width < seen.DocWidth);
     }
 
     [AvaloniaFact]

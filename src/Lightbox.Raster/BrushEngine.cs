@@ -70,22 +70,32 @@ public static class BrushEngine
     /// stamped by an earlier pointer event and must not be drawn again — an antialiased rim redrawn
     /// with <c>Src</c> does not land where it did the first time.
     /// </param>
+    /// <param name="origin">
+    /// Where the paper's top-left corner sits in stroke coordinates —
+    /// <see cref="Scene.Left"/> and <see cref="Scene.Top"/>. Zero for a document
+    /// that has never been resized, which is why every existing caller can leave
+    /// it alone. See the coordinate-space note on <see cref="ToSurface"/>: this
+    /// is the only quantity that separates the two spaces, and getting it wrong
+    /// moves the paper under the ink rather than failing loudly.
+    /// </param>
     public static void StampStroke(
         SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels = null,
         bool draft = false, double outputScale = 1.0, SKBitmap? backdrop = null,
-        IReadOnlyList<Dab>? draftDabs = null, int draftFromDab = 0)
+        IReadOnlyList<Dab>? draftDabs = null, int draftFromDab = 0, SKPointI origin = default)
     {
         if (stroke.Points.Count == 0) return;
 
-        if (stroke.Tool == ToolKind.Fill)
+        // Both are contours rather than paths, and differ only in whether the
+        // region lands over what is there or takes it away (B173).
+        if (stroke.Tool is ToolKind.Fill or ToolKind.ClearRegion)
         {
-            StampFill(target, stroke, info, outputScale);
+            StampFill(target, stroke, info, outputScale, origin);
             return;
         }
 
         if (stroke.Tool == ToolKind.Gradient)
         {
-            StampGradient(target, stroke, info, targetPixels, outputScale);
+            StampGradient(target, stroke, info, targetPixels, outputScale, origin);
             return;
         }
 
@@ -95,7 +105,9 @@ public static class BrushEngine
             {
                 using var owned = SampledSource(stroke, targetPixels, backdrop, info);
                 var read = owned ?? targetPixels;
-                WithHardClip(target, stroke, outputScale, () => StampSmudge(target, read, stroke, outputScale));
+                WithHardClip(
+                    target, stroke, outputScale, origin,
+                    () => StampSmudge(target, read, stroke, outputScale, origin));
                 return;
             }
 
@@ -110,17 +122,64 @@ public static class BrushEngine
                     // single-shot draft render means.
                     var walk = draftDabs ?? WalkDabs(stroke);
                     WithHardClip(
-                        target, stroke, 1.0,
-                        () => StampBlurDraft(target, read, stroke, info, walk, draftFromDab));
+                        target, stroke, 1.0, origin,
+                        () => StampBlurDraft(target, read, stroke, info, walk, draftFromDab, origin));
                 }
-                else WithHardClip(target, stroke, outputScale, () => StampBlur(target, read, stroke, info, outputScale));
+                else
+                {
+                    WithHardClip(
+                        target, stroke, outputScale, origin,
+                        () => StampBlur(target, read, stroke, info, outputScale, origin));
+                }
                 return;
             }
         }
 
-        if (draft) StampPaintDraft(target, stroke, info, targetPixels);
-        else StampPaint(target, stroke, info, targetPixels, outputScale);
+        if (draft) StampPaintDraft(target, stroke, info, targetPixels, origin);
+        else StampPaint(target, stroke, info, targetPixels, outputScale, origin);
     }
+
+    /// <summary>
+    /// A document point in the pixels of a surface whose top-left is
+    /// <paramref name="origin"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Two coordinate spaces run through this file, and the whole of the
+    /// origin's cost is keeping them apart.</b>
+    /// </para>
+    /// <list type="bullet">
+    /// <item><b>Document</b> — what a <c>Stroke</c> records and what every
+    /// <c>Hash01</c> seed must receive. It does not change when the paper is
+    /// resized, which is the entire point of <see cref="Scene.OriginX"/>: a dab
+    /// keeps its scatter, size, flow, roundness, rotation and colour jitters
+    /// because it keeps its coordinate.</item>
+    /// <item><b>Surface</b> — a pixel in a layer bitmap or a scratch, where
+    /// (0,0) is the document's top-left corner. Anything indexing pixels
+    /// directly, extracting a subset, or reporting a region to repaint speaks
+    /// this.</item>
+    /// </list>
+    /// <para>
+    /// The canvas transform converts between them for everything that draws
+    /// (<see cref="InDocumentSpace"/>). Raw pixel access has no transform to
+    /// carry it, so it converts here — and the failure when it does not is
+    /// silent: the mark keeps its shape and lands in the wrong place, or keeps
+    /// its place and re-rolls its grain. <c>DocumentOriginTests</c> is the guard,
+    /// and it is a byte comparison for exactly that reason.
+    /// </para>
+    /// </remarks>
+    private static SKPoint ToSurface(SKPoint document, SKPointI origin) =>
+        origin is { X: 0, Y: 0 }
+            ? document
+            : new SKPoint(document.X - origin.X, document.Y - origin.Y);
+
+    /// <inheritdoc cref="ToSurface(SKPoint, SKPointI)"/>
+    private static SKRectI ToSurface(SKRectI document, SKPointI origin) =>
+        origin is { X: 0, Y: 0 }
+            ? document
+            : new SKRectI(
+                document.Left - origin.X, document.Top - origin.Y,
+                document.Right - origin.X, document.Bottom - origin.Y);
 
     /// <summary>
     /// What a smudge or blur actually reads, or null to read its own layer.
@@ -273,7 +332,8 @@ public static class BrushEngine
     }
 
     /// <summary>A filled region stroke: outer contour + holes, even-odd, at stroke opacity.</summary>
-    private static void StampFill(SKCanvas target, Stroke stroke, SKImageInfo info, double outputScale)
+    private static void StampFill(
+        SKCanvas target, Stroke stroke, SKImageInfo info, double outputScale, SKPointI origin)
     {
         if (stroke.Points.Count < 3) return;
         // A fill is contours, so it rasterises sharp at any output scale.
@@ -284,7 +344,7 @@ public static class BrushEngine
         var canvas = scratch.Canvas;
         canvas.Clear(SKColors.Transparent);
 
-        InDocumentSpace(canvas, dev, outputScale, () =>
+        InDocumentSpace(canvas, dev, outputScale, origin, () =>
         {
             var contours = new List<IReadOnlyList<StrokePoint>> { stroke.Points };
             if (stroke.Holes is not null) contours.AddRange(stroke.Holes);
@@ -292,13 +352,18 @@ public static class BrushEngine
             using var paint = new SKPaint { IsAntialias = stroke.Brush.AntiAlias, Color = StrokeColor(stroke) };
             canvas.DrawPath(path, paint);
         });
-        ApplyClip(canvas, stroke, local, dev, outputScale);
+        ApplyClip(canvas, stroke, local, dev, outputScale, origin);
 
         using var snapshot = scratch.Snapshot();
         using var composite = new SKPaint
         {
             Color = SKColors.White.WithAlpha((byte)Math.Round(Math.Clamp(stroke.Brush.Opacity, 0, 1) * 255)),
-            BlendMode = SKBlendMode.SrcOver,
+            // B173. The one line that separates a region laid down from a
+            // region taken away — everything above it, contour to clip to
+            // anti-aliasing, is identical for both.
+            BlendMode = stroke.Tool == ToolKind.ClearRegion
+                ? SKBlendMode.DstOut
+                : SKBlendMode.SrcOver,
         };
         target.DrawImage(snapshot, 0, 0, composite);
     }
@@ -317,7 +382,8 @@ public static class BrushEngine
     /// other tool does with a gradient too — the selection IS the shape.
     /// </summary>
     private static void StampGradient(
-        SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels, double outputScale)
+        SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels, double outputScale,
+        SKPointI origin)
     {
         if (stroke.Points.Count < 2) return;
         if (stroke.GradientId is null) return;
@@ -362,7 +428,7 @@ public static class BrushEngine
         var from = new SKPoint((float)stroke.Points[0].X, (float)stroke.Points[0].Y);
         var to = new SKPoint((float)stroke.Points[^1].X, (float)stroke.Points[^1].Y);
 
-        InDocumentSpace(canvas, dev, outputScale, () =>
+        InDocumentSpace(canvas, dev, outputScale, origin, () =>
         {
             using var shader = gradient.Kind == GradientKind.Radial
                 // Radial: the drag is centre-to-edge, so its length is the
@@ -374,7 +440,7 @@ public static class BrushEngine
             canvas.DrawRect(new SKRect(0, 0, info.Width, info.Height), paint);
         });
 
-        ApplyClip(canvas, stroke, local, dev, outputScale);
+        ApplyClip(canvas, stroke, local, dev, outputScale, origin);
         ApplyAlphaLock(canvas, stroke, targetPixels, dev);
 
         using var snapshot = scratch.Snapshot();
@@ -414,13 +480,14 @@ public static class BrushEngine
     /// its feather is a physical width and scales with it.
     /// </summary>
     private static void ApplyClip(
-        SKCanvas scratchCanvas, Stroke stroke, SKImageInfo local, SKRectI dev, double outputScale)
+        SKCanvas scratchCanvas, Stroke stroke, SKImageInfo local, SKRectI dev, double outputScale,
+        SKPointI origin)
     {
         if (stroke.ClipId is null || ClipRegionRegistry.Resolve(stroke.ClipId) is not { } region) return;
         using var mask = SKSurface.Create(local);
         if (mask is null) return;
         mask.Canvas.Clear(SKColors.Transparent);
-        InDocumentSpace(mask.Canvas, dev, outputScale, () =>
+        InDocumentSpace(mask.Canvas, dev, outputScale, origin, () =>
         {
             using var path = PathFromContours(region.Contours);
             using var paint = new SKPaint { IsAntialias = true, Color = SKColors.White };
@@ -442,7 +509,8 @@ public static class BrushEngine
     /// <paramref name="outputScale"/>, so the clip path is scaled while the
     /// stamps inside it position themselves.
     /// </summary>
-    private static void WithHardClip(SKCanvas target, Stroke stroke, double outputScale, Action stamp)
+    private static void WithHardClip(
+        SKCanvas target, Stroke stroke, double outputScale, SKPointI origin, Action stamp)
     {
         if (stroke.ClipId is null || ClipRegionRegistry.Resolve(stroke.ClipId) is not { } region)
         {
@@ -452,6 +520,14 @@ public static class BrushEngine
         target.Save();
         using (var path = PathFromContours(region.Contours))
         {
+            // A clip region's contours are document coordinates and the canvas
+            // being clipped is a surface, so the origin comes off before the
+            // scale — the same document-then-surface order every conversion in
+            // this file uses.
+            if (origin.X != 0 || origin.Y != 0)
+            {
+                path.Transform(SKMatrix.CreateTranslation(-origin.X, -origin.Y));
+            }
             if (outputScale != 1.0) path.Transform(SKMatrix.CreateScale((float)outputScale, (float)outputScale));
             target.ClipPath(path, antialias: true);
         }
@@ -462,7 +538,8 @@ public static class BrushEngine
     // ---- paint (the default pipeline) ----------------------------------------
 
     private static void StampPaint(
-        SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels, double outputScale)
+        SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels, double outputScale,
+        SKPointI origin)
     {
         // The scratch covers only what the stroke can reach — dabs, effects
         // and feathered clips all happen inside it. This is what keeps a
@@ -472,14 +549,19 @@ public static class BrushEngine
         var margin = DabReach(brush);
         var region = stroke.ClipId is null ? null : ClipRegionRegistry.Resolve(stroke.ClipId);
         if (region is { Feather: > 0 }) margin += (float)(region.Feather * 2);
-        if (SegmentBounds(stroke, info, margin) is not { } rect) return;
+        if (SegmentBounds(stroke, info, margin, origin) is not { } rect) return;
 
         // Bigger surface, same geometry. The scratch is allocated at output
         // resolution but the dabs are stamped in unchanged document
         // coordinates under a canvas transform, so every Hash01 seeded from a
         // dab position receives the identical input at every scale. Scaling
         // the coordinates instead would re-roll all ten dynamics.
-        var dev = DeviceRect(rect, outputScale);
+        //
+        // `rect` is a DOCUMENT rect, because the granulation and texture passes
+        // below seed a repeating field from its corner. The scratch it sizes is
+        // a surface, so the origin comes off here and nowhere else — which is
+        // what keeps the composite at the bottom unchanged.
+        var dev = DeviceRect(ToSurface(rect, origin), outputScale);
         var local = new SKImageInfo(dev.Width, dev.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var scratch = SKSurface.Create(local);
         if (scratch is null) throw new InvalidOperationException("Could not create scratch surface.");
@@ -488,7 +570,7 @@ public static class BrushEngine
 
         // Everything below works in DEVICE pixels on a scratch whose origin is
         // dev.Left/dev.Top; the passes that need document coordinates say so.
-        InDocumentSpace(canvas, dev, outputScale, () =>
+        InDocumentSpace(canvas, dev, outputScale, origin, () =>
         {
             StampDabs(canvas, stroke);
 
@@ -511,7 +593,7 @@ public static class BrushEngine
             if (brush.WetEdge > 0) ApplyWetEdge(scratch, canvas, brush, local, outputScale);
             if (HasTexture(brush)) ApplyTexture(canvas, brush, rect, local);
         }
-        ApplyClip(canvas, stroke, local, dev, outputScale);
+        ApplyClip(canvas, stroke, local, dev, outputScale, origin);
         ApplyAlphaLock(canvas, stroke, targetPixels, dev);
 
         using var snapshot = scratch.Snapshot();
@@ -551,11 +633,16 @@ public static class BrushEngine
     /// </param>
     /// <returns>The region written, or null when the stroke reaches nothing.</returns>
     public static SKRectI? PostProcessDabs(
-        SKBitmap dabs, SKBitmap destination, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels)
+        SKBitmap dabs, SKBitmap destination, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels,
+        SKPointI origin = default)
     {
         var brush = stroke.Brush;
-        if (SegmentBounds(stroke, info, DabReach(brush)) is not { } rect) return null;
+        if (SegmentBounds(stroke, info, DabReach(brush), origin) is not { } rect) return null;
 
+        // `rect` is a document rect, because the granulation pass below seeds
+        // its field from the corner; `surface` is the same region in the two
+        // bitmaps, which are indexed from the document's top-left.
+        var surface = ToSurface(rect, origin);
         var local = new SKImageInfo(rect.Width, rect.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var scratch = SKSurface.Create(local);
         if (scratch is null) return null;
@@ -568,7 +655,7 @@ public static class BrushEngine
         // was saving on a short stroke.
         using (var subset = new SKBitmap())
         {
-            if (!dabs.ExtractSubset(subset, rect)) return null;
+            if (!dabs.ExtractSubset(subset, surface)) return null;
             using var pixels = subset.PeekPixels();
             using var view = pixels is null ? null : SKImage.FromPixels(pixels);
             if (view is null) return null;
@@ -579,7 +666,7 @@ public static class BrushEngine
         // live preview is display-only and never renders bigger.
         if (brush.Medium.Kind == MediumKind.None && !HasTexture(brush) && brush.Granulation > 0)
         {
-            InDocumentSpace(canvas, rect, 1.0, () => ApplyGranulation(canvas, brush, rect));
+            InDocumentSpace(canvas, surface, 1.0, origin, () => ApplyGranulation(canvas, brush, rect));
         }
 
         if (brush.Medium.Kind != MediumKind.None)
@@ -620,11 +707,22 @@ public static class BrushEngine
     /// Run <paramref name="draw"/> with the scratch canvas in document
     /// coordinates: a document point lands at (doc × scale − device origin).
     /// </summary>
-    private static void InDocumentSpace(SKCanvas canvas, SKRectI dev, double scale, Action draw)
+    /// <param name="dev">
+    /// The scratch's rectangle in <b>surface</b> device pixels — already shifted
+    /// by the origin, which is why the translate below does not mention it.
+    /// </param>
+    /// <param name="origin">
+    /// The document's top-left in stroke coordinates. The extra translate is
+    /// what lets everything inside <paramref name="draw"/> keep speaking
+    /// document coordinates, which is what every <c>Hash01</c> seed needs.
+    /// </param>
+    private static void InDocumentSpace(
+        SKCanvas canvas, SKRectI dev, double scale, SKPointI origin, Action draw)
     {
         canvas.Save();
         canvas.Translate(-dev.Left, -dev.Top);
         if (scale != 1.0) canvas.Scale((float)scale);
+        if (origin.X != 0 || origin.Y != 0) canvas.Translate(-origin.X, -origin.Y);
         draw();
         canvas.Restore();
     }
@@ -725,8 +823,15 @@ public static class BrushEngine
     /// live preview has to be able to take back — and scatter can throw a dab well off the
     /// polyline the points describe. Null when the range is empty or off-canvas.
     /// </remarks>
+    /// <param name="origin">
+    /// The document's top-left in stroke coordinates. The returned rect is in
+    /// <b>surface</b> coordinates — its consumers extract bitmap subsets with
+    /// it — while the dabs it measures are in document ones, so the clamp is to
+    /// the document rectangle and the result is shifted back by the origin.
+    /// </param>
     public static SKRectI? RangeBounds(
-        IReadOnlyList<Dab> dabs, int from, BrushSettings brush, SKImageInfo info)
+        IReadOnlyList<Dab> dabs, int from, BrushSettings brush, SKImageInfo info,
+        SKPointI origin = default)
     {
         if (from >= dabs.Count) return null;
         var reach = DabReach(brush);
@@ -744,8 +849,10 @@ public static class BrushEngine
         var rect = new SKRectI(
             (int)Math.Floor(minX - reach), (int)Math.Floor(minY - reach),
             (int)Math.Ceiling(maxX + reach), (int)Math.Ceiling(maxY + reach));
-        var clipped = SKRectI.Intersect(rect, new SKRectI(0, 0, info.Width, info.Height));
-        return clipped.Width <= 0 || clipped.Height <= 0 ? null : clipped;
+        var document = new SKRectI(
+            origin.X, origin.Y, origin.X + info.Width, origin.Y + info.Height);
+        var clipped = SKRectI.Intersect(rect, document);
+        return clipped.Width <= 0 || clipped.Height <= 0 ? null : ToSurface(clipped, origin);
     }
 
     /// <summary>Stamp dabs <paramref name="from"/> (inclusive) to <paramref name="to"/> (exclusive).</summary>
@@ -848,14 +955,35 @@ public static class BrushEngine
             (int)Math.Ceiling(maxY + margin));
     }
 
-    /// <summary>The stroke's points inflated by the dab reach, clamped to the canvas; null when off-canvas.</summary>
-    private static SKRectI? SegmentBounds(Stroke stroke, SKImageInfo info, float margin)
+    /// <summary>
+    /// The stroke's points inflated by the dab reach, clamped to the document
+    /// rectangle; null when the stroke lies entirely off the paper.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Returns DOCUMENT coordinates, and the clamp is to
+    /// <c>[Left, Right) × [Top, Bottom)</c> rather than to
+    /// <c>(0, 0, W, H)</c>.</b> Clamping to the surface instead is the bug that
+    /// would ship green: it discards precisely the half of a stroke sitting in
+    /// paper the canvas has just gained, which no comparison of the region the
+    /// two documents share can see.
+    /// </para>
+    /// <para>
+    /// Document rather than surface because the callers that consume this rect
+    /// seed a repeating field from it — <see cref="ApplyGranulation"/> anchors a
+    /// tiled noise shader to it and <see cref="ApplyTexture"/> passes its corner
+    /// straight into <c>PaperField.Fill</c>. Handing those a surface rect leaves
+    /// the mark where it was and slides the paper underneath it, which is
+    /// invariant 2 broken in the one way that looks like nothing.
+    /// </para>
+    /// </remarks>
+    private static SKRectI? SegmentBounds(Stroke stroke, SKImageInfo info, float margin, SKPointI origin)
     {
         if (RawBounds(stroke, margin) is not { } raw) return null;
-        var left = Math.Clamp(raw.Left, 0, info.Width);
-        var top = Math.Clamp(raw.Top, 0, info.Height);
-        var right = Math.Clamp(raw.Right, 0, info.Width);
-        var bottom = Math.Clamp(raw.Bottom, 0, info.Height);
+        var left = Math.Clamp(raw.Left, origin.X, origin.X + info.Width);
+        var top = Math.Clamp(raw.Top, origin.Y, origin.Y + info.Height);
+        var right = Math.Clamp(raw.Right, origin.X, origin.X + info.Width);
+        var bottom = Math.Clamp(raw.Bottom, origin.Y, origin.Y + info.Height);
         if (right <= left || bottom <= top) return null;
         return new SKRectI(left, top, right, bottom);
     }
@@ -888,8 +1016,16 @@ public static class BrushEngine
     /// </remarks>
 
     /// <summary>Pixels a live segment can reach (dab size + scatter margin); null when off-canvas.</summary>
-    public static SKRectI? DraftSegmentBounds(Stroke tail, SKImageInfo info) =>
-        SegmentBounds(tail, info, DabReach(tail.Brush));
+    /// <remarks>
+    /// <b>Surface coordinates</b>, unlike the <see cref="SegmentBounds"/> it
+    /// wraps: every caller uses this to repaint a region of a layer bitmap, and
+    /// a bitmap's (0,0) is the document's top-left corner whatever that corner
+    /// is called in stroke coordinates.
+    /// </remarks>
+    public static SKRectI? DraftSegmentBounds(Stroke tail, SKImageInfo info, SKPointI origin = default) =>
+        SegmentBounds(tail, info, DabReach(tail.Brush), origin) is { } rect
+            ? ToSurface(rect, origin)
+            : null;
 
 
     /// <summary>
@@ -897,8 +1033,13 @@ public static class BrushEngine
     /// the exact stamping path uses, widened for blur and for the feather of
     /// its clip region. Callers use it to repaint only what changed.
     /// </summary>
-    public static SKRectI? CommitBounds(Stroke stroke, SKImageInfo info) =>
-        SegmentBounds(stroke, info, CommitMargin(stroke));
+    /// <remarks>
+    /// <inheritdoc cref="DraftSegmentBounds" path="/remarks"/>
+    /// </remarks>
+    public static SKRectI? CommitBounds(Stroke stroke, SKImageInfo info, SKPointI origin = default) =>
+        SegmentBounds(stroke, info, CommitMargin(stroke), origin) is { } rect
+            ? ToSurface(rect, origin)
+            : null;
 
     /// <summary>
     /// The same reach, unclamped — bounds as <em>where the stroke is</em> rather
@@ -957,10 +1098,16 @@ public static class BrushEngine
         composite.Restore();
     }
 
-    private static void StampPaintDraft(SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels = null)
+    private static void StampPaintDraft(
+        SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels = null,
+        SKPointI origin = default)
     {
         var brush = stroke.Brush;
-        if (SegmentBounds(stroke, info, DabReach(brush)) is not { } rect) return;
+        if (SegmentBounds(stroke, info, DabReach(brush), origin) is not { } rect) return;
+        // Document rect for the dabs, surface rect for the two bitmaps and the
+        // composite — the scratch translate below stays document because that
+        // is the space StampDabs draws in.
+        var surface = ToSurface(rect, origin);
 
         var boundsInfo = new SKImageInfo(rect.Width, rect.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var scratch = SKSurface.Create(boundsInfo);
@@ -969,7 +1116,7 @@ public static class BrushEngine
         canvas.Clear(SKColors.Transparent);
         canvas.Translate(-rect.Left, -rect.Top);
         StampDabs(canvas, stroke);
-        ApplyAlphaLock(canvas, stroke, targetPixels, rect);
+        ApplyAlphaLock(canvas, stroke, targetPixels, surface);
 
         using var snapshot = scratch.Snapshot();
         using var paint = new SKPaint
@@ -982,9 +1129,13 @@ public static class BrushEngine
         {
             target.Save();
             using var path = PathFromContours(region.Contours);
+            if (origin.X != 0 || origin.Y != 0)
+            {
+                path.Transform(SKMatrix.CreateTranslation(-origin.X, -origin.Y));
+            }
             target.ClipPath(path, antialias: true);
         }
-        target.DrawImage(snapshot, rect.Left, rect.Top, paint);
+        target.DrawImage(snapshot, surface.Left, surface.Top, paint);
         if (region is not null) target.Restore();
     }
 
@@ -1176,9 +1327,11 @@ public static class BrushEngine
         // The cap is a document width, so the rim keeps the same physical size
         // when the render scale goes up.
         var width = (float)(Math.Clamp(brush.Size * 0.12, 1.0, 48.0) * outputScale);
+        // Written into below, from the mask — nothing is drawn here first. It
+        // used to receive the raw stroke image on creation, a full-region draw
+        // the Clear before the carve then threw away entirely (B177).
         using var rim = SKSurface.Create(local);
         if (rim is null) return;
-        rim.Canvas.DrawImage(img, 0, 0);
 
         // Shrink the stroke and subtract it, leaving the outline. Skia's erode
         // does this exactly but costs O(area x radius) — 10.6 s for a 500 px
@@ -1406,14 +1559,16 @@ public static class BrushEngine
     /// any other scale. Found while eliminating causes for B39, which it is
     /// not: B39 reproduces at outputScale 1.
     /// </param>
-    private static void StampSmudge(SKCanvas target, SKBitmap pixels, Stroke stroke, double outputScale)
+    private static void StampSmudge(
+        SKCanvas target, SKBitmap pixels, Stroke stroke, double outputScale, SKPointI origin)
     {
         var brush = stroke.Brush;
         var strength = Math.Clamp(brush.Flow, 0, 1);
         if (strength <= 0) return;
 
         StampSmudgeDabs(
-            target, pixels, stroke, outputScale, strength, WalkDabs(stroke), 0, int.MaxValue, default);
+            target, pixels, stroke, outputScale, strength, WalkDabs(stroke), 0, int.MaxValue, default,
+            origin);
     }
 
     /// <summary>
@@ -1447,13 +1602,17 @@ public static class BrushEngine
     /// resumed range sees exactly what a single pass would have handed it.
     /// </para>
     /// </remarks>
+    /// <param name="origin">
+    /// The document's top-left in stroke coordinates; zero for a document that has
+    /// never been resized, which is every caller until one says otherwise.
+    /// </param>
     public static SmudgeCarry StampSmudgeRange(
         SKCanvas target, SKBitmap read, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to,
-        SmudgeCarry carry)
+        SmudgeCarry carry, SKPointI origin = default)
     {
         var strength = Math.Clamp(stroke.Brush.Flow, 0, 1);
         if (strength <= 0) return carry;
-        return StampSmudgeDabs(target, read, stroke, 1.0, strength, dabs, from, to, carry);
+        return StampSmudgeDabs(target, read, stroke, 1.0, strength, dabs, from, to, carry, origin);
     }
 
     /// <summary>
@@ -1487,9 +1646,16 @@ public static class BrushEngine
         private readonly SKBitmap? _tip;
         private readonly float _cx, _cy, _cos, _sin, _invX, _invY, _hardness;
 
+        /// <param name="seed">
+        /// The dab's <b>document</b> position, and the only thing rotation jitter is
+        /// allowed to hash. <paramref name="deviceCentre"/> is a surface coordinate:
+        /// it moves when the paper is resized and it moves again with the output
+        /// scale, so seeding from it would re-roll the bristles of every effect dab
+        /// on a canvas resize and on a 2x render alike.
+        /// </param>
         internal DabShape(
             BrushSettings brush, SKPoint deviceCentre, float deviceRadius, float roundness,
-            double headingDeg)
+            double headingDeg, SKPoint seed)
         {
             _tip = brush.TipId is null ? null : BrushTipRegistry.Resolve(brush.TipId);
             _cx = deviceCentre.X;
@@ -1500,7 +1666,7 @@ public static class BrushEngine
             if (brush.AngleFollowsDirection && !double.IsNaN(headingDeg)) rotation += headingDeg;
             if (brush.RotationJitter > 0)
             {
-                rotation += (Hash01(deviceCentre.X, deviceCentre.Y, 3) - 0.5) * 360 * brush.RotationJitter;
+                rotation += (Hash01(seed.X, seed.Y, 3) - 0.5) * 360 * brush.RotationJitter;
             }
             var radians = rotation * Math.PI / 180;
             _cos = (float)Math.Cos(radians);
@@ -1543,7 +1709,7 @@ public static class BrushEngine
 
     private static SmudgeCarry StampSmudgeDabs(
         SKCanvas target, SKBitmap pixels, Stroke stroke, double outputScale, double strength,
-        IReadOnlyList<Dab> dabs, int from, int to, SmudgeCarry carry)
+        IReadOnlyList<Dab> dabs, int from, int to, SmudgeCarry carry, SKPointI origin)
     {
         var brush = stroke.Brush;
 
@@ -1573,8 +1739,12 @@ public static class BrushEngine
             if (radius <= 0) continue;
 
             var s = (float)outputScale;
+            // The sample indexes the layer bitmap directly, so it is the one
+            // place in this loop that speaks surface pixels; `pos` stays a
+            // document coordinate for everything seeded from it.
+            var surface = ToSurface(pos, origin);
             var sample = SampleAverage(
-                pixels, new SKPoint(pos.X * s, pos.Y * s), Math.Max(1f, radius * spread * s));
+                pixels, new SKPoint(surface.X * s, surface.Y * s), Math.Max(1f, radius * spread * s));
             if (!hasColor)
             {
                 // The first dab picks up what is under it and lays it straight
@@ -1600,7 +1770,8 @@ public static class BrushEngine
             if (deposit.Alpha > 0)
             {
                 LerpDab(
-                    target, pixels, pos, radius, brush, deposit, strength, outputScale, heading, pressure);
+                    target, pixels, pos, radius, brush, deposit, strength, outputScale, heading, pressure,
+                    origin);
             }
 
             // How much of the carried colour survives into the next dab. At 0
@@ -1731,10 +1902,17 @@ public static class BrushEngine
     /// replaces.
     /// </para>
     /// </remarks>
+    /// <param name="pos">
+    /// The dab's <b>document</b> position. It is both the <c>Hash01</c> seed for
+    /// roundness and rotation and — once the origin comes off — the centre of the
+    /// pixel span written below. Those two uses are why this method is the awkward
+    /// one: conflating them re-grains every smudge on a resized canvas while
+    /// leaving the mark in the right place, which looks like nothing.
+    /// </param>
     private static void LerpDab(
         SKCanvas target, SKBitmap read, SKPoint pos, float radius, BrushSettings brush,
         SKColor deposit, double strength, double outputScale, double headingDeg = double.NaN,
-        double pressure = 1)
+        double pressure = 1, SKPointI origin = default)
     {
         // The target is written through its own bitmap rather than the canvas,
         // so flush anything the canvas still holds first.
@@ -1742,8 +1920,9 @@ public static class BrushEngine
         if (!target.GetDeviceClipBounds(out var clip) || clip.IsEmpty) return;
 
         var s = (float)outputScale;
-        var cx = pos.X * s;
-        var cy = pos.Y * s;
+        var surface = ToSurface(pos, origin);
+        var cx = surface.X * s;
+        var cy = surface.Y * s;
         var r = radius * s;
         if (r <= 0) return;
 
@@ -1754,7 +1933,7 @@ public static class BrushEngine
         // B70: the dab's shape, which is the tip's alpha when the brush has one. Built once per dab
         // — the transform is per dab, only the sampling is per pixel.
         var shape = new DabShape(
-            brush, new SKPoint(cx, cy), r, (float)RoundnessAt(brush, pos, pressure), headingDeg);
+            brush, new SKPoint(cx, cy), r, (float)RoundnessAt(brush, pos, pressure), headingDeg, pos);
 
         var left = Math.Max(clip.Left, (int)MathF.Floor(cx - r));
         var top = Math.Max(clip.Top, (int)MathF.Floor(cy - r));
@@ -1861,7 +2040,8 @@ public static class BrushEngine
     /// through a gaussian blur, clipped to the dab. Flow is the blur strength.
     /// </summary>
     private static void StampBlur(
-        SKCanvas target, SKBitmap pixels, Stroke stroke, SKImageInfo info, double outputScale)
+        SKCanvas target, SKBitmap pixels, Stroke stroke, SKImageInfo info, double outputScale,
+        SKPointI origin)
     {
         var brush = stroke.Brush;
         var sigma = (float)(Math.Clamp(brush.Flow, 0, 1) * Math.Max(1, brush.Size) / 4);
@@ -1884,7 +2064,11 @@ public static class BrushEngine
 
         // The snapshot is already at output resolution, so its destination is
         // the whole document — one for one in device pixels, not a resample.
-        var whole = new SKRect(0, 0, info.Width, info.Height);
+        // Expressed in DOCUMENT coordinates, because the canvas below is
+        // translated into that space so every dab position stays the one the
+        // stroke recorded.
+        var whole = new SKRect(
+            origin.X, origin.Y, origin.X + info.Width, origin.Y + info.Height);
         var sampling = new SKSamplingOptions(SKFilterMode.Linear);
 
         var tip = brush.TipId is null ? null : BrushTipRegistry.ResolveImage(brush.TipId);
@@ -1892,6 +2076,7 @@ public static class BrushEngine
 
         target.Save();
         if (outputScale != 1.0) target.Scale((float)outputScale);
+        if (origin.X != 0 || origin.Y != 0) target.Translate(-origin.X, -origin.Y);
         var previous = (SKPoint?)null;
         var heading = double.NaN;
         foreach (var (pos, pressure) in DabPositions(stroke))
@@ -1961,7 +2146,7 @@ public static class BrushEngine
     /// </remarks>
     private static void StampBlurDraft(
         SKCanvas target, SKBitmap pixels, Stroke stroke, SKImageInfo info,
-        IReadOnlyList<Dab> dabs, int from)
+        IReadOnlyList<Dab> dabs, int from, SKPointI origin)
     {
         var brush = stroke.Brush;
         var sigma = (float)(Math.Clamp(brush.Flow, 0, 1) * Math.Max(1, brush.Size) / 4);
@@ -1980,11 +2165,17 @@ public static class BrushEngine
         //
         // The region those dabs can reach, plus the blur's own spread so a dab at its edge still
         // sees real neighbours rather than the crop.
-        if (RangeBounds(dabs, from, brush, info) is not { } dabReach) return;
+        if (RangeBounds(dabs, from, brush, info, origin) is not { } dabReach) return;
         var rect = SKRectI.Intersect(
             SKRectI.Inflate(dabReach, (int)Math.Ceiling(sigma * 4), (int)Math.Ceiling(sigma * 4)),
             new SKRectI(0, 0, info.Width, info.Height));
         if (rect.Width <= 0 || rect.Height <= 0) return;
+
+        // `rect` is a surface rect, because it crops the bitmap. Every draw
+        // below happens with the canvas translated into document space, so the
+        // snapshot's destination is the same region named the other way.
+        var docRect = new SKRectI(
+            rect.Left + origin.X, rect.Top + origin.Y, rect.Right + origin.X, rect.Bottom + origin.Y);
 
         using var subset = new SKBitmap();
         if (!pixels.ExtractSubset(subset, rect)) return;
@@ -1996,6 +2187,9 @@ public static class BrushEngine
             ImageFilter = SKImageFilter.CreateBlur(sigma, sigma),
             BlendMode = SKBlendMode.Src,
         };
+
+        target.Save();
+        if (origin.X != 0 || origin.Y != 0) target.Translate(-origin.X, -origin.Y);
 
         // Under the dabs about to be drawn, back to the pre-stroke pixels: they are the only ones
         // ever drawn twice, since the settled ones behind them are never revisited, so this is the
@@ -2019,14 +2213,15 @@ public static class BrushEngine
                 target.Save();
                 target.ClipPath(covered, antialias: false);
                 using var restore = new SKPaint { BlendMode = SKBlendMode.Src };
-                target.DrawImage(snapshot, rect.Left, rect.Top, restore);
+                target.DrawImage(snapshot, docRect.Left, docRect.Top, restore);
                 target.Restore();
             }
         }
 
         var tip = brush.TipId is null ? null : BrushTipRegistry.ResolveImage(brush.TipId);
         var tipBitmap = brush.TipId is null ? null : BrushTipRegistry.Resolve(brush.TipId);
-        var whole = new SKRect(rect.Left, rect.Top, rect.Left + rect.Width, rect.Top + rect.Height);
+        var whole = new SKRect(
+            docRect.Left, docRect.Top, docRect.Left + rect.Width, docRect.Top + rect.Height);
         var sampling = new SKSamplingOptions(SKFilterMode.Linear);
 
         for (var i = from; i < dabs.Count; i++)
@@ -2050,9 +2245,11 @@ public static class BrushEngine
                 clip.AddCircle(dabs[i].Pos.X, dabs[i].Pos.Y, radius);
                 target.ClipPath(clip, antialias: true);
             }
-            target.DrawImage(snapshot, rect.Left, rect.Top, blurPaint);
+            target.DrawImage(snapshot, docRect.Left, docRect.Top, blurPaint);
             target.Restore();
         }
+
+        target.Restore();
     }
 
     /// <summary>

@@ -84,6 +84,9 @@ public sealed class FrameConverter : JsonConverter<Frame>
         if (root.TryGetProperty("placements", out var placements))
             frame.Placements = JsonSerializer.Deserialize<List<SymbolPlacement>>(placements.GetRawText(), options);
 
+        if (root.TryGetProperty("ai", out var ai))
+            frame.Ai = JsonSerializer.Deserialize<AiProvenance>(ai.GetRawText(), options);
+
         return frame;
     }
 
@@ -121,6 +124,12 @@ public sealed class FrameConverter : JsonConverter<Frame>
         {
             writer.WritePropertyName("placements");
             JsonSerializer.Serialize(writer, value.Placements, options);
+        }
+
+        if (value.Ai is not null)
+        {
+            writer.WritePropertyName("ai");
+            JsonSerializer.Serialize(writer, value.Ai, options);
         }
 
         writer.WriteEndObject();

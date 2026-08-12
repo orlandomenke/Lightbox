@@ -3,19 +3,38 @@
 ## Keyboard
 
 Every shortcut is editable in **Edit → Configure…**, which is searchable.
-Shortcuts are context-aware: the same key can mean different things over the
-canvas, the timeline and the Layers panel.
+
+**Where the pointer is decides what a key does.** Most shortcuts are general and
+work everywhere — B is the brush whether you are over the canvas, a toolbar or a
+panel. A panel may claim a key for itself, and then it wins **in that panel** and
+the general one still applies everywhere else: `I` inserts a keyframe over the
+timeline and reaches for the eyedropper anywhere else. A panel counts as yours
+when the pointer is over it, or when it has the keyboard focus.
+
+That is why the two are not a clash to resolve, and Configure will not offer to
+resolve one — a general key and a panel key can share a gesture on purpose. Two
+*general* commands on one gesture is the case with no answer, and that is what it
+warns about.
 
 | Key | Action |
 | --- | --- |
 | B / E / S | Brush, Eraser, Select (press again to cycle variants) |
 | A | Arrow — select whole lines, guides, symbols |
+| N | White arrow — reshape an isolated line's points |
+| P | Pen — draw a line by placing its points |
+| W | Width — make a line heavier or lighter |
+| U | Shape — line, rectangle, ellipse, polygon |
+| Double-click | Go inside a line to reshape it; Esc to come back out |
+| Backspace | Take the last point back off, while drawing with the pen |
+| Enter / Esc | Finish the pen line (neither discards it — Ctrl+Z does) |
 | Delete | Delete the selected lines |
 | Arrows | Nudge the selected lines a pixel, ten with Shift (Arrow tool only) |
-| Ctrl (hold) | Pick a colour |
+| Ctrl (hold) | Borrow the eyedropper; let go and your tool comes back |
+| I | Eyedropper — anywhere except the timeline, where it inserts a key |
 | Ctrl+Z / Ctrl+Y | Undo, redo |
 | Ctrl+T | Transform |
 | Ctrl+A / Ctrl+D / Ctrl+Shift+I | Select all, deselect, invert |
+| Delete / Backspace | Clear the selection's contents / fill it with the background |
 | Space | Play / pause |
 | ← / → | Previous, next frame |
 | X / D | Swap foreground and background / reset to black over white |
@@ -29,8 +48,8 @@ Zoom, rotation, mirror and pan are **view-only**. They never touch the document.
 **Each document keeps its own framing.** Zoom into a face on one drawing, switch
 tabs, and the other document is where you left it — not at your face zoom. A
 document you have not framed yet opens fitted. The same goes for the playhead,
-the selected layer and the selected reference: they belong to the drawing, not to
-the window.
+the selected layer, the selected reference and **the selection**: they belong to
+the drawing, not to the window.
 
 Framing is remembered for the session, not saved into the file — reopening
 tomorrow opens fitted. The brush is the deliberate exception and works the other
@@ -59,8 +78,47 @@ outweighing the drawing itself.
 | **Full** | Twice what the screen shows, up to the document's own resolution. Sharpest — the extra detail smooths stroke edges — and it no longer pays for pixels your monitor cannot display: zoomed out on a big document it costs a fraction of what it used to, and at 100% zoom and closer it is the document's own resolution, as it always was. |
 | **Half** | Half of what the screen shows. Softer while you work, fastest. |
 
+Between about 70% and 100%, Lightbox quietly composites the **whole** document
+rather than the slightly smaller size that was asked for. That is not a rounding
+slip: compositing at a reduced size has to resample every layer, which costs
+about two and a half times as much per pixel as copying it straight. Just below
+full size the resampling costs more than the pixels it saves, so the smaller
+setting would be slower as well as softer. Further out it pays properly and is
+used.
+
 It only changes what you see while working. **The drawing, the exports and the
 thumbnails are always full resolution**, whatever this is set to.
+
+### Blending layers on the graphics card
+
+*Experimental, and off, because it is not yet known to be faster.*
+
+**Edit → Configure → Performance → Use the graphics card to blend layers.**
+
+Stacking layers together is arithmetic over every pixel, and a graphics card is
+built for exactly that. The catch is that the layer images live in ordinary
+memory and have to reach the card before it can do anything with them. On a
+laptop with shared graphics memory — which is most laptops — that transfer
+competes with the drawing you are already doing, so it can easily cost more
+than it saves.
+
+So this is a switch to *try*, not a setting to turn on and forget. The honest
+answer for your machine is:
+
+1. Turn it on.
+2. Zoom in far enough that the canvas edges are off screen — that is the only
+   view it currently applies to. A fit-to-window view composites the old way.
+3. Play a scene back for a few seconds.
+4. **Help → Write a render report**, and look for *resident layer textures*.
+
+The report says how many layer draws avoided a transfer. It also says when the
+answer is "nothing happened", which is the case the checkbox cannot tell you
+about on its own — a machine presenting in software has no card to blend on,
+and the hint under the checkbox says so before you spend time on it.
+
+Nothing you save is affected either way. Exports, thumbnails and the file on
+disk are produced by the processor whatever this is set to, so a picture that
+came out of the graphics card is never the picture that gets written down.
 
 ### When the app changes it for you
 
@@ -137,6 +195,158 @@ not half your animation.
 
 If it says *every pass tiled* and playback is still slow, the drawing is not the
 cause and the report's other sections are where to look.
+
+### The section below it: drawings prepared ahead of the playhead
+
+While a sequence plays, Lightbox draws the frames that are *about* to come up on
+a second processor core, so the frame arrives already made rather than being
+made while you wait for it. You never see this working; you would only see it
+failing, as the first run through a scene being rougher than the ones after it.
+
+The report says how many were ready in time. **Over half is it working.** Under
+half means a single drawing takes longer to build than the gap between frames on
+this machine — usually a very dense drawing at a large canvas size — and the
+report says so in those words rather than leaving you to do the arithmetic.
+Lowering **Canvas quality**, or playing a shorter range, is what helps there.
+
+### And the one below that: was the clock on time
+
+Every other measurement in the report is about how long a frame took to **make**.
+This one is about something else entirely — whether the tick that asked for it
+turned up when it was supposed to. They are different problems, and only this one
+can make an almost empty scene stutter on a fast machine.
+
+The line to read is **mean lateness**. A millisecond or two is your operating
+system's normal scheduling and is not a fault. Much more than that and the gap
+between frames is wandering however cheap the frames are — and a wandering gap is
+what the eye reads as stutter, even when the frame rate averages out correctly.
+
+**If it says the clock is arriving late, capture the report twice**: once with
+the pointer sitting still, and once while you keep moving it. A big difference
+between the two is itself the finding — it means the playhead is competing with
+your pointer rather than with the drawing, which is a different fix from anything
+in the sections above.
+
+### And the one after that: did the frames reach the screen
+
+There are two ways playback can be uneven and they need different fixes, so
+there are two sections. The one above asks whether the *request* for a frame
+arrived on time. This asks whether the frame then got drawn.
+
+**Mean wait to be drawn** is the number. Under about 17 ms — one frame of a
+60 Hz screen — the picture is going up as fast as anything can put it there.
+Much above that, frames are being made and then sitting, which is a different
+fault from a late clock and reads exactly the same from your chair.
+
+The two sections together settle it:
+
+| Clock | Frames | What it means |
+| --- | --- | --- |
+| on time | prompt | The front end is fine. If playback still looks uneven, the cost is in *making* the frames — the two sections above this one. |
+| late | prompt | The playhead is being held up before it asks for anything. |
+| on time | waiting | The frames are made and not shown. The split below says why. |
+
+#### The split: what was happening while the frame waited
+
+Under those numbers the same wait appears three more times, sorted by what
+arrived while the frame was sitting there: **nothing**, **input somewhere that
+is not the canvas**, and **input on the canvas**.
+
+You do not have to interpret it — the report says which of the three findings it
+saw. But the reason it is worth capturing properly is worth knowing, because the
+three answers point at completely different faults:
+
+| What the rows show | What it means |
+| --- | --- |
+| Only *on the canvas* is fast | Frames are waiting for the canvas to be repainted, and only your pointer moving over it does that. The playback path is not getting frames drawn on its own. |
+| *Any* input is fast | The application is genuinely idle between frames and any event at all revives it — a different fault, and a different fix. |
+| All three the same | How long a frame waits has nothing to do with input, so the unevenness is in *making* the frames. Read the tick breakdown below. |
+
+**Capture it with the pointer still, and off the canvas**, for at least a few
+seconds of playback — and give each condition a good run. A row with only a
+handful of frames in it is one stall rather than a trend, and the report refuses
+to draw a conclusion from it rather than pretending to a verdict.
+
+There is also a line naming the **clock priority** the run used. It normally
+reads `Input` and you can ignore it; it exists so that a report captured with
+the diagnostic override below can never be mistaken for an ordinary one.
+
+### And below those: where the tick's time went
+
+The two sections above narrow the problem down; this one names it. While a
+sequence plays, Lightbox times each part of the work it does per frame and
+reports them side by side:
+
+```
+scene                     90 frames, 3 layers, 4200 strokes
+frame cache               500 MB held of 512 MB
+  served from memory      300
+  had to render           900  (75%)
+  thrown out              850
+flattened tiles           64 MB held of 128 MB
+  reused a flatten        420  (58%)
+  had to flatten          300
+  thrown out              12
+playback ticks            120
+  Thumbnails             never ran
+  Highlights                0.2 ms/tick   worst    0.6 ms   (120 of 120 ticks)
+  Publish                  15 ms/tick   worst   41.2 ms   (120 of 120 ticks)
+```
+
+Two lines to read first:
+
+- **had to render** — a frame that is not in memory has to be rebuilt from every
+  stroke on it, which is the most expensive thing that happens per frame. A high
+  percentage next to a **frame cache** that is close to full means your scene is
+  bigger than the memory set aside for it, and the app is re-drawing frames it
+  had already drawn. Fewer frames in the range you are looping, or a smaller
+  canvas, is what helps.
+
+  **The size the cache is allowed to reach depends on your machine**, so the
+  number after *of* will not match the example above — Lightbox takes a share of
+  the memory you actually have rather than a figure fixed in advance, which is
+  why the same scene can play smoothly on one computer and re-render on another
+  with no setting different between them. Edit ▸ Configure ▸ Performance ▸
+  *Frame cache* overrides it in either direction: raise it if you have memory
+  spare and long scenes, lower it if something else on the machine needs the
+  room.
+- **reused a flatten** — while a sequence plays, most drawings are not changing:
+  a layer on 2s shows the same drawing two frames running, and a background may
+  not change all scene. Lightbox keeps the assembled picture of a drawing so it
+  only has to be put together once, and this is how often that worked. A high
+  percentage is the normal, healthy case and needs nothing from you. A low one
+  usually means the view is moving — panning or zooming while playing changes
+  what has to be assembled every single frame, so nothing can be reused.
+- **ms/tick against your frame period** — 83 ms at 12 fps, 42 at 24. Any single
+  phase approaching that makes the clock late whatever else is true, and the
+  lateness reported above it is the consequence rather than a second fault.
+
+A phase that says **never ran** is doing what it should: some work is deliberately
+skipped while frames are flipping, because nobody can read it at speed.
+
+Under the phases are two more lines, and they are the ones to read first:
+**drawing it to the screen**, and **tick + draw**. Compositing a frame and
+putting it on screen are separate jobs, and only the first happens inside the
+tick — so the phases above can all look affordable while the frame period is
+already spent. The report adds them for you and says what share of the budget
+the total is, because that sum is the number that decides whether playback can
+keep time, and neither half means much alone.
+
+### Trying the fix off and on
+
+If you are chasing this with us, `LIGHTBOX_CLOCK_PRIORITY` starts Lightbox with
+the playhead scheduled differently, without changing anything else. Running the
+same build twice — once normally, once with that set — is worth far more than
+comparing two different builds, because it changes exactly one thing. Anything
+unrecognised, including a typo, is simply the normal setting, and the report
+always names the one it actually used.
+
+| Value | What it does |
+| --- | --- |
+| `Background` | The original scheduling, deliberately put back. The playhead waits behind everything else the application has queued. |
+| `Input` | The normal setting. The playhead waits behind the work that puts frames on screen, which is the point. |
+| `Loaded` | A step above normal. Worth trying if playback feels late but steady. |
+| `Render` | Level with the work that puts frames on screen. This was the setting before, and it is the one to try if you want to see the stutter come back. |
 
 It names which parts of the drawing are done by your graphics card and which by
 the processor — and those are not the same question. The status strip says

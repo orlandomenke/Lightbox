@@ -71,6 +71,16 @@ public sealed class CanvasControl : Control
             LazyRadiusProperty,
         ];
         AffectsRender<CanvasControl>(RepaintOnChange);
+
+        // The intent decides the platform cursor, and nothing else does — a
+        // second writer of Cursor is how the pointer ends up disagreeing with
+        // what the tool will actually do.
+        PointerIntentProperty.Changed.AddClassHandler<CanvasControl, CanvasCursorKind>(
+            (control, e) =>
+            {
+                if (control._overGuide) return;
+                control.Cursor = PointerCursors.For(e.NewValue.GetValueOrDefault());
+            });
     }
 
     /// <summary>Current tool size in document units — drives the brush-shape cursor.</summary>
@@ -204,6 +214,23 @@ public sealed class CanvasControl : Control
     private readonly PresentedFrame _presented = new();
 
     /// <summary>
+    /// Layer rasters kept resident on the GPU (B125 stage 5), so a frame showing
+    /// the same drawing as the last one is not uploaded again.
+    /// </summary>
+    /// <remarks>
+    /// Owned here because it is filled and read inside the draw op, on the render
+    /// thread, where the lease's context lives. Nothing on the UI thread may touch
+    /// it — freeing a GPU resource from the wrong thread is B130 in another hat.
+    /// </remarks>
+    private readonly LayerTextureCache _textures = new();
+
+
+
+    /// <summary>Resident-texture counters, for the render report. Tests only.</summary>
+    internal (int Hits, int Misses, long Bytes) TextureResidency =>
+        (_textures.Hits, _textures.Misses, _textures.ResidentBytes);
+
+    /// <summary>
     /// Whether the durable presentation frame (B122) is in the paint path at all.
     /// </summary>
     /// <remarks>
@@ -232,6 +259,19 @@ public sealed class CanvasControl : Control
             _presented.TotalPixelsIfAlwaysFull,
             _presented.IsGpuBacked,
             _presented.GpuSurfaceRequestFailed);
+
+    /// <summary>
+    /// How long published frames waited to be drawn, for the render report.
+    /// </summary>
+    /// <remarks>
+    /// B150's other half. The clock's own stats say whether the tick arrived on
+    /// time; this says whether the frame it asked for reached the screen — and a
+    /// report carrying only the first reads clean on a machine where the second
+    /// is the problem.
+    /// </remarks>
+    internal PresentLatency.Stats PresentWait => _presentWait.Snapshot;
+
+    private readonly PresentLatency _presentWait = new();
 
     /// <summary>
     /// Run something that needs the compositor's Skia context, on the render
@@ -449,6 +489,38 @@ public sealed class CanvasControl : Control
     /// <summary>The camera gizmo's drags, as document-space deltas per move.
     /// The window maps them onto the framing at the playhead, which keys it —
     /// adjusting the camera IS keying it, same as the numeric fields.</summary>
+    /// <summary>
+    /// The pointer moved over the document: stroke coordinates and the keys
+    /// held, so the view model can answer the two questions about a place that
+    /// only a place can answer.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Raised on hover only — while a gesture is in progress the answer is
+    /// already decided and re-asking it would cost a bitmap read per pointer
+    /// event during the one operation that can least afford it (invariant 6).
+    /// </para>
+    /// <para>
+    /// Coalesced by position: a pen reports far more moves than it crosses
+    /// pixels, and every duplicate would be a wasted read of the same pixel.
+    /// </para>
+    /// </remarks>
+    public event Action<double, double, KeyModifiers>? PointerHovered;
+
+    private (int X, int Y, KeyModifiers Mods)? _lastHoverReport;
+
+    private void ReportHover(Point view, KeyModifiers modifiers)
+    {
+        if (PointerHovered is null) return;
+        var (x, y) = ViewToDoc(view);
+        if (!double.IsFinite(x) || !double.IsFinite(y)) return;
+
+        var key = ((int)Math.Round(x), (int)Math.Round(y), modifiers);
+        if (_lastHoverReport == key) return;
+        _lastHoverReport = key;
+        PointerHovered.Invoke(x, y, modifiers);
+    }
+
     public event Action<double, double>? CameraPanned;
 
     /// <summary>Multiplicative zoom change from a corner drag.</summary>
@@ -880,11 +952,6 @@ public sealed class CanvasControl : Control
 
     private const int GuideKindLine = 0;
 
-    /// <summary>The cursor the drawing normally uses: none, so the gizmo is it.</summary>
-    private static readonly Cursor DrawingCursor = new(StandardCursorType.None);
-
-    private static readonly Cursor GuideCursor = new(StandardCursorType.SizeAll);
-
     private bool _overGuide;
 
     private void UpdateGuideHoverCursor(Point view)
@@ -892,8 +959,37 @@ public sealed class CanvasControl : Control
         var over = GuideDragEnabled && GuideAt(view) is not null;
         if (over == _overGuide) return;
         _overGuide = over;
-        Cursor = over ? GuideCursor : DrawingCursor;
+        Cursor = over ? PointerCursors.Move : PointerCursors.For(PointerIntent);
     }
+
+    /// <summary>
+    /// What the pointer is currently saying the tool will do — decided by
+    /// <see cref="CanvasCursor"/> and set from the view model.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A property rather than a decision made here, so the cursor and whatever
+    /// else reports the same fact cannot disagree. The control's job is the last
+    /// step only: turning a name into a platform cursor.
+    /// </para>
+    /// <para>
+    /// Platform cursors for now, which is what the roadmap allows — the mechanism
+    /// is the part that was missing, and custom artwork can replace this mapping
+    /// without anything above it changing.
+    /// </para>
+    /// </remarks>
+    public static readonly StyledProperty<CanvasCursorKind> PointerIntentProperty =
+        AvaloniaProperty.Register<CanvasControl, CanvasCursorKind>(nameof(PointerIntent));
+
+    public CanvasCursorKind PointerIntent
+    {
+        get => GetValue(PointerIntentProperty);
+        set => SetValue(PointerIntentProperty, value);
+    }
+
+    // The intent-to-cursor mapping lives in PointerCursors now (B175): as a
+    // private switch here it collapsed Pick, Fill and Precise onto one cross,
+    // and being private is why no test could say so.
 
     /// <summary>The box being drawn by hand right now, in document coordinates.</summary>
     private SKRect? _newBox;
@@ -972,6 +1068,39 @@ public sealed class CanvasControl : Control
         Shape,
         Move,
         Select,
+
+        /// <summary>
+        /// The white arrow: nodes and handles on the one isolated stroke.
+        /// </summary>
+        /// <remarks>
+        /// Distinct from <see cref="Select"/> rather than a flag on it, because
+        /// what a press means is entirely different — a node, not a stroke — and
+        /// folding the two would make one gesture mean two things depending on
+        /// state, which is the ambiguity the vector design exists to avoid.
+        /// </remarks>
+        PathEdit,
+
+        /// <summary>
+        /// The pen: every press places a node rather than starting a mark.
+        /// </summary>
+        /// <remarks>
+        /// A press and a drag mean one gesture here — place a node, then curve
+        /// it — so the paint path's begin/move/end cannot be reused with a flag.
+        /// The tool that looks most like the brush is the one that shares least
+        /// with it.
+        /// </remarks>
+        Pen,
+
+        /// <summary>
+        /// The width tool: a press grabs the line, a drag changes its weight.
+        /// </summary>
+        /// <remarks>
+        /// Shares the isolation session with <see cref="PathEdit"/> and not its
+        /// gesture: what a press means here is a position along the line rather
+        /// than a node or a handle, so folding the two would put the ambiguity
+        /// back that separate tools exist to remove.
+        /// </remarks>
+        Width,
     }
 
     public static readonly StyledProperty<CanvasToolMode> ToolModeProperty =
@@ -1133,6 +1262,170 @@ public sealed class CanvasControl : Control
     /// <summary>Hand the canvas the question it asks on a black-arrow press.</summary>
     public void SetLinePicker(Func<double, double, double, bool, bool, bool>? pick) =>
         _pickLine = pick;
+
+    // ---- reshaping one line (phase 2) ----------------------------------------
+
+    /// <summary>
+    /// Double-clicked a line with the black arrow: go into it. Returns whether
+    /// something was there.
+    /// </summary>
+    /// <remarks>
+    /// A delegate that answers rather than an event that does not, for the same
+    /// reason the line picker is one: the canvas has to know whether the press
+    /// became an isolation or is still a selection.
+    /// </remarks>
+    private Func<double, double, double, bool>? _enterPathEdit;
+
+    public void SetPathEditEntry(Func<double, double, double, bool>? enter) =>
+        _enterPathEdit = enter;
+
+    /// <summary>Grab a node or handle. Returns what was taken, or a miss.</summary>
+    private Func<double, double, double, bool, ViewModels.PathHit>? _grabPathPart;
+
+    /// <summary>Drag it — live, view-only, no document write.</summary>
+    private Action<ViewModels.PathHit, double, double, double, double, bool>? _dragPathPart;
+
+    /// <summary>Let go: one undo step for the whole drag.</summary>
+    private Action? _commitPathEdit;
+
+    /// <summary>
+    /// Preview what a click would reach into. Returns whether the answer moved.
+    /// </summary>
+    private Func<double, double, double, bool>? _hoverPathPart;
+
+    public void SetPathEditHandlers(
+        Func<double, double, double, bool, ViewModels.PathHit>? grab,
+        Action<ViewModels.PathHit, double, double, double, double, bool>? drag,
+        Action? commit,
+        Func<double, double, double, bool>? hover = null)
+    {
+        _grabPathPart = grab;
+        _dragPathPart = drag;
+        _commitPathEdit = commit;
+        _hoverPathPart = hover;
+    }
+
+    private ViewModels.PathHit _pathGrab = ViewModels.PathHit.Miss;
+    private (double X, double Y)? _pathDragLast;
+
+    /// <summary>Press: place a node, or close the path. Returns whether it took.</summary>
+    private Func<double, double, double, bool, bool, bool>? _penPress;
+
+    /// <summary>Drag after that press: curve the node just placed.</summary>
+    private Action<double, double, bool, bool>? _penDrag;
+
+    /// <summary>Release: the node keeps its curve.</summary>
+    private Action? _penRelease;
+
+    /// <summary>
+    /// Move with no button down: the segment not placed yet. Carries the grab
+    /// tolerance so the view model can preview a click that would close the
+    /// path with the same distance the press will use.
+    /// </summary>
+    private Action<double, double, double, bool>? _penHover;
+
+    public void SetPenHandlers(
+        Func<double, double, double, bool, bool, bool>? press,
+        Action<double, double, bool, bool>? drag,
+        Action? release,
+        Action<double, double, double, bool>? hover)
+    {
+        _penPress = press;
+        _penDrag = drag;
+        _penRelease = release;
+        _penHover = hover;
+    }
+
+    private bool _penShaping;
+
+    /// <summary>Press: take hold of the line. Returns where along it, or -1.</summary>
+    private Func<double, double, double, double>? _grabWidth;
+
+    /// <summary>Drag: the weight follows how far the pointer is off the line.</summary>
+    private Action<double, double, double>? _dragWidth;
+
+    /// <summary>Release: one undo step for the whole drag.</summary>
+    private Action? _endWidth;
+
+    public void SetWidthHandlers(
+        Func<double, double, double, double>? grab,
+        Action<double, double, double>? drag,
+        Action? end)
+    {
+        _grabWidth = grab;
+        _dragWidth = drag;
+        _endWidth = end;
+    }
+
+    /// <summary>Where along the line the width drag has hold, or -1.</summary>
+    private double _widthGrab = -1;
+
+    /// <summary>
+    /// The path being drawn, in document space, as a polyline.
+    /// </summary>
+    /// <remarks>
+    /// <b>Chrome, not paint.</b> The shape tool stamps its preview with the real
+    /// brush, which is right for one drag; a pen session lasts as long as it
+    /// takes to place a dozen nodes, and re-stamping the whole path into the
+    /// full-canvas scratch on every pointer move is what invariant 6 forbids.
+    /// A traced line costs a path per redraw and says everything the artist
+    /// needs while placing — the brush arrives at the commit.
+    /// </remarks>
+    private IReadOnlyList<Core.Documents.StrokePoint>? _penPreview;
+
+    public void SetPenPreview(IReadOnlyList<Core.Documents.StrokePoint>? points)
+    {
+        _penPreview = points is { Count: > 1 } ? points : null;
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// The isolated line's current shape, retraced live while a node drags.
+    /// </summary>
+    /// <remarks>
+    /// The raster stroke does not re-render until the drag commits (invariant
+    /// 6 — a per-move re-render repaints the frame from its strokes hundreds
+    /// of times a drag), so without this the nodes move and the line they
+    /// describe stays put until release. Same trace the pen draws, on its own
+    /// channel: the pen's path now survives a tool switch, so the two can be
+    /// alive at once and must not clobber each other.
+    /// </remarks>
+    private IReadOnlyList<Core.Documents.StrokePoint>? _pathTrace;
+
+    public void SetPathTrace(IReadOnlyList<Core.Documents.StrokePoint>? points)
+    {
+        _pathTrace = points is { Count: > 1 } ? points : null;
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// The nodes to draw, in document space, and which are selected.
+    /// </summary>
+    /// <remarks>
+    /// Handed over on change rather than polled, like the selected-line
+    /// outlines: rebuilding this per pointer move would be work proportional to
+    /// the path inside a move handler. It is small — a fitted line is a handful
+    /// of nodes — but the rule is the rule, and B147 is what happens when a
+    /// canvas's private copy stops being refreshed.
+    /// </remarks>
+    private IReadOnlyList<PathNodeGlyph>? _pathNodes;
+
+    /// <summary>One node as the overlay needs it: where it is and what it is.</summary>
+    /// <param name="CloseHint">
+    /// The pen's closing indicator: a ring around the first node while a click
+    /// would join the path back to it.
+    /// </param>
+    public readonly record struct PathNodeGlyph(
+        double X, double Y,
+        double InX, double InY,
+        double OutX, double OutY,
+        bool Corner, bool Selected, bool CloseHint = false);
+
+    public void SetPathNodes(IReadOnlyList<PathNodeGlyph>? nodes)
+    {
+        _pathNodes = nodes is { Count: > 0 } ? nodes : null;
+        InvalidateVisual();
+    }
 
     /// <summary>
     /// A marquee dragged with the arrow: the rect in document space, and
@@ -1659,7 +1952,7 @@ public sealed class CanvasControl : Control
             // B122: this frame's change never reaches the durable presentation
             // surface, so it has to be owed or those pixels stay stale.
             _presented.Skipped(snapshot.ChangedInImage);
-            snapshot.Image.Dispose();
+            snapshot.Dispose();
             return false;
         }
 
@@ -1689,7 +1982,7 @@ public sealed class CanvasControl : Control
                && _retired.Peek() is { } stale
                && stale.Seq < rendered)
         {
-            _retired.Dequeue().Image.Dispose();
+            _retired.Dequeue().Dispose();
         }
         // Hard cap, but never at the cost of freeing something in flight: an
         // image the render thread has not finished with must survive however
@@ -1699,26 +1992,138 @@ public sealed class CanvasControl : Control
                && _retired.Peek() is { } spare
                && spare.Seq < rendered)
         {
-            _retired.Dequeue().Image.Dispose();
+            _retired.Dequeue().Dispose();
         }
         InvalidateVisual();
         // InvalidateVisual alone is not enough: when input goes quiet right
         // after a publish (mouse released and held still), the dispatcher may
         // never wake to paint it — the stroke only appeared on the NEXT event.
         // An animation-frame request forces a compositor frame regardless.
-        if (!_framePending && TopLevel.GetTopLevel(this) is { } top)
-        {
-            _framePending = true;
-            top.RequestAnimationFrame(_ =>
-            {
-                _framePending = false;
-                InvalidateVisual();
-            });
-        }
+        _presentWait.Published(snapshot.Seq);
+
+        if (_keepPresenting) PumpPresentLoop();
+        else RequestOneFrame();
         return true;
     }
 
-    private bool _framePending;
+    private void RequestOneFrame()
+    {
+        if (TopLevel.GetTopLevel(this) is not { } top) return;
+        _frameRequests++;
+        top.RequestAnimationFrame(_ =>
+        {
+            _frameCallbacks++;
+            InvalidateVisual();
+        });
+    }
+
+    /// <summary>
+    /// While true, keep a compositor frame permanently on request — the state
+    /// playback needs and could not have.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B164, and the reported symptom is a direct consequence: playback is
+    /// smooth only while the pointer moves over the canvas.</b> A frame was asked
+    /// for once per publish, so during playback the compositor ran <em>at the
+    /// scene's frame rate and in lock-step with it</em> — twelve times a second,
+    /// each tick triggered by the publish it was meant to show. Nothing was
+    /// running between them, so every wobble in when a publish landed went
+    /// straight to the screen with nothing to absorb it.
+    /// </para>
+    /// <para>
+    /// <b>Moving the pointer fixed it by accident.</b> Pointer motion invalidates
+    /// the canvas at pointer rate, which keeps the compositor ticking at display
+    /// rate; a published frame is then picked up within a vsync instead of
+    /// waiting for the next publish to drag the compositor awake.
+    /// </para>
+    /// <para>
+    /// <b>The owner's own experiment is what makes this the answer rather than
+    /// another theory, because it is the one fact every earlier hypothesis got
+    /// wrong.</b> Mashing Ctrl, mashing Space and switching tools quickly all
+    /// smooth playback; <em>holding a key down does not</em>. Held keys repeat at
+    /// about 30 a second, so events are arriving in quantity — what they do not do
+    /// is change anything visible. Everything in the working list repaints some
+    /// control; everything in the failing list does not. "Input wakes the loop"
+    /// cannot survive that pair, and "the compositor is only ticking when
+    /// something invalidates" explains both halves and the docker case with it.
+    /// </para>
+    /// <para>
+    /// So while the transport is running, the loop re-arms itself from inside its
+    /// own callback and the compositor ticks at display rate the way it does under
+    /// the pointer. <see cref="_presentLoopRunning"/> keeps exactly one request in
+    /// flight, so a publish arriving mid-loop joins it rather than doubling it.
+    /// When it stops, the last callback simply does not re-arm — there is no timer
+    /// to cancel and nothing spins while the artist is drawing.
+    /// </para>
+    /// </remarks>
+    public bool KeepPresenting
+    {
+        get => _keepPresenting;
+        set
+        {
+            if (_keepPresenting == value) return;
+            _keepPresenting = value;
+            if (value) PumpPresentLoop();
+        }
+    }
+
+    private bool _keepPresenting;
+
+    /// <summary>One request in flight at a time. See <see cref="KeepPresenting"/>.</summary>
+    private bool _presentLoopRunning;
+
+    private void PumpPresentLoop()
+    {
+        if (_presentLoopRunning || !_keepPresenting) return;
+        if (TopLevel.GetTopLevel(this) is not { } top) return;
+
+        _presentLoopRunning = true;
+        _frameRequests++;
+        top.RequestAnimationFrame(_ =>
+        {
+            _frameCallbacks++;
+            _presentLoopRunning = false;
+            InvalidateVisual();
+            // Re-arm from inside the callback: that is what makes it a loop
+            // rather than a single wake, and it stops the moment playback does.
+            PumpPresentLoop();
+        });
+    }
+
+    /// <summary>
+    /// Animation frames asked for, and callbacks that came back (B153).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>These two numbers decide between the only two explanations left</b> for
+    /// playback riding on pointer movement. If they track each other, the
+    /// compositor is ticking and the wake is arriving, so the fault is upstream.
+    /// If requests climb and callbacks do not, the compositor is genuinely
+    /// asleep when input is quiet, and no amount of asking politely will wake it
+    /// — which is a different fix and worth knowing before building one.
+    /// </para>
+    /// <para>
+    /// <b>The latch this replaced was a real defect on its own.</b> A
+    /// <c>_framePending</c> flag was set before the request and cleared only
+    /// inside the callback, so a <em>single</em> callback that never arrived
+    /// left it true for the rest of the session and every later publish skipped
+    /// asking. One dropped frame disabled the mitigation permanently, and moving
+    /// the pointer hid it by waking the loop another way — which is exactly the
+    /// symptom reported. Requesting unconditionally costs one one-shot callback
+    /// per publish, a dozen or two a second, and cannot latch.
+    /// </para>
+    /// </remarks>
+    internal (long Requested, long Delivered) AnimationFrames => (_frameRequests, _frameCallbacks);
+
+    internal void ResetAnimationFrameCounters()
+    {
+        _frameRequests = 0;
+        _frameCallbacks = 0;
+    }
+
+    private long _frameRequests;
+    private long _frameCallbacks;
 
     public override void Render(DrawingContext context)
     {
@@ -1797,7 +2202,8 @@ public sealed class CanvasControl : Control
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
             ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks),
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
-            _selectedLines, LineMarqueeRect(), LineDragOffset()));
+            _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
+            _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures));
     }
 
     /// <summary>
@@ -1902,24 +2308,77 @@ public sealed class CanvasControl : Control
     }
 
     /// <summary>
-    /// Map a view-space point to document space (exposed for tests). Never
-    /// throws: a degenerate matrix (zero-sized layout) falls back to the raw
-    /// point, and non-finite results are pinned to the origin.
+    /// Where the paper's top-left sits in stroke coordinates — <c>Scene.Left</c>
+    /// and <c>Scene.Top</c>, non-zero only once the canvas has been grown or
+    /// cropped on that side.
     /// </summary>
-    public (double X, double Y) ViewToDoc(Point p)
+    /// <remarks>
+    /// <para>
+    /// <b>The view matrix works in surface pixels and always will.</b> It is
+    /// built from <c>DocWidth</c>/<c>DocHeight</c>, which are the size of the
+    /// composited bitmap — that bitmap starts at its own (0,0) whatever the
+    /// document rectangle is called. So the origin does not belong in the
+    /// matrix; it belongs in the two conversions either side of it, which is
+    /// where it is.
+    /// </para>
+    /// <para>
+    /// Putting it here rather than on <c>RenderSnapshot</c> keeps it out of the
+    /// render path entirely, which is right: nothing about <em>drawing</em> the
+    /// composited bitmap changes when the paper is renamed. Only the question
+    /// "which stroke coordinate is under the pointer" does.
+    /// </para>
+    /// </remarks>
+    public static readonly StyledProperty<PixelPoint> DocumentOriginProperty =
+        AvaloniaProperty.Register<CanvasControl, PixelPoint>(nameof(DocumentOrigin));
+
+    public PixelPoint DocumentOrigin
     {
-        if (!ViewMatrix().TryInvert(out var inverse)) return (p.X, p.Y);
-        var doc = p.Transform(inverse);
-        if (!double.IsFinite(doc.X) || !double.IsFinite(doc.Y)) return (0, 0);
-        return (doc.X, doc.Y);
+        get => GetValue(DocumentOriginProperty);
+        set => SetValue(DocumentOriginProperty, value);
     }
 
-    /// <summary>Map a document point to view space.</summary>
+    /// <summary>
+    /// Map a view-space point to <b>stroke</b> coordinates (exposed for tests).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Never throws: a degenerate matrix (zero-sized layout) falls back to the
+    /// raw point, and non-finite results are pinned to the document's top-left.
+    /// </para>
+    /// <para>
+    /// <b>Stroke coordinates, not surface pixels</b>, and that is what makes the
+    /// resize work reach the tools for nothing. Every caller that picks a line,
+    /// drags a guide, places a symbol or starts a stroke wants the space the
+    /// record is written in — so adding the origin here fixes all of them at
+    /// once. The few callers that index a bitmap instead subtract it again, and
+    /// they are the exceptions rather than the rule.
+    /// </para>
+    /// </remarks>
+    public (double X, double Y) ViewToDoc(Point p)
+    {
+        var origin = DocumentOrigin;
+        if (!ViewMatrix().TryInvert(out var inverse)) return (p.X + origin.X, p.Y + origin.Y);
+        var doc = p.Transform(inverse);
+        if (!double.IsFinite(doc.X) || !double.IsFinite(doc.Y)) return (origin.X, origin.Y);
+        return (doc.X + origin.X, doc.Y + origin.Y);
+    }
+
+    /// <summary>Map a stroke coordinate to view space.</summary>
     public (double X, double Y) DocToView(double x, double y)
     {
-        var p = new Point(x, y).Transform(ViewMatrix());
+        var origin = DocumentOrigin;
+        var p = new Point(x - origin.X, y - origin.Y).Transform(ViewMatrix());
         return (p.X, p.Y);
     }
+
+    /// <summary>A stroke coordinate as a pixel in the composited bitmap.</summary>
+    /// <remarks>
+    /// For the handful of callers that index pixels rather than reasoning about
+    /// the record: flood fill, the wand, and the colour picker. Everything else
+    /// should stay in stroke coordinates and never call this.
+    /// </remarks>
+    public (double X, double Y) DocToSurface(double x, double y) =>
+        (x - DocumentOrigin.X, y - DocumentOrigin.Y);
 
     /// <summary>Find the placement at document coordinates, or null if none hit.</summary>
     private Core.Documents.SymbolPlacement? PickPlacementAt(double x, double y)
@@ -2408,11 +2867,51 @@ public sealed class CanvasControl : Control
                     }
                     e.Handled = true;
                     return;
+                case CanvasToolMode.Width:
+                    e.Pointer.Capture(this);
+                    _widthGrab = _grabWidth?.Invoke(x, y, DocTolerance(GrabPixels)) ?? -1;
+                    e.Handled = true;
+                    return;
+                case CanvasToolMode.Pen:
+                    // Captured whether or not the press took, so a press over a
+                    // locked layer cannot leave the pointer half-grabbed.
+                    e.Pointer.Capture(this);
+                    _penShaping = _penPress?.Invoke(
+                        x, y, DocTolerance(GrabPixels),
+                        e.KeyModifiers.HasFlag(KeyModifiers.Shift),
+                        e.KeyModifiers.HasFlag(KeyModifiers.Alt)) ?? false;
+                    e.Handled = true;
+                    return;
+                case CanvasToolMode.PathEdit:
+                    e.Pointer.Capture(this);
+                    // B172. Entering isolation and grabbing a part are one
+                    // question here — "what does a click with the white arrow
+                    // mean" — and the answer lives in the view model, like every
+                    // other decision this control delegates. It used to be able
+                    // to grab only, so the tool was inert until the *black*
+                    // arrow had opened the line first.
+                    _pathGrab = _grabPathPart?.Invoke(
+                        x, y, DocTolerance(GrabPixels),
+                        e.KeyModifiers.HasFlag(KeyModifiers.Shift)) ?? ViewModels.PathHit.Miss;
+                    _pathDragLast = _pathGrab.IsHit ? (x, y) : null;
+                    e.Handled = true;
+                    return;
                 case CanvasToolMode.Select:
                     if (_selectionManager is not null)
                     {
                         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
                         var alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+
+                        // Double-click goes into the line rather than selecting
+                        // it again. Illustrator's gesture, and safe for the
+                        // reason Q53 gives: reaching into geometry is never
+                        // something a single click can do by accident.
+                        if (e.ClickCount >= 2 && _enterPathEdit is not null
+                            && _enterPathEdit(x, y, DocTolerance(GrabPixels)))
+                        {
+                            e.Handled = true;
+                            return;
+                        }
 
                         // Try placements first
                         if (_getPlacementsForSelection is not null)
@@ -2581,8 +3080,19 @@ public sealed class CanvasControl : Control
         try
         {
             _hoverPoint = e.GetPosition(this);
+            // Only while nothing is being dragged: mid-gesture the question is
+            // already answered, and asking it again would put a bitmap read in
+            // the pointer path of the one operation that cannot afford it.
+            if (!_painting && !_panning) ReportHover(_hoverPoint.Value, e.KeyModifiers);
             // The brush cursor must follow the pointer no matter what state
             // we're in — repaints coalesce, so this is cheap.
+            //
+            // It is also, as far as anything can tell, the whole reason playback
+            // looks smooth while the pointer moves HERE and nowhere else: this
+            // is the only InvalidateVisual in the application that a docker
+            // cannot cause. Counted so the report can say whether a frame's wait
+            // to be drawn depends on it — see InputPulse.
+            InputPulse.OnCanvas();
             InvalidateVisual();
 
             if (_movingGuides)
@@ -2765,6 +3275,64 @@ public sealed class CanvasControl : Control
                 _pan += pos - _panLast;
                 _panLast = pos;
                 ViewUpdated();
+                e.Handled = true;
+                return;
+            }
+
+            // changing a line's weight?
+            if (ToolMode == CanvasToolMode.Width && _widthGrab >= 0)
+            {
+                var (wx, wy) = ViewToDoc(e.GetPosition(this));
+                _dragWidth?.Invoke(_widthGrab, wx, wy);
+                e.Handled = true;
+                return;
+            }
+
+            // drawing a path?
+            if (ToolMode == CanvasToolMode.Pen)
+            {
+                var (px, py) = ViewToDoc(e.GetPosition(this));
+                var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+                if (_penShaping)
+                {
+                    _penDrag?.Invoke(px, py, shift, e.KeyModifiers.HasFlag(KeyModifiers.Alt));
+                }
+                else
+                {
+                    // The rubber band, which is the whole reason a pen is
+                    // predictable: you see the curve the next click will make
+                    // before you commit to it — including the click that would
+                    // close the path, which is why the tolerance travels too.
+                    _penHover?.Invoke(px, py, DocTolerance(GrabPixels), shift);
+                }
+                e.Handled = true;
+                return;
+            }
+
+            // Not dragging anything, white arrow in hand: preview the line
+            // under the pointer. The view model answers whether the preview
+            // actually moved, so an unchanged hover costs a hit test and no
+            // repaint — a hover fires on every pointer event, and this is a
+            // per-event path.
+            if (ToolMode == CanvasToolMode.PathEdit && !_pathGrab.IsHit)
+            {
+                var (hx, hy) = ViewToDoc(e.GetPosition(this));
+                _hoverPathPart?.Invoke(hx, hy, DocTolerance(GrabPixels));
+                // Deliberately not handled: a preview is not an interaction,
+                // and swallowing the move here would stop everything below it
+                // that also wants to know where the pointer is.
+            }
+
+            // reshaping a node or a handle?
+            if (_pathGrab.IsHit && _pathDragLast is { } pathFrom)
+            {
+                var (px, py) = ViewToDoc(e.GetPosition(this));
+                _pathDragLast = (px, py);
+                _dragPathPart?.Invoke(
+                    _pathGrab, px, py, px - pathFrom.X, py - pathFrom.Y,
+                    // Alt breaks a smooth node's handle pair, Illustrator's
+                    // modifier, so the muscle memory transfers.
+                    e.KeyModifiers.HasFlag(KeyModifiers.Alt));
                 e.Handled = true;
                 return;
             }
@@ -2984,6 +3552,37 @@ public sealed class CanvasControl : Control
                 sx, sy,
                 e.KeyModifiers.HasFlag(KeyModifiers.Alt),
                 e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+            e.Handled = true;
+            return;
+        }
+        if (ToolMode == CanvasToolMode.Width)
+        {
+            _widthGrab = -1;
+            e.Pointer.Capture(null);
+            _endWidth?.Invoke();
+            e.Handled = true;
+            return;
+        }
+        if (ToolMode == CanvasToolMode.Pen)
+        {
+            // Unconditional, not guarded on whether the press took: a press that
+            // was refused still captured the pointer, and a capture nothing
+            // releases is a canvas that has stopped responding.
+            _penShaping = false;
+            e.Pointer.Capture(null);
+            _penRelease?.Invoke();
+            e.Handled = true;
+            return;
+        }
+        if (_pathGrab.IsHit)
+        {
+            // One undo step for the whole drag, however many pointer moves it
+            // took — the transform session's rule, and the reason the live edit
+            // never touched the document.
+            _pathGrab = ViewModels.PathHit.Miss;
+            _pathDragLast = null;
+            e.Pointer.Capture(null);
+            _commitPathEdit?.Invoke();
             e.Handled = true;
             return;
         }
@@ -3307,14 +3906,30 @@ public sealed class CanvasControl : Control
     /// Tests only.
     /// </summary>
     internal bool HeldImagesAlive =>
-        (_snapshot is null || _snapshot.Image.Handle != IntPtr.Zero)
-        && _retired.All(r => r.Image.Handle != IntPtr.Zero);
+        // A null image is a snapshot whose composite has not been performed yet
+        // (B125 stage 3b) — nothing has been freed, so nothing is dangling.
+        (_snapshot is null || Alive(_snapshot)) && _retired.All(Alive);
+
+    /// <summary>
+    /// Whether a held snapshot is safe to draw. A snapshot with no image is safe
+    /// when it has not been composed yet (B125 stage 3b) and unsafe when it was
+    /// freed — null alone cannot tell those apart, which is why
+    /// <see cref="RenderSnapshot.IsDisposed"/> exists.
+    /// </summary>
+    private static bool Alive(RenderSnapshot s) =>
+        !s.IsDisposed && (s.Image is not { } img || img.Handle != IntPtr.Zero);
 
     /// <summary>How many frames are queued behind the one on screen. Tests only.</summary>
     internal int RetiredCount => _retired.Count;
 
     private void NoteRendered(long seq)
     {
+        // Before the early return below, which is about keeping the high-water
+        // mark monotonic. A frame that arrived out of order was still drawn, and
+        // dropping it here would flatter the average by counting only the
+        // frames that behaved.
+        _presentWait.Rendered(seq);
+
         long current;
         do
         {
@@ -3350,7 +3965,11 @@ public sealed class CanvasControl : Control
         Action<GRContext?>? gpuWork = null,
         IReadOnlyList<SelectedLine>? selectedLines = null,
         SKRect? lineMarquee = null,
-        SKPoint lineDrag = default) : ICustomDrawOperation
+        SKPoint lineDrag = default,
+        IReadOnlyList<PathNodeGlyph>? pathNodes = null,
+        IReadOnlyList<Core.Documents.StrokePoint>? penPreview = null,
+        IReadOnlyList<Core.Documents.StrokePoint>? pathTrace = null,
+        LayerTextureCache? textures = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -3427,9 +4046,23 @@ public sealed class CanvasControl : Control
             // lifetime `_retired` already manages. `LIGHTBOX_DURABLE_FRAME=1` opts
             // back in for measuring the fix, and it is deliberately an environment
             // variable rather than a setting — nobody should find this by accident.
+            // B125 stage 3b: the composite may not have happened yet. Materialise
+            // here — inside the draw op, on the render thread — because this is
+            // where the lease's GRContext is, and handing it over is the only way
+            // a composite can be GPU-backed at all (stage 4). A snapshot that
+            // already carries an image returns it unchanged, which is every route
+            // except the culled one.
+            var composed = snapshot.Materialise(lease.GrContext, textures);
+            // B179: Skia's own GPU resource cache is the one large pool the
+            // memory section could not see, and it is only askable from here —
+            // the context lives in the lease and nowhere else. Sampled rather
+            // than subscribed: one call per draw is nothing beside the composite
+            // above it, and the report needs a recent number rather than a
+            // running one.
+            SkiaMemory.Sample(lease.GrContext);
             var artwork = presented is null || !DurableFrameEnabled
-                ? snapshot.Image
-                : presented.Present(lease.GrContext, snapshot.Image, snapshot.ChangedInImage, snapshot.Seq);
+                ? composed
+                : presented.Present(lease.GrContext, composed, snapshot.ChangedInImage, snapshot.Seq);
 
             // Queued work that needs the context (the render report's upload
             // probe). After the frame's own drawing, and wrapped, because a
@@ -3673,10 +4306,168 @@ public sealed class CanvasControl : Control
             if (dragging) canvas.Restore();
         }
 
+        /// <summary>
+        /// The node overlay: handles behind, nodes in front, everything sized in
+        /// screen pixels rather than document ones.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Every dimension is divided by the view scale</b>, which is what
+        /// makes a node the same size to grab at 25% and at 800%. The overlay is
+        /// drawn inside the document transform so its coordinates need no
+        /// conversion; only its <em>thicknesses</em> do. Getting this backwards
+        /// gives handles that vanish when you zoom out to see the shape — which
+        /// is exactly when you need them.
+        /// </para>
+        /// <para>
+        /// <b>Corners are squares and smooth nodes are circles</b>, which is the
+        /// convention every vector tool shares and is worth matching rather than
+        /// inventing: it is the only way to see, without clicking, whether a
+        /// point will kink when you drag its handle.
+        /// </para>
+        /// <para>
+        /// <b>Handles are drawn only for selected nodes</b>, matching the hit
+        /// test exactly — an overlay that showed a handle nothing could grab, or
+        /// hid one that could be, would make the tool feel unreliable in a way
+        /// that is very hard to report.
+        /// </para>
+        /// </remarks>
+        private void DrawPathNodes(SKCanvas canvas)
+        {
+            if (pathNodes is null || pathNodes.Count == 0) return;
+
+            var scale = Math.Max(0.01f, view.Scale);
+            var nodeRadius = 4f / scale;
+            var handleRadius = 3f / scale;
+
+            using var stem = new SKPaint
+            {
+                Color = SKColors.DeepSkyBlue.WithAlpha(200),
+                StrokeWidth = 1f / scale,
+                Style = SKPaintStyle.Stroke,
+                IsAntialias = true,
+            };
+            using var outline = new SKPaint
+            {
+                Color = SKColors.DeepSkyBlue,
+                StrokeWidth = 1.5f / scale,
+                Style = SKPaintStyle.Stroke,
+                IsAntialias = true,
+            };
+            using var hollow = new SKPaint
+            {
+                Color = SKColors.White,
+                Style = SKPaintStyle.Fill,
+                IsAntialias = true,
+            };
+            using var filled = new SKPaint
+            {
+                Color = SKColors.DeepSkyBlue,
+                Style = SKPaintStyle.Fill,
+                IsAntialias = true,
+            };
+
+            // Handles first, so a stem never draws over the node it belongs to.
+            foreach (var n in pathNodes)
+            {
+                if (!n.Selected) continue;
+                foreach (var (hx, hy) in new[] { (n.InX, n.InY), (n.OutX, n.OutY) })
+                {
+                    if (hx == 0 && hy == 0) continue;
+                    var ax = (float)(n.X + hx);
+                    var ay = (float)(n.Y + hy);
+                    canvas.DrawLine((float)n.X, (float)n.Y, ax, ay, stem);
+                    canvas.DrawCircle(ax, ay, handleRadius, hollow);
+                    canvas.DrawCircle(ax, ay, handleRadius, outline);
+                }
+            }
+
+            foreach (var n in pathNodes)
+            {
+                var x = (float)n.X;
+                var y = (float)n.Y;
+                var body = n.Selected ? filled : hollow;
+                if (n.Corner)
+                {
+                    var box = new SKRect(x - nodeRadius, y - nodeRadius, x + nodeRadius, y + nodeRadius);
+                    canvas.DrawRect(box, body);
+                    canvas.DrawRect(box, outline);
+                }
+                else
+                {
+                    canvas.DrawCircle(x, y, nodeRadius, body);
+                    canvas.DrawCircle(x, y, nodeRadius, outline);
+                }
+
+                // The pen's closing indicator: a ring, because the node itself
+                // must stay legible under it — the ring says "the next click
+                // lands here and joins up", the node keeps saying what it is.
+                if (n.CloseHint)
+                {
+                    canvas.DrawCircle(x, y, nodeRadius * 2.2f, outline);
+                }
+            }
+        }
+
+        /// <summary>
+        /// The path the pen has drawn so far, traced rather than painted.
+        /// </summary>
+        /// <remarks>
+        /// <b>Deliberately not the brush.</b> Seeing the real mark would mean
+        /// stamping the whole path into the scratch surface on every pointer
+        /// move, for as long as the artist takes to place their nodes — the cost
+        /// invariant 6 exists to refuse. What a pen actually needs shown is the
+        /// <em>shape</em>, and the shape is what a traced line is.
+        /// </remarks>
+        private void DrawPenPreview(SKCanvas canvas)
+        {
+            // Two traces, one look: the pen's path in progress and the isolated
+            // line being reshaped. Separate channels because both can be alive
+            // at once — a parked pen path survives a tool switch into isolation.
+            TraceLine(canvas, penPreview);
+            TraceLine(canvas, pathTrace);
+        }
+
+        private void TraceLine(SKCanvas canvas, IReadOnlyList<Core.Documents.StrokePoint>? trace)
+        {
+            if (trace is not { Count: > 1 } points) return;
+
+            var scale = Math.Max(0.01f, view.Scale);
+            using var path = new SKPath();
+            path.MoveTo((float)points[0].X, (float)points[0].Y);
+            for (var i = 1; i < points.Count; i++)
+            {
+                path.LineTo((float)points[i].X, (float)points[i].Y);
+            }
+
+            // Two passes: a pale wide one so the line reads over dark artwork,
+            // and the blue the nodes are drawn in over it. The same trick the
+            // marching ants use, for the same reason — an overlay that vanishes
+            // against half the drawings is an overlay you cannot trust.
+            using var halo = new SKPaint
+            {
+                Color = SKColors.White.WithAlpha(160),
+                StrokeWidth = 3f / scale,
+                Style = SKPaintStyle.Stroke,
+                IsAntialias = true,
+            };
+            using var line = new SKPaint
+            {
+                Color = SKColors.DeepSkyBlue,
+                StrokeWidth = 1.25f / scale,
+                Style = SKPaintStyle.Stroke,
+                IsAntialias = true,
+            };
+            canvas.DrawPath(path, halo);
+            canvas.DrawPath(path, line);
+        }
+
         private void DrawObjectSelections(SKCanvas canvas)
         {
             DrawSelectedLines(canvas);
             DrawLineMarquee(canvas);
+            DrawPenPreview(canvas);
+            DrawPathNodes(canvas);
             if (selectionManager is null || !selectionManager.HasSelection) return;
 
             var scale = view.Scale;

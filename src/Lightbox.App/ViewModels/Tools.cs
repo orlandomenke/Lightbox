@@ -37,6 +37,78 @@ public enum ToolId
     /// </remarks>
     Arrow,
 
+    /// <summary>
+    /// The white arrow: reshapes one isolated line, point by point.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Illustrator's Direct Selection, and the second half of the pair the black
+    /// arrow starts. It touches nodes and handles rather than whole strokes,
+    /// which is why it is a separate tool and not a mode of the black one — Q53
+    /// again: one tool, one kind of thing, and no modifier to remember.
+    /// </para>
+    /// <para>
+    /// <b>Its key is not Illustrator's.</b> The design table says <c>A</c>, which
+    /// this application gave the black arrow before the pair existed and which
+    /// the manual has documented since. Moving it would break a binding artists
+    /// already have for a letter that only matches Adobe if you also moved
+    /// Select off <c>V</c>. <c>N</c> for node is free, mnemonic, and rebindable
+    /// like everything else — the point of <c>ShortcutMap</c> is that the default
+    /// is a default.
+    /// </para>
+    /// <para>
+    /// Reaching for it with nothing isolated does nothing destructive: it says
+    /// what to do — double-click a line — rather than silently behaving like the
+    /// black arrow, which would be the two tools blurring back into one.
+    /// </para>
+    /// </remarks>
+    DirectSelect,
+
+    /// <summary>
+    /// The pen: places nodes and draws the curve between them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Click for a corner, click and drag for a curve, click the first node to
+    /// close. The third of the vector tools and the only one that starts from
+    /// nothing — the arrows both need a line to already exist.
+    /// </para>
+    /// <para>
+    /// <b>What it makes is an ordinary stroke.</b> Not a shape, not a vector
+    /// object: the same record the brush writes, with its points flattened from
+    /// the path and the path kept alongside them. So a pen line erases, fills
+    /// against, inbetweens and exports exactly like a drawn one, and the white
+    /// arrow opens the nodes the pen authored rather than a fit of them.
+    /// </para>
+    /// <para>
+    /// A pen line has no pressure variation, because nothing was pressing. That
+    /// is the honest result rather than a gap — it is what a pen is for, and the
+    /// brush's own dynamics still apply along it.
+    /// </para>
+    /// </remarks>
+    Pen,
+
+    /// <summary>
+    /// The width tool: drag away from a line to fatten it, towards it to thin it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Illustrator's Width tool, and it is the same thing here for a reason worth
+    /// stating plainly: <b>its "width points" are Lightbox's per-point pressure
+    /// under another name.</b> A Lightbox stroke is already a centreline with a
+    /// width at every point, so there is nothing to add to the record — this
+    /// tool edits a number the format has carried since the first stroke.
+    /// </para>
+    /// <para>
+    /// A separate tool rather than a modifier on the white arrow, for Q53's
+    /// reason: it does a different kind of thing (weight, not geometry) and one
+    /// gesture that means two things depending on a held key is the ambiguity the
+    /// vector design exists to avoid. It shares the isolation session, so
+    /// reaching for it inside a line you are already reshaping just works.
+    /// </para>
+    /// </remarks>
+    Width,
+
     /// <summary>Eyedropper: click the canvas to pick the color under the cursor.</summary>
     Picker,
 

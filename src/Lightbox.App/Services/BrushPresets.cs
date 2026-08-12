@@ -57,16 +57,27 @@ public sealed class BrushPreset
     /// <remarks>
     /// A glyph rather than a colour on its own: a dot that only differs by
     /// hue is invisible to a good share of people, and the picker is how you
-    /// choose a brush.
+    /// choose a brush. The textured tier (B177) is the same glyph hollowed:
+    /// related cost, lighter weight, still legible without colour.
     /// </remarks>
     [JsonIgnore]
-    public string CostBadge => IsExpressive ? "◈" : "";
+    public string CostBadge => Cost switch
+    {
+        BrushCost.Expressive => "◈",
+        BrushCost.Textured => "◇",
+        _ => "",
+    };
 
     /// <summary>Why it is badged, phrased for a tooltip.</summary>
     [JsonIgnore]
-    public string CostTip => BrushCostOf.Why(Settings) is { } why
-        ? $"Expressive — {why}. Slower on a large canvas; worth it when the mark matters."
-        : "Stamps dabs and stops. Predictable cost at any canvas size.";
+    public string CostTip => Cost switch
+    {
+        BrushCost.Expressive =>
+            $"Expressive — {BrushCostOf.Why(Settings)}. Slower on a large canvas; worth it when the mark matters.",
+        BrushCost.Textured =>
+            $"Textured — {BrushCostOf.Why(Settings)}. Drawing stays light; the pen-lift pays for the finish.",
+        _ => "Stamps dabs and stops. Predictable cost at any canvas size.",
+    };
 
     public override string ToString() => Name;
 }

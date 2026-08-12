@@ -24,8 +24,16 @@ public static class SequenceExporter
     public static (int Width, int Height) OutputSize(Scene scene) =>
         scene.Camera is { } camera ? (camera.OutputWidth, camera.OutputHeight) : (scene.Width, scene.Height);
 
-    /// <summary>One timeline frame, composited exactly as export sees it.</summary>
-    public static SKImage RenderFrame(Doc doc, FrameBitmapCache cache, int frameIndex)
+    /// <summary>
+    /// One timeline frame, composited exactly as export sees it.
+    /// <paramref name="scale"/> renders bigger or smaller by scaling the
+    /// surface, never the geometry (invariant 7): stroke coordinates are
+    /// untouched, so a 2× render is the same mark at twice the size rather
+    /// than a differently-seeded one.
+    /// </summary>
+    public static SKImage RenderFrame(
+        Doc doc, FrameBitmapCache cache, int frameIndex,
+        double scale = 1.0, (int Width, int Height)? outputSize = null)
     {
         var scene = doc.Scene;
         var camera = scene.Camera;
@@ -55,10 +63,19 @@ public static class SequenceExporter
         SKMatrix? transform = camera is null
             ? null
             : CameraTransform.Matrix(
-                CameraOps.At(camera, frameIndex, scene.Width, scene.Height), outWidth, outHeight, 1.0);
+                CameraOps.At(camera, frameIndex, scene.Width, scene.Height), outWidth, outHeight, scale);
+
+        // Scale 1 with no explicit size takes exactly the arithmetic it always
+        // did — a document exported at its own size must be byte-for-byte what
+        // it was before these parameters existed. An explicit size wins over
+        // the arithmetic so the encoder is never told one thing and piped
+        // another: a codec's even-dimension rounding belongs in one place.
+        var (width, height) = outputSize ?? (scale == 1.0
+            ? (outWidth, outHeight)
+            : (Math.Max(1, (int)Math.Round(outWidth * scale)), Math.Max(1, (int)Math.Round(outHeight * scale))));
 
         return SceneRenderer.Compose(
-            outWidth, outHeight, passes, SceneRenderer.BackgroundOf(scene), transform);
+            width, height, passes, SceneRenderer.BackgroundOf(scene), transform, scale);
     }
 
     /// <summary>

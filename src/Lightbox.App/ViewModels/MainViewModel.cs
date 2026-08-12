@@ -71,6 +71,21 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private readonly TileFrameCache _tileFrames = new();
 
+    /// <summary>
+    /// Flattened viewport bitmaps derived from <see cref="_tileFrames"/>
+    /// (B167 phase 2).
+    /// </summary>
+    /// <remarks>
+    /// <b>Not on the invalidation funnel, and that is deliberate rather than an
+    /// omission.</b> Its keys carry <see cref="TileFrameCache.StampOf"/>, which
+    /// changes whenever a frame's tiles do — so a stale entry cannot be found by
+    /// a lookup and ages out of its own LRU. Adding it to the funnel as well
+    /// would be a second answer to a question the key already answers, which is
+    /// how two mechanisms come to disagree. It is cleared with the document,
+    /// where the point is releasing memory rather than correctness.
+    /// </remarks>
+    private readonly TileFlattenCache _tileFlats = new();
+
     /// <summary>Whether this document opted into the unbounded canvas.</summary>
     private bool UnboundedCanvasOn =>
         Doc?.Features?.TryGetValue(
@@ -80,13 +95,109 @@ public sealed partial class MainViewModel : ObservableObject
     internal TileFrameCache TileFrames => _tileFrames;
 
     /// <inheritdoc cref="TileFrames"/>
+    internal TileFlattenCache TileFlats => _tileFlats;
+
+    /// <inheritdoc cref="TileFrames"/>
     internal long BitmapCacheBytes => _cache.CachedBytes;
+
+    /// <summary>
+    /// How many cached bitmaps published snapshots are currently holding
+    /// (B125 stage 3). Zero when nothing is in flight.
+    /// </summary>
+    internal int PinnedPassBitmaps => _cache.PinnedCount;
+
+    /// <summary>
+    /// Rasterizes the frames playback is about to show, off the UI thread.
+    /// </summary>
+    /// <remarks>
+    /// Flushed from the same funnel that invalidates the caches, because a warm
+    /// is a render of the document as it was: the moment a frame changes,
+    /// anything in flight describes a document nobody is looking at. See
+    /// <see cref="FramePrewarmer"/> for why that is a generation counter rather
+    /// than a per-frame check — a warm is cheap to throw away and expensive to
+    /// get subtly wrong.
+    /// </remarks>
+    private readonly FramePrewarmer _prewarm = new();
+
+    /// <summary>Diagnostics for tests and the render report.</summary>
+    internal FramePrewarmer Prewarm => _prewarm;
+
+    /// <summary>How well the frame clock kept time on the last run of playback (B150).</summary>
+    internal PlaybackClock.Pacing PlaybackPacing => _clock.Stats;
+
+    /// <summary>Frame-cache behaviour over the last run of playback.</summary>
+    internal (long Hits, long Misses, long Evictions, long Bytes, long Budget) FrameCacheTraffic =>
+        (_cache.Hits, _cache.Misses, _cache.Evictions, _cache.CachedBytes, FrameBitmapCache.ByteBudget);
+
+    /// <summary>Flatten-cache behaviour over the last run of playback (B167 phase 2).</summary>
+    internal (int Hits, int Misses, int Evictions, long Bytes, long Budget) FlattenCacheTraffic =>
+        (_tileFlats.Hits, _tileFlats.Misses, _tileFlats.Evictions,
+         _tileFlats.CachedBytes, TileFlattenCache.ByteBudget);
+
+    /// <summary>
+    /// Bytes held by bitmaps that have left a cache and cannot be freed yet,
+    /// because a published snapshot is still reading them (B179).
+    /// </summary>
+    /// <remarks>
+    /// <b>Every cache tracked this and nothing ever printed it.</b> That is the
+    /// blind spot B179 was reported through: a machine at 12 GB while every
+    /// budget line in the report read comfortably inside its limit. These bytes
+    /// are in neither <c>CachedBytes</c> nor the budget by design — they are not
+    /// cache contents — but they are real memory, they are unbounded, and a
+    /// report that omits them cannot be used to find them.
+    /// </remarks>
+    internal (long Frames, long Flattens) AwaitingUnpinBytes =>
+        (_cache.AwaitingUnpinBytes, _tileFlats.AwaitingUnpinBytes);
+
+    /// <summary>How many distinct bitmaps published snapshots are pinning.</summary>
+    internal (int Frames, int Flattens) PinnedBitmaps =>
+        (_cache.PinnedCount, _tileFlats.PinnedCount);
+
+    /// <summary>
+    /// Tile bytes held, which the report counted in passes and never in bytes.
+    /// </summary>
+    internal (long Bytes, long Budget) TileStoreBytes =>
+        (_tileFrames.AllocatedBytes, TileFrameCache.ByteBudget);
+
+    /// <summary>
+    /// The shape of the scene, which is what decides whether it fits the cache.
+    /// </summary>
+    /// <remarks>
+    /// Reported because the first report to show the symptom said the canvas was
+    /// 1920x1080 and nothing else — and at 8.3 MB a frame, how many frames and
+    /// how many layers is precisely the difference between a cache that holds
+    /// the scene and one that thrashes.
+    /// </remarks>
+    internal (int Frames, int Layers, int Strokes, double Fps) SceneShape
+    {
+        get
+        {
+            var scene = Scene;
+            var strokes = 0;
+            var seen = new HashSet<string>();
+            foreach (var layer in scene.Layers)
+            {
+                foreach (var cel in layer.Cels)
+                {
+                    if (cel.Frame is { } frame && seen.Add(frame.Id)) strokes += frame.Strokes.Count;
+                }
+            }
+            // The rate actually being played, not the scene's nominal one: the
+            // speed percentage is what the clock was started with, so it is what
+            // decides the frame period every tick is measured against. Reporting
+            // 12 fps for a scene playing at half speed would make the budget in
+            // the report twice as generous as the real one.
+            var rate = scene.Fps * PlaybackSpeedPercent / 100.0;
+            return (scene.FrameCount, scene.Layers.Count, strokes, rate);
+        }
+    }
 
     /// <summary>Every frame mutation goes through here, whichever cache holds it.</summary>
     private void InvalidateFrameRender(string frameId)
     {
         _cache.Invalidate(frameId);
         _tileFrames.Invalidate(frameId);
+        _prewarm.Flush();
     }
 
     /// <inheritdoc cref="InvalidateFrameRender"/>
@@ -94,6 +205,13 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _cache.Clear();
         _tileFrames.Clear();
+        // Correctness does not need this — every flatten key carries the stamp of
+        // tiles that no longer exist, so none of them can be found again. It is
+        // here because "the whole document changed" is the moment those bytes are
+        // certainly dead, and waiting for an LRU to notice would hold a document's
+        // worth of viewports across a document switch.
+        _tileFlats.Clear();
+        _prewarm.Flush();
     }
 
     /// <summary>
@@ -113,6 +231,13 @@ public sealed partial class MainViewModel : ObservableObject
         // tiles cannot say evicts the frame's entry itself. Skipping this on
         // the bounded arm would leave playback-warmed tiles one stroke stale
         // — the next play would show the drawing without its newest line.
+        // A warm in flight was started from this frame's record as it stood a
+        // stroke ago. The bitmap arm below caches the frame either way, so a
+        // stale bitmap warm would be refused on arrival — but the tile arm
+        // returns without caching anything, and a stale tile warm would then
+        // install a version of the drawing missing its newest line. Flushing is
+        // free here: warms are only ever requested while playing.
+        _prewarm.Flush();
         _tileFrames.Append(target, stroke, Scene.Width, Scene.Height);
         if (UnboundedCanvasOn && TileFrameCache.CanTileFrame(target)) return;
         FrameRasterizer.Append(_cache.Get(target, Scene.Width, Scene.Height), stroke);
@@ -186,12 +311,55 @@ public sealed partial class MainViewModel : ObservableObject
     /// step is a cache miss rather than a wrong-sized hit.
     /// </para>
     /// </remarks>
-    private double ComposeScale => CanvasQuality switch
+    private double ComposeScale => WorthScaling(CanvasQuality switch
     {
         CanvasQuality.Full => Math.Clamp(_displayScale * 2.0, 0.125, 1.0),
         CanvasQuality.Half => Math.Clamp(_displayScale * 0.5, 0.125, 1.0),
         _ => Math.Clamp(_displayScale, 0.125, 1.0),
-    };
+    });
+
+    /// <summary>
+    /// Above this, compositing smaller costs more than compositing everything.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A scaled composite is about 2.5× the per-pixel cost of an unscaled
+    /// one, and that changes the arithmetic completely (B160).</b> Measured at a
+    /// fixed 1920×1080 document, varying only this scale:
+    /// </para>
+    /// <list type="bullet">
+    /// <item>scale 1.0 — 2.07 Mpx, 34.00 ms/tick, <b>16.4 ms/Mpx</b></item>
+    /// <item>scale 0.75 — 1.17 Mpx, <b>45.92 ms/tick</b>, 39.4 ms/Mpx</item>
+    /// <item>scale 0.625 — 0.81 Mpx, 33.00 ms/tick, 40.7 ms/Mpx</item>
+    /// <item>scale 0.5 — 0.52 Mpx, 20.85 ms/tick, 40.2 ms/Mpx</item>
+    /// </list>
+    /// <para>
+    /// At 1.0 the layer blit is a straight copy; below it every tile is drawn
+    /// through a scale transform and resampled. The filter is already
+    /// <see cref="SKFilterMode.Linear"/> — the cheapest sensible choice, and
+    /// <c>SceneRenderer.Downscale</c> says why — so this is not a bad sampler,
+    /// it is what interpolation costs.
+    /// </para>
+    /// <para>
+    /// <b>So scaling down to 0.75 composites 44% fewer pixels and takes 35%
+    /// longer.</b> Cost is <c>40·s²</c> against <c>16.4</c> for the whole
+    /// document, which cross over at <c>s = √(16.4/40) ≈ 0.64</c>. Anything
+    /// above that is strictly worse than not scaling at all, so it rounds up to
+    /// 1.0 and takes the cheap path. Below it, scaling genuinely pays: 0.5 is
+    /// 21 ms against 34.
+    /// </para>
+    /// <para>
+    /// <b>0.7 rather than 0.64</b>, because the ratio is a measurement on one
+    /// machine and the penalty is asymmetric: rounding up too eagerly costs a
+    /// few milliseconds and sharper pixels, rounding up too late costs more than
+    /// the feature saves. Nothing here changes what is drawn — only how many
+    /// pixels it is drawn into, which invariant 5 already makes view-only.
+    /// </para>
+    /// </remarks>
+    internal const double ScalingStopsPaying = 0.7;
+
+    private static double WorthScaling(double scale) =>
+        scale > ScalingStopsPaying ? 1.0 : scale;
 
     /// <summary>
     /// The numbers the render report needs, named for that use so nobody mistakes
@@ -459,9 +627,20 @@ public sealed partial class MainViewModel : ObservableObject
         _editor = new DocumentEditor(StartupDoc());
         _activeLayerIndex = FirstPaintableLayer(_editor.Doc);
         _editor.Changed += OnDocumentChanged;
+        // B147: the canvas holds its own copy of the selected outlines, and only
+        // OnStrokeSelectionChanged refreshes it. Every path that reaches the
+        // manager directly — picking a guide, a symbol or a reference box, all of
+        // which call ClearAllSelections — used to leave that copy behind, still
+        // drawn. Subscribing here makes the manager the single source: whatever
+        // changes the selection, the outlines follow.
+        _selectionManager.SelectionChanged += OnStrokeSelectionChanged;
         _clock.Tick += OnPlaybackTick;
         Settings = AppSettings.Load();
         _snapTolerance = Settings.SnapTolerance;
+        // Mirror it where the render thread can see it (B125): the draw op has no
+        // route to the view model, and an environment variable still forces it on
+        // for headless runs.
+        Rendering.GpuComposite.SettingEnabled = Settings.GpuCompositing;
         if (Enum.TryParse<CanvasQuality>(Settings.CanvasQuality, out var storedQuality))
         {
             _canvasQuality = storedQuality;
@@ -590,6 +769,10 @@ public sealed partial class MainViewModel : ObservableObject
             leaving.State.FrameIndex = CurrentFrameIndex;
             leaving.State.LayerIndex = ActiveLayerIndex;
             leaving.State.ReferenceIndex = ActiveReferenceIndex;
+            // B171. Handed over rather than copied: AttachEditor is about to
+            // drop the view model's reference, so the tab becomes the only
+            // owner and there is nothing left to alias.
+            leaving.State.Selection = HasSelection ? _selectionContours : null;
         }
         AttachEditor(value.Editor);
         // B56, and note that the line below it already had the guard: a document with no layers
@@ -601,6 +784,13 @@ public sealed partial class MainViewModel : ObservableObject
         // is read and an out-of-range value means "this document has fewer
         // strips than that one did" rather than an error to repair.
         ActiveReferenceIndex = value.State.ReferenceIndex;
+        // B171. After AttachEditor cleared it, so this is a restore rather than
+        // a survival: a tab with no remembered selection arrives with none.
+        if (value.State.Selection is { Count: > 0 } remembered)
+        {
+            _selectionContours = remembered;
+            NotifySelection();
+        }
         RecallDocumentBrush();
         _switchingTabs = false;
         // After the switch, so a handler asking the view model anything sees the
@@ -754,6 +944,15 @@ public sealed partial class MainViewModel : ObservableObject
         _editor.Changed -= OnDocumentChanged;
         _editor = editor;
         _editor.Changed += OnDocumentChanged;
+        // B171. A selection describes *this* document's canvas, in that
+        // document's coordinates, so it cannot follow the editor being swapped
+        // out. Cleared here rather than in each caller because this is the
+        // funnel every document change goes through — a new document, a tab
+        // switch, an open, a close — and the previous bug was precisely that
+        // four callers each cleared some of the per-document state and none of
+        // them cleared this. A tab switch puts its own selection back
+        // immediately afterwards; every other path wants the empty one.
+        ClearSelectionState();
         // ClearFrameRenders subsumes the _cache.Clear() this used to be: it
         // empties the tile cache alongside it, through the one funnel.
         ClearFrameRenders();
@@ -1846,6 +2045,14 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     internal void CommitSwatchEdit()
     {
+        // Owed before the early returns below, because the sweep the run skipped
+        // is owed whether or not the colour ended up different from where it
+        // started. A drag out and back to the same colour still invalidated
+        // every thumbnail on the way past.
+        var owedSweep = _swatchRepaint is { Repaints: > 1 };
+        _swatchRepaint = null;
+        if (owedSweep) RefreshThumbnails();
+
         if (_pendingSwatchEdit is not { } pending) return;
         _pendingSwatchEdit = null;
         if (PaletteRegistry.ResolveSwatch(pending.Id)?.Color is not { } after) return;
@@ -1897,31 +2104,108 @@ public sealed partial class MainViewModel : ObservableObject
     /// cannot have moved, and a palette used on one layer must not cost a
     /// whole-document re-render on every pointer event of a wheel drag.
     /// </summary>
+    /// <summary>
+    /// Which frames a swatch actually reaches, worked out once per run of edits.
+    /// </summary>
+    /// <remarks>
+    /// <b>B151.</b> The answer cannot change while the wheel is being dragged —
+    /// recolouring a swatch does not change which strokes reference it, and
+    /// nothing can draw during the drag — so the scan belongs to the run rather
+    /// than to the event. Cleared by <see cref="CommitSwatchEdit"/>, which is
+    /// what every boundary that could invalidate it already goes through, and by
+    /// <see cref="OnDocumentChanged"/> for the structural edits that do not.
+    /// </remarks>
+    private (string SwatchId, List<Frame> Frames, int Repaints)? _swatchRepaint;
+
     private void RepaintForSwatch(string swatchId)
     {
-        // B102. Every open document, not just the active one. A shared palette
-        // is precisely what a *set* of documents paint from — that is the whole
-        // feature — so two of a character's animations being open at once is the
-        // ordinary case rather than the edge, and repainting only the focused
-        // tab leaves the other showing the old colour from cache.
-        //
-        // Still only the frames that hold a stroke referencing the swatch:
-        // walking the stroke record stays far cheaper than re-rendering frames
-        // whose pixels cannot have moved, and a wheel drag does this per event.
+        var scope = _swatchRepaint is { } cached && cached.SwatchId == swatchId
+            ? cached
+            : (SwatchId: swatchId, Frames: FramesUsing(swatchId), Repaints: 0);
+
+        scope.Repaints++;
+        _swatchRepaint = scope;
+
+        foreach (var frame in scope.Frames)
+        {
+            InvalidateFrameRender(frame.Id);
+            _dirtyThumbIds.Add(frame.Id);
+        }
+        InvalidateWholeCanvas();
+        _composeRing.InvalidateAll();
+
+        // The first repaint of a run lands immediately, so a one-shot recolour —
+        // a swatch typed into, a palette applied — is as synchronous as it ever
+        // was. Everything after it is a pointer event in a drag, and a drag wants
+        // a repaint per *displayed frame* rather than per event: publishing sixty
+        // times to show sixty times is the shape invariant 6 forbids, and the
+        // coalescing post is what the shape tool's own live drag already uses.
+        if (scope.Repaints == 1)
+        {
+            PublishSnapshot();
+            RefreshThumbnails();
+        }
+        else
+        {
+            // No thumbnail sweep mid-drag: nobody reads a thumbnail while the
+            // wheel is moving, and the sweep walks every cell of every row. The
+            // ids are still marked dirty, so the one CommitSwatchEdit runs at the
+            // end repaints exactly what changed.
+            RequestSnapshot();
+        }
+    }
+
+    /// <summary>
+    /// Every frame holding a stroke painted with this swatch, across every open
+    /// document.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B102. Every open document, not just the active one.</b> A shared
+    /// palette is precisely what a <em>set</em> of documents paint from — that is
+    /// the whole feature — so two of a character's animations being open at once
+    /// is the ordinary case rather than the edge, and repainting only the focused
+    /// tab leaves the other showing the old colour from cache.
+    /// </para>
+    /// <para>
+    /// Still only the frames that hold a stroke referencing the swatch: walking
+    /// the stroke record stays far cheaper than re-rendering frames whose pixels
+    /// cannot have moved. What B151 changed is <em>how often</em> — this is a
+    /// scan of every stroke in every open document, and it used to run on every
+    /// pointer event of a wheel drag.
+    /// </para>
+    /// </remarks>
+    /// <summary>
+    /// How many times the swatch scan has run, for the budget test.
+    /// </summary>
+    /// <remarks>
+    /// <b>A count rather than a stopwatch, because the property is countable.</b>
+    /// B151 is not "this got faster", it is "this happens once per drag instead
+    /// of once per pointer event" — and a test that asserts the second is exact,
+    /// instant and cannot be flaky, where a timing test on the same behaviour
+    /// would be all three of the opposite. The performance test beside it still
+    /// measures the end-to-end cost, because a count cannot see a scan that got
+    /// slower.
+    /// </remarks>
+    internal int SwatchScans { get; private set; }
+
+    private List<Frame> FramesUsing(string swatchId)
+    {
+        SwatchScans++;
+        var frames = new List<Frame>();
+        var seen = new HashSet<string>();
         foreach (var layer in Tabs.SelectMany(t => t.Doc.Scene.Layers))
         {
             foreach (var cel in layer.Cels)
             {
-                if (cel.Frame is not { } frame) continue;
+                // A held cel names the same frame as the one it holds, so without
+                // this a ten-frame hold invalidates the same render ten times.
+                if (cel.Frame is not { } frame || !seen.Add(frame.Id)) continue;
                 if (!StrokesOf(frame).Any(s => s.SwatchId == swatchId)) continue;
-                InvalidateFrameRender(frame.Id);
-                _dirtyThumbIds.Add(frame.Id);
+                frames.Add(frame);
             }
         }
-        InvalidateWholeCanvas();
-        _composeRing.InvalidateAll();
-        PublishSnapshot();
-        RefreshThumbnails();
+        return frames;
     }
 
     // ---- projects -----------------------------------------------------------
@@ -1943,6 +2227,33 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Preferences that are not about pixels — see <see cref="AppSettings"/>.</summary>
     public AppSettings Settings { get; private set; } = new();
+
+    /// <summary>
+    /// Composite layers on the GPU rather than the CPU (B125, experimental).
+    /// </summary>
+    /// <remarks>
+    /// Goes through here rather than the settings object directly, so the render
+    /// thread's mirror and the persisted value cannot drift apart — and so the
+    /// canvas repaints immediately instead of on the next thing that happens to
+    /// dirty it.
+    /// </remarks>
+    public bool GpuCompositing
+    {
+        get => Settings.GpuCompositing;
+        set
+        {
+            if (Settings.GpuCompositing == value) return;
+            Settings.GpuCompositing = value;
+            Rendering.GpuComposite.SettingEnabled = value;
+            Settings.Save();
+            OnPropertyChanged();
+            // The composite path changed under the canvas, so what is on screen
+            // was produced by the other one. Republish rather than wait.
+            InvalidateWholeCanvas();
+            PublishSnapshot();
+        }
+    }
+
 
     /// <summary>Minutes between autosaves; 0 turns it off. Persists immediately.</summary>
     public double AutosaveMinutes
@@ -3527,6 +3838,8 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsEraser))]
     [NotifyPropertyChangedFor(nameof(ShowsEffectOptions))]
+    [NotifyPropertyChangedFor(nameof(PointerIntent))]
+    [NotifyPropertyChangedFor(nameof(PointerRefusal))]
     [NotifyPropertyChangedFor(nameof(IsBrushTool))]
     [NotifyPropertyChangedFor(nameof(IsEraserTool))]
     [NotifyPropertyChangedFor(nameof(IsFillTool))]
@@ -3540,6 +3853,9 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsShapeTool))]
     [NotifyPropertyChangedFor(nameof(IsPaintTool))]
     [NotifyPropertyChangedFor(nameof(IsArrowTool))]
+    [NotifyPropertyChangedFor(nameof(IsDirectSelectTool))]
+    [NotifyPropertyChangedFor(nameof(IsPenTool))]
+    [NotifyPropertyChangedFor(nameof(IsWidthTool))]
     private ToolId _activeTool = ToolId.Brush;
 
     [ObservableProperty]
@@ -3563,8 +3879,223 @@ public sealed partial class MainViewModel : ObservableObject
 
     public bool IsBrushTool => ActiveTool == ToolId.Brush;
 
+    /// <summary>
+    /// What the pointer should say the active tool will do over the active
+    /// layer — bound straight onto the canvas control.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The decision itself is <see cref="Rendering.CanvasCursor"/>, which is
+    /// pure and tested without a window; this only gathers the facts. Keeping
+    /// the gathering here and the rule there is what stops the canvas control
+    /// and anything else that reports the same refusal from drifting apart.
+    /// </para>
+    /// <para>
+    /// <b>Two of the five facts are still assumed, and they are the two that
+    /// vary per pixel rather than per layer:</b> whether the pointer is inside
+    /// the selection and whether there is paint under it for an alpha-locked
+    /// layer. Both need a hover position the view model is not told about yet,
+    /// so they are left at their permissive default — the cursor under-reports
+    /// rather than lying, which is the right way round for a refusal.
+    /// </para>
+    /// </remarks>
+    public Rendering.CanvasCursorKind PointerIntent =>
+        Rendering.CanvasCursor.For(ActiveTool, CurrentTarget, _hoverModifiers);
+
+    /// <summary>Why the active tool would do nothing here, or null.</summary>
+    /// <remarks>
+    /// Nothing shows this yet: the application has no status line, and inventing
+    /// one to carry a sentence is a bigger decision than this change. The
+    /// pointer already refuses, which is the half an artist notices; this is the
+    /// half that says why, and it is ready for the surface that will hold it.
+    /// </remarks>
+    public string? PointerRefusal =>
+        Rendering.CanvasCursor.Refusal(ActiveTool, CurrentTarget, _hoverModifiers);
+
+    /// <summary>Whether the refusal has anything to say, for the status line.</summary>
+    public bool HasPointerRefusal => PointerRefusal is not null;
+
+    private Rendering.CanvasTarget CurrentTarget
+    {
+        get
+        {
+            var alphaLocked = ActiveLayer.AlphaLocked;
+            return new Rendering.CanvasTarget(
+                LayerHidden: !ActiveLayer.Visible,
+                LayerLocked: ActiveLayer.Locked,
+                AlphaLocked: alphaLocked,
+                // The two that need a place. With the pointer off the canvas
+                // there is no place, so both stay permissive — the cursor
+                // under-reports rather than inventing a refusal.
+                NothingUnderPointer:
+                    alphaLocked && _hoverPoint is { } a && !PaintUnder(a.X, a.Y),
+                OutsideSelection:
+                    _hoverPoint is { } b && !InsideSelection(b.X, b.Y));
+        }
+    }
+
+    /// <summary>
+    /// Re-ask the mapping, because something it reads has changed underneath it.
+    /// </summary>
+    /// <remarks>
+    /// <b>Needed because a layer's flags are plain properties on a document
+    /// model that raises nothing.</b> `Layer.Visible` and `Layer.Locked` are set
+    /// through the editor so they undo correctly, and neither notifies — so
+    /// hiding the layer you are drawing on would otherwise leave the pointer
+    /// still promising a stroke until you happened to switch tools.
+    /// </remarks>
+    public void RefreshPointerIntent()
+    {
+        OnPropertyChanged(nameof(PointerIntent));
+        OnPropertyChanged(nameof(PointerRefusal));
+        OnPropertyChanged(nameof(HasPointerRefusal));
+    }
+
+    private Avalonia.Input.KeyModifiers _hoverModifiers;
+    private (double X, double Y)? _hoverPoint;
+
+    /// <summary>
+    /// The pointer moved: remember where, and re-ask what the tool would do.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is what lets the last two refusals be true rather than assumed.</b>
+    /// Whether the pointer is inside the selection and whether there is paint
+    /// under an alpha-locked brush are the only two facts that vary pixel by
+    /// pixel rather than per layer, so they need a position and nothing else did.
+    /// </para>
+    /// <para>
+    /// <b>Bounded, as invariant 6 requires.</b> The selection test is
+    /// point-in-polygon over the outline — proportional to the contour, not to
+    /// the canvas — where <c>SelectionMask</c> would rasterise a full
+    /// <c>w × h</c> mask on every move. The alpha read is one pixel, and only
+    /// when the layer is alpha-locked, because that is the only case whose
+    /// answer is used.
+    /// </para>
+    /// </remarks>
+    public void UpdatePointerContext(double x, double y, Avalonia.Input.KeyModifiers modifiers)
+    {
+        _hoverPoint = (x, y);
+        _hoverModifiers = modifiers;
+        RefreshPointerIntent();
+    }
+
+    /// <summary>The pointer left the canvas: stop claiming to know where it is.</summary>
+    public void ClearPointerContext()
+    {
+        if (_hoverPoint is null) return;
+        _hoverPoint = null;
+        RefreshPointerIntent();
+    }
+
+    /// <summary>Whether a stroke coordinate falls inside the active selection.</summary>
+    /// <remarks>
+    /// Even-odd, matching <c>BrushEngine.PathFromContours</c> — a hole in a
+    /// selection is outside it, and the cursor has to agree with the renderer
+    /// about that or it forbids in the wrong places.
+    /// </remarks>
+    private bool InsideSelection(double x, double y)
+    {
+        if (!HasSelection) return true;
+        // Surface space: the contours are the mask's, and so is the question.
+        var (px, py) = (x - Scene.Left, y - Scene.Top);
+        var inside = false;
+        foreach (var contour in _selectionContours)
+        {
+            for (int i = 0, j = contour.Count - 1; i < contour.Count; j = i++)
+            {
+                var a = contour[i];
+                var b = contour[j];
+                if (a.Y > py != b.Y > py &&
+                    px < (b.X - a.X) * (py - a.Y) / (b.Y - a.Y) + a.X)
+                {
+                    inside = !inside;
+                }
+            }
+        }
+        return inside;
+    }
+
+    /// <summary>Whether the active layer has any paint at a stroke coordinate.</summary>
+    /// <remarks>
+    /// Only asked when the layer is alpha-locked, because that is the only time
+    /// the answer changes what the pointer says — and it costs a bitmap read, so
+    /// asking it otherwise would be paying per pointer event for nothing.
+    /// </remarks>
+    private bool PaintUnder(double x, double y)
+    {
+        var px = (int)Math.Round(x - Scene.Left);
+        var py = (int)Math.Round(y - Scene.Top);
+        if (px < 0 || py < 0 || px >= Scene.Width || py >= Scene.Height) return false;
+        if (ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex) is not { } frame) return false;
+        try
+        {
+            return _cache.Get(frame, Scene.Width, Scene.Height).GetPixel(px, py).Alpha > 0;
+        }
+        catch
+        {
+            // A cache miss mid-resize is not worth a crash on a hover; assume
+            // paint, which is the permissive answer and never forbids wrongly.
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Tell the view the paper moved, after a resize changed the origin.
+    /// </summary>
+    /// <remarks>
+    /// <c>Scene.OriginX</c> is a plain field on the document model, so nothing
+    /// is raised when a resize changes it — and every pointer conversion in the
+    /// canvas reads it. Without this the tools would keep converting against the
+    /// old corner, which lands strokes exactly one resize out of place.
+    /// </remarks>
+    public void RefreshDocumentOrigin() => OnPropertyChanged(nameof(DocumentOrigin));
+
+    /// <summary>
+    /// Apply a resize the artist confirmed, as one undo step.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>One <c>Perform</c> around the whole thing</b>, and that is not
+    /// bookkeeping: an image resize walks every stroke, clip contour, guide,
+    /// camera key, symbol placement and collision box in the document. An artist
+    /// who had to press undo once per stroke would have lost the drawing.
+    /// </para>
+    /// <para>
+    /// Here rather than in the window because it changes the document, and
+    /// because everything that has to be told afterwards — the origin the
+    /// pointer converts against, the caches, the snapshot — is already this
+    /// type's to notify. The window's remaining job is the window: show the
+    /// dialog, then refit the view to paper that is now a different size.
+    /// </para>
+    /// </remarks>
+    public bool ApplyResize(ResizeDialogViewModel choice)
+    {
+        var changed = false;
+        _editor.Perform(doc => changed = choice.Apply(doc, new Lightbox.Raster.PixelResampler()));
+        if (!changed) return false;
+
+        RefreshDocumentOrigin();
+        InvalidateWholeCanvas();
+        PublishSnapshot();
+        RefreshThumbnails();
+        AiStatus = choice.IsImage
+            ? $"Resized the image to {Scene.Width} × {Scene.Height}."
+            : $"Resized the canvas to {Scene.Width} × {Scene.Height}.";
+        return true;
+    }
+
     /// <summary>The black arrow — picks things (lines, guides, symbols) rather than an area of pixels.</summary>
     public bool IsArrowTool => ActiveTool == ToolId.Arrow;
+
+    /// <summary>The white arrow — nodes and handles on one isolated line.</summary>
+    public bool IsDirectSelectTool => ActiveTool == ToolId.DirectSelect;
+
+    /// <summary>The pen — places nodes and draws the curve between them.</summary>
+    public bool IsPenTool => ActiveTool == ToolId.Pen;
+
+    /// <summary>The width tool — drag off a line to fatten it, towards it to thin it.</summary>
+    public bool IsWidthTool => ActiveTool == ToolId.Width;
 
     public bool IsEraserTool => ActiveTool == ToolId.Eraser;
 
@@ -3584,7 +4115,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Eyedropper click: the color under the cursor (what the eye sees, incl. paper).</summary>
     public void PickColorAt(double x, double y)
     {
-        int px = (int)Math.Round(x), py = (int)Math.Round(y);
+        var (px, py) = ToSurface(x, y);
         if (px < 0 || py < 0 || px >= Scene.Width || py >= Scene.Height) return;
         using var composite = CompositeVisibleLayers();
         var color = composite.GetPixel(px, py);
@@ -3625,14 +4156,14 @@ public sealed partial class MainViewModel : ObservableObject
     public void InsertKeyframeAtPlayhead() =>
         _editor.SetKeyAt(ActiveLayer.Id, CurrentFrameIndex, FrameRole.Key);
 
-    public string SelectVariantGlyph => ActiveSelectVariant switch
-    {
-        SelectVariant.Polygon => "⬠",
-        SelectVariant.Box => "▭",
-        SelectVariant.Ellipse => "◯",
-        SelectVariant.Wand => "🪄",
-        _ => "◌",
-    };
+    /// <summary>The tool button's icon, so it says which selection it will make.</summary>
+    /// <remarks>
+    /// The wand variant used to be U+1FA84, an emoji: full colour beside eleven
+    /// monoline glyphs on the platforms that had the character, and an empty box
+    /// on the ones that did not.
+    /// </remarks>
+    public Avalonia.Media.Geometry? SelectVariantGlyph =>
+        Rendering.IconSet.Resolve(Rendering.IconSet.ForSelect(ActiveSelectVariant));
 
     /// <summary>Compat view of the tool (old XAML/tests): eraser vs everything else painting as brush.</summary>
     public bool IsEraser
@@ -3646,7 +4177,67 @@ public sealed partial class MainViewModel : ObservableObject
         // The bound sliders edit the active tool's brush configuration.
         NotifyBrushProperties();
         OnPropertyChanged(nameof(LazyRadiusForCursor));
+
+        // A borrow is not a decision — see MainViewModel.Momentary.cs. Everything
+        // below is about an artist choosing to leave a tool, and holding Ctrl is
+        // not that. The two lines above are display, which a borrow does want:
+        // the picker's cursor is the whole reason the borrow is legible.
+        //
+        // Everything that throws modal work away lives below this line, the
+        // half-drawn lasso included. It was above it, which was harmless only
+        // because the Select tool is not borrowable — and "harmless because of
+        // a fact recorded somewhere else" is what makes adding a row to the
+        // table a thing to reason about instead of a thing to do.
+        if (_suppressToolSideEffects) return;
+
+        LeaveToolStateBehind(value);
+    }
+
+    /// <summary>
+    /// What choosing a tool does to the one being left: modal work is let go.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="OnActiveToolChanged"/> because a momentary
+    /// key's tap-latch (B176) needs to run these consequences *after* the
+    /// switch: the press borrowed without side effects — it could not know yet
+    /// whether it was a tap or a hold — and the release finding a tap makes the
+    /// switch a decision retroactively.
+    /// </remarks>
+    private void LeaveToolStateBehind(ToolId value)
+    {
         CancelPolygonInProgress();
+
+        // B147: leaving the arrow lets the lines go. A stroke selection is only
+        // reachable from the arrow — nothing else moves, recolours or deletes it
+        // — so a highlight that outlives the tool is drawn state pointing at a
+        // capability the artist no longer has. Every other modal thing here
+        // behaves the same way (the polygon above it, the transform session),
+        // which is why this is one line rather than a mode.
+        if (value != ToolId.Arrow) ClearStrokeSelection();
+
+        // Same one-line rule for the hover preview: it is drawn state that only
+        // the white arrow can act on, so it must not outlive the tool. Without
+        // this the last-hovered line keeps its points on screen while the brush
+        // is painting over them.
+        if (value != ToolId.DirectSelect) ClearPathHover();
+
+        // The pen parks rather than committing: the path in progress survives
+        // the switch, stays traced on screen, and the pen resumes it. It used
+        // to finish here — which kept the work (right) but ended a path the
+        // artist meant to come back to (wrong). Enter and Escape are still the
+        // deliberate finish, and neither discards.
+        if (value != ToolId.Pen) ParkPen();
+
+        // B147's shape one tool along, and phase 2 shipped it: the node overlay
+        // is drawn whatever the tool is, so leaving isolation for the brush left
+        // glyphs on screen over a line nothing could reshape any more. Only the
+        // tools that can still work the session keep it — the white arrow that
+        // edits nodes and the width tool that shares it. The black arrow used to
+        // keep it too, and that read as stuck: its clicks answer to isolation's
+        // lock, so the artist saw nodes they could not drag and other lines that
+        // would not select. Choosing a tool that cannot work the session is
+        // leaving it.
+        if (value is not (ToolId.DirectSelect or ToolId.Width)) EndPathEdit();
     }
 
     [RelayCommand]
@@ -3760,7 +4351,28 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Fill every pixel of the current selection, as one undo step.</summary>
-    private void FillWholeSelection()
+    private void FillWholeSelection() =>
+        StrokeOverWholeSelection(ToolKind.Fill, ColorHex, ActiveSwatchId, "fill-selection");
+
+    /// <summary>
+    /// Lay one region-shaped stroke over the whole selection, as one undo step.
+    /// </summary>
+    /// <remarks>
+    /// <b>B173.</b> The fill and the clear are the same operation with a
+    /// different <see cref="ToolKind"/>, so they share a body rather than the
+    /// clear being a copy that drifts. Both go through the record — invariant 1
+    /// and invariant 3 — which is what makes undo free and what stops "delete"
+    /// meaning something the reload cannot reproduce.
+    /// </remarks>
+    /// <param name="swatchId">
+    /// Null for the eraser and for the background fill: a swatch reference
+    /// exists so recolouring a palette entry moves the art with it, and neither
+    /// of these is art in that sense — the eraser has no colour at all, and
+    /// Backspace means "the background as it is now" rather than "follow this
+    /// swatch forever".
+    /// </param>
+    private void StrokeOverWholeSelection(
+        ToolKind tool, string color, string? swatchId, string label)
     {
         if (_selectionContours.Count == 0) return;
         if (PaintTargetOrKey() is not { } target) return;
@@ -3768,16 +4380,16 @@ public sealed partial class MainViewModel : ObservableObject
 
         var stroke = new Stroke
         {
-            Tool = ToolKind.Fill,
-            Color = ColorHex,
-            SwatchId = ActiveSwatchId,
-            PaletteId = ActivePaletteId,
+            Tool = tool,
+            Color = color,
+            SwatchId = swatchId,
+            PaletteId = swatchId is null ? null : ActivePaletteId,
             Brush = new BrushSettings { Opacity = 1, AntiAlias = AntiAliasing },
             Points = [.. _selectionContours[0]],
             Holes = _selectionContours.Count > 1
                 ? _selectionContours.Skip(1).Select(c => c.ToList()).ToList()
                 : null,
-            Label = "fill-selection",
+            Label = label,
         };
         if (PrepareClipForSelection() is { } clip) stroke.ClipId = clip.Id;
 
@@ -3795,7 +4407,67 @@ public sealed partial class MainViewModel : ObservableObject
         InvalidateWholeCanvas();
         PublishSnapshot();
         RefreshThumbnails();
-        AiStatus = $"Filled the selection with {ColorHex}.";
+        AiStatus = tool == ToolKind.ClearRegion
+            ? "Cleared the selection."
+            : $"Filled the selection with {color}.";
+    }
+
+    /// <summary>
+    /// Delete: clear what is inside the selection, leaving the outline up.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B173, and the precedence is the decided part.</b> A live marquee wins
+    /// and the selected lines are the fallback — Photoshop's rule, and the one
+    /// an artist arrives with. It is worth writing down that this goes
+    /// <em>against</em> the precedent next door: <see cref="NudgeSelection"/>
+    /// asks the line selection first and says why. So the two keys disagree
+    /// about which selection they mean, knowingly.
+    /// </para>
+    /// <para>
+    /// The cost of that disagreement is real and is why <b>B171 had to land
+    /// first</b>: Delete silently changes meaning while a stale marquee is up,
+    /// and before B171 a marquee could be left up by a document the artist had
+    /// already closed. With selections scoped to their document, a marquee
+    /// being up is something the artist did to *this* drawing.
+    /// </para>
+    /// <para>
+    /// The outline stays after the clear, because the next thing an artist does
+    /// with an emptied region is usually put something else in it.
+    /// </para>
+    /// </remarks>
+    [RelayCommand]
+    private void DeleteSelectionContents()
+    {
+        if (IsPlaying) return;
+        if (HasSelection)
+        {
+            if (!CanEdit(ActiveLayer, "erase on it")) return;
+            StrokeOverWholeSelection(ToolKind.ClearRegion, ColorHex, null, "clear-selection");
+            return;
+        }
+        DeleteSelectedLinesCommand.Execute(null);
+    }
+
+    /// <summary>
+    /// Backspace: flood the selection with the background colour.
+    /// </summary>
+    /// <remarks>
+    /// <b>B173.</b> The counterpart to <see cref="DeleteSelectionContents"/>,
+    /// and deliberately a *fill* rather than an erase — the two keys differ in
+    /// what is left behind, which is the whole reason both exist. No fallback
+    /// when nothing is selected: Backspace has never meant anything on the
+    /// canvas, so there is no established behaviour to preserve, and inventing
+    /// one here would be a second decision smuggled in beside the asked-for one.
+    /// </remarks>
+    [RelayCommand]
+    private void FillSelectionWithBackground()
+    {
+        if (IsPlaying) return;
+        if (!HasSelection) return;
+        if (!CanEdit(ActiveLayer, "fill on it")) return;
+        StrokeOverWholeSelection(
+            ToolKind.Fill, BackgroundColorHex, null, "fill-selection-background");
     }
 
     /// <param name="invertSmart">
@@ -3839,10 +4511,11 @@ public sealed partial class MainViewModel : ObservableObject
                 sample = _cache.Get(target, scene.Width, scene.Height);
             }
 
+            var (seedX, seedY) = ToSurface(x, y);
             var result = FloodFill.Fill(
                 sample,
-                (int)Math.Round(x),
-                (int)Math.Round(y),
+                seedX,
+                seedY,
                 new FloodFill.Options(FillTolerance, FillGapPx, FillGrowPx),
                 SelectionMask(scene.Width, scene.Height));
             if (result is null)
@@ -3858,8 +4531,10 @@ public sealed partial class MainViewModel : ObservableObject
                 SwatchId = ActiveSwatchId,
                 PaletteId = ActivePaletteId,
                 Brush = new BrushSettings { Opacity = 1, AntiAlias = AntiAliasing },
-                Points = result.Outer,
-                Holes = result.Holes.Count > 0 ? result.Holes : null,
+                // Out of surface space: a fill is a stroke, and a stroke's
+                // points are the record's coordinates (invariant 1).
+                Points = ToDocument([result.Outer])[0],
+                Holes = result.Holes.Count > 0 ? ToDocument(result.Holes) : null,
                 Label = "fill",
             };
             var clip = PrepareClipForSelection();
@@ -3971,8 +4646,9 @@ public sealed partial class MainViewModel : ObservableObject
                 sample = _cache.Get(frame, w, h);
             }
 
+            var (wandX, wandY) = ToSurface(x, y);
             var result = FloodFill.Fill(
-                sample, (int)Math.Round(x), (int)Math.Round(y),
+                sample, wandX, wandY,
                 new FloodFill.Options(WandTolerance, WandGapPx));
             if (result is null)
             {
@@ -4107,11 +4783,34 @@ public sealed partial class MainViewModel : ObservableObject
         SelectionChanged?.Invoke();
     }
 
+    /// <summary>
+    /// Whether Select All and Deselect should mean the objects on the canvas
+    /// rather than a region of it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B168.</b> Both commands used to ask <c>ActiveTool == ToolId.Select</c>,
+    /// which names the wrong tool — and not by a near miss. <see cref="ToolId.Select"/>
+    /// is the <em>marquee</em>: the tool whose entire job is making the region
+    /// these commands then could not touch. The tools that pick objects are the
+    /// two arrows, exactly as <c>ToolId.Arrow</c>'s own documentation says
+    /// ("picks <b>things</b> … not areas of pixels").
+    /// </para>
+    /// <para>
+    /// So the old condition was inverted in effect: Ctrl+D with the marquee in
+    /// hand cleared object selections and left the marquee up, and Ctrl+A took
+    /// all the objects instead of the canvas. One property, asked by both, so a
+    /// fix to one cannot drift from the other.
+    /// </para>
+    /// </remarks>
+    private bool ObjectSelectionIsTheSubject =>
+        ActiveTool is ToolId.Arrow or ToolId.DirectSelect;
+
     [RelayCommand]
     private void SelectAll()
     {
-        // In Select tool mode, select all canvas objects; otherwise select all pixels
-        if (ActiveTool == ToolId.Select)
+        // With an arrow in hand, "all" means the objects; otherwise the canvas.
+        if (ObjectSelectionIsTheSubject)
         {
             var frame = PaintTargetOrKey();
             if (frame is not Frame pf) return;
@@ -4183,22 +4882,45 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Deselect: afterwards, nothing is selected.
+    /// </summary>
+    /// <remarks>
+    /// <b>B168.</b> Unlike <see cref="SelectAll"/> this asks no question at all,
+    /// and the asymmetry is the point. "Select all" has to know what *all*
+    /// means, so it consults <see cref="ObjectSelectionIsTheSubject"/>; "none"
+    /// means none, and a deselect that clears one kind of selection while
+    /// leaving another live is the bug rather than a subtlety. It also means
+    /// the artist can never be left holding a selection they cannot see how to
+    /// remove — which is what made this a P1: a marquee clips painting, so the
+    /// symptom of a failed deselect is <em>the application stopped drawing</em>.
+    /// </remarks>
     [RelayCommand]
     private void Deselect()
     {
-        // In Select tool mode, deselect all canvas objects; otherwise deselect pixels
-        if (ActiveTool == ToolId.Select)
-        {
-            _selectionManager.ClearAllSelections();
-        }
-        else
-        {
-            // Pixel/stroke deselection (existing behavior)
-            if (!HasSelection && _polygonPoints.Count == 0) return;
-            _selectionContours = [];
-            _polygonPoints.Clear();
-            NotifySelection();
-        }
+        // Already a no-op when nothing is picked — it guards its own event.
+        _selectionManager.ClearAllSelections();
+        if (!HasSelection && _polygonPoints.Count == 0) return;
+        _selectionContours = [];
+        _polygonPoints.Clear();
+        NotifySelection();
+    }
+
+    /// <summary>
+    /// Drop every selection without announcing it — for a document swap, where
+    /// the announcement belongs to the swap rather than to the selection.
+    /// </summary>
+    /// <remarks>
+    /// <b>B171.</b> Deliberately not <see cref="Deselect"/>: that is a command
+    /// an artist issued and it publishes a snapshot, which during
+    /// <c>AttachEditor</c> would publish a frame from a half-swapped document.
+    /// </remarks>
+    private void ClearSelectionState()
+    {
+        _selectionManager.ClearAllSelections();
+        _selectionContours = [];
+        _polygonPoints.Clear();
+        OnPropertyChanged(nameof(HasSelection));
     }
 
     /// <summary>Arrow keys over the canvas: shift the selection outline by whole pixels.</summary>
@@ -4315,12 +5037,54 @@ public sealed partial class MainViewModel : ObservableObject
     /// Freeze the active selection as a document clip region (content-hashed,
     /// deduped) so strokes painted under it re-render identically forever.
     /// </summary>
+    /// <summary>
+    /// Where the paper's top-left sits in stroke coordinates, for the canvas
+    /// control's pointer conversions.
+    /// </summary>
+    public Avalonia.PixelPoint DocumentOrigin => new(Scene.Left, Scene.Top);
+
+    /// <summary>
+    /// A stroke coordinate as a pixel in a document-sized bitmap.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Three tools index pixels rather than reasoning about the record</b> —
+    /// flood fill, the wand and the colour picker — and they are the only place
+    /// in this file that needs this. Everything else works in stroke
+    /// coordinates, which is what <c>CanvasControl.ViewToDoc</c> now hands over.
+    /// </para>
+    /// <para>
+    /// The two spaces are the same until the canvas is grown or cropped on the
+    /// left or top, which is exactly why this is easy to forget and impossible
+    /// to notice: every test written on an unresized document passes either way.
+    /// </para>
+    /// </remarks>
+    private (int X, int Y) ToSurface(double x, double y) =>
+        ((int)Math.Round(x - Scene.Left), (int)Math.Round(y - Scene.Top));
+
+    /// <summary>Surface-space contours as stroke coordinates.</summary>
+    /// <remarks>
+    /// The other direction, for the two results that become part of the record:
+    /// a fill's outline (invariant 1) and a selection's clip region
+    /// (invariant 3). Both come out of <c>FloodFill</c> indexed from a bitmap's
+    /// own corner and have to be told where that corner is.
+    /// </remarks>
+    private List<List<StrokePoint>> ToDocument(IEnumerable<List<StrokePoint>> contours)
+    {
+        int dx = Scene.Left, dy = Scene.Top;
+        return [.. contours.Select(c => dx == 0 && dy == 0
+            ? new List<StrokePoint>(c)
+            : [.. c.Select(pt => pt with { X = pt.X + dx, Y = pt.Y + dy })])];
+    }
+
     private (string Id, ClipRegion Region)? PrepareClipForSelection()
     {
         if (!HasSelection) return null;
         var region = new ClipRegion
         {
-            Contours = _selectionContours.Select(c => new List<StrokePoint>(c)).ToList(),
+            // The selection is kept as a surface mask, because that is what it
+            // is; a clip region is part of the record, so it crosses here.
+            Contours = ToDocument(_selectionContours),
             Feather = SelectionFeather,
         };
         var payload = System.Text.Json.JsonSerializer.Serialize(region);
@@ -4647,10 +5411,27 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>What the frame cache is currently evicting by. Test seam.</summary>
     internal FrameBitmapCache.EvictionOrder FrameCacheEviction => _cache.Eviction;
 
-    partial void OnIsPlayingChanged(bool value) =>
+    partial void OnIsPlayingChanged(bool value)
+    {
         _cache.Eviction = value
             ? FrameBitmapCache.EvictionOrder.MostRecent
             : FrameBitmapCache.EvictionOrder.LeastRecent;
+
+        // Cleared at the START of a run rather than the end, so a report always
+        // describes the last thing the artist actually watched. Accumulating
+        // across runs would average a cold first pass with warm later ones,
+        // which is exactly the distinction B148 exists to make.
+        if (value)
+        {
+            _tickProfile.Reset();
+            _cache.ResetCounters();
+        }
+
+        // B152: the layer thumbnails were skipped for the whole run, so they are
+        // showing whatever frame playback started on. Catching up once on the
+        // stop costs one sweep; catching up per tick cost the frame rate.
+        if (!value) RefreshLayerThumbs();
+    }
 
     [ObservableProperty]
     private int _activeLayerIndex;
@@ -4798,6 +5579,8 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(TimelineFrameCount));
         OnPropertyChanged(nameof(GraphSeriesList));
         OnPropertyChanged(nameof(ActiveLayerOnion));
+        // A different layer can refuse the tool the last one accepted.
+        RefreshPointerIntent();
         NotifyActiveLayerCompositing();
         PublishSnapshot();
     }
@@ -5081,23 +5864,100 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnCurrentFrameIndexChanged(int value)
     {
         _lastStrokeEnd = null;   // and it stops being true on another drawing
+
+        // Only while playing: the same path serves scrubbing, and blending a
+        // budgeted path with an unbudgeted one makes every number mean nothing.
+        var profiling = IsPlaying;
+        if (profiling) _tickProfile.Tick();
+
         // A line selected on another drawing is not on this one. Left alone the
         // count keeps reporting lines nothing can show, which reads as the
         // arrow having stopped working.
         PruneStrokeSelection();
-        RefreshCellHighlights();
-        RefreshLayerThumbs();
-        RefreshCamera();
-        // Whether THIS frame is pinned changes with the playhead, and the pin
-        // button has to say which way it will go.
-        OnPropertyChanged(nameof(CurrentFrameIsGhost));
-        OnPropertyChanged(nameof(GhostPinLabel));
-        // Which reference frame is showing, and therefore which cell the
-        // alignment fields are editing, is a property of the playhead.
-        NotifyReference();
-        ScrubAudioTick();
-        PublishSnapshot();
+
+        using (Profile(profiling, Services.TickProfile.Phase.Highlights))
+        {
+            RefreshCellHighlights();
+        }
+
+        // B152: NOT while playing. The exposed frame changes on every tick, so
+        // the id check below always misses and every tick rasterized a full
+        // 1920x1080 frame per layer — from the stroke record, because the
+        // compositor is reading TILES during playback and never fills this
+        // cache — to make a 44x26 picture nobody is looking at. Measured at
+        // 159 ms of mean tick lateness on a 16-core machine. OnIsPlayingChanged
+        // catches them up when playback stops.
+        // The scope sits INSIDE the guard, not around it. Around it, the phase
+        // logs a zero-length call on every tick and the report says "0 ms over
+        // 336 of 336 ticks" — which is true, unreadable, and indistinguishable
+        // from a phase that ran and was cheap. Inside it, the phase genuinely
+        // never runs and the report says so, which is the finding.
+        if (!IsPlaying)
+        {
+            using (Profile(profiling, Services.TickProfile.Phase.Thumbnails))
+            {
+                RefreshLayerThumbs();
+            }
+        }
+        using (Profile(profiling, Services.TickProfile.Phase.Bookkeeping))
+        {
+            RefreshCamera();
+            // Whether THIS frame is pinned changes with the playhead, and the pin
+            // button has to say which way it will go.
+            OnPropertyChanged(nameof(CurrentFrameIsGhost));
+            OnPropertyChanged(nameof(GhostPinLabel));
+            // Which reference frame is showing, and therefore which cell the
+            // alignment fields are editing, is a property of the playhead.
+            NotifyReference();
+        }
+        using (Profile(profiling, Services.TickProfile.Phase.Audio))
+        {
+            ScrubAudioTick();
+        }
+        // A frame the clock has already dropped is not composited: the pixels
+        // would be replaced before anything drew them, and making them is what
+        // turned "catch up" into the reason it was behind (B162).
+        if (_skippingFrame) return;
+
+        // No scope around this one: PublishSnapshot times its own two halves as
+        // siblings (Compose and Handoff), and a scope here would be their sum
+        // counted a second time in ALL PHASES. The flag is how the method knows
+        // it is on a playback tick and should measure at all — it is called on
+        // every stroke too, where none of this applies.
+        _profilingTick = profiling;
+        try
+        {
+            PublishSnapshot();
+        }
+        finally
+        {
+            _profilingTick = false;
+        }
     }
+
+    /// <summary>
+    /// True while a playback tick is running, so <c>PublishSnapshot</c> knows to
+    /// time itself. It publishes on every stroke as well, and a report that
+    /// folded drawing into the playback numbers would be measuring the wrong
+    /// thing entirely.
+    /// </summary>
+    private bool _profilingTick;
+
+    /// <summary>Where a playback tick's time went, for the render report.</summary>
+    private readonly Services.TickProfile _tickProfile = new();
+
+    internal Services.TickProfile TickProfile => _tickProfile;
+
+    /// <summary>
+    /// Time a phase, or do nothing at all when this is not a playback tick.
+    /// </summary>
+    /// <remarks>
+    /// A nullable scope rather than a branch at each call site: the alternative
+    /// is an <c>if</c> around every phase, and the one somebody forgets is the
+    /// one that then reports a scrub as playback.
+    /// </remarks>
+    private Services.TickProfile.Scope? Profile(bool on, Services.TickProfile.Phase phase) =>
+        on ? _tickProfile.Measure(phase) : null;
 
 
     // ---- painting -----------------------------------------------------------
@@ -5666,13 +6526,14 @@ public sealed partial class MainViewModel : ObservableObject
     public bool IsPolygonShape => ActiveShape == ShapeKind.Polygon;
 
     /// <summary>The tool button's icon, so it says which shape is loaded.</summary>
-    public string ShapeGlyph => ActiveShape switch
-    {
-        ShapeKind.Line => "╱",
-        ShapeKind.Ellipse => "◯",
-        ShapeKind.Polygon => "⬠",
-        _ => "▭",
-    };
+    /// <remarks>
+    /// A geometry from <see cref="Rendering.IconSet"/> rather than the box-drawing
+    /// characters this used to return. Those were the system font's idea of a
+    /// rectangle sitting next to eight hand-drawn monoline glyphs, at whatever
+    /// weight and baseline that font happened to have.
+    /// </remarks>
+    public Avalonia.Media.Geometry? ShapeGlyph =>
+        Rendering.IconSet.Resolve(Rendering.IconSet.ForShape(ActiveShape));
 
     /// <summary>Pick a shape, and make the shape tool active while you are at it.</summary>
     /// <remarks>
@@ -6473,10 +7334,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnPlaybackEndFrameChanged(int value) => RefreshRangeHighlights();
 
-    private int EffectiveStartFrame =>
+    internal int EffectiveStartFrame =>
         Math.Clamp(PlaybackStartFrame < 0 ? 0 : PlaybackStartFrame, 0, Math.Max(0, Scene.FrameCount - 1));
 
-    private int EffectiveEndFrame =>
+    internal int EffectiveEndFrame =>
         Math.Clamp(PlaybackEndFrame < 0 ? Scene.FrameCount - 1 : PlaybackEndFrame, EffectiveStartFrame, Math.Max(0, Scene.FrameCount - 1));
 
     [RelayCommand]
@@ -8488,6 +9349,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void ToggleActiveLayerVisible()
     {
         _editor.Perform(_ => ActiveLayer.Visible = !ActiveLayer.Visible);
+        RefreshPointerIntent();
     }
 
     /// <summary>Clicking a cel selects both the frame and the layer it belongs to.</summary>
@@ -8782,6 +9644,13 @@ public sealed partial class MainViewModel : ObservableObject
     private string _aiProviderLabel = "None";
 
     /// <summary>
+    /// The configured model name, cached beside the provider label for the
+    /// same reason, and nullable because not every provider names one.
+    /// Recorded in <see cref="AiProvenance"/> on frames the AI drew.
+    /// </summary>
+    private string? _aiModelLabel;
+
+    /// <summary>
     /// Which provider is in use. Cached rather than read from disk on every
     /// get: it is a bound property, and a binding that touches the filesystem
     /// each time it refreshes is a trap waiting for someone to bind it in a
@@ -8799,6 +9668,7 @@ public sealed partial class MainViewModel : ObservableObject
         (_artist as IDisposable)?.Dispose();
         var connection = AiSettings.Load();
         _aiProviderLabel = connection.Provider.Name;
+        _aiModelLabel = connection.Value("model");
         _aiEnabled = connection.Enabled;
         _artist = AiArtistFactory.Create(connection);
         OnPropertyChanged(nameof(IsAiAvailable));
@@ -8861,15 +9731,56 @@ public sealed partial class MainViewModel : ObservableObject
             ct => _artist.GenerateInbetweensAsync(request, ct));
         if (result is null) return;
 
-        var frames = result
-            .OrderBy(f => f.T)
-            .Select(f => NewFrameFor(layer, f.Strokes, FrameRole.Inbetween))
+        // The model proposes; Lightbox disposes. Every frame is verified
+        // against the keys before it can reach the document, and a frame that
+        // fails is refused rather than repaired or swapped for the
+        // deterministic answer — per Q32, the AI never inserts a frame it
+        // cannot defend, and the deterministic engine stays its own command.
+        var ordered = result.OrderBy(f => f.T).ToList();
+        var candidates = ordered
+            .Select(f => new CandidateInbetween(f.T, f.Strokes))
             .ToList();
-        _editor.InsertInbetweens(layer.Id, aIndex, frames);
+        var judgement = InbetweenVerifier.Verify(
+            request.KeyframeA, request.KeyframeB, candidates, TweenEasing);
+
+        // Refusal is per frame: the ones that passed are inserted, each at its
+        // own t's slot — a null keeps the slot a hold, so partial acceptance
+        // never shifts a surviving frame onto somebody else's timing.
+        var provenance = new AiProvenance(AiProviderLabel, _aiModelLabel);
+        var slots = new List<Frame?>(candidates.Count);
+        for (var i = 0; i < candidates.Count; i++)
+        {
+            if (!judgement.Frames[i].Accepted)
+            {
+                slots.Add(null);
+                continue;
+            }
+            var frame = NewFrameFor(layer, ordered[i].Strokes, FrameRole.Inbetween);
+            frame.Ai = provenance;
+            slots.Add(frame);
+        }
+
+        var refused = judgement.Frames
+            .Select((f, i) => (Judgement: f, Slot: i))
+            .Where(x => !x.Judgement.Accepted)
+            .Select(x => $"frame {x.Slot + 1} of {candidates.Count} was refused: {x.Judgement.Refusal}")
+            .ToList();
+
+        var accepted = judgement.AcceptedCount;
+        if (accepted == 0)
+        {
+            // A refusal and a silent no-op are different outcomes: the document
+            // is untouched, and the status says which t and why.
+            AiStatus = $"Nothing was inserted — {string.Join(" ", refused)}";
+            return;
+        }
+
+        _editor.InsertInbetweens(layer.Id, aIndex, slots);
         CurrentFrameIndex = Math.Min(aIndex + 1, Scene.FrameCount - 1);
-        AiStatus = unseen is null
-            ? $"Inserted {frames.Count} AI inbetween(s)."
-            : $"Inserted {frames.Count} AI inbetween(s) — drawn lines only, {unseen} not tweened.";
+        var inserted = unseen is null
+            ? $"Inserted {accepted} AI inbetween(s)."
+            : $"Inserted {accepted} AI inbetween(s) — drawn lines only, {unseen} not tweened.";
+        AiStatus = refused.Count == 0 ? inserted : $"{inserted} {string.Join(" ", refused)}";
     }
 
     /// <summary>
@@ -9040,7 +9951,14 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var layer = Scene.Layers.First(l => l.Id == layerId);
         if (!CanEdit(layer, "insert inbetweens on it")) return 0;
-        var frames = strokeFrames.Select(s => NewFrameFor(layer, s, FrameRole.Inbetween)).ToList();
+        var frames = strokeFrames.Select(s =>
+        {
+            var frame = NewFrameFor(layer, s, FrameRole.Inbetween);
+            // Q31: provenance on every frame AI touched — an agent working the
+            // document over MCP is exactly that, whatever model drives it.
+            frame.Ai = new AiProvenance("MCP agent");
+            return frame;
+        }).ToList();
         _editor.InsertInbetweens(layerId, aIndex, frames);
         CurrentFrameIndex = Math.Min(aIndex + 1, Scene.FrameCount - 1);
         return frames.Count;
@@ -9058,7 +9976,13 @@ public sealed partial class MainViewModel : ObservableObject
         var keyIndex = ExposureSheet.KeyIndexAtOrBefore(layer, frameIndex);
         if (keyIndex < 0) return 0;
         var frame = layer.Cels[keyIndex].Frame!;
-        _editor.Perform(_ => StrokesOf(frame).AddRange(strokes));
+        _editor.Perform(_ =>
+        {
+            StrokesOf(frame).AddRange(strokes);
+            // Q31: the frame was AI-touched, even when the artist drew the
+            // rest of it. Absent stays absent on frames no agent reaches.
+            frame.Ai ??= new AiProvenance("MCP agent");
+        });
         InvalidateFrameRender(frame.Id);
         _dirtyThumbIds.Add(frame.Id);
         PublishSnapshot();
@@ -9112,10 +10036,66 @@ public sealed partial class MainViewModel : ObservableObject
     /// as a loop rather than an index jump so a wrap, a range end and the audio
     /// resync all happen exactly as they do at speed.
     /// </remarks>
+    /// <summary>
+    /// Advance the playhead by the frames this tick owes, compositing only the
+    /// one that will actually be seen.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B162. This loop rendered every frame it had just decided to skip, so
+    /// dropping frames to keep up cost four times as much as keeping them.</b>
+    /// <c>PlaybackClock.Pace</c> returns a frame count — 1 normally, up to
+    /// <c>MaxCatchUpFrames</c> when the tick is late — and "drop 3 to catch up"
+    /// was implemented as three full <c>StepPlayback</c> calls, each of which
+    /// writes <c>CurrentFrameIndex</c> and therefore runs a whole publish.
+    /// </para>
+    /// <para>
+    /// <b>It is a feedback loop, not a constant overhead, which is why it ran
+    /// away.</b> A tick that is late asks for more frames; more frames cost
+    /// proportionally more; the extra cost makes the next tick later still. The
+    /// capture that found it: <b>178 ticks advanced the playhead and 568
+    /// composites came out of them</b> — 3.2 per tick — with mean lateness
+    /// climbing to 232 ms and <b>104 occasions where the clock gave up and
+    /// re-based</b>, on a five-frame scene.
+    /// </para>
+    /// <para>
+    /// <b>It also made the report lie in the reader's favour</b>, which is why
+    /// four rounds of captures looked survivable. The tick breakdown divides by
+    /// profiled ticks — one per <c>StepPlayback</c> — so it reported 38 ms
+    /// against an 83 ms budget and called it comfortable, when a single timer
+    /// fire was doing 3.2 of them: <b>138 ms of an 83.3 ms period, 165%.</b> The
+    /// per-tick number was true and the per-<em>frame-period</em> number, which
+    /// is the one that decides whether a clock can keep time, was never shown.
+    /// </para>
+    /// <para>
+    /// A skipped frame still moves the playhead, still wraps the loop, still
+    /// stops at the end of a range and still tracks audio — everything except
+    /// the composite, which is the one part nobody was ever going to see.
+    /// </para>
+    /// </remarks>
+    // The clock's own handler, reachable by the tests: the catch-up path is
+    // driven by a real DispatcherTimer being late, which the headless harness
+    // cannot produce — the same reason PlaybackClock's docs give for testing
+    // Pace as pure arithmetic rather than through a timer.
+    internal void HandlePlaybackTickForTests(int frames) => OnPlaybackTick(frames);
+
     private void OnPlaybackTick(int frames)
     {
-        for (var i = 0; i < frames && IsPlaying; i++) StepPlayback();
+        for (var i = 0; i < frames - 1 && IsPlaying; i++)
+        {
+            _skippingFrame = true;
+            try { StepPlayback(); }
+            finally { _skippingFrame = false; }
+        }
+        if (IsPlaying) StepPlayback();
     }
+
+    /// <summary>
+    /// True while stepping through a frame the clock has already decided to
+    /// drop. See <see cref="OnPlaybackTick"/> — the playhead moves, the pixels
+    /// are not made.
+    /// </summary>
+    private bool _skippingFrame;
 
     /// <summary>
     /// Set while committing an edit whose visible effect the caller already
@@ -9127,6 +10107,11 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void OnDocumentChanged()
     {
+        // B151: the swatch's frame list describes a tree that just moved. An undo
+        // or a structural edit can add, remove or replace the frames it names, and
+        // a stale list would repaint the wrong ones — or, worse, none of them.
+        _swatchRepaint = null;
+
         if (_committingScopedEdit)
         {
             MarkDocumentEdited();
@@ -9288,6 +10273,18 @@ public sealed partial class MainViewModel : ObservableObject
     /// Also called on playhead moves, where only rows whose exposed frame
     /// actually changed re-render.
     /// </summary>
+    /// <summary>
+    /// How many layer thumbnails have actually been rasterized, for the budget
+    /// test (B152).
+    /// </summary>
+    /// <remarks>
+    /// A count rather than a stopwatch, for B151's reason: the property is not
+    /// "this got faster" but "this does not happen per tick", which is exact and
+    /// cannot go flaky. Each one is a full-resolution frame render behind it, so
+    /// the count is a fair proxy for the cost as well as for the rule.
+    /// </remarks>
+    internal int LayerThumbRenders { get; private set; }
+
     private void RefreshLayerThumbs()
     {
         foreach (var row in LayerRows)
@@ -9307,6 +10304,7 @@ public sealed partial class MainViewModel : ObservableObject
             var bmp = ThumbSource(frame, CurrentFrameIndex);
             row.Thumb = ThumbnailRenderer.RenderChecker(bmp, 44, 26);
             row.ThumbFrameId = frame.Id;
+            LayerThumbRenders++;
         }
     }
 
@@ -9323,94 +10321,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Onion skin as the artist has set it up. Global, not per document.</summary>
     public Services.OnionSettings Onion => Settings.Onion;
 
-    /// <summary>
-    /// The ghost passes for one layer: the drawings around the playhead, the
-    /// frames pinned as ghosts, or — in light-table mode — nothing, because
-    /// that mode ghosts other layers rather than other frames.
-    /// </summary>
-    private List<RenderPass> GhostPassesFor(Layer layer, Scene scene)
-    {
-        var passes = new List<RenderPass>();
-        // Ghosts are a drawing aid. During playback they are noise, and the
-        // one thing playback has to show is the animation.
-        if (!Onion.Enabled || IsPlaying || !layer.OnionEnabled) return passes;
-
-        var previous = SceneRenderer.ParseTint(Onion.PreviousTint, SceneRenderer.OnionPrevTint);
-        var next = SceneRenderer.ParseTint(Onion.NextTint, SceneRenderer.OnionNextTint);
-
-        if (Onion.Mode == Services.OnionMode.LightTable)
-        {
-            // A light table shows the sheets under this one, not this sheet's
-            // own history. The other layers are already composited in their
-            // own right, so there is nothing to add here — the mode's effect
-            // is that the time-based ghosts are absent.
-            return passes;
-        }
-
-        // Pinned first, so they sit furthest back: they are the reference the
-        // near ghosts and the current drawing are being placed against.
-        foreach (var index in PinnedGhostIndices(scene))
-        {
-            if (index == CurrentFrameIndex) continue;
-            if (ExposureSheet.ExposedFrame(layer, index) is not { } pinned) continue;
-            passes.Add(new RenderPass(
-                _cache.Get(pinned, scene.Width, scene.Height),
-                index < CurrentFrameIndex ? previous : next,
-                Onion.Opacity));
-        }
-
-        // Furthest first so the nearest ghost ends up on top of the others,
-        // which is the order their opacities assume.
-        var around = Lightbox.Core.Timeline.OnionSkin.Ghosts(
-            layer, CurrentFrameIndex, Onion.Before, Onion.After, Onion.KeysOnly);
-        foreach (var ghost in around.OrderByDescending(g => g.Steps))
-        {
-            passes.Add(new RenderPass(
-                _cache.Get(ghost.Frame, scene.Width, scene.Height),
-                ghost.Before ? previous : next,
-                Lightbox.Core.Timeline.OnionSkin.OpacityAt(ghost.Steps, Onion.Opacity, Onion.Falloff)));
-        }
-        return passes;
-    }
-
-    private IReadOnlyList<int> PinnedGhostIndices(Scene scene) =>
-        scene.GhostFrames is { Count: > 0 } pinned ? pinned : [];
-
     // ---- imported references ------------------------------------------------------
-
-    /// <summary>
-    /// The reference cells showing at the playhead — usually none, sometimes
-    /// one, more only if several sheets are loaded at once.
-    /// </summary>
-    /// <remarks>
-    /// Cheap on the ordinary path: a document with no references returns an
-    /// empty list without touching the registry, and one with references does
-    /// a dictionary lookup and builds a translate matrix. Nothing is decoded,
-    /// copied or scaled here — the cell is cut out of the sheet by the
-    /// compositor, which is doing a blit either way.
-    /// </remarks>
-    private List<RenderPass> ReferencePasses(Scene scene)
-    {
-        var passes = new List<RenderPass>();
-        if (scene.References is not { Count: > 0 } strips) return passes;
-
-        foreach (var strip in strips)
-        {
-            if (!strip.Visible || strip.Opacity <= 0) continue;
-            if (strip.CellAt(CurrentFrameIndex) is not { } cell) continue;
-            if (Lightbox.Raster.ReferenceStripRegistry.Resolve(strip.Id) is not { } sheet) continue;
-
-            var scale = (float)Math.Max(0.01, strip.Scale);
-            var matrix = SKMatrix.CreateScaleTranslation(
-                scale, scale,
-                (float)(strip.OffsetX + cell.Dx),
-                (float)(strip.OffsetY + cell.Dy));
-            passes.Add(new RenderPass(
-                sheet, null, strip.Opacity, SKBlendMode.SrcOver, null, matrix,
-                SKRectI.Create(cell.X, cell.Y, cell.Width, cell.Height)));
-        }
-        return passes;
-    }
 
     // ---- guides -----------------------------------------------------------------
 
@@ -9979,7 +10890,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// Where a cell lands on the canvas, in document pixels.
     /// </summary>
     /// <remarks>
-    /// The same arithmetic the compositor does in <see cref="ReferencePasses"/>,
+    /// The same arithmetic the compositor does in <see cref="ScenePassBuilder.ReferencePasses"/>,
     /// exposed so the gizmos can be drawn and hit-tested against exactly what
     /// is on screen. Two copies of this would drift and the boxes would stop
     /// sitting on the drawings they describe.
@@ -10520,252 +11431,232 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     internal SKRectI? LastPublishClip { get; private set; }
 
+    /// <summary>What the frame currently on screen was composed for (B165).</summary>
+    private Rendering.FrameFingerprint? _lastPublished;
+
+    /// <summary>
+    /// Playback frames that composed to the pixels already on screen and were
+    /// therefore not composed at all.
+    /// </summary>
+    public int FramesReused { get; private set; }
+
+    /// <summary>
+    /// Forget the frame on screen, so the next publish composes rather than
+    /// reusing.
+    /// </summary>
+    /// <remarks>
+    /// <b>Called wherever the composite could change without the document or the
+    /// playhead changing</b> — a new document, a layer shown or hidden, a
+    /// setting that reaches pixels. The fingerprint cannot see those, and a
+    /// reuse across one of them shows the previous document's art. Cheap to call
+    /// and expensive to forget, so it is wired to the same places that already
+    /// invalidate the whole canvas.
+    /// </remarks>
+    internal void ForgetPublishedFrame() => _lastPublished = null;
+
+    /// <summary>Mark everything dirty, as any pixel-changing edit does. Tests only.</summary>
+    internal void MarkWholeCanvasDirtyForTests() => InvalidateWholeCanvas();
+
+    /// <summary>
+    /// The builder's view of a frame under a live transform. A method with a
+    /// cached delegate rather than a lambda at the call site, so the publish
+    /// path allocates nothing for it.
+    /// </summary>
+    private ScenePassBuilder.TransformSplit? TransformSplitFor(Frame frame) =>
+        PartsFor(frame) is { } parts
+            ? new ScenePassBuilder.TransformSplit(parts.Moving, parts.Static)
+            : null;
+
+    private Func<Frame, ScenePassBuilder.TransformSplit?>? _passTransformSplit;
+
+    /// <summary>
+    /// Hold every cached bitmap a published pass list borrows, and give back the
+    /// release that lets go of them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The lifetime protocol B125 stage 1 built and nothing had yet used.</b>
+    /// A pass carries an <see cref="SKBitmap"/> the frame cache owns, and cache
+    /// eviction disposes it. While the composite was synchronous on this thread
+    /// that was safe by construction — only the finished image crossed, and
+    /// <c>CanvasControl._retired</c> managed its lifetime. A published pass list
+    /// outlives the call, so an eviction between publish and render would free
+    /// pixels Skia is about to read: a use-after-free in native code, which is
+    /// B130's exact signature — no managed stack, an empty crash log, and
+    /// "Lightbox dies as soon as I touch anything".
+    /// </para>
+    /// <para>
+    /// <b>Counted rather than flagged</b>, because one bitmap can be in two live
+    /// pass lists at once — the same cel exposed on two layers, or a publish
+    /// overlapping the one before it — and a boolean would free it on the first
+    /// release while the second reader was still going.
+    /// </para>
+    /// <para>
+    /// Bitmaps the cache does not own (the live scratch, a bake) pass through
+    /// harmlessly: a pin the cache never evicts is a dictionary entry that the
+    /// release takes straight back out.
+    /// </para>
+    /// </remarks>
+    /// <summary>
+    /// Let go of everything a published snapshot held: unpin what it borrowed,
+    /// free what this publish allocated.
+    /// </summary>
+    /// <remarks>
+    /// <b>Two opposite operations on one list, which is why they are named
+    /// together.</b> Layer bitmaps belong to the frame cache and must be released
+    /// without being freed; flattened tile bitmaps belong to nobody and must be
+    /// freed. Disposing a borrowed one is B130; leaking an owned one is a
+    /// viewport-sized bitmap per frame of playback.
+    /// </remarks>
+    private Action ReleaseFor(List<RenderPass> passes, List<SKBitmap>? owned)
+    {
+        var unpin = PinPasses(passes);
+        if (owned is null || owned.Count == 0) return unpin;
+        return () =>
+        {
+            unpin();
+            for (var i = 0; i < owned.Count; i++) owned[i].Dispose();
+        };
+    }
+
+    private Action PinPasses(List<RenderPass> passes)
+    {
+        // One list per publish, sized to the passes rather than grown. A publish
+        // runs per pointer event while drawing, so this is on the drawing path.
+        var held = new List<SKBitmap>(passes.Count);
+        for (var i = 0; i < passes.Count; i++)
+        {
+            if (passes[i].Bitmap is not { } bmp) continue;
+            // Both caches, because a pass list mixes their bitmaps: layer rasters
+            // belong to the frame cache and flattened tiles to the flatten cache
+            // (B167 phase 2). Asking which owns a given bitmap would be a third
+            // answer to a question two caches already answer for themselves — and
+            // a pin on a cache that does not own it is a dictionary entry the
+            // matching unpin takes straight back out, which is the same way a
+            // live scratch bitmap has always passed through here.
+            _cache.Pin(bmp);
+            _tileFlats.Pin(bmp);
+            held.Add(bmp);
+        }
+
+        return () =>
+        {
+            for (var i = 0; i < held.Count; i++)
+            {
+                _cache.Unpin(held[i]);
+                _tileFlats.Unpin(held[i]);
+            }
+        };
+    }
+
     /// <summary>Composite the scene for the current playhead and hand it to the view.</summary>
     public void PublishSnapshot()
     {
         var scene = Scene;
-        var passes = new List<RenderPass>();
-        // Tile-native passes are only legible to the unbounded compositor, so
-        // the decision to build them must equal the decision to use it — a
-        // publish with no viewport yet, or with a camera authored, takes the
-        // bounded path, and a tile pass sent there would silently vanish.
+
+        // Take whatever the prewarmer finished since the last publish, BEFORE
+        // the pass list asks the caches for anything. Draining afterwards would
+        // install a frame one publish after the one that needed it, which is the
+        // whole of the benefit gone.
+        TakeWarmedFrames();
+
+        // B165, second half: if this frame would compose to exactly the pixels
+        // already on screen, do not compose it.
         //
-        // Playback joins the unbounded canvas here (B144/Q62): while frames
-        // are flipping, a cel costs its ink rather than its paper, so a
-        // scene whose full-frame bitmaps thrash the cache above 720p stays
-        // resident as tiles — measured at 145 → 14 ms a frame at 1080p on
-        // sparse cels. The line is drawn at motion on purpose: a paused
-        // publish returns to the bounded compositor, so the still picture is
-        // always today's canonical render, and any resample difference the
-        // pyramid introduces below 100% zoom exists only while the sequence
-        // is moving. No live stroke, transform or ghost pass exists during
-        // playback, which is what keeps the two compositors' remaining
-        // differences (live clip masks, bake folding) out of reach.
-        // Whether tiles are on the table at all. The two *document* conditions —
-        // a camera, and a viewport to cull against — are asked through
-        // TileFallback so a report can name them; the mode check stays here
-        // because "not playing and not unbounded" is a choice rather than a
-        // frame the tiles could not say.
-        var tileModeOn = UnboundedCanvasOn || IsPlaying;
-        var haveViewport = _pendingViewport is { Width: > 0, Height: > 0 };
-        var tileNativeDoc = tileModeOn && scene.Camera is null && haveViewport;
-
-        // Where the active layer's contribution begins and ends in the pass
-        // list, so the layers that are NOT being drawn on can be folded into
-        // two baked bitmaps below. The active layer's own ghosts belong to its
-        // segment — they change with the playhead and the onion settings, and
-        // a bake that had to watch them would rebuild on exactly the publishes
-        // it exists to make cheap.
-        var activeStart = -1;
-        var activeEnd = -1;
-
-        var referencesQueued = false;
-        foreach (var layer in scene.Layers)
+        // On 2s every second playhead position exposes the drawings the last one
+        // did, so the composite is identical — and at 4K that composite measured
+        // 62.76 ms against an 83.3 ms budget, the largest single cost in the tick.
+        // Unlike B125's GPU work this is route-independent: it applies wherever
+        // the composite would have happened, including the tiled path playback
+        // actually takes.
+        //
+        // Playback only. While drawing, a publish is how a mark reaches the
+        // screen, and the dirty-region machinery already makes that cheap; adding
+        // a second "did anything change" question there would be two answers to
+        // one question, which is how they come to disagree.
+        var fingerprint = new Rendering.FrameFingerprint(
+            CurrentFrameIndex, ComposeScale, _pendingViewport,
+            CameraViewTransform(ComposeScale),
+            Rendering.UnchangedLayerRun.VisibleLayers(scene));
+        if (IsPlaying
+            && Rendering.FrameFingerprint.WouldBeIdentical(
+                _lastPublished, fingerprint, scene,
+                anythingDirty: _dirtyIsWholeCanvas || _pendingDirty is not null))
         {
-            if (!scene.IsLayerVisible(layer)) continue;
-            var isActive = layer.Id == ActiveLayer.Id;
-
-            // An imported reference goes over the paper and under every
-            // drawing — the same place as the photograph you would tape to the
-            // lightbox. Over the paper because the paper is opaque and would
-            // hide it; under the drawings because it is what you are drawing
-            // against, not something you are drawing on top of.
-            if (!referencesQueued && !layer.IsBackground)
-            {
-                passes.AddRange(ReferencePasses(scene));
-                referencesQueued = true;
-            }
-
-            // After the references block on purpose: a reference is part of
-            // what is beneath the drawing even when the active layer is the
-            // first one over the paper.
-            if (isActive) activeStart = passes.Count;
-
-            // Ghosts go directly beneath the layer they belong to, not beneath
-            // the whole stack. Queuing them all first was invisible while every
-            // layer was transparent; the moment a document opened on opaque
-            // paper, the paper painted over every ghost. Interleaving is also
-            // what makes multi-layer onion read correctly — a layer's ghosts
-            // sit under it, exactly as its own earlier frames would.
-            var ghosts = GhostPassesFor(layer, scene);
-            if (!Onion.DrawOver) passes.AddRange(ghosts);
-
-            var frame = ExposureSheet.ExposedFrame(layer, CurrentFrameIndex);
-            if (frame is null)
-            {
-                // An empty cel is exactly when onion skin earns its keep: you
-                // are looking at the gap you are about to draw the inbetween
-                // into. The ghosts still show — there is simply no drawing of
-                // this layer's own to put them under or over.
-                if (Onion.DrawOver) passes.AddRange(ghosts);
-                if (isActive) activeEnd = passes.Count;
-                continue;
-            }
-
-            // The unbounded canvas holds tileable frames as tiles, so the
-            // pass carries the FRAME and the compositor reads the tile cache —
-            // fetching the bitmap here would materialise the document-sized
-            // allocation the tile store exists to avoid. A frame the tiles
-            // cannot say (baseline pixels, placements, an effect stroke — see
-            // TileFrameCache.CanTileFrame) falls back to the bitmap path, as
-            // does the active layer while a live blur/smudge is replacing it.
-            Lightbox.Core.Documents.Frame? tileFrame = null;
-            SKBitmap? bmp = null;
-            var liveEffectHere = _liveComposite is not null
-                && _strokeBuilder.IsActive && layer.Id == ActiveLayer.Id;
-            // One expression decides and explains (B144). While the tile mode is
-            // on, every frame it looks at is tallied — so a render report can say
-            // *why* a document is paying the old cost instead of leaving "it is
-            // slow" and "it never tiled" indistinguishable.
-            if (tileModeOn)
-            {
-                var why = TileFallback.Reason(
-                    frame, scene.Camera is not null, haveViewport, liveEffectHere);
-                _tileFallbacks.Note(why);
-                if (why == TileFallbackReason.None) tileFrame = frame;
-            }
-
-            if (tileFrame is null)
-            {
-                bmp = _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex);
-            }
-
-            // Blur and smudge REPLACE the layer rather than overlaying it.
-            //
-            // They rework pixels that are already there, so there is no set of
-            // new marks to lay on top — the answer is the whole layer, redone.
-            // BeginStroke already copies the layer into _liveComposite for
-            // exactly this, and FlushLivePreview has been appending each drag
-            // segment to it every event; it simply was never shown, so the
-            // smear only appeared when the pen lifted and the commit landed.
-            if (liveEffectHere)
-            {
-                bmp = _liveComposite;
-            }
-
-            // Live stroke: the dabs live in their own scratch and composite
-            // over the layer here. The layer bitmap is never copied for a
-            // preview — a full-canvas copy costs ~1 s at 4K.
-            //
-            // Skipped entirely once _liveComposite has taken over this layer
-            // (B39): a blur or smudge REPLACES the layer rather than
-            // overlaying it, so bmp is already the whole answer above. If
-            // _liveScratch still held dabs from whatever ordinary stroke ran
-            // immediately before — BeginStroke clears it for every tool
-            // except Blur/Smudge, since those never draw into it — building
-            // an overlay from it here composited that stale content a SECOND
-            // time over _liveComposite, which already carried it once. Over a
-            // wash the two SrcOver passes measured 61 -> 108, and a harder
-            // edge reaches fully opaque: the hard-edged black band and the
-            // "smaller black dash" the report showed are exactly the shape of
-            // dab patches left over from the previous stroke.
-            StrokeOverlay? overlay = null;
-            if (_liveComposite is null)
-            {
-                // The shape tool's drag preview. It was rendering into the scratch
-                // and never being shown: the overlay only knew about a gradient
-                // drag or a live brush stroke, and a shape is neither — so the
-                // rectangle appeared out of nowhere on release. Same shape of
-                // overlay as the gradient's, for the same reason.
-                if (_liveScratch is not null && _liveShape is { } shaping && layer.Id == ActiveLayer.Id)
-                {
-                    overlay = new StrokeOverlay(
-                        _liveScratch,
-                        shaping.Brush.Opacity,
-                        shaping.Tool == ToolKind.Eraser,
-                        shaping.AlphaLocked,
-                        shaping.ClipId is null ? null : ClipRegionRegistry.Resolve(shaping.ClipId));
-                }
-                else if (_liveScratch is not null && _liveGradient is { } drag && layer.Id == ActiveLayer.Id)
-                {
-                    // The gradient tool's drag preview. Opacity and the alpha lock
-                    // ride on the overlay, exactly as they do for a brush stroke,
-                    // so the preview and the commit agree.
-                    overlay = new StrokeOverlay(
-                        _liveScratch,
-                        drag.Brush.Opacity,
-                        false,
-                        drag.AlphaLocked,
-                        drag.ClipId is null ? null : ClipRegionRegistry.Resolve(drag.ClipId));
-                }
-                else if (_liveScratch is not null && _strokeBuilder.IsActive
-                    && _strokeBuilder.Current is { } live && layer.Id == ActiveLayer.Id)
-                {
-                    // Prefer the fully rendered stroke when a pass has completed —
-                    // medium, wet edge and texture included — and fall back to raw
-                    // dabs only for the first few events of a heavy brush, before
-                    // the first pass lands.
-                    var source = _livePostStampedCount > 0 && _livePostScratch is not null
-                        ? _livePostScratch
-                        : _liveScratch;
-                    // Everything the commit will mask the stroke with, applied
-                    // now: an artist cannot judge a mark they are not being shown.
-                    overlay = new StrokeOverlay(
-                        source,
-                        live.Brush.Opacity,
-                        live.Tool == ToolKind.Eraser,
-                        live.AlphaLocked,
-                        live.ClipId is null ? null : ClipRegionRegistry.Resolve(live.ClipId));
-                }
-            }
-
-            // A transform in progress: show the drag, not just the box around
-            // it. The strokes that move are drawn through the gizmo's matrix
-            // and the ones that stay (a region-limited transform) are drawn
-            // where they are, which is exactly the split the commit makes.
-            if (_transformPreview is { } preview
-                && _transformFrames.Exists(f => f.Id == frame.Id)
-                && PartsFor(frame) is { } parts)
-            {
-                if (parts.Static is { } stay)
-                {
-                    passes.Add(new RenderPass(
-                        stay, null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
-                }
-                passes.Add(new RenderPass(
-                    parts.Moving, null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
-                    overlay, preview));
-                if (Onion.DrawOver) passes.AddRange(ghosts);
-                if (isActive) activeEnd = passes.Count;
-                continue;
-            }
-
-            // A light table makes the sheet you are drawing on the crisp one and
-            // the sheets under it faint. Untinted, because they are the same
-            // drawing seen through paper, not a different moment in time.
-            //
-            // The paper is exempt: it is the desk the sheets lie on, not one of
-            // them. Dimming it would punch the checkerboard through an opaque
-            // document the moment the mode was switched on.
-            var opacity = IsLightTable && !IsPlaying
-                && !layer.IsBackground && layer.Id != ActiveLayer.Id
-                ? layer.Opacity * Onion.Opacity
-                : layer.Opacity;
-            passes.Add(new RenderPass(
-                bmp, null, opacity, SceneRenderer.ToSkia(layer.BlendMode), overlay,
-                SourceFrame: tileFrame));
-
-            // Draw-over puts them above instead. Under is how a lightbox works
-            // and is what you want while drawing; over is for checking, when a
-            // line you have just made would otherwise hide the one you are
-            // comparing it to.
-            if (Onion.DrawOver) passes.AddRange(ghosts);
-            if (isActive) activeEnd = passes.Count;
+            FramesReused++;
+            // Still prewarm: the worker is guessing at frames after this one, and
+            // a reused frame is exactly when there is spare time to do it in.
+            RequestPlaybackPrewarm(UnboundedCanvasOn || IsPlaying, ComposeScale);
+            return;
         }
 
-        // A document with nothing but paper in it still shows its reference —
-        // that is the state you are in when you have imported one and have not
-        // drawn anything yet, which is every time you start.
-        if (!referencesQueued) passes.AddRange(ReferencePasses(scene));
+        // The pass list is built by ScenePassBuilder (B166): a pure function
+        // from the document and the state below to an ordered list, with no
+        // surface and no graphics context in it. It was 230 lines here, and
+        // it is what B125 stage 3 hands across a thread — so it is worth
+        // being a named unit whose inputs are written down.
+        var passState = new ScenePassBuilder.State(
+            CurrentFrameIndex,
+            // Asked once here rather than per layer inside the loop, which means
+            // a layerless document now reaches it — ActiveLayer indexes and
+            // throws on one. It used to be unreachable rather than safe.
+            scene.Layers.Count > 0 ? ActiveLayer.Id : null,
+            IsPlaying, IsLightTable,
+            UnboundedCanvasOn,
+            HaveViewport: _pendingViewport is { Width: > 0, Height: > 0 },
+            Onion);
+        var live = new ScenePassBuilder.LiveEdit(
+            _liveComposite, _liveScratch, _livePostScratch, _livePostStampedCount,
+            _liveShape, _liveGradient, _strokeBuilder.Current,
+            _transformPreview, _transformFrames,
+            // The moving/staying split stays behind a delegate because building
+            // it caches bitmaps and owns their disposal — state with a lifetime,
+            // which is the one thing the pure builder must not hold. Held in a
+            // field rather than written as a lambda here: a lambda capturing
+            // `this` allocates a closure and a delegate on every publish, and a
+            // publish happens per pointer event while drawing.
+            _passTransformSplit ??= TransformSplitFor);
+
+        var built = ScenePassBuilder.Build(scene, passState, _cache, _tileFallbacks, live);
+        var passes = built.Passes;
+        var activeStart = built.ActiveStart;
+        var activeEnd = built.ActiveEnd;
+        var tileNativeDoc = built.TileNative;
 
         // Fold the layers that are not being drawn on into two baked bitmaps —
         // see LayerStackBake for the whole argument. Held off during playback,
         // where the pass list changes every frame and a bake could never be
         // reused before it was stale. Downstream (the ring, the culled path,
         // the unbounded path) sees a shorter list of the same pixels.
+        // Both folds are asked every publish, even the one that will decline.
+        // Each owns a "was I serving a bake last time" flag, and skipping the call
+        // leaves that flag stale — so stopping playback could miss a fold
+        // transition, and a missed transition is folded and unfolded pixels mixed
+        // on one surface by a dirty-region patch. Declining is cheap; not asking
+        // is not.
         passes = _stackBake.Fold(
             passes, activeStart, activeEnd, scene.Width, scene.Height, hold: IsPlaying,
             out var foldTransitioned);
+
+        // B165. During playback the not-being-drawn-on segment changes every
+        // frame, so Fold above gives up — but the layers holding still for the
+        // whole range do not, and folding those is one blend instead of however
+        // many there are. A five-frame two-layer capture showed 1 138 layer passes
+        // over 568 ticks: a held BG plate, a colour hold and a locked prop
+        // re-blended twelve times a second to produce pixels already on screen.
+        //
+        // The count comes from the exposure sheet rather than from the passes,
+        // because they are two different questions: which layers hold still over
+        // time is a property of the document, and whether a run may be pre-folded
+        // at all is a property of their blends, which the bake checks itself.
+        // Zero when not playing, which is how the held segment gets reset.
+        var heldRun = IsPlaying
+            ? UnchangedLayerRun.HeldPrefix(scene, EffectiveStartFrame, EffectiveEndFrame)
+            : 0;
+        passes = _stackBake.FoldHeldRun(
+            passes, heldRun, scene.Width, scene.Height, out var heldTransitioned);
+        foldTransitioned |= heldTransitioned;
+
         // A fold transition repaints everything once (see the out parameter's
         // remarks): folded and unfolded pixels can differ by an LSB, and a
         // dirty-region patch must never mix the two on one surface.
@@ -10776,94 +11667,79 @@ public sealed partial class MainViewModel : ObservableObject
         // renderer full detail makes it rescale 8.3 M pixels on every frame —
         // ~29 ms, which is the whole stutter budget before anything is drawn.
         var renderScale = ComposeScale;
-        // Looking through the camera reframes the canvas, so the surface is
-        // the camera's output rather than the document. Without one — the
-        // ordinary case and every asset document — nothing here changes.
         var cameraView = CameraViewTransform(renderScale);
-        var viewWidth = cameraView is null ? scene.Width : scene.Camera!.OutputWidth;
-        var viewHeight = cameraView is null ? scene.Height : scene.Camera!.OutputHeight;
-
-        // Check if unbounded canvas is EXPLICITLY enabled (not just by default).
-        // The tiled rendering path is not yet optimized for performance, so we only use it
-        // when an artist has explicitly opted in via the document features override.
-        // TODO: Optimize TileStore.FromBitmap or render directly to tiles to make this faster.
-        // A camera defers to the camera path: the unbounded compositor maps the
-        // viewport itself, and two things that both map the view disagree.
-        var useUnboundedPath = tileNativeDoc
-            && cameraView is null
-            && _pendingViewport is { Width: > 0, Height: > 0 };
 
         // What changed since the last publish. Null means "everything", which is
         // what a frame change, a layer edit or a view change produces.
         //
-        // Read BEFORE the culling decision on purpose: whether culling is worth
-        // taking depends entirely on this, per B121 below.
+        // Read BEFORE the routing decision on purpose: whether culling is worth
+        // taking depends entirely on this, per B121 in ComposePlan.
         var dirty = _dirtyIsWholeCanvas ? null : _pendingDirty;
         _pendingDirty = null;
         _dirtyIsWholeCanvas = false;
 
-        // B82: compose only the visible rectangle, so the cost is proportional to
-        // what the artist can see rather than to the whole document.
-        //
-        // Three conditions, every one of them learned by breaking it:
-        //
-        //  * The rectangle is CLAMPED to the document. A zoomed-out view reports a
-        //    viewport far larger than the canvas — {-480,-450,1921,1440} for a
-        //    960×540 document at 50% — and an unclamped rectangle is both a source
-        //    rect off the end of the layer bitmap and a surface bigger than the
-        //    full-document one it was meant to be cheaper than.
-        //  * Culling only pays when the clamped rectangle is actually SMALLER.
-        //  * **Only on a whole-canvas publish (B121).** This is the one that
-        //    mattered. `ComposeViewportCulled` builds a fresh surface, so it has
-        //    to fill all of it — it cannot honour a dirty region the way
-        //    `ComposeRing` does. Culling an incremental publish therefore turns a
-        //    dab-sized repaint into a viewport-sized one: measured at 1 232 px
-        //    against 134 400 px for the same dab, a 109× enlargement, and 0.26 ms
-        //    against 76 ms on a 4K document. Since a small dirty region is already
-        //    area-independent, culling can only ever lose there. It wins on the
-        //    publishes that would repaint everything anyway, which is exactly the
-        //    frame change B29 is about.
-        var composeViewport = ClampToDocument(_pendingViewport, (int)viewWidth, (int)viewHeight);
-        var useViewportCulling = cameraView is null
-            && dirty is null
-            && composeViewport is { } vpTest
-            && (long)vpTest.Width * vpTest.Height < (long)viewWidth * (int)viewHeight;
-        if (!useViewportCulling) composeViewport = null;
+        // Which compositor, on what surface, covering what (B166). Arithmetic on
+        // six numbers, and the three conditions in it were each learned by
+        // breaking them — so it lives where it can be asserted on directly
+        // rather than only through a composed image.
+        var plan = ComposePlan.For(
+            scene.Width, scene.Height,
+            cameraView is null ? null : new SKSizeI(scene.Camera!.OutputWidth, scene.Camera!.OutputHeight),
+            _pendingViewport, dirty, tileNativeDoc, renderScale);
+        var viewWidth = plan.ViewWidth;
+        var viewHeight = plan.ViewHeight;
+        var info = plan.Info;
 
-        // Determine surface size: viewport-sized if culling, document-sized otherwise
-        var (surfaceWidth, surfaceHeight) = composeViewport is { } vpCull
-            ? ((int)Math.Ceiling(vpCull.Width * renderScale), (int)Math.Ceiling(vpCull.Height * renderScale))
-            : ((int)Math.Ceiling(viewWidth * renderScale), (int)Math.Ceiling(viewHeight * renderScale));
-
-        var info = new SKImageInfo(
-            Math.Max(1, surfaceWidth),
-            Math.Max(1, surfaceHeight),
-            SKColorType.Rgba8888,
-            SKAlphaType.Premul);
         var seq = ++_publishSeq;
         var background = SceneRenderer.BackgroundOf(scene);
         var sw = System.Diagnostics.Stopwatch.StartNew();
+        var composeScope = Profile(_profilingTick, Services.TickProfile.Phase.Compose);
         SKRectI? usedClip = null;
 
-        // Which document rectangle the finished image actually covers. Null means
-        // the whole document — the painter needs this to place the image, and it
-        // is a property of the image rather than of what the canvas asked for.
-        SKRectI? imageCovers = null;
+        // Which document rectangle the finished image actually covers. Decided by
+        // the route rather than set in each branch, so it cannot disagree with the
+        // surface it describes.
+        var imageCovers = plan.ImageCovers;
 
-        SKImage image;
-        if (useUnboundedPath)
+        SKImage? image;
+        DeferredCompose? deferred = null;
+        // Bitmaps this publish allocated rather than borrowed (B167 phase 3a):
+        // flattened tiles. Borrowed passes are unpinned when the snapshot dies;
+        // these have to be freed, which is the opposite operation and the one
+        // thing easy to get wrong now that they cross a thread.
+        List<SKBitmap>? flattenedOwned = null;
+        if (plan.Route == ComposeRoute.Unbounded)
         {
-            // Unbounded canvas: use tiled compositing for only visible viewport
-            image = ComposeUnboundedSnapshot(scene, passes, background, renderScale, cameraView, seq);
-            usedClip = _pendingViewport;
-            imageCovers = _pendingViewport;
+            // Unbounded canvas: use tiled compositing for only visible viewport.
+            //
+            // Tile passes are flattened into bitmap passes first (B167 phase 3),
+            // which is what makes the composite below a pure function of bitmaps
+            // and therefore movable to the render thread. A flattened bitmap is
+            // now usually borrowed from the flatten cache (B167 phase 2) and
+            // unpinned; only one the cache refused is owned here and disposed.
+            // B167 phase 3b: describe it rather than do it. Flattening still
+            // happens here — it needs the tile cache — but the blending, which
+            // phase 1 measured at roughly two thirds of Compose, moves to the
+            // draw op where the graphics context is.
+            var vp = _pendingViewport!.Value;
+            flattenedOwned = [];
+            passes = FlattenTilePasses(passes, scene, vp, renderScale, flattenedOwned);
+            deferred = new DeferredCompose(
+                passes, background, renderScale, info, vp, Tiled: true);
+            image = null;
+            usedClip = imageCovers;
         }
-        else if (useViewportCulling && composeViewport is { } cullRect)
+        else if (plan.CullRect is { } cullRect)
         {
             // B82: bounded canvas, culled to the clamped visible rectangle.
-            image = ComposeViewportCulled(passes, background, renderScale, info, cullRect);
+            // B125 stage 3b: describe it rather than do it. The culled route is
+            // the one that can move — it already built a fresh surface every
+            // publish and filled all of it, so nothing is lost by building it on
+            // the render thread instead, where the graphics context is. The ring
+            // and the unbounded path stay here; see DeferredCompose for why.
+            deferred = new DeferredCompose(passes, background, renderScale, info, cullRect);
+            image = null;
             usedClip = cullRect;
-            imageCovers = cullRect;
             // This publish went around the ring, so every buffer in it now holds
             // an older frame than the artist is looking at. ComposeRing decides
             // what to repaint from its own staleness, so a buffer that believes
@@ -10895,12 +11771,19 @@ public sealed partial class MainViewModel : ObservableObject
             }, renderScale, cameraView);
         }
         sw.Stop();
+        composeScope?.Dispose();
         if (Environment.GetEnvironmentVariable("LIGHTBOX_PERFTRACE") is not null)
         {
             Console.Error.WriteLine($"[publish] dirty={dirty} clip={usedClip} passes={passes.Count} {sw.Elapsed.TotalMilliseconds:0.0}ms");
         }
         Performance.RecordPublish(sw.Elapsed.TotalMilliseconds);
         LastPublishClip = usedClip;
+        _lastPublished = fingerprint;
+        // Everything from here is the handoff: the snapshot swap, the retired
+        // images being disposed, and the invalidate. Timed apart from the
+        // composite above because one number for both is what sent B156 after
+        // the wrong half.
+        using var handoffScope = Profile(_profilingTick, Services.TickProfile.Phase.Handoff);
         if (SnapshotChanged is { } handler)
         {
             // ALWAYS the full document size, whatever the compositor did. The canvas
@@ -10914,15 +11797,135 @@ public sealed partial class MainViewModel : ObservableObject
             // is what every uncalled path produces.
             handler(new RenderSnapshot(
                 image, (int)viewWidth, (int)viewHeight, seq, imageCovers,
-                ChangedInImageSpace(usedClip, imageCovers, renderScale, cameraView)));
+                SnapshotGeometry.ChangedInImageSpace(
+                    usedClip, imageCovers, renderScale, throughCamera: cameraView is not null),
+                passes, ReleaseFor(passes, flattenedOwned), deferred));
         }
         else
         {
             // No canvas attached (headless or IPC-only): nobody would ever
             // free this image, and a live snapshot makes the next repaint
-            // duplicate the whole buffer.
-            image.Dispose();
+            // duplicate the whole buffer. A deferred composite needs no
+            // disposal at all — it was never performed, which is the cheapest
+            // this path has ever been.
+            image?.Dispose();
+            if (flattenedOwned is not null) foreach (var b in flattenedOwned) b.Dispose();
         }
+
+        // Last, and after the frame is on its way to the screen: the worker
+        // starts on the frames after this one while the artist is looking at
+        // this one. Queued from here rather than from the playback tick so that
+        // the guess is refreshed by every publish that moves the playhead —
+        // scrubbing and stepping included, not only the timer.
+        RequestPlaybackPrewarm(tileNativeDoc, renderScale);
+    }
+
+    /// <summary>
+    /// Install whatever the prewarmer finished, or dispose it if the cache will
+    /// not have it.
+    /// </summary>
+    /// <remarks>
+    /// A cache refuses a warm when it already holds the frame, when the warm
+    /// does not fit inside the byte budget, or when the frame is one that is
+    /// never stored at all. All three are ordinary — speculative work is allowed
+    /// to be wasted — and every one of them ends in the pixels being freed here
+    /// rather than leaked.
+    /// </remarks>
+    private void TakeWarmedFrames() => _prewarm.Drain(warmed =>
+    {
+        var want = warmed.Request;
+        if (want.Want == WarmProduct.Tiles)
+        {
+            return warmed is { Store: { } store, Pyramid: { } pyramid }
+                && _tileFrames.InsertWarm(want.Frame, store, pyramid);
+        }
+        return warmed.Bitmap is { } bmp
+            && _cache.InsertWarm(want.Frame, want.Width, want.Height, 1.0, want.CelIndex, bmp);
+    });
+
+    /// <summary>
+    /// Queue the frames the playhead is about to reach, so the tick that shows
+    /// them does not have to rasterize them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Only while playing.</b> The prediction is only worth making when the
+    /// playhead is moving on its own: an artist drawing goes where they like,
+    /// and warming a guess about that would spend a core to fill the cache with
+    /// frames nobody asked for. Playback is the one time the next few frames are
+    /// known rather than guessed.
+    /// </para>
+    /// <para>
+    /// <b>The tile-or-bitmap decision is <see cref="TileFallback.Reason"/>, the
+    /// same call the publish makes.</b> Warming a frame as a bitmap that the
+    /// publish then wants as tiles is not wrong, but it is the whole cost paid
+    /// for nothing — and it is exactly the kind of divergence that appears when
+    /// two places restate one rule. One function, asked twice.
+    /// </para>
+    /// </remarks>
+    private void RequestPlaybackPrewarm(bool tileNativeDoc, double renderScale)
+    {
+        if (!IsPlaying) return;
+
+        var scene = Scene;
+        var last = Math.Max(0, scene.FrameCount - 1);
+        var ahead = FramePrewarmer.Upcoming(
+            CurrentFrameIndex, _playDirection,
+            EffectiveStartFrame, EffectiveEndFrame, LoopPlayback, FramePrewarmer.Lookahead);
+        if (ahead.Count == 0) return;
+
+        var level = TilePyramid.LevelFor(renderScale);
+        var jobs = new List<WarmRequest>();
+
+        // One drawing, one job. A held cel is the same frame at every exposure
+        // it covers, and the paper is one frame under the whole sequence — so
+        // without this the background alone is rendered once per position
+        // looked ahead, every publish, for a frame that never changes. Measured
+        // at six warms where four were wanted on a two-layer document, which is
+        // the smallest document there is.
+        var queued = new HashSet<string>();
+        foreach (var index in ahead)
+        {
+            var celIndex = Math.Clamp(index, 0, last);
+            foreach (var layer in scene.Layers)
+            {
+                if (!scene.IsLayerVisible(layer)) continue;
+                if (ExposureSheet.ExposedFrame(layer, celIndex) is not { } frame) continue;
+
+                // A frame that places a symbol renders differently at different
+                // exposures — a placed cycle advances with the sequence — and is
+                // cached per index for that reason. Every other frame is the same
+                // picture wherever it sits, which is what makes deduplicating by
+                // id alone correct for them and wrong for these.
+                var once = frame.HasPlacements ? $"{frame.Id}#{celIndex}" : frame.Id;
+                if (!queued.Add(once)) continue;
+
+                // No live effect can be in progress: playback abandons a stroke
+                // in flight, which is what makes this false rather than a guess.
+                var why = tileNativeDoc
+                    ? TileFallback.Reason(frame, scene.Camera is not null, true, liveEffectHere: false)
+                    : TileFallbackReason.NoViewport;
+
+                if (why == TileFallbackReason.None)
+                {
+                    if (_tileFrames.Holds(frame.Id)) continue;
+                    jobs.Add(new WarmRequest(
+                        frame, scene.Width, scene.Height, celIndex, WarmProduct.Tiles, level));
+                }
+                else
+                {
+                    if (!FrameBitmapCache.CanCache(frame)) continue;
+                    if (_cache.Holds(frame, scene.Width, scene.Height, 1.0, celIndex)) continue;
+                    jobs.Add(new WarmRequest(
+                        frame, scene.Width, scene.Height, celIndex, WarmProduct.Bitmap));
+                }
+            }
+        }
+
+        // An empty list still supersedes: everything the playhead was going to
+        // need is already held, so anything still queued is a frame it has
+        // passed.
+        _prewarm.Request(jobs);
     }
 
     /// <summary>
@@ -10962,233 +11965,103 @@ public sealed partial class MainViewModel : ObservableObject
     /// silently dropped.
     /// </para>
     /// </remarks>
-    private SKImage ComposeUnboundedSnapshot(
-        Lightbox.Core.Documents.Scene scene,
-        List<RenderPass> passes,
-        SKColor background,
-        double renderScale,
-        SKMatrix44? cameraView,
-        long seq)
+    /// <summary>
+    /// Turn tile-native passes into ordinary bitmap passes with a placement
+    /// matrix, flattening their visible tiles here (B167 phase 3).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is what dissolves the blocker rather than confronting it.</b> The
+    /// tiled composite is the one playback takes and the one that has to move to
+    /// the render thread — but it reads <c>_tileFrames</c>, which the view model
+    /// owns and the draw op cannot reach. Flattening first turns every tile pass
+    /// into a bitmap pass, and a bitmap pass is something the deferred compositor
+    /// already carries across a thread with a lifetime protocol that works.
+    /// </para>
+    /// <para>
+    /// <b>The flattening still happens here, on the UI thread.</b> Phase 1
+    /// measured it at 30–35% of Compose; phase 3b moved the other two thirds to
+    /// the render thread.
+    /// </para>
+    /// <para>
+    /// <b>B167 phase 2: most flattens are now looked up rather than done.</b> The
+    /// inputs are the frame's tiles, the pyramid level and the level-space
+    /// rectangle, and all three are identical from one playback frame to the next
+    /// for a layer that holds — so <see cref="TileFlattenCache"/> keys on exactly
+    /// those. B165 measured the share of layer draws that repeat a drawing at 26%
+    /// at two layers and 59% at ten, and that is the share of this work that
+    /// disappears.
+    /// </para>
+    /// <para>
+    /// <b>So a flattened bitmap is now usually borrowed, and the two cases must
+    /// not be confused.</b> A cached one is pinned and unpinned — disposing it
+    /// would free pixels another live snapshot is still reading, which is B130.
+    /// One the cache refused (a viewport larger than the whole budget) is owned
+    /// exactly as every flatten was before this phase, and disposed with the
+    /// snapshot. Leaking that one is a viewport-sized bitmap per frame of
+    /// playback, so neither mistake is quiet.
+    /// </para>
+    /// </remarks>
+    private List<RenderPass> FlattenTilePasses(
+        List<RenderPass> passes, Scene scene, SKRectI viewport, double renderScale,
+        List<SKBitmap> owned)
     {
-        var viewport = _pendingViewport!.Value;
-        var info = new SKImageInfo(
-            Math.Max(1, (int)Math.Ceiling(viewport.Width * renderScale)),
-            Math.Max(1, (int)Math.Ceiling(viewport.Height * renderScale)),
-            SKColorType.Rgba8888,
-            SKAlphaType.Premul);
-
-        using var surface = SKSurface.Create(info)
-            ?? throw new InvalidOperationException("Failed to create render surface");
-        var canvas = surface.Canvas;
-        canvas.Clear(background);
-
-        // Document space under the viewport: everything below draws in
-        // document coordinates and lands where the artist is looking.
-        canvas.Save();
-        canvas.Scale((float)renderScale);
-        canvas.Translate(-viewport.Left, -viewport.Top);
-
-        foreach (var pass in passes)
+        List<RenderPass>? flattened = null;
+        for (var i = 0; i < passes.Count; i++)
         {
-            if (pass.Bitmap is null && pass.SourceFrame is null) continue;
+            if (passes[i].SourceFrame is not { } tileSrc) continue;
 
-            var alpha = (byte)Math.Round(Math.Clamp(pass.Opacity, 0, 1) * 255);
-            using var paint = new SKPaint
-            {
-                Color = SKColors.White.WithAlpha(alpha),
-                BlendMode = pass.Blend,
-            };
-            if (pass.Tint is { } tint)
-            {
-                paint.ColorFilter = SKColorFilter.CreateBlendMode(tint, SKBlendMode.SrcIn);
-            }
+            flattened ??= [.. passes];
+            // A tile-native pass: composite the visible tiles 1:1 at the pyramid
+            // level nearest the screen's resolution, then place that one image in
+            // document space — the outer transform does the rest. The residual
+            // resample is a single ≤2× downscale of one image, so deep zoom-outs
+            // get box-mip quality instead of skip-sampling shimmer, and the
+            // intermediate is bounded by the surface however many document pixels
+            // the viewport spans.
+            var (_, pyramid) = _tileFrames.Get(tileSrc, scene.Width, scene.Height);
+            var level = Lightbox.Raster.TilePyramid.LevelFor(renderScale);
+            var step = Lightbox.Raster.TilePyramid.StepOf(level);
+            var lvp = SKRectI.Create(
+                FloorDiv(viewport.Left, step),
+                FloorDiv(viewport.Top, step),
+                Math.Max(1, viewport.Width / step + 2),
+                Math.Max(1, viewport.Height / step + 2));
 
-            // Mirrors SceneRenderer.DrawPass: an eraser overlay or a
-            // translucent/blended layer combines with its own layer before
-            // meeting the stack.
-            var needsIsolation = pass.Overlay is { Erases: true }
-                || alpha != 255
-                || pass.Blend != SKBlendMode.SrcOver;
-            if (needsIsolation) canvas.SaveLayer(paint);
-            var contentPaint = needsIsolation ? null : paint;
-
-            if (pass.SourceFrame is { } tileSrc)
+            // The stamp is what makes a hit safe: it changes whenever this
+            // frame's tiles do, so a cached flatten can only match pixels that
+            // are still current. See TileFrameCache.StampOf.
+            var stamp = _tileFrames.StampOf(tileSrc.Id);
+            var flat = _tileFlats.Get(tileSrc.Id, stamp, level, lvp);
+            if (flat is null)
             {
-                // A tile-native pass: composite the visible tiles 1:1 at the
-                // pyramid level nearest the screen's resolution, then place
-                // that one image in document space — the outer transform does
-                // the rest. The residual resample is a single ≤2× downscale of
-                // one image, so deep zoom-outs get box-mip quality instead of
-                // skip-sampling shimmer, and the intermediate is bounded by
-                // the surface however many document pixels the viewport spans.
-                var (_, pyramid) = _tileFrames.Get(tileSrc, scene.Width, scene.Height);
-                var level = Lightbox.Raster.TilePyramid.LevelFor(renderScale);
-                var step = Lightbox.Raster.TilePyramid.StepOf(level);
-                var lvp = SKRectI.Create(
-                    FloorDiv(viewport.Left, step),
-                    FloorDiv(viewport.Top, step),
-                    Math.Max(1, viewport.Width / step + 2),
-                    Math.Max(1, viewport.Height / step + 2));
-                using var flat = Lightbox.Raster.TileCompositor.CompositeToBitmap(
-                    pyramid.Level(level), lvp);
-                using var view = SKImage.FromBitmap(flat);
-                if (view is not null)
+                using (Profile(_profilingTick, Services.TickProfile.Phase.TileFlatten))
                 {
-                    canvas.Save();
-                    canvas.Translate(lvp.Left * step, lvp.Top * step);
-                    canvas.Scale(step);
-                    canvas.DrawImage(view, 0, 0, Linear, contentPaint);
-                    canvas.Restore();
+                    flat = Lightbox.Raster.TileCompositor.CompositeToBitmap(
+                        pyramid.Level(level), lvp);
                 }
-            }
-            else if (pass.Matrix is { } m)
-            {
-                // A positioned pass — a reference strip. Its matrix nests
-                // inside the viewport transform, exactly as it nests inside
-                // the scene transform on the bounded path.
-                canvas.Save();
-                canvas.Concat(m);
-                DrawWhole(canvas, pass, contentPaint);
-                canvas.Restore();
-            }
-            else if (pass.Source is not null)
-            {
-                DrawWhole(canvas, pass, contentPaint);
-            }
-            else
-            {
-                // The ordinary layer: draw only the part the viewport can
-                // see. The source rectangle is clamped to the bitmap — the
-                // viewport of an unbounded canvas extends past every edge of
-                // the nominal document, and a source rect off the bitmap is
-                // undefined rather than transparent.
-                var src = SKRectI.Intersect(
-                    viewport, SKRectI.Create(0, 0, pass.Bitmap!.Width, pass.Bitmap.Height));
-                if (src.Width > 0 && src.Height > 0)
-                {
-                    using var img = SKImage.FromBitmap(pass.Bitmap);
-                    if (img is not null)
-                    {
-                        canvas.DrawImage(
-                            img, src,
-                            SKRect.Create(src.Left, src.Top, src.Width, src.Height),
-                            Linear, contentPaint);
-                    }
-                }
+                // Refused means the cache could never hold it — a viewport larger
+                // than the whole budget — and then this publish owns it, exactly
+                // as every publish did before phase 2.
+                if (!_tileFlats.Insert(tileSrc.Id, stamp, level, lvp, flat)) owned.Add(flat);
             }
 
-            if (pass.Overlay is { } overlay)
-            {
-                using var strokePaint = new SKPaint
-                {
-                    Color = SKColors.White.WithAlpha(
-                        (byte)Math.Round(Math.Clamp(overlay.Opacity, 0, 1) * 255)),
-                    BlendMode = overlay.Erases ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
-                };
-                var src = SKRectI.Intersect(
-                    viewport,
-                    SKRectI.Create(0, 0, overlay.Scratch.Width, overlay.Scratch.Height));
-                if (src.Width > 0 && src.Height > 0)
-                {
-                    using var scratch = SKImage.FromBitmap(overlay.Scratch);
-                    if (scratch is not null)
-                    {
-                        canvas.DrawImage(
-                            scratch, src,
-                            SKRect.Create(src.Left, src.Top, src.Width, src.Height),
-                            Linear, strokePaint);
-                    }
-                }
-            }
-
-            if (needsIsolation) canvas.Restore();
+            // Translate then scale, which is what the canvas did around the draw.
+            var placement = SKMatrix.CreateScaleTranslation(
+                step, step, lvp.Left * step, lvp.Top * step);
+            var p = passes[i];
+            flattened[i] = new RenderPass(
+                flat, p.Tint, p.Opacity, p.Blend, p.Overlay, placement);
         }
-
-        canvas.Restore();
-        canvas.Flush();
-        return surface.Snapshot();
+        return flattened ?? passes;
     }
+
 
     /// <summary>A pass drawn in full — a windowed reference cell, or one under its own matrix.</summary>
-    private static void DrawWhole(SKCanvas canvas, RenderPass pass, SKPaint? paint)
-    {
-        using var img = SKImage.FromBitmap(pass.Bitmap);
-        if (img is null) return;
-        if (pass.Source is { } window)
-        {
-            canvas.DrawImage(
-                img, window, SKRect.Create(window.Width, window.Height), Linear, paint);
-        }
-        else
-        {
-            canvas.DrawImage(img, 0, 0, Linear, paint);
-        }
-    }
 
     private static readonly SKSamplingOptions Linear = new(SKFilterMode.Linear);
 
     private static int FloorDiv(int a, int b) => a >= 0 ? a / b : (a - b + 1) / b;
-
-    /// <summary>
-    /// Convert the document rectangle a publish repainted into the image's own
-    /// pixel space, for <see cref="PresentedFrame"/> to patch (B122).
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Two transforms and one refusal. The rectangle is offset by whatever the
-    /// image covers — a culled image starts at the viewport's corner rather than
-    /// the document's — and then scaled by <paramref name="renderScale"/>, since
-    /// the surface may be smaller than the document. It is grown by a pixel on
-    /// every side afterwards, because the composite's own edges are antialiased
-    /// and a patch that is exact to the rectangle can leave a seam.
-    /// </para>
-    /// <para>
-    /// The refusal is the important part: <b>under a camera this returns null</b>.
-    /// A camera maps the document through an arbitrary matrix, so a document
-    /// rectangle is not an axis-aligned image rectangle at all, and a wrong
-    /// rectangle here would show stale pixels rather than merely cost a repaint.
-    /// Null is always safe — it means "repaint everything" — so anything this
-    /// function is not certain about must return it.
-    /// </para>
-    /// </remarks>
-    private static SKRectI? ChangedInImageSpace(
-        SKRectI? changedInDoc, SKRectI? imageCovers, double renderScale, SKMatrix44? cameraView)
-    {
-        if (cameraView is not null) return null;
-        if (changedInDoc is not { } doc) return null;
-        if (!double.IsFinite(renderScale) || renderScale <= 0) return null;
-
-        var offsetX = imageCovers?.Left ?? 0;
-        var offsetY = imageCovers?.Top ?? 0;
-        var left = (int)Math.Floor((doc.Left - offsetX) * renderScale) - 1;
-        var top = (int)Math.Floor((doc.Top - offsetY) * renderScale) - 1;
-        var right = (int)Math.Ceiling((doc.Right - offsetX) * renderScale) + 1;
-        var bottom = (int)Math.Ceiling((doc.Bottom - offsetY) * renderScale) + 1;
-        if (right <= left || bottom <= top) return null;
-        return new SKRectI(left, top, right, bottom);
-    }
-
-    /// <summary>
-    /// Intersect a reported viewport with the document, or null when there is no
-    /// viewport or nothing of it overlaps the canvas.
-    /// </summary>
-    /// <remarks>
-    /// A zoomed-out view reports a rectangle far larger than the document — the
-    /// canvas corners map outside the canvas, which is correct and is not a
-    /// rectangle anything may composite from. Clamping is what makes the
-    /// rectangle usable as a source rect and as a surface size.
-    /// </remarks>
-    private static SKRectI? ClampToDocument(SKRectI? viewport, int docWidth, int docHeight)
-    {
-        if (viewport is not { } vp) return null;
-        if (docWidth <= 0 || docHeight <= 0) return null;
-        var left = Math.Clamp(vp.Left, 0, docWidth);
-        var top = Math.Clamp(vp.Top, 0, docHeight);
-        var right = Math.Clamp(vp.Right, 0, docWidth);
-        var bottom = Math.Clamp(vp.Bottom, 0, docHeight);
-        if (right - left <= 0 || bottom - top <= 0) return null;
-        return new SKRectI(left, top, right, bottom);
-    }
 
     /// <summary>
     /// B82: compose only the visible rectangle of a bounded canvas, so the cost
@@ -11196,7 +12069,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     /// <remarks>
     /// <paramref name="viewport"/> must already be clamped to the document — see
-    /// <see cref="ClampToDocument"/>. The surface covers exactly that rectangle,
+    /// <see cref="ComposePlan.ClampToDocument"/>. The surface covers exactly that
     /// so the painter draws the result into the same rectangle in document space
     /// and the pointer mapping never has to know this happened.
     /// </remarks>
@@ -11279,6 +12152,16 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _dirtyIsWholeCanvas = true;
         _pendingDirty = null;
+        // B165: and forget what is on screen, so the next publish composes.
+        //
+        // The reuse guard already refuses while anything is dirty, so this is
+        // belt and braces — but it is the cheap half of a pair whose expensive
+        // half is stale art. The guard rests on an existing contract: anything
+        // that changes pixels must already mark the canvas dirty, or it would not
+        // reach the screen today either. This makes that dependency explicit
+        // instead of implicit, so a future invalidation path that forgets to mark
+        // dirty fails loudly at the canvas rather than quietly here.
+        _lastPublished = null;
     }
 
     // ---- camera ---------------------------------------------------------------
@@ -11697,12 +12580,29 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Ceiling for cached frame bitmaps, in megabytes.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The artist's setting stays the final word</b> — the derivation in
+    /// <see cref="Services.MemoryBudget"/> decides the <em>default</em>, which is
+    /// the part that was wrong.
+    /// </para>
+    /// <para>
+    /// <b>Its floor is deliberately below the derived one</b> and that is not an
+    /// inconsistency. The derived floor is what a minimum-spec machine needs for
+    /// the cache to be worth having; this floor is how far somebody may go when
+    /// they have decided they would rather have the memory — which is what the
+    /// Configure page's own text offers ("lowering it frees memory on a large
+    /// canvas"). The ceiling is shared, because above it the cache is holding
+    /// bytes it will never spend whoever asked for them.
+    /// </para>
+    /// </remarks>
     public int FrameCacheBudgetMb
     {
         get => (int)(FrameBitmapCache.ByteBudget / (1024 * 1024));
         set
         {
-            var clamped = Math.Clamp(value, 64, 4096);
+            var clamped = Math.Clamp(
+                value, 64, (int)(Services.MemoryBudget.FrameCacheCeilingBytes / (1024 * 1024)));
             if (FrameCacheBudgetMb == clamped) return;
             FrameBitmapCache.ByteBudget = clamped * 1024L * 1024L;
             OnPropertyChanged();

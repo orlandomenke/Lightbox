@@ -7,6 +7,33 @@ pipeline change rather than a design task. The brand is already threaded
 through all of it: **`docs/design/brand/gen_logo.py` is the one source** for
 the mark, the wordmark, the app icon and every file named below.
 
+## Getting a build to try
+
+Two ways, and they produce deliberately different things.
+
+**A dev build, no Release, no tag.** Actions ▸ **release** ▸ *Run workflow*,
+pick the branch, run it. When it finishes, the run page has an **Artifacts**
+section at the bottom holding `Lightbox-win-x64-<version>-<branch>-<sha>`.
+Download it, extract once, run `Lightbox.exe`. It keeps for 14 days.
+
+The version is derived rather than chosen: `<VersionPrefix>` from
+`Directory.Build.props` plus `-alpha.<run number>`, then the branch and the
+short commit. That is what makes two builds of the same alpha off different
+branches tellable apart in a downloads folder.
+
+**A Release.** Push a `v*` tag. That builds the same bundle, creates a GitHub
+Release, and attaches the zip to it. *Run workflow* never does this — a Release
+is permanent and public and wants a version behind it, and "build me something
+to try" wants neither.
+
+> **Extract once, not twice.** The artifact download is a zip and the app is
+> inside it directly. It used to be a zip inside a zip:
+> `actions/upload-artifact` always compresses what it is given and offers no way
+> to opt out, so handing it a zip we had already made produced two layers. The
+> workflow now hands it the publish folder and only builds a zip for the tag
+> path, where `gh release upload` attaches a file as-is and one is genuinely
+> needed.
+
 ## The icon, per platform
 
 | Platform | File | Where it is used |

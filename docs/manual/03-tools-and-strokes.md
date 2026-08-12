@@ -4,15 +4,36 @@
 ## Tools
 
 Down the left: **Brush** (B), **Eraser** (E), **Fill**, **Picker**,
-**Gradient**, **Arrow** (A), **Select** (S). Press Select again to cycle its
+**Gradient**, **Arrow** (A), **Points** (N), **Pen** (P), **Width** (W), **Shape** (U), **Select** (S). Press Select again to cycle its
 variants, or hold it for the list: Freehand, Polygon, Box, Circle, Magic wand.
 
-The rail arranges itself: two centred columns ordinarily, one when the window
-is tall enough to hold every tool in a single column, three when it is short
-and the rail has been dragged wide enough. Drag the rail past ~150&nbsp;px and
-it becomes a single labelled list.
+**The rail arranges itself, and takes only the width it is using.** One centred
+column when the window is tall enough to hold every tool in one, two when it is
+not — and the rail is exactly as wide as the columns it chose, rather than a
+fixed width with space around it.
 
-Hold **Ctrl** at any time to pick a colour off the canvas without changing tool.
+Drag its edge to overrule that. A width you set is yours and stays put when the
+window changes shape, and it is also the way to the two layouts the rail will
+not choose for itself: **three columns**, worth the canvas it costs only when
+you have asked for it, and past ~150&nbsp;px a **single labelled list**.
+
+**Hold Ctrl to borrow the eyedropper.** The tool actually changes while you
+hold it — the rail highlights, the cursor changes — and letting go puts your
+brush back exactly where it was. The colour you want is nearly always already on
+the canvas, and going to fetch it is what breaks the stroke you were about to
+make.
+
+It works from the Brush, Eraser, Fill, Shape and Gradient. It does **not** work
+from the Pen or either arrow, and that is deliberate: those have work in flight
+— a path you are still placing, a line you are inside — and borrowing a tool
+must never be the thing that finishes it. Move keeps Ctrl for its own "drag the
+whole layer".
+
+**The tool keys work the same way when held.** Tap **E** and you have chosen
+the eraser, as ever; *hold* **E**, scrub, and let go, and you never left the
+brush. **I** does the same for the eyedropper. The split is how long the key is
+down — a quick press is a choice, anything longer is a borrow — which is
+Photoshop's spring-loaded rule, so the reflex transfers.
 
 ### Arrow and Select are not the same tool
 
@@ -49,6 +70,12 @@ unclickable wherever you had drawn.
 Moving to another layer lets go of what you had picked, because it is not there
 any more. Stepping along a **hold** does not — the same drawing is still on
 screen.
+
+**Picking up another tool lets go too.** Selected lines are the Arrow's — no
+other tool moves, recolours or deletes them — so the highlight goes when the
+Arrow does, rather than sitting on the canvas pointing at something you can no
+longer do. Clicking empty canvas, or picking a guide or a symbol instead, lets
+go for the same reason.
 
 If the layer is locked it says so rather than doing nothing — but only when you
 actually click a line on it, not every time you click past one.
@@ -88,6 +115,131 @@ Everything is one undo step per action, however many lines are selected.
 
 *Planned:* scaling and rotating what you picked, and a box with handles to do it
 with.
+
+### Reshaping a line
+
+**Double-click a line to go inside it.** The line gets a row of points along it
+and everything else on the canvas stops responding — click another line while
+you are in here and nothing happens, deliberately. **Esc** when you are done —
+or just pick another tool: anything that cannot work the points (anything but
+the white arrow and the Width tool) leaves the mode on its way past.
+
+Why a mode rather than a held key: reaching into a drawing and moving its
+geometry is not something that should ever happen by accident, and a modifier is
+something you have to remember *not* to be holding.
+
+**The points come from the line you drew.** You do not have to have planned for
+this — any line, drawn at any time, gets its points worked out when you first
+double-click it. A long stroke usually comes back as a handful of points rather
+than the hundreds you actually drew, because a point every wobble is not
+something a hand can work with.
+
+| | |
+| --- | --- |
+| **Drag the line itself**, between two points | Pulls the curve to where you put it. The points either side do not move — this bends the line rather than shifting it, and it is usually the one you want. |
+| **Drag a point** | Moves it, and the line follows as you drag — the shape you see mid-drag is the shape you get on release. |
+| **Alt-drag a point** | Pulls a curve out of it: the point stays put and its two arms reach for the pointer, mirrored — the same gesture the pen uses to place a curved point. The quickest way to turn a corner into a curve. |
+| **Click a point** | Selects it, and shows its **handles** — the two arms that decide how the line curves through it. Drag an arm to bend the curve. |
+| **Square points are corners**, round ones are smooth | On a smooth point the two arms stay in line, so the curve runs through without a kink. On a corner they are independent. |
+| **Alt-drag an arm** | Breaks the pair, turning a smooth point into a corner. |
+| **Shift-click** | Adds a point to what you have got; dragging then moves them together. |
+| **Click empty canvas** | Lets the points go, without leaving the mode. |
+
+Each drag is **one undo step**, however far you pushed the point around.
+
+### Fewer points
+
+**Simplify** — in the Arrow's options while you are inside a line — refits the
+line through fewer points and tells you how many are left: *"Simplified: 31
+points to 12."* Press it again and it goes further. Each press is its own undo
+step, so one too many costs a single **Ctrl+Z** rather than the whole line.
+
+It refits **the line as it is now**, not the line you originally drew, so
+reshaping first and simplifying afterwards keeps the reshape. It also keeps the
+weight: fewer points describing the same line still carry the same taper.
+
+A shape that genuinely needs the points it has says so rather than doing nothing.
+
+### Making a line heavier or lighter
+
+**The Width tool (W)** changes how thick a line is along its length. Go into a
+line the usual way — double-click it with the Arrow — then drag away from the
+line to fatten it there, or back towards it to thin it. The change is local: it
+spreads a short way either side of where you are pointing and leaves the rest of
+the line as you drew it.
+
+It is the same number your pen pressure writes, so a line you drew with a taper
+and a line you widened by hand are the same kind of thing afterwards. A line
+drawn with the **pen**, which had no pressure at all, starts out even and can be
+given a taper this way.
+
+The whole drag is **one undo step**, and undoing it puts every original pressure
+back exactly.
+
+**Pulling the line is worth trying before anything else.** Most of the time what
+you want is *this bit of the line should be over there*, and reaching for that
+directly is quicker than working out which point governs it and which way its
+arms need to go. It works on a straight run too — drag the middle of a straight
+line and it bends, which is how you turn a corner-to-corner segment into a curve
+without adding anything.
+
+**The white arrow (N)** is the same thing as a tool rather than a gesture.
+**Hover a line with it and you see its points** before you commit to anything —
+which is how you tell a line with three points from one with thirty without
+going inside it first. **One click** goes in and takes hold of whatever was
+under the pointer, so you can start dragging a point immediately.
+
+One click here, two with the Arrow, and the difference is deliberate: a click
+with the Arrow ordinarily means *pick this whole thing*, so reaching into
+geometry has to be asked for twice. Reaching into geometry is the only thing
+the white arrow does, so there is nothing to ask twice about.
+
+The two tools still do different jobs — the Arrow picks whole lines, the white
+arrow picks the points inside one — and blurring them is how a click starts
+meaning two things.
+
+> **Reshaping keeps the weight you drew with.** A line that tapers at the ends
+> still tapers after you have moved its points about — the pressure spreads
+> along the new shape rather than being flattened out. What it does *not* keep
+> is the **grain**, for the same reason moving a line does not: the texture
+> comes from where the mark is on the canvas.
+
+### Drawing a line with the pen
+
+**The pen (P) draws a line by placing its points instead of by hand.** Click to
+put a corner down; click *and drag* to put a curved point down, pulling its
+handles out as you go. The line follows the pointer as you move, so you can see
+the curve the next click is going to make before you commit to it.
+
+| | |
+| --- | --- |
+| **Click** | A corner point. |
+| **Click and drag** | A smooth point — the drag pulls its handles out. |
+| **Alt while dragging** | Only the outgoing handle, leaving the point a corner: a curve that arrives straight and leaves bent. |
+| **Shift** | Constrains to 45°, so horizontals, verticals and diagonals are exact. |
+| **Click the first point** | Closes the line, and finishes it. A ring appears around the first point when you are near enough, and the preview snaps shut — closing is announced before it happens, never a surprise. |
+| **Backspace** | Takes the last point back off. |
+| **Enter or Esc** | Finishes the line. |
+
+**Neither Enter nor Esc throws the line away.** Both mean *done* — a path you
+have spent a minute placing is artwork, not a gesture in progress. If you did
+not want it, **Ctrl+Z**: the whole line is one undo step however many points
+went into it.
+
+**Reaching for another tool does not finish the line either.** The path in
+progress stays on screen, parked, and the pen picks it up exactly where you
+left it — so grabbing the eyedropper for a colour mid-path costs nothing.
+Enter, Esc or closing the loop are how a path becomes a line.
+
+**What the pen makes is an ordinary line.** Not a shape and not a separate kind
+of object — the same thing the brush makes, with the same brush settings, which
+means it erases, fills against, exports and inbetweens exactly like a drawn one.
+The white arrow opens the points *you* placed rather than working them out
+afterwards.
+
+A pen line has no pressure variation, because nothing was pressing. That is what
+it is for — a clean, even line. If you want weight in it, reshape it afterwards
+or draw it by hand.
 
 ## What a stroke is
 
@@ -141,6 +293,36 @@ facets with the tops of the stamps showing on the outside of the bend.
 
 Corners you meant are kept: turn sharply enough and the stroke stays sharp
 there, so a drawn rectangle has square corners and a flick still has a point.
+
+## The pointer tells you what the tool will do
+
+The pointer changes with the tool, so you can tell what is armed without looking
+away from the drawing. The brush and the eraser show their real size and shape as
+a ring; the eyedropper and the fill show a crosshair with their own icon beside
+it — the crosshair is where the tool acts, the icon says which one you are
+holding; the pen, the shapes and the selections show a plain crosshair; the move
+tool shows arrows; the two selection arrows show a pointer.
+
+**If the pointer shows a "no" symbol, the tool will not do anything where you
+are** — that is the point of it, and the reason why appears in the strip at the
+bottom of the window. It means one of:
+
+- the layer is **hidden**. Turn its eye back on in the Layers panel.
+- the layer is **locked**. Unlock it with the padlock.
+- you are **outside the selection**. Strokes only land inside it.
+- the layer is **alpha locked** and there is no paint under the brush. Alpha lock
+  means "only draw where I have already drawn", so bare canvas is off limits —
+  move over existing paint and the pointer allows it again.
+
+The last two change as you move, because they are about *where you are* rather
+than about the layer. Before, all four did nothing and said nothing, which is
+hard to tell apart from the application being broken.
+
+**Hold `Ctrl` and the brush becomes an eyedropper** for as long as you hold it —
+the colour you want is usually already on the canvas, and fetching a tool to get
+it breaks the stroke you were about to make. The pointer changes to say so. It
+also stops refusing while you hold it, because picking a colour off a locked
+layer was always allowed.
 
 ---
 

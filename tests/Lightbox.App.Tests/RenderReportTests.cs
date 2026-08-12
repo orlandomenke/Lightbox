@@ -43,7 +43,10 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         try { Directory.Delete(_dir, recursive: true); } catch { /* a temp dir is not worth failing over */ }
     }
 
-    private static RenderReport.Facts Facts(
+    // Internal rather than private: PresentWaitByInputTests builds the same
+    // report to read one section of it, and a second copy of this list of
+    // defaults would drift from this one on the first field added.
+    internal static RenderReport.Facts Facts(
         bool onGpu = false,
         bool gpuFailed = false,
         string backend = "CPU (software)",
@@ -51,9 +54,26 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         bool hasPresented = true,
         int? maxTexture = 8192,
         int docWidth = 1920,
-        int docHeight = 1080) =>
+        int docHeight = 1080,
+        PlaybackClock.Pacing? pacing = null,
+        Lightbox.App.Rendering.PresentLatency.Stats? presentWait = null,
+        IReadOnlyList<TickProfile.PhaseStats>? tickPhases = null,
+        int tickCount = 0,
+        (long Hits, long Misses, long Evictions, long Bytes, long Budget)? frameCache = null,
+        (int Frames, int Layers, int Strokes, double Fps)? scene = null,
+        (long Requested, long Delivered)? animationFrames = null,
+        double renderMedianMs = 0,
+        bool gpuCompositeOptedIn = false,
+        (int Hits, int Misses, long Bytes)? textureResidency = null,
+        (long Frames, long Flattens)? awaitingUnpin = null,
+        (int Frames, int Flattens)? pinned = null) =>
         new(backend, backend != "GPU", onGpu, gpuFailed, maxTexture,
-            docWidth, docHeight, 1.0, "Full", 1.0, durableEnabled, hasPresented);
+            docWidth, docHeight, 1.0, "Full", 1.0, durableEnabled, hasPresented,
+            Pacing: pacing, PresentWait: presentWait,
+            TickPhases: tickPhases, TickCount: tickCount, FrameCache: frameCache, Scene: scene,
+            AnimationFrames: animationFrames, RenderMedianMs: renderMedianMs,
+            TextureResidency: textureResidency, GpuCompositeOptedIn: gpuCompositeOptedIn,
+            AwaitingUnpin: awaitingUnpin, Pinned: pinned);
 
     /// <summary>
     /// The four states behind one boolean, and the reason this test exists: the
@@ -146,6 +166,194 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         Assert.Contains(DiagnosticLog.Build, text);
         Assert.Contains("1920 x 1080", text);
         Assert.Contains("presentation backend", text);
+    }
+
+    /// <summary>
+    /// <b>The section that separates the two halves of "playback stutters"
+    /// (B150).</b> Every other measurement here is how long a frame took to
+    /// *make*; this one is whether the tick that asked for it arrived when it
+    /// was due. They are different axes, and only the second can make a
+    /// near-empty scene stutter on a fast machine — so the report has to be able
+    /// to tell an artist which one they are looking at.
+    /// </summary>
+    [Fact]
+    public void TheReportSaysWhetherTheFrameClockWasDeliveredOnTime()
+    {
+        Setup();
+
+        string Section(PlaybackClock.Pacing? pacing)
+        {
+            RenderReport.ResetForTests();
+            var text = File.ReadAllText(RenderReport.WriteStartup(Facts(pacing: pacing))!);
+            var start = text.IndexOf("was the frame clock on time", StringComparison.Ordinal);
+            Assert.True(start >= 0, "the pacing section is missing from the report");
+            return text[start..];
+        }
+
+        var never = Section(null);
+        var onTime = Section(new PlaybackClock.Pacing(120, 3, 0, 0, 0.4, 2.1));
+        var late = Section(new PlaybackClock.Pacing(120, 110, 14, 2, 31.5, 92.0));
+        output.WriteLine(late);
+
+        // Not run is distinct from run-and-fine, for the reason the durable-frame
+        // line exists: an absent measurement reads as "nothing was wrong".
+        Assert.Contains("PLAYED", never);
+
+        Assert.Contains("delivered on time", onTime);
+        Assert.DoesNotContain("LATE", onTime);
+
+        Assert.Contains("LATE", late);
+        Assert.Contains("31.5", late);
+        Assert.Contains("92", late);
+        Assert.Contains("14", late);
+        // The one instruction that turns the number into a diagnosis, because the
+        // difference between the two conditions is the finding.
+        Assert.Contains("moving it", late);
+    }
+
+    /// <summary>
+    /// <b>The section that tells B150's two candidate causes apart.</b> The
+    /// pacing section says whether the tick arrived on time; this says whether
+    /// the frame it asked for reached the screen. A report carrying only the
+    /// first reads clean on a machine where the second is the problem, which is
+    /// the failure this pair exists to remove.
+    /// </summary>
+    [Fact]
+    public void TheReportSaysWhetherFramesReachedTheScreenOrSatWaiting()
+    {
+        Setup();
+
+        string Section(Lightbox.App.Rendering.PresentLatency.Stats? wait)
+        {
+            RenderReport.ResetForTests();
+            var text = File.ReadAllText(RenderReport.WriteStartup(Facts(presentWait: wait))!);
+            var start = text.IndexOf("did the frames reach the screen", StringComparison.Ordinal);
+            Assert.True(start >= 0, "the present-wait section is missing from the report");
+            return text[start..];
+        }
+
+        var never = Section(null);
+        var prompt = Section(new Lightbox.App.Rendering.PresentLatency.Stats(240, 1, 3.2, 11.0));
+        var waiting = Section(new Lightbox.App.Rendering.PresentLatency.Stats(240, 40, 48.5, 130.0));
+        output.WriteLine(waiting);
+
+        Assert.Contains("PLAYED", never);
+        Assert.Contains("promptly", prompt);
+        Assert.DoesNotContain("WAITING", prompt);
+
+        Assert.Contains("WAITING", waiting);
+        Assert.Contains("48.5", waiting);
+        Assert.Contains("40", waiting);
+        // The instruction that turns the number into a diagnosis.
+        Assert.Contains("pointer moving", waiting);
+    }
+
+    /// <summary>
+    /// A run must never be attributable to a setting it did not have. The
+    /// override exists to be typed at a command prompt while chasing a stutter,
+    /// so which band was actually used has to be in the file that gets sent back
+    /// — and printed always, because an absent line is indistinguishable from
+    /// the expected one when two reports are being compared.
+    /// </summary>
+    [Fact]
+    public void TheReportNamesTheClockPriorityItActuallyRanAt()
+    {
+        Setup();
+        var text = File.ReadAllText(RenderReport.WriteStartup(Facts())!);
+
+        Assert.Contains("clock priority", text);
+        Assert.Contains(PlaybackClock.Priority.ToString(), text);
+    }
+
+    /// <summary>
+    /// <b>The section that turns a localisation into a diagnosis.</b> The two
+    /// before it establish that the clock is late and the frames arrive
+    /// promptly, which narrows the cost to the tick handler and then stops. This
+    /// has to name the phase, in milliseconds, on the machine that has the
+    /// problem — the step B152 had to guess at and could not prove.
+    /// </summary>
+    [Fact]
+    public void TheReportSaysWhichPartOfTheTickSpentTheTime()
+    {
+        Setup();
+
+        var phases = new List<TickProfile.PhaseStats>
+        {
+            new(TickProfile.Phase.Thumbnails, 0, 0, 0),
+            new(TickProfile.Phase.Highlights, 120, 24, 0.6),
+            new(TickProfile.Phase.Bookkeeping, 120, 12, 0.4),
+            new(TickProfile.Phase.Audio, 120, 6, 0.3),
+            // Deliberately lopsided: the whole point of splitting Publish
+            // (B157) is that the report can name WHICH half spent the tick.
+            new(TickProfile.Phase.Compose, 120, 600, 9.2),
+            new(TickProfile.Phase.Handoff, 120, 1200, 22.0),
+        };
+
+        var text = File.ReadAllText(RenderReport.WriteStartup(Facts(
+            tickPhases: phases,
+            tickCount: 120,
+            frameCache: (Hits: 300, Misses: 900, Evictions: 850, Bytes: 500L * 1024 * 1024, Budget: 512L * 1024 * 1024),
+            scene: (Frames: 90, Layers: 3, Strokes: 4200, Fps: 12.0)))!);
+        var section = text[text.IndexOf("where the tick's time went", StringComparison.Ordinal)..];
+        output.WriteLine(section);
+
+        // The scene's shape, because it decides whether the cache can hold it —
+        // and it is the fact the first symptomatic report was missing.
+        Assert.Contains("90 frames, 3 layers", section);
+
+        // A miss is a full frame replayed from its record, so the ratio is the
+        // number that matters rather than the raw counts.
+        Assert.Contains("75%", section);
+        Assert.Contains("thrown out              850", section);
+
+        // A phase that never ran is named rather than omitted: that is what
+        // B152's fix looks like from here, and a missing line reads as a phase
+        // nobody measured.
+        Assert.Contains("Thumbnails", section);
+        Assert.Contains("never ran", section);
+
+        // And the dominant phase is called out, so the reader does not have to
+        // do the arithmetic that the durable-frame line once cost us.
+        Assert.Contains("most of itself in Handoff", section);
+        Assert.Contains("10 ms/tick", section);
+        // And the half that did NOT spend it is still on the page, because
+        // "compositing is cheap here" is half the finding.
+        Assert.Contains("Compose", section);
+    }
+
+    /// <summary>
+    /// <b>The two numbers that decide between the last two explanations for
+    /// playback riding on pointer movement (B153).</b> If wake-ups asked and
+    /// arrived track each other, the compositor is ticking and the fault is
+    /// upstream of it. If requests climb and callbacks do not, the compositor is
+    /// genuinely asleep when input is quiet — a different fix, and worth knowing
+    /// before building one.
+    /// </summary>
+    [Fact]
+    public void TheReportSaysWhetherTheCompositorIsWakingWhenAsked()
+    {
+        Setup();
+
+        string Line((long Requested, long Delivered)? frames)
+        {
+            RenderReport.ResetForTests();
+            var text = File.ReadAllText(RenderReport.WriteStartup(Facts(
+                presentWait: new Lightbox.App.Rendering.PresentLatency.Stats(200, 10, 40, 120),
+                animationFrames: frames))!);
+            var line = text.Split('\n').First(l => l.Contains("compositor wake-ups"));
+            output.WriteLine(line.Trim());
+            return line;
+        }
+
+        var healthy = Line((Requested: 300, Delivered: 298));
+        var asleep = Line((Requested: 300, Delivered: 12));
+        var absent = Line(null);
+
+        Assert.DoesNotContain("NOT waking", healthy);
+        Assert.Contains("NOT waking", asleep);
+        // Not measured is distinct from measured-and-fine, for the reason the
+        // durable-frame line exists: an absent number reads as "nothing wrong".
+        Assert.Contains("not measured", absent);
     }
 
     /// <summary>Once per run, so a report is not rewritten on every repaint.</summary>
@@ -280,5 +488,159 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         Assert.Equal(200L * 100 + 100, frame.TotalPatchedPixels);
         Assert.Equal(2 * 200L * 100, frame.TotalPixelsIfAlwaysFull);
         Assert.False(frame.GpuSurfaceRequestFailed);
+    }
+
+    /// <summary>
+    /// <b>The report must not tell a reader the GPU is unused in a file that also
+    /// says publishes composited on it.</b>
+    /// </summary>
+    /// <remarks>
+    /// The 2026-08-12 capture printed
+    /// <c>of the publishes that could use the card: 310 did</c> and, three
+    /// sections later, <c>The culled route is the only one that goes to the GPU
+    /// today</c> — prose written before B167 phases 3b and 4 and never re-checked.
+    /// Both lines were in one file, and a reader has no way to tell which is
+    /// stale. This is the fifth report line in this project to be accurate when
+    /// written and wrong once the thing it described moved, which is why the
+    /// residency section now asks the compositing counter rather than asserting a
+    /// route.
+    /// </remarks>
+    [Fact]
+    public void TheResidencySectionDoesNotClaimTheGpuIsUnusedWhenItWasUsed()
+    {
+        Setup();
+        Lightbox.App.Rendering.GpuComposite.ResetCounters();
+        Lightbox.App.Rendering.GpuComposite.CountCompositeForTests(onGpu: true, times: 310);
+        try
+        {
+            var path = RenderReport.WriteStartup(
+                Facts(backend: "GPU", gpuCompositeOptedIn: true, textureResidency: null));
+            var text = File.ReadAllText(path!);
+
+            var residency = text[text.IndexOf("resident layer textures", StringComparison.Ordinal)..];
+            output.WriteLine(residency);
+
+            Assert.Contains("no layer textures were asked for", residency);
+            // The claim that made the file self-contradictory.
+            Assert.DoesNotContain("nothing composited through it", residency);
+            Assert.DoesNotContain("the only one that goes to the GPU today", residency);
+            // And it names the pair as a wiring fault, which is what it was.
+            Assert.Contains("310 publish(es) DID composite on the card", residency);
+        }
+        finally
+        {
+            Lightbox.App.Rendering.GpuComposite.ResetCounters();
+        }
+    }
+
+    /// <summary>
+    /// With nothing on the card the old wording is still right, and still printed
+    /// — a section that only ever hedged would be useless.
+    /// </summary>
+    [Fact]
+    public void WithNothingOnTheCardItStillSaysSo()
+    {
+        Setup();
+        Lightbox.App.Rendering.GpuComposite.ResetCounters();
+
+        var path = RenderReport.WriteStartup(
+            Facts(backend: "GPU", gpuCompositeOptedIn: true, textureResidency: null));
+        var residency = File.ReadAllText(path!);
+        residency = residency[residency.IndexOf("resident layer textures", StringComparison.Ordinal)..];
+        output.WriteLine(residency);
+
+        Assert.Contains("nothing has composited through it", residency);
+        Assert.DoesNotContain("DID composite on the card", residency);
+    }
+
+    /// <summary>
+    /// <b>B179's blind spot: every budget line read comfortably while the machine
+    /// reached 12 GB and crashed.</b>
+    /// </summary>
+    /// <remarks>
+    /// The report only ever printed the pools it knows about, so a leak anywhere
+    /// else was invisible by construction — and worse, the four reassuring lines
+    /// actively pointed away from it. "The caches are fine" and "the caches are
+    /// fine and the process is not" have to be distinguishable, and only the
+    /// second is something this report can help with.
+    /// </remarks>
+    [Fact]
+    public void TheMemorySectionSeparatesTheCachesFromTheProcess()
+    {
+        Setup();
+        var path = RenderReport.WriteStartup(Facts(
+            frameCache: (0, 0, 0, 284L * 1024 * 1024, 4008L * 1024 * 1024),
+            textureResidency: (0, 0, 93L * 1024 * 1024),
+            gpuCompositeOptedIn: true));
+        var text = File.ReadAllText(path!);
+        var section = text[text.IndexOf("what memory is held", StringComparison.Ordinal)..];
+        output.WriteLine(section);
+
+        Assert.Contains("process working set", section);
+        Assert.Contains("accounted for by caches", section);
+        Assert.Contains("NOT in any cache this report tracks", section);
+    }
+
+    /// <summary>
+    /// <b>The two pools that were tracked and never printed.</b> They are excluded
+    /// from CachedBytes on purpose — they are not cache contents — and they are
+    /// unbounded, which makes them the first place to look rather than a
+    /// footnote. Named even at zero, because an absent line reads as "nothing was
+    /// wrong" when it means "nothing was looked at".
+    /// </summary>
+    [Fact]
+    public void ItNamesTheBytesEvictionCannotFree()
+    {
+        Setup();
+        var path = RenderReport.WriteStartup(Facts(
+            frameCache: (0, 0, 0, 100L * 1024 * 1024, 4008L * 1024 * 1024),
+            awaitingUnpin: (700L * 1024 * 1024, 1300L * 1024 * 1024),
+            pinned: (400, 900)));
+        var text = File.ReadAllText(path!);
+        var section = text[text.IndexOf("what memory is held", StringComparison.Ordinal)..];
+        output.WriteLine(section);
+
+        Assert.Contains("evicted, still in use", section);
+        Assert.Contains("2000 MB", section);
+        Assert.Contains("pinned by live snapshots", section);
+        // A pin count that high is the leak shape, and it has to be called out
+        // rather than left as a number to interpret.
+        Assert.Contains("a pinned bitmap is one eviction", section);
+    }
+
+    /// <summary>
+    /// <b>A capture taken in a diagnostic mode has to say so.</b>
+    /// </summary>
+    /// <remarks>
+    /// B179's two discriminators change what the renderer does — budgeted
+    /// surfaces let Skia purge them, and residency off uploads every layer per
+    /// frame. A report that looked identical either way is how two runs get
+    /// compared as though they came from the same build, which this session has
+    /// already watched happen twice with stale prose. The mode is a fact about
+    /// the capture, so it belongs in the capture.
+    /// </remarks>
+    [Fact]
+    public void ADiagnosticCaptureSaysWhichModeItWasTakenIn()
+    {
+        Setup();
+        var ordinary = File.ReadAllText(RenderReport.WriteStartup(Facts())!);
+        Assert.DoesNotContain("NOT an ordinary capture", ordinary);
+
+        Environment.SetEnvironmentVariable(
+            Lightbox.App.Rendering.GpuComposite.BudgetedVariable, "1");
+        try
+        {
+            RenderReport.ResetForTests();
+            var flagged = File.ReadAllText(RenderReport.WriteStartup(Facts())!);
+            output.WriteLine(flagged[flagged.IndexOf("what memory is held", StringComparison.Ordinal)..]);
+
+            Assert.Contains("NOT an ordinary capture", flagged);
+            Assert.Contains("compose surfaces are BUDGETED", flagged);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(
+                Lightbox.App.Rendering.GpuComposite.BudgetedVariable, null);
+        }
     }
 }

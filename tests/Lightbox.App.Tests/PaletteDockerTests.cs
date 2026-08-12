@@ -17,7 +17,7 @@ namespace Lightbox.App.Tests;
 /// green on every local run, which is what this collection exists to stop.
 /// </remarks>
 [Collection("BrushState")]
-public class PaletteDockerTests : BrushStateIsolated
+public class PaletteDockerTests(ITestOutputHelper output) : BrushStateIsolated
 {
     /// <summary>
     /// A view model whose document has no palette. Every document now starts
@@ -343,5 +343,124 @@ public class PaletteDockerTests : BrushStateIsolated
         Assert.Equal("#3070b0", row.Color);
         row.Color = "0f8";
         Assert.Equal("#00ff88", row.Color);
+    }
+
+    // ---- what a wheel drag costs (B151) ----------------------------------------
+
+    /// <summary>A document with enough strokes that scanning it is worth not doing twice.</summary>
+    private static (MainViewModel Vm, SwatchRow Row) Dense(int strokes)
+    {
+        var vm = Vm();
+        vm.SmoothStrokes = false;
+        var row = AddSwatch(vm, "#ff0000");
+        vm.PaletteDocker.SelectedSwatch = row;
+
+        for (var i = 0; i < strokes; i++)
+        {
+            var y = 8 + i % 90;
+            vm.BeginStroke(6, y, 1);
+            vm.MoveStroke(60, y + 4, 1);
+            vm.EndStroke();
+        }
+        return (vm, row);
+    }
+
+    /// <summary>
+    /// <b>B151, and the property is countable rather than merely faster.</b>
+    /// Dragging the colour wheel fires an edit per pointer event, and each one
+    /// used to walk every stroke of every open document to find out which frames
+    /// the swatch reaches. That answer cannot change during a drag — recolouring
+    /// a swatch does not move a stroke's reference to it, and nothing can draw
+    /// while the wheel is down — so it belongs to the run.
+    /// </summary>
+    [AvaloniaFact]
+    public void AWheelDragScansTheDocumentOnceRatherThanOncePerEvent()
+    {
+        var (vm, row) = Dense(80);
+        var before = vm.SwatchScans;
+
+        // One run: the same swatch, thirty pointer events' worth.
+        for (var i = 0; i < 30; i++) row.Color = $"#00{i:x2}ff";
+
+        var scans = vm.SwatchScans - before;
+        output.WriteLine($"30 edits in one run -> {scans} scan(s) of the stroke record");
+        Assert.Equal(1, scans);
+    }
+
+    /// <summary>
+    /// The run ends when the artist does something else, and the next drag has
+    /// to look again — a scan cached past its run would repaint the frames the
+    /// <em>previous</em> swatch reached.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheNextRunLooksAgain()
+    {
+        var (vm, row) = Dense(20);
+        var second = AddSwatch(vm, "#00ff00");
+        var before = vm.SwatchScans;
+
+        row.Color = "#0000ff";
+        row.Color = "#0000ee";
+        // Touching a different swatch closes the previous run off.
+        second.Color = "#00ee00";
+        second.Color = "#00dd00";
+
+        var scans = vm.SwatchScans - before;
+        output.WriteLine($"two runs of two edits -> {scans} scan(s)");
+        Assert.Equal(2, scans);
+    }
+
+    /// <summary>
+    /// A structural edit can add, remove or replace the frames the cached list
+    /// names, so it has to be dropped — a stale list repaints the wrong frames,
+    /// or none of them, which looks exactly like the palette having stopped
+    /// working.
+    /// </summary>
+    [AvaloniaFact]
+    public void AStructuralEditDropsTheCachedFrameList()
+    {
+        var (vm, row) = Dense(10);
+        row.Color = "#0000ff";
+        var before = vm.SwatchScans;
+
+        vm.AddPaintedLayerCommand.Execute(null);
+        row.Color = "#0000ee";
+
+        output.WriteLine($"after a structural edit -> {vm.SwatchScans - before} fresh scan(s)");
+        Assert.Equal(1, vm.SwatchScans - before);
+    }
+
+    /// <summary>
+    /// The end-to-end cost, because a count cannot see a scan that got slower.
+    /// Deliberately a ratio rather than a millisecond figure: the charter's
+    /// budgets catch order-of-magnitude regressions, and a ratio is the same
+    /// number on a fast machine and a slow one.
+    /// </summary>
+    [AvaloniaFact]
+    [Trait("Category", "Performance")]
+    public void AnEventMidDragCostsAFractionOfTheFirstOne()
+    {
+        var (vm, row) = Dense(120);
+
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        row.Color = "#0000ff";
+        var first = clock.Elapsed.TotalMilliseconds;
+
+        var during = new List<double>();
+        for (var i = 0; i < 20; i++)
+        {
+            clock.Restart();
+            row.Color = $"#00{i:x2}ff";
+            during.Add(clock.Elapsed.TotalMilliseconds);
+        }
+        during.Sort();
+        var median = during[during.Count / 2];
+
+        // Both numbers, always — an assertion that passes because the first one
+        // was also tiny says nothing at all.
+        output.WriteLine($"first event {first:F2} ms, median of 20 mid-drag {median:F3} ms");
+        Assert.True(
+            median < first / 4,
+            $"a mid-drag event cost {median:F3} ms against the first one's {first:F2} ms");
     }
 }
