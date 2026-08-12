@@ -694,6 +694,7 @@ public sealed partial class MainViewModel : ObservableObject
         PaletteDocker.ProjectEdited = OnProjectChanged;
         GradientDocker = new GradientDockerViewModel(OnGradientEdited, PerformGradientEdit);
         ProjectDocker = new ProjectViewModel(NewAnimationDoc, OpenProjectDocument, OnProjectChanged);
+        ProjectDocker.OpenSheet = OpenProjectSheet;
         // HasProject is a forwarding property, so it has no notification of its
         // own. Without this relay the project panel stays hidden after New or
         // Open project: the docker's own callback only fires when the docker
@@ -905,6 +906,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The animation tab a save/AI call should target (a reference tab defers to its owner).</summary>
     public DocumentTab? SaveTargetTab => ActiveTab?.Kind switch
     {
+        // A project sheet has no file of its own any more than a symbol does —
+        // the project's save writes it — so a view onto one defers to nothing.
+        DocumentTabKind.Reference when ActiveTab.SheetSource is not null => null,
         DocumentTabKind.Reference => ActiveTab.Owner ?? ActiveTab,
         // A symbol has no file of its own — it is written by the project's
         // save. Offering Save As on one would produce a document nothing
@@ -1531,6 +1535,15 @@ public sealed partial class MainViewModel : ObservableObject
             : Path.GetFileNameWithoutExtension(path);
     }
 
+    /// <summary>
+    /// Something in a document changed, whatever it was — the edit funnel's
+    /// outward face. What the reference-view windows re-render on: they follow
+    /// a sheet that can be edited from its tab, the docker, or an undo, and
+    /// this is the one place all three pass through (the same argument B31
+    /// makes for the cache invalidated below).
+    /// </summary>
+    public event Action? DocumentEdited;
+
     private void MarkDocumentEdited()
     {
         _autosave.MarkDirty();
@@ -1538,6 +1551,11 @@ public sealed partial class MainViewModel : ObservableObject
         // funnel that sees a stroke commit — OnDocumentChanged returns early for those — so a
         // cache invalidated anywhere else would hand a model art that had since changed.
         InvalidateReferenceViewCache();
+        DocumentEdited?.Invoke();
+        // Same funnel, same reason, pointed at the canvas instead of the AI:
+        // a view taped onto the canvas is re-flattened the moment its sheet
+        // is edited (Q69 chose live over snapshot). No linked strip, no cost.
+        RefreshLinkedReferenceStrips();
         if (_switchingTabs || ActiveTab is not { } tab) return;
         // Here rather than in OnDocumentChanged: stroke commits take that
         // method's scoped-edit early return, and a stroke is exactly the edit
@@ -1552,6 +1570,13 @@ public sealed partial class MainViewModel : ObservableObject
                 // Undo/redo replaces the wrapper doc's layer list; keep the
                 // owning document's view pointed at whatever the editor holds.
                 if (tab.View is { } view) view.Layers = Doc.Scene.Layers;
+                // A project sheet's edits belong to the project, the way a
+                // symbol's do — there is no owning document to dirty, and the
+                // project's save is what writes them.
+                if (tab.SheetSource is { } filed && ProjectDocker.Project is { } project)
+                {
+                    project.DirtySheets.Add(filed.Id);
+                }
                 // The edit belongs to the owning document. B95: refresh this
                 // tab too, so the sheet an artist is looking at shows the badge
                 // rather than making them go and find the parent.
@@ -1657,9 +1682,33 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ---- character sheets -----------------------------------------------------
 
-    /// <summary>Sheets of the active (or owning) document — fresh list so the docker re-reads.</summary>
-    public IReadOnlyList<ReferenceSheet> ReferenceSheetsView =>
-        (SaveTargetTab?.Doc ?? Doc).ReferenceSheets.ToList();
+    /// <summary>
+    /// The sheets the artist can consult right now — fresh list so the docker
+    /// re-reads.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q25 re-answered:</b> two sources, switched by context. A document in
+    /// a project sees the project's sheets — the ones filed on its folder's
+    /// ancestry plus the project-wide ones, via <see cref="ProjectSheets.VisibleTo"/> —
+    /// and a standalone document keeps the sheets inside it. A project sheet
+    /// tab itself (no <c>Source</c>) lists every sheet in the project, the way
+    /// a loose file alongside a project does.
+    /// </remarks>
+    public IReadOnlyList<ReferenceSheet> ReferenceSheetsView
+    {
+        get
+        {
+            var tab = SaveTargetTab ?? ActiveTab;
+            if (ProjectDocker.Project is { } project
+                && (tab is null or { Source: not null } or { SheetSource: not null }))
+            {
+                return [.. ProjectSheets.VisibleTo(project.Manifest, tab?.Source)
+                    .Select(r => ProjectSheets.Load(project, r))
+                    .OfType<ReferenceSheet>()];
+            }
+            return (tab?.Doc ?? Doc).ReferenceSheets.ToList();
+        }
+    }
 
     /// <remarks>
     /// <para>
@@ -1716,6 +1765,19 @@ public sealed partial class MainViewModel : ObservableObject
     public ReferenceSheet? AddReferenceSheet(string? name = null)
     {
         if (TargetTab is not { } target) return null;
+
+        // Q25 re-answered: in a project the sheet is the project's, filed on
+        // the top folder above this document, written by the project's save.
+        // Not through the document's editor — the document does not change.
+        if (target.Source is { } source && ProjectDocker.Project is { } project)
+        {
+            var filed = ProjectSheets.Add(
+                project, name ?? "", ProjectSheets.DefaultScope(project.Manifest, source));
+            ProjectDocker.Refresh();
+            OnPropertyChanged(nameof(ReferenceSheetsView));
+            return filed;
+        }
+
         var needsAFile = AReferenceSheetWouldBeUnsaved;
 
         var sheet = new ReferenceSheet
@@ -1742,6 +1804,19 @@ public sealed partial class MainViewModel : ObservableObject
     /// <inheritdoc cref="AddReferenceSheet"/>
     public void AddReferenceView(ReferenceSheet sheet)
     {
+        // A project sheet is edited directly, the way a symbol is — there is
+        // no owning document whose editor could record the step.
+        if (ProjectSheetRefOf(sheet) is { } filed && ProjectDocker.Project is { } project)
+        {
+            var (width, height) = DefaultViewSize();
+            var added = ReferenceView.Create($"view {sheet.Views.Count + 1}", width, height);
+            sheet.Views.Add(added);
+            project.DirtySheets.Add(filed.Id);
+            OnPropertyChanged(nameof(ReferenceSheetsView));
+            OpenReferenceView(added);
+            return;
+        }
+
         if (TargetTab is not { } target) return;
         var view = ReferenceView.Create($"view {sheet.Views.Count + 1}", Scene.Width, Scene.Height);
         target.Editor.Perform(_ => sheet.Views.Add(view));
@@ -1749,6 +1824,46 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(ReferenceSheetsView));
         OpenReferenceView(view);
     }
+
+    /// <summary>The project registry entry behind a sheet, or null for a document's own.</summary>
+    private SheetRef? ProjectSheetRefOf(ReferenceSheet sheet) =>
+        ProjectDocker.Project is { } project
+            ? ProjectSheets.FindRef(project.Manifest, sheet.Id)
+            : null;
+
+    /// <summary>Open a project sheet from its docker row — its first view, made if absent.</summary>
+    /// <remarks>
+    /// A sheet with no views yet gets one rather than a refusal: the double-click
+    /// means "let me draw on this", and an empty sheet has nothing else it could
+    /// mean. The view is project state, so it is queued for the next save the
+    /// same way a stroke would be.
+    /// </remarks>
+    private void OpenProjectSheet(SheetRef filed)
+    {
+        if (ProjectDocker.Project is not { } project) return;
+        if (ProjectSheets.Load(project, filed) is not { } sheet)
+        {
+            AiStatus = $"“{filed.Name}” is missing from disk.";
+            return;
+        }
+        if (sheet.Views.Count == 0)
+        {
+            var (width, height) = DefaultViewSize();
+            sheet.Views.Add(ReferenceView.Create("view 1", width, height));
+            project.DirtySheets.Add(filed.Id);
+            OnPropertyChanged(nameof(ReferenceSheetsView));
+        }
+        OpenReferenceView(sheet.Views[0]);
+    }
+
+    /// <summary>The active scene's size, or the stock canvas when nothing is open.</summary>
+    /// <remarks>
+    /// A project sheet can be made and opened with no document open at all —
+    /// the docker is on screen whenever a project is — so the size cannot be
+    /// read from a tab that may not exist.
+    /// </remarks>
+    private (int Width, int Height) DefaultViewSize() =>
+        Tabs.Count == 0 ? (960, 540) : (Scene.Width, Scene.Height);
 
     /// <summary>A sheet or view really was renamed in the docker.</summary>
     /// <remarks>
@@ -1759,15 +1874,162 @@ public sealed partial class MainViewModel : ObservableObject
     /// and only calls when it actually changed, and the mark goes through the
     /// editor so the rename is undoable like any other edit.
     /// </remarks>
-    public void MarkReferenceRenamed()
+    public void MarkReferenceRenamed(object? renamed = null)
     {
+        // A project sheet's rename dirties the sheet, not a document. The
+        // renamed thing is the box's DataContext — a sheet, or a view inside
+        // one — and the registry entry's name follows on the save that writes it.
+        if (ProjectDocker.Project is { } project && SheetOf(renamed) is { } sheet
+            && ProjectSheetRefOf(sheet) is { } filed)
+        {
+            project.DirtySheets.Add(filed.Id);
+            OnPropertyChanged(nameof(ReferenceSheetsView));
+            ProjectDocker.Refresh();
+            return;
+        }
         if (SaveTargetTab is { } tab) tab.Editor.Perform(_ => { });
         MarkDocumentEdited();
         OnPropertyChanged(nameof(ReferenceSheetsView));
     }
 
+    /// <summary>The sheet a rename touched: the sheet itself, or the one holding a view.</summary>
+    private ReferenceSheet? SheetOf(object? renamed) => renamed switch
+    {
+        ReferenceSheet sheet => sheet,
+        ReferenceView view => ReferenceSheetsView.FirstOrDefault(s => s.Views.Contains(view)),
+        _ => null,
+    };
+
     /// <summary>Redraw the sheet list without claiming anything changed.</summary>
     public void RefreshReferenceList() => OnPropertyChanged(nameof(ReferenceSheetsView));
+
+    /// <summary>
+    /// Tape a flattened copy of the view onto the canvas, or take it down —
+    /// one strip per view, toggled. Returns the strip, or null when it was
+    /// removed or there is nowhere to put one.
+    /// </summary>
+    /// <remarks>
+    /// A <see cref="ReferenceStrip"/> rather than a layer, on purpose: the
+    /// strip already renders over the paper and under every drawing, carries
+    /// the opacity, scale and offset the request asked for, and holds the
+    /// standing promise that a reference never reaches an exported pixel. A
+    /// "temporary layer" would re-answer all four questions inside the layer
+    /// stack, where every answer is harder (Q69).
+    /// </remarks>
+    public ReferenceStrip? ToggleViewOnCanvas(ReferenceView view)
+    {
+        if (TargetTab is not { } target) return null;
+        var scene = target.Doc.Scene;
+
+        if (scene.References?.FirstOrDefault(s => s.SheetViewId == view.Id) is { } taped)
+        {
+            target.Editor.Perform(doc => doc.Scene.References?.Remove(taped));
+            Lightbox.Raster.ReferenceStripRegistry.Forget(taped.Id);
+            AfterReferenceChange();
+            return null;
+        }
+
+        var strip = new ReferenceStrip
+        {
+            Name = view.Name,
+            Png = RenderReferenceViewPng(view),
+            SheetWidth = view.Width,
+            SheetHeight = view.Height,
+            Cells = [new ReferenceCell { X = 0, Y = 0, Width = view.Width, Height = view.Height }],
+            SheetViewId = view.Id,
+            Pinned = true,
+        };
+        strip.Scale = FitScale(strip, scene);
+        strip.CentreOn(scene.Width, scene.Height);
+
+        var index = 0;
+        target.Editor.Perform(doc =>
+        {
+            doc.Scene.References ??= [];
+            index = doc.Scene.References.Count;
+            doc.Scene.References.Add(strip);
+        });
+        Lightbox.Raster.ReferenceStripRegistry.Register([(strip.Id, strip.Png)]);
+        ActiveReferenceIndex = index;
+        AfterReferenceChange();
+        return strip;
+    }
+
+    /// <summary>Whether this view is currently taped onto the canvas.</summary>
+    public bool IsViewOnCanvas(ReferenceView view) =>
+        (SaveTargetTab?.Doc ?? Doc).Scene.References
+            ?.Any(s => s.SheetViewId == view.Id) == true;
+
+    /// <summary>
+    /// Guards <see cref="RefreshLinkedReferenceStrips"/> against the edits it
+    /// makes itself announcing back into it.
+    /// </summary>
+    private bool _refreshingLinkedStrips;
+
+    /// <summary>
+    /// Re-flatten every taped-up view whose picture no longer matches its
+    /// strip — the "live" half of Q69's decision.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Called from the edit funnel, so it runs on every document edit and has
+    /// to be cheap when there is nothing to do — the common case is no linked
+    /// strip and costs one null check. With a linked strip, the re-flatten
+    /// re-reads per-layer bitmaps that are already cached and pays one PNG
+    /// encode at the view's authored size, per edit, per linked strip. That
+    /// is the price of "live" and it was chosen knowingly over a snapshot
+    /// with a refresh button; the string compare below keeps edits that did
+    /// not change the picture from re-registering identical bytes.
+    /// </para>
+    /// <para>
+    /// Deliberately not an <c>Editor.Perform</c>: the strip's pixels are
+    /// derived from the view, so undoing the drawing already restores them —
+    /// this refresh re-runs on the undo's own funnel pass. A second undo step
+    /// for the derived copy would make the artist undo everything twice.
+    /// </para>
+    /// </remarks>
+    private void RefreshLinkedReferenceStrips()
+    {
+        if (_refreshingLinkedStrips) return;
+        var doc = SaveTargetTab?.Doc ?? Doc;
+        if (doc.Scene.References is not { Count: > 0 } strips) return;
+
+        _refreshingLinkedStrips = true;
+        try
+        {
+            var views = doc.ReferenceSheets.SelectMany(s => s.Views).ToDictionary(v => v.Id);
+            var changed = false;
+            foreach (var strip in strips)
+            {
+                if (strip.SheetViewId is not { } viewId) continue;
+                // A deleted view degrades like a missing video file: the last
+                // pixels stand and the strip stops following anything.
+                if (!views.TryGetValue(viewId, out var view)) continue;
+
+                var png = RenderReferenceViewPng(view);
+                if (png == strip.Png) continue;
+                strip.Png = png;
+                strip.SheetWidth = view.Width;
+                strip.SheetHeight = view.Height;
+                if (strip.Cells.Count == 1)
+                {
+                    strip.Cells[0].Width = view.Width;
+                    strip.Cells[0].Height = view.Height;
+                }
+                Lightbox.Raster.ReferenceStripRegistry.Register([(strip.Id, strip.Png)]);
+                changed = true;
+            }
+            if (changed)
+            {
+                NotifyReference();
+                PublishSnapshot();
+            }
+        }
+        finally
+        {
+            _refreshingLinkedStrips = false;
+        }
+    }
 
     /// <summary>Open (or focus) the tab editing a character-sheet view.</summary>
     public void OpenReferenceView(ReferenceView view)
@@ -1777,22 +2039,32 @@ public sealed partial class MainViewModel : ObservableObject
             ActiveTab = open;
             return;
         }
+
+        // A project sheet's view follows the symbol arrangement: no owner tab,
+        // because the sheet belongs to the project rather than to whichever
+        // document happened to be active when it was opened.
+        if (ProjectDocker.Project is { } project)
+        {
+            var filed = (project.Manifest.Sheets ?? [])
+                .Select(r => (Ref: r, Sheet: project.LoadedSheets.GetValueOrDefault(r.Id)))
+                .FirstOrDefault(x => x.Sheet?.Views.Contains(view) ?? false);
+            if (filed.Sheet is { } projectSheet)
+            {
+                AddTab(new DocumentTab(
+                    new DocumentEditor(WrapperFor(view)), $"{projectSheet.Name} / {view.Name}")
+                {
+                    Kind = DocumentTabKind.Reference,
+                    View = view,
+                    SheetSource = filed.Ref,
+                });
+                return;
+            }
+        }
+
         if (TargetTab is not { } owner) return;
         var sheet = owner.Doc.ReferenceSheets.FirstOrDefault(s => s.Views.Contains(view));
-        // The wrapper scene SHARES the view's layer list: edits land in the
-        // owning document directly.
-        var wrapper = new Doc
-        {
-            Scene = new Scene
-            {
-                Name = view.Name,
-                Width = view.Width,
-                Height = view.Height,
-                FrameCount = 1,
-                Layers = view.Layers,
-            },
-        };
-        var referenceTab = new DocumentTab(new DocumentEditor(wrapper), $"{sheet?.Name ?? "Sheet"} / {view.Name}")
+        var referenceTab = new DocumentTab(
+            new DocumentEditor(WrapperFor(view)), $"{sheet?.Name ?? "Sheet"} / {view.Name}")
         {
             Kind = DocumentTabKind.Reference,
             Owner = owner,
@@ -1804,6 +2076,22 @@ public sealed partial class MainViewModel : ObservableObject
         owner?.Views.Add(referenceTab);
         AddTab(referenceTab);
     }
+
+    /// <summary>
+    /// A single-frame document around a view. The wrapper scene SHARES the
+    /// view's layer list, so edits land in the sheet directly.
+    /// </summary>
+    private static Doc WrapperFor(ReferenceView view) => new()
+    {
+        Scene = new Scene
+        {
+            Name = view.Name,
+            Width = view.Width,
+            Height = view.Height,
+            FrameCount = 1,
+            Layers = view.Layers,
+        },
+    };
 
     /// <summary>Flatten one character-sheet view to PNG (for AI reference and MCP).</summary>
     /// <summary>
@@ -1930,7 +2218,10 @@ public sealed partial class MainViewModel : ObservableObject
     /// </remarks>
     private IReadOnlyList<string>? CollectReferenceImages()
     {
-        var views = (SaveTargetTab?.Doc ?? Doc).ReferenceSheets
+        // ReferenceSheetsView rather than the document's own list, so a project
+        // document rides with the sheets filed above it — which is the whole
+        // point of filing them there — and a standalone one keeps its own.
+        var views = ReferenceSheetsView
             .SelectMany(s => s.Views)
             .Where(v => v.Layers.Any(l => l.Visible))
             .Take(2)
@@ -3840,6 +4131,7 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowsEffectOptions))]
     [NotifyPropertyChangedFor(nameof(PointerIntent))]
     [NotifyPropertyChangedFor(nameof(PointerRefusal))]
+    [NotifyPropertyChangedFor(nameof(ActiveToolIcon))]
     [NotifyPropertyChangedFor(nameof(IsBrushTool))]
     [NotifyPropertyChangedFor(nameof(IsEraserTool))]
     [NotifyPropertyChangedFor(nameof(IsFillTool))]
@@ -3852,6 +4144,7 @@ public sealed partial class MainViewModel : ObservableObject
     // way to pick a shape.
     [NotifyPropertyChangedFor(nameof(IsShapeTool))]
     [NotifyPropertyChangedFor(nameof(IsPaintTool))]
+    [NotifyPropertyChangedFor(nameof(MakesSizedMarks))]
     [NotifyPropertyChangedFor(nameof(IsArrowTool))]
     [NotifyPropertyChangedFor(nameof(IsDirectSelectTool))]
     [NotifyPropertyChangedFor(nameof(IsPenTool))]
@@ -3880,6 +4173,10 @@ public sealed partial class MainViewModel : ObservableObject
     public bool IsWandVariant => ActiveSelectVariant == SelectVariant.Wand;
 
     public bool IsBrushTool => ActiveTool == ToolId.Brush;
+
+    /// <summary>The active tool's icon, for the Quick options bar's left edge.</summary>
+    public Avalonia.Media.Geometry? ActiveToolIcon =>
+        Rendering.IconSet.Resolve(Rendering.IconSet.ForTool(ActiveTool));
 
     /// <summary>
     /// What the pointer should say the active tool will do over the active
@@ -4113,6 +4410,14 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Brush or eraser — the tools whose strokes the brush-parameter flyout edits.</summary>
     public bool IsPaintTool => ActiveTool is ToolId.Brush or ToolId.Eraser;
+
+    /// <summary>
+    /// Whether the tool in hand makes a mark that takes the pinned Size and
+    /// Opacity — brush, eraser, and shape, because a shape is a stroke drawn
+    /// with the loaded brush. The Quick options bar disables (never hides)
+    /// its fixed section on this, per Q70.
+    /// </summary>
+    public bool MakesSizedMarks => ActiveTool is ToolId.Brush or ToolId.Eraser or ToolId.Shape;
 
     /// <summary>The active tool, named for the Tool options panel's header.</summary>
     public string ActiveToolLabel => ActiveTool switch
@@ -7961,6 +8266,11 @@ public sealed partial class MainViewModel : ObservableObject
         _transformFrames.AddRange(frames);
         _transformFilter = filter;
         TransformActive = true;
+        // The session's controls live in the Tool options docker now (Q70), so
+        // starting a transform with the docker closed must open it — Apply and
+        // Cancel have keys, but scope, sampling and perspective would otherwise
+        // be reachable only through a panel the artist cannot see.
+        OpenToolOptions();
         var b = bounds.Value;
         if (gizmo) TransformBegun?.Invoke(b.MinX, b.MinY, b.MaxX, b.MaxY);
         return true;
@@ -9592,12 +9902,85 @@ public sealed partial class MainViewModel : ObservableObject
 
         var a = StrokesOf(layer.Cels[aIndex].Frame!);
         var b = StrokesOf(layer.Cels[bIndex].Frame!);
-        var series = Inbetweener.InbetweenSeries(a, b, TweenCount, TweenEasing);
+        // The extreme's own timing chart wins over the bar's count and easing
+        // (Q58): the ladder on the drawing is the artist's spacing for this
+        // interval, and the bar is the default for extremes that have none.
+        var series = layer.Cels[aIndex].Frame!.Chart is { Count: > 0 } chart
+            ? Inbetweener.InbetweenSeries(a, b, chart)
+            : Inbetweener.InbetweenSeries(a, b, TweenCount, TweenEasing);
         var frames = series.Select(strokes => NewFrameFor(layer, strokes, FrameRole.Inbetween)).ToList();
 
         _editor.InsertInbetweens(layer.Id, aIndex, frames);
         CurrentFrameIndex = Math.Min(aIndex + 1, Scene.FrameCount - 1);
     }
+
+    // ---- timing charts (Q58) ----------------------------------------------------
+
+    /// <summary>
+    /// The timing chart on the key at or before <paramref name="cell"/>'s
+    /// frame on its layer, or null — either no chart, or no key.
+    /// </summary>
+    public IReadOnlyList<double>? ChartAt(FrameCell cell)
+    {
+        if (LayerOfCell(cell) is not { } layer) return null;
+        var at = ExposureSheet.KeyIndexAtOrBefore(layer, cell.Index);
+        return at < 0 ? null : layer.Cels[at].Frame?.Chart;
+    }
+
+    /// <summary>The frame the chart under <paramref name="cell"/> belongs to, for the editor's title.</summary>
+    public int ChartAnchorFrame(FrameCell cell) =>
+        LayerOfCell(cell) is { } layer ? ExposureSheet.KeyIndexAtOrBefore(layer, cell.Index) : -1;
+
+    /// <summary>
+    /// How many drawings currently sit between the chart's extreme and the
+    /// next key, or null when there is no next key yet. The editor derives
+    /// its live/stale line from this — a chart whose rung count disagrees is
+    /// ignored by the spacing curve, and that has to be visible where the
+    /// chart is edited or the artist discovers it by counting.
+    /// </summary>
+    public int? ChartRunInbetweens(FrameCell cell)
+    {
+        if (LayerOfCell(cell) is not { } layer) return null;
+        var a = ExposureSheet.KeyIndexAtOrBefore(layer, cell.Index);
+        if (a < 0) return null;
+        var b = ExposureSheet.NextKeyIndex(layer, a);
+        if (b < 0) return null;
+        var count = 0;
+        for (var i = a + 1; i < b; i++)
+        {
+            if (ExposureSheet.FrameAtExactIndex(layer, i) is not null) count++;
+        }
+        return count;
+    }
+
+    /// <summary>
+    /// Write (or clear, with null/empty) the timing chart on the key at or
+    /// before <paramref name="cell"/>'s frame on its layer. One undo step —
+    /// a chart is authored timing, the same as a re-time.
+    /// </summary>
+    public void SetChartAt(FrameCell cell, IEnumerable<double>? rungs)
+    {
+        if (LayerOfCell(cell) is not { } layer) return;
+        if (!CanEdit(layer, "chart its timing")) return;
+        var at = ExposureSheet.KeyIndexAtOrBefore(layer, cell.Index);
+        if (at < 0 || layer.Cels[at].Frame is not { } frame) return;
+        var chart = Lightbox.Core.Inbetween.TimingChart.Normalise(rungs);
+        if (ChartsEqual(frame.Chart, chart)) return;
+
+        var layerId = layer.Id;
+        var frameId = frame.Id;
+        _editor.Perform(doc =>
+        {
+            var target = doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId)?
+                .Cels.FirstOrDefault(c => c.Frame?.Id == frameId)?.Frame;
+            if (target is not null) target.Chart = chart is null ? null : [.. chart];
+        });
+        OnPropertyChanged(nameof(GraphSeriesList));   // the intended curve reads it
+    }
+
+    private static bool ChartsEqual(IReadOnlyList<double>? a, IReadOnlyList<double>? b) =>
+        (a is null && b is null)
+        || (a is not null && b is not null && a.SequenceEqual(b));
 
     private static List<Stroke> StrokesOf(Frame frame) => frame.Strokes;
 
@@ -9745,9 +10128,17 @@ public sealed partial class MainViewModel : ObservableObject
             ? UnseenByTheModel(layer.Cels[aIndex].Frame!, layer.Cels[bIndex].Frame!)
             : null;
 
-        var ts = Enumerable.Range(1, TweenCount)
-            .Select(k => (double)k / (TweenCount + 1))
-            .ToList();
+        // The extreme's timing chart is the ts when it has one (Q58): both
+        // producers of inbetweens read the same ladder, so accepting the AI's
+        // frames or the deterministic ones lands the same timing. A chart's
+        // rungs are already eased — the artist placed them — so the easing
+        // sent alongside is Linear rather than the bar's.
+        var chart = layer.Cels[aIndex].Frame!.Chart;
+        var ts = chart is { Count: > 0 }
+            ? chart.ToList()
+            : Enumerable.Range(1, TweenCount)
+                .Select(k => (double)k / (TweenCount + 1))
+                .ToList();
         // Send the effective drawings — erased strokes must not leak into
         // the model's input any more than into the deterministic tweens.
         var request = new InbetweenRequest(
@@ -9755,12 +10146,12 @@ public sealed partial class MainViewModel : ObservableObject
             StrokeRecordCleaner.EffectiveStrokes(StrokesOf(layer.Cels[aIndex].Frame!)),
             StrokeRecordCleaner.EffectiveStrokes(StrokesOf(layer.Cels[bIndex].Frame!)),
             ts,
-            TweenEasing,
+            chart is { Count: > 0 } ? Easing.Linear : TweenEasing,
             CollectReferenceImages(),
             TaxonomyForActiveDocument());
 
         var result = await RunAiAsync(
-            $"{AiProviderLabel} is drawing {TweenCount} inbetween(s)…",
+            $"{AiProviderLabel} is drawing {ts.Count} inbetween(s)…",
             ct => _artist.GenerateInbetweensAsync(request, ct));
         if (result is null) return;
 
@@ -9773,8 +10164,11 @@ public sealed partial class MainViewModel : ObservableObject
         var candidates = ordered
             .Select(f => new CandidateInbetween(f.T, f.Strokes))
             .ToList();
+        // Judged against the easing the request carried — under a timing
+        // chart that is Linear, and refusing a frame for sitting exactly on
+        // its rung would be the verifier arguing with the artist.
         var judgement = InbetweenVerifier.Verify(
-            request.KeyframeA, request.KeyframeB, candidates, TweenEasing);
+            request.KeyframeA, request.KeyframeB, candidates, request.Easing);
 
         // Refusal is per frame: the ones that passed are inserted, each at its
         // own t's slot — a null keeps the slot a hold, so partial acceptance

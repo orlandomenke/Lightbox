@@ -638,6 +638,63 @@ public sealed class ProjectWindowTests(ITestOutputHelper output)
         Assert.DoesNotContain("Draft", vm.Summary);
     }
 
+    // ---- character sheets (Q25 re-answered) --------------------------------------------------
+
+    [Fact]
+    public void ASheetIsARowUnderItsFolder()
+    {
+        var (vm, project, knight, _, _, _) = Open();
+        var sheet = ProjectSheets.Add(project, "Knight", knight);
+        vm.Rebuild();
+
+        var row = vm.Rows.Single(r => r.Sheet?.Id == sheet.Id);
+        Assert.Equal(knight.Id, row.Folder!.Id);
+        Assert.True(row.IsSheet);
+        Assert.False(row.IsFolder);
+        // Reference art carries no production facets.
+        Assert.False(row.HasStatus);
+        Assert.Empty(row.OwnTags);
+    }
+
+    /// <summary>The owner's sentence: "through the project manager we can re-assign".</summary>
+    [Fact]
+    public void FilingASelectedSheetSomewhereElseMovesItsVisibility()
+    {
+        var (vm, project, knight, _, _, _) = Open();
+        var goblin = ProjectFolders.Add(project.Manifest, "Goblin");
+        var sheet = ProjectSheets.Add(project, "Knight", knight);
+        vm.Rebuild();
+
+        vm.SetSelection(vm.Rows.Where(r => r.Sheet is not null));
+        Assert.True(vm.HasSheetSelection);
+        var target = vm.SheetHomeChoices.Single(c => c.Folder?.Id == goblin.Id);
+        vm.FileSelectedSheets(target);
+
+        output.WriteLine(vm.Status);
+        Assert.Equal(goblin.Id, ProjectSheets.FindRef(project.Manifest, sheet.Id)!.FolderId);
+        Assert.Equal(goblin.Id, vm.Rows.Single(r => r.Sheet is not null).Folder!.Id);
+    }
+
+    /// <summary>A bulk tag over a mixed selection leaves the sheet's folder alone.</summary>
+    /// <remarks>
+    /// The trap is the fallback: a sheet row carries its folder so the window can
+    /// re-assign it, and the tag command's "not a document, so tag the folder"
+    /// branch would have tagged that folder for a row that only *lives* there.
+    /// </remarks>
+    [Fact]
+    public void TaggingASelectionWithASheetInItDoesNotTagTheSheetsFolder()
+    {
+        var (vm, project, knight, _, _, _) = Open();
+        ProjectSheets.Add(project, "Knight", knight);
+        vm.Rebuild();
+
+        vm.SetSelection(vm.Rows.Where(r => r.Sheet is not null));
+        vm.TagSelection("hero");
+
+        Assert.Null(knight.Tags);
+        Assert.Contains("Nothing changed", vm.Status);
+    }
+
     // ---- the window itself, which is the half no view-model test reaches ---------------------
 
     /// <summary>

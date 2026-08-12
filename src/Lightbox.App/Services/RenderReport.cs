@@ -534,6 +534,7 @@ internal static class RenderReport
         // reads as "no CPU compositing happened" when in truth all of it did.
         sb.AppendLine(
             $"compositing               of the publishes that could use the card: {gpu} did, {cpu} fell back");
+        sb.AppendLine("  counted since the toggle was last switched on, not since launch (B184).");
         if (gpu + cpu == 0)
         {
             sb.AppendLine("  !! no publish even reached that path, so EVERY frame was composited");
@@ -557,6 +558,17 @@ internal static class RenderReport
         {
             sb.AppendLine(
                 $"  !! {Rendering.GpuComposite.RefusedTooLarge} composite(s) were larger than this card's textures.");
+        }
+        // A fallback with no refusal behind it is a different thing entirely, and
+        // "fell back" reads like a failure either way. Say which one it was: with
+        // both refusal tallies at zero, the card was never asked — those publishes
+        // ran on a lease that had no graphics context, which is ordinary.
+        if (cpu > 0
+            && Rendering.GpuComposite.RefusedAllocations == 0
+            && Rendering.GpuComposite.RefusedTooLarge == 0)
+        {
+            sb.AppendLine("  none of those were refusals — the card was never asked, because those");
+            sb.AppendLine("  publishes drew on a lease with no graphics context. Nothing is failing.");
         }
     }
 
@@ -631,6 +643,16 @@ internal static class RenderReport
         {
             sb.AppendLine($"pinned by live snapshots  {pins.Frames} frame bitmap(s), "
                           + $"{pins.Flattens} flatten(s)");
+        }
+        // B179's fix at work: retired GPU frames are freed on the render
+        // thread, where the context is, instead of parked by a UI-thread
+        // dispose. Printed whenever the machinery has been exercised, so the
+        // capture that checks the fix can see it running — a large and growing
+        // "waiting" against a still count of freed is the line to distrust.
+        if (Rendering.GpuImageReaper.Reaped > 0 || Rendering.GpuImageReaper.PendingCount > 0)
+        {
+            sb.AppendLine($"gpu frames reaped         {Rendering.GpuImageReaper.Reaped} freed "
+                          + $"on the render thread, {Rendering.GpuImageReaper.PendingCount} waiting");
         }
 
         // Skia's own two caches (B179's second narrowing). Neither is a budget

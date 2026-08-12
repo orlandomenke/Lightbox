@@ -575,6 +575,17 @@
         tool's own options begin after it, in a fixed place, whatever tool is
         selected.
       -->
+      <!--
+        The active tool's own icon, first: the bar is the Quick options bar,
+        and the one thing every row of it describes is this tool. It changes
+        with the selection, so a glance at the bar's left edge answers "what
+        is in my hand" without looking down at the rail.
+      -->
+      <Path DockPanel.Dock="Left" Data="{Binding ActiveToolIcon}" Width="18" Height="18"
+            Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"
+            Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="1.5"
+            StrokeLineCap="Round" StrokeJoin="Round"
+            ToolTip.Tip="The active tool. Its quick options fill this bar." />
       <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="4"
                   VerticalAlignment="Center" Margin="0,0,10,0">
         <!--
@@ -635,32 +646,31 @@
         <Border Width="1" Margin="6,3,0,3" Background="{StaticResource BorderBrush}" />
       </StackPanel>
 
-      <controls:OverflowBar Spacing="14" VerticalAlignment="Center"
+      <!--
+        Size and Opacity, pinned — the owner's one hard rule for this bar:
+        whatever the customization of Q70's stage 2 rearranges, these two do
+        not move and cannot be removed. Outside the OverflowBar for the same
+        reason colour is: the bar's job is to drop what does not fit into its
+        ▾, and the two sliders every mark shares should be the last to go.
+        Disabled rather than hidden when the active tool has no mark to size —
+        a fixed control that vanishes is not fixed.
+      -->
+      <StackPanel x:Name="QuickFixedOptions" DockPanel.Dock="Left" Orientation="Horizontal"
+                  Spacing="6" VerticalAlignment="Center" Margin="0,0,10,0"
+                  IsEnabled="{Binding MakesSizedMarks}">
+        <TextBlock Text="Size" VerticalAlignment="Center" />
+        <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="300" Classes="param" VerticalAlignment="Center" />
+        <NumericUpDown Value="{Binding BrushSize}" Minimum="1" Maximum="500" Increment="1"
+                       FormatString="0.#" Classes="value" VerticalAlignment="Center"
+                       ToolTip.Tip="Size of the mark the tool in hand makes (type an exact value)" />
+        <TextBlock Text="Opacity" VerticalAlignment="Center" Margin="8,0,0,0" />
+        <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Classes="param" VerticalAlignment="Center" />
+        <NumericUpDown Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Increment="0.05"
+                       FormatString="0.00" Classes="value" VerticalAlignment="Center"
+                       ToolTip.Tip="Opacity of the mark the tool in hand makes (0–1)" />
+      </StackPanel>
+      <controls:OverflowBar x:Name="QuickToolOptions" Spacing="14" VerticalAlignment="Center"
                             MoreLabel="More tool options  &#x25BE;">
-
-        <!-- Transform session (Ctrl+T): shown above whatever tool was active -->
-        <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding TransformActive}">
-          <TextBlock Text="Transform" FontWeight="SemiBold" VerticalAlignment="Center" />
-          <ComboBox ItemsSource="{Binding TransformScopeChoices}" SelectedItem="{Binding TransformScope}"
-                    Width="150" VerticalAlignment="Center"
-                    ToolTip.Tip="What the transform applies to: this cel, all layers at this frame, the selected cel range, or the whole animation" />
-          <ComboBox ItemsSource="{Binding TransformSamplingChoices}" SelectedItem="{Binding TransformSampling}"
-                    Width="98" VerticalAlignment="Center"
-                    ToolTip.Tip="Pixel solver for raster baselines: Bilinear (smooth), Nearest (pixel art), Bicubic (highest quality). Strokes are geometry and never resample." />
-          <ToggleButton x:Name="TransformPerspectiveToggle" Content="Perspective" FontSize="12"
-                        Click="OnTransformPerspectiveToggled"
-                        ToolTip.Tip="Drag the four corners freely instead of the affine box" />
-          <Button Content="⇋" FontSize="13" Click="OnTransformMirrorH"
-                  ToolTip.Tip="Mirror horizontally in place (around the pivot)" />
-          <Button Content="⇵" FontSize="13" Click="OnTransformMirrorV"
-                  ToolTip.Tip="Mirror vertically in place (around the pivot)" />
-          <Button Content="Reset" FontSize="12" Click="OnTransformReset"
-                  ToolTip.Tip="Back to the untransformed drawing (session stays open)" />
-          <Button Content="Apply" FontSize="12" FontWeight="SemiBold" Click="OnTransformApply"
-                  ToolTip.Tip="Commit the transform (Enter)" />
-          <Button Content="Cancel" FontSize="12" Click="OnTransformCancel"
-                  ToolTip.Tip="Discard the transform (Esc)" />
-        </StackPanel>
 
         <!--
           The preset picker and the ⚙ that opens every parameter, together,
@@ -795,25 +805,11 @@
         <!-- Brush options -->
         <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsBrushTool}">
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-            <TextBlock Text="Size" VerticalAlignment="Center" />
-            <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="300" Classes="param" VerticalAlignment="Center" />
-            <NumericUpDown Value="{Binding BrushSize}" Minimum="1" Maximum="500" Increment="1"
-                           FormatString="0.#" Classes="value" VerticalAlignment="Center"
-                           ToolTip.Tip="Brush size (type an exact value)" />
-          </StackPanel>
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Hardness" VerticalAlignment="Center" />
             <Slider Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Classes="param" VerticalAlignment="Center" />
             <NumericUpDown Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Increment="0.05"
                            FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="Brush hardness (type an exact value, 0–1)" />
-          </StackPanel>
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-            <TextBlock Text="Opacity" VerticalAlignment="Center" />
-            <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Classes="param" VerticalAlignment="Center" />
-            <NumericUpDown Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Increment="0.05"
-                           FormatString="0.00" Classes="value" VerticalAlignment="Center"
-                           ToolTip.Tip="Brush transparency (0–1)" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Stabilizer" VerticalAlignment="Center" />
@@ -1008,28 +1004,15 @@
         </StackPanel>
 
 
-        <!-- Eraser options -->
+        <!-- Eraser options. Size and opacity are not here: they are pinned on
+             the fixed section of the bar for every painting tool (Q70). -->
         <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsEraserTool}">
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-            <TextBlock Text="Size" VerticalAlignment="Center" />
-            <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="300" Classes="param" VerticalAlignment="Center" />
-            <NumericUpDown Value="{Binding BrushSize}" Minimum="1" Maximum="500" Increment="1"
-                           FormatString="0.#" Classes="value" VerticalAlignment="Center"
-                           ToolTip.Tip="Eraser size (type an exact value)" />
-          </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Hardness" VerticalAlignment="Center" />
             <Slider Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Classes="param" VerticalAlignment="Center" />
             <NumericUpDown Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Increment="0.05"
                            FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="Eraser hardness (type an exact value, 0–1)" />
-          </StackPanel>
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-            <TextBlock Text="Opacity" VerticalAlignment="Center" />
-            <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Classes="param" VerticalAlignment="Center" />
-            <NumericUpDown Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Increment="0.05"
-                           FormatString="0.00" Classes="value" VerticalAlignment="Center"
-                           ToolTip.Tip="Eraser strength (0–1)" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Stabilizer" VerticalAlignment="Center" />
@@ -2337,6 +2320,51 @@
                                FontSize="11" Opacity="0.55" TextWrapping="Wrap" />
                   </StackPanel>
                 </ScrollViewer>
+
+                <!-- Transform session (Ctrl+T). It lived on the bar; the owner
+                     moved it here so the bar stays quick options only (Q70).
+                     A session overlays whatever tool was active, so this page
+                     cannot share the tool pages' either/or visibility — it is
+                     the last child, opaque, and simply covers the tool page
+                     underneath for as long as the session is open. BeginTransform
+                     opens this docker so the controls are never off-screen. -->
+                <Border x:Name="TransformOptionsPage" IsVisible="{Binding TransformActive}"
+                        Background="{StaticResource BackgroundPrimaryBrush}">
+                  <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="6">
+                      <TextBlock Text="Transform" FontWeight="SemiBold" FontSize="12" />
+                      <DockPanel>
+                        <TextBlock Text="Scope" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <ComboBox ItemsSource="{Binding TransformScopeChoices}" SelectedItem="{Binding TransformScope}"
+                                  HorizontalAlignment="Stretch" Margin="4,0,0,0"
+                                  ToolTip.Tip="What the transform applies to: this cel, all layers at this frame, the selected cel range, or the whole animation" />
+                      </DockPanel>
+                      <DockPanel>
+                        <TextBlock Text="Sampling" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <ComboBox ItemsSource="{Binding TransformSamplingChoices}" SelectedItem="{Binding TransformSampling}"
+                                  HorizontalAlignment="Stretch" Margin="4,0,0,0"
+                                  ToolTip.Tip="Pixel solver for raster baselines: Bilinear (smooth), Nearest (pixel art), Bicubic (highest quality). Strokes are geometry and never resample." />
+                      </DockPanel>
+                      <ToggleButton x:Name="TransformPerspectiveToggle" Content="Perspective" FontSize="12"
+                                    Click="OnTransformPerspectiveToggled"
+                                    ToolTip.Tip="Drag the four corners freely instead of the affine box" />
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Content="⇋" FontSize="13" Click="OnTransformMirrorH"
+                                ToolTip.Tip="Mirror horizontally in place (around the pivot)" />
+                        <Button Content="⇵" FontSize="13" Click="OnTransformMirrorV"
+                                ToolTip.Tip="Mirror vertically in place (around the pivot)" />
+                        <Button Content="Reset" FontSize="12" Click="OnTransformReset"
+                                ToolTip.Tip="Back to the untransformed drawing (session stays open)" />
+                      </StackPanel>
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Content="Apply" FontSize="12" FontWeight="SemiBold" Click="OnTransformApply"
+                                ToolTip.Tip="Commit the transform (Enter)" />
+                        <Button Content="Cancel" FontSize="12" Click="OnTransformCancel"
+                                ToolTip.Tip="Discard the transform (Esc)" />
+                      </StackPanel>
+                    </StackPanel>
+                  </ScrollViewer>
+                </Border>
               </Panel>
         </controls:Docker>
 
@@ -3380,6 +3408,12 @@
                               <DockPanel>
                                 <Button Classes="icon" DockPanel.Dock="Right" Content="✎" FontSize="11"
                                         Click="OnOpenReferenceView" ToolTip.Tip="Open this view in a tab" />
+                                <Button Classes="icon" DockPanel.Dock="Right" Content="🗔" FontSize="11"
+                                        Click="OnOpenReferenceViewWindow"
+                                        ToolTip.Tip="Open this view in its own window, beside the art. It follows the sheet as you edit; drawing on it still happens in the tab." />
+                                <Button Classes="icon" DockPanel.Dock="Right" Content="⧉" FontSize="11"
+                                        Click="OnToggleViewOnCanvas"
+                                        ToolTip.Tip="Tape this view onto the canvas — a see-through reference over the paper, under the drawing. Click again to take it down. Opacity is the reference opacity slider." />
                                 <TextBox Text="{Binding Name}" BorderThickness="0" Background="Transparent"
                                          VerticalAlignment="Center" FontSize="12"
                                          GotFocus="OnReferenceNameFocused" LostFocus="OnReferenceRenamed" />
@@ -4061,6 +4095,8 @@
                                   <MenuItem Header="{Binding $parent[Window].((vm:MainViewModel)DataContext).RetimeMenuLabel}"
                                             Click="OnRetimeCel"
                                             ToolTip.Tip="Re-space this cel's range to the pattern chosen on the timeline bar" />
+                                  <MenuItem Header="Timing chart…" Click="OnEditTimingChart"
+                                            ToolTip.Tip="The ladder on this extreme: where its inbetweens sit on the way to the next key" />
                                   <MenuItem Header="Clear cel" Click="OnClearCel"
                                             ToolTip.Tip="Blank the drawing, keep its slot on the timeline" />
                                   <MenuItem Header="Delete cel" Click="OnDeleteCel"

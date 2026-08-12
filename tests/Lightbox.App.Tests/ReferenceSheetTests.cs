@@ -237,6 +237,98 @@ public class ReferenceAiTests
 }
 
 /// <summary>
+/// Q25 re-answered, from the application's side: in a project a sheet is the
+/// project's — filed on the document's top folder, edited in an ownerless tab
+/// like a symbol, written by the project's save.
+/// </summary>
+public class ProjectSheetAppTests
+{
+    private static (MainViewModel Vm, string Root) ProjectVm(string name)
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"lightbox-psheet-{Guid.NewGuid():N}.lbproj");
+        var vm = VmLayers.PaperVm();
+        vm.SmoothStrokes = false;
+        vm.NewProject(root, name);
+        vm.ProjectDocker.AddDocumentCommand.Execute(null);
+        return (vm, root);
+    }
+
+    [AvaloniaFact]
+    public void ASheetMadeInAProjectIsFiledInTheRegistryNotTheDocument()
+    {
+        var (vm, root) = ProjectVm("Knight");
+        try
+        {
+            var sheet = Assert.IsType<Lightbox.Core.Documents.ReferenceSheet>(
+                vm.AddReferenceSheet("Knight"));
+            var project = vm.ProjectDocker.Project!;
+
+            var entry = Assert.Single(project.Manifest.Sheets ?? []);
+            Assert.Equal(sheet.Id, entry.Id);
+            // The document itself is untouched — the sheet is not inside it.
+            Assert.Empty(vm.ActiveTab!.Doc.ReferenceSheets);
+            // And the docker still lists it, from the project this time.
+            Assert.Contains(vm.ReferenceSheetsView, s => s.Id == sheet.Id);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [AvaloniaFact]
+    public void PaintingInAProjectSheetTabIsWrittenByTheProjectSave()
+    {
+        var (vm, root) = ProjectVm("Knight");
+        try
+        {
+            var sheet = vm.AddReferenceSheet("Knight")!;
+            vm.AddReferenceView(sheet); // opens the ownerless tab
+            Assert.Equal(DocumentTabKind.Reference, vm.ActiveTab!.Kind);
+            Assert.Null(vm.ActiveTab.Owner);
+            Assert.NotNull(vm.ActiveTab.SheetSource);
+
+            vm.BeginStroke(20, 20, 0.5);
+            vm.MoveStroke(60, 60, 0.5);
+            vm.EndStroke();
+
+            var project = vm.ProjectDocker.Project!;
+            Assert.Contains(sheet.Id, project.DirtySheets);
+
+            vm.SaveProject();
+
+            // Reload from disk: the stroke is in the sheet file.
+            var reloaded = Lightbox.Core.Projects.ProjectIo.Load(root);
+            var entry = Assert.Single(reloaded.Manifest.Sheets ?? []);
+            var restored = Lightbox.Core.Projects.ProjectSheets.Load(reloaded, entry)!;
+            var frame = (Frame)restored.Views[0].Layers[0].Cels[0].Frame!;
+            Assert.Single(frame.Strokes);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>"All documents within the folder can access the character sheet."</summary>
+    [AvaloniaFact]
+    public void ASecondDocumentInTheProjectSeesTheSameSheet()
+    {
+        var (vm, root) = ProjectVm("Knight");
+        try
+        {
+            var sheet = vm.AddReferenceSheet("Knight")!;
+            vm.ProjectDocker.AddDocumentCommand.Execute(null); // opens a second document
+            Assert.Contains(vm.ReferenceSheetsView, s => s.Id == sheet.Id);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+}
+
+/// <summary>
 /// B66: a character sheet is part of a document (Q25 answered (a)), so the
 /// thing that has to exist on disk is the document it lives in.
 /// </summary>

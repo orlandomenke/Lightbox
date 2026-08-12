@@ -399,6 +399,11 @@ public partial class MainWindow : Window
             _vm.ApplyHeldModifiers(Avalonia.Input.KeyModifiers.None);
             _momentaryToolKey = null;
             _vm.CancelMomentaryTool();
+            // Same reasoning as the modifiers: a release delivered to whichever
+            // window took the focus is one we will never see, and a gesture
+            // still marked in-flight would resume from its stale position the
+            // moment the pen touches down again (B185).
+            Canvas.CancelPointerGestures();
         };
         RecentMenu.SubmenuOpened += (_, _) => RefreshRecentMenu();
         ConvertProjectMenu.SubmenuOpened += (_, _) => RefreshConvertMenu();
@@ -1762,6 +1767,108 @@ public partial class MainWindow : Window
         if (CellOf(sender) is { } cell) _vm.ApplyTimingAt(cell);
     }
 
+    /// <summary>
+    /// The timing chart editor (Q58), as a small window over the cel: the
+    /// ladder from this extreme to the next key, preset shapes to start
+    /// from, and a clear that returns the extreme to the bar's default.
+    /// Edits write through the view model, so each is one undo step.
+    /// </summary>
+    private void OnEditTimingChart(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is not { } cell) return;
+        var anchor = _vm.ChartAnchorFrame(cell);
+        if (anchor < 0)
+        {
+            _vm.AiStatus = "A timing chart needs a key drawing to sit on.";
+            return;
+        }
+
+        var dialog = new Window
+        {
+            Title = $"Timing chart on frame {anchor + 1}",
+            Width = 300,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+        };
+
+        var ladder = new Controls.TimingChartView { Rungs = _vm.ChartAt(cell) };
+
+        // Whether the chart is live, derived from the record on every edit —
+        // a stale chart is ignored by the spacing curve, and that has to be
+        // readable here rather than discovered by counting drawings.
+        var state = new TextBlock { FontSize = 11, Opacity = 0.7, TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+        void RefreshState()
+        {
+            var rungs = _vm.ChartAt(cell)?.Count ?? 0;
+            var run = _vm.ChartRunInbetweens(cell);
+            state.Text = rungs == 0
+                ? "No chart — the bar's count and easing decide."
+                : run is not { } drawings || drawings == 0
+                    ? $"{rungs} rung{(rungs == 1 ? "" : "s")}: ＋ Inbetween draws one drawing per rung."
+                    : rungs == drawings
+                        ? $"{rungs} rung{(rungs == 1 ? "" : "s")}, matching the run — the spacing curve reads this chart."
+                        : $"{rungs} rung{(rungs == 1 ? "" : "s")} but the run holds {drawings} drawing{(drawings == 1 ? "" : "s")} — the spacing curve keeps the easing until they agree.";
+        }
+        RefreshState();
+
+        ladder.ChartEdited += chart =>
+        {
+            _vm.SetChartAt(cell, chart);
+            ladder.Rungs = _vm.ChartAt(cell);
+            RefreshState();
+        };
+
+        var hint = new TextBlock
+        {
+            Text = "Each rung is one inbetween. Drag to re-space, click to add, right-click to remove.",
+            FontSize = 11,
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            Opacity = 0.7,
+        };
+
+        // Preset shapes seed the ladder with today's rung count (3 when
+        // empty), so "Ease in" answers with the chart it names rather than
+        // asking for a count first.
+        var presets = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 4 };
+        foreach (var (label, easing) in (ValueTuple<string, Lightbox.Core.Inbetween.Easing>[])
+                 [("Even", Lightbox.Core.Inbetween.Easing.Linear),
+                  ("Ease in", Lightbox.Core.Inbetween.Easing.EaseIn),
+                  ("Ease out", Lightbox.Core.Inbetween.Easing.EaseOut),
+                  ("Ease in-out", Lightbox.Core.Inbetween.Easing.EaseInOut)])
+        {
+            var choice = easing;
+            var button = new Button { Content = label, FontSize = 11, Padding = new Thickness(6, 2) };
+            button.Click += (_, _) =>
+            {
+                // Seeded with the run's own drawing count when there is one,
+                // so the preset lands live rather than pre-stale.
+                var count = _vm.ChartAt(cell)?.Count
+                    ?? (_vm.ChartRunInbetweens(cell) is { } run and > 0 ? run : 3);
+                _vm.SetChartAt(cell, Lightbox.Core.Inbetween.TimingChart.FromEasing(count, choice));
+                ladder.Rungs = _vm.ChartAt(cell);
+                RefreshState();
+            };
+            presets.Children.Add(button);
+        }
+
+        var clear = new Button { Content = "Clear chart", FontSize = 11, Padding = new Thickness(6, 2) };
+        clear.Click += (_, _) =>
+        {
+            _vm.SetChartAt(cell, null);
+            ladder.Rungs = null;
+            RefreshState();
+        };
+
+        dialog.Content = new StackPanel
+        {
+            Margin = new Thickness(12),
+            Spacing = 8,
+            Children = { ladder, state, presets, clear, hint },
+        };
+        dialog.Show(this);
+    }
+
     private void OnSaveTimingPreset(object? sender, RoutedEventArgs e) => _vm.SaveTimingPreset();
 
     private void OnDeleteTimingPreset(object? sender, RoutedEventArgs e) => _vm.DeleteSelectedTimingPreset();
@@ -2010,6 +2117,33 @@ public partial class MainWindow : Window
             _vm.OpenReferenceView(view);
     }
 
+    /// <summary>One window per view: a second click brings it forward.</summary>
+    private readonly Dictionary<string, ReferenceViewWindow> _referenceViewWindows = [];
+
+    private void OnOpenReferenceViewWindow(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is not Lightbox.Core.Documents.ReferenceView view) return;
+        if (_referenceViewWindows.TryGetValue(view.Id, out var open))
+        {
+            open.Activate();
+            return;
+        }
+
+        var sheet = _vm.ReferenceSheetsView.FirstOrDefault(s => s.Views.Contains(view));
+        var window = new ReferenceViewWindow(_vm, view, sheet?.Name ?? "Reference");
+        _referenceViewWindows[view.Id] = window;
+        window.Closed += (_, _) => _referenceViewWindows.Remove(view.Id);
+        // A child of the main window: it floats beside the art, and closing
+        // the application does not leave a reference orphaned on the desktop.
+        window.Show(this);
+    }
+
+    private void OnToggleViewOnCanvas(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is Lightbox.Core.Documents.ReferenceView view)
+            _vm.ToggleViewOnCanvas(view);
+    }
+
     /// <summary>
     /// The text in a sheet or view name box, captured when it took focus, so
     /// losing focus can tell a rename from a click-through.
@@ -2039,7 +2173,10 @@ public partial class MainWindow : Window
             _vm.RefreshReferenceList();
             return;
         }
-        _vm.MarkReferenceRenamed();
+        // The DataContext says what was renamed — a sheet or a view — which the
+        // view model needs now that a sheet can belong to the project rather
+        // than to the document.
+        _vm.MarkReferenceRenamed(box.DataContext);
     }
 
     // ---- brush presets --------------------------------------------------------
@@ -4163,14 +4300,15 @@ public partial class MainWindow : Window
         // selection, which has just been set to the row under the pointer.
         if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed) return;
 
-        if (pressed is not { Animation: not null } row) return;
+        // Documents and sheets drag; folders stay drop targets only.
+        if (pressed is not ({ Animation: not null } or { Sheet: not null }) || pressed is not { } row) return;
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
 
         _draggedRow = row;
         try
         {
             var transfer = new DataTransfer();
-            transfer.Add(DataTransferItem.Create(ProjectRowFormat, row.Animation.Id));
+            transfer.Add(DataTransferItem.Create(ProjectRowFormat, row.Key ?? ""));
             await DragDrop.DoDragDropAsync(e, transfer, DragDropEffects.Move);
         }
         catch (Exception ex)

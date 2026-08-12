@@ -7,6 +7,25 @@ Set the number of inbetweens and an easing, then **＋ Inbetween** interpolates
 between this key and the next. Because a frame is a stroke record, the
 inbetweener matches *strokes*, not pixels.
 
+**A timing chart on the extreme wins over both controls.** Right-click the key's
+cel on the X-sheet and choose **Timing chart…** to pencil the classic ladder
+onto it: each rung is one inbetween, placed at its fraction of the travel to
+the next key. Drag a rung to re-space it, click the rail to add one,
+right-click a rung to remove it; the preset buttons write the standard shapes
+(even, ease in, ease out, ease in-out) to start from. With a chart on the
+extreme, **＋ Inbetween** draws exactly one inbetween per rung, exactly where
+the rung says — favour the next pose by bunching rungs toward the right. The
+chart is part of the document: it saves, undoes, and travels with the drawing
+through re-times and holds. The graph editor's **Spacing (intended)** curve
+reads it too, so the dashed line shows *your* chart where one exists and the
+bar's easing everywhere else — a chart whose rung count no longer matches the
+run's inbetweens is ignored rather than misread, and the curve falls back to
+the easing until the counts agree again.
+
+The same ladder steers **✦ AI Inbetween**: the model is asked for one frame
+per rung, at the rung's position, so accepting the AI's frames or the
+deterministic ones lands the same timing.
+
 ## AI inbetweens
 
 **✦ AI Inbetween** asks the model for the frames between two keys. It needs a
@@ -24,7 +43,8 @@ take the tedious parts off an artist, not to make the drawing.
 
 **What gets sent.** Along with the frames, the **first two views on your character
 sheets that have a visible layer** go out as pictures, so the model can see who it
-is drawing. They are sent at up to 768 pixels on the long edge — your sheet keeps
+is drawing. In a project those are the sheets filed above the document — the
+knight's animations ride with the knight's sheet, wherever it was drawn. They are sent at up to 768 pixels on the long edge — your sheet keeps
 whatever size you drew it at, and only the copy in the request is smaller. Hide
 every layer in a view and it stops being sent.
 

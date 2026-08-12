@@ -10,8 +10,9 @@ The swatch at the bottom does two things, told apart by whether you move:
 
 ## Foreground and background
 
-Two colours, shown one over the other at the **left end of the tool options
-bar**, shared by the brush, the fill and the gradient. **X** swaps them; **D**
+Two colours, shown one over the other at the **left end of the Quick options
+bar**, just after the active tool's icon, shared by the brush, the fill and
+the gradient. **X** swaps them; **D**
 resets to black over white. They are global on purpose — reaching for the same
 colour in three tools and finding three different answers is what this prevents.
 
