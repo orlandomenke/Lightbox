@@ -299,15 +299,15 @@ public sealed class LayerStackBake : IDisposable
     /// </para>
     /// <para>
     /// A tile-native pass — one carrying a <c>SourceFrame</c> rather than a
-    /// bitmap, which is how an unbounded document holds a frame — is refused,
+    /// bitmap, which is how a playing document holds a frame — is refused,
     /// for three separate reasons and any one of them is enough. Its
     /// <c>Bitmap</c> is null, so it has no identity to key on and two
     /// different frames would key identically, which is a stale bake served
     /// for the wrong picture. <see cref="SceneRenderer.ComposeInto"/> draws
     /// from bitmaps, so a bake of one would silently lose the layer. And the
     /// bake is document-resolution, which is exactly the allocation the tile
-    /// path exists to avoid — folding there would spend the property that
-    /// makes an unbounded canvas possible in order to save a blend.
+    /// path exists to avoid — folding there would spend the sparsity the
+    /// tile store exists for in order to save a blend.
     /// </para>
     /// </remarks>
     private static bool Eligible(List<RenderPass> passes) =>

@@ -5,12 +5,12 @@ using SkiaSharp;
 namespace Lightbox.App.Rendering;
 
 /// <summary>
-/// frameId → sparse tile store (with its mip pyramid), for documents whose
-/// canvas is unbounded. The tile-native sibling of <see cref="FrameBitmapCache"/>:
+/// frameId → sparse tile store (with its mip pyramid), for playback.
+/// The tile-native sibling of <see cref="FrameBitmapCache"/>:
 /// where that one materialises a document-sized bitmap per frame, this one
 /// holds only the tiles a frame's ink reaches, so memory follows what was
-/// drawn rather than how big the paper is — the property "unbounded" cannot
-/// exist without, since an unbounded canvas has no size to allocate.
+/// drawn rather than how big the paper is — which is what lets a playing
+/// sequence keep more frames resident than full-frame bitmaps could.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -57,8 +57,8 @@ public sealed class TileFrameCache : IDisposable
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This cache went without it while only the unbounded canvas used it — a
-    /// single unbounded drawing is not a sheet to scan. Measured before the
+    /// This cache went without it while only a single drawing at a time used
+    /// it — one drawing is not a sheet to scan. Measured before the
     /// port: dense ink past the budget thrashed at n^2.72 and 277 ms a frame
     /// at 1440p, <em>worse</em> than the bitmap thrash it replaced, because a
     /// tile-frame miss rebuilds every tile the frame's ink reaches plus its

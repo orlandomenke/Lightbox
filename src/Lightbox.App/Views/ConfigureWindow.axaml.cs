@@ -110,7 +110,6 @@ public sealed partial class FeatureToggleRow : ObservableObject
 
     public string Label => _feature switch
     {
-        FeatureKey.UnboundedCanvas => "Unbounded canvas",
         FeatureKey.FixedFrameBoundsExport => "Fixed frame bounds export",
         FeatureKey.Camera => "Camera",
         FeatureKey.Layers => "Layers",
@@ -120,10 +119,8 @@ public sealed partial class FeatureToggleRow : ObservableObject
 
     public string Description => _feature switch
     {
-        FeatureKey.UnboundedCanvas =>
-            "Allow the canvas to grow without bounds. Cannot be used with sprite export.",
         FeatureKey.FixedFrameBoundsExport =>
-            "Constrain export to fixed frame bounds. Incompatible with unbounded canvas.",
+            "Constrain export to fixed frame bounds for sprite sheet generation.",
         FeatureKey.Camera =>
             "Add camera and multiplane support for shots and film sequences.",
         FeatureKey.Layers =>

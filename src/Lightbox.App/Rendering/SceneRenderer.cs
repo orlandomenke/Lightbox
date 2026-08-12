@@ -49,8 +49,8 @@ public sealed record StrokeOverlay(
 /// </param>
 /// <param name="SourceFrame">
 /// The frame to composite from tiles instead of from <paramref name="Bitmap"/>,
-/// set only by the unbounded-canvas pass builder. When present, Bitmap is null
-/// and only <c>ComposeUnboundedSnapshot</c> knows what to do — the bounded
+/// set only by the tile-native pass builder. When present, Bitmap is null
+/// and only <c>ComposeTiledSnapshot</c> knows what to do — the bounded
 /// compositor never receives such a pass, and <c>DrawPass</c> skips it rather
 /// than dereferencing nothing.
 /// </param>
@@ -153,7 +153,7 @@ public static class SceneRenderer
 
     private static void DrawPass(SKCanvas canvas, RenderPass pass)
     {
-        // A tile-native pass carries no bitmap; only the unbounded compositor
+        // A tile-native pass carries no bitmap; only the tiled compositor
         // can draw it, and it never sends one here.
         if (pass.Bitmap is null) return;
         var alpha = (byte)Math.Round(Math.Clamp(pass.Opacity, 0, 1) * 255);
@@ -373,7 +373,7 @@ public static class SceneRenderer
     /// off unless the artist has switched GPU compositing on.
     /// </para>
     /// </remarks>
-    internal static SKImage ComposeUnbounded(
+    internal static SKImage ComposeTiled(
         IReadOnlyList<RenderPass> passes,
         SKColor background,
         double renderScale,
@@ -462,10 +462,10 @@ public static class SceneRenderer
             else
             {
                 // The ordinary layer: draw only the part the viewport can
-                // see. The source rectangle is clamped to the bitmap — the
-                // viewport of an unbounded canvas extends past every edge of
-                // the nominal document, and a source rect off the bitmap is
-                // undefined rather than transparent.
+                // see. The source rectangle is clamped to the bitmap — a
+                // zoomed-out viewport extends past every edge of the
+                // document, and a source rect off the bitmap is undefined
+                // rather than transparent.
                 var src = SKRectI.Intersect(
                     viewport, SKRectI.Create(0, 0, pass.Bitmap!.Width, pass.Bitmap.Height));
                 if (src.Width > 0 && src.Height > 0)

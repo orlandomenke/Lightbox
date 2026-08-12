@@ -103,8 +103,8 @@ internal static class RenderReport
         if (tally is null || tally.Considered == 0)
         {
             sb.AppendLine("frames offered            none yet — play the scene, then write this again");
-            sb.AppendLine("  Tiles are used while the sequence is PLAYING (and on an unbounded");
-            sb.AppendLine("  canvas). A report written without playing says nothing about them.");
+            sb.AppendLine("  Tiles are used while the sequence is PLAYING. A report written");
+            sb.AppendLine("  without playing says nothing about them.");
             sb.AppendLine();
             return;
         }
@@ -510,7 +510,7 @@ internal static class RenderReport
     /// So it counts instead of asserting. The counts also answer the question the
     /// first real reports raised and nothing in the file could: <b>the GPU path
     /// only runs on the culled route, and playback does not take it</b> — playback
-    /// takes the tiled unbounded compositor. A report showing thousands of tiled
+    /// takes the tiled compositor. A report showing thousands of tiled
     /// layer passes and a few dozen GPU composites is that, and it is not
     /// something a reader should have to infer.
     /// </para>

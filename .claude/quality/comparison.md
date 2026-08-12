@@ -20,7 +20,7 @@ Both feature request sets align well with Lightbox's design philosophy. Most ite
 - **Version Snapshots**: Roadmap has "Version snapshots" [?] under Project plumbing — not yet built
 - **Undo History**: "Undo history browser" [?] planned but not implemented
 - **Comments/Markup**: "Comments on frames" [?] and "Comments on layers" [?] are planned but unbuilt
-- **Caching**: Large canvas optimized [x], infinite canvas tiling [~] (built but culling blocked on B82)
+- **Caching**: Large canvas optimized [x]; tiled playback compositing built (the infinite canvas that motivated it was removed 2026-08-12)
 - **Project Packaging**: "Package projects" [?] planned under Project plumbing
 
 ### ❌ Missing or Out of Scope

@@ -54,7 +54,7 @@ internal static class ScenePassBuilder
     /// Whether tile-carrying passes were built. Reported rather than recomputed
     /// by the caller **because the comment in <see cref="Build"/> is a
     /// requirement, not an observation**: a tile pass is only legible to the
-    /// unbounded compositor, so the decision to build one must equal the
+    /// tiled compositor, so the decision to build one must equal the
     /// decision to use it, and a pass sent to the bounded path would silently
     /// vanish. Two copies of that condition is exactly how they come to differ.
     /// </param>
@@ -83,7 +83,6 @@ internal static class ScenePassBuilder
         string? ActiveLayerId,
         bool IsPlaying,
         bool IsLightTable,
-        bool UnboundedCanvasOn,
         bool HaveViewport,
         OnionSettings Onion);
 
@@ -132,13 +131,13 @@ internal static class ScenePassBuilder
     {
         var passes = new List<RenderPass>();
 
-        // Tile-native passes are only legible to the unbounded compositor, so
+        // Tile-native passes are only legible to the tiled compositor, so
         // the decision to build them must equal the decision to use it — a
         // publish with no viewport yet, or with a camera authored, takes the
         // bounded path, and a tile pass sent there would silently vanish.
         //
-        // Playback joins the unbounded canvas here (B144/Q62): while frames
-        // are flipping, a cel costs its ink rather than its paper, so a
+        // Playback is what turns tiles on (B144/Q62): while frames are
+        // flipping, a cel costs its ink rather than its paper, so a
         // scene whose full-frame bitmaps thrash the cache above 720p stays
         // resident as tiles — measured at 145 → 14 ms a frame at 1080p on
         // sparse cels. The line is drawn at motion on purpose: a paused
@@ -151,9 +150,9 @@ internal static class ScenePassBuilder
         // Whether tiles are on the table at all. The two *document* conditions —
         // a camera, and a viewport to cull against — are asked through
         // TileFallback so a report can name them; the mode check stays here
-        // because "not playing and not unbounded" is a choice rather than a
-        // frame the tiles could not say.
-        var tileModeOn = state.UnboundedCanvasOn || state.IsPlaying;
+        // because "not playing" is a choice rather than a frame the tiles
+        // could not serve.
+        var tileModeOn = state.IsPlaying;
         var tileNativeDoc = tileModeOn && scene.Camera is null && state.HaveViewport;
 
         // Where the active layer's contribution begins and ends in the pass
@@ -208,7 +207,7 @@ internal static class ScenePassBuilder
                 continue;
             }
 
-            // The unbounded canvas holds tileable frames as tiles, so the
+            // A playing document holds tileable frames as tiles, so the
             // pass carries the FRAME and the compositor reads the tile cache —
             // fetching the bitmap here would materialise the document-sized
             // allocation the tile store exists to avoid. A frame the tiles

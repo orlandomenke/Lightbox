@@ -111,7 +111,7 @@ internal static class MemoryBudget
         Share(1.0 / 8, FrameCacheFloorBytes, FrameCacheCeilingBytes);
 
     /// <summary>
-    /// Tiles kept for the unbounded canvas — the route a playing document takes.
+    /// Tiles kept for playback — the route a playing document takes.
     /// </summary>
     /// <remarks>
     /// <para>

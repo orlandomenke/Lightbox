@@ -27,8 +27,8 @@ namespace Lightbox.Raster;
 /// resolution is just above what the screen needs, composite those tiles at
 /// 1:1 (integer offsets, exact copies), and scale the finished viewport image
 /// by the residual ≤2× in one draw. It also bounds the intermediate: a
-/// zoomed-out viewport of an unbounded canvas can be arbitrarily many
-/// document pixels, and compositing it at level 0 would allocate them all.
+/// zoomed-out viewport can span arbitrarily many document pixels, and
+/// compositing it at level 0 would allocate them all.
 /// </para>
 /// <para>
 /// <b>Each level is seam-free by construction, not by care.</b> A level-k tile

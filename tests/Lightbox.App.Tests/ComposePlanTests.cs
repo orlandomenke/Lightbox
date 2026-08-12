@@ -123,7 +123,7 @@ public class ComposePlanTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// <b>A camera defers to the camera path.</b> The unbounded compositor maps
+    /// <b>A camera defers to the camera path.</b> The tiled compositor maps
     /// the viewport itself, and two things that both map the view disagree. The
     /// culled path is out for the same reason.
     /// </summary>
@@ -166,10 +166,10 @@ public class ComposePlanTests(ITestOutputHelper output)
     /// there loses a layer silently.
     /// </summary>
     [Fact]
-    public void TileNativePassesRouteToTheUnboundedCompositor()
+    public void TileNativePassesRouteToTheTiledCompositor()
     {
-        Assert.Equal(ComposeRoute.Unbounded, Plan(SmallViewport, tileNative: true).Route);
-        // Without a viewport there is nothing to cull against and the unbounded
+        Assert.Equal(ComposeRoute.Tiled, Plan(SmallViewport, tileNative: true).Route);
+        // Without a viewport there is nothing to cull against and the tiled
         // path has nothing to map, so it is out regardless of the passes.
         Assert.Equal(ComposeRoute.Ring, Plan(viewport: null, tileNative: true).Route);
     }

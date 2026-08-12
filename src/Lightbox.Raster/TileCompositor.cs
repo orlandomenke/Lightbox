@@ -10,7 +10,7 @@ namespace Lightbox.Raster;
 /// <remarks>
 /// <para>
 /// <b>This is where the design's first prediction is either true or false.</b>
-/// <c>docs/DESIGN-infinite-canvas.md</c> measured recompositing at <c>n^1.05</c>
+/// <c>docs/DESIGN-tiled-compositor.md</c>'s predecessor measured recompositing at <c>n^1.05</c>
 /// in canvas area — 1120 ms at 8K against an 83 ms budget — and named the cause:
 /// a repaint is proportional to the document because every layer bitmap *is* the
 /// document. <see cref="TileStore"/> removed the allocation; this removes the
@@ -21,9 +21,8 @@ namespace Lightbox.Raster;
 /// <b>Why this is not <see cref="TiledRasterizer.Flatten"/>.</b> Flatten builds
 /// one document-sized bitmap so a tiled render can be proved identical to an
 /// untiled one, and it is the right tool for that. It is the wrong tool for a
-/// repaint: it allocates the very thing tiling exists to avoid, and on an
-/// unbounded canvas there is no width to hand it. A compositor draws the visible
-/// tiles straight onto the surface and never flattens.
+/// repaint: it allocates the very thing tiling exists to avoid. A compositor
+/// draws the visible tiles straight onto the surface and never flattens.
 /// </para>
 /// <para>
 /// <b>Document coordinates in, caller's transform decides where they land.</b>
@@ -44,8 +43,8 @@ namespace Lightbox.Raster;
 /// <para>
 /// <b>Nothing here allocates a tile.</b> Compositing goes through
 /// <see cref="TileStore.Intersecting"/>, which reads. A viewport panned across
-/// blank canvas must not materialise the blankness it crosses, or "infinite"
-/// would cost what "very large" costs — see
+/// blank canvas must not materialise the blankness it crosses, or sparse
+/// would cost what dense costs — see
 /// <c>PanningAcrossEmptySpaceAllocatesNothing</c>.
 /// </para>
 /// </remarks>
@@ -106,8 +105,7 @@ public static class TileCompositor
     /// <remarks>
     /// <para>
     /// The sibling of <see cref="TiledRasterizer.Flatten"/> for a region rather
-    /// than a document: it allocates the viewport, never the canvas, so it is
-    /// safe on an unbounded document where <c>Flatten</c> has no width to take.
+    /// than a document: it allocates the viewport, never the canvas.
     /// For export of an authored region, and for tests that need to compare a
     /// culled composite against the same rectangle of an untiled render.
     /// </para>

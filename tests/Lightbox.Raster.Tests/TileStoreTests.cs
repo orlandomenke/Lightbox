@@ -6,8 +6,8 @@ using Xunit.Abstractions;
 namespace Lightbox.Raster.Tests;
 
 /// <summary>
-/// The tiled backing store, and the claims <c>docs/DESIGN-infinite-canvas.md</c>
-/// makes about it.
+/// The tiled backing store, and the claims the tiling design (now
+/// <c>docs/DESIGN-tiled-compositor.md</c>) makes about it.
 /// </summary>
 /// <remarks>
 /// The design writes its predictions down "so it can be proved wrong", and two
@@ -142,7 +142,7 @@ public class TileStoreTests(ITestOutputHelper output)
     /// apart changes *nothing*. Two marks cost two tiles whether they are 8 K or
     /// 8 million pixels apart; the flat model pays the square of the separation.
     /// That is a property with no tunable in it, and it is the one that makes an
-    /// unbounded canvas possible rather than merely cheaper.
+    /// sparse store worth having rather than merely cheaper.
     /// </para>
     /// </remarks>
     [Fact]

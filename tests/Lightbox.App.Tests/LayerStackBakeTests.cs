@@ -272,7 +272,7 @@ public sealed class LayerStackBakeTests(ITestOutputHelper output) : BrushStateIs
     }
 
     /// <summary>
-    /// An unbounded document holds its frames as tiles, and those passes carry
+    /// A playing document holds its frames as tiles, and those passes carry
     /// a <c>SourceFrame</c> instead of a bitmap. The bake must decline them.
     /// </summary>
     /// <remarks>
@@ -287,14 +287,12 @@ public sealed class LayerStackBakeTests(ITestOutputHelper output) : BrushStateIs
     /// handed a null bitmap to <c>BitmapVersion.Of</c>, which throws.
     /// </remarks>
     [AvaloniaFact]
-    public void AnUnboundedDocumentNeverFolds()
+    public void APlayingDocumentNeverFolds()
     {
         var vm = VmLayers.PaperVm();
         vm.StackBake.Enabled = true;
         vm.SmoothStrokes = false;
         vm.SetViewport(SKRectI.Create(0, 0, 960, 540));
-        vm.SetDocumentFeature(
-            Lightbox.Core.Projects.FeatureKey.UnboundedCanvas, true, projectDefault: false);
 
         // The same stack the bounded tests fold: paper + three paint layers,
         // active in the middle, so there are two segments to tempt it with.
@@ -309,21 +307,31 @@ public sealed class LayerStackBakeTests(ITestOutputHelper output) : BrushStateIs
         }
         vm.ActiveLayerIndex = 2;
 
+        // The paused publishes above fold like any bounded publish — that is
+        // the baseline. Playback is what routes frames through tiles, so the
+        // pass list the fold is offered while playing is the tile-native one
+        // it must refuse.
+        var rebuilds = vm.StackBake.Rebuilds;
+        var folded = vm.StackBake.FoldedPublishes;
+        vm.TogglePlaybackCommand.Execute(null);
+
         // Three publishes: the fold needs two consecutive matching keys, so a
         // single one could pass while still being one publish away from baking.
         using var first = Published(vm);
         Published(vm).Dispose();
         using var third = Published(vm);
+        vm.TogglePlaybackCommand.Execute(null);
 
         output.WriteLine(
-            $"rebuilds {vm.StackBake.Rebuilds}, folded publishes {vm.StackBake.FoldedPublishes}");
-        Assert.Equal(0, vm.StackBake.Rebuilds);
-        Assert.Equal(0, vm.StackBake.FoldedPublishes);
+            $"rebuilds {vm.StackBake.Rebuilds - rebuilds}, " +
+            $"folded publishes {vm.StackBake.FoldedPublishes - folded} while playing");
+        Assert.Equal(rebuilds, vm.StackBake.Rebuilds);
+        Assert.Equal(folded, vm.StackBake.FoldedPublishes);
 
         // And the picture is still whole — a refused fold must leave the pass
         // list alone, not drop the segments it declined to bake.
         var diff = MaxChannelDiff(first, third);
-        output.WriteLine($"max channel diff across repeated unbounded publishes: {diff}");
+        output.WriteLine($"max channel diff across repeated playing publishes: {diff}");
         Assert.Equal(0, diff);
     }
 }

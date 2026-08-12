@@ -73,7 +73,7 @@ public class UndoSnapshotFidelityTests(ITestOutputHelper output)
         doc.Gradients["grad-a"] = new Gradient();
         doc.IsTemplate = true;
         doc.TemplateId = "tpl-7";
-        doc.Features = new Dictionary<string, bool> { ["UnboundedCanvas"] = true };
+        doc.Features = new Dictionary<string, bool> { ["Camera"] = true };
 
         return doc;
     }
@@ -119,7 +119,7 @@ public class UndoSnapshotFidelityTests(ITestOutputHelper output)
         Assert.Contains("tpl-7", json);
         Assert.Contains("paper-a", json);
         Assert.Contains("#3366cc", json);
-        Assert.Contains("UnboundedCanvas", json);
+        Assert.Contains("Camera", json);
     }
 
     /// <summary>

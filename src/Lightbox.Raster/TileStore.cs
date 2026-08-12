@@ -9,20 +9,20 @@ namespace Lightbox.Raster;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>This is the precondition for an unbounded canvas, not an optimisation of
-/// a bounded one.</b> Measured on the sweep this design was written from,
+/// <b>Built so a frame can cost its ink rather than its paper.</b> (It was
+/// designed as the precondition for an unbounded canvas — since removed — and
+/// playback is what kept it.) Measured on the sweep the design was written from,
 /// <c>Recomposite the whole frame, by canvas size</c> runs at <c>n^1.05</c> —
 /// linear in canvas *area* — reaching 1120 ms and 380 MB of cache for one frame
 /// of a three-layer scene at 8K, against a 83 ms budget. The cause is not slow
 /// blending: it is that every layer allocates a bitmap the size of the document,
 /// so cost is set by how big the canvas is rather than by how much of it holds
-/// ink or is on screen. An infinite canvas has no size to pass to that
-/// allocation at all, which is why tiling comes first and culling comes second.
+/// ink or is on screen. Tiles are what let cost follow the ink, which is why
+/// tiling comes first and culling comes second.
 /// </para>
 /// <para>
-/// <b>The claim that makes "infinite" mean anything is that an untouched tile is
-/// never allocated.</b> Memory becomes proportional to ink rather than to area,
-/// and an empty region — of which an unbounded canvas is almost entirely made —
+/// <b>The load-bearing claim is that an untouched tile is never allocated.</b>
+/// Memory becomes proportional to ink rather than to area, and an empty region
 /// costs nothing. Every method here is written so that reading a tile that has
 /// never been drawn to allocates nothing and returns nothing; only an explicit
 /// request for somewhere to *write* creates pixels.
@@ -66,7 +66,7 @@ public sealed class TileStore : IDisposable
     /// <b>Never allocates.</b> This is the read path, and the whole point of the
     /// design is that reading empty space is free — a compositor walking a
     /// viewport over blank canvas must not materialise the blankness it walks
-    /// across, or "infinite" would cost the same as "very large".
+    /// across, or sparse would cost the same as dense.
     /// </remarks>
     public SKBitmap? Peek(TileCoord tile) => _tiles.GetValueOrDefault(tile);
 
@@ -168,7 +168,7 @@ public sealed class TileStore : IDisposable
 
     /// <summary>
     /// Convert a full-document bitmap to a TileStore, splitting into tile-sized chunks.
-    /// Used when transitioning from full-canvas rendering to tiled rendering for unbounded canvas.
+    /// Used when transitioning from full-canvas rendering to tiled rendering.
     /// This is a functional but not yet optimized conversion — ideally strokes would render
     /// directly to tiles to avoid allocating the full document bitmap in the first place.
     /// </summary>

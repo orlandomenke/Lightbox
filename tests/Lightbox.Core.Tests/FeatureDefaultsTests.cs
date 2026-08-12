@@ -65,7 +65,6 @@ public class FeatureDefaultsTests
     [Fact]
     public void IllustrationDefaultsAreMinimal()
     {
-        Assert.False(_defaults.GetDefault(ProjectType.Illustration, FeatureKey.UnboundedCanvas));
         Assert.False(_defaults.GetDefault(ProjectType.Illustration, FeatureKey.FixedFrameBoundsExport));
         Assert.False(_defaults.GetDefault(ProjectType.Illustration, FeatureKey.Camera));
         Assert.True(_defaults.GetDefault(ProjectType.Illustration, FeatureKey.Layers));
@@ -86,7 +85,6 @@ public class FeatureDefaultsTests
     {
         Assert.True(_defaults.GetDefault(ProjectType.GameArt, FeatureKey.FixedFrameBoundsExport));
         Assert.True(_defaults.GetDefault(ProjectType.GameArt, FeatureKey.Layers));
-        Assert.False(_defaults.GetDefault(ProjectType.GameArt, FeatureKey.UnboundedCanvas));
     }
 
     [Fact]

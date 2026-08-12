@@ -94,7 +94,6 @@ itself**, because `bugs.py sync` has nothing to resolve. Two were already fixed
 and simply never ticked (B144, B78); one had been fixed and then quietly
 un-fixed (B32). That is a measurable part of why the list looked like it only
 grew. The triage, so nobody re-derives it:
-
 | | |
 | --- | --- |
 | **Fixed, now closed** | B144 (derived budget), B78 (suggested name) |
@@ -102,7 +101,6 @@ grew. The triage, so nobody re-derives it:
 | **Open, and `manual` is right** | B60 (needs the halo), B93 (a harness race is the thing being asked for), B126, B170, B179 (need the owner's machine), B178 |
 | **Open, multi-phase, work in flight** | B29, B30, B125, B165, B166, B167 |
 | **Open, not yet examined** | B92, B101 |
-
 **The lesson is about the marker rather than about these seventeen.**
 `evidence: manual` means *no test can hold this*, and it is honest for a platform
 crash or an intermittent harness race. It is not honest for a fix nobody wrote a
@@ -110,7 +108,6 @@ test for — the two look identical in the file and only one of them belongs.
 Before writing `manual`, the question is whether a test is *impossible* or merely
 *absent*. B78's new guard reads the source rather than driving a file dialog,
 which is a weak test and still far better than none.
-
 
 ### ai
 

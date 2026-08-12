@@ -14,10 +14,10 @@ namespace Lightbox.App.Rendering;
 /// 4K document costs more than the drawing itself.
 ///
 /// <see cref="DocViewport"/> carries the visible document rectangle (in document space),
-/// enabling culled compositing for infinite canvas and performance. The viewport is
+/// enabling culled compositing. The viewport is
 /// the rectangle the view can show at the current zoom/pan/rotation state — passed from
 /// CanvasControl to enable TileCompositor to cull its work to what is visible.
-/// For unbounded canvases or when compositing only a region, this prevents allocating
+/// When compositing only a region, this prevents allocating
 /// and compositing pixels the user cannot see. Null means the whole document is visible
 /// (ordinary case when compose surface is full document size).
 /// </summary>
