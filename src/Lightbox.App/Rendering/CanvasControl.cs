@@ -4042,6 +4042,13 @@ public sealed class CanvasControl : Control
             // already carries an image returns it unchanged, which is every route
             // except the culled one.
             var composed = snapshot.Materialise(lease.GrContext, textures);
+            // B179: Skia's own GPU resource cache is the one large pool the
+            // memory section could not see, and it is only askable from here —
+            // the context lives in the lease and nowhere else. Sampled rather
+            // than subscribed: one call per draw is nothing beside the composite
+            // above it, and the report needs a recent number rather than a
+            // running one.
+            SkiaMemory.Sample(lease.GrContext);
             var artwork = presented is null || !DurableFrameEnabled
                 ? composed
                 : presented.Present(lease.GrContext, composed, snapshot.ChangedInImage, snapshot.Seq);
