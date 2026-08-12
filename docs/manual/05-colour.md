@@ -113,6 +113,10 @@ The Palette panel's top half is a tree. **🗀** makes a folder, **＋** makes a
 palette, and both land inside whatever is selected — where you were looking,
 not at the bottom of the list. **✕** deletes whichever is selected.
 
+**Drag the divider** between the tree and the swatches to give either half more
+room — organising wants the tree, painting wants the swatches. A tree deeper
+than its half scrolls; neither half can be dragged away entirely.
+
 Move things by **dragging** a row onto a folder, or by **right-clicking** it and
 choosing *Assign to*. The two do the same thing; the menu lists every folder by
 its full path, which is what tells two folders called "Knight" apart. Right-click
