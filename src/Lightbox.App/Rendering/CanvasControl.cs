@@ -4052,6 +4052,12 @@ public sealed class CanvasControl : Control
             // a composite can be GPU-backed at all (stage 4). A snapshot that
             // already carries an image returns it unchanged, which is every route
             // except the culled one.
+            // B179: free the retired frames' render targets HERE, with the
+            // lease's context current, before composing the next one — the
+            // retirement queue runs on the UI thread, where a GPU release only
+            // parks the resource. Before Materialise on purpose, so the memory
+            // this frame is about to ask for was just given back.
+            GpuImageReaper.Drain(lease.GrContext);
             var composed = snapshot.Materialise(lease.GrContext, textures);
             // B179: Skia's own GPU resource cache is the one large pool the
             // memory section could not see, and it is only askable from here —

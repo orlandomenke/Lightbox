@@ -88,6 +88,14 @@ public sealed class RenderSnapshot(
     public bool GpuBacked { get; private set; }
 
     /// <summary>
+    /// Pretend this snapshot's image is GPU-backed, for tests. The real flag is
+    /// only ever set by <see cref="Materialise(GRContext?, LayerTextureCache?)"/>
+    /// on a machine with a graphics context, and this repository has none — the
+    /// same constraint that shaped <c>GpuComposite.CountCompositeForTests</c>.
+    /// </summary>
+    internal void MarkGpuBackedForTests() => GpuBacked = true;
+
+    /// <summary>
     /// The frame, composing it first if the publisher left that to us.
     /// </summary>
     /// <remarks>
@@ -181,13 +189,26 @@ public sealed class RenderSnapshot(
     /// </remarks>
     public void Dispose()
     {
+        // B179: a GPU-backed image must not be freed here. This runs on the UI
+        // thread, the GRContext lives on the render thread, and a GPU resource
+        // released off the context's thread is parked rather than freed — which
+        // leaked one render target per publish, invisible to every cache,
+        // until the process hit 12 GB. The reaper frees it inside the draw op,
+        // where the context is current. CPU images gain nothing from the detour
+        // and dispose here exactly as they always did.
+        SKImage? toReap = null;
         lock (_gate)
         {
             if (_disposed) return;
             _disposed = true;
-            _image?.Dispose();
-            _image = null;
+            if (_image is not null)
+            {
+                if (GpuBacked) toReap = _image;
+                else _image.Dispose();
+                _image = null;
+            }
         }
+        if (toReap is not null) GpuImageReaper.Enqueue(toReap);
         Interlocked.Exchange(ref _release, null)?.Invoke();
     }
 

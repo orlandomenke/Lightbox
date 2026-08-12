@@ -632,6 +632,16 @@ internal static class RenderReport
             sb.AppendLine($"pinned by live snapshots  {pins.Frames} frame bitmap(s), "
                           + $"{pins.Flattens} flatten(s)");
         }
+        // B179's fix at work: retired GPU frames are freed on the render
+        // thread, where the context is, instead of parked by a UI-thread
+        // dispose. Printed whenever the machinery has been exercised, so the
+        // capture that checks the fix can see it running — a large and growing
+        // "waiting" against a still count of freed is the line to distrust.
+        if (Rendering.GpuImageReaper.Reaped > 0 || Rendering.GpuImageReaper.PendingCount > 0)
+        {
+            sb.AppendLine($"gpu frames reaped         {Rendering.GpuImageReaper.Reaped} freed "
+                          + $"on the render thread, {Rendering.GpuImageReaper.PendingCount} waiting");
+        }
 
         // Skia's own two caches (B179's second narrowing). Neither is a budget
         // this application owns, and both purge to a limit rather than on
