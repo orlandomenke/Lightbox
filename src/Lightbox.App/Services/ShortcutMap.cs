@@ -59,7 +59,8 @@ public readonly record struct ShortcutScope(ShortcutContext Context, DockPanelId
 public sealed class ShortcutDefinition(
     string id, string name, string category, KeyGesture? @default,
     ShortcutContext context = ShortcutContext.Global,
-    DockPanelId panel = default)
+    DockPanelId panel = default,
+    ViewModels.ToolId? momentaryTool = null)
 {
     public string Id { get; } = id;
 
@@ -67,6 +68,21 @@ public sealed class ShortcutDefinition(
 
     /// <summary>Grouping in the editor: Tools, Canvas, Timeline, Dockers.</summary>
     public string Category { get; } = category;
+
+    /// <summary>
+    /// The tool this shortcut holds for the duration of the key, or null for an
+    /// ordinary binding.
+    /// </summary>
+    /// <remarks>
+    /// <b>B176: which shortcuts are momentary is data here, not <c>if</c>s in
+    /// the key handler</b> — a momentary binding wired straight into
+    /// <c>OnKeyDown</c> is exactly the shortcut the Configure window cannot see
+    /// or rebind. A tap still latches the tool the way the key always did; the
+    /// hold-and-release round trip is the view model's
+    /// (<c>BeginMomentaryTool</c>/<c>EndMomentaryTool</c>), which is what makes
+    /// it drivable by a test with no window attached.
+    /// </remarks>
+    public ViewModels.ToolId? MomentaryTool { get; } = momentaryTool;
 
     /// <summary>Where this binding fires — the same key can mean different things per area.</summary>
     public ShortcutContext Context { get; } = context;
@@ -114,7 +130,8 @@ public sealed class ShortcutMap
             new("image.resizeImage", "Resize image", "Image",
                 G(Key.I, KeyModifiers.Control | KeyModifiers.Alt)),
             new("tool.brush", "Brush", "Tools", G(Key.B)),
-            new("tool.eraser", "Eraser", "Tools", G(Key.E)),
+            new("tool.eraser", "Eraser", "Tools", G(Key.E),
+                momentaryTool: ViewModels.ToolId.Eraser),
             new("tool.fill", "Fill", "Tools", G(Key.F)),
             new("tool.gradient", "Gradient", "Tools", G(Key.G)),
             new("tool.select", "Select / next variant", "Tools", G(Key.S)),
@@ -226,7 +243,8 @@ public sealed class ShortcutMap
             // The id keeps the `canvas.` prefix it shipped with. Renaming it to
             // `tool.picker` would read better and would silently drop the rebind
             // of anyone who had changed it, because shortcuts.json is keyed by id.
-            new("canvas.pickColor", "Color picker tool", "Tools", G(Key.I)),
+            new("canvas.pickColor", "Color picker tool", "Tools", G(Key.I),
+                momentaryTool: ViewModels.ToolId.Picker),
             new("timeline.insertKey", "Insert keyframe at playhead (timeline)", "Timeline", G(Key.I), ShortcutContext.Panel, DockPanelId.Timeline),
             new("canvas.nudgeLeft", "Nudge selection left", "Canvas", G(Key.Left), ShortcutContext.Canvas),
             new("canvas.nudgeRight", "Nudge selection right", "Canvas", G(Key.Right), ShortcutContext.Canvas),

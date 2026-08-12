@@ -22,6 +22,9 @@ public partial class MainWindow : Window
 
     private Services.IpcServer? _ipc;
 
+    /// <summary>The momentary tool key currently down, and what it borrowed (B176).</summary>
+    private (Avalonia.Input.Key Key, ToolId Tool)? _momentaryToolKey;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -374,10 +377,26 @@ public partial class MainWindow : Window
         // of — the failure mode that makes a momentary tool worse than none.
         AddHandler(
             KeyUpEvent,
-            (_, e) => _vm.ApplyHeldModifiers(e.KeyModifiers),
+            (_, e) =>
+            {
+                _vm.ApplyHeldModifiers(e.KeyModifiers);
+                // The other half of a momentary tool key (B176): matched on the
+                // physical key rather than the gesture, so a modifier pressed
+                // mid-hold cannot orphan the release.
+                if (_momentaryToolKey is { } held && e.Key == held.Key)
+                {
+                    _momentaryToolKey = null;
+                    _vm.EndMomentaryTool(held.Tool);
+                }
+            },
             Avalonia.Interactivity.RoutingStrategies.Tunnel);
         // And a window that loses focus mid-hold never sees the key-up at all.
-        Deactivated += (_, _) => _vm.ApplyHeldModifiers(Avalonia.Input.KeyModifiers.None);
+        Deactivated += (_, _) =>
+        {
+            _vm.ApplyHeldModifiers(Avalonia.Input.KeyModifiers.None);
+            _momentaryToolKey = null;
+            _vm.CancelMomentaryTool();
+        };
         RecentMenu.SubmenuOpened += (_, _) => RefreshRecentMenu();
         ConvertProjectMenu.SubmenuOpened += (_, _) => RefreshConvertMenu();
         TemplatesMenu.SubmenuOpened += (_, _) => RefreshTemplatesMenu();
@@ -3240,7 +3259,23 @@ public partial class MainWindow : Window
         // handlers is how a modifier gets stuck down when a key-up goes missing.
         _vm.ApplyHeldModifiers(e.KeyModifiers);
 
-        switch (_shortcuts.IdFor(e, CurrentShortcutScope()))
+        var shortcutId = _shortcuts.IdFor(e, CurrentShortcutScope());
+
+        // A momentary tool key (B176): the press borrows, and the release
+        // decides — a tap latches, a hold restores. The physical key is
+        // remembered here because the release may arrive with different
+        // modifiers than the press and would no longer resolve to the same
+        // gesture; the key itself is the identity that survives that.
+        if (shortcutId is not null
+            && _shortcuts.Find(shortcutId)?.MomentaryTool is { } momentary)
+        {
+            _momentaryToolKey = (e.Key, momentary);
+            _vm.BeginMomentaryTool(momentary);
+            e.Handled = true;
+            return;
+        }
+
+        switch (shortcutId)
         {
             case "file.save":
                 // Deliberately the same path as the menu item rather than _vm.Save(): a
@@ -3278,9 +3313,6 @@ public partial class MainWindow : Window
                 _ = ResizeAsync(ViewModels.ResizeMode.Image);
                 e.Handled = true;
                 break;
-            case "canvas.pickColor":
-                _vm.ActiveTool = ToolId.Picker;
-                break;
             case "timeline.insertKey":
                 _vm.InsertKeyframeAtPlayhead();
                 break;
@@ -3308,9 +3340,9 @@ public partial class MainWindow : Window
             case "tool.brush":
                 _vm.ActiveTool = ToolId.Brush; // back to the last-configured brush
                 break;
-            case "tool.eraser":
-                _vm.ActiveTool = ToolId.Eraser;
-                break;
+            // tool.eraser and canvas.pickColor never reach this switch: they
+            // carry MomentaryTool, so the branch above owns both their tap
+            // (latch) and their hold (borrow and restore).
             case "tool.fill":
                 _vm.ActiveTool = ToolId.Fill;
                 break;

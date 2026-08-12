@@ -29,6 +29,12 @@ from the Pen or either arrow, and that is deliberate: those have work in flight
 must never be the thing that finishes it. Move keeps Ctrl for its own "drag the
 whole layer".
 
+**The tool keys work the same way when held.** Tap **E** and you have chosen
+the eraser, as ever; *hold* **E**, scrub, and let go, and you never left the
+brush. **I** does the same for the eyedropper. The split is how long the key is
+down — a quick press is a choice, anything longer is a borrow — which is
+Photoshop's spring-loaded rule, so the reflex transfers.
+
 ### Arrow and Select are not the same tool
 
 They sound alike and they do different things, so it is worth one paragraph.

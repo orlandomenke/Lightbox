@@ -4190,6 +4190,21 @@ public sealed partial class MainViewModel : ObservableObject
         // table a thing to reason about instead of a thing to do.
         if (_suppressToolSideEffects) return;
 
+        LeaveToolStateBehind(value);
+    }
+
+    /// <summary>
+    /// What choosing a tool does to the one being left: modal work is let go.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="OnActiveToolChanged"/> because a momentary
+    /// key's tap-latch (B176) needs to run these consequences *after* the
+    /// switch: the press borrowed without side effects — it could not know yet
+    /// whether it was a tap or a hold — and the release finding a tap makes the
+    /// switch a decision retroactively.
+    /// </remarks>
+    private void LeaveToolStateBehind(ToolId value)
+    {
         CancelPolygonInProgress();
 
         // B147: leaving the arrow lets the lines go. A stroke selection is only
