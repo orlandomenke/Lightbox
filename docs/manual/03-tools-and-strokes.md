@@ -80,8 +80,8 @@ go for the same reason.
 If the layer is locked it says so rather than doing nothing — but only when you
 actually click a line on it, not every time you click past one.
 
-A line drawn entirely outside the canvas cannot be picked yet — filed as B134,
-and it matters mainly for the infinite canvas that is still being built.
+A line drawn entirely outside the canvas can still be picked, moved and
+deleted — where a line is does not depend on where the paper ends.
 
 ### What you can do with what you picked
 

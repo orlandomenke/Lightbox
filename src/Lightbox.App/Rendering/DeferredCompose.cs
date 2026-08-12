@@ -26,14 +26,14 @@ namespace Lightbox.App.Rendering;
 /// viewport-sized one, 1 232 px against 134 400 px. Moving it without first
 /// moving the buffers would be that regression. It stays until stage 6 retires
 /// it properly.</item>
-/// <item><b>Unbounded</b> reads the tile caches, which the view model owns. It
+/// <item><b>Tiled</b> reads the tile caches, which the view model owns. It
 /// stays until those move.</item>
 /// </list>
 /// <para>
 /// <b>The culled route was described here as "the one that matters most", and
 /// the first real render reports refuted that (2026-08-10).</b> A playing
-/// document takes the <em>unbounded</em> compositor, because
-/// <c>tileModeOn = UnboundedCanvasOn || IsPlaying</c> — so this route, and
+/// document takes the <em>tiled</em> compositor, because
+/// <c>tileModeOn = IsPlaying</c> — so this route, and
 /// everything B125 built on it, applies to a path playback never takes. The
 /// reports showed 1756 tiled layer passes against 68 layer draws through the
 /// texture cache. It is still the right route to have moved first, because it
@@ -92,7 +92,7 @@ public readonly record struct DeferredCompose(
             // matrix'd bitmaps by the publisher. Kept as a separate body rather
             // than merged into the one below, because merging two compose bodies
             // is where pixels drift and nothing would say so.
-            return SceneRenderer.ComposeUnbounded(
+            return SceneRenderer.ComposeTiled(
                 Passes, Background, RenderScale, Viewport, gpu, textures, out gpuBacked);
         }
 
@@ -129,7 +129,7 @@ public readonly record struct DeferredCompose(
             // layer meets the stack — DstOut straight onto the shared surface
             // removes the paper beneath, which is exactly what the artist saw
             // (the checkerboard while erasing). Same rule as SceneRenderer's
-            // DrawPass and ComposeUnbounded, restored here because this body was
+            // DrawPass and ComposeTiled, restored here because this body was
             // written after the isolation and left it behind. Only for passes
             // that need it: the SaveLayer is a viewport-sized offscreen, and
             // needsIsolation exists to avoid paying that in the ordinary case.

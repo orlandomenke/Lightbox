@@ -41,12 +41,12 @@ public class ScenePassBuilderTests(ITestOutputHelper output)
     private static ScenePassBuilder.State StateFor(
         Scene scene, Layer active, Action<OnionSettings>? onion = null,
         bool playing = false, bool lightTable = false, int frame = 1,
-        bool unbounded = false, bool viewport = false)
+        bool viewport = false)
     {
         var settings = new OnionSettings { Enabled = true, Before = 1, After = 1 };
         onion?.Invoke(settings);
         return new ScenePassBuilder.State(
-            frame, active.Id, playing, lightTable, unbounded, viewport, settings);
+            frame, active.Id, playing, lightTable, viewport, settings);
     }
 
     private static ScenePassBuilder.Result Build(
@@ -210,7 +210,7 @@ public class ScenePassBuilderTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// <b>A tile-carrying pass is only built when the unbounded compositor will
+    /// <b>A tile-carrying pass is only built when the tiled compositor will
     /// receive it.</b> That is the requirement <c>Result.TileNative</c> exists to
     /// keep honest: a pass carrying a frame instead of a bitmap is meaningless to
     /// the bounded compositor, which skips it rather than dereferencing nothing —
@@ -224,7 +224,7 @@ public class ScenePassBuilderTests(ITestOutputHelper output)
         using var cache = new FrameBitmapCache();
 
         // Playback turns the tile mode on; no viewport is what makes the
-        // unbounded path unusable anyway.
+        // tiled path unusable anyway.
         var built = Build(scene, StateFor(scene, ink, playing: true, viewport: false), cache);
 
         Assert.False(built.TileNative);
@@ -248,7 +248,7 @@ public class ScenePassBuilderTests(ITestOutputHelper output)
 
         var built = Build(
             scene,
-            new ScenePassBuilder.State(0, null, false, false, false, false, new OnionSettings()),
+            new ScenePassBuilder.State(0, null, false, false, false, new OnionSettings()),
             cache);
 
         Assert.Empty(built.Passes);

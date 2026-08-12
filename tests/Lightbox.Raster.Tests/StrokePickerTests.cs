@@ -293,7 +293,7 @@ public class StrokePickerTests(ITestOutputHelper output)
     /// B134: a stroke lying entirely outside the document — at y=700 in a
     /// 960×540 world, exactly how the bug was found — is still under the
     /// cursor when the cursor is on it. Where a stroke <em>is</em> does not
-    /// depend on where the paper ends; on an unbounded canvas, art beyond the
+    /// depend on where the paper ends; a stroke dragged past the edge, art beyond the
     /// nominal frame is the point.
     /// </summary>
     [Fact]

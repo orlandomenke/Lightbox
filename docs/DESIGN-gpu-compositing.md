@@ -14,7 +14,7 @@ Compositing is CPU raster everywhere: nothing in the solution creates a
 no rasterization in it, one 3-layer frame costs **55.7 ms at 1080p, 215 ms at
 4K, 1040 ms at 8K** against an 83 ms playback budget — `n^1.03`, linear in area,
 which is what full-canvas CPU blits are and is why it cannot be tuned out. The
-roadmap already commits to infinite canvas and to documents this does not serve.
+roadmap committed to documents this does not serve (at writing that included the infinite canvas, removed 2026-08-12).
 
 ## The first crux: the context is not where the composite is
 
@@ -176,8 +176,8 @@ hardware.
    owns.
 
    **The claim that the culled route "matters most" was wrong, and the first real
-   reports (2026-08-10) say so.** A playing document takes the *unbounded* tiled
-   compositor — `tileModeOn = UnboundedCanvasOn || IsPlaying` — so the culled
+   reports (2026-08-10) say so.** A playing document takes the tiled
+   compositor — `tileModeOn = IsPlaying` since the unbounded canvas's removal — so the culled
    route, and everything from stage 3b onward with it, applies to a route playback
    never takes. The reports show 1756 tiled layer passes against 68 layer draws
    through the texture cache. Reaching playback needs the tile route moved, which

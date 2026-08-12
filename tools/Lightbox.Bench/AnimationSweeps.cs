@@ -244,7 +244,7 @@ public static class AnimationSweeps
                 + "repaint is set by how big the canvas is rather than by how much of it is visible. That "
                 + "is affordable while a document is a page and is the thing an infinite canvas cannot do "
                 + "at all, which is why the gauge matters more than the milliseconds here: one frame of a "
-                + "three-layer scene at 8K is already most of the 512 MB cache budget, and an unbounded "
+                + "three-layer scene at 8K is already most of the 512 MB cache budget, and a tiled "
                 + "canvas has no size to allocate. Tiling is the precondition, and culling is what tiles "
                 + "make possible.")
         {

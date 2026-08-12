@@ -61,7 +61,7 @@ internal sealed class TickProfile
         /// <para>
         /// <b>Split out because the tiled path is where playback's time goes and
         /// nothing could say which half of it.</b> Playback takes the tiled
-        /// compositor — <c>tileModeOn = UnboundedCanvasOn || IsPlaying</c> — and
+        /// compositor — <c>tileModeOn = IsPlaying</c> — and
         /// the owner's 4K reports put Compose at 49.5 ms/tick on Display quality
         /// and 60.4 ms on Full, 66% and 84% of the frame budget. Inside that,
         /// <c>TileCompositor.CompositeToBitmap</c> flattens the visible tiles and

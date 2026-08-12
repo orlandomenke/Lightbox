@@ -72,11 +72,12 @@ of 800 reach one 256 px tile.
 **It still does not help a painting, for two independent reasons, and both were
 checked rather than assumed.**
 
-1. **It is gated on the infinite canvas.** `MainViewModel.cs:111` and `:10018`
-   both read `if (UnboundedCanvasOn && TileFrameCache.CanTileFrame(...))`. A
-   bounded document — every painting today — takes the bitmap path and pays the
-   full replay. Infinite canvas is paused and known broken, so this is not a flag
-   to flip casually.
+1. **It was gated on the infinite canvas** — at writing,
+   `if (UnboundedCanvasOn && TileFrameCache.CanTileFrame(...))` kept every
+   bounded document on the bitmap path. *(2026-08-12: the unbounded-canvas
+   feature was removed; the tile route is now playback-only, so a paused
+   painting still takes the bitmap path and still pays the full replay. The
+   point stands with a different gate.)*
 2. **Even un-gated, the zoomed-out view needs every tile at full resolution.**
    `TilePyramid` builds its reduced levels by downsampling `_source`, which is
    level 0. Opening a painting shows the whole canvas, so every tile is visible,
@@ -355,8 +356,9 @@ undo restores a whole document tree and then forces the rebuild B30 measures.
 
 ## Not in this design
 
-- **Un-gating tiling from `UnboundedCanvasOn`.** Worth doing, different problem,
-  and it depends on why infinite canvas is broken.
+- **Un-gating tiling from playback** (at writing, from `UnboundedCanvasOn`;
+  the feature was removed 2026-08-12 and the gate is now `IsPlaying`). Worth
+  doing, different problem.
 - **Multi-threading the replay.** A real option — the dabs are deterministic and
   the frame could be split into bands — but it buys a constant factor against a
   linear growth, so it postpones the wall rather than removing it. Measure before

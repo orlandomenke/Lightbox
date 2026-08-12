@@ -2284,7 +2284,7 @@ public sealed class CanvasControl : Control
     /// viewport, and the point under the pointer walks away from the mark.
     /// </para>
     /// <para>
-    /// It was added twice for the unbounded canvas and measured wrong both
+    /// It was added twice for the tiled canvas work and measured wrong both
     /// times. <c>CursorAlignmentTests</c> holds the numbers: a document-space
     /// offset added to this screen-space translation put the cursor
     /// <b>108 document units</b> from its mark at 100%, <b>1152</b> at 50%, and

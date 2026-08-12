@@ -4,11 +4,9 @@ namespace Lightbox.Core.Geometry;
 /// Where a tile sits on the grid. Both components may be negative.
 /// </summary>
 /// <remarks>
-/// An unbounded canvas has no origin corner, so <c>(0,0)</c> is a point an
-/// artist happened to start near rather than the top-left of anything. A tile
-/// address that could not go negative would make the canvas infinite in two
-/// directions instead of four, which is a fixed-size canvas with a larger
-/// number in it.
+/// Negative addresses exist because ink is not confined to the paper: a
+/// stroke dragged past the document's top-left edge still needs a tile to
+/// live in, so the grid extends in all four directions rather than two.
 /// </remarks>
 public readonly record struct TileCoord(int X, int Y);
 
@@ -24,7 +22,7 @@ public readonly record struct TileCoord(int X, int Y);
 /// </para>
 /// <para>
 /// <b>The tile size is a parameter and not a constant on purpose.</b>
-/// <c>docs/DESIGN-infinite-canvas.md</c> says 256² or 512² is "to be measured,
+/// The design that introduced tiling says 256² or 512² is "to be measured,
 /// not guessed", and a constant would quietly settle a question the design left
 /// open — the trade is per-tile overhead against wasted area on a partly-covered
 /// tile, and it is a measurement rather than an opinion.
@@ -118,7 +116,7 @@ public sealed class TileGrid
     /// <remarks>
     /// Branch rather than <c>Math.Floor</c> on a double: this runs per pixel
     /// rectangle on the composite path, and a double round-trip is both slower
-    /// and lossy above 2^53 — which an unbounded canvas can technically reach,
+    /// and lossy above 2^53 — technically reachable by a far-flung stroke,
     /// even if an artist never will.
     /// </remarks>
     private static int FloorDiv(int a, int b) => (a >= 0 ? a : a - b + 1) / b;

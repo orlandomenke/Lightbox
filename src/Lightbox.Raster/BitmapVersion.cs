@@ -16,7 +16,7 @@ namespace Lightbox.Raster;
 /// (invariant 6). The consequence is that a bitmap's identity survives its
 /// content changing, and any cache that concluded "same instance, nothing to
 /// do" serves the world as it stood before the stroke. That is not a
-/// hypothetical: the unbounded-canvas tile cache lost every committed stroke
+/// hypothetical: the frame tile cache lost every committed stroke
 /// this way, and the layer-stack bake could serve a stale background after an
 /// edit-on-another-layer round trip.
 /// </para>

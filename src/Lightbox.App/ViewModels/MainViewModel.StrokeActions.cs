@@ -322,7 +322,7 @@ public partial class MainViewModel
     {
         // Through the funnel rather than at the bitmap cache directly. This
         // called `_cache.Invalidate` alone, which left the *tile* cache holding
-        // the pre-edit render — so on an unbounded document, moving or deleting
+        // the pre-edit render — so on the tiled route, moving or deleting
         // a line changed the record and not the picture. Latent until now
         // because tiles were only reachable while playing, and reshaping is the
         // first editing path that writes new geometry into a frame the tiles may

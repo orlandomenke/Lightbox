@@ -64,8 +64,8 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly FrameBitmapCache _cache = new();
 
     /// <summary>
-    /// The tile-native sibling of <see cref="_cache"/>, used when the canvas
-    /// is unbounded so a frame costs its ink rather than its paper. Both are
+    /// The tile-native sibling of <see cref="_cache"/>, used during playback
+    /// so a frame costs its ink rather than its paper. Both are
     /// invalidated through <see cref="InvalidateFrameRender"/> and
     /// <see cref="ClearFrameRenders"/> — one funnel, so they cannot disagree.
     /// </summary>
@@ -85,11 +85,6 @@ public sealed partial class MainViewModel : ObservableObject
     /// where the point is releasing memory rather than correctness.
     /// </remarks>
     private readonly TileFlattenCache _tileFlats = new();
-
-    /// <summary>Whether this document opted into the unbounded canvas.</summary>
-    private bool UnboundedCanvasOn =>
-        Doc?.Features?.TryGetValue(
-            nameof(Lightbox.Core.Projects.FeatureKey.UnboundedCanvas), out var on) == true && on;
 
     /// <summary>Diagnostics for tests and the render report.</summary>
     internal TileFrameCache TileFrames => _tileFrames;
@@ -215,15 +210,10 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Commit one stroke's pixels incrementally — onto the cached bitmap, or
-    /// into the cached tiles when the unbounded canvas holds this frame as
-    /// tiles. Both are invariant 6's shape: work proportional to the stroke.
+    /// Commit one stroke's pixels incrementally — onto the cached bitmap, and
+    /// into the cached tiles when playback holds this frame as tiles. Both
+    /// are invariant 6's shape: work proportional to the stroke.
     /// </summary>
-    /// <remarks>
-    /// The bitmap path is deliberately not warmed for a tileable unbounded
-    /// frame: <c>_cache.Get</c> on a miss materialises a document-sized
-    /// bitmap, which is the exact allocation the tile store exists to avoid.
-    /// </remarks>
     private void AppendToFrameRender(Lightbox.Core.Documents.Frame target, Stroke stroke)
     {
         // Unconditionally, now that playback warms the tile cache on bounded
@@ -239,7 +229,6 @@ public sealed partial class MainViewModel : ObservableObject
         // free here: warms are only ever requested while playing.
         _prewarm.Flush();
         _tileFrames.Append(target, stroke, Scene.Width, Scene.Height);
-        if (UnboundedCanvasOn && TileFrameCache.CanTileFrame(target)) return;
         FrameRasterizer.Append(_cache.Get(target, Scene.Width, Scene.Height), stroke);
     }
 
@@ -411,7 +400,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// Called from CanvasControl with the rectangle of document space visible at
     /// the current zoom/pan/rotation. Null means the whole document is visible.
     /// This enables the compositor to cull work to only what the view shows,
-    /// unblocking infinite canvas and improving playback performance.
+    /// improving compositing and playback performance.
     /// </summary>
     public void SetViewport(SKRectI? viewport)
     {
@@ -10642,25 +10631,11 @@ public sealed partial class MainViewModel : ObservableObject
     private bool _allThumbsDirty;
 
     /// <summary>
-    /// The bitmap a thumbnail shrinks from. Bounded documents hand back the
-    /// full-size cached render — the thumbnail rides a bitmap the canvas needs
-    /// anyway. An unbounded document has no such bitmap: materialising one
-    /// would allocate the document-sized surface the whole tile path exists to
-    /// avoid, and only to be shrunk to 32×18. So it renders small instead —
-    /// output scale is the surface transform (invariant 7), the stroke record
-    /// is untouched, and the cache keys on size+scale so the entry stays tiny.
+    /// The bitmap a thumbnail shrinks from: the full-size cached render, so the
+    /// thumbnail rides a bitmap the canvas needs anyway.
     /// </summary>
-    private SKBitmap ThumbSource(Frame frame, int celIndex)
-    {
-        if (!UnboundedCanvasOn)
-        {
-            return _cache.Get(frame, Scene.Width, Scene.Height, celIndex: celIndex);
-        }
-        var scale = Math.Min(1.0, Math.Min(
-            ThumbnailRenderer.Width * 4.0 / Scene.Width,
-            ThumbnailRenderer.Height * 4.0 / Scene.Height));
-        return _cache.Get(frame, Scene.Width, Scene.Height, outputScale: scale, celIndex: celIndex);
-    }
+    private SKBitmap ThumbSource(Frame frame, int celIndex) =>
+        _cache.Get(frame, Scene.Width, Scene.Height, celIndex: celIndex);
 
     /// <summary>
     /// Update timeline thumbnails lazily: only cells whose keyed frame is new,
@@ -12013,7 +11988,7 @@ public sealed partial class MainViewModel : ObservableObject
             FramesReused++;
             // Still prewarm: the worker is guessing at frames after this one, and
             // a reused frame is exactly when there is spare time to do it in.
-            RequestPlaybackPrewarm(UnboundedCanvasOn || IsPlaying, ComposeScale);
+            RequestPlaybackPrewarm(IsPlaying, ComposeScale);
             return;
         }
 
@@ -12029,7 +12004,6 @@ public sealed partial class MainViewModel : ObservableObject
             // throws on one. It used to be unreachable rather than safe.
             scene.Layers.Count > 0 ? ActiveLayer.Id : null,
             IsPlaying, IsLightTable,
-            UnboundedCanvasOn,
             HaveViewport: _pendingViewport is { Width: > 0, Height: > 0 },
             Onion);
         var live = new ScenePassBuilder.LiveEdit(
@@ -12054,7 +12028,7 @@ public sealed partial class MainViewModel : ObservableObject
         // see LayerStackBake for the whole argument. Held off during playback,
         // where the pass list changes every frame and a bake could never be
         // reused before it was stale. Downstream (the ring, the culled path,
-        // the unbounded path) sees a shorter list of the same pixels.
+        // the tiled path) sees a shorter list of the same pixels.
         // Both folds are asked every publish, even the one that will decline.
         // Each owns a "was I serving a bake last time" flag, and skipping the call
         // leaves that flag stale — so stopping playback could miss a fold
@@ -12135,9 +12109,9 @@ public sealed partial class MainViewModel : ObservableObject
         // these have to be freed, which is the opposite operation and the one
         // thing easy to get wrong now that they cross a thread.
         List<SKBitmap>? flattenedOwned = null;
-        if (plan.Route == ComposeRoute.Unbounded)
+        if (plan.Route == ComposeRoute.Tiled)
         {
-            // Unbounded canvas: use tiled compositing for only visible viewport.
+            // Tiled compositing covers only the visible viewport.
             //
             // Tile passes are flattened into bitmap passes first (B167 phase 3),
             // which is what makes the composite below a pure function of bitmaps
@@ -12163,7 +12137,7 @@ public sealed partial class MainViewModel : ObservableObject
             // the one that can move — it already built a fresh surface every
             // publish and filled all of it, so nothing is lost by building it on
             // the render thread instead, where the graphics context is. The ring
-            // and the unbounded path stay here; see DeferredCompose for why.
+            // and the tiled path stay here; see DeferredCompose for why.
             deferred = new DeferredCompose(passes, background, renderScale, info, cullRect);
             image = null;
             usedClip = cullRect;
@@ -12356,7 +12330,7 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Composite the visible rectangle of an unbounded document.
+    /// Composite the visible rectangle through the tiled route.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -13126,8 +13100,7 @@ public sealed partial class MainViewModel : ObservableObject
             doc.Features[feature.ToString()] = value;
         }
 
-        // A feature can change how frames are rendered — unbounded canvas
-        // swaps document-sized bitmaps for sparse tiles — so every render made
+        // A feature can change how frames are rendered, so every render made
         // under the old setting is stale the moment the toggle lands.
         ClearFrameRenders();
         PublishSnapshot();

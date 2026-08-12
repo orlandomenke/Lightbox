@@ -1256,7 +1256,7 @@ It re-exposes drawings that already exist, which is the half of frame-by-frame
 work a symbol cannot carry — a symbol carries drawings, a timing preset carries
 their spacing.
 
-## Q20 · What frame bounds does an Asset project export from an unbounded canvas? — **answered (b), and the question was half wrong**
+## Q20 · What frame bounds does an Asset project export from an unbounded canvas? — **answered (b), and the question was half wrong** — *superseded by Q71: the infinite canvas was removed 2026-08-12*
 
 **Answered 2026-08-04.** Two corrections, and the second one dissolves most of it.
 
@@ -1318,7 +1318,7 @@ than convenience, and only (b) gives it by construction. (a) is the better
 default *inside* (b) — an authored region that starts at the bounds of ink is
 one click rather than a blank rectangle.
 
-## Q21 · Is the infinite canvas a document property or a project-type default? — **answered (c), both, and they are not alternatives**
+## Q21 · Is the infinite canvas a document property or a project-type default? — **answered (c), both, and they are not alternatives** — *superseded by Q71: the infinite canvas was removed 2026-08-12*
 
 **Answered 2026-08-04: both — and the question contained a false choice.**
 "Document property *or* project default" reads as two designs; it is one. The
@@ -2639,3 +2639,73 @@ feature (customisation *is* the per-workspace part — a default layout that
 differs by workspace with no way to change it would be a guess about
 workflows), so both land together in stage 2, with the registry of offerable
 options built then, when something exists to enumerate it.
+
+## Q71 · Remove the infinite canvas? — **answered 2026-08-12: yes, capability only — the engine stays**
+
+**Asked and answered in conversation, owner's call.** The owner cut the
+infinite canvas to focus on a different direction: a simplified 3D environment
+to draw in — 2D line data placed in a space that can be rotated and zoomed, no
+meshes. That feature has its own design work (asked as its own questions, not
+settled here).
+
+**The scope question was the real decision**, because by removal day the
+"infinite canvas machinery" was load-bearing for bounded documents. Three
+options were put up:
+
+- **(a) Capability only** *(recommended, and chosen)*: remove what an artist
+  can reach — `FeatureKey.UnboundedCanvas`, its project defaults, the Configure
+  toggle, the `FeatureConflict` registry whose only conflict was
+  unbounded-vs-sprite-export, the exporter refusal — and keep the tile engine,
+  `StrokeIndex` and B82's viewport culling, which now serve playback
+  (`tileModeOn = IsPlaying`), stroke picking/selection, and every zoomed-in
+  publish respectively.
+- **(b) Full rip-out**: also delete the tile engine and the culling. Costs
+  playback its compositor (B144/Q62 measured 145 → 14 ms a frame at 1080p),
+  costs picking its index, and undoes B82.
+- **(c) Hide the toggle, keep everything**: cheapest and dishonest — dead
+  capability, dead tests and a maintained design doc for a feature nobody can
+  reach.
+
+**Costs of (a), recorded so they are not rediscovered as bugs:** the tiled
+compositor is now reachable *only* while playing, so its live-drawing pixel
+tests (`UnboundedCanvasPixelTests`) went with the feature — their regressions
+that still have a reachable path were re-pinned through playback
+(`ASecondPlayingPublishShowsTheSamePictureAsTheFirst`, the flatten-cache and
+bake tests, all converted to toggle playback). The renames follow the same
+logic: `ComposeRoute.Unbounded` → `Tiled`, `ComposeUnbounded` → `ComposeTiled`,
+because a route named after a removed feature reads as dead code when it is
+playback's hot path. `docs/DESIGN-infinite-canvas.md` is deleted with this
+entry; Q20 and Q21 above are its decision record and are marked superseded.
+
+## Q72 · The 3D drawing space: what carries the art, what the view is, and how much ships first — **answered 2026-08-12**
+
+**Asked with the question prompt, answered by the owner in one pass.** This is
+the feature the infinite canvas was removed for (Q71): a simplified 3D
+environment to draw in — rotate, zoom — carrying 2D line data, no meshes.
+Design in `docs/DESIGN-3d-space.md`; roadmap items under *Camera and scene*.
+
+Four questions, four answers:
+
+1. **What carries the drawings? — (a) planes in space, as recommended.** Each
+   drawing is a flat canvas with a 3D placement; strokes stay today's 2D
+   records in plane-local coordinates, and the brush engine, replay, undo and
+   the inbetweener never learn 3D exists. True 3D stroke points were priced —
+   a rewrite of the stroke record, `BrushEngine`, hit-testing and the AI
+   payload — and declined.
+2. **View vs camera? — (a) orbit is view-only, as recommended.** Navigation
+   while working is never serialised and never exported (invariant 5); what
+   renders is the authored camera, extended to a 3D pose in stage 2. A
+   document with no camera shows planes head-on and behaves exactly like
+   today.
+3. **How much first? — (b) multiplane first, against the recommendation.**
+   The recommendation was free planes + orbit in the first version, because
+   "rotate around the scene" was the stated wish and multiplane cannot do it.
+   The owner chose the smaller ship: stage 1 is depth-stacked parallel planes
+   with parallax under the existing 2D camera; free orientation and orbit are
+   stage 2. **What that choice costs:** no orbiting until stage 2 — stage 1
+   delivers depth and parallax, not the rotatable space. What it buys: a
+   ship that touches only per-layer matrices, and a record (`depth`) designed
+   as the degenerate case of stage 2's pose so nothing is thrown away.
+4. **Deliverable now? — (a) design doc + roadmap, as recommended.**
+   Implementation starts as its own branches per the one-objective rule.
+

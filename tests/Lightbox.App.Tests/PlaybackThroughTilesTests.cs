@@ -33,9 +33,8 @@ public class PlaybackThroughTilesTests : BrushStateIsolated
         vm.BrushFlow = 1;
 
         // The tile path needs what the app always has and headless tests do
-        // not: a viewport. Same arrangement lesson UnboundedCanvasPixelTests
-        // records — without this the gate is never taken and every assertion
-        // below passes against the wrong compositor.
+        // not: a viewport — without this the gate is never taken and every
+        // assertion below passes against the wrong compositor.
         vm.SetViewport(SKRectI.Create(0, 0, 960, 540));
 
         vm.BeginStroke(100, 100, 1);
@@ -134,6 +133,35 @@ public class PlaybackThroughTilesTests : BrushStateIsolated
         var playingInk = playing.GetPixel(200, 150);
         Assert.True(pausedInk.Red < 100, $"paused ink {pausedInk} should be dark");
         Assert.True(playingInk.Red < 100, $"playing ink {playingInk} should be dark");
+    }
+
+    /// <summary>
+    /// The repaint after the repaint. The tiled compositor once cached each
+    /// layer's tile store and then disposed it in the same loop, so the first
+    /// publish drew and every later one drew from freed tiles. Nothing else
+    /// here catches it, because nothing else publishes twice through tiles
+    /// without touching the document in between.
+    /// </summary>
+    [AvaloniaFact]
+    public void ASecondPlayingPublishShowsTheSamePictureAsTheFirst()
+    {
+        var vm = VmWithTwoInkedFrames();
+        Lightbox.App.Rendering.RenderSnapshot? latest = null;
+        vm.SnapshotChanged += s => latest = s;
+
+        vm.TogglePlaybackCommand.Execute(null);
+        vm.PublishSnapshot();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        using var first = Pixels(latest!);
+
+        vm.PublishSnapshot();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        using var second = Pixels(latest!);
+        vm.TogglePlaybackCommand.Execute(null);
+
+        Assert.True(first.GetPixel(200, 150).Red < 100, "the ink is missing from the first playing publish");
+        Assert.True(second.GetPixel(200, 150).Red < 100,
+            "the ink vanished on the second playing publish — a cache is serving freed or stale content");
     }
 
     [AvaloniaFact]

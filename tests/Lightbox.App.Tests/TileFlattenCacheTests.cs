@@ -1,7 +1,6 @@
 using Avalonia.Headless.XUnit;
 using Lightbox.App.Rendering;
 using Lightbox.App.ViewModels;
-using Lightbox.Core.Projects;
 using SkiaSharp;
 
 namespace Lightbox.App.Tests;
@@ -230,11 +229,15 @@ public class TileFlattenCacheTests(ITestOutputHelper output) : BrushStateIsolate
     [AvaloniaFact]
     public void CommittingAStrokeChangesTheFramesStamp()
     {
-        var vm = UnboundedVm();
+        var vm = TiledVm();
         vm.BeginStroke(100, 100, 1);
         vm.MoveStroke(150, 100, 1);
         vm.EndStroke();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        // Appending stamps into tiles the cache already holds, and playback is
+        // what builds them — one playing publish warms the frame's store.
+        WarmTiles(vm);
 
         var frameId = FirstFrameId(vm);
         var before = vm.TileFrames.StampOf(frameId);
@@ -257,11 +260,13 @@ public class TileFlattenCacheTests(ITestOutputHelper output) : BrushStateIsolate
     [AvaloniaFact]
     public void AStampIsNeverIssuedTwice()
     {
-        var vm = UnboundedVm();
+        var vm = TiledVm();
         vm.BeginStroke(100, 100, 1);
         vm.MoveStroke(150, 100, 1);
         vm.EndStroke();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        WarmTiles(vm);
 
         var frameId = FirstFrameId(vm);
         var seen = new HashSet<long> { vm.TileFrames.StampOf(frameId) };
@@ -288,10 +293,15 @@ public class TileFlattenCacheTests(ITestOutputHelper output) : BrushStateIsolate
     [AvaloniaFact]
     public void RepublishingTheSameFrameDoesNotFlattenAgain()
     {
-        var vm = UnboundedVm();
+        var vm = TiledVm();
         vm.BeginStroke(100, 100, 1);
         vm.MoveStroke(150, 100, 1);
         vm.EndStroke();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        // The flatten cache is only asked on the tiled route, which is playback.
+        vm.TogglePlaybackCommand.Execute(null);
+        vm.PublishSnapshot();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         var before = vm.TileFlats.Misses;
@@ -300,6 +310,7 @@ public class TileFlattenCacheTests(ITestOutputHelper output) : BrushStateIsolate
             vm.PublishSnapshot();
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         }
+        vm.TogglePlaybackCommand.Execute(null);
 
         output.WriteLine($"{vm.TileFlats.Hits} reused, {vm.TileFlats.Misses} flattened " +
                          $"({vm.TileFlats.Misses - before} of them after the stroke)");
@@ -315,7 +326,7 @@ public class TileFlattenCacheTests(ITestOutputHelper output) : BrushStateIsolate
     [AvaloniaFact]
     public void AStrokeCommittedUnderACachedFlattenStillReachesTheScreen()
     {
-        var vm = UnboundedVm();
+        var vm = TiledVm();
         RenderSnapshot? latest = null;
         vm.SnapshotChanged += s => latest = s;
 
@@ -324,15 +335,27 @@ public class TileFlattenCacheTests(ITestOutputHelper output) : BrushStateIsolate
         vm.EndStroke();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-        // Publish again so the first stroke's flatten is definitely cached.
+        // Publish through the tiled route twice so the first stroke's flatten
+        // is definitely cached.
+        vm.TogglePlaybackCommand.Execute(null);
+        vm.PublishSnapshot();
         vm.PublishSnapshot();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         Assert.True(vm.TileFlats.Hits > 0, "the first stroke's flatten was never cached");
+        vm.TogglePlaybackCommand.Execute(null);
 
+        // Draw while paused — the commit stamps into the tiles in place, which
+        // is exactly the change a frame-id key would miss.
         vm.BeginStroke(300, 300, 1);
         vm.MoveStroke(350, 300, 1);
         vm.EndStroke();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        // Back through the tiled route, which must not serve the stale flatten.
+        vm.TogglePlaybackCommand.Execute(null);
+        vm.PublishSnapshot();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        vm.TogglePlaybackCommand.Execute(null);
 
         Assert.NotNull(latest);
         using var composed = latest!.Materialise(null);
@@ -356,6 +379,16 @@ public class TileFlattenCacheTests(ITestOutputHelper output) : BrushStateIsolate
     /// correctly never moved and the test read that as the stamp being broken.
     /// A null cel is a hold rather than a frame, hence the filter.
     /// </remarks>
+    /// <summary>One playing publish, so the tile cache holds the frame.</summary>
+    private static void WarmTiles(MainViewModel vm)
+    {
+        vm.TogglePlaybackCommand.Execute(null);
+        vm.PublishSnapshot();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        vm.TogglePlaybackCommand.Execute(null);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+    }
+
     private static string FirstFrameId(MainViewModel vm) =>
         vm.Doc.Scene.Layers
             .Where(l => !l.IsBackground)
@@ -363,7 +396,12 @@ public class TileFlattenCacheTests(ITestOutputHelper output) : BrushStateIsolate
             .Select(c => c.Frame)
             .First(f => f is { Strokes.Count: > 0 })!.Id;
 
-    private static MainViewModel UnboundedVm()
+    /// <summary>
+    /// A viewport is what the tile path needs and headless tests lack; the
+    /// flatten cache itself is only consulted on tile-native publishes, which
+    /// is playback — tests that need one toggle playback around the publish.
+    /// </summary>
+    private static MainViewModel TiledVm()
     {
         var vm = VmLayers.PaperVm();
         vm.SmoothStrokes = false;
@@ -376,7 +414,6 @@ public class TileFlattenCacheTests(ITestOutputHelper output) : BrushStateIsolate
         vm.BrushGranulation = 0;
         vm.BrushScatter = 0;
         vm.SetViewport(SKRectI.Create(0, 0, 960, 540));
-        vm.SetDocumentFeature(FeatureKey.UnboundedCanvas, true, projectDefault: false);
         return vm;
     }
 }

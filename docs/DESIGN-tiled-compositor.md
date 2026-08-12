@@ -5,14 +5,15 @@ session that produced it.
 
 ## Why this and not something else
 
-Playback takes the **tiled/unbounded** compositor. Not the culled one, not the
+Playback takes the **tiled** compositor. Not the culled one, not the
 ring. The route is chosen like this, and there is no resolution term anywhere in
-it:
+it (updated 2026-08-12 when the unbounded-canvas feature was removed — playback
+is now the only thing that turns tiles on):
 
 ```
-tileModeOn    = UnboundedCanvasOn || IsPlaying          (ScenePassBuilder)
+tileModeOn    = IsPlaying                               (ScenePassBuilder)
 tileNativeDoc = tileModeOn && no camera && a viewport
-unbounded     = tileNativeDoc && no camera && a viewport (ComposePlan)
+tiled         = tileNativeDoc && no camera && a viewport (ComposePlan)
 ```
 
 So a 4K document **paused** composites through the ring; the same document
@@ -39,7 +40,7 @@ repaint became viewport-sized, 1 232 px against 134 400 px, 0.26 ms against
 
 ## What the tiled path does today
 
-`MainViewModel.ComposeUnboundedSnapshot`, on the UI thread. Per pass:
+`MainViewModel.ComposeTiledSnapshot`, on the UI thread. Per pass:
 
 1. `_tileFrames.Get(frame, w, h)` → a tile pyramid for that frame.
 2. `TilePyramid.LevelFor(renderScale)` → the level nearest the screen resolution.
@@ -88,7 +89,7 @@ on every earlier capture because every earlier capture had the toggle off.
 **And the same file read `no layer textures were asked for` three sections
 later.** Both were true, and the contradiction was a wiring gap: every flattened
 tile pass carries a placement matrix, so on this route every pass took
-`ComposeUnbounded`'s matrix arm into `DrawWhole`, which uploaded
+`ComposeTiled`'s matrix arm into `DrawWhole`, which uploaded
 unconditionally. Only the ordinary-layer arm consulted residency, and nothing on
 the route playback takes ever reached it. Fixed by passing residency into both
 whole-pass arms — a fraction of phase 5's work, and the honest way to find out
@@ -193,7 +194,7 @@ alive across the thread (B125 stage 3a).
 
 Concretely: build the flattened passes in `PublishSnapshot`, put them in a
 `DeferredCompose` with the viewport as its clip, and let `ComposePlan` route
-`Unbounded` through the deferred path instead of `ComposeUnboundedSnapshot`.
+`Tiled` through the deferred path instead of `ComposeTiledSnapshot`.
 
 **Measure it against `ComposeIdentityTests`.** The pixels must not change. That
 harness exists for exactly this and was built before B125 stage 3 for the same
@@ -274,7 +275,7 @@ honest outcome is *"unproven on discrete hardware"*, not *"dead"*.
 
 ### Phase 6 — Retire what is now redundant — **deletion, and the last thing to do**
 
-`SceneRenderer.ComposeUnbounded` and, if nothing else reads a composed image on
+`SceneRenderer.ComposeTiled` and, if nothing else reads a composed image on
 the display path, `ComposeRing` (B125 stage 6).
 
 **Why it is last rather than tidy-up-as-you-go.** These are the fallbacks. While

@@ -21,7 +21,6 @@ public sealed class FeatureDefaults
                 ProjectType.Illustration,
                 new()
                 {
-                    { FeatureKey.UnboundedCanvas, false },
                     { FeatureKey.FixedFrameBoundsExport, false },
                     { FeatureKey.Camera, false },
                     { FeatureKey.Layers, true },
@@ -32,7 +31,6 @@ public sealed class FeatureDefaults
                 ProjectType.Animation,
                 new()
                 {
-                    { FeatureKey.UnboundedCanvas, false },
                     { FeatureKey.FixedFrameBoundsExport, false },
                     { FeatureKey.Camera, false },
                     { FeatureKey.Layers, true },
@@ -43,7 +41,6 @@ public sealed class FeatureDefaults
                 ProjectType.GameArt,
                 new()
                 {
-                    { FeatureKey.UnboundedCanvas, false },
                     { FeatureKey.FixedFrameBoundsExport, true },
                     { FeatureKey.Camera, false },
                     { FeatureKey.Layers, true },
@@ -54,7 +51,6 @@ public sealed class FeatureDefaults
                 ProjectType.Storyboard,
                 new()
                 {
-                    { FeatureKey.UnboundedCanvas, false },
                     { FeatureKey.FixedFrameBoundsExport, false },
                     { FeatureKey.Camera, true },
                     { FeatureKey.Layers, true },
@@ -65,7 +61,6 @@ public sealed class FeatureDefaults
                 ProjectType.Comic,
                 new()
                 {
-                    { FeatureKey.UnboundedCanvas, false },
                     { FeatureKey.FixedFrameBoundsExport, false },
                     { FeatureKey.Camera, false },
                     { FeatureKey.Layers, true },
@@ -76,7 +71,6 @@ public sealed class FeatureDefaults
                 ProjectType.AssetLibrary,
                 new()
                 {
-                    { FeatureKey.UnboundedCanvas, false },
                     { FeatureKey.FixedFrameBoundsExport, true },
                     { FeatureKey.Camera, false },
                     { FeatureKey.Layers, true },

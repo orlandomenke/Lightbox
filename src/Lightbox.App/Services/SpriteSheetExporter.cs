@@ -1,9 +1,9 @@
-using Lightbox.Core.Projects;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Lightbox.App.Rendering;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Export;
+using Lightbox.Core.Projects;
 using Lightbox.Core.Timeline;
 using SkiaSharp;
 
@@ -104,36 +104,6 @@ public static class SpriteSheetExporter
 {
     /// <summary>Below this a pixel is not ink. Antialiased edges sit well above it.</summary>
     private const byte InkAlpha = 8;
-
-    /// <summary>
-    /// Validate feature compatibility for sprite sheet export. Raises
-    /// <see cref="FeatureConflictException"/> if the document's features
-    /// are incompatible with fixed-bounds export.
-    /// </summary>
-    /// <param name="doc">The document being exported.</param>
-    /// <remarks>
-    /// Sprite sheet export requires consistent frame bounds (FixedFrameBoundsExport).
-    /// An unbounded canvas contradicts that. This method checks whether both are
-    /// enabled and refuses the export with a reason if they are.
-    /// </remarks>
-    public static void ValidateFeatures(Doc doc)
-    {
-        var conflicts = new FeatureConflicts();
-
-        // Sprite export always requires fixed bounds. For now, assume every export
-        // attempt is requesting FixedFrameBoundsExport. A document without explicit
-        // overrides gets false by default (from FeatureDefaults).
-        var unboundedEnabled = doc.GetFeature(FeatureKey.UnboundedCanvas, false);
-
-        if (unboundedEnabled)
-        {
-            var conflict = conflicts.ConflictsWith(FeatureKey.UnboundedCanvas).FirstOrDefault();
-            if (conflict is not null)
-            {
-                throw new FeatureConflictException(conflict.Reason);
-            }
-        }
-    }
 
     /// <summary>
     /// The document's tags, clamped to frames that exist.
@@ -281,8 +251,6 @@ public static class SpriteSheetExporter
 
     public static SpriteSheetResult Export(Doc doc, string sheetPath, SpriteSheetOptions? options = null)
     {
-        ValidateFeatures(doc);
-
         var opts = options ?? new SpriteSheetOptions();
         var scene = doc.Scene;
         var count = Math.Max(1, scene.FrameCount);

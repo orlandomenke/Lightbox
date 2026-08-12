@@ -43,8 +43,8 @@ namespace Lightbox.Raster;
 /// lying <em>entirely</em> outside the document reached nothing and could not
 /// be picked (B134). <see cref="StrokeIndex.Of"/> now uses the unclamped
 /// <see cref="BrushEngine.ReachBounds"/>: where a stroke <em>is</em> does not
-/// depend on where the paper ends, and on an unbounded canvas art beyond the
-/// nominal frame is the point.
+/// depend on where the paper ends — a stroke dragged past the edge is still
+/// the artist's mark, and it must stay pickable, movable and deletable.
 /// </para>
 /// <para>
 /// <b>What this does not know about, deliberately.</b> Layer visibility and

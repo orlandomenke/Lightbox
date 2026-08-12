@@ -8,7 +8,8 @@ namespace Lightbox.Raster.Tests;
 
 /// <summary>
 /// Compositing costs what is on screen rather than what exists — the first
-/// prediction in <c>docs/DESIGN-infinite-canvas.md</c>, stated so it can fail.
+/// prediction of the tiling design (now <c>docs/DESIGN-tiled-compositor.md</c>),
+/// stated so it can fail.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -22,7 +23,7 @@ namespace Lightbox.Raster.Tests;
 /// <b>Counted, not timed.</b> Every assertion here is on the number of tiles
 /// drawn. A stopwatch on a shared runner measures the runner — and worse, it
 /// would pass on a compositor that walked every tile in the store quickly, which
-/// is exactly the bug that matters on an unbounded canvas where "every tile" has
+/// is exactly the bug that matters on a sparse store where "every tile" has
 /// no upper bound. `TileCompositor.Composite` returns its count so the property
 /// can be asserted exactly rather than inferred from a duration.
 /// </para>
@@ -143,7 +144,7 @@ public class TileCullingTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The canvas is unbounded in four directions, not two, so a viewport
+    /// The grid extends in four directions, not two, so a viewport
     /// straddling the origin has to work.
     /// </summary>
     /// <remarks>

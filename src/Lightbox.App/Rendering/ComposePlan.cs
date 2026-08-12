@@ -17,8 +17,8 @@ internal enum ComposeRoute
     /// </summary>
     ViewportCulled,
 
-    /// <summary>The tiled compositor for the unbounded canvas.</summary>
-    Unbounded,
+    /// <summary>The tiled compositor — the route a playing document takes.</summary>
+    Tiled,
 }
 
 /// <summary>
@@ -39,7 +39,7 @@ internal enum ComposeRoute
 /// </para>
 /// <para>
 /// <b>What is deliberately not here:</b> the compositing itself. The ring
-/// rotates buffers and the unbounded path reads tile caches — both hold state
+/// rotates buffers and the tiled path reads tile caches — both hold state
 /// with a lifetime, which is what keeps them in the view model for now.
 /// </para>
 /// </remarks>
@@ -64,7 +64,7 @@ internal enum ComposeRoute
 /// for — the painter needs it to place the result, and
 /// <see cref="SnapshotGeometry.ChangedInImageSpace"/> needs it to offset the
 /// patch rectangle. Derived here because it is decided by the route: the raw
-/// viewport when unbounded, the clamped rectangle when culled, and nothing at
+/// viewport when tiled, the clamped rectangle when culled, and nothing at
 /// all when the ring composes the whole document.
 /// </param>
 internal readonly record struct ComposePlan(
@@ -92,7 +92,7 @@ internal readonly record struct ComposePlan(
     /// <param name="tileNative">
     /// Whether the pass list carries tile-native passes
     /// (<see cref="ScenePassBuilder.Result.TileNative"/>). Passed in rather than
-    /// re-derived: a tile pass is only legible to the unbounded compositor, and
+    /// re-derived: a tile pass is only legible to the tiled compositor, and
     /// two copies of that condition is how they come to differ.
     /// </param>
     /// <param name="renderScale">The compose scale.</param>
@@ -107,9 +107,9 @@ internal readonly record struct ComposePlan(
         var viewHeight = cameraOutput?.Height ?? docHeight;
         var haveViewport = viewport is { Width: > 0, Height: > 0 };
 
-        // A camera defers to the camera path: the unbounded compositor maps the
+        // A camera defers to the camera path: the tiled compositor maps the
         // viewport itself, and two things that both map the view disagree.
-        var unbounded = tileNative && cameraOutput is null && haveViewport;
+        var tiled = tileNative && cameraOutput is null && haveViewport;
 
         // B82: compose only the visible rectangle, so the cost is proportional to
         // what the artist can see rather than to the whole document.
@@ -133,7 +133,7 @@ internal readonly record struct ComposePlan(
         //    publishes that would repaint everything anyway, which is exactly the
         //    frame change B29 is about.
         var clamped = ClampToDocument(viewport, viewWidth, viewHeight);
-        var culled = !unbounded
+        var culled = !tiled
             && cameraOutput is null
             && dirty is null
             && clamped is { } vp
@@ -149,16 +149,16 @@ internal readonly record struct ComposePlan(
             SKColorType.Rgba8888,
             SKAlphaType.Premul);
 
-        var route = unbounded ? ComposeRoute.Unbounded
+        var route = tiled ? ComposeRoute.Tiled
             : culled ? ComposeRoute.ViewportCulled
             : ComposeRoute.Ring;
 
-        // The unbounded compositor maps the RAW viewport itself rather than the
-        // clamped one — its canvas has no edges to clamp against, which is the
-        // whole point of it.
+        // The tiled compositor maps the RAW viewport itself rather than the
+        // clamped one — tiles exist wherever ink does, so there is no layer
+        // bitmap edge to clamp against.
         var covers = route switch
         {
-            ComposeRoute.Unbounded => viewport,
+            ComposeRoute.Tiled => viewport,
             ComposeRoute.ViewportCulled => clamped,
             _ => null,
         };

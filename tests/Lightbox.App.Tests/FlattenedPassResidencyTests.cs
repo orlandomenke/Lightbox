@@ -1,7 +1,6 @@
 using Avalonia.Headless.XUnit;
 using Lightbox.App.Rendering;
 using Lightbox.App.ViewModels;
-using Lightbox.Core.Projects;
 using SkiaSharp;
 using Xunit;
 
@@ -19,7 +18,7 @@ namespace Lightbox.App.Tests;
 /// <c>no layer textures were asked for</c>. Both were true: the composite was on
 /// the GPU and the texture cache was never asked a single question, because every
 /// flattened pass carries a placement matrix and the matrix arm of
-/// <c>SceneRenderer.ComposeUnbounded</c> called <c>DrawWhole</c>, which uploaded
+/// <c>SceneRenderer.ComposeTiled</c> called <c>DrawWhole</c>, which uploaded
 /// unconditionally. Only the ordinary-layer arm consulted residency, and on the
 /// route playback takes nothing reaches it.
 /// </para>
@@ -31,7 +30,7 @@ namespace Lightbox.App.Tests;
 /// <para>
 /// <b>What cannot be tested here, said rather than implied.</b> There is no
 /// graphics context in this repository, so an upload cannot run and
-/// <c>ComposeUnbounded</c> can never produce a GPU-backed surface — which is
+/// <c>ComposeTiled</c> can never produce a GPU-backed surface — which is
 /// exactly why the gap was invisible. <c>LayerTextureCache</c>'s injectable
 /// uploader is the seam that makes the question askable at all, and a
 /// <c>GRContext</c> of <c>null!</c> is safe for the same reason it is in
@@ -147,7 +146,6 @@ public class FlattenedPassResidencyTests(ITestOutputHelper output) : BrushStateI
         vm.ColorHex = "#000000";
         vm.BrushSize = 12;
         vm.SetViewport(SKRectI.Create(0, 0, 960, 540));
-        vm.SetDocumentFeature(FeatureKey.UnboundedCanvas, true, projectDefault: false);
 
         RenderSnapshot? latest = null;
         vm.SnapshotChanged += s => latest = s;
@@ -157,8 +155,16 @@ public class FlattenedPassResidencyTests(ITestOutputHelper output) : BrushStateI
         vm.EndStroke();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
+        // The tiled route — and with it a flattened tile pass — is playback's.
+        // Inspected before pausing: the pause publishes the canonical bounded
+        // snapshot over this one.
+        vm.TogglePlaybackCommand.Execute(null);
+        vm.PublishSnapshot();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
         Assert.NotNull(latest);
         var withBitmaps = latest!.Passes!.Where(p => p.Bitmap is not null).ToList();
+        vm.TogglePlaybackCommand.Execute(null);
         output.WriteLine(
             $"{withBitmaps.Count} pass(es) with a bitmap, " +
             $"{withBitmaps.Count(p => p.Matrix is not null)} carrying a matrix");
