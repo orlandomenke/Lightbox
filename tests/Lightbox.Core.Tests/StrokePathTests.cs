@@ -241,8 +241,14 @@ public class StrokePathTests(ITestOutputHelper output)
         Assert.Equal(3, points.Distinct().Count());
     }
 
+    /// <summary>
+    /// The renderer stamps dabs along the flattened polyline and knows nothing
+    /// about <c>Closed</c> — so a closed path must end back on its first point,
+    /// or the closing segment exists in the record and never on screen. A
+    /// "closed" triangle used to render as an open corner for exactly this.
+    /// </summary>
     [Fact]
-    public void AClosedPathJoinsBackWithoutRepeatingItsFirstPoint()
+    public void AClosedPathEndsWhereItBegan()
     {
         var path = new StrokePath
         {
@@ -252,8 +258,11 @@ public class StrokePathTests(ITestOutputHelper output)
 
         var points = PathFlattener.Flatten(path);
 
-        Assert.Equal(3, points.Count);
-        Assert.NotEqual(points[0], points[^1]);
+        Assert.Equal(4, points.Count);
+        Assert.Equal(points[0], points[^1]);
+        // The join is a return, not a doubled node: every interior point is
+        // still distinct.
+        Assert.Equal(4, points.Distinct().Count() + 1);
     }
 
     // ---- fitting -------------------------------------------------------------

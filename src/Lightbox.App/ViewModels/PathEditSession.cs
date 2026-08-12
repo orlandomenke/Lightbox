@@ -358,6 +358,31 @@ public sealed class PathEditSession
     }
 
     /// <summary>
+    /// Pull a curve out of a node: both handles, mirrored, reaching for a point.
+    /// </summary>
+    /// <remarks>
+    /// The pen's drag-to-curve gesture, offered again inside isolation (Alt+drag
+    /// on a point). Mirrored rather than keeping the far handle's length —
+    /// <see cref="MoveHandleTo"/>'s rule is for handles that already exist, and
+    /// here both are being created by this one gesture, exactly as they are in
+    /// <c>PenSession.PullHandle</c>. A corner becomes smooth by definition.
+    /// </remarks>
+    public bool PullHandlesTo(int index, double x, double y)
+    {
+        if (index < 0 || index >= Path.Nodes.Count) return false;
+
+        var node = Path.Nodes[index];
+        var (dx, dy) = Clamp(index, x - node.X, y - node.Y);
+
+        Path.Nodes[index] = node with
+        {
+            InX = -dx, InY = -dy, OutX = dx, OutY = dy, Corner = false,
+        };
+        Dirty = true;
+        return true;
+    }
+
+    /// <summary>
     /// Pull the curve between two nodes, without selecting either of them.
     /// </summary>
     /// <remarks>

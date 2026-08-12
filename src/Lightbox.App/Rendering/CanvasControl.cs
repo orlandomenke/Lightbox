@@ -1335,14 +1335,18 @@ public sealed class CanvasControl : Control
     /// <summary>Release: the node keeps its curve.</summary>
     private Action? _penRelease;
 
-    /// <summary>Move with no button down: the segment not placed yet.</summary>
-    private Action<double, double, bool>? _penHover;
+    /// <summary>
+    /// Move with no button down: the segment not placed yet. Carries the grab
+    /// tolerance so the view model can preview a click that would close the
+    /// path with the same distance the press will use.
+    /// </summary>
+    private Action<double, double, double, bool>? _penHover;
 
     public void SetPenHandlers(
         Func<double, double, double, bool, bool, bool>? press,
         Action<double, double, bool, bool>? drag,
         Action? release,
-        Action<double, double, bool>? hover)
+        Action<double, double, double, bool>? hover)
     {
         _penPress = press;
         _penDrag = drag;
@@ -1394,6 +1398,25 @@ public sealed class CanvasControl : Control
     }
 
     /// <summary>
+    /// The isolated line's current shape, retraced live while a node drags.
+    /// </summary>
+    /// <remarks>
+    /// The raster stroke does not re-render until the drag commits (invariant
+    /// 6 — a per-move re-render repaints the frame from its strokes hundreds
+    /// of times a drag), so without this the nodes move and the line they
+    /// describe stays put until release. Same trace the pen draws, on its own
+    /// channel: the pen's path now survives a tool switch, so the two can be
+    /// alive at once and must not clobber each other.
+    /// </remarks>
+    private IReadOnlyList<Core.Documents.StrokePoint>? _pathTrace;
+
+    public void SetPathTrace(IReadOnlyList<Core.Documents.StrokePoint>? points)
+    {
+        _pathTrace = points is { Count: > 1 } ? points : null;
+        InvalidateVisual();
+    }
+
+    /// <summary>
     /// The nodes to draw, in document space, and which are selected.
     /// </summary>
     /// <remarks>
@@ -1406,11 +1429,15 @@ public sealed class CanvasControl : Control
     private IReadOnlyList<PathNodeGlyph>? _pathNodes;
 
     /// <summary>One node as the overlay needs it: where it is and what it is.</summary>
+    /// <param name="CloseHint">
+    /// The pen's closing indicator: a ring around the first node while a click
+    /// would join the path back to it.
+    /// </param>
     public readonly record struct PathNodeGlyph(
         double X, double Y,
         double InX, double InY,
         double OutX, double OutY,
-        bool Corner, bool Selected);
+        bool Corner, bool Selected, bool CloseHint = false);
 
     public void SetPathNodes(IReadOnlyList<PathNodeGlyph>? nodes)
     {
@@ -2194,7 +2221,7 @@ public sealed class CanvasControl : Control
             ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks),
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
-            _textures));
+            _pathTrace, _textures));
     }
 
     /// <summary>
@@ -3292,8 +3319,9 @@ public sealed class CanvasControl : Control
                 {
                     // The rubber band, which is the whole reason a pen is
                     // predictable: you see the curve the next click will make
-                    // before you commit to it.
-                    _penHover?.Invoke(px, py, shift);
+                    // before you commit to it — including the click that would
+                    // close the path, which is why the tolerance travels too.
+                    _penHover?.Invoke(px, py, DocTolerance(GrabPixels), shift);
                 }
                 e.Handled = true;
                 return;
@@ -3958,6 +3986,7 @@ public sealed class CanvasControl : Control
         SKPoint lineDrag = default,
         IReadOnlyList<PathNodeGlyph>? pathNodes = null,
         IReadOnlyList<Core.Documents.StrokePoint>? penPreview = null,
+        IReadOnlyList<Core.Documents.StrokePoint>? pathTrace = null,
         LayerTextureCache? textures = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
@@ -4387,6 +4416,14 @@ public sealed class CanvasControl : Control
                     canvas.DrawCircle(x, y, nodeRadius, body);
                     canvas.DrawCircle(x, y, nodeRadius, outline);
                 }
+
+                // The pen's closing indicator: a ring, because the node itself
+                // must stay legible under it — the ring says "the next click
+                // lands here and joins up", the node keeps saying what it is.
+                if (n.CloseHint)
+                {
+                    canvas.DrawCircle(x, y, nodeRadius * 2.2f, outline);
+                }
             }
         }
 
@@ -4402,7 +4439,16 @@ public sealed class CanvasControl : Control
         /// </remarks>
         private void DrawPenPreview(SKCanvas canvas)
         {
-            if (penPreview is not { Count: > 1 } points) return;
+            // Two traces, one look: the pen's path in progress and the isolated
+            // line being reshaped. Separate channels because both can be alive
+            // at once — a parked pen path survives a tool switch into isolation.
+            TraceLine(canvas, penPreview);
+            TraceLine(canvas, pathTrace);
+        }
+
+        private void TraceLine(SKCanvas canvas, IReadOnlyList<Core.Documents.StrokePoint>? trace)
+        {
+            if (trace is not { Count: > 1 } points) return;
 
             var scale = Math.Max(0.01f, view.Scale);
             using var path = new SKPath();

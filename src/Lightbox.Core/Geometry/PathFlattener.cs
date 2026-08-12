@@ -83,13 +83,16 @@ public static class PathFlattener
             AppendInterior(points, a, b, tolerance);
         }
 
-        // An open path still needs its last node; a closed one already joined
-        // back to the first and must not repeat it.
-        if (!path.Closed)
-        {
-            var last = nodes[^1];
-            points.Add(new StrokePoint(last.X, last.Y, last.Pressure));
-        }
+        // Every path needs its final point. An open one ends on its last node; a
+        // closed one ends back on its first — and that repeat is not optional.
+        // The renderer stamps dabs along this polyline and knows nothing about
+        // Closed, so without the return point the closing segment is a fact in
+        // the record that no pixel ever shows: a "closed" triangle rendered as
+        // an open corner. (The straight-segment early-out above makes it worse,
+        // not merely approximate — a straight closing segment emitted nothing at
+        // all.)
+        var final = path.Closed ? nodes[0] : nodes[^1];
+        points.Add(new StrokePoint(final.X, final.Y, final.Pressure));
 
         return points;
     }

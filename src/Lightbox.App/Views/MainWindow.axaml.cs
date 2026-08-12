@@ -891,9 +891,17 @@ public partial class MainWindow : Window
             // PublishPenPath for why two node lists would be a question with no
             // answer. Nothing is drawn selected: a hover is a preview of what
             // is there, not a claim about what is picked.
+            Canvas.SetPathTrace(null);
             Canvas.SetPathNodes(HoverGlyphs());
             return;
         }
+
+        // The line's current shape, retraced on every session change, so a
+        // node drag moves the path on screen and not only the glyphs — the
+        // raster stroke cannot follow until the commit (invariant 6), but the
+        // trace can and does. The same flatten the commit will run, so the
+        // preview cannot promise a shape the release then changes.
+        Canvas.SetPathTrace(Core.Geometry.PathFlattener.Flatten(session.Path));
 
         var glyphs = new List<Rendering.CanvasControl.PathNodeGlyph>(session.NodeCount);
         for (var i = 0; i < session.Path.Nodes.Count; i++)
@@ -952,7 +960,10 @@ public partial class MainWindow : Window
         {
             var n = session.Path.Nodes[i];
             glyphs.Add(new Rendering.CanvasControl.PathNodeGlyph(
-                n.X, n.Y, n.InX, n.InY, n.OutX, n.OutY, n.Corner, i == live));
+                n.X, n.Y, n.InX, n.InY, n.OutX, n.OutY, n.Corner, i == live,
+                // The closing indicator: ring the first node while a click
+                // would join the path back to it.
+                CloseHint: i == 0 && _vm.PenWouldClose));
         }
         Canvas.SetPathNodes(glyphs);
     }
@@ -3203,7 +3214,10 @@ public partial class MainWindow : Window
         // Above the shortcut switch for isolation's reason and one more: Delete
         // is `lines.delete` down there, and a pen halfway through a path is the
         // one moment where that key plainly means "take the last point off".
-        if (_vm.PenActive)
+        // Only while the pen is in hand: a parked path (the session survives a
+        // tool switch now) must not swallow Delete from the arrow's selection
+        // or Escape from whatever mode the current tool is in.
+        if (_vm.PenActive && _vm.IsPenTool)
         {
             if (e.Key is Key.Escape or Key.Enter)
             {

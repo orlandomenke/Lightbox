@@ -60,6 +60,9 @@ public partial class MainViewModel
         }
         if (shift) (x, y) = _pen.Constrain(x, y);
 
+        // The press answers the question the hover was asking.
+        PenWouldClose = false;
+
         if (_pen.ClosesAt(x, y, tolerance))
         {
             _pen.Close();
@@ -92,11 +95,33 @@ public partial class MainViewModel
         PenChanged?.Invoke();
     }
 
+    /// <summary>
+    /// Whether the hovered click would join the path up — the canvas rings the
+    /// first node with it, so closing is announced before it happens.
+    /// </summary>
+    public bool PenWouldClose { get; private set; }
+
     /// <summary>Move with no button down: the segment that has not been placed yet.</summary>
-    public void PenHover(double x, double y, bool shift = false)
+    /// <param name="tolerance">
+    /// The same grab distance the press uses, so the indicator and the click it
+    /// predicts cannot disagree. Zero means "don't ask" — a caller with no zoom
+    /// to derive it from gets a rubber band and no closing preview.
+    /// </param>
+    public void PenHover(double x, double y, double tolerance = 0, bool shift = false)
     {
         if (_pen is not { NodeCount: > 0 } session) return;
         if (shift) (x, y) = session.Constrain(x, y);
+
+        // Within closing distance the rubber band snaps onto the first node:
+        // the click is previewed rather than described, which is what the
+        // rubber band is for everywhere else.
+        PenWouldClose = tolerance > 0 && session.ClosesAt(x, y, tolerance);
+        if (PenWouldClose)
+        {
+            var first = session.Path.Nodes[0];
+            (x, y) = (first.X, first.Y);
+        }
+
         session.Hover(x, y);
         PenChanged?.Invoke();
     }
@@ -106,6 +131,26 @@ public partial class MainViewModel
     {
         if (_pen is null) return;
         _pen.Leave();
+        PenWouldClose = false;
+        PenChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Put the pen down without finishing the path: what a tool switch does.
+    /// </summary>
+    /// <remarks>
+    /// Reaching for the eyedropper mid-path is not "I am done" — committing the
+    /// stroke here used to end a path the artist meant to come back to, with no
+    /// way to reopen it as nodes-in-progress. So the session survives, its trace
+    /// stays on screen, and the pen resumes it. Enter and Escape remain the
+    /// deliberate finish; <see cref="CancelPen"/> remains the discard.
+    /// </remarks>
+    public void ParkPen()
+    {
+        if (_pen is null) return;
+        _pen.Release();
+        _pen.Leave();
+        PenWouldClose = false;
         PenChanged?.Invoke();
     }
 
@@ -150,6 +195,7 @@ public partial class MainViewModel
         }
 
         _pen = null;
+        PenWouldClose = false;
         var points = PathFlattener.Flatten(session.Path);
         if (!session.IsUsable || points.Count < 2)
         {
@@ -229,6 +275,7 @@ public partial class MainViewModel
     {
         if (_pen is null) return;
         _pen = null;
+        PenWouldClose = false;
         AiStatus = "";
         PenChanged?.Invoke();
         InvalidateWholeCanvas();

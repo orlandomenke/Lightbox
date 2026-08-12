@@ -735,6 +735,40 @@ public class PathEditingTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Alt+drag on a point is the pen's drag-to-curve gesture, offered again
+    /// inside isolation: the point stays put and mirrored handles reach for the
+    /// pointer, so a corner becomes a curve in one drag with no menu.
+    /// </summary>
+    [AvaloniaFact]
+    public void AltDraggingAPointPullsACurveOutOfItInsteadOfMovingIt()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.BeginPathEdit(line.Id);
+        var node = vm.PathEdit!.Path.Nodes[1];
+
+        var grab = vm.GrabPathPart(node.X, node.Y, tolerance: 6);
+        Assert.Equal(PathPart.Node, grab.Part);
+        vm.DragPathPart(grab, node.X + 30, node.Y - 40, 30, -40, breakPair: true);
+
+        var curved = vm.PathEdit.Path.Nodes[1];
+        output.WriteLine(
+            $"node stayed at ({curved.X:F1}, {curved.Y:F1}), out ({curved.OutX:F1}, {curved.OutY:F1})");
+
+        // The point did not move — the handles did.
+        Assert.Equal(node.X, curved.X, 6);
+        Assert.Equal(node.Y, curved.Y, 6);
+        // Reaching for the pointer, mirrored, because both handles are being
+        // created by this one gesture — the same rule the pen's drag uses.
+        Assert.Equal(30, curved.OutX, 3);
+        Assert.Equal(-40, curved.OutY, 3);
+        Assert.Equal(-curved.OutX, curved.InX, 3);
+        Assert.Equal(-curved.OutY, curved.InY, 3);
+        Assert.False(curved.Corner);
+        Assert.True(vm.PathEdit.Dirty);
+    }
+
+    /// <summary>
     /// <b>The record's invariant, at the one place phase 2 can break it.</b> A
     /// commit writes the path and the points together, so flattening what was
     /// stored has to reproduce what was stored.
