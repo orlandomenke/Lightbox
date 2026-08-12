@@ -352,6 +352,8 @@ public partial class MainWindow : Window
         // If canvas input ever fails, say so in the status bar instead of dying silently.
         Canvas.CanvasError += message => _vm.AiStatus = message;
 
+        Canvas.PointerHovered += (x, y, mods) => _vm.UpdatePointerContext(x, y, mods);
+        Canvas.PointerExited += (_, _) => _vm.ClearPointerContext();
         Canvas.ViewChanged += () =>
         {
             // The text, not the Content: the readout's content is a TextBlock that carries
@@ -986,7 +988,10 @@ public partial class MainWindow : Window
             Canvas.TextureResidency,
             Rendering.GpuComposite.OptedIn,
             _vm.FramesReused,
-            _vm.FlattenCacheTraffic);
+            _vm.FlattenCacheTraffic,
+            _vm.AwaitingUnpinBytes,
+            _vm.PinnedBitmaps,
+            _vm.TileStoreBytes);
     }
 
     /// <summary>
@@ -3251,6 +3256,14 @@ public partial class MainWindow : Window
                 _ = OpenProjectWindowAsync();
                 e.Handled = true;
                 break;
+            case "image.resizeCanvas":
+                _ = ResizeAsync(ViewModels.ResizeMode.Canvas);
+                e.Handled = true;
+                break;
+            case "image.resizeImage":
+                _ = ResizeAsync(ViewModels.ResizeMode.Image);
+                e.Handled = true;
+                break;
             case "canvas.pickColor":
                 _vm.ActiveTool = ToolId.Picker;
                 break;
@@ -3446,6 +3459,28 @@ public partial class MainWindow : Window
 
     private async void OnProjectWindowClicked(object? sender, RoutedEventArgs e) =>
         await OpenProjectWindowAsync();
+
+    private async void OnResizeCanvasClicked(object? sender, RoutedEventArgs e) =>
+        await ResizeAsync(ViewModels.ResizeMode.Canvas);
+
+    private async void OnResizeImageClicked(object? sender, RoutedEventArgs e) =>
+        await ResizeAsync(ViewModels.ResizeMode.Image);
+
+    /// <summary>
+    /// Ask for a size, then hand it to the view model and refit the view.
+    /// </summary>
+    /// <remarks>
+    /// The view is refitted because the paper is a different size than the one
+    /// the current zoom and pan were chosen for — leaving a grown canvas half
+    /// off-screen reads as the resize having gone wrong.
+    /// </remarks>
+    private async Task ResizeAsync(ViewModels.ResizeMode mode)
+    {
+        var dialog = new Views.ResizeDialog(_vm.Doc.Scene, mode);
+        await dialog.ShowDialog(this);
+        if (!dialog.Confirmed) return;
+        if (_vm.ApplyResize(dialog.Choice)) Canvas.ResetView();
+    }
 
     /// <summary>
     /// The tip workshop. A window rather than a docker because making a tip is

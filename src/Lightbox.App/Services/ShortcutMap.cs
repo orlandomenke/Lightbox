@@ -107,6 +107,12 @@ public sealed class ShortcutMap
         static KeyGesture G(Key key, KeyModifiers modifiers = KeyModifiers.None) => new(key, modifiers);
         _definitions =
         [
+            // Photoshop's two, unchanged, because an artist arrives with them
+            // in their hands and neither letter was taken here.
+            new("image.resizeCanvas", "Resize canvas", "Image",
+                G(Key.C, KeyModifiers.Control | KeyModifiers.Alt)),
+            new("image.resizeImage", "Resize image", "Image",
+                G(Key.I, KeyModifiers.Control | KeyModifiers.Alt)),
             new("tool.brush", "Brush", "Tools", G(Key.B)),
             new("tool.eraser", "Eraser", "Tools", G(Key.E)),
             new("tool.fill", "Fill", "Tools", G(Key.F)),

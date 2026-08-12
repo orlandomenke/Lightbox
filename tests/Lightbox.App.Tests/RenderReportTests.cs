@@ -62,12 +62,18 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         (long Hits, long Misses, long Evictions, long Bytes, long Budget)? frameCache = null,
         (int Frames, int Layers, int Strokes, double Fps)? scene = null,
         (long Requested, long Delivered)? animationFrames = null,
-        double renderMedianMs = 0) =>
+        double renderMedianMs = 0,
+        bool gpuCompositeOptedIn = false,
+        (int Hits, int Misses, long Bytes)? textureResidency = null,
+        (long Frames, long Flattens)? awaitingUnpin = null,
+        (int Frames, int Flattens)? pinned = null) =>
         new(backend, backend != "GPU", onGpu, gpuFailed, maxTexture,
             docWidth, docHeight, 1.0, "Full", 1.0, durableEnabled, hasPresented,
             Pacing: pacing, PresentWait: presentWait,
             TickPhases: tickPhases, TickCount: tickCount, FrameCache: frameCache, Scene: scene,
-            AnimationFrames: animationFrames, RenderMedianMs: renderMedianMs);
+            AnimationFrames: animationFrames, RenderMedianMs: renderMedianMs,
+            TextureResidency: textureResidency, GpuCompositeOptedIn: gpuCompositeOptedIn,
+            AwaitingUnpin: awaitingUnpin, Pinned: pinned);
 
     /// <summary>
     /// The four states behind one boolean, and the reason this test exists: the
@@ -482,5 +488,123 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         Assert.Equal(200L * 100 + 100, frame.TotalPatchedPixels);
         Assert.Equal(2 * 200L * 100, frame.TotalPixelsIfAlwaysFull);
         Assert.False(frame.GpuSurfaceRequestFailed);
+    }
+
+    /// <summary>
+    /// <b>The report must not tell a reader the GPU is unused in a file that also
+    /// says publishes composited on it.</b>
+    /// </summary>
+    /// <remarks>
+    /// The 2026-08-12 capture printed
+    /// <c>of the publishes that could use the card: 310 did</c> and, three
+    /// sections later, <c>The culled route is the only one that goes to the GPU
+    /// today</c> — prose written before B167 phases 3b and 4 and never re-checked.
+    /// Both lines were in one file, and a reader has no way to tell which is
+    /// stale. This is the fifth report line in this project to be accurate when
+    /// written and wrong once the thing it described moved, which is why the
+    /// residency section now asks the compositing counter rather than asserting a
+    /// route.
+    /// </remarks>
+    [Fact]
+    public void TheResidencySectionDoesNotClaimTheGpuIsUnusedWhenItWasUsed()
+    {
+        Setup();
+        Lightbox.App.Rendering.GpuComposite.ResetCounters();
+        Lightbox.App.Rendering.GpuComposite.CountCompositeForTests(onGpu: true, times: 310);
+        try
+        {
+            var path = RenderReport.WriteStartup(
+                Facts(backend: "GPU", gpuCompositeOptedIn: true, textureResidency: null));
+            var text = File.ReadAllText(path!);
+
+            var residency = text[text.IndexOf("resident layer textures", StringComparison.Ordinal)..];
+            output.WriteLine(residency);
+
+            Assert.Contains("no layer textures were asked for", residency);
+            // The claim that made the file self-contradictory.
+            Assert.DoesNotContain("nothing composited through it", residency);
+            Assert.DoesNotContain("the only one that goes to the GPU today", residency);
+            // And it names the pair as a wiring fault, which is what it was.
+            Assert.Contains("310 publish(es) DID composite on the card", residency);
+        }
+        finally
+        {
+            Lightbox.App.Rendering.GpuComposite.ResetCounters();
+        }
+    }
+
+    /// <summary>
+    /// With nothing on the card the old wording is still right, and still printed
+    /// — a section that only ever hedged would be useless.
+    /// </summary>
+    [Fact]
+    public void WithNothingOnTheCardItStillSaysSo()
+    {
+        Setup();
+        Lightbox.App.Rendering.GpuComposite.ResetCounters();
+
+        var path = RenderReport.WriteStartup(
+            Facts(backend: "GPU", gpuCompositeOptedIn: true, textureResidency: null));
+        var residency = File.ReadAllText(path!);
+        residency = residency[residency.IndexOf("resident layer textures", StringComparison.Ordinal)..];
+        output.WriteLine(residency);
+
+        Assert.Contains("nothing has composited through it", residency);
+        Assert.DoesNotContain("DID composite on the card", residency);
+    }
+
+    /// <summary>
+    /// <b>B179's blind spot: every budget line read comfortably while the machine
+    /// reached 12 GB and crashed.</b>
+    /// </summary>
+    /// <remarks>
+    /// The report only ever printed the pools it knows about, so a leak anywhere
+    /// else was invisible by construction — and worse, the four reassuring lines
+    /// actively pointed away from it. "The caches are fine" and "the caches are
+    /// fine and the process is not" have to be distinguishable, and only the
+    /// second is something this report can help with.
+    /// </remarks>
+    [Fact]
+    public void TheMemorySectionSeparatesTheCachesFromTheProcess()
+    {
+        Setup();
+        var path = RenderReport.WriteStartup(Facts(
+            frameCache: (0, 0, 0, 284L * 1024 * 1024, 4008L * 1024 * 1024),
+            textureResidency: (0, 0, 93L * 1024 * 1024),
+            gpuCompositeOptedIn: true));
+        var text = File.ReadAllText(path!);
+        var section = text[text.IndexOf("what memory is held", StringComparison.Ordinal)..];
+        output.WriteLine(section);
+
+        Assert.Contains("process working set", section);
+        Assert.Contains("accounted for by caches", section);
+        Assert.Contains("NOT in any cache this report tracks", section);
+    }
+
+    /// <summary>
+    /// <b>The two pools that were tracked and never printed.</b> They are excluded
+    /// from CachedBytes on purpose — they are not cache contents — and they are
+    /// unbounded, which makes them the first place to look rather than a
+    /// footnote. Named even at zero, because an absent line reads as "nothing was
+    /// wrong" when it means "nothing was looked at".
+    /// </summary>
+    [Fact]
+    public void ItNamesTheBytesEvictionCannotFree()
+    {
+        Setup();
+        var path = RenderReport.WriteStartup(Facts(
+            frameCache: (0, 0, 0, 100L * 1024 * 1024, 4008L * 1024 * 1024),
+            awaitingUnpin: (700L * 1024 * 1024, 1300L * 1024 * 1024),
+            pinned: (400, 900)));
+        var text = File.ReadAllText(path!);
+        var section = text[text.IndexOf("what memory is held", StringComparison.Ordinal)..];
+        output.WriteLine(section);
+
+        Assert.Contains("evicted, still in use", section);
+        Assert.Contains("2000 MB", section);
+        Assert.Contains("pinned by live snapshots", section);
+        // A pin count that high is the leak shape, and it has to be called out
+        // rather than left as a number to interpret.
+        Assert.Contains("a pinned bitmap is one eviction", section);
     }
 }

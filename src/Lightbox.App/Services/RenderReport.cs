@@ -74,7 +74,10 @@ internal static class RenderReport
         (int Hits, int Misses, long Bytes)? TextureResidency = null,
         bool GpuCompositeOptedIn = false,
         int FramesReused = 0,
-        (int Hits, int Misses, int Evictions, long Bytes, long Budget)? FlattenCache = null);
+        (int Hits, int Misses, int Evictions, long Bytes, long Budget)? FlattenCache = null,
+        (long Frames, long Flattens)? AwaitingUnpin = null,
+        (int Frames, int Flattens)? Pinned = null,
+        (long Bytes, long Budget)? TileStore = null);
 
     /// <summary>
     /// Whether playback got the tile path, and what stopped it.
@@ -353,7 +356,9 @@ internal static class RenderReport
         }
     }
 
-    private static void AppendPresentWaitByInput(StringBuilder sb, Rendering.PresentLatency.Stats stats)
+    private static void AppendPresentWaitByInput(
+        StringBuilder sb, Rendering.PresentLatency.Stats stats,
+        (long Requested, long Delivered)? animationFrames)
     {
         if (stats.ByCohort is not { Count: 3 } cohorts) return;
 
@@ -420,12 +425,38 @@ internal static class RenderReport
 
         if (canvasHelps && !elsewhereHelps)
         {
-            sb.AppendLine("  >> CONFIRMED, and this is the fault: frames wait until the CANVAS is");
-            sb.AppendLine("     invalidated, and only its own pointer handler does that. Input");
-            sb.AppendLine("     elsewhere does not help, so this is not the dispatcher being asleep");
-            sb.AppendLine("     — the publish's own invalidate is not producing a render, and the");
-            sb.AppendLine("     pointer handler's identical call is. Fix the publish path; do not");
-            sb.AppendLine("     add another way to poke the compositor.");
+            // This used to assert B164's answer as CONFIRMED — "only its own
+            // pointer handler invalidates the canvas". B164 was then FIXED
+            // (`KeepPresenting` re-arms a compositor frame for the whole of
+            // playback), and this text was never re-checked. On 2026-08-12 it
+            // printed "CONFIRMED, and this is the fault" in a report whose own
+            // wake-up counter read 676 asked, 676 arrived — the loop running
+            // exactly as intended. A diagnosis that survives its own fix sends
+            // the next reader to re-fix something that works.
+            //
+            // So the observation is kept and the causal claim is now conditional
+            // on the counter that can refute it.
+            var loopRunning = animationFrames is { } af
+                && af.Requested > 0 && af.Delivered >= af.Requested;
+
+            sb.AppendLine("  >> Frames wait far longer when the pointer is still than when it moves");
+            sb.AppendLine("     over the canvas, and input elsewhere does not help.");
+            if (loopRunning)
+            {
+                sb.AppendLine("     But every compositor frame asked for ARRIVED (see the wake-ups line),");
+                sb.AppendLine("     so the compositor is not asleep and B164's answer does not apply —");
+                sb.AppendLine("     that one was fixed by keeping a frame permanently on request. This");
+                sb.AppendLine("     is B178: the wait is real, the wake is working, and where the time");
+                sb.AppendLine("     accumulates is not yet known. Instrument it before changing the");
+                sb.AppendLine("     present path.");
+            }
+            else
+            {
+                sb.AppendLine("     Compositor frames were asked for and did NOT all arrive, so the");
+                sb.AppendLine("     publish's own invalidate is not producing a render while the");
+                sb.AppendLine("     pointer handler's identical call is. Fix the publish path; do not");
+                sb.AppendLine("     add another way to poke the compositor.");
+            }
         }
         else if (canvasHelps && elsewhereHelps)
         {
@@ -529,6 +560,108 @@ internal static class RenderReport
         }
     }
 
+    /// <summary>
+    /// What the process is holding, against what the caches admit to holding.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B179: a machine reached 12 GB and crashed while every budget line in
+    /// this report read comfortably inside its limit.</b> That is not a
+    /// contradiction, it is a gap — the report only ever printed the pools it
+    /// knows about, so a leak anywhere else was invisible by construction, and
+    /// the four reassuring lines above actively pointed away from it.
+    /// </para>
+    /// <para>
+    /// <b>The number that makes this section worth having is the difference.</b>
+    /// Each cache's own figure is already printed elsewhere; what was missing is
+    /// the total beside them, so "the caches are fine" can be distinguished from
+    /// "the caches are fine and the process is not". Only the second is a leak in
+    /// something this report can see.
+    /// </para>
+    /// <para>
+    /// <b>And two pools were tracked but never printed:</b> the bytes each cache
+    /// has evicted and cannot free because a published snapshot is still reading
+    /// them. They are excluded from <c>CachedBytes</c> on purpose — they are not
+    /// cache contents — and are <em>unbounded</em>, which makes them the first
+    /// place to look rather than a footnote.
+    /// </para>
+    /// </remarks>
+    private static void AppendMemory(StringBuilder sb, Facts facts)
+    {
+        sb.AppendLine("-- what memory is held (B179) --------------------------------");
+
+        long working = 0, managed = 0;
+        try
+        {
+            using var self = Process.GetCurrentProcess();
+            working = self.WorkingSet64;
+        }
+        catch { /* a diagnostic must never be the thing that fails */ }
+        try { managed = GC.GetTotalMemory(forceFullCollection: false); }
+        catch { /* as above */ }
+
+        static string Mb(long bytes) => $"{bytes / (1024.0 * 1024.0):0} MB";
+
+        var frames = facts.FrameCache?.Bytes ?? 0;
+        var flats = facts.FlattenCache?.Bytes ?? 0;
+        var textures = facts.TextureResidency?.Bytes ?? 0;
+        var tiles = facts.TileStore?.Bytes ?? 0;
+        var waiting = (facts.AwaitingUnpin?.Frames ?? 0) + (facts.AwaitingUnpin?.Flattens ?? 0);
+        var accounted = frames + flats + textures + tiles + waiting;
+
+        if (working > 0) sb.AppendLine($"process working set       {Mb(working)}");
+        sb.AppendLine($"  managed heap            {Mb(managed)}");
+        sb.AppendLine($"accounted for by caches   {Mb(accounted)}");
+        sb.AppendLine($"  rendered frames         {Mb(frames)}");
+        sb.AppendLine($"  flattened tiles         {Mb(flats)}");
+        sb.AppendLine($"  layer textures          {Mb(textures)}");
+        // Budgeted since the derived-budgets change and never printed anywhere:
+        // the tile path section counts passes, not bytes.
+        sb.AppendLine($"  tiles                   {Mb(tiles)}");
+
+        // The pools that were tracked and never printed, and the reason this
+        // section exists. Named even at zero: an absent line reads as "nothing
+        // was wrong" when it means "nothing was looked at".
+        if (facts.AwaitingUnpin is { } held)
+        {
+            sb.AppendLine($"  evicted, still in use   {Mb(waiting)}"
+                          + $"   (frames {Mb(held.Frames)}, flattens {Mb(held.Flattens)})");
+        }
+        if (facts.Pinned is { } pins)
+        {
+            sb.AppendLine($"pinned by live snapshots  {pins.Frames} frame bitmap(s), "
+                          + $"{pins.Flattens} flatten(s)");
+        }
+
+        if (working > 0 && accounted > 0)
+        {
+            var unaccounted = working - accounted;
+            sb.AppendLine();
+            sb.AppendLine($"  >> {Mb(unaccounted)} is NOT in any cache this report tracks.");
+            // A managed process carries a runtime, an Avalonia tree and Skia's own
+            // context; a few hundred megabytes over is ordinary and says nothing.
+            if (unaccounted > 2L * 1024 * 1024 * 1024)
+            {
+                sb.AppendLine("     That is more than two gigabytes outside the budgets, which no");
+                sb.AppendLine("     amount of ordinary overhead explains. The caches being inside");
+                sb.AppendLine("     their limits is therefore NOT evidence that memory is healthy —");
+                sb.AppendLine("     it means the growth is somewhere these budgets do not reach.");
+                sb.AppendLine("     Check 'evicted, still in use' first: it is unbounded by design,");
+                sb.AppendLine("     and it only grows when snapshots are not being released.");
+            }
+        }
+
+        if (facts.Pinned is { Frames: > 64 } or { Flattens: > 64 })
+        {
+            sb.AppendLine("  !! a large number of bitmaps are pinned. A pin is dropped when a");
+            sb.AppendLine("     published snapshot is released, so a count that climbs means");
+            sb.AppendLine("     snapshots are being held — and a pinned bitmap is one eviction");
+            sb.AppendLine("     cannot free, whatever the budget says.");
+        }
+
+        sb.AppendLine();
+    }
+
     private static void AppendTextureResidency(StringBuilder sb, Facts facts)
     {
         if (!facts.GpuCompositeOptedIn) return;
@@ -538,10 +671,30 @@ internal static class RenderReport
         {
             sb.AppendLine("no layer textures were asked for.");
             sb.AppendLine();
-            sb.AppendLine("  GPU compositing is switched on but nothing composited through it.");
-            sb.AppendLine("  The culled route is the only one that goes to the GPU today, and");
-            sb.AppendLine("  it runs on a whole-canvas publish with the view zoomed in past the");
-            sb.AppendLine("  document edges. A fit-to-window view never takes it.");
+            // This said "nothing composited through it — the culled route is the
+            // only one that goes to the GPU today", which was written before
+            // B167 phases 3b and 4 and was still printed on 2026-08-12 directly
+            // under a line reporting 310 publishes ON the card. Two lines of one
+            // report contradicting each other is worse than either being absent,
+            // because a reader has no way to tell which one is stale.
+            //
+            // So it now says what it can actually see, and asks the other counter
+            // rather than asserting a route.
+            if (Rendering.GpuComposite.GpuComposites > 0)
+            {
+                sb.AppendLine($"  But {Rendering.GpuComposite.GpuComposites} publish(es) DID composite on the card, so this is not");
+                sb.AppendLine("  \"the GPU is unused\" — it is the blend running on the card while every");
+                sb.AppendLine("  layer is uploaded again for it. Residency is what stops the re-upload,");
+                sb.AppendLine("  so a zero here next to a non-zero above is a wiring fault, not a");
+                sb.AppendLine("  setting. That exact pair is what found one on 2026-08-12.");
+            }
+            else
+            {
+                sb.AppendLine("  GPU compositing is switched on and nothing has composited through it");
+                sb.AppendLine("  yet. Playback takes the tiled route and drawing takes the ring, so a");
+                sb.AppendLine("  report written from a still canvas can legitimately show this — play");
+                sb.AppendLine("  a range for a few seconds and write it again.");
+            }
             sb.AppendLine();
             return;
         }
@@ -575,7 +728,7 @@ internal static class RenderReport
         sb.AppendLine($"  worst wait               {stats.WorstMs:0.##} ms");
         sb.AppendLine($"replaced before drawing    {stats.Superseded}");
 
-        AppendPresentWaitByInput(sb, stats);
+        AppendPresentWaitByInput(sb, stats, facts.AnimationFrames);
 
         sb.AppendLine();
         sb.AppendLine(
@@ -888,7 +1041,12 @@ internal static class RenderReport
 
         sb.AppendLine("-- where the work happens ------------------------------------");
         sb.AppendLine($"presentation backend      {facts.Backend}");
-        sb.AppendLine($"  (this is the FINAL BLIT only — compositing is on the CPU either way)");
+        // Was "compositing is on the CPU either way", which stopped being true
+        // when B167 phase 4 put the tiled composite on the card. Derived from the
+        // toggle rather than asserted, so it cannot go stale the same way twice.
+        sb.AppendLine(facts.GpuCompositeOptedIn
+            ? "  (the final blit — see the compositing line below for where blending happened)"
+            : "  (this is the FINAL BLIT only — compositing is on the CPU, which is the default)");
         sb.AppendLine($"durable frame (B122)      {DurableFrameState(facts)}");
         if (facts.GpuSurfaceRequestFailed)
         {
@@ -965,6 +1123,7 @@ internal static class RenderReport
         }
 
         AppendTextureResidency(sb, facts);
+        AppendMemory(sb, facts);
 
         if (probe is { } p)
         {

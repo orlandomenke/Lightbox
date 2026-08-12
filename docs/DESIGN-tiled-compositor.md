@@ -75,16 +75,37 @@ yet.**
 | 2 · cache the flattened bitmap | landed | — |
 | 3a · flatten before the composite | landed | — |
 | 3b · composite in the draw op | landed | — |
-| 4 · GPU surface for the tiled route | landed, **never measured** | a render report captured with GPU compositing **on**, while playing |
-| 5 · resident tiles | not started | phase 4's number |
+| 4 · GPU surface for the tiled route | landed, **measured 2026-08-12: 310 publishes on the card, 0 fell back** | — |
+| 5 · resident tiles | not started | a **re-**measurement, now that residency is actually wired (see below) |
 | 6 · retire the redundant compositors | not started | phases 4–5 running long enough to trust |
 | 7 · cache the composite (added 2026-08-11) | not started | nothing — it is independent of all of the above |
 
-**The one action that unblocks the most: capture a render report with GPU
-compositing switched on, during playback.** Everything phase 4 built is running
-on a path nobody has confirmed executes. The line to read is
-`of the publishes that could use the card`, and it has read **zero on every
-capture so far** — because every capture was taken with the toggle off.
+**That capture happened on 2026-08-12, and it changed two things.**
+
+**Phase 4 is confirmed executing** — `310 did, 0 fell back`, after reading zero
+on every earlier capture because every earlier capture had the toggle off.
+
+**And the same file read `no layer textures were asked for` three sections
+later.** Both were true, and the contradiction was a wiring gap: every flattened
+tile pass carries a placement matrix, so on this route every pass took
+`ComposeUnbounded`'s matrix arm into `DrawWhole`, which uploaded
+unconditionally. Only the ordinary-layer arm consulted residency, and nothing on
+the route playback takes ever reached it. Fixed by passing residency into both
+whole-pass arms — a fraction of phase 5's work, and the honest way to find out
+whether the upload was ever the cost.
+
+**So phase 5 needs a *re*-measurement rather than a first one.** The
+pre-registered table below said "blend dominates, upload small → refuse", and
+applying it to the 2026-08-12 numbers would have been wrong: residency was never
+exercised, so that 38.47 ms draw contained the very uploads phase 5 exists to
+remove. The table stands; the input to it does not exist yet.
+
+**The bigger finding in that capture is not about compositing at all.** `tick +
+draw` came to **39.24 ms against an 83.3 ms budget — 47%** — while the clock ran
+late on **100% of ticks** and published frames waited a mean of **176 ms** to be
+drawn. That is **B178**, it is P1, and every remaining phase here optimises the
+47% while the 100% sits untouched. Read B178 before deciding this is the most
+valuable place to spend a session.
 
 ## Phases
 

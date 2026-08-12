@@ -1,0 +1,66 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Lightbox.App.ViewModels"
+        x:Class="Lightbox.App.Views.ResizeDialog"
+        x:DataType="vm:ResizeDialogViewModel"
+        Width="420" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Title="Resize">
+
+  <StackPanel Margin="16" Spacing="12">
+
+    <!-- Pixel size. Both modes have it; only the labels around it differ. -->
+    <Grid ColumnDefinitions="Auto,*,Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+      <TextBlock Grid.Row="0" Grid.Column="0" Text="Width" VerticalAlignment="Center" />
+      <NumericUpDown Grid.Row="0" Grid.Column="1"
+                     Value="{Binding Width}" Minimum="1" Maximum="30000" Increment="1"
+                     FormatString="0" />
+      <TextBlock Grid.Row="0" Grid.Column="2" Text="Height" VerticalAlignment="Center" />
+      <NumericUpDown Grid.Row="0" Grid.Column="3"
+                     Value="{Binding Height}" Minimum="1" Maximum="30000" Increment="1"
+                     FormatString="0" />
+
+      <CheckBox Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                IsChecked="{Binding Linked}" Content="Keep proportions" />
+
+      <!--
+        PPI sits beside the pixel size rather than under it, because it is a
+        second reading of the same thing rather than a second resize: it says
+        how big these pixels print. Image mode only — paper does not change
+        how big a pixel is.
+      -->
+      <TextBlock Grid.Row="1" Grid.Column="2" Text="PPI"
+                 VerticalAlignment="Center" IsVisible="{Binding IsImage}" />
+      <NumericUpDown Grid.Row="1" Grid.Column="3"
+                     Value="{Binding Ppi}" Minimum="1" Maximum="2400" Increment="1"
+                     FormatString="0" IsVisible="{Binding IsImage}" />
+    </Grid>
+
+    <!--
+      The anchor grid: nine buttons, because the answer is a direction and a
+      direction is faster to point at than to read out of a list. Canvas mode
+      only — rescaling artwork has no corner to hold still.
+    -->
+    <StackPanel Spacing="6" IsVisible="{Binding IsCanvas}">
+      <TextBlock Text="Anchor" />
+      <UniformGrid x:Name="AnchorGrid" Rows="3" Columns="3"
+                   Width="108" Height="108" HorizontalAlignment="Left" />
+    </StackPanel>
+
+    <!--
+      The preview, as a sentence. It names the one consequence an artist cannot
+      see coming and cannot undo by eye: whether the marks are about to change.
+    -->
+    <Border Background="{DynamicResource SurfaceElevated}" CornerRadius="4" Padding="10">
+      <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
+    </Border>
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="Reset" Click="OnReset" />
+      <Button Content="Cancel" Click="OnCancel" IsCancel="True" />
+      <Button Content="Resize" Click="OnApply" IsDefault="True"
+              Classes="primary" IsEnabled="{Binding CanApply}" />
+    </StackPanel>
+  </StackPanel>
+</Window>
