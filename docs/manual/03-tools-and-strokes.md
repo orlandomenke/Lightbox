@@ -174,10 +174,20 @@ arms need to go. It works on a straight run too — drag the middle of a straigh
 line and it bends, which is how you turn a corner-to-corner segment into a curve
 without adding anything.
 
-**The white arrow (N)** is the same thing as a tool rather than a gesture — for
-when you are already inside a line and want to keep reshaping. It does nothing
-until a line is isolated, which is on purpose: it and the Arrow do different
-jobs and blurring them is how a click starts meaning two things.
+**The white arrow (N)** is the same thing as a tool rather than a gesture.
+**Hover a line with it and you see its points** before you commit to anything —
+which is how you tell a line with three points from one with thirty without
+going inside it first. **One click** goes in and takes hold of whatever was
+under the pointer, so you can start dragging a point immediately.
+
+One click here, two with the Arrow, and the difference is deliberate: a click
+with the Arrow ordinarily means *pick this whole thing*, so reaching into
+geometry has to be asked for twice. Reaching into geometry is the only thing
+the white arrow does, so there is nothing to ask twice about.
+
+The two tools still do different jobs — the Arrow picks whole lines, the white
+arrow picks the points inside one — and blurring them is how a click starts
+meaning two things.
 
 > **Reshaping keeps the weight you drew with.** A line that tapers at the ends
 > still tapers after you have moved its points about — the pressure spreads

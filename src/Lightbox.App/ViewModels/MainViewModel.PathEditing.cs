@@ -142,6 +142,27 @@ public partial class MainViewModel
     /// </summary>
     public PathHit GrabPathPart(double x, double y, double tolerance, bool additive = false)
     {
+        // B172. Outside isolation this returned Miss and did nothing, and
+        // nothing else in the white arrow's path could enter isolation — so
+        // the tool was inert on its own, usable only after the *black* arrow
+        // had opened the line by double-clicking it. That is not a tool, it is
+        // a second step of another one.
+        //
+        // A single click, where the Arrow's route needs a double, and the
+        // asymmetry is deliberate. Q53's argument for the double-click is that
+        // reaching into geometry must never happen by accident — which is about
+        // the Arrow, where a click ordinarily means "pick this whole thing".
+        // Reaching into geometry is the white arrow's *only* purpose, so there
+        // is no accident to protect against and a second click would be a tax.
+        //
+        // The re-grab is what makes it one gesture rather than two: entering
+        // and then falling through to the hit test means the click that opened
+        // the line also takes hold of the node under it, so the first drag is
+        // not swallowed by the click that made it possible.
+        if (_pathEdit is null)
+        {
+            if (!BeginPathEditAt(x, y, tolerance)) return PathHit.Miss;
+        }
         if (_pathEdit is null) return PathHit.Miss;
 
         var hit = _pathEdit.HitTest(x, y, tolerance);

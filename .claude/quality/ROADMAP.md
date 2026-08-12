@@ -306,6 +306,10 @@ the test needs relaxing.
     - **A modifier over the white arrow widens the stroke.** Line weight after the fact already exists as the Width tool; this is reaching it without a tool change.
   - **The one part that is a defect and not a feature is filed separately as B172**: the white arrow cannot enter a path at all today — `_enterPathEdit` is wired only to the black Arrow's double-click — so the tool is inert on its own. That is a bug with a repro and it should not wait for this item; this item is what the tool does *once it works*.
   - Ordering: hover preview first. It is the cheapest of the six, it is the one that makes the others discoverable, and until geometry is visible before a click every other gesture here is guesswork with a mouse.
+  - **Built: the hover preview, and the click that B172 was about.** Moving over a line with the white arrow shows its points and handles; clicking it enters and takes hold in one gesture. The two shipped together because they are the same discovery — seeing the points is what tells an artist the click is worth making.
+  - **The preview goes through isolation's own overlay channel**, as the pen already does, because only one of the three can be live and two node lists would be a question with no answer that shows up on screen as both. Isolation wins outright when it is active; nothing is drawn selected on a hover, because a preview says what is *there*, not what is picked.
+  - **It fits once per line, not once per pointer move.** A hover fires continuously and `PathEditSession.Open` runs a curve fit over every point of the stroke, so refitting per event would put work proportional to a stroke's length in a per-event path — the shape invariant 6 rules out. `HoverPathAt` returns whether the answer moved, so the canvas repaints on the frames that matter, and `HoveringAlongTheSameLineDoesNotRefitIt` is what keeps that true.
+  - Still to build: clicking the line selecting all of it, the pen's held modifier, the close indicator, and the widen modifier. The four remaining anchors do not resolve, which is what keeps this item honestly in flight rather than green.
 
 ### Interop
 

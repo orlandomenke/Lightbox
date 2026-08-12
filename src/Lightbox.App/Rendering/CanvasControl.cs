@@ -1306,14 +1306,21 @@ public sealed class CanvasControl : Control
     /// <summary>Let go: one undo step for the whole drag.</summary>
     private Action? _commitPathEdit;
 
+    /// <summary>
+    /// Preview what a click would reach into. Returns whether the answer moved.
+    /// </summary>
+    private Func<double, double, double, bool>? _hoverPathPart;
+
     public void SetPathEditHandlers(
         Func<double, double, double, bool, ViewModels.PathHit>? grab,
         Action<ViewModels.PathHit, double, double, double, double, bool>? drag,
-        Action? commit)
+        Action? commit,
+        Func<double, double, double, bool>? hover = null)
     {
         _grabPathPart = grab;
         _dragPathPart = drag;
         _commitPathEdit = commit;
+        _hoverPathPart = hover;
     }
 
     private ViewModels.PathHit _pathGrab = ViewModels.PathHit.Miss;
@@ -2868,6 +2875,12 @@ public sealed class CanvasControl : Control
                     return;
                 case CanvasToolMode.PathEdit:
                     e.Pointer.Capture(this);
+                    // B172. Entering isolation and grabbing a part are one
+                    // question here — "what does a click with the white arrow
+                    // mean" — and the answer lives in the view model, like every
+                    // other decision this control delegates. It used to be able
+                    // to grab only, so the tool was inert until the *black*
+                    // arrow had opened the line first.
                     _pathGrab = _grabPathPart?.Invoke(
                         x, y, DocTolerance(GrabPixels),
                         e.KeyModifiers.HasFlag(KeyModifiers.Shift)) ?? ViewModels.PathHit.Miss;
@@ -3284,6 +3297,20 @@ public sealed class CanvasControl : Control
                 }
                 e.Handled = true;
                 return;
+            }
+
+            // Not dragging anything, white arrow in hand: preview the line
+            // under the pointer. The view model answers whether the preview
+            // actually moved, so an unchanged hover costs a hit test and no
+            // repaint — a hover fires on every pointer event, and this is a
+            // per-event path.
+            if (ToolMode == CanvasToolMode.PathEdit && !_pathGrab.IsHit)
+            {
+                var (hx, hy) = ViewToDoc(e.GetPosition(this));
+                _hoverPathPart?.Invoke(hx, hy, DocTolerance(GrabPixels));
+                // Deliberately not handled: a preview is not an interaction,
+                // and swallowing the move here would stop everything below it
+                // that also wants to know where the pointer is.
             }
 
             // reshaping a node or a handle?

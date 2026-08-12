@@ -85,7 +85,9 @@ public static class BrushEngine
     {
         if (stroke.Points.Count == 0) return;
 
-        if (stroke.Tool == ToolKind.Fill)
+        // Both are contours rather than paths, and differ only in whether the
+        // region lands over what is there or takes it away (B173).
+        if (stroke.Tool is ToolKind.Fill or ToolKind.ClearRegion)
         {
             StampFill(target, stroke, info, outputScale, origin);
             return;
@@ -356,7 +358,12 @@ public static class BrushEngine
         using var composite = new SKPaint
         {
             Color = SKColors.White.WithAlpha((byte)Math.Round(Math.Clamp(stroke.Brush.Opacity, 0, 1) * 255)),
-            BlendMode = SKBlendMode.SrcOver,
+            // B173. The one line that separates a region laid down from a
+            // region taken away — everything above it, contour to clip to
+            // anti-aliasing, is identical for both.
+            BlendMode = stroke.Tool == ToolKind.ClearRegion
+                ? SKBlendMode.DstOut
+                : SKBlendMode.SrcOver,
         };
         target.DrawImage(snapshot, 0, 0, composite);
     }
