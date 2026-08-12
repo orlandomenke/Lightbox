@@ -88,6 +88,30 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ## Open
 
+**Sweep of `evidence: manual`, 2026-08-12.** Seventeen open entries carried it,
+which is more than half the open list — and an entry carrying it **cannot close
+itself**, because `bugs.py sync` has nothing to resolve. Two were already fixed
+and simply never ticked (B144, B78); one had been fixed and then quietly
+un-fixed (B32). That is a measurable part of why the list looked like it only
+grew. The triage, so nobody re-derives it:
+
+| | |
+| --- | --- |
+| **Fixed, now closed** | B144 (derived budget), B78 (suggested name) |
+| **Was fixed, then undone** | B32 — the server publishes self-contained again, deliberately; see its entry |
+| **Open, and `manual` is right** | B60 (needs the halo), B93 (a harness race is the thing being asked for), B126, B170, B179 (need the owner's machine), B178 |
+| **Open, multi-phase, work in flight** | B29, B30, B125, B165, B166, B167 |
+| **Open, not yet examined** | B92, B101 |
+
+**The lesson is about the marker rather than about these seventeen.**
+`evidence: manual` means *no test can hold this*, and it is honest for a platform
+crash or an intermittent harness race. It is not honest for a fix nobody wrote a
+test for — the two look identical in the file and only one of them belongs.
+Before writing `manual`, the question is whether a test is *impossible* or merely
+*absent*. B78's new guard reads the source rather than driving a file dialog,
+which is a weak test and still far better than none.
+
+
 ### ai
 
 - [ ] **B32** `P3` `ai` A third of the Windows download is a second copy of .NET, because the MCP server targets net10.0 `evidence: manual`
@@ -99,6 +123,7 @@ decision goes to `QUESTIONS.md` and is left alone.
   - **The fix above is now one of two, pointing opposite ways, and the choice is not this entry's to make.** Moving the whole solution *up* to `net10.0` removes the duplication from the other end — one runtime because everything targets it — and buys the support window with it, .NET 8 leaving support in November 2026. Assessed in `docs/DESIGN-net10-upgrade.md`; the part that needs a human is **Q19**, because a `net10.0` self-contained Linux build raises the minimum glibc from 2.23 to 2.27 and nobody has written down who runs this. Downgrading the MCP server stays the right *interim* move if the upgrade grows a test-stack migration — the measured 35 MB a build is real either way, and this entry should not sit open waiting on a decision it does not depend on.
   - **The upgrade landed, and it retires the second bullet above rather than this bug.** Every project targets `net10.0` now, so "they are genuinely two runtimes" is no longer true — they are two copies of the *same* runtime, which is exactly the accidental duplication that bullet ruled out. A shared output folder now would fix it, and the `net8.0` half of the prescribed fix is moot.
   - **What is left is a user-visible path change, which is why it did not ride along with the TFM bump.** `build.yml` publishes the app to `publish/win-x64` and the server to `publish/win-x64/mcp`, both `--self-contained true`, so the duplication is the folder split rather than the framework. Publishing both into the same folder shares the runtime — the two `runtimeconfig.json`/`deps.json` pairs have distinct names and coexist — but it moves the executable from `mcp\Lightbox.Mcp.exe` to `Lightbox.Mcp.exe`, and that path is documented in `README.md` as the Claude Desktop `command` and checked in `MANUAL_TESTING.md`. Every existing config points at the old one. So the remaining work is the publish path, both documents, and a note for anyone upgrading — small, but not the same change as a TFM bump, and bundling it would have put a broken MCP config and a migrated render path in one diff.
+  - **Correction, 2026-08-12: the paragraph below no longer describes the build, and this entry stays open because of it.** `release.yml` publishes the app to `publish/win-x64` and the server to `publish/win-x64/mcp`, **both `--self-contained true`** — so there are still two copies of the runtime in the download. The workflow says why, and the reasoning is sound rather than an oversight: *"a self-contained executable only ever looks for its runtime beside itself — there is nothing left for the two publishes to share."* So the merge that closed this was undone deliberately, and what remains is the original question of whether the server needs to be self-contained at all. Found by a sweep of entries carrying `evidence: manual`, which is exactly the failure that kind of entry hides: nothing re-checks a claim no test holds.
   - **Fixed, and measured rather than reasoned about.** Both projects now publish into `publish/win-x64`. The prediction that the merge is safe was checked by running it instead of trusting it: both executables survive, `Lightbox.App.deps.json`/`.runtimeconfig.json` and `Lightbox.Mcp.deps.json`/`.runtimeconfig.json` all four coexist, and the server contributes **4 MB and 36 files** where it used to carry 35.3 MB. The bundle goes **286 MB → 216 MB on disk and 105 MB → 74 MB zipped**, which is better than the "roughly a third" the original estimate claimed and is now the figure `README.md` quotes.
   - The config break is accepted rather than worked around — this is a single-developer alpha, so "every existing config" is one, and the owner said they would reconfigure. `README.md` carries an upgrade note anyway, because the failure mode is silent: Claude Desktop does not report a bad `command`, the server just never starts and the tools are quietly absent.
   - **Why `evidence: manual` stays.** Nothing headless can open the Windows bundle and ask Claude Desktop whether it launched. The verification that exists is the publish measurement above and the `MANUAL_TESTING.md` line, which now names the new path explicitly so the check cannot pass by reading the old one.
@@ -552,13 +577,6 @@ decision goes to `QUESTIONS.md` and is left alone.
   - The diff it landed on is the other half of the evidence: `SnapshotGeometry` and `ComposePlan` are pure arithmetic with no dispatcher, window, threading or UI in them at all, and both victim classes pass 46/46 locally in Release. There is nothing in the change for this to be about.
 
   - **Sighted again 2026-08-08, and briefly misfiled as its own bug.** `MarkerNotesTests.NotesAreListedInFrameOrder` failed at **1 ms** in 2 of 5 full App-suite runs on `perf/canvas/B125-playback-through-tiles`, passing every time in isolation and in a two-class run. It was filed as B145 with a DispatcherTimer-interleaving theory before the 1 ms signature was checked against this entry — a body that never ran cannot have been raced by a timer tick, and the owner is who caught the duplicate. Two lessons folded back in: the failure is not confined to tests that touch rendering (three sightings, three unrelated test classes — the victim is whoever the harness seats next), and **grep the ledger for the signature before filing the sighting**; this entry's whole third bullet is about rediscovery being the expensive part, and it still happened.
-
-- [ ] **B78** `P3` `ui` The character sheet name is asked for twice `evidence: manual`
-  - **A regression from B66, shipped hours earlier, and reported immediately.** B66 added a name prompt before creating a character sheet and then offered Save As for a document with no file. Both are right on their own; together the artist types a name, and is then asked for a name again by the file picker with none of the first one carried across.
-  - The fix is to seed the save dialog with the sheet's name rather than to remove either prompt: the two are asking different questions — what the sheet is called, and where the document goes — and the second should arrive already answered.
-  - Worth naming as the shape rather than the incident: **two correct prompts in sequence are one bad prompt.** The B66 test suite pinned the decision each dialog makes and could not see the pair, because neither dialog is reachable headlessly.
-  - **Fixed**: `SaveDocumentAsAsync` takes an optional suggested name and `OnAddReferenceSheet` passes the sheet's, so the picker opens already filled in. Neither prompt is removed — they ask different questions, *what is this called* and *where does it go*, and only the second arriving blank was wrong.
-  - `evidence: manual` in effect, and said plainly rather than dressed up: the file picker is a `StorageProvider` dialog and nothing headless can open one. `CharacterSheetFileTests` still pins what B66 decides; what nobody can assert here is what the box is prefilled with. Cost: S
 
 - [ ] **B77** `P3` `ui` The colour switcher appears only for the brush tool `evidence: ToolOptionsBarTests, TheColourSwitcherIsShownForEveryToolThatUsesColour`
   - Flood fill and the shape tools paint with the foreground colour and do not show the switcher, so changing colour for them means selecting the brush, changing it, and selecting the tool again.
@@ -1847,6 +1865,13 @@ test reopens the bug.
   - Fix: a **Help** menu — the first one this app has had; it went File/Edit/View. *Open the diagnostics folder* (`FileReveal`, which already knew how each desktop spells this), *Show a console while drawing* (persisted, and it takes effect at the next start, because a console opened mid-session has missed everything the person turning it on wants to see), and the build label, which copies `1.0.0+<sha>` to the clipboard because *"the newest build"* is several different programs in a week.
   - **One thing deliberately not done, with the reasoning, because it looks like an oversight.** The setting is written to `settings.json` like every other preference rather than being absent-until-used. *Optional means absent* is a rule about the **document record**, where a default written per stroke is a key on every stroke of every drawing; a user settings file is the opposite — the one place a preference is meant to be visible and hand-editable. `TheSwitchIsListedInTheSettingsFileLikeEveryOtherPreference` states it so the next reader does not "fix" it into an inconsistency.
   - What the evidence covers: the menu, the switch and its persistence, and that the console code can create a window rather than only attach to one. Whether a console *appears* is Win32 — `MANUAL_TESTING.md` owns it, and the check specifies a double-click launch because starting from a terminal would pass even with the hole. Cost: S
+
+- [x] **B78** `P3` `ui` The character sheet name is asked for twice `evidence: SaveSuggestsANameTests, SaveCanBeGivenASuggestedName, AddingAReferenceSheetPassesTheNameToTheSavePicker`
+  - **A regression from B66, shipped hours earlier, and reported immediately.** B66 added a name prompt before creating a character sheet and then offered Save As for a document with no file. Both are right on their own; together the artist types a name, and is then asked for a name again by the file picker with none of the first one carried across.
+  - The fix is to seed the save dialog with the sheet's name rather than to remove either prompt: the two are asking different questions — what the sheet is called, and where the document goes — and the second should arrive already answered.
+  - Worth naming as the shape rather than the incident: **two correct prompts in sequence are one bad prompt.** The B66 test suite pinned the decision each dialog makes and could not see the pair, because neither dialog is reachable headlessly.
+  - **Fixed**: `SaveDocumentAsAsync` takes an optional suggested name and `OnAddReferenceSheet` passes the sheet's, so the picker opens already filled in. Neither prompt is removed — they ask different questions, *what is this called* and *where does it go*, and only the second arriving blank was wrong.
+  - `evidence: manual` in effect, and said plainly rather than dressed up: the file picker is a `StorageProvider` dialog and nothing headless can open one. `CharacterSheetFileTests` still pins what B66 decides; what nobody can assert here is what the box is prefilled with. Cost: S
 
 - [x] **B74** `P3` `ui` The brush gizmo is a circle rather than the shape of the tip `evidence: BrushGizmoTests, TheGizmoOutlinesTheTipRatherThanACircle`
   - Reported alongside B72 and separate from it: the ring is always a circle, so a chisel, a bristle or any imported tip is previewed as something it is not. Outline only — the reporter is explicit that it should not fill.
