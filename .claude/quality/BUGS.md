@@ -1657,6 +1657,12 @@ test reopens the bug.
 
 ### ui
 
+- [x] **B186** `P2` `ui` Clicking a tab leaves it glued to the pointer — the drag starts after the release `evidence: DockerDragRoutingTests, AMoveWithTheButtonUpNeverStartsADrag, APressAndPullOnATabStartsTheDrag_HoweverManyTabsThereAre`
+  - Repro: click a docker tab to switch to it, let go, then move the mouse. The tab tears out and chases the pointer, and no release ever puts it down. Reported as "when switching tabs it keeps the tab attached to the pointer".
+  - Cause: the release is not guaranteed to arrive. Clicking a tab rebuilds the strip, the pointer's capture goes down with the old `ListBoxItem`, and the release routes past the header that armed `_pressed` on the press — so the next innocent move, button long since up, crossed the drag threshold and started a drag with no release coming to end it. B183's fix made the press audible; this is the matching hole on the way out.
+  - Fix, in both halves of the machinery: `HeaderMoved` disarms unless the move says the left button is down (a drag can only start while the button is held), and the host's `OnPanelDragMoved` cancels a live drag the same way — a lost release must never leave a ghost chasing the mouse. The end-to-end drag test now carries `RawInputModifiers.LeftMouseButton` on its moves, which is what a real platform sends with every move while the button is held.
+  - P2 rather than P1: the feature works, but every tab switch leaves a trap behind it, and escaping the stuck ghost is not obvious.
+
 - [x] **B183** `P1` `ui` No docker can be dragged, so nothing can be undocked, redocked or regrouped by hand `evidence: DockerDragRoutingTests, APressAndPullOnATabStartsTheDrag_HoweverManyTabsThereAre, PickingUpATabStillSelectsIt, TheFloatButtonIsStillNotAGrip`
   - Repro: press any docker's tab and pull. Nothing tears out — the tab selects and the pointer drags nothing, on every docker, docked or floating. Reported as "docker tabs are not draggable" and "cannot be undocked and redocked", which is the whole docking feature inoperable from the pointer's side.
   - Cause: two correct pieces that never met. `LandedOnTheGrip` (B155) made the **tab** the grip, and Avalonia's `ListBox` marks a press that lands on an item as **handled** while selecting it — so the header's plain `PointerPressed` subscription heard presses everywhere *except* the one place a panel is picked up by. Selection worked, the drag never armed.
