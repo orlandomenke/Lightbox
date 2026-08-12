@@ -1531,6 +1531,15 @@ public sealed partial class MainViewModel : ObservableObject
             : Path.GetFileNameWithoutExtension(path);
     }
 
+    /// <summary>
+    /// Something in a document changed, whatever it was — the edit funnel's
+    /// outward face. What the reference-view windows re-render on: they follow
+    /// a sheet that can be edited from its tab, the docker, or an undo, and
+    /// this is the one place all three pass through (the same argument B31
+    /// makes for the cache invalidated below).
+    /// </summary>
+    public event Action? DocumentEdited;
+
     private void MarkDocumentEdited()
     {
         _autosave.MarkDirty();
@@ -1538,6 +1547,7 @@ public sealed partial class MainViewModel : ObservableObject
         // funnel that sees a stroke commit — OnDocumentChanged returns early for those — so a
         // cache invalidated anywhere else would hand a model art that had since changed.
         InvalidateReferenceViewCache();
+        DocumentEdited?.Invoke();
         if (_switchingTabs || ActiveTab is not { } tab) return;
         // Here rather than in OnDocumentChanged: stroke commits take that
         // method's scoped-edit early return, and a stroke is exactly the edit

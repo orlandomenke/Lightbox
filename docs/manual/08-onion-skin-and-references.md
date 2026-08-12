@@ -60,7 +60,18 @@ the character in the same place every time and delete the animation.
 | Scale | One scale for every frame. Per-frame scale would put the character at a different size on each drawing, which is the one thing a size reference exists to prevent. |
 | Opacity | How strongly it reads under your drawing. |
 
-**What detection actually looks for.** Not gaps in the whole image — the
+### A character sheet in its own window
+
+The **🗔** button beside a view in the **Reference sheets** panel opens that
+view in a small window of its own — the model sheet held up next to the easel,
+instead of opened in its place. Put it beside the canvas and draw.
+
+The window is a **viewer**: it follows the sheet live — draw on the view in its
+tab, hide one of its layers, undo, and the window updates by itself — but
+drawing happens in the tab, not in the window. One window per view; clicking
+**🗔** again brings the open one forward, and it closes with the application.
+
+
 drawings themselves. It finds every connected mark on the sheet and then throws
 away what is not a drawing: specks and watermarks go because they are tiny next
 to a figure, and a title banner goes because a line of text is a fraction of the

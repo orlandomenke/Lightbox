@@ -3211,6 +3211,9 @@
                               <DockPanel>
                                 <Button Classes="icon" DockPanel.Dock="Right" Content="✎" FontSize="11"
                                         Click="OnOpenReferenceView" ToolTip.Tip="Open this view in a tab" />
+                                <Button Classes="icon" DockPanel.Dock="Right" Content="🗔" FontSize="11"
+                                        Click="OnOpenReferenceViewWindow"
+                                        ToolTip.Tip="Open this view in its own window, beside the art. It follows the sheet as you edit; drawing on it still happens in the tab." />
                                 <TextBox Text="{Binding Name}" BorderThickness="0" Background="Transparent"
                                          VerticalAlignment="Center" FontSize="12"
                                          GotFocus="OnReferenceNameFocused" LostFocus="OnReferenceRenamed" />
