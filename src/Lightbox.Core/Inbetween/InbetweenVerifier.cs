@@ -1,5 +1,6 @@
 using Lightbox.Core.Documents;
 using Lightbox.Core.Geometry;
+using static System.FormattableString;
 
 namespace Lightbox.Core.Inbetween;
 
@@ -158,7 +159,11 @@ public static class InbetweenVerifier
 
         if (frame.T is <= 0 or >= 1)
         {
-            state.Refusal = $"its timing is {frame.T:0.##}, which is not between the keys.";
+            // Every hand-formatted number below goes through Invariant: a
+            // refusal must read the same on every machine, and a locale that
+            // writes 0,25 would hand Phase 2's golden-set tooling two
+            // spellings of one fault (CultureInvarianceTests' rule).
+            state.Refusal = Invariant($"its timing is {frame.T:0.##}, which is not between the keys.");
             return state;
         }
         if (Unusable(frame.Strokes) is { } unusable)
@@ -216,9 +221,8 @@ public static class InbetweenVerifier
             var allowed = TravelSlack * ctx.Travel + ScaleSlack * ctx.Scale + FloorSlack;
             if (deviation > allowed)
             {
-                state.Refusal =
-                    $"the {Quote(ctx.Name(index))} did not stay between the keys — "
-                    + $"it sits {deviation:0}px from where the motion puts it.";
+                state.Refusal = Invariant(
+                    $"the {Quote(ctx.Name(index))} did not stay between the keys — it sits {deviation:0}px from where the motion puts it.");
                 return state;
             }
             state.Deviations[index] = (cCentroid.X - eCentroid.X, cCentroid.Y - eCentroid.Y);
@@ -230,12 +234,38 @@ public static class InbetweenVerifier
             }
         }
 
-        foreach (var ink in newInk)
+        if (newInk.Count > 0)
         {
-            if (LicenseNewInk(ink, moving, expected, frame.Strokes, matchedCandidates, latitude, state.Notes)
-                is { } refusal)
+            // Licensed ink anchors further ink. A tail is three strokes and
+            // only the base touches the body; fur hangs off fur. The worklist
+            // licenses from the attachment outwards — each pass may explain
+            // ink the previous pass could not — and only what no pass can
+            // explain is refused. Floating inventions still license nothing,
+            // because the chain has to start from a stroke the keys explain.
+            var anchors = new List<Stroke>(expected);
+            var anchoredIds = new HashSet<string>(matchedCandidates);
+            var pending = new List<Stroke>(newInk);
+            var progress = true;
+            while (progress)
             {
-                state.Refusal = refusal;
+                progress = false;
+                for (var i = 0; i < pending.Count; i++)
+                {
+                    if (!TryLicenseNewInk(
+                            pending[i], moving, expected, anchors, frame.Strokes, anchoredIds, latitude, state.Notes))
+                    {
+                        continue;
+                    }
+                    anchors.Add(pending[i]);
+                    anchoredIds.Add(pending[i].Id);
+                    pending.RemoveAt(i);
+                    progress = true;
+                    break;
+                }
+            }
+            if (pending.Count > 0)
+            {
+                state.Refusal = ForbiddenInk(pending[0]);
                 return state;
             }
         }
@@ -289,27 +319,32 @@ public static class InbetweenVerifier
         if (got < want / AreaSlack || got > want * AreaSlack)
         {
             var verb = got < want ? "loses" : "gains";
-            return $"the {Quote(ctx.Name(index))} {verb} volume — "
-                 + $"{got:0}px² of area against an expected {want:0}px².";
+            return Invariant(
+                $"the {Quote(ctx.Name(index))} {verb} volume — {got:0}px² of area against an expected {want:0}px².");
         }
         return null;
     }
 
     /// <summary>
-    /// Is this new ink licensed, or is it explained by nothing? Null means
-    /// licensed; the tier that licensed it lands in <paramref name="notes"/>.
+    /// Try to license this new ink under one of the three permissive tiers;
+    /// the tier that licensed it lands in <paramref name="notes"/>. Every
+    /// proximity here is measured at the ink's own nearest sampled point,
+    /// never its centroid: a cape is long and its hem is far, and a centroid
+    /// measurement refuses secondary action in proportion to its own length —
+    /// the art-director veto that rewrote this method.
     /// </summary>
-    private static string? LicenseNewInk(
+    private static bool TryLicenseNewInk(
         Stroke ink,
         List<PairContext> moving,
         List<Stroke> expected,
+        List<Stroke> anchors,
         IReadOnlyList<Stroke> candidateStrokes,
-        HashSet<string> matchedCandidates,
+        HashSet<string> anchoredIds,
         double latitude,
         List<string> notes)
     {
-        var inkCentroid = GeometryOps.Centroid(ink.Points);
-        var name = ink.Label is { } label ? Quote(label) : $"ink near ({inkCentroid.X:0}, {inkCentroid.Y:0})";
+        var name = InkName(ink);
+        var samples = SamplesOf(ink);
 
         // Disocclusion: something moved off the region this ink sits in, and
         // the ink continues a stroke that is already in the frame. The second
@@ -323,24 +358,26 @@ public static class InbetweenVerifier
             // is its interpolated position at this frame's t. Ink under a
             // region the mover has not left yet reveals nothing.
             if (VacatedShare(ink, ctx, expected[m]) < VacatedFraction) continue;
-            if (!ContinuesAnother(ink, candidateStrokes, matchedCandidates)) continue;
+            if (!ContinuesAnother(ink, candidateStrokes, anchoredIds)) continue;
             notes.Add($"{name} is licensed as revealed ink — the {Quote(ctx.Name(m))} moved off it.");
-            return null;
+            return true;
         }
 
         // Drag: secondary action trails its mover. It must hang off the thing
-        // it follows — fur is on the body, cloth is on the figure — so the ink
-        // has to sit close to the mover's current position, and its deviation
-        // must point backwards along the travel. Fur that leads the jump is
-        // not follow-through, it is a different drawing; and ink merely lying
-        // somewhere in the mover's wake is disocclusion's question, with the
-        // stricter continuation requirement that comes with it.
+        // it follows — fur is on the body, cloth is on the figure — so the
+        // ink's nearest point has to touch the mover's current position, and
+        // its mass must sit backwards along the travel. Fur that leads the
+        // jump is not follow-through, it is a different drawing; and ink
+        // merely lying somewhere in the mover's wake is disocclusion's
+        // question, with the stricter continuation requirement that comes
+        // with it.
         for (var m = 0; m < moving.Count; m++)
         {
             var ctx = moving[m];
             if (ctx.Travel < MinTravel) continue;
             var hang = Math.Max(ctx.A.Brush.Size, 4) + 2 + ctx.Scale * 0.25;
-            if (DistanceToDrawing(inkCentroid, [expected[m]]) > hang) continue;
+            if (MinDistanceToStroke(samples, expected[m]) > hang) continue;
+            var inkCentroid = GeometryOps.Centroid(ink.Points);
             var eCentroid = GeometryOps.Centroid(expected[m].Points);
             var offX = inkCentroid.X - eCentroid.X;
             var offY = inkCentroid.Y - eCentroid.Y;
@@ -349,22 +386,59 @@ public static class InbetweenVerifier
             if (offX * ux + offY * uy < 0)
             {
                 notes.Add($"{name} is licensed as drag behind the {Quote(ctx.Name(m))}.");
-                return null;
+                return true;
             }
         }
 
         // Interpretation: invention that stays close to the drawing — the
-        // overlap fold, the turned contour — under the latitude dial.
+        // overlap fold, the turned contour, the strand hanging off the
+        // hairline — under the latitude dial. Anchors include ink already
+        // licensed this frame, which is what lets a chain grow outwards.
         var diagonal = DrawingDiagonal(expected);
-        var distance = DistanceToDrawing(inkCentroid, expected);
+        var distance = double.PositiveInfinity;
+        foreach (var anchor in anchors)
+            distance = Math.Min(distance, MinDistanceToStroke(samples, anchor));
         if (distance <= latitude * diagonal)
         {
-            notes.Add($"{name} is licensed as interpretation, {distance:0}px from the drawing.");
-            return null;
+            notes.Add(Invariant($"{name} is licensed as interpretation, {distance:0}px from the drawing."));
+            return true;
         }
 
-        return $"new {name} is explained by nothing — nothing moved off that region, "
-             + "it does not trail any motion, and it is not near the drawing.";
+        return false;
+    }
+
+    private static string ForbiddenInk(Stroke ink) =>
+        $"new {InkName(ink)} is explained by nothing — nothing moved off that region, "
+        + "it does not trail any motion, and it is not near the drawing.";
+
+    private static string InkName(Stroke ink)
+    {
+        if (ink.Label is { } label) return Quote(label);
+        var c = GeometryOps.Centroid(ink.Points);
+        return Invariant($"ink near ({c.X:0}, {c.Y:0})");
+    }
+
+    /// <summary>The ink's own points, thinned so every check pays the same bounded cost.</summary>
+    private static IReadOnlyList<StrokePoint> SamplesOf(Stroke s) =>
+        s.Points.Count > 24 ? GeometryOps.Resample(s.Points, 24) : s.Points;
+
+    /// <summary>Nearest approach of any sampled point to the stroke's polyline.</summary>
+    private static double MinDistanceToStroke(IReadOnlyList<StrokePoint> samples, Stroke stroke)
+    {
+        var pts = stroke.Points;
+        if (pts.Count == 0 || samples.Count == 0) return double.PositiveInfinity;
+        var best = double.PositiveInfinity;
+        foreach (var p in samples)
+        {
+            if (pts.Count == 1)
+            {
+                best = Math.Min(best, GeometryOps.Dist(p, pts[0]));
+                continue;
+            }
+            for (var i = 1; i < pts.Count; i++)
+                best = Math.Min(best, GeometryOps.DistToSegment(p, pts[i - 1], pts[i]));
+        }
+        return best;
     }
 
     /// <summary>
@@ -430,6 +504,11 @@ public static class InbetweenVerifier
         for (var k = 1; k + 1 < run.Count; k++)
         {
             if (verdicts[k].Refusal is not null) continue;
+            // Neighbours are read even when they were themselves refused: a
+            // deviation is real geometry for that stroke in that frame,
+            // whatever unrelated check later refused the frame, and a frame
+            // refused before its deviations were measured simply has no entry
+            // and is skipped by the TryGetValue below.
 
             for (var p = 0; p < moving.Count; p++)
             {
@@ -450,9 +529,8 @@ public static class InbetweenVerifier
                 var allowed = CoherenceSlack * moving[p].Travel + CoherenceFloor;
                 if (jitter > allowed)
                 {
-                    verdicts[k].Refusal =
-                        $"the {Quote(moving[p].Name(p))} jitters against the frames beside it — "
-                        + $"{jitter:0}px off a smooth path, which reads as boiling at speed.";
+                    verdicts[k].Refusal = Invariant(
+                        $"the {Quote(moving[p].Name(p))} jitters against the frames beside it — {jitter:0}px off a smooth path, which reads as boiling at speed.");
                     break;
                 }
             }
@@ -483,24 +561,6 @@ public static class InbetweenVerifier
             if (GeometryOps.DistToSegment(p, line[i - 1], line[i]) <= radius) return true;
         }
         return false;
-    }
-
-    private static double DistanceToDrawing(StrokePoint p, List<Stroke> expected)
-    {
-        var best = double.PositiveInfinity;
-        foreach (var stroke in expected)
-        {
-            var pts = stroke.Points;
-            if (pts.Count == 0) continue;
-            if (pts.Count == 1)
-            {
-                best = Math.Min(best, GeometryOps.Dist(p, pts[0]));
-                continue;
-            }
-            for (var i = 1; i < pts.Count; i++)
-                best = Math.Min(best, GeometryOps.DistToSegment(p, pts[i - 1], pts[i]));
-        }
-        return best;
     }
 
     private static double DrawingDiagonal(List<Stroke> expected)

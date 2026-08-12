@@ -214,6 +214,42 @@ public class InbetweenVerifierTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void AThreeStrokeTailTrailingTheMotionIsLicensed()
+    {
+        // The design doc's flagship case: fur, cloth, tails following the
+        // motion — drawn as a chain, where only the base touches the body.
+        // The first shipped cut refused everything past a stub, because it
+        // measured the ink's centroid instead of its nearest point and judged
+        // each segment against the mover instead of the chain it hangs off.
+        // This test is the art-director veto that rewrote the licensing.
+        var strokes = Inbetweener.Inbetween(KeyA(), KeyB(), 0.5, Easing.Linear);
+        strokes.Add(Line(null, 80, 80, 80, 60));  // base: hangs on the arm
+        strokes.Add(Line(null, 80, 60, 80, 40));  // mid: hangs on the base
+        strokes.Add(Line(null, 80, 40, 80, 25));  // tip: hangs on the mid
+
+        var judged = Verify(new CandidateInbetween(0.5, strokes));
+
+        foreach (var f in judged.Frames) output.WriteLine(f.Refusal ?? string.Join(" | ", f.Notes));
+        Assert.True(judged.AllAccepted);
+    }
+
+    [Fact]
+    public void ALongStrandHangingOffTheDrawingIsLicensed()
+    {
+        // A 60px hair strand attached to a static line. Under the centroid
+        // measurement its own length was what failed — a 20px strand passed
+        // and this one did not, with the dial changing nothing. Proximity is
+        // the ink's nearest point, so attachment licenses it at any length.
+        var strokes = Inbetweener.Inbetween(KeyA(), KeyB(), 0.5, Easing.Linear);
+        strokes.Add(Line(null, 160, 120, 160, 180)); // pendant from the post's end
+
+        var judged = Verify(new CandidateInbetween(0.5, strokes));
+
+        output.WriteLine(judged.Frames[0].Refusal ?? string.Join(" | ", judged.Frames[0].Notes));
+        Assert.True(judged.AllAccepted);
+    }
+
+    [Fact]
     public void InkLeadingTheMotionIsNotDrag()
     {
         // Fur that leads the jump is not follow-through, it is a different

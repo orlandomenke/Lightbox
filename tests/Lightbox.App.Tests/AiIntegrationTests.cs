@@ -177,6 +177,38 @@ public class AiIntegrationTests
     }
 
     [AvaloniaFact]
+    public void AnMcpInsertedInbetweenCarriesProvenance()
+    {
+        // Q31's other door: an agent working the document over MCP is AI
+        // touching a frame, whatever model drives it.
+        var vm = VmWithTwoKeys(new FakeArtist());
+        var layer = vm.PaintLayer();
+
+        var inserted = vm.InsertExternalInbetweens(layer.Id, 0, [[Seg(35)]]);
+
+        Assert.Equal(1, inserted);
+        var frame = layer.Cels[1].Frame!;
+        Assert.Equal("MCP agent", frame.Ai!.Provider);
+    }
+
+    [AvaloniaFact]
+    public void AnMcpAppendMarksTheFrame_WithoutClobberingAnEarlierProvider()
+    {
+        var vm = VmWithTwoKeys(new FakeArtist());
+        var layer = vm.PaintLayer();
+
+        vm.AppendExternalStrokes(layer.Id, 0, [Seg(20)]);
+        var frame = layer.Cels[0].Frame!;
+        Assert.Equal("MCP agent", frame.Ai!.Provider);
+
+        // A second AI touch keeps the first record: ??= is deliberate, so the
+        // provider that originally drew here is not rewritten by a later edit.
+        frame.Ai = new AiProvenance("Claude");
+        vm.AppendExternalStrokes(layer.Id, 0, [Seg(25)]);
+        Assert.Equal("Claude", frame.Ai!.Provider);
+    }
+
+    [AvaloniaFact]
     public void ADeterministicInbetweenCarriesNoProvenance()
     {
         // The other half of Q31: absent unless AI touched it. The free engine

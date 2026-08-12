@@ -40,9 +40,11 @@ one click away, and asking for the AI means getting the AI or nothing.
 
 The check is not "did the model invent something" — invention is the point.
 Revealed lines behind something that moved away, follow-through trailing a
-motion, and small departures near the drawing all pass. What gets refused is
-ink nothing explains, a stroke that went missing, or a frame that jitters
-against its neighbours — the noise that reads as boiling when played at speed.
+motion — a tail or a cape drawn as a chain of strokes counts, however long,
+because each link may hang off the one before — and departures near the
+drawing all pass. What gets refused is ink nothing explains, a stroke that
+went missing, or a frame that jitters against its neighbours — the noise that
+reads as boiling when played at speed.
 
 **AI frames remember where they came from.** A frame the AI drew carries a
 small provenance note in the saved file — which provider, and the model name
