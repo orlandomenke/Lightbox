@@ -5562,9 +5562,14 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnIsPlayingChanged(bool value)
     {
-        _cache.Eviction = value
+        // Both caches: playback publishes through the tile store since Q62,
+        // so the scan protection has to follow the frames wherever they live
+        // (B182 — the tile half went unflipped for a while, and thrashed).
+        var order = value
             ? FrameBitmapCache.EvictionOrder.MostRecent
             : FrameBitmapCache.EvictionOrder.LeastRecent;
+        _cache.Eviction = order;
+        _tileFrames.Eviction = order;
 
         // Cleared at the START of a run rather than the end, so a report always
         // describes the last thing the artist actually watched. Accumulating
@@ -11348,10 +11353,11 @@ public sealed partial class MainViewModel : ObservableObject
     // ---- video clip bars (Q57) --------------------------------------------------
 
     /// <summary>
-    /// The footage clips the timeline shows as bars: every video strip with
-    /// at least one frame on the timeline. Image references stay out — their
-    /// timing is the sheet's business, and a bar for every sprite sheet
-    /// would bury the clips the feature exists for.
+    /// The footage clips the timeline shows as bars: one per section of every
+    /// video strip with at least one frame on the timeline (Q57) — an unsplit
+    /// clip is one bar, a split one is a bar per section. Image references
+    /// stay out — their timing is the sheet's business, and a bar for every
+    /// sprite sheet would bury the clips the feature exists for.
     /// </summary>
     public IReadOnlyList<Controls.ClipBar> TimelineVideoClips
     {
@@ -11363,95 +11369,182 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 var strip = strips[i];
                 if (strip.VideoPath is null && strip.VideoData is null) continue;
-                var first = strip.FirstAssignedSlot();
-                if (first < 0) continue;
-                clips.Add(new Controls.ClipBar(strip.Name, first, strip.LastAssignedSlot(), i));
+                var runs = strip.AssignedRuns();
+                for (var r = 0; r < runs.Count; r++)
+                {
+                    var name = runs.Count == 1 ? strip.Name : $"{strip.Name} {r + 1}";
+                    clips.Add(new Controls.ClipBar(name, runs[r].Start, runs[r].End, i));
+                }
             }
             return clips;
         }
     }
 
-    /// <summary>The clip bar's body drag: the whole strip slides along the timeline.</summary>
-    public void SlideVideoClip(int stripIndex, int deltaFrames)
+    /// <summary>
+    /// The section starting at <paramref name="runStart"/> and its timeline
+    /// neighbours in the same strip, or null when no section starts there —
+    /// the drag began on a bar the last edit has already replaced.
+    /// </summary>
+    private static ((int Start, int End) Run, (int Start, int End)? Prev, (int Start, int End)? Next)?
+        VideoRunAt(ReferenceStrip strip, int runStart)
+    {
+        var runs = strip.AssignedRuns();
+        for (var i = 0; i < runs.Count; i++)
+        {
+            if (runs[i].Start != runStart) continue;
+            return (runs[i],
+                i > 0 ? runs[i - 1] : null,
+                i < runs.Count - 1 ? runs[i + 1] : null);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Two sections an edit has butted together stay two sections: the split
+    /// point at the junction is what keeps <see cref="ReferenceStrip.AssignedRuns"/>
+    /// from reading them as one bar again.
+    /// </summary>
+    private static void KeepSectionsApart(ReferenceStrip strip, int junction)
+    {
+        strip.SplitPoints ??= [];
+        if (!strip.SplitPoints.Contains(junction)) strip.SplitPoints.Add(junction);
+        strip.NormaliseSplitPoints();
+    }
+
+    /// <summary>
+    /// The clip bar's body drag (Q57): the section starting at
+    /// <paramref name="runStart"/> slides along the timeline, stopping at its
+    /// neighbours — sections never ride over each other.
+    /// </summary>
+    public void SlideVideoClip(int stripIndex, int runStart, int deltaFrames)
     {
         if (deltaFrames == 0 || Scene.References is not { } strips
             || stripIndex < 0 || stripIndex >= strips.Count) return;
         var strip = strips[stripIndex];
-        strip.SlideSlots(deltaFrames);
+        if (VideoRunAt(strip, runStart) is not { } hit) return;
+        var (run, prev, next) = hit;
+
+        var delta = deltaFrames;
+        if (prev is { } p) delta = Math.Max(delta, p.End + 1 - run.Start);
+        if (next is { } n) delta = Math.Min(delta, n.Start - 1 - run.End);
+        if (delta == 0) return;
+
+        strip.SlideRange(run.Start, run.End, delta);
+        if (prev is { } pb && run.Start + delta == pb.End + 1) KeepSectionsApart(strip, run.Start + delta);
+        if (next is { } nb && run.End + delta == nb.Start - 1) KeepSectionsApart(strip, nb.Start);
         GrowTimelineTo(strip.LastAssignedSlot() + 1);
         AfterReferenceChange();
         NotifyAudioSurface();   // the shared track surface redraws
     }
 
     /// <summary>
-    /// Drag a video clip's IN edge (Q57): +d hides d more leading frames of
-    /// the footage; −d brings hidden ones back. The frames themselves never
-    /// leave the strip — trimming is which of them the timeline shows.
+    /// Drag a video section's IN edge (Q57): +d hides d more leading frames of
+    /// the footage; −d brings hidden ones back until the section meets its
+    /// neighbour or the footage runs out. The frames themselves never leave
+    /// the strip — trimming is which of them the timeline shows.
     /// </summary>
-    public void TrimVideoClipIn(int stripIndex, int deltaFrames)
+    public void TrimVideoClipIn(int stripIndex, int runStart, int deltaFrames)
     {
         if (deltaFrames == 0 || Scene.References is not { } strips
             || stripIndex < 0 || stripIndex >= strips.Count) return;
         var strip = strips[stripIndex];
-        var first = strip.FirstAssignedSlot();
-        var last = strip.LastAssignedSlot();
-        if (first < 0) return;
+        if (VideoRunAt(strip, runStart) is not { } hit) return;
+        var (run, prev, _) = hit;
 
         if (deltaFrames > 0)
         {
             // Hide leading frames, never the last one standing.
-            for (var i = first; i < Math.Min(first + deltaFrames, last); i++)
+            for (var i = run.Start; i < Math.Min(run.Start + deltaFrames, run.End); i++)
             {
                 strip.Assign(i, -1);
             }
+            strip.NormaliseSplitPoints();
         }
         else
         {
-            // Bring hidden leading frames back, while both the timeline and
-            // the footage have room.
-            var cell = strip.Slots[first];
+            // Bring hidden leading frames back, while the timeline, the
+            // footage and the previous section all leave room.
+            var cell = strip.Slots[run.Start];
             for (var step = 1; step <= -deltaFrames; step++)
             {
-                var slot = first - step;
+                var slot = run.Start - step;
                 var earlier = cell - step;
                 if (slot < 0 || earlier < 0) break;
+                if (slot < strip.Slots.Count && strip.Slots[slot] >= 0) break;
                 strip.Assign(slot, earlier);
+                if (prev is { } p && slot == p.End + 1)
+                {
+                    KeepSectionsApart(strip, slot);
+                    break;
+                }
             }
         }
         AfterReferenceChange();
         NotifyAudioSurface();
     }
 
-    /// <summary>Drag a video clip's OUT edge: +d shows d more trailing frames, −d hides them.</summary>
-    public void TrimVideoClipOut(int stripIndex, int deltaFrames)
+    /// <summary>
+    /// Drag a video section's OUT edge: +d shows d more trailing frames until
+    /// the footage ends or the next section starts, −d hides them.
+    /// </summary>
+    public void TrimVideoClipOut(int stripIndex, int runStart, int deltaFrames)
     {
         if (deltaFrames == 0 || Scene.References is not { } strips
             || stripIndex < 0 || stripIndex >= strips.Count) return;
         var strip = strips[stripIndex];
-        var first = strip.FirstAssignedSlot();
-        var last = strip.LastAssignedSlot();
-        if (last < 0) return;
+        if (VideoRunAt(strip, runStart) is not { } hit) return;
+        var (run, _, next) = hit;
 
         if (deltaFrames < 0)
         {
-            for (var i = last; i > Math.Max(last + deltaFrames, first); i--)
+            for (var i = run.End; i > Math.Max(run.End + deltaFrames, run.Start); i--)
             {
                 strip.Assign(i, -1);
             }
+            strip.NormaliseSplitPoints();
         }
         else
         {
-            var cell = strip.Slots[last];
+            var cell = strip.Slots[run.End];
             for (var step = 1; step <= deltaFrames; step++)
             {
+                var slot = run.End + step;
                 var later = cell + step;
                 if (later >= strip.Cells.Count) break;
-                strip.Assign(last + step, later);
+                if (slot < strip.Slots.Count && strip.Slots[slot] >= 0) break;
+                strip.Assign(slot, later);
+                if (next is { } n && slot == n.Start - 1)
+                {
+                    KeepSectionsApart(strip, n.Start);
+                    break;
+                }
             }
             GrowTimelineTo(strip.LastAssignedSlot() + 1);
         }
         AfterReferenceChange();
         NotifyAudioSurface();
+    }
+
+    /// <summary>
+    /// Cut the video section under the playhead in two (Q57). False when the
+    /// playhead is not inside a section of this strip — an edge or a gap has
+    /// nothing to split.
+    /// </summary>
+    public bool SplitVideoAtPlayhead(int stripIndex)
+    {
+        if (Scene.References is not { } strips
+            || stripIndex < 0 || stripIndex >= strips.Count) return false;
+        var strip = strips[stripIndex];
+        var frame = CurrentFrameIndex;
+        foreach (var run in strip.AssignedRuns())
+        {
+            if (frame <= run.Start || frame > run.End) continue;
+            KeepSectionsApart(strip, frame);
+            AfterReferenceChange();
+            NotifyAudioSurface();
+            return true;
+        }
+        return false;
     }
 
     private void GrowTimelineTo(int frameCount)

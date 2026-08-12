@@ -12,6 +12,11 @@ art, Storyboard, Comic, Asset library, or **None**. **None is the default**, and
 it means exactly what it says: a single file, no project structure. The choice
 only affects which panels you are offered.
 
+The **⇅ button** beside the size fields trades width for height — portrait to
+landscape in one press, without retyping either number. The **background** is a
+colour swatch that opens the same picker as every other colour in the app:
+wheel, sliders, and hex at the bottom for pasting a value in.
+
 ### Changing the size
 
 Two operations, on the **Image** menu, and the difference between them is the
@@ -31,6 +36,11 @@ the two axes differently distorts the drawing and is almost never meant. This
 is also where **PPI** lives: it says how large these pixels print, so it belongs
 to the artwork rather than to the paper. Changing only the PPI is a valid
 change, and it moves nothing.
+
+Both modes have a **⇄ button** beside the size fields that swaps width and
+height. It deliberately ignores *Keep proportions* — a swap changes the aspect
+ratio by definition, and a link that "corrected" it back would make the button
+do nothing.
 
 **Why the two are separate, and why it matters more here than in most
 applications.** Lightbox decides the fine detail of a mark — its scatter, its

@@ -191,8 +191,14 @@
           working on" does not sort itself by kind. The items are built on
           open: a menu declared here would need bindings that a popup cannot
           resolve, and the list changes every time anything is opened anyway.
+
+          The placeholder child is load-bearing: a MenuItem with no items never
+          opens a submenu at all, so SubmenuOpened — the event that builds the
+          real list — never fires. It is replaced the moment the menu opens.
         -->
-        <MenuItem x:Name="RecentMenu" Header="Open _recent" />
+        <MenuItem x:Name="RecentMenu" Header="Open _recent">
+          <MenuItem Header="Nothing yet" IsEnabled="False" />
+        </MenuItem>
         <!--
           No InputGesture on either: both live in ShortcutMap so they show up in the
           shortcut editor and can be rebound. The labels come from the map for the same
@@ -229,16 +235,24 @@
           read, rewritten or recreated. Absent unless a project is open, since
           there is nothing to convert otherwise.
         -->
+        <!-- Placeholder child for the same reason as Open recent: without one
+             the submenu never opens and the builder never runs. -->
         <MenuItem x:Name="ConvertProjectMenu" Header="{Binding ProjectTypeLabel}"
-                  IsVisible="{Binding HasProject}" />
+                  IsVisible="{Binding HasProject}">
+          <MenuItem Header="…" IsEnabled="False" />
+        </MenuItem>
         <!--
           Templates. Absent unless a project is open, because without one a
           template is a file you Open and then Save as — which has always
           worked. What a project adds is being able to *list* them.
         -->
         <Separator IsVisible="{Binding HasProject}" />
+        <!-- Placeholder child for the same reason as Open recent: without one
+             the submenu never opens and the builder never runs. -->
         <MenuItem x:Name="TemplatesMenu" Header="New from _template…"
-                  IsVisible="{Binding HasProject}" />
+                  IsVisible="{Binding HasProject}">
+          <MenuItem Header="No templates yet" IsEnabled="False" />
+        </MenuItem>
         <MenuItem Header="{Binding TemplateLabel}" ToggleType="CheckBox"
                   IsChecked="{Binding IsActiveDocumentTemplate, Mode=TwoWay}"
                   IsVisible="{Binding HasProject}"
@@ -262,24 +276,15 @@
                   IsEnabled="{Binding HasDocument}"
                   ToolTip.Tip="Sprite sheet, sidecar and optional Unity importer. Trim, layout and background handling live here." />
       </MenuItem>
+      <!--
+        Ordered things-you-open first, toggles second, preferences last —
+        Configure sits at the bottom because that is where every application
+        an artist arrives from keeps it, and a settings window that moves
+        around the menu is a settings window nobody finds twice.
+      -->
       <MenuItem Header="_Edit" Classes="top">
-        <MenuItem Header="_Configure…" Click="OnConfigureClicked" />
         <MenuItem Header="Brush _library…" Click="OnBrushLibraryClicked" />
         <MenuItem Header="Brush _tips…" Click="OnBrushTipsClicked" />
-        <Separator />
-        <!-- Autosave. Zero is a real answer, not a mistake — someone working
-             on a network drive may well want it off. -->
-        <MenuItem Header="{Binding AutosaveLabel}">
-          <MenuItem Header="Off" Click="OnAutosaveOff" />
-          <MenuItem Header="Every 30 seconds" Click="OnAutosaveHalfMinute" />
-          <MenuItem Header="Every minute" Click="OnAutosaveMinute" />
-          <MenuItem Header="Every 5 minutes" Click="OnAutosaveFiveMinutes" />
-          <MenuItem Header="Every 15 minutes" Click="OnAutosaveFifteenMinutes" />
-          <Separator />
-          <MenuItem Header="Also write over the file itself" ToggleType="CheckBox"
-                    IsChecked="{Binding AutosaveInPlace, Mode=TwoWay}"
-                    ToolTip.Tip="Off by default: silently rewriting the file you opened takes away closing without saving" />
-        </MenuItem>
         <Separator />
         <!--
           Rulers and guides. Under Edit rather than View because these four
@@ -298,9 +303,24 @@
                   IsChecked="{Binding Workspace.GuidesLocked, Mode=TwoWay}"
                   ToolTip.Tip="Pin them where they are, so working near one cannot nudge it" />
         <Separator />
+        <!-- Autosave. Zero is a real answer, not a mistake — someone working
+             on a network drive may well want it off. -->
+        <MenuItem Header="{Binding AutosaveLabel}">
+          <MenuItem Header="Off" Click="OnAutosaveOff" />
+          <MenuItem Header="Every 30 seconds" Click="OnAutosaveHalfMinute" />
+          <MenuItem Header="Every minute" Click="OnAutosaveMinute" />
+          <MenuItem Header="Every 5 minutes" Click="OnAutosaveFiveMinutes" />
+          <MenuItem Header="Every 15 minutes" Click="OnAutosaveFifteenMinutes" />
+          <Separator />
+          <MenuItem Header="Also write over the file itself" ToggleType="CheckBox"
+                    IsChecked="{Binding AutosaveInPlace, Mode=TwoWay}"
+                    ToolTip.Tip="Off by default: silently rewriting the file you opened takes away closing without saving" />
+        </MenuItem>
         <MenuItem Header="Ask what to open on start-up" ToggleType="CheckBox"
                   IsChecked="{Binding ShowStartScreen, Mode=TwoWay}"
                   ToolTip.Tip="The start screen. Escape on it opens nothing — you can always ask again from the empty canvas or File ▸ New." />
+        <Separator />
+        <MenuItem Header="_Configure…" Click="OnConfigureClicked" />
       </MenuItem>
       <!--
         Image: the two resizes. A menu of its own rather than four more items
@@ -3604,7 +3624,7 @@
             <controls:TrackView x:Name="TimelineTrackView"
                                 Tracks="{Binding TimelineTracks}"
                                 AudioPeaks="{Binding TimelineAudioPeaks}"
-                                AudioClip="{Binding TimelineAudioClip}"
+                                AudioClips="{Binding TimelineAudioClips}"
                                 VideoClips="{Binding TimelineVideoClips}"
                                 FrameCount="{Binding TimelineFrameCount}"
                                 FrameWidth="{Binding TimelineFrameWidth}"

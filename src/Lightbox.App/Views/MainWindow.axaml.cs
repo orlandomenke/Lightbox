@@ -69,26 +69,29 @@ public partial class MainWindow : Window
             _vm.DragWidth,
             () => _vm.EndWidthDrag());
         TimelineTrackView.KeyDragged += OnTrackKeyDragged;
-        // The clip bars (Q57): body slides, edges trim; the view model owns
-        // what that does to the record.
-        TimelineTrackView.AudioClipEdited += (kind, delta) =>
+        // The clip bars (Q57): body slides, edges trim, right-click splits;
+        // the view model owns what that does to the record. An audio bar's
+        // StripIndex is its section index; a video bar is named by its strip
+        // and the frame its section starts on.
+        TimelineTrackView.AudioClipEdited += (bar, kind, delta) =>
         {
             switch (kind)
             {
-                case Controls.ClipEditKind.Slide: _vm.SlideAudioClip(delta); break;
-                case Controls.ClipEditKind.TrimIn: _vm.TrimAudioClipIn(delta); break;
-                case Controls.ClipEditKind.TrimOut: _vm.TrimAudioClipOut(delta); break;
+                case Controls.ClipEditKind.Slide: _vm.SlideAudioClip(bar.StripIndex, delta); break;
+                case Controls.ClipEditKind.TrimIn: _vm.TrimAudioClipIn(bar.StripIndex, delta); break;
+                case Controls.ClipEditKind.TrimOut: _vm.TrimAudioClipOut(bar.StripIndex, delta); break;
             }
         };
-        TimelineTrackView.VideoClipEdited += (strip, kind, delta) =>
+        TimelineTrackView.VideoClipEdited += (bar, kind, delta) =>
         {
             switch (kind)
             {
-                case Controls.ClipEditKind.Slide: _vm.SlideVideoClip(strip, delta); break;
-                case Controls.ClipEditKind.TrimIn: _vm.TrimVideoClipIn(strip, delta); break;
-                case Controls.ClipEditKind.TrimOut: _vm.TrimVideoClipOut(strip, delta); break;
+                case Controls.ClipEditKind.Slide: _vm.SlideVideoClip(bar.StripIndex, bar.Start, delta); break;
+                case Controls.ClipEditKind.TrimIn: _vm.TrimVideoClipIn(bar.StripIndex, bar.Start, delta); break;
+                case Controls.ClipEditKind.TrimOut: _vm.TrimVideoClipOut(bar.StripIndex, bar.Start, delta); break;
             }
         };
+        TimelineTrackView.ClipMenuRequested += OnClipMenu;
         GraphEditorView.KeyEdited += (series, from, to, value) => _vm.EditCameraKey(series, from, to, value);
         GraphEditorView.KeyAddRequested += frame => _vm.AddCameraKeyAt(frame);
         GraphEditorView.KeyMenuRequested += OnGraphKeyMenu;
@@ -3682,6 +3685,42 @@ public partial class MainWindow : Window
         remove.Click += (_, _) => _vm.RemoveCameraKeyAt(frame);
         flyout.Items.Add(remove);
         flyout.ShowAt(GraphEditorView, showAtPointer: true);
+    }
+
+    /// <summary>
+    /// Right-clicking a clip bar (Q57): what can be done to a section, at the
+    /// playhead. A cut is offered only where one is possible — inside a
+    /// section rather than at its edge — and says so when it is not, because a
+    /// menu item that silently does nothing teaches an artist to distrust the
+    /// menu.
+    /// </summary>
+    private void OnClipMenu(Controls.ClipBar bar, bool isAudio, Avalonia.Point at)
+    {
+        var frame = _vm.CurrentFrameIndex;
+        var insideSection = frame > bar.Start && frame <= bar.End;
+        var flyout = new MenuFlyout { Placement = PlacementMode.Pointer };
+
+        var split = new MenuItem
+        {
+            Header = $"Split at frame {frame + 1}",
+            IsEnabled = insideSection,
+        };
+        split.Click += (_, _) =>
+        {
+            if (isAudio) _vm.SplitAudioAtPlayhead();
+            else _vm.SplitVideoAtPlayhead(bar.StripIndex);
+        };
+        flyout.Items.Add(split);
+
+        if (!insideSection)
+        {
+            flyout.Items.Add(new MenuItem
+            {
+                Header = "Move the playhead inside the clip to cut it",
+                IsEnabled = false,
+            });
+        }
+        flyout.ShowAt(TimelineTrackView, showAtPointer: true);
     }
 
     // ---- the chrome is ours -------------------------------------------------

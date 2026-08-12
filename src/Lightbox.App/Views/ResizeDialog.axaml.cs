@@ -85,6 +85,8 @@ public partial class ResizeDialog : Window
 
     private void OnReset(object? sender, RoutedEventArgs e) => _vm.Reset();
 
+    private void OnSwap(object? sender, RoutedEventArgs e) => _vm.Swap();
+
     private void OnCancel(object? sender, RoutedEventArgs e) => Close();
 
     private void OnApply(object? sender, RoutedEventArgs e)
