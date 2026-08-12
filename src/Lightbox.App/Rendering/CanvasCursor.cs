@@ -1,3 +1,4 @@
+using Avalonia.Input;
 using Lightbox.App.ViewModels;
 
 namespace Lightbox.App.Rendering;
@@ -109,9 +110,57 @@ public static class CanvasCursor
         _ => false,
     };
 
-    /// <summary>The cursor for a tool over a place.</summary>
-    public static CanvasCursorKind For(ToolId tool, CanvasTarget target) =>
-        Refusal(tool, target) is not null ? CanvasCursorKind.Forbidden : Armed(tool);
+    /// <summary>
+    /// The tool a gesture will actually use, once the held keys are counted.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Ctrl over a paint or fill tool is a held eyedropper</b> — the canvas
+    /// says so in as many words and acts on it before it looks at the tool at
+    /// all: <em>"the colour you want is almost always already on the canvas, and
+    /// reaching for a tool to fetch it breaks the stroke you were about to
+    /// make."</em> So the pointer has to say so too, or the one modifier an
+    /// artist holds mid-stroke is the one the cursor lies about.
+    /// </para>
+    /// <para>
+    /// <b>Only this one.</b> Shift and Alt change what several tools <em>do</em>
+    /// — a fill inverts, a wand adds or subtracts, a move constrains — but not
+    /// which <em>kind</em> of action it is, and a cursor that changed for each
+    /// would be flicker rather than information. Modelling more than the canvas
+    /// actually branches on would be inventing behaviour, which is worse than
+    /// showing none.
+    /// </para>
+    /// </remarks>
+    public static ToolId Effective(ToolId tool, KeyModifiers modifiers) =>
+        modifiers.HasFlag(KeyModifiers.Control) && HeldPickerApplies(tool)
+            ? ToolId.Picker
+            : tool;
+
+    /// <summary>
+    /// The tools the canvas lets Ctrl turn into an eyedropper — paint and fill,
+    /// matching <c>CanvasToolMode.Paint or CanvasToolMode.Fill</c> exactly.
+    /// </summary>
+    private static bool HeldPickerApplies(ToolId tool) => tool switch
+    {
+        ToolId.Brush or ToolId.Eraser or ToolId.Fill => true,
+        _ => false,
+    };
+
+    /// <summary>The cursor for a tool over a place, with the keys held.</summary>
+    /// <remarks>
+    /// The modifiers are resolved into the effective tool <em>first</em>, which
+    /// is what makes the refusals follow: holding Ctrl over a locked layer stops
+    /// forbidding, because picking a colour off a locked layer is allowed and
+    /// always was.
+    /// </remarks>
+    public static CanvasCursorKind For(
+        ToolId tool, CanvasTarget target, KeyModifiers modifiers = KeyModifiers.None)
+    {
+        var effective = Effective(tool, modifiers);
+        return Refusal(effective, target) is not null
+            ? CanvasCursorKind.Forbidden
+            : Armed(effective);
+    }
 
     /// <summary>The cursor a tool wears when it can act.</summary>
     public static CanvasCursorKind Armed(ToolId tool) => tool switch
@@ -141,8 +190,10 @@ public static class CanvasCursor
     /// looks up: this string is meant for the status line beside the cursor.
     /// </para>
     /// </remarks>
-    public static string? Refusal(ToolId tool, CanvasTarget target)
+    public static string? Refusal(
+        ToolId tool, CanvasTarget target, KeyModifiers modifiers = KeyModifiers.None)
     {
+        tool = Effective(tool, modifiers);
         if (!Paints(tool)) return null;
 
         if (target.LayerHidden) return "This layer is hidden — turn its eye back on to draw here.";

@@ -278,19 +278,25 @@ a ring; the eyedropper, the fill and the shape tools show a crosshair; the move
 tool shows arrows; the two selection arrows show a pointer.
 
 **If the pointer shows a "no" symbol, the tool will not do anything where you
-are** — that is the point of it. It means one of:
+are** — that is the point of it, and the reason why appears in the strip at the
+bottom of the window. It means one of:
 
 - the layer is **hidden**. Turn its eye back on in the Layers panel.
 - the layer is **locked**. Unlock it with the padlock.
+- you are **outside the selection**. Strokes only land inside it.
+- the layer is **alpha locked** and there is no paint under the brush. Alpha lock
+  means "only draw where I have already drawn", so bare canvas is off limits —
+  move over existing paint and the pointer allows it again.
 
-Before, these did nothing and said nothing, which is hard to tell apart from the
-application being broken. Now you find out before you commit to a stroke rather
-than after.
+The last two change as you move, because they are about *where you are* rather
+than about the layer. Before, all four did nothing and said nothing, which is
+hard to tell apart from the application being broken.
 
-*Planned:* the pointer does not yet refuse for the two cases that depend on
-exactly where you are — outside a selection, or on an alpha-locked layer with no
-paint under the brush. Those still fail silently for now, and the pointer stays
-optimistic rather than guessing.
+**Hold `Ctrl` and the brush becomes an eyedropper** for as long as you hold it —
+the colour you want is usually already on the canvas, and fetching a tool to get
+it breaks the stroke you were about to make. The pointer changes to say so. It
+also stops refusing while you hold it, because picking a colour off a locked
+layer was always allowed.
 
 ---
 

@@ -487,6 +487,38 @@ public sealed class CanvasControl : Control
     /// <summary>The camera gizmo's drags, as document-space deltas per move.
     /// The window maps them onto the framing at the playhead, which keys it —
     /// adjusting the camera IS keying it, same as the numeric fields.</summary>
+    /// <summary>
+    /// The pointer moved over the document: stroke coordinates and the keys
+    /// held, so the view model can answer the two questions about a place that
+    /// only a place can answer.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Raised on hover only — while a gesture is in progress the answer is
+    /// already decided and re-asking it would cost a bitmap read per pointer
+    /// event during the one operation that can least afford it (invariant 6).
+    /// </para>
+    /// <para>
+    /// Coalesced by position: a pen reports far more moves than it crosses
+    /// pixels, and every duplicate would be a wasted read of the same pixel.
+    /// </para>
+    /// </remarks>
+    public event Action<double, double, KeyModifiers>? PointerHovered;
+
+    private (int X, int Y, KeyModifiers Mods)? _lastHoverReport;
+
+    private void ReportHover(Point view, KeyModifiers modifiers)
+    {
+        if (PointerHovered is null) return;
+        var (x, y) = ViewToDoc(view);
+        if (!double.IsFinite(x) || !double.IsFinite(y)) return;
+
+        var key = ((int)Math.Round(x), (int)Math.Round(y), modifiers);
+        if (_lastHoverReport == key) return;
+        _lastHoverReport = key;
+        PointerHovered.Invoke(x, y, modifiers);
+    }
+
     public event Action<double, double>? CameraPanned;
 
     /// <summary>Multiplicative zoom change from a corner drag.</summary>
@@ -3026,6 +3058,10 @@ public sealed class CanvasControl : Control
         try
         {
             _hoverPoint = e.GetPosition(this);
+            // Only while nothing is being dragged: mid-gesture the question is
+            // already answered, and asking it again would put a bitmap read in
+            // the pointer path of the one operation that cannot afford it.
+            if (!_painting && !_panning) ReportHover(_hoverPoint.Value, e.KeyModifiers);
             // The brush cursor must follow the pointer no matter what state
             // we're in — repaints coalesce, so this is cheap.
             //

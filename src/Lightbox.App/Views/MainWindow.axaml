@@ -1172,6 +1172,16 @@
                 ToolTip.Tip="Cancel the AI request" />
         <ProgressBar IsIndeterminate="True" Width="90" IsVisible="{Binding AiBusy}" VerticalAlignment="Center" />
         <TextBlock Text="{Binding AiStatus}" VerticalAlignment="Center" Opacity="0.85" TextTrimming="CharacterEllipsis" />
+        <!--
+          Why the tool will do nothing here. Beside the status line rather than
+          replacing it: this one follows the pointer and that one records what a
+          command did, so sharing a slot would have each wiping the other out
+          the moment the artist moved the mouse. Absent unless there is a
+          refusal, so it costs no room in the ordinary case.
+        -->
+        <TextBlock Text="{Binding PointerRefusal}" IsVisible="{Binding HasPointerRefusal}"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                   Foreground="{DynamicResource Warning}" />
       </StackPanel>
     </Border>
 

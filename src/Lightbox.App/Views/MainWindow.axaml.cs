@@ -351,6 +351,8 @@ public partial class MainWindow : Window
         // If canvas input ever fails, say so in the status bar instead of dying silently.
         Canvas.CanvasError += message => _vm.AiStatus = message;
 
+        Canvas.PointerHovered += (x, y, mods) => _vm.UpdatePointerContext(x, y, mods);
+        Canvas.PointerExited += (_, _) => _vm.ClearPointerContext();
         Canvas.ViewChanged += () =>
         {
             // The text, not the Content: the readout's content is a TextBlock that carries
