@@ -183,6 +183,18 @@ decision goes to `QUESTIONS.md` and is left alone.
   - **The report's own diagnosis prose is stale and asserts B164's answer as CONFIRMED.** It reads "frames wait until the CANVAS is invalidated, and only its own pointer handler does that" — written before `KeepPresenting` existed and never re-checked. Fixed separately; noted here because it is what a reader would otherwise act on, and it would send them to the wrong place.
   - **The wait still varies with pointer input, which is the clue worth keeping.** Pointer still: 241 frames, mean **236.5 ms**. Input on the canvas: 197 frames, mean **88.43 ms**. So something about canvas input still shortens the path even with the present loop running — but "nothing wakes the compositor" is refuted, so the mechanism is different from B164's.
   - **A hypothesis worth testing first, not a conclusion.** `PumpPresentLoop` keeps exactly one animation-frame request in flight and re-arms from inside the callback, so its rate is bounded by how long a callback takes. At a 38.47 ms draw that is ~26 Hz, and 676 wake-ups over ~35 s of playback is ~19 Hz — consistent with the loop running as fast as the draw allows rather than at display rate. If the loop is draw-bound then publishes at 12 fps should still be picked up within one draw, so a 176 ms mean needs a second cause; instrument where the wait accumulates before changing anything.
+  - **The report's own counters give the mechanism, and it is a rate mismatch rather than a wake-up fault (2026-08-12).** Three rates over the same ~35 s capture, all from numbers already in the entry above:
+
+    ```
+    ticks that advanced   339   ~9.7/s   the playhead, at 12 fps with drops
+    frames published      757  ~21.6/s   about 2.2 publishes per tick
+    frames drawn          501  ~14.3/s   bounded by the 38.47 ms draw
+    ```
+
+    **Publishing outruns drawing by about 1.5x**, which is exactly the shape of the two anomalies: 256 replaced before being drawn is the surplus, and a 176 ms mean wait is the backlog that surplus creates. A frame waits ~4.6 draws because roughly that many are queued ahead of it.
+  - **So the question is no longer "why is the compositor asleep" but "why are there two publishes per tick".** The present loop is not the constraint: it re-arms from inside its callback and `InvalidateVisual` only marks dirty, so it runs as fast as the render loop will let it — ~26 Hz at a 38 ms draw, comfortably above a 12 fps playhead. A loop that can present at 26 Hz and a playhead that advances at 9.7 Hz should never build a backlog. One does because something publishes when the playhead has not moved.
+  - **What that reframes.** Every remaining compositing optimisation makes the draw cheaper, which raises the draw rate — and against a publish rate 1.5x higher it buys proportionally less than it looks. Finding and removing the surplus publishes is likely cheaper than making the draw faster, and it is the first thing that would show up as fewer dropped frames rather than as a smaller number in the report.
+  - **Not attributed, and deliberately.** `PublishSnapshot` has 45 call sites; which of them fire during playback is a question for a counter rather than for a grep, and this entry has already been wrong once by reasoning from prose (its own stale B164 diagnosis). The next step is a per-caller publish tally during playback, not a change to the publish path.
   - Cost: M to diagnose, unknown to fix. **Do not start by changing the present path** — that is what B164 already did, and the counters say it is working.
 
 - [ ] **B170** `P2` `canvas` Lightbox sometimes dies while erasing `evidence: manual`
