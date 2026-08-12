@@ -18,7 +18,7 @@ namespace Lightbox.App.Tests;
 /// green on every local run, which is what this collection exists to stop.
 /// </remarks>
 [Collection("BrushState")]
-public class LivePreviewPixelTests : BrushStateIsolated
+public class LivePreviewPixelTests(ITestOutputHelper output) : BrushStateIsolated
 {
     private static MainViewModel PinnedVm(double opacity = 1) => new(null)
     {
@@ -185,5 +185,141 @@ public class LivePreviewPixelTests : BrushStateIsolated
             + "the stroke settled when the pen lifted");
 
         liveCopy.Dispose();
+    }
+
+    // ---- B169: the live eraser and the layers beneath it -----------------------
+
+    private static SKBitmap Filled(int width, int height, SKColor color)
+    {
+        var bmp = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        using var canvas = new SKCanvas(bmp);
+        canvas.Clear(color);
+        return bmp;
+    }
+
+    /// <summary>
+    /// The scene of the bug: paper is a real pass (a document with a Background
+    /// layer composes over transparent — <c>SceneRenderer.BackgroundOf</c>),
+    /// black art above it, and a live eraser stroke over the art.
+    /// </summary>
+    private static (SKBitmap Paper, SKBitmap Art, SKBitmap Scratch) EraseScene()
+    {
+        var paper = Filled(400, 300, SKColors.White);
+        var art = Filled(400, 300, SKColors.Transparent);
+        using (var c = new SKCanvas(art))
+        using (var black = new SKPaint { Color = SKColors.Black })
+        {
+            c.DrawRect(SKRect.Create(100, 100, 100, 100), black);
+        }
+        // The eraser's dabs, as the engine accumulates them: opaque coverage in
+        // the scratch, applied DstOut at composite time.
+        var scratch = Filled(400, 300, SKColors.Transparent);
+        using (var c = new SKCanvas(scratch))
+        using (var dab = new SKPaint { Color = SKColors.White })
+        {
+            c.DrawCircle(150, 150, 25, dab);
+        }
+        return (paper, art, scratch);
+    }
+
+    /// <summary>
+    /// <b>B169.</b> An eraser overlay drawn <c>DstOut</c> straight onto the
+    /// shared composite surface removes the paper as well as the art, so a live
+    /// erase showed the transparency checkerboard where the paper should stay.
+    /// The overlay has to combine with its own layer in isolation before that
+    /// layer meets the stack — which the ring compositor always did, and the
+    /// culled route (this one) lost when the compose moved to the render thread.
+    /// </summary>
+    [AvaloniaFact]
+    public void ErasingDoesNotCutThroughTheLayersBeneath()
+    {
+        var (paper, art, scratch) = EraseScene();
+        using (paper)
+        using (art)
+        using (scratch)
+        {
+            var passes = new[]
+            {
+                new RenderPass(paper, null, 1),
+                new RenderPass(art, null, 1, Overlay: new StrokeOverlay(scratch, 1, Erases: true)),
+            };
+            var info = new SKImageInfo(400, 300, SKColorType.Rgba8888, SKAlphaType.Premul);
+            var compose = new DeferredCompose(
+                passes, SKColors.Transparent, 1.0, info, SKRectI.Create(0, 0, 400, 300));
+
+            using var image = compose.Compose(null, out _);
+            using var bmp = SKBitmap.FromImage(image);
+
+            var erased = bmp.GetPixel(150, 150);
+            output.WriteLine($"erased pixel: R{erased.Red} A{erased.Alpha}");
+            // The erase must reveal the paper, not the void beneath it.
+            Assert.True(erased.Alpha > 250, $"the eraser cut through the paper (alpha {erased.Alpha})");
+            Assert.True(erased.Red > 250, $"the erased area should show white paper (red {erased.Red})");
+
+            // And it must still erase: the art outside the dab is untouched,
+            // the art under the dab is gone.
+            Assert.True(bmp.GetPixel(110, 110).Red < 5, "the art outside the erase should stay black");
+        }
+    }
+
+    /// <summary>
+    /// The live composite and the committed one are the same picture. Committed,
+    /// the erase is <c>DstOut</c> against the layer's own bitmap alone — so that
+    /// is what the live overlay must amount to, whatever surface it lands on.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheLiveEraserAgreesWithTheCommittedOne()
+    {
+        var (paper, art, scratch) = EraseScene();
+        using (paper)
+        using (art)
+        using (scratch)
+        {
+            var info = new SKImageInfo(400, 300, SKColorType.Rgba8888, SKAlphaType.Premul);
+            var viewport = SKRectI.Create(0, 0, 400, 300);
+
+            // Live: the erase is still an overlay on its pass.
+            var live = new DeferredCompose(
+                [
+                    new RenderPass(paper, null, 1),
+                    new RenderPass(art, null, 1, Overlay: new StrokeOverlay(scratch, 1, Erases: true)),
+                ],
+                SKColors.Transparent, 1.0, info, viewport);
+
+            // Committed: the erase has been applied to the layer itself, which
+            // is what EndStroke writes.
+            using var committedArt = art.Copy();
+            using (var c = new SKCanvas(committedArt))
+            using (var erase = new SKPaint { BlendMode = SKBlendMode.DstOut })
+            {
+                c.DrawBitmap(scratch, 0, 0, erase);
+            }
+            var committed = new DeferredCompose(
+                [new RenderPass(paper, null, 1), new RenderPass(committedArt, null, 1)],
+                SKColors.Transparent, 1.0, info, viewport);
+
+            using var liveImage = live.Compose(null, out _);
+            using var committedImage = committed.Compose(null, out _);
+            using var liveBmp = SKBitmap.FromImage(liveImage);
+            using var committedBmp = SKBitmap.FromImage(committedImage);
+
+            var differing = 0;
+            var worst = 0;
+            for (var y = 90; y < 210; y++)
+            for (var x = 90; x < 210; x++)
+            {
+                var a = liveBmp.GetPixel(x, y);
+                var b = committedBmp.GetPixel(x, y);
+                var d = Math.Max(
+                    Math.Max(Math.Abs(a.Red - b.Red), Math.Abs(a.Green - b.Green)),
+                    Math.Max(Math.Abs(a.Blue - b.Blue), Math.Abs(a.Alpha - b.Alpha)));
+                if (d == 0) continue;
+                differing++;
+                worst = Math.Max(worst, d);
+            }
+            output.WriteLine($"{differing} px differ, worst {worst}/255");
+            Assert.True(differing == 0,
+                $"live erase and committed erase disagree over {differing} px (worst {worst}/255)");
+        }
     }
 }
