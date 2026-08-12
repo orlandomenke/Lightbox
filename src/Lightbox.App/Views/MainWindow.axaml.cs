@@ -2010,6 +2010,12 @@ public partial class MainWindow : Window
             _vm.OpenReferenceView(view);
     }
 
+    private void OnToggleViewOnCanvas(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is Lightbox.Core.Documents.ReferenceView view)
+            _vm.ToggleViewOnCanvas(view);
+    }
+
     /// <summary>
     /// The text in a sheet or view name box, captured when it took focus, so
     /// losing focus can tell a rename from a click-through.
