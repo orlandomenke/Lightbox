@@ -49,6 +49,34 @@ public sealed class TileFrameCache : IDisposable
     /// </remarks>
     public static long ByteBudget { get; set; } = Services.MemoryBudget.TileCache();
 
+    /// <summary>
+    /// Which end of the queue eviction takes from. Same policy, same enum and
+    /// same reason as <see cref="FrameBitmapCache.Eviction"/> (B28): an LRU
+    /// against a sequential scan has a zero hit rate, and playback became a
+    /// scan on this cache the day Q62 routed it through here (B182).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This cache went without it while only the unbounded canvas used it — a
+    /// single unbounded drawing is not a sheet to scan. Measured before the
+    /// port: dense ink past the budget thrashed at n^2.72 and 277 ms a frame
+    /// at 1440p, <em>worse</em> than the bitmap thrash it replaced, because a
+    /// tile-frame miss rebuilds every tile the frame's ink reaches plus its
+    /// stroke index. The caller flips this for the duration of the scan,
+    /// exactly as it does for the bitmap cache beside it.
+    /// </para>
+    /// <para>
+    /// <b>The prewarmer and this mode agree by construction.</b>
+    /// <see cref="InsertWarm"/> enters at the tail and never evicts; the
+    /// most-recent victim is the head's neighbour. So a scan eviction spends
+    /// the churn on the recently shown frames and leaves the warmed ones —
+    /// the frames about to be needed — where they are.
+    /// <c>AWarmAtTheTailSurvivesAScanEviction</c> holds that sentence.
+    /// </para>
+    /// </remarks>
+    public FrameBitmapCache.EvictionOrder Eviction { get; set; } =
+        FrameBitmapCache.EvictionOrder.LeastRecent;
+
     private sealed record Entry(TileStore Store, TilePyramid Pyramid, long Stamp);
 
     /// <summary>
@@ -246,9 +274,17 @@ public sealed class TileFrameCache : IDisposable
 
     private void Evict()
     {
-        while (_lru.Count > 1 && AllocatedBytes > ByteBudget && _lru.Last is { } last)
+        // Most-recent mode protects the entry just inserted (First) and takes
+        // its neighbour, mirroring FrameBitmapCache.Evict: the frame being
+        // shown right now is the one eviction must never take.
+        LinkedListNode<(string Id, Entry Entry)>? Victim() =>
+            Eviction == FrameBitmapCache.EvictionOrder.LeastRecent
+                ? _lru.Last
+                : _lru.First?.Next ?? _lru.First;
+
+        while (_lru.Count > 1 && AllocatedBytes > ByteBudget && Victim() is { } victim)
         {
-            Remove(last);
+            Remove(victim);
         }
     }
 
