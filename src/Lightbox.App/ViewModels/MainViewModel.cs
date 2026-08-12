@@ -5413,9 +5413,14 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnIsPlayingChanged(bool value)
     {
-        _cache.Eviction = value
+        // Both caches: playback publishes through the tile store since Q62,
+        // so the scan protection has to follow the frames wherever they live
+        // (B182 — the tile half went unflipped for a while, and thrashed).
+        var order = value
             ? FrameBitmapCache.EvictionOrder.MostRecent
             : FrameBitmapCache.EvictionOrder.LeastRecent;
+        _cache.Eviction = order;
+        _tileFrames.Eviction = order;
 
         // Cleared at the START of a run rather than the end, so a report always
         // describes the last thing the artist actually watched. Accumulating
