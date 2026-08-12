@@ -98,6 +98,20 @@ public sealed class TileFlattenCache : IDisposable
     public int CachedCount => _lru.Count;
 
     /// <summary>
+    /// How many distinct bitmaps are pinned, and how many of those the cache has
+    /// already given up on and is waiting to free (B179).
+    /// </summary>
+    /// <remarks>
+    /// A pin count that climbs without bound means published snapshots are not
+    /// being released — which is the leak shape this cache can produce, because
+    /// a pinned bitmap is one eviction cannot free.
+    /// </remarks>
+    public int PinnedCount => _pins.Count;
+
+    /// <inheritdoc cref="PinnedCount"/>
+    public int AwaitingUnpinCount => _awaitingUnpin.Count;
+
+    /// <summary>
     /// A cached flatten for exactly these tiles, level and rectangle, or null.
     /// </summary>
     /// <remarks>

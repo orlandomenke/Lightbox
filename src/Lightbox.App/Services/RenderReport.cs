@@ -74,7 +74,10 @@ internal static class RenderReport
         (int Hits, int Misses, long Bytes)? TextureResidency = null,
         bool GpuCompositeOptedIn = false,
         int FramesReused = 0,
-        (int Hits, int Misses, int Evictions, long Bytes, long Budget)? FlattenCache = null);
+        (int Hits, int Misses, int Evictions, long Bytes, long Budget)? FlattenCache = null,
+        (long Frames, long Flattens)? AwaitingUnpin = null,
+        (int Frames, int Flattens)? Pinned = null,
+        (long Bytes, long Budget)? TileStore = null);
 
     /// <summary>
     /// Whether playback got the tile path, and what stopped it.
@@ -557,6 +560,108 @@ internal static class RenderReport
         }
     }
 
+    /// <summary>
+    /// What the process is holding, against what the caches admit to holding.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B179: a machine reached 12 GB and crashed while every budget line in
+    /// this report read comfortably inside its limit.</b> That is not a
+    /// contradiction, it is a gap — the report only ever printed the pools it
+    /// knows about, so a leak anywhere else was invisible by construction, and
+    /// the four reassuring lines above actively pointed away from it.
+    /// </para>
+    /// <para>
+    /// <b>The number that makes this section worth having is the difference.</b>
+    /// Each cache's own figure is already printed elsewhere; what was missing is
+    /// the total beside them, so "the caches are fine" can be distinguished from
+    /// "the caches are fine and the process is not". Only the second is a leak in
+    /// something this report can see.
+    /// </para>
+    /// <para>
+    /// <b>And two pools were tracked but never printed:</b> the bytes each cache
+    /// has evicted and cannot free because a published snapshot is still reading
+    /// them. They are excluded from <c>CachedBytes</c> on purpose — they are not
+    /// cache contents — and are <em>unbounded</em>, which makes them the first
+    /// place to look rather than a footnote.
+    /// </para>
+    /// </remarks>
+    private static void AppendMemory(StringBuilder sb, Facts facts)
+    {
+        sb.AppendLine("-- what memory is held (B179) --------------------------------");
+
+        long working = 0, managed = 0;
+        try
+        {
+            using var self = Process.GetCurrentProcess();
+            working = self.WorkingSet64;
+        }
+        catch { /* a diagnostic must never be the thing that fails */ }
+        try { managed = GC.GetTotalMemory(forceFullCollection: false); }
+        catch { /* as above */ }
+
+        static string Mb(long bytes) => $"{bytes / (1024.0 * 1024.0):0} MB";
+
+        var frames = facts.FrameCache?.Bytes ?? 0;
+        var flats = facts.FlattenCache?.Bytes ?? 0;
+        var textures = facts.TextureResidency?.Bytes ?? 0;
+        var tiles = facts.TileStore?.Bytes ?? 0;
+        var waiting = (facts.AwaitingUnpin?.Frames ?? 0) + (facts.AwaitingUnpin?.Flattens ?? 0);
+        var accounted = frames + flats + textures + tiles + waiting;
+
+        if (working > 0) sb.AppendLine($"process working set       {Mb(working)}");
+        sb.AppendLine($"  managed heap            {Mb(managed)}");
+        sb.AppendLine($"accounted for by caches   {Mb(accounted)}");
+        sb.AppendLine($"  rendered frames         {Mb(frames)}");
+        sb.AppendLine($"  flattened tiles         {Mb(flats)}");
+        sb.AppendLine($"  layer textures          {Mb(textures)}");
+        // Budgeted since the derived-budgets change and never printed anywhere:
+        // the tile path section counts passes, not bytes.
+        sb.AppendLine($"  tiles                   {Mb(tiles)}");
+
+        // The pools that were tracked and never printed, and the reason this
+        // section exists. Named even at zero: an absent line reads as "nothing
+        // was wrong" when it means "nothing was looked at".
+        if (facts.AwaitingUnpin is { } held)
+        {
+            sb.AppendLine($"  evicted, still in use   {Mb(waiting)}"
+                          + $"   (frames {Mb(held.Frames)}, flattens {Mb(held.Flattens)})");
+        }
+        if (facts.Pinned is { } pins)
+        {
+            sb.AppendLine($"pinned by live snapshots  {pins.Frames} frame bitmap(s), "
+                          + $"{pins.Flattens} flatten(s)");
+        }
+
+        if (working > 0 && accounted > 0)
+        {
+            var unaccounted = working - accounted;
+            sb.AppendLine();
+            sb.AppendLine($"  >> {Mb(unaccounted)} is NOT in any cache this report tracks.");
+            // A managed process carries a runtime, an Avalonia tree and Skia's own
+            // context; a few hundred megabytes over is ordinary and says nothing.
+            if (unaccounted > 2L * 1024 * 1024 * 1024)
+            {
+                sb.AppendLine("     That is more than two gigabytes outside the budgets, which no");
+                sb.AppendLine("     amount of ordinary overhead explains. The caches being inside");
+                sb.AppendLine("     their limits is therefore NOT evidence that memory is healthy —");
+                sb.AppendLine("     it means the growth is somewhere these budgets do not reach.");
+                sb.AppendLine("     Check 'evicted, still in use' first: it is unbounded by design,");
+                sb.AppendLine("     and it only grows when snapshots are not being released.");
+            }
+        }
+
+        if (facts.Pinned is { Frames: > 64 } or { Flattens: > 64 })
+        {
+            sb.AppendLine("  !! a large number of bitmaps are pinned. A pin is dropped when a");
+            sb.AppendLine("     published snapshot is released, so a count that climbs means");
+            sb.AppendLine("     snapshots are being held — and a pinned bitmap is one eviction");
+            sb.AppendLine("     cannot free, whatever the budget says.");
+        }
+
+        sb.AppendLine();
+    }
+
     private static void AppendTextureResidency(StringBuilder sb, Facts facts)
     {
         if (!facts.GpuCompositeOptedIn) return;
@@ -1018,6 +1123,7 @@ internal static class RenderReport
         }
 
         AppendTextureResidency(sb, facts);
+        AppendMemory(sb, facts);
 
         if (probe is { } p)
         {

@@ -64,13 +64,16 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         (long Requested, long Delivered)? animationFrames = null,
         double renderMedianMs = 0,
         bool gpuCompositeOptedIn = false,
-        (int Hits, int Misses, long Bytes)? textureResidency = null) =>
+        (int Hits, int Misses, long Bytes)? textureResidency = null,
+        (long Frames, long Flattens)? awaitingUnpin = null,
+        (int Frames, int Flattens)? pinned = null) =>
         new(backend, backend != "GPU", onGpu, gpuFailed, maxTexture,
             docWidth, docHeight, 1.0, "Full", 1.0, durableEnabled, hasPresented,
             Pacing: pacing, PresentWait: presentWait,
             TickPhases: tickPhases, TickCount: tickCount, FrameCache: frameCache, Scene: scene,
             AnimationFrames: animationFrames, RenderMedianMs: renderMedianMs,
-            TextureResidency: textureResidency, GpuCompositeOptedIn: gpuCompositeOptedIn);
+            TextureResidency: textureResidency, GpuCompositeOptedIn: gpuCompositeOptedIn,
+            AwaitingUnpin: awaitingUnpin, Pinned: pinned);
 
     /// <summary>
     /// The four states behind one boolean, and the reason this test exists: the
@@ -548,5 +551,60 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
 
         Assert.Contains("nothing has composited through it", residency);
         Assert.DoesNotContain("DID composite on the card", residency);
+    }
+
+    /// <summary>
+    /// <b>B179's blind spot: every budget line read comfortably while the machine
+    /// reached 12 GB and crashed.</b>
+    /// </summary>
+    /// <remarks>
+    /// The report only ever printed the pools it knows about, so a leak anywhere
+    /// else was invisible by construction — and worse, the four reassuring lines
+    /// actively pointed away from it. "The caches are fine" and "the caches are
+    /// fine and the process is not" have to be distinguishable, and only the
+    /// second is something this report can help with.
+    /// </remarks>
+    [Fact]
+    public void TheMemorySectionSeparatesTheCachesFromTheProcess()
+    {
+        Setup();
+        var path = RenderReport.WriteStartup(Facts(
+            frameCache: (0, 0, 0, 284L * 1024 * 1024, 4008L * 1024 * 1024),
+            textureResidency: (0, 0, 93L * 1024 * 1024),
+            gpuCompositeOptedIn: true));
+        var text = File.ReadAllText(path!);
+        var section = text[text.IndexOf("what memory is held", StringComparison.Ordinal)..];
+        output.WriteLine(section);
+
+        Assert.Contains("process working set", section);
+        Assert.Contains("accounted for by caches", section);
+        Assert.Contains("NOT in any cache this report tracks", section);
+    }
+
+    /// <summary>
+    /// <b>The two pools that were tracked and never printed.</b> They are excluded
+    /// from CachedBytes on purpose — they are not cache contents — and they are
+    /// unbounded, which makes them the first place to look rather than a
+    /// footnote. Named even at zero, because an absent line reads as "nothing was
+    /// wrong" when it means "nothing was looked at".
+    /// </summary>
+    [Fact]
+    public void ItNamesTheBytesEvictionCannotFree()
+    {
+        Setup();
+        var path = RenderReport.WriteStartup(Facts(
+            frameCache: (0, 0, 0, 100L * 1024 * 1024, 4008L * 1024 * 1024),
+            awaitingUnpin: (700L * 1024 * 1024, 1300L * 1024 * 1024),
+            pinned: (400, 900)));
+        var text = File.ReadAllText(path!);
+        var section = text[text.IndexOf("what memory is held", StringComparison.Ordinal)..];
+        output.WriteLine(section);
+
+        Assert.Contains("evicted, still in use", section);
+        Assert.Contains("2000 MB", section);
+        Assert.Contains("pinned by live snapshots", section);
+        // A pin count that high is the leak shape, and it has to be called out
+        // rather than left as a number to interpret.
+        Assert.Contains("a pinned bitmap is one eviction", section);
     }
 }
