@@ -292,7 +292,9 @@ there, so a drawn rectangle has square corners and a flick still has a point.
 
 The pointer changes with the tool, so you can tell what is armed without looking
 away from the drawing. The brush and the eraser show their real size and shape as
-a ring; the eyedropper, the fill and the shape tools show a crosshair; the move
+a ring; the eyedropper and the fill show a crosshair with their own icon beside
+it — the crosshair is where the tool acts, the icon says which one you are
+holding; the pen, the shapes and the selections show a plain crosshair; the move
 tool shows arrows; the two selection arrows show a pointer.
 
 **If the pointer shows a "no" symbol, the tool will not do anything where you
