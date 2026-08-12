@@ -1927,6 +1927,16 @@ public sealed class CanvasControl : Control
     private bool _marqueeAdds;
 
     private bool _painting;
+
+    /// <summary>
+    /// Which pointer owns the stroke in flight. Refocusing the window with a
+    /// pen makes Windows synthesise mouse activity at the mouse's stale
+    /// position, and those events arrive interleaved with the pen's — without
+    /// this, each one painted a full-pressure dab wherever the mouse was last
+    /// left, which read as lines shooting across the canvas (B185).
+    /// </summary>
+    private int _paintPointerId = -1;
+
     private bool _panning;
     private Point _panLast;
 
@@ -2507,14 +2517,54 @@ public sealed class CanvasControl : Control
         return (origin, (horizontal ? unit.X : unit.Y) - origin);
     }
 
-    private static double PressureOf(PointerPoint pp)
+    /// <summary>
+    /// The pen has produced a real pressure value at least once. Zero from a
+    /// pen means two different things and this is what tells them apart: a pen
+    /// whose driver never exposes pressure reads zero forever and should paint
+    /// at 100% like a mouse, while a pen that normally reports pressure reads
+    /// zero only in a gap in the stream — the first packets after the window
+    /// is refocused — and promoting those to 100% stamps full-size dabs the
+    /// artist never asked for (B185).
+    /// </summary>
+    /// <remarks>
+    /// Cleared again by a whole pen stroke that never reports pressure — see
+    /// the release path. Without that, one session with a pressure-reporting
+    /// pen would pin a second, pressure-less pen near zero for every stroke
+    /// it makes; with it, such a pen pays one faint stroke and is back to
+    /// painting at 100% from its next.
+    /// </remarks>
+    private bool _penHasReportedPressure;
+
+    /// <summary>The stroke in flight has seen a real (non-zero) pressure value.</summary>
+    private bool _strokeSawRealPressure;
+
+    /// <summary>The stroke in flight was begun by a pen rather than a mouse.</summary>
+    private bool _strokeWasPen;
+
+    private double PressureOf(PointerPoint pp)
     {
         // A mouse has no pressure axis: it paints at 100% so the stroke
         // matches the cursor gizmo exactly. Only a real pen (which reports
         // meaningful values via Windows Ink) modulates pressure.
         if (pp.Pointer.Type != PointerType.Pen) return 1.0;
         var raw = pp.Properties.Pressure;
-        return raw <= 0 ? 1.0 : Math.Clamp(raw, 0.0, 1.0);
+        if (raw > 0)
+        {
+            _penHasReportedPressure = true;
+            _strokeSawRealPressure = true;
+            return Math.Clamp(raw, 0.0, 1.0);
+        }
+        return _penHasReportedPressure ? 0.0 : 1.0;
+    }
+
+    /// <summary>
+    /// Called as a stroke ends: a pen stroke that produced no real pressure
+    /// from press to release is a pen that is not reporting it, so the
+    /// promotion of zero to 100% comes back for the next stroke.
+    /// </summary>
+    private void NoteStrokePressureHistory()
+    {
+        if (_strokeWasPen && !_strokeSawRealPressure) _penHasReportedPressure = false;
     }
 
     /// <summary>
@@ -2994,8 +3044,17 @@ public sealed class CanvasControl : Control
                     return;
             }
 
+            // A second device pressing mid-stroke is never the artist — it is
+            // the synthesized mouse click a window activation delivers while
+            // the pen is already down. Restarting the stroke from its position
+            // would begin the mark wherever the mouse was last left.
+            if (_painting) return;
+
             e.Pointer.Capture(this);
             _painting = true;
+            _paintPointerId = e.Pointer.Id;
+            _strokeWasPen = e.Pointer.Type == PointerType.Pen;
+            _strokeSawRealPressure = false;
             // Alt turns the brush in your hand into an eraser without
             // swapping tools, so it keeps its size, shape and dynamics. That
             // is different from E, which switches to the dedicated eraser and
@@ -3015,6 +3074,7 @@ public sealed class CanvasControl : Control
         catch (Exception ex)
         {
             _painting = false;
+            _paintPointerId = -1;
             _panning = false;
             ReportInputError("press", ex);
         }
@@ -3394,6 +3454,10 @@ public sealed class CanvasControl : Control
             }
 
             if (!_painting) return;
+            // Only the pointer that began the stroke may extend it: the mouse
+            // moving (or being moved by the OS on a refocus) while the pen is
+            // down must not drag the mark to wherever the mouse happens to be.
+            if (e.Pointer.Id != _paintPointerId) return;
             // Shift during a brush drag holds it to one axis, the way it does
             // in Photoshop. Applied here rather than in the view model because
             // it is a property of the gesture, not of the mark: the record
@@ -3405,6 +3469,11 @@ public sealed class CanvasControl : Control
             var samples = new List<ViewModels.MainViewModel.PointerSample>(points.Count);
             foreach (var pp in points)
             {
+                // Coalesced history can reach back past the press into hover
+                // samples — positions from before the stroke, with no contact
+                // and no pressure. After a refocus that history is where the
+                // pen last was, which may be nowhere near where it came down.
+                if (!pp.Properties.IsLeftButtonPressed) continue;
                 var (x, y) = ViewToDoc(pp.Position);
                 if (_axisLockedStroke) (x, y) = AxisLocked(_paintAnchor, x, y);
                 samples.Add(new ViewModels.MainViewModel.PointerSample(x, y, PressureOf(pp)));
@@ -3649,7 +3718,13 @@ public sealed class CanvasControl : Control
             return;
         }
         if (!_painting) return;
+        // The stroke ends when the pointer that made it lifts — a release from
+        // any other device mid-stroke (the refocus mouse-click again) would cut
+        // the mark short under a pen that is still down.
+        if (e.Pointer.Id != _paintPointerId) return;
         _painting = false;
+        _paintPointerId = -1;
+        NoteStrokePressureHistory();
         e.Pointer.Capture(null);
         ReportCursorPressure(1, penDown: false); // back to showing the maximum on hover
         PaintEnded?.Invoke();
@@ -3697,6 +3772,18 @@ public sealed class CanvasControl : Control
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
         base.OnPointerCaptureLost(e);
+        CancelPointerGestures();
+    }
+
+    /// <summary>
+    /// Abandon whatever gesture is mid-flight, exactly as losing pointer
+    /// capture does. The window calls this on Deactivated: a release delivered
+    /// to another application is one this control will never see, and a stroke
+    /// still marked in-flight would resume from its stale anchor the moment
+    /// the window came back (B185).
+    /// </summary>
+    public void CancelPointerGestures()
+    {
         _panning = false;
         if (_movingGuides)
         {
@@ -3744,6 +3831,8 @@ public sealed class CanvasControl : Control
         }
         if (!_painting) return;
         _painting = false;
+        _paintPointerId = -1;
+        NoteStrokePressureHistory();
         ReportCursorPressure(1, penDown: false); // back to showing the maximum on hover
         PaintEnded?.Invoke();
     }

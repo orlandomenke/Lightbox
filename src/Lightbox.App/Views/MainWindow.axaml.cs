@@ -399,6 +399,11 @@ public partial class MainWindow : Window
             _vm.ApplyHeldModifiers(Avalonia.Input.KeyModifiers.None);
             _momentaryToolKey = null;
             _vm.CancelMomentaryTool();
+            // Same reasoning as the modifiers: a release delivered to whichever
+            // window took the focus is one we will never see, and a gesture
+            // still marked in-flight would resume from its stale position the
+            // moment the pen touches down again (B185).
+            Canvas.CancelPointerGestures();
         };
         RecentMenu.SubmenuOpened += (_, _) => RefreshRecentMenu();
         ConvertProjectMenu.SubmenuOpened += (_, _) => RefreshConvertMenu();
