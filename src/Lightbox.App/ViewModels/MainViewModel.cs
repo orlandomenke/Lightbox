@@ -3887,6 +3887,17 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(PointerRefusal));
     }
 
+    /// <summary>
+    /// Tell the view the paper moved, after a resize changed the origin.
+    /// </summary>
+    /// <remarks>
+    /// <c>Scene.OriginX</c> is a plain field on the document model, so nothing
+    /// is raised when a resize changes it — and every pointer conversion in the
+    /// canvas reads it. Without this the tools would keep converting against the
+    /// old corner, which lands strokes exactly one resize out of place.
+    /// </remarks>
+    public void RefreshDocumentOrigin() => OnPropertyChanged(nameof(DocumentOrigin));
+
     /// <summary>The black arrow — picks things (lines, guides, symbols) rather than an area of pixels.</summary>
     public bool IsArrowTool => ActiveTool == ToolId.Arrow;
 
@@ -3917,7 +3928,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Eyedropper click: the color under the cursor (what the eye sees, incl. paper).</summary>
     public void PickColorAt(double x, double y)
     {
-        int px = (int)Math.Round(x), py = (int)Math.Round(y);
+        var (px, py) = ToSurface(x, y);
         if (px < 0 || py < 0 || px >= Scene.Width || py >= Scene.Height) return;
         using var composite = CompositeVisibleLayers();
         var color = composite.GetPixel(px, py);
@@ -4205,10 +4216,11 @@ public sealed partial class MainViewModel : ObservableObject
                 sample = _cache.Get(target, scene.Width, scene.Height);
             }
 
+            var (seedX, seedY) = ToSurface(x, y);
             var result = FloodFill.Fill(
                 sample,
-                (int)Math.Round(x),
-                (int)Math.Round(y),
+                seedX,
+                seedY,
                 new FloodFill.Options(FillTolerance, FillGapPx, FillGrowPx),
                 SelectionMask(scene.Width, scene.Height));
             if (result is null)
@@ -4224,8 +4236,10 @@ public sealed partial class MainViewModel : ObservableObject
                 SwatchId = ActiveSwatchId,
                 PaletteId = ActivePaletteId,
                 Brush = new BrushSettings { Opacity = 1, AntiAlias = AntiAliasing },
-                Points = result.Outer,
-                Holes = result.Holes.Count > 0 ? result.Holes : null,
+                // Out of surface space: a fill is a stroke, and a stroke's
+                // points are the record's coordinates (invariant 1).
+                Points = ToDocument([result.Outer])[0],
+                Holes = result.Holes.Count > 0 ? ToDocument(result.Holes) : null,
                 Label = "fill",
             };
             var clip = PrepareClipForSelection();
@@ -4337,8 +4351,9 @@ public sealed partial class MainViewModel : ObservableObject
                 sample = _cache.Get(frame, w, h);
             }
 
+            var (wandX, wandY) = ToSurface(x, y);
             var result = FloodFill.Fill(
-                sample, (int)Math.Round(x), (int)Math.Round(y),
+                sample, wandX, wandY,
                 new FloodFill.Options(WandTolerance, WandGapPx));
             if (result is null)
             {
@@ -4681,12 +4696,54 @@ public sealed partial class MainViewModel : ObservableObject
     /// Freeze the active selection as a document clip region (content-hashed,
     /// deduped) so strokes painted under it re-render identically forever.
     /// </summary>
+    /// <summary>
+    /// Where the paper's top-left sits in stroke coordinates, for the canvas
+    /// control's pointer conversions.
+    /// </summary>
+    public Avalonia.PixelPoint DocumentOrigin => new(Scene.Left, Scene.Top);
+
+    /// <summary>
+    /// A stroke coordinate as a pixel in a document-sized bitmap.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Three tools index pixels rather than reasoning about the record</b> —
+    /// flood fill, the wand and the colour picker — and they are the only place
+    /// in this file that needs this. Everything else works in stroke
+    /// coordinates, which is what <c>CanvasControl.ViewToDoc</c> now hands over.
+    /// </para>
+    /// <para>
+    /// The two spaces are the same until the canvas is grown or cropped on the
+    /// left or top, which is exactly why this is easy to forget and impossible
+    /// to notice: every test written on an unresized document passes either way.
+    /// </para>
+    /// </remarks>
+    private (int X, int Y) ToSurface(double x, double y) =>
+        ((int)Math.Round(x - Scene.Left), (int)Math.Round(y - Scene.Top));
+
+    /// <summary>Surface-space contours as stroke coordinates.</summary>
+    /// <remarks>
+    /// The other direction, for the two results that become part of the record:
+    /// a fill's outline (invariant 1) and a selection's clip region
+    /// (invariant 3). Both come out of <c>FloodFill</c> indexed from a bitmap's
+    /// own corner and have to be told where that corner is.
+    /// </remarks>
+    private List<List<StrokePoint>> ToDocument(IEnumerable<List<StrokePoint>> contours)
+    {
+        int dx = Scene.Left, dy = Scene.Top;
+        return [.. contours.Select(c => dx == 0 && dy == 0
+            ? new List<StrokePoint>(c)
+            : [.. c.Select(pt => pt with { X = pt.X + dx, Y = pt.Y + dy })])];
+    }
+
     private (string Id, ClipRegion Region)? PrepareClipForSelection()
     {
         if (!HasSelection) return null;
         var region = new ClipRegion
         {
-            Contours = _selectionContours.Select(c => new List<StrokePoint>(c)).ToList(),
+            // The selection is kept as a surface mask, because that is what it
+            // is; a clip region is part of the record, so it crosses here.
+            Contours = ToDocument(_selectionContours),
             Feather = SelectionFeather,
         };
         var payload = System.Text.Json.JsonSerializer.Serialize(region);

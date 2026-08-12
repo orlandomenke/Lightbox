@@ -2260,24 +2260,77 @@ public sealed class CanvasControl : Control
     }
 
     /// <summary>
-    /// Map a view-space point to document space (exposed for tests). Never
-    /// throws: a degenerate matrix (zero-sized layout) falls back to the raw
-    /// point, and non-finite results are pinned to the origin.
+    /// Where the paper's top-left sits in stroke coordinates — <c>Scene.Left</c>
+    /// and <c>Scene.Top</c>, non-zero only once the canvas has been grown or
+    /// cropped on that side.
     /// </summary>
-    public (double X, double Y) ViewToDoc(Point p)
+    /// <remarks>
+    /// <para>
+    /// <b>The view matrix works in surface pixels and always will.</b> It is
+    /// built from <c>DocWidth</c>/<c>DocHeight</c>, which are the size of the
+    /// composited bitmap — that bitmap starts at its own (0,0) whatever the
+    /// document rectangle is called. So the origin does not belong in the
+    /// matrix; it belongs in the two conversions either side of it, which is
+    /// where it is.
+    /// </para>
+    /// <para>
+    /// Putting it here rather than on <c>RenderSnapshot</c> keeps it out of the
+    /// render path entirely, which is right: nothing about <em>drawing</em> the
+    /// composited bitmap changes when the paper is renamed. Only the question
+    /// "which stroke coordinate is under the pointer" does.
+    /// </para>
+    /// </remarks>
+    public static readonly StyledProperty<PixelPoint> DocumentOriginProperty =
+        AvaloniaProperty.Register<CanvasControl, PixelPoint>(nameof(DocumentOrigin));
+
+    public PixelPoint DocumentOrigin
     {
-        if (!ViewMatrix().TryInvert(out var inverse)) return (p.X, p.Y);
-        var doc = p.Transform(inverse);
-        if (!double.IsFinite(doc.X) || !double.IsFinite(doc.Y)) return (0, 0);
-        return (doc.X, doc.Y);
+        get => GetValue(DocumentOriginProperty);
+        set => SetValue(DocumentOriginProperty, value);
     }
 
-    /// <summary>Map a document point to view space.</summary>
+    /// <summary>
+    /// Map a view-space point to <b>stroke</b> coordinates (exposed for tests).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Never throws: a degenerate matrix (zero-sized layout) falls back to the
+    /// raw point, and non-finite results are pinned to the document's top-left.
+    /// </para>
+    /// <para>
+    /// <b>Stroke coordinates, not surface pixels</b>, and that is what makes the
+    /// resize work reach the tools for nothing. Every caller that picks a line,
+    /// drags a guide, places a symbol or starts a stroke wants the space the
+    /// record is written in — so adding the origin here fixes all of them at
+    /// once. The few callers that index a bitmap instead subtract it again, and
+    /// they are the exceptions rather than the rule.
+    /// </para>
+    /// </remarks>
+    public (double X, double Y) ViewToDoc(Point p)
+    {
+        var origin = DocumentOrigin;
+        if (!ViewMatrix().TryInvert(out var inverse)) return (p.X + origin.X, p.Y + origin.Y);
+        var doc = p.Transform(inverse);
+        if (!double.IsFinite(doc.X) || !double.IsFinite(doc.Y)) return (origin.X, origin.Y);
+        return (doc.X + origin.X, doc.Y + origin.Y);
+    }
+
+    /// <summary>Map a stroke coordinate to view space.</summary>
     public (double X, double Y) DocToView(double x, double y)
     {
-        var p = new Point(x, y).Transform(ViewMatrix());
+        var origin = DocumentOrigin;
+        var p = new Point(x - origin.X, y - origin.Y).Transform(ViewMatrix());
         return (p.X, p.Y);
     }
+
+    /// <summary>A stroke coordinate as a pixel in the composited bitmap.</summary>
+    /// <remarks>
+    /// For the handful of callers that index pixels rather than reasoning about
+    /// the record: flood fill, the wand, and the colour picker. Everything else
+    /// should stay in stroke coordinates and never call this.
+    /// </remarks>
+    public (double X, double Y) DocToSurface(double x, double y) =>
+        (x - DocumentOrigin.X, y - DocumentOrigin.Y);
 
     /// <summary>Find the placement at document coordinates, or null if none hit.</summary>
     private Core.Documents.SymbolPlacement? PickPlacementAt(double x, double y)
