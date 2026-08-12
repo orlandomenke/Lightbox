@@ -8,13 +8,25 @@ verifier rather than its own embryo. Phases 1–4 — the matcher upgrades, the
 golden set, repair, and adaptive shaping — remain design. The taxonomy half of
 the subject reading (`DESIGN-subject-reading.md`) predates all of this.
 
-One thing Phase 0 taught that the tier table did not state: **drag must hang
-off the thing it follows.** A first cut licensed any ink behind a mover's
-travel, which quietly re-licensed everything disocclusion's continuation rule
-exists to refuse — anything in the wake trails the mover by construction. The
-shipped check requires proximity to the mover's current geometry as well as a
-backwards deviation, and `RevealedInkThatContinuesNothingIsRefused` is the
-test that caught it.
+Two things Phase 0 taught that the tier table did not state, both about drag:
+
+- **Drag must hang off the thing it follows.** A first cut licensed any ink
+  behind a mover's travel, which quietly re-licensed everything disocclusion's
+  continuation rule exists to refuse — anything in the wake trails the mover by
+  construction. `RevealedInkThatContinuesNothingIsRefused` caught it.
+- **Proximity is measured at the ink's nearest point, and licensed ink anchors
+  further ink.** The second cut measured the ink's *centroid* against the
+  mover, which refuses secondary action in proportion to its own length — a
+  tail passed only up to about half the mover's stroke length, and a longer
+  hair strand failed at any latitude because the "distance" grew with the
+  strand rather than with the invention. That was the art-director's veto in
+  the G12 review: the design's own flagship case (fur, cloth, tails) was
+  functionally forbidden beyond a stub, silently, because no test drew a
+  stroke longer than one. The shipped check samples the ink's own points, and
+  a stroke licensed this frame becomes an anchor for the next — a tail of
+  three strokes licenses from the attachment outwards.
+  `AThreeStrokeTailTrailingTheMotionIsLicensed` and
+  `ALongStrandHangingOffTheDrawingIsLicensed` are the tests that pin it.
 
 The AI features are meant to be the flagship — artistry × time, the artist in
 control, the machine taking the tedious and managerial work. That only holds if
