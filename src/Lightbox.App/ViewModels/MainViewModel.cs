@@ -135,6 +135,31 @@ public sealed partial class MainViewModel : ObservableObject
          _tileFlats.CachedBytes, TileFlattenCache.ByteBudget);
 
     /// <summary>
+    /// Bytes held by bitmaps that have left a cache and cannot be freed yet,
+    /// because a published snapshot is still reading them (B179).
+    /// </summary>
+    /// <remarks>
+    /// <b>Every cache tracked this and nothing ever printed it.</b> That is the
+    /// blind spot B179 was reported through: a machine at 12 GB while every
+    /// budget line in the report read comfortably inside its limit. These bytes
+    /// are in neither <c>CachedBytes</c> nor the budget by design — they are not
+    /// cache contents — but they are real memory, they are unbounded, and a
+    /// report that omits them cannot be used to find them.
+    /// </remarks>
+    internal (long Frames, long Flattens) AwaitingUnpinBytes =>
+        (_cache.AwaitingUnpinBytes, _tileFlats.AwaitingUnpinBytes);
+
+    /// <summary>How many distinct bitmaps published snapshots are pinning.</summary>
+    internal (int Frames, int Flattens) PinnedBitmaps =>
+        (_cache.PinnedCount, _tileFlats.PinnedCount);
+
+    /// <summary>
+    /// Tile bytes held, which the report counted in passes and never in bytes.
+    /// </summary>
+    internal (long Bytes, long Budget) TileStoreBytes =>
+        (_tileFrames.AllocatedBytes, TileFrameCache.ByteBudget);
+
+    /// <summary>
     /// The shape of the scene, which is what decides whether it fits the cache.
     /// </summary>
     /// <remarks>
