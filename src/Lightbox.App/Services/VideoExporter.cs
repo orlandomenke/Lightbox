@@ -169,11 +169,19 @@ public static class VideoExporter
         var fps = Math.Max(1, settings.Fps);
         var track = settings.IncludeAudio ? scene.Audio : null;
         if (!settings.IncludeAudio) audioPath = null;
-        var audioOffset = settings.AudioOffsetFrames(scene);
+        // A split track arrives already laid out on the timeline (Q57) — the
+        // sections have been assembled into one WAV with silence in the gaps,
+        // anchored to the document's frame zero — so applying the track's own
+        // offset and trim again would move the sound twice. What still
+        // applies is the render range: an excerpt shifts the assembled sound
+        // exactly as it shifts an ordinary one.
+        var assembled = track?.Segments is { Count: > 0 };
+        var audioOffset = assembled ? -fromFrame : settings.AudioOffsetFrames(scene);
         var args = BuildArgs(
             format: settings.Format, width, height, fps, outputPath,
             audioPath, audioOffset, track?.Volume ?? 1.0,
-            track?.TrimStartFrames ?? 0, track?.TrimLengthFrames, settings.Quality);
+            assembled ? 0 : track?.TrimStartFrames ?? 0,
+            assembled ? null : track?.TrimLengthFrames, settings.Quality);
 
         var info = new ProcessStartInfo
         {

@@ -12,6 +12,42 @@ public static class AudioPeaks
     public readonly record struct Peak(float Min, float Max);
 
     /// <summary>
+    /// Peaks for a split clip (Q57): each section reads its own window of
+    /// the source at its own place on the timeline; frames no section
+    /// covers are flat zero.
+    /// </summary>
+    public static Peak[] Build(
+        ReadOnlySpan<float> mono, int sampleRate, int fps, int frameCount,
+        IReadOnlyList<Documents.AudioSegment> segments)
+    {
+        var peaks = new Peak[Math.Max(0, frameCount)];
+        if (sampleRate <= 0 || fps <= 0 || mono.IsEmpty) return peaks;
+
+        foreach (var segment in segments)
+        {
+            var first = Math.Max(0, segment.AtFrame);
+            var last = Math.Min(peaks.Length, segment.AtFrame + segment.LengthFrames);
+            for (var f = first; f < last; f++)
+            {
+                var src = f - segment.AtFrame + segment.SourceStartFrames;
+                var from = Math.Max(0, (long)src * sampleRate / fps);
+                var to = Math.Min((long)(src + 1) * sampleRate / fps, mono.Length);
+                if (from >= to) continue;
+
+                float min = 0, max = 0;
+                for (var i = (int)from; i < (int)to; i++)
+                {
+                    var v = mono[i];
+                    if (v < min) min = v;
+                    if (v > max) max = v;
+                }
+                peaks[f] = new Peak(min, max);
+            }
+        }
+        return peaks;
+    }
+
+    /// <summary>
     /// Peaks for <paramref name="frameCount"/> frames at <paramref name="fps"/>,
     /// the sound starting at frame <paramref name="offsetFrames"/>. Frames the
     /// sound does not reach are flat zero. <paramref name="trimStartFrames"/>

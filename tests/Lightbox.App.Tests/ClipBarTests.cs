@@ -107,7 +107,7 @@ public sealed class ClipBarVmTests : BrushStateIsolated
         GiveAudio(vm, sourceFrames: 12);
         var track = vm.Doc.Scene.Audio!;
 
-        vm.TrimAudioClipIn(3);
+        vm.TrimAudioClipIn(0, 3);
 
         Assert.Equal(3, track.TrimStartFrames);
         Assert.Equal(9, track.TrimLengthFrames);
@@ -117,7 +117,7 @@ public sealed class ClipBarVmTests : BrushStateIsolated
         Assert.Equal((3, 9), span);
 
         // And back out again restores the head.
-        vm.TrimAudioClipIn(-3);
+        vm.TrimAudioClipIn(0, -3);
         Assert.Equal(0, track.TrimStartFrames);
         Assert.Equal(12, track.TrimLengthFrames);
         Assert.Equal(0, track.OffsetFrames);
@@ -130,13 +130,13 @@ public sealed class ClipBarVmTests : BrushStateIsolated
         GiveAudio(vm, sourceFrames: 12);
         var track = vm.Doc.Scene.Audio!;
 
-        vm.TrimAudioClipOut(-4);
+        vm.TrimAudioClipOut(0, -4);
         Assert.Equal(8, track.TrimLengthFrames);
 
-        vm.TrimAudioClipOut(-100);
+        vm.TrimAudioClipOut(0, -100);
         Assert.Equal(1, track.TrimLengthFrames);
 
-        vm.TrimAudioClipOut(100);
+        vm.TrimAudioClipOut(0, 100);
         Assert.Equal(12, track.TrimLengthFrames);
     }
 
@@ -149,7 +149,7 @@ public sealed class ClipBarVmTests : BrushStateIsolated
         strip.LayOutFrom(0);
         vm.Doc.Scene.References = [strip];
 
-        vm.SlideVideoClip(0, 5);
+        vm.SlideVideoClip(0, runStart: 0, deltaFrames: 5);
 
         var bar = Assert.Single(vm.TimelineVideoClips);
         Assert.Equal(5, bar.Start);
@@ -166,19 +166,19 @@ public sealed class ClipBarVmTests : BrushStateIsolated
         strip.LayOutFrom(2);   // cells 0..5 at frames 2..7
         vm.Doc.Scene.References = [strip];
 
-        vm.TrimVideoClipIn(0, 2);
+        vm.TrimVideoClipIn(0, runStart: 2, deltaFrames: 2);
         Assert.Equal(4, vm.TimelineVideoClips[0].Start);
         Assert.Null(strip.CellAt(2));
         Assert.Null(strip.CellAt(3));
 
-        vm.TrimVideoClipIn(0, -2);
+        vm.TrimVideoClipIn(0, runStart: 4, deltaFrames: -2);
         Assert.Equal(2, vm.TimelineVideoClips[0].Start);
         Assert.NotNull(strip.CellAt(2));
 
-        vm.TrimVideoClipOut(0, -3);
+        vm.TrimVideoClipOut(0, runStart: 2, deltaFrames: -3);
         Assert.Equal(4, vm.TimelineVideoClips[0].End);
 
-        vm.TrimVideoClipOut(0, 3);
+        vm.TrimVideoClipOut(0, runStart: 2, deltaFrames: 3);
         Assert.Equal(7, vm.TimelineVideoClips[0].End);
     }
 }
