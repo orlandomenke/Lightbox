@@ -155,7 +155,7 @@ stored in a project** — a layout is a property of you, not of the artwork, and
 opening someone else's file must not rearrange your screen.
 
 Seven ship with the app: one per project type, plus **Default**. Switch with the
-picker at the top right of the tool options bar.
+picker at the top right of the Quick options bar.
 
 - **View → Workspace → Save current workspace** updates the selected one.
 - **Save as new workspace…** stores the arrangement under a new name.

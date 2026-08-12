@@ -46,7 +46,11 @@ selected.
 **Ctrl+T** starts a transform. The gizmo gives move, scale, rotate and a
 draggable pivot; **Perspective** mode gives four free corners. The drawing
 moves *with* the gizmo — you see the result while you drag, not after you
-commit.
+commit. The session's controls — scope, sampling, perspective, mirror,
+Reset, **Apply** and **Cancel** — live on their own page of the **Tool
+options** docker, which opens by itself when the session starts, so they are
+never off screen while a transform is live. Enter applies, Esc cancels,
+from the keyboard as always.
 
 **Scope** decides what moves: this cel, all layers at this frame, a marked cel
 range, or the whole animation. With a selection active, only the strokes inside

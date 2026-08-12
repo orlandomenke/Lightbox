@@ -4131,6 +4131,7 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowsEffectOptions))]
     [NotifyPropertyChangedFor(nameof(PointerIntent))]
     [NotifyPropertyChangedFor(nameof(PointerRefusal))]
+    [NotifyPropertyChangedFor(nameof(ActiveToolIcon))]
     [NotifyPropertyChangedFor(nameof(IsBrushTool))]
     [NotifyPropertyChangedFor(nameof(IsEraserTool))]
     [NotifyPropertyChangedFor(nameof(IsFillTool))]
@@ -4143,6 +4144,7 @@ public sealed partial class MainViewModel : ObservableObject
     // way to pick a shape.
     [NotifyPropertyChangedFor(nameof(IsShapeTool))]
     [NotifyPropertyChangedFor(nameof(IsPaintTool))]
+    [NotifyPropertyChangedFor(nameof(MakesSizedMarks))]
     [NotifyPropertyChangedFor(nameof(IsArrowTool))]
     [NotifyPropertyChangedFor(nameof(IsDirectSelectTool))]
     [NotifyPropertyChangedFor(nameof(IsPenTool))]
@@ -4171,6 +4173,10 @@ public sealed partial class MainViewModel : ObservableObject
     public bool IsWandVariant => ActiveSelectVariant == SelectVariant.Wand;
 
     public bool IsBrushTool => ActiveTool == ToolId.Brush;
+
+    /// <summary>The active tool's icon, for the Quick options bar's left edge.</summary>
+    public Avalonia.Media.Geometry? ActiveToolIcon =>
+        Rendering.IconSet.Resolve(Rendering.IconSet.ForTool(ActiveTool));
 
     /// <summary>
     /// What the pointer should say the active tool will do over the active
@@ -4404,6 +4410,14 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Brush or eraser — the tools whose strokes the brush-parameter flyout edits.</summary>
     public bool IsPaintTool => ActiveTool is ToolId.Brush or ToolId.Eraser;
+
+    /// <summary>
+    /// Whether the tool in hand makes a mark that takes the pinned Size and
+    /// Opacity — brush, eraser, and shape, because a shape is a stroke drawn
+    /// with the loaded brush. The Quick options bar disables (never hides)
+    /// its fixed section on this, per Q70.
+    /// </summary>
+    public bool MakesSizedMarks => ActiveTool is ToolId.Brush or ToolId.Eraser or ToolId.Shape;
 
     /// <summary>The active tool, named for the Tool options panel's header.</summary>
     public string ActiveToolLabel => ActiveTool switch
@@ -8252,6 +8266,11 @@ public sealed partial class MainViewModel : ObservableObject
         _transformFrames.AddRange(frames);
         _transformFilter = filter;
         TransformActive = true;
+        // The session's controls live in the Tool options docker now (Q70), so
+        // starting a transform with the docker closed must open it — Apply and
+        // Cancel have keys, but scope, sampling and perspective would otherwise
+        // be reachable only through a panel the artist cannot see.
+        OpenToolOptions();
         var b = bounds.Value;
         if (gizmo) TransformBegun?.Invoke(b.MinX, b.MinY, b.MaxX, b.MaxY);
         return true;
