@@ -224,6 +224,8 @@ public sealed class CanvasControl : Control
     /// </remarks>
     private readonly LayerTextureCache _textures = new();
 
+
+
     /// <summary>Resident-texture counters, for the render report. Tests only.</summary>
     internal (int Hits, int Misses, long Bytes) TextureResidency =>
         (_textures.Hits, _textures.Misses, _textures.ResidentBytes);
@@ -2221,7 +2223,7 @@ public sealed class CanvasControl : Control
             ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks),
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
-            _pathTrace, _textures));
+            _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures));
     }
 
     /// <summary>

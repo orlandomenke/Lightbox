@@ -85,6 +85,58 @@ internal static class GpuComposite
         else CpuComposites += times;
     }
 
+    /// <summary>
+    /// Ask Skia to account for the compose surface, instead of opting out.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B179's discriminator, and it exists to be switched rather than
+    /// shipped.</b> The leak is established to be in the GPU compositing path —
+    /// working set 894 MB with the toggle off against 12 GB with it on — and two
+    /// candidates remain inside it. This separates them in one playback: memory
+    /// flat with this on means the unbudgeted surfaces were the cause; still
+    /// climbing means they are exonerated and the residency cache is next.
+    /// </para>
+    /// <para>
+    /// <b>Default off, because <c>budgeted: false</c> is not an accident.</b>
+    /// <see cref="CreateSurface"/> asks for it so that Skia cannot recycle a
+    /// surface underneath a snapshot that is still being read — B130's failure
+    /// mode, a use-after-free in native code with an empty crash log. Turning
+    /// this on trades that guarantee for the measurement, which is a fine trade
+    /// for one capture and not a fix.
+    /// </para>
+    /// </remarks>
+    internal const string BudgetedVariable = "LIGHTBOX_GPU_BUDGETED";
+
+    internal static bool Budgeted =>
+        Environment.GetEnvironmentVariable(BudgetedVariable) is "1" or "true" or "TRUE";
+
+    /// <summary>
+    /// B179's second discriminator: keep GPU compositing on and take residency
+    /// out, so the two remaining candidates can be told apart.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The bisect established the leak is in the GPU path, and two things in it
+    /// hold GPU memory: the compose surfaces and the layer textures. Switching
+    /// one off at a time separates them — the same move that worked on the path
+    /// itself, and a measurement nobody can argue with beats a third round of
+    /// instrumentation.
+    /// </para>
+    /// <para>
+    /// <b>Here rather than on the canvas, and that is not tidiness.</b> It lived
+    /// on <c>CanvasControl</c> for one commit and every render-report test went
+    /// red: reading a member off an Avalonia control forces its static
+    /// initialisation, which registers styled properties and cannot run in a
+    /// headless test. A switch the report has to read belongs on a type the
+    /// report can touch.
+    /// </para>
+    /// </remarks>
+    internal const string NoResidencyVariable = "LIGHTBOX_NO_RESIDENCY";
+
+    internal static bool ResidencyDisabled =>
+        Environment.GetEnvironmentVariable(NoResidencyVariable) is "1" or "true" or "TRUE";
+
     private static bool? _override;
 
     private static bool ForcedByEnvironment =>
@@ -161,7 +213,12 @@ internal static class GpuComposite
         {
             // Unbudgeted, matching PresentedFrame: a budgeted surface can be
             // recycled underneath a snapshot that is still being read.
-            var surface = SKSurface.Create(gpu, false, info);
+            //
+            // B179 can flip it for one capture (see Budgeted): unbudgeted means
+            // Skia neither counts these against its cache nor purges them, so
+            // they are invisible to its accounting and to ours at once — which
+            // is exactly the shape of the memory that is missing.
+            var surface = SKSurface.Create(gpu, Budgeted, info);
             if (surface is not null)
             {
                 gpuBacked = true;
