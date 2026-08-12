@@ -607,4 +607,40 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         // rather than left as a number to interpret.
         Assert.Contains("a pinned bitmap is one eviction", section);
     }
+
+    /// <summary>
+    /// <b>A capture taken in a diagnostic mode has to say so.</b>
+    /// </summary>
+    /// <remarks>
+    /// B179's two discriminators change what the renderer does — budgeted
+    /// surfaces let Skia purge them, and residency off uploads every layer per
+    /// frame. A report that looked identical either way is how two runs get
+    /// compared as though they came from the same build, which this session has
+    /// already watched happen twice with stale prose. The mode is a fact about
+    /// the capture, so it belongs in the capture.
+    /// </remarks>
+    [Fact]
+    public void ADiagnosticCaptureSaysWhichModeItWasTakenIn()
+    {
+        Setup();
+        var ordinary = File.ReadAllText(RenderReport.WriteStartup(Facts())!);
+        Assert.DoesNotContain("NOT an ordinary capture", ordinary);
+
+        Environment.SetEnvironmentVariable(
+            Lightbox.App.Rendering.GpuComposite.BudgetedVariable, "1");
+        try
+        {
+            RenderReport.ResetForTests();
+            var flagged = File.ReadAllText(RenderReport.WriteStartup(Facts())!);
+            output.WriteLine(flagged[flagged.IndexOf("what memory is held", StringComparison.Ordinal)..]);
+
+            Assert.Contains("NOT an ordinary capture", flagged);
+            Assert.Contains("compose surfaces are BUDGETED", flagged);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(
+                Lightbox.App.Rendering.GpuComposite.BudgetedVariable, null);
+        }
+    }
 }

@@ -640,6 +640,20 @@ internal static class RenderReport
         // because the first capture found 2362 MB outside everything above, and
         // "outside everything we track" is only useful once the list is long
         // enough to be worth trusting.
+        // Which diagnostic mode this capture was taken in. Printed here rather
+        // than left to the person who ran it, because this session has already
+        // watched two reports get read against each other as though they came
+        // from the same build — and a discriminator whose state is invisible
+        // turns a decisive experiment back into an argument.
+        if (Rendering.GpuComposite.Budgeted || Rendering.GpuComposite.ResidencyDisabled)
+        {
+            sb.AppendLine("diagnostic mode           NOT an ordinary capture (B179)");
+            if (Rendering.GpuComposite.Budgeted)
+                sb.AppendLine("  compose surfaces are BUDGETED — Skia accounts for and may purge them");
+            if (Rendering.GpuComposite.ResidencyDisabled)
+                sb.AppendLine("  layer residency is OFF — every layer is uploaded again per frame");
+        }
+
         var skiaCpu = Rendering.SkiaMemory.Cpu;
         sb.AppendLine($"skia's own caches");
         sb.AppendLine(Rendering.SkiaMemory.Gpu is { } skiaGpu
