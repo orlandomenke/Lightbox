@@ -9629,6 +9629,13 @@ public sealed partial class MainViewModel : ObservableObject
     private string _aiProviderLabel = "None";
 
     /// <summary>
+    /// The configured model name, cached beside the provider label for the
+    /// same reason, and nullable because not every provider names one.
+    /// Recorded in <see cref="AiProvenance"/> on frames the AI drew.
+    /// </summary>
+    private string? _aiModelLabel;
+
+    /// <summary>
     /// Which provider is in use. Cached rather than read from disk on every
     /// get: it is a bound property, and a binding that touches the filesystem
     /// each time it refreshes is a trap waiting for someone to bind it in a
@@ -9646,6 +9653,7 @@ public sealed partial class MainViewModel : ObservableObject
         (_artist as IDisposable)?.Dispose();
         var connection = AiSettings.Load();
         _aiProviderLabel = connection.Provider.Name;
+        _aiModelLabel = connection.Value("model");
         _aiEnabled = connection.Enabled;
         _artist = AiArtistFactory.Create(connection);
         OnPropertyChanged(nameof(IsAiAvailable));
@@ -9708,15 +9716,56 @@ public sealed partial class MainViewModel : ObservableObject
             ct => _artist.GenerateInbetweensAsync(request, ct));
         if (result is null) return;
 
-        var frames = result
-            .OrderBy(f => f.T)
-            .Select(f => NewFrameFor(layer, f.Strokes, FrameRole.Inbetween))
+        // The model proposes; Lightbox disposes. Every frame is verified
+        // against the keys before it can reach the document, and a frame that
+        // fails is refused rather than repaired or swapped for the
+        // deterministic answer — per Q32, the AI never inserts a frame it
+        // cannot defend, and the deterministic engine stays its own command.
+        var ordered = result.OrderBy(f => f.T).ToList();
+        var candidates = ordered
+            .Select(f => new CandidateInbetween(f.T, f.Strokes))
             .ToList();
-        _editor.InsertInbetweens(layer.Id, aIndex, frames);
+        var judgement = InbetweenVerifier.Verify(
+            request.KeyframeA, request.KeyframeB, candidates, TweenEasing);
+
+        // Refusal is per frame: the ones that passed are inserted, each at its
+        // own t's slot — a null keeps the slot a hold, so partial acceptance
+        // never shifts a surviving frame onto somebody else's timing.
+        var provenance = new AiProvenance(AiProviderLabel, _aiModelLabel);
+        var slots = new List<Frame?>(candidates.Count);
+        for (var i = 0; i < candidates.Count; i++)
+        {
+            if (!judgement.Frames[i].Accepted)
+            {
+                slots.Add(null);
+                continue;
+            }
+            var frame = NewFrameFor(layer, ordered[i].Strokes, FrameRole.Inbetween);
+            frame.Ai = provenance;
+            slots.Add(frame);
+        }
+
+        var refused = judgement.Frames
+            .Select((f, i) => (Judgement: f, Slot: i))
+            .Where(x => !x.Judgement.Accepted)
+            .Select(x => $"frame {x.Slot + 1} of {candidates.Count} was refused: {x.Judgement.Refusal}")
+            .ToList();
+
+        var accepted = judgement.AcceptedCount;
+        if (accepted == 0)
+        {
+            // A refusal and a silent no-op are different outcomes: the document
+            // is untouched, and the status says which t and why.
+            AiStatus = $"Nothing was inserted — {string.Join(" ", refused)}";
+            return;
+        }
+
+        _editor.InsertInbetweens(layer.Id, aIndex, slots);
         CurrentFrameIndex = Math.Min(aIndex + 1, Scene.FrameCount - 1);
-        AiStatus = unseen is null
-            ? $"Inserted {frames.Count} AI inbetween(s)."
-            : $"Inserted {frames.Count} AI inbetween(s) — drawn lines only, {unseen} not tweened.";
+        var inserted = unseen is null
+            ? $"Inserted {accepted} AI inbetween(s)."
+            : $"Inserted {accepted} AI inbetween(s) — drawn lines only, {unseen} not tweened.";
+        AiStatus = refused.Count == 0 ? inserted : $"{inserted} {string.Join(" ", refused)}";
     }
 
     /// <summary>
@@ -9887,7 +9936,14 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var layer = Scene.Layers.First(l => l.Id == layerId);
         if (!CanEdit(layer, "insert inbetweens on it")) return 0;
-        var frames = strokeFrames.Select(s => NewFrameFor(layer, s, FrameRole.Inbetween)).ToList();
+        var frames = strokeFrames.Select(s =>
+        {
+            var frame = NewFrameFor(layer, s, FrameRole.Inbetween);
+            // Q31: provenance on every frame AI touched — an agent working the
+            // document over MCP is exactly that, whatever model drives it.
+            frame.Ai = new AiProvenance("MCP agent");
+            return frame;
+        }).ToList();
         _editor.InsertInbetweens(layerId, aIndex, frames);
         CurrentFrameIndex = Math.Min(aIndex + 1, Scene.FrameCount - 1);
         return frames.Count;
@@ -9905,7 +9961,13 @@ public sealed partial class MainViewModel : ObservableObject
         var keyIndex = ExposureSheet.KeyIndexAtOrBefore(layer, frameIndex);
         if (keyIndex < 0) return 0;
         var frame = layer.Cels[keyIndex].Frame!;
-        _editor.Perform(_ => StrokesOf(frame).AddRange(strokes));
+        _editor.Perform(_ =>
+        {
+            StrokesOf(frame).AddRange(strokes);
+            // Q31: the frame was AI-touched, even when the artist drew the
+            // rest of it. Absent stays absent on frames no agent reaches.
+            frame.Ai ??= new AiProvenance("MCP agent");
+        });
         InvalidateFrameRender(frame.Id);
         _dirtyThumbIds.Add(frame.Id);
         PublishSnapshot();

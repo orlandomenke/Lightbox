@@ -28,6 +28,29 @@ is drawing. They are sent at up to 768 pixels on the long edge — your sheet ke
 whatever size you drew it at, and only the copy in the request is smaller. Hide
 every layer in a view and it stops being sent.
 
+**Frames the AI cannot defend are refused.** Every frame that comes back is
+checked against your two keys before it can touch the document: it has to lie
+between them, carry every stroke both keys draw, keep a closed shape's volume,
+and sit smoothly against the frames beside it. A frame that fails is not
+inserted — its slot on the timeline simply stays a hold — and the status bar
+says which frame was refused and why, so a three-of-four result is a decision
+you can read rather than a puzzle. Lightbox never quietly substitutes its own
+deterministic inbetween for a refused frame; that engine is **＋ Inbetween**,
+one click away, and asking for the AI means getting the AI or nothing.
+
+The check is not "did the model invent something" — invention is the point.
+Revealed lines behind something that moved away, follow-through trailing a
+motion, and small departures near the drawing all pass. What gets refused is
+ink nothing explains, a stroke that went missing, or a frame that jitters
+against its neighbours — the noise that reads as boiling when played at speed.
+
+**AI frames remember where they came from.** A frame the AI drew carries a
+small provenance note in the saved file — which provider, and the model name
+when there is one. Frames you drew carry nothing, and a document that never
+used the AI is byte-for-byte what it would have been before the feature
+existed. Provenance is a record, never behaviour: it changes nothing about how
+the frame renders, and deleting it changes no pixel.
+
 ## Reading a folder
 
 Right-click a folder in the **Project** panel and choose **Read this folder…**.

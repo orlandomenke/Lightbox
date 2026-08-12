@@ -327,7 +327,13 @@ public sealed class DocumentEditor
     /// the AI — same code path. Existing cels between a and b are replaced;
     /// if there aren't enough cels, new ones are inserted.
     /// </summary>
-    public void InsertInbetweens(string layerId, int aIndex, IReadOnlyList<Frame> frames)
+    /// <remarks>
+    /// A null entry means "leave that slot alone" — it keeps its cel (a hold)
+    /// rather than receiving a drawing. That is how a per-frame AI refusal
+    /// (Q32) inserts three frames of four without shifting the surviving ones
+    /// off their own timing: each accepted frame stays at its t's slot.
+    /// </remarks>
+    public void InsertInbetweens(string layerId, int aIndex, IReadOnlyList<Frame?> frames)
     {
         Perform(doc =>
         {
@@ -338,7 +344,9 @@ public sealed class DocumentEditor
             var replace = Math.Min(gap, frames.Count);
 
             for (var k = 0; k < replace; k++)
-                layer.Cels[aIndex + 1 + k].Frame = frames[k];
+            {
+                if (frames[k] is { } frame) layer.Cels[aIndex + 1 + k].Frame = frame;
+            }
 
             var extra = frames.Count - replace;
             for (var k = 0; k < extra; k++)
