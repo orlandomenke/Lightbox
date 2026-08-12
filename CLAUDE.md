@@ -146,6 +146,24 @@ skipped; a prompt is answered in one click. So:
 - **A question in the file that was never prompted is a defect**, the same way a
   bug with no evidence line is. It looks like deliberation and is a guess.
 
+**A run that cannot reach the owner stops and asks in a pull request.** The rule
+above says to use `AskUserQuestion`, and a scheduled or background run has no
+interface to put it in — which is how questions ended up accumulating in a file
+instead of being answered. So when such a run hits a decision it cannot make:
+
+- **Stop.** Do not guess, and do not pick the reversible option and carry on.
+- **Push what is finished** to its branch and open the pull request.
+- **Put the question first in the PR body**, above the diagnosis — a short block
+  that states the choice and what each option costs, so it can be answered in a
+  sentence by somebody who has not read the rest.
+- Title it so it cannot be mistaken for ready: `[needs a decision] …`.
+
+The point is to move unanswered questions to where the owner already looks. An
+open pull request with a question at the top is visible; a line in
+`QUESTIONS.md` is only visible to whoever opens the file, and the evidence is
+that nobody did. `QUESTIONS.md` still records the *answer* once it arrives —
+that has not changed, and it is what makes the decision survive the thread.
+
 **The session-start hook prints every unanswered question**, because a rule that
 depends on remembering is the rule that just failed. Its first run listed five
 that had been sitting unasked for weeks. If that list is non-empty at the start
@@ -206,6 +224,43 @@ regression test that closes it, `bugs.py sync` derives the checkbox from
 whether that test exists, and deleting the test reopens the bug. An agent
 about to edit an area runs `bugs.py mine <domain>` and fixes the open P1/P2
 bugs it finds there alongside its own work.
+
+### Fixing is the default; filing is the exception that needs a reason
+
+**A bug you found and only wrote down is a bug you moved from the code into a
+list.** That is worth doing when the alternative is losing it — and it is not
+what should happen to most of them. The measurement that produced this rule,
+taken 2026-08-12: of B1–B60, 9% are still open; B61–B120, 14%; B121–B160, 18%;
+**of B161–B179, 79%.** The ledger stopped being a record of what is broken and
+started being a queue nobody drains.
+
+So, on encountering a defect that is not the objective in hand:
+
+| | |
+| --- | --- |
+| **P1 or P2** | Fix it. Always. |
+| **P3, and small** | Fix it. |
+| **Needs a decision** | Ask (see below) — do not guess and do not silently file. |
+| **Genuinely large** | File it, *and* a roadmap item, *and* a cost. All three. |
+
+**Finish the branch in hand first, then give the bug its own branch.** That is
+what keeps this from eating the one-objective rule: the answer to "I found
+something else" is still a new branch, never an "and" bolted onto this one. It
+costs more pull requests, and that is the price of not accumulating — the four
+open P1s that prompted this rule had been open for, respectively, one, three,
+three and thirty-one merges.
+
+**Filing without fixing has to say why**, in the entry, in a sentence that names
+which of the two exceptions applies. "Recorded for later" is not one of them. An
+entry that cannot say why it was not fixed is an entry that should have been a
+fix.
+
+**The one thing this does not license: fixing badly to keep a number down.** A
+fix still needs its regression test, its evidence anchor and its manual update.
+If those cannot be had, the honest outcome is the *large* row above — file it,
+roadmap it, cost it — not a green checkbox over a guess. B60 is the worked
+example: an afternoon establishing that the fix is a research project, written
+up, and left open on purpose.
 
 The user manual is `docs/MANUAL.md` (the index) and `docs/manual/*.md` (one
 file per section), and it is **part of the definition of done**: a change that
@@ -436,7 +491,10 @@ its objective, `net10-upgrade`, is the one that did exactly what it said.
 
 So: if the sentence describing the branch needs an "and", it is two branches.
 Finding a second thing to fix mid-branch is normal — it is a new branch, not a
-new commit. Above **four** unmerged branches the agent warns, because four is
+new commit. **That is the same answer the fix-rather-than-file rule gives**, and
+the two are meant to be read together: fixing what you find produces *more*
+branches, in sequence, each doing one thing — not fatter ones. Above **four**
+unmerged branches the agent warns, because four is
 where a person stops holding the set in their head.
 
 ### Touching anything AI: two agents, on purpose
