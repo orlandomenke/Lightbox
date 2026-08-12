@@ -94,7 +94,6 @@ itself**, because `bugs.py sync` has nothing to resolve. Two were already fixed
 and simply never ticked (B144, B78); one had been fixed and then quietly
 un-fixed (B32). That is a measurable part of why the list looked like it only
 grew. The triage, so nobody re-derives it:
-
 | | |
 | --- | --- |
 | **Fixed, now closed** | B144 (derived budget), B78 (suggested name) |
@@ -102,7 +101,6 @@ grew. The triage, so nobody re-derives it:
 | **Open, and `manual` is right** | B60 (needs the halo), B93 (a harness race is the thing being asked for), B126, B170, B179 (need the owner's machine), B178 |
 | **Open, multi-phase, work in flight** | B29, B30, B125, B165, B166, B167 |
 | **Open, not yet examined** | B92, B101 |
-
 **The lesson is about the marker rather than about these seventeen.**
 `evidence: manual` means *no test can hold this*, and it is honest for a platform
 crash or an intermittent harness race. It is not honest for a fix nobody wrote a
@@ -110,7 +108,6 @@ test for — the two look identical in the file and only one of them belongs.
 Before writing `manual`, the question is whether a test is *impossible* or merely
 *absent*. B78's new guard reads the source rather than driving a file dialog,
 which is a weak test and still far better than none.
-
 
 ### ai
 
@@ -1044,6 +1041,14 @@ test reopens the bug.
   - The comment above `BeginMove` had already written down why not to do this — *"Re-implementing translation next to it would be a second way for the drawing to move, and the two would drift"* — and `_placementDrag`'s own remark says a placement move is an edit to two numbers. Both were describing the path that already worked.
   - Fix: `_placementDrag` carries a set instead of one id, so a group is the same operation on more of them — same anchor, same axis lock, one `PerformDelta` step for the whole drag. A selection makes the grab modal inside `BeginPlacementMove`, which is the side that knows what is selected, so `CanvasControl` went back to reporting absolute document coordinates like every other move. The parallel path is deleted. Cost: S
   - P1 because the feature did not work and the damage it did could not be taken back.
+
+- [x] **B185** `P2` `canvas` Refocusing the window with the pen paints full-size dabs, or a line from wherever the canvas was last touched `evidence: AStrayMouseMoveMidPenStrokeAddsNothing, AStrayMousePressMidPenStrokeDoesNotRestartIt, AStrayMouseReleaseMidPenStrokeDoesNotEndIt, AHoverSampleInACoalescedBatchIsNotPainted, APressureAwarePenNeverPromotesAZeroPacketToFullPressure, APenWhoseWholeStrokeReportsNoPressureWinsBackFullSize, DeactivationCancelsTheStrokeInFlight, LosingTheWindowEndsTheStrokeInFlight`
+  - **Reported from the owner's tablet (Huion), 2026-08-12**: focus another application, come back by touching the pen straight to the canvas, and the first stroke is wrong — either several dabs at the brush's full size with pressure ignored, or a line shooting in from a position the pen is not at, "as if it stored a canvas position when unfocused and draws from that point".
+  - **Three defects converged on that one gesture, all in `CanvasControl`'s pointer path.** (1) A stroke in flight accepted moves, presses and releases from *any* pointer — and reactivating a window is exactly when Windows synthesises mouse activity at the mouse's stale position, interleaved with the pen's events. A stray mouse move dragged the mark to the stale position (the line); `PressureOf` for a non-pen device answers 1.0 (the full-size dabs). (2) The coalesced batch from `GetIntermediatePoints` was stamped unfiltered, so hover history — no contact, zero pressure — could enter the stroke. (3) A pen packet with pressure 0 was promoted to 1.0, an accommodation for drivers that never report pressure, applied even to pens that demonstrably do — and zero-pressure packets are what the first moments after a refocus deliver.
+  - **The fix is ownership plus two filters.** The stroke records the pointer id that began it and ignores every other pointer until release; coalesced samples without the tip down are dropped; and the 0→100% pressure promotion now applies only to pens that have never produced a real pressure value (`_penHasReportedPressure`), so a gap in a working pen's stream renders as nothing instead of a blob. `CancelPointerGestures` (the capture-lost path, extracted) also runs on window `Deactivated`, so a release delivered to another application can no longer leave a gesture half-alive.
+  - Verified by driving real pointer events through the control with two distinct pointers — the same rig `CanvasInputTests` already used — with the stray-device tests failing before the fix and passing after. Each guard was then mutation-tested individually: reverting any one of the five made exactly its own test fail.
+  - **Two holes the adversarial pass found, both closed.** The sticky pressure flag was per-control, so one session with a pressure-reporting pen would have pinned a second, pressure-less pen near zero forever — a whole pen stroke with no real pressure now clears the flag, costing that pen one faint stroke instead of the rest of the session. And the `Deactivated` wiring itself had no test — the deactivation test called `CancelPointerGestures` directly, so deleting the one line in `MainWindow` that answers the bug's literal trigger failed nothing. `WindowDeactivationTests` now drives the real window's private deactivation handler and was shown to fail with the subscription removed.
+  - **Deliberately unchanged**: a stroke cut short by deactivation is *committed*, not discarded — the same choice `OnPointerCaptureLost` already made, because pigment already on the canvas vanishing when the focus moves would read as data loss, and an unwanted mark is one undo away.
 
 - [x] **B182** `P2` `canvas` The tile cache still scans against an LRU, and the ledger lost track of that when B144 closed `evidence: EvictingTheMostRecentKeepsHalfTheSheetResident, AWarmAtTheTailSurvivesAScanEviction, PlaybackFlipsTheTileCacheToScanEvictionAndBack`
   - `TileFrameCache.Evict()` evicted least-recent unconditionally while playback had been a sequential scan on this cache since Q62. The B28 protection — `EvictionOrder.MostRecent` for the duration of a scan — existed only on the bitmap cache beside it, so a sheet whose tile working set exceeded the budget walked the LRU and evicted exactly the frames the next pass needed. Measured pre-fix at n^2.72 and 277 ms a frame at 1440p on dense ink — *worse* than the 186 ms bitmap thrash it replaced, because a tile-frame miss rebuilds every tile the frame's ink reaches plus its stroke index.
