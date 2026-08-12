@@ -1,4 +1,5 @@
 using Avalonia.Headless.XUnit;
+using Lightbox.App.Docking;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
 using Lightbox.Raster;
@@ -59,9 +60,11 @@ public class PaletteDockerTests(ITestOutputHelper output) : BrushStateIsolated
         Assert.Equal(["Black", "White"], palette.Swatches.Select(s => s.Name));
         Assert.Equal("#000000", vm.ColorHex);
         Assert.Equal(DocumentFactory.BlackSwatchId, vm.ActiveSwatchId);
-        // The panel is still closed by default — having a palette and showing
-        // the editor for it are different questions.
-        Assert.False(vm.PaletteDockerVisible);
+        // The panel ships as a background tab of the colour family now, not a
+        // strip of its own — present in the header, with Color in front.
+        Assert.True(vm.PaletteDockerVisible);
+        var layout = vm.Workspace.Layout;
+        Assert.Equal(DockPanelId.Color, layout.ActiveOf(layout.SlotOf(DockPanelId.Palette)));
     }
 
     [AvaloniaFact]

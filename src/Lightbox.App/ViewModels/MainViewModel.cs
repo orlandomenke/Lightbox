@@ -3856,6 +3856,8 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsDirectSelectTool))]
     [NotifyPropertyChangedFor(nameof(IsPenTool))]
     [NotifyPropertyChangedFor(nameof(IsWidthTool))]
+    [NotifyPropertyChangedFor(nameof(ActiveToolLabel))]
+    [NotifyPropertyChangedFor(nameof(ActiveToolHasNoPanelOptions))]
     private ToolId _activeTool = ToolId.Brush;
 
     [ObservableProperty]
@@ -4111,6 +4113,32 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Brush or eraser — the tools whose strokes the brush-parameter flyout edits.</summary>
     public bool IsPaintTool => ActiveTool is ToolId.Brush or ToolId.Eraser;
+
+    /// <summary>The active tool, named for the Tool options panel's header.</summary>
+    public string ActiveToolLabel => ActiveTool switch
+    {
+        ToolId.Brush => "Brush",
+        ToolId.Eraser => "Eraser",
+        ToolId.Fill => "Fill",
+        ToolId.Select => "Select",
+        ToolId.Gradient => "Gradient",
+        ToolId.Shape => "Shape",
+        ToolId.Move => "Move",
+        ToolId.Picker => "Colour picker",
+        ToolId.Arrow => "Arrow",
+        ToolId.DirectSelect => "Direct select",
+        ToolId.Pen => "Pen",
+        ToolId.Width => "Width",
+        _ => ActiveTool.ToString(),
+    };
+
+    /// <summary>
+    /// Tools whose whole vocabulary already fits on the bar — the Tool options
+    /// panel has nothing to add for them, and says so instead of going blank.
+    /// </summary>
+    public bool ActiveToolHasNoPanelOptions => ActiveTool is
+        ToolId.Move or ToolId.Picker or ToolId.Arrow or
+        ToolId.DirectSelect or ToolId.Pen or ToolId.Width;
 
     /// <summary>Eyedropper click: the color under the cursor (what the eye sees, incl. paper).</summary>
     public void PickColorAt(double x, double y)
