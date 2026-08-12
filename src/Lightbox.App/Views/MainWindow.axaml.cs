@@ -3230,6 +3230,14 @@ public partial class MainWindow : Window
                 _ = OpenProjectWindowAsync();
                 e.Handled = true;
                 break;
+            case "image.resizeCanvas":
+                _ = ResizeAsync(ViewModels.ResizeMode.Canvas);
+                e.Handled = true;
+                break;
+            case "image.resizeImage":
+                _ = ResizeAsync(ViewModels.ResizeMode.Image);
+                e.Handled = true;
+                break;
             case "canvas.pickColor":
                 _vm.ActiveTool = ToolId.Picker;
                 break;
@@ -3414,6 +3422,28 @@ public partial class MainWindow : Window
 
     private async void OnProjectWindowClicked(object? sender, RoutedEventArgs e) =>
         await OpenProjectWindowAsync();
+
+    private async void OnResizeCanvasClicked(object? sender, RoutedEventArgs e) =>
+        await ResizeAsync(ViewModels.ResizeMode.Canvas);
+
+    private async void OnResizeImageClicked(object? sender, RoutedEventArgs e) =>
+        await ResizeAsync(ViewModels.ResizeMode.Image);
+
+    /// <summary>
+    /// Ask for a size, then hand it to the view model and refit the view.
+    /// </summary>
+    /// <remarks>
+    /// The view is refitted because the paper is a different size than the one
+    /// the current zoom and pan were chosen for — leaving a grown canvas half
+    /// off-screen reads as the resize having gone wrong.
+    /// </remarks>
+    private async Task ResizeAsync(ViewModels.ResizeMode mode)
+    {
+        var dialog = new Views.ResizeDialog(_vm.Doc.Scene, mode);
+        await dialog.ShowDialog(this);
+        if (!dialog.Confirmed) return;
+        if (_vm.ApplyResize(dialog.Choice)) Canvas.ResetView();
+    }
 
     /// <summary>
     /// The tip workshop. A window rather than a docker because making a tip is

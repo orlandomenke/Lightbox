@@ -302,6 +302,17 @@
                   IsChecked="{Binding ShowStartScreen, Mode=TwoWay}"
                   ToolTip.Tip="The start screen. Escape on it opens nothing — you can always ask again from the empty canvas or File ▸ New." />
       </MenuItem>
+      <!--
+        Image: the two resizes. A menu of its own rather than four more items
+        under Edit, because every application an artist arrives from puts them
+        here and because the pair will grow (crop to selection, trim).
+      -->
+      <MenuItem Header="_Image" Classes="top">
+        <MenuItem Header="Resize _canvas..." Click="OnResizeCanvasClicked"
+                  ToolTip.Tip="More paper, or less. Nothing drawn moves." />
+        <MenuItem Header="Resize _image..." Click="OnResizeImageClicked"
+                  ToolTip.Tip="Scale the artwork itself. The marks change with it." />
+      </MenuItem>
       <MenuItem Header="_View" Classes="top">
         <!--
           Guides are document data, like the camera, so they live under View

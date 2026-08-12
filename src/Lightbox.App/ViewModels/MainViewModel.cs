@@ -3898,6 +3898,40 @@ public sealed partial class MainViewModel : ObservableObject
     /// </remarks>
     public void RefreshDocumentOrigin() => OnPropertyChanged(nameof(DocumentOrigin));
 
+    /// <summary>
+    /// Apply a resize the artist confirmed, as one undo step.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>One <c>Perform</c> around the whole thing</b>, and that is not
+    /// bookkeeping: an image resize walks every stroke, clip contour, guide,
+    /// camera key, symbol placement and collision box in the document. An artist
+    /// who had to press undo once per stroke would have lost the drawing.
+    /// </para>
+    /// <para>
+    /// Here rather than in the window because it changes the document, and
+    /// because everything that has to be told afterwards — the origin the
+    /// pointer converts against, the caches, the snapshot — is already this
+    /// type's to notify. The window's remaining job is the window: show the
+    /// dialog, then refit the view to paper that is now a different size.
+    /// </para>
+    /// </remarks>
+    public bool ApplyResize(ResizeDialogViewModel choice)
+    {
+        var changed = false;
+        _editor.Perform(doc => changed = choice.Apply(doc, new Lightbox.Raster.PixelResampler()));
+        if (!changed) return false;
+
+        RefreshDocumentOrigin();
+        InvalidateWholeCanvas();
+        PublishSnapshot();
+        RefreshThumbnails();
+        AiStatus = choice.IsImage
+            ? $"Resized the image to {Scene.Width} × {Scene.Height}."
+            : $"Resized the canvas to {Scene.Width} × {Scene.Height}.";
+        return true;
+    }
+
     /// <summary>The black arrow — picks things (lines, guides, symbols) rather than an area of pixels.</summary>
     public bool IsArrowTool => ActiveTool == ToolId.Arrow;
 

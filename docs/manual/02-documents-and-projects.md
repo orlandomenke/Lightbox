@@ -12,6 +12,40 @@ art, Storyboard, Comic, Asset library, or **None**. **None is the default**, and
 it means exactly what it says: a single file, no project structure. The choice
 only affects which panels you are offered.
 
+### Changing the size
+
+Two operations, on the **Image** menu, and the difference between them is the
+whole point.
+
+**Resize canvas** (`Ctrl+Alt+C`) changes how much paper there is. Nothing you
+have drawn moves — add 200px on the left and every line stays exactly where it
+was, with the new paper appearing beside it. The **anchor** grid says which way
+the paper grows: anchor top-left and it all appears on the right and below;
+anchor centre and it splits evenly. Crop by giving a smaller number, and the
+anchor decides which edge is kept.
+
+**Resize image** (`Ctrl+Alt+I`) scales the artwork itself. Everything moves and
+everything scales with it — line positions, brush sizes, textures, guides,
+symbol placements. **Keep proportions** is on by default here, because scaling
+the two axes differently distorts the drawing and is almost never meant. This
+is also where **PPI** lives: it says how large these pixels print, so it belongs
+to the artwork rather than to the paper. Changing only the PPI is a valid
+change, and it moves nothing.
+
+**Why the two are separate, and why it matters more here than in most
+applications.** Lightbox decides the fine detail of a mark — its scatter, its
+grain, the tiny variations that make it look drawn rather than printed — from
+*where the mark is*. Move a line and it comes back with a slightly different
+texture. That is fine when you asked to scale the artwork: you asked for
+different art. It would not be fine if adding a margin silently re-textured
+every stroke in the drawing, so **resizing the canvas is guaranteed not to touch
+a single mark.**
+
+The dialog tells you which one you are about to get, in a sentence, before you
+press the button — including whether the marks will change. Both are a single
+undo step, however much they touched, and the view refits to the new paper
+afterwards.
+
 ### A project
 
 A project is a body of work: **every 2D asset in a game, an animated feature,
