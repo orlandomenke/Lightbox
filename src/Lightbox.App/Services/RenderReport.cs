@@ -353,7 +353,9 @@ internal static class RenderReport
         }
     }
 
-    private static void AppendPresentWaitByInput(StringBuilder sb, Rendering.PresentLatency.Stats stats)
+    private static void AppendPresentWaitByInput(
+        StringBuilder sb, Rendering.PresentLatency.Stats stats,
+        (long Requested, long Delivered)? animationFrames)
     {
         if (stats.ByCohort is not { Count: 3 } cohorts) return;
 
@@ -420,12 +422,38 @@ internal static class RenderReport
 
         if (canvasHelps && !elsewhereHelps)
         {
-            sb.AppendLine("  >> CONFIRMED, and this is the fault: frames wait until the CANVAS is");
-            sb.AppendLine("     invalidated, and only its own pointer handler does that. Input");
-            sb.AppendLine("     elsewhere does not help, so this is not the dispatcher being asleep");
-            sb.AppendLine("     — the publish's own invalidate is not producing a render, and the");
-            sb.AppendLine("     pointer handler's identical call is. Fix the publish path; do not");
-            sb.AppendLine("     add another way to poke the compositor.");
+            // This used to assert B164's answer as CONFIRMED — "only its own
+            // pointer handler invalidates the canvas". B164 was then FIXED
+            // (`KeepPresenting` re-arms a compositor frame for the whole of
+            // playback), and this text was never re-checked. On 2026-08-12 it
+            // printed "CONFIRMED, and this is the fault" in a report whose own
+            // wake-up counter read 676 asked, 676 arrived — the loop running
+            // exactly as intended. A diagnosis that survives its own fix sends
+            // the next reader to re-fix something that works.
+            //
+            // So the observation is kept and the causal claim is now conditional
+            // on the counter that can refute it.
+            var loopRunning = animationFrames is { } af
+                && af.Requested > 0 && af.Delivered >= af.Requested;
+
+            sb.AppendLine("  >> Frames wait far longer when the pointer is still than when it moves");
+            sb.AppendLine("     over the canvas, and input elsewhere does not help.");
+            if (loopRunning)
+            {
+                sb.AppendLine("     But every compositor frame asked for ARRIVED (see the wake-ups line),");
+                sb.AppendLine("     so the compositor is not asleep and B164's answer does not apply —");
+                sb.AppendLine("     that one was fixed by keeping a frame permanently on request. This");
+                sb.AppendLine("     is B178: the wait is real, the wake is working, and where the time");
+                sb.AppendLine("     accumulates is not yet known. Instrument it before changing the");
+                sb.AppendLine("     present path.");
+            }
+            else
+            {
+                sb.AppendLine("     Compositor frames were asked for and did NOT all arrive, so the");
+                sb.AppendLine("     publish's own invalidate is not producing a render while the");
+                sb.AppendLine("     pointer handler's identical call is. Fix the publish path; do not");
+                sb.AppendLine("     add another way to poke the compositor.");
+            }
         }
         else if (canvasHelps && elsewhereHelps)
         {
@@ -538,10 +566,30 @@ internal static class RenderReport
         {
             sb.AppendLine("no layer textures were asked for.");
             sb.AppendLine();
-            sb.AppendLine("  GPU compositing is switched on but nothing composited through it.");
-            sb.AppendLine("  The culled route is the only one that goes to the GPU today, and");
-            sb.AppendLine("  it runs on a whole-canvas publish with the view zoomed in past the");
-            sb.AppendLine("  document edges. A fit-to-window view never takes it.");
+            // This said "nothing composited through it — the culled route is the
+            // only one that goes to the GPU today", which was written before
+            // B167 phases 3b and 4 and was still printed on 2026-08-12 directly
+            // under a line reporting 310 publishes ON the card. Two lines of one
+            // report contradicting each other is worse than either being absent,
+            // because a reader has no way to tell which one is stale.
+            //
+            // So it now says what it can actually see, and asks the other counter
+            // rather than asserting a route.
+            if (Rendering.GpuComposite.GpuComposites > 0)
+            {
+                sb.AppendLine($"  But {Rendering.GpuComposite.GpuComposites} publish(es) DID composite on the card, so this is not");
+                sb.AppendLine("  \"the GPU is unused\" — it is the blend running on the card while every");
+                sb.AppendLine("  layer is uploaded again for it. Residency is what stops the re-upload,");
+                sb.AppendLine("  so a zero here next to a non-zero above is a wiring fault, not a");
+                sb.AppendLine("  setting. That exact pair is what found one on 2026-08-12.");
+            }
+            else
+            {
+                sb.AppendLine("  GPU compositing is switched on and nothing has composited through it");
+                sb.AppendLine("  yet. Playback takes the tiled route and drawing takes the ring, so a");
+                sb.AppendLine("  report written from a still canvas can legitimately show this — play");
+                sb.AppendLine("  a range for a few seconds and write it again.");
+            }
             sb.AppendLine();
             return;
         }
@@ -575,7 +623,7 @@ internal static class RenderReport
         sb.AppendLine($"  worst wait               {stats.WorstMs:0.##} ms");
         sb.AppendLine($"replaced before drawing    {stats.Superseded}");
 
-        AppendPresentWaitByInput(sb, stats);
+        AppendPresentWaitByInput(sb, stats, facts.AnimationFrames);
 
         sb.AppendLine();
         sb.AppendLine(
@@ -888,7 +936,12 @@ internal static class RenderReport
 
         sb.AppendLine("-- where the work happens ------------------------------------");
         sb.AppendLine($"presentation backend      {facts.Backend}");
-        sb.AppendLine($"  (this is the FINAL BLIT only — compositing is on the CPU either way)");
+        // Was "compositing is on the CPU either way", which stopped being true
+        // when B167 phase 4 put the tiled composite on the card. Derived from the
+        // toggle rather than asserted, so it cannot go stale the same way twice.
+        sb.AppendLine(facts.GpuCompositeOptedIn
+            ? "  (the final blit — see the compositing line below for where blending happened)"
+            : "  (this is the FINAL BLIT only — compositing is on the CPU, which is the default)");
         sb.AppendLine($"durable frame (B122)      {DurableFrameState(facts)}");
         if (facts.GpuSurfaceRequestFailed)
         {

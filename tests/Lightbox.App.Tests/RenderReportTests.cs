@@ -62,12 +62,15 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         (long Hits, long Misses, long Evictions, long Bytes, long Budget)? frameCache = null,
         (int Frames, int Layers, int Strokes, double Fps)? scene = null,
         (long Requested, long Delivered)? animationFrames = null,
-        double renderMedianMs = 0) =>
+        double renderMedianMs = 0,
+        bool gpuCompositeOptedIn = false,
+        (int Hits, int Misses, long Bytes)? textureResidency = null) =>
         new(backend, backend != "GPU", onGpu, gpuFailed, maxTexture,
             docWidth, docHeight, 1.0, "Full", 1.0, durableEnabled, hasPresented,
             Pacing: pacing, PresentWait: presentWait,
             TickPhases: tickPhases, TickCount: tickCount, FrameCache: frameCache, Scene: scene,
-            AnimationFrames: animationFrames, RenderMedianMs: renderMedianMs);
+            AnimationFrames: animationFrames, RenderMedianMs: renderMedianMs,
+            TextureResidency: textureResidency, GpuCompositeOptedIn: gpuCompositeOptedIn);
 
     /// <summary>
     /// The four states behind one boolean, and the reason this test exists: the
@@ -482,5 +485,68 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         Assert.Equal(200L * 100 + 100, frame.TotalPatchedPixels);
         Assert.Equal(2 * 200L * 100, frame.TotalPixelsIfAlwaysFull);
         Assert.False(frame.GpuSurfaceRequestFailed);
+    }
+
+    /// <summary>
+    /// <b>The report must not tell a reader the GPU is unused in a file that also
+    /// says publishes composited on it.</b>
+    /// </summary>
+    /// <remarks>
+    /// The 2026-08-12 capture printed
+    /// <c>of the publishes that could use the card: 310 did</c> and, three
+    /// sections later, <c>The culled route is the only one that goes to the GPU
+    /// today</c> — prose written before B167 phases 3b and 4 and never re-checked.
+    /// Both lines were in one file, and a reader has no way to tell which is
+    /// stale. This is the fifth report line in this project to be accurate when
+    /// written and wrong once the thing it described moved, which is why the
+    /// residency section now asks the compositing counter rather than asserting a
+    /// route.
+    /// </remarks>
+    [Fact]
+    public void TheResidencySectionDoesNotClaimTheGpuIsUnusedWhenItWasUsed()
+    {
+        Setup();
+        Lightbox.App.Rendering.GpuComposite.ResetCounters();
+        Lightbox.App.Rendering.GpuComposite.CountCompositeForTests(onGpu: true, times: 310);
+        try
+        {
+            var path = RenderReport.WriteStartup(
+                Facts(backend: "GPU", gpuCompositeOptedIn: true, textureResidency: null));
+            var text = File.ReadAllText(path!);
+
+            var residency = text[text.IndexOf("resident layer textures", StringComparison.Ordinal)..];
+            output.WriteLine(residency);
+
+            Assert.Contains("no layer textures were asked for", residency);
+            // The claim that made the file self-contradictory.
+            Assert.DoesNotContain("nothing composited through it", residency);
+            Assert.DoesNotContain("the only one that goes to the GPU today", residency);
+            // And it names the pair as a wiring fault, which is what it was.
+            Assert.Contains("310 publish(es) DID composite on the card", residency);
+        }
+        finally
+        {
+            Lightbox.App.Rendering.GpuComposite.ResetCounters();
+        }
+    }
+
+    /// <summary>
+    /// With nothing on the card the old wording is still right, and still printed
+    /// — a section that only ever hedged would be useless.
+    /// </summary>
+    [Fact]
+    public void WithNothingOnTheCardItStillSaysSo()
+    {
+        Setup();
+        Lightbox.App.Rendering.GpuComposite.ResetCounters();
+
+        var path = RenderReport.WriteStartup(
+            Facts(backend: "GPU", gpuCompositeOptedIn: true, textureResidency: null));
+        var residency = File.ReadAllText(path!);
+        residency = residency[residency.IndexOf("resident layer textures", StringComparison.Ordinal)..];
+        output.WriteLine(residency);
+
+        Assert.Contains("nothing has composited through it", residency);
+        Assert.DoesNotContain("DID composite on the card", residency);
     }
 }

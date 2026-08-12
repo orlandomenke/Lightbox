@@ -121,12 +121,48 @@ public class PresentWaitByInputTests(ITestOutputHelper output)
             new(PresentLatency.Cohort.InputOnCanvas, 100, 4, 12),
         ]);
 
+        // No animation-frame counters, so nothing refutes the old explanation and
+        // the section is entitled to give it.
         var text = Section(stats);
         output.WriteLine(text);
 
-        Assert.Contains("CONFIRMED", text);
-        Assert.Contains("CANVAS is", text);
+        Assert.Contains("over the canvas", text);
+        Assert.Contains("did NOT all arrive", text);
         Assert.Contains("do not", text);
+    }
+
+    /// <summary>
+    /// <b>And it must stop giving that answer once the counters refute it.</b>
+    /// </summary>
+    /// <remarks>
+    /// This section used to print "CONFIRMED, and this is the fault: frames wait
+    /// until the CANVAS is invalidated, and only its own pointer handler does
+    /// that" — which was B164's answer, and B164 was <em>fixed</em>. On
+    /// 2026-08-12 it printed CONFIRMED in a report whose own wake-up counter read
+    /// 676 asked, 676 arrived: the present loop running exactly as intended. A
+    /// diagnosis that survives its own fix sends the next reader to re-fix
+    /// something that works, which is the most expensive kind of wrong a
+    /// diagnostic can be.
+    /// </remarks>
+    [Fact]
+    public void ItStopsBlamingTheInvalidateWhenEveryFrameAskedForArrived()
+    {
+        var stats = new PresentLatency.Stats(300, 100, 40, 160,
+        [
+            new(PresentLatency.Cohort.Quiet, 100, 60, 200),
+            new(PresentLatency.Cohort.InputElsewhere, 100, 58, 190),
+            new(PresentLatency.Cohort.InputOnCanvas, 100, 4, 12),
+        ]);
+
+        var text = Section(stats, animationFrames: (676, 676));
+        output.WriteLine(text);
+
+        // The observation survives; the refuted cause does not.
+        Assert.Contains("over the canvas", text);
+        Assert.DoesNotContain("CONFIRMED", text);
+        Assert.DoesNotContain("only its own pointer handler", text);
+        Assert.Contains("B164's answer does not apply", text);
+        Assert.Contains("B178", text);
     }
 
     /// <summary>The opposite finding has to be reachable, or the first is a rubber stamp.</summary>
@@ -185,10 +221,12 @@ public class PresentWaitByInputTests(ITestOutputHelper output)
         Assert.Contains("pointer STILL", text);
     }
 
-    private static string Section(PresentLatency.Stats stats)
+    private static string Section(
+        PresentLatency.Stats stats, (long Requested, long Delivered)? animationFrames = null)
     {
         RenderReport.ResetForTests();
-        var path = RenderReport.WriteStartup(RenderReportTests.Facts(presentWait: stats))!;
+        var path = RenderReport.WriteStartup(
+            RenderReportTests.Facts(presentWait: stats, animationFrames: animationFrames))!;
         var text = File.ReadAllText(path);
         var start = text.IndexOf("the same wait, split", StringComparison.Ordinal);
         Assert.True(start >= 0, $"the split section is missing:\n{text}");
