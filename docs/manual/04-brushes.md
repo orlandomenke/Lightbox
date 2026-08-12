@@ -11,6 +11,12 @@ docks, and is also under **View → Tool options**. It is there for the eraser
 too, which has no brush button — so with the eraser held it is the first
 thing on the bar.
 
+The panel follows the tool in your hand. With the brush or the eraser it is
+the parameter editor above; pick the fill, the selection, a shape or the
+gradient and it shows that tool's options instead — the same controls the
+bar carries, laid out vertically with room for labels and sliders. A tool
+whose whole vocabulary fits on the bar says so rather than going blank.
+
 #### Finding a brush
 
 The brush button opens a flyout, not a dropdown: once you have forty brushes,

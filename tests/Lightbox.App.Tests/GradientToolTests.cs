@@ -1,4 +1,5 @@
 using Avalonia.Headless.XUnit;
+using Lightbox.App.Docking;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
 using Lightbox.Raster;
@@ -39,12 +40,16 @@ public class GradientToolTests
     }
 
     [AvaloniaFact]
-    public void ANewDocumentHasNoGradientsAndTheDockerIsHidden()
+    public void ANewDocumentHasNoGradientsAndTheGradientTabRestsBehindColor()
     {
         var vm = new MainViewModel(null);
         Assert.Empty(vm.Doc.Gradients);
         Assert.Empty(vm.GradientDocker.Gradients);
-        Assert.False(vm.GradientDockerVisible);
+        // The panel ships as a background tab of the colour family now, not a
+        // strip of its own — present in the header, with Color in front.
+        Assert.True(vm.GradientDockerVisible);
+        var layout = vm.Workspace.Layout;
+        Assert.Equal(DockPanelId.Color, layout.ActiveOf(layout.SlotOf(DockPanelId.Gradient)));
     }
 
     [AvaloniaFact]

@@ -195,7 +195,9 @@ public class WorkspaceStoreTests
     public void ApplyingAWorkspaceReplacesTheLayoutAndClearsTheStar()
     {
         var vm = Vm();
-        vm.SetVisible(DockPanelId.Gradient, true);
+        // Reference rather than Gradient: the gradient is one of the default
+        // layout's colour tabs now, so showing it would be a no-op.
+        vm.SetVisible(DockPanelId.Reference, true);
         Assert.True(vm.IsDirty);
         Assert.EndsWith("*", vm.CurrentLabel);
 

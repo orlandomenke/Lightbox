@@ -78,7 +78,8 @@ tab out of a group leaves the remaining panel an ordinary panel again — a grou
 is nothing more than the panels currently sharing a slot.
 
 Tabbing is how a workspace offers more than it has room for. Colour, palette and
-gradient ship tabbed together in most arrangements: they are three ways of
+gradient ship tabbed together in every built-in arrangement, Default included:
+they are three ways of
 answering one question and you want one at a time, so they cost one slot between
 them instead of three. Things you use *at the same time* — the layers list, the
 project tree, the timeline — are never tabbed together, and dragging one there

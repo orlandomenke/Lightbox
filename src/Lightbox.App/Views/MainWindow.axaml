@@ -1691,7 +1691,9 @@
              changed. -->
         <controls:Docker x:Name="ToolOptionsDocker" PanelId="ToolOptions" Title="Tool options"
                          CloseCommand="{Binding ToggleToolOptionsDockerCommand}">
-                <Grid ColumnDefinitions="110,6,*">
+              <Panel>
+                <!-- Paint tools get the full brush editor, exactly as before. -->
+                <Grid ColumnDefinitions="110,6,*" IsVisible="{Binding IsPaintTool}">
                   <ListBox x:Name="BrushCategoryList" Grid.Column="0" SelectedIndex="0"
                            SelectionChanged="OnBrushCategoryChanged" Background="{StaticResource BackgroundSecondaryBrush}">
                     <ListBoxItem Content="General" />
@@ -2169,6 +2171,173 @@
                     </Panel>
                   </ScrollViewer>
                 </Grid>
+
+                <!--
+                  The dynamic half (owner: "the tool options docker should be
+                  dynamic"). The panel follows the active tool the way the bar
+                  does, using the same bindings — one set of view-model
+                  properties, two shapes: the bar is the horizontal glance,
+                  this is the vertical home with room for labels.
+                -->
+                <ScrollViewer x:Name="NonPaintToolOptions" VerticalScrollBarVisibility="Auto"
+                              IsVisible="{Binding !IsPaintTool}">
+                  <StackPanel Spacing="6">
+                    <TextBlock x:Name="ToolOptionsToolName" Text="{Binding ActiveToolLabel}" FontWeight="SemiBold" FontSize="12" />
+
+                    <!-- Fill -->
+                    <StackPanel Spacing="6" IsVisible="{Binding IsFillTool}">
+                      <DockPanel>
+                        <TextBlock Text="Tolerance" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <NumericUpDown DockPanel.Dock="Right" Value="{Binding FillTolerance}" Minimum="0" Maximum="255"
+                                       Increment="4" FormatString="0" MinWidth="44"
+                                       ToolTip.Tip="How different a pixel may be and still count as the same area" />
+                        <Slider Value="{Binding FillTolerance}" Minimum="0" Maximum="255" Margin="4,0" />
+                      </DockPanel>
+                      <DockPanel>
+                        <TextBlock Text="Gap px" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <NumericUpDown DockPanel.Dock="Right" Value="{Binding FillGapPx}" Minimum="0" Maximum="32"
+                                       Increment="1" FormatString="0" MinWidth="44"
+                                       ToolTip.Tip="Openings up to this many pixels still count as closed" />
+                        <Slider Value="{Binding FillGapPx}" Minimum="0" Maximum="32" Margin="4,0" />
+                      </DockPanel>
+                      <DockPanel>
+                        <TextBlock Text="Grow px" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <NumericUpDown DockPanel.Dock="Right" Value="{Binding FillGrowPx}" Minimum="-16" Maximum="16"
+                                       Increment="1" FormatString="0" MinWidth="44"
+                                       ToolTip.Tip="Overfill (+) under the line work, or underfill (−) to keep a margin" />
+                        <Slider Value="{Binding FillGrowPx}" Minimum="-16" Maximum="16" Margin="4,0" />
+                      </DockPanel>
+                      <CheckBox Content="Smart fill" IsChecked="{Binding SmartFill}"
+                                ToolTip.Tip="Sample every visible layer (fill what looks empty) instead of only the active layer" />
+                      <CheckBox Content="Below line work" IsChecked="{Binding FillBelowLines}"
+                                ToolTip.Tip="Tuck the fill under the lines; off = fill on top, preserving lines" />
+                    </StackPanel>
+
+                    <!-- Selection -->
+                    <StackPanel Spacing="6" IsVisible="{Binding IsSelectTool}">
+                      <!-- Its own group name: the bar carries the same radios, and
+                           two groups sharing a name uncheck each other. -->
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <RadioButton GroupName="selvarPanel" Content="◌" IsChecked="{Binding IsFreehandVariant, Mode=OneWay}"
+                                     Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Freehand}"
+                                     ToolTip.Tip="Freehand selection" />
+                        <RadioButton GroupName="selvarPanel" Content="⬠" IsChecked="{Binding IsPolygonVariant, Mode=OneWay}"
+                                     Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Polygon}"
+                                     ToolTip.Tip="Polygon selection" />
+                        <RadioButton GroupName="selvarPanel" Content="▭" IsChecked="{Binding IsBoxVariant, Mode=OneWay}"
+                                     Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Box}"
+                                     ToolTip.Tip="Box selection" />
+                        <RadioButton GroupName="selvarPanel" Content="◯" IsChecked="{Binding IsEllipseVariant, Mode=OneWay}"
+                                     Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Ellipse}"
+                                     ToolTip.Tip="Circle/ellipse selection" />
+                        <RadioButton GroupName="selvarPanel" Content="🪄" IsChecked="{Binding IsWandVariant, Mode=OneWay}"
+                                     Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Wand}"
+                                     ToolTip.Tip="Magic wand — click to select a connected color region" />
+                      </StackPanel>
+                      <StackPanel Spacing="6" IsVisible="{Binding IsWandVariant}">
+                        <DockPanel>
+                          <TextBlock Text="Tolerance" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding WandTolerance}" Minimum="0" Maximum="255"
+                                         Increment="4" FormatString="0" MinWidth="44" />
+                          <Slider Value="{Binding WandTolerance}" Minimum="0" Maximum="255" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Gap px" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding WandGapPx}" Minimum="0" Maximum="32"
+                                         Increment="1" FormatString="0" MinWidth="44" />
+                          <Slider Value="{Binding WandGapPx}" Minimum="0" Maximum="32" Margin="4,0" />
+                        </DockPanel>
+                        <CheckBox Content="Sample all layers" IsChecked="{Binding WandSampleAllLayers}"
+                                  ToolTip.Tip="Select from what you see (all visible layers) instead of only the active layer" />
+                      </StackPanel>
+                      <DockPanel>
+                        <TextBlock Text="Feather" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <NumericUpDown DockPanel.Dock="Right" Value="{Binding SelectionFeather}" Minimum="0" Maximum="100"
+                                       Increment="1" FormatString="0" MinWidth="44"
+                                       ToolTip.Tip="Soften the selection edge by this many pixels" />
+                        <Slider Value="{Binding SelectionFeather}" Minimum="0" Maximum="100" Margin="4,0" />
+                      </DockPanel>
+                      <DockPanel>
+                        <TextBlock Text="Grow/Shrink" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                          <NumericUpDown Value="{Binding SelectionAdjustPx}" Minimum="1" Maximum="64" Increment="1"
+                                         FormatString="0" MinWidth="44" ToolTip.Tip="Pixels for Grow/Shrink" />
+                          <Button Content="Grow" Command="{Binding GrowSelectionCommand}" FontSize="12" />
+                          <Button Content="Shrink" Command="{Binding ShrinkSelectionCommand}" FontSize="12" />
+                        </StackPanel>
+                      </DockPanel>
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <Button Content="All" Command="{Binding SelectAllCommand}" FontSize="12" ToolTip.Tip="Select the whole canvas (Ctrl+A)" />
+                        <Button Content="None" Command="{Binding DeselectCommand}" FontSize="12" ToolTip.Tip="Deselect (Ctrl+D)" />
+                        <Button Content="Invert" Command="{Binding InvertSelectionCommand}" FontSize="12" ToolTip.Tip="Invert the selection (Ctrl+Shift+I)" />
+                      </StackPanel>
+                      <TextBlock Text="Shift adds · Alt subtracts" Opacity="0.6" FontSize="11" />
+                    </StackPanel>
+
+                    <!-- Shape -->
+                    <StackPanel Spacing="6" IsVisible="{Binding IsShapeTool}">
+                      <DockPanel>
+                        <TextBlock Text="Shape" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <ComboBox ItemsSource="{Binding ShapeChoices}" SelectedItem="{Binding ActiveShape}"
+                                  HorizontalAlignment="Stretch" Margin="4,0,0,0"
+                                  ToolTip.Tip="Shift squares it, Alt grows it from the centre" />
+                      </DockPanel>
+                      <DockPanel IsVisible="{Binding IsPolygonShape}">
+                        <TextBlock Text="Sides" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <NumericUpDown DockPanel.Dock="Right" Value="{Binding PolygonSides}" Minimum="3" Maximum="64"
+                                       Increment="1" FormatString="0" MinWidth="44" />
+                        <Slider Value="{Binding PolygonSides}" Minimum="3" Maximum="64" Margin="4,0" />
+                      </DockPanel>
+                      <TextBlock Text="Drawn with the current brush" FontSize="11" Opacity="0.55" TextWrapping="Wrap"
+                                 ToolTip.Tip="A shape is a stroke, so it takes the brush you have loaded" />
+                    </StackPanel>
+
+                    <!-- Gradient. The ramp editing stays in the bar's flyout —
+                         one live editor per gradient, not two fighting. -->
+                    <StackPanel Spacing="6" IsVisible="{Binding IsGradientTool}">
+                      <DockPanel>
+                        <TextBlock Text="Gradient" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <ComboBox ItemsSource="{Binding GradientDocker.Gradients}"
+                                  SelectedItem="{Binding GradientDocker.SelectedGradient}"
+                                  HorizontalAlignment="Stretch" Margin="4,0,0,0">
+                          <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="docs:Gradient">
+                              <TextBlock Text="{Binding Name}" />
+                            </DataTemplate>
+                          </ComboBox.ItemTemplate>
+                        </ComboBox>
+                      </DockPanel>
+                      <DockPanel>
+                        <TextBlock Text="Kind" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <ComboBox ItemsSource="{Binding GradientDocker.KindChoices}"
+                                  SelectedItem="{Binding GradientDocker.Kind}"
+                                  HorizontalAlignment="Stretch" Margin="4,0,0,0"
+                                  ToolTip.Tip="Linear runs along the drag; radial takes the drag as its radius" />
+                      </DockPanel>
+                      <DockPanel>
+                        <TextBlock Text="Spread" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <ComboBox ItemsSource="{Binding GradientDocker.SpreadChoices}"
+                                  SelectedItem="{Binding GradientDocker.Spread}"
+                                  HorizontalAlignment="Stretch" Margin="4,0,0,0"
+                                  ToolTip.Tip="What happens beyond the ends of the ramp" />
+                      </DockPanel>
+                      <DockPanel>
+                        <TextBlock Text="Opacity" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <NumericUpDown DockPanel.Dock="Right" Value="{Binding GradientOpacity}" Minimum="0" Maximum="1"
+                                       Increment="0.05" FormatString="0.00" MinWidth="44" />
+                        <Slider Value="{Binding GradientOpacity}" Minimum="0" Maximum="1" Margin="4,0" />
+                      </DockPanel>
+                      <TextBlock Text="Edit the ramp from the preview on the bar." FontSize="11" Opacity="0.55" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <!-- Tools whose whole vocabulary fits on the bar. Saying so
+                         beats a blank panel, which reads as broken. -->
+                    <TextBlock IsVisible="{Binding ActiveToolHasNoPanelOptions}"
+                               Text="This tool has no panel options. Everything it offers is on the bar above the canvas."
+                               FontSize="11" Opacity="0.55" TextWrapping="Wrap" />
+                  </StackPanel>
+                </ScrollViewer>
+              </Panel>
         </controls:Docker>
 
         <!-- Project: characters and the animations under them. Absent unless a

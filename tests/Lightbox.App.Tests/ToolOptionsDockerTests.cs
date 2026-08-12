@@ -54,6 +54,54 @@ public sealed class ToolOptionsDockerTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
+    public void ThePanelFollowsTheActiveTool()
+    {
+        // Owner: "the tool options docker should be dynamic." The panel shows
+        // the active tool's options the way the bar does — brush editor for
+        // the paint tools, the tool's own controls for the rest.
+        var (w, vm) = Open();
+        vm.OpenToolOptionsCommand.Execute(null);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var brushPages = w.FindControl<ListBox>("BrushCategoryList")!;
+        var toolPanel = w.FindControl<ScrollViewer>("NonPaintToolOptions")!;
+
+        // Brush in hand: the brush editor, not the tool panel.
+        Assert.Equal(ToolId.Brush, vm.ActiveTool);
+        Assert.True(brushPages.IsEffectivelyVisible);
+        Assert.False(toolPanel.IsEffectivelyVisible);
+
+        // Fill in hand: the tool panel, named for the tool.
+        vm.ActiveTool = ToolId.Fill;
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.False(brushPages.IsEffectivelyVisible);
+        Assert.True(toolPanel.IsEffectivelyVisible);
+        Assert.Equal("Fill", w.FindControl<TextBlock>("ToolOptionsToolName")!.Text);
+
+        // And back: switching tools never loses the brush editor.
+        vm.ActiveTool = ToolId.Eraser;
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.True(brushPages.IsEffectivelyVisible);
+        Assert.False(toolPanel.IsEffectivelyVisible);
+    }
+
+    [AvaloniaFact]
+    public void AToolWithNothingToConfigureSaysSoInsteadOfGoingBlank()
+    {
+        var (w, vm) = Open();
+        vm.OpenToolOptionsCommand.Execute(null);
+        vm.ActiveTool = ToolId.Move;
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.True(vm.ActiveToolHasNoPanelOptions);
+        var note = w.FindControl<ScrollViewer>("NonPaintToolOptions")!
+            .GetVisualDescendants().OfType<TextBlock>()
+            .FirstOrDefault(t => t.Text?.Contains("no panel options") == true);
+        Assert.NotNull(note);
+        Assert.True(note!.IsEffectivelyVisible);
+    }
+
+    [AvaloniaFact]
     public void TheGearNeverCloses()
     {
         // A gear that closed the panel you were looking at reads as broken.

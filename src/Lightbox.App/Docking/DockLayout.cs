@@ -122,11 +122,16 @@ public sealed class DockLayout
         layout.JoinGroup(DockPanelId.Xsheet, DockPanelId.Timeline);
         layout.JoinGroup(DockPanelId.GraphEditor, DockPanelId.Timeline);
         layout.Activate(DockPanelId.Timeline);
-        // Absent until asked for, the same rule the camera and the project
-        // follow. A palette and a gradient are things an artist sets up
-        // deliberately; empty, they are sidebar height the layers could use.
-        layout.Place(DockPanelId.Palette).Side = DockSide.Hidden;
-        layout.Place(DockPanelId.Gradient).Side = DockSide.Hidden;
+        // The colour family shares one slot as tabs, the same shape the
+        // built-in workspaces use. These two used to be hidden outright —
+        // "empty, they are sidebar height the layers could use" — but a tab
+        // costs a word in a header rather than a strip of sidebar, and the
+        // owner asked for the tabbed dockers to be the default view. Absent
+        // until asked for still governs what a tab SHOWS: an empty palette
+        // stays empty until one is made.
+        layout.JoinGroup(DockPanelId.Palette, DockPanelId.Color);
+        layout.JoinGroup(DockPanelId.Gradient, DockPanelId.Color);
+        layout.Activate(DockPanelId.Color);
         layout.Place(DockPanelId.Reference).Side = DockSide.Hidden;
         // Same rule: the gear opens it the first time it is wanted.
         layout.Place(DockPanelId.ToolOptions).Side = DockSide.Hidden;

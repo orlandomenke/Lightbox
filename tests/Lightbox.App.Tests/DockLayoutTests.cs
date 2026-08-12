@@ -13,14 +13,22 @@ public class DockLayoutTests
     [Fact]
     public void TheDefaultLayoutOpensTheSidebarPanelsAndATimeline()
     {
-        // Absent until asked for: the palette and the gradient editor are
-        // things an artist sets up deliberately, and empty they are sidebar
-        // height the layers could use.
+        // The colour family ships tabbed into one slot, like the built-ins:
+        // a tab costs a word in a header rather than a strip of sidebar, so
+        // the old "absent until asked for" hiding of the palette and the
+        // gradient editor no longer bought anything. What a tab SHOWS is
+        // still absent until made — an empty palette stays empty.
         var layout = DockLayout.Default();
 
         Assert.Equal(
-            [DockPanelId.Project, DockPanelId.Layers, DockPanelId.Color, DockPanelId.Sheets],
+            [DockPanelId.Project, DockPanelId.Layers,
+             DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient,
+             DockPanelId.Sheets],
             layout.PanelsIn(DockSide.Right));
+        Assert.Equal(
+            [DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient],
+            layout.SlotOf(DockPanelId.Color));
+        Assert.Equal(DockPanelId.Color, layout.ActiveOf(layout.SlotOf(DockPanelId.Color)));
         // The bottom is the timeline family (Q58): three views over one set
         // of records, tabbed, the track view in front.
         Assert.Equal(
@@ -28,7 +36,7 @@ public class DockLayoutTests
             layout.PanelsIn(DockSide.Bottom));
         Assert.True(layout.IsEmpty(DockSide.Left));
         Assert.True(layout.IsEmpty(DockSide.Top));
-        Assert.False(layout.IsVisible(DockPanelId.Palette));
+        Assert.False(layout.IsVisible(DockPanelId.Reference));
     }
 
     [Fact]
@@ -37,10 +45,13 @@ public class DockLayoutTests
         var layout = DockLayout.Default();
         layout.Dock(DockPanelId.Palette, DockSide.Right, 1);
 
+        // Docking the palette to a slot of its own also takes it out of the
+        // colour family's tabs, where the default layout keeps it.
         Assert.Equal(
             [DockPanelId.Project, DockPanelId.Palette, DockPanelId.Layers,
-             DockPanelId.Color, DockPanelId.Sheets],
+             DockPanelId.Color, DockPanelId.Gradient, DockPanelId.Sheets],
             layout.PanelsIn(DockSide.Right));
+        Assert.DoesNotContain(DockPanelId.Palette, layout.SlotOf(DockPanelId.Color));
     }
 
     [Fact]
@@ -167,12 +178,12 @@ public class DockLayoutTests
         // Nothing declares a group, so nothing has to clean one up: drag the
         // last member out and the concept evaporates with it.
         var layout = DockLayout.Default();
-        layout.JoinGroup(DockPanelId.Palette, DockPanelId.Color);
+        layout.JoinGroup(DockPanelId.Sheets, DockPanelId.Layers);
         var slots = layout.SlotsIn(DockSide.Right).Count;
 
-        layout.Dock(DockPanelId.Palette, DockSide.Left, 0);
+        layout.Dock(DockPanelId.Sheets, DockSide.Left, 0);
 
-        Assert.Single(layout.SlotOf(DockPanelId.Color));
+        Assert.Single(layout.SlotOf(DockPanelId.Layers));
         Assert.Equal(slots, layout.SlotsIn(DockSide.Right).Count);
     }
 
