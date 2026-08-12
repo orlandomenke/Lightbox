@@ -279,6 +279,12 @@ the test needs relaxing.
 - [x] Layer folders `evidence: LayerGroup, LayerFolderTests`
 - [x] Layer and alpha locking `evidence: LayerLockTests, AlphaLockTests`
 - [?] Non-destructive filters
+  - Designed in `docs/DESIGN-effects.md` (2026-08-12): one effect model where
+    every parameter is constant or keyframed camera-style, nullable
+    `Layer.Effects`/`Scene.Effects` stacks absent until authored, a reach
+    declaration per effect so repaint stays bounded, and a record shaped so the
+    future node system subsumes the stack instead of replacing it. Evidence
+    anchors arrive with the Raster pass; the box stays open until then.
 
 ### Editing
 
