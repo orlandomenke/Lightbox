@@ -52,6 +52,21 @@ public sealed partial class ProjectRow : ObservableObject
         _name = document.Name;
     }
 
+    /// <summary>A character sheet, filed in a folder or project-wide when none.</summary>
+    /// <remarks>
+    /// <b>Q25 re-answered.</b> A sheet is filed the way a document is, so it is
+    /// a row the way a document is — under its folder, visible, openable. What
+    /// it never gets is a status or a duration: it is reference art, not a
+    /// deliverable, and a sheet in the export plan would be a bug.
+    /// </remarks>
+    public ProjectRow(ProjectFolder? folder, SheetRef sheet, int depth)
+    {
+        Folder = folder;
+        Sheet = sheet;
+        Depth = depth;
+        _name = sheet.Name;
+    }
+
     private ProjectRow(string name)
     {
         IsRoot = true;
@@ -90,6 +105,9 @@ public sealed partial class ProjectRow : ObservableObject
 
     /// <summary>Null on a folder row.</summary>
     public DocumentRef? Animation { get; }
+
+    /// <summary>The character sheet this row is, or null on every other row.</summary>
+    public SheetRef? Sheet { get; }
 
     /// <summary>
     /// How long it runs, already formatted, or null when nothing knows.
@@ -135,11 +153,12 @@ public sealed partial class ProjectRow : ObservableObject
     internal bool Describes(ProjectRow other) =>
         ReferenceEquals(Folder, other.Folder)
         && ReferenceEquals(Animation, other.Animation)
+        && ReferenceEquals(Sheet, other.Sheet)
         && Depth == other.Depth
         && IsRoot == other.IsRoot;
 
     /// <summary>A folder the artist made, whatever it happens to read as.</summary>
-    public bool IsFolder => Folder is not null && Animation is null;
+    public bool IsFolder => Folder is not null && Animation is null && Sheet is null;
 
     /// <summary>
     /// Whether the folder this row is has been read.
@@ -155,10 +174,13 @@ public sealed partial class ProjectRow : ObservableObject
     public bool HasOrder => IsFolder && Folder!.Order is not null;
 
     /// <summary>A heading row — any folder.</summary>
-    public bool IsHeading => Animation is null;
+    public bool IsHeading => Animation is null && Sheet is null;
 
     /// <summary>A document with nothing above it at all.</summary>
     public bool IsLoose => Animation is not null && Folder is null;
+
+    /// <summary>A character sheet row.</summary>
+    public bool IsSheet => Sheet is not null;
 
     /// <summary>Whether a folder row is showing what is inside it.</summary>
     /// <remarks>
@@ -191,7 +213,7 @@ public sealed partial class ProjectRow : ObservableObject
     /// folder itself, which is why the +1.
     /// </remarks>
     public double Indent =>
-        Folder is null ? 0 : (Depth + (Animation is null ? 0 : 1)) * 14;
+        Folder is null ? 0 : (Depth + (IsFolder ? 0 : 1)) * 14;
 
     /// <summary>What the row shows in front of its name.</summary>
     /// <remarks>
@@ -208,6 +230,9 @@ public sealed partial class ProjectRow : ObservableObject
     /// </remarks>
     public string Glyph =>
         IsRoot ? "🗁"
+        // ▤ reads as a sheet of panels — reference art, distinct from ▣'s
+        // single drawing, and it costs no colour the theme has to own.
+        : IsSheet ? "▤"
         : Animation is null && Folder is { Icon: { Length: > 0 } chosen } ? chosen
         : IsFolder ? "🗀"
         : "▣";
@@ -307,7 +332,7 @@ public sealed partial class ProjectRow : ObservableObject
     /// first one — so this is a fix rather than a defence.
     /// </remarks>
     internal string? Key =>
-        Animation?.Id ?? Folder?.Id ?? (IsRoot ? RootKey : null);
+        Animation?.Id ?? Sheet?.Id ?? Folder?.Id ?? (IsRoot ? RootKey : null);
 
     /// <summary>The docker this row belongs to, for its context menu to bind to.</summary>
     /// <remarks>
@@ -1214,7 +1239,10 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
             SymbolScopes.Kind => Project?.Symbols.GetValueOrDefault(resource.Id)?.Name,
             TipScopes.Kind => Project?.Manifest.Tips?.FirstOrDefault(t => t.Id == resource.Id)?.Name,
             ExportScopes.Kind => ShareableExportPresets.FirstOrDefault(p => p.Id == resource.Id)?.Name,
-            _ => DocumentByIdOrNull(resource.Id)?.Name,
+            // A reference id names a sheet or a document; try both registries.
+            _ => Project is { } p
+                ? ProjectSheets.FindRef(p.Manifest, resource.Id)?.Name ?? DocumentByIdOrNull(resource.Id)?.Name
+                : DocumentByIdOrNull(resource.Id)?.Name,
         };
         var kind = resource.Kind switch
         {
@@ -1410,6 +1438,15 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         // Project-level documents last, unindented: they belong to the project,
         // not under anything. Only the ones filed nowhere; the rest were emitted
         // above, under the folder they are in.
+        // Project-wide sheets above the loose documents, matching the order
+        // inside a folder: what is consulted sits above what consults it.
+        if (Project is { } withSheets)
+        {
+            foreach (var sheet in ProjectSheets.In(withSheets.Manifest, null))
+            {
+                Add(new ProjectRow(folder: null, sheet, depth: 0));
+            }
+        }
         foreach (var document in Project?.Manifest.Documents ?? [])
         {
             if (document.FolderId is not null) continue;
@@ -1490,6 +1527,12 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
             });
             if (collapsed) continue;
             EmitFolders(manifest, folder, depth + 1, add);
+            // Sheets first: reference art is what the folder's work is drawn
+            // against, so it sits above the drawings that consult it.
+            foreach (var sheet in ProjectSheets.In(manifest, folder))
+            {
+                add(new ProjectRow(folder, sheet, depth));
+            }
             foreach (var document in ProjectFolders.InOrder(manifest, folder))
             {
                 add(new ProjectRow(folder, document, depth, ShotTime(document))
@@ -1608,6 +1651,15 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         if (row is { IsFolder: true, Folder: { } folder })
         {
             if (!ProjectFolders.Move(project.Manifest, folder, destination)) return false;
+        }
+        else if (row.Sheet is { } sheet)
+        {
+            // The same disk-first order as a document (B106); Refile carries it.
+            if (!ProjectSheets.Refile(project, sheet, destination))
+            {
+                Status = $"Could not move “{sheet.Name}”. It is still where it was.";
+                return false;
+            }
         }
         else if (row.Animation is { } document)
         {
@@ -2297,7 +2349,7 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         var here = row.IsFolder ? row.Folder!.ParentId : row.Folder?.Id;
         if (string.Equals(here, destination?.Id, StringComparison.Ordinal)) return false;
 
-        var name = row.Animation?.Name ?? row.Folder?.Name ?? "";
+        var name = row.Animation?.Name ?? row.Sheet?.Name ?? row.Folder?.Name ?? "";
         if (!MoveInto(row, destination))
         {
             // B106. The move can fail for a reason the artist can act on — a
@@ -2495,9 +2547,21 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
 
     private static string Count(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
 
+    /// <summary>
+    /// What opens a character sheet — supplied like <c>_open</c>, but settable
+    /// because sheets arrived after the constructor's three callers were built.
+    /// </summary>
+    public Action<SheetRef>? OpenSheet { get; set; }
+
     /// <summary>Open the selected animation as a tab.</summary>
     public void OpenSelected()
     {
+        if (Project is null) return;
+        if (Selected?.Sheet is { } sheet)
+        {
+            OpenSheet?.Invoke(sheet);
+            return;
+        }
         if (Project is not { } project || Selected?.Animation is not { } reference) return;
         if (ProjectIo.LoadDocument(project, reference) is not { } doc)
         {

@@ -2045,7 +2045,10 @@ public partial class MainWindow : Window
             _vm.RefreshReferenceList();
             return;
         }
-        _vm.MarkReferenceRenamed();
+        // The DataContext says what was renamed — a sheet or a view — which the
+        // view model needs now that a sheet can belong to the project rather
+        // than to the document.
+        _vm.MarkReferenceRenamed(box.DataContext);
     }
 
     // ---- brush presets --------------------------------------------------------
@@ -4169,14 +4172,15 @@ public partial class MainWindow : Window
         // selection, which has just been set to the row under the pointer.
         if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed) return;
 
-        if (pressed is not { Animation: not null } row) return;
+        // Documents and sheets drag; folders stay drop targets only.
+        if (pressed is not ({ Animation: not null } or { Sheet: not null }) || pressed is not { } row) return;
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
 
         _draggedRow = row;
         try
         {
             var transfer = new DataTransfer();
-            transfer.Add(DataTransferItem.Create(ProjectRowFormat, row.Animation.Id));
+            transfer.Add(DataTransferItem.Create(ProjectRowFormat, row.Key ?? ""));
             await DragDrop.DoDragDropAsync(e, transfer, DragDropEffects.Move);
         }
         catch (Exception ex)

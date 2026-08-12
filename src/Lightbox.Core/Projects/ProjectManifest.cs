@@ -175,6 +175,43 @@ public sealed class DocumentRef
 }
 
 /// <summary>
+/// A pointer to a character sheet that belongs to the project, not the sheet
+/// itself.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Q25, re-answered 2026-08-12.</b> The first answer put sheets inside one
+/// document (<c>Doc.ReferenceSheets</c>), which made them impossible to share
+/// or file — the knight's model sheet was locked inside whichever animation
+/// happened to create it. Inside a project a sheet is now its own file, filed
+/// in a folder exactly the way a document is, and every document in that
+/// folder's subtree can consult it. Outside a project nothing changed: a
+/// standalone document keeps its sheets in <c>Doc.ReferenceSheets</c>, because
+/// there is no tree to file into.
+/// </para>
+/// <para>
+/// <see cref="Id"/> is the <c>ReferenceSheet</c>'s own id rather than a second
+/// one, so a scoped-resource declaration that names a sheet and this registry
+/// agree about what they are naming.
+/// </para>
+/// </remarks>
+public sealed class SheetRef
+{
+    public string Id { get; set; } = "";
+
+    public string Name { get; set; } = "Character";
+
+    /// <summary>Path relative to the project root, with forward slashes.</summary>
+    public string Path { get; set; } = "";
+
+    /// <summary>
+    /// The folder this sheet is filed in — visible to every document in that
+    /// folder's subtree — or null for the whole project.
+    /// </summary>
+    public string? FolderId { get; set; }
+}
+
+/// <summary>
 /// Somebody working on the project.
 /// </summary>
 /// <remarks>
@@ -354,6 +391,17 @@ public sealed class ProjectManifest
     /// one where a registry would be pure overhead.
     /// </remarks>
     public List<Person>? People { get; set; }
+
+    /// <summary>
+    /// The project's character sheets, once there are any — an index like
+    /// <see cref="Documents"/>, each filed by <see cref="SheetRef.FolderId"/>.
+    /// </summary>
+    /// <remarks>
+    /// Null and absent until the first sheet, so a project that never made one
+    /// carries no key. The sheet's views and strokes live in the file the entry
+    /// points at, loaded when something actually looks at it.
+    /// </remarks>
+    public List<SheetRef>? Sheets { get; set; }
 
     public Documents.BrushSettings? Brush { get; set; }
 

@@ -320,9 +320,19 @@ public static class ProjectBoard
     /// Q30 — and an empty chip would hide it rather than showing it as broken.
     /// </remarks>
     public static string NameOf(Project project, string kind, string id) =>
-        Offers(project, kind).FirstOrDefault(o => o.Id == id) is { Name.Length: > 0 } found
-            ? found.Name
-            : id;
+        kind switch
+        {
+            // References are not in Offers (they bind a target as well as an
+            // id), so a declared one showed its raw id in the Assets tab. The
+            // id is a sheet's or a document's, and both registries have names.
+            ReferenceScopes.Kind =>
+                ProjectSheets.FindRef(project.Manifest, id)?.Name
+                ?? project.FindRef(id)?.Name
+                ?? id,
+            _ => Offers(project, kind).FirstOrDefault(o => o.Id == id) is { Name.Length: > 0 } found
+                ? found.Name
+                : id,
+        };
 
     /// <summary>The documents at one status, in the order the project lists them.</summary>
     /// <remarks>

@@ -1041,13 +1041,45 @@ size and the obligation to keep the set honest.
 
 **Blocks:** phase 2.
 
-## Q25 · Is a character sheet a document, or part of one? — **answered (a)**
+## Q25 · Is a character sheet a document, or part of one? — **re-answered (b), inside a project**
 
-**Answered 2026-08-04: (a), it stays part of a document.** No format change, no
-new project-manifest slot, and no new docker row type that is not a file. The
-reported pain is losing work — *"character sheets are not saved to disk"* — and
-that is fixed by making sure there is a file behind the document the sheet lives
-in, which costs one prompt.
+**Re-answered 2026-08-12, by the owner, overriding (a):** inside a project a
+sheet is **its own file**, filed on a folder the way a document is. The owner's
+words: *"every document can create a reference sheet but it's always assigned
+to the first top folder by default. So it becomes a file. All documents within
+the folder can access the character sheet. We see it in the project docker and
+through the project manager we can re-assign if need be."*
+
+What that cost, and where the line was drawn — the four sub-decisions were
+prompted and answered the same day:
+
+- **Filed like documents** (`SheetRef` with `FolderId` in the manifest), not a
+  scoped-resource declaration. One concept — *where is it filed* — and
+  visibility is the folder's subtree. The reference declarations stay for what
+  filing cannot say (B133 still owns their unread half).
+- **On disk inside the assigned folder's directory** (`<folder>/<slug>.sheet.json`),
+  so the tree in a file manager matches the panel; re-assigning therefore
+  **moves a file**, disk-first like a document move (B106's order).
+- **Standalone documents keep (a)** — sheets stay in `Doc.ReferenceSheets`,
+  B66's prompt-to-save unchanged. Two storage shapes exist, switched by
+  context; that is the accepted cost of not making loose files travel in pairs.
+- **Migration is promote-on-open**: a project document carrying old in-document
+  sheets lifts them into the registry (filed on its top folder) the first time
+  it is read, and its next save writes both halves. Idempotent because sheets
+  keep their ids.
+
+(a)'s reasoning below is kept because most of it still holds — the format-change
+cost it predicted is exactly what was paid, and what finally justified paying it
+was the sharing argument the last line of (a) anticipated: *"if sheets later
+need to be shared between documents, that is the argument for (b)."* B133's
+measurement showed sheets could not reach sibling documents at all, and the
+docker/window visibility the owner asked for needs a real slot in the manifest.
+
+**The first answer, 2026-08-04: (a), it stays part of a document.** No format
+change, no new project-manifest slot, and no new docker row type that is not a
+file. The reported pain is losing work — *"character sheets are not saved to
+disk"* — and that is fixed by making sure there is a file behind the document
+the sheet lives in, which costs one prompt.
 
 The docker-visibility half of the report is answered rather than implemented: a
 character sheet **is** visible in the project docker, as the document that
@@ -2002,7 +2034,11 @@ Four consequences the owner specified, and they are the actual design:
 | **Resolution** | **Accumulate, nearest wins ties.** Every declaration in the chain registers; where two name the same swatch id the nearest one wins |
 
 **The character-sheet condition is met — checked rather than assumed.** There is
-no collision, and the reason is that Q25 already put sheets in the right place:
+no collision, and the reason is that Q25 already put sheets in the right place
+*(as of Q25's re-answer on 2026-08-12 that place changed: a project's sheets are
+now their own files filed by folder — which is this row's "folder-based" wish
+finally built — and the no-collision reasoning below still holds because there
+is still no `Character.Sheets` anywhere)*:
 a `ReferenceSheet` lives in `Doc.ReferenceSheets`, so it belongs to a *document*
 and there is no `Character.Sheets` for a library import to carry.
 `CharacterLibrary.Import` copies `entry.Character.Animations` and their

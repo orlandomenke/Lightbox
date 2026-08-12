@@ -24,7 +24,8 @@ take the tedious parts off an artist, not to make the drawing.
 
 **What gets sent.** Along with the frames, the **first two views on your character
 sheets that have a visible layer** go out as pictures, so the model can see who it
-is drawing. They are sent at up to 768 pixels on the long edge — your sheet keeps
+is drawing. In a project those are the sheets filed above the document — the
+knight's animations ride with the knight's sheet, wherever it was drawn. They are sent at up to 768 pixels on the long edge — your sheet keeps
 whatever size you drew it at, and only the copy in the request is smaller. Hide
 every layer in a view and it stops being sent.
 
