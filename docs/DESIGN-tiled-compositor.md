@@ -63,6 +63,29 @@ protocol that works.
 
 So the tile cache never has to move.
 
+## Where this stands — read this first
+
+Phases 1, 2, 3a, 3b and 4 have landed. **Phases 5 and 6 have not, and neither is
+ready to start for the same reason: the number that decides them does not exist
+yet.**
+
+| Phase | State | What unblocks it |
+| --- | --- | --- |
+| 1 · flatten/blend split in the report | landed | — |
+| 2 · cache the flattened bitmap | landed | — |
+| 3a · flatten before the composite | landed | — |
+| 3b · composite in the draw op | landed | — |
+| 4 · GPU surface for the tiled route | landed, **never measured** | a render report captured with GPU compositing **on**, while playing |
+| 5 · resident tiles | not started | phase 4's number |
+| 6 · retire the redundant compositors | not started | phases 4–5 running long enough to trust |
+| 7 · cache the composite (added 2026-08-11) | not started | nothing — it is independent of all of the above |
+
+**The one action that unblocks the most: capture a render report with GPU
+compositing switched on, during playback.** Everything phase 4 built is running
+on a path nobody has confirmed executes. The line to read is
+`of the publishes that could use the card`, and it has read **zero on every
+capture so far** — because every capture was taken with the toggle off.
+
 ## Phases
 
 Each is independently landable, independently revertable, and leaves the
@@ -174,24 +197,135 @@ measured on hardware rather than reasoned about — the container has no GPU.
 *Risk: none new. The CPU fallback is the same one that runs today, and it is
 what every test in this repository exercises.*
 
-### Phase 5 — Resident tiles instead of flattened bitmaps
+### Phase 5 — Resident tiles instead of flattened bitmaps — **blocked, not merely unstarted**
 
-Only if phase 4 says the upload dominates, and only then. Upload the **tiles**
-and let the GPU composite them, skipping `CompositeToBitmap` entirely. A stroke
-dirties a handful of 256² tiles rather than a viewport, so the upload becomes
-proportional to what changed rather than to what is visible.
+Upload the **tiles** and let the GPU composite them, skipping
+`CompositeToBitmap` entirely. A stroke dirties a handful of 256² tiles rather
+than a viewport, so the upload becomes proportional to what changed rather than
+to what is visible. This is where B125's original second crux finally applies —
+"get the layer rasters onto the GPU and keep them there" — and
+`LayerTextureCache`'s key and budget machinery carries over unchanged.
 
-This is where B125's original second crux finally applies — "get the layer
-rasters onto the GPU and keep them there" — and `LayerTextureCache`'s key and
-budget machinery carries over unchanged.
+#### Do not start this without the number, and the reason is B125 itself
 
-*Risk: the largest of the five. Do not start it before phase 4's number exists.*
+**B125 spent five stages optimising a route playback never takes.** Nothing was
+red, every stage worked, and the mis-aim only surfaced when a render report was
+finally read. Phase 5 is the single most expensive phase here and rests entirely
+on a premise nobody has checked: *that the upload dominates.* Building it on the
+assumption would be the same mistake with a larger bill.
 
-### Phase 6 — Retire what is now redundant
+**The blocking measurement, concretely:**
 
-`ComposeUnboundedSnapshot` and, if nothing else reads a composed image on the
-display path, `ComposeRing` (B125 stage 6). Deletion only, after the phases
-above have been running long enough to trust.
+1. Switch GPU compositing on — Edit ▸ Configure ▸ Performance ▸ *Composite
+   layers on the GPU* (or `LIGHTBOX_GPU_COMPOSITE=1`).
+2. Open a document at the size that hurts — 4K is what the ledger's numbers
+   came from — and **play a range for several seconds**, pointer still and off
+   the canvas.
+3. Help ▸ *Write a render report*.
+
+**Read three lines, in this order:**
+
+- **`of the publishes that could use the card`** — if this is still zero, stop.
+  Phase 4 is not executing at all and *that* is the bug to fix, not phase 5.
+- **`Compose` ms/tick, and the nested `of it, TileFlatten`** — phase 1 put
+  flattening at 30–35% of Compose *before* phase 2 cached it. If flatten is now
+  small, the upload is not the cost and phase 5's premise is refuted.
+- **`layer textures` residency hits/misses** — the direct read on whether
+  keeping pixels on the card is paying.
+
+**What each outcome means, decided in advance so the result cannot be read
+to taste:**
+
+| The report says | Then |
+| --- | --- |
+| GPU publishes still 0 | Fix phase 4's wiring. Phase 5 stays blocked. |
+| Blend dominates, upload small | **Phase 5 is refused.** Record it and go to phase 7. |
+| Upload dominates | Phase 5 is justified. Build it. |
+
+**And the generalisation warning that applies specifically here (Q64).** The
+owner's machine is a Ryzen 7 PRO 5850U with *shared* memory between processor
+and card, so an upload competes with the compositing beside it. A discrete card
+crosses PCIe once and then blends from dedicated memory — **phase 5 helps that
+case more.** So a bad number on the development machine is not a verdict on
+phase 5 in general, and killing it on one integrated GPU's measurement would
+repeat B125's mis-aim in the opposite direction. If the number is bad here, the
+honest outcome is *"unproven on discrete hardware"*, not *"dead"*.
+
+### Phase 6 — Retire what is now redundant — **deletion, and the last thing to do**
+
+`SceneRenderer.ComposeUnbounded` and, if nothing else reads a composed image on
+the display path, `ComposeRing` (B125 stage 6).
+
+**Why it is last rather than tidy-up-as-you-go.** These are the fallbacks. While
+phases 4–5 are unmeasured, they are what the application still works *through*
+if the new path is wrong — and deleting a fallback before its replacement has
+run on real hardware is how a bad frame becomes an unusable application.
+
+**`ComposeRing` is the one to be careful with, and the reason is measured.** It
+reuses three buffers and repaints only a dirty region; B121 measured what losing
+that costs — a dab-sized repaint becoming a viewport-sized one, **1 232 px
+against 134 400 px, 0.26 ms against 76 ms at 4K.** Drawing is already cheap
+*because of the ring*. So the condition is not "playback is fast now" but
+"nothing on the **drawing** path needs it":
+
+- `ComposePlan.For` must no longer be able to return `ComposeRoute.Ring` — check
+  the incremental-publish arm, which is the one that exists for drawing.
+- No caller may read `RenderSnapshot.Image` expecting non-null on the display
+  path. Ten tile pixel tests already went red on exactly this in 3b.
+- The export and thumbnail paths compose separately; confirm they do not route
+  through either before removing it.
+
+**Do it as its own branch with no other change in it**, so a revert is one
+command. A deletion mixed with an optimisation cannot be backed out cleanly, and
+this is the change most likely to need backing out.
+
+### Phase 7 — Cache the composite itself (added 2026-08-11, independent)
+
+**Not part of the GPU migration, and that is the point of adding it here:** it
+is the one remaining phase that pays with the GPU toggle *off*, which is what
+almost every machine runs today.
+
+**What is missing.** B165 already skips a composite that would be identical to
+the one on screen — but `_lastPublished` (`MainViewModel.cs:10887`) is a
+**single slot**, so it only catches *consecutive* repeats. That is the hold case
+on 2s. Loop back to frame 0 and every frame recomposites from scratch, though
+the blend is byte-identical to the one it did a second ago. Turning that slot
+into a small LRU keyed by the same `FrameFingerprint` makes lap two of every
+loop essentially free.
+
+**Why it is worth more than phases 5 and 6 together.** It is
+**route-independent**, exactly as B165 is: it applies wherever the composite
+happens, so unlike the GPU work it *cannot* be aimed at a path playback never
+takes. Compose measured 49.5 ms (Display) and 60.4 ms (Full) per tick at 4K
+against an 83 ms budget.
+
+**The memory is smaller than it sounds, and bigger than one number suggests.**
+The compose surface is **view-sized, not document-sized** (`ComposePlan.cs:143`:
+`viewWidth * renderScale`), so a 4K document in a 1080p window composites to
+about the window — ~8 MB a frame, ~200 MB for a 24-frame loop. But a 240-frame
+scene is ~2 GB, so this must cache **a window around the playhead inside a
+budget**, never "the animation". `MemoryBudget` already gives the per-machine
+number.
+
+**Where it has to live, which is the one real complication.** Since phase 3b the
+composite happens *inside the draw op*, and `CanvasControl` owns the resulting
+image via `_retired`. So the cache belongs on the canvas side, keyed by a
+fingerprint the view model computes and passes across with the snapshot — not in
+`PublishSnapshot`.
+
+**Pair it with a cache indicator on the timeline.** Every tool that solved this
+— After Effects' RAM Preview, Krita's animation cache — solved it by making the
+state *visible*, because the honest answer to "can you guarantee smooth 4K
+playback" is *no, and here is exactly which frames are ready*. A cache with no
+indicator gets blamed for the stutter it is reducing.
+
+**A second half, deliberately separated:** teaching `FramePrewarmer` to produce
+composites ahead of the playhead, so lap *one* is partly free too. Keep it a
+distinct piece of work — the cache alone cannot make anything worse, whereas a
+worker competing with the tick for memory bandwidth can, and *that* half needs
+measuring rather than reasoning. Note that the `GRContext` is single-threaded
+and lives in the render thread's lease, so background compositing is necessarily
+CPU-side.
 
 ## The rule that makes this safe
 
