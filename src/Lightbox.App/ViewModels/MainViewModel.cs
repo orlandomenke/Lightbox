@@ -4206,17 +4206,23 @@ public sealed partial class MainViewModel : ObservableObject
         // is painting over them.
         if (value != ToolId.DirectSelect) ClearPathHover();
 
-        // The pen keeps what it drew rather than dropping it, which is the same
-        // answer Escape gets and for the same reason: reaching for another tool
-        // mid-path is not a request to throw a minute of authoring away.
-        if (value != ToolId.Pen) FinishPen();
+        // The pen parks rather than committing: the path in progress survives
+        // the switch, stays traced on screen, and the pen resumes it. It used
+        // to finish here — which kept the work (right) but ended a path the
+        // artist meant to come back to (wrong). Enter and Escape are still the
+        // deliberate finish, and neither discards.
+        if (value != ToolId.Pen) ParkPen();
 
         // B147's shape one tool along, and phase 2 shipped it: the node overlay
         // is drawn whatever the tool is, so leaving isolation for the brush left
-        // glyphs on screen over a line nothing could reshape any more. Both
-        // arrows keep the session — you enter it by double-clicking with the
-        // black one and work it with the white one — and everything else ends it.
-        if (value is not (ToolId.Arrow or ToolId.DirectSelect or ToolId.Width)) EndPathEdit();
+        // glyphs on screen over a line nothing could reshape any more. Only the
+        // tools that can still work the session keep it — the white arrow that
+        // edits nodes and the width tool that shares it. The black arrow used to
+        // keep it too, and that read as stuck: its clicks answer to isolation's
+        // lock, so the artist saw nodes they could not drag and other lines that
+        // would not select. Choosing a tool that cannot work the session is
+        // leaving it.
+        if (value is not (ToolId.DirectSelect or ToolId.Width)) EndPathEdit();
     }
 
     [RelayCommand]

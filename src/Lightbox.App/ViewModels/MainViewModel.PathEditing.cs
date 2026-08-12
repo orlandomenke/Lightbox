@@ -223,9 +223,18 @@ public partial class MainViewModel
         }
         else if (grabbed.Part == PathPart.Node)
         {
+            if (breakPair)
+            {
+                // Alt on a point is the pen's drag-to-curve, offered again
+                // here: pull mirrored handles out of it instead of moving it.
+                // The one gesture that turns a corner into a curve without a
+                // menu, and the same muscle memory as placing it curved would
+                // have been.
+                _pathEdit.PullHandlesTo(grabbed.Node, x, y);
+            }
             // Every selected node, so a multi-node drag moves the shape rather
             // than one point of it.
-            if (_pathEdit.IsNodeSelected(grabbed.Node)) _pathEdit.MoveSelectedNodes(dx, dy);
+            else if (_pathEdit.IsNodeSelected(grabbed.Node)) _pathEdit.MoveSelectedNodes(dx, dy);
             else _pathEdit.MoveNode(grabbed.Node, dx, dy);
         }
         else

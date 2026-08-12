@@ -114,7 +114,9 @@ with.
 
 **Double-click a line to go inside it.** The line gets a row of points along it
 and everything else on the canvas stops responding — click another line while
-you are in here and nothing happens, deliberately. **Esc** when you are done.
+you are in here and nothing happens, deliberately. **Esc** when you are done —
+or just pick another tool: anything that cannot work the points (anything but
+the white arrow and the Width tool) leaves the mode on its way past.
 
 Why a mode rather than a held key: reaching into a drawing and moving its
 geometry is not something that should ever happen by accident, and a modifier is
@@ -129,7 +131,8 @@ something a hand can work with.
 | | |
 | --- | --- |
 | **Drag the line itself**, between two points | Pulls the curve to where you put it. The points either side do not move — this bends the line rather than shifting it, and it is usually the one you want. |
-| **Drag a point** | Moves it, and the line follows. |
+| **Drag a point** | Moves it, and the line follows as you drag — the shape you see mid-drag is the shape you get on release. |
+| **Alt-drag a point** | Pulls a curve out of it: the point stays put and its two arms reach for the pointer, mirrored — the same gesture the pen uses to place a curved point. The quickest way to turn a corner into a curve. |
 | **Click a point** | Selects it, and shows its **handles** — the two arms that decide how the line curves through it. Drag an arm to bend the curve. |
 | **Square points are corners**, round ones are smooth | On a smooth point the two arms stay in line, so the curve runs through without a kink. On a corner they are independent. |
 | **Alt-drag an arm** | Breaks the pair, turning a smooth point into a corner. |
@@ -208,14 +211,19 @@ the curve the next click is going to make before you commit to it.
 | **Click and drag** | A smooth point — the drag pulls its handles out. |
 | **Alt while dragging** | Only the outgoing handle, leaving the point a corner: a curve that arrives straight and leaves bent. |
 | **Shift** | Constrains to 45°, so horizontals, verticals and diagonals are exact. |
-| **Click the first point** | Closes the line, and finishes it. |
+| **Click the first point** | Closes the line, and finishes it. A ring appears around the first point when you are near enough, and the preview snaps shut — closing is announced before it happens, never a surprise. |
 | **Backspace** | Takes the last point back off. |
 | **Enter or Esc** | Finishes the line. |
 
-**Neither Enter nor Esc throws the line away.** Both mean *done*, and so does
-reaching for another tool — a path you have spent a minute placing is artwork,
-not a gesture in progress. If you did not want it, **Ctrl+Z**: the whole line is
-one undo step however many points went into it.
+**Neither Enter nor Esc throws the line away.** Both mean *done* — a path you
+have spent a minute placing is artwork, not a gesture in progress. If you did
+not want it, **Ctrl+Z**: the whole line is one undo step however many points
+went into it.
+
+**Reaching for another tool does not finish the line either.** The path in
+progress stays on screen, parked, and the pen picks it up exactly where you
+left it — so grabbing the eyedropper for a colour mid-path costs nothing.
+Enter, Esc or closing the loop are how a path becomes a line.
 
 **What the pen makes is an ordinary line.** Not a shape and not a separate kind
 of object — the same thing the brush makes, with the same brush settings, which

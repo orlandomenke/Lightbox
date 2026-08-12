@@ -160,6 +160,44 @@ public class PenToolTests(ITestOutputHelper output)
         var stroke = Assert.Single(StrokesOf(vm));
         Assert.NotNull(stroke.Path);
         Assert.True(stroke.Path!.Closed);
+
+        // The closing segment is in the points, not only in the flag. The
+        // renderer stamps the polyline and knows nothing about Closed, so a
+        // closed path that does not return to its start is a triangle drawn
+        // with one side missing.
+        Assert.Equal(stroke.Points[0].X, stroke.Points[^1].X, 9);
+        Assert.Equal(stroke.Points[0].Y, stroke.Points[^1].Y, 9);
+    }
+
+    /// <summary>
+    /// The closing click is announced before it happens: within closing
+    /// distance of the first node the rubber band snaps onto it and
+    /// <c>PenWouldClose</c> goes up, which the canvas draws as a ring. A pen
+    /// that closes without warning makes the artist find out by clicking.
+    /// </summary>
+    [AvaloniaFact]
+    public void HoveringTheFirstNodeAnnouncesThatAClickWouldClose()
+    {
+        var vm = Ready();
+        Click(vm, 100, 100);
+        Click(vm, 200, 100);
+        Click(vm, 200, 200);
+
+        vm.PenHover(103, 102, tolerance: 6);
+        Assert.True(vm.PenWouldClose);
+        // The rubber band snaps shut rather than reaching to the raw cursor:
+        // the click is previewed, not described.
+        Assert.Equal((100.0, 100.0), vm.Pen!.Cursor);
+
+        vm.PenHover(150, 150, tolerance: 6);
+        Assert.False(vm.PenWouldClose);
+
+        // Two straight nodes cannot close, so nothing is announced either.
+        var straight = Ready();
+        Click(straight, 100, 100);
+        Click(straight, 200, 100);
+        straight.PenHover(101, 101, tolerance: 6);
+        Assert.False(straight.PenWouldClose);
     }
 
     /// <summary>
@@ -287,8 +325,14 @@ public class PenToolTests(ITestOutputHelper output)
         Assert.Single(StrokesOf(vm));
     }
 
+    /// <summary>
+    /// Reaching for the eyedropper mid-path is not "I am done". The session
+    /// survives the switch — nothing is committed, nothing is lost — and the
+    /// pen resumes exactly where it parked. Enter and Escape remain the
+    /// deliberate finish.
+    /// </summary>
     [AvaloniaFact]
-    public void SwitchingToolsFinishesThePathRatherThanLosingIt()
+    public void SwitchingToolsParksThePathAndThePenResumesIt()
     {
         var vm = Ready();
         Click(vm, 100, 100);
@@ -296,8 +340,17 @@ public class PenToolTests(ITestOutputHelper output)
 
         vm.ActiveTool = ToolId.Brush;
 
-        Assert.False(vm.PenActive);
-        Assert.Single(StrokesOf(vm));
+        // Still in progress: not written, not dropped.
+        Assert.True(vm.PenActive);
+        Assert.Empty(StrokesOf(vm));
+
+        vm.ActiveTool = ToolId.Pen;
+        Click(vm, 300, 100);
+        Assert.Equal(3, vm.Pen!.NodeCount);
+
+        Assert.True(vm.FinishPen());
+        var stroke = Assert.Single(StrokesOf(vm));
+        Assert.Equal(3, stroke.Path!.Nodes.Count);
     }
 
     /// <summary>The explicit discard, which no key is bound to.</summary>
@@ -425,11 +478,14 @@ public class PenToolTests(ITestOutputHelper output)
     /// <summary>
     /// <b>B147's shape, one tool along, and phase 2 shipped it.</b> The node
     /// overlay is drawn whatever the tool is, so leaving isolation for the brush
-    /// left glyphs on screen over a line nothing could reshape any more. Both
-    /// arrows keep the session; everything else ends it.
+    /// left glyphs on screen over a line nothing could reshape any more. Only
+    /// the tools that can still work the session keep it — the white arrow and
+    /// the width tool. The black arrow used to keep it too, and that read as
+    /// stuck: nodes on screen it could not drag, other lines its clicks would
+    /// not select. Choosing a tool that cannot work the session is leaving it.
     /// </summary>
     [AvaloniaFact]
-    public void LeavingBothArrowsEndsIsolation()
+    public void OnlyTheToolsThatWorkTheSessionKeepIsolation()
     {
         var vm = new MainViewModel(null);
         vm.ActiveLayerIndex = vm.Doc.Scene.Layers.Count - 1;
@@ -445,10 +501,17 @@ public class PenToolTests(ITestOutputHelper output)
         vm.ActiveTool = ToolId.Arrow;
         Assert.True(vm.BeginPathEdit(line.Id));
 
-        // The white arrow is the other half of the pair and keeps it.
+        // The white arrow works the session; the width tool shares it.
         vm.ActiveTool = ToolId.DirectSelect;
         Assert.True(vm.PathEditActive);
+        vm.ActiveTool = ToolId.Width;
+        Assert.True(vm.PathEditActive);
 
+        // The black arrow cannot work it, so choosing it lets the session go.
+        vm.ActiveTool = ToolId.Arrow;
+        Assert.False(vm.PathEditActive);
+
+        Assert.True(vm.BeginPathEdit(line.Id));
         vm.ActiveTool = ToolId.Brush;
         Assert.False(vm.PathEditActive);
     }
