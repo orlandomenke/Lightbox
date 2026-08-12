@@ -13,6 +13,17 @@ public enum FrameRole
 }
 
 /// <summary>
+/// Where a drawing came from, when it did not come from the artist's hand.
+/// </summary>
+/// <remarks>
+/// Q31: stored on the frame, and <b>absent unless AI touched it</b> — a
+/// document that never used the AI is byte-identical to one from before the
+/// feature existed. It records provenance, never behaviour: deleting it
+/// changes no pixel, because the strokes are ordinary strokes.
+/// </remarks>
+public sealed record AiProvenance(string Provider, string? Model = null);
+
+/// <summary>
 /// One drawing: strokes, an optional pixel baseline, optional placed symbols,
 /// and the anchors and hitboxes that travel with it.
 /// </summary>
@@ -112,6 +123,16 @@ public sealed class Frame
     /// must serialize exactly as it did before symbols existed.
     /// </remarks>
     public List<SymbolPlacement>? Placements { get; set; }
+
+    /// <summary>
+    /// Which AI produced this drawing, or null for every frame an artist drew.
+    /// </summary>
+    /// <remarks>
+    /// Null is the ordinary answer and writes no key — the camera's rule, and
+    /// the Q31 decision. The one thing this must never become is behaviour: it
+    /// is a record of where the frame came from, and rendering never reads it.
+    /// </remarks>
+    public AiProvenance? Ai { get; set; }
 
     /// <summary>Whether anything is placed here at all.</summary>
     [System.Text.Json.Serialization.JsonIgnore]

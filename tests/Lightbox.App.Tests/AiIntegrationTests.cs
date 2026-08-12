@@ -38,6 +38,17 @@ public class AiIntegrationTests
         Brush = new BrushSettings { Size = 6, Hardness = 1 },
     };
 
+    /// <summary>
+    /// A horizontal line at <paramref name="y"/>, shaped like the keys the
+    /// fixture draws — so the verifier can match it and judge betweenness.
+    /// The keys sit at y=10 and y=60.
+    /// </summary>
+    private static Stroke Seg(double y) => new()
+    {
+        Points = [new(10, y, 0.5), new(30, y, 0.5)],
+        Brush = new BrushSettings { Size = 6, Hardness = 1 },
+    };
+
     private static MainViewModel VmWithTwoKeys(FakeArtist artist)
     {
         var vm = new MainViewModel(artist);
@@ -64,12 +75,15 @@ public class AiIntegrationTests
     [AvaloniaFact]
     public async Task AiInbetween_InsertsFramesThroughSharedPath()
     {
+        // The eased expectations for ts [1/3, 2/3] between y=10 and y=60 are
+        // y≈21 and y≈49; these answers sit on them, so the verifier passes
+        // both. Returned out of order on purpose.
         var artist = new FakeArtist
         {
             InbetweenResult = AiResult<List<InbetweenFrameResult>>.Success(
             [
-                new InbetweenFrameResult(0.5, [Dot(20, 35)]),
-                new InbetweenFrameResult(0.25, [Dot(15, 22)]),
+                new InbetweenFrameResult(2.0 / 3, [Seg(49)]),
+                new InbetweenFrameResult(1.0 / 3, [Seg(21)]),
             ]),
         };
         var vm = VmWithTwoKeys(artist);
@@ -87,9 +101,93 @@ public class AiIntegrationTests
         var layer = vm.PaintLayer();
         var f1 = Assert.IsType<Frame>(layer.Cels[1].Frame);
         var f2 = Assert.IsType<Frame>(layer.Cels[2].Frame);
-        Assert.Equal(15, f1.Strokes[0].Points[0].X); // t=0.25 first
-        Assert.Equal(20, f2.Strokes[0].Points[0].X); // t=0.5 second
+        Assert.Equal(21, f1.Strokes[0].Points[0].Y); // t=1/3 first
+        Assert.Equal(49, f2.Strokes[0].Points[0].Y); // t=2/3 second
         Assert.Contains("2", vm.AiStatus);
+    }
+
+    [AvaloniaFact]
+    public async Task ARubbishAnswerInsertsNothingAndSaysWhy()
+    {
+        // Q32: the AI never inserts a frame it cannot defend, and a refusal
+        // and a silent no-op are different outcomes — the document is
+        // untouched AND the status names which t was refused and why.
+        var artist = new FakeArtist
+        {
+            // Key A handed back as the "inbetween": well-formed, plausible,
+            // and not between the keys.
+            InbetweenResult = AiResult<List<InbetweenFrameResult>>.Success(
+                [new InbetweenFrameResult(0.5, [Seg(10)])]),
+        };
+        var vm = VmWithTwoKeys(artist);
+        vm.TweenCount = 1;
+
+        await vm.AiInbetweenCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, vm.Doc.Scene.FrameCount); // nothing inserted
+        Assert.Contains("Nothing was inserted", vm.AiStatus);
+        Assert.Contains("frame 1 of 1 was refused", vm.AiStatus);
+        Assert.Contains("did not stay between the keys", vm.AiStatus);
+    }
+
+    [AvaloniaFact]
+    public async Task ARefusedFrameKeepsItsSlotAsAHold()
+    {
+        // Refusal is per frame: the ones that passed are inserted, each at its
+        // own t's slot. The refused middle slot stays a hold — the surviving
+        // frames must not slide onto somebody else's timing.
+        var artist = new FakeArtist
+        {
+            InbetweenResult = AiResult<List<InbetweenFrameResult>>.Success(
+            [
+                new InbetweenFrameResult(0.25, [Seg(16)]),   // eased expectation ≈16.3
+                new InbetweenFrameResult(0.50, [Seg(10)]),   // key A again — refused
+                new InbetweenFrameResult(0.75, [Seg(54)]),   // eased expectation ≈53.8
+            ]),
+        };
+        var vm = VmWithTwoKeys(artist);
+        vm.TweenCount = 3;
+
+        await vm.AiInbetweenCommand.ExecuteAsync(null);
+
+        Assert.Equal(5, vm.Doc.Scene.FrameCount);
+        var layer = vm.PaintLayer();
+        Assert.Equal(16, layer.Cels[1].Frame!.Strokes[0].Points[0].Y);
+        Assert.Null(layer.Cels[2].Frame); // the refused slot holds
+        Assert.Equal(54, layer.Cels[3].Frame!.Strokes[0].Points[0].Y);
+        Assert.Contains("Inserted 2", vm.AiStatus);
+        Assert.Contains("frame 2 of 3 was refused", vm.AiStatus);
+    }
+
+    [AvaloniaFact]
+    public async Task AnInsertedAiFrameCarriesItsProvenance()
+    {
+        var artist = new FakeArtist
+        {
+            InbetweenResult = AiResult<List<InbetweenFrameResult>>.Success(
+                [new InbetweenFrameResult(0.5, [Seg(35)])]),
+        };
+        var vm = VmWithTwoKeys(artist);
+        vm.TweenCount = 1;
+
+        await vm.AiInbetweenCommand.ExecuteAsync(null);
+
+        var frame = vm.PaintLayer().Cels[1].Frame!;
+        Assert.NotNull(frame.Ai); // Q31: the frame records that AI drew it
+    }
+
+    [AvaloniaFact]
+    public void ADeterministicInbetweenCarriesNoProvenance()
+    {
+        // The other half of Q31: absent unless AI touched it. The free engine
+        // is not an AI, and its frames must not claim one drew them.
+        var vm = VmWithTwoKeys(new FakeArtist());
+
+        vm.InsertInbetweensCommand.Execute(null);
+
+        var frame = vm.PaintLayer().Cels[1].Frame!;
+        Assert.NotEmpty(frame.Strokes);
+        Assert.Null(frame.Ai);
     }
 
     [AvaloniaFact]

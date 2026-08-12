@@ -75,7 +75,7 @@ public static class AiConnectionTester
     /// enough that a model which cannot is caught: the answer has to sit
     /// between the two keys, which a plausible-looking guess will not.
     /// </summary>
-    private static InbetweenRequest Swing() => new(
+    internal static InbetweenRequest Swing() => new(
         new SceneInfo(Canvas, Canvas, 12),
         [new Stroke { Label = "arm", Points = [new(20, 20, 0.6), new(100, 20, 0.6)] }],
         [new Stroke { Label = "arm", Points = [new(20, 100, 0.6), new(100, 100, 0.6)] }],
@@ -145,10 +145,11 @@ public static class AiConnectionTester
                 return new AiConnectionCheck(true, $"Connected. {drewLine}.", Connected: true);
 
             progress?.Report("Asking for an inbetween between two keyframes…");
-            var tweened = await artist.GenerateInbetweensAsync(Swing(), ct);
+            var swing = Swing();
+            var tweened = await artist.GenerateInbetweensAsync(swing, ct);
             if (Interpret(tweened.Outcome, tweened.Message, connection) is { } tweenFailure) return tweenFailure;
 
-            if (BadInbetween(tweened.Value!) is { } tweenProblem)
+            if (BadInbetween(swing, tweened.Value!) is { } tweenProblem)
             {
                 // Connected and well-formed but not competent: a real result,
                 // and the one a small local model most often lands on.
@@ -217,41 +218,30 @@ public static class AiConnectionTester
     /// clamps every point into the scene plus a margin, so by the time a
     /// stroke reaches here it cannot be off-canvas — a check for it would have
     /// been reassurance that could never fire, and a test caught it as such.
-    /// What survives are the two failures the clamp cannot hide.
+    /// The checks themselves live on <see cref="InbetweenVerifier"/>, because
+    /// the pipeline judges every real request with them and a connection test
+    /// that judged differently would certify a model the pipeline then refuses.
     /// </remarks>
-    internal static string? BadStrokes(IReadOnlyList<Stroke> strokes)
-    {
-        if (strokes.Count == 0) return "nothing was drawn.";
-        if (strokes.All(s => s.Points.Count < 2)) return "no stroke has two points, so nothing would mark.";
-
-        // Every point in the same place: a dot where a line was asked for.
-        // Small models do this, and it survives both the schema and the clamp.
-        var extent = strokes.SelectMany(s => s.Points).ToList();
-        var width = extent.Max(p => p.X) - extent.Min(p => p.X);
-        var height = extent.Max(p => p.Y) - extent.Min(p => p.Y);
-        if (width < 1 && height < 1) return "every point is in the same place, so it is a dot, not a line.";
-
-        return null;
-    }
+    internal static string? BadStrokes(IReadOnlyList<Stroke> strokes) =>
+        InbetweenVerifier.Unusable(strokes);
 
     /// <summary>What is wrong with this inbetween, or null if nothing is.</summary>
-    internal static string? BadInbetween(IReadOnlyList<InbetweenFrameResult> frames)
+    /// <remarks>
+    /// The verifier in miniature: the same checks a real request will face,
+    /// pointed at the test drawing. A model that fails here fails on the
+    /// gentlest keys it will ever be shown, which is exactly what tells
+    /// someone it is the wrong tool before they spend an afternoon finding out.
+    /// </remarks>
+    internal static string? BadInbetween(InbetweenRequest request, IReadOnlyList<InbetweenFrameResult> frames)
     {
         if (frames.Count == 0) return "no frames came back.";
         var frame = frames[0];
-        if (frame.T is <= 0 or >= 1) return $"its timing is {frame.T:0.##}, which is not between the keys.";
-        if (BadStrokes(frame.Strokes) is { } bad) return bad;
-
-        // The competence check. The keys sit at y=20 and y=100, so a real
-        // inbetween sits between them; a model that copied a key, or invented
-        // a pose, does not. The band is wide because easing, arcs and overlap
-        // all legitimately move it — this rejects "not between the keys at
-        // all", not "not where I would have put it".
-        var mean = frame.Strokes.SelectMany(s => s.Points).Select(p => p.Y).DefaultIfEmpty(0).Average();
-        if (mean is < 25 or > 95)
-            return $"it sits at y≈{mean:0}, outside the two keys at y=20 and y=100.";
-
-        return null;
+        var judged = InbetweenVerifier.Verify(
+            request.KeyframeA,
+            request.KeyframeB,
+            [new CandidateInbetween(frame.T, frame.Strokes)],
+            request.Easing);
+        return judged.Frames[0].Refusal;
     }
 
     private static string Count(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
