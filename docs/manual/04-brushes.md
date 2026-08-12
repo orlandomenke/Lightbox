@@ -2,20 +2,30 @@
 
 ## Brushes
 
-The tool options bar carries the controls you reach for constantly — brush,
-size, hardness, opacity, stabilizer. **⚙**, immediately right of the brush
-button, opens the **Tool options** panel with every parameter, grouped:
-General, Effects, Medium, Pen pressure, Presets. It is a docker, not a
-flyout — it stays open while you paint and test, docks anywhere a panel
-docks, and is also under **View → Tool options**. It is there for the eraser
-too, which has no brush button — so with the eraser held it is the first
-thing on the bar.
+The **Quick options bar** above the canvas carries the controls you reach
+for constantly. It opens with the active tool's icon, then your two colours,
+then **Size** and **Opacity** — those two are pinned: they stay put whatever
+tool you switch to, and grey out rather than disappear when the tool in hand
+makes no mark to size. Everything to their right is the tool's own quick
+options — hardness and stabilizer for the brush, variants for the selection,
+kind and spread for the gradient — and folds into the bar's **▾** menu when
+the window gets narrow. The pinned pair never folds.
+
+**⚙**, immediately right of the brush button, opens the **Tool options**
+panel with every parameter, grouped: General, Effects, Medium, Pen pressure,
+Presets. It is a docker, not a flyout — it stays open while you paint and
+test, docks anywhere a panel docks, and is also under **View → Tool
+options**. It is there for the eraser too, which has no brush button — so
+with the eraser held it is the first thing on the bar.
 
 The panel follows the tool in your hand. With the brush or the eraser it is
 the parameter editor above; pick the fill, the selection, a shape or the
-gradient and it shows that tool's options instead — the same controls the
-bar carries, laid out vertically with room for labels and sliders. A tool
-whose whole vocabulary fits on the bar says so rather than going blank.
+gradient and it shows that tool's options instead — the depth behind the
+bar's quick reach, laid out vertically with room for labels and sliders. A
+tool whose whole vocabulary fits on the bar says so rather than going blank.
+
+*Planned:* choosing which quick options sit on the bar, per workspace, by
+dragging them on and off. Size and Opacity will stay non-removable.
 
 #### Finding a brush
 

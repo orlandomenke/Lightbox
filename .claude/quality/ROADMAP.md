@@ -377,6 +377,8 @@ palette can live* and *one of the places a palette can live*.
 - [x] Open an existing loose document without a project `evidence: TheAppOpensWithNoProject, WithNoProjectADocumentSavesAndLoadsExactlyAsBefore`
 - [x] Per-workspace panel sets (Illustration / Animation / Game) `evidence: TheBuiltInsDifferFromEachOther, OnlySavedWorkspacesOfferABin`
 - [x] Auto save - configurable in time if a file is already present. `evidence: AppSettings, AutosaveService, TheDefaultIsEveryMinuteToTheRecoveryCopyOnly, ZeroTurnsAutosaveOff`
+- [x] Quick options bar — pinned Size and Opacity, the active tool's icon, per-tool quick controls; the transform session moves to its own Tool options page (Q70, stage 1) `evidence: QuickOptionsBarTests, MakesSizedMarks, TheOverflowCarriesNoSecondCopyOfSizeOrOpacity, BeginningATransformOpensTheToolOptionsDocker`
+- [ ] Quick options bar customization — drag options on and off the bar, saved per workspace; Size and Opacity non-removable (Q70, stage 2). Needs the registry of offerable options first — it is the thing the drag surface and the workspace record both enumerate `evidence: QuickOptionCatalog, QuickOptionsCustomizationTests, TheWorkspaceRemembersItsBar, SizeAndOpacityCannotBeDraggedOff`
 
 ## Pillar 2 — Persistent, customizable onion skinning
 

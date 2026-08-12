@@ -118,6 +118,29 @@ public static class IconSet
         _ => ShapeRect,
     };
 
+    /// <summary>The icon a tool wears wherever the UI shows one.</summary>
+    /// <remarks>
+    /// One mapping, so the rail, the Quick options bar and anything later
+    /// cannot disagree about what a tool looks like. The two tools whose
+    /// button changes with their setting fall back to a representative here —
+    /// the bar's icon says which <em>tool</em> is in hand, not which variant.
+    /// </remarks>
+    public static string ForTool(ViewModels.ToolId tool) => tool switch
+    {
+        ViewModels.ToolId.Brush => Brush,
+        ViewModels.ToolId.Eraser => Eraser,
+        ViewModels.ToolId.Fill => Fill,
+        ViewModels.ToolId.Picker => Picker,
+        ViewModels.ToolId.Gradient => Gradient,
+        ViewModels.ToolId.Move => Move,
+        ViewModels.ToolId.Pen => Pen,
+        ViewModels.ToolId.Width => Width,
+        ViewModels.ToolId.Arrow => Arrow,
+        ViewModels.ToolId.DirectSelect => Points,
+        ViewModels.ToolId.Shape => ShapeRect,
+        _ => SelectLasso,
+    };
+
     /// <summary>The icon for the select tool's current variant.</summary>
     public static string ForSelect(ViewModels.SelectVariant variant) => variant switch
     {
