@@ -317,20 +317,25 @@ Two things worth knowing:
   that stamps a faint box down every stroke. Re-crop with clear paper all the
   way round.
 
-## Fast brushes and expressive ones
+## Fast brushes, textured ones, and expressive ones
 
-Brushes come in two kinds, and the picker tells them apart:
+Brushes come in three kinds, and the picker tells them apart:
 
 - **Fast** — stamps dabs and stops. Predictable cost at any canvas size, and
-  what almost every brush is. Pencil, ink, soft round, airbrush.
+  what almost every brush is. Ink, soft round, airbrush.
+- **Textured ◇** — stamps dabs and then finishes the mark: a wet edge or
+  granulation pass runs over the whole stroke when the pen lifts. Drawing
+  stays light; the finish is a beat at pen-lift, longer on a big stroke.
+  Pencil and the paper-grain brushes live here.
 - **Expressive ◈** — reads the canvas back, simulates a medium, or blends the
   layers underneath. The mark behaves like a material instead of like paint
   being placed. Slower, particularly on a large canvas.
 
-The **◈** marks the expressive ones, and the list is grouped so the two kinds
-sit apart. Hover a brush and the tooltip names what it is paying for — "reads
-the canvas back as it goes", "simulates gouache" — because that is the thing
-you can turn off if you want the speed back.
+The glyphs mark the two paid kinds, and the list is grouped so they sit apart
+from the fast ones. Hover a brush and the tooltip names what it is paying for —
+"reads the canvas back as it goes", "settles pigment into the grain at
+pen-lift" — because that is the thing you can turn off if you want the speed
+back.
 
 It is a price tag, not a warning. These brushes exist because the coupling is
 what makes a mark expressive, and an artist reaching for one has decided the
@@ -340,7 +345,11 @@ discovered at frame 180.
 Nothing about a brush *declares* which kind it is — it is worked out from the
 brush's own settings, so turning the medium off moves it to the fast group and
 turning it on moves it back. Every simulated medium also has a **(flat)**
-counterpart that gets close to the look for none of the cost.
+counterpart that gets close to the look without running the simulation — but
+the flat pair lean on the wet edge and grain passes to fake it, so today they
+are textured rather than free, and a flat brush with both turned up can cost as
+much at pen-lift as the medium it stands in for. The tooltip tells the truth
+per brush.
 
 ## The brush library
 
