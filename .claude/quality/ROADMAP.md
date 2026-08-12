@@ -787,7 +787,12 @@ project structure bugs and `.claude/quality/comparison.md` for full analysis.
 - [?] Zoom preview
 - [?] Camera shake preview
 - [?] Scene preview
-- [?] Multiplane parallax (per-layer depth)
+- [ ] Multiplane parallax (per-layer depth) — stage 1 of the 3D drawing space `evidence: LayerDepth, ParallaxTransform, MultiplaneParallaxTests, ADepthLeftAtItsDefaultWritesNoKey, ADocumentWithoutACameraIgnoresDepth, PanningTheCameraMovesADeepLayerLess, ExportThroughTheCameraCarriesParallax`
+  - Specified in `docs/DESIGN-3d-space.md` (Q72, 2026-08-12 — the direction the infinite canvas was removed for). Layers gain a depth; the camera stays today's 2D record; parallax is the depth-dependent response `f/(f+depth)` to camera moves. Depth without a camera does nothing, so assets are untouched by construction and no feature conflict exists.
+  - The record is designed as the degenerate case of stage 2's pose, so a stage-1 document opens unchanged when free planes land. Parallax changes per-layer *matrices*, never allocation — the performance shape of a plain camera pan.
+- [ ] Free planes and orbit — stage 2 of the 3D drawing space `evidence: PlanePose, OrbitNavigation, PlaneProjection, PlaneProjectionTests, DrawingThroughAnOrbitedViewLandsOnThePlane, AnOrbitIsNeverSerialized, APoseLeftAtItsDefaultWritesNoKey`
+  - Depth generalises to a pose (position, orientation, scale); the working view gains a view-only orbit (invariant 5 — never serialised, never exported); the camera gains an authored 3D pose. Strokes never learn 3D exists: drawing through a tilted view unprojects the pointer to the active plane and re-enters today's input pipeline in plane-local 2D.
+  - Planes are rasterised flat (invariant 7 — surface scale, not geometry) and drawn through a homography; painter's-algorithm by camera distance; **intersecting planes are permanently out of scope**. Stage-2 open questions (pose interpolation space, grazing-angle UX, orbit shortcut) are asked when it starts — `docs/DESIGN-3d-space.md` lists them.
 
 ### Construction guides
 
