@@ -221,6 +221,21 @@ public sealed partial class ResizeDialogViewModel : ObservableObject
     /// <summary>Pick the anchor from the nine-square grid.</summary>
     public void SetAnchor(ResizeAnchor anchor) => Anchor = anchor;
 
+    /// <summary>
+    /// Trade width for height — portrait to landscape in one press.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately steps around the link: a swap changes the aspect ratio by
+    /// definition, and a linked field that "corrected" the other half back
+    /// would turn the button into a no-op.
+    /// </remarks>
+    public void Swap()
+    {
+        _linking = true;
+        (Width, Height) = (Height, Width);
+        _linking = false;
+    }
+
     /// <summary>Put the fields back to the size the document already is.</summary>
     public void Reset()
     {
