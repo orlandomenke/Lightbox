@@ -694,6 +694,7 @@ public sealed partial class MainViewModel : ObservableObject
         PaletteDocker.ProjectEdited = OnProjectChanged;
         GradientDocker = new GradientDockerViewModel(OnGradientEdited, PerformGradientEdit);
         ProjectDocker = new ProjectViewModel(NewAnimationDoc, OpenProjectDocument, OnProjectChanged);
+        ProjectDocker.OpenSheet = OpenProjectSheet;
         // HasProject is a forwarding property, so it has no notification of its
         // own. Without this relay the project panel stays hidden after New or
         // Open project: the docker's own callback only fires when the docker
@@ -905,6 +906,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The animation tab a save/AI call should target (a reference tab defers to its owner).</summary>
     public DocumentTab? SaveTargetTab => ActiveTab?.Kind switch
     {
+        // A project sheet has no file of its own any more than a symbol does —
+        // the project's save writes it — so a view onto one defers to nothing.
+        DocumentTabKind.Reference when ActiveTab.SheetSource is not null => null,
         DocumentTabKind.Reference => ActiveTab.Owner ?? ActiveTab,
         // A symbol has no file of its own — it is written by the project's
         // save. Offering Save As on one would produce a document nothing
@@ -1552,6 +1556,13 @@ public sealed partial class MainViewModel : ObservableObject
                 // Undo/redo replaces the wrapper doc's layer list; keep the
                 // owning document's view pointed at whatever the editor holds.
                 if (tab.View is { } view) view.Layers = Doc.Scene.Layers;
+                // A project sheet's edits belong to the project, the way a
+                // symbol's do — there is no owning document to dirty, and the
+                // project's save is what writes them.
+                if (tab.SheetSource is { } filed && ProjectDocker.Project is { } project)
+                {
+                    project.DirtySheets.Add(filed.Id);
+                }
                 // The edit belongs to the owning document. B95: refresh this
                 // tab too, so the sheet an artist is looking at shows the badge
                 // rather than making them go and find the parent.
@@ -1657,9 +1668,33 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ---- character sheets -----------------------------------------------------
 
-    /// <summary>Sheets of the active (or owning) document — fresh list so the docker re-reads.</summary>
-    public IReadOnlyList<ReferenceSheet> ReferenceSheetsView =>
-        (SaveTargetTab?.Doc ?? Doc).ReferenceSheets.ToList();
+    /// <summary>
+    /// The sheets the artist can consult right now — fresh list so the docker
+    /// re-reads.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q25 re-answered:</b> two sources, switched by context. A document in
+    /// a project sees the project's sheets — the ones filed on its folder's
+    /// ancestry plus the project-wide ones, via <see cref="ProjectSheets.VisibleTo"/> —
+    /// and a standalone document keeps the sheets inside it. A project sheet
+    /// tab itself (no <c>Source</c>) lists every sheet in the project, the way
+    /// a loose file alongside a project does.
+    /// </remarks>
+    public IReadOnlyList<ReferenceSheet> ReferenceSheetsView
+    {
+        get
+        {
+            var tab = SaveTargetTab ?? ActiveTab;
+            if (ProjectDocker.Project is { } project
+                && (tab is null or { Source: not null } or { SheetSource: not null }))
+            {
+                return [.. ProjectSheets.VisibleTo(project.Manifest, tab?.Source)
+                    .Select(r => ProjectSheets.Load(project, r))
+                    .OfType<ReferenceSheet>()];
+            }
+            return (tab?.Doc ?? Doc).ReferenceSheets.ToList();
+        }
+    }
 
     /// <remarks>
     /// <para>
@@ -1716,6 +1751,19 @@ public sealed partial class MainViewModel : ObservableObject
     public ReferenceSheet? AddReferenceSheet(string? name = null)
     {
         if (TargetTab is not { } target) return null;
+
+        // Q25 re-answered: in a project the sheet is the project's, filed on
+        // the top folder above this document, written by the project's save.
+        // Not through the document's editor — the document does not change.
+        if (target.Source is { } source && ProjectDocker.Project is { } project)
+        {
+            var filed = ProjectSheets.Add(
+                project, name ?? "", ProjectSheets.DefaultScope(project.Manifest, source));
+            ProjectDocker.Refresh();
+            OnPropertyChanged(nameof(ReferenceSheetsView));
+            return filed;
+        }
+
         var needsAFile = AReferenceSheetWouldBeUnsaved;
 
         var sheet = new ReferenceSheet
@@ -1742,6 +1790,19 @@ public sealed partial class MainViewModel : ObservableObject
     /// <inheritdoc cref="AddReferenceSheet"/>
     public void AddReferenceView(ReferenceSheet sheet)
     {
+        // A project sheet is edited directly, the way a symbol is — there is
+        // no owning document whose editor could record the step.
+        if (ProjectSheetRefOf(sheet) is { } filed && ProjectDocker.Project is { } project)
+        {
+            var (width, height) = DefaultViewSize();
+            var added = ReferenceView.Create($"view {sheet.Views.Count + 1}", width, height);
+            sheet.Views.Add(added);
+            project.DirtySheets.Add(filed.Id);
+            OnPropertyChanged(nameof(ReferenceSheetsView));
+            OpenReferenceView(added);
+            return;
+        }
+
         if (TargetTab is not { } target) return;
         var view = ReferenceView.Create($"view {sheet.Views.Count + 1}", Scene.Width, Scene.Height);
         target.Editor.Perform(_ => sheet.Views.Add(view));
@@ -1749,6 +1810,46 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(ReferenceSheetsView));
         OpenReferenceView(view);
     }
+
+    /// <summary>The project registry entry behind a sheet, or null for a document's own.</summary>
+    private SheetRef? ProjectSheetRefOf(ReferenceSheet sheet) =>
+        ProjectDocker.Project is { } project
+            ? ProjectSheets.FindRef(project.Manifest, sheet.Id)
+            : null;
+
+    /// <summary>Open a project sheet from its docker row — its first view, made if absent.</summary>
+    /// <remarks>
+    /// A sheet with no views yet gets one rather than a refusal: the double-click
+    /// means "let me draw on this", and an empty sheet has nothing else it could
+    /// mean. The view is project state, so it is queued for the next save the
+    /// same way a stroke would be.
+    /// </remarks>
+    private void OpenProjectSheet(SheetRef filed)
+    {
+        if (ProjectDocker.Project is not { } project) return;
+        if (ProjectSheets.Load(project, filed) is not { } sheet)
+        {
+            AiStatus = $"“{filed.Name}” is missing from disk.";
+            return;
+        }
+        if (sheet.Views.Count == 0)
+        {
+            var (width, height) = DefaultViewSize();
+            sheet.Views.Add(ReferenceView.Create("view 1", width, height));
+            project.DirtySheets.Add(filed.Id);
+            OnPropertyChanged(nameof(ReferenceSheetsView));
+        }
+        OpenReferenceView(sheet.Views[0]);
+    }
+
+    /// <summary>The active scene's size, or the stock canvas when nothing is open.</summary>
+    /// <remarks>
+    /// A project sheet can be made and opened with no document open at all —
+    /// the docker is on screen whenever a project is — so the size cannot be
+    /// read from a tab that may not exist.
+    /// </remarks>
+    private (int Width, int Height) DefaultViewSize() =>
+        Tabs.Count == 0 ? (960, 540) : (Scene.Width, Scene.Height);
 
     /// <summary>A sheet or view really was renamed in the docker.</summary>
     /// <remarks>
@@ -1759,12 +1860,31 @@ public sealed partial class MainViewModel : ObservableObject
     /// and only calls when it actually changed, and the mark goes through the
     /// editor so the rename is undoable like any other edit.
     /// </remarks>
-    public void MarkReferenceRenamed()
+    public void MarkReferenceRenamed(object? renamed = null)
     {
+        // A project sheet's rename dirties the sheet, not a document. The
+        // renamed thing is the box's DataContext — a sheet, or a view inside
+        // one — and the registry entry's name follows on the save that writes it.
+        if (ProjectDocker.Project is { } project && SheetOf(renamed) is { } sheet
+            && ProjectSheetRefOf(sheet) is { } filed)
+        {
+            project.DirtySheets.Add(filed.Id);
+            OnPropertyChanged(nameof(ReferenceSheetsView));
+            ProjectDocker.Refresh();
+            return;
+        }
         if (SaveTargetTab is { } tab) tab.Editor.Perform(_ => { });
         MarkDocumentEdited();
         OnPropertyChanged(nameof(ReferenceSheetsView));
     }
+
+    /// <summary>The sheet a rename touched: the sheet itself, or the one holding a view.</summary>
+    private ReferenceSheet? SheetOf(object? renamed) => renamed switch
+    {
+        ReferenceSheet sheet => sheet,
+        ReferenceView view => ReferenceSheetsView.FirstOrDefault(s => s.Views.Contains(view)),
+        _ => null,
+    };
 
     /// <summary>Redraw the sheet list without claiming anything changed.</summary>
     public void RefreshReferenceList() => OnPropertyChanged(nameof(ReferenceSheetsView));
@@ -1777,22 +1897,32 @@ public sealed partial class MainViewModel : ObservableObject
             ActiveTab = open;
             return;
         }
+
+        // A project sheet's view follows the symbol arrangement: no owner tab,
+        // because the sheet belongs to the project rather than to whichever
+        // document happened to be active when it was opened.
+        if (ProjectDocker.Project is { } project)
+        {
+            var filed = (project.Manifest.Sheets ?? [])
+                .Select(r => (Ref: r, Sheet: project.LoadedSheets.GetValueOrDefault(r.Id)))
+                .FirstOrDefault(x => x.Sheet?.Views.Contains(view) ?? false);
+            if (filed.Sheet is { } projectSheet)
+            {
+                AddTab(new DocumentTab(
+                    new DocumentEditor(WrapperFor(view)), $"{projectSheet.Name} / {view.Name}")
+                {
+                    Kind = DocumentTabKind.Reference,
+                    View = view,
+                    SheetSource = filed.Ref,
+                });
+                return;
+            }
+        }
+
         if (TargetTab is not { } owner) return;
         var sheet = owner.Doc.ReferenceSheets.FirstOrDefault(s => s.Views.Contains(view));
-        // The wrapper scene SHARES the view's layer list: edits land in the
-        // owning document directly.
-        var wrapper = new Doc
-        {
-            Scene = new Scene
-            {
-                Name = view.Name,
-                Width = view.Width,
-                Height = view.Height,
-                FrameCount = 1,
-                Layers = view.Layers,
-            },
-        };
-        var referenceTab = new DocumentTab(new DocumentEditor(wrapper), $"{sheet?.Name ?? "Sheet"} / {view.Name}")
+        var referenceTab = new DocumentTab(
+            new DocumentEditor(WrapperFor(view)), $"{sheet?.Name ?? "Sheet"} / {view.Name}")
         {
             Kind = DocumentTabKind.Reference,
             Owner = owner,
@@ -1804,6 +1934,22 @@ public sealed partial class MainViewModel : ObservableObject
         owner?.Views.Add(referenceTab);
         AddTab(referenceTab);
     }
+
+    /// <summary>
+    /// A single-frame document around a view. The wrapper scene SHARES the
+    /// view's layer list, so edits land in the sheet directly.
+    /// </summary>
+    private static Doc WrapperFor(ReferenceView view) => new()
+    {
+        Scene = new Scene
+        {
+            Name = view.Name,
+            Width = view.Width,
+            Height = view.Height,
+            FrameCount = 1,
+            Layers = view.Layers,
+        },
+    };
 
     /// <summary>Flatten one character-sheet view to PNG (for AI reference and MCP).</summary>
     /// <summary>
@@ -1930,7 +2076,10 @@ public sealed partial class MainViewModel : ObservableObject
     /// </remarks>
     private IReadOnlyList<string>? CollectReferenceImages()
     {
-        var views = (SaveTargetTab?.Doc ?? Doc).ReferenceSheets
+        // ReferenceSheetsView rather than the document's own list, so a project
+        // document rides with the sheets filed above it — which is the whole
+        // point of filing them there — and a standalone one keeps its own.
+        var views = ReferenceSheetsView
             .SelectMany(s => s.Views)
             .Where(v => v.Layers.Any(l => l.Visible))
             .Take(2)

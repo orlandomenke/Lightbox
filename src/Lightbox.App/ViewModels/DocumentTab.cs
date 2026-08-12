@@ -68,10 +68,28 @@ public sealed partial class DocumentTab : ObservableObject
     public DocumentTabKind Kind { get; init; } = DocumentTabKind.Animation;
 
     /// <summary>The animation tab whose document owns this reference view.</summary>
+    /// <remarks>
+    /// Null on a Reference tab whose sheet belongs to the <em>project</em>
+    /// (<see cref="SheetSource"/>) — those follow the <see cref="Symbol"/>
+    /// arrangement instead, because the sheet is not part of any document.
+    /// </remarks>
     public DocumentTab? Owner { get; init; }
 
     /// <summary>The character-sheet view this tab edits (Reference tabs only).</summary>
     public ReferenceView? View { get; init; }
+
+    /// <summary>
+    /// The project sheet this tab's view belongs to, or null when the sheet
+    /// lives inside a document (a standalone file's sheet, which keeps
+    /// <see cref="Owner"/> instead).
+    /// </summary>
+    /// <remarks>
+    /// The same job <see cref="Source"/> does for a document: it says which
+    /// project slot the edits belong to, so the funnel can mark the sheet
+    /// dirty and the project's save can write it. Exactly one of this and
+    /// <see cref="Owner"/> is set on a Reference tab.
+    /// </remarks>
+    public Lightbox.Core.Projects.SheetRef? SheetSource { get; init; }
 
     /// <summary>
     /// The project symbol this tab edits (Symbol tabs only).

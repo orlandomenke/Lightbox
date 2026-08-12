@@ -222,15 +222,50 @@ A declaration whose thing was deleted still appears, showing its id instead of a
 name. That is deliberate: otherwise a palette quietly missing from a picker has
 no visible cause and nothing to clear.
 
+#### Character sheets in a project
+
+A **character sheet** — several views of a subject on their own canvases:
+Front, Side, Back, Expressions — belongs to the **project**, not to whichever
+drawing happened to create it. Add one from the **Reference sheets** panel and
+it is filed on the **top folder above the document you are in**: make a sheet
+while drawing in *Knight ▸ Locomotion* and it is the knight's, visible from
+every drawing under *Knight* — combat as well as locomotion. A sheet made from
+a drawing filed nowhere is project-wide, and every document sees it.
+
+On disk it is its own file, `<name>.sheet.json`, inside the folder it is filed
+in — so it travels with the character in a file manager and diffs in git like
+anything else.
+
+You can see and move a sheet in two places:
+
+| | |
+| --- | --- |
+| **The Project panel** | The sheet is a row (▤) under its folder, above the drawings that consult it. Double-click opens it to draw on; drag it onto another folder to re-file it. |
+| **The project window** | Select the sheet's row in **Structure** and pick a destination under **file sheet in…** — including the project itself, which every document sees. |
+
+Re-filing moves the file on disk too, the same way moving a document does, and
+changes who sees it: a sheet filed on *Goblin* stops appearing under the
+knight's drawings.
+
+**Outside a project nothing changed:** a standalone document keeps its sheets
+inside itself, and making one on an unsaved document still offers the save
+first — the sheet needs the document to live somewhere. A document from before
+this change that carries sheets inside it moves them into the project the first
+time it is opened there, filed on its top folder.
+
+The panel is called **Reference sheets** rather than Character sheets, because
+nothing about it was ever specific to characters.
+
 #### References a document draws against
 
 A **reference** is something you draw against, declared on a scope the same way
-a palette is — so it reaches everything under it, at any depth. Three kinds:
+a palette is — so it reaches everything under it, at any depth. Character
+sheets above stopped needing this: filing a sheet in a folder *is* what makes
+it reach that folder's drawings. What remains declarable:
 
 | | |
 | --- | --- |
 | **A document** | An ordinary drawing used as reference — one big environment layout, a style guide, a colour key. Not squeezed into a sheet, because it is not that shape. |
-| **A sheet** — *Planned* | Several views on their own canvases — Front, Side, Back, Expressions. |
 | **An image** — *Planned* | A photo or a scan, brought in. |
 
 Use a drawing as reference **for the whole project**, or publish one later from
@@ -241,15 +276,13 @@ that both backgrounds and characters work from actually needs.
 choice: the drawing appears in the folder's **Reach** list and can be stopped
 from sharing. It does **not** yet put anything in front of you — nothing reads
 the declaration back and offers the reference to the drawings under that folder.
-Filed as **B133**, and the two *Planned* rows above are part of the same gap.
+Filed as **B133**; sheets left that gap when they moved to filing, and the
+document kind is what remains of it.
 
 **The reference you can actually draw against is a different feature and it
 works** — **View → Reference**, further on in *Onion skin, references and the
 camera*. That one imports a picture, slices it into frames and lays it under
 your drawing. The two are unrelated today.
-
-The panel is called **Reference sheets** rather than Character sheets, because
-nothing about it was ever specific to characters.
 
 #### How a folder is exported
 
