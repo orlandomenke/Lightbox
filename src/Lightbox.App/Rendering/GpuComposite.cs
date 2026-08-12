@@ -68,6 +68,23 @@ internal static class GpuComposite
         CpuComposites = 0;
     }
 
+    /// <summary>
+    /// Pretend a composite happened, for tests that need the counter set.
+    /// </summary>
+    /// <remarks>
+    /// <b>A seam rather than a contrivance:</b> incrementing
+    /// <see cref="GpuComposites"/> for real needs a <see cref="GRContext"/>, and
+    /// there is none in this repository — the same constraint that made the
+    /// report the only place the GPU could be observed at all. The report's own
+    /// wording now depends on this counter, so the wording has to be testable
+    /// without one.
+    /// </remarks>
+    internal static void CountCompositeForTests(bool onGpu, int times = 1)
+    {
+        if (onGpu) GpuComposites += times;
+        else CpuComposites += times;
+    }
+
     private static bool? _override;
 
     private static bool ForcedByEnvironment =>
