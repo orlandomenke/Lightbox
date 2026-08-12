@@ -79,7 +79,7 @@ public sealed class CanvasControl : Control
             (control, e) =>
             {
                 if (control._overGuide) return;
-                control.Cursor = CursorFor(e.NewValue.GetValueOrDefault());
+                control.Cursor = PointerCursors.For(e.NewValue.GetValueOrDefault());
             });
     }
 
@@ -952,11 +952,6 @@ public sealed class CanvasControl : Control
 
     private const int GuideKindLine = 0;
 
-    /// <summary>The cursor the drawing normally uses: none, so the gizmo is it.</summary>
-    private static readonly Cursor DrawingCursor = new(StandardCursorType.None);
-
-    private static readonly Cursor GuideCursor = new(StandardCursorType.SizeAll);
-
     private bool _overGuide;
 
     private void UpdateGuideHoverCursor(Point view)
@@ -964,7 +959,7 @@ public sealed class CanvasControl : Control
         var over = GuideDragEnabled && GuideAt(view) is not null;
         if (over == _overGuide) return;
         _overGuide = over;
-        Cursor = over ? GuideCursor : CursorFor(PointerIntent);
+        Cursor = over ? PointerCursors.Move : PointerCursors.For(PointerIntent);
     }
 
     /// <summary>
@@ -992,24 +987,9 @@ public sealed class CanvasControl : Control
         set => SetValue(PointerIntentProperty, value);
     }
 
-    /// <summary>The platform cursor for an intent.</summary>
-    /// <remarks>
-    /// <b>Paint keeps <c>None</c> on purpose:</b> the brush cursor is drawn by
-    /// the render op at the brush's real size and shape, and showing an arrow as
-    /// well would put two pointers on the canvas.
-    /// </remarks>
-    internal static Cursor CursorFor(CanvasCursorKind intent) => intent switch
-    {
-        CanvasCursorKind.Paint => DrawingCursor,
-        CanvasCursorKind.Forbidden => ForbiddenCursor,
-        CanvasCursorKind.Pick or CanvasCursorKind.Fill or CanvasCursorKind.Precise => PreciseCursor,
-        CanvasCursorKind.Move => GuideCursor,
-        _ => ArrowCursor,
-    };
-
-    private static readonly Cursor ForbiddenCursor = new(StandardCursorType.No);
-    private static readonly Cursor PreciseCursor = new(StandardCursorType.Cross);
-    private static readonly Cursor ArrowCursor = new(StandardCursorType.Arrow);
+    // The intent-to-cursor mapping lives in PointerCursors now (B175): as a
+    // private switch here it collapsed Pick, Fill and Precise onto one cross,
+    // and being private is why no test could say so.
 
     /// <summary>The box being drawn by hand right now, in document coordinates.</summary>
     private SKRect? _newBox;

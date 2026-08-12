@@ -125,16 +125,29 @@ public readonly record struct DeferredCompose(
             if (pass.Tint.HasValue)
                 paint.ColorFilter = SKColorFilter.CreateBlendMode(pass.Tint.Value, SKBlendMode.Multiply);
 
+            // B169: an eraser overlay must combine with its own layer before the
+            // layer meets the stack — DstOut straight onto the shared surface
+            // removes the paper beneath, which is exactly what the artist saw
+            // (the checkerboard while erasing). Same rule as SceneRenderer's
+            // DrawPass and ComposeUnbounded, restored here because this body was
+            // written after the isolation and left it behind. Only for passes
+            // that need it: the SaveLayer is a viewport-sized offscreen, and
+            // needsIsolation exists to avoid paying that in the ordinary case.
+            var needsIsolation = pass.Overlay is not null
+                && (pass.Overlay.Erases || pass.Opacity < 1.0 || pass.Blend != SKBlendMode.SrcOver);
+            if (needsIsolation) canvas.SaveLayer(paint);
+            var contentPaint = needsIsolation ? null : paint;
+
             // Only the visible sub-rectangle is read, which is where the saving is:
             // src and dst are the same rectangle in document space, so no scaling
             // beyond RenderScale and no resampling of the parts nobody can see.
             if (resident?.Resident(gpu!, pass.Bitmap) is { } texture)
             {
-                canvas.DrawImage(texture, visible, visible, Sampling, paint);
+                canvas.DrawImage(texture, visible, visible, Sampling, contentPaint);
             }
             else
             {
-                canvas.DrawBitmap(pass.Bitmap, visible, visible, paint);
+                canvas.DrawBitmap(pass.Bitmap, visible, visible, contentPaint);
             }
 
             if (pass.Overlay is { } overlay)
@@ -147,6 +160,8 @@ public readonly record struct DeferredCompose(
                     overlayPaint.Color = overlayPaint.Color.WithAlpha((byte)(overlay.Opacity * 255));
                 canvas.DrawBitmap(overlay.Scratch, visible, visible, overlayPaint);
             }
+
+            if (needsIsolation) canvas.Restore();
         }
 
         canvas.Flush();

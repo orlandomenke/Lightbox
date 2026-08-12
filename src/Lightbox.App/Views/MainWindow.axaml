@@ -3287,11 +3287,25 @@
                 there because how much room each half deserves depends on
                 whether you are organising or painting.
               -->
-              <Grid RowDefinitions="Auto,Auto,*">
+              <!--
+                B174: the tree's row is a pixel row the splitter can write, not
+                an Auto row measuring a hard-coded Height — that shape made the
+                splitter inert, because the row re-measured to 128 whatever it
+                was dragged to. The minimums keep either pane from being dragged
+                out of existence, and the tree scrolls inside its row rather
+                than clipping a deep folder.
+              -->
+              <Grid>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="128" MinHeight="56" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="*" MinHeight="72" />
+                </Grid.RowDefinitions>
                 <TreeView x:Name="PaletteTree" Grid.Row="0"
                           ItemsSource="{Binding PaletteDocker.Tree}"
                           SelectedItem="{Binding PaletteDocker.SelectedNode, Mode=TwoWay}"
-                          Height="128" Background="Transparent" BorderThickness="0"
+                          Background="Transparent" BorderThickness="0"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto"
                           DragDrop.AllowDrop="True">
                   <TreeView.ItemTemplate>
                     <TreeDataTemplate x:DataType="vm:PaletteNode" ItemsSource="{Binding Children}">
@@ -3322,8 +3336,14 @@
                   </TreeView.ItemTemplate>
                 </TreeView>
 
+                <!--
+                  No Background override: the window's GridSplitter style draws
+                  the scored 1px-style line every other splitter wears, which is
+                  also what separates the two panes visually — Transparent here
+                  was both the invisible divider and half of B174.
+                -->
                 <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch"
-                              Background="Transparent" ResizeDirection="Rows" />
+                              ResizeDirection="Rows" />
 
                 <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
                   <ListBox ItemsSource="{Binding PaletteDocker.Swatches}"

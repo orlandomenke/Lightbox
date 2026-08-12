@@ -1327,9 +1327,11 @@ public static class BrushEngine
         // The cap is a document width, so the rim keeps the same physical size
         // when the render scale goes up.
         var width = (float)(Math.Clamp(brush.Size * 0.12, 1.0, 48.0) * outputScale);
+        // Written into below, from the mask — nothing is drawn here first. It
+        // used to receive the raw stroke image on creation, a full-region draw
+        // the Clear before the carve then threw away entirely (B177).
         using var rim = SKSurface.Create(local);
         if (rim is null) return;
-        rim.Canvas.DrawImage(img, 0, 0);
 
         // Shrink the stroke and subtract it, leaving the outline. Skia's erode
         // does this exactly but costs O(area x radius) — 10.6 s for a 500 px

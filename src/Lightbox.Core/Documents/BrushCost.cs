@@ -13,6 +13,21 @@ public enum BrushCost
     Fast,
 
     /// <summary>
+    /// Stamps dabs and then finishes the mark: a wet edge or granulation pass
+    /// runs over the whole stroke at commit, so drawing stays light and the
+    /// pen-lift pays for the finish.
+    /// </summary>
+    /// <remarks>
+    /// <b>B177 is why this tier exists.</b> The original argument kept texture
+    /// off the badge — "per-dab arithmetic on values the engine already has" —
+    /// and it was measured wrong: these passes are not per-dab at all, they are
+    /// full-stroke surfaces at pen-lift, and they were 57–74% of the commit
+    /// cost of the presets an artist reported as laggy while the badge called
+    /// them Fast. A badge that can be checked is a badge that gets corrected.
+    /// </remarks>
+    Textured,
+
+    /// <summary>
     /// Reads the canvas back, simulates a medium, or composites the layer
     /// stack — the things that make a mark behave like a material.
     /// </summary>
@@ -47,11 +62,19 @@ public enum BrushCost
 /// <item>sampling other layers composites the stack behind the stroke.</item>
 /// </list>
 /// <para>
-/// What is <em>not</em> on it matters as much. Scatter, jitter, a bitmap tip,
-/// paper texture and pressure curves are all per-dab arithmetic on values the
-/// engine already has — they change how a mark looks without changing what the
-/// engine has to go and fetch, and calling them expensive would make the badge
-/// meaningless by putting it on everything.
+/// What is <em>not</em> on it matters as much. Scatter, jitter, a bitmap tip
+/// and pressure curves are all per-dab arithmetic on values the engine already
+/// has — they change how a mark looks without changing what the engine has to
+/// go and fetch, and calling them expensive would make the badge meaningless
+/// by putting it on everything.
+/// </para>
+/// <para>
+/// <b>Wet edge and granulation sat in that list and did not belong there
+/// (B177).</b> They read like per-dab effects and are not: both run as
+/// full-stroke surface passes at pen-lift, and measurement put them at 57–74%
+/// of the commit cost of the presets an artist reported as laggy. They are
+/// <see cref="BrushCost.Textured"/> — cheaper than a medium, not free, and the
+/// tier exists so the badge tells the truth an artist already noticed.
 /// </para>
 /// </remarks>
 public static class BrushCostOf
@@ -62,6 +85,8 @@ public static class BrushCostOf
         || brush.Kind is BrushKind.Smudge or BrushKind.Blur
         || brush.SampleSource != SampleSource.ThisLayer
             ? BrushCost.Expressive
+        : brush.WetEdge > 0 || brush.Granulation > 0
+            ? BrushCost.Textured
             : BrushCost.Fast;
 
     /// <summary>
@@ -78,6 +103,8 @@ public static class BrushCostOf
         if (brush.Medium.Kind != MediumKind.None) reasons.Add($"simulates {Medium(brush.Medium.Kind)}");
         if (brush.Kind is BrushKind.Smudge or BrushKind.Blur) reasons.Add("reads the canvas back as it goes");
         if (brush.SampleSource != SampleSource.ThisLayer) reasons.Add("blends the layers underneath");
+        if (brush.WetEdge > 0) reasons.Add("darkens the edges at pen-lift (wet edge)");
+        if (brush.Granulation > 0) reasons.Add("settles pigment into the grain at pen-lift");
         return reasons.Count == 0 ? null : string.Join(", ", reasons);
     }
 

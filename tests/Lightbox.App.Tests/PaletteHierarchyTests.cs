@@ -338,4 +338,83 @@ public class PaletteHierarchyTests : IDisposable
 
         Assert.Equal("#3070b0", Assert.Single(shared.Swatches).Color);
     }
+
+    // ---- the panel's shape (B174) ----------------------------------------------
+    // Asserted against the XAML text, the way IconSetTests walks the views:
+    // the defect was two attributes — a hard-coded Height in an Auto row, and a
+    // transparent splitter — and a view-model test cannot see either.
+
+    private static string PaletteBlock()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "src")))
+        {
+            dir = dir.Parent;
+        }
+        Assert.NotNull(dir);
+        var xaml = File.ReadAllText(Path.Combine(
+            dir!.FullName, "src", "Lightbox.App", "Views", "MainWindow.axaml"));
+
+        // The hierarchy grid: from the tree's name to the end of its grid.
+        var start = xaml.IndexOf("x:Name=\"PaletteTree\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "the palette tree is no longer in MainWindow.axaml — move these assertions with it");
+        var gridStart = xaml.LastIndexOf("<Grid", start, StringComparison.Ordinal);
+        var gridEnd = xaml.IndexOf("</Grid>", start, StringComparison.Ordinal);
+        return xaml[gridStart..(gridEnd + "</Grid>".Length)];
+    }
+
+    /// <summary>
+    /// <b>B174.</b> The tree sat in an <c>Auto</c> row with <c>Height="128"</c>
+    /// hard-coded on the control, so the row measured to 128 whatever the
+    /// splitter under it was dragged to — a splitter in the XAML that could not
+    /// work. The row must be a sized row the splitter can write, and the
+    /// control must not carry a height of its own for the row to un-do.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheHierarchyCanBeResizedAgainstTheSwatches()
+    {
+        var block = PaletteBlock();
+
+        var tree = TreeTag(block);
+        Assert.DoesNotContain("Height=\"128\"", tree);
+
+        // A pixel row with a floor, not Auto: Auto re-measures to content and
+        // the splitter's write is thrown away.
+        Assert.Contains("<RowDefinition Height=\"128\"", block);
+        Assert.Contains("MinHeight", block);
+        Assert.Contains("GridSplitter", block);
+    }
+
+    /// <summary>The TreeView's opening tag: from &lt;TreeView to its drop attribute.</summary>
+    private static string TreeTag(string block)
+    {
+        var start = block.IndexOf("<TreeView", StringComparison.Ordinal);
+        var end = block.IndexOf("DragDrop.AllowDrop", start, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start, "the palette TreeView's tag has changed shape");
+        return block[start..end];
+    }
+
+    /// <summary>A folder tree deeper than the pane scrolls rather than clipping.</summary>
+    [AvaloniaFact]
+    public void TheHierarchyScrollsRatherThanClippingItsDeepestFolder()
+    {
+        Assert.Contains("ScrollViewer.VerticalScrollBarVisibility=\"Auto\"", TreeTag(PaletteBlock()));
+    }
+
+    /// <summary>
+    /// The splitter is the seam between the two panes, and a transparent one
+    /// leaves them reading as one flat field. No Background override: the
+    /// window's GridSplitter style draws the same scored line every other
+    /// splitter wears.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheHierarchyAndTheSwatchesReadAsTwoPanes()
+    {
+        var block = PaletteBlock();
+        var splitter = block.Substring(
+            block.IndexOf("<GridSplitter", StringComparison.Ordinal),
+            block.IndexOf("ResizeDirection=\"Rows\"", StringComparison.Ordinal)
+                - block.IndexOf("<GridSplitter", StringComparison.Ordinal));
+        Assert.DoesNotContain("Background=\"Transparent\"", splitter);
+    }
 }
