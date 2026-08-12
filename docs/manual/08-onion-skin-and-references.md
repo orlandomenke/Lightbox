@@ -60,6 +60,18 @@ the character in the same place every time and delete the animation.
 | Scale | One scale for every frame. Per-frame scale would put the character at a different size on each drawing, which is the one thing a size reference exists to prevent. |
 | Opacity | How strongly it reads under your drawing. |
 
+<<<<<<< HEAD
+### A character sheet in its own window
+
+The **🗔** button beside a view in the **Reference sheets** panel opens that
+view in a small window of its own — the model sheet held up next to the easel,
+instead of opened in its place. Put it beside the canvas and draw.
+
+The window is a **viewer**: it follows the sheet live — draw on the view in its
+tab, hide one of its layers, undo, and the window updates by itself — but
+drawing happens in the tab, not in the window. One window per view; clicking
+**🗔** again brings the open one forward, and it closes with the application.
+=======
 ### A character sheet, taped to the canvas
 
 The **⧉** button beside a view in the **Reference sheets** panel tapes a
@@ -73,6 +85,7 @@ It stays **live**: draw on the sheet — in its tab, or hide one of its layers �
 and the taped copy on the canvas updates by itself. Undoing the sheet edit
 updates it back. A view that is later deleted leaves its last picture standing,
 the way a missing video file leaves its extracted frames.
+>>>>>>> origin/main
 
 
 drawings themselves. It finds every connected mark on the sheet and then throws

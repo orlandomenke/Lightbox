@@ -2112,6 +2112,27 @@ public partial class MainWindow : Window
             _vm.OpenReferenceView(view);
     }
 
+    /// <summary>One window per view: a second click brings it forward.</summary>
+    private readonly Dictionary<string, ReferenceViewWindow> _referenceViewWindows = [];
+
+    private void OnOpenReferenceViewWindow(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is not Lightbox.Core.Documents.ReferenceView view) return;
+        if (_referenceViewWindows.TryGetValue(view.Id, out var open))
+        {
+            open.Activate();
+            return;
+        }
+
+        var sheet = _vm.ReferenceSheetsView.FirstOrDefault(s => s.Views.Contains(view));
+        var window = new ReferenceViewWindow(_vm, view, sheet?.Name ?? "Reference");
+        _referenceViewWindows[view.Id] = window;
+        window.Closed += (_, _) => _referenceViewWindows.Remove(view.Id);
+        // A child of the main window: it floats beside the art, and closing
+        // the application does not leave a reference orphaned on the desktop.
+        window.Show(this);
+    }
+
     private void OnToggleViewOnCanvas(object? sender, RoutedEventArgs e)
     {
         if ((sender as Control)?.DataContext is Lightbox.Core.Documents.ReferenceView view)
