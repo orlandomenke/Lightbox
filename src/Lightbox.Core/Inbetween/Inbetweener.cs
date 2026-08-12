@@ -91,4 +91,23 @@ public static class Inbetweener
         }
         return frames;
     }
+
+    /// <summary>
+    /// Inbetweens placed by a timing chart (Q58): one drawing per rung, at
+    /// the rung's fraction of the travel. Linear on purpose — the chart IS
+    /// the shaping, and easing the rungs again would move them off where the
+    /// artist put them.
+    /// </summary>
+    public static List<List<Stroke>> InbetweenSeries(
+        IReadOnlyList<Stroke> a,
+        IReadOnlyList<Stroke> b,
+        IReadOnlyList<double> chart)
+    {
+        var frames = new List<List<Stroke>>(chart.Count);
+        foreach (var rung in chart)
+        {
+            frames.Add(Inbetween(a, b, rung, Easing.Linear));
+        }
+        return frames;
+    }
 }

@@ -125,6 +125,22 @@ public sealed class Frame
     public List<SymbolPlacement>? Placements { get; set; }
 
     /// <summary>
+    /// The timing chart on this extreme (Q58), or null — and null is the
+    /// default and writes no key. Fractions strictly between 0 and 1,
+    /// ascending: where each inbetween sits on the travel from this drawing
+    /// to the next key. Three rungs ask for three inbetweens.
+    /// </summary>
+    /// <remarks>
+    /// On the frame for the reasons <see cref="Anchors"/> is: a re-time, a
+    /// cel drag and a timing preset all move drawings around the sheet, and
+    /// the chart describes <em>this extreme's</em> spacing, so it must travel
+    /// with the drawing. Meaningful on a <see cref="FrameRole.Key"/> frame;
+    /// kept but ignored elsewhere, so demoting and re-promoting an extreme
+    /// does not silently destroy its chart.
+    /// </remarks>
+    public List<double>? Chart { get; set; }
+
+    /// <summary>
     /// Which AI produced this drawing, or null for every frame an artist drew.
     /// </summary>
     /// <remarks>
@@ -170,6 +186,7 @@ public sealed class Frame
         copy.Placements = Placements?.Select(p => p.Clone()).ToList();
         copy.Anchors = Anchors is null ? null : new Dictionary<string, AnchorPoint>(Anchors);
         copy.Shapes = Shapes is null ? null : new Dictionary<string, ShapeBox>(Shapes);
+        copy.Chart = Chart is null ? null : [.. Chart];
         return copy;
     }
 }

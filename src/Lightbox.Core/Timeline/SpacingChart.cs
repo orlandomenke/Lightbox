@@ -67,11 +67,20 @@ public static class SpacingChart
             var m = k - runStart;
             double total = 0;
             for (var j = runStart + 1; j <= k; j++) total += Distance(keyed[j - 1], keyed[j]);
+            // The opening extreme's timing chart wins over the global easing
+            // (Q58) — it IS this run's intended spacing, provided it still
+            // describes this run: a chart authored for three inbetweens says
+            // nothing about a run that now holds five.
+            var chart = keyed[runStart].Role == FrameRole.Key
+                        && keyed[runStart].Chart is { } rungs && rungs.Count == m - 1
+                ? rungs : null;
             for (var j = 1; j <= m; j++)
             {
-                var eased = Inbetween.EasingOps.Ease((double)j / m, easing)
-                            - Inbetween.EasingOps.Ease((double)(j - 1) / m, easing);
-                spans.Add(new Span(keyed[runStart + j].Index, total * eased));
+                var share = chart is null
+                    ? Inbetween.EasingOps.Ease((double)j / m, easing)
+                      - Inbetween.EasingOps.Ease((double)(j - 1) / m, easing)
+                    : (j == m ? 1 : chart[j - 1]) - (j == 1 ? 0 : chart[j - 2]);
+                spans.Add(new Span(keyed[runStart + j].Index, total * share));
             }
             runStart = k;
         }
@@ -79,22 +88,22 @@ public static class SpacingChart
     }
 
     private static double Distance(
-        (int Index, double X, double Y, FrameRole Role) a,
-        (int Index, double X, double Y, FrameRole Role) b)
+        (int Index, double X, double Y, FrameRole Role, List<double>? Chart) a,
+        (int Index, double X, double Y, FrameRole Role, List<double>? Chart) b)
     {
         var dx = b.X - a.X;
         var dy = b.Y - a.Y;
         return Math.Sqrt(dx * dx + dy * dy);
     }
 
-    private static List<(int Index, double X, double Y, FrameRole Role)> KeyedDrawings(Layer layer)
+    private static List<(int Index, double X, double Y, FrameRole Role, List<double>? Chart)> KeyedDrawings(Layer layer)
     {
-        var keyed = new List<(int, double, double, FrameRole)>();
+        var keyed = new List<(int, double, double, FrameRole, List<double>?)>();
         for (var i = 0; i < layer.Cels.Count; i++)
         {
             if (ExposureSheet.FrameAtExactIndex(layer, i) is not { } frame) continue;
             if (Centroid(frame) is not { } c) continue;
-            keyed.Add((i, c.X, c.Y, frame.Role));
+            keyed.Add((i, c.X, c.Y, frame.Role, frame.Chart));
         }
         return keyed;
     }

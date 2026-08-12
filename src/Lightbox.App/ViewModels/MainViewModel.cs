@@ -9564,12 +9564,85 @@ public sealed partial class MainViewModel : ObservableObject
 
         var a = StrokesOf(layer.Cels[aIndex].Frame!);
         var b = StrokesOf(layer.Cels[bIndex].Frame!);
-        var series = Inbetweener.InbetweenSeries(a, b, TweenCount, TweenEasing);
+        // The extreme's own timing chart wins over the bar's count and easing
+        // (Q58): the ladder on the drawing is the artist's spacing for this
+        // interval, and the bar is the default for extremes that have none.
+        var series = layer.Cels[aIndex].Frame!.Chart is { Count: > 0 } chart
+            ? Inbetweener.InbetweenSeries(a, b, chart)
+            : Inbetweener.InbetweenSeries(a, b, TweenCount, TweenEasing);
         var frames = series.Select(strokes => NewFrameFor(layer, strokes, FrameRole.Inbetween)).ToList();
 
         _editor.InsertInbetweens(layer.Id, aIndex, frames);
         CurrentFrameIndex = Math.Min(aIndex + 1, Scene.FrameCount - 1);
     }
+
+    // ---- timing charts (Q58) ----------------------------------------------------
+
+    /// <summary>
+    /// The timing chart on the key at or before <paramref name="cell"/>'s
+    /// frame on its layer, or null — either no chart, or no key.
+    /// </summary>
+    public IReadOnlyList<double>? ChartAt(FrameCell cell)
+    {
+        if (LayerOfCell(cell) is not { } layer) return null;
+        var at = ExposureSheet.KeyIndexAtOrBefore(layer, cell.Index);
+        return at < 0 ? null : layer.Cels[at].Frame?.Chart;
+    }
+
+    /// <summary>The frame the chart under <paramref name="cell"/> belongs to, for the editor's title.</summary>
+    public int ChartAnchorFrame(FrameCell cell) =>
+        LayerOfCell(cell) is { } layer ? ExposureSheet.KeyIndexAtOrBefore(layer, cell.Index) : -1;
+
+    /// <summary>
+    /// How many drawings currently sit between the chart's extreme and the
+    /// next key, or null when there is no next key yet. The editor derives
+    /// its live/stale line from this — a chart whose rung count disagrees is
+    /// ignored by the spacing curve, and that has to be visible where the
+    /// chart is edited or the artist discovers it by counting.
+    /// </summary>
+    public int? ChartRunInbetweens(FrameCell cell)
+    {
+        if (LayerOfCell(cell) is not { } layer) return null;
+        var a = ExposureSheet.KeyIndexAtOrBefore(layer, cell.Index);
+        if (a < 0) return null;
+        var b = ExposureSheet.NextKeyIndex(layer, a);
+        if (b < 0) return null;
+        var count = 0;
+        for (var i = a + 1; i < b; i++)
+        {
+            if (ExposureSheet.FrameAtExactIndex(layer, i) is not null) count++;
+        }
+        return count;
+    }
+
+    /// <summary>
+    /// Write (or clear, with null/empty) the timing chart on the key at or
+    /// before <paramref name="cell"/>'s frame on its layer. One undo step —
+    /// a chart is authored timing, the same as a re-time.
+    /// </summary>
+    public void SetChartAt(FrameCell cell, IEnumerable<double>? rungs)
+    {
+        if (LayerOfCell(cell) is not { } layer) return;
+        if (!CanEdit(layer, "chart its timing")) return;
+        var at = ExposureSheet.KeyIndexAtOrBefore(layer, cell.Index);
+        if (at < 0 || layer.Cels[at].Frame is not { } frame) return;
+        var chart = Lightbox.Core.Inbetween.TimingChart.Normalise(rungs);
+        if (ChartsEqual(frame.Chart, chart)) return;
+
+        var layerId = layer.Id;
+        var frameId = frame.Id;
+        _editor.Perform(doc =>
+        {
+            var target = doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId)?
+                .Cels.FirstOrDefault(c => c.Frame?.Id == frameId)?.Frame;
+            if (target is not null) target.Chart = chart is null ? null : [.. chart];
+        });
+        OnPropertyChanged(nameof(GraphSeriesList));   // the intended curve reads it
+    }
+
+    private static bool ChartsEqual(IReadOnlyList<double>? a, IReadOnlyList<double>? b) =>
+        (a is null && b is null)
+        || (a is not null && b is not null && a.SequenceEqual(b));
 
     private static List<Stroke> StrokesOf(Frame frame) => frame.Strokes;
 
@@ -9717,9 +9790,17 @@ public sealed partial class MainViewModel : ObservableObject
             ? UnseenByTheModel(layer.Cels[aIndex].Frame!, layer.Cels[bIndex].Frame!)
             : null;
 
-        var ts = Enumerable.Range(1, TweenCount)
-            .Select(k => (double)k / (TweenCount + 1))
-            .ToList();
+        // The extreme's timing chart is the ts when it has one (Q58): both
+        // producers of inbetweens read the same ladder, so accepting the AI's
+        // frames or the deterministic ones lands the same timing. A chart's
+        // rungs are already eased — the artist placed them — so the easing
+        // sent alongside is Linear rather than the bar's.
+        var chart = layer.Cels[aIndex].Frame!.Chart;
+        var ts = chart is { Count: > 0 }
+            ? chart.ToList()
+            : Enumerable.Range(1, TweenCount)
+                .Select(k => (double)k / (TweenCount + 1))
+                .ToList();
         // Send the effective drawings — erased strokes must not leak into
         // the model's input any more than into the deterministic tweens.
         var request = new InbetweenRequest(
@@ -9727,12 +9808,12 @@ public sealed partial class MainViewModel : ObservableObject
             StrokeRecordCleaner.EffectiveStrokes(StrokesOf(layer.Cels[aIndex].Frame!)),
             StrokeRecordCleaner.EffectiveStrokes(StrokesOf(layer.Cels[bIndex].Frame!)),
             ts,
-            TweenEasing,
+            chart is { Count: > 0 } ? Easing.Linear : TweenEasing,
             CollectReferenceImages(),
             TaxonomyForActiveDocument());
 
         var result = await RunAiAsync(
-            $"{AiProviderLabel} is drawing {TweenCount} inbetween(s)…",
+            $"{AiProviderLabel} is drawing {ts.Count} inbetween(s)…",
             ct => _artist.GenerateInbetweensAsync(request, ct));
         if (result is null) return;
 
@@ -9745,8 +9826,11 @@ public sealed partial class MainViewModel : ObservableObject
         var candidates = ordered
             .Select(f => new CandidateInbetween(f.T, f.Strokes))
             .ToList();
+        // Judged against the easing the request carried — under a timing
+        // chart that is Linear, and refusing a frame for sitting exactly on
+        // its rung would be the verifier arguing with the artist.
         var judgement = InbetweenVerifier.Verify(
-            request.KeyframeA, request.KeyframeB, candidates, TweenEasing);
+            request.KeyframeA, request.KeyframeB, candidates, request.Easing);
 
         // Refusal is per frame: the ones that passed are inserted, each at its
         // own t's slot — a null keeps the slot a hold, so partial acceptance
