@@ -3214,6 +3214,9 @@
                                 <Button Classes="icon" DockPanel.Dock="Right" Content="🗔" FontSize="11"
                                         Click="OnOpenReferenceViewWindow"
                                         ToolTip.Tip="Open this view in its own window, beside the art. It follows the sheet as you edit; drawing on it still happens in the tab." />
+                                <Button Classes="icon" DockPanel.Dock="Right" Content="⧉" FontSize="11"
+                                        Click="OnToggleViewOnCanvas"
+                                        ToolTip.Tip="Tape this view onto the canvas — a see-through reference over the paper, under the drawing. Click again to take it down. Opacity is the reference opacity slider." />
                                 <TextBox Text="{Binding Name}" BorderThickness="0" Background="Transparent"
                                          VerticalAlignment="Center" FontSize="12"
                                          GotFocus="OnReferenceNameFocused" LostFocus="OnReferenceRenamed" />
@@ -3895,6 +3898,8 @@
                                   <MenuItem Header="{Binding $parent[Window].((vm:MainViewModel)DataContext).RetimeMenuLabel}"
                                             Click="OnRetimeCel"
                                             ToolTip.Tip="Re-space this cel's range to the pattern chosen on the timeline bar" />
+                                  <MenuItem Header="Timing chart…" Click="OnEditTimingChart"
+                                            ToolTip.Tip="The ladder on this extreme: where its inbetweens sit on the way to the next key" />
                                   <MenuItem Header="Clear cel" Click="OnClearCel"
                                             ToolTip.Tip="Blank the drawing, keep its slot on the timeline" />
                                   <MenuItem Header="Delete cel" Click="OnDeleteCel"

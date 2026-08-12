@@ -127,6 +127,23 @@
               <Button Content="Untag"
                       Command="{Binding UntagSelectionCommand}"
                       CommandParameter="{Binding TagToApply}" />
+              <!--
+                Q25 re-answered: the window is where a sheet is re-assigned.
+                Only offered while a sheet is selected — a document is moved in
+                the docker, and offering two movers for one thing invites the
+                question of why they differ.
+              -->
+              <ComboBox MinWidth="150" Margin="6,0,0,0"
+                        IsVisible="{Binding HasSheetSelection}"
+                        ItemsSource="{Binding SheetHomeChoices}"
+                        SelectedItem="{Binding SheetHomeToApply}"
+                        PlaceholderText="file sheet in…">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:SheetHomeChoice">
+                    <TextBlock Text="{Binding Label}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
             </WrapPanel>
           </Border>
 

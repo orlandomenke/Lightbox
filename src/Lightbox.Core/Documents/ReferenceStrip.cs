@@ -104,6 +104,34 @@ public sealed class ReferenceStrip
 
     public string Name { get; set; } = "Reference";
 
+    /// <summary>
+    /// The character-sheet view this strip is a flattening of, or null for an
+    /// ordinary imported reference — and null writes no key, the usual rule.
+    /// </summary>
+    /// <remarks>
+    /// A linked strip is <b>derived, live</b> (Q69): editing the view
+    /// re-flattens the strip, so the taped-up copy never shows yesterday's
+    /// drawing. The link degrades the way <see cref="VideoPath"/> does — a
+    /// view deleted from under it leaves the last pixels standing and the
+    /// strip becomes an ordinary embedded reference, because losing the
+    /// source is no reason to lose the picture.
+    /// </remarks>
+    public string? SheetViewId { get; set; }
+
+    /// <summary>
+    /// Show the first cell on every frame, ignoring the slot row — the strip
+    /// as a photograph taped to the lightbox rather than footage laid along
+    /// the timeline.
+    /// </summary>
+    /// <remarks>
+    /// Without this a strip is only visible on frames with an assigned slot
+    /// (<see cref="CellAt"/>), which is right for a strip *of frames* and
+    /// wrong for a character sheet: extending the slot row to the scene's
+    /// length breaks the moment the scene grows a frame, and a reference
+    /// that silently vanishes past frame N reads as a rendering bug.
+    /// </remarks>
+    public bool Pinned { get; set; }
+
     /// <summary>The whole sheet, base64 PNG. Empty for a video reference.</summary>
     public string Png { get; set; } = "";
 
@@ -196,6 +224,7 @@ public sealed class ReferenceStrip
     /// <summary>The cell shown at a timeline index, or null.</summary>
     public ReferenceCell? CellAt(int frame)
     {
+        if (Pinned) return Cells.Count > 0 ? Cells[0] : null;
         if (frame < 0 || frame >= Slots.Count) return null;
         var index = Slots[frame];
         return index >= 0 && index < Cells.Count ? Cells[index] : null;

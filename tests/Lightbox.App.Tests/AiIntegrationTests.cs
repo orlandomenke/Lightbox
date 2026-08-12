@@ -223,6 +223,50 @@ public class AiIntegrationTests
     }
 
     [AvaloniaFact]
+    public async Task AiInbetween_AChartOnTheExtremeBecomesTheRequestsTs()
+    {
+        // The extreme's timing chart (Q58) is the ts, and the easing sent
+        // with it is Linear — the rungs are already eased by the artist.
+        // This is the contract that keeps both producers of inbetweens
+        // landing the same timing; a future edit that quietly reintroduces
+        // TweenEasing on either side is what this test exists to catch.
+        var artist = new FakeArtist
+        {
+            InbetweenResult = AiResult<List<InbetweenFrameResult>>.Error("stop after the request", false),
+        };
+        var vm = VmWithTwoKeys(artist);
+        vm.TweenCount = 3;   // and the chart must win over it
+        vm.TweenEasing = Lightbox.Core.Inbetween.Easing.EaseInOut;
+        vm.SetChartAt(new FrameCell(0) { LayerIndex = vm.ActiveLayerIndex }, [0.2, 0.9]);
+
+        await vm.AiInbetweenCommand.ExecuteAsync(null);
+
+        var request = artist.LastInbetweenRequest!;
+        Assert.Equal([0.2, 0.9], request.Ts);
+        Assert.Equal(Lightbox.Core.Inbetween.Easing.Linear, request.Easing);
+    }
+
+    [AvaloniaFact]
+    public async Task AiInbetween_WithoutAChartTheBarStillDecides()
+    {
+        var artist = new FakeArtist
+        {
+            InbetweenResult = AiResult<List<InbetweenFrameResult>>.Error("stop after the request", false),
+        };
+        var vm = VmWithTwoKeys(artist);
+        vm.TweenCount = 2;
+        vm.TweenEasing = Lightbox.Core.Inbetween.Easing.EaseIn;
+
+        await vm.AiInbetweenCommand.ExecuteAsync(null);
+
+        var request = artist.LastInbetweenRequest!;
+        Assert.Equal(2, request.Ts.Count);
+        Assert.Equal(1.0 / 3, request.Ts[0], 6);
+        Assert.Equal(2.0 / 3, request.Ts[1], 6);
+        Assert.Equal(Lightbox.Core.Inbetween.Easing.EaseIn, request.Easing);
+    }
+
+    [AvaloniaFact]
     public async Task AiInbetween_RefusalSurfacesMessage_NoMutation()
     {
         var artist = new FakeArtist
