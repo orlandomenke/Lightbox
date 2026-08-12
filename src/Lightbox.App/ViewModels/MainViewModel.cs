@@ -3855,7 +3855,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// </para>
     /// </remarks>
     public Rendering.CanvasCursorKind PointerIntent =>
-        Rendering.CanvasCursor.For(ActiveTool, CurrentTarget);
+        Rendering.CanvasCursor.For(ActiveTool, CurrentTarget, _hoverModifiers);
 
     /// <summary>Why the active tool would do nothing here, or null.</summary>
     /// <remarks>
@@ -3864,12 +3864,30 @@ public sealed partial class MainViewModel : ObservableObject
     /// pointer already refuses, which is the half an artist notices; this is the
     /// half that says why, and it is ready for the surface that will hold it.
     /// </remarks>
-    public string? PointerRefusal => Rendering.CanvasCursor.Refusal(ActiveTool, CurrentTarget);
+    public string? PointerRefusal =>
+        Rendering.CanvasCursor.Refusal(ActiveTool, CurrentTarget, _hoverModifiers);
 
-    private Rendering.CanvasTarget CurrentTarget => new(
-        LayerHidden: !ActiveLayer.Visible,
-        LayerLocked: ActiveLayer.Locked,
-        AlphaLocked: ActiveLayer.AlphaLocked);
+    /// <summary>Whether the refusal has anything to say, for the status line.</summary>
+    public bool HasPointerRefusal => PointerRefusal is not null;
+
+    private Rendering.CanvasTarget CurrentTarget
+    {
+        get
+        {
+            var alphaLocked = ActiveLayer.AlphaLocked;
+            return new Rendering.CanvasTarget(
+                LayerHidden: !ActiveLayer.Visible,
+                LayerLocked: ActiveLayer.Locked,
+                AlphaLocked: alphaLocked,
+                // The two that need a place. With the pointer off the canvas
+                // there is no place, so both stay permissive — the cursor
+                // under-reports rather than inventing a refusal.
+                NothingUnderPointer:
+                    alphaLocked && _hoverPoint is { } a && !PaintUnder(a.X, a.Y),
+                OutsideSelection:
+                    _hoverPoint is { } b && !InsideSelection(b.X, b.Y));
+        }
+    }
 
     /// <summary>
     /// Re-ask the mapping, because something it reads has changed underneath it.
@@ -3885,6 +3903,96 @@ public sealed partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(PointerIntent));
         OnPropertyChanged(nameof(PointerRefusal));
+        OnPropertyChanged(nameof(HasPointerRefusal));
+    }
+
+    private Avalonia.Input.KeyModifiers _hoverModifiers;
+    private (double X, double Y)? _hoverPoint;
+
+    /// <summary>
+    /// The pointer moved: remember where, and re-ask what the tool would do.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is what lets the last two refusals be true rather than assumed.</b>
+    /// Whether the pointer is inside the selection and whether there is paint
+    /// under an alpha-locked brush are the only two facts that vary pixel by
+    /// pixel rather than per layer, so they need a position and nothing else did.
+    /// </para>
+    /// <para>
+    /// <b>Bounded, as invariant 6 requires.</b> The selection test is
+    /// point-in-polygon over the outline — proportional to the contour, not to
+    /// the canvas — where <c>SelectionMask</c> would rasterise a full
+    /// <c>w × h</c> mask on every move. The alpha read is one pixel, and only
+    /// when the layer is alpha-locked, because that is the only case whose
+    /// answer is used.
+    /// </para>
+    /// </remarks>
+    public void UpdatePointerContext(double x, double y, Avalonia.Input.KeyModifiers modifiers)
+    {
+        _hoverPoint = (x, y);
+        _hoverModifiers = modifiers;
+        RefreshPointerIntent();
+    }
+
+    /// <summary>The pointer left the canvas: stop claiming to know where it is.</summary>
+    public void ClearPointerContext()
+    {
+        if (_hoverPoint is null) return;
+        _hoverPoint = null;
+        RefreshPointerIntent();
+    }
+
+    /// <summary>Whether a stroke coordinate falls inside the active selection.</summary>
+    /// <remarks>
+    /// Even-odd, matching <c>BrushEngine.PathFromContours</c> — a hole in a
+    /// selection is outside it, and the cursor has to agree with the renderer
+    /// about that or it forbids in the wrong places.
+    /// </remarks>
+    private bool InsideSelection(double x, double y)
+    {
+        if (!HasSelection) return true;
+        // Surface space: the contours are the mask's, and so is the question.
+        var (px, py) = (x - Scene.Left, y - Scene.Top);
+        var inside = false;
+        foreach (var contour in _selectionContours)
+        {
+            for (int i = 0, j = contour.Count - 1; i < contour.Count; j = i++)
+            {
+                var a = contour[i];
+                var b = contour[j];
+                if (a.Y > py != b.Y > py &&
+                    px < (b.X - a.X) * (py - a.Y) / (b.Y - a.Y) + a.X)
+                {
+                    inside = !inside;
+                }
+            }
+        }
+        return inside;
+    }
+
+    /// <summary>Whether the active layer has any paint at a stroke coordinate.</summary>
+    /// <remarks>
+    /// Only asked when the layer is alpha-locked, because that is the only time
+    /// the answer changes what the pointer says — and it costs a bitmap read, so
+    /// asking it otherwise would be paying per pointer event for nothing.
+    /// </remarks>
+    private bool PaintUnder(double x, double y)
+    {
+        var px = (int)Math.Round(x - Scene.Left);
+        var py = (int)Math.Round(y - Scene.Top);
+        if (px < 0 || py < 0 || px >= Scene.Width || py >= Scene.Height) return false;
+        if (ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex) is not { } frame) return false;
+        try
+        {
+            return _cache.Get(frame, Scene.Width, Scene.Height).GetPixel(px, py).Alpha > 0;
+        }
+        catch
+        {
+            // A cache miss mid-resize is not worth a crash on a hover; assume
+            // paint, which is the permissive answer and never forbids wrongly.
+            return true;
+        }
     }
 
     /// <summary>
