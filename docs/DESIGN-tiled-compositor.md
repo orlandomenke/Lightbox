@@ -103,8 +103,8 @@ remove. The table stands; the input to it does not exist yet.
 **The bigger finding in that capture is not about compositing at all.** `tick +
 draw` came to **39.24 ms against an 83.3 ms budget — 47%** — while the clock ran
 late on **100% of ticks** and published frames waited a mean of **176 ms** to be
-drawn. That is **B168**, it is P1, and every remaining phase here optimises the
-47% while the 100% sits untouched. Read B168 before deciding this is the most
+drawn. That is **B178**, it is P1, and every remaining phase here optimises the
+47% while the 100% sits untouched. Read B178 before deciding this is the most
 valuable place to spend a session.
 
 ## Phases
