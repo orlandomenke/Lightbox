@@ -8,7 +8,7 @@ using Xunit.Abstractions;
 namespace Lightbox.Core.Tests.Timeline;
 
 /// <summary>
-/// B142 — an undo snapshot is frozen rather than cloned, and it gives back
+/// B142 — an undo snapshot is a direct graph clone, and it gives back
 /// exactly what it was handed.
 /// </summary>
 /// <remarks>
@@ -17,7 +17,9 @@ namespace Lightbox.Core.Tests.Timeline;
 /// parsed the result back, on every structural edit, through the indented
 /// options meant for files a human reads. 615 ms and 72.5 MB on a 5 000-stroke
 /// painting, to build a second document that most of the time nobody ever
-/// looks at.
+/// looks at. These tests were written against the first fix (freeze to bytes,
+/// thaw lazily) and survived the second (<c>Doc.Clone</c>) unchanged, because
+/// they assert what any snapshot mechanism owes, not how it is built.
 /// </para>
 /// <para>
 /// <b>Fidelity is what these guard, not speed.</b> The undo system is the one
@@ -125,11 +127,12 @@ public class UndoSnapshotFidelityTests(ITestOutputHelper output)
     /// two documents.
     /// </summary>
     /// <remarks>
-    /// The one the lazy thaw could plausibly break. A snapshot holds bytes until
-    /// it is first rolled back and holds the document object afterwards, so the
-    /// second traversal takes a different branch from the first; if those two
-    /// branches ever disagreed, the bug would appear only on the second undo of
-    /// the same step and would look like the document drifting.
+    /// Written when a snapshot held bytes until first rolled back and the
+    /// document object afterwards, so the second traversal took a different
+    /// branch from the first. The clone mechanism has one branch, but the
+    /// property is still the contract: if repeated traversal ever disagreed
+    /// with itself, it would look like the document drifting rather than like
+    /// a bug in undo.
     /// </remarks>
     [Fact]
     public void UndoingAndRedoingRepeatedlyLandsOnTheSameTwoDocuments()
@@ -154,12 +157,14 @@ public class UndoSnapshotFidelityTests(ITestOutputHelper output)
     /// mutation, and the mutation cannot reach back into it.
     /// </summary>
     /// <remarks>
-    /// Freezing to bytes makes this true by construction rather than by
+    /// A full deep copy makes this true by construction rather than by
     /// discipline, which is worth a test precisely because the alternative
-    /// designs considered for B142 — sharing the stroke objects between the
-    /// snapshot and the live document — do not have that property. If anybody
-    /// revisits this for the remaining speed, this is the test that says what
-    /// they have to keep.
+    /// design priced for B142 — sharing the stroke objects between the
+    /// snapshot and the live document — does not have that property, and it
+    /// is the tempting next optimisation. This is the test that says what any
+    /// future attempt has to keep. <c>DocCloneTests.NoMutableObjectAppearsInBothGraphs</c>
+    /// enforces the same property structurally, by reflection, over the whole
+    /// graph.
     /// </remarks>
     [Fact]
     public void AMutationCannotReachIntoTheSnapshotItWasTakenAgainst()
@@ -184,15 +189,22 @@ public class UndoSnapshotFidelityTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The cost that made this a bug: taking the snapshot must not be
-    /// proportional to reading the document back.
+    /// The cost that made this a bug: taking the snapshot must cost far less
+    /// than the serializer round trip it replaced.
     /// </summary>
     /// <remarks>
     /// <para>
     /// Loose on purpose, in the house style — this catches the fix being
-    /// reverted or a caller reintroducing an eager parse, not drift. The ratio
-    /// is asserted rather than a wall-clock time, because the absolute number is
-    /// a property of whatever machine CI happened to allocate.
+    /// reverted, not drift. The ratio is asserted rather than a wall-clock
+    /// time, because the absolute number is a property of whatever machine CI
+    /// happened to allocate.
+    /// </para>
+    /// <para>
+    /// Aimed at what <c>Perform</c> actually calls — <see cref="Doc.Clone"/> —
+    /// against the round trip it replaced. A previous version of this test
+    /// measured the freeze/thaw pair after the mechanism had moved on, which is
+    /// the near-miss B142's ledger entry records: a benchmark aimed at the
+    /// implementation being replaced reports the fix as noise.
     /// </para>
     /// <para>
     /// Both numbers are printed whatever happens. A ratio assertion that prints
@@ -217,24 +229,23 @@ public class UndoSnapshotFidelityTests(ITestOutputHelper output)
             frame.Strokes.Add(s);
         }
 
-        var bytes = DocJson.ToSnapshot(doc);        // warm both paths
-        GC.KeepAlive(DocJson.FromSnapshot(bytes));
+        GC.KeepAlive(doc.Clone());                  // warm both paths
+        GC.KeepAlive(DocJson.Clone(doc));
 
         var sw = Stopwatch.StartNew();
-        for (var i = 0; i < 3; i++) GC.KeepAlive(DocJson.ToSnapshot(doc));
-        var freeze = sw.Elapsed.TotalMilliseconds / 3;
+        for (var i = 0; i < 3; i++) GC.KeepAlive(doc.Clone());
+        var clone = sw.Elapsed.TotalMilliseconds / 3;
 
         sw.Restart();
-        for (var i = 0; i < 3; i++) GC.KeepAlive(DocJson.FromSnapshot(bytes));
-        var thaw = sw.Elapsed.TotalMilliseconds / 3;
+        for (var i = 0; i < 3; i++) GC.KeepAlive(DocJson.Clone(doc));
+        var roundTrip = sw.Elapsed.TotalMilliseconds / 3;
 
         output.WriteLine(
-            $"4000 strokes, {bytes.Length / 1024} KB: freeze {freeze:F1} ms, thaw {thaw:F1} ms "
-            + $"— an edit that also parsed would pay {freeze + thaw:F1} ms");
+            $"4000 strokes: clone {clone:F1} ms, serializer round trip {roundTrip:F1} ms");
 
         Assert.True(
-            freeze < thaw,
-            $"freezing ({freeze:F1} ms) is no longer cheaper than thawing ({thaw:F1} ms) — "
-            + "the point of B142's fix is that a structural edit pays only the first");
+            clone * 5 < roundTrip,
+            $"cloning ({clone:F1} ms) is no longer far cheaper than the round trip "
+            + $"({roundTrip:F1} ms) — the snapshot path has regressed toward what B142 fixed");
     }
 }

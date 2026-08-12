@@ -8,6 +8,13 @@ the container's, the growth exponents are the code's.*
 (layer-stack baking, PR #80) are implemented; rung 2 measured 65.7 → 12.3 ms
 per whole-canvas publish on a 16-layer document. Rungs 3–6 are analysis only.*
 
+*Update 2026-08-08: rung 3's first increment is in — playback on bounded
+documents goes through the existing tile store (`tileNativeDoc` in
+`PublishSnapshot`, guarded by `PlaybackThroughTilesTests`). Measured on the
+sparse-cel sweep: 145 → 14 ms a frame at 1080p, 334 → 39 ms at 4K, both inside
+the 12 fps budget. The rest of rung 3 — tile-level eviction, scrubbing and the
+paused canvas, the still-full-frame fallbacks — remains open under B144/Q62.*
+
 ---
 
 ## 0. The target, stated by the owner

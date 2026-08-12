@@ -113,6 +113,31 @@ your machine* and writes it beside the other files. This is the one to reach for
 when Lightbox feels slow, because the answer is usually a fact nobody can guess
 from the outside.
 
+### If playback stutters, read the tile section first
+
+**Play the scene, then write the report** — the section is about what happens
+while frames are flipping, so a report written from a still canvas has nothing
+in it.
+
+While a sequence plays, a drawing is held as tiles: it costs the ink on it
+rather than the whole sheet of paper, which is the difference between about
+14 ms a frame and about 137 ms at FullHD. Some drawings cannot be held that
+way, and then playback pays the slow price. The report says which, in one line:
+
+| It says | What to do about it |
+| --- | --- |
+| *the scene has a camera* | A scene with a camera never uses tiles yet. Nothing to fix in your drawing — this one is on us. |
+| *frames carry imported or flattened pixels* | Imported artwork and flattened frames are held whole. Keep imported reference on its own layer rather than flattened into the animation. |
+| *frames place symbols* | Placed symbols are drawn whole. Fewer placements on the animated layers, or draw them in. |
+| *frames contain smudge or blur strokes* | Smudge and blur have to read the pixels around them, which a tile does not hold. Keep them off the layers that animate, or flatten that pass when it is finished. |
+
+The percentage beside it is **layer passes, not frames** — a two-layer drawing
+is asked twice for every frame you see. So 50% often means one layer of two,
+not half your animation.
+
+If it says *every pass tiled* and playback is still slow, the drawing is not the
+cause and the report's other sections are where to look.
+
 It names which parts of the drawing are done by your graphics card and which by
 the processor — and those are not the same question. The status strip says
 **GPU** when your card is putting finished frames on screen, which it usually is;

@@ -108,11 +108,13 @@ public sealed partial class MainViewModel : ObservableObject
     /// </remarks>
     private void AppendToFrameRender(Lightbox.Core.Documents.Frame target, Stroke stroke)
     {
-        if (UnboundedCanvasOn && TileFrameCache.CanTileFrame(target))
-        {
-            _tileFrames.Append(target, stroke, Scene.Width, Scene.Height);
-            return;
-        }
+        // Unconditionally, now that playback warms the tile cache on bounded
+        // documents too: a no-op for a frame tiles do not hold, and a stroke
+        // tiles cannot say evicts the frame's entry itself. Skipping this on
+        // the bounded arm would leave playback-warmed tiles one stroke stale
+        // — the next play would show the drawing without its newest line.
+        _tileFrames.Append(target, stroke, Scene.Width, Scene.Height);
+        if (UnboundedCanvasOn && TileFrameCache.CanTileFrame(target)) return;
         FrameRasterizer.Append(_cache.Get(target, Scene.Width, Scene.Height), stroke);
     }
 
@@ -205,6 +207,20 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <inheritdoc cref="ReportDocWidth"/>
     internal double ReportComposeScale => ComposeScale;
+
+    /// <summary>
+    /// Why frames did not come from tiles, counted across the session.
+    /// </summary>
+    /// <remarks>
+    /// B144's tile path is worth 145 → 14 ms a frame at 1080p, and a frame that
+    /// falls back pays the old cost silently. This is what lets
+    /// <c>Help ▸ Write a render report</c> answer "why is my playback slow"
+    /// with the actual reason rather than with a guess about the machine.
+    /// </remarks>
+    private readonly TileFallbackTally _tileFallbacks = new();
+
+    /// <summary>The tally, for the render report and for tests.</summary>
+    internal TileFallbackTally ReportTileFallbacks => _tileFallbacks;
 
     /// <inheritdoc cref="ReportDocWidth"/>
     internal double ReportDisplayScale => _displayScale;
@@ -9086,7 +9102,20 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ---- internals ----------------------------------------------------------
 
-    private void OnPlaybackTick() => StepPlayback();
+    /// <summary>
+    /// Advance by what the clock says, not by one.
+    /// </summary>
+    /// <remarks>
+    /// The count is the whole of <see cref="PlaybackClock"/>'s contract: a tick
+    /// that arrived a frame and a half late owes two frames, and honouring only
+    /// one is the accumulating drift the paced clock exists to remove. Written
+    /// as a loop rather than an index jump so a wrap, a range end and the audio
+    /// resync all happen exactly as they do at speed.
+    /// </remarks>
+    private void OnPlaybackTick(int frames)
+    {
+        for (var i = 0; i < frames && IsPlaying; i++) StepPlayback();
+    }
 
     /// <summary>
     /// Set while committing an edit whose visible effect the caller already
@@ -10500,9 +10529,26 @@ public sealed partial class MainViewModel : ObservableObject
         // the decision to build them must equal the decision to use it — a
         // publish with no viewport yet, or with a camera authored, takes the
         // bounded path, and a tile pass sent there would silently vanish.
-        var unboundedDoc = UnboundedCanvasOn
-            && scene.Camera is null
-            && _pendingViewport is { Width: > 0, Height: > 0 };
+        //
+        // Playback joins the unbounded canvas here (B144/Q62): while frames
+        // are flipping, a cel costs its ink rather than its paper, so a
+        // scene whose full-frame bitmaps thrash the cache above 720p stays
+        // resident as tiles — measured at 145 → 14 ms a frame at 1080p on
+        // sparse cels. The line is drawn at motion on purpose: a paused
+        // publish returns to the bounded compositor, so the still picture is
+        // always today's canonical render, and any resample difference the
+        // pyramid introduces below 100% zoom exists only while the sequence
+        // is moving. No live stroke, transform or ghost pass exists during
+        // playback, which is what keeps the two compositors' remaining
+        // differences (live clip masks, bake folding) out of reach.
+        // Whether tiles are on the table at all. The two *document* conditions —
+        // a camera, and a viewport to cull against — are asked through
+        // TileFallback so a report can name them; the mode check stays here
+        // because "not playing and not unbounded" is a choice rather than a
+        // frame the tiles could not say.
+        var tileModeOn = UnboundedCanvasOn || IsPlaying;
+        var haveViewport = _pendingViewport is { Width: > 0, Height: > 0 };
+        var tileNativeDoc = tileModeOn && scene.Camera is null && haveViewport;
 
         // Where the active layer's contribution begins and ends in the pass
         // list, so the layers that are NOT being drawn on can be folded into
@@ -10567,11 +10613,19 @@ public sealed partial class MainViewModel : ObservableObject
             SKBitmap? bmp = null;
             var liveEffectHere = _liveComposite is not null
                 && _strokeBuilder.IsActive && layer.Id == ActiveLayer.Id;
-            if (unboundedDoc && !liveEffectHere && TileFrameCache.CanTileFrame(frame))
+            // One expression decides and explains (B144). While the tile mode is
+            // on, every frame it looks at is tallied — so a render report can say
+            // *why* a document is paying the old cost instead of leaving "it is
+            // slow" and "it never tiled" indistinguishable.
+            if (tileModeOn)
             {
-                tileFrame = frame;
+                var why = TileFallback.Reason(
+                    frame, scene.Camera is not null, haveViewport, liveEffectHere);
+                _tileFallbacks.Note(why);
+                if (why == TileFallbackReason.None) tileFrame = frame;
             }
-            else
+
+            if (tileFrame is null)
             {
                 bmp = _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex);
             }
@@ -10735,7 +10789,7 @@ public sealed partial class MainViewModel : ObservableObject
         // TODO: Optimize TileStore.FromBitmap or render directly to tiles to make this faster.
         // A camera defers to the camera path: the unbounded compositor maps the
         // viewport itself, and two things that both map the view disagree.
-        var useUnboundedPath = unboundedDoc
+        var useUnboundedPath = tileNativeDoc
             && cameraView is null
             && _pendingViewport is { Width: > 0, Height: > 0 };
 

@@ -134,4 +134,14 @@ public sealed class AudioTrack
         }
         return false;
     }
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public AudioTrack Clone()
+    {
+        var copy = (AudioTrack)MemberwiseClone();
+        // The section list is the one reference type here (Q57): shared, an
+        // edit in one document would move sound in another.
+        copy.Segments = Segments?.ConvertAll(s => s.Clone());
+        return copy;
+    }
 }

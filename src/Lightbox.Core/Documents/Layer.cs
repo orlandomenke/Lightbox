@@ -40,6 +40,14 @@ public enum LayerBlendMode
 public sealed class Cel
 {
     public Frame? Frame { get; set; }
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public Cel Clone()
+    {
+        var copy = (Cel)MemberwiseClone();
+        copy.Frame = Frame?.Clone();
+        return copy;
+    }
 }
 
 /// <summary>
@@ -64,6 +72,9 @@ public sealed class LayerGroup
 
     /// <summary>Docker-only view preference (not undoable).</summary>
     public bool Collapsed { get; set; }
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public LayerGroup Clone() => (LayerGroup)MemberwiseClone();
 }
 
 public sealed class Layer
@@ -140,4 +151,12 @@ public sealed class Layer
 
     /// <summary>One entry per timeline frame; a null Frame is a hold.</summary>
     public List<Cel> Cels { get; set; } = [];
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public Layer Clone()
+    {
+        var copy = (Layer)MemberwiseClone();
+        copy.Cels = Cels.Select(c => c.Clone()).ToList();
+        return copy;
+    }
 }

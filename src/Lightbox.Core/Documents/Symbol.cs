@@ -99,6 +99,15 @@ public sealed class Symbol
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public int FrameCount => Math.Max(1, Frames.Count);
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public Symbol Clone()
+    {
+        var copy = (Symbol)MemberwiseClone();
+        copy.Tags = [.. Tags];
+        copy.Frames = Frames.Select(f => f.Clone()).ToList();
+        return copy;
+    }
 }
 
 /// <summary>
@@ -186,4 +195,7 @@ public sealed class SymbolPlacement
         var i = (celIndex + FrameOffset) % frameCount;
         return i < 0 ? i + frameCount : i;
     }
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public SymbolPlacement Clone() => (SymbolPlacement)MemberwiseClone();
 }

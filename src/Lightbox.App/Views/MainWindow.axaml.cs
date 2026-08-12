@@ -815,7 +815,8 @@ public partial class MainWindow : Window
             _vm.CanvasQuality.ToString(),
             _vm.ReportComposeScale,
             Rendering.CanvasControl.DurableFrameEnabled,
-            totals.Presents > 0);
+            totals.Presents > 0,
+            _vm.ReportTileFallbacks);
     }
 
     /// <summary>

@@ -386,6 +386,7 @@ public sealed class ReferenceStrip
         var copy = (ReferenceStrip)MemberwiseClone();
         copy.Cells = Cells.ConvertAll(c => c.Clone());
         copy.Slots = [.. Slots];
+        copy.SplitPoints = SplitPoints is null ? null : [.. SplitPoints];
         return copy;
     }
 }

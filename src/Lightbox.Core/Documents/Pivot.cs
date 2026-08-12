@@ -13,4 +13,7 @@ public sealed class Pivot
     /// <summary>Feet centre: where a standing character is usually anchored.</summary>
     public static Pivot BottomCentre(int sceneWidth, int sceneHeight) =>
         new() { X = sceneWidth / 2.0, Y = sceneHeight };
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public Pivot Clone() => (Pivot)MemberwiseClone();
 }

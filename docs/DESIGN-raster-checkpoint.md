@@ -12,7 +12,7 @@ and a cache that can be silently wrong is worse than one that is slow.
 | When one is taken | **On save, rendered on a background thread** — the save returns first |
 | What invalidates it | **Any edit it covers drops it**; the next save makes a fresh one |
 | Undo limit | **A memory budget, not a step count** |
-| The clone stall found on the way | **Filed as B142**, fixed separately |
+| The clone stall found on the way | **Filed as B142** — fixed 2026-08-08, 615 ms → 5.8 ms |
 
 ## The problem, measured
 
