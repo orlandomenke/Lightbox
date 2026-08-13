@@ -259,7 +259,7 @@ public partial class MainViewModel
     internal static string? BrushStorePath { get; set; }
 
 
-    private BrushSettings CurrentToolSettings => IsEraser ? _eraserWork : _brushWork;
+    private BrushSettings CurrentToolSettings => IsEraser ? _brushes.Eraser : _brushes.Brush;
 
     /// <summary>
     /// The settings the tool bar is editing. A test seam: the curve properties
@@ -296,23 +296,24 @@ public partial class MainViewModel
 
     partial void OnSelectedBrushPresetChanged(BrushPreset? value)
     {
-        if (value is null || _applyingPreset) return;
-        _applyingPreset = true;
-        IsEraser = value.Tool == ToolKind.Eraser;
-        // Both of these are settings in Configure rather than parts of a
-        // brush, so a preset never overrides them. Sample source was missing
-        // from this list and picking any preset silently reset it to
-        // "this layer" — which made a window that says the choice applies to
-        // the next mark tell the truth only until you changed brush.
-        var antiAlias = AntiAliasing;
-        var sampleSource = SmudgeSampleSource;
-        _brushWork = value.Settings.Clone();
-        _brushWork.AntiAlias = antiAlias;
-        _brushWork.SampleSource = sampleSource;
-        _eraserWork.SampleSource = sampleSource;
-        EnsurePresetTip(value);
-        NotifyBrushProperties();
-        _applyingPreset = false;
+        if (value is null || _brushes.IsApplying) return;
+        _brushes.Applying(() =>
+        {
+            IsEraser = value.Tool == ToolKind.Eraser;
+            // Both of these are settings in Configure rather than parts of a
+            // brush, so a preset never overrides them. Sample source was missing
+            // from this list and picking any preset silently reset it to
+            // "this layer" — which made a window that says the choice applies to
+            // the next mark tell the truth only until you changed brush.
+            var antiAlias = AntiAliasing;
+            var sampleSource = SmudgeSampleSource;
+            _brushes.Brush = value.Settings.Clone();
+            _brushes.Brush.AntiAlias = antiAlias;
+            _brushes.Brush.SampleSource = sampleSource;
+            _brushes.Eraser.SampleSource = sampleSource;
+            EnsurePresetTip(value);
+            NotifyBrushProperties();
+        });
         PersistBrushState();
     }
 
@@ -323,14 +324,14 @@ public partial class MainViewModel
     /// </summary>
     public bool AntiAliasing
     {
-        get => _brushWork.AntiAlias;
+        get => _brushes.Brush.AntiAlias;
         set
         {
-            if (_brushWork.AntiAlias == value) return;
-            _brushWork.AntiAlias = value;
-            _eraserWork.AntiAlias = value;
+            if (_brushes.Brush.AntiAlias == value) return;
+            _brushes.Brush.AntiAlias = value;
+            _brushes.Eraser.AntiAlias = value;
             OnPropertyChanged();
-            if (!_applyingPreset) PersistBrushState();
+            if (!_brushes.IsApplying) PersistBrushState();
         }
     }
 
@@ -348,14 +349,14 @@ public partial class MainViewModel
     /// </remarks>
     public SampleSource SmudgeSampleSource
     {
-        get => _brushWork.SampleSource;
+        get => _brushes.Brush.SampleSource;
         set
         {
-            if (_brushWork.SampleSource == value) return;
-            _brushWork.SampleSource = value;
-            _eraserWork.SampleSource = value;
+            if (_brushes.Brush.SampleSource == value) return;
+            _brushes.Brush.SampleSource = value;
+            _brushes.Eraser.SampleSource = value;
             OnPropertyChanged();
-            if (!_applyingPreset) PersistBrushState();
+            if (!_brushes.IsApplying) PersistBrushState();
         }
     }
 
@@ -389,7 +390,7 @@ public partial class MainViewModel
         // from the preset it came from, so the dot is recomputed here rather
         // than at a handful of places somebody has to remember.
         NotifyPresetProperties();
-        if (!_applyingPreset) PersistBrushState();
+        if (!_brushes.IsApplying) PersistBrushState();
     }
 
     public double BrushSize
@@ -1044,11 +1045,12 @@ public partial class MainViewModel
             Settings = CurrentToolSettings.Clone(),
             Tags = CleanTags(tags),
         };
-        _userPresets.Add(preset);
+        _brushes.UserPresets.Add(preset);
         BrushPresetChoices.Add(preset);
-        _applyingPreset = true;
-        SelectedBrushPreset = preset;
-        _applyingPreset = false;
+        _brushes.Applying(() =>
+        {
+            SelectedBrushPreset = preset;
+        });
         RefreshTagChoices();
         PersistBrushState();
         return preset;

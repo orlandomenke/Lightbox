@@ -91,7 +91,7 @@ internal static class ScenePassBuilder
     /// builder needs to see them.
     /// </summary>
     /// <remarks>
-    /// A view of the view model's own <c>TransformParts</c>, not a copy of the
+    /// A view of the session's own <c>TransformSession.Parts</c>, not a copy of the
     /// bookkeeping: building those caches bitmaps and owns their disposal,
     /// which is state with a lifetime and therefore not something a pure
     /// function should hold. The view model keeps that and passes a resolver.

@@ -439,7 +439,7 @@ public partial class MainViewModel
         var live = new ScenePassBuilder.LiveEdit(
             _live.Composite, _live.Scratch, _live.PostScratch, _live.PostStampedCount,
             _liveShape, _liveGradient, _strokeBuilder.Current,
-            _transformPreview, _transformFrames,
+            _transform.Preview, _transform.Frames,
             // The moving/staying split stays behind a delegate because building
             // it caches bitmaps and owns their disposal — state with a lifetime,
             // which is the one thing the pure builder must not hold. Held in a

@@ -235,7 +235,6 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly StrokeBuilder _strokeBuilder = new();
     private readonly PlaybackClock _clock = new();
     private readonly SelectionManager _selectionManager = new();
-    private readonly Lightbox.Core.Projects.FeatureDefaults _featureDefaults = new();
 
     /// <summary>Measured repaint cost, shown as headroom in the info strip.</summary>
     public PerformanceMonitor Performance { get; } = new();
@@ -538,7 +537,6 @@ public sealed partial class MainViewModel : ObservableObject
     // `python3 scripts/monolith.py hot` names the worst of them.
 
     private bool _switchingTabs;
-    private int _untitledCounter = 1;
 
     private bool _settingColorFromSwatch;
 
@@ -564,16 +562,15 @@ public sealed partial class MainViewModel : ObservableObject
 
     private readonly AutosaveService _autosave;
 
-    private BrushSettings _brushWork = new();
-    private BrushSettings _eraserWork = new() { Size = 14, Hardness = 0.9 };
-    private readonly List<BrushPreset> _userPresets = [];
-    private bool _applyingPreset;
+    /// <summary>
+    /// The two brush configurations being edited, the saved presets, and the guard that
+    /// fences applying a preset from writing back into it.
+    /// </summary>
+    private readonly BrushWorkingSet _brushes = new();
 
     private string? _backgroundSwatchId = DocumentFactory.WhiteSwatchId;
 
     private List<List<StrokePoint>> _selectionContours = [];
-
-    private readonly StrokeStabilizer _stabilizer = new();
 
     /// <summary>
     /// The stabilisation a brush that carries none falls back to. Persisted
@@ -595,8 +592,6 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Where a playback tick's time went, for the render report.</summary>
     private readonly Services.TickProfile _tickProfile = new();
 
-    private bool _snapshotQueued;
-
     /// <summary>
     /// Where the last committed stroke on this layer ended, or null.
     /// </summary>
@@ -617,30 +612,13 @@ public sealed partial class MainViewModel : ObservableObject
 
     private Stroke? _liveShape;
 
-    /// <summary>A coalesced publish is waiting for the canvas to catch up.</summary>
     private int _playDirection = 1;
 
-    private readonly List<Frame> _transformFrames = [];
-    private Func<Stroke, bool>? _transformFilter;
-
     /// <summary>
-    /// The gizmo's current shape, in document space, or null when nothing is
-    /// being previewed.
+    /// The transform being dragged — scope, filter, preview matrix and the cached
+    /// moving/staying split, which have to be raised and dropped together.
     /// </summary>
-    /// <remarks>
-    /// A transform used to show only its outline: the drawing sat still under
-    /// a moving box, and the artist did not see the result until they pressed
-    /// Enter. Judging a rotation from a rectangle is guesswork, and the same
-    /// argument the live-stroke preview settled applies here — what you are
-    /// making has to be visible while you make it.
-    ///
-    /// This is a <b>composite-time</b> matrix and nothing else. The stroke
-    /// record is mapped once, on apply, by <see cref="CommitTransformCore"/>.
-    /// Re-mapping N frames of geometry on every pointer event would be both
-    /// slow and destructive of undo; moving finished pixels for one frame is
-    /// neither.
-    /// </remarks>
-    private SKMatrix? _transformPreview;
+    private readonly TransformSession _transform = new();
 
     /// <summary>
     /// Invalidate only what an undo/redo actually touched: one frame for a
