@@ -484,16 +484,17 @@ whatever "reusable animation presets" meant, it was not that.
   - **Reachable with no project open.** The library is the artist's own, so it is there when they open the app to draw one picture; placing one into a loose document copies it into `Doc.Symbols`, which the registry already reads and which is the same key `ProjectIo.Flatten` writes — the self-containment rule one level down. The *project* tree stays gated, because without a project it has nothing at all to show, and making a project symbol still needs a project to put it in.
   - Adoption is keyed on the **id inside `PlaceSymbol`**, not per route. Doing it per route looked simpler and was wrong: drag-and-drop carries only an id, so a row-based version would have worked for the Place button and left a dragged library symbol failing to resolve — the harder bug to find, because the two routes are indistinguishable from the panel.
 - [x] Timing presets — save an exposure pattern and apply it to a range of cels `evidence: TimingPreset, TimingPresetStore, ApplyTiming, TimingPresetTests, TimingPresetUiTests, ApplyingAPatternReExposesTheDrawingsThatAreThere, ThePatternDecidesTheLength_NotTheSelection, ItNeverCreatesOrDestroysADrawing, ApplyingToASelectedRangeRetimesTheWholeRange, ASavedPatternPersistsAndComesBackOnTheNextLaunch`
-
-- [ ] Bones and spline deformers — a full 2D rig that re-draws marks instead of warping them `evidence: Armature, Bone, PoseTrack, StrokeWeights, ArmatureTests, SkinningTests, PosingTheRigMovesTheStrokePointsNotTheRecord, ADabsDynamicsSeedFromItsBindPoseSoAPoseCannotBoil, AFixedIterationIkSolveIsBitIdenticalOnReload, BakingAPoseWritesOrdinaryStrokes`
-  - **Designed 2026-08-13, not scheduled: `docs/DESIGN-bones.md`.** The feature bar (hierarchy, FK, IK, constraints, spline chains, skinning, angle-driven correctives, secondary motion, export), the record shapes, six shippable phases, and the licensing wall — algorithms from papers, never Spine's or Live2D's code or formats.
-  - **The core is Lightbox-native and no big package can copy it:** bones deform *stroke control points* and `BrushEngine` re-stamps the mark — a bent arm is re-drawn, not rubber-sheeted. The one trap is invariant 7's shape, and its rule is in the doc: dynamics seed from bind-pose coordinates, the transform moves only placement, so a rigged character cannot boil.
-  - **Owner's decisions, taken with the design:** live posing and bake are both first-class (re-baking per tweak would concede the iteration speed puppet tools win on); rig export is own JSON + Godot + DragonBones converters, chosen over the cheaper own+Godot knowing it is more surface.
-  - Phase 1 (armature, FK posing, no deformation — M) already earns its keep: anchors ride bones, and the armature gives the inbetweener the intent it lacks. Total XL.
   - **Q11 answered (b).** *Reusable animation presets* is struck: the Animation library already is the reusable animation — a multi-frame symbol placed with a frame offset — and a roadmap item nothing can distinguish from a shipped one is the wish list the checkbox rules exist to prevent. What is genuinely absent is **timing**, which is the half a symbol cannot carry: a symbol carries drawings, this carries their spacing.
   - On 1s, on 2s, a slow-in of 1-1-2-3-4. Applied to a selected range, it **re-exposes the drawings that are already there** rather than making any — which is why it is nothing a symbol can express, and why it composes with everything else instead of competing.
   - **Landed whole.** `ExposureSheet.ApplyTiming` re-times a range, `TimingPreset.BuiltIns` carries the six patterns worth having on day one, `TimingPresetStore` keeps an artist's own beside their brushes, and the picker plus **Re-time** sit on the timeline bar with a cel-menu item beside them. One undo step.
   - **One correction made when the UI went on.** The engine first held the *selection's* length and dropped whatever no longer fit, which would have meant "on 2s" silently discarding half an artist's drawings. **The pattern decides the length**: twelve drawings on 2s occupy twenty-four cels and the row grows. Thinning a range on purpose is `ReduceToStep`, which is a separate command precisely because it is destructive. `ThePatternDecidesTheLength_NotTheSelection` holds the line.
+
+- [~] Bones and spline deformers — a full 2D rig that re-draws marks instead of warping them `evidence: Armature, Bone, PoseTrack, StrokeWeights, ArmatureTests, SkinningTests, PosingTheRigMovesTheStrokePointsNotTheRecord, ADabsDynamicsSeedFromItsBindPoseSoAPoseCannotBoil, AFixedIterationIkSolveIsBitIdenticalOnReload, BakingAPoseWritesOrdinaryStrokes`
+  - **Designed 2026-08-13, not scheduled: `docs/DESIGN-bones.md`.** The feature bar (hierarchy, FK, IK, constraints, spline chains, skinning, angle-driven correctives, secondary motion, export), the record shapes, six shippable phases, and the licensing wall — algorithms from papers, never Spine's or Live2D's code or formats.
+  - **The core is Lightbox-native and no big package can copy it:** bones deform *stroke control points* and `BrushEngine` re-stamps the mark — a bent arm is re-drawn, not rubber-sheeted. The one trap is invariant 7's shape, and its rule is in the doc: dynamics seed from bind-pose coordinates, the transform moves only placement, so a rigged character cannot boil.
+  - **Owner's decisions, taken with the design:** live posing and bake are both first-class (re-baking per tweak would concede the iteration speed puppet tools win on); rig export is own JSON + Godot + DragonBones converters, chosen over the cheaper own+Godot knowing it is more surface.
+  - Phase 1 (armature, FK posing, no deformation — M) already earns its keep: anchors ride bones, and the armature gives the inbetweener the intent it lacks. Total XL.
+  - **Phase 1's record layer landed 2026-08-13:** `Doc.Armature` and `Scene.PoseTrack` (optional-absent, the camera's rule — `AnUnriggedDocumentWritesNoRigKeys` is the guard), the FK solve and sparse-key pose interpolation in `ArmatureOps` (`TheSolveIsBitIdenticalAcrossAReload` pins determinism), and image resize scaling the rig with everything else. Still to come in phase 1: the bone tool, posing UI, armature onion-skin, anchors riding bones, inbetweener conditioning (G12 applies to that last one).
 - [x] Animation templates — a document in the project marked as a template `evidence: IsTemplate, TemplateId, Templates, NewFromTemplate, TemplateTests, TemplateUiTests, ANewDocumentFromATemplateIsACopyNotALink, EditingATemplateLeavesEarlierCopiesAlone, AnOrdinaryDocumentCarriesNoTemplateKeys, ALayerTheArtistHasDrawnOnIsSkippedUnlessTicked, APullNeverTouchesTheExposureSheet`
   - **Q12 answered (a), with the design written out in `docs/DESIGN-templates.md`.** A template is an ordinary animation with a flag, not a new kind of file — so an artist can make one out of work they have already done, which is where real templates come from, and editing one is just drawing.
   - **The rule that makes it safe: a template is copied, never referenced.** That is the whole difference from a symbol, which *is* a live link. If templates were references, editing one would silently rewrite every animation ever started from it — the opposite of what a starting point means.
@@ -516,6 +517,39 @@ every other AI feature and are only legible together.
 - [?] Batch transform across frames
 - [x] Frame hold tools `evidence: ExposureSheet, ExposureEditingTests, RetimingTests, ExposureStep`
 - [?] Animation-aware brushes
+  - **Scoped (Q80): a brush whose mark still makes sense when there are two
+    hundred of them, played at 12 fps, some drawn by the inbetweener.** Not a
+    brush category — every brush passes through this, with project type
+    setting defaults, never availability. The floor is already built: `Hash01`
+    seeding is what stops similar strokes on neighbouring frames shimmering,
+    and it is the `[x]` deterministic-marks item above. This item is the four
+    deltas on top of that floor, each per stroke (invariant 4) and arithmetic
+    (no model — the AI reading of a neighbouring drawing is inking, under AI
+    assistance):
+  - **Grain anchoring as a per-stroke choice.** Canvas-locked paper texture is
+    right for a painting and wrong for a sequence, where a moving drawing
+    swims through fixed grain like a screen door; mark-locked grain travels
+    with the drawing. The brush carries the anchoring, the project type
+    defaults it — canvas for illustration, mark for a cycle.
+  - **Inbetweenable dynamics.** The inbetweener interpolates geometry today;
+    the brush is animation-aware when pressure profile, taper and flow along
+    the stroke interpolate too, so a generated inbetween reads as the same
+    tool making the middle drawing rather than an interpolated skeleton with
+    re-rolled character.
+  - **Authored boil, held holds (Q80: in scope, opt-in).** Geometry seeding
+    makes a hold dead-still for free, which is the right default — and removes
+    the choice. Deliberate line boil is an off-by-default per-stroke effect
+    with an authored per-frame phase stored in the record: deterministic
+    (invariant 2 holds), absent from the file unless used, so a hold can
+    breathe on 2s because the artist asked. First effect whose seed varies by
+    frame — the cost accepted in Q80 is that the seeding story grows a frame
+    dimension and needs its own re-render and hold tests.
+  - **Frame-context response, arithmetically.** Dynamics that read the
+    previous frame's stroke record as geometry — a cleanup brush weighting
+    toward the prior drawing's nearby line, or a mark that dries out as its
+    stroke moves further from its predecessor.
+  - Sequence-scale cost is the review stance over all four: `BrushCostOf`
+    badges are read against replay across a whole sequence, not one image.
 - [?] Draw once, reuse across animations
 - [?] Motion path visualization
 - [?] Motion arcs
