@@ -272,6 +272,13 @@ folder and unblocks anything dropped in.
 If it blocks with an *administrator* message instead, that's AppLocker/WDAC app
 control — build from source instead; locally built binaries carry no download
 tag.
+
+`get-build.ps1` also repoints a `Lightbox` junction at the build it just
+extracted, so every build keeps its own `Lightbox-win-x64-<kind>-<branch>-<sha>`
+folder — tellable apart when something regresses — while one fixed path always
+means the newest. That is the path to hand to anything that has to survive an
+upgrade, the Claude Desktop config below being the case it was added for. Pass
+`-LinkName ''` to skip it.
 </details>
 
 <details>
@@ -310,6 +317,13 @@ Desktop at it:
   }
 }
 ```
+
+If you unpack with `scripts/get-build.ps1`, point `command` at the fixed
+`Lightbox` junction it maintains rather than at the folder the build landed in —
+`…\Builds\Lightbox\mcp\Lightbox.Mcp.exe`. A path with a commit in it is stale by
+the next build, and this is the config where that is *silent*: Claude Desktop
+reports nothing, the server simply never starts and the tools are absent. The
+script prints the exact line to paste when it finishes.
 
 Start Lightbox first (it opens a local per-user pipe — nothing on the network),
 fully quit and reopen Claude Desktop, then ask it to work: `get_scene`,
