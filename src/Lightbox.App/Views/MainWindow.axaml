@@ -3197,7 +3197,7 @@
                          Background="Transparent" BorderThickness="0" Margin="2">
                   <ListBox.ItemTemplate>
                     <DataTemplate DataType="vm:UndoHistoryRow">
-                      <DockPanel Opacity="{Binding Opacity}" MinHeight="20"
+                      <DockPanel Opacity="{Binding Opacity}" MinHeight="22"
                                  Background="Transparent"
                                  DoubleTapped="OnHistoryRowJump">
                         <TextBlock DockPanel.Dock="Right" FontSize="10" Opacity="0.5"
