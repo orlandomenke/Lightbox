@@ -232,6 +232,9 @@ public sealed class ShortcutMap
 
             new("docker.deleteLayer", "Delete layer", "Dockers", G(Key.Delete), ShortcutContext.Panel, DockPanelId.Layers),
             new("docker.clearLayer", "Blank layer content", "Dockers", G(Key.Back), ShortcutContext.Panel, DockPanelId.Layers),
+            // Photoshop's and Krita's key, and global like theirs: merging is
+            // asked for from the canvas at least as often as from the docker.
+            new("docker.mergeDown", "Merge layer down", "Dockers", G(Key.E, KeyModifiers.Control)),
 
             // Context twins: the same key does area-appropriate things.
             // General, not canvas-scoped. Scoped, it did nothing over any docker —

@@ -302,6 +302,12 @@ public partial class MainWindow : Window
         Canvas.AddHandler(DragDrop.DropEvent, OnCanvasColorDrop);
         Canvas.AddHandler(DragDrop.DragOverEvent, OnCanvasSymbolDragOver);
         Canvas.AddHandler(DragDrop.DropEvent, OnCanvasSymbolDrop);
+        // Files from outside land anywhere on the window and become
+        // references. Registered on the window so no panel has to opt in, and
+        // checked by format so the in-process drags above are untouched.
+        DragDrop.SetAllowDrop(this, true);
+        AddHandler(DragDrop.DragOverEvent, OnFileDragOver);
+        AddHandler(DragDrop.DropEvent, OnFileDrop);
 
         // Two things move a panel in or out of a strip without the layout
         // changing: a project appearing (the project panel is absent until
@@ -1624,6 +1630,33 @@ public partial class MainWindow : Window
         if (LayerRowOf(sender) is { } row) _vm.DeleteLayer(row.Layer);
     }
 
+    private void OnLayerMenuMergeDown(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) RequestMergeDown(row.Layer);
+    }
+
+    /// <summary>
+    /// Merge a layer into the one below, asking first when the merge would
+    /// turn drawings into pixels — the Q52 warning, shown only when AI is
+    /// enabled because "the inbetweener cannot read pixels" is noise without
+    /// one. A merge that keeps every stroke record just happens.
+    /// </summary>
+    private async void RequestMergeDown(Lightbox.Core.Documents.Layer? layer)
+    {
+        if (_vm.AiEnabled && _vm.MergeWouldBake(layer))
+        {
+            var below = _vm.MergeTargetOf(layer);
+            var go = await AskImportChoice(
+                "Merge layer down?",
+                $"Blend modes, opacity or erasers here mean the merged drawings become pixels. "
+                + $"The AI inbetweener reads strokes and cannot read pixels, so it will skip "
+                + $"what lands on “{below?.Name}”.",
+                ("Merge", "The drawings that need it are flattened to pixels; the rest keep their strokes.", true));
+            if (go != true) return;
+        }
+        _vm.MergeLayerDown(layer);
+    }
+
     // Three states rather than a checkbox, because "leave it to the export" and
     // "keep this in whatever the export decides" are genuinely different answers and
     // a two-state control cannot say both.
@@ -2472,11 +2505,27 @@ public partial class MainWindow : Window
             ],
         });
         if (files.Count == 0 || files[0].TryGetLocalPath() is not { } path) return;
+        await ImportReferenceFile(path);
+    }
 
+    /// <summary>Extensions <see cref="ImportReferenceFile"/> accepts as still images.</summary>
+    private static readonly string[] ReferenceImageExtensions =
+        [".png", ".jpg", ".jpeg", ".webp", ".bmp"];
+
+    /// <summary>Extensions <see cref="ImportReferenceFile"/> accepts as footage.</summary>
+    private static readonly string[] ReferenceVideoExtensions =
+        [".mp4", ".mov", ".avi", ".mkv", ".webm"];
+
+    /// <summary>
+    /// Import a file as reference — one path for the picker and for a file
+    /// dropped onto the window, so the two can never drift apart.
+    /// </summary>
+    private async Task ImportReferenceFile(string path)
+    {
         // Footage goes its own way (Q56/Q57): frames extracted at the
         // scene's fps, and the artist chooses what the document keeps.
         var ext = Path.GetExtension(path).ToLowerInvariant();
-        if (ext is ".mp4" or ".mov" or ".avi" or ".mkv" or ".webm")
+        if (ReferenceVideoExtensions.Contains(ext))
         {
             var clipMb = new FileInfo(path).Length / (1024.0 * 1024.0);
             var storage = await AskImportChoice(
@@ -2500,24 +2549,52 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Everything becomes PNG on the way in. The document carries the image
-        // itself rather than a path — a reference that broke when the file
-        // moved would break silently, and you would not notice until you were
-        // drawing against nothing.
-        string png;
-        try
-        {
-            using var decoded = SkiaSharp.SKBitmap.Decode(path);
-            if (decoded is null) return;
-            png = Lightbox.Raster.PngCodec.Encode(decoded);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return;
-        }
+        if (_vm.ImportReferenceImageFile(path)) _vm.ReferenceDockerVisible = true;
+    }
 
-        _vm.ImportReference(Path.GetFileNameWithoutExtension(path), png);
-        _vm.ReferenceDockerVisible = true;
+    /// <summary>
+    /// Does a drag carry files this window would import as reference? The
+    /// in-process drags (cels, colours, symbols) carry no file format, so
+    /// they never reach the answer.
+    /// </summary>
+    private static List<string> DroppedReferenceFiles(DragEventArgs e)
+    {
+        var paths = new List<string>();
+        if (e.DataTransfer?.TryGetFiles() is not { } items) return paths;
+        foreach (var item in items)
+        {
+            if (item.TryGetLocalPath() is not { } path) continue;
+            var ext = Path.GetExtension(path).ToLowerInvariant();
+            if (ReferenceImageExtensions.Contains(ext) || ReferenceVideoExtensions.Contains(ext))
+            {
+                paths.Add(path);
+            }
+        }
+        return paths;
+    }
+
+    private void OnFileDragOver(object? sender, DragEventArgs e)
+    {
+        if (DroppedReferenceFiles(e).Count == 0) return;
+        e.DragEffects = DragDropEffects.Copy;
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Any image dropped anywhere on the window becomes a reference — the
+    /// shortest path from "found the perfect pose on disk" to drawing against
+    /// it, with no menu in between. Footage goes through the same import as
+    /// the picker, question dialog included.
+    /// </summary>
+    private async void OnFileDrop(object? sender, DragEventArgs e)
+    {
+        var files = DroppedReferenceFiles(e);
+        if (files.Count == 0) return;
+        e.Handled = true;
+        foreach (var path in files)
+        {
+            await ImportReferenceFile(path);
+        }
     }
 
     private async void OnImportPaletteClicked(object? sender, RoutedEventArgs e)
@@ -3486,6 +3563,9 @@ public partial class MainWindow : Window
                 break;
             case "docker.clearLayer":
                 _vm.ClearActiveLayerCommand.Execute(null);
+                break;
+            case "docker.mergeDown":
+                RequestMergeDown(null); // null = the active layer
                 break;
             // Flipping: hop between key drawings without leaving the pen.
             case "timeline.prevKey":

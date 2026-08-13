@@ -2984,6 +2984,8 @@
                             <Separator />
                             <MenuItem Header="Move up" Click="OnLayerMenuMoveUp" />
                             <MenuItem Header="Move down" Click="OnLayerMenuMoveDown" />
+                            <MenuItem Header="Merge down" Click="OnLayerMenuMergeDown"
+                                      ToolTip.Tip="Merge this layer into the one below it (Ctrl+E). Drawings keep their strokes wherever the merge can be exact; blends, opacity and erasers are flattened to pixels." />
                             <Separator />
                             <MenuItem Header="New folder from layer" Click="OnLayerMenuNewFolder" />
                             <MenuItem Header="Remove from folder" IsVisible="{Binding IsGrouped}"

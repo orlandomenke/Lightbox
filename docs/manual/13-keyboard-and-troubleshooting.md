@@ -33,6 +33,7 @@ warns about.
 | I | Eyedropper — anywhere except the timeline, where it inserts a key |
 | Ctrl+Z / Ctrl+Y | Undo, redo |
 | Ctrl+T | Transform |
+| Ctrl+E | Merge the active layer into the one below |
 | Ctrl+A / Ctrl+D / Ctrl+Shift+I | Select all, deselect, invert |
 | Delete / Backspace | Clear the selection's contents / fill it with the background |
 | Space | Play / pause |
