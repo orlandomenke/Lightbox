@@ -379,6 +379,30 @@
           <MenuItem Header="Add vanishing point" Click="OnAddVanishingPoint"
                     ToolTip.Tip="One is one-point perspective, two is two-point, three is three" />
           <Separator />
+          <!--
+            Guide sets: the guides you placed, named and kept in the project so
+            the next drawing can pull them in. The library and the sharing live
+            with the project (project window); these two are the document ends
+            of the chain — save what is on the canvas, pull a set onto it.
+          -->
+          <MenuItem Header="Add from set"
+                    ItemsSource="{Binding PullGuideSetMenu}"
+                    IsVisible="{Binding HasGuideSetOffers}">
+            <MenuItem.ItemTemplate>
+              <DataTemplate x:DataType="vm:ScopeMenuEntry">
+                <TextBlock Text="{Binding Label}" />
+              </DataTemplate>
+            </MenuItem.ItemTemplate>
+            <MenuItem.Styles>
+              <Style Selector="MenuItem > MenuItem" x:DataType="vm:ScopeMenuEntry">
+                <Setter Property="Command" Value="{Binding Command}" />
+                <Setter Property="CommandParameter" Value="{Binding Parameter}" />
+              </Style>
+            </MenuItem.Styles>
+          </MenuItem>
+          <MenuItem Header="Guide sets…" Click="OnGuideSets"
+                    ToolTip.Tip="Name this document's guides as a set the project keeps, or manage the sets it has. Needs a project." />
+          <Separator />
           <MenuItem Header="Snap to guides" ToggleType="CheckBox"
                     IsChecked="{Binding SnapToGuides, Mode=TwoWay}" />
           <MenuItem Header="Clear all guides" Command="{Binding ClearGuidesCommand}" />

@@ -5395,6 +5395,21 @@ public partial class MainWindow : Window
     /// </remarks>
     private (double X, double Y) CanvasMiddle() => (_vm.Doc.Scene.Width / 2.0, _vm.Doc.Scene.Height / 2.0);
 
+    /// <summary>
+    /// Open the guide-set editor. It needs a project to keep the sets in, and
+    /// says so rather than opening onto controls that cannot work.
+    /// </summary>
+    private void OnGuideSets(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.ProjectDocker.Project is null)
+        {
+            _vm.AiStatus = "Guide sets live in a project — open or create one first.";
+            return;
+        }
+        _vm.NotifyGuideSetOffers();
+        new GuideSetEditor(_vm).ShowDialog(this);
+    }
+
     private void OnAddHorizontalGuide(object? sender, RoutedEventArgs e)
     {
         var (x, y) = CanvasMiddle();

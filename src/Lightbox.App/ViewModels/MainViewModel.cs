@@ -11451,6 +11451,139 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The guides changed; the canvas redraws its chrome from this.</summary>
     public event Action? GuidesChanged;
 
+    // ---- guide sets: the authoring half Q30 step 4 shipped without ---------
+    //
+    // The resolver (GuideScopes), the manifest record (GuideSet) and the
+    // sharing menu in the project window all existed, and nothing could create
+    // a set — the owner's report that filed the roadmap item was "guides we
+    // are not even able to create or assign". These are the missing verbs:
+    // save the document's guides as a named set, offer the visible sets back,
+    // and pull one into a document.
+
+    /// <summary>
+    /// The guide sets this document may pull from: what its scope declares, or
+    /// every set in the project while nothing is scoped — Q30's
+    /// new-projects-only migration, same as palettes and gradients.
+    /// </summary>
+    public IReadOnlyList<GuideSet> OfferedGuideSets => GuideSetsVisibleTo(ActiveTab?.Source);
+
+    /// <summary>The same, for a named document — the testable seam.</summary>
+    internal IReadOnlyList<GuideSet> GuideSetsVisibleTo(DocumentRef? document)
+    {
+        if (ProjectDocker.Project is not { } project) return [];
+        if (project.Manifest.GuideSets is not { Count: > 0 } sets) return [];
+        var visible = GuideScopes.VisibleTo(project.Manifest, document);
+        return visible is null ? sets : [.. sets.Where(s => visible.Contains(s.Id))];
+    }
+
+    /// <summary>A set needs guides to hold and a project to live in.</summary>
+    public bool CanSaveGuideSet => HasGuides && ProjectDocker.Project is not null;
+
+    /// <summary>
+    /// Every set in the project, for the editor — scoping filters the offers a
+    /// document sees, never the library itself.
+    /// </summary>
+    public IReadOnlyList<GuideSet> ProjectGuideSets =>
+        ProjectDocker.Project?.Manifest.GuideSets ?? (IReadOnlyList<GuideSet>)[];
+
+    /// <summary>The menus re-read the offers; call after anything that changes them.</summary>
+    public void NotifyGuideSetOffers()
+    {
+        OnPropertyChanged(nameof(OfferedGuideSets));
+        OnPropertyChanged(nameof(PullGuideSetMenu));
+        OnPropertyChanged(nameof(HasGuideSetOffers));
+        OnPropertyChanged(nameof(CanSaveGuideSet));
+    }
+
+    /// <summary>The offers as menu entries — the project window's idiom.</summary>
+    public IReadOnlyList<ScopeMenuEntry> PullGuideSetMenu =>
+        [.. OfferedGuideSets.Select(s => new ScopeMenuEntry(s.Name, PullGuideSetCommand, s))];
+
+    /// <summary>So the menu can hide an entry that would open onto nothing.</summary>
+    public bool HasGuideSetOffers => OfferedGuideSets.Count > 0;
+
+    /// <summary>
+    /// Save this document's guides as a named set in the project — into a new
+    /// set, or over <paramref name="overwriteId"/>'s.
+    /// </summary>
+    /// <remarks>
+    /// Copies, both ways (see <see cref="GuideSet"/>'s remarks): the set is a
+    /// library, so moving a guide in the document afterwards must not silently
+    /// edit the library, and vice versa.
+    /// </remarks>
+    public GuideSet? SaveGuidesAsSet(string name, string? overwriteId = null)
+    {
+        if (ProjectDocker.Project is not { } project) return null;
+        if (Scene.Guides is not { Count: > 0 } guides) return null;
+
+        var sets = project.Manifest.GuideSets ??= [];
+        var set = overwriteId is null ? null : sets.FirstOrDefault(s => s.Id == overwriteId);
+        if (set is null)
+        {
+            set = new GuideSet();
+            sets.Add(set);
+        }
+        if (name.Trim() is { Length: > 0 } trimmed) set.Name = trimmed;
+        set.Guides = [.. guides.Select(g => g.Clone())];
+        SaveProject();
+        NotifyGuideSetOffers();
+        AiStatus = $"Guides saved as “{set.Name}”. Share it onto a folder from the project window.";
+        return set;
+    }
+
+    public void RenameGuideSet(GuideSet set, string name)
+    {
+        if (ProjectDocker.Project is null || name.Trim() is not { Length: > 0 } trimmed) return;
+        set.Name = trimmed;
+        SaveProject();
+        NotifyGuideSetOffers();
+    }
+
+    /// <summary>
+    /// Remove a set from the project, and every declaration that shared it —
+    /// a declaration pointing at nothing would scope the kind and offer air.
+    /// </summary>
+    public void DeleteGuideSet(GuideSet set)
+    {
+        if (ProjectDocker.Project is not { } project) return;
+        project.Manifest.GuideSets?.RemoveAll(s => s.Id == set.Id);
+        // Absent, not empty: a project whose last set goes writes no key again.
+        if (project.Manifest.GuideSets is { Count: 0 }) project.Manifest.GuideSets = null;
+        ResourceScopes.Retract(project.Manifest, GuideScopes.Kind, set.Id);
+        SaveProject();
+        NotifyGuideSetOffers();
+        AiStatus = $"Guide set “{set.Name}” deleted.";
+    }
+
+    /// <summary>
+    /// Copy a set's guides into this document, as one undoable step.
+    /// </summary>
+    /// <remarks>
+    /// Fresh ids on the copies: pulling the same set twice is two independent
+    /// batches, and removing one guide by id must not take its twin with it.
+    /// </remarks>
+    [RelayCommand]
+    private void PullGuideSet(GuideSet? set)
+    {
+        if (set is null || set.Guides.Count == 0) return;
+        var copies = set.Guides.Select(g =>
+        {
+            var copy = g.Clone();
+            copy.Id = Ids.NewId("gd");
+            return copy;
+        }).ToList();
+        var ids = copies.Select(c => c.Id).ToHashSet();
+        _editor.PerformDelta(
+            apply: doc => (doc.Scene.Guides ??= []).AddRange(copies),
+            revert: doc =>
+            {
+                doc.Scene.Guides?.RemoveAll(g => ids.Contains(g.Id));
+                if (doc.Scene.Guides is { Count: 0 }) doc.Scene.Guides = null;
+            });
+        NotifyGuides();
+        AiStatus = $"Added {copies.Count} guide{(copies.Count == 1 ? "" : "s")} from “{set.Name}”.";
+    }
+
     /// <summary>The references on this document, or an empty list.</summary>
     public IReadOnlyList<ReferenceStrip> References =>
         Scene.References is { } strips ? strips : [];

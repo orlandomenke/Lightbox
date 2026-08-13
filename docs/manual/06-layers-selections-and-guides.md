@@ -169,6 +169,32 @@ the whole selection together, as one undo step. The lock still holds — locked
 guides stay put whether they were selected or not, which is the point of
 locking them.
 
+#### Guide sets — the same rig on every drawing that needs it
+
+A character's height lines, a street's perspective rig, an isometric grid the
+whole level shares: guides you will want again on the next drawing. A **guide
+set** is a named copy of a document's guides, kept in the **project** — which
+is why this needs one; a loose document has nowhere to keep it.
+
+**View → Guides → Guide sets…** is where sets are made and managed. Place your
+guides on the canvas first — the canvas is the guide editor, and a set is work
+you already did, the way a template is — then name them and save. The same
+window renames a set, refreshes it from the open document, or deletes it
+(deleting also takes back anywhere it was shared).
+
+**View → Guides → Add from set** pulls a set into the open drawing. The guides
+arrive as ordinary document guides — one undo step, and yours from then on:
+dragging one afterwards changes this drawing only, never the set, and never
+another drawing that pulled from it. Refresh the set deliberately from the
+editor when the rig itself should change.
+
+**Sharing decides what "Add from set" offers.** Out of the box every set in
+the project is offered to every document. In the project window, right-click a
+folder to **share** a set onto it — from the first share onwards the project is
+scoped, and a document is offered what its own folder (or the folders above
+it) declares: the knight's height guide stops appearing in the goblin's menu.
+This is the same scoping palettes, gradients and brush tips use.
+
 #### Grid settings
 
 **Edit → Configure → Guides and grid** holds the cell size a new grid is made
