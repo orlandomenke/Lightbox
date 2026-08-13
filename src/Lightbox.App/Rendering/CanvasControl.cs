@@ -2024,6 +2024,7 @@ public sealed class CanvasControl : Control
         // never wake to paint it — the stroke only appeared on the NEXT event.
         // An animation-frame request forces a compositor frame regardless.
         _presentWait.Published(snapshot.Seq);
+        StrokeToScreen.Shared.Published(snapshot.Seq);
 
         if (_keepPresenting) PumpPresentLoop();
         else RequestOneFrame();
@@ -4032,6 +4033,7 @@ public sealed class CanvasControl : Control
         // dropping it here would flatter the average by counting only the
         // frames that behaved.
         _presentWait.Rendered(seq);
+        StrokeToScreen.Shared.Rendered(seq);
 
         long current;
         do
