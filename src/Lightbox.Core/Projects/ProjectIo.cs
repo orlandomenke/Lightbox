@@ -393,6 +393,11 @@ public static class ProjectIo
             }
         }
 
+        // B188: the disk mirrors the tree. Files first — any filed document or
+        // sheet recorded outside its folder's directory is brought home, before
+        // the manifest below writes the corrected paths.
+        ReconcileFiledPaths(project);
+
         // Resources first: writing them is what fills in Manifest.Palettes, so
         // the manifest has to be written after, not twice.
         SaveResources(project);
@@ -462,6 +467,11 @@ public static class ProjectIo
         {
             DocJson.Save(project.Loaded[reference.Id], project.PathOf(reference));
         }
+
+        // B188 again, the other half: with every file home, directories no
+        // layout explains — and nothing lives in — go. After the writes, so a
+        // directory about to receive its first document is not judged empty.
+        RemoveEmptiedDirectories(project);
     }
 
     /// <summary>
@@ -982,6 +992,77 @@ public static class ProjectIo
         return ProjectFolders.FileDocument(project.Manifest, document, destination);
     }
 
+    /// <summary>
+    /// Move a folder under a new parent — or to the root — carrying its
+    /// directory and everything inside it. False when it cannot go, in which
+    /// case nothing changed anywhere.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B188.</b> <see cref="ProjectFolders.Move"/> alone is the manifest
+    /// half, and for a long time it was the whole implementation of the drag:
+    /// the panel showed the new tree while every file and directory stayed
+    /// where the <em>old</em> tree put it, and the next save materialised the
+    /// new directory beside the fossil of the old one. A project rearranged a
+    /// few times became an archaeology dig — each layout it had ever had,
+    /// still on disk.
+    /// </para>
+    /// <para>
+    /// Disk first, manifest reverted if the disk refuses — the same contract
+    /// as <see cref="RenameFolder"/>. The recorded paths of everything below
+    /// are rewritten by prefix, not re-derived: <see cref="Directory.Move"/>
+    /// carried the files under their existing names, and re-deriving from
+    /// display names would part company with any deduped or legacy leaf.
+    /// </para>
+    /// </remarks>
+    public static bool MoveFolder(Project project, ProjectFolder folder, ProjectFolder? destination)
+    {
+        var manifest = project.Manifest;
+        var parentWas = folder.ParentId;
+        var was = ProjectFolders.PathOf(manifest, folder);
+        if (!ProjectFolders.Move(manifest, folder, destination)) return false;
+
+        var now = ProjectFolders.PathOf(manifest, folder);
+        if (!MoveInProject(project, was, now))
+        {
+            folder.ParentId = parentWas;
+            return false;
+        }
+        RepathUnder(manifest, was, now);
+        return true;
+    }
+
+    /// <summary>
+    /// Rewrite every recorded path under a directory that moved from
+    /// <paramref name="was"/> to <paramref name="now"/> — documents and
+    /// sheets both.
+    /// </summary>
+    /// <remarks>
+    /// By prefix, deliberately: the files themselves moved with the directory,
+    /// names untouched, so the only honest rewrite is the same substitution.
+    /// Re-deriving with <c>PathFor</c> here once desynced a legacy-shaped
+    /// document and silently skipped sheets — the recorded path then pointed
+    /// at a file that did not exist, which reads as lost work.
+    /// </remarks>
+    private static void RepathUnder(ProjectManifest manifest, string was, string now)
+    {
+        var prefix = $"{was}/";
+        foreach (var document in manifest.Documents)
+        {
+            if (document.Path.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                document.Path = $"{now}/{document.Path[prefix.Length..]}";
+            }
+        }
+        foreach (var sheet in manifest.Sheets ?? [])
+        {
+            if (sheet.Path.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                sheet.Path = $"{now}/{sheet.Path[prefix.Length..]}";
+            }
+        }
+    }
+
     /// <summary>What a rename did, so a surface can say which refusal it was.</summary>
     public enum RenameOutcome { Renamed, NameTaken, DiskRefused }
 
@@ -1005,10 +1086,9 @@ public static class ProjectIo
             return RenameOutcome.DiskRefused;
         }
 
-        foreach (var (inside, owner) in DocumentsUnder(project.Manifest, folder))
-        {
-            inside.Path = ProjectFolders.PathFor(project.Manifest, inside, owner);
-        }
+        // By prefix, like MoveFolder, and for its reason: the files kept their
+        // leaf names when the directory moved, so the paths must too.
+        RepathUnder(project.Manifest, was, now);
         return RenameOutcome.Renamed;
     }
 
@@ -1054,16 +1134,106 @@ public static class ProjectIo
         return $"{directory}{Slug(name)}.lightbox.json";
     }
 
-    private static IEnumerable<(DocumentRef Document, ProjectFolder Folder)> DocumentsUnder(
-        ProjectManifest manifest, ProjectFolder folder)
+    // ---- keeping the disk and the tree the same thing (B188) --------------------
+
+    /// <summary>
+    /// Move every filed document and sheet whose recorded path is not inside
+    /// its folder's directory — the self-healing half of B188.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// For a project rearranged before moves carried the disk, the recorded
+    /// paths are scattered over every layout the tree has ever had. They are
+    /// all still <em>readable</em> — the manifest records where each file is —
+    /// but the folder on disk stops meaning anything. This pass runs on every
+    /// save, so opening such a project and saving it once puts every file
+    /// where its folder says.
+    /// </para>
+    /// <para>
+    /// The leaf name travels unchanged, for RepathUnder's reason. Unfiled
+    /// documents are left alone entirely: B105 promises legacy shapes
+    /// (<c>animations/…</c>) keep working untouched, and this pass touching
+    /// them would be a forced migration nobody asked for. A move the disk
+    /// refuses — the target exists, a file is open elsewhere — is skipped,
+    /// not failed: the recorded path is still true, and the next save tries
+    /// again.
+    /// </para>
+    /// </remarks>
+    private static void ReconcileFiledPaths(Project project)
     {
-        var (folders, documents) = ProjectFolders.Contents(manifest, folder);
-        var byId = folders.ToDictionary(f => f.Id);
-        foreach (var document in documents)
+        foreach (var document in project.Manifest.Documents)
         {
-            if (document.FolderId is { } id && byId.TryGetValue(id, out var owner))
+            if (ProjectFolders.ById(project.Manifest, document.FolderId) is not { } folder) continue;
+            var home = ProjectFolders.PathOf(project.Manifest, folder);
+            if (Reconciled(project, document.Path, home) is { } moved) document.Path = moved;
+        }
+        foreach (var sheet in project.Manifest.Sheets ?? [])
+        {
+            if (ProjectFolders.ById(project.Manifest, sheet.FolderId) is not { } folder) continue;
+            var home = ProjectFolders.PathOf(project.Manifest, folder);
+            if (Reconciled(project, sheet.Path, home) is { } moved) sheet.Path = moved;
+        }
+    }
+
+    /// <summary>The path after moving a stray file home, or null for no change.</summary>
+    private static string? Reconciled(Project project, string recorded, string home)
+    {
+        if (recorded.Length == 0) return null;
+        var cut = recorded.LastIndexOf('/');
+        var directory = cut < 0 ? "" : recorded[..cut];
+        if (directory == home) return null;
+        var to = $"{home}/{recorded[(cut + 1)..]}";
+        return MoveInProject(project, recorded, to) ? to : null;
+    }
+
+    /// <summary>
+    /// Delete directories the manifest cannot explain, when they hold nothing —
+    /// the fossils a rearrangement used to leave behind.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Empty only, checked at the moment of deletion, so nothing an artist made
+    /// can be lost here — a stray directory with so much as one file in it is
+    /// left for B83's <see cref="UnexplainedFolders"/> to report rather than
+    /// for this to judge. Deepest first, so a directory emptied by its
+    /// children's removal goes in the same pass.
+    /// </para>
+    /// <para>
+    /// A directory the manifest <em>does</em> explain survives even when empty
+    /// — an empty folder is real (B64/B86/B87), and the materialisation step
+    /// above just created it on purpose. System directories and anything
+    /// hidden are not this method's to touch.
+    /// </para>
+    /// </remarks>
+    private static void RemoveEmptiedDirectories(Project project)
+    {
+        if (string.IsNullOrEmpty(project.Root) || !Directory.Exists(project.Root)) return;
+        var wanted = ProjectFolders.All(project.Manifest)
+            .Select(f => ProjectFolders.PathOf(project.Manifest, f))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var all = Directory.GetDirectories(project.Root, "*", SearchOption.AllDirectories)
+            .Select(d => Path.GetRelativePath(project.Root, d).Replace('\\', '/'))
+            .OrderByDescending(d => d.Count(c => c == '/'))
+            .ToList();
+        foreach (var relative in all)
+        {
+            var top = relative.Split('/')[0];
+            if (SystemFolders.Contains(top) || top.StartsWith('.')) continue;
+            if (wanted.Contains(relative)) continue;
+            if (ResolveInProject(project, relative) is not { } absolute) continue;
+            try
             {
-                yield return (document, owner);
+                if (Directory.Exists(absolute)
+                    && !Directory.EnumerateFileSystemEntries(absolute).Any())
+                {
+                    Directory.Delete(absolute);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // A directory that refuses to go is a report for B83, not a
+                // failed save.
             }
         }
     }

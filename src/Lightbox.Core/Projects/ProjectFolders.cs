@@ -489,6 +489,11 @@ public static class ProjectFolders
     /// result would be a subtree detached from the root — invisible in every
     /// surface, still in the file, and impossible to get back to without
     /// editing JSON.
+    ///
+    /// <para><b>This is the manifest half only.</b> A surface acting on a real
+    /// project calls <see cref="ProjectIo.MoveFolder"/>, which moves the
+    /// directory and repaths everything below — calling this alone is B188:
+    /// a tree the panel shows and the disk stopped having.</para>
     /// </remarks>
     public static bool Move(ProjectManifest manifest, ProjectFolder folder, ProjectFolder? destination)
     {
