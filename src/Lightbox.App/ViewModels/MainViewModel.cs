@@ -1174,6 +1174,9 @@ public sealed partial class MainViewModel : ObservableObject
         if (ProjectDocker.Project is not { } project) return;
         try
         {
+            // Same guard as Save(): no document file is written while an
+            // in-place autosave write might still be heading for it.
+            _autosave.FinishPendingWrite();
             ProjectIo.Save(project, everything ? null : ProjectDocker.Dirty);
             ProjectDocker.MarkAllSaved();
             foreach (var tab in Tabs)
@@ -1333,6 +1336,10 @@ public sealed partial class MainViewModel : ObservableObject
         if (SaveTargetTab is not { FilePath: { Length: > 0 } path } tab) return;
         try
         {
+            // With in-place autosave on, a background write may be heading for
+            // this exact path; writing over it mid-flight collides on the temp
+            // file, and a stale snapshot landing late would undo this save.
+            _autosave.FinishPendingWrite();
             DocJson.Save(tab.Doc, path);
             tab.MarkSaved();
             AiStatus = $"Saved {System.IO.Path.GetFileName(path)}.";
