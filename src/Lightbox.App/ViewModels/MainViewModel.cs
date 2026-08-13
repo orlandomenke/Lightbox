@@ -7659,6 +7659,22 @@ public sealed partial class MainViewModel : ObservableObject
     private void RequestSnapshot()
     {
         if (_snapshotQueued) return;
+        // B189's other half: pace the publish to the canvas's consumption.
+        // B73 made one publish cover a burst of events; this makes the bursts
+        // themselves wait for the screen. Without it the first capture showed
+        // publishing outrunning drawing about 2:1 at 4K — 935 of 1921 ink
+        // publishes replaced before anything drew them, each having spent
+        // ~27 ms of UI thread composing a frame nobody saw, while drawn
+        // frames queued a mean of 93 ms. Deferring until the last publish is
+        // actually on screen keeps at most one frame in flight, so a drawn
+        // frame waits about one compositor pass, and the compose time of the
+        // frames that would have been thrown away is handed back to the
+        // dispatcher — which is what was making everything else late.
+        if (CanvasIsBehind())
+        {
+            _publishWhenPresented = true;
+            return;
+        }
         _snapshotQueued = true;
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
@@ -7666,6 +7682,55 @@ public sealed partial class MainViewModel : ObservableObject
             PublishSnapshot();
         }, Avalonia.Threading.DispatcherPriority.Input);
     }
+
+    /// <summary>
+    /// Milliseconds a deferred publish will wait on a canvas that has stopped
+    /// drawing before going ahead anyway.
+    /// </summary>
+    /// <remarks>
+    /// The liveness bound, not the pacing: a hidden or minimised window draws
+    /// nothing, and a publish dammed behind it forever would mean the live
+    /// stroke never reaches the document's own snapshot pipeline again until
+    /// pen-up. A quarter second is far above any real present interval, so it
+    /// only fires when presentation has genuinely stopped.
+    /// </remarks>
+    internal const double PublishDamMs = 250;
+
+    /// <summary>Has the canvas not yet drawn the newest published frame?</summary>
+    private bool CanvasIsBehind()
+    {
+        // Nothing has ever been presented: headless, no canvas wired, or the
+        // first frames of a session. Pacing needs a consumer to pace to.
+        if (_presentedSeq == 0) return false;
+        if (_publishSeq <= _presentedSeq) return false;
+        return (System.Diagnostics.Stopwatch.GetTimestamp() - _lastPublishTicks)
+            * 1000.0 / System.Diagnostics.Stopwatch.Frequency < PublishDamMs;
+    }
+
+    /// <summary>
+    /// The canvas has drawn a published frame (see
+    /// <see cref="Rendering.CanvasControl.SnapshotPresented"/>). Releases the
+    /// deferred publish, if one is waiting and this is the frame it waited on.
+    /// </summary>
+    internal void NoteFramePresented(long seq)
+    {
+        if (seq > _presentedSeq) _presentedSeq = seq;
+        if (!_publishWhenPresented || _presentedSeq < _publishSeq) return;
+        _publishWhenPresented = false;
+        // Through RequestSnapshot rather than straight to PublishSnapshot, so
+        // the released publish still lands behind whatever pointer events are
+        // already queued — B73's ordering, preserved under pacing.
+        RequestSnapshot();
+    }
+
+    /// <summary>Newest seq the canvas has reported drawn. UI thread.</summary>
+    private long _presentedSeq;
+
+    /// <summary>A coalesced publish is waiting for the canvas to catch up.</summary>
+    private bool _publishWhenPresented;
+
+    /// <summary>When the newest publish left, for the dam above.</summary>
+    private long _lastPublishTicks;
 
     /// <summary>
     /// Drop the Blur/Smudge live preview and the ordinary-paint dab-walk
@@ -12187,6 +12252,12 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Composite the scene for the current playhead and hand it to the view.</summary>
     public void PublishSnapshot()
     {
+        // Any publish satisfies a deferred one — the snapshot it hands over is
+        // built from the current state, which includes whatever the deferral
+        // was waiting to show.
+        _publishWhenPresented = false;
+        _lastPublishTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+
         var scene = Scene;
 
         // Take whatever the prewarmer finished since the last publish, BEFORE

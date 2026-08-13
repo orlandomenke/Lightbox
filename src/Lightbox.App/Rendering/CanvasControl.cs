@@ -4026,6 +4026,21 @@ public sealed class CanvasControl : Control
     /// <summary>How many frames are queued behind the one on screen. Tests only.</summary>
     internal int RetiredCount => _retired.Count;
 
+    /// <summary>
+    /// A snapshot the canvas had not shown before has been drawn — its seq,
+    /// delivered on the UI thread.
+    /// </summary>
+    /// <remarks>
+    /// The publisher's back-pressure signal (B189): the view model defers the
+    /// next coalesced publish until the last one has actually been drawn, and
+    /// this is how it learns that happened. Posted at <c>Input</c> priority,
+    /// not <c>Background</c> like <see cref="FrameRendered"/>: the moment this
+    /// signal matters most is mid-stroke, which is exactly when continuous
+    /// pointer input starves <c>Background</c> — a deferred publish waiting on
+    /// a starved notification would be the lag this exists to remove.
+    /// </remarks>
+    public event Action<long>? SnapshotPresented;
+
     private void NoteRendered(long seq)
     {
         // Before the early return below, which is about keeping the high-water
@@ -4042,6 +4057,17 @@ public sealed class CanvasControl : Control
             if (seq <= current) return;
         }
         while (Interlocked.CompareExchange(ref _lastRenderedSeq, seq, current) != current);
+
+        // Only when the high-water mark moved: a cursor repaint re-draws the
+        // same snapshot many times a second, and the publisher only cares that
+        // a NEW frame reached the screen. The deferral race is safe by
+        // ordering — a publish can only be deferred while its draw's
+        // notification has not been processed yet, so the post that releases
+        // it is always already queued.
+        if (SnapshotPresented is null) return;
+        Avalonia.Threading.Dispatcher.UIThread.Post(
+            () => SnapshotPresented?.Invoke(seq),
+            Avalonia.Threading.DispatcherPriority.Input);
     }
 
     /// <summary>Frame times arrive from the render thread; marshal to the UI thread to publish them.</summary>
