@@ -579,6 +579,22 @@ public partial class MainViewModel
         // a view taped onto the canvas is re-flattened the moment its sheet
         // is edited (Q69 chose live over snapshot). No linked strip, no cost.
         RefreshLinkedReferenceStrips();
+        // The guard sits here as well as inside MarkActiveTabEdited because it
+        // has always covered the rebake too: mid-switch there is no playhead
+        // worth baking against, and the arriving tab re-runs this funnel.
+        if (_switchingTabs || ActiveTab is null) return;
+        MarkActiveTabEdited();
+        RebakeLiveSamples();
+    }
+
+    /// <summary>
+    /// The bookkeeping half of <see cref="MarkDocumentEdited"/>: which tab and
+    /// which project source now carry unsaved work. Split out so a change that
+    /// dirties the file without touching a pixel (a reference dial, B191) can
+    /// say so without paying for the pixel-derived machinery above.
+    /// </summary>
+    private void MarkActiveTabEdited()
+    {
         if (_switchingTabs || ActiveTab is not { } tab) return;
         // Here rather than in OnDocumentChanged: stroke commits take that
         // method's scoped-edit early return, and a stroke is exactly the edit
@@ -623,7 +639,6 @@ public partial class MainViewModel
                 tab.RefreshDirty();
                 break;
         }
-        RebakeLiveSamples();
     }
 
     /// <summary>

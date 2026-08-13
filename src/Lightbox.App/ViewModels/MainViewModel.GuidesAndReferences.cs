@@ -270,6 +270,25 @@ public partial class MainViewModel
         return ImportReference(System.IO.Path.GetFileNameWithoutExtension(path), png) is not null;
     }
 
+    /// <summary>
+    /// Import in-memory image bytes as a reference — a picture dragged from a
+    /// browser, where there is no file to point at. Same normalization as the
+    /// file path: everything becomes PNG inside the document. False when the
+    /// bytes do not decode as an image.
+    /// </summary>
+    public bool ImportReferenceImageBytes(string name, byte[] bytes)
+    {
+        // Through a codec rather than Decode(byte[]): the byte[] overload
+        // throws on bytes no codec recognises — a page dragged instead of its
+        // picture — where the path overload's null means "not an image".
+        using var data = SKData.CreateCopy(bytes);
+        using var codec = SKCodec.Create(data);
+        if (codec is null) return false;
+        using var decoded = SKBitmap.Decode(codec);
+        if (decoded is null) return false;
+        return ImportReference(name, Lightbox.Raster.PngCodec.Encode(decoded)) is not null;
+    }
+
     public ReferenceStrip? ImportReference(
         string name, string pngBase64, SliceOptions options = default, bool addFrames = true)
     {
@@ -868,7 +887,41 @@ public partial class MainViewModel
         // treatment layer visibility gets.
         apply(strip, value);
         OnPropertyChanged(property);
-        AfterReferenceChange();
+        AfterReferenceViewTweak();
+    }
+
+    /// <summary>
+    /// A reference dial moved — opacity, scale, visibility: repaint and mark
+    /// the file dirty, and touch nothing that is derived from the artwork.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B191.</b> These setters used to run <see cref="AfterReferenceChange"/>,
+    /// whose <see cref="MarkDocumentEdited"/> half re-bakes every
+    /// all-layers-live stroke at the playhead — a full-canvas compose and a
+    /// PNG encode per stroke — and whose direct <see cref="PublishSnapshot"/>
+    /// replays the whole frame when such a stroke is on it, because a live
+    /// frame is never cached. A slider drag fires per pointer tick, so a
+    /// painted-on document turned each tick into hundreds of milliseconds of
+    /// UI-thread work and the drag into minutes of queued replays: the
+    /// reported freeze, and the allocation storm behind the crash after it.
+    /// </para>
+    /// <para>
+    /// A strip is not a layer: no live bake, no linked-strip flatten and no
+    /// reference-view PNG can see its opacity, scale or visibility, so
+    /// skipping that machinery drops no derived state. What a dial does still
+    /// owe is the repaint — through <see cref="RequestSnapshot"/>, so a drag
+    /// coalesces to the canvas's pace instead of publishing per tick — and
+    /// the unsaved-changes bookkeeping, which is the funnel's cheap half.
+    /// </para>
+    /// </remarks>
+    private void AfterReferenceViewTweak()
+    {
+        NotifyReference();
+        RequestSnapshot();
+        _autosave.MarkDirty();
+        MarkActiveTabEdited();
+        ReferenceChanged?.Invoke();
     }
 
     /// <summary>

@@ -120,6 +120,7 @@ public partial class MainWindow
 
     private void OnFileDragOver(object? sender, DragEventArgs e)
     {
+        if (DroppedReferenceFiles(e).Count == 0 && DroppedWebImages(e).Count == 0) return;
         if (DroppedReferenceFiles(e).Count == 0) return;
         e.DragEffects = DragDropEffects.Copy;
         e.Handled = true;
@@ -129,17 +130,74 @@ public partial class MainWindow
     /// Any image dropped anywhere on the window becomes a reference — the
     /// shortest path from "found the perfect pose on disk" to drawing against
     /// it, with no menu in between. Footage goes through the same import as
+    /// the picker, question dialog included. A picture dragged straight from a
+    /// browser takes the same door: no file, so the URL is fetched and the
+    /// bytes go through the same import as a file's would.
     /// the picker, question dialog included.
     /// </summary>
     private async void OnFileDrop(object? sender, DragEventArgs e)
     {
         var files = DroppedReferenceFiles(e);
-        if (files.Count == 0) return;
-        e.Handled = true;
-        foreach (var path in files)
+        if (files.Count > 0)
         {
-            await ImportReferenceFile(path);
+            e.Handled = true;
+            foreach (var path in files)
+            {
+                await ImportReferenceFile(path);
+            }
+            return;
         }
+
+        var uris = DroppedWebImages(e);
+        if (uris.Count == 0) return;
+        e.Handled = true;
+        await ImportWebImage(uris);
+    }
+
+    /// <summary>
+    /// Import the first of a browser drag's candidate URIs that fetches and
+    /// decodes. One reference per drop, not one per candidate: the candidates
+    /// are the same picture described three ways (uri-list, text, HTML), so
+    /// importing them all would tape up duplicates.
+    /// </summary>
+    private async Task ImportWebImage(IReadOnlyList<Uri> uris)
+    {
+        _vm.AiStatus = "Fetching the image…";
+        foreach (var uri in uris)
+        {
+            var bytes = await Services.WebImageDrop.FetchAsync(uri);
+            if (bytes is null || !_vm.ImportReferenceImageBytes(Services.WebImageDrop.NameFor(uri), bytes))
+            {
+                continue;
+            }
+            _vm.AiStatus = $"Drawing against \u201c{Services.WebImageDrop.NameFor(uri)}\u201d.";
+            _vm.ReferenceDockerVisible = true;
+            return;
+        }
+        // Every candidate failed — refused by the site, or bytes that are not
+        // an image (a page URL dragged instead of the picture).
+        _vm.AiStatus = "That drop did not contain an image Lightbox could read.";
+    }
+
+    /// <summary>Formats a picture dragged out of a browser can arrive in.</summary>
+    private static readonly DataFormat<string> UriListFormat =
+        DataFormat.CreateStringPlatformFormat("text/uri-list");
+
+    private static readonly DataFormat<string> HtmlFormat =
+        DataFormat.CreateStringPlatformFormat("text/html");
+
+    /// <summary>
+    /// The web-image candidates in a drag, or none — the browser counterpart
+    /// of <see cref="DroppedReferenceFiles"/>. Anything carrying actual files
+    /// is not a web drag, whatever else rides along.
+    /// </summary>
+    private static IReadOnlyList<Uri> DroppedWebImages(DragEventArgs e)
+    {
+        if (e.DataTransfer is not { } data || data.Contains(DataFormat.File)) return [];
+        return Services.WebImageDrop.ImageUris(
+            data.TryGetValue(UriListFormat),
+            data.TryGetText(),
+            data.TryGetValue(HtmlFormat));
     }
 
     private async void OnImportPaletteClicked(object? sender, RoutedEventArgs e)
