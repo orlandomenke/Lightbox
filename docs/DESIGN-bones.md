@@ -70,7 +70,43 @@ weights.
 
 Weights live **on the stroke** (invariant 4: settings that reach pixels are
 per stroke). Auto-weighted at bind by distance/falloff — bounded biharmonic
-weights or similar, implemented from the papers — then paintable per stroke.
+weights or similar, implemented from the papers — then corrected by hand as
+below.
+
+### Weight painting *(owner's question 2026-08-13: yes, and inside phase 2)*
+
+Not an extra — the correction pass the binding workflow depends on.
+Auto-weights get a character 90% bound and the last 10% is always the same
+places: armpits, hips, jaw, anywhere two bones overlap on one continuous
+drawing. Every professional tool treats painting as the fix-up over
+auto-bind; nobody paints from zero, and nobody ships without the fix-up,
+because a bind that cannot be corrected reads as "the rig ruined my drawing".
+
+In a stroke-native system it means something slightly different than in mesh
+tools, where you paint per-vertex on visible topology. Lightbox's vertices
+are stroke control points — invisible and irregularly spaced — so the brush
+paints **on the canvas** and the effect lands on the control points it passes
+over. `Stroke.Weights` stays the record; the gesture is authoring UI writing
+numbers into it. Nothing render-time, no invariant tension.
+
+The pieces that make it professional, in build order inside phase 2:
+
+1. **Heat overlay per selected bone** — the standard blue-to-red influence
+   view, drawn as chrome over the strokes, never into them. Prerequisite for
+   everything else: you cannot correct what you cannot see.
+2. **Coarse assignment** — select strokes, assign 100% to a bone. Covers the
+   entire cutout workflow (each body part its own layer), which is most rigs.
+3. **The weight brush** — add/subtract/smooth influence for the selected
+   bone, with **auto-normalization and per-bone locks** (weights sum to 1 per
+   point; painting one bone up takes unlocked others down — Blender's model,
+   because every alternative makes artists do arithmetic).
+4. **X-symmetry mirroring** — painting the left hip fixes the right one.
+   Cheap, and its absence is loud on symmetric characters.
+
+**Pressure drives strength**, through the brush stack the app already has —
+tablets, pressure curves, smoothing. The weight brush riding that
+infrastructure is what makes it feel native where Harmony's and Moho's
+equivalents feel bolted on.
 
 ### Determinism rules
 
