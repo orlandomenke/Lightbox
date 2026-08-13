@@ -77,7 +77,9 @@ internal static class RenderReport
         (int Hits, int Misses, int Evictions, long Bytes, long Budget)? FlattenCache = null,
         (long Frames, long Flattens)? AwaitingUnpin = null,
         (int Frames, int Flattens)? Pinned = null,
-        (long Bytes, long Budget)? TileStore = null);
+        (long Bytes, long Budget)? TileStore = null,
+        Rendering.StrokeToScreen.Stats? StrokeWait = null,
+        (int Passes, double TotalMs, double WorstMs)? LivePost = null);
 
     /// <summary>
     /// Whether playback got the tile path, and what stopped it.
@@ -812,6 +814,133 @@ internal static class RenderReport
     }
 
     /// <summary>
+    /// How long the ink takes to follow the pen, segment by segment (B189).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The section the "drawing lags" reports have been missing.</b> Every
+    /// engine budget passes headless while the hand still feels the ink trail —
+    /// because the lag lives in the waits <em>between</em> the pieces, and only
+    /// a real dispatcher under real input has those. So the chain is measured in
+    /// the shipped build and priced here: event → stamp → publish → drawn.
+    /// </para>
+    /// <para>
+    /// <b>The verdict names the fattest segment</b>, because the three point at
+    /// three different fixes: a fat stamp is engine or medium cost, a fat wait
+    /// to publish is the dispatcher queue, and a fat wait to be drawn is the
+    /// present path — B178's shape, showing up under drawing instead of
+    /// playback. Naming the wrong one costs a round trip to the one machine
+    /// that can measure this, which is why the report does the arithmetic.
+    /// </para>
+    /// </remarks>
+    private static void AppendStrokeLatency(StringBuilder sb, Facts facts)
+    {
+        sb.AppendLine("-- pen to screen while drawing (B189) ------------------------");
+        if (facts.StrokeWait is not { Events: > 0 } s)
+        {
+            sb.AppendLine("pointer events stamped    none yet — DRAW a few strokes, then write this again");
+            sb.AppendLine();
+            return;
+        }
+
+        sb.AppendLine($"pointer events stamped    {s.Events}");
+        sb.AppendLine($"  stamping the dabs       mean {s.Stamp.MeanMs,7:0.##} ms   worst {s.Stamp.WorstMs,7:0.##} ms");
+        var perPublish = s.Publishes == 0 ? 0 : (double)s.Events / s.Publishes;
+        sb.AppendLine($"publishes carrying ink    {s.Publishes}  ({perPublish:0.#} events per publish)");
+        if (s.Publishes > 0)
+        {
+            sb.AppendLine($"  event -> publish        mean {s.WaitToPublish.MeanMs,7:0.##} ms   worst {s.WaitToPublish.WorstMs,7:0.##} ms");
+        }
+        if (s.Drawn > 0)
+        {
+            sb.AppendLine($"  publish -> drawn        mean {s.WaitToDraw.MeanMs,7:0.##} ms   worst {s.WaitToDraw.WorstMs,7:0.##} ms");
+            sb.AppendLine($"  PEN -> SCREEN           mean {s.PenToScreen.MeanMs,7:0.##} ms   worst {s.PenToScreen.WorstMs,7:0.##} ms"
+                          + $"   ({s.Drawn} drawn, {s.Superseded} replaced first)");
+        }
+        else
+        {
+            sb.AppendLine("  nothing drawn yet — the chain has no end to measure. Draw for longer.");
+        }
+
+        // The wet-media pass runs on the UI thread between events, so a pass
+        // costing more than a frame is felt as a hitch mid-stroke whatever the
+        // numbers above say. Named even at zero: a capture that never exercised
+        // a wet brush should say so, or its clean bill covers only dry ones.
+        if (facts.LivePost is { Passes: > 0 } wet)
+        {
+            var mean = wet.TotalMs / wet.Passes;
+            sb.AppendLine($"live medium passes        {wet.Passes}   mean {mean:0.##} ms   worst {wet.WorstMs:0.##} ms   (wet brushes only, on the UI thread)");
+            if (mean > 17)
+            {
+                sb.AppendLine("  !! each pass blocks input for more than a frame, so a wet brush");
+                sb.AppendLine("     hitches however healthy the chain above is. This cost is the");
+                sb.AppendLine("     medium simulation — smaller brush, smaller canvas, or a preset");
+                sb.AppendLine("     without a simulated medium to confirm the difference.");
+            }
+        }
+        else
+        {
+            sb.AppendLine("live medium passes        none — no wet-media brush was used in this capture,");
+            sb.AppendLine("  so these numbers only speak for dry brushes.");
+        }
+
+        if (s.Drawn > 0)
+        {
+            sb.AppendLine();
+            // The same guard PresentLatency's split learned the hard way: a
+            // verdict off a handful of frames reads exactly like one that
+            // means something.
+            const int Enough = 12;
+            if (s.Drawn < Enough)
+            {
+                sb.AppendLine($"  >> Too few drawn frames to mean anything (under {Enough}). One stall");
+                sb.AppendLine("     moves a mean this small by tens of milliseconds — draw a few long");
+                sb.AppendLine("     strokes and write the report again.");
+            }
+            else if (s.PenToScreen.MeanMs < 20)
+            {
+                sb.AppendLine("  >> The pipeline is keeping up: ink reaches the screen about a frame");
+                sb.AppendLine("     after the event reaches the app. If drawing still feels laggy, the");
+                sb.AppendLine("     time is being spent BEFORE the event arrives — tablet driver, OS");
+                sb.AppendLine("     queue, display latency — or the lag is unevenness rather than");
+                sb.AppendLine("     delay, which these means cannot show but the worsts hint at.");
+            }
+            else
+            {
+                var stamp = s.Stamp.MeanMs;
+                var toPublish = Math.Max(0, s.WaitToPublish.MeanMs - stamp);
+                var toDraw = s.WaitToDraw.MeanMs;
+                if (toDraw >= toPublish && toDraw >= stamp)
+                {
+                    sb.AppendLine("  >> The wait is AFTER the publish: frames carrying fresh ink sit in");
+                    sb.AppendLine("     the present queue before anything draws them. That is B178's");
+                    sb.AppendLine("     shape showing up under drawing, and the fix is the present path —");
+                    sb.AppendLine("     not the brush engine, whose stamp cost is above and small.");
+                }
+                else if (stamp >= toPublish)
+                {
+                    sb.AppendLine("  >> The stamp itself is the fat segment, so this IS the cost of the");
+                    sb.AppendLine("     mark — brush size, medium, or canvas size. Compare a plain Soft");
+                    sb.AppendLine("     Round on a small canvas: if that collapses the number, the cost");
+                    sb.AppendLine("     scales with the brush and the wet-media line above says how much.");
+                }
+                else
+                {
+                    sb.AppendLine("  >> The wait is BETWEEN stamp and publish: the snapshot is queueing");
+                    sb.AppendLine("     behind other dispatcher work. The stamp is cheap and the draw is");
+                    sb.AppendLine("     prompt, so look at what else runs on the UI thread mid-stroke.");
+                }
+            }
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("  Measured from the event REACHING the app. Queueing in the OS or the");
+        sb.AppendLine("  tablet driver before that is invisible here, so the true pen-to-screen");
+        sb.AppendLine("  is this number plus a floor nothing in this file can see.");
+        sb.AppendLine();
+    }
+
+    /// <summary>
     /// Where a playback tick's time actually went.
     /// </summary>
     /// <remarks>
@@ -1133,6 +1262,7 @@ internal static class RenderReport
         AppendPrewarm(sb, facts.Prewarm);
         AppendPacing(sb, facts.Pacing);
         AppendPresentWait(sb, facts);
+        AppendStrokeLatency(sb, facts);
         AppendTickBreakdown(sb, facts);
 
         sb.AppendLine("-- what is being drawn ---------------------------------------");

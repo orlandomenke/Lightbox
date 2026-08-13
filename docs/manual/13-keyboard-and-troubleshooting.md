@@ -172,6 +172,29 @@ your machine* and writes it beside the other files. This is the one to reach for
 when Lightbox feels slow, because the answer is usually a fact nobody can guess
 from the outside.
 
+### If drawing lags the pen, capture it and read the pen-to-screen section
+
+**Draw first, then write the report.** The *pen to screen while drawing* section
+times every stroke event through its whole journey — stamping the dabs,
+publishing the frame, drawing it to the screen — and it only has numbers for
+strokes made since Lightbox started. A minute of ordinary drawing is enough;
+make it a fair minute: one wet brush and one dry one, a big brush and a small
+one, so the report can tell a cost that scales from one that is always there.
+
+The section does the diagnosis itself and names the slow step in plain words —
+whether the time goes into making the mark, waiting to publish it, or waiting
+for the screen to show it — so the useful thing to do with it is attach the
+whole file rather than interpret the numbers. Two things worth knowing when
+reading it:
+
+- **Wet-media brushes carry an extra line.** A simulated medium re-renders the
+  stroke while you draw, and that pass has its own cost, printed separately. If
+  that line is flagged and the rest is healthy, the lag belongs to the medium —
+  try the same preset's fast counterpart to confirm.
+- **The measurement starts when the event reaches Lightbox.** Anything the
+  tablet driver or the operating system adds before that is invisible to it, so
+  a clean section with a lagging hand points outside the application.
+
 ### If playback stutters, read the tile section first
 
 **Play the scene, then write the report** — the section is about what happens

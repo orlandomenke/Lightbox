@@ -993,7 +993,9 @@ public partial class MainWindow : Window
             _vm.FlattenCacheTraffic,
             _vm.AwaitingUnpinBytes,
             _vm.PinnedBitmaps,
-            _vm.TileStoreBytes);
+            _vm.TileStoreBytes,
+            Rendering.StrokeToScreen.Shared.Snapshot,
+            (_vm.LivePostPasses, _vm.LivePostTotalMs, _vm.LivePostWorstMs));
     }
 
     /// <summary>

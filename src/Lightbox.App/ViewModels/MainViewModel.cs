@@ -6622,6 +6622,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Total milliseconds spent in those passes. Tests only.</summary>
     internal double LivePostTotalMs { get; private set; }
 
+    /// <summary>The most expensive single pass, for the render report (B189).</summary>
+    internal double LivePostWorstMs { get; private set; }
+
     /// <summary>
     /// Effects that cannot be applied per segment because they read the whole
     /// stroke. Texture and granulation are pointwise and could be incremental,
@@ -7178,6 +7181,9 @@ public sealed partial class MainViewModel : ObservableObject
     public void MoveStrokeBatch(IReadOnlyList<PointerSample> samples)
     {
         if (!_strokeBuilder.IsActive) return;
+        // B189: clocked on arrival so the render report can price the whole
+        // pen→screen chain on the artist's machine, not just the stamp.
+        var arrived = Rendering.StrokeToScreen.EventArrived();
         foreach (var s in samples)
         {
             var (fx, fy) = _stabilizer.FilterLive(s.X, s.Y);
@@ -7186,6 +7192,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         if (_stabilizer.BrushPosition is { } anchor) LazyBrushMoved?.Invoke(anchor.X, anchor.Y);
         FlushLivePreview();
+        Rendering.StrokeToScreen.Shared.Stamped(arrived);
         RequestSnapshot();
     }
 
@@ -7551,6 +7558,7 @@ public sealed partial class MainViewModel : ObservableObject
         _livePostUsed = bounds;
         LivePostPasses++;
         LivePostTotalMs += _livePostCostMs;
+        if (_livePostCostMs > LivePostWorstMs) LivePostWorstMs = _livePostCostMs;
 
         if (bounds is { } rect) MarkDirtyRegion(rect);
         else InvalidateWholeCanvas();
