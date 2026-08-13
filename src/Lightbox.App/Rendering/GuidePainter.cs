@@ -28,10 +28,18 @@ public static class GuidePainter
 {
     private const int KindGrid = 1;
     private const int KindVanishingPoint = 3;
+    private const int KindHeightScale = 4;
 
     /// <summary>A guide flattened for the render thread. See <c>CanvasControl.GuideLine</c>.</summary>
+    /// <remarks>
+    /// <paramref name="Label"/> is the guide's name when it has one — an
+    /// eye-line that does not say "eye line" is just a line, and a shared rig
+    /// has to read at a glance. <paramref name="Divisions"/> is a height
+    /// scale's head count and zero on everything else.
+    /// </remarks>
     public readonly record struct Line(
-        int Kind, float X, float Y, float Spacing, IReadOnlyList<double> Angles);
+        int Kind, float X, float Y, float Spacing, IReadOnlyList<double> Angles,
+        string? Label = null, int Divisions = 0);
 
     /// <summary>
     /// Checkerboard, artwork, guides — in the one order that works.
@@ -119,7 +127,18 @@ public static class GuidePainter
                     Grid(canvas, guide, thin, scale, docW, docH);
                     continue;
                 }
+                if (guide.Kind == KindHeightScale)
+                {
+                    HeightScale(canvas, guide, thin, mark, scale);
+                    continue;
+                }
                 foreach (var angle in guide.Angles) Ray(canvas, guide.X, guide.Y, angle, reach, thin);
+                if (guide.Label is { Length: > 0 } name)
+                {
+                    // Just above the anchor, so "Horizon" sits on its own line
+                    // rather than being cut by it.
+                    Label(canvas, name, guide.X + 6f / scale, guide.Y - 6f / scale, scale);
+                }
                 if (guide.Kind != KindVanishingPoint) continue;
                 // A vanishing point is a place as well as a set of directions,
                 // and without a mark on it you cannot tell which of the rays
@@ -142,6 +161,54 @@ public static class GuidePainter
             IsAntialias = true,
         };
         foreach (var angle in pulled.Angles) Ray(canvas, pulled.X, pulled.Y, angle, reach, drafting);
+    }
+
+    /// <summary>
+    /// A character height chart: a post standing on its anchor, a rung per
+    /// head, and a count so it says what it is.
+    /// </summary>
+    /// <remarks>
+    /// The rungs are warm and finite where guide rays are cool and infinite,
+    /// because the whole point of a height scale is its <i>extent</i> — six
+    /// heads is a statement about where the top is, and rays with no ends
+    /// cannot make it. Snapping still reaches the full canvas width; what is
+    /// drawn is the chart, not the pull.
+    /// </remarks>
+    private static void HeightScale(
+        SKCanvas canvas, Line guide, SKPaint thin, SKPaint mark, float scale)
+    {
+        var divisions = Math.Max(1, guide.Divisions);
+        var unit = Math.Max(1e-3f, guide.Spacing);
+        var top = guide.Y - unit * divisions;
+
+        canvas.DrawLine(guide.X, guide.Y, guide.X, top, mark);
+        var arm = 10f / scale;
+        for (var i = 0; i <= divisions; i++)
+        {
+            var y = guide.Y - unit * i;
+            // The ground and the top reach further than the rungs between, so
+            // the ends read as ends.
+            var reach = i == 0 || i == divisions ? arm * 1.8f : arm;
+            canvas.DrawLine(guide.X - reach, y, guide.X + reach, y, thin);
+        }
+
+        var text = guide.Label is { Length: > 0 } name ? name : $"{divisions} heads";
+        Label(canvas, text, guide.X + arm * 2.2f, top + 4f / scale, scale);
+    }
+
+    /// <summary>
+    /// A guide's name, drawn at a fixed size on screen like every other line
+    /// of the rig — chrome, so it never scales with the zoom.
+    /// </summary>
+    private static void Label(SKCanvas canvas, string text, float x, float y, float scale)
+    {
+        using var font = new SKFont(SKTypeface.Default, 12f / scale);
+        using var paint = new SKPaint
+        {
+            Color = new SKColor(240, 120, 80, 220),
+            IsAntialias = true,
+        };
+        canvas.DrawText(text, x, y, font, paint);
     }
 
     private static void Grid(

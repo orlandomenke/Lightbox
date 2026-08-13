@@ -25,7 +25,7 @@ namespace Lightbox.App.Rendering;
 /// immutable <see cref="RenderSnapshot"/>. Old snapshots are retired through a
 /// small ring buffer so an in-flight render never touches a disposed image.
 /// </summary>
-public sealed class CanvasControl : Control
+public sealed partial class CanvasControl : Control
 {
     /// <summary>
     /// Repaint when a property that is only read at draw time changes.
@@ -607,7 +607,8 @@ public sealed class CanvasControl : Control
     /// be halfway through editing. Same reason the reference boxes are copied.
     /// </remarks>
     public readonly record struct GuideLine(
-        string Id, int Kind, float X, float Y, float Spacing, IReadOnlyList<double> Angles);
+        string Id, int Kind, float X, float Y, float Spacing, IReadOnlyList<double> Angles,
+        string? Label = null, int Divisions = 0);
 
     /// <summary>
     /// The guides to draw, or null for none — in which case nothing
@@ -911,70 +912,8 @@ public sealed class CanvasControl : Control
     /// <summary>Collision shapes move finished.</summary>
     public event Action? ShapesMovedEnded;
 
-    /// <summary>A guide was dragged, by a delta in document pixels.</summary>
-    public event Action<string, double, double>? GuideMoved;
-
-    /// <summary>A guide drag finished, so the move can be closed off.</summary>
-    public event Action? GuideDragEnded;
-
-    private string? _guideDrag;
-
-    private (double X, double Y) _guideDragLast;
-
-    /// <summary>How close, in screen pixels, counts as being on a guide.</summary>
-    private const double GuideGrabPixels = 6;
-
-    /// <summary>
-    /// The guide under a view-space point, or null.
-    /// </summary>
-    /// <remarks>
-    /// A line is grabbed anywhere along it; everything else — grids,
-    /// isometric axes, vanishing points — is grabbed at its anchor. Letting a
-    /// grid be grabbed on any of its lines would mean a grid covers the whole
-    /// canvas in grab targets and nothing else could ever be picked up.
-    /// </remarks>
-    private GuideLine? GuideAt(Point view)
-    {
-        if (_guides is not { Count: > 0 } guides) return null;
-        var scale = FitScale() * _zoom;
-        if (scale <= 0) return null;
-        var reach = GuideGrabPixels / scale;
-        var (x, y) = ViewToDoc(view);
-
-        GuideLine? best = null;
-        var bestDistance = reach;
-        foreach (var guide in guides)
-        {
-            double distance;
-            if (guide.Kind == (int)GuideKindLine && guide.Angles.Count > 0)
-            {
-                var radians = guide.Angles[0] * Math.PI / 180;
-                distance = Math.Abs(
-                    -Math.Sin(radians) * (x - guide.X) + Math.Cos(radians) * (y - guide.Y));
-            }
-            else
-            {
-                distance = Math.Sqrt(
-                    (x - guide.X) * (x - guide.X) + (y - guide.Y) * (y - guide.Y));
-            }
-            if (distance > bestDistance) continue;
-            bestDistance = distance;
-            best = guide;
-        }
-        return best;
-    }
-
-    private const int GuideKindLine = 0;
-
-    private bool _overGuide;
-
-    private void UpdateGuideHoverCursor(Point view)
-    {
-        var over = GuideDragEnabled && GuideAt(view) is not null;
-        if (over == _overGuide) return;
-        _overGuide = over;
-        Cursor = over ? PointerCursors.Move : PointerCursors.For(PointerIntent);
-    }
+    // The guide-grab section — picking a guide up, move versus height-scale
+    // resize, and the hover cursor — lives in CanvasControl.Guides.cs.
 
     /// <summary>
     /// What the pointer is currently saying the tool will do — decided by
@@ -2810,6 +2749,7 @@ public sealed class CanvasControl : Control
             if (GuideDragEnabled && GuideAt(pp.Position) is { } grabbed)
             {
                 _guideDrag = grabbed.Id;
+                _guideResizing = GrabsHeightScaleTop(grabbed, pp.Position);
                 _guideDragLast = (x, y);
                 e.Pointer.Capture(this);
                 e.Handled = true;
@@ -3287,7 +3227,8 @@ public sealed class CanvasControl : Control
                 var (gx, gy) = ViewToDoc(e.GetPosition(this));
                 // Incremental, like the reference nudge: an absolute drag
                 // would leave one enormous step in the history.
-                GuideMoved?.Invoke(dragging, gx - _guideDragLast.X, gy - _guideDragLast.Y);
+                if (_guideResizing) GuideResized?.Invoke(dragging, gy - _guideDragLast.Y);
+                else GuideMoved?.Invoke(dragging, gx - _guideDragLast.X, gy - _guideDragLast.Y);
                 _guideDragLast = (gx, gy);
                 e.Handled = true;
                 return;
@@ -3566,7 +3507,15 @@ public sealed class CanvasControl : Control
         {
             _guideDrag = null;
             e.Pointer.Capture(null);
-            GuideDragEnded?.Invoke();
+            if (_guideResizing)
+            {
+                _guideResizing = false;
+                GuideResizeEnded?.Invoke();
+            }
+            else
+            {
+                GuideDragEnded?.Invoke();
+            }
             e.Handled = true;
             return;
         }
@@ -4272,7 +4221,7 @@ public sealed class CanvasControl : Control
             lines is null ? null : [.. lines.Select(ToPainterLine)];
 
         private static GuidePainter.Line ToPainterLine(GuideLine g) =>
-            new(g.Kind, g.X, g.Y, g.Spacing, g.Angles);
+            new(g.Kind, g.X, g.Y, g.Spacing, g.Angles, g.Label, g.Divisions);
 
         /// <summary>
         /// The reference grid, while it is being edited.

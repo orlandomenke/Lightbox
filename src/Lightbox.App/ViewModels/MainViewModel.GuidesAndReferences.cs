@@ -79,6 +79,10 @@ public partial class MainViewModel
     public IReadOnlyList<Guide> GridGuides =>
         Guides.Where(g => g.Kind == GuideKind.Grid).ToList();
 
+    /// <summary>The character height scales on this document, if any.</summary>
+    public IReadOnlyList<Guide> HeightScaleGuides =>
+        Guides.Where(g => g.Kind == GuideKind.HeightScale).ToList();
+
     /// <summary>
     /// Change a placed grid's pitch, as one undoable step.
     /// </summary>
@@ -126,12 +130,75 @@ public partial class MainViewModel
             : _guideSnap.Apply(guides, x, y, SnapTolerance);
 
     /// <summary>Add a guide. The first one brings the machinery into being.</summary>
-    public Guide AddGuide(GuideKind kind, double x, double y, double angle = 0, double spacing = 32)
+    public Guide AddGuide(
+        GuideKind kind, double x, double y, double angle = 0, double spacing = 32,
+        string? name = null, int? divisions = null)
     {
-        var guide = new Guide { Kind = kind, X = x, Y = y, Angle = angle, Spacing = spacing };
+        var guide = new Guide
+        {
+            Kind = kind, X = x, Y = y, Angle = angle, Spacing = spacing,
+            Name = name, Divisions = divisions,
+        };
         _editor.Perform(doc => (doc.Scene.Guides ??= []).Add(guide));
         NotifyGuides();
         return guide;
+    }
+
+    /// <summary>
+    /// Change a height scale's proportions — one head's height and how many
+    /// of them — as one undoable step.
+    /// </summary>
+    public void SetHeightScale(Guide guide, double unit, int divisions)
+    {
+        var clampedUnit = Math.Clamp(unit, 1, 4096);
+        var clampedDivisions = Math.Clamp(divisions, 1, 32);
+        var before = (guide.Spacing, guide.Divisions);
+        if (Math.Abs(before.Spacing - clampedUnit) < 1e-9
+            && before.Divisions == clampedDivisions)
+        {
+            return;
+        }
+        _editor.PerformDelta(
+            _ => { guide.Spacing = clampedUnit; guide.Divisions = clampedDivisions; },
+            _ => { guide.Spacing = before.Spacing; guide.Divisions = before.Divisions; });
+        NotifyGuides();
+    }
+
+    private double? _heightScaleUnitBefore;
+
+    /// <summary>
+    /// Pull a height scale's top while the pointer is still down: the total
+    /// height changes and the divisions follow, because a head count is a
+    /// proportion and resizing the character does not change it.
+    /// </summary>
+    /// <remarks>
+    /// Live like <see cref="DragGuide"/> — nothing is recorded until
+    /// <see cref="EndHeightScaleResize"/> closes the gesture into one step.
+    /// </remarks>
+    public void DragHeightScaleTop(Guide guide, double dy)
+    {
+        if (guide.Locked || guide.Kind != GuideKind.HeightScale) return;
+        _heightScaleUnitBefore ??= guide.Spacing;
+        var divisions = Math.Max(1, guide.Divisions ?? 1);
+        // The top moving down by dy shrinks the whole scale by dy, spread
+        // evenly over the divisions. Floored so it cannot be dragged inside
+        // out — a scale of no height has no top to pull back.
+        guide.Spacing = Math.Max(1, guide.Spacing - dy / divisions);
+        NotifyGuides();
+    }
+
+    /// <summary>Close a height-scale resize: the whole of it becomes one undo step.</summary>
+    public void EndHeightScaleResize(Guide guide)
+    {
+        if (_heightScaleUnitBefore is not { } before) return;
+        _heightScaleUnitBefore = null;
+        var after = guide.Spacing;
+        if (Math.Abs(after - before) < 1e-9) return;
+        // Back to where the drag started, then forward again as one recorded
+        // step — so undo returns the top to where it was picked up.
+        guide.Spacing = before;
+        _editor.PerformDelta(_ => guide.Spacing = after, _ => guide.Spacing = before);
+        NotifyGuides();
     }
 
     public void RemoveGuide(Guide guide)
@@ -204,6 +271,7 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(Guides));
         OnPropertyChanged(nameof(HasGuides));
         OnPropertyChanged(nameof(GridGuides));
+        OnPropertyChanged(nameof(HeightScaleGuides));
         GuidesChanged?.Invoke();
         PublishSnapshot();
         MarkDocumentEdited();
@@ -211,6 +279,139 @@ public partial class MainViewModel
 
     /// <summary>The guides changed; the canvas redraws its chrome from this.</summary>
     public event Action? GuidesChanged;
+
+    // ---- guide sets: the authoring half Q30 step 4 shipped without ---------
+    //
+    // The resolver (GuideScopes), the manifest record (GuideSet) and the
+    // sharing menu in the project window all existed, and nothing could create
+    // a set — the owner's report that filed the roadmap item was "guides we
+    // are not even able to create or assign". These are the missing verbs:
+    // save the document's guides as a named set, offer the visible sets back,
+    // and pull one into a document.
+
+    /// <summary>
+    /// The guide sets this document may pull from: what its scope declares, or
+    /// every set in the project while nothing is scoped — Q30's
+    /// new-projects-only migration, same as palettes and gradients.
+    /// </summary>
+    public IReadOnlyList<GuideSet> OfferedGuideSets => GuideSetsVisibleTo(ActiveTab?.Source);
+
+    /// <summary>The same, for a named document — the testable seam.</summary>
+    internal IReadOnlyList<GuideSet> GuideSetsVisibleTo(DocumentRef? document)
+    {
+        if (ProjectDocker.Project is not { } project) return [];
+        if (project.Manifest.GuideSets is not { Count: > 0 } sets) return [];
+        var visible = GuideScopes.VisibleTo(project.Manifest, document);
+        return visible is null ? sets : [.. sets.Where(s => visible.Contains(s.Id))];
+    }
+
+    /// <summary>A set needs guides to hold and a project to live in.</summary>
+    public bool CanSaveGuideSet => HasGuides && ProjectDocker.Project is not null;
+
+    /// <summary>
+    /// Every set in the project, for the editor — scoping filters the offers a
+    /// document sees, never the library itself.
+    /// </summary>
+    public IReadOnlyList<GuideSet> ProjectGuideSets =>
+        ProjectDocker.Project?.Manifest.GuideSets ?? (IReadOnlyList<GuideSet>)[];
+
+    /// <summary>The menus re-read the offers; call after anything that changes them.</summary>
+    public void NotifyGuideSetOffers()
+    {
+        OnPropertyChanged(nameof(OfferedGuideSets));
+        OnPropertyChanged(nameof(PullGuideSetMenu));
+        OnPropertyChanged(nameof(HasGuideSetOffers));
+        OnPropertyChanged(nameof(CanSaveGuideSet));
+    }
+
+    /// <summary>The offers as menu entries — the project window's idiom.</summary>
+    public IReadOnlyList<ScopeMenuEntry> PullGuideSetMenu =>
+        [.. OfferedGuideSets.Select(s => new ScopeMenuEntry(s.Name, PullGuideSetCommand, s))];
+
+    /// <summary>So the menu can hide an entry that would open onto nothing.</summary>
+    public bool HasGuideSetOffers => OfferedGuideSets.Count > 0;
+
+    /// <summary>
+    /// Save this document's guides as a named set in the project — into a new
+    /// set, or over <paramref name="overwriteId"/>'s.
+    /// </summary>
+    /// <remarks>
+    /// Copies, both ways (see <see cref="GuideSet"/>'s remarks): the set is a
+    /// library, so moving a guide in the document afterwards must not silently
+    /// edit the library, and vice versa.
+    /// </remarks>
+    public GuideSet? SaveGuidesAsSet(string name, string? overwriteId = null)
+    {
+        if (ProjectDocker.Project is not { } project) return null;
+        if (Scene.Guides is not { Count: > 0 } guides) return null;
+
+        var sets = project.Manifest.GuideSets ??= [];
+        var set = overwriteId is null ? null : sets.FirstOrDefault(s => s.Id == overwriteId);
+        if (set is null)
+        {
+            set = new GuideSet();
+            sets.Add(set);
+        }
+        if (name.Trim() is { Length: > 0 } trimmed) set.Name = trimmed;
+        set.Guides = [.. guides.Select(g => g.Clone())];
+        SaveProject();
+        NotifyGuideSetOffers();
+        AiStatus = $"Guides saved as “{set.Name}”. Share it onto a folder from the project window.";
+        return set;
+    }
+
+    public void RenameGuideSet(GuideSet set, string name)
+    {
+        if (ProjectDocker.Project is null || name.Trim() is not { Length: > 0 } trimmed) return;
+        set.Name = trimmed;
+        SaveProject();
+        NotifyGuideSetOffers();
+    }
+
+    /// <summary>
+    /// Remove a set from the project, and every declaration that shared it —
+    /// a declaration pointing at nothing would scope the kind and offer air.
+    /// </summary>
+    public void DeleteGuideSet(GuideSet set)
+    {
+        if (ProjectDocker.Project is not { } project) return;
+        project.Manifest.GuideSets?.RemoveAll(s => s.Id == set.Id);
+        // Absent, not empty: a project whose last set goes writes no key again.
+        if (project.Manifest.GuideSets is { Count: 0 }) project.Manifest.GuideSets = null;
+        ResourceScopes.Retract(project.Manifest, GuideScopes.Kind, set.Id);
+        SaveProject();
+        NotifyGuideSetOffers();
+        AiStatus = $"Guide set “{set.Name}” deleted.";
+    }
+
+    /// <summary>
+    /// Copy a set's guides into this document, as one undoable step.
+    /// </summary>
+    /// <remarks>
+    /// Fresh ids on the copies: pulling the same set twice is two independent
+    /// batches, and removing one guide by id must not take its twin with it.
+    /// </remarks>
+    [RelayCommand]
+    private void PullGuideSet(GuideSet? set)
+    {
+        if (set is null || set.Guides.Count == 0) return;
+        var copies = set.Guides.Select(g =>
+        {
+            var copy = g.Clone();
+            copy.Id = Ids.NewId("gd");
+            return copy;
+        }).ToList();
+        var ids = copies.Select(c => c.Id).ToHashSet();
+        _editor.PerformDelta(
+            apply: doc => (doc.Scene.Guides ??= []).AddRange(copies),
+            revert: doc =>
+            {
+                doc.Scene.Guides?.RemoveAll(g => ids.Contains(g.Id));
+                if (doc.Scene.Guides is { Count: 0 }) doc.Scene.Guides = null;
+            });
+        NotifyGuides();
+        AiStatus = $"Added {copies.Count} guide{(copies.Count == 1 ? "" : "s")} from “{set.Name}”.";
+    }
 
     /// <summary>The references on this document, or an empty list.</summary>
     public IReadOnlyList<ReferenceStrip> References =>

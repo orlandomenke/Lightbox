@@ -368,6 +368,28 @@ public class RulerAndGuideEditTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
+    public void PullingAHeightScalesTopResizesTheHeadsAsOneUndoStep()
+    {
+        // The top is the handle because it is what the gesture means: "this
+        // character is this tall". The head count is a proportion, so it
+        // stays; the unit takes the whole change, spread over the divisions.
+        var (_, vm) = Open();
+        var guide = vm.AddGuide(
+            GuideKind.HeightScale, 100, 800, spacing: 90, divisions: 6);
+
+        vm.DragHeightScaleTop(guide, -30);
+        vm.DragHeightScaleTop(guide, -30);
+        vm.EndHeightScaleResize(guide);
+
+        Assert.Equal(6, guide.Divisions);
+        Assert.Equal(100, guide.Spacing, 3);
+
+        vm.UndoCommand.Execute(null);
+
+        Assert.Equal(90, guide.Spacing, 3);
+    }
+
+    [AvaloniaFact]
     public void ALockedGuideDoesNotBudge()
     {
         var (_, vm) = Open();

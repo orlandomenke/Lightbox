@@ -88,6 +88,65 @@ public sealed partial class GridRow(
 }
 
 /// <summary>
+/// One character height scale already placed on the document, editable.
+/// </summary>
+/// <remarks>
+/// The same shape as <see cref="GridRow"/> and for the same reason: every
+/// setter goes back through the view model so each change is one undo step
+/// and the canvas redraws.
+/// </remarks>
+public sealed partial class HeightScaleRow(
+    Lightbox.Core.Documents.Guide guide, ViewModels.MainViewModel vm) : ObservableObject
+{
+    public string Title { get; } =
+        string.IsNullOrWhiteSpace(guide.Name) ? "Height scale" : guide.Name;
+
+    public double Unit
+    {
+        get => guide.Spacing;
+        set
+        {
+            if (Math.Abs(guide.Spacing - value) < 1e-9) return;
+            vm.SetHeightScale(guide, value, guide.Divisions ?? 1);
+            OnPropertyChanged();
+        }
+    }
+
+    public int Divisions
+    {
+        get => guide.Divisions ?? 1;
+        set
+        {
+            if ((guide.Divisions ?? 1) == value) return;
+            vm.SetHeightScale(guide, guide.Spacing, value);
+            OnPropertyChanged();
+        }
+    }
+
+    public bool Visible
+    {
+        get => guide.Visible;
+        set
+        {
+            if (guide.Visible == value) return;
+            vm.SetGuideFlags(guide, value, guide.Snaps);
+            OnPropertyChanged();
+        }
+    }
+
+    public bool Snaps
+    {
+        get => guide.Snaps;
+        set
+        {
+            if (guide.Snaps == value) return;
+            vm.SetGuideFlags(guide, guide.Visible, value);
+            OnPropertyChanged();
+        }
+    }
+}
+
+/// <summary>
 /// One feature toggle in the Features page, editable.
 /// </summary>
 /// <remarks>
@@ -604,6 +663,10 @@ public partial class ConfigureWindow : Window
         var rows = _vm.GridGuides.Select(g => new GridRow(g, _vm)).ToList();
         GridsHost.ItemsSource = rows;
         NoGridsText.IsVisible = rows.Count == 0;
+
+        var scales = _vm.HeightScaleGuides.Select(g => new HeightScaleRow(g, _vm)).ToList();
+        HeightScalesHost.ItemsSource = scales;
+        NoHeightScalesText.IsVisible = scales.Count == 0;
     }
 
     private void OnGridSpacingChanged(object? sender, NumericUpDownValueChangedEventArgs e)

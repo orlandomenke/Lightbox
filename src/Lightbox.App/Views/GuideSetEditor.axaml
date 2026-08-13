@@ -1,0 +1,49 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Lightbox.App.Views.GuideSetEditor"
+        Width="420" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Title="Guide sets">
+
+  <StackPanel Margin="16" Spacing="12">
+
+    <!--
+      One sentence of orientation, because the feature spans three surfaces:
+      sets are made here, shared onto folders in the project window, and
+      pulled into a drawing from View - Guides - Add from set.
+    -->
+    <TextBlock TextWrapping="Wrap" Opacity="0.8"
+               Text="A guide set is a named copy of a document's guides, kept in the project. Share one onto a folder from the project window; pull one into a drawing from View › Guides › Add from set." />
+
+    <!-- Off the spacing scale: ~5 rows of sets, enough to scan a project's
+         library without the dialog growing past the menu that opened it. -->
+    <ListBox x:Name="Sets" Height="140" SelectionChanged="OnSelectionChanged" />
+
+    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+      <TextBlock Grid.Column="0" Text="Name" VerticalAlignment="Center" />
+      <TextBox Grid.Column="1" x:Name="NameBox" Watermark="Height guide" />
+      <Button Grid.Column="2" x:Name="RenameButton" Content="Rename" Click="OnRename"
+              ToolTip.Tip="Apply the name to the selected set" />
+    </Grid>
+
+    <!--
+      The verbs, reading top to bottom in the order an artist meets them:
+      make a set from what is on the canvas, refresh one from the canvas,
+      and remove one. Deleting also takes back every share of the set —
+      a declaration pointing at nothing would scope the project to air.
+    -->
+    <StackPanel Spacing="6">
+      <Button x:Name="SaveNewButton" Click="OnSaveNew" HorizontalAlignment="Stretch"
+              Content="Save this document's guides as a new set" />
+      <Button x:Name="OverwriteButton" Click="OnOverwrite" HorizontalAlignment="Stretch"
+              Content="Replace the selected set with this document's guides" />
+      <Button x:Name="DeleteButton" Click="OnDelete" HorizontalAlignment="Stretch"
+              Content="Delete the selected set (and its shares)" />
+    </StackPanel>
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="Close" Click="OnClose" IsCancel="True" Classes="tertiary" />
+    </StackPanel>
+  </StackPanel>
+</Window>

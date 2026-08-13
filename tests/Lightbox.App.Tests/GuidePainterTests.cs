@@ -160,6 +160,67 @@ public class GuidePainterTests
         bmp.Dispose();
     }
 
+    /// <summary>Any pixel in the rectangle that is not white, or null.</summary>
+    private static SKColor? AnyInkIn(SKBitmap b, int left, int top, int right, int bottom)
+    {
+        for (var y = top; y < bottom; y++)
+            for (var x = left; x < right; x++)
+            {
+                var c = b.GetPixel(x, y);
+                if (c.Red != 255 || c.Green != 255 || c.Blue != 255) return c;
+            }
+        return null;
+    }
+
+    [Fact]
+    public void AHeightScaleDrawsItsPostAndItsRungs()
+    {
+        // Four heads of 20 standing on y=100: the post runs up the middle and
+        // a rung crosses it at every head. The post is warm — it is the
+        // scale's own mark, like a vanishing point's cross — and the rungs
+        // are the rig's usual cool blue.
+        var scale = new GuidePainter.Line(
+            Kind: 4, X: 100, Y: 100, Spacing: 20, Angles: [], Divisions: 4);
+
+        using var bmp = PaintOverArtwork([scale]);
+
+        var post = bmp.GetPixel(100, 60);
+        Assert.True(post.Red > post.Blue, $"no post up the scale's middle (got {post})");
+        var rung = bmp.GetPixel(105, 80);
+        Assert.True(rung.Blue > rung.Red, $"no rung at the first head (got {rung})");
+        // And nothing above the top: the whole point of the chart is its extent.
+        Assert.Null(AnyInkIn(bmp, 95, 0, 106, 15));
+    }
+
+    [Fact]
+    public void AHeightScaleSaysHowManyHeadsItIs()
+    {
+        // Without the count it is a ladder, not a height chart. The label sits
+        // just right of the top rung.
+        var scale = new GuidePainter.Line(
+            Kind: 4, X: 60, Y: 110, Spacing: 20, Angles: [], Divisions: 5);
+
+        using var bmp = PaintOverArtwork([scale]);
+
+        Assert.NotNull(AnyInkIn(bmp, 85, 0, W, 25));
+    }
+
+    [Fact]
+    public void ANamedGuideWearsItsName()
+    {
+        // An eye-line that does not say "eye line" is just a line — on a rig
+        // somebody else set up, the label is what makes it readable.
+        var bare = new GuidePainter.Line(Kind: 0, X: 100, Y: 60, Spacing: 0, Angles: [0.0]);
+        var named = bare with { Label = "Horizon" };
+
+        using var without = PaintOverArtwork([bare]);
+        using var with = PaintOverArtwork([named]);
+
+        // Above the line, where only the label can be.
+        Assert.Null(AnyInkIn(without, 100, 30, W, 52));
+        Assert.NotNull(AnyInkIn(with, 100, 30, W, 52));
+    }
+
     [Fact]
     public void AGridCoarseEnoughToReadIsDrawn()
     {

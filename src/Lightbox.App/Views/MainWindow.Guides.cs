@@ -56,7 +56,7 @@ public partial class MainWindow
                 : guide.Angles;
             lines.Add(new Rendering.CanvasControl.GuideLine(
                 guide.Id, (int)guide.Kind, (float)guide.X, (float)guide.Y,
-                (float)guide.Spacing, angles));
+                (float)guide.Spacing, angles, guide.Name, guide.Divisions ?? 0));
         }
         Canvas.Guides = lines.Count > 0 ? lines : null;
     }
@@ -185,6 +185,17 @@ public partial class MainWindow
         Canvas.GuideDragEnded += () =>
         {
             if (_draggingGuide is { } guide) _vm.EndGuideDrag(guide);
+            _draggingGuide = null;
+        };
+        Canvas.GuideResized += (id, dy) =>
+        {
+            if (GuideById(id) is not { } guide) return;
+            _draggingGuide = guide;
+            _vm.DragHeightScaleTop(guide, dy);
+        };
+        Canvas.GuideResizeEnded += () =>
+        {
+            if (_draggingGuide is { } guide) _vm.EndHeightScaleResize(guide);
             _draggingGuide = null;
         };
 
@@ -378,5 +389,54 @@ public partial class MainWindow
         // draw along.
         var scene = _vm.Doc.Scene;
         _vm.AddGuide(GuideKind.VanishingPoint, scene.Width * 0.15, scene.Height / 3.0);
+    }
+
+    /// <summary>
+    /// A character height chart, standing where a character would: feet near
+    /// the bottom of the canvas, six heads tall until the artist says
+    /// otherwise.
+    /// </summary>
+    private void OnAddHeightScale(object? sender, RoutedEventArgs e)
+    {
+        var scene = _vm.Doc.Scene;
+        const int divisions = 6;
+        // Seven tenths of the canvas height, so the chart is unmistakably a
+        // figure and still leaves headroom to pull the top up.
+        var unit = scene.Height * 0.7 / divisions;
+        _vm.AddGuide(
+            GuideKind.HeightScale, scene.Width / 2.0, scene.Height * 0.85,
+            spacing: unit, divisions: divisions);
+    }
+
+    /// <summary>
+    /// The two named horizontals of a layout: plain lines, pre-named so the
+    /// label says which is which on a rig somebody else set up.
+    /// </summary>
+    private void OnAddEyeLine(object? sender, RoutedEventArgs e)
+    {
+        var (x, y) = CanvasMiddle();
+        _vm.AddGuide(GuideKind.Line, x, y, name: "Eye line");
+    }
+
+    private void OnAddHorizonLine(object? sender, RoutedEventArgs e) =>
+        // A third of the way down, where the vanishing points already assume
+        // it is.
+        _vm.AddGuide(
+            GuideKind.Line, _vm.Doc.Scene.Width / 2.0, _vm.Doc.Scene.Height / 3.0,
+            name: "Horizon");
+
+    /// <summary>
+    /// Open the guide-set editor. It needs a project to keep the sets in, and
+    /// says so rather than opening onto controls that cannot work.
+    /// </summary>
+    private void OnGuideSets(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.ProjectDocker.Project is null)
+        {
+            _vm.AiStatus = "Guide sets live in a project — open or create one first.";
+            return;
+        }
+        _vm.NotifyGuideSetOffers();
+        new GuideSetEditor(_vm).ShowDialog(this);
     }
 }
