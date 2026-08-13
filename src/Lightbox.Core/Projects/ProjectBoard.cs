@@ -269,7 +269,9 @@ public static class ProjectBoard
     /// </remarks>
     public static readonly IReadOnlyList<string> Kinds =
     [
-        PaletteScopes.Kind, GradientScopes.Kind, ReferenceScopes.Kind, GuideScopes.Kind,
+        // reference is not among them since B133: sheets share by being filed
+        // on a folder, and the parallel declaration kind was write-only.
+        PaletteScopes.Kind, GradientScopes.Kind, GuideScopes.Kind,
         TemplateScopes.Kind, ExportScopes.Kind, SymbolScopes.Kind, TipScopes.Kind,
     ];
 
@@ -282,10 +284,8 @@ public static class ProjectBoard
     /// lists; a second copy is a second thing to update when a ninth kind
     /// arrives. Model code for the reason Q29 gave about the tree.
     /// <para>
-    /// <c>reference</c> is deliberately absent: a reference binds to a
-    /// <em>target</em> as well as an id (<see cref="ReferenceTargets"/>), so
-    /// offering it as a flat list would produce a declaration that names a sheet
-    /// and not what to do with it. It stays a surface that knows about targets.
+    /// <c>reference</c> is deliberately absent — a sheet is shared by being
+    /// filed on a folder, not declared (B133 retired the declaration kind).
     /// </para>
     /// </remarks>
     public static IReadOnlyList<Offer> Offers(Project project, string kind)
@@ -322,13 +322,9 @@ public static class ProjectBoard
     public static string NameOf(Project project, string kind, string id) =>
         kind switch
         {
-            // References are not in Offers (they bind a target as well as an
-            // id), so a declared one showed its raw id in the Assets tab. The
-            // id is a sheet's or a document's, and both registries have names.
-            ReferenceScopes.Kind =>
-                ProjectSheets.FindRef(project.Manifest, id)?.Name
-                ?? project.FindRef(id)?.Name
-                ?? id,
+            // Sheets are not in Offers (filing shares them), but a chip can
+            // still ask what a sheet id is called.
+            ReferenceScopes.Kind => ProjectSheets.FindRef(project.Manifest, id)?.Name ?? id,
             _ => Offers(project, kind).FirstOrDefault(o => o.Id == id) is { Name.Length: > 0 } found
                 ? found.Name
                 : id,

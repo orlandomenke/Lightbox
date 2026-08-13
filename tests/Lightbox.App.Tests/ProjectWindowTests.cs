@@ -965,35 +965,6 @@ public sealed class ProjectWindowTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void AReferenceOfferCarriesItsTargetIntoTheDeclaration()
-    {
-        // The docker's "Use this as reference" moved here, and a reference
-        // binds a target as well as an id — an offer without one would write a
-        // declaration that names a sheet and not what to do with it.
-        var root = TempRoot();
-        try
-        {
-            var (vm, _, knight, sheet) = OpenWithAssets(root);
-            vm.SelectedScope = vm.Assets.Single(s => s.Folder?.Id == knight.Id);
-
-            var offers = vm.OfferChoices.Where(o => o.Kind == ReferenceScopes.Kind).ToList();
-            output.WriteLine(string.Join("\n", offers.Select(o => $"{o.Label} -> {o.Target}")));
-            var sheetOffer = offers.Single(o => o.Id == sheet.Id);
-            Assert.Equal(ReferenceTargets.Sheet, sheetOffer.Target);
-            Assert.Contains(offers, o => o.Target == ReferenceTargets.Document);
-
-            vm.DeclareOnScope(sheetOffer);
-
-            var declared = (knight.Resources ?? []).Single(r => r.Kind == ReferenceScopes.Kind);
-            Assert.Equal(ReferenceTargets.Sheet, declared.Target);
-        }
-        finally
-        {
-            Drop(root);
-        }
-    }
-
-    [Fact]
     public void DroppingATemplateSetsTheScopesOneDefault()
     {
         // A template drags like any other asset and lands differently: a scope

@@ -262,52 +262,35 @@ public sealed class ScopeDeclarationTests(ITestOutputHelper output) : BrushState
     }
 
     /// <summary>
-    /// A drawing becomes reference for its neighbours, or for everything.
+    /// Publishing gives a declaration sideways reach: a drawing filed nowhere
+    /// near the declaring folder sees it once it is project-wide.
     /// </summary>
     /// <remarks>
-    /// Workflows 3 and 4 — the environment layout everything draws against, the
-    /// sword in the asset library. Both are <see cref="ResourceReach.Project"/>,
-    /// which existed in the record and in the resolver and had no gesture, so
-    /// the two workflows the design was written for were the two that could not
-    /// be performed.
+    /// This scenario belonged to the reference kind until B133 retired it as
+    /// write-only; the reach machinery it exercised is real and shared, so the
+    /// coverage moved to palettes — the kind the resolver was built on.
     /// </remarks>
     [AvaloniaFact]
-    public void ADrawingCanBeMadeReferenceForItsNeighboursOrForEverything()
+    public void APublishedDeclarationReachesADrawingFiledElsewhere()
     {
         var vm = Vm();
         var docker = WithFolder(vm, "Environments");
-        var folder = docker.Selected!.Folder!;
-        var layout = ProjectIo.AddDocument(
-            docker.Project!, "World layout", DocumentFactory.CreateDoc(64, 64));
-        ProjectFolders.FileDocument(docker.Project!.Manifest, layout, folder);
-        docker.Refresh();
-        docker.Selected = Assert.Single(docker.Rows, r => r.Animation?.Id == layout.Id);
-
-        docker.ShareSelectedAsReference(projectWide: false);
-
-        // Declared on the drawing's own folder, not on the selection — the
-        // selection is the drawing.
-        var declared = Assert.Single(folder.Resources!);
-        Assert.Equal(layout.Id, declared.Id);
-        Assert.Equal(ReferenceScopes.Kind, declared.Kind);
-        Assert.Equal(ReferenceTargets.Document, declared.Target);
-        Assert.Equal(ResourceReach.Subtree, declared.ReachOrDefault);
+        docker.SharePalette(docker.ShareablePalettes[0].Id);
+        var declared = Assert.Single(docker.Selected!.Folder!.Resources!);
 
         // A drawing filed somewhere else entirely cannot see it yet…
         var elsewhere = ProjectIo.AddDocument(
             docker.Project!, "Knight walk", DocumentFactory.CreateDoc(64, 64));
         Assert.DoesNotContain(
-            layout.Id,
-            ReferenceScopes.VisibleTo(docker.Project!.Manifest, elsewhere)?.Select(r => r.Id) ?? []);
+            declared.Id,
+            PaletteScopes.VisibleTo(docker.Project!.Manifest, elsewhere) ?? []);
 
         // …and does once it is published, which is the whole of workflow 3.
-        docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Environments");
         docker.PublishEntryCommand.Execute(Assert.Single(docker.Declarations));
-        output.WriteLine($"reach is now {declared.ReachOrDefault}");
         Assert.Equal(ResourceReach.Project, declared.ReachOrDefault);
         Assert.Contains(
-            layout.Id,
-            ReferenceScopes.VisibleTo(docker.Project!.Manifest, elsewhere)!.Select(r => r.Id));
+            declared.Id,
+            PaletteScopes.VisibleTo(docker.Project!.Manifest, elsewhere)!);
     }
 
     /// <summary>Publishing is a toggle, and unpublishing writes no key.</summary>

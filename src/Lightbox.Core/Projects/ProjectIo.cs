@@ -255,6 +255,13 @@ public static class ProjectIo
                 + "opened individually.");
         }
 
+        // B133. Reference declarations were written by "Use as reference" and
+        // read by nothing, ever — the kind is retired, and an entry surviving
+        // in a file would go on rendering as a live control that does nothing.
+        // Pruned here rather than tolerated, because the entry never carried
+        // information: there is no consumer whose behaviour this changes.
+        ResourceScopes.Retract(manifest, ReferenceScopes.Kind);
+
         var project = new Project(manifest, root);
         LoadResources(project);
         return project;

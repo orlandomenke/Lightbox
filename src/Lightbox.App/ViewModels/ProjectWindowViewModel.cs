@@ -131,12 +131,7 @@ public sealed partial class AssetScope(
 }
 
 /// <summary>One entry of the "give this scope something" menu.</summary>
-/// <param name="Target">
-/// What to do with the id, for the one kind that needs saying: a reference
-/// binds a target as well as an id (<see cref="ReferenceTargets"/>). Null on
-/// every other kind, and absent from the record it writes.
-/// </param>
-public sealed record OfferChoice(AssetScope Scope, string Kind, string Id, string Label, string? Target = null)
+public sealed record OfferChoice(AssetScope Scope, string Kind, string Id, string Label)
 {
     public override string ToString() => Label;
 }
@@ -1770,10 +1765,9 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
     /// they want to share and not which of eight words the application files it
     /// under. The kind is on the label so the answer is still legible.
     /// <para>
-    /// <c>reference</c> is absent, and that is `ProjectBoard.Offers` refusing
-    /// rather than this forgetting: a reference binds to a target as well as an
-    /// id, so a flat entry would declare a sheet without saying what to do with
-    /// it.
+    /// <c>reference</c> is absent because sheets share by being <em>filed</em>
+    /// — drag one from the library onto a folder. The declaration kind that
+    /// used to be offered here was write-only and is retired (B133).
     /// </para>
     /// </remarks>
     public IReadOnlyList<OfferChoice> OfferChoices
@@ -1785,25 +1779,6 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
             var choices = new List<OfferChoice>();
             foreach (var kind in AssetKinds)
             {
-                if (kind == ReferenceScopes.Kind)
-                {
-                    // A reference binds a target as well as an id, which is why
-                    // ProjectBoard.Offers refuses the kind. This window knows
-                    // the targets — a sheet is a sheet, a drawing is a document
-                    // — so both registries are offered here, typed. This is
-                    // where the docker's "Use this as reference" moved to.
-                    foreach (var sheet in Manifest.Sheets ?? [])
-                    {
-                        Offer(kind, sheet.Id, sheet.Name, ReferenceTargets.Sheet);
-                    }
-                    foreach (var document in Manifest.Documents)
-                    {
-                        // A drawing is not reference for itself.
-                        if (document.Id == scope.Document?.Id) continue;
-                        Offer(kind, document.Id, document.Name, ReferenceTargets.Document);
-                    }
-                    continue;
-                }
                 // A template default is about the documents made *under* a
                 // scope, and a document scope has none — TemplateScopes reads
                 // the folder chain only, so an offer here would write an entry
@@ -1811,16 +1786,16 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
                 if (kind == TemplateScopes.Kind && scope.Document is not null) continue;
                 foreach (var offer in ProjectBoard.Offers(_project, kind))
                 {
-                    Offer(kind, offer.Id, offer.Name, target: null);
+                    Offer(kind, offer.Id, offer.Name);
                 }
             }
             return choices;
 
-            void Offer(string kind, string id, string name, string? target)
+            void Offer(string kind, string id, string name)
             {
                 if (already.Any(r => r.Kind == kind && r.Id == id)) return;
                 choices.Add(new OfferChoice(
-                    scope, kind, id, $"{Core.Projects.AssetKinds.LabelOf(kind)} · {name}", target));
+                    scope, kind, id, $"{Core.Projects.AssetKinds.LabelOf(kind)} · {name}"));
             }
         }
     }
@@ -1886,12 +1861,12 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
             {
                 document.Resources?.RemoveAll(r => r.Kind == ExportScopes.Kind);
             }
-            ResourceScopes.DeclareOn(document, choice.Kind, choice.Id, choice.Target);
+            ResourceScopes.DeclareOn(document, choice.Kind, choice.Id);
         }
         else
         {
             ResourceScopes.Declare(
-                Manifest, choice.Scope.Folder, choice.Kind, choice.Id, target: choice.Target);
+                Manifest, choice.Scope.Folder, choice.Kind, choice.Id);
         }
 
         var name = ProjectBoard.NameOf(_project, choice.Kind, choice.Id);
