@@ -702,8 +702,14 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
 
         // The menu item reaches it through the window's handler rather than a
         // binding, because a flyout lives in a popup with no window to bind to.
-        var handlers = File.ReadAllText(
-            Path.Combine(SourceDir(), "src", "Lightbox.App", "Views", "MainWindow.axaml.cs"));
+        // Every file of the MainWindow partial class, not just MainWindow.axaml.cs:
+        // the view was split into fifteen partials at 5,544 lines, and these handlers
+        // now live in MainWindow.Projects.cs.
+        var handlers = string.Concat(Directory
+            .EnumerateFiles(
+                Path.Combine(SourceDir(), "src", "Lightbox.App", "Views"), "MainWindow*.cs")
+            .OrderBy(p => p, StringComparer.Ordinal)
+            .Select(File.ReadAllText));
         Assert.Contains("OnProjectReveal", handlers);
         Assert.Contains("RevealSelectedCommand.Execute(null)", handlers);
 

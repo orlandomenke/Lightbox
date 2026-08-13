@@ -803,22 +803,22 @@ project structure bugs and `.claude/quality/comparison.md` for full analysis.
 
 ### Construction guides
 
-Scoped by Q76 (2026-08-13): the eight wishes here were two different features
+Scoped by Q79 (2026-08-13): the eight wishes here were two different features
 wearing one name. The **authored drawing aids** — marks an artist places, which
 ride the guide machinery and the guide-set rails above — are built. The
-**computed analysis overlays** — machinery that reads the drawing and reports
-on it — stay open wishes, each with the reason recorded so the next reader does
+**computed analysis overlays** — checkers that read the drawing and report on
+it — stay open wishes, each carrying its design note so the next reader does
 not re-derive it.
 
 - [x] Character height guide — a `GuideKind.HeightScale` of its own: one object that is "6 heads", top-dragged to resize with the divisions following, division lines that snap, edited exactly in Configure ▸ Guides and grid `evidence: HeightScaleRow, AHeightScalePullsToItsDivisionLines, AHeightScaleNeverGrabsAStrokesDirection, OnlyAHeightScaleWritesADivisionsKey, PullingAHeightScalesTopResizesTheHeadsAsOneUndoStep, AHeightScaleDrawsItsPostAndItsRungs, AHeightScaleSaysHowManyHeadsItIs`
-  - A kind rather than labelled lines for the isometric guide's reason: the artist reaches for "six heads" and expects the divisions to follow the top; seven hand-kept lines is the same picture and seven times the housekeeping. Deliberately *not* a stroke constraint — it pulls points onto its division lines but offers no directions, or every horizontal stroke on the canvas would belong to it.
+  - A kind rather than labelled lines for the isometric guide's reason: the artist reaches for "six heads" and expects the divisions to follow the top; seven hand-kept lines is the same picture and seven times the housekeeping. The cheaper route — named `Line` guides ("crown", "eyeline", "ground") in a `GuideSet` on the character's folder, performed rather than built — was a parallel design note here and is what Q79 explicitly declined: it leaves resizing a character a seven-line chore and nothing knowing to label the chart. Deliberately *not* a stroke constraint — it pulls points onto its division lines but offers no directions, or every horizontal stroke on the canvas would belong to it.
 - [x] Eye-line guide — a horizontal ruler that wears its name on the canvas, placed pre-named from View ▸ Guides `evidence: OnAddEyeLine, ANamedGuideWearsItsName`
 - [x] Horizon guide — the same mechanism, at the height the vanishing points already assume `evidence: OnAddHorizonLine, ANamedGuideWearsItsName`
-  - Both folded into `Line` plus label rendering (Q76) rather than kinds of their own: they *are* horizontal lines, and the label — which the height scale needed anyway — was the whole missing part. The label paints for any named guide, so a rig pulled from a guide set reads at a glance. The alternative, a `Horizon` kind that vanishing points snap onto, was costed and deferred: it changes the VP workflow for a payoff nobody has asked for yet.
-- [?] Automatic volume guides — needs a definition of an enclosed region on freehand ink (today only fills know their contours) before "volume" means anything; nothing in the stroke record carries it.
-- [?] Center of mass visualization — same prerequisite as volume, plus a density assumption per region; without B58's rigs naming what is body and what is prop, the computed point is over noise.
+  - Both folded into `Line` plus label rendering (Q79) rather than kinds of their own: they *are* horizontal lines, and the label — which the height scale needed anyway — was the whole missing part. The label paints for any named guide, so a rig pulled from a guide set reads at a glance. The deferred growth, noted on both sides of the fork that merged here: a `Horizon` kind the perspective rig takes its vanishing points from — real machinery, costed M, waiting for somebody to miss it.
+- [?] Automatic volume guides — not a guide but a checker: alpha-weighted ink area per frame (the 0th moment), sparklined on the timeline and flagged on drift, so squash that loses volume is a number instead of a squint. Shares its one hard problem — segmenting "the character" from effects and props — with center of mass; v1 scopes the measurement to selected layers and makes attribution the artist's statement rather than an inference.
+- [?] Center of mass visualization — the 1st moment of the same ink mass volume measures (three more additions in the same loop): a dot per frame plus its arc across neighbours, onion-skin style, for balance and jitter. Ink centroid equals physical CoM only under uniform density, which is the right lie for a drawing aid and belongs in the tooltip, not in a density model.
 - [?] Perspective consistency guide — checking strokes against the VP rig means deciding which strokes *claim* to be perspective lines, which is a labelling problem before it is geometry.
-- [?] Limb length guide — really an animation checker (compare a limb's length across frames), which wants B58's rig anchors as the thing measured; measuring raw ink cannot say what a limb is.
+- [?] Limb length guide — an animation checker, not a guide: distances between per-frame `Anchor` pairs compared across the sheet, flagging segments that drift. The rig already exists (anchors are declared once, positioned per drawing, reachable on canvas since B58); the measurement is trivial, and the real costs are annotating anchors on every frame and the checking surface.
 
 ### Project plumbing
 

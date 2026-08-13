@@ -1,0 +1,625 @@
+using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Lightbox.Ai;
+using Lightbox.App.Input;
+using Lightbox.App.Rendering;
+using Lightbox.App.Services;
+using Lightbox.Core.Documents;
+using Lightbox.Core.Geometry;
+using Lightbox.Core.Inbetween;
+using Lightbox.Core.Projects;
+using Lightbox.Core.Serialization;
+using Lightbox.Core.Timeline;
+using Lightbox.Raster;
+using SkiaSharp;
+
+namespace Lightbox.App.ViewModels;
+
+/// <summary>Part of MainViewModel — see MainViewModel.cs.</summary>
+/// <remarks>
+/// Split out of <c>MainViewModel.cs</c> under Q78, which was 13,628 lines across 61
+/// sections. Every field this file uses is either declared here — meaning no other
+/// section touches it — or in the shared-state block at the top of
+/// <c>MainViewModel.cs</c>. See <c>docs/DESIGN-mainviewmodel-decomposition.md</c>.
+/// </remarks>
+public partial class MainViewModel
+{
+    // ---- active tool ----------------------------------------------------------
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEraser))]
+    [NotifyPropertyChangedFor(nameof(ShowsEffectOptions))]
+    [NotifyPropertyChangedFor(nameof(PointerIntent))]
+    [NotifyPropertyChangedFor(nameof(PointerRefusal))]
+    [NotifyPropertyChangedFor(nameof(ActiveToolIcon))]
+    [NotifyPropertyChangedFor(nameof(IsBrushTool))]
+    [NotifyPropertyChangedFor(nameof(IsEraserTool))]
+    [NotifyPropertyChangedFor(nameof(IsFillTool))]
+    [NotifyPropertyChangedFor(nameof(IsSelectTool))]
+    [NotifyPropertyChangedFor(nameof(IsPickerTool))]
+    [NotifyPropertyChangedFor(nameof(IsGradientTool))]
+    [NotifyPropertyChangedFor(nameof(IsMoveTool))]
+    // Missing, and it cost the whole shape options group: nothing ever told
+    // the bar the tool had changed, so IsVisible stayed false and there was no
+    // way to pick a shape.
+    [NotifyPropertyChangedFor(nameof(IsShapeTool))]
+    [NotifyPropertyChangedFor(nameof(IsPaintTool))]
+    [NotifyPropertyChangedFor(nameof(MakesSizedMarks))]
+    [NotifyPropertyChangedFor(nameof(IsArrowTool))]
+    [NotifyPropertyChangedFor(nameof(IsDirectSelectTool))]
+    [NotifyPropertyChangedFor(nameof(IsPenTool))]
+    [NotifyPropertyChangedFor(nameof(IsWidthTool))]
+    [NotifyPropertyChangedFor(nameof(ActiveToolLabel))]
+    [NotifyPropertyChangedFor(nameof(ActiveToolHasNoPanelOptions))]
+    private ToolId _activeTool = ToolId.Brush;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SelectVariantGlyph))]
+    [NotifyPropertyChangedFor(nameof(IsFreehandVariant))]
+    [NotifyPropertyChangedFor(nameof(IsPolygonVariant))]
+    [NotifyPropertyChangedFor(nameof(IsBoxVariant))]
+    [NotifyPropertyChangedFor(nameof(IsEllipseVariant))]
+    [NotifyPropertyChangedFor(nameof(IsWandVariant))]
+    private SelectVariant _activeSelectVariant = SelectVariant.Freehand;
+
+    public bool IsFreehandVariant => ActiveSelectVariant == SelectVariant.Freehand;
+
+    public bool IsPolygonVariant => ActiveSelectVariant == SelectVariant.Polygon;
+
+    public bool IsBoxVariant => ActiveSelectVariant == SelectVariant.Box;
+
+    public bool IsEllipseVariant => ActiveSelectVariant == SelectVariant.Ellipse;
+
+    public bool IsWandVariant => ActiveSelectVariant == SelectVariant.Wand;
+
+    public bool IsBrushTool => ActiveTool == ToolId.Brush;
+
+    /// <summary>The active tool's icon, for the Quick options bar's left edge.</summary>
+    public Avalonia.Media.Geometry? ActiveToolIcon =>
+        Rendering.IconSet.Resolve(Rendering.IconSet.ForTool(ActiveTool));
+
+    /// <summary>
+    /// What the pointer should say the active tool will do over the active
+    /// layer — bound straight onto the canvas control.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The decision itself is <see cref="Rendering.CanvasCursor"/>, which is
+    /// pure and tested without a window; this only gathers the facts. Keeping
+    /// the gathering here and the rule there is what stops the canvas control
+    /// and anything else that reports the same refusal from drifting apart.
+    /// </para>
+    /// <para>
+    /// <b>Two of the five facts are still assumed, and they are the two that
+    /// vary per pixel rather than per layer:</b> whether the pointer is inside
+    /// the selection and whether there is paint under it for an alpha-locked
+    /// layer. Both need a hover position the view model is not told about yet,
+    /// so they are left at their permissive default — the cursor under-reports
+    /// rather than lying, which is the right way round for a refusal.
+    /// </para>
+    /// </remarks>
+    public Rendering.CanvasCursorKind PointerIntent =>
+        Rendering.CanvasCursor.For(ActiveTool, CurrentTarget, _hoverModifiers);
+
+    /// <summary>Why the active tool would do nothing here, or null.</summary>
+    /// <remarks>
+    /// Nothing shows this yet: the application has no status line, and inventing
+    /// one to carry a sentence is a bigger decision than this change. The
+    /// pointer already refuses, which is the half an artist notices; this is the
+    /// half that says why, and it is ready for the surface that will hold it.
+    /// </remarks>
+    public string? PointerRefusal =>
+        Rendering.CanvasCursor.Refusal(ActiveTool, CurrentTarget, _hoverModifiers);
+
+    /// <summary>Whether the refusal has anything to say, for the status line.</summary>
+    public bool HasPointerRefusal => PointerRefusal is not null;
+
+    private Rendering.CanvasTarget CurrentTarget
+    {
+        get
+        {
+            var alphaLocked = ActiveLayer.AlphaLocked;
+            return new Rendering.CanvasTarget(
+                LayerHidden: !ActiveLayer.Visible,
+                LayerLocked: ActiveLayer.Locked,
+                AlphaLocked: alphaLocked,
+                // The two that need a place. With the pointer off the canvas
+                // there is no place, so both stay permissive — the cursor
+                // under-reports rather than inventing a refusal.
+                NothingUnderPointer:
+                    alphaLocked && _hoverPoint is { } a && !PaintUnder(a.X, a.Y),
+                OutsideSelection:
+                    _hoverPoint is { } b && !InsideSelection(b.X, b.Y));
+        }
+    }
+
+    /// <summary>
+    /// Re-ask the mapping, because something it reads has changed underneath it.
+    /// </summary>
+    /// <remarks>
+    /// <b>Needed because a layer's flags are plain properties on a document
+    /// model that raises nothing.</b> `Layer.Visible` and `Layer.Locked` are set
+    /// through the editor so they undo correctly, and neither notifies — so
+    /// hiding the layer you are drawing on would otherwise leave the pointer
+    /// still promising a stroke until you happened to switch tools.
+    /// </remarks>
+    public void RefreshPointerIntent()
+    {
+        OnPropertyChanged(nameof(PointerIntent));
+        OnPropertyChanged(nameof(PointerRefusal));
+        OnPropertyChanged(nameof(HasPointerRefusal));
+    }
+
+    private Avalonia.Input.KeyModifiers _hoverModifiers;
+    private (double X, double Y)? _hoverPoint;
+
+    /// <summary>
+    /// The pointer moved: remember where, and re-ask what the tool would do.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is what lets the last two refusals be true rather than assumed.</b>
+    /// Whether the pointer is inside the selection and whether there is paint
+    /// under an alpha-locked brush are the only two facts that vary pixel by
+    /// pixel rather than per layer, so they need a position and nothing else did.
+    /// </para>
+    /// <para>
+    /// <b>Bounded, as invariant 6 requires.</b> The selection test is
+    /// point-in-polygon over the outline — proportional to the contour, not to
+    /// the canvas — where <c>SelectionMask</c> would rasterise a full
+    /// <c>w × h</c> mask on every move. The alpha read is one pixel, and only
+    /// when the layer is alpha-locked, because that is the only case whose
+    /// answer is used.
+    /// </para>
+    /// </remarks>
+    public void UpdatePointerContext(double x, double y, Avalonia.Input.KeyModifiers modifiers)
+    {
+        _hoverPoint = (x, y);
+        _hoverModifiers = modifiers;
+        RefreshPointerIntent();
+    }
+
+    /// <summary>The pointer left the canvas: stop claiming to know where it is.</summary>
+    public void ClearPointerContext()
+    {
+        if (_hoverPoint is null) return;
+        _hoverPoint = null;
+        RefreshPointerIntent();
+    }
+
+    /// <summary>Whether a stroke coordinate falls inside the active selection.</summary>
+    /// <remarks>
+    /// Even-odd, matching <c>BrushEngine.PathFromContours</c> — a hole in a
+    /// selection is outside it, and the cursor has to agree with the renderer
+    /// about that or it forbids in the wrong places.
+    /// </remarks>
+    private bool InsideSelection(double x, double y)
+    {
+        if (!HasSelection) return true;
+        // Surface space: the contours are the mask's, and so is the question.
+        var (px, py) = (x - Scene.Left, y - Scene.Top);
+        var inside = false;
+        foreach (var contour in _selectionContours)
+        {
+            for (int i = 0, j = contour.Count - 1; i < contour.Count; j = i++)
+            {
+                var a = contour[i];
+                var b = contour[j];
+                if (a.Y > py != b.Y > py &&
+                    px < (b.X - a.X) * (py - a.Y) / (b.Y - a.Y) + a.X)
+                {
+                    inside = !inside;
+                }
+            }
+        }
+        return inside;
+    }
+
+    /// <summary>Whether the active layer has any paint at a stroke coordinate.</summary>
+    /// <remarks>
+    /// Only asked when the layer is alpha-locked, because that is the only time
+    /// the answer changes what the pointer says — and it costs a bitmap read, so
+    /// asking it otherwise would be paying per pointer event for nothing.
+    /// </remarks>
+    private bool PaintUnder(double x, double y)
+    {
+        var px = (int)Math.Round(x - Scene.Left);
+        var py = (int)Math.Round(y - Scene.Top);
+        if (px < 0 || py < 0 || px >= Scene.Width || py >= Scene.Height) return false;
+        if (ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex) is not { } frame) return false;
+        try
+        {
+            return _cache.Get(frame, Scene.Width, Scene.Height).GetPixel(px, py).Alpha > 0;
+        }
+        catch
+        {
+            // A cache miss mid-resize is not worth a crash on a hover; assume
+            // paint, which is the permissive answer and never forbids wrongly.
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Tell the view the paper moved, after a resize changed the origin.
+    /// </summary>
+    /// <remarks>
+    /// <c>Scene.OriginX</c> is a plain field on the document model, so nothing
+    /// is raised when a resize changes it — and every pointer conversion in the
+    /// canvas reads it. Without this the tools would keep converting against the
+    /// old corner, which lands strokes exactly one resize out of place.
+    /// </remarks>
+    public void RefreshDocumentOrigin() => OnPropertyChanged(nameof(DocumentOrigin));
+
+    /// <summary>
+    /// Apply a resize the artist confirmed, as one undo step.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>One <c>Perform</c> around the whole thing</b>, and that is not
+    /// bookkeeping: an image resize walks every stroke, clip contour, guide,
+    /// camera key, symbol placement and collision box in the document. An artist
+    /// who had to press undo once per stroke would have lost the drawing.
+    /// </para>
+    /// <para>
+    /// Here rather than in the window because it changes the document, and
+    /// because everything that has to be told afterwards — the origin the
+    /// pointer converts against, the caches, the snapshot — is already this
+    /// type's to notify. The window's remaining job is the window: show the
+    /// dialog, then refit the view to paper that is now a different size.
+    /// </para>
+    /// </remarks>
+    public bool ApplyResize(ResizeDialogViewModel choice)
+    {
+        var changed = false;
+        _editor.Perform(doc => changed = choice.Apply(doc, new Lightbox.Raster.PixelResampler()));
+        if (!changed) return false;
+
+        RefreshDocumentOrigin();
+        _publish.InvalidateWholeCanvas();
+        PublishSnapshot();
+        RefreshThumbnails();
+        AiStatus = choice.IsImage
+            ? $"Resized the image to {Scene.Width} × {Scene.Height}."
+            : $"Resized the canvas to {Scene.Width} × {Scene.Height}.";
+        return true;
+    }
+
+    /// <summary>The black arrow — picks things (lines, guides, symbols) rather than an area of pixels.</summary>
+    public bool IsArrowTool => ActiveTool == ToolId.Arrow;
+
+    /// <summary>The white arrow — nodes and handles on one isolated line.</summary>
+    public bool IsDirectSelectTool => ActiveTool == ToolId.DirectSelect;
+
+    /// <summary>The pen — places nodes and draws the curve between them.</summary>
+    public bool IsPenTool => ActiveTool == ToolId.Pen;
+
+    /// <summary>The width tool — drag off a line to fatten it, towards it to thin it.</summary>
+    public bool IsWidthTool => ActiveTool == ToolId.Width;
+
+    public bool IsEraserTool => ActiveTool == ToolId.Eraser;
+
+    public bool IsFillTool => ActiveTool == ToolId.Fill;
+
+    public bool IsSelectTool => ActiveTool == ToolId.Select;
+
+    public bool IsPickerTool => ActiveTool == ToolId.Picker;
+
+    public bool IsGradientTool => ActiveTool == ToolId.Gradient;
+
+    public bool IsMoveTool => ActiveTool == ToolId.Move;
+
+    /// <summary>Brush or eraser — the tools whose strokes the brush-parameter flyout edits.</summary>
+    public bool IsPaintTool => ActiveTool is ToolId.Brush or ToolId.Eraser;
+
+    /// <summary>
+    /// Whether the tool in hand makes a mark that takes the pinned Size and
+    /// Opacity — brush, eraser, and shape, because a shape is a stroke drawn
+    /// with the loaded brush. The Quick options bar disables (never hides)
+    /// its fixed section on this, per Q70.
+    /// </summary>
+    public bool MakesSizedMarks => ActiveTool is ToolId.Brush or ToolId.Eraser or ToolId.Shape;
+
+    /// <summary>The active tool, named for the Tool options panel's header.</summary>
+    public string ActiveToolLabel => ActiveTool switch
+    {
+        ToolId.Brush => "Brush",
+        ToolId.Eraser => "Eraser",
+        ToolId.Fill => "Fill",
+        ToolId.Select => "Select",
+        ToolId.Gradient => "Gradient",
+        ToolId.Shape => "Shape",
+        ToolId.Move => "Move",
+        ToolId.Picker => "Colour picker",
+        ToolId.Arrow => "Arrow",
+        ToolId.DirectSelect => "Direct select",
+        ToolId.Pen => "Pen",
+        ToolId.Width => "Width",
+        _ => ActiveTool.ToString(),
+    };
+
+    /// <summary>
+    /// Tools whose whole vocabulary already fits on the bar — the Tool options
+    /// panel has nothing to add for them, and says so instead of going blank.
+    /// </summary>
+    public bool ActiveToolHasNoPanelOptions => ActiveTool is
+        ToolId.Move or ToolId.Picker or ToolId.Arrow or
+        ToolId.DirectSelect or ToolId.Pen or ToolId.Width;
+
+    /// <summary>Eyedropper click: the color under the cursor (what the eye sees, incl. paper).</summary>
+    public void PickColorAt(double x, double y)
+    {
+        var (px, py) = ToSurface(x, y);
+        if (px < 0 || py < 0 || px >= Scene.Width || py >= Scene.Height) return;
+        using var composite = CompositeVisibleLayers();
+        var color = composite.GetPixel(px, py);
+        if (color.Alpha == 0)
+        {
+            ColorHex = Scene.TransparentBackground ? "#ffffff" : Scene.BackgroundColor;
+            return;
+        }
+        ColorHex = $"#{color.Red:x2}{color.Green:x2}{color.Blue:x2}";
+    }
+
+    /// <summary>
+    /// What marking on a held cel does.
+    /// </summary>
+    /// <remarks>
+    /// A preference, not document data, and the default is the animator's
+    /// answer: a hold is somebody else's drawing shown again, and drawing on
+    /// it silently rewrites the frame you were holding — every mark you make
+    /// at frame 4 appears at frame 3 as well, which is a very confusing way to
+    /// ruin a hold. Keying first means the timeline shows a new drawing where
+    /// you made one.
+    /// </remarks>
+    public HoldDrawing DrawingOnAHold
+    {
+        get => Enum.TryParse<HoldDrawing>(Settings.DrawingOnAHold, out var v) ? v : HoldDrawing.StartANewDrawing;
+        set
+        {
+            if (DrawingOnAHold == value) return;
+            Settings.DrawingOnAHold = value.ToString();
+            Settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    public IReadOnlyList<HoldDrawing> HoldDrawingChoices { get; } = Enum.GetValues<HoldDrawing>();
+
+    /// <summary>Timeline-context shortcut: key the active layer's cel at the playhead.</summary>
+    public void InsertKeyframeAtPlayhead() =>
+        _editor.SetKeyAt(ActiveLayer.Id, CurrentFrameIndex, FrameRole.Key);
+
+    /// <summary>The tool button's icon, so it says which selection it will make.</summary>
+    /// <remarks>
+    /// The wand variant used to be U+1FA84, an emoji: full colour beside eleven
+    /// monoline glyphs on the platforms that had the character, and an empty box
+    /// on the ones that did not.
+    /// </remarks>
+    public Avalonia.Media.Geometry? SelectVariantGlyph =>
+        Rendering.IconSet.Resolve(Rendering.IconSet.ForSelect(ActiveSelectVariant));
+
+    /// <summary>Compat view of the tool (old XAML/tests): eraser vs everything else painting as brush.</summary>
+    public bool IsEraser
+    {
+        get => ActiveTool == ToolId.Eraser;
+        set => ActiveTool = value ? ToolId.Eraser : ToolId.Brush;
+    }
+
+    partial void OnActiveToolChanged(ToolId value)
+    {
+        // The bound sliders edit the active tool's brush configuration.
+        NotifyBrushProperties();
+        OnPropertyChanged(nameof(LazyRadiusForCursor));
+
+        // A borrow is not a decision — see MainViewModel.Momentary.cs. Everything
+        // below is about an artist choosing to leave a tool, and holding Ctrl is
+        // not that. The two lines above are display, which a borrow does want:
+        // the picker's cursor is the whole reason the borrow is legible.
+        //
+        // Everything that throws modal work away lives below this line, the
+        // half-drawn lasso included. It was above it, which was harmless only
+        // because the Select tool is not borrowable — and "harmless because of
+        // a fact recorded somewhere else" is what makes adding a row to the
+        // table a thing to reason about instead of a thing to do.
+        if (_suppressToolSideEffects) return;
+
+        LeaveToolStateBehind(value);
+    }
+
+    /// <summary>
+    /// What choosing a tool does to the one being left: modal work is let go.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="OnActiveToolChanged"/> because a momentary
+    /// key's tap-latch (B176) needs to run these consequences *after* the
+    /// switch: the press borrowed without side effects — it could not know yet
+    /// whether it was a tap or a hold — and the release finding a tap makes the
+    /// switch a decision retroactively.
+    /// </remarks>
+    private void LeaveToolStateBehind(ToolId value)
+    {
+        CancelPolygonInProgress();
+
+        // B147: leaving the arrow lets the lines go. A stroke selection is only
+        // reachable from the arrow — nothing else moves, recolours or deletes it
+        // — so a highlight that outlives the tool is drawn state pointing at a
+        // capability the artist no longer has. Every other modal thing here
+        // behaves the same way (the polygon above it, the transform session),
+        // which is why this is one line rather than a mode.
+        if (value != ToolId.Arrow) ClearStrokeSelection();
+
+        // Same one-line rule for the hover preview: it is drawn state that only
+        // the white arrow can act on, so it must not outlive the tool. Without
+        // this the last-hovered line keeps its points on screen while the brush
+        // is painting over them.
+        if (value != ToolId.DirectSelect) ClearPathHover();
+
+        // The pen parks rather than committing: the path in progress survives
+        // the switch, stays traced on screen, and the pen resumes it. It used
+        // to finish here — which kept the work (right) but ended a path the
+        // artist meant to come back to (wrong). Enter and Escape are still the
+        // deliberate finish, and neither discards.
+        if (value != ToolId.Pen) ParkPen();
+
+        // B147's shape one tool along, and phase 2 shipped it: the node overlay
+        // is drawn whatever the tool is, so leaving isolation for the brush left
+        // glyphs on screen over a line nothing could reshape any more. Only the
+        // tools that can still work the session keep it — the white arrow that
+        // edits nodes and the width tool that shares it. The black arrow used to
+        // keep it too, and that read as stuck: its clicks answer to isolation's
+        // lock, so the artist saw nodes they could not drag and other lines that
+        // would not select. Choosing a tool that cannot work the session is
+        // leaving it.
+        if (value is not (ToolId.DirectSelect or ToolId.Width)) EndPathEdit();
+    }
+
+    [RelayCommand]
+    private void SelectTool(ToolId tool)
+    {
+        if (tool == ToolId.Select && ActiveTool == ToolId.Select)
+        {
+            CycleSelectVariant();
+            return;
+        }
+        ActiveTool = tool;
+    }
+
+    /// <summary>Pressing the selection shortcut repeatedly cycles its variants.</summary>
+    public void CycleSelectVariant()
+    {
+        ActiveSelectVariant = ActiveSelectVariant switch
+        {
+            SelectVariant.Freehand => SelectVariant.Polygon,
+            SelectVariant.Polygon => SelectVariant.Box,
+            SelectVariant.Box => SelectVariant.Ellipse,
+            SelectVariant.Ellipse => SelectVariant.Wand,
+            _ => SelectVariant.Freehand,
+        };
+    }
+
+    [RelayCommand]
+    private void SelectVariantOf(SelectVariant variant)
+    {
+        ActiveSelectVariant = variant;
+        ActiveTool = ToolId.Select;
+    }
+
+    // ---- magic wand -------------------------------------------------------------
+
+    [ObservableProperty]
+    private double _wandTolerance = 32;
+
+    /// <summary>Openings up to this many pixels read as closed for the wand.</summary>
+    [ObservableProperty]
+    private double _wandGapPx;
+
+    /// <summary>Sample the composited visible layers instead of only the active one.</summary>
+    [ObservableProperty]
+    private bool _wandSampleAllLayers = true;
+
+    /// <summary>Magic-wand click: select the connected color region at a document position.</summary>
+    public void WandSelectAt(double x, double y, bool add, bool subtract)
+    {
+        if (ActiveTool != ToolId.Select || IsPlaying) return;
+        int w = Scene.Width, h = Scene.Height;
+        SKBitmap? owned = null;
+        try
+        {
+            SKBitmap sample;
+            if (WandSampleAllLayers)
+            {
+                owned = CompositeVisibleLayers();
+                sample = owned;
+            }
+            else
+            {
+                var frame = ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex);
+                if (frame is null)
+                {
+                    AiStatus = "The active layer has nothing drawn to select here.";
+                    return;
+                }
+                sample = _cache.Get(frame, w, h);
+            }
+
+            var (wandX, wandY) = ToSurface(x, y);
+            var result = FloodFill.Fill(
+                sample, wandX, wandY,
+                new FloodFill.Options(WandTolerance, WandGapPx));
+            if (result is null)
+            {
+                AiStatus = "Nothing selectable at that spot.";
+                return;
+            }
+            var contours = new List<List<StrokePoint>> { result.Outer };
+            contours.AddRange(result.Holes);
+            ApplySelectionMask(MaskFromContours(contours, w, h), add, subtract);
+        }
+        finally
+        {
+            owned?.Dispose();
+        }
+    }
+
+    // ---- transform tool (Ctrl+T) ------------------------------------------------
+
+    [ObservableProperty]
+    private TransformScope _transformScope = TransformScope.ActiveCel;
+
+    public IReadOnlyList<TransformScope> TransformScopeChoices { get; } = Enum.GetValues<TransformScope>();
+
+    /// <summary>Pixel solver for raster baselines (strokes never resample).</summary>
+    [ObservableProperty]
+    private TransformSampling _transformSampling = TransformSampling.Bilinear;
+
+    public IReadOnlyList<TransformSampling> TransformSamplingChoices { get; } = Enum.GetValues<TransformSampling>();
+
+    [ObservableProperty]
+    private bool _transformActive;
+
+
+    /// <summary>Session started/restarted: bounds of the transformable content (doc space).</summary>
+    public event Action<double, double, double, double>? TransformBegun;
+
+    public event Action? TransformEnded;
+
+    /// <summary>Start (or restart) a transform session over the current scope.</summary>
+    /// <param name="gizmo">
+    /// Raise <see cref="TransformBegun"/> so the canvas puts a handled box
+    /// round the drawing. The Move tool passes false: it is one drag with no
+    /// handles, and a gizmo appearing under the pointer for the length of a
+    /// nudge is noise.
+    /// </param>
+    public bool BeginTransform(bool gizmo = true)
+    {
+        if (!CanEdit(ActiveLayer, "transform it")) return false;
+        var frames = CollectTransformFrames();
+        Func<Stroke, bool>? filter = null;
+        if (HasSelection)
+        {
+            int w = Scene.Width, h = Scene.Height;
+            var mask = MaskFromContours(_selectionContours, w, h);
+            filter = s => TransformOps.MajorityInside(s, mask, w, h);
+        }
+        var bounds = TransformOps.Bounds(frames, filter);
+        if (frames.Count == 0 || bounds is null)
+        {
+            AiStatus = "Nothing to transform in this scope.";
+            if (TransformActive) CancelTransform();
+            return false;
+        }
+        _transformFrames.Clear();
+        _transformFrames.AddRange(frames);
+        _transformFilter = filter;
+        TransformActive = true;
+        // The session's controls live in the Tool options docker now (Q70), so
+        // starting a transform with the docker closed must open it — Apply and
+        // Cancel have keys, but scope, sampling and perspective would otherwise
+        // be reachable only through a panel the artist cannot see.
+        OpenToolOptions();
+        var b = bounds.Value;
+        if (gizmo) TransformBegun?.Invoke(b.MinX, b.MinY, b.MaxX, b.MaxY);
+        return true;
+    }
+}

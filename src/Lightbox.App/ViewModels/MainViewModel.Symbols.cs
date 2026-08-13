@@ -171,7 +171,7 @@ public sealed partial class MainViewModel
         foreach (var entry in stale) SymbolScopes.Pull(project, Library, entry.Mine.Id);
         RefreshProjectResources();
         SymbolBrowser.Refresh();
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         PublishSnapshot();
         MarkDocumentEdited();
         OnPropertyChanged(nameof(HasLibraryUpdates));

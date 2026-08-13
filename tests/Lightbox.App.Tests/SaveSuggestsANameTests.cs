@@ -37,9 +37,18 @@ public class SaveSuggestsANameTests(ITestOutputHelper output)
         return dir!.FullName;
     }
 
+    /// <summary>
+    /// The whole of the <c>MainWindow</c> partial class, not one file of it. The view
+    /// was split into fifteen partials when it hit 5,544 lines, and a test that reads
+    /// only <c>MainWindow.axaml.cs</c> silently stops guarding anything the moment the
+    /// member it greps for moves to a sibling.
+    /// </summary>
     private static string MainWindow() =>
-        File.ReadAllText(Path.Combine(
-            RepoRoot(), "src", "Lightbox.App", "Views", "MainWindow.axaml.cs"));
+        string.Concat(Directory
+            .EnumerateFiles(
+                Path.Combine(RepoRoot(), "src", "Lightbox.App", "Views"), "MainWindow*.cs")
+            .OrderBy(p => p, StringComparer.Ordinal)
+            .Select(File.ReadAllText));
 
     /// <summary>The save path can be told what to call the file.</summary>
     [Fact]
