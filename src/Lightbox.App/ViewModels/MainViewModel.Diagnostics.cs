@@ -127,6 +127,7 @@ public partial class MainViewModel
         NotifyActiveLayerCompositing();
         MarkersView = Scene.Markers.ToList();
         RefreshCelSelectionHighlights();
+        ScheduleVolumeCheck();
         // Undo/redo publishes from ApplyEditScope instead, once the stale
         // frame bitmaps have been dropped.
         if (_applyingEditScope) return;

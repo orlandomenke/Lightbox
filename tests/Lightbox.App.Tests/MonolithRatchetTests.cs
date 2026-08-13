@@ -132,14 +132,15 @@ public class MonolithRatchetTests(ITestOutputHelper output)
     public static readonly (string Path, int Max)[] Budgets =
     [
         ("src/Lightbox.App/ViewModels/MainViewModel.cs", 670),
-        // Lowered when the guide-grab section moved to CanvasControl.Guides.cs,
-        // the first partial split out of this file.
-        ("src/Lightbox.App/Rendering/CanvasControl.cs", 5071),
-        // Raised 4,273 → 4,306 (2026-08-13): the construction-guide and
-        // guide-set menu entries. Menu items have no partial to live in —
-        // XAML cannot be split the way the code-behind was — and a menu that
-        // hides features to satisfy a line count is the tail wagging the dog.
-        ("src/Lightbox.App/Views/MainWindow.axaml", 4306),
+        // Lowered twice as CanvasControl.Guides.cs grew: first the guide-grab
+        // section, then the Guides/DraftGuide/BalanceDots overlay properties.
+        ("src/Lightbox.App/Rendering/CanvasControl.cs", 5042),
+        // Raised 4,273 → 4,306 → 4,314 (2026-08-13): the construction-guide,
+        // guide-set and volume-check menu entries. Menu items have no partial
+        // to live in — XAML cannot be split the way the code-behind was — and
+        // a menu that hides features to satisfy a line count is the tail
+        // wagging the dog.
+        ("src/Lightbox.App/Views/MainWindow.axaml", 4314),
         ("src/Lightbox.App/Views/MainWindow.axaml.cs", 455),
     ];
 

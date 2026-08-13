@@ -156,6 +156,34 @@ Keying is a separate undo step from the mark that prompted it: one undo takes
 the stroke back and leaves the new drawing, a second takes the drawing away and
 restores the hold.
 
+## The volume and balance check
+
+**View → Volume and balance check** reads the drawing and reports — it never
+touches your input the way a guide does. Per frame, on the layer you are
+standing on, it measures two things about the ink:
+
+- **Volume** — the ink's area, shown as a band of bars under the timeline's
+  tracks. Squash and stretch preserves volume: a ball that squashes must
+  widen, so a level skyline is on-model and a step in it is a drawing that
+  swelled or shrank — the drift no single frame can show you. Frames that
+  drift further than the tolerance from the shot's median turn warm.
+- **Balance** — the ink's centre of mass, drawn on the canvas as a dot per
+  frame with the arc they trace, onion-skin style: the current frame's dot is
+  the solid, ringed one. A walk reads wrong when this arc jitters, and a pose
+  reads off-balance when the dot is not over the support foot.
+
+The centre of mass is honestly the *centroid of the ink*: it equals the
+physical centre of mass only if the character has uniform density, which is
+the right lie for a drawing aid. And "the character" is whatever is on the
+**active layer** — effects, props or a second character on other layers are
+deliberately not counted, so standing on the character's layer is how you say
+what to measure.
+
+Holds are measured once — a scene on 2s costs half its frame count — and the
+readings refresh a beat after each edit rather than during it, so the checker
+never adds to the pen's own latency. The allowed drift is **Edit → Configure →
+Timeline → Volume check**, ten percent unless you say otherwise.
+
 ## The timeline's size
 
 **Frames** on the timeline's own bar sets how wide a frame cell is. Narrow
