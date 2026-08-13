@@ -91,6 +91,31 @@ public sealed class Doc
     public bool HasSymbols => Symbols is { Count: > 0 };
 
     /// <summary>
+    /// The document's bone hierarchy, or null — and null is the default and
+    /// the common case, exactly as <see cref="Documents.Scene.Camera"/> is.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Bones are the camera's precedent applied to rigging: authored, saved,
+    /// and never a mutation of a stroke — posing decides where marks are
+    /// re-stamped, the stroke record stays the record. A document that never
+    /// rigs writes no key, shows no rig UI, and pays nothing.
+    /// </para>
+    /// <para>
+    /// On the document rather than the scene because the rig is a property of
+    /// the <em>character</em>, like <see cref="Palettes"/>: the hierarchy and
+    /// bind pose are what every scene shares, while the poses struck against a
+    /// timeline live on <see cref="Documents.Scene.PoseTrack"/>. The design and
+    /// its decisions are <c>docs/DESIGN-bones.md</c>.
+    /// </para>
+    /// </remarks>
+    public Armature? Armature { get; set; }
+
+    /// <summary>Whether this document has a rig. Derived; never serialized.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasArmature => Armature is { Bones.Count: > 0 };
+
+    /// <summary>
     /// Marks this document as a template: a starting point other animations are
     /// copied from. Q12's answer, and deliberately the whole of it.
     /// </summary>
@@ -205,6 +230,7 @@ public sealed class Doc
         copy.PaletteFolders = PaletteFolders?.Select(f => f.Clone()).ToList();
         copy.Gradients = Gradients.ToDictionary(e => e.Key, e => e.Value.Clone());
         copy.Symbols = Symbols?.ToDictionary(e => e.Key, e => e.Value.Clone());
+        copy.Armature = Armature?.Clone();
         copy.Features = Features is null ? null : new Dictionary<string, bool>(Features);
         return copy;
     }

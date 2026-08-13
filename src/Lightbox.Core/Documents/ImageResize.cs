@@ -160,6 +160,30 @@ public static class ImageResize
             pivot.Y *= sy;
         }
 
+        if (doc.Armature is { } armature)
+            foreach (var bone in armature.Bones)
+            {
+                bone.X *= sx;
+                bone.Y *= sy;
+                // Length is a distance along the bone, so it follows the
+                // marks. Rotation is not a length and does not scale — a
+                // non-uniform rescale shears a rotated chain off its old
+                // line, the same accepted limit an angled guide has. A
+                // uniform rescale (the linked default) is exact, because
+                // uniform scale commutes with rotation.
+                bone.Length *= mark;
+            }
+
+        if (scene.PoseTrack is { } poses)
+            foreach (var key in poses.Keys)
+                foreach (var pose in key.Bones.Values)
+                {
+                    // A pose's translation is a distance in its parent's
+                    // frame; its rotation, like the bone's, is not a length.
+                    pose.X *= sx;
+                    pose.Y *= sy;
+                }
+
         if (scene.References is { } references)
             foreach (var strip in references)
             {

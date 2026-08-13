@@ -1,8 +1,11 @@
 # Bones and spline deformers for 2D — design
 
-*Status: designed, not scheduled. Decisions taken with the owner 2026-08-13;
-nothing here is built. The roadmap item under Pillar 3 carries the evidence
-anchors that will flip when it is.*
+*Status: phase 1's record layer is in (2026-08-13): `Doc.Armature`,
+`Scene.PoseTrack`, the FK solve and pose interpolation in `ArmatureOps`,
+guarded by `ArmatureTests`. No UI yet — the bone tool, posing gestures and
+armature onion-skin are still to build, as is everything from phase 2 on.
+Decisions taken with the owner 2026-08-13. The roadmap item under Pillar 3
+carries the evidence anchors that flip as the rest lands.*
 
 ## The tension this design resolves
 
