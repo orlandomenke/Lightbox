@@ -147,6 +147,40 @@ public class LivePostAsyncTests(ITestOutputHelper output) : BrushStateIsolated
     }
 
     /// <summary>
+    /// A runner that cannot even schedule must not wedge the single-flight
+    /// flag. The adversarial pass proved the first draft did exactly that: a
+    /// synchronous throw skipped every path that clears the flag, and no wet
+    /// pass ran again for the rest of the session. Asserted as recovery — the
+    /// next event reaches a runner that works.
+    /// </summary>
+    [AvaloniaFact]
+    public void ARunnerThatThrowsDoesNotWedgeThePassForever()
+    {
+        var (vm, work) = Wet();
+        var thrown = false;
+        var healthy = vm.LivePostRunner;
+        vm.LivePostRunner = w =>
+        {
+            if (!thrown) { thrown = true; throw new InvalidOperationException("scheduling failed"); }
+            return healthy(w);
+        };
+
+        vm.BeginStroke(100, 100, 0.9);
+        vm.MoveStroke(140, 100, 0.9);
+        Dispatcher.UIThread.RunJobs();  // the start swallows the throw
+        Assert.True(thrown, "the throwing runner was never reached, so this tests nothing");
+
+        vm.MoveStroke(180, 100, 0.9);
+        Dispatcher.UIThread.RunJobs();
+
+        output.WriteLine($"worker items after the throw and one more event: {work.Count}");
+        Assert.Single(work);
+
+        vm.EndStroke();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>
     /// The same, one stroke later: the stale guard must not swallow the NEXT
     /// stroke's passes — the generation moves forward, never wedges.
     /// </summary>

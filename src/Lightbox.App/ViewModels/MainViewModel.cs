@@ -7611,7 +7611,25 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         var generation = _livePostGeneration;
-        LivePostRunner(() =>
+        try
+        {
+            LivePostRunner(Work);
+        }
+        catch
+        {
+            // A runner that cannot even schedule must not wedge the
+            // single-flight flag — that would end wet previews for the rest of
+            // the session (found by the adversarial pass). Disposing here can
+            // double up with the worker's own finally when a synchronous
+            // runner ran the work before throwing; SKBitmap.Dispose is
+            // idempotent, so that costs nothing.
+            _livePostQueued = false;
+            dabsCrop.Dispose();
+            beneathCrop?.Dispose();
+        }
+        return;
+
+        void Work()
         {
             SKImage? processed = null;
             var started = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -7641,7 +7659,7 @@ public sealed partial class MainViewModel : ObservableObject
             Avalonia.Threading.Dispatcher.UIThread.Post(
                 () => FinishLivePostProcess(processed, rect, count, generation, costMs),
                 Avalonia.Threading.DispatcherPriority.Input);
-        });
+        }
     }
 
     /// <summary>
