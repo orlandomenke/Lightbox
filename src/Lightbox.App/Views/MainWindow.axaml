@@ -120,6 +120,29 @@
       <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
       <Setter Property="BorderThickness" Value="1,1,1,0" />
     </Style>
+    <!-- The tab's project-membership badge: a small squarish P before the
+         name. Violet rather than a status colour — membership is identity,
+         not news, and it must not read as a warning. -->
+    <Style Selector="Border.projectBadge">
+      <Setter Property="Background" Value="{StaticResource AccentVioletDeepBrush}" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="4,1" />
+      <Setter Property="Margin" Value="6,0,-4,0" />
+    </Style>
+    <!-- The docker row whose document is on the canvas. A left accent bar and
+         a tint, deliberately not the selection brush: selection answers "what
+         does the next command act on", this answers "what am I editing", and
+         the two drift apart the moment a row is clicked to act on it. -->
+    <Style Selector="DockPanel.editingRow">
+      <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+    </Style>
+    <Style Selector="Border.editingBar">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Width" Value="3" />
+    </Style>
+    <Style Selector="DockPanel.editingRow > Border.editingBar">
+      <Setter Property="Background" Value="{StaticResource AccentVioletBrush}" />
+    </Style>
     <!-- ToggleButton.tool is sized by Density.axaml. Only the alignment
          changes here: the toolbar's "labels" class (set from code-behind at a
          width threshold) reveals the names beside the icons, and a name reads
@@ -1238,6 +1261,14 @@
               <Border Classes="docTab" Classes.active="{Binding IsActive}" Padding="2,0">
                 <Panel>
                   <StackPanel Orientation="Horizontal" Spacing="0">
+                    <!-- Project membership, before the name: a loose file and a
+                         project animation save to different places, and the tab
+                         is where the artist looks when asking which this is. -->
+                    <Border Classes="projectBadge" IsVisible="{Binding IsProjectWork}"
+                            VerticalAlignment="Center"
+                            ToolTip.Tip="Part of the open project — saving goes through the project">
+                      <TextBlock Text="P" FontSize="9" FontWeight="Bold" />
+                    </Border>
                     <Button Content="{Binding DisplayTitle}" Background="Transparent" BorderThickness="0" Padding="11,2"
                             Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateTabCommand}"
                             CommandParameter="{Binding}" />
@@ -2527,7 +2558,8 @@
                         not hit-testable and the drop never arrives.
                       -->
                       <DockPanel Classes.characterRow="{Binding IsHeading}"
-                                 Classes.animationRow="{Binding !IsHeading}" MinHeight="22"
+                                 Classes.animationRow="{Binding !IsHeading}"
+                                 Classes.editingRow="{Binding IsEditing}" MinHeight="22"
                                  Background="Transparent"
                                  PointerPressed="OnProjectRowPressed"
                                  DragDrop.AllowDrop="True">
@@ -2644,6 +2676,11 @@
                              the row, because the row's own background is the
                              drop target and indenting it would shrink the area
                              a drag can land on. -->
+                        <!-- The "you are here" bar — lit on the row whose
+                             document the active tab edits, via editingRow.
+                             Always present so nothing shifts sideways. -->
+                        <Border DockPanel.Dock="Left" Classes="editingBar"
+                                IsHitTestVisible="False" Margin="0,1,2,1" />
                         <Border DockPanel.Dock="Left" Width="{Binding Indent}"
                                 IsHitTestVisible="False" />
                         <!-- B86. The twisty, on folder rows only. A Button

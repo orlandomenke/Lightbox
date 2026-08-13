@@ -871,7 +871,7 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
             // an error.
             if (folder.ParentId == destination?.Id && beforeId is null) return false;
             if (folder.ParentId != destination?.Id
-                && !ProjectFolders.Move(Manifest, folder, destination))
+                && !ProjectIo.MoveFolder(_project, folder, destination))
             {
                 Status = $"“{folder.Name}” cannot go there.";
                 return false;

@@ -181,6 +181,42 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         Assert.Equal(reference.Id, vm.ActiveTab!.Source?.Id);
     }
 
+    /// <summary>
+    /// The two halves of "which file am I actually editing": the tab wears the
+    /// project badge, and the docker row wears a fixed highlight — independent
+    /// of selection, which moves the moment the artist clicks another row.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheActiveTabMarksItsRowAndWearsTheProjectBadge()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        WithKnight(vm);
+        vm.ProjectDocker.AddDocumentCommand.Execute(null);
+        var opened = vm.ProjectDocker.Rows[^1];
+
+        Assert.True(vm.ActiveTab!.IsProjectWork);
+        Assert.True(opened.IsEditing);
+
+        // Selecting a different row moves selection and not the mark.
+        vm.ProjectDocker.Selected = vm.ProjectDocker.Rows[0];
+        Assert.True(opened.IsEditing);
+        Assert.Single(vm.ProjectDocker.Rows, r => r.IsEditing);
+
+        // A rebuild — new row objects — keeps the mark.
+        vm.ProjectDocker.Refresh();
+        Assert.True(vm.ProjectDocker.Rows.Single(r => r.Animation?.Id == opened.Animation!.Id).IsEditing);
+
+        // A loose tab is neither badged nor marked. NewDocument adopts into an
+        // open project by design, so make a standalone one directly.
+        var loose = new DocumentTab(
+            new Core.Timeline.DocumentEditor(DocumentFactory.CreateDoc(8, 8, 12)), "loose");
+        vm.Tabs.Add(loose);
+        vm.ActiveTab = loose;
+        Assert.False(vm.ActiveTab!.IsProjectWork);
+        Assert.DoesNotContain(vm.ProjectDocker.Rows, r => r.IsEditing);
+    }
+
     [AvaloniaFact]
     public void OpeningAnAnimationTwiceFocusesTheTabRatherThanDuplicatingIt()
     {

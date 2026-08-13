@@ -745,6 +745,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnActiveTabChanged(DocumentTab? value)
     {
+        // Before the null return: a last tab closing must clear the docker's
+        // "editing this" mark, not leave it on a row nobody is editing.
+        ProjectDocker.MarkEditing(value?.Source?.Id ?? value?.Owner?.Source?.Id);
         if (value is null) return;
         foreach (var tab in Tabs) tab.IsActive = tab == value;
         OnPropertyChanged(nameof(ShowTimeline));
@@ -1513,6 +1516,12 @@ public sealed partial class MainViewModel : ObservableObject
         if (tab.Source is { } source && !ProjectDocker.AdoptSavedPath(source, filePath))
         {
             tab.Source = null;
+        }
+        // Adoption or release changes what the docker should highlight and what
+        // the tab strip should badge, without the active tab having changed.
+        if (tab == ActiveTab)
+        {
+            ProjectDocker.MarkEditing(tab.Source?.Id);
         }
     }
 

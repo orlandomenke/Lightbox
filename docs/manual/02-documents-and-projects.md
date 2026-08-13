@@ -714,12 +714,24 @@ set up, a network share being the usual one, where a project still opens
 normally and this is how you get a current view. Like every shortcut in
 Lightbox, F5 is rebindable in **Edit ▸ Configure ▸ Shortcuts**.
 
-**Drag a document onto another character** to re-file it, or onto a
-project-level row to take it out of every character. It keeps its identity, so
-a tab already showing it stays bound to it. The file on disk is not moved
-until the next save writes it to its new path, and the old one is left alone —
-the same reasoning as **－**, which removes a row from the index and never
-deletes a drawing.
+**Drag a document or a folder onto another folder** to re-file it, or onto a
+project-level row to take it out of every folder. It keeps its identity, so a
+tab already showing it stays bound to it — and **the disk moves with it**: the
+file, or the folder's whole directory, is moved first and the project records
+it only if that worked. The project's directory and the panel's tree are the
+same thing, which a save keeps true even for a project rearranged before this
+rule existed — any file recorded outside its folder's directory is brought
+home, and a directory no layout explains is removed once nothing lives in it.
+(A stray directory *with* something in it is reported, never deleted — the
+same reasoning as **－**, which removes a row from the index and never deletes
+a drawing.)
+
+**Which file am I actually editing?** Two answers, both always on: the tab
+wears a small violet **P** badge before its name when the document belongs to
+the open project (a loose file has none — they save to different places), and
+the panel row whose document is on the canvas carries a violet bar and tint.
+That mark is not the selection: selecting a row aims the next command, and the
+bar stays put while you do.
 
 ### Variants
 

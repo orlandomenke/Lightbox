@@ -204,6 +204,20 @@ public sealed partial class ProjectRow : ObservableObject
     private bool _isRenaming;
 
     /// <summary>
+    /// Whether this row's document is the one in the active tab — the fixed
+    /// "you are here" of the panel, independent of what is selected.
+    /// </summary>
+    /// <remarks>
+    /// Selection answers "what will the next command act on"; this answers
+    /// "what am I looking at on the canvas". They coincide right after a
+    /// double-click and drift apart the moment the artist clicks another row
+    /// to act on it, which is exactly when losing sight of the open file
+    /// costs a mis-aimed delete.
+    /// </remarks>
+    [ObservableProperty]
+    private bool _isEditing;
+
+    /// <summary>
     /// How far in this row sits, in pixels.
     /// </summary>
     /// <remarks>
@@ -1473,10 +1487,36 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         }
         MarkMissing();
         Selected = Rows.FirstOrDefault(r => r.Key == keep);
+        ApplyEditingMark();
         OnPropertyChanged(nameof(CanReorder));
         OnPropertyChanged(nameof(TotalRunningTime));
         OnPropertyChanged(nameof(MissingCount));
         OnPropertyChanged(nameof(HasMissing));
+    }
+
+    // ---- which document is on the canvas ----------------------------------------
+
+    /// <summary>The document id the active tab is editing, or null.</summary>
+    private string? _editingId;
+
+    /// <summary>
+    /// Tell the panel which document the active tab edits, so its row can wear
+    /// the fixed highlight. Null when the canvas shows something that is not a
+    /// project document.
+    /// </summary>
+    public void MarkEditing(string? documentId)
+    {
+        _editingId = documentId;
+        ApplyEditingMark();
+    }
+
+    /// <summary>Re-applied after every rebuild — the rows are new objects.</summary>
+    private void ApplyEditingMark()
+    {
+        foreach (var row in Rows)
+        {
+            row.IsEditing = _editingId is not null && row.Animation?.Id == _editingId;
+        }
     }
 
     /// <summary>
@@ -1669,7 +1709,9 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
 
         if (row is { IsFolder: true, Folder: { } folder })
         {
-            if (!ProjectFolders.Move(project.Manifest, folder, destination)) return false;
+            // B188: the directory and everything filed below it travel with
+            // the drag, or the panel shows a tree the disk stopped having.
+            if (!ProjectIo.MoveFolder(project, folder, destination)) return false;
         }
         else if (row.Sheet is { } sheet)
         {
