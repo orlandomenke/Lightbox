@@ -205,9 +205,32 @@ partials.
 code-motion change: no line of code was altered, verified by showing the file
 identical as a multiset of lines. The extraction is the next branch.
 
-**The live-paint state machine** — `painting` (`:6285`), which owns the 19 `_live*`
-fields, together with `live post-processing` (`:6891`), which reads all of them.
-Those two are one mechanism and the future `LivePaintSession`.
+**The live-paint state machine** — `painting`, which owned 19 `_live*` fields,
+together with `live post-processing`, which read all of them. Those two were one
+mechanism, and they are now `ViewModels/LivePaintSession.cs`: 22 fields and four
+lifecycle methods, owned by one object the view model holds for its lifetime.
+
+| | Before | After |
+| --- | --- | --- |
+| `MainViewModel.cs` | 13,141 ln | **12,919** |
+| private fields | 143 | **122** |
+| fields touched by one section | 53% | **63%** |
+| `live post-processing` foreign fields | 19 | **6** |
+| `painting` fields owned | 19 | **3** |
+
+**The state moved and the engine did not, and that was the call.** `MoveStroke`,
+`FlushLivePreview`, `StampLiveDabs`, `StampLiveSmudge`, `RenderLivePostProcess` and
+`EndStroke` stay on the view model, because they also need the editor, the frame
+cache, the brush settings and the stroke builder — moving them would have dragged
+all four into the session and produced a second view model.
+
+**What it honestly did not buy:** `_live` now crosses seven sections, so the
+coupling did not vanish — it became **one typed reference instead of 22 raw
+fields**, which is the whole of the trade. The session is not an encapsulation
+boundary either; the engine mutates its properties directly, and a version that hid
+them would have to expose the dab walk to be useful. The value is that
+`ClearEffectState` is now impossible to get half-right (B39's failure mode), and
+that a reader sees the whole of the live-stroke state on one screen.
 
 **It was not readable as one before the re-mark.** 580 lines of the engine —
 `MoveStroke`, `FlushLivePreview`, `StampLiveDabs`, `StampLiveSmudge`,
@@ -348,13 +371,11 @@ touches the paint path.
 3. ~~**Name Tier 0**~~ **Done** (Q74) — the live-paint engine moved next to its
    state, the render core got a marker, `RequestSnapshot` moved beside
    `PublishSnapshot`. Pure code motion; nothing executes differently.
-4. **Extract `LivePaintSession`** — the collaborator that owns the 24 `_live*`
-   fields, per Q74. **Next**, and the first branch here that changes behaviour
-   rather than ordering: it runs per pointer event, so it needs `leak-hunter`, the
-   performance-tagged budgets and `StrokeLatencyTests` on every push. Watch its
-   public surface — it has to serve the shape and gradient tools, and a wide
-   surface would reproduce the coupling with extra steps.
+4. ~~**Extract `LivePaintSession`**~~ **Done** (Q74) — 22 fields and four lifecycle
+   methods left the class. `MainViewModel.cs` 13,141 → 12,919, private fields
+   143 → 122, and single-section fields 53% → **63%**.
 5. **Extract the render orchestrator** holding the six existing collaborators.
+   **Next.**
 6. **Tier 1 leaves**, one per branch, guides and frame markers first — the shape
    tool is now one of them.
 7. **Tier 2 clusters** as collaborators; Tier 3 becomes possible once 4 and 5 land.

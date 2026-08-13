@@ -2822,11 +2822,42 @@ ordinary Tier 1 leaf. `painting` went from 195 lines to 605 and now holds the
 engine beside the 19 fields it mutates. The render core went from anonymous to 785
 named lines. Nothing was extracted and nothing executes differently.
 
-**One thing it cost, recorded because the mechanism is one commit old:** the
-ratchet budget for `MainViewModel.cs` went *up*, 13,110 → 13,141. The motion
+**Answer 3 has since been carried out, and the numbers are worth keeping here.**
+`ViewModels/LivePaintSession.cs` took 22 fields and four lifecycle methods:
+`MainViewModel.cs` 13,141 → 12,919, private fields 143 → 122, fields touched by
+exactly one section 53% → **63%**, and *live post-processing* went from reaching 19
+foreign fields to 6. The full suite, the performance-tagged budgets and
+`StrokeLatencyTests` are all green, and no per-event allocation was added — the
+session is one long-lived object and the properties are auto-properties the JIT
+inlines.
+
+**What it did not buy, stated plainly:** `_live` now crosses seven sections, so the
+coupling did not disappear — it became one typed reference in place of 22 raw
+fields. The session is not an encapsulation boundary either; the engine mutates its
+properties directly. What is genuinely better is that `ClearEffectState` cannot be
+got half-right any more, which is B39's exact failure mode.
+
+**Two mistakes were made writing it, both silent, and both are now pinned by
+`LivePaintSessionTests`.** The first draft of `ResetPostProcess` disposed the pooled
+`PostScratch` instead of wiping the region the last stroke used — a 33 MB
+allocation on every pen-down at 4K, with the whole suite green. The second replaced
+Skia's mutating `SKRectI.Union` with hand-rolled min/max that skipped empty rects;
+measured, `(0,0,0,0) ∪ (5,5,9,9)` is `(0,0,9,9)` in Skia and `(5,5,9,9)` under the
+rewrite, because Skia's union is a plain min/max over corners and a default
+`SKRectI` is empty *at the origin*. Both were caught by reading the originals rather
+than by any test, which is the argument for the tests that now exist: this class's
+job is to make expensive things cheap by keeping them alive, and a correctness test
+cannot see the difference between keeping a buffer and reallocating it.
+
+**One thing the naming step cost, recorded because the mechanism is one commit old:**
+the ratchet budget for `MainViewModel.cs` went *up*, 13,110 → 13,141. The motion
 shrank the file by five lines; the 38 lines of comment explaining why the old map
 was wrong took it over. It was raised rather than absorbed by trimming that
 comment, on the grounds that the budget exists to stop feature code accumulating
 in a file nobody can read, not to price the documentation that makes it readable.
 That is the only legitimate reason to raise one — the file got more legible and
 slightly longer. "A feature needed the room" is not on the list.
+
+It came back down to 12,919 in the branch after, when `LivePaintSession` landed. A
+budget that rises once for documentation and falls by 222 for an extraction is doing
+its job; one that only ever rises is a comment.

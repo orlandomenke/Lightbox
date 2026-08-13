@@ -88,10 +88,16 @@ public class MonolithRatchetTests(ITestOutputHelper output)
     /// legible and slightly longer. "A feature needed the room" is not on the list —
     /// that is what a partial or a collaborator is for.
     /// </para>
+    /// <para>
+    /// It came back down the next branch, 13,141 → 12,919, when <c>LivePaintSession</c>
+    /// took 22 fields out of the class — which is the ratchet's point. A budget that goes
+    /// up once for documentation and down by 222 for an extraction is doing its job; one
+    /// that only ever goes up is a comment.
+    /// </para>
     /// </remarks>
     public static readonly (string Path, int Max)[] Budgets =
     [
-        ("src/Lightbox.App/ViewModels/MainViewModel.cs", 13141),
+        ("src/Lightbox.App/ViewModels/MainViewModel.cs", 12919),
         ("src/Lightbox.App/Rendering/CanvasControl.cs", 5078),
         ("src/Lightbox.App/Views/MainWindow.axaml", 4188),
         ("src/Lightbox.App/Views/MainWindow.axaml.cs", 429),
