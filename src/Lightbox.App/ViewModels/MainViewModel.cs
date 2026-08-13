@@ -7673,6 +7673,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (CanvasIsBehind())
         {
             _publishWhenPresented = true;
+            ArmPublishDam();
             return;
         }
         _snapshotQueued = true;
@@ -7722,6 +7723,52 @@ public sealed partial class MainViewModel : ObservableObject
         // already queued — B73's ordering, preserved under pacing.
         RequestSnapshot();
     }
+
+    /// <summary>
+    /// Make the dam self-releasing: a one-shot timer that flushes a deferral
+    /// the canvas never comes back for.
+    /// </summary>
+    /// <remarks>
+    /// The adversarial pass on the first draft found the hole this closes: the
+    /// dam was only ever <em>checked</em>, inside <see cref="RequestSnapshot"/>,
+    /// so a deferral whose interaction produced no further event — the last
+    /// pointer move of a drag over a canvas that then stopped presenting — was
+    /// released by nothing at all, and "250 ms at most" was quietly "until the
+    /// next event, however long that is". The timer is armed once per deferral
+    /// spell and re-arms itself only if the release finds the canvas behind
+    /// again, so an idle application holds no ticking timer.
+    /// </remarks>
+    private void ArmPublishDam()
+    {
+        if (_damTimerArmed) return;
+        _damTimerArmed = true;
+        // A shade past the dam, so the release finds it expired rather than
+        // racing it. Input priority for the reason SnapshotPresented gives.
+        Avalonia.Threading.DispatcherTimer.RunOnce(
+            ReleaseOverduePublish,
+            TimeSpan.FromMilliseconds(PublishDamMs + 15),
+            Avalonia.Threading.DispatcherPriority.Input);
+    }
+
+    /// <summary>
+    /// The timer's half of the dam, a seam of its own because whether a
+    /// <c>DispatcherTimer</c> ticks under a headless pump is a fact about the
+    /// harness (see <c>ProjectDockerTests</c> on B61's debounce) —
+    /// <c>PublishPacingTests</c> calls this directly and the one-line arming
+    /// above stays untested wiring.
+    /// </summary>
+    internal void ReleaseOverduePublish()
+    {
+        _damTimerArmed = false;
+        if (!_publishWhenPresented) return;
+        _publishWhenPresented = false;
+        // Through RequestSnapshot so a canvas that is merely slow (published
+        // again inside the dam window) re-defers and re-arms rather than
+        // stacking a second frame in flight.
+        RequestSnapshot();
+    }
+
+    private bool _damTimerArmed;
 
     /// <summary>Newest seq the canvas has reported drawn. UI thread.</summary>
     private long _presentedSeq;
@@ -8957,6 +9004,15 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (!TransformActive) return;
         EndTransformSession();
+        // The preview was composited into every published frame, so the revert
+        // has to be published too. The commit path gets this for free from the
+        // editor's document-changed publish; a cancel changes no document and
+        // therefore publishes here — without it, Escape left the screen showing
+        // the abandoned preview until something else happened to repaint
+        // (found by the adversarial pass on B189's publish pacing, which made
+        // the stale window longer; the hole predates it).
+        InvalidateWholeCanvas();
+        PublishSnapshot();
     }
 
     private void EndTransformSession()

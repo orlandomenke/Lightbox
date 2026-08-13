@@ -153,6 +153,79 @@ public class PublishPacingTests(ITestOutputHelper output) : BrushStateIsolated
     }
 
     /// <summary>
+    /// The dam flushes itself: a deferral whose interaction produces no
+    /// further event still publishes.
+    /// </summary>
+    /// <remarks>
+    /// The adversarial pass's falsifying case, kept as the regression test. The
+    /// first draft's dam was only checked inside <c>RequestSnapshot</c>, so
+    /// "released after 250 ms at most" was really "released by the next event,
+    /// whenever that is" — a stall with no follow-up event held the deferred
+    /// frame forever. The release runs through its own seam because whether a
+    /// <c>DispatcherTimer</c> ticks under a headless pump is a fact about the
+    /// harness (the B61 debounce records the same decision); the one-line
+    /// arming is wiring.
+    /// </remarks>
+    [AvaloniaFact]
+    public void AStallWithNoFurtherEventsStillFlushesAfterTheDam()
+    {
+        var vm = Ready();
+        var seqs = new List<long>();
+        vm.SnapshotChanged += s => seqs.Add(s.Seq);
+
+        vm.BeginStroke(50, 50, 1);
+        Dispatcher.UIThread.RunJobs();
+        Move(vm, 60, 50);
+        vm.NoteFramePresented(seqs[^1]);
+
+        Move(vm, 70, 50);           // in flight, never presented
+        var before = seqs.Count;
+        Move(vm, 80, 50);           // deferred — and this is the LAST event
+
+        Thread.Sleep((int)MainViewModel.PublishDamMs + 60);
+        vm.ReleaseOverduePublish(); // what the one-shot timer calls
+        Dispatcher.UIThread.RunJobs();
+
+        output.WriteLine($"stall, no further events → {seqs.Count - before} publish(es) after the dam");
+        Assert.Equal(before + 1, seqs.Count);
+
+        vm.EndStroke();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>
+    /// The timer's release re-defers when the canvas is merely slow rather
+    /// than stalled — a publish landed inside the dam window, so going ahead
+    /// would stack a second undrawn frame, which is the state pacing exists
+    /// to prevent.
+    /// </summary>
+    [AvaloniaFact]
+    public void AReleaseInsideTheDamReDefersRatherThanStackingASecondFrame()
+    {
+        var vm = Ready();
+        var seqs = new List<long>();
+        vm.SnapshotChanged += s => seqs.Add(s.Seq);
+
+        vm.BeginStroke(50, 50, 1);
+        Dispatcher.UIThread.RunJobs();
+        Move(vm, 60, 50);
+        vm.NoteFramePresented(seqs[^1]);
+
+        Move(vm, 70, 50);           // in flight — publish just left, dam fresh
+        var before = seqs.Count;
+        Move(vm, 80, 50);           // deferred
+
+        vm.ReleaseOverduePublish(); // timer fires early: no sleep, dam not expired
+        Dispatcher.UIThread.RunJobs();
+
+        output.WriteLine($"early release → {seqs.Count - before} publish(es)");
+        Assert.Equal(before, seqs.Count);
+
+        vm.EndStroke();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>
     /// A direct publish — pen-up's commit, undo, a frame change — satisfies the
     /// deferred one rather than stacking on it: the snapshot it hands over is
     /// built from current state, which includes everything the deferral was
