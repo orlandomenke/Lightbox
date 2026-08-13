@@ -256,13 +256,13 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>The bake's counters, for tests and the render report.</summary>
     internal LayerStackBake StackBake => _stackBake;
-    private long _publishSeq;
 
     /// <summary>Cache of TileStores by bitmap identity to avoid reconverting unchanged frames.</summary>
 
-    /// <summary>Document region changed since the last publish (null = everything).</summary>
-    private SKRectI? _pendingDirty;
-    private bool _dirtyIsWholeCanvas = true;
+    /// <summary>What has changed since the last publish, and what the last publish
+    /// was: the dirty region, the viewport, the sequence and the on-screen
+    /// fingerprint. Seven fields that belonged to nothing — see PublishState (Q74).</summary>
+    private readonly PublishState _publish = new();
 
     /// <summary>What the canvas says it can display: document pixels per screen pixel.</summary>
     private double _displayScale = 1.0;
@@ -387,7 +387,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (!double.IsFinite(scale) || scale <= 0) return;
         if (Math.Abs(scale - _displayScale) < 0.001) return;
         _displayScale = scale;
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         _composeRing.InvalidateAll();
         Performance.Reset(); // old timings were taken at a different resolution
         PublishSnapshot();
@@ -405,12 +405,10 @@ public sealed partial class MainViewModel : ObservableObject
     {
         // Avoid triggering a full publish on every view change by comparing
         // and only publishing if the viewport actually changed.
-        if (_pendingViewport == viewport) return;
-        _pendingViewport = viewport;
+        if (_publish.Viewport == viewport) return;
+        _publish.Viewport = viewport;
         PublishSnapshot();
     }
-
-    private SKRectI? _pendingViewport;
 
     /// <summary>
     /// Gate for anything that changes pixels or geometry. Hidden and locked
@@ -2409,7 +2407,7 @@ public sealed partial class MainViewModel : ObservableObject
             InvalidateFrameRender(frame.Id);
             _dirtyThumbIds.Add(frame.Id);
         }
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         _composeRing.InvalidateAll();
 
         // The first repaint of a run lands immediately, so a one-shot recolour —
@@ -2527,7 +2525,7 @@ public sealed partial class MainViewModel : ObservableObject
             OnPropertyChanged();
             // The composite path changed under the canvas, so what is on screen
             // was produced by the other one. Republish rather than wait.
-            InvalidateWholeCanvas();
+            _publish.InvalidateWholeCanvas();
             PublishSnapshot();
         }
     }
@@ -2835,7 +2833,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         // A gradient being dragged right now redefines its own preview.
         if (_liveGradient is not null) RenderGradientPreview();
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         _composeRing.InvalidateAll();
         MarkDocumentEdited();
         PublishSnapshot();
@@ -4360,7 +4358,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (!changed) return false;
 
         RefreshDocumentOrigin();
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         PublishSnapshot();
         RefreshThumbnails();
         AiStatus = choice.IsImage
@@ -4722,7 +4720,7 @@ public sealed partial class MainViewModel : ObservableObject
             _committingScopedEdit = false;
         }
         _dirtyThumbIds.Add(target.Id);
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         PublishSnapshot();
         RefreshThumbnails();
         AiStatus = tool == ToolKind.ClearRegion
@@ -5523,7 +5521,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private void AfterOnionChange()
     {
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         PublishSnapshot();
         Settings.Save();
     }
@@ -5567,7 +5565,7 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(GhostPinLabel));
         OnPropertyChanged(nameof(HasGhostFrames));
         MarkDocumentEdited();
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         PublishSnapshot();
     }
 
@@ -6488,8 +6486,8 @@ public sealed partial class MainViewModel : ObservableObject
             }
         }
         // Only the segment's neighbourhood changed on screen.
-        if (segment is { } rect) MarkDirtyRegion(rect);
-        else InvalidateWholeCanvas();
+        if (segment is { } rect) _publish.MarkDirty(rect);
+        else _publish.InvalidateWholeCanvas();
         _live.StampedCount = points.Count;
 
         if (_live.Composite is null && NeedsLivePostProcess(live.Brush)) RequestLivePostProcess();
@@ -6755,8 +6753,8 @@ public sealed partial class MainViewModel : ObservableObject
         // Only the stroke's own neighbourhood changed: the layer gained the
         // committed pixels and the live scratch stopped contributing there.
         var commitInfo = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        if (BrushEngine.CommitBounds(stroke, commitInfo) is { } touched) MarkDirtyRegion(touched);
-        else InvalidateWholeCanvas();
+        if (BrushEngine.CommitBounds(stroke, commitInfo) is { } touched) _publish.MarkDirty(touched);
+        else _publish.InvalidateWholeCanvas();
         PublishSnapshot();
         RefreshThumbnails();
     }
@@ -6987,8 +6985,8 @@ public sealed partial class MainViewModel : ObservableObject
         _live.PostPasses++;
         _live.PostTotalMs += _live.PostCostMs;
 
-        if (bounds is { } rect) MarkDirtyRegion(rect);
-        else InvalidateWholeCanvas();
+        if (bounds is { } rect) _publish.MarkDirty(rect);
+        else _publish.InvalidateWholeCanvas();
         // Through the coalescing path, not straight to PublishSnapshot. A
         // direct publish here put an extra frame on the wire for every pass on
         // top of the one the pointer event had already queued, and publishing
@@ -7156,7 +7154,7 @@ public sealed partial class MainViewModel : ObservableObject
             _committingScopedEdit = false;
         }
         _dirtyThumbIds.Add(target.Id);
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         PublishSnapshot();
         RefreshThumbnails();
         AiStatus = $"Laid down “{GradientDocker.SelectedGradient?.Name}”.";
@@ -7169,7 +7167,7 @@ public sealed partial class MainViewModel : ObservableObject
         _liveGradient = null;
         _live.ClearScratch();
         GradientAxisChanged?.Invoke(null, null);
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         PublishSnapshot();
     }
 
@@ -7200,7 +7198,7 @@ public sealed partial class MainViewModel : ObservableObject
         _live.ScratchUsed = new SKRectI(0, 0, Scene.Width, Scene.Height);
         GradientAxisChanged?.Invoke(
             (stroke.Points[0].X, stroke.Points[0].Y), (stroke.Points[1].X, stroke.Points[1].Y));
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
     }
 
     // ---- the shape tool ------------------------------------------------------------
@@ -7351,7 +7349,7 @@ public sealed partial class MainViewModel : ObservableObject
             _committingScopedEdit = false;
         }
         _dirtyThumbIds.Add(target.Id);
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         PublishSnapshot();
     }
 
@@ -7360,7 +7358,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (_liveShape is null) return;
         _liveShape = null;
         _live.ClearScratch();
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         PublishSnapshot();
     }
 
@@ -7385,7 +7383,7 @@ public sealed partial class MainViewModel : ObservableObject
         BrushEngine.StampStroke(_live.ScratchCanvas, preview, info);
         _live.ScratchCanvas.Flush();
         _live.ScratchUsed = new SKRectI(0, 0, Scene.Width, Scene.Height);
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
     }
 
     // ---- commands -----------------------------------------------------------
@@ -7797,7 +7795,7 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(FrameLabel));
         SyncLayerRows();
         ClampCurrentFrame(publishIfUnchanged: false);
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         PublishSnapshot();
         RefreshThumbnails();
         MarkDocumentEdited();
@@ -8564,7 +8562,7 @@ public sealed partial class MainViewModel : ObservableObject
         _transformPreview = matrix;
         // The drawing can land anywhere on the canvas, so no dirty region is
         // safe here.
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         RequestSnapshot();
     }
 
@@ -10280,7 +10278,7 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
         MarkDocumentEdited();
-        InvalidateWholeCanvas(); // a document-wide change can move any pixel
+        _publish.InvalidateWholeCanvas(); // a document-wide change can move any pixel
         _composeRing.InvalidateAll();
         BrushTipRegistry.Register(Doc.BrushTips);
         ClipRegionRegistry.Register(Doc.ClipRegions);
@@ -11596,16 +11594,15 @@ public sealed partial class MainViewModel : ObservableObject
     /// so tests assert on it rather than on wall-clock, which is unusable on a
     /// shared runner.
     /// </summary>
-    internal SKRectI? LastPublishClip { get; private set; }
+    internal SKRectI? LastPublishClip => _publish.LastPublishClip;
 
     /// <summary>What the frame currently on screen was composed for (B165).</summary>
-    private Rendering.FrameFingerprint? _lastPublished;
 
     /// <summary>
     /// Playback frames that composed to the pixels already on screen and were
     /// therefore not composed at all.
     /// </summary>
-    public int FramesReused { get; private set; }
+    public int FramesReused => _publish.FramesReused;
 
     /// <summary>
     /// Forget the frame on screen, so the next publish composes rather than
@@ -11619,10 +11616,10 @@ public sealed partial class MainViewModel : ObservableObject
     /// and expensive to forget, so it is wired to the same places that already
     /// invalidate the whole canvas.
     /// </remarks>
-    internal void ForgetPublishedFrame() => _lastPublished = null;
+    internal void ForgetPublishedFrame() => _publish.LastPublished = null;
 
     /// <summary>Mark everything dirty, as any pixel-changing edit does. Tests only.</summary>
-    internal void MarkWholeCanvasDirtyForTests() => InvalidateWholeCanvas();
+    internal void MarkWholeCanvasDirtyForTests() => _publish.InvalidateWholeCanvas();
 
     /// <summary>
     /// The builder's view of a frame under a live transform. A method with a
@@ -11787,15 +11784,15 @@ public sealed partial class MainViewModel : ObservableObject
         // a second "did anything change" question there would be two answers to
         // one question, which is how they come to disagree.
         var fingerprint = new Rendering.FrameFingerprint(
-            CurrentFrameIndex, ComposeScale, _pendingViewport,
+            CurrentFrameIndex, ComposeScale, _publish.Viewport,
             CameraViewTransform(ComposeScale),
             Rendering.UnchangedLayerRun.VisibleLayers(scene));
         if (IsPlaying
             && Rendering.FrameFingerprint.WouldBeIdentical(
-                _lastPublished, fingerprint, scene,
-                anythingDirty: _dirtyIsWholeCanvas || _pendingDirty is not null))
+                _publish.LastPublished, fingerprint, scene,
+                anythingDirty: _publish.AnythingDirty))
         {
-            FramesReused++;
+            _publish.FramesReused++;
             // Still prewarm: the worker is guessing at frames after this one, and
             // a reused frame is exactly when there is spare time to do it in.
             RequestPlaybackPrewarm(IsPlaying, ComposeScale);
@@ -11814,7 +11811,7 @@ public sealed partial class MainViewModel : ObservableObject
             // throws on one. It used to be unreachable rather than safe.
             scene.Layers.Count > 0 ? ActiveLayer.Id : null,
             IsPlaying, IsLightTable,
-            HaveViewport: _pendingViewport is { Width: > 0, Height: > 0 },
+            HaveViewport: _publish.Viewport is { Width: > 0, Height: > 0 },
             Onion);
         var live = new ScenePassBuilder.LiveEdit(
             _live.Composite, _live.Scratch, _live.PostScratch, _live.PostStampedCount,
@@ -11871,7 +11868,7 @@ public sealed partial class MainViewModel : ObservableObject
         // A fold transition repaints everything once (see the out parameter's
         // remarks): folded and unfolded pixels can differ by an LSB, and a
         // dirty-region patch must never mix the two on one surface.
-        if (foldTransitioned) _dirtyIsWholeCanvas = true;
+        if (foldTransitioned) _publish.RepaintEverythingThisPublish();
 
         // Compose at the resolution the canvas can actually show. A 4K document
         // in a laptop window is displayed at roughly 40%, and handing the
@@ -11885,9 +11882,7 @@ public sealed partial class MainViewModel : ObservableObject
         //
         // Read BEFORE the routing decision on purpose: whether culling is worth
         // taking depends entirely on this, per B121 in ComposePlan.
-        var dirty = _dirtyIsWholeCanvas ? null : _pendingDirty;
-        _pendingDirty = null;
-        _dirtyIsWholeCanvas = false;
+        var dirty = _publish.TakeDirty();
 
         // Which compositor, on what surface, covering what (B166). Arithmetic on
         // six numbers, and the three conditions in it were each learned by
@@ -11896,12 +11891,12 @@ public sealed partial class MainViewModel : ObservableObject
         var plan = ComposePlan.For(
             scene.Width, scene.Height,
             cameraView is null ? null : new SKSizeI(scene.Camera!.OutputWidth, scene.Camera!.OutputHeight),
-            _pendingViewport, dirty, tileNativeDoc, renderScale);
+            _publish.Viewport, dirty, tileNativeDoc, renderScale);
         var viewWidth = plan.ViewWidth;
         var viewHeight = plan.ViewHeight;
         var info = plan.Info;
 
-        var seq = ++_publishSeq;
+        var seq = _publish.NextSequence();
         var background = SceneRenderer.BackgroundOf(scene);
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var composeScope = Profile(_profilingTick, Services.TickProfile.Phase.Compose);
@@ -11932,7 +11927,7 @@ public sealed partial class MainViewModel : ObservableObject
             // happens here — it needs the tile cache — but the blending, which
             // phase 1 measured at roughly two thirds of Compose, moves to the
             // draw op where the graphics context is.
-            var vp = _pendingViewport!.Value;
+            var vp = _publish.Viewport!.Value;
             flattenedOwned = [];
             passes = FlattenTilePasses(passes, scene, vp, renderScale, flattenedOwned);
             deferred = new DeferredCompose(
@@ -11988,8 +11983,8 @@ public sealed partial class MainViewModel : ObservableObject
             Console.Error.WriteLine($"[publish] dirty={dirty} clip={usedClip} passes={passes.Count} {sw.Elapsed.TotalMilliseconds:0.0}ms");
         }
         Performance.RecordPublish(sw.Elapsed.TotalMilliseconds);
-        LastPublishClip = usedClip;
-        _lastPublished = fingerprint;
+        _publish.LastPublishClip = usedClip;
+        _publish.LastPublished = fingerprint;
         // Everything from here is the handoff: the snapshot swap, the retired
         // images being disposed, and the invalidate. Timed apart from the
         // composite above because one number for both is what sent B156 after
@@ -12338,42 +12333,6 @@ public sealed partial class MainViewModel : ObservableObject
         return image;
     }
 
-    /// <summary>
-    /// Limit the next publish to a document region. Only safe when nothing
-    /// outside the region can change; every other edit path must leave the
-    /// default (whole-canvas) invalidation alone, or stale pixels linger.
-    /// </summary>
-    private void MarkDirtyRegion(SKRectI region)
-    {
-        if (_dirtyIsWholeCanvas) return;
-        if (_pendingDirty is { } existing)
-        {
-            existing.Union(region);
-            _pendingDirty = existing;
-        }
-        else
-        {
-            _pendingDirty = region;
-        }
-    }
-
-    /// <summary>The next publish repaints everything (the safe default).</summary>
-    private void InvalidateWholeCanvas()
-    {
-        _dirtyIsWholeCanvas = true;
-        _pendingDirty = null;
-        // B165: and forget what is on screen, so the next publish composes.
-        //
-        // The reuse guard already refuses while anything is dirty, so this is
-        // belt and braces — but it is the cheap half of a pair whose expensive
-        // half is stale art. The guard rests on an existing contract: anything
-        // that changes pixels must already mark the canvas dirty, or it would not
-        // reach the screen today either. This makes that dependency explicit
-        // instead of implicit, so a future invalidation path that forgets to mark
-        // dirty fails loudly at the canvas rather than quietly here.
-        _lastPublished = null;
-    }
-
     // ---- camera ---------------------------------------------------------------
 
     /// <summary>
@@ -12614,7 +12573,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnViewThroughCameraChanged(bool value)
     {
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         _composeRing.InvalidateAll();
         RefreshCamera();
         PublishSnapshot();
@@ -12650,7 +12609,7 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(CameraY));
         OnPropertyChanged(nameof(CameraZoom));
         OnPropertyChanged(nameof(CameraRotationDeg));
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         _composeRing.InvalidateAll();
         PublishSnapshot();
     }
@@ -12670,7 +12629,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         Settings.CanvasQuality = value.ToString();
         Settings.Save();
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         _composeRing.InvalidateAll();
         Performance.Reset();
         PublishSnapshot();

@@ -2861,3 +2861,36 @@ slightly longer. "A feature needed the room" is not on the list.
 It came back down to 12,919 in the branch after, when `LivePaintSession` landed. A
 budget that rises once for documentation and falls by 222 for an extraction is doing
 its job; one that only ever rises is a comment.
+
+**Answer 1's second half — the render core — has since been carried out, and it
+contradicted the plan recorded above.** Q74 said that cluster wanted "an
+orchestrator holding those six collaborators, not a new owner of state". Reading
+`PublishSnapshot` end to end says otherwise on two counts, and both are worth
+keeping because the mistake is a reusable one:
+
+- **The state was not all owned.** The six collaborators own the *caches*. The
+  *bookkeeping* — `_pendingDirty`, `_dirtyIsWholeCanvas`, `_pendingViewport`,
+  `_publishSeq`, `_lastPublished`, `LastPublishClip`, `FramesReused` — was seven raw
+  fields belonging to nothing. So "its state is already owned" was a claim read off a
+  collaborator list rather than checked against the code.
+- **An orchestrator is the wrong shape.** `PublishSnapshot` reads about fifteen
+  pieces of view-model state, so an orchestrator must be handed them per call or hold
+  a reference back. The second is a second view model with circular coupling; the
+  first allocates a request per publish, and the code next door already refuses that
+  trade — the transform-split delegate is cached in a field rather than written as a
+  lambda, because "a lambda capturing `this` allocates a closure and a delegate on
+  every publish, and a publish happens per pointer event while drawing".
+
+So `ViewModels/PublishState.cs` took the bookkeeping and the sequencing stayed in
+`PublishSnapshot`, reading the view model directly and allocating nothing.
+`MainViewModel.cs` 12,919 → 12,878, private fields 122 → 118.
+
+**`TakeDirty` is why this is a class rather than seven fields moved sideways.**
+Reading the dirty region and clearing it is three statements that must happen
+together, and both ways of splitting them are silent: clear without reading and the
+next publish repaints nothing that changed; read without clearing and the dirty rect
+grows forever, so painting stops being bounded work. Invariant 6 rests on that one
+method. `PublishStateTests` sabotages it both ways, and also pins the one-line
+difference between `InvalidateWholeCanvas` and `RepaintEverythingThisPublish` — the
+fold transition needs the flag without losing the fingerprint, which is "equivalent
+today" only because no early return sits between the two points in `PublishSnapshot`.

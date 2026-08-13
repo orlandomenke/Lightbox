@@ -253,13 +253,42 @@ map of this file pointed at the wrong place. `monolith.py wide` is what surfaced
 it. It is obstacle 1 in `DESIGN-cloud-readiness.md`, the same work arrived at from
 the other direction.
 
-**And it needs different work from the other cluster.** Its state is *already*
-owned: `_composeRing`, `_cache`, `_tileFlats`, `_stackBake`, `_prewarm` and
-`_tileFallbacks` are all collaborators declared at the top of the class. What is
-missing is the sequencing — `PublishSnapshot`, `FlattenTilePasses`,
-`ComposeViewportCulled`, `MarkDirtyRegion`, `InvalidateWholeCanvas`, the prewarm
-drive. So it wants an **orchestrator holding those six**, not a new owner of state,
-and it is less work than this document originally assumed.
+**This document said it wanted an orchestrator holding those six collaborators. That
+was wrong, and the correction is the useful part.** It was written from a partial
+reading; reading `PublishSnapshot` end to end says otherwise on two counts.
+
+*First, the state was not all owned.* The claim was that `_composeRing`, `_cache`,
+`_tileFlats`, `_stackBake`, `_prewarm` and `_tileFallbacks` already own everything.
+True of the **caches**, false of the **bookkeeping**: `_pendingDirty`,
+`_dirtyIsWholeCanvas`, `_pendingViewport`, `_publishSeq`, `_lastPublished`,
+`LastPublishClip` and `FramesReused` were seven raw fields belonging to nothing.
+
+*Second, an orchestrator is the wrong shape here.* `PublishSnapshot` reads about
+fifteen pieces of view-model state — scene, playhead, compose scale, camera
+transform, playing, light table, onion, active layer, playback range, and the whole
+live-edit tuple. An orchestrator must be handed that per call or hold a reference
+back to the view model. The second is a second view model with circular coupling.
+The first allocates a request per publish — and **the code next door already refuses
+that trade**: the transform-split delegate is cached in a field rather than written
+as a lambda, precisely because "a lambda capturing `this` allocates a closure and a
+delegate on every publish, and a publish happens per pointer event while drawing".
+A path that avoids one closure allocation should not gain a record allocation and a
+layer of indirection.
+
+**So what came out was the bookkeeping**, as `ViewModels/PublishState.cs` — seven
+fields plus `MarkDirty`, `InvalidateWholeCanvas` and `TakeDirty`. The sequencing
+stays in `PublishSnapshot`, reading the view model directly and allocating nothing.
+
+`TakeDirty` is the whole reason this is a class and not a struct of fields. Reading
+the dirty region and clearing it is three statements that must happen together, and
+both ways of getting it wrong are silent: clear without reading and the next publish
+repaints nothing that changed; read without clearing and the dirty rect grows
+forever, so painting stops being bounded work. **Invariant 6 rests on that one
+method**, and `PublishStateTests` sabotages it both ways to prove the guard bites.
+
+The lesson worth carrying to the remaining tiers: **"its state is already owned" is a
+claim to check against the code, not to read off a collaborator list.** Six owned
+caches hid seven unowned fields in the same cluster.
 
 `RequestSnapshot` moved to the head of it, because it schedules a publish rather
 than belonging to the paint path that calls it. That keeps B73 out of the
@@ -374,11 +403,14 @@ touches the paint path.
 4. ~~**Extract `LivePaintSession`**~~ **Done** (Q74) — 22 fields and four lifecycle
    methods left the class. `MainViewModel.cs` 13,141 → 12,919, private fields
    143 → 122, and single-section fields 53% → **63%**.
-5. **Extract the render orchestrator** holding the six existing collaborators.
-   **Next.**
+5. ~~**Extract the render orchestrator**~~ **Done, and not as an orchestrator** —
+   `PublishState` took the seven bookkeeping fields; the sequencing stayed put, for
+   the reasons above. `MainViewModel.cs` 12,919 → 12,878, fields 122 → 118.
 6. **Tier 1 leaves**, one per branch, guides and frame markers first — the shape
-   tool is now one of them.
-7. **Tier 2 clusters** as collaborators; Tier 3 becomes possible once 4 and 5 land.
+   tool is now one of them. **Next**, and the first work here that is ordinary: Tier
+   0 is finished, so each leaf is now a self-contained branch with a small surface.
+7. **Tier 2 clusters** as collaborators; Tier 3 is now unblocked — its sections have
+   a named hub to take as a parameter.
 
 One leaf per branch, because a branch is one objective and "extract two leaves"
 needs an "and".

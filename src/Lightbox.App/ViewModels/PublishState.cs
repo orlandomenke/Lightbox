@@ -1,0 +1,160 @@
+using Lightbox.App.Rendering;
+using SkiaSharp;
+
+namespace Lightbox.App.ViewModels;
+
+/// <summary>
+/// What has changed since the last publish, and what the last publish was.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The second half of Tier 0 in <c>docs/DESIGN-mainviewmodel-decomposition.md</c>,
+/// and <b>not</b> the "render orchestrator" that document originally called for. That
+/// plan was written from a partial reading and is wrong; the reasons are worth keeping
+/// because they are an argument about where a boundary belongs, not a detail.
+/// </para>
+/// <para>
+/// <b>Why not an orchestrator.</b> <c>PublishSnapshot</c> reads roughly fifteen pieces
+/// of view-model state — the scene, the playhead, the compose scale, the camera
+/// transform, whether it is playing, the light table, the onion settings, the active
+/// layer, the playback range, and the whole live-edit tuple. An orchestrator would
+/// have to be handed all of that per call or hold a reference back to the view model.
+/// The second is a second view model with circular coupling. The first allocates a
+/// request per publish, and <b>the code next door already refuses that trade</b>: the
+/// transform-split delegate is cached in a field rather than written as a lambda
+/// precisely because "a lambda capturing <c>this</c> allocates a closure and a
+/// delegate on every publish, and a publish happens per pointer event while drawing".
+/// A path that avoids one closure allocation should not gain a record allocation and a
+/// layer of indirection.
+/// </para>
+/// <para>
+/// <b>What was actually unowned.</b> The document also claimed this cluster's state was
+/// already owned by six collaborators — <c>ComposeRing</c>, <c>FrameBitmapCache</c>,
+/// <c>TileFlattenCache</c>, <c>LayerStackBake</c>, <c>FramePrewarmer</c>,
+/// <c>TileFallbackTally</c>. True of the <i>caches</i>, and false of the bookkeeping:
+/// the dirty region, the viewport, the publish sequence and the on-screen fingerprint
+/// were seven raw fields belonging to nothing. Those are what moved. The sequencing
+/// stays in <c>PublishSnapshot</c>, where it can read the view model directly and
+/// allocate nothing.
+/// </para>
+/// <para>
+/// <b>The one thing this buys that a field could not.</b> <see cref="TakeDirty"/>.
+/// Reading the dirty region and clearing it is three statements that must happen
+/// together, and both halves of getting it wrong are silent: clear without reading and
+/// the next publish repaints nothing that changed, read without clearing and every
+/// later publish inherits a region it already painted. Invariant 6 — painting is
+/// bounded work — rests on this one method being right.
+/// </para>
+/// </remarks>
+sealed class PublishState
+{
+    /// <summary>
+    /// The document region the next publish is limited to, when it is limited at all.
+    /// </summary>
+    /// <remarks>
+    /// Only meaningful while <see cref="WholeCanvasDirty"/> is false. Read it through
+    /// <see cref="TakeDirty"/> rather than directly, so the reset cannot be forgotten.
+    /// </remarks>
+    internal SKRectI? PendingDirty { get; private set; }
+
+    /// <summary>The next publish repaints everything. The safe default, hence the initial value.</summary>
+    internal bool WholeCanvasDirty { get; private set; } = true;
+
+    /// <summary>Anything at all to repaint — the reuse guard's question (B165).</summary>
+    internal bool AnythingDirty => WholeCanvasDirty || PendingDirty is not null;
+
+    /// <summary>The rectangle of the document the canvas last asked to see.</summary>
+    internal SKRectI? Viewport { get; set; }
+
+    /// <summary>What the frame currently on screen was composed for (B165).</summary>
+    internal FrameFingerprint? LastPublished { get; set; }
+
+    /// <summary>
+    /// The document region the last publish actually recomposited (null = the whole
+    /// canvas). What the artist feels as a stutter is this rect growing, so tests assert
+    /// on it rather than on wall-clock, which is unusable on a shared runner.
+    /// </summary>
+    internal SKRectI? LastPublishClip { get; set; }
+
+    /// <summary>
+    /// Playback frames that composed to the pixels already on screen and were therefore
+    /// not composed at all.
+    /// </summary>
+    internal int FramesReused { get; set; }
+
+    private long _sequence;
+
+    /// <summary>The number stamped on the next snapshot, so the canvas can order them.</summary>
+    internal long NextSequence() => ++_sequence;
+
+    /// <summary>
+    /// Limit the next publish to a document region. Only safe when nothing outside the
+    /// region can change; every other edit path must leave the default (whole-canvas)
+    /// invalidation alone, or stale pixels linger.
+    /// </summary>
+    internal void MarkDirty(SKRectI region)
+    {
+        if (WholeCanvasDirty) return;
+        if (PendingDirty is { } existing)
+        {
+            existing.Union(region);
+            PendingDirty = existing;
+        }
+        else
+        {
+            PendingDirty = region;
+        }
+    }
+
+    /// <summary>The next publish repaints everything (the safe default).</summary>
+    /// <remarks>
+    /// B165: and forget what is on screen, so the next publish composes.
+    /// <para>
+    /// The reuse guard already refuses while anything is dirty, so that part is belt and
+    /// braces — but it is the cheap half of a pair whose expensive half is stale art. The
+    /// guard rests on an existing contract: anything that changes pixels must already mark
+    /// the canvas dirty, or it would not reach the screen today either. This makes that
+    /// dependency explicit instead of implicit, so a future invalidation path that forgets
+    /// to mark dirty fails loudly at the canvas rather than quietly here.
+    /// </para>
+    /// </remarks>
+    internal void InvalidateWholeCanvas()
+    {
+        WholeCanvasDirty = true;
+        PendingDirty = null;
+        LastPublished = null;
+    }
+
+    /// <summary>
+    /// Repaint everything on the publish already in progress, without forgetting the
+    /// frame on screen.
+    /// </summary>
+    /// <remarks>
+    /// <b>Deliberately not <see cref="InvalidateWholeCanvas"/>, and the difference is
+    /// one line.</b> This exists for the fold transition mid-publish, where folded and
+    /// unfolded pixels can differ by an LSB and a dirty-region patch must never mix the
+    /// two on one surface. At that point the fingerprint has already been read by the
+    /// reuse guard and is about to be overwritten by this same publish, so clearing it
+    /// would be equivalent — today. It is kept separate because "equivalent today"
+    /// depends on there being no early return between the two, which is a property of
+    /// <c>PublishSnapshot</c>'s body rather than of this class, and the failure if it
+    /// ever stops holding is a lost frame reuse that nothing measures.
+    /// </remarks>
+    internal void RepaintEverythingThisPublish() => WholeCanvasDirty = true;
+
+    /// <summary>
+    /// What this publish must repaint — null meaning everything — and reset for the next.
+    /// </summary>
+    /// <remarks>
+    /// One method rather than three statements at the call site, because the three have
+    /// to happen together and both ways of splitting them fail silently. See the class
+    /// remarks; invariant 6 rests on this.
+    /// </remarks>
+    internal SKRectI? TakeDirty()
+    {
+        var dirty = WholeCanvasDirty ? null : PendingDirty;
+        PendingDirty = null;
+        WholeCanvasDirty = false;
+        return dirty;
+    }
+}
