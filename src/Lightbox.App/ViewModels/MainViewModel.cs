@@ -11509,6 +11509,25 @@ public sealed partial class MainViewModel : ObservableObject
         return ImportReference(System.IO.Path.GetFileNameWithoutExtension(path), png) is not null;
     }
 
+    /// <summary>
+    /// Import in-memory image bytes as a reference — a picture dragged from a
+    /// browser, where there is no file to point at. Same normalization as the
+    /// file path: everything becomes PNG inside the document. False when the
+    /// bytes do not decode as an image.
+    /// </summary>
+    public bool ImportReferenceImageBytes(string name, byte[] bytes)
+    {
+        // Through a codec rather than Decode(byte[]): the byte[] overload
+        // throws on bytes no codec recognises — a page dragged instead of its
+        // picture — where the path overload's null means "not an image".
+        using var data = SKData.CreateCopy(bytes);
+        using var codec = SKCodec.Create(data);
+        if (codec is null) return false;
+        using var decoded = SKBitmap.Decode(codec);
+        if (decoded is null) return false;
+        return ImportReference(name, Lightbox.Raster.PngCodec.Encode(decoded)) is not null;
+    }
+
     public ReferenceStrip? ImportReference(
         string name, string pngBase64, SliceOptions options = default, bool addFrames = true)
     {
