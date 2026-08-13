@@ -172,4 +172,21 @@ art follows.
 The **Gradient** panel shows the same editor, for when you want it open
 permanently rather than behind a click.
 
+## Channels
+
+The **Channels** panel shows what the canvas shows, one channel at a time:
+red, green and blue as grayscale, and **alpha** as coverage — transparent is
+black, solid is white. It ships as the last tab of the colour family.
+
+Click a channel to view it alone on the canvas; click it again to get all of
+them back. The solo is **viewing only** — like zoom and mirror it never
+touches the drawing, so nothing you do while soloed records any differently.
+Painting while a channel is soloed paints with your actual colour; the canvas
+just shows you one channel of the result.
+
+The thumbnails follow the current frame and redraw as you work, so the panel
+doubles as a running answer to "where is my ink actually going" — line work
+that should be pure black shows up identically in all three colour channels,
+and a stray tint shows up as a difference between them.
+
 ---

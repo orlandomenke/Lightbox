@@ -22,6 +22,7 @@ public enum DockPanelId
     ToolOptions,
     Xsheet,
     GraphEditor,
+    Channels,
 }
 
 /// <summary>Where a panel lives.</summary>
@@ -86,7 +87,25 @@ public static class DockPanels
         // reference draws them — three views over one set of records.
         new(DockPanelId.Xsheet, "X-sheet", MaxExtent: null, DefaultExtent: 280, MinExtent: 140),
         new(DockPanelId.GraphEditor, "Graph editor", MaxExtent: null, DefaultExtent: 280, MinExtent: 140),
+        new(DockPanelId.Channels, "Channels", MaxExtent: 320, DefaultExtent: 260, MinExtent: 140),
     ];
+
+    /// <summary>
+    /// Panels that answer one question between them, and so default to sharing
+    /// a slot as tabs. Reopening a closed member joins whichever of its kin is
+    /// on screen (unless it was last grouped somewhere else by hand); the
+    /// built-in layouts ship each family as one slot.
+    /// </summary>
+    private static readonly DockPanelId[][] Families =
+    [
+        [DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient, DockPanelId.Channels],
+        [DockPanelId.Timeline, DockPanelId.Xsheet, DockPanelId.GraphEditor],
+    ];
+
+    /// <summary>The panel's family-mates, itself excluded; empty for a loner.</summary>
+    public static IReadOnlyList<DockPanelId> FamilyOf(DockPanelId id) =>
+        Families.FirstOrDefault(f => f.Contains(id))?.Where(m => m != id).ToList()
+        ?? (IReadOnlyList<DockPanelId>)[];
 
     public static DockPanelInfo Of(DockPanelId id) => All.First(p => p.Id == id);
 

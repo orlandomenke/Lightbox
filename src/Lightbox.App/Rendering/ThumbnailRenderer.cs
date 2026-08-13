@@ -19,6 +19,35 @@ public static class ThumbnailRenderer
     public static Bitmap RenderChecker(SKBitmap frame, int width, int height) =>
         Render(frame, width, height, checker: true);
 
+    /// <summary>
+    /// Channels-docker thumbnail: one channel as grayscale on black. Black
+    /// rather than checker or white, because in a channel view black IS
+    /// "nothing here" — a checker behind a grayscale image reads as texture.
+    /// </summary>
+    public static Bitmap RenderChannel(SKBitmap frame, ChannelSolo channel, int width = 64, int height = 36)
+    {
+        var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var surface = SKSurface.Create(info)
+            ?? throw new InvalidOperationException("Could not create thumbnail surface.");
+        var canvas = surface.Canvas;
+        canvas.Clear(SKColors.Black);
+        var scale = Math.Min((float)width / frame.Width, (float)height / frame.Height);
+        var w = frame.Width * scale;
+        var h = frame.Height * scale;
+        var dest = new SKRect(
+            (width - w) / 2, (height - h) / 2,
+            (width + w) / 2, (height + h) / 2);
+        using var paint = new SKPaint { IsAntialias = true, ColorFilter = ChannelSoloFilters.For(channel) };
+        canvas.DrawBitmap(frame, dest, paint);
+
+        using var image = surface.Snapshot();
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        using var stream = new MemoryStream();
+        data.SaveTo(stream);
+        stream.Position = 0;
+        return new Bitmap(stream);
+    }
+
     private static Bitmap Render(SKBitmap frame, int width, int height, bool checker)
     {
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);

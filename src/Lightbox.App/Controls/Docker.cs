@@ -395,6 +395,17 @@ public class Docker : ContentControl
     internal void HeaderMoved(PointerEventArgs e)
     {
         if (_pressed is not { } start) return;
+        // A drag can only start while the button is held. The release is not
+        // guaranteed to arrive here: clicking a tab rebuilds the strip, the
+        // pointer's capture goes down with the old ListBoxItem, and the
+        // release routes past a header that armed on the press — so the next
+        // innocent mouse move (button long since up) started a drag and the
+        // tab chased the pointer with no release ever coming to end it.
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            _pressed = null;
+            return;
+        }
         var now = e.GetPosition(this);
         if (Math.Abs(now.X - start.X) < DragThreshold && Math.Abs(now.Y - start.Y) < DragThreshold) return;
         _pressed = null;

@@ -1270,6 +1270,15 @@ public partial class MainWindow : Window
     private void OnPanelDragMoved(object? sender, PointerEventArgs e)
     {
         if (_dragging is null) return;
+        // The button is up and no release reached us — a lost release (the
+        // capture target was rebuilt under the pointer) must cancel the drag,
+        // not leave a ghost chasing the mouse with no way to put it down.
+        if (_dragHost is { } host && !e.GetCurrentPoint(host).Properties.IsLeftButtonPressed)
+        {
+            DragGhost.Hide();
+            EndPanelDrag();
+            return;
+        }
         UpdateDropTarget(e);
         e.Handled = true;
     }

@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
+using Avalonia.Input;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using Lightbox.App.Controls;
@@ -44,6 +45,15 @@ public class DockerDragRoutingTests(ITestOutputHelper output)
     private static Point Centre(Visual item, Window window) =>
         item.TranslatePoint(new Point(item.Bounds.Width / 2, item.Bounds.Height / 2), window)!.Value;
 
+    /// <summary>A pointer move whose properties say no button is down.</summary>
+    private static Avalonia.Input.PointerEventArgs MovedWithoutButton(Docker docker, Window root, Point position) =>
+        new(Avalonia.Input.InputElement.PointerMovedEvent, docker,
+            new Avalonia.Input.Pointer(1, Avalonia.Input.PointerType.Mouse, true),
+            root, position, 0,
+            new Avalonia.Input.PointerPointProperties(
+                Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PointerUpdateKind.Other),
+            Avalonia.Input.KeyModifiers.None);
+
     [AvaloniaTheory]
     [InlineData(1)]
     [InlineData(3)]
@@ -63,7 +73,9 @@ public class DockerDragRoutingTests(ITestOutputHelper output)
 
         window.MouseDown(origin, Avalonia.Input.MouseButton.Left);
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-        window.MouseMove(new Point(origin.X + 40, origin.Y + 40));
+        // The modifier is what a real platform sends with every move while the
+        // button is held; the drag guard reads it, so the test must carry it.
+        window.MouseMove(new Point(origin.X + 40, origin.Y + 40), RawInputModifiers.LeftMouseButton);
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         output.WriteLine($"{count} tab(s): drag started {dragStarted}");
@@ -105,6 +117,35 @@ public class DockerDragRoutingTests(ITestOutputHelper output)
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         Assert.False(dragStarted);
+    }
+
+    /// <summary>
+    /// A lost release never leaves the drag armed. Clicking a tab can rebuild
+    /// the strip, taking the pointer's capture target with it — the release
+    /// then routes past the header, and the next innocent move (button long
+    /// since up) tore the tab out and left it chasing the pointer with no
+    /// release ever coming to end it. The guard: a drag only starts while the
+    /// button is held.
+    /// </summary>
+    [AvaloniaFact]
+    public void AMoveWithTheButtonUpNeverStartsADrag()
+    {
+        var (window, docker) = Shown(DockPanelId.Layers, DockPanelId.Color);
+
+        var dragStarted = false;
+        docker.PanelDragStarted += (_, _) => dragStarted = true;
+
+        var strip = docker.GetVisualDescendants().OfType<ListBox>().First();
+        var tab = strip.GetVisualDescendants().OfType<ListBoxItem>().First();
+        var origin = Centre(tab, window);
+
+        // A real press arms the grip; the release is then "lost" (never
+        // delivered), and the next move arrives with no button down.
+        window.MouseDown(origin, Avalonia.Input.MouseButton.Left);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        docker.HeaderMoved(MovedWithoutButton(docker, window, new Point(origin.X + 40, origin.Y + 40)));
+
+        Assert.False(dragStarted, "a buttonless move started a drag (the lost-release bug)");
     }
 
     /// <summary>Buttons in the header still own their presses — the fix listens, it does not grab.</summary>
