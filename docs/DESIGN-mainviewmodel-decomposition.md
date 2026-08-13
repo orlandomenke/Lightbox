@@ -201,27 +201,46 @@ Two clusters must be named before anything large moves. Neither is a leaf,
 neither should be split internally, and both want collaborators rather than
 partials.
 
-**The live-paint state machine.** The *painting* section (`:6291`) declares 19
-`_live*` fields and needs only `_editor` — so the state is already gathered. What
-is not gathered is its use: *live post-processing* (`:6487`) reaches 19 foreign
-fields, *the shape tool* (`:6842`) reaches **30**, and *the gradient tool*
-(`:6684`) reaches 6, almost all of them that same `_live*` set. These four look
-like four features and are one mechanism.
+**Both are now named** (Q74), which was step 3 and is **done**. Naming was a pure
+code-motion change: no line of code was altered, verified by showing the file
+identical as a multiset of lines. The extraction is the next branch.
 
-**The document and render core** — `_editor`, `_cache`, `_composeRing`,
-`_dirtyThumbIds`, `_allThumbsDirty`, `_committingScopedEdit`, `_applyingEditScope`.
-It is obstacle 1 in `DESIGN-cloud-readiness.md`, the same work arrived at from the
-other direction.
+**The live-paint state machine** — `painting` (`:6285`), which owns the 19 `_live*`
+fields, together with `live post-processing` (`:6891`), which reads all of them.
+Those two are one mechanism and the future `LivePaintSession`.
 
-**And it is not where the markers say it is.** The section marked *video clip
-bars (Q57)* at `:11601` runs 966 lines and reaches 23 foreign fields —
-`_pendingDirty`, `_publishSeq`, `_tileFlats`, `_tileFallbacks`, `_prewarm`,
-`_composeRing`, `_dirtyIsWholeCanvas`. About 135 of those lines are video clip
-bars. The rest, from roughly `:11857`, is `PublishSnapshot`, `FlattenTilePasses`,
-`ComposeViewportCulled`, `MarkDirtyRegion`, `InvalidateWholeCanvas` and the
-playback prewarm — **the render and publish core, unmarked, parked at the end of
-the file under someone else's heading.** `monolith.py wide` is what surfaced it,
-and finding it changes where Tier 0 starts.
+**It was not readable as one before the re-mark.** 580 lines of the engine —
+`MoveStroke`, `FlushLivePreview`, `StampLiveDabs`, `StampLiveSmudge`,
+`ClearLiveEffectState`, `EndStroke` — sat under a heading reading **"the shape
+tool"**, 800 lines from the state they mutate. That is the whole reason the shape
+tool measured 30 foreign field touches, the widest in the file: it was not a tool
+tangled into the paint path, it *was* the paint path with a tool on top. Moving
+those members next to their state cost nothing and bought this:
+
+| Section | Before | After |
+| --- | --- | --- |
+| the shape tool | 804 ln, **30** hub fields | **184 ln, 5** — an ordinary Tier 1 leaf |
+| painting | 195 ln, owns 19 | **605 ln** — the engine is here now |
+| live post-processing | 196 ln | **321 ln** — its own methods returned to it |
+| gradient tool | 157 ln | **197 ln** — likewise |
+
+**The render and publish core** (`:11777`) — 785 lines that had **no name at
+all**, sitting under a heading reading *video clip bars (Q57)*, which is why every
+map of this file pointed at the wrong place. `monolith.py wide` is what surfaced
+it. It is obstacle 1 in `DESIGN-cloud-readiness.md`, the same work arrived at from
+the other direction.
+
+**And it needs different work from the other cluster.** Its state is *already*
+owned: `_composeRing`, `_cache`, `_tileFlats`, `_stackBake`, `_prewarm` and
+`_tileFallbacks` are all collaborators declared at the top of the class. What is
+missing is the sequencing — `PublishSnapshot`, `FlattenTilePasses`,
+`ComposeViewportCulled`, `MarkDirtyRegion`, `InvalidateWholeCanvas`, the prewarm
+drive. So it wants an **orchestrator holding those six**, not a new owner of state,
+and it is less work than this document originally assumed.
+
+`RequestSnapshot` moved to the head of it, because it schedules a publish rather
+than belonging to the paint path that calls it. That keeps B73 out of the
+live-paint extraction entirely.
 
 ## Tier 1 — the leaves
 
@@ -230,15 +249,22 @@ Regenerate with `monolith.py anchors`; anchors below are correct at 2026-08-13.
 
 | # | Leaf | At | Size | Owns | Needs from the hub |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Frame markers | `:9756` | 150 ln, 3 cmd | `_markersView` | `_editor` |
-| 2 | Guides | `:10729` | 533 ln, 4 cmd | 8 fields incl. `_snapToGuides`, `_lockedGuide`, `_snapTolerance` | `_editor` |
-| 3 | Editing the grid by hand | `:11263` | 338 ln, 2 cmd | `_referenceGridEditMode`, `_selectedReferenceCell` | `_editor` |
-| 4 | Playback transport | `:7649` | 166 ln, 8 cmd | `_playDirection`, `_playbackStartFrame`, `_playbackEndFrame` | `_clock`, `_strokeBuilder` |
-| 5 | Camera | `:12569` | 280 ln, 4 cmd | `_viewThroughCamera` | `_autosave`, `_composeRing` |
-| 6 | Character sheets | `:1673` | 590 ln, 0 cmd | `_referenceViewPngs`, `_refreshingLinkedStrips` | `_cache`, `_settingColorFromSwatch` |
-| 7 | AI | `:10012` | 324 ln, 3 cmd | 7 fields incl. `_artist`, `_aiCts`, `_aiStatus` | `_editor` |
-| 8 | Timing presets | `:7903` | 302 ln, 3 cmd | `_newTimingPresetName`, `_newTimingPresetPattern`, `_selectedTimingPreset` | `_allThumbsDirty`, `_dirtyThumbIds`, `_editor` |
-| 9 | Fill tool | `:4597` | 336 ln, 2 cmd | 5 fields, `_fillTolerance` through `_smartFill` | `_cache`, `_committingScopedEdit`, `_dirtyThumbIds`, `_editor`, `_selectionContours` |
+| 1 | Frame markers | `:9723` | 150 ln, 3 cmd | `_markersView` | `_editor` |
+| 2 | Guides | `:10696` | 533 ln, 4 cmd | 8 fields incl. `_snapToGuides`, `_lockedGuide`, `_snapTolerance` | `_editor` |
+| 3 | Editing the grid by hand | `:11230` | 338 ln, 2 cmd | `_referenceGridEditMode`, `_selectedReferenceCell` | `_editor` |
+| 4 | Playback transport | `:7616` | 166 ln, 8 cmd | `_playDirection`, `_playbackStartFrame`, `_playbackEndFrame` | `_clock`, `_strokeBuilder` |
+| 5 | Camera | `:12600` | 280 ln, 4 cmd | `_viewThroughCamera` | `_autosave`, `_composeRing` |
+| 6 | Character sheets | `:1671` | 590 ln, 0 cmd | `_referenceViewPngs`, `_refreshingLinkedStrips` | `_cache`, `_settingColorFromSwatch` |
+| 7 | AI | `:9979` | 324 ln, 3 cmd | 7 fields incl. `_artist`, `_aiCts`, `_aiStatus` | `_editor` |
+| 8 | Timing presets | `:7870` | 302 ln, 3 cmd | `_newTimingPresetName`, `_newTimingPresetPattern`, `_selectedTimingPreset` | `_allThumbsDirty`, `_dirtyThumbIds`, `_editor` |
+| 9 | Fill tool | `:4593` | 336 ln, 2 cmd | 5 fields, `_fillTolerance` through `_smartFill` | `_cache`, `_committingScopedEdit`, `_dirtyThumbIds`, `_editor`, `_selectionContours` |
+| 10 | The shape tool | `:7429` | 184 ln, 1 cmd | `_activeShape`, `_liveShape`, `_polygonSides` | `_committingScopedEdit`, `_dirtyThumbIds`, `_editor`, `_liveScratchCanvas`, `_liveScratchUsed` |
+
+**10 is new to this table and it is the point of the re-mark.** It was Tier 0's
+worst tangle at 804 lines and 30 touchpoints; naming the mechanism it was hiding
+turned it into an ordinary leaf without changing a line of code. It is the
+strongest argument in this document for re-marking before extracting: the tangle
+was in the map, not in the program.
 
 Four changes from the first draft's table, all from re-deriving rather than
 re-reading:
@@ -319,13 +345,19 @@ touches the paint path.
 1. ~~**The ratchet.**~~ **Done.** Stops the files growing while the rest proceeds.
 2. ~~**Split `MainWindow.axaml.cs` into partials**~~ **Done** — 5,544 → 429 across
    fifteen partials, budget lowered to 429 in the same commit.
-3. **Name Tier 0** — the live-paint machine and the render core, the latter
-   starting from `:11857` rather than where the markers suggest. **Next**, and the
-   first step here that is not mechanical: it is the one that needs a design
-   decision rather than a derivation, so it wants its own branch and probably its
-   own question.
-4. **Tier 1 leaves**, one per branch, guides and frame markers first.
-5. **Tier 2 clusters** as collaborators; Tier 3 becomes possible once 3 is done.
+3. ~~**Name Tier 0**~~ **Done** (Q74) — the live-paint engine moved next to its
+   state, the render core got a marker, `RequestSnapshot` moved beside
+   `PublishSnapshot`. Pure code motion; nothing executes differently.
+4. **Extract `LivePaintSession`** — the collaborator that owns the 24 `_live*`
+   fields, per Q74. **Next**, and the first branch here that changes behaviour
+   rather than ordering: it runs per pointer event, so it needs `leak-hunter`, the
+   performance-tagged budgets and `StrokeLatencyTests` on every push. Watch its
+   public surface — it has to serve the shape and gradient tools, and a wide
+   surface would reproduce the coupling with extra steps.
+5. **Extract the render orchestrator** holding the six existing collaborators.
+6. **Tier 1 leaves**, one per branch, guides and frame markers first — the shape
+   tool is now one of them.
+7. **Tier 2 clusters** as collaborators; Tier 3 becomes possible once 4 and 5 land.
 
 One leaf per branch, because a branch is one objective and "extract two leaves"
 needs an "and".

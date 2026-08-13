@@ -260,7 +260,6 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Cache of TileStores by bitmap identity to avoid reconverting unchanged frames.</summary>
 
-
     /// <summary>Document region changed since the last publish (null = everything).</summary>
     private SKRectI? _pendingDirty;
     private bool _dirtyIsWholeCanvas = true;
@@ -922,7 +921,6 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Timeline is hidden on reference tabs regardless of the View-menu toggle.</summary>
     public bool ShowTimeline => TimelineVisible && ActiveTab?.Kind != DocumentTabKind.Reference;
-
 
     [RelayCommand]
     private void ActivateTab(DocumentTab tab) => ActiveTab = tab;
@@ -2534,7 +2532,6 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-
     /// <summary>Minutes between autosaves; 0 turns it off. Persists immediately.</summary>
     public double AutosaveMinutes
     {
@@ -4067,7 +4064,6 @@ public sealed partial class MainViewModel : ObservableObject
         get => ColorHex;
         set => ColorHex = value;
     }
-
 
     /// <summary>
     /// Trade foreground and background (X).
@@ -5894,7 +5890,6 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-
     partial void OnActiveLayerIndexChanged(int value)
     {
         // "Carry on from where I stopped" stops being true on another layer.
@@ -6286,8 +6281,25 @@ public sealed partial class MainViewModel : ObservableObject
     private Services.TickProfile.Scope? Profile(bool on, Services.TickProfile.Phase phase) =>
         on ? _tickProfile.Measure(phase) : null;
 
-
     // ---- painting -----------------------------------------------------------
+    //
+    // Tier 0 of docs/DESIGN-mainviewmodel-decomposition.md: the live-paint state
+    // machine, and the future LivePaintSession. It owns the 19 _live* fields
+    // declared below, and the engine that drives them — MoveStroke,
+    // FlushLivePreview, StampLiveDabs, StampLiveSmudge, ClearLiveEffectState,
+    // EndStroke — now sits here with them.
+    //
+    // It did not. Until this section was re-marked, 580 lines of that engine lived
+    // under a heading reading "the shape tool", 800 lines away from the state it
+    // mutates. That is why the shape tool measured 30 foreign field touches, the
+    // widest in the file, and read as a tool tangled into the paint path when in
+    // truth it WAS the paint path with a tool on top. Re-marking dropped it to 5
+    // and cost nothing: no line of code changed, and the ordering is the diff.
+    //
+    // Read this section with "live post-processing" below it — painting owns the
+    // state, live post-processing reads all of it, and the two are one mechanism
+    // rather than two features. Splitting between them would cut through the knot
+    // rather than around it.
 
     /// <summary>The keyed frame paint lands on (exposure-sheet: the key at or before the playhead).</summary>
     private Frame? PaintTarget()
@@ -6482,586 +6494,6 @@ public sealed partial class MainViewModel : ObservableObject
     private SKRectI? _liveSmudgeRegion;
 
     private bool _snapshotQueued;
-
-    // ---- live post-processing (medium, wet edge, texture, granulation) --------
-    //
-    // These are STROKE-GLOBAL: the wet edge is derived from the whole
-    // silhouette and the fluid lattice flows across the whole wet area, so
-    // running them per segment would rim and pool each segment separately —
-    // visibly wrong, and not what commits. They have to be recomputed over the
-    // whole stroke so far, which at 45–143 ms on a 4K canvas cannot happen on
-    // every pointer event.
-    //
-    // So: raw dabs go into _liveScratch immediately (2 ms, the pen never
-    // lags), and a full render of the stroke-so-far lands in _livePostScratch
-    // as often as its own measured cost allows. The compositor shows the
-    // rendered one when it exists. The artist sees the true mark converging a
-    // fraction behind the tip rather than seeing flat dabs until pen-up, which
-    // is how wet media behave in every tool that has them.
-    private SKBitmap? _livePostScratch;
-    private SKRectI? _livePostUsed;
-    /// <summary>Cost of the last pass, milliseconds — reported by the performance panel.</summary>
-    private double _livePostCostMs;
-    private int _livePostStampedCount = -1;
-    private bool _livePostQueued;
-
-    /// <summary>How many times the live post-process has rendered. Tests only.</summary>
-    internal int LivePostPasses { get; private set; }
-
-    /// <summary>Total milliseconds spent in those passes. Tests only.</summary>
-    internal double LivePostTotalMs { get; private set; }
-
-    /// <summary>
-    /// Effects that cannot be applied per segment because they read the whole
-    /// stroke. Texture and granulation are pointwise and could be incremental,
-    /// but they are cheap enough to come along for the ride.
-    /// </summary>
-    private static bool NeedsLivePostProcess(BrushSettings brush) =>
-        brush.Medium.Kind != MediumKind.None
-        || brush.WetEdge > 0
-        || brush.TextureSurface is not null
-        || brush.Granulation > 0;
-
-    public void BeginStroke(double x, double y, double pressure) =>
-        BeginStroke(x, y, pressure, eraseWithCurrentBrush: false);
-
-    /// <summary>
-    /// Where the last committed stroke on this layer ended, or null.
-    /// </summary>
-    /// <remarks>
-    /// What Shift+click joins to. Kept as a remembered point rather than read
-    /// back off the record at the moment of the click: an undo, a layer change
-    /// or a frame change should all lose the anchor, because "carry on from
-    /// where I was" stops being true the moment any of them happens.
-    /// </remarks>
-    private (double X, double Y)? _lastStrokeEnd;
-
-    internal (double X, double Y)? LastStrokeEndForTests => _lastStrokeEnd;
-
-    /// <param name="eraseWithCurrentBrush">
-    /// Alt was held. The stroke erases but keeps the brush's own size, shape
-    /// and dynamics — unlike switching to the eraser, which brings its own.
-    /// </param>
-    public void BeginStroke(double x, double y, double pressure, bool eraseWithCurrentBrush) =>
-        BeginStroke(x, y, pressure, eraseWithCurrentBrush, joinFromLast: false);
-
-    /// <param name="joinFromLast">
-    /// Shift was held at the press. The stroke starts at the previous one's
-    /// end and runs straight to here, which is how Photoshop draws a long
-    /// straight without a ruler — and, chained, how a polyline gets drawn.
-    /// </param>
-    public void BeginStroke(
-        double x, double y, double pressure, bool eraseWithCurrentBrush, bool joinFromLast)
-    {
-        // A mode that has taken the canvas takes it from every tool, not from
-        // the ones the canvas control happens to route through itself. Half a
-        // mark made while adjusting a grid is one you then have to find.
-        if (SuppressesPainting) return;
-        if (ActiveTool is not (ToolId.Brush or ToolId.Eraser)) return;
-        if (IsPlaying) return;
-        if (!CanEdit(ActiveLayer, "draw on it")) return;
-        if (PaintTargetOrKey() is not { } target) return;
-        // Drawing ends any run of palette edits, so the recolour lands on the
-        // undo stack before the stroke does rather than after it.
-        CommitSwatchEdit();
-        // A stroke's guide is chosen once, from a direction it has committed
-        // to. The anchor is where that direction is measured from, so it is
-        // the unsnapped start — snapping the anchor first would measure the
-        // heading from a point the hand never visited.
-        _lockedGuide = null;
-        _lockDecided = false;
-        _strokeAnchor = (x, y);
-        if (SnapToGuides && Scene.Guides is { Count: > 0 } startGuides)
-        {
-            (x, y) = Snapper.Point(startGuides, x, y, SnapTolerance);
-            _strokeAnchor = (x, y);
-        }
-        // Shift+click: begin at the end of the last stroke and run straight to
-        // the click. The segment is stamped now rather than on release, so the
-        // mark is complete even if the artist never drags at all — which is
-        // the whole gesture.
-        var join = joinFromLast ? _lastStrokeEnd : null;
-        var startX = join?.X ?? x;
-        var startY = join?.Y ?? y;
-
-        // Whichever brush is in hand decides how the hand is steadied, and it
-        // is decided here rather than when a slider moves — switching brushes
-        // mid-drawing has to change the smoothing with them.
-        _stabilizer.Settings = EffectiveStabilisation;
-        _stabilizer.Begin(startX, startY);
-        _strokeBuilder.Begin(
-            IsEraser || eraseWithCurrentBrush ? ToolKind.Eraser : ToolKind.Brush,
-            ColorHex,
-            CurrentToolSettings.Clone(),
-            startX, startY, pressure,
-            ActiveSwatchId);
-        if (join is not null)
-        {
-            // Straight to the click, past the stabiliser: a segment the artist
-            // asked to be straight must not be rounded off by smoothing.
-            _strokeBuilder.Add(x, y, pressure);
-            _strokeAnchor = (startX, startY);
-            _lockDecided = true;   // it has a direction already; no guide may re-aim it
-        }
-        // Live preview clips to the selection too (the registry already knows
-        // the region; the document copy is added at commit).
-        if (PrepareClipForSelection() is { } liveClip) _strokeBuilder.Current!.ClipId = liveClip.Id;
-        // Stamped onto the stroke, not read from the layer at render time, so
-        // unlocking the layer later cannot repaint what is already down.
-        _strokeBuilder.Current!.AlphaLocked = ActiveLayer.AlphaLocked;
-
-        _liveComposite?.Dispose();
-        _liveComposite = null;
-        _liveEffectBase?.Dispose();
-        _liveEffectBase = null;
-        if (CurrentToolSettings.Kind is BrushKind.Blur or BrushKind.Smudge)
-        {
-            // Blur and smudge read the pixels they sit on, so they need a real
-            // copy of the layer to work into. Without this a smudge preview
-            // stamps plain dabs of the foreground colour for the whole drag
-            // and only snaps to the real smear on pen-up.
-            //
-            // Two copies, not one, and the second is the fix for B33. The
-            // composite is written into; the base is never written and is what
-            // every dab reads. The exact render gives all of a stroke's dabs
-            // the same pre-stroke pixels, so a preview that sampled the
-            // composite would re-apply the effect once per pointer event — a
-            // blur of a blur of a blur, forty deep by the end of a drag.
-            _liveEffectBase = _cache.Get(target, Scene.Width, Scene.Height).Copy();
-            _liveComposite = _liveEffectBase.Copy();
-        }
-        else
-        {
-            EnsureLiveScratch();
-            ClearLiveScratch();
-        }
-        ResetLivePostProcess();
-        _liveStampedCount = 0;
-        _liveDabCount = 0;
-        _liveStableDabs = 0;
-        _liveTailRegion = null;
-        _liveDabs = null;
-        _liveEffectDabs = null;
-        _liveEffectSettled = 0;
-        _liveSmudgeCarry = default;
-        _liveSmudgeRegion = null;
-        FlushLivePreview();
-        PublishSnapshot();
-    }
-
-    /// <summary>A document-sized scratch bitmap for the live preview overlay.</summary>
-    private void EnsureLiveScratch()
-    {
-        if (_liveScratch is not null && _liveScratch.Width == Scene.Width && _liveScratch.Height == Scene.Height)
-        {
-            return;
-        }
-        _liveScratchCanvas?.Dispose();
-        _liveScratch?.Dispose();
-        _liveScratch = new SKBitmap(
-            new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
-        _liveScratchCanvas = new SKCanvas(_liveScratch);
-        _liveScratchUsed = null;
-    }
-
-    /// <summary>Wipe only the region the previous stroke actually touched.</summary>
-    private void ClearLiveScratch()
-    {
-        if (_liveScratchCanvas is null) return;
-        if (_liveScratchUsed is not { } used)
-        {
-            _liveScratchCanvas.Clear(SkiaSharp.SKColors.Transparent);
-            return;
-        }
-        _liveScratchCanvas.Save();
-        _liveScratchCanvas.ClipRect(SKRect.Create(used.Left, used.Top, used.Width, used.Height));
-        _liveScratchCanvas.Clear(SkiaSharp.SKColors.Transparent);
-        _liveScratchCanvas.Restore();
-        _liveScratchUsed = null;
-    }
-
-    // ---- gradient tool ------------------------------------------------------
-
-    /// <summary>
-    /// The gradient being dragged. Two points — the axis — and no incremental
-    /// state, so it stays out of the brush's stamped-so-far machinery: a
-    /// gradient is not built up along the drag, it is redefined by it.
-    /// </summary>
-    private Stroke? _liveGradient;
-
-    /// <summary>The axis the canvas overlay draws while dragging (document coordinates).</summary>
-    public event Action<(double X, double Y)?, (double X, double Y)?>? GradientAxisChanged;
-
-    internal Stroke? LiveGradient => _liveGradient;
-
-    internal Stroke? LiveGradientForTests => _liveGradient;
-
-    internal Stroke? LiveShapeForTests => _liveShape;
-
-    /// <summary>
-    /// Whether anything being dragged right now would actually reach the
-    /// screen.
-    /// </summary>
-    /// <remarks>
-    /// The condition the compositor tests, named once so it can be asserted.
-    /// A tool that renders a preview nothing composites looks correct at every
-    /// call site and shows nothing, which is how the shape tool shipped.
-    /// </remarks>
-    internal bool LivePreviewIsVisible =>
-        _liveScratch is not null
-        && (_liveShape is not null || _liveGradient is not null || _strokeBuilder.IsActive);
-
-    public void BeginGradient(double x, double y)
-    {
-        if (ActiveTool != ToolId.Gradient || IsPlaying) return;
-        if (!CanEdit(ActiveLayer, "fill on it") || PaintTargetOrKey() is null) return;
-        // A brand-new document has no gradients, and telling someone who just
-        // picked the gradient tool to go and make one first is a dead end. A
-        // fresh Gradient is already black to white, which is the ramp anyone
-        // would have made by hand.
-        if (GradientDocker.SelectedGradient is null) GradientDocker.AddGradientCommand.Execute(null);
-        if (GradientDocker.SelectedGradient is not { } gradient)
-        {
-            AiStatus = "Could not create a gradient to paint with.";
-            return;
-        }
-        CommitSwatchEdit();
-
-        _liveGradient = new Stroke
-        {
-            Tool = ToolKind.Gradient,
-            GradientId = gradient.Id,
-            Color = ColorHex,
-            Brush = new BrushSettings { Opacity = GradientOpacity, AntiAlias = AntiAliasing },
-            Points = [new StrokePoint(x, y, 1), new StrokePoint(x, y, 1)],
-            // Stamped onto the stroke like a brush stroke's, so unlocking the
-            // layer later cannot repaint what is already down.
-            AlphaLocked = ActiveLayer.AlphaLocked,
-            Label = "gradient",
-        };
-        if (PrepareClipForSelection() is { } clip) _liveGradient.ClipId = clip.Id;
-
-        EnsureLiveScratch();
-        RenderGradientPreview();
-        PublishSnapshot();
-    }
-
-    /// <param name="snapAngle">
-    /// Shift. A gradient's angle is the whole of it, and a ramp meant to be
-    /// level almost never lands level by hand.
-    /// </param>
-    public void MoveGradient(double x, double y, bool snapAngle = false)
-    {
-        if (_liveGradient is not { } stroke) return;
-        stroke.Points[1] = GradientEnd(stroke, x, y, snapAngle);
-        RenderGradientPreview();
-        RequestSnapshot();
-    }
-
-    /// <summary>
-    /// How far apart the snapped angles are, in degrees.
-    /// </summary>
-    /// <remarks>
-    /// Fifteen, so the four squares and the four diagonals are all on it and
-    /// there is still somewhere to put an angle between them. The same number
-    /// the guide lock uses, for the same reason.
-    /// </remarks>
-    public const double GradientSnapDegrees = 15;
-
-    private static StrokePoint GradientEnd(Stroke stroke, double x, double y, bool snapAngle)
-    {
-        if (!snapAngle) return new StrokePoint(x, y, 1);
-        var ax = stroke.Points[0].X;
-        var ay = stroke.Points[0].Y;
-        var dx = x - ax;
-        var dy = y - ay;
-        var length = Math.Sqrt(dx * dx + dy * dy);
-        if (length < 1e-9) return new StrokePoint(x, y, 1);
-        // The angle snaps; the length does not. Same division of labour as a
-        // ruler — the guide decides the direction, the hand decides how far.
-        var degrees = Math.Atan2(dy, dx) * 180 / Math.PI;
-        var snapped = Math.Round(degrees / GradientSnapDegrees) * GradientSnapDegrees * Math.PI / 180;
-        return new StrokePoint(ax + Math.Cos(snapped) * length, ay + Math.Sin(snapped) * length, 1);
-    }
-
-    public void EndGradient(double x, double y, bool snapAngle = false)
-    {
-        if (_liveGradient is not { } stroke) return;
-        stroke.Points[1] = GradientEnd(stroke, x, y, snapAngle);
-        CancelGradient(); // clears the preview; the record gets the stroke below
-
-        if (PaintTarget() is not { } target) return;
-        var dx = stroke.Points[1].X - stroke.Points[0].X;
-        var dy = stroke.Points[1].Y - stroke.Points[0].Y;
-        // A click with no drag has no axis. Committing it would paint a
-        // degenerate shader over the whole layer, which is never the intent.
-        if (dx * dx + dy * dy < 1.0)
-        {
-            AiStatus = "Drag to set the gradient's direction and length.";
-            return;
-        }
-
-        var clip = PrepareClipForSelection();
-        if (clip is not null) stroke.ClipId = clip.Value.Id;
-
-        FreezeSampledBackdrop(stroke);
-        RememberDocumentBrush();
-        AppendToFrameRender(target, stroke);
-
-        var frameId = target.Id;
-        var addedClip = false;
-        _committingScopedEdit = true;
-        try
-        {
-            _editor.PerformDelta(
-                apply: doc =>
-                {
-                    if (clip is { } c) addedClip = doc.ClipRegions.TryAdd(c.Id, c.Region);
-                    StrokeListIn(doc, frameId)?.Add(stroke);
-                },
-                revert: doc =>
-                {
-                    RemoveStrokeById(doc, frameId, stroke.Id);
-                    if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
-                },
-                affectedFrameId: frameId);
-        }
-        finally
-        {
-            _committingScopedEdit = false;
-        }
-        _dirtyThumbIds.Add(target.Id);
-        InvalidateWholeCanvas();
-        PublishSnapshot();
-        RefreshThumbnails();
-        AiStatus = $"Laid down “{GradientDocker.SelectedGradient?.Name}”.";
-    }
-
-    /// <summary>Abandon the drag — Escape, or capture lost.</summary>
-    // ---- the shape tool ------------------------------------------------------------
-
-    /// <summary>Which shape the shape tool draws.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsPolygonShape))]
-    [NotifyPropertyChangedFor(nameof(ShapeGlyph))]
-    private ShapeKind _activeShape = ShapeKind.Rectangle;
-
-    /// <summary>Corners, when the shape is a polygon.</summary>
-    [ObservableProperty]
-    private int _polygonSides = 5;
-
-    public bool IsPolygonShape => ActiveShape == ShapeKind.Polygon;
-
-    /// <summary>The tool button's icon, so it says which shape is loaded.</summary>
-    /// <remarks>
-    /// A geometry from <see cref="Rendering.IconSet"/> rather than the box-drawing
-    /// characters this used to return. Those were the system font's idea of a
-    /// rectangle sitting next to eight hand-drawn monoline glyphs, at whatever
-    /// weight and baseline that font happened to have.
-    /// </remarks>
-    public Avalonia.Media.Geometry? ShapeGlyph =>
-        Rendering.IconSet.Resolve(Rendering.IconSet.ForShape(ActiveShape));
-
-    /// <summary>Pick a shape, and make the shape tool active while you are at it.</summary>
-    /// <remarks>
-    /// Same bargain as the select variants: choosing one from the hold-list is
-    /// a statement that you want to draw it, and making you click the tool
-    /// again afterwards is a step with no decision in it.
-    /// </remarks>
-    [RelayCommand]
-    private void SelectShape(ShapeKind kind)
-    {
-        ActiveShape = kind;
-        ActiveTool = ToolId.Shape;
-    }
-
-    public IReadOnlyList<ShapeKind> ShapeChoices { get; } =
-        [ShapeKind.Line, ShapeKind.Rectangle, ShapeKind.Ellipse, ShapeKind.Polygon];
-
-    public bool IsShapeTool => ActiveTool == ToolId.Shape;
-
-    private Stroke? _liveShape;
-
-    private (double X, double Y) _shapeStart;
-
-    /// <summary>
-    /// Start a shape.
-    /// </summary>
-    /// <remarks>
-    /// The corners are snapped like any other point, so a rectangle dropped on
-    /// a grid lands on the grid — which is most of why anybody turns a grid on.
-    /// </remarks>
-    public void BeginShape(double x, double y)
-    {
-        if (ActiveTool != ToolId.Shape || IsPlaying) return;
-        if (!CanEdit(ActiveLayer, "draw on it") || PaintTargetOrKey() is null) return;
-        CommitSwatchEdit();
-
-        if (SnapToGuides && Scene.Guides is { Count: > 0 } guides)
-        {
-            (x, y) = Snapper.Point(guides, x, y, SnapTolerance);
-        }
-        _shapeStart = (x, y);
-        _liveShape = new Stroke
-        {
-            Tool = IsEraser ? ToolKind.Eraser : ToolKind.Brush,
-            Color = ColorHex,
-            SwatchId = ActiveSwatchId,
-            PaletteId = ActivePaletteId,
-            Brush = CurrentToolSettings.Clone(),
-            Points = ShapeBuilder.Outline(ActiveShape, x, y, x, y, sides: PolygonSides),
-            AlphaLocked = ActiveLayer.AlphaLocked,
-            Label = ActiveShape.ToString().ToLowerInvariant(),
-        };
-        if (PrepareClipForSelection() is { } clip) _liveShape.ClipId = clip.Id;
-
-        EnsureLiveScratch();
-        RenderShapePreview();
-        PublishSnapshot();
-    }
-
-    /// <param name="fromCentre">Alt: grow from the first corner rather than to it.</param>
-    /// <param name="regular">Shift: a square, a circle, a regular polygon.</param>
-    public void MoveShape(double x, double y, bool fromCentre = false, bool regular = false)
-    {
-        if (_liveShape is not { } stroke) return;
-        if (SnapToGuides && Scene.Guides is { Count: > 0 } guides)
-        {
-            (x, y) = Snapper.Point(guides, x, y, SnapTolerance);
-        }
-        stroke.Points = ShapeBuilder.Outline(
-            ActiveShape, _shapeStart.X, _shapeStart.Y, x, y, fromCentre, regular, PolygonSides);
-        RenderShapePreview();
-        RequestSnapshot();
-    }
-
-    public void EndShape(double x, double y, bool fromCentre = false, bool regular = false)
-    {
-        if (_liveShape is not { } stroke) return;
-        if (SnapToGuides && Scene.Guides is { Count: > 0 } guides)
-        {
-            (x, y) = Snapper.Point(guides, x, y, SnapTolerance);
-        }
-        stroke.Points = ShapeBuilder.Outline(
-            ActiveShape, _shapeStart.X, _shapeStart.Y, x, y, fromCentre, regular, PolygonSides);
-        CancelShape();
-
-        if (PaintTarget() is not { } target) return;
-        // A click with no drag is not a shape. Committing it would leave a
-        // single dab where the artist expected a rectangle.
-        var dx = x - _shapeStart.X;
-        var dy = y - _shapeStart.Y;
-        if (dx * dx + dy * dy < 1.0)
-        {
-            AiStatus = "Drag to size the shape.";
-            return;
-        }
-
-        var clip = PrepareClipForSelection();
-        if (clip is not null) stroke.ClipId = clip.Value.Id;
-        FreezeSampledBackdrop(stroke);
-        RememberDocumentBrush();
-        AppendToFrameRender(target, stroke);
-
-        var frameId = target.Id;
-        var addedClip = false;
-        _committingScopedEdit = true;
-        try
-        {
-            _editor.PerformDelta(
-                apply: doc =>
-                {
-                    if (clip is { } c) addedClip = doc.ClipRegions.TryAdd(c.Id, c.Region);
-                    StrokeListIn(doc, frameId)?.Add(stroke);
-                },
-                revert: doc =>
-                {
-                    RemoveStrokeById(doc, frameId, stroke.Id);
-                    if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
-                },
-                affectedFrameId: frameId);
-        }
-        finally
-        {
-            _committingScopedEdit = false;
-        }
-        _dirtyThumbIds.Add(target.Id);
-        InvalidateWholeCanvas();
-        PublishSnapshot();
-    }
-
-    public void CancelShape()
-    {
-        if (_liveShape is null) return;
-        _liveShape = null;
-        ClearLiveScratch();
-        InvalidateWholeCanvas();
-        PublishSnapshot();
-    }
-
-    private void RenderShapePreview()
-    {
-        if (_liveShape is not { } stroke || _liveScratchCanvas is null) return;
-        ClearLiveScratch();
-        var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        // The same stroke the commit will record, at full opacity — the
-        // overlay applies the brush's own, so baking it here would double it.
-        var preview = new Stroke
-        {
-            Tool = ToolKind.Brush,
-            Color = stroke.Color,
-            SwatchId = stroke.SwatchId,
-            PaletteId = stroke.PaletteId,
-            ClipId = stroke.ClipId,
-            Brush = stroke.Brush.Clone(),
-            Points = [.. stroke.Points],
-        };
-        preview.Brush.Opacity = 1;
-        BrushEngine.StampStroke(_liveScratchCanvas, preview, info);
-        _liveScratchCanvas.Flush();
-        _liveScratchUsed = new SKRectI(0, 0, Scene.Width, Scene.Height);
-        InvalidateWholeCanvas();
-    }
-
-    public void CancelGradient()
-    {
-        if (_liveGradient is null) return;
-        _liveGradient = null;
-        ClearLiveScratch();
-        GradientAxisChanged?.Invoke(null, null);
-        InvalidateWholeCanvas();
-        PublishSnapshot();
-    }
-
-    /// <summary>
-    /// Re-render the whole preview rather than an increment. A gradient is
-    /// full-canvas by nature — one shader-filled rect, which Skia does in a
-    /// single native pass — and every pointer move redefines the axis, so
-    /// there is nothing from the previous frame worth keeping.
-    /// </summary>
-    private void RenderGradientPreview()
-    {
-        if (_liveGradient is not { } stroke || _liveScratchCanvas is null) return;
-        ClearLiveScratch();
-        var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        // Opacity and the alpha lock stay on the overlay so they are not baked
-        // in twice; the scratch holds the unmodulated ramp.
-        var preview = new Stroke
-        {
-            Tool = ToolKind.Gradient,
-            GradientId = stroke.GradientId,
-            Color = stroke.Color,
-            ClipId = stroke.ClipId,
-            Brush = new BrushSettings { Opacity = 1, AntiAlias = stroke.Brush.AntiAlias },
-            Points = [.. stroke.Points],
-        };
-        BrushEngine.StampStroke(_liveScratchCanvas, preview, info);
-        _liveScratchCanvas.Flush();
-        _liveScratchUsed = new SKRectI(0, 0, Scene.Width, Scene.Height);
-        GradientAxisChanged?.Invoke(
-            (stroke.Points[0].X, stroke.Points[0].Y), (stroke.Points[1].X, stroke.Points[1].Y));
-        InvalidateWholeCanvas();
-    }
 
     /// <summary>All coalesced samples of one pointer event → one stamp + one (coalesced) repaint.</summary>
     public void MoveStrokeBatch(IReadOnlyList<PointerSample> samples)
@@ -7366,6 +6798,311 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Drop the Blur/Smudge live preview and the ordinary-paint dab-walk
+    /// bookkeeping. <see cref="EndStroke"/> calls this after a real commit;
+    /// anything that abandons a stroke without going through it —
+    /// <see cref="AttachEditor"/> on a tab switch, <see cref="StartPlayback"/>
+    /// — must call it too. <c>_strokeBuilder.Cancel()</c> alone leaves
+    /// <see cref="_liveComposite"/> non-null, and every publish after that
+    /// treats a non-null <see cref="_liveComposite"/> as "an effect brush is
+    /// live on this layer" — which, left stale, silently suppressed the
+    /// overlay for every ordinary stroke, gradient and shape drag afterward,
+    /// on any document, until ink happened to reset it (B39's fix).
+    /// </summary>
+    private void ClearLiveEffectState()
+    {
+        _liveComposite?.Dispose();
+        _liveComposite = null;
+        _liveEffectBase?.Dispose();
+        _liveEffectBase = null;
+        _liveStampedCount = 0;
+        _liveDabCount = 0;
+        _liveStableDabs = 0;
+        _liveTailRegion = null;
+        _liveDabs = null;
+        _liveEffectDabs = null;
+        _liveEffectSettled = 0;
+        // The carry and the lent region go with the composite they described. The backup bitmap
+        // does not: it is reused across strokes and only ever written before it is read, so keeping
+        // it saves an allocation per stroke without any state surviving.
+        _liveSmudgeCarry = default;
+        _liveSmudgeRegion = null;
+        ResetLivePostProcess();
+    }
+
+    public void EndStroke()
+    {
+        var stroke = _strokeBuilder.End();
+        ClearLiveEffectState();
+        if (stroke is null) return;
+        var target = PaintTarget();
+        if (target is null) return;
+
+        _stabilizer.End();
+        LazyBrushCleared?.Invoke();
+        stroke.Points = _stabilizer.PostProcess(stroke.Points);
+
+        // Remembered for the next Shift+click. The post-processed end, not the
+        // raw one, so the next segment starts exactly where this mark stops.
+        _lastStrokeEnd = stroke.Points.Count > 0
+            ? (stroke.Points[^1].X, stroke.Points[^1].Y)
+            : null;
+
+        // A stroke painted under a selection carries it forever (provenance).
+        var clip = PrepareClipForSelection();
+        if (clip is not null) stroke.ClipId = clip.Value.Id;
+
+        // Both of these were wired into EndGradient and EndShape and missed
+        // here, which is the path a pen actually takes. The freeze mattered:
+        // an all-layers-BAKED smudge drawn by hand never froze anything and
+        // silently fell back to reading its own layer. Live hid it, because
+        // the re-bake runs off the edit funnel and covered for the missing
+        // call — so the half that was tested end to end worked and the half
+        // that was not did not.
+        FreezeSampledBackdrop(stroke);
+        RememberDocumentBrush();
+
+        // Commit the pixels incrementally: stamp the EXACT stroke onto the
+        // cached frame bitmap instead of invalidating it — invalidation would
+        // replay every stroke in the frame, which is why lifting the pen used
+        // to pause on drawings with many strokes. Appending the exact stroke
+        // to the previously exact bitmap is the same sequence Materialize
+        // would run, so the pixels stay bit-identical.
+        AppendToFrameRender(target, stroke); // pre-stroke state (record not yet updated)
+
+        // Undo without snapshotting the whole document (the other pen-lift
+        // pause). The frame is resolved by id at apply/revert time: a
+        // snapshot-undo in between replaces the doc instance tree.
+        var frameId = target.Id;
+        var addedClip = false;
+        _committingScopedEdit = true;
+        try
+        {
+            _editor.PerformDelta(
+                apply: doc =>
+                {
+                    if (clip is { } c) addedClip = doc.ClipRegions.TryAdd(c.Id, c.Region);
+                    StrokeListIn(doc, frameId)?.Add(stroke);
+                },
+                revert: doc =>
+                {
+                    RemoveStrokeById(doc, frameId, stroke.Id);
+                    if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
+                },
+                affectedFrameId: frameId);
+        }
+        finally
+        {
+            _committingScopedEdit = false;
+        }
+        _dirtyThumbIds.Add(target.Id);
+        // Only the stroke's own neighbourhood changed: the layer gained the
+        // committed pixels and the live scratch stopped contributing there.
+        var commitInfo = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        if (BrushEngine.CommitBounds(stroke, commitInfo) is { } touched) MarkDirtyRegion(touched);
+        else InvalidateWholeCanvas();
+        PublishSnapshot();
+        RefreshThumbnails();
+    }
+
+    // ---- live post-processing (medium, wet edge, texture, granulation) --------
+    //
+    // These are STROKE-GLOBAL: the wet edge is derived from the whole
+    // silhouette and the fluid lattice flows across the whole wet area, so
+    // running them per segment would rim and pool each segment separately —
+    // visibly wrong, and not what commits. They have to be recomputed over the
+    // whole stroke so far, which at 45–143 ms on a 4K canvas cannot happen on
+    // every pointer event.
+    //
+    // So: raw dabs go into _liveScratch immediately (2 ms, the pen never
+    // lags), and a full render of the stroke-so-far lands in _livePostScratch
+    // as often as its own measured cost allows. The compositor shows the
+    // rendered one when it exists. The artist sees the true mark converging a
+    // fraction behind the tip rather than seeing flat dabs until pen-up, which
+    // is how wet media behave in every tool that has them.
+    private SKBitmap? _livePostScratch;
+    private SKRectI? _livePostUsed;
+    /// <summary>Cost of the last pass, milliseconds — reported by the performance panel.</summary>
+    private double _livePostCostMs;
+    private int _livePostStampedCount = -1;
+    private bool _livePostQueued;
+
+    /// <summary>How many times the live post-process has rendered. Tests only.</summary>
+    internal int LivePostPasses { get; private set; }
+
+    /// <summary>Total milliseconds spent in those passes. Tests only.</summary>
+    internal double LivePostTotalMs { get; private set; }
+
+    /// <summary>
+    /// Effects that cannot be applied per segment because they read the whole
+    /// stroke. Texture and granulation are pointwise and could be incremental,
+    /// but they are cheap enough to come along for the ride.
+    /// </summary>
+    private static bool NeedsLivePostProcess(BrushSettings brush) =>
+        brush.Medium.Kind != MediumKind.None
+        || brush.WetEdge > 0
+        || brush.TextureSurface is not null
+        || brush.Granulation > 0;
+
+    public void BeginStroke(double x, double y, double pressure) =>
+        BeginStroke(x, y, pressure, eraseWithCurrentBrush: false);
+
+    /// <summary>
+    /// Where the last committed stroke on this layer ended, or null.
+    /// </summary>
+    /// <remarks>
+    /// What Shift+click joins to. Kept as a remembered point rather than read
+    /// back off the record at the moment of the click: an undo, a layer change
+    /// or a frame change should all lose the anchor, because "carry on from
+    /// where I was" stops being true the moment any of them happens.
+    /// </remarks>
+    private (double X, double Y)? _lastStrokeEnd;
+
+    internal (double X, double Y)? LastStrokeEndForTests => _lastStrokeEnd;
+
+    /// <param name="eraseWithCurrentBrush">
+    /// Alt was held. The stroke erases but keeps the brush's own size, shape
+    /// and dynamics — unlike switching to the eraser, which brings its own.
+    /// </param>
+    public void BeginStroke(double x, double y, double pressure, bool eraseWithCurrentBrush) =>
+        BeginStroke(x, y, pressure, eraseWithCurrentBrush, joinFromLast: false);
+
+    /// <param name="joinFromLast">
+    /// Shift was held at the press. The stroke starts at the previous one's
+    /// end and runs straight to here, which is how Photoshop draws a long
+    /// straight without a ruler — and, chained, how a polyline gets drawn.
+    /// </param>
+    public void BeginStroke(
+        double x, double y, double pressure, bool eraseWithCurrentBrush, bool joinFromLast)
+    {
+        // A mode that has taken the canvas takes it from every tool, not from
+        // the ones the canvas control happens to route through itself. Half a
+        // mark made while adjusting a grid is one you then have to find.
+        if (SuppressesPainting) return;
+        if (ActiveTool is not (ToolId.Brush or ToolId.Eraser)) return;
+        if (IsPlaying) return;
+        if (!CanEdit(ActiveLayer, "draw on it")) return;
+        if (PaintTargetOrKey() is not { } target) return;
+        // Drawing ends any run of palette edits, so the recolour lands on the
+        // undo stack before the stroke does rather than after it.
+        CommitSwatchEdit();
+        // A stroke's guide is chosen once, from a direction it has committed
+        // to. The anchor is where that direction is measured from, so it is
+        // the unsnapped start — snapping the anchor first would measure the
+        // heading from a point the hand never visited.
+        _lockedGuide = null;
+        _lockDecided = false;
+        _strokeAnchor = (x, y);
+        if (SnapToGuides && Scene.Guides is { Count: > 0 } startGuides)
+        {
+            (x, y) = Snapper.Point(startGuides, x, y, SnapTolerance);
+            _strokeAnchor = (x, y);
+        }
+        // Shift+click: begin at the end of the last stroke and run straight to
+        // the click. The segment is stamped now rather than on release, so the
+        // mark is complete even if the artist never drags at all — which is
+        // the whole gesture.
+        var join = joinFromLast ? _lastStrokeEnd : null;
+        var startX = join?.X ?? x;
+        var startY = join?.Y ?? y;
+
+        // Whichever brush is in hand decides how the hand is steadied, and it
+        // is decided here rather than when a slider moves — switching brushes
+        // mid-drawing has to change the smoothing with them.
+        _stabilizer.Settings = EffectiveStabilisation;
+        _stabilizer.Begin(startX, startY);
+        _strokeBuilder.Begin(
+            IsEraser || eraseWithCurrentBrush ? ToolKind.Eraser : ToolKind.Brush,
+            ColorHex,
+            CurrentToolSettings.Clone(),
+            startX, startY, pressure,
+            ActiveSwatchId);
+        if (join is not null)
+        {
+            // Straight to the click, past the stabiliser: a segment the artist
+            // asked to be straight must not be rounded off by smoothing.
+            _strokeBuilder.Add(x, y, pressure);
+            _strokeAnchor = (startX, startY);
+            _lockDecided = true;   // it has a direction already; no guide may re-aim it
+        }
+        // Live preview clips to the selection too (the registry already knows
+        // the region; the document copy is added at commit).
+        if (PrepareClipForSelection() is { } liveClip) _strokeBuilder.Current!.ClipId = liveClip.Id;
+        // Stamped onto the stroke, not read from the layer at render time, so
+        // unlocking the layer later cannot repaint what is already down.
+        _strokeBuilder.Current!.AlphaLocked = ActiveLayer.AlphaLocked;
+
+        _liveComposite?.Dispose();
+        _liveComposite = null;
+        _liveEffectBase?.Dispose();
+        _liveEffectBase = null;
+        if (CurrentToolSettings.Kind is BrushKind.Blur or BrushKind.Smudge)
+        {
+            // Blur and smudge read the pixels they sit on, so they need a real
+            // copy of the layer to work into. Without this a smudge preview
+            // stamps plain dabs of the foreground colour for the whole drag
+            // and only snaps to the real smear on pen-up.
+            //
+            // Two copies, not one, and the second is the fix for B33. The
+            // composite is written into; the base is never written and is what
+            // every dab reads. The exact render gives all of a stroke's dabs
+            // the same pre-stroke pixels, so a preview that sampled the
+            // composite would re-apply the effect once per pointer event — a
+            // blur of a blur of a blur, forty deep by the end of a drag.
+            _liveEffectBase = _cache.Get(target, Scene.Width, Scene.Height).Copy();
+            _liveComposite = _liveEffectBase.Copy();
+        }
+        else
+        {
+            EnsureLiveScratch();
+            ClearLiveScratch();
+        }
+        ResetLivePostProcess();
+        _liveStampedCount = 0;
+        _liveDabCount = 0;
+        _liveStableDabs = 0;
+        _liveTailRegion = null;
+        _liveDabs = null;
+        _liveEffectDabs = null;
+        _liveEffectSettled = 0;
+        _liveSmudgeCarry = default;
+        _liveSmudgeRegion = null;
+        FlushLivePreview();
+        PublishSnapshot();
+    }
+
+    /// <summary>A document-sized scratch bitmap for the live preview overlay.</summary>
+    private void EnsureLiveScratch()
+    {
+        if (_liveScratch is not null && _liveScratch.Width == Scene.Width && _liveScratch.Height == Scene.Height)
+        {
+            return;
+        }
+        _liveScratchCanvas?.Dispose();
+        _liveScratch?.Dispose();
+        _liveScratch = new SKBitmap(
+            new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        _liveScratchCanvas = new SKCanvas(_liveScratch);
+        _liveScratchUsed = null;
+    }
+
+    /// <summary>Wipe only the region the previous stroke actually touched.</summary>
+    private void ClearLiveScratch()
+    {
+        if (_liveScratchCanvas is null) return;
+        if (_liveScratchUsed is not { } used)
+        {
+            _liveScratchCanvas.Clear(SkiaSharp.SKColors.Transparent);
+            return;
+        }
+        _liveScratchCanvas.Save();
+        _liveScratchCanvas.ClipRect(SKRect.Create(used.Left, used.Top, used.Width, used.Height));
+        _liveScratchCanvas.Clear(SkiaSharp.SKColors.Transparent);
+        _liveScratchCanvas.Restore();
+        _liveScratchUsed = null;
+    }
+
+    /// <summary>
     /// Ask for a re-render of the stroke so far.
     ///
     /// Scheduling is left to the dispatcher rather than to a wall-clock
@@ -7490,127 +7227,134 @@ public sealed partial class MainViewModel : ObservableObject
         return a;
     }
 
+    // ---- gradient tool ------------------------------------------------------
+
     /// <summary>
-    /// Coalesce repaints: at most one queued snapshot at a time, published after the pointer events
-    /// already waiting rather than in between them.
+    /// The gradient being dragged. Two points — the axis — and no incremental
+    /// state, so it stays out of the brush's stamped-so-far machinery: a
+    /// gradient is not built up along the drag, it is redefined by it.
+    /// </summary>
+    private Stroke? _liveGradient;
+
+    /// <summary>The axis the canvas overlay draws while dragging (document coordinates).</summary>
+    public event Action<(double X, double Y)?, (double X, double Y)?>? GradientAxisChanged;
+
+    internal Stroke? LiveGradient => _liveGradient;
+
+    internal Stroke? LiveGradientForTests => _liveGradient;
+
+    internal Stroke? LiveShapeForTests => _liveShape;
+
+    /// <summary>
+    /// Whether anything being dragged right now would actually reach the
+    /// screen.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// <b>Input priority, and B73 is why.</b> Avalonia runs
-    /// <c>Render &gt; Loaded &gt; Default &gt; Input &gt; Background</c> — <c>Default</c> is
-    /// <em>above</em> <c>Input</c> here, which is the reverse of WPF, where it sits below. This was
-    /// posted at <c>Default</c>, so a publish jumped ahead of every pen event already in the queue.
-    /// Two consequences, and the artist feels them as one thing:
-    /// </para>
-    /// <para>
-    /// The frame drawn was <b>already behind</b> — published before a single queued event had been
-    /// handled, so the ink on screen stopped where the pen had been several events ago. And because
-    /// the publish ran between events instead of after them, a burst of <em>n</em> events produced
-    /// <em>n</em> publishes rather than one: measured at <b>11 events → 11 publishes</b>. A publish
-    /// is the expensive half, so the faster the stroke the more the work multiplied, and the lag
-    /// compounded along it. That is why the report was about <em>fast</em> strokes specifically.
-    /// </para>
-    /// <para>
-    /// <c>Input</c> is right rather than merely lower because that queue is FIFO: this lands behind
-    /// the events already waiting, so one frame covers the burst and is current — and ahead of
-    /// events that arrive afterwards, so a continuous drag still renders. <c>Background</c> also
-    /// drains the burst and can be starved by continuous input, which is the state an artist is in
-    /// for the whole of a long stroke.
-    /// </para>
-    /// <para>
-    /// <b>Never Render priority</b>, whatever the latency argument: jobs in the dispatcher's render
-    /// phase swallow the <c>InvalidateVisual</c> they trigger, which leaves the canvas permanently
-    /// un-scheduled — strokes appeared only after the next unrelated event, the "frozen cursor, no
-    /// lines" bug. <c>StrokeLatencyTests</c> guards the priority from the other side.
-    /// </para>
+    /// The condition the compositor tests, named once so it can be asserted.
+    /// A tool that renders a preview nothing composites looks correct at every
+    /// call site and shows nothing, which is how the shape tool shipped.
     /// </remarks>
-    private void RequestSnapshot()
+    internal bool LivePreviewIsVisible =>
+        _liveScratch is not null
+        && (_liveShape is not null || _liveGradient is not null || _strokeBuilder.IsActive);
+
+    public void BeginGradient(double x, double y)
     {
-        if (_snapshotQueued) return;
-        _snapshotQueued = true;
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        if (ActiveTool != ToolId.Gradient || IsPlaying) return;
+        if (!CanEdit(ActiveLayer, "fill on it") || PaintTargetOrKey() is null) return;
+        // A brand-new document has no gradients, and telling someone who just
+        // picked the gradient tool to go and make one first is a dead end. A
+        // fresh Gradient is already black to white, which is the ramp anyone
+        // would have made by hand.
+        if (GradientDocker.SelectedGradient is null) GradientDocker.AddGradientCommand.Execute(null);
+        if (GradientDocker.SelectedGradient is not { } gradient)
         {
-            _snapshotQueued = false;
-            PublishSnapshot();
-        }, Avalonia.Threading.DispatcherPriority.Input);
+            AiStatus = "Could not create a gradient to paint with.";
+            return;
+        }
+        CommitSwatchEdit();
+
+        _liveGradient = new Stroke
+        {
+            Tool = ToolKind.Gradient,
+            GradientId = gradient.Id,
+            Color = ColorHex,
+            Brush = new BrushSettings { Opacity = GradientOpacity, AntiAlias = AntiAliasing },
+            Points = [new StrokePoint(x, y, 1), new StrokePoint(x, y, 1)],
+            // Stamped onto the stroke like a brush stroke's, so unlocking the
+            // layer later cannot repaint what is already down.
+            AlphaLocked = ActiveLayer.AlphaLocked,
+            Label = "gradient",
+        };
+        if (PrepareClipForSelection() is { } clip) _liveGradient.ClipId = clip.Id;
+
+        EnsureLiveScratch();
+        RenderGradientPreview();
+        PublishSnapshot();
+    }
+
+    /// <param name="snapAngle">
+    /// Shift. A gradient's angle is the whole of it, and a ramp meant to be
+    /// level almost never lands level by hand.
+    /// </param>
+    public void MoveGradient(double x, double y, bool snapAngle = false)
+    {
+        if (_liveGradient is not { } stroke) return;
+        stroke.Points[1] = GradientEnd(stroke, x, y, snapAngle);
+        RenderGradientPreview();
+        RequestSnapshot();
     }
 
     /// <summary>
-    /// Drop the Blur/Smudge live preview and the ordinary-paint dab-walk
-    /// bookkeeping. <see cref="EndStroke"/> calls this after a real commit;
-    /// anything that abandons a stroke without going through it —
-    /// <see cref="AttachEditor"/> on a tab switch, <see cref="StartPlayback"/>
-    /// — must call it too. <c>_strokeBuilder.Cancel()</c> alone leaves
-    /// <see cref="_liveComposite"/> non-null, and every publish after that
-    /// treats a non-null <see cref="_liveComposite"/> as "an effect brush is
-    /// live on this layer" — which, left stale, silently suppressed the
-    /// overlay for every ordinary stroke, gradient and shape drag afterward,
-    /// on any document, until ink happened to reset it (B39's fix).
+    /// How far apart the snapped angles are, in degrees.
     /// </summary>
-    private void ClearLiveEffectState()
+    /// <remarks>
+    /// Fifteen, so the four squares and the four diagonals are all on it and
+    /// there is still somewhere to put an angle between them. The same number
+    /// the guide lock uses, for the same reason.
+    /// </remarks>
+    public const double GradientSnapDegrees = 15;
+
+    private static StrokePoint GradientEnd(Stroke stroke, double x, double y, bool snapAngle)
     {
-        _liveComposite?.Dispose();
-        _liveComposite = null;
-        _liveEffectBase?.Dispose();
-        _liveEffectBase = null;
-        _liveStampedCount = 0;
-        _liveDabCount = 0;
-        _liveStableDabs = 0;
-        _liveTailRegion = null;
-        _liveDabs = null;
-        _liveEffectDabs = null;
-        _liveEffectSettled = 0;
-        // The carry and the lent region go with the composite they described. The backup bitmap
-        // does not: it is reused across strokes and only ever written before it is read, so keeping
-        // it saves an allocation per stroke without any state surviving.
-        _liveSmudgeCarry = default;
-        _liveSmudgeRegion = null;
-        ResetLivePostProcess();
+        if (!snapAngle) return new StrokePoint(x, y, 1);
+        var ax = stroke.Points[0].X;
+        var ay = stroke.Points[0].Y;
+        var dx = x - ax;
+        var dy = y - ay;
+        var length = Math.Sqrt(dx * dx + dy * dy);
+        if (length < 1e-9) return new StrokePoint(x, y, 1);
+        // The angle snaps; the length does not. Same division of labour as a
+        // ruler — the guide decides the direction, the hand decides how far.
+        var degrees = Math.Atan2(dy, dx) * 180 / Math.PI;
+        var snapped = Math.Round(degrees / GradientSnapDegrees) * GradientSnapDegrees * Math.PI / 180;
+        return new StrokePoint(ax + Math.Cos(snapped) * length, ay + Math.Sin(snapped) * length, 1);
     }
 
-    public void EndStroke()
+    public void EndGradient(double x, double y, bool snapAngle = false)
     {
-        var stroke = _strokeBuilder.End();
-        ClearLiveEffectState();
-        if (stroke is null) return;
-        var target = PaintTarget();
-        if (target is null) return;
+        if (_liveGradient is not { } stroke) return;
+        stroke.Points[1] = GradientEnd(stroke, x, y, snapAngle);
+        CancelGradient(); // clears the preview; the record gets the stroke below
 
-        _stabilizer.End();
-        LazyBrushCleared?.Invoke();
-        stroke.Points = _stabilizer.PostProcess(stroke.Points);
+        if (PaintTarget() is not { } target) return;
+        var dx = stroke.Points[1].X - stroke.Points[0].X;
+        var dy = stroke.Points[1].Y - stroke.Points[0].Y;
+        // A click with no drag has no axis. Committing it would paint a
+        // degenerate shader over the whole layer, which is never the intent.
+        if (dx * dx + dy * dy < 1.0)
+        {
+            AiStatus = "Drag to set the gradient's direction and length.";
+            return;
+        }
 
-        // Remembered for the next Shift+click. The post-processed end, not the
-        // raw one, so the next segment starts exactly where this mark stops.
-        _lastStrokeEnd = stroke.Points.Count > 0
-            ? (stroke.Points[^1].X, stroke.Points[^1].Y)
-            : null;
-
-        // A stroke painted under a selection carries it forever (provenance).
         var clip = PrepareClipForSelection();
         if (clip is not null) stroke.ClipId = clip.Value.Id;
 
-        // Both of these were wired into EndGradient and EndShape and missed
-        // here, which is the path a pen actually takes. The freeze mattered:
-        // an all-layers-BAKED smudge drawn by hand never froze anything and
-        // silently fell back to reading its own layer. Live hid it, because
-        // the re-bake runs off the edit funnel and covered for the missing
-        // call — so the half that was tested end to end worked and the half
-        // that was not did not.
         FreezeSampledBackdrop(stroke);
         RememberDocumentBrush();
+        AppendToFrameRender(target, stroke);
 
-        // Commit the pixels incrementally: stamp the EXACT stroke onto the
-        // cached frame bitmap instead of invalidating it — invalidation would
-        // replay every stroke in the frame, which is why lifting the pen used
-        // to pause on drawings with many strokes. Appending the exact stroke
-        // to the previously exact bitmap is the same sequence Materialize
-        // would run, so the pixels stay bit-identical.
-        AppendToFrameRender(target, stroke); // pre-stroke state (record not yet updated)
-
-        // Undo without snapshotting the whole document (the other pen-lift
-        // pause). The frame is resolved by id at apply/revert time: a
-        // snapshot-undo in between replaces the doc instance tree.
         var frameId = target.Id;
         var addedClip = false;
         _committingScopedEdit = true;
@@ -7634,13 +7378,236 @@ public sealed partial class MainViewModel : ObservableObject
             _committingScopedEdit = false;
         }
         _dirtyThumbIds.Add(target.Id);
-        // Only the stroke's own neighbourhood changed: the layer gained the
-        // committed pixels and the live scratch stopped contributing there.
-        var commitInfo = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        if (BrushEngine.CommitBounds(stroke, commitInfo) is { } touched) MarkDirtyRegion(touched);
-        else InvalidateWholeCanvas();
+        InvalidateWholeCanvas();
         PublishSnapshot();
         RefreshThumbnails();
+        AiStatus = $"Laid down “{GradientDocker.SelectedGradient?.Name}”.";
+    }
+
+    /// <summary>Abandon the drag — Escape, or capture lost.</summary>
+    public void CancelGradient()
+    {
+        if (_liveGradient is null) return;
+        _liveGradient = null;
+        ClearLiveScratch();
+        GradientAxisChanged?.Invoke(null, null);
+        InvalidateWholeCanvas();
+        PublishSnapshot();
+    }
+
+    /// <summary>
+    /// Re-render the whole preview rather than an increment. A gradient is
+    /// full-canvas by nature — one shader-filled rect, which Skia does in a
+    /// single native pass — and every pointer move redefines the axis, so
+    /// there is nothing from the previous frame worth keeping.
+    /// </summary>
+    private void RenderGradientPreview()
+    {
+        if (_liveGradient is not { } stroke || _liveScratchCanvas is null) return;
+        ClearLiveScratch();
+        var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        // Opacity and the alpha lock stay on the overlay so they are not baked
+        // in twice; the scratch holds the unmodulated ramp.
+        var preview = new Stroke
+        {
+            Tool = ToolKind.Gradient,
+            GradientId = stroke.GradientId,
+            Color = stroke.Color,
+            ClipId = stroke.ClipId,
+            Brush = new BrushSettings { Opacity = 1, AntiAlias = stroke.Brush.AntiAlias },
+            Points = [.. stroke.Points],
+        };
+        BrushEngine.StampStroke(_liveScratchCanvas, preview, info);
+        _liveScratchCanvas.Flush();
+        _liveScratchUsed = new SKRectI(0, 0, Scene.Width, Scene.Height);
+        GradientAxisChanged?.Invoke(
+            (stroke.Points[0].X, stroke.Points[0].Y), (stroke.Points[1].X, stroke.Points[1].Y));
+        InvalidateWholeCanvas();
+    }
+
+    // ---- the shape tool ------------------------------------------------------------
+
+    /// <summary>Which shape the shape tool draws.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPolygonShape))]
+    [NotifyPropertyChangedFor(nameof(ShapeGlyph))]
+    private ShapeKind _activeShape = ShapeKind.Rectangle;
+
+    /// <summary>Corners, when the shape is a polygon.</summary>
+    [ObservableProperty]
+    private int _polygonSides = 5;
+
+    public bool IsPolygonShape => ActiveShape == ShapeKind.Polygon;
+
+    /// <summary>The tool button's icon, so it says which shape is loaded.</summary>
+    /// <remarks>
+    /// A geometry from <see cref="Rendering.IconSet"/> rather than the box-drawing
+    /// characters this used to return. Those were the system font's idea of a
+    /// rectangle sitting next to eight hand-drawn monoline glyphs, at whatever
+    /// weight and baseline that font happened to have.
+    /// </remarks>
+    public Avalonia.Media.Geometry? ShapeGlyph =>
+        Rendering.IconSet.Resolve(Rendering.IconSet.ForShape(ActiveShape));
+
+    /// <summary>Pick a shape, and make the shape tool active while you are at it.</summary>
+    /// <remarks>
+    /// Same bargain as the select variants: choosing one from the hold-list is
+    /// a statement that you want to draw it, and making you click the tool
+    /// again afterwards is a step with no decision in it.
+    /// </remarks>
+    [RelayCommand]
+    private void SelectShape(ShapeKind kind)
+    {
+        ActiveShape = kind;
+        ActiveTool = ToolId.Shape;
+    }
+
+    public IReadOnlyList<ShapeKind> ShapeChoices { get; } =
+        [ShapeKind.Line, ShapeKind.Rectangle, ShapeKind.Ellipse, ShapeKind.Polygon];
+
+    public bool IsShapeTool => ActiveTool == ToolId.Shape;
+
+    private Stroke? _liveShape;
+
+    private (double X, double Y) _shapeStart;
+
+    /// <summary>
+    /// Start a shape.
+    /// </summary>
+    /// <remarks>
+    /// The corners are snapped like any other point, so a rectangle dropped on
+    /// a grid lands on the grid — which is most of why anybody turns a grid on.
+    /// </remarks>
+    public void BeginShape(double x, double y)
+    {
+        if (ActiveTool != ToolId.Shape || IsPlaying) return;
+        if (!CanEdit(ActiveLayer, "draw on it") || PaintTargetOrKey() is null) return;
+        CommitSwatchEdit();
+
+        if (SnapToGuides && Scene.Guides is { Count: > 0 } guides)
+        {
+            (x, y) = Snapper.Point(guides, x, y, SnapTolerance);
+        }
+        _shapeStart = (x, y);
+        _liveShape = new Stroke
+        {
+            Tool = IsEraser ? ToolKind.Eraser : ToolKind.Brush,
+            Color = ColorHex,
+            SwatchId = ActiveSwatchId,
+            PaletteId = ActivePaletteId,
+            Brush = CurrentToolSettings.Clone(),
+            Points = ShapeBuilder.Outline(ActiveShape, x, y, x, y, sides: PolygonSides),
+            AlphaLocked = ActiveLayer.AlphaLocked,
+            Label = ActiveShape.ToString().ToLowerInvariant(),
+        };
+        if (PrepareClipForSelection() is { } clip) _liveShape.ClipId = clip.Id;
+
+        EnsureLiveScratch();
+        RenderShapePreview();
+        PublishSnapshot();
+    }
+
+    /// <param name="fromCentre">Alt: grow from the first corner rather than to it.</param>
+    /// <param name="regular">Shift: a square, a circle, a regular polygon.</param>
+    public void MoveShape(double x, double y, bool fromCentre = false, bool regular = false)
+    {
+        if (_liveShape is not { } stroke) return;
+        if (SnapToGuides && Scene.Guides is { Count: > 0 } guides)
+        {
+            (x, y) = Snapper.Point(guides, x, y, SnapTolerance);
+        }
+        stroke.Points = ShapeBuilder.Outline(
+            ActiveShape, _shapeStart.X, _shapeStart.Y, x, y, fromCentre, regular, PolygonSides);
+        RenderShapePreview();
+        RequestSnapshot();
+    }
+
+    public void EndShape(double x, double y, bool fromCentre = false, bool regular = false)
+    {
+        if (_liveShape is not { } stroke) return;
+        if (SnapToGuides && Scene.Guides is { Count: > 0 } guides)
+        {
+            (x, y) = Snapper.Point(guides, x, y, SnapTolerance);
+        }
+        stroke.Points = ShapeBuilder.Outline(
+            ActiveShape, _shapeStart.X, _shapeStart.Y, x, y, fromCentre, regular, PolygonSides);
+        CancelShape();
+
+        if (PaintTarget() is not { } target) return;
+        // A click with no drag is not a shape. Committing it would leave a
+        // single dab where the artist expected a rectangle.
+        var dx = x - _shapeStart.X;
+        var dy = y - _shapeStart.Y;
+        if (dx * dx + dy * dy < 1.0)
+        {
+            AiStatus = "Drag to size the shape.";
+            return;
+        }
+
+        var clip = PrepareClipForSelection();
+        if (clip is not null) stroke.ClipId = clip.Value.Id;
+        FreezeSampledBackdrop(stroke);
+        RememberDocumentBrush();
+        AppendToFrameRender(target, stroke);
+
+        var frameId = target.Id;
+        var addedClip = false;
+        _committingScopedEdit = true;
+        try
+        {
+            _editor.PerformDelta(
+                apply: doc =>
+                {
+                    if (clip is { } c) addedClip = doc.ClipRegions.TryAdd(c.Id, c.Region);
+                    StrokeListIn(doc, frameId)?.Add(stroke);
+                },
+                revert: doc =>
+                {
+                    RemoveStrokeById(doc, frameId, stroke.Id);
+                    if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
+                },
+                affectedFrameId: frameId);
+        }
+        finally
+        {
+            _committingScopedEdit = false;
+        }
+        _dirtyThumbIds.Add(target.Id);
+        InvalidateWholeCanvas();
+        PublishSnapshot();
+    }
+
+    public void CancelShape()
+    {
+        if (_liveShape is null) return;
+        _liveShape = null;
+        ClearLiveScratch();
+        InvalidateWholeCanvas();
+        PublishSnapshot();
+    }
+
+    private void RenderShapePreview()
+    {
+        if (_liveShape is not { } stroke || _liveScratchCanvas is null) return;
+        ClearLiveScratch();
+        var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        // The same stroke the commit will record, at full opacity — the
+        // overlay applies the brush's own, so baking it here would double it.
+        var preview = new Stroke
+        {
+            Tool = ToolKind.Brush,
+            Color = stroke.Color,
+            SwatchId = stroke.SwatchId,
+            PaletteId = stroke.PaletteId,
+            ClipId = stroke.ClipId,
+            Brush = stroke.Brush.Clone(),
+            Points = [.. stroke.Points],
+        };
+        preview.Brush.Opacity = 1;
+        BrushEngine.StampStroke(_liveScratchCanvas, preview, info);
+        _liveScratchCanvas.Flush();
+        _liveScratchUsed = new SKRectI(0, 0, Scene.Width, Scene.Height);
+        InvalidateWholeCanvas();
     }
 
     // ---- commands -----------------------------------------------------------
@@ -11825,6 +11792,26 @@ public sealed partial class MainViewModel : ObservableObject
             ? "No reference imported."
             : $"{strip.Cells.Count} frames · {strip.SheetWidth}×{strip.SheetHeight} sheet";
 
+    // ---- the render and publish core -------------------------------------------
+    //
+    // Tier 0 of docs/DESIGN-mainviewmodel-decomposition.md, and until this marker
+    // was added it had no name: these 785 lines sat under a heading reading
+    // "video clip bars (Q57)", which is why every map of this file pointed at the
+    // wrong place. The marker is the whole of the fix — nothing here moved.
+    //
+    // Unlike the live-paint engine above, this cluster's STATE is already owned
+    // elsewhere: _composeRing, _cache, _tileFlats, _stackBake, _prewarm and
+    // _tileFallbacks are all collaborators declared at the top of the class. What
+    // is not extracted is the sequencing — PublishSnapshot, FlattenTilePasses,
+    // ComposeViewportCulled, MarkDirtyRegion, InvalidateWholeCanvas and the
+    // prewarm drive. So when this cluster is extracted it wants an orchestrator
+    // holding those six, not a new owner of state.
+    //
+    // RequestSnapshot sits at the head of it deliberately (Q74): it schedules a
+    // publish, so it belongs beside PublishSnapshot rather than with the paint
+    // path that calls it. Its DispatcherPriority.Input is B73 and does not fail
+    // loudly — see its own remarks before touching it.
+
     /// <summary>
     /// The document region the last publish actually recomposited (null = the
     /// whole canvas). What the artist feels as a stutter is this rect growing,
@@ -11949,6 +11936,51 @@ public sealed partial class MainViewModel : ObservableObject
                 _tileFlats.Unpin(held[i]);
             }
         };
+    }
+
+    /// <summary>
+    /// Coalesce repaints: at most one queued snapshot at a time, published after the pointer events
+    /// already waiting rather than in between them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Input priority, and B73 is why.</b> Avalonia runs
+    /// <c>Render &gt; Loaded &gt; Default &gt; Input &gt; Background</c> — <c>Default</c> is
+    /// <em>above</em> <c>Input</c> here, which is the reverse of WPF, where it sits below. This was
+    /// posted at <c>Default</c>, so a publish jumped ahead of every pen event already in the queue.
+    /// Two consequences, and the artist feels them as one thing:
+    /// </para>
+    /// <para>
+    /// The frame drawn was <b>already behind</b> — published before a single queued event had been
+    /// handled, so the ink on screen stopped where the pen had been several events ago. And because
+    /// the publish ran between events instead of after them, a burst of <em>n</em> events produced
+    /// <em>n</em> publishes rather than one: measured at <b>11 events → 11 publishes</b>. A publish
+    /// is the expensive half, so the faster the stroke the more the work multiplied, and the lag
+    /// compounded along it. That is why the report was about <em>fast</em> strokes specifically.
+    /// </para>
+    /// <para>
+    /// <c>Input</c> is right rather than merely lower because that queue is FIFO: this lands behind
+    /// the events already waiting, so one frame covers the burst and is current — and ahead of
+    /// events that arrive afterwards, so a continuous drag still renders. <c>Background</c> also
+    /// drains the burst and can be starved by continuous input, which is the state an artist is in
+    /// for the whole of a long stroke.
+    /// </para>
+    /// <para>
+    /// <b>Never Render priority</b>, whatever the latency argument: jobs in the dispatcher's render
+    /// phase swallow the <c>InvalidateVisual</c> they trigger, which leaves the canvas permanently
+    /// un-scheduled — strokes appeared only after the next unrelated event, the "frozen cursor, no
+    /// lines" bug. <c>StrokeLatencyTests</c> guards the priority from the other side.
+    /// </para>
+    /// </remarks>
+    private void RequestSnapshot()
+    {
+        if (_snapshotQueued) return;
+        _snapshotQueued = true;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            _snapshotQueued = false;
+            PublishSnapshot();
+        }, Avalonia.Threading.DispatcherPriority.Input);
     }
 
     /// <summary>Composite the scene for the current playhead and hand it to the view.</summary>
@@ -12456,7 +12488,6 @@ public sealed partial class MainViewModel : ObservableObject
         }
         return flattened ?? passes;
     }
-
 
     /// <summary>A pass drawn in full — a windowed reference cell, or one under its own matrix.</summary>
 

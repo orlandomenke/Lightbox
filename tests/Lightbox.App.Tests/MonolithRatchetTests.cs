@@ -60,16 +60,38 @@ public class MonolithRatchetTests(ITestOutputHelper output)
     /// raising one needs a reason in the commit message.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <c>MainWindow.axaml.cs</c> came down from 5,544 to 429 when the view was split
     /// into fifteen partials, which is the ratchet behaving as designed: the budget
     /// moves with the extraction that earned it, in the same commit, and the file can
     /// never climb back. The partials are not listed here — the largest is 747 lines
     /// and none is near the size that makes a file unreadable. A budget belongs here
     /// when a file is already too big, not as a cap on every file in the project.
+    /// </para>
+    /// <para>
+    /// <b><c>MainViewModel.cs</c> went up once, 13,110 → 13,141, and the precedent is
+    /// worth stating exactly.</b> Naming Tier 0 re-marked the live-paint engine out
+    /// from under a heading reading "the shape tool" and gave the render core a marker
+    /// of its own. The motion itself <i>shrank</i> the file by five lines; the 38 lines
+    /// of comment explaining why the old map was wrong is what took it over.
+    /// </para>
+    /// <para>
+    /// It was raised rather than absorbed by trimming that comment, deliberately. The
+    /// budget exists to stop feature code accumulating in a file nobody can read, not
+    /// to price the documentation that makes it readable — and padding prose down to
+    /// fit a number set the day before is the "fixing badly to keep a number down"
+    /// failure the project warns about, dressed up as discipline. Raising it costs one
+    /// visible line in a diff, which is the whole design.
+    /// </para>
+    /// <para>
+    /// That is the only legitimate reason to raise one: the file got <i>more</i>
+    /// legible and slightly longer. "A feature needed the room" is not on the list —
+    /// that is what a partial or a collaborator is for.
+    /// </para>
     /// </remarks>
     public static readonly (string Path, int Max)[] Budgets =
     [
-        ("src/Lightbox.App/ViewModels/MainViewModel.cs", 13110),
+        ("src/Lightbox.App/ViewModels/MainViewModel.cs", 13141),
         ("src/Lightbox.App/Rendering/CanvasControl.cs", 5078),
         ("src/Lightbox.App/Views/MainWindow.axaml", 4188),
         ("src/Lightbox.App/Views/MainWindow.axaml.cs", 429),
