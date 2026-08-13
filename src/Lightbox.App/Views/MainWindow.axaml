@@ -376,6 +376,15 @@
           <MenuItem Header="Add vertical ruler" Click="OnAddVerticalGuide" />
           <MenuItem Header="Add grid" Click="OnAddGridGuide" />
           <MenuItem Header="Add isometric guide" Click="OnAddIsometricGuide" />
+          <!--
+            The construction aids: authored marks an artist places, the same
+            machinery as the lines above — a height chart is a guide with
+            divisions, an eye-line or horizon is a line that knows its name.
+          -->
+          <MenuItem Header="Add character height scale" Click="OnAddHeightScale"
+                    ToolTip.Tip="A head-unit chart. Drag its top to resize the character — the divisions follow." />
+          <MenuItem Header="Add eye-line" Click="OnAddEyeLine" />
+          <MenuItem Header="Add horizon" Click="OnAddHorizonLine" />
           <MenuItem Header="Add vanishing point" Click="OnAddVanishingPoint"
                     ToolTip.Tip="One is one-point perspective, two is two-point, three is three" />
           <Separator />

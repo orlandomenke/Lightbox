@@ -226,6 +226,60 @@ public class GuideTests
         Assert.True(y > 0 && y < x);
     }
 
+    // ---- the character height scale ------------------------------------------------
+
+    private static Guide Scale(double x = 100, double y = 800, double unit = 90, int heads = 6) =>
+        new() { Kind = GuideKind.HeightScale, X = x, Y = y, Spacing = unit, Divisions = heads };
+
+    [Fact]
+    public void AHeightScalePullsToItsDivisionLines()
+    {
+        // "Put the chin on the fifth head" — the pull works anywhere across
+        // the canvas, the way a line's does, not only at the chart itself.
+        var (x, y) = Snapper.Point([Scale(y: 800, unit: 90)], 400, 616, tolerance: 8);
+
+        Near(400, x);          // x untouched: the division is a height, not a place
+        Near(620, y);          // two heads up from the ground at 800
+    }
+
+    [Fact]
+    public void AboveItsTopAHeightScalePullsNoFurtherThanTheTop()
+    {
+        // Six heads of 90 from 800 puts the top at 260. Far above it there is
+        // no seventh division to mean.
+        var (_, y) = Snapper.Point([Scale(y: 800, unit: 90, heads: 6)], 400, 255, tolerance: 8);
+
+        Near(260, y);
+    }
+
+    [Fact]
+    public void AHeightScaleNeverGrabsAStrokesDirection()
+    {
+        // It pulls points onto division lines but offers no angles — otherwise
+        // every horizontal stroke on the canvas would belong to it.
+        var scale = Scale();
+
+        Assert.Empty(scale.Angles);
+        Assert.Null(Snapper.Lock([scale], 100, 500, 160, 501));
+    }
+
+    [Fact]
+    public void OnlyAHeightScaleWritesADivisionsKey()
+    {
+        // Optional means absent: divisions is the height scale's key and no
+        // other guide's, so a document without one never carries it.
+        var plain = new Doc();
+        plain.Scene.Guides = [Line(0), Grid(24)];
+        Assert.DoesNotContain("divisions", DocJson.Serialize(plain), StringComparison.OrdinalIgnoreCase);
+
+        var charted = new Doc();
+        charted.Scene.Guides = [Scale(unit: 90, heads: 6)];
+        var back = DocJson.Deserialize(DocJson.Serialize(charted));
+        Assert.Equal(GuideKind.HeightScale, back.Scene.Guides![0].Kind);
+        Assert.Equal(6, back.Scene.Guides[0].Divisions);
+        Assert.Equal(90, back.Scene.Guides[0].Spacing);
+    }
+
     // ---- absence -----------------------------------------------------------------
 
     [Fact]

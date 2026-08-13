@@ -607,7 +607,8 @@ public sealed class CanvasControl : Control
     /// be halfway through editing. Same reason the reference boxes are copied.
     /// </remarks>
     public readonly record struct GuideLine(
-        string Id, int Kind, float X, float Y, float Spacing, IReadOnlyList<double> Angles);
+        string Id, int Kind, float X, float Y, float Spacing, IReadOnlyList<double> Angles,
+        string? Label = null, int Divisions = 0);
 
     /// <summary>
     /// The guides to draw, or null for none — in which case nothing
@@ -917,7 +918,18 @@ public sealed class CanvasControl : Control
     /// <summary>A guide drag finished, so the move can be closed off.</summary>
     public event Action? GuideDragEnded;
 
+    /// <summary>
+    /// A height scale's top was dragged, by a vertical delta in document
+    /// pixels. The view model turns it into a unit-height change.
+    /// </summary>
+    public event Action<string, double>? GuideResized;
+
+    /// <summary>A height-scale resize finished, so it can become one undo step.</summary>
+    public event Action? GuideResizeEnded;
+
     private string? _guideDrag;
+
+    private bool _guideResizing;
 
     private (double X, double Y) _guideDragLast;
 
@@ -952,6 +964,15 @@ public sealed class CanvasControl : Control
                 distance = Math.Abs(
                     -Math.Sin(radians) * (x - guide.X) + Math.Cos(radians) * (y - guide.Y));
             }
+            else if (guide.Kind == GuideKindHeightScale)
+            {
+                // Grabbed anywhere along its post, like a line — the post is
+                // the thing on screen, and an anchor-only grab would mean
+                // reaching for its feet every time.
+                var top = guide.Y - guide.Spacing * Math.Max(1, guide.Divisions);
+                var dy = Math.Clamp(y, top, guide.Y) - y;
+                distance = Math.Sqrt((x - guide.X) * (x - guide.X) + dy * dy);
+            }
             else
             {
                 distance = Math.Sqrt(
@@ -964,7 +985,29 @@ public sealed class CanvasControl : Control
         return best;
     }
 
+    /// <summary>
+    /// Whether a grab on this guide is the top of a height scale — a resize,
+    /// not a move.
+    /// </summary>
+    /// <remarks>
+    /// The top rung is the handle because it is what the gesture means: "this
+    /// character is this tall". The divisions follow, since a head count is a
+    /// proportion and resizing the character does not change how many heads
+    /// they are.
+    /// </remarks>
+    private bool GrabsHeightScaleTop(GuideLine guide, Point view)
+    {
+        if (guide.Kind != GuideKindHeightScale) return false;
+        var scale = FitScale() * _zoom;
+        if (scale <= 0) return false;
+        var (x, y) = ViewToDoc(view);
+        var top = guide.Y - guide.Spacing * Math.Max(1, guide.Divisions);
+        var reach = GuideGrabPixels / scale;
+        return Math.Abs(y - top) <= reach && Math.Abs(x - guide.X) <= reach * 2;
+    }
+
     private const int GuideKindLine = 0;
+    private const int GuideKindHeightScale = 4;
 
     private bool _overGuide;
 
@@ -2810,6 +2853,7 @@ public sealed class CanvasControl : Control
             if (GuideDragEnabled && GuideAt(pp.Position) is { } grabbed)
             {
                 _guideDrag = grabbed.Id;
+                _guideResizing = GrabsHeightScaleTop(grabbed, pp.Position);
                 _guideDragLast = (x, y);
                 e.Pointer.Capture(this);
                 e.Handled = true;
@@ -3287,7 +3331,8 @@ public sealed class CanvasControl : Control
                 var (gx, gy) = ViewToDoc(e.GetPosition(this));
                 // Incremental, like the reference nudge: an absolute drag
                 // would leave one enormous step in the history.
-                GuideMoved?.Invoke(dragging, gx - _guideDragLast.X, gy - _guideDragLast.Y);
+                if (_guideResizing) GuideResized?.Invoke(dragging, gy - _guideDragLast.Y);
+                else GuideMoved?.Invoke(dragging, gx - _guideDragLast.X, gy - _guideDragLast.Y);
                 _guideDragLast = (gx, gy);
                 e.Handled = true;
                 return;
@@ -3566,7 +3611,15 @@ public sealed class CanvasControl : Control
         {
             _guideDrag = null;
             e.Pointer.Capture(null);
-            GuideDragEnded?.Invoke();
+            if (_guideResizing)
+            {
+                _guideResizing = false;
+                GuideResizeEnded?.Invoke();
+            }
+            else
+            {
+                GuideDragEnded?.Invoke();
+            }
             e.Handled = true;
             return;
         }
@@ -4272,7 +4325,7 @@ public sealed class CanvasControl : Control
             lines is null ? null : [.. lines.Select(ToPainterLine)];
 
         private static GuidePainter.Line ToPainterLine(GuideLine g) =>
-            new(g.Kind, g.X, g.Y, g.Spacing, g.Angles);
+            new(g.Kind, g.X, g.Y, g.Spacing, g.Angles, g.Label, g.Divisions);
 
         /// <summary>
         /// The reference grid, while it is being edited.

@@ -803,14 +803,22 @@ project structure bugs and `.claude/quality/comparison.md` for full analysis.
 
 ### Construction guides
 
-- [?] Construction guides
-- [?] Automatic volume guides
-- [?] Center of mass visualization
-- [?] Perspective consistency guide
-- [?] Character height guide
-- [?] Limb length guide
-- [?] Eye-line guide
-- [?] Horizon guide
+Scoped by Q76 (2026-08-13): the eight wishes here were two different features
+wearing one name. The **authored drawing aids** — marks an artist places, which
+ride the guide machinery and the guide-set rails above — are built. The
+**computed analysis overlays** — machinery that reads the drawing and reports
+on it — stay open wishes, each with the reason recorded so the next reader does
+not re-derive it.
+
+- [x] Character height guide — a `GuideKind.HeightScale` of its own: one object that is "6 heads", top-dragged to resize with the divisions following, division lines that snap, edited exactly in Configure ▸ Guides and grid `evidence: HeightScaleRow, AHeightScalePullsToItsDivisionLines, AHeightScaleNeverGrabsAStrokesDirection, OnlyAHeightScaleWritesADivisionsKey, PullingAHeightScalesTopResizesTheHeadsAsOneUndoStep, AHeightScaleDrawsItsPostAndItsRungs, AHeightScaleSaysHowManyHeadsItIs`
+  - A kind rather than labelled lines for the isometric guide's reason: the artist reaches for "six heads" and expects the divisions to follow the top; seven hand-kept lines is the same picture and seven times the housekeeping. Deliberately *not* a stroke constraint — it pulls points onto its division lines but offers no directions, or every horizontal stroke on the canvas would belong to it.
+- [x] Eye-line guide — a horizontal ruler that wears its name on the canvas, placed pre-named from View ▸ Guides `evidence: OnAddEyeLine, ANamedGuideWearsItsName`
+- [x] Horizon guide — the same mechanism, at the height the vanishing points already assume `evidence: OnAddHorizonLine, ANamedGuideWearsItsName`
+  - Both folded into `Line` plus label rendering (Q76) rather than kinds of their own: they *are* horizontal lines, and the label — which the height scale needed anyway — was the whole missing part. The label paints for any named guide, so a rig pulled from a guide set reads at a glance. The alternative, a `Horizon` kind that vanishing points snap onto, was costed and deferred: it changes the VP workflow for a payoff nobody has asked for yet.
+- [?] Automatic volume guides — needs a definition of an enclosed region on freehand ink (today only fills know their contours) before "volume" means anything; nothing in the stroke record carries it.
+- [?] Center of mass visualization — same prerequisite as volume, plus a density assumption per region; without B58's rigs naming what is body and what is prop, the computed point is over noise.
+- [?] Perspective consistency guide — checking strokes against the VP rig means deciding which strokes *claim* to be perspective lines, which is a labelling problem before it is geometry.
+- [?] Limb length guide — really an animation checker (compare a limb's length across frames), which wants B58's rig anchors as the thing measured; measuring raw ink cannot say what a limb is.
 
 ### Project plumbing
 

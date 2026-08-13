@@ -31,6 +31,22 @@ public enum GuideKind
     /// abstraction to get it.
     /// </remarks>
     VanishingPoint,
+
+    /// <summary>
+    /// A character height chart: a vertical scale divided into head units,
+    /// standing on its anchor.
+    /// </summary>
+    /// <remarks>
+    /// A kind of its own rather than a stack of <see cref="Line"/>s, for the
+    /// isometric guide's reason: the artist reaches for "six heads", resizes
+    /// the character once by pulling the top, and expects every division to
+    /// follow. Seven hand-maintained lines is the same picture and seven
+    /// times the housekeeping — and nothing would know to label it.
+    /// (X, Y) is the <i>bottom</i> — the ground the character stands on —
+    /// <see cref="Guide.Spacing"/> is one head, and
+    /// <see cref="Guide.Divisions"/> is how many of them tall.
+    /// </remarks>
+    HeightScale,
 }
 
 /// <summary>
@@ -76,8 +92,18 @@ public sealed class Guide
     /// <summary>Degrees clockwise from east. A line's direction; a grid's tilt.</summary>
     public double Angle { get; set; }
 
-    /// <summary>Grid pitch in document pixels. Ignored by the other kinds.</summary>
+    /// <summary>
+    /// Grid pitch — or, on a height scale, one head unit — in document pixels.
+    /// Ignored by the other kinds.
+    /// </summary>
     public double Spacing { get; set; } = 32;
+
+    /// <summary>
+    /// How many divisions a <see cref="GuideKind.HeightScale"/> is tall —
+    /// "6 heads" is six of these. Null on every other kind, so a document
+    /// without a height scale writes no divisions key.
+    /// </summary>
+    public int? Divisions { get; set; }
 
     /// <summary>Drawn on the canvas. A hidden guide still snaps — see the remarks.</summary>
     /// <remarks>
@@ -100,7 +126,10 @@ public sealed class Guide
     /// <remarks>
     /// A vanishing point has no fixed angle — its direction depends on where
     /// you are standing — so it returns nothing here and is handled by
-    /// <see cref="Snapper.DirectionAt"/> instead.
+    /// <see cref="Snapper.DirectionAt"/> instead. A height scale also returns
+    /// nothing: it pulls points onto its division lines but never grabs a
+    /// stroke's direction, or every horizontal stroke on the canvas would
+    /// belong to it.
     ///
     /// <para>Derived; never serialized — see <see cref="Scene.HasGhostFrames"/>.</para>
     /// </remarks>

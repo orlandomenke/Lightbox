@@ -93,7 +93,8 @@ rotating back leaves no softening.
 
 ## Guides
 
-**View → Guides** places rulers, grids, isometric axes and vanishing points.
+**View → Guides** places rulers, grids, isometric axes, vanishing points and
+the construction aids — a character height scale, an eye-line, a horizon.
 None exist until you place one, and a document that never uses them carries no
 guide machinery at all.
 
@@ -103,6 +104,8 @@ guide machinery at all.
 | Grid | Points snap to its intersections — corners, shapes, the starts of strokes |
 | Isometric | Three axes at ±30° and vertical, from one origin you can move once |
 | Vanishing point | Strokes radiate from it. One is one-point perspective, two is two-point, three is three |
+| Character height scale | Points snap to its head-unit divisions — chin on the fifth head, knees on the second |
+| Eye-line / horizon | A horizontal ruler that wears its name, so a shared rig reads at a glance |
 
 They do two different things, and knowing which is which is the whole trick:
 
@@ -124,10 +127,33 @@ anything, and hiding a guide does *not* stop it snapping — those are two
 switches, because hiding a rig to look at the drawing under it is something you
 do constantly.
 
-Guides are saved with the document, like the camera, and drawn *under* the
-artwork — a ruler on paper is something you draw over. The snapped points are
-what the stroke records, so moving a guide afterwards never moves a line you
-have already drawn.
+Guides are saved with the document, like the camera, and drawn *over* the
+artwork, translucent — under it they would vanish the moment they crossed an
+opaque background layer. The snapped points are what the stroke records, so
+moving a guide afterwards never moves a line you have already drawn.
+
+#### The character height scale, and the named lines
+
+**View → Guides → Add character height scale** stands a head-unit chart on the
+canvas: a post with a rung per head and a count beside the top — "6 heads".
+It is how animators keep a character on model, and it
+behaves like one thing because it is one:
+
+- **Drag the top rung to resize the character.** The divisions follow — a head
+  count is a proportion, and a taller character is not more heads. The whole
+  pull is one undo step. (Grabbing the post anywhere else moves the chart.)
+- **Its divisions snap**, all the way across the canvas: put the chin on the
+  fifth head wherever the character is standing. Above the top and below the
+  ground there is nothing to snap to — the chart's extent is its point.
+- **Edit → Configure → Guides and grid** lists every height scale on the
+  document, where one head's height and the head count can be typed exactly.
+
+**Add eye-line** and **Add horizon** place ordinary horizontal rulers that
+carry their names on the canvas. They constrain exactly what a ruler does; the
+label is the feature — on a rig somebody else set up, or pulled from a guide
+set, a line that says "Horizon" needs no archaeology. Any guide that has a
+name wears it the same way, and a guide set keeps the names of the guides in
+it.
 
 #### Rulers, and placing a guide by eye
 
@@ -199,8 +225,9 @@ This is the same scoping palettes, gradients and brush tips use.
 
 **Edit → Configure → Guides and grid** holds the cell size a new grid is made
 with and how close a point has to come to a guide to be pulled onto it. It also
-lists the grids already on the document, where their pitch, angle, drawing and
-snapping can be changed after the fact — each one an undoable step.
+lists the grids and height scales already on the document, where a grid's pitch
+and angle, a scale's head height and count, and each one's drawing and snapping
+can be changed after the fact — each one an undoable step.
 
 Changing the default cell size never touches a grid that already exists. Once a
 grid is placed its spacing belongs to the document, and a preference must not

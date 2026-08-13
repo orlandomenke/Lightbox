@@ -91,9 +91,21 @@ public static class Snapper
         // A vanishing point pulls to itself, which is what lets you start a
         // line exactly on the horizon.
         GuideKind.VanishingPoint => (guide.X, guide.Y),
+        // A height scale pulls to its division lines — "put the chin on the
+        // fifth head" — anywhere across the canvas, the way a line does.
+        GuideKind.HeightScale => HeightScalePoint(guide, x, y),
         // Isometric axes are directions, not places. Constraining is their job.
         _ => null,
     };
+
+    private static (double X, double Y) HeightScalePoint(Guide guide, double x, double y)
+    {
+        var unit = Math.Max(1e-6, guide.Spacing);
+        // Clamped to the scale's own range: above the top head or below the
+        // ground there is no division to mean, so the nearest end pulls.
+        var i = Math.Clamp(Math.Round((guide.Y - y) / unit), 0, Math.Max(1, guide.Divisions ?? 1));
+        return (x, guide.Y - i * unit);
+    }
 
     private static (double X, double Y) GridPoint(Guide guide, double x, double y)
     {

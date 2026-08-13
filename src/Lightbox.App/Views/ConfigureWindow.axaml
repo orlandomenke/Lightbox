@@ -231,6 +231,42 @@
             </ItemsControl.ItemTemplate>
           </ItemsControl>
         </StackPanel>
+
+        <!-- The height scales on this document, if any: proportions after the
+             fact, the way the grids above get their pitch. -->
+        <StackPanel Spacing="6">
+          <TextBlock Text="Height scales on this document" FontWeight="SemiBold" />
+          <TextBlock x:Name="NoHeightScalesText" TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="None yet. View ▸ Guides ▸ Add character height scale places one." />
+          <ItemsControl x:Name="HeightScalesHost">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="views:HeightScaleRow">
+                <Border Background="{StaticResource SurfaceElevatedBrush}" CornerRadius="4" Padding="10" Margin="0,0,0,6">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" />
+                    <DockPanel>
+                      <NumericUpDown DockPanel.Dock="Right" Width="110"
+                                     Minimum="1" Maximum="4096" Increment="2" FormatString="0.#"
+                                     Value="{Binding Unit, Mode=TwoWay}" />
+                      <TextBlock Text="One head, in pixels" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <DockPanel>
+                      <NumericUpDown DockPanel.Dock="Right" Width="110"
+                                     Minimum="1" Maximum="32" Increment="1" FormatString="0"
+                                     Value="{Binding Divisions, Mode=TwoWay}" />
+                      <TextBlock Text="Heads tall" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="14">
+                      <CheckBox Content="Draw it" IsChecked="{Binding Visible, Mode=TwoWay}" />
+                      <CheckBox Content="Snap to it" IsChecked="{Binding Snaps, Mode=TwoWay}"
+                                ToolTip.Tip="A hidden scale still snaps unless this is off" />
+                    </StackPanel>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
       </StackPanel>
     </ScrollViewer>
     <!-- Content (center): timeline -->
