@@ -1165,6 +1165,16 @@ public partial class MainWindow : Window
     {
         if (_vm.SymbolBrowser.Selected is { } row) _vm.OpenSymbol(row.Model);
     }
+
+    /// <summary>
+    /// Double-tap a history row: stand the document at that state. The same
+    /// activation gesture the symbol tiles use — a single click only selects,
+    /// so scrolling through a long history cannot rewrite the drawing.
+    /// </summary>
+    private void OnHistoryRowJump(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is UndoHistoryRow row) _vm.UndoHistory.Jump(row);
+    }
     private async void OnSaveWorkspaceAs(object? sender, RoutedEventArgs e)
     {
         if (await PromptForText("Save workspace", "Name", _vm.Workspace.SelectedName) is not { } name) return;

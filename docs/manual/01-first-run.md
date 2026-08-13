@@ -57,8 +57,19 @@ From the top:
 
 The panels — **Project**, **Layers**, **Color**, **Palette**, **Gradient**,
 **Channels**, **Reference sheets**, **Reference**, **Symbols**,
-**Tool options**, **Timeline**, **X-sheet** and **Graph editor** — open and
-close from **View ▸ Dockers**, where every panel toggle lives in one submenu.
+**Tool options**, **History**, **Timeline**, **X-sheet** and **Graph editor** —
+open and close from **View ▸ Dockers**, where every panel toggle lives in one
+submenu.
+
+**History** is the undo record with names on it: every step of the open
+document — *Stroke*, *Add layer*, *Resize canvas* — listed oldest first, with
+the current state marked. **Double-click a row to stand the drawing at that
+state**, however many steps away it is; rows below the current one are dimmed
+and are what redo would replay, reachable the same way. A single click only
+selects, so scrolling the list can never rewrite the drawing. The list is this
+session's — closing the document ends it, and the oldest steps fall off past
+the undo limit. For a state that should outlive the session, keep a version
+(**File ▸ Save version…**); the two are complements, not rivals.
 
 Each panel's header is three things at once:
 

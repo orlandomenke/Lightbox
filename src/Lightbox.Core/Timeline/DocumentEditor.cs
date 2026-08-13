@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+using System.Text;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Serialization;
 
@@ -28,8 +30,8 @@ public sealed class DocumentEditor
     private readonly Stack<Entry> _undo = new();
     private readonly Stack<Entry> _redo = new();
 
-    /// <summary>A step, and the revision the document reached by applying it.</summary>
-    private readonly record struct Entry(IEditStep Step, long Revision);
+    /// <summary>A step, the revision the document reached by applying it, and its name.</summary>
+    private readonly record struct Entry(IEditStep Step, long Revision, string Label);
 
     /// <summary>Hands out revision numbers; never reused, never reset.</summary>
     private long _nextRevision;
@@ -102,9 +104,9 @@ public sealed class DocumentEditor
     /// across the round trip and does not care how the copy was made.
     /// </para>
     /// </remarks>
-    public void Perform(Action<Doc> mutate)
+    public void Perform(Action<Doc> mutate, string? label = null, [CallerMemberName] string caller = "")
     {
-        PushStep(new SnapshotStep(Doc.Clone()));
+        PushStep(new SnapshotStep(Doc.Clone()), label ?? Humanize(caller));
         mutate(Doc);
         Changed?.Invoke();
     }
@@ -117,11 +119,41 @@ public sealed class DocumentEditor
     /// <paramref name="affectedFrameId"/> lets undo/redo invalidate only that
     /// frame instead of every cached bitmap and thumbnail.
     /// </summary>
-    public void PerformDelta(Action<Doc> apply, Action<Doc> revert, string? affectedFrameId = null)
+    public void PerformDelta(
+        Action<Doc> apply, Action<Doc> revert, string? affectedFrameId = null,
+        string? label = null, [CallerMemberName] string caller = "")
     {
-        PushStep(new DeltaStep(apply, revert, affectedFrameId));
+        PushStep(new DeltaStep(apply, revert, affectedFrameId), label ?? Humanize(caller));
         apply(Doc);
         Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// "CommitStroke" → "Commit stroke". The default naming for the history
+    /// panel: every step arrives named after the method that made it, via
+    /// <c>CallerMemberName</c>, so sixty call sites did not need editing to
+    /// give the history words — and the handful whose method name reads badly
+    /// pass an explicit label instead.
+    /// </summary>
+    private static string Humanize(string member)
+    {
+        if (member.Length == 0) return "Edit";
+        var text = new StringBuilder(member.Length + 8);
+        text.Append(char.ToUpperInvariant(member[0]));
+        for (var i = 1; i < member.Length; i++)
+        {
+            var c = member[i];
+            if (char.IsUpper(c) && !char.IsUpper(member[i - 1]))
+            {
+                text.Append(' ');
+                text.Append(char.ToLowerInvariant(c));
+            }
+            else
+            {
+                text.Append(c);
+            }
+        }
+        return text.ToString();
     }
 
     /// <summary>What an undo/redo touched: nothing, one frame, or the whole document.</summary>
@@ -156,17 +188,85 @@ public sealed class DocumentEditor
         return new EditScope(true, entry.Step.FrameId);
     }
 
-    private void PushStep(IEditStep step)
+    private void PushStep(IEditStep step, string label)
     {
-        _undo.Push(new Entry(step, ++_nextRevision));
+        _undo.Push(new Entry(step, ++_nextRevision, label));
         if (_undo.Count > MaxUndo)
         {
             // Stack has no trim; rebuild without the oldest entry.
             var items = _undo.ToArray(); // newest..oldest
             _undo.Clear();
             for (var i = items.Length - 2; i >= 0; i--) _undo.Push(items[i]);
+            _trimmed = true;
         }
         _redo.Clear();
+    }
+
+    // ---- the history, as the panel reads it ---------------------------------
+
+    /// <summary>Whether the oldest edits have been dropped by <see cref="MaxUndo"/>.</summary>
+    /// <remarks>
+    /// The panel's root row ("as opened") is only honest while this is false —
+    /// once trimming starts, revision zero is a state undo can no longer
+    /// reach, and offering a row that cannot be jumped to is a button that
+    /// silently does less than it says.
+    /// </remarks>
+    public bool HistoryTrimmed => _trimmed;
+
+    private bool _trimmed;
+
+    /// <summary>One line of the history: a named state the document can stand at.</summary>
+    /// <param name="IsUndone">
+    /// True for the part ahead of the current state — steps that have been
+    /// undone and are still redoable. The panel dims them.
+    /// </param>
+    public readonly record struct HistoryEntry(long Revision, string Label, bool IsUndone);
+
+    /// <summary>
+    /// Every state the stacks can reach, oldest first: the undo line up to the
+    /// current state, then what has been undone, in the order redo would
+    /// replay it. At most <see cref="MaxUndo"/> rows of labels — reading it
+    /// allocates a small list and touches no document.
+    /// </summary>
+    public IReadOnlyList<HistoryEntry> History
+    {
+        get
+        {
+            var rows = new List<HistoryEntry>(_undo.Count + _redo.Count);
+            foreach (var entry in _undo.Reverse())
+                rows.Add(new HistoryEntry(entry.Revision, entry.Label, IsUndone: false));
+            // A stack enumerates top-first, and the redo top is the next step
+            // forward — so this is already chronological.
+            foreach (var entry in _redo)
+                rows.Add(new HistoryEntry(entry.Revision, entry.Label, IsUndone: true));
+            return rows;
+        }
+    }
+
+    /// <summary>
+    /// Walk undo or redo until the document stands at
+    /// <paramref name="revision"/> — what clicking a history row does. Zero
+    /// means "as opened", reachable only while nothing has been trimmed.
+    /// </summary>
+    /// <returns>
+    /// The union of what the steps touched: one frame when every step agreed,
+    /// document-wide when they did not, nothing when already there.
+    /// </returns>
+    public EditScope JumpTo(long revision)
+    {
+        var merged = new EditScope(false, null);
+        var first = true;
+        while (Revision > revision && CanUndo) Take(UndoScoped());
+        while (Revision < revision && CanRedo) Take(RedoScoped());
+        return merged;
+
+        void Take(EditScope scope)
+        {
+            if (!scope.Any) return;
+            merged = first ? scope
+                : new EditScope(true, merged.FrameId == scope.FrameId ? merged.FrameId : null);
+            first = false;
+        }
     }
 
     /// <summary>One entry on the undo/redo stacks.</summary>

@@ -23,6 +23,7 @@ public enum DockPanelId
     Xsheet,
     GraphEditor,
     Channels,
+    History,
 }
 
 /// <summary>Where a panel lives.</summary>
@@ -88,6 +89,9 @@ public static class DockPanels
         new(DockPanelId.Xsheet, "X-sheet", MaxExtent: null, DefaultExtent: 280, MinExtent: 140),
         new(DockPanelId.GraphEditor, "Graph editor", MaxExtent: null, DefaultExtent: 280, MinExtent: 140),
         new(DockPanelId.Channels, "Channels", MaxExtent: 320, DefaultExtent: 260, MinExtent: 140),
+        // A list of labels: capped like the other list-of-rows loners that are
+        // not as long as the work itself.
+        new(DockPanelId.History, "History", MaxExtent: 320, DefaultExtent: 240, MinExtent: 140),
     ];
 
     /// <summary>
