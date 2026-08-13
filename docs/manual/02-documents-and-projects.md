@@ -529,7 +529,11 @@ each wearing an automatic designation and a glyph unique to its kind
 an asset is recognisable as what it is before you read its name. **Drag one
 onto a row** to give it to that scope, and the status line says what it now
 feeds: *"Palette 'Knight warms' shared with Knight — it feeds every document
-under 'Knight'."* Two kinds land differently: a **sheet** is filed on the
+under 'Knight'."* Whatever a scope has shows as a **pill on its row** — every
+kind, the same way: a palette declared there, a template default, and a sheet
+filed there all read alike, though a sheet's pill has no ✕ (it reports filing;
+move the sheet by dragging it). Guide sets are the one kind the table knows
+about that nothing can create yet — *Planned*. Two kinds land differently: a **sheet** is filed on the
 folder rather than declared, because for sheets filing *is* what feeds the
 documents below; a **template** becomes the scope's one default — the drop
 replaces, and the status line names what it displaced.
