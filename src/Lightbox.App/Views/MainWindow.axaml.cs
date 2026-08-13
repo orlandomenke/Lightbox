@@ -118,6 +118,9 @@ public partial class MainWindow : Window
         Canvas.DisplayScaleChanged += scale => _vm.SetDisplayScale(scale);
         Canvas.ViewportChanged += viewport => _vm.SetViewport(viewport);
         Canvas.FrameRendered += ms => _vm.RecordFrameTime(ms);
+        // B189: the publisher paces its coalesced publishes to what the canvas
+        // has actually drawn, and this is the signal it paces against.
+        Canvas.SnapshotPresented += seq => _vm.NoteFramePresented(seq);
         // The backend is only knowable once a frame has been drawn, so the
         // startup report waits for that rather than for construction. One frame
         // later than "startup", and the only point at which it has an answer.
