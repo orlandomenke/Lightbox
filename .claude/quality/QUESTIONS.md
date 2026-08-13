@@ -2835,3 +2835,336 @@ project window would couple them), and reverting an open character sheet
 closes its view tabs rather than rebinding them (B98's registration dance,
 backwards, is where that path leads). `CreateBranch` stays framework-only —
 history is one line per file until that proves insufficient.
+
+
+## Q76 · Decomposing the two big view files: which tool, which file first, and whether to cap growth — **answered 2026-08-13**
+
+**Asked with the question prompt after a review of `MainViewModel.cs`,
+`MainWindow.axaml.cs` and `docs/DESIGN-mainviewmodel-decomposition.md`; all three
+answers took the recommendation.** The review's own finding is why it was asked
+at all: the design document was written against a 10,098-line file, merged when
+the file was 12,001, and its every line anchor was off by 1,200–2,000 lines.
+
+What survived the review, and is worth recording because it was measured twice:
+re-deriving the document's coupling analysis against the now 13,110-line file
+reproduces it almost exactly — **53% of fields touched by exactly one section**
+(it measured 54%), **nine fields crossing five or more** (it measured nine), the
+shape tool still widest at **33** (it measured 32). The file is not getting more
+tangled as it grows; it is getting longer at constant shallowness. The
+section → hub diagnosis stands.
+
+Three questions, three answers:
+
+1. **Which tool? — (a) split by mechanism, as recommended.** The document
+   rejected more partial files outright, on the grounds that they buy
+   navigability with zero decoupling because every section keeps its licence to
+   touch every field. True in the language, false here: the nine partials that
+   exist use 0–13 distinct fields each and declare most of them locally —
+   `StrokeSelection` touches none, `Momentary` declares 4 of 4, `Audio` 10 of 13.
+   3,527 lines left the file that way and stayed loose, because **giving a
+   section its own file creates the pressure to declare its state there.** So
+   partials for a section that owns its state and touches ≤5 hub fields;
+   extracted collaborators, in the manner of `SelectionManager`, for the hub and
+   the genuinely shared clusters. **What that choice costs:** two routes to
+   explain and a judgement per section about which applies — mitigated by
+   `scripts/monolith.py`, which answers it from the field counts. The document's
+   real point is kept: a partial for a *hub* would look solved and decouple
+   nothing.
+2. **Which file first? — (a) split the view first, as recommended.** The same
+   analysis run on `MainWindow.axaml.cs` comes back inverted: **79%** of fields
+   single-section, and exactly **one** field crossing five or more — `_vm`, used
+   in 35 of 37 sections. There is no hub to name and no shared mutable state; it
+   is 37 near-independent handler groups over one view-model reference. So the
+   view needs *splitting*, not decomposing, and it is the cheap safe proof of the
+   pattern before the expensive file. Two things the review turned up alongside:
+   the render and publish core is not where the markers say it is — it sits from
+   roughly `:11857` under a marker reading *video clip bars (Q57)* — and
+   `MainWindow.axaml`, 4,188 lines of XAML with **no test file**, is above both
+   C# files on `HOTSPOTS.md`'s risk table.
+3. **Cap the growth? — (a) yes, a size ratchet, as recommended.** Since the
+   document was merged: **94 commits to `MainViewModel.cs`, +2,793/−965 lines,
+   zero leaves extracted.** The file gained more lines while the plan sat
+   unstarted than the plan proposed to remove, and an extraction costing a branch
+   plus a full suite run per leaf cannot outrun that. `MonolithRatchetTests` now
+   holds a line budget for the four oversized files, seeded at current length:
+   they may shrink and may not grow, a budget comes down with the extraction that
+   earns it, and a second test caps the slack so a stale budget cannot become room
+   to regrow. **What that choice costs:** an occasional forced decision mid-feature
+   about where new code goes. There is deliberately no environment-variable escape
+   hatch — raising the number in a diff is the visible form of the same decision,
+   which is the reasoning behind `LIGHTBOX_PUSH_TO_MAIN` applied to a line count.
+
+## Q77 · Naming Tier 0: which cluster, in how many steps, who owns the state, and where B73 lives — **answered 2026-08-13**
+
+**Asked with the question prompt before any code was written; all four answers
+took the recommendation.** Step 3 of
+`docs/DESIGN-mainviewmodel-decomposition.md`. Two findings reframed the questions
+before they were put, and both are why the answers came out as they did:
+
+- **The two Tier 0 clusters are in opposite states.** The render core's *state* is
+  already owned — `_composeRing`, `_cache`, `_tileFlats`, `_stackBake`, `_prewarm`
+  and `_tileFallbacks` are all collaborators declared at the top of the class. What
+  is missing there is sequencing, so it wants an orchestrator rather than a new
+  owner of state. The live-paint machine is the opposite: 24 raw SkiaSharp fields
+  with no owner at all.
+- **A second marker was lying, worse than the one found in the review.** The
+  section headed *the shape tool* ran 804 lines, of which only ~180 were the shape
+  tool. The rest — `MoveStroke`, `FlushLivePreview`, `StampLiveDabs`,
+  `StampLiveSmudge`, `EndStroke`, and `RequestSnapshot` — was the live-paint
+  engine, 800 lines away from the state it mutates. That is the entire reason the
+  shape tool measured 30 foreign field touches and read as a tool tangled into the
+  paint path, when in truth it *was* the paint path with a tool on top.
+
+Four questions, four answers:
+
+1. **Which cluster? — (a) live-paint, as recommended.** It is the one with
+   genuinely unowned state, and it is the knot the shape and gradient tools are
+   caught in. The render core is smaller work than the design document assumed for
+   the reason above, so it can wait; both in one branch was declined as the
+   one-objective rule broken on the riskiest change in the plan.
+2. **One step or two? — (a) re-mark first, extract second, as recommended.** This
+   branch is pure code motion: the engine moved next to its state, the live-post
+   methods and the gradient methods went back under their own headings, and the
+   render core got a marker. **No line of code changed** — verified the way the
+   view split was, by showing the file identical as a multiset of lines. The
+   extraction is its own branch. The alternative put a 580-line move and a
+   state-ownership change in one diff on the hottest path in the application,
+   where nobody could tell which lines changed behaviour.
+3. **What owns the state? — (a) a `LivePaintSession` collaborator, as
+   recommended**, in the manner of `SelectionManager`: one long-lived object, no
+   per-event allocation, so the paint path pays nothing for it. **What that choice
+   costs:** its public surface has to be wide enough for the shape and gradient
+   tools, which is the thing to watch when the extraction lands. Keeping the fields
+   and extracting only methods was declined as navigability without decoupling —
+   the exact thing the document was right to refuse about partials-for-hubs.
+4. **Where does `RequestSnapshot` live? — (a) stays in the view model, as
+   recommended.** It schedules a publish, so it belongs beside `PublishSnapshot`,
+   and it moved there in this branch rather than travelling with the paint path
+   that calls it. Its `DispatcherPriority.Input` is B73 and does not fail loudly,
+   so the live-paint extraction now does not touch it at all.
+
+**What the re-mark bought, measured:** the shape tool went from 804 lines and 30
+foreign field touches to 184 and 5 — from the widest section in the file to an
+ordinary Tier 1 leaf. `painting` went from 195 lines to 605 and now holds the
+engine beside the 19 fields it mutates. The render core went from anonymous to 785
+named lines. Nothing was extracted and nothing executes differently.
+
+**Answer 3 has since been carried out, and the numbers are worth keeping here.**
+`ViewModels/LivePaintSession.cs` took 22 fields and four lifecycle methods:
+`MainViewModel.cs` 13,141 → 12,919, private fields 143 → 122, fields touched by
+exactly one section 53% → **63%**, and *live post-processing* went from reaching 19
+foreign fields to 6. The full suite, the performance-tagged budgets and
+`StrokeLatencyTests` are all green, and no per-event allocation was added — the
+session is one long-lived object and the properties are auto-properties the JIT
+inlines.
+
+**What it did not buy, stated plainly:** `_live` now crosses seven sections, so the
+coupling did not disappear — it became one typed reference in place of 22 raw
+fields. The session is not an encapsulation boundary either; the engine mutates its
+properties directly. What is genuinely better is that `ClearEffectState` cannot be
+got half-right any more, which is B39's exact failure mode.
+
+**Two mistakes were made writing it, both silent, and both are now pinned by
+`LivePaintSessionTests`.** The first draft of `ResetPostProcess` disposed the pooled
+`PostScratch` instead of wiping the region the last stroke used — a 33 MB
+allocation on every pen-down at 4K, with the whole suite green. The second replaced
+Skia's mutating `SKRectI.Union` with hand-rolled min/max that skipped empty rects;
+measured, `(0,0,0,0) ∪ (5,5,9,9)` is `(0,0,9,9)` in Skia and `(5,5,9,9)` under the
+rewrite, because Skia's union is a plain min/max over corners and a default
+`SKRectI` is empty *at the origin*. Both were caught by reading the originals rather
+than by any test, which is the argument for the tests that now exist: this class's
+job is to make expensive things cheap by keeping them alive, and a correctness test
+cannot see the difference between keeping a buffer and reallocating it.
+
+**One thing the naming step cost, recorded because the mechanism is one commit old:**
+the ratchet budget for `MainViewModel.cs` went *up*, 13,110 → 13,141. The motion
+shrank the file by five lines; the 38 lines of comment explaining why the old map
+was wrong took it over. It was raised rather than absorbed by trimming that
+comment, on the grounds that the budget exists to stop feature code accumulating
+in a file nobody can read, not to price the documentation that makes it readable.
+That is the only legitimate reason to raise one — the file got more legible and
+slightly longer. "A feature needed the room" is not on the list.
+
+It came back down to 12,919 in the branch after, when `LivePaintSession` landed. A
+budget that rises once for documentation and falls by 222 for an extraction is doing
+its job; one that only ever rises is a comment.
+
+**Answer 1's second half — the render core — has since been carried out, and it
+contradicted the plan recorded above.** Q77 said that cluster wanted "an
+orchestrator holding those six collaborators, not a new owner of state". Reading
+`PublishSnapshot` end to end says otherwise on two counts, and both are worth
+keeping because the mistake is a reusable one:
+
+- **The state was not all owned.** The six collaborators own the *caches*. The
+  *bookkeeping* — `_pendingDirty`, `_dirtyIsWholeCanvas`, `_pendingViewport`,
+  `_publishSeq`, `_lastPublished`, `LastPublishClip`, `FramesReused` — was seven raw
+  fields belonging to nothing. So "its state is already owned" was a claim read off a
+  collaborator list rather than checked against the code.
+- **An orchestrator is the wrong shape.** `PublishSnapshot` reads about fifteen
+  pieces of view-model state, so an orchestrator must be handed them per call or hold
+  a reference back. The second is a second view model with circular coupling; the
+  first allocates a request per publish, and the code next door already refuses that
+  trade — the transform-split delegate is cached in a field rather than written as a
+  lambda, because "a lambda capturing `this` allocates a closure and a delegate on
+  every publish, and a publish happens per pointer event while drawing".
+
+So `ViewModels/PublishState.cs` took the bookkeeping and the sequencing stayed in
+`PublishSnapshot`, reading the view model directly and allocating nothing.
+`MainViewModel.cs` 12,919 → 12,878, private fields 122 → 118.
+
+**`TakeDirty` is why this is a class rather than seven fields moved sideways.**
+Reading the dirty region and clearing it is three statements that must happen
+together, and both ways of splitting them are silent: clear without reading and the
+next publish repaints nothing that changed; read without clearing and the dirty rect
+grows forever, so painting stops being bounded work. Invariant 6 rests on that one
+method. `PublishStateTests` sabotages it both ways, and also pins the one-line
+difference between `InvalidateWholeCanvas` and `RepaintEverythingThisPublish` — the
+fold transition needs the flag without losing the fingerprint, which is "equivalent
+today" only because no early return sits between the two points in `PublishSnapshot`.
+
+## Q78 · The leaf plan tops out near 9,700 lines — extract, partial-split, or accept? — **answered 2026-08-13: finish the Tier 1 leaves, against the recommendation**
+
+**Asked after five steps of decomposition moved `MainViewModel.cs` from 13,110 to
+12,878 — 1.8% — and the owner asked whether the file staying humongous is a
+problem.** It is, and the measurement is what makes it a real question rather than
+a mood:
+
+- The file is **7,492 code lines**, 4,140 comment, 1,247 blank. At 32% comment it is
+  *below* the repository's 40% average, so "it is heavily documented" is not
+  available as an explanation.
+- **Every Tier 1 leaf extracted would leave 9,676 lines.** All ten, each its own
+  branch with tests and a `leak-hunter` pass.
+- The reason is structural: it is not one monolith but **61 sections sharing a
+  scope**. The largest is 764 lines and there is a tail of 43 sections totalling
+  4,743. Leaves come out at 150–590 lines each, which cannot outrun the total.
+
+**The recommendation was to partial-split the view model now**, applying the half of
+Q76 that has only ever been used on the view: measured, **52 of the 61 sections
+(9,089 lines) move with no grouping at all**, 36 fields stay in the root, and 9
+sections need a sibling. That is the same shape as `MainWindow.axaml.cs`, which went
+5,544 → 429 in one branch with the class body proven byte-identical. Tier 0 is what
+made it cheap — the 22 `_live*` fields and 7 publish fields are now behind two root
+references instead of spread across those sections.
+
+**The owner chose to finish the Tier 1 leaves first instead.** What that buys:
+genuine decoupling rather than file boundaries, each leaf landing as a real
+collaborator with its own guard, in the manner of `SelectionManager`,
+`LivePaintSession` and `PublishState`. Splitting a section into a partial moves it
+without giving it an owner; extracting it gives it one, and the three Tier 0
+extractions are the evidence that the owner is where the value is.
+
+**What that choice costs**, recorded because it should not have to be rediscovered:
+
+- **Ten more branches, and the file is still ~9,700 lines at the end of them.** The
+  answer to "is it small enough now" will be no.
+- **Every one of those ten is authored inside a 12,000-line file**, which is the
+  condition the split would have removed first. The partial split would have made
+  each subsequent leaf a change to an 800-line file instead.
+- **The order is not reversible for free.** Extracting a leaf and then partialling
+  what remains is fine; partialling first would have made each extraction smaller to
+  review. Doing it second means the ten reviews are the expensive kind.
+
+The partial split is not refused, only deferred — it remains the move that answers
+the size question, and this entry is what stops it being re-litigated from scratch.
+
+**Q78's leaf pass finished at two AI-path extractions, reviewed by the G12 pair.**
+`ConfiguredArtist` took the four provider fields (`_artist`, the two labels, the
+enabled flag) and the one operation that sets them together; `ReferenceViewImages`
+took the reference-view PNG cache, the render, the downscale and the 768 px request
+cap. `MainViewModel.cs` 12,852 → 12,736.
+
+**`ai-engineer`: CLEAN.** Verified member-by-member against `HEAD` — same disposal
+order, cap applied at exactly one site, invalidation still inside `MarkDocumentEdited`
+rather than `OnDocumentChanged`, no seed/clock/ordering introduced, and the in-flight
+`CancellationTokenSource` correctly left on the view model so a provider swap
+mid-request cannot inherit the previous request's cancellation.
+
+**`art-director`: ACCEPTABLE, with one finding that was right and is now fixed.** The
+extraction copied the sentence "Line art survives the downscale" into the new class's
+header — a claim `docs/DESIGN-ai-payload.md` already contradicts: face close-ups
+rendered through this exact path at 768 lose eyebrows and turn eyes to grey smudges,
+because mipmapped minification greys a thin dark line toward the ground. **Q27 is
+answered (d) — choose the cap per view — and this refactor had quietly given a flat
+768 a more authoritative-looking home than it had before.** The remarks now carry the
+failure mode, name Q27 as the settled answer, and record its three conditions (the
+cap is shown per view, a view can be pinned, the heuristic is a pure function of the
+view). Q27's heuristic is still unbuilt; this is the placeholder saying so.
+
+**The lesson worth keeping:** a pure code move can still make a claim worse, because
+moving prose into a smaller, better-named file makes it read as more settled than it
+was. Neither the compiler nor the suite can see that, and it is what the pair is for.
+
+**One pre-existing issue surfaced and deliberately not fixed here.** `ai-engineer`
+noted that `_ai.Artist` is dereferenced inside the request lambdas without
+re-narrowing after the `is null` guard, so a `ReloadAiProvider()` landing between the
+guard and the lambda's invocation would throw. Identical in shape to the code before
+this refactor, so not introduced. **Not fixed because it needs a decision, not a
+patch:** capturing the artist at the guard makes a request that started before a
+provider swap finish on the old provider, while dereferencing late makes it finish on
+the new one, and which is correct is a question about what a provider swap means
+mid-request rather than about null-safety. That is the "needs a decision" row of the
+fix-rather-than-file rule, and it belongs in its own branch with its own question.
+
+**The deferred half of Q78 was then done, and it is what answered the size question.**
+`MainViewModel.cs` 12,749 → **655** lines across 19 partials, in two separately
+verified steps.
+
+**Step A hoisted 33 shared fields to the root**, giving the split its one rule: a
+section's own state travels with it, shared state does not move. **Step B split 61
+sections into 19 files** — with the shared state hoisted, union-find over what remained
+returned 61 *independent* groups, so the grouping was chosen by concern rather than
+forced by coupling.
+
+**The threshold was the whole difficulty.** At "a field crossing three or more sections
+stays in root", union-find chained 16 sections into one 4,500-line group, because a
+field shared by exactly two sections links them and the links form chains. Lowering it
+to "more than one" moved 37 → 54 fields into the root and broke every chain. **That is
+the trade the split makes visible rather than removes:** 54 of 114 fields are read from
+two or more places. They are now in one marked block instead of scattered through
+12,000 lines, which is the honest measure of how coupled this class still is.
+
+Verified as the view split was: coverage with no gaps or overlaps, every marker at
+brace depth 1 so no member was cut in half, and the class body **identical as a
+multiset of lines** against HEAD — 11,454 non-blank before and after, the only
+additions being ten comment lines.
+
+**The nineteen partials are deliberately not given ratchet budgets, and the objection
+to that is recorded in the test.** Growth will now land in whichever partial owns the
+feature, so the mechanism that capped it has nothing to cap. Kept anyway because that
+destination is the split working rather than leaking, and because the largest partial
+is 1,310 lines — a file a person can read. Pre-emptively budgeting nineteen readable
+files looks like discipline and is noise. Add one when a file stops being readable,
+with the number that made it necessary.
+
+**What the whole exercise cost and bought**, since the leaf-versus-split ordering was
+argued twice: the leaf pass produced three collaborators (`GuideSnap`,
+`ConfiguredArtist`, `ReferenceViewImages`) and moved the file 12,878 → 12,852 → 12,736
+— about 0.9%. The split moved it 12,749 → 655 in one branch. Both were worth doing and
+the order was wrong: had the split come first, each of the three leaf extractions would
+have been a change to an 800-line file instead of a 12,000-line one. That cost was
+stated when the ordering was chosen and is recorded here as having been real.
+
+**All five collaborators were re-applied on top of main (52 commits, PR222 included),
+and two of them are better for it.** PR222 rewrote the live-post pipeline and added
+publish pacing — the code Tier 0 had extracted — so `RenderLivePostProcess` no longer
+exists upstream. Rather than route 41 hunks (two of them rewrites, +195/−39 and +112)
+into nineteen partials, the merge took main's files verbatim and the restructure was
+re-derived on top: PR222's behaviour is intact by construction, which is the only claim
+that is cheap to check.
+
+`PublishState` absorbed `_presentedSeq`, `_publishWhenPresented`, `_lastPublishTicks` and
+`_damTimerArmed`. They belong with `_publishSeq` rather than beside it — `CanvasIsBehind`
+compares three at once, and a deferral released twice puts a second frame in flight,
+which is what the pacing exists to prevent. `NotePresented` and `TakeDeferral` clear the
+flag inside the state so "released" and "flag down" cannot come apart.
+
+`LivePaintSession` absorbed `_livePostGeneration`, and the bump moved inside
+`ResetPostProcess` where PR222 had it. The only thing that invalidates in-flight work is
+this state being reset, so the two must not be separable.
+
+**The split went first this time**, which is the Q78 lesson applied: each extraction was
+a change to an 800-to-1,800-line file rather than a 13,000-line one, and the difference
+was obvious in how quickly each one landed.
+
+Final: `MainViewModel.cs` 13,628 → 692 across 18 partials; `MainWindow.axaml.cs`
+5,706 → 455 across 15. 4,191 tests green, PR222's own guards included.
