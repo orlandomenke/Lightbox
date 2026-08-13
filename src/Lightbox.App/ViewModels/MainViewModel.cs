@@ -7701,15 +7701,20 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (r.Width <= 0 || r.Height <= 0) return null;
         var bmp = new SKBitmap(new SKImageInfo(r.Width, r.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
-        using var canvas = new SKCanvas(bmp);
         using var sub = new SKBitmap();
         if (!src.ExtractSubset(sub, r)) { bmp.Dispose(); return null; }
         using var px = sub.PeekPixels();
         using var view = px is null ? null : SKImage.FromPixels(px);
         if (view is null) { bmp.Dispose(); return null; }
-        using var replace = new SKPaint { BlendMode = SKBlendMode.Src };
-        canvas.DrawImage(view, 0, 0, replace);
-        canvas.Flush();
+        // Scoped after the early returns above: a `using var` here would
+        // dispose the canvas AFTER those paths had already disposed its
+        // bitmap, which is a use-after-free inside Skia's teardown.
+        using (var canvas = new SKCanvas(bmp))
+        {
+            using var replace = new SKPaint { BlendMode = SKBlendMode.Src };
+            canvas.DrawImage(view, 0, 0, replace);
+            canvas.Flush();
+        }
         return bmp;
     }
 
