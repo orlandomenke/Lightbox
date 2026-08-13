@@ -2977,3 +2977,42 @@ provider swap finish on the old provider, while dereferencing late makes it fini
 the new one, and which is correct is a question about what a provider swap means
 mid-request rather than about null-safety. That is the "needs a decision" row of the
 fix-rather-than-file rule, and it belongs in its own branch with its own question.
+
+**The deferred half of Q75 was then done, and it is what answered the size question.**
+`MainViewModel.cs` 12,749 → **655** lines across 19 partials, in two separately
+verified steps.
+
+**Step A hoisted 33 shared fields to the root**, giving the split its one rule: a
+section's own state travels with it, shared state does not move. **Step B split 61
+sections into 19 files** — with the shared state hoisted, union-find over what remained
+returned 61 *independent* groups, so the grouping was chosen by concern rather than
+forced by coupling.
+
+**The threshold was the whole difficulty.** At "a field crossing three or more sections
+stays in root", union-find chained 16 sections into one 4,500-line group, because a
+field shared by exactly two sections links them and the links form chains. Lowering it
+to "more than one" moved 37 → 54 fields into the root and broke every chain. **That is
+the trade the split makes visible rather than removes:** 54 of 114 fields are read from
+two or more places. They are now in one marked block instead of scattered through
+12,000 lines, which is the honest measure of how coupled this class still is.
+
+Verified as the view split was: coverage with no gaps or overlaps, every marker at
+brace depth 1 so no member was cut in half, and the class body **identical as a
+multiset of lines** against HEAD — 11,454 non-blank before and after, the only
+additions being ten comment lines.
+
+**The nineteen partials are deliberately not given ratchet budgets, and the objection
+to that is recorded in the test.** Growth will now land in whichever partial owns the
+feature, so the mechanism that capped it has nothing to cap. Kept anyway because that
+destination is the split working rather than leaking, and because the largest partial
+is 1,310 lines — a file a person can read. Pre-emptively budgeting nineteen readable
+files looks like discipline and is noise. Add one when a file stops being readable,
+with the number that made it necessary.
+
+**What the whole exercise cost and bought**, since the leaf-versus-split ordering was
+argued twice: the leaf pass produced three collaborators (`GuideSnap`,
+`ConfiguredArtist`, `ReferenceViewImages`) and moved the file 12,878 → 12,852 → 12,736
+— about 0.9%. The split moved it 12,749 → 655 in one branch. Both were worth doing and
+the order was wrong: had the split come first, each of the three leaf extractions would
+have been a change to an 800-line file instead of a 12,000-line one. That cost was
+stated when the ordering was chosen and is recorded here as having been real.

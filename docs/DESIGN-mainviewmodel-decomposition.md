@@ -1,16 +1,17 @@
 # Decomposing the two big files: which pieces come out, and with which tool
 
-Status: **reviewed 2026-08-13, not started.** Nothing has been extracted. This
-revision exists because the first one went stale before it was merged, and
-because it answered "how do we split this" with one tool when the two files
-involved need different ones.
+Status: **done, 2026-08-13.** Both files are decomposed. `MainViewModel.cs` went
+13,110 → **655** lines and `MainWindow.axaml.cs` 5,544 → **429**, in seven steps
+recorded below. This revision was written when the first one had gone stale before it
+was merged, and because it answered "how do we split this" with one tool when the two
+files needed different ones — that turned out to be the load-bearing correction.
 
 Two files are in scope, and the whole point of this revision is that they are
 not the same problem:
 
 | File | Lines | Shape | Tool | State |
 | --- | --- | --- | --- | --- |
-| `ViewModels/MainViewModel.cs` | 13,110 | large, shallow, one hub | collaborators for the hub, partials for the leaves | not started |
+| `ViewModels/MainViewModel.cs` | 13,110 → **655** | large, shallow, one hub | collaborators for the hub, then partials for the rest | **done** |
 | `Views/MainWindow.axaml.cs` | 5,544 → **429** | 37 near-independent sections over one field | partials, and that is the whole job | **done** |
 
 `MainViewModel.cs` is at once the document API, the tool state machine, the
@@ -411,6 +412,44 @@ optional.
 **The recommendation after this measurement is the partial split** (Q75), which is
 what the remaining size problem actually responds to. The leaf route has given what
 it has to give.
+
+## The split, which is what actually answered the size question
+
+The leaf pass gave what it had — three collaborators and a lot of measurement — and
+left the file at 12,749 lines. The partial split took it to **655**, in two separately
+verified steps, and the ordering is the reason it was cheap:
+
+**Step A: 33 shared fields moved to the root.** Every field touched by more than one
+section now lives in one marked block at the top of `MainViewModel.cs`. That is the
+whole rule — *a section's own state travels with it; shared state does not move* — and
+it is what makes each partial's dependencies legible: a field it uses is either
+declared in it, or it is shared and named in one place.
+
+**Step B: 61 sections became 19 files.** With the shared state hoisted, union-find over
+the remaining fields returns **61 independent groups** — every section closed over its
+own state. So the grouping into files was free, and chosen by concern rather than
+forced by coupling.
+
+| | Lines |
+| --- | --- |
+| `MainViewModel.cs` (usings, class identity, 54 shared fields, constructor) | **655** |
+| largest partial (`Painting`) | 1,310 |
+| `Timeline`, `Documents`, `Brushes` | ~1,050 each |
+| smallest (`Guides`) | 208 |
+
+**Why the threshold is "touched by more than one section" and not "three or more".**
+The first attempt used three, and union-find chained 16 sections into one 4,500-line
+group — a field shared by exactly two sections links them, and the links form chains.
+Raising the root's share from 37 fields to 54 broke every chain. **That is the trade the
+split makes explicit rather than removes:** 54 of 114 fields are read from two or more
+places, and they are all in one visible block instead of scattered through 12,000 lines.
+
+Verified the way the view split was, three ways: the section ranges cover the region
+with no gaps and no overlaps; every marker sits at brace depth 1 so no member was cut
+in half; and the class body is **identical as a multiset of lines** against `HEAD`,
+11,454 non-blank before and after, the only additions being the ten comment lines
+introducing the shared-state block.
+
 ## Tier 2 — clusters, extracted whole or not at all
 
 Genuinely shared state. These are the collaborator cases.

@@ -1,0 +1,790 @@
+using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Lightbox.Ai;
+using Lightbox.App.Input;
+using Lightbox.App.Rendering;
+using Lightbox.App.Services;
+using Lightbox.Core.Documents;
+using Lightbox.Core.Geometry;
+using Lightbox.Core.Inbetween;
+using Lightbox.Core.Projects;
+using Lightbox.Core.Serialization;
+using Lightbox.Core.Timeline;
+using Lightbox.Raster;
+using SkiaSharp;
+
+namespace Lightbox.App.ViewModels;
+
+/// <summary>Reordering, folders, per-layer compositing, thumbnails and onion skin.</summary>
+/// <remarks>
+/// Split out of <c>MainViewModel.cs</c> under Q75, which was 12,749 lines across 61
+/// sections. Every field this file uses is either declared here — meaning no other
+/// section touches it — or in the shared-state block at the top of
+/// <c>MainViewModel.cs</c>. See <c>docs/DESIGN-mainviewmodel-decomposition.md</c>.
+/// </remarks>
+public partial class MainViewModel
+{
+    // ---- layer reordering -------------------------------------------------------
+
+    /// <summary>Move a layer toward the viewer (+1) or away (−1), keeping it active.</summary>
+    internal void MoveLayer(LayerRow row, int delta)
+    {
+        var id = row.Layer.Id;
+        _editor.MoveLayer(id, delta);
+        ActiveLayerIndex = Scene.Layers.FindIndex(l => l.Id == id);
+    }
+
+    [RelayCommand]
+    private void MoveLayerUp(LayerRow row) => MoveLayer(row, +1);
+
+    [RelayCommand]
+    private void MoveLayerDown(LayerRow row) => MoveLayer(row, -1);
+
+    // ---- layer folders ----------------------------------------------------------
+
+    /// <summary>The docker's item list: folder headers followed by their (uncollapsed) member rows.</summary>
+    public ObservableCollection<object> LayerPanelItems { get; } = [];
+
+    private void RebuildLayerPanel()
+    {
+        LayerPanelItems.Clear();
+        var emitted = new HashSet<string>();
+        foreach (var row in LayerRows) // topmost first
+        {
+            var group = Scene.GroupOf(row.Layer);
+            if (group is null)
+            {
+                LayerPanelItems.Add(row);
+                continue;
+            }
+            if (emitted.Add(group.Id)) LayerPanelItems.Add(new GroupRow(this, group));
+            if (!group.Collapsed) LayerPanelItems.Add(row);
+        }
+    }
+
+    /// <summary>New folder containing the active layer.</summary>
+    [RelayCommand]
+    private void CreateLayerFolder()
+    {
+        var layer = ActiveLayer;
+        _editor.Perform(doc =>
+        {
+            var group = new LayerGroup { Name = $"Folder {doc.Scene.LayerGroups.Count + 1}" };
+            doc.Scene.LayerGroups.Add(group);
+            layer.GroupId = group.Id;
+        });
+    }
+
+    /// <summary>Put the active layer into this folder (moved adjacent so the folder stays one block).</summary>
+    [RelayCommand]
+    private void AddActiveLayerToGroup(GroupRow header)
+    {
+        var layer = ActiveLayer;
+        if (layer.GroupId == header.Group.Id) return;
+        _editor.Perform(doc =>
+        {
+            var layers = doc.Scene.Layers;
+            layers.Remove(layer);
+            var top = -1;
+            for (var i = 0; i < layers.Count; i++)
+            {
+                if (layers[i].GroupId == header.Group.Id) top = i;
+            }
+            if (top < 0)
+            {
+                layers.Add(layer); // empty folder: just append
+            }
+            else
+            {
+                layers.Insert(top + 1, layer); // top of the folder's block
+            }
+            layer.GroupId = header.Group.Id;
+        });
+        ActiveLayerIndex = Scene.Layers.FindIndex(l => l.Id == layer.Id);
+    }
+
+    /// <summary>Take a layer out of its folder (placed just above the folder's block).</summary>
+    [RelayCommand]
+    private void RemoveLayerFromGroup(LayerRow row)
+    {
+        var layer = row.Layer;
+        if (layer.GroupId is null) return;
+        var groupId = layer.GroupId;
+        _editor.Perform(doc =>
+        {
+            var layers = doc.Scene.Layers;
+            layers.Remove(layer);
+            var top = -1;
+            for (var i = 0; i < layers.Count; i++)
+            {
+                if (layers[i].GroupId == groupId) top = i;
+            }
+            layers.Insert(top < 0 ? layers.Count : top + 1, layer);
+            layer.GroupId = null;
+        });
+        ActiveLayerIndex = Scene.Layers.FindIndex(l => l.Id == layer.Id);
+    }
+
+    /// <summary>Dissolve the folder: its layers stay, ungrouped.</summary>
+    [RelayCommand]
+    private void DissolveGroup(GroupRow header)
+    {
+        _editor.Perform(doc =>
+        {
+            foreach (var layer in doc.Scene.Layers)
+            {
+                if (layer.GroupId == header.Group.Id) layer.GroupId = null;
+            }
+            doc.Scene.LayerGroups.RemoveAll(g => g.Id == header.Group.Id);
+        });
+    }
+
+    internal void CommitGroupRename(LayerGroup group, string name)
+    {
+        var trimmed = name.Trim();
+        if (trimmed.Length == 0 || group.Name == trimmed) return;
+        _editor.Perform(_ => group.Name = trimmed);
+    }
+
+    internal void SetGroupVisible(LayerGroup group, bool visible)
+    {
+        if (group.Visible == visible) return;
+        _editor.Perform(_ => group.Visible = visible);
+    }
+
+    internal void SetGroupColor(LayerGroup group, string color)
+    {
+        if (group.Color == color) return;
+        _editor.Perform(_ => group.Color = color);
+    }
+
+    /// <summary>Collapse is a view preference: persisted, but not an undo step.</summary>
+    internal void SetGroupCollapsed(LayerGroup group, bool collapsed)
+    {
+        if (group.Collapsed == collapsed) return;
+        group.Collapsed = collapsed;
+        MarkDocumentEdited();
+        RebuildLayerPanel();
+    }
+
+    private void RefreshRangeHighlights()
+    {
+        var rangeSet = PlaybackStartFrame >= 0 || PlaybackEndFrame >= 0;
+        var start = EffectiveStartFrame;
+        var end = EffectiveEndFrame;
+        foreach (var row in LayerRows)
+        {
+            foreach (var cell in row.Cells)
+            {
+                cell.OutOfRange = rangeSet && !cell.IsVirtual && (cell.Index < start || cell.Index > end);
+            }
+        }
+    }
+
+    [RelayCommand]
+    private void AddFrame()
+    {
+        _editor.AddFrameAfter(CurrentFrameIndex);
+        CurrentFrameIndex++;
+    }
+
+    [RelayCommand]
+    private void DuplicateFrame()
+    {
+        _editor.DuplicateFrame(CurrentFrameIndex);
+        CurrentFrameIndex++;
+    }
+
+    [RelayCommand]
+    private void DeleteFrame()
+    {
+        if (Scene.FrameCount <= 1) return;
+        _editor.DeleteFrame(CurrentFrameIndex);
+        CurrentFrameIndex = Math.Min(CurrentFrameIndex, Scene.FrameCount - 1);
+    }
+
+    [RelayCommand]
+    private void Undo()
+    {
+        // The stroke the next Shift+click would have joined to may be the one
+        // going away. Joining to a mark that is no longer there draws a line
+        // out of nowhere, which is worse than not joining at all.
+        _lastStrokeEnd = null;
+        // An uncommitted palette edit is not on the stack yet; undoing before
+        // it lands would step over it and then have it reappear.
+        CommitSwatchEdit();
+        ApplyEditScope(WhileApplyingScope(_editor.UndoScoped));
+    }
+
+    [RelayCommand]
+    private void Redo()
+    {
+        CommitSwatchEdit();
+        ApplyEditScope(WhileApplyingScope(_editor.RedoScoped));
+    }
+
+    private DocumentEditor.EditScope WhileApplyingScope(Func<DocumentEditor.EditScope> step)
+    {
+        _applyingEditScope = true;
+        try
+        {
+            return step();
+        }
+        finally
+        {
+            _applyingEditScope = false;
+        }
+    }
+
+    private void ApplyEditScope(DocumentEditor.EditScope scope)
+    {
+        if (!scope.Any) return;
+        if (scope.FrameId is { } frameId)
+        {
+            InvalidateFrameRender(frameId);
+            _dirtyThumbIds.Add(frameId);
+        }
+        else
+        {
+            ClearFrameRenders();
+            _allThumbsDirty = true;
+        }
+        ClampCurrentFrame(publishIfUnchanged: false);
+        PublishSnapshot();
+        RefreshThumbnails();
+    }
+
+    /// <summary>
+    /// Adds a drawing layer. There is one kind of layer to add.
+    /// </summary>
+    /// <remarks>
+    /// This was three commands and a dropdown — <c>AddPaintedLayer</c>,
+    /// <c>AddVectorLayer</c> and an <c>AddLayerOfSelectedKind</c> reading a
+    /// Raster/Vector picker. The choice never meant anything an artist could act
+    /// on: both kinds drew the same strokes through the same engine, and picking
+    /// Vector only subtracted the ability to hold imported pixels or a symbol
+    /// placement. Asking the question up front made the artist guess at a
+    /// limitation instead of choosing a capability. Q52.
+    /// </remarks>
+    [RelayCommand]
+    private void AddPaintedLayer() => AddLayer(LayerKind.Painted);
+
+    [RelayCommand]
+    private void ToggleSidebar() => SidebarVisible = !SidebarVisible;
+
+    [RelayCommand]
+    private void SwitchSidebarSide() => SidebarOnRight = !SidebarOnRight;
+
+    [RelayCommand]
+    private void ToggleTimeline() => TimelineVisible = !TimelineVisible;
+
+    [RelayCommand]
+    private void ActivateLayer(LayerRow row) => ActiveLayerIndex = row.SceneIndex;
+
+    /// <summary>Rename as one undoable step (called by the row on commit).</summary>
+    internal void CommitLayerRename(LayerRow row, string name)
+    {
+        var layer = row.Layer;
+        var trimmed = name.Trim();
+        if (trimmed.Length == 0)
+        {
+            // Snap the row back to the document name instead of storing a blank.
+            row.SyncFromModel(layer, row.SceneIndex);
+            return;
+        }
+        if (layer.Name == trimmed) return;
+        _editor.Perform(_ => layer.Name = trimmed);
+    }
+
+    internal void SetLayerVisible(Layer layer, bool visible)
+    {
+        if (layer.Visible == visible) return;
+        _editor.Perform(_ => layer.Visible = visible);
+    }
+
+    /// <summary>
+    /// Undoable, like visibility — locking is a document decision an artist
+    /// can change their mind about, not a view preference.
+    /// </summary>
+    internal void SetLayerLocked(Layer layer, bool locked)
+    {
+        if (layer.Locked == locked) return;
+        _editor.Perform(_ => layer.Locked = locked);
+        NotifyLayerGating();
+    }
+
+    internal void SetLayerAlphaLocked(Layer layer, bool locked)
+    {
+        if (layer.AlphaLocked == locked) return;
+        _editor.Perform(_ => layer.AlphaLocked = locked);
+        NotifyLayerGating();
+    }
+
+    /// <summary>Locking a folder locks every layer inside it.</summary>
+    internal void SetGroupLocked(LayerGroup group, bool locked)
+    {
+        if (group.Locked == locked) return;
+        _editor.Perform(_ => group.Locked = locked);
+        SyncLayerRows();
+        NotifyLayerGating();
+    }
+
+    /// <summary>Lock or unlock the active layer (keyboard and menu path).</summary>
+    [RelayCommand]
+    private void ToggleActiveLayerLocked()
+    {
+        if (ActiveLayer is { } layer) SetLayerLocked(layer, !layer.Locked);
+    }
+
+    [RelayCommand]
+    private void ToggleActiveLayerAlphaLocked()
+    {
+        if (ActiveLayer is { } layer) SetLayerAlphaLocked(layer, !layer.AlphaLocked);
+    }
+
+    private void NotifyLayerGating()
+    {
+        OnPropertyChanged(nameof(ActiveLayerBlocked));
+        OnPropertyChanged(nameof(ActiveLayerAlphaLocked));
+    }
+
+    /// <summary>A row needs this to dim itself without reaching into the scene.</summary>
+    internal bool IsLayerLockedByFolder(Layer layer) => Scene.GroupOf(layer) is { Locked: true };
+
+    /// <summary>Shown in the tool options so the restriction is never invisible.</summary>
+    public bool ActiveLayerAlphaLocked => ActiveLayer is { AlphaLocked: true };
+
+    /// <summary>
+    /// Per-layer onion-skin participation. A display preference, so it is
+    /// persisted (autosave) but deliberately not an undo step.
+    /// </summary>
+    internal void SetLayerOnionEnabled(Layer layer, bool enabled)
+    {
+        if (layer.OnionEnabled == enabled) return;
+        layer.OnionEnabled = enabled;
+        // The same switch exists in two places — the Layers panel's ◉ and the
+        // shortcut bar's — and they have to agree. The row does not read the
+        // layer except when it is rebuilt, so pushing the value across is what
+        // stops one of them showing yesterday's answer.
+        if (LayerRows.FirstOrDefault(r => r.Layer.Id == layer.Id) is { } row)
+        {
+            row.OnionEnabled = enabled;
+        }
+        if (layer.Id == ActiveLayer.Id) OnPropertyChanged(nameof(ActiveLayerOnion));
+        MarkDocumentEdited();
+        PublishSnapshot();
+    }
+
+    // ---- active layer compositing (opacity + blend mode) ----------------------
+
+    public IReadOnlyList<LayerBlendMode> BlendModeChoices { get; } = Enum.GetValues<LayerBlendMode>();
+
+    /// <summary>
+    /// Active layer's opacity, 0–100 for the docker slider. Applied live while
+    /// dragging, so deliberately not an undo step (an undo snapshot per slider
+    /// tick would flood the history).
+    /// </summary>
+    public double ActiveLayerOpacity
+    {
+        get => Math.Round(ActiveLayer.Opacity * 100);
+        set
+        {
+            var clamped = Math.Clamp(value / 100.0, 0, 1);
+            if (Math.Abs(ActiveLayer.Opacity - clamped) < 0.0005) return;
+            ActiveLayer.Opacity = clamped;
+            MarkDocumentEdited();
+            OnPropertyChanged();
+            PublishSnapshot();
+        }
+    }
+
+    /// <summary>Active layer's blend mode — a deliberate compositing choice, one undo step.</summary>
+    public LayerBlendMode ActiveLayerBlendMode
+    {
+        get => ActiveLayer.BlendMode;
+        set
+        {
+            if (ActiveLayer.BlendMode == value) return;
+            var layer = ActiveLayer;
+            _editor.Perform(_ => layer.BlendMode = value);
+            OnPropertyChanged();
+        }
+    }
+
+    private void NotifyActiveLayerCompositing()
+    {
+        OnPropertyChanged(nameof(ActiveLayerOpacity));
+        OnPropertyChanged(nameof(ActiveLayerBlendMode));
+    }
+
+    /// <summary>Delete the active layer; an empty document always regrows one blank layer.</summary>
+    [RelayCommand]
+    private void DeleteActiveLayer() => DeleteLayer(ActiveLayer);
+
+    public void DeleteLayer(Layer layer)
+    {
+        if (!CanEdit(layer, "delete it")) return;
+        var removedIndex = Scene.Layers.FindIndex(l => l.Id == layer.Id);
+        if (removedIndex < 0) return;
+        _editor.Perform(doc =>
+        {
+            var scene = doc.Scene;
+            var index = scene.Layers.FindIndex(l => l.Id == layer.Id);
+            if (index < 0) return;
+            var wasPaper = scene.Layers[index].IsBackground;
+            scene.Layers.RemoveAt(index);
+            // Deleting the paper means there is no paper. Without this the
+            // composite falls back to clearing to the scene's colour, so the
+            // canvas goes opaque white and the deletion looks like it did
+            // nothing — the one thing it must not look like.
+            if (wasPaper && !scene.Layers.Exists(l => l.IsBackground))
+            {
+                scene.TransparentBackground = true;
+            }
+            // Regrow when nothing PAINTABLE is left, not merely when nothing is
+            // left: a document down to its locked paper has layers and still
+            // nowhere to draw.
+            if (!scene.Layers.Any(l => !l.IsBackground))
+            {
+                var fresh = new Layer
+                {
+                    Name = "Paint 1",
+                    Cels = [new Cel { Frame = new Frame() }],
+                };
+                while (fresh.Cels.Count < scene.FrameCount) fresh.Cels.Add(new Cel());
+                scene.Layers.Add(fresh);
+            }
+        });
+        var next = Math.Clamp(removedIndex, 0, Scene.Layers.Count - 1);
+        // Never land on the paper: it is locked, so the next stroke would bounce.
+        ActiveLayerIndex = Scene.Layers[next].IsBackground ? FirstPaintableLayer(Doc) : next;
+    }
+
+    /// <summary>Blank the active layer: every drawing on it loses its content, the timing stays.</summary>
+    [RelayCommand]
+    private void ClearActiveLayer() => ClearLayerContent(ActiveLayer);
+
+    /// <summary>
+    /// Set a project document's status, and export it if that is what the artist asked
+    /// the app to do on that status.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The shortcut through the whole export pillar: finish an asset, mark it Ready, and
+    /// the sheet lands where the engine is already looking. Nobody has to remember to
+    /// export — and the export nobody remembered is the one that makes a designer think
+    /// the artist has not started.
+    /// </para>
+    /// <para>
+    /// <b>The order is load-bearing. The status is written and saved first; the export is
+    /// a consequence.</b> If the destination is missing, locked by the engine, or on a
+    /// drive that is not mounted, the artist gets a message and keeps their status.
+    /// Refusing the status change because a file could not be written would make a
+    /// production field hostage to a network share.
+    /// </para>
+    /// <para>
+    /// The document is read from the open tab when there is one, so an unsaved edit
+    /// exports as the artist sees it rather than as the file last had it. Otherwise it
+    /// comes off disk, which is the point of statuses living on the manifest: marking
+    /// something Ready never needed it open.
+    /// </para>
+    /// </remarks>
+    /// <summary>
+    /// Where a project row's document lives, and whether the file is behind the edits.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The facts <see cref="Services.SaveRequirement"/> needs, for <em>this row</em> rather
+    /// than for whatever tab happens to be in front. Marking a row Ready is a statement
+    /// about that row's drawing, and gating it on the active tab would ask about the wrong
+    /// file — which is exactly the kind of near-miss that reads as the app being random.
+    /// </para>
+    /// <para>
+    /// A row whose document is open answers from the tab, because that is where the unsaved
+    /// edits are. Otherwise the answer is the project's own path for it: a freshly added
+    /// animation has a <c>DocumentRef</c> before it has a file, so this returns a path that
+    /// does not exist yet and the gate reports it honestly.
+    /// </para>
+    /// </remarks>
+    public (string? FilePath, bool HasUnsavedEdits) SaveFactsFor(ProjectRow row)
+    {
+        if (row.Animation is not { } reference) return (null, false);
+
+        if (Tabs.FirstOrDefault(t => t.Source?.Id == reference.Id) is { } open)
+        {
+            return (open.FilePath ?? Resolve(reference), open.IsDirty);
+        }
+        // Not open, so nothing can be unsaved about it beyond whether it was ever written.
+        return (Resolve(reference), false);
+
+        string? Resolve(DocumentRef r) =>
+            ProjectDocker.RootPath is { Length: > 0 } root && r.Path is { Length: > 0 }
+                ? System.IO.Path.Combine(root, r.Path.Replace('/', System.IO.Path.DirectorySeparatorChar))
+                : null;
+    }
+
+    public void SetProjectStatus(ProjectRow row, AssetStatus? status)
+    {
+        if (row.Animation is not { } reference) return;
+
+        var before = ProjectDocker.SetStatus(row, status);
+        if (status is not { } now) return;
+
+        var settings = Settings.AutoExport;
+        var root = ProjectDocker.RootPath;
+
+        // Decided before anything is loaded, so the ordinary case — auto-export off —
+        // costs a comparison rather than reading a document off disk.
+        var (folder, outcome) = AutoExport.Decide(before, now, settings, root);
+        if (folder is null)
+        {
+            if (AutoExport.Explain(outcome, settings) is { Length: > 0 } why) AiStatus = why;
+            return;
+        }
+
+        var doc = Tabs.FirstOrDefault(t => t.Source?.Id == reference.Id)?.Editor.Doc
+                  ?? (ProjectDocker.Project is { } project
+                      ? ProjectIo.LoadDocument(project, reference)
+                      : null);
+        if (doc is null)
+        {
+            AiStatus = $"Status saved, but {reference.Name} could not be read to export it.";
+            return;
+        }
+
+        var report = AutoExport.Run(
+            doc, reference.Name, before, now, settings, ProjectDocker.RootPath, ExportPresets());
+        if (report.Message is { Length: > 0 }) AiStatus = report.Message;
+    }
+
+    /// <summary>Built-in export presets plus the artist's own.</summary>
+    private static List<ExportPreset> ExportPresets() =>
+        ExportPreset.BuiltIns.Concat(ExportPresetStore.Load()).ToList();
+
+    /// <summary>
+    /// One status line for a finished export, including what it left out.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The omissions are in the sentence rather than behind a dialog, and that is the
+    /// point of reporting them at all: "a layer I wanted is missing" is invisible in
+    /// the sheet and surfaces in the engine, on a build, days later. Naming the layers
+    /// is what turns that into something an artist notices now.
+    /// </para>
+    /// <para>
+    /// Names, not a count. "2 layers left out" is exactly as unhelpful as silence when
+    /// the question is <em>which</em>.
+    /// </para>
+    /// </remarks>
+    public string DescribeExport(Lightbox.App.Services.ExportRun run)
+    {
+        var parts = new List<string> { run.Summary };
+
+        if (run.Omitted.Count > 0)
+        {
+            var named = run.Omitted.Select(o => $"{o.Name} ({Reason(o.Signal)})");
+            parts.Add("left out: " + string.Join(", ", named));
+        }
+        if (run.Suspected.Count > 0)
+        {
+            parts.Add("kept but looks like a background: "
+                      + string.Join(", ", run.Suspected.Select(s => s.Name)));
+        }
+        return string.Join(" — ", parts);
+
+        static string Reason(Lightbox.Core.Export.BackgroundSignal signal) => signal switch
+        {
+            Lightbox.Core.Export.BackgroundSignal.Pinned => "never export",
+            Lightbox.Core.Export.BackgroundSignal.Paper => "paper",
+            Lightbox.Core.Export.BackgroundSignal.Hidden => "hidden",
+            _ => "fills the canvas",
+        };
+    }
+
+    /// <summary>
+    /// Pin a layer out of exports, into them, or back to letting the export decide.
+    /// </summary>
+    /// <param name="pin">
+    /// <c>true</c> never export, <c>false</c> always export, <c>null</c> let
+    /// <see cref="Lightbox.Core.Export.BackgroundHandling"/> decide.
+    /// </param>
+    /// <remarks>
+    /// Through the editor, so it is one undo step and marks the document dirty — this
+    /// changes what leaves the app, which makes it document state rather than a
+    /// preference. No cache invalidation and no thumbnail refresh: it reaches the
+    /// export and never a pixel on the canvas.
+    /// </remarks>
+    public void SetLayerExportPin(Layer layer, bool? pin)
+    {
+        if (layer.OmitFromExport == pin) return;
+        _editor.Perform(doc =>
+        {
+            if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layer.Id) is { } target)
+                target.OmitFromExport = pin;
+        });
+        SyncLayerRows();
+    }
+
+    public void ClearLayerContent(Layer layer)
+    {
+        // Mark before the edit so the thumbnail refresh inside Changed sees them.
+        foreach (var cel in layer.Cels)
+        {
+            if (cel.Frame is { } frame)
+            {
+                InvalidateFrameRender(frame.Id);
+                _dirtyThumbIds.Add(frame.Id);
+            }
+        }
+        _editor.Perform(doc =>
+        {
+            var target = doc.Scene.Layers.FirstOrDefault(l => l.Id == layer.Id);
+            if (target is null) return;
+            foreach (var cel in target.Cels)
+            {
+                if (cel.Frame is not { } frame) continue;
+                frame.Strokes.Clear();
+                // Null rather than "": clearing a layer should leave frames that
+                // write no baseline key, the same as ones that never had one.
+                frame.PngBase64 = null;
+            }
+        });
+    }
+
+    /// <remarks>
+    /// <paramref name="kind"/> is still written, because <c>Layer.Kind</c> is kept
+    /// as provenance — it records where a layer's content came from, and every
+    /// layer created in the app comes from the same place. It no longer picks a
+    /// frame class, because there is one.
+    /// </remarks>
+    private void AddLayer(LayerKind kind)
+    {
+        _editor.Perform(doc =>
+        {
+            var layer = new Layer
+            {
+                Name = $"Paint {doc.Scene.Layers.Count + 1}",
+                Kind = kind,
+                Cels = [new Cel { Frame = new Frame() }],
+            };
+            while (layer.Cels.Count < doc.Scene.FrameCount) layer.Cels.Add(new Cel());
+            doc.Scene.Layers.Add(layer);
+        });
+        ActiveLayerIndex = Scene.Layers.Count - 1;
+    }
+
+    [RelayCommand]
+    private void ToggleActiveLayerVisible()
+    {
+        _editor.Perform(_ => ActiveLayer.Visible = !ActiveLayer.Visible);
+        RefreshPointerIntent();
+    }
+
+    /// <summary>Clicking a cel selects both the frame and the layer it belongs to.</summary>
+    [RelayCommand]
+    private void SelectFrame(FrameCell cell)
+    {
+        if (cell.IsVirtual) return; // no frame there yet — insert one via right-click
+        if (cell.LayerIndex >= 0 && cell.LayerIndex < Scene.Layers.Count)
+            ActiveLayerIndex = cell.LayerIndex;
+        CurrentFrameIndex = cell.Index;
+        _celAnchor = (cell.LayerIndex, cell.Index);
+        ClearCelRange();
+    }
+
+    // ---- thumbnails ----------------------------------------------------------
+
+    /// <summary>
+    /// The bitmap a thumbnail shrinks from: the full-size cached render, so the
+    /// thumbnail rides a bitmap the canvas needs anyway.
+    /// </summary>
+    private SKBitmap ThumbSource(Frame frame, int celIndex) =>
+        _cache.Get(frame, Scene.Width, Scene.Height, celIndex: celIndex);
+
+    /// <summary>
+    /// Update timeline thumbnails lazily: only cells whose keyed frame is new,
+    /// changed, or explicitly marked dirty are re-rendered.
+    /// </summary>
+    private void RefreshThumbnails()
+    {
+        foreach (var row in LayerRows)
+        {
+            foreach (var cell in row.Cells)
+            {
+                var frame = ExposureSheet.FrameAtExactIndex(row.Layer, cell.Index);
+                if (frame is null)
+                {
+                    cell.Thumb = null;
+                    cell.ThumbFrameId = null;
+                    continue;
+                }
+                var stale = _allThumbsDirty
+                            || cell.ThumbFrameId != frame.Id
+                            || _dirtyThumbIds.Contains(frame.Id);
+                if (!stale && cell.Thumb is not null) continue;
+
+                var bmp = ThumbSource(frame, cell.Index);
+                cell.Thumb = ThumbnailRenderer.Render(bmp);
+                cell.ThumbFrameId = frame.Id;
+            }
+        }
+        RefreshLayerThumbs();
+        _dirtyThumbIds.Clear();
+        _allThumbsDirty = false;
+    }
+
+    /// <summary>
+    /// Layer-docker thumbnails show the exposed drawing at the playhead
+    /// (holds resolve to the drawing they hold) over a checkerboard.
+    /// Also called on playhead moves, where only rows whose exposed frame
+    /// actually changed re-render.
+    /// </summary>
+    /// <summary>
+    /// How many layer thumbnails have actually been rasterized, for the budget
+    /// test (B152).
+    /// </summary>
+    /// <remarks>
+    /// A count rather than a stopwatch, for B151's reason: the property is not
+    /// "this got faster" but "this does not happen per tick", which is exact and
+    /// cannot go flaky. Each one is a full-resolution frame render behind it, so
+    /// the count is a fair proxy for the cost as well as for the rule.
+    /// </remarks>
+    internal int LayerThumbRenders { get; private set; }
+
+    private void RefreshLayerThumbs()
+    {
+        foreach (var row in LayerRows)
+        {
+            var frame = ExposureSheet.ExposedFrame(row.Layer, CurrentFrameIndex);
+            if (frame is null)
+            {
+                row.Thumb = null;
+                row.ThumbFrameId = null;
+                continue;
+            }
+            var stale = _allThumbsDirty
+                        || row.ThumbFrameId != frame.Id
+                        || _dirtyThumbIds.Contains(frame.Id);
+            if (!stale && row.Thumb is not null) continue;
+
+            var bmp = ThumbSource(frame, CurrentFrameIndex);
+            row.Thumb = ThumbnailRenderer.RenderChecker(bmp, 44, 26);
+            row.ThumbFrameId = frame.Id;
+            LayerThumbRenders++;
+        }
+    }
+
+    private void RefreshCellHighlights()
+    {
+        foreach (var row in LayerRows)
+        {
+            foreach (var cell in row.Cells) cell.IsCurrent = cell.Index == CurrentFrameIndex;
+        }
+    }
+
+    // ---- onion skin -------------------------------------------------------------
+
+    /// <summary>Onion skin as the artist has set it up. Global, not per document.</summary>
+    public Services.OnionSettings Onion => Settings.Onion;
+}

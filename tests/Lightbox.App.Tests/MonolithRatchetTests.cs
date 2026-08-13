@@ -94,10 +94,27 @@ public class MonolithRatchetTests(ITestOutputHelper output)
     /// up once for documentation and down by 222 for an extraction is doing its job; one
     /// that only ever goes up is a comment.
     /// </para>
+    /// <para>
+    /// <b>And then 12,749 → 655, when the class was split into nineteen partials (Q75).</b>
+    /// That is the end of this budget's usefulness rather than a milestone in it: the file
+    /// it was guarding no longer exists in the form that needed guarding.
+    /// </para>
+    /// <para>
+    /// <b>The nineteen partials are deliberately not budgeted, and that is a judgement
+    /// worth arguing with.</b> The objection is real — growth will now land in whichever
+    /// partial owns the feature, so the mechanism that capped it has nothing to cap. Two
+    /// reasons it is still right. First, that is the *intended* destination: a feature's
+    /// code going into the file named for its concern is the split working, not leaking.
+    /// Second, the largest partial is 1,310 lines, which is a file a person can read —
+    /// the ratchet exists for files nobody can, and pre-emptively budgeting nineteen
+    /// readable files is the kind of thing that looks like discipline and is noise. If one
+    /// of them reaches a size that stops being readable, add it then, with the number that
+    /// made it necessary.
+    /// </para>
     /// </remarks>
     public static readonly (string Path, int Max)[] Budgets =
     [
-        ("src/Lightbox.App/ViewModels/MainViewModel.cs", 12736),
+        ("src/Lightbox.App/ViewModels/MainViewModel.cs", 655),
         ("src/Lightbox.App/Rendering/CanvasControl.cs", 5078),
         ("src/Lightbox.App/Views/MainWindow.axaml", 4188),
         ("src/Lightbox.App/Views/MainWindow.axaml.cs", 429),
