@@ -733,6 +733,13 @@ the panel row whose document is on the canvas carries a violet bar and tint.
 That mark is not the selection: selecting a row aims the next command, and the
 bar stays put while you do.
 
+**A file inside the project folder is in the project.** Save a loose document
+into the project's directory and it joins the project on the spot — the panel
+grows its row (filed in the folder you saved it into), the tab gains the P
+badge, and it arrives as **Draft** like any other new document. Save a project
+document *outside* the project and the reverse happens: it leaves the project
+and its row goes. The badge, the panel and the disk always tell the one story.
+
 ### Variants
 
 A variant is a version of a character that **reuses its animations** — Winter
