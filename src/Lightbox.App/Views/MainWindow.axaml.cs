@@ -3706,6 +3706,10 @@ public partial class MainWindow : Window
         window.ViewModel.NewDocument = _vm.NewProjectDocument;
         window.ViewModel.DocumentCreated = _vm.ProjectDocker.MarkDirty;
         window.ViewModel.RequestSave = () => _vm.SaveProject();
+        // The export plan runs from the window's Export tab through the
+        // docker's own resolution and bookkeeping — one export, two surfaces.
+        window.ViewModel.ResolveExport = _vm.ProjectDocker.ResolveExport;
+        window.ViewModel.RecordExport = _vm.ProjectDocker.RecordExport;
         await window.ShowDialog(this);
         _vm.ProjectDocker.Refresh();
     }

@@ -520,4 +520,23 @@ public class UnrealExportTests : IDisposable
         Assert.True(new ExportPreset { Name = "y", Target = ExportTarget.Unity }.UsesEngineSettings);
         Assert.False(new ExportPreset { Name = "s", Target = ExportTarget.SpriteSheet }.UsesEngineSettings);
     }
+
+    // ---- several documents, one sheet -------------------------------------------
+
+    [Fact]
+    public void EachDocumentBecomesAFlipbookInAPair()
+    {
+        var walk = Walking(3);
+        walk.Scene.Name = "walk";
+        var dash = Walking(2);
+        dash.Scene.Name = "dash";
+
+        var result = UnrealExporter.Export([walk, dash], At("pair.png"));
+
+        Assert.Equal(5, result.SpriteCount);
+        Assert.Equal(2, result.FlipbookCount);
+        var names = Block(result).GetProperty("flipbookNames").EnumerateArray()
+            .Select(n => n.GetString()).ToList();
+        Assert.Equal(2, names.Count);
+    }
 }

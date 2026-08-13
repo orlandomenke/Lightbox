@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Platform.Storage;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
@@ -517,6 +518,20 @@ public partial class ProjectWindow : Window
         cancel.Click += (_, _) => dialog.Close();
         await dialog.ShowDialog(this);
         return yes;
+    }
+
+    // ---- running the export plan (the Export tab's ▶) -----------------------------
+
+    private async void OnRunExport(object? sender, RoutedEventArgs e)
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(
+            new Avalonia.Platform.Storage.FolderPickerOpenOptions
+            {
+                Title = "Export to folder",
+                AllowMultiple = false,
+            });
+        if (folders.Count == 0 || folders[0].TryGetLocalPath() is not { } destination) return;
+        await _vm.RunExportToAsync(destination);
     }
 
     // ---- creating assets (the Assets tab's right-click) ---------------------------

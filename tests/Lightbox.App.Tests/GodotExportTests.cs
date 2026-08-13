@@ -257,4 +257,28 @@ public class GodotExportTests : IDisposable
 
         Assert.Contains(run.Omitted, o => o.Signal == Lightbox.Core.Export.BackgroundSignal.Pinned);
     }
+
+    // ---- several documents, one sheet -------------------------------------------
+
+    [Fact]
+    public void EachFramesOffsetComesFromItsOwnDocumentInAPair()
+    {
+        // Durations are written in frame ticks at each document's own clock
+        // (GodotConvert.FrameDuration divides by its fps), so the per-document
+        // observable here is the offset: each frame's pivot is its own.
+        var low = Walking(2);
+        low.Scene.Pivot = new Pivot { X = 10, Y = 20 };
+        var high = Walking(2);
+        high.Scene.Pivot = new Pivot { X = 100, Y = 110 };
+
+        var result = GodotExporter.Export(
+            [low, high], At("pair.png"),
+            new GodotExportOptions { Sheet = new SpriteSheetOptions { Trim = SpriteTrim.None } });
+
+        var offsets = Godot(result).GetProperty("spriteOffsets").EnumerateArray().ToList();
+        Assert.Equal(4, offsets.Count);
+        Assert.NotEqual(offsets[0][0].GetDouble(), offsets[2][0].GetDouble());
+        var durations = Godot(result).GetProperty("frameDurations").EnumerateArray().ToList();
+        Assert.Equal(4, durations.Count);
+    }
 }

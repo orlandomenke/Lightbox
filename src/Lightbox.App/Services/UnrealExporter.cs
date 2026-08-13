@@ -108,9 +108,21 @@ public static class UnrealExporter
     public static UnrealExportResult Export(Doc doc, string sheetPath, UnrealExportOptions? options = null)
     {
         if (doc == null) throw new ArgumentNullException(nameof(doc));
+        return Export([doc], sheetPath, options);
+    }
+
+    /// <summary>
+    /// Several documents into one Unreal sheet — each frame's run and pivot
+    /// from its own document, by <see cref="SpriteSheetResult.FrameOwners"/>;
+    /// every document's clip becomes a flipbook.
+    /// </summary>
+    public static UnrealExportResult Export(
+        IReadOnlyList<Doc> docs, string sheetPath, UnrealExportOptions? options = null,
+        IReadOnlyList<string>? names = null)
+    {
+        if (docs is not { Count: > 0 }) throw new ArgumentException("An export needs at least one document.", nameof(docs));
         var opts = options ?? new UnrealExportOptions();
-        var sheet = SpriteSheetExporter.Export(doc, sheetPath, opts.Sheet);
-        var scene = doc.Scene;
+        var sheet = SpriteSheetExporter.Export(docs, sheetPath, opts.Sheet, names);
 
         // Read back what the exporter wrote rather than recomputing it — one source for
         // where a sprite is, the same rule the Unity and Godot exports follow.
@@ -120,14 +132,18 @@ public static class UnrealExporter
 
         var block = new UnrealBlock
         {
-            PixelsPerUnrealUnit = UnrealConvert.PixelsPerUnrealUnit(scene.Height, opts.WorldHeightUnits),
+            // The tallest canvas decides the world scale, so the largest
+            // document is not the one that comes out shrunk.
+            PixelsPerUnrealUnit = UnrealConvert.PixelsPerUnrealUnit(
+                docs.Max(d => d.Scene.Height), opts.WorldHeightUnits),
         };
         var pivots = new List<double[]>();
+        var frameOwners = sheet.FrameOwners;
 
         for (var i = 0; i < frames.Count; i++)
         {
             var frame = frames[i];
-            var owner = scene;
+            var owner = frameOwners is null ? docs[0].Scene : docs[frameOwners[i].Document].Scene;
             block.FrameRuns.Add(UnrealConvert.FrameRun(
                 frame.GetProperty("duration").GetInt32(), owner.Fps));
 

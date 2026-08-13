@@ -83,8 +83,20 @@ public static class GodotExporter
     public static GodotExportResult Export(Doc doc, string sheetPath, GodotExportOptions? options = null)
     {
         if (doc == null) throw new ArgumentNullException(nameof(doc));
+        return Export([doc], sheetPath, options);
+    }
+
+    /// <summary>
+    /// Several documents into one Godot sheet — each frame's clock and offset
+    /// from its own document, by <see cref="SpriteSheetResult.FrameOwners"/>.
+    /// </summary>
+    public static GodotExportResult Export(
+        IReadOnlyList<Doc> docs, string sheetPath, GodotExportOptions? options = null,
+        IReadOnlyList<string>? names = null)
+    {
+        if (docs is not { Count: > 0 }) throw new ArgumentException("An export needs at least one document.", nameof(docs));
         var opts = options ?? new GodotExportOptions();
-        var sheet = SpriteSheetExporter.Export(doc, sheetPath, opts.Sheet);
+        var sheet = SpriteSheetExporter.Export(docs, sheetPath, opts.Sheet, names);
 
         // Read back what the exporter wrote rather than recomputing it — one source for
         // where a sprite is, the same rule the Unity export follows.
@@ -94,11 +106,12 @@ public static class GodotExporter
 
         var block = new GodotBlock();
         var offsets = new List<double[]>();
-        var scene = doc.Scene;
+        var owners = sheet.FrameOwners;
 
         for (var i = 0; i < frames.Count; i++)
         {
             var frame = frames[i];
+            var scene = owners is null ? docs[0].Scene : docs[owners[i].Document].Scene;
             var rect = frame.GetProperty("frame");
             var source = frame.GetProperty("spriteSourceSize");
             var w = rect.GetProperty("w").GetInt32();
