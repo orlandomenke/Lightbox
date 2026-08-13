@@ -8,10 +8,10 @@ involved need different ones.
 Two files are in scope, and the whole point of this revision is that they are
 not the same problem:
 
-| File | Lines | Shape | Tool |
-| --- | --- | --- | --- |
-| `ViewModels/MainViewModel.cs` | 13,110 | large, shallow, one hub | collaborators for the hub, partials for the leaves |
-| `Views/MainWindow.axaml.cs` | 5,544 | 37 near-independent sections over one field | partials, and that is the whole job |
+| File | Lines | Shape | Tool | State |
+| --- | --- | --- | --- | --- |
+| `ViewModels/MainViewModel.cs` | 13,110 | large, shallow, one hub | collaborators for the hub, partials for the leaves | not started |
+| `Views/MainWindow.axaml.cs` | 5,544 → **429** | 37 near-independent sections over one field | partials, and that is the whole job | **done** |
 
 `MainViewModel.cs` is at once the document API, the tool state machine, the
 render scheduler and the binding surface, with no interface between the four.
@@ -136,13 +136,53 @@ There is no hub to name, no shared mutable state, no Tier 0. It is 37
 near-independent groups of event handlers over a single view-model reference,
 already marked with `// ---- section ----` comments that mostly tell the truth.
 
-**So the view needs splitting, not decomposing**, and per Q73 it goes first: the
-class is already `partial`, the sections are already drawn, and 43 test files
-exercise it. Candidate boundaries, from its own markers — dockers and panel
-dragging (`:426`–`:1540`), layer and timeline context menus (`:1540`–`:2081`),
-brush/palette/tip pickers (`:2182`–`:3313`), canvas view tools and rulers
-(`:3313`–`:3700`, `:4953`), window chrome (`:3860`), projects and the start
-screen (`:4138`, `:5320`), drag-and-drop gestures (`:2889`, `:2970`, `:3215`).
+**So the view needed splitting, not decomposing** — and that is **done**. It is
+now 429 lines holding the usings, the class identity, three shared fields and the
+constructor, with fifteen partials beside it:
+
+| Partial | Lines | Sections it took |
+| --- | --- | --- |
+| `MainWindow.Workspace.cs` | 747 | the workspace, workspace commands, dragging a panel, floating panels |
+| `MainWindow.ProjectFiling.cs` | 616 | re-filing a document by dragging it |
+| `MainWindow.Projects.cs` | 488 | projects, converting a project, the start screen, recents, templates |
+| `MainWindow.Palette.cs` | 467 | palette, drag a colour onto the canvas, the hierarchy, dragging a swatch |
+| `MainWindow.BrushPicker.cs` | 459 | brush presets, the picker, pressure curves, the tip picker |
+| `MainWindow.CanvasViewTools.cs` | 412 | canvas view tools |
+| `MainWindow.Timeline.cs` | 385 | cell context menu, cel clipboard, range selection, cel drag, markers |
+| `MainWindow.Guides.cs` | 381 | guides, rulers |
+| `MainWindow.CanvasBars.cs` | 334 | the bars on the canvas, the gradient ramp editor |
+| `MainWindow.Chrome.cs` | 304 | the chrome is ours |
+| `MainWindow.Layers.cs` | 208 | layer rename, folder rename/collapse, docker context menus |
+| `MainWindow.Toolbar.cs` | 202 | toolbar |
+| `MainWindow.Symbols.cs` | 190 | symbols, drag a symbol onto the canvas |
+| `MainWindow.Transform.cs` | 186 | transform session (window side) |
+| `MainWindow.CharacterSheets.cs` | 127 | character sheets |
+
+**The partition was derived, not chosen.** Three fields decided it, and they are
+the only reason the grouping is not simply "one file per marker":
+
+- `_panels` and `_floating` are declared in *the workspace* and used by *dragging
+  a panel* and *floating panels*, so those three sections share a file.
+- `_celDrag` and `_celDragPress` are declared in *drag a cel along its row* and
+  used by *multi-cel range selection*, so those two share a file.
+- `_shortcuts` is declared in *canvas view tools* and used by *projects* — and by
+  the constructor. Same for `_hoveredElement`. Both are genuinely shared, so both
+  declarations moved to the root file rather than forcing two unrelated concerns
+  together.
+
+Everything else was already field-closed, which is what made this cheap. Verified
+three ways before it was believed: the ranges cover all 5,544 lines with no gaps
+and no overlaps; all 37 markers sit at class level (brace depth 1) so no range
+cuts a member in half; and the class body is **identical as a multiset of lines**,
+4,994 non-blank lines before and after. The only edits were the per-file wrapper
+and moving those two declarations.
+
+**A warning worth keeping**, because it is the one thing the split broke: three
+tests assert on the *source text* of `MainWindow.axaml.cs` and went red, not
+because behaviour changed but because the members they grep for moved. They now
+read every `MainWindow*.cs`. A source-text test that names one file of a partial
+class silently stops guarding anything the moment its target moves, so it should
+name the class instead.
 
 The one thing to watch: **`_vm` being everywhere is not coupling to fix here.**
 A view holding one reference to its view model is a view. Splitting the file must
@@ -276,12 +316,14 @@ touches the paint path.
 
 ## Order of work
 
-1. **The ratchet.** Landed with this revision — stops the file growing while the
-   rest proceeds.
-2. **Split `MainWindow.axaml.cs` into partials** along its own markers. Near-zero
-   risk, no state to untangle, and it lowers the largest ratchet budget first.
+1. ~~**The ratchet.**~~ **Done.** Stops the files growing while the rest proceeds.
+2. ~~**Split `MainWindow.axaml.cs` into partials**~~ **Done** — 5,544 → 429 across
+   fifteen partials, budget lowered to 429 in the same commit.
 3. **Name Tier 0** — the live-paint machine and the render core, the latter
-   starting from `:11857` rather than where the markers suggest.
+   starting from `:11857` rather than where the markers suggest. **Next**, and the
+   first step here that is not mechanical: it is the one that needs a design
+   decision rather than a derivation, so it wants its own branch and probably its
+   own question.
 4. **Tier 1 leaves**, one per branch, guides and frame markers first.
 5. **Tier 2 clusters** as collaborators; Tier 3 becomes possible once 3 is done.
 

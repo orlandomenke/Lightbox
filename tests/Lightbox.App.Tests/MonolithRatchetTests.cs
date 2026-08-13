@@ -59,12 +59,20 @@ public class MonolithRatchetTests(ITestOutputHelper output)
     /// Line ceilings, measured 2026-08-13. Lower these when an extraction lands;
     /// raising one needs a reason in the commit message.
     /// </summary>
+    /// <remarks>
+    /// <c>MainWindow.axaml.cs</c> came down from 5,544 to 429 when the view was split
+    /// into fifteen partials, which is the ratchet behaving as designed: the budget
+    /// moves with the extraction that earned it, in the same commit, and the file can
+    /// never climb back. The partials are not listed here — the largest is 747 lines
+    /// and none is near the size that makes a file unreadable. A budget belongs here
+    /// when a file is already too big, not as a cap on every file in the project.
+    /// </remarks>
     public static readonly (string Path, int Max)[] Budgets =
     [
         ("src/Lightbox.App/ViewModels/MainViewModel.cs", 13110),
-        ("src/Lightbox.App/Views/MainWindow.axaml.cs", 5544),
         ("src/Lightbox.App/Rendering/CanvasControl.cs", 5078),
         ("src/Lightbox.App/Views/MainWindow.axaml", 4188),
+        ("src/Lightbox.App/Views/MainWindow.axaml.cs", 429),
     ];
 
     private static string RepoRoot()
