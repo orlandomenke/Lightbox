@@ -1358,7 +1358,13 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     /// that changed something no list on this panel is showing — a character's
     /// subject reading, for one.
     /// </remarks>
-    public void MarkManifestChanged() => _changed();
+    public void MarkManifestChanged()
+    {
+        // The project window can rename the project, which moves the root out
+        // from under the directory watch. Watch is a no-op on the same path.
+        Watcher.Watch(Project?.Root);
+        _changed();
+    }
 
     /// <summary>
     /// Everything is written. Clears the dirty set — and arms the directory
@@ -2646,21 +2652,13 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
 
     /// <summary>Take a document out of the project without touching disk.</summary>
     /// <remarks>
-    /// <b>B114.</b> Three lists to take it out of, and now one — plus any
-    /// variant that pointed at it, which would otherwise be an override naming
-    /// a document the project no longer has.
+    /// The mechanics live in <see cref="ProjectIo.DetachDocument"/>, shared
+    /// with the project window; the dirty set is the one piece that is this
+    /// surface's own.
     /// </remarks>
     private void Detach(Project project, DocumentRef document)
     {
-        project.Manifest.Documents.RemoveAll(d => d.Id == document.Id);
-        foreach (var variant in ProjectFolders.All(project.Manifest)
-                     .SelectMany(f => f.Variants ?? []))
-        {
-            variant.Overrides.Remove(document.Id);
-            foreach (var (baseId, over) in variant.Overrides.ToList())
-                if (over == document.Id) variant.Overrides.Remove(baseId);
-        }
-        project.Loaded.Remove(document.Id);
+        ProjectIo.DetachDocument(project, document);
         _dirty.Remove(document.Id);
     }
 
@@ -2713,15 +2711,30 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     public bool Rename(ProjectRow row, string name)
     {
         if (Project is not { } project) return false;
-        // B62. Renaming the project row means renaming the folder the
-        // application currently has open, which is a different operation with
-        // its own questions — not something to do behind an in-place edit box.
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        // The owner's call (2026-08-13), superseding the B62-era refusal: the
+        // root row renames the project — manifest name and folder both, so the
+        // panel and a file manager keep telling one story. B62's other half
+        // stands: the row shows the folder, so the result is visible here.
         if (row.IsRoot)
         {
-            Status = "The project folder is renamed outside Lightbox.";
-            return false;
+            if (name.Trim() == row.Name) return true;   // not a change, not a failure
+            switch (ProjectIo.RenameProject(project, name))
+            {
+                case ProjectIo.RenameOutcome.NameTaken:
+                    Status = $"There is already something called “{name.Trim()}” beside the project.";
+                    return false;
+                case ProjectIo.RenameOutcome.DiskRefused:
+                    Status = "Could not rename the project folder on disk — something has it open.";
+                    return false;
+            }
+            // The watcher is aimed at a path that no longer exists.
+            Watcher.Watch(project.Root);
+            Rebuild();
+            Status = $"The project is now “{project.Name}”.";
+            _changed();
+            return true;
         }
-        if (string.IsNullOrWhiteSpace(name)) return false;
         var trimmed = name.Trim();
         if (trimmed == row.Name) return true;   // not a change, not a failure
 

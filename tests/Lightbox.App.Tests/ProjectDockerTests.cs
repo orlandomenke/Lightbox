@@ -182,6 +182,39 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
     }
 
     /// <summary>
+    /// The root row renames the project — the folder on disk included — and
+    /// the row shows the new folder, so the result is visible where it was
+    /// asked for. Supersedes the B62-era refusal, on the owner's call.
+    /// </summary>
+    [AvaloniaFact]
+    public void RenamingTheRootRowRenamesTheProjectFolderOnDisk()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        WithKnight(vm);
+        var docker = vm.ProjectDocker;
+        // The folder keeps the suffix it had; the name it takes is the typed
+        // one. Unique per run: the target lands beside the fixture in the
+        // shared temp directory, and a fixed name collides with a stale twin.
+        var name = $"Castle-{Guid.NewGuid():N}";
+        var renamed = Path.Combine(Path.GetDirectoryName(_root)!, $"{name}.lbproj");
+        try
+        {
+            Assert.True(docker.Rename(docker.Rows[0], name));
+
+            Assert.Equal(name, docker.Project!.Name);
+            Assert.Equal(renamed, docker.Project.Root);
+            Assert.True(Directory.Exists(renamed));
+            Assert.False(Directory.Exists(_root));
+            Assert.Contains(name, docker.Rows[0].Name);
+        }
+        finally
+        {
+            if (Directory.Exists(renamed)) Directory.Delete(renamed, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// The two halves of "which file am I actually editing": the tab wears the
     /// project badge, and the docker row wears a fixed highlight — independent
     /// of selection, which moves the moment the artist clicks another row.

@@ -354,6 +354,32 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
 
     public string Title => $"{_project.Name} — project";
 
+    /// <summary>
+    /// Rename the project — name and folder, the docker's root-row rename with
+    /// this window's prompt-first idiom.
+    /// </summary>
+    [RelayCommand]
+    public async Task RenameProjectAsync()
+    {
+        if (AskName is null) return;
+        var name = await AskName("project", _project.Name);
+        if (name is null || string.IsNullOrWhiteSpace(name)) return;
+        switch (ProjectIo.RenameProject(_project, name))
+        {
+            case ProjectIo.RenameOutcome.NameTaken:
+                Status = $"There is already something called “{name.Trim()}” beside the project.";
+                return;
+            case ProjectIo.RenameOutcome.DiskRefused:
+                Status = "Could not rename the project folder on disk — something has it open.";
+                return;
+        }
+        OnPropertyChanged(nameof(Title));
+        Status = $"The project is now “{_project.Name}”.";
+        _changed();   // the docker re-points its watcher from this
+        RequestSave?.Invoke();
+        Rebuild();
+    }
+
     // ---- structure ----------------------------------------------------------------
 
     public ObservableCollection<BoardRow> Rows { get; } = [];
@@ -996,6 +1022,182 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         Status = destination is null
             ? $"Moved “{name}” to the project."
             : $"Moved “{name}” to “{destination.Name}”.";
+        Rebuild();
+        _changed();
+        RequestSave?.Invoke();
+    }
+
+    // ---- removing and deleting (the docker's two operations, here too) -------------
+    //
+    // Remove takes something out of the index and leaves the disk alone —
+    // cheap to undo by hand. Delete is the other decision, said out loud with
+    // its own confirmation. Never one gesture told apart by a held key (B87).
+
+    /// <summary>Take a row out of the project. The disk is not touched.</summary>
+    public bool RemoveFromProject(BoardRow row)
+    {
+        if (row is { IsFolder: true, Folder: { } folder })
+        {
+            // B87: the artist removed a folder, not the work in it — its
+            // documents come back to the project root.
+            var orphaned = ProjectFolders.Remove(Manifest, folder);
+            foreach (var document in orphaned)
+            {
+                ProjectFolders.FileDocument(Manifest, document, null);
+            }
+            Status = orphaned.Count == 0
+                ? $"Removed “{folder.Name}”. Its folder is still on disk."
+                : $"Removed “{folder.Name}”. {orphaned.Count} document{(orphaned.Count == 1 ? "" : "s")} moved to the project root.";
+        }
+        else if (row.Document is { } document)
+        {
+            ProjectIo.DetachDocument(_project, document);
+            Status = $"Removed “{document.Name}” from the project. Its file is still on disk.";
+        }
+        else if (row.Sheet is { } sheet)
+        {
+            ProjectSheets.Remove(_project, sheet);
+            Status = $"Removed “{sheet.Name}” from the project. Its file is still on disk.";
+        }
+        else
+        {
+            return false;
+        }
+        AfterRemoval();
+        return true;
+    }
+
+    /// <summary>Whether deleting this row should ask first — B87's line.</summary>
+    public bool DeleteNeedsConfirmation(BoardRow row)
+    {
+        if (row is not { IsFolder: true, Folder: { } folder }) return false;
+        var (folders, documents) = ProjectFolders.Contents(Manifest, folder);
+        return folders.Count > 1 || documents.Count > 0;
+    }
+
+    /// <summary>What the confirmation should say, so the artist knows the size of it.</summary>
+    public string DeleteWarning(BoardRow row)
+    {
+        if (row is { IsFolder: true, Folder: { } folder })
+        {
+            var (folders, documents) = ProjectFolders.Contents(Manifest, folder);
+            var inside = new List<string>();
+            if (folders.Count > 1) inside.Add($"{folders.Count - 1} folder{(folders.Count == 2 ? "" : "s")}");
+            if (documents.Count > 0) inside.Add($"{documents.Count} document{(documents.Count == 1 ? "" : "s")}");
+            return inside.Count == 0
+                ? $"Delete the empty folder “{folder.Name}” from disk?"
+                : $"Delete “{folder.Name}” and the {string.Join(" and ", inside)} inside it, "
+                  + "from the project and from disk?";
+        }
+        return $"Delete “{row.Name}” from the project and from disk?";
+    }
+
+    /// <summary>
+    /// Remove a row from the project <b>and</b> delete it from disk. The
+    /// caller confirms first when <see cref="DeleteNeedsConfirmation"/> says
+    /// so — nothing here asks, because a view model that opens dialogs is a
+    /// view model no test can drive.
+    /// </summary>
+    public bool DeleteFromDisk(BoardRow row)
+    {
+        if (row is { IsFolder: true, Folder: { } folder })
+        {
+            // The directory before the manifest: PathOf walks the parent
+            // chain, and a folder already out of the manifest resolves to the
+            // project root — which is every drawing. Order is load-bearing.
+            var path = ProjectFolders.PathOf(Manifest, folder);
+            var (_, documents) = ProjectFolders.Contents(Manifest, folder);
+            var deleted = ProjectIo.DeleteInProject(_project, path);
+            ProjectFolders.Remove(Manifest, folder);
+            foreach (var inside in documents) ProjectIo.DetachDocument(_project, inside);
+            Status = deleted
+                ? $"Deleted “{folder.Name}” and everything in it."
+                : $"Removed “{folder.Name}” from the project, but its folder could not be deleted.";
+        }
+        else if (row.Document is { } document)
+        {
+            var path = document.Path;
+            ProjectIo.DetachDocument(_project, document);
+            Status = ProjectIo.DeleteInProject(_project, path)
+                ? $"Deleted “{document.Name}”."
+                : $"Removed “{document.Name}” from the project, but its file could not be deleted.";
+        }
+        else if (row.Sheet is { } sheet)
+        {
+            var path = sheet.Path;
+            ProjectSheets.Remove(_project, sheet);
+            Status = ProjectIo.DeleteInProject(_project, path)
+                ? $"Deleted “{sheet.Name}”."
+                : $"Removed “{sheet.Name}” from the project, but its file could not be deleted.";
+        }
+        else
+        {
+            return false;
+        }
+        AfterRemoval();
+        return true;
+    }
+
+    /// <summary>The Assets tab's rows are the same hierarchy; same operations.</summary>
+    public BoardRow? AsRow(AssetScope scope) =>
+        scope.Folder is { } folder ? new BoardRow(folder, 0)
+        : scope.Document is { } document ? new BoardRow(document, null, 0)
+        : null;
+
+    /// <summary>What deleting a library asset means, said before it happens.</summary>
+    public string DeleteAssetWarning(AssetEntry asset) => asset.Kind switch
+    {
+        ReferenceScopes.Kind => $"Delete the reference sheet “{asset.Name}” from the project and from disk?",
+        TemplateScopes.Kind => $"Delete the template “{asset.Name}” from the project and from disk?",
+        _ => $"Delete {Core.Projects.AssetKinds.LabelOf(asset.Kind).ToLowerInvariant()} “{asset.Name}” from the project? "
+             + "Everywhere it is shared stops offering it.",
+    };
+
+    /// <summary>
+    /// Delete an asset from the library — and with it, every declaration of
+    /// it, or the scopes would offer a thing the project no longer has.
+    /// </summary>
+    /// <remarks>
+    /// Sheets and templates are files and go through the row operations;
+    /// palettes, gradients and tips live in the project's aggregate resource
+    /// files, which the save rewrites without them. Symbols are the one
+    /// refusal: instances in documents reference them by id, and the Symbols
+    /// panel owns the delete that knows about instances.
+    /// </remarks>
+    public bool DeleteAsset(AssetEntry? asset)
+    {
+        if (asset is null) return false;
+        switch (asset.Kind)
+        {
+            case ReferenceScopes.Kind:
+                var sheet = (Manifest.Sheets ?? []).FirstOrDefault(s => s.Id == asset.Id);
+                return sheet is not null && DeleteFromDisk(new BoardRow(sheet, null, 0));
+            case TemplateScopes.Kind:
+                var document = Manifest.Documents.FirstOrDefault(d => d.Id == asset.Id);
+                if (document is null) return false;
+                ResourceScopes.Retract(Manifest, TemplateScopes.Kind, asset.Id);
+                return DeleteFromDisk(new BoardRow(document, null, 0));
+            case PaletteScopes.Kind:
+                _project.Palettes.RemoveAll(p => p.Id == asset.Id);
+                break;
+            case GradientScopes.Kind:
+                _project.Gradients.Remove(asset.Id);
+                break;
+            case TipScopes.Kind:
+                Manifest.Tips?.RemoveAll(t => t.Id == asset.Id);
+                break;
+            default:
+                Status = "Symbols are deleted from the Symbols panel, which knows about their instances.";
+                return false;
+        }
+        ResourceScopes.Retract(Manifest, asset.Kind, asset.Id);
+        Status = $"Deleted {Core.Projects.AssetKinds.LabelOf(asset.Kind).ToLowerInvariant()} “{asset.Name}” from the project.";
+        AfterRemoval();
+        return true;
+    }
+
+    private void AfterRemoval()
+    {
         Rebuild();
         _changed();
         RequestSave?.Invoke();

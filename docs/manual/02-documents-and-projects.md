@@ -133,6 +133,13 @@ elsewhere on a row still opens it; the name is the part that edits, the same
 split the Layers panel uses.) The rename reaches disk: renaming a folder moves
 the folder and everything under it.
 
+**The project itself renames too** — double-click the project row's name in
+the panel, or **✎ Rename project…** in the project manager. The `.lbproj`
+folder on disk is renamed with it (type the name with or without the suffix;
+the folder keeps whichever it had), the panel, the manager's title and
+**File ▸ Recent** all follow, and a name already taken beside the project
+refuses whole.
+
 If the name is already taken, or the file cannot be moved — open in another
 program, or a permission — the rename is **refused**, the box stays open so you
 can fix it, and the panel's status line says which of those it was. Nothing
@@ -480,6 +487,13 @@ writes the folder's running order, the same one the docker's ↑↓ nudge; movin
 a document moves its file, refused whole if the disk says no. Double-click a
 name to rename it in place.
 
+**And take things out of it.** Right-click, in Structure and in the Assets
+tab alike, offers the panel's two operations, which are deliberately not one:
+**Remove from project** takes the row out of the index and leaves the file or
+folder on disk — cheap to undo by hand — while **Delete permanently…** removes
+it *and* deletes it, asking first for any folder holding anything. Removing a
+folder returns its documents to the project root rather than losing them.
+
 **Select exactly one folder and a panel opens on the right** — its notes, its
 pivot, its reading and its variants, all editable. One folder rather than
 several, because "the notes of nine folders" is not a thing. This is where a
@@ -537,6 +551,13 @@ follows from where you clicked: made on a folder's row, a palette or gradient
 is **shared there at once**, because that is what making it *there* means. A
 sheet is filed on the folder; a template is filed there and offered for
 dropping wherever it should become the default.
+
+**And unmakes them.** The ✕ on a declaration chip stops sharing an asset at
+that scope without touching the asset. Right-click a library entry for
+**Delete permanently…**, which deletes the asset *and* every declaration of
+it — sheets and templates are files, so their files go too, after asking.
+Symbols are the one refusal: their instances live in documents, so the
+Symbols panel owns that delete.
 
 Two moments the panel says something you would otherwise have to notice: sharing
 the **first** thing of a kind is what switches that kind from *everything

@@ -423,6 +423,102 @@ public partial class ProjectWindow : Window
         }
     }
 
+    // ---- removing and deleting (the docker's two operations, here too) -------------
+
+    private void OnRemoveRow(object? sender, RoutedEventArgs e)
+    {
+        foreach (var row in SelectedRows())
+        {
+            _vm.RemoveFromProject(row);
+        }
+    }
+
+    private async void OnDeleteRow(object? sender, RoutedEventArgs e)
+    {
+        // One at a time even under multi-select: each deletion is its own
+        // decision, and one dialog covering five folders is a decision about
+        // an average.
+        foreach (var row in SelectedRows())
+        {
+            if (_vm.DeleteNeedsConfirmation(row)
+                && !await ConfirmAsync("Delete permanently", _vm.DeleteWarning(row), "Delete"))
+            {
+                continue;
+            }
+            _vm.DeleteFromDisk(row);
+        }
+    }
+
+    private System.Collections.Generic.List<BoardRow> SelectedRows() =>
+        [.. StructureRows.SelectedItems?.OfType<BoardRow>() ?? []];
+
+    private void OnRemoveScope(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.SelectedScope is not { } scope || _vm.AsRow(scope) is not { } row)
+        {
+            _vm.Status = "Select a folder or a document row first — the project itself stays.";
+            return;
+        }
+        _vm.RemoveFromProject(row);
+    }
+
+    private async void OnDeleteScope(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.SelectedScope is not { } scope || _vm.AsRow(scope) is not { } row)
+        {
+            _vm.Status = "Select a folder or a document row first — the project itself stays.";
+            return;
+        }
+        if (_vm.DeleteNeedsConfirmation(row)
+            && !await ConfirmAsync("Delete permanently", _vm.DeleteWarning(row), "Delete"))
+        {
+            return;
+        }
+        _vm.DeleteFromDisk(row);
+    }
+
+    private async void OnDeleteAsset(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { DataContext: AssetEntry asset }) return;
+        if (!await ConfirmAsync("Delete asset", _vm.DeleteAssetWarning(asset), "Delete")) return;
+        _vm.DeleteAsset(asset);
+    }
+
+    /// <summary>A yes/no the artist has to mean — the docker's dialog, here.</summary>
+    private async Task<bool> ConfirmAsync(string title, string message, string confirmLabel)
+    {
+        var yes = false;
+        var confirm = new Button { Content = confirmLabel, IsDefault = false };
+        var cancel = new Button { Content = "Cancel", IsDefault = true, IsCancel = true };
+        var dialog = new Window
+        {
+            Title = title,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            Content = new StackPanel
+            {
+                Margin = new Avalonia.Thickness(16),
+                Spacing = 12,
+                Children =
+                {
+                    new TextBlock { Text = message, MaxWidth = 360, TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                    new StackPanel
+                    {
+                        Orientation = Avalonia.Layout.Orientation.Horizontal,
+                        Spacing = 8,
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                        Children = { cancel, confirm },
+                    },
+                },
+            },
+        };
+        confirm.Click += (_, _) => { yes = true; dialog.Close(); };
+        cancel.Click += (_, _) => dialog.Close();
+        await dialog.ShowDialog(this);
+        return yes;
+    }
+
     // ---- creating assets (the Assets tab's right-click) ---------------------------
 
     private async void OnNewSheet(object? sender, RoutedEventArgs e) =>

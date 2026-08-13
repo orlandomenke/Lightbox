@@ -194,6 +194,20 @@ public static class ProjectSheets
         project.DirtySheets.Clear();
     }
 
+    /// <summary>
+    /// Take a sheet out of the project's registry. Disk untouched — deleting
+    /// the file is the caller's separate, said-out-loud decision.
+    /// </summary>
+    public static bool Remove(Project project, SheetRef reference)
+    {
+        if (project.Manifest.Sheets is not { } sheets) return false;
+        if (sheets.RemoveAll(s => s.Id == reference.Id) == 0) return false;
+        if (sheets.Count == 0) project.Manifest.Sheets = null;
+        project.LoadedSheets.Remove(reference.Id);
+        project.DirtySheets.Remove(reference.Id);
+        return true;
+    }
+
     // ---- refiling --------------------------------------------------------------
 
     /// <summary>

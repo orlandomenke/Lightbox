@@ -1092,6 +1092,109 @@ public static class ProjectIo
         return RenameOutcome.Renamed;
     }
 
+    /// <summary>
+    /// Rename the project: the manifest name and the folder on disk, together.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The owner's call (2026-08-13), superseding the B62-era refusal — the
+    /// project renames from inside Lightbox now, and the folder follows, so
+    /// the panel and a file manager go on telling one story. The typed name
+    /// may carry the customary <c>.lbproj</c> suffix (the root row shows the
+    /// folder, so editing it hands the suffix back); it belongs to the folder,
+    /// not the name.
+    /// </para>
+    /// <para>
+    /// The folder keeps the suffix it had — a project created without
+    /// <c>.lbproj</c> does not gain one from a rename. Refused whole on a
+    /// collision or a disk refusal, manifest put back, for
+    /// <see cref="RenameFolder"/>'s reason. The caller re-points anything
+    /// watching the old root; <see cref="Project.Root"/> is updated here.
+    /// </para>
+    /// </remarks>
+    public static RenameOutcome RenameProject(Project project, string name)
+    {
+        var trimmed = name.Trim();
+        if (trimmed.EndsWith(".lbproj", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed[..^".lbproj".Length].TrimEnd();
+        }
+        if (trimmed.Length == 0) return RenameOutcome.NameTaken;
+
+        var originalName = project.Manifest.Name;
+        project.Manifest.Name = trimmed;
+        if (string.IsNullOrEmpty(project.Root)) return RenameOutcome.Renamed;
+
+        var root = Path.TrimEndingDirectorySeparator(project.Root);
+        var currentLeaf = Path.GetFileName(root);
+        var suffix = currentLeaf.EndsWith(".lbproj", StringComparison.OrdinalIgnoreCase)
+            ? currentLeaf[^".lbproj".Length..]
+            : "";
+        var leaf = SafeLeaf(trimmed) + suffix;
+        if (string.Equals(leaf, currentLeaf, StringComparison.Ordinal)) return RenameOutcome.Renamed;
+
+        var parent = Path.GetDirectoryName(root);
+        var newRoot = string.IsNullOrEmpty(parent) ? leaf : Path.Combine(parent, leaf);
+        if (Directory.Exists(newRoot) || File.Exists(newRoot))
+        {
+            project.Manifest.Name = originalName;
+            return RenameOutcome.NameTaken;
+        }
+        // A project that has never been written has nothing to move — the
+        // next save creates the folder under the new name. MoveInProject's
+        // rule for missing sources, applied to the root.
+        if (!Directory.Exists(root))
+        {
+            project.Root = newRoot;
+            return RenameOutcome.Renamed;
+        }
+        try
+        {
+            Directory.Move(root, newRoot);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            project.Manifest.Name = originalName;
+            return RenameOutcome.DiskRefused;
+        }
+        project.Root = newRoot;
+        return RenameOutcome.Renamed;
+    }
+
+    /// <summary>A directory name the file system will take, from a display name.</summary>
+    private static string SafeLeaf(string name)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var cleaned = new string(name.Where(c => !invalid.Contains(c)).ToArray())
+            .Trim().TrimEnd('.');
+        return cleaned.Length == 0 ? "project" : cleaned;
+    }
+
+    /// <summary>
+    /// Take a document out of the project without touching disk — the shared
+    /// mechanics behind every surface's "remove".
+    /// </summary>
+    /// <remarks>
+    /// <b>B114.</b> One list plus any variant that pointed at it, which would
+    /// otherwise be an override naming a document the project no longer has.
+    /// The caller clears its own dirty-tracking; that is the one piece that
+    /// is a surface's rather than the project's.
+    /// </remarks>
+    public static void DetachDocument(Project project, DocumentRef document)
+    {
+        project.Manifest.Documents.RemoveAll(d => d.Id == document.Id);
+        foreach (var variant in ProjectFolders.All(project.Manifest)
+                     .SelectMany(f => f.Variants ?? []))
+        {
+            variant.Overrides.Remove(document.Id);
+            foreach (var (baseId, over) in variant.Overrides.ToList())
+            {
+                if (over == document.Id) variant.Overrides.Remove(baseId);
+            }
+        }
+        project.Loaded.Remove(document.Id);
+    }
+
     /// <summary>Rename a document, file included. The manifest follows the disk.</summary>
     public static RenameOutcome RenameDocument(Project project, DocumentRef document, string name)
     {
