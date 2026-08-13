@@ -172,6 +172,60 @@ rigs:
   option knowing it is more surface to maintain: two converters, and the
   DragonBones ecosystem is semi-dormant, so its importers vary in quality.
 
+## The single-layer character: parts, depth, completion, drivers
+
+*Added 2026-08-13 from the owner's stress test: a side-view character on one
+layer — arms swing, body moves and twists. What fills the gaps deformation
+cannot, without leaning on AI?*
+
+Pure point deformation has three gaps on a single layer, and naming them is
+what makes the system designable:
+
+1. **Occlusion flips** — the arm is in front on the forward swing, behind on
+   the back swing; stacking is baked into stroke order.
+2. **Disocclusion** — the torso behind the arm at bind *was never drawn*;
+   moving the arm reveals nothing.
+3. **Twist** — out-of-plane rotation changes the silhouette; a 2D transform
+   cannot manufacture an unseen view.
+
+Gaps 2 and 3 involve geometry absent from the record, which no deterministic
+system can invent. The design converts **invent** into **author once, replay
+driven**: the artist supplies the missing drawing exactly once; the rig
+decides *when it shows* forever.
+
+- **Parts fall out of the weights.** A part is the stroke group one bone
+  dominates — the rig induces cutout structure on a single layer without the
+  artist pre-planning it. Weight painting pays twice.
+- **Depth is a property of bones, driven by pose.** Each part renders
+  fill+line to its own surface; surfaces composite in per-bone depth order.
+  Occlusion flips are a driven depth swap (shoulder angle crosses a
+  threshold → the arm steps behind), and hidden-line handling comes free —
+  the arm's fill masks the torso's lines. A compositing decision like the
+  camera: never in the record, bounded by part bounds (invariant 6).
+- **Completion drawing** fills disocclusion: isolate a part, dim the rest,
+  draw the hidden contour — ordinary strokes tagged to the part, occluded at
+  bind, revealed by the depth compositor when the pose uncovers them. Amodal
+  completion as a workflow, not an algorithm.
+- **Drivers** — a joint angle or a named scalar (*body turn*) — unify
+  everything that is not a bone transform: depth swaps, the phase-4 drawn
+  correctives, and **stroke interpolation between drawn extremes**. Twist:
+  the artist draws the torso at two or three turn stops and the
+  deterministic inbetweening in `Lightbox.Core` morphs between them as the
+  driver moves. Live2D's parameter insight, stroke-native and mesh-free —
+  everything on screen interpolates from drawn strokes, so invariant 1 holds.
+- **When a morph cannot bridge** (contour topology flips — near hand becomes
+  far hand), the driver **swaps symbols** instead: Pillar 3's hand/face
+  libraries chosen by pose through a step function. Mouth charts, hand
+  turnarounds and blinks are all this one mechanism.
+- **AI slots in later, optionally**, proposing completion strokes and turn
+  extremes as drafts the artist accepts into the record. Determinism never
+  rests on it.
+
+The honest hard edge, written down rather than discovered: strokes spanning
+a joint belong to two parts, and part-splitting at the weight crossing is
+where seams will want hiding under fills — the known-difficult 10%, same as
+every rigging system ever shipped.
+
 ## Licensing constraints (the "no proprietary code" requirement)
 
 - **Never Spine's format or runtimes.** The runtimes are proprietary and
