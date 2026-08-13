@@ -375,7 +375,8 @@ palette can live* and *one of the places a palette can live*.
 - [x] Per-workspace panel sets (Illustration / Animation / Game) `evidence: TheBuiltInsDifferFromEachOther, OnlySavedWorkspacesOfferABin`
 - [x] Auto save - configurable in time if a file is already present. `evidence: AppSettings, AutosaveService, TheDefaultIsEveryMinuteToTheRecoveryCopyOnly, ZeroTurnsAutosaveOff`
 - [x] Quick options bar — pinned Size and Opacity, the active tool's icon, per-tool quick controls; the transform session moves to its own Tool options page (Q70, stage 1) `evidence: QuickOptionsBarTests, MakesSizedMarks, TheOverflowCarriesNoSecondCopyOfSizeOrOpacity, BeginningATransformOpensTheToolOptionsDocker`
-- [ ] Quick options bar customization — drag options on and off the bar, saved per workspace; Size and Opacity non-removable (Q70, stage 2). Needs the registry of offerable options first — it is the thing the drag surface and the workspace record both enumerate `evidence: QuickOptionCatalog, QuickOptionsCustomizationTests, TheWorkspaceRemembersItsBar, SizeAndOpacityCannotBeDraggedOff`
+- [x] Quick bar contents per workspace — the bar is the workspace's smart bar, not the tool's (Q74): a registry of offerable options, per-workspace built-in defaults (Animation gets the transport, Illustration the marquee), and the ⋮ flyout beside the picker choosing contents saved with the workspace; Size and Opacity are not on offer at all `evidence: QuickBarCatalog, QuickBarWorkspaceTests, SavingTheWorkspaceKeepsTheChoice, SizeAndOpacityAreNotOnOffer`
+- [ ] Quick options bar rearrangement — drag options along, onto and off the bar rather than ticking them in a flyout (Q70, stage 2's remaining half; the registry it needed now exists) `evidence: QuickBarDragTests, DraggingAnOptionOffTheBarRemovesItFromTheWorkspace`
 
 ## Pillar 2 — Persistent, customizable onion skinning
 

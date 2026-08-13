@@ -45,6 +45,9 @@ public static class ValueDrag
         public Point Origin;
         public decimal Start;
         public bool Scrubbing;
+
+        /// <summary>Whether the field already had focus when the press landed.</summary>
+        public bool WasFocused;
     }
 
     private static readonly Dictionary<NumericUpDown, Session> Active = [];
@@ -83,6 +86,9 @@ public static class ValueDrag
         {
             Origin = e.GetPosition(field),
             Start = field.Value ?? 0,
+            // Read before the press moves focus — this handler tunnels ahead
+            // of the focus change, so it still sees the world as it was.
+            WasFocused = field.IsKeyboardFocusWithin,
         };
     }
 
@@ -117,7 +123,20 @@ public static class ValueDrag
     {
         if (sender is not NumericUpDown field) return;
         if (!Active.Remove(field, out var session)) return;
-        if (!session.Scrubbing) return;   // it was a click; let the caret land
+        if (!session.Scrubbing)
+        {
+            // A click into an unfocused field selects the whole value: the
+            // overwhelmingly common intent is to type a new number, and a
+            // caret parked mid-digits makes that a three-step edit. Posted so
+            // it lands after the click's own caret placement rather than
+            // under it. A click inside a field that already has focus keeps
+            // its caret — that one is somebody editing digits.
+            if (!session.WasFocused && field.FindDescendantOfType<TextBox>() is { } text)
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(text.SelectAll);
+            }
+            return;
+        }
         e.Pointer.Capture(null);
         // Swallow the release so the field does not also focus and select —
         // a drag that ends with the text highlighted looks like a mistake.
