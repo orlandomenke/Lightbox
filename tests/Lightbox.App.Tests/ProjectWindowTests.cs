@@ -1222,6 +1222,170 @@ public sealed class ProjectWindowTests(ITestOutputHelper output)
         }
     }
 
+    // ---- removing and deleting -----------------------------------------------------
+
+    [Fact]
+    public void RemovingARowLeavesTheDiskAlone()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, _, _) = OpenWithAssets(root);
+            var walk = vm.Rows.Single(r => r.Document?.Name == "walk");
+
+            Assert.True(vm.RemoveFromProject(walk));
+
+            Assert.DoesNotContain(project.Manifest.Documents, d => d.Name == "walk");
+            Assert.True(File.Exists(Path.Combine(root, "knight", "walk.lightbox.json")));
+            Assert.Contains("still on disk", vm.Status);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void RemovingAFolderReturnsItsDocumentsToTheRoot()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, knight, _) = OpenWithAssets(root);
+            var row = vm.Rows.Single(r => ReferenceEquals(r.Folder, knight) && r.IsFolder);
+
+            Assert.True(vm.RemoveFromProject(row));
+
+            Assert.Empty(project.Manifest.Folders ?? []);
+            Assert.All(project.Manifest.Documents, d => Assert.Null(d.FolderId));
+            Assert.True(Directory.Exists(Path.Combine(root, "knight")));
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void DeletingARowDeletesTheFileToo()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, _, _) = OpenWithAssets(root);
+            var walk = vm.Rows.Single(r => r.Document?.Name == "walk");
+            Assert.False(vm.DeleteNeedsConfirmation(walk));   // one file, one undoable mistake
+
+            Assert.True(vm.DeleteFromDisk(walk));
+
+            Assert.DoesNotContain(project.Manifest.Documents, d => d.Name == "walk");
+            Assert.False(File.Exists(Path.Combine(root, "knight", "walk.lightbox.json")));
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void DeletingAFolderAsksFirstAndTakesEverythingBelow()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, knight, _) = OpenWithAssets(root);
+            var row = vm.Rows.Single(r => ReferenceEquals(r.Folder, knight) && r.IsFolder);
+
+            Assert.True(vm.DeleteNeedsConfirmation(row));
+            output.WriteLine(vm.DeleteWarning(row));
+            Assert.Contains("inside it", vm.DeleteWarning(row));
+
+            Assert.True(vm.DeleteFromDisk(row));
+
+            Assert.Empty(project.Manifest.Folders ?? []);
+            Assert.DoesNotContain(project.Manifest.Documents, d => d.Name == "walk");
+            Assert.False(Directory.Exists(Path.Combine(root, "knight")));
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void DeletingAnAssetRetractsItsDeclarationsEverywhere()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, knight, _) = OpenWithAssets(root);
+            var palette = vm.Library.Single(a => a.Designation == "Palette");
+            vm.DropOnScope(palette, vm.Assets.Single(s => s.Folder?.Id == knight.Id));
+            Assert.Contains(knight.Resources!, r => r.Kind == PaletteScopes.Kind);
+
+            Assert.True(vm.DeleteAsset(palette));
+
+            Assert.Empty(project.Palettes);
+            // The scope no longer offers a thing the project does not have.
+            Assert.Null(knight.Resources);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void ASymbolIsRefusedWithThePointerToItsOwnPanel()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, _, _) = OpenWithAssets(root);
+            var symbol = vm.Library.Single(a => a.Designation == "Symbol");
+
+            Assert.False(vm.DeleteAsset(symbol));
+
+            Assert.Single(project.Symbols);
+            Assert.Contains("Symbols panel", vm.Status);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public async Task RenamingTheProjectRenamesTheFolderOnDisk()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, _, _) = OpenOnDisk(root);
+            ProjectIo.Save(project);   // the folder exists, so the rename moves it
+            var name = $"Sequel-{Guid.NewGuid():N}";
+            vm.AskName = (_, _) => Task.FromResult<string?>(name);
+
+            await vm.RenameProjectAsync();
+            output.WriteLine(vm.Status);
+
+            Assert.Equal(name, project.Name);
+            Assert.Contains(name, vm.Title);
+            Assert.True(Directory.Exists(project.Root));
+            // The folder keeps the suffix it had — .lbproj belongs to it.
+            Assert.EndsWith($"{name}.lbproj", project.Root);
+            Assert.False(Directory.Exists(root));
+        }
+        finally
+        {
+            Drop(root);
+            foreach (var renamed in Directory.GetDirectories(Path.GetTempPath(), "Sequel-*.lbproj"))
+            {
+                Directory.Delete(renamed, recursive: true);
+            }
+        }
+    }
+
     // ---- creating assets from the Assets tab ---------------------------------------
 
     [Fact]

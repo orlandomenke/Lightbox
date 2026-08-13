@@ -4663,9 +4663,9 @@ public partial class MainWindow : Window
 
     private void OnProjectRowRename(object? sender, RoutedEventArgs e)
     {
-        // B62. The project row refuses the rename, so never open the box for it
-        // — an edit box that cannot commit is a worse answer than no box.
-        if (_vm.ProjectDocker.Selected is not { IsRoot: false } row) return;
+        // The root row commits now too — it renames the project, folder
+        // included (owner's call, 2026-08-13, superseding the B62 refusal).
+        if (_vm.ProjectDocker.Selected is not { } row || row.IsSheet) return;
         row.IsRenaming = true;
     }
 
@@ -4681,7 +4681,9 @@ public partial class MainWindow : Window
     private void OnProjectNameDoubleTapped(object? sender, Avalonia.Input.TappedEventArgs e)
     {
         if (sender is not Control { DataContext: ViewModels.ProjectRow row }) return;
-        if (row.IsRoot || row.IsSheet) return;   // B62; sheets rename in their own panel
+        if (row.IsSheet) return;   // sheets rename in their own panel
+        // The root row renames the project — folder on disk included (owner's
+        // call, 2026-08-13, superseding the B62-era refusal).
         _vm.ProjectDocker.SelectFromPointer(row);
         row.IsRenaming = true;
         e.Handled = true;
@@ -4733,7 +4735,11 @@ public partial class MainWindow : Window
                 // artist can fix the name rather than retype it from scratch —
                 // and the docker's status line says which of the several
                 // reasons it was.
-                if (_vm.ProjectDocker.Rename(row, box.Text ?? "")) row.IsRenaming = false;
+                if (_vm.ProjectDocker.Rename(row, box.Text ?? ""))
+                {
+                    row.IsRenaming = false;
+                    RememberRenamedProject(row);
+                }
                 e.Handled = true;
                 break;
             case Key.Escape:
@@ -4750,8 +4756,24 @@ public partial class MainWindow : Window
         // Losing focus commits what it can and always closes the box: leaving
         // an edit open on a row nobody is looking at is how a rename gets
         // applied to whatever is clicked next.
-        if (row.IsRenaming && !_vm.ProjectDocker.Rename(row, box.Text ?? "")) box.Text = row.Name;
+        if (row.IsRenaming)
+        {
+            if (_vm.ProjectDocker.Rename(row, box.Text ?? "")) RememberRenamedProject(row);
+            else box.Text = row.Name;
+        }
         row.IsRenaming = false;
+    }
+
+    /// <summary>
+    /// A renamed project's recents entry points at a folder that no longer
+    /// exists; re-remembering the new root keeps File ▸ Recent honest.
+    /// </summary>
+    private void RememberRenamedProject(ViewModels.ProjectRow row)
+    {
+        if (row.IsRoot && _vm.ProjectDocker.Project?.Root is { Length: > 0 } root)
+        {
+            _vm.Remember(root, RecentKind.Project);
+        }
     }
 
     /// <summary>

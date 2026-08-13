@@ -314,6 +314,33 @@ public static class ResourceScopes
         return true;
     }
 
+    /// <summary>
+    /// Remove every declaration of one asset, at every scope — what deleting
+    /// the asset itself requires, or its declarations would name a thing the
+    /// project no longer has.
+    /// </summary>
+    /// <remarks>
+    /// The empty-list-to-null collapse matches <see cref="Undeclare"/>: a
+    /// scope declaring nothing writes no key, which is the serialization rule
+    /// optional things follow everywhere here.
+    /// </remarks>
+    public static void Retract(ProjectManifest manifest, string kind, string id)
+    {
+        bool Match(ScopedResource r) => r.Kind == kind && r.Id == id;
+        manifest.Resources?.RemoveAll(Match);
+        if (manifest.Resources is { Count: 0 }) manifest.Resources = null;
+        foreach (var folder in ProjectFolders.All(manifest))
+        {
+            folder.Resources?.RemoveAll(Match);
+            if (folder.Resources is { Count: 0 }) folder.Resources = null;
+        }
+        foreach (var document in manifest.Documents)
+        {
+            document.Resources?.RemoveAll(Match);
+            if (document.Resources is { Count: 0 }) document.Resources = null;
+        }
+    }
+
     /// <summary>Declare a resource on one document — the narrowest scope.</summary>
     /// <remarks>
     /// A separate method rather than an overload taking a nullable document,

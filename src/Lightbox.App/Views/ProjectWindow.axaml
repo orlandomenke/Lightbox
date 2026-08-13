@@ -261,6 +261,9 @@
                   </MenuFlyout>
                 </Button.Flyout>
               </Button>
+              <Button Content="✎ Rename project…" Command="{Binding RenameProjectCommand}"
+                      ToolTip.Tip="Renames the project and its folder on disk">
+              </Button>
               <TextBlock Classes="dim" VerticalAlignment="Center"
                          Text="Lands where the selection is. Right-click a row does the same." />
             </StackPanel>
@@ -289,6 +292,14 @@
                           ToolTip.Tip="A folder you name, inside the selected one" />
                 <MenuItem Header="▣  New document…" Click="OnNewDocument"
                           ToolTip.Tip="A drawing, in the selected folder" />
+                <Separator />
+                <!-- The docker's two operations, in its order and its words —
+                     constructive first, destructive last, never one gesture
+                     told apart by a held key (B87). -->
+                <MenuItem Header="Remove from project" Click="OnRemoveRow"
+                          ToolTip.Tip="Take it out of the index. The file stays on disk." />
+                <MenuItem Header="Delete permanently…" Click="OnDeleteRow"
+                          ToolTip.Tip="Remove it from the project and delete it from disk" />
               </MenuFlyout>
             </ListBox.ContextFlyout>
             <ListBox.Styles>
@@ -462,6 +473,12 @@
                 <ListBox.ItemTemplate>
                   <DataTemplate x:DataType="vm:AssetEntry">
                     <Border Background="Transparent" PointerPressed="OnAssetPressed">
+                      <Border.ContextFlyout>
+                        <MenuFlyout>
+                          <MenuItem Header="Delete permanently…" Click="OnDeleteAsset"
+                                    ToolTip.Tip="Deletes the asset and everywhere it is shared. Sheets and templates are files, so their files go too — it asks first." />
+                        </MenuFlyout>
+                      </Border.ContextFlyout>
                       <DockPanel>
                         <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}"
                                    Margin="0,0,5,0" VerticalAlignment="Center" />
@@ -511,6 +528,11 @@
                           ToolTip.Tip="A new project gradient. Made on a folder row, it is shared there at once." />
                 <MenuItem Header="📄  New template…" Click="OnNewTemplate"
                           ToolTip.Tip="A blank document already marked as a template, filed where the selection is" />
+                <Separator />
+                <MenuItem Header="Remove from project" Click="OnRemoveScope"
+                          ToolTip.Tip="Take the selected row out of the index. The file stays on disk." />
+                <MenuItem Header="Delete permanently…" Click="OnDeleteScope"
+                          ToolTip.Tip="Remove it from the project and delete it from disk" />
               </MenuFlyout>
             </ListBox.ContextFlyout>
             <ListBox.Styles>
