@@ -365,6 +365,52 @@ and `imported references` (320 ln), with `editing the grid by hand` (338 ln) as 
 third part of the same feature. That is the third lying marker this refactor has
 found, after `the shape tool` and `video clip bars`. **Run `monolith.py wide` before
 trusting any remaining row of this table.**
+
+### And then measured across all of them: the table is mostly Tier 3
+
+After `GuideSnap`, the same count was run on every remaining row — private fields
+declared in the section that are **not** `[ObservableProperty]` backing fields, i.e.
+state that can actually leave:
+
+| Leaf | Lines | Bound (cannot move) | **Movable** |
+| --- | --- | --- | --- |
+| AI | 324 | 1 | **6** |
+| the shape tool | 184 | 1 | 2 |
+| character sheets | 590 | 0 | 2 |
+| playback transport | 166 | 2 | 1 |
+| editing the grid by hand | 338 | 1 | 1 |
+| timing presets | 302 | 3 | **0** |
+| imported references | 320 | 4 | **0** |
+| frame markers | 150 | 1 | **0** |
+| fill tool | 336 | 5 | **0** |
+| camera | 280 | 1 | **0** |
+
+**Twelve fields, across nine sections, and five of them have none at all.** Those
+five are Tier 3 by this document's own definition — pure behaviour over document and
+hub state — and they were filed as Tier 1 because the original table counted section
+size instead of ownership. `character sheets` is the clearest case: 590 lines, 27
+members, and its only private state is a re-entrancy guard and a PNG cache.
+
+So **the leaf seam is close to exhausted**, and that is a finding rather than a
+setback. What Tier 1 was for — giving unowned state an owner — has largely been done
+by Tier 0, which took 22 + 7 fields. What is left in these sections is the binding
+surface and the document API, and neither is extractable without moving every XAML
+path that names it.
+
+**Two exceptions, and both are gated.** The AI section has six genuinely movable
+fields (`_aiBusy`, `_aiCts`, `_aiEnabled`, `_aiModelLabel`, `_aiProviderLabel`,
+`_artist`) and is a coherent session object. And inside `character sheets` there is a
+real collaborator that the row's "2 movable" undersells — the **reference-view PNG
+cache**: the dictionary, `RenderReferenceViewPng`, `Downscaled`,
+`EncodedReferenceView` and the 768 px `ReferenceLongEdge` cap, about 110 lines with
+one job and a measured reason (B31: 52 ms per view on the UI thread before every AI
+call, byte-identical each time). Both touch an AI path in the view model, so **charter
+gate G12 applies to both** — `ai-engineer` and `art-director` on the diff, not
+optional.
+
+**The recommendation after this measurement is the partial split** (Q75), which is
+what the remaining size problem actually responds to. The leaf route has given what
+it has to give.
 ## Tier 2 — clusters, extracted whole or not at all
 
 Genuinely shared state. These are the collaborator cases.
