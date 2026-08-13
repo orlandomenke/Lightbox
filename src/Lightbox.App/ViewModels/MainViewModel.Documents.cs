@@ -547,6 +547,8 @@ public partial class MainViewModel
         if (wasEmpty) OnPropertyChanged(nameof(HasDocument));
     }
 
+    private int _untitledCounter = 1;
+
     private string NextUntitledName() => $"Untitled-{++_untitledCounter}";
 
     private static string TitleFromPath(string path)
