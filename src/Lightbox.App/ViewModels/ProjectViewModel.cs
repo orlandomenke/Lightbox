@@ -230,12 +230,26 @@ public sealed partial class ProjectRow : ObservableObject
     /// </remarks>
     public string Glyph =>
         IsRoot ? "🗁"
-        // ▤ reads as a sheet of panels — reference art, distinct from ▣'s
-        // single drawing, and it costs no colour the theme has to own.
-        : IsSheet ? "▤"
+        // The registry's glyph, so a sheet wears the same face here, in the
+        // project window and in its asset library. ▤ reads as a sheet of
+        // panels — reference art, distinct from ▣'s single drawing.
+        : IsSheet ? AssetKinds.GlyphOf(ReferenceScopes.Kind)
         : Animation is null && Folder is { Icon: { Length: > 0 } chosen } ? chosen
         : IsFolder ? "🗀"
         : "▣";
+
+    /// <summary>
+    /// What kind of asset this row is, in a word — empty on folders and
+    /// drawings.
+    /// </summary>
+    /// <remarks>
+    /// Automatic, from <see cref="AssetKinds"/>, never authored: the point is
+    /// that an asset is recognisable as what it is wherever it appears, which
+    /// only holds if no surface can rename it per row.
+    /// </remarks>
+    public string Designation => IsSheet ? AssetKinds.LabelOf(ReferenceScopes.Kind) : "";
+
+    public bool HasDesignation => Designation.Length > 0;
 
     /// <summary>The chevron on a folder row, or nothing on everything else.</summary>
     public string Twisty => IsFolder ? (IsCollapsed ? "▸" : "▾") : "";
@@ -1244,18 +1258,9 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
                 ? ProjectSheets.FindRef(p.Manifest, resource.Id)?.Name ?? DocumentByIdOrNull(resource.Id)?.Name
                 : DocumentByIdOrNull(resource.Id)?.Name,
         };
-        var kind = resource.Kind switch
-        {
-            PaletteScopes.Kind => "Palette",
-            GradientScopes.Kind => "Gradient",
-            GuideScopes.Kind => "Guides",
-            SymbolScopes.Kind => "Symbol",
-            TipScopes.Kind => "Brush tip",
-            TemplateScopes.Kind => "Template",
-            ExportScopes.Kind => "Export",
-            ReferenceScopes.Kind => "Reference",
-            _ => resource.Kind,
-        };
+        // The registry's word, so the docker and the project window cannot
+        // call the same kind two things.
+        var kind = AssetKinds.LabelOf(resource.Kind);
         // The id when the name cannot be found: a declaration pointing at
         // something deleted must still be visible and removable, or the artist
         // is left with a resolver failure and no way to clear its cause.
@@ -1366,6 +1371,14 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         // rebuild — which is B79's shape exactly, a badge that outlives its
         // reason, and the pair of tests here caught it on the first run.
         MarkMissing();
+        // The save may have given new documents their Draft status
+        // (ProjectIo.Save's first-write rule), and the rows mirror the
+        // manifest rather than reading it — so the mirror has to be told, or
+        // the orb appears only when something else forces a rebuild.
+        foreach (var row in Rows)
+        {
+            if (row.Animation is { } animation) row.Status = animation.Status;
+        }
         OnPropertyChanged(nameof(MissingCount));
         OnPropertyChanged(nameof(HasMissing));
         Watcher.Watch(Project?.Root);
@@ -2057,8 +2070,13 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     /// <c>Knight</c> rather than a document called <c>Knight -</c>. Trailing
     /// rather than anywhere: <c>Knight - walk</c> keeps its separator, because
     /// that is the name the artist finished typing.
+    /// <para>
+    /// Internal because the project window creates through the same prompt
+    /// and must trim the same stem — two copies of this rule is how the two
+    /// surfaces end up naming one gesture differently.
+    /// </para>
     /// </remarks>
-    private static string Named(string? name, string fallback)
+    internal static string Named(string? name, string fallback)
     {
         var trimmed = (name ?? "").Trim().TrimEnd('-', '–', '—', ':', '·', ' ', '\t');
         return trimmed.Length == 0 ? fallback : trimmed;
@@ -2303,6 +2321,9 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         // On disk now, so the row stops saying otherwise and the next project
         // save does not rewrite it.
         _dirty.Remove(reference.Id);
+        // A Save As writes the file itself, so ProjectIo.Save's first-write
+        // rule never sees this document — same rule applied at the other door.
+        reference.Status ??= AssetStatus.Draft;
         Rebuild();
         Selected = Rows.FirstOrDefault(r => r.Animation?.Id == reference.Id) ?? Selected;
         _changed();

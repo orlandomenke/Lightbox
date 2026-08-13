@@ -390,16 +390,16 @@ public sealed class WorkspaceTests : BrushStateIsolated
                 // B87 added "Delete permanently…" beside "Remove from project".
                 // This flyout is written out in XAML, so this assertion is what
                 // proves a new entry actually reached the menu.
-                // Q30 added the declaration entries, beside the other actions
-                // that are about where a thing sits rather than what it is.
-                // All six resolvable kinds are here on purpose: the mechanism
-                // resolved six and the menu could declare two, and this list is
-                // what keeps the two counts equal.
+                // The declaration submenus — five shares, an export preset, a
+                // template default, reference, reach and unshare — moved to
+                // the project manager's Assets tab, where every scope is one
+                // row of one table. What stays is what an artist does while
+                // drawing, plus the one entry that points at where the rest
+                // went; ProjectWindowTests guards the moved surface.
                 ["Open", "Open with default app…", "Show in file manager", "Copy path",
                  "Duplicate", "Rename…",
                  // Q38. The artist says what a folder is; nothing derives it.
                  "Glyph", "Glyph — something else…",
-                 "Export this as",
                  // Q30's last mile: the plan was countable and describable and
                  // no view called either, so these two are what make it real.
                  "Export this folder…", "Test export",
@@ -407,46 +407,9 @@ public sealed class WorkspaceTests : BrushStateIsolated
                  // panel — so the gesture is here rather than in the AI bar,
                  // which acts on the open drawing.
                  "Read this folder…",
-                 "Share a palette here",
-                 "Share a gradient here", "Share a symbol here", "Share a brush tip here",
-                 "Share guides here",
-                 "New documents start from",
-                 "Use this as reference", "Stop sharing", "Reach",
+                 "Share & assets… (project manager)",
                  "Remove from project", "Delete permanently…", "Status"],
                 items.Select(i => i.Header?.ToString()).ToList());
-
-            // Q30's declaration submenus are the case a Click assertion cannot
-            // reach, and the case this test exists for. They carry an
-            // ItemsSource, and a MenuFlyout's items have no DataContext of
-            // their own — measured below, not assumed — so a $parent binding
-            // there resolves to nothing and the submenu opens onto an empty
-            // list. "Share a palette here" and "Export this as" shipped exactly
-            // that and were empty from the day they landed: the view models
-            // were right, the view-model tests passed, and no artist could
-            // reach either.
-            //
-            // Two claims, and they fail separately. First: the list binding
-            // resolved, which is what was broken.
-            vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.Name == "Knight");
-            var palettes = items.Single(i => i.Header?.ToString() == "Share a palette here");
-            palettes.Open();
-            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-            Assert.NotEmpty(vm.ProjectDocker.PaletteMenu);
-            Assert.True(
-                palettes.ItemsSource is not null && palettes.Items.Count > 0,
-                "the submenu bound to nothing, so it opens empty; "
-                + $"the row offers {vm.ProjectDocker.PaletteMenu.Count} palette(s)");
-            palettes.Close();
-
-            // Second: an entry carries the command that acts on it. Headless
-            // cannot realise a submenu's containers, so the click cannot be
-            // raised on the real item — but with the command on the entry
-            // rather than in a $parent binding, invoking the entry is invoking
-            // exactly what the menu item's Command is bound to.
-            var offered = vm.ProjectDocker.PaletteMenu[0];
-            Assert.Equal(vm.ProjectDocker.ShareablePalettes[0].Name, offered.Label);
-            offered.Command.Execute(offered.Parameter);
-            Assert.NotEmpty(vm.ProjectDocker.DeclarationsOnSelected);
 
             vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
             Click(items, "Copy path");

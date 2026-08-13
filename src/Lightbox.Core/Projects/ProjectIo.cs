@@ -410,6 +410,20 @@ public static class ProjectIo
         {
             reference.Frames = project.Loaded[reference.Id].Scene.FrameCount;
             reference.Fps = project.Loaded[reference.Id].Scene.Fps;
+            // New work enters the pipeline as Draft the moment it first lands
+            // on disk. First write only — a file already on disk with no
+            // status is a document somebody imported or predates statuses, and
+            // backfilling it would invent a pipeline position nobody chose.
+            // "Nobody has said" stays sayable: clearing the status afterwards
+            // is one gesture and it stays cleared.
+            //
+            // In this loop rather than the write loop below, for the reason
+            // Version gives: the manifest is serialized between the two, and a
+            // status set after that never reaches the file.
+            if (reference.Status is null && !File.Exists(project.PathOf(reference)))
+            {
+                reference.Status = AssetStatus.Draft;
+            }
             // The version moves when the file does, so anything built from this
             // document — an exported sheet — can tell it has moved on. On save
             // rather than on edit, because an edit nobody saved has not changed

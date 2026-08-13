@@ -2363,6 +2363,14 @@
                          the first row, so selecting it and pressing this does
                          exactly what the button used to do — and with nothing
                          selected at all, PathOf falls back to the root. -->
+                    <!-- The docker's door to the project manager: the docker
+                         is what you use while drawing, the window is where the
+                         production is structured and shared — and the second
+                         surface is worthless if reaching it means the menu
+                         bar. -->
+                    <Button Classes="icon" DockPanel.Dock="Right" Content="▦"
+                            Click="OnProjectWindowClicked"
+                            ToolTip.Tip="Open the project manager — structure, statuses, assets and sharing" />
                     <Button Classes="icon" DockPanel.Dock="Right" Content="🗁"
                             Command="{Binding ProjectDocker.RevealSelectedCommand}"
                             ToolTip.Tip="Show the selected item in the file manager" />
@@ -2541,33 +2549,6 @@
                             <MenuItem Header="Glyph — something else…" Click="OnProjectChooseGlyph"
                                       ToolTip.Tip="Type any character. The grid is a starting point, not a vocabulary." />
                             <!--
-                              Q30. Where an artist says a palette belongs to this
-                              part of the project. On the row rather than in the
-                              Colour panel, because the question is "what is this
-                              folder for", and the folder is what is under the
-                              pointer.
-                            -->
-                            <!--
-                              Q30. Declaring a preset here also says where one
-                              deliverable ends — the folder that declares it is
-                              the folder whose subtree becomes one file.
-                            -->
-                            <MenuItem Header="Export this as"
-                                      ItemsSource="{Binding Owner.ExportPresetMenu}"
-                                      ToolTip.Tip="How this folder is exported, and where one file ends">
-                              <MenuItem.ItemTemplate>
-                                <DataTemplate x:DataType="vm:ScopeMenuEntry">
-                                  <TextBlock Text="{Binding Label}" />
-                                </DataTemplate>
-                              </MenuItem.ItemTemplate>
-                              <MenuItem.Styles>
-                                <Style Selector="MenuItem > MenuItem" x:DataType="vm:ScopeMenuEntry">
-                                  <Setter Property="Command" Value="{Binding Command}" />
-                                  <Setter Property="CommandParameter" Value="{Binding Parameter}" />
-                                </Style>
-                              </MenuItem.Styles>
-                            </MenuItem>
-                            <!--
                               Q30. The plan was describable and not runnable:
                               PlanExport, DescribeExportPlan and RecordExport all
                               existed on the view model and no view called any of
@@ -2586,172 +2567,18 @@
                             <MenuItem Header="Read this folder…" Click="OnProjectReadSubject"
                                       ToolTip.Tip="Ask the model what this folder holds, from its sheets. Once per folder — the answer is kept and you can edit it." />
                             <!--
-                              Q30's declaration surface. Four kinds resolved
-                              correctly and could not be declared from anywhere
-                              an artist could point at, which reads as the app
-                              being inconsistent rather than as four missing
-                              menu entries. Same shape each time — a list of the
-                              project's own, a command that declares the chosen
-                              one — because they are the same gesture.
+                              The declaration surface lived here — five share
+                              submenus, an export preset, a template default,
+                              reference, reach and unshare — and moved to the
+                              project manager's Assets tab, which shows every
+                              scope at once and takes a drag from the asset
+                              library. A menu of twenty entries buried the six
+                              an artist uses while drawing; the one entry left
+                              points at where the rest went.
                             -->
-                            <MenuItem Header="Share a palette here"
-                                      ItemsSource="{Binding Owner.PaletteMenu}"
-                                      ToolTip.Tip="Everything under this folder paints from it">
-                              <MenuItem.ItemTemplate>
-                                <DataTemplate x:DataType="vm:ScopeMenuEntry">
-                                  <TextBlock Text="{Binding Label}" />
-                                </DataTemplate>
-                              </MenuItem.ItemTemplate>
-                              <MenuItem.Styles>
-                                <Style Selector="MenuItem > MenuItem" x:DataType="vm:ScopeMenuEntry">
-                                  <Setter Property="Command" Value="{Binding Command}" />
-                                  <Setter Property="CommandParameter" Value="{Binding Parameter}" />
-                                </Style>
-                              </MenuItem.Styles>
-                            </MenuItem>
-                            <MenuItem Header="Share a gradient here"
-                                      ItemsSource="{Binding Owner.GradientMenu}"
-                                      ToolTip.Tip="Everything under this folder can use it">
-                              <MenuItem.ItemTemplate>
-                                <DataTemplate x:DataType="vm:ScopeMenuEntry">
-                                  <TextBlock Text="{Binding Label}" />
-                                </DataTemplate>
-                              </MenuItem.ItemTemplate>
-                              <MenuItem.Styles>
-                                <Style Selector="MenuItem > MenuItem" x:DataType="vm:ScopeMenuEntry">
-                                  <Setter Property="Command" Value="{Binding Command}" />
-                                  <Setter Property="CommandParameter" Value="{Binding Parameter}" />
-                                </Style>
-                              </MenuItem.Styles>
-                            </MenuItem>
-                            <MenuItem Header="Share a symbol here"
-                                      ItemsSource="{Binding Owner.SymbolMenu}"
-                                      ToolTip.Tip="Narrows which symbols are offered under this folder. Symbols are project-wide until the first one is declared.">
-                              <MenuItem.ItemTemplate>
-                                <DataTemplate x:DataType="vm:ScopeMenuEntry">
-                                  <TextBlock Text="{Binding Label}" />
-                                </DataTemplate>
-                              </MenuItem.ItemTemplate>
-                              <MenuItem.Styles>
-                                <Style Selector="MenuItem > MenuItem" x:DataType="vm:ScopeMenuEntry">
-                                  <Setter Property="Command" Value="{Binding Command}" />
-                                  <Setter Property="CommandParameter" Value="{Binding Parameter}" />
-                                </Style>
-                              </MenuItem.Styles>
-                            </MenuItem>
-                            <MenuItem Header="Share a brush tip here"
-                                      ItemsSource="{Binding Owner.TipMenu}"
-                                      ToolTip.Tip="Narrows which of the project's tips are offered under this folder. Your own library and the built-ins are never narrowed.">
-                              <MenuItem.ItemTemplate>
-                                <DataTemplate x:DataType="vm:ScopeMenuEntry">
-                                  <TextBlock Text="{Binding Label}" />
-                                </DataTemplate>
-                              </MenuItem.ItemTemplate>
-                              <MenuItem.Styles>
-                                <Style Selector="MenuItem > MenuItem" x:DataType="vm:ScopeMenuEntry">
-                                  <Setter Property="Command" Value="{Binding Command}" />
-                                  <Setter Property="CommandParameter" Value="{Binding Parameter}" />
-                                </Style>
-                              </MenuItem.Styles>
-                            </MenuItem>
-                            <MenuItem Header="Share guides here"
-                                      ItemsSource="{Binding Owner.GuideSetMenu}"
-                                      ToolTip.Tip="Drawings under this folder can pull these guides in. The roadmap's character height guide is one of these and a declaration.">
-                              <MenuItem.ItemTemplate>
-                                <DataTemplate x:DataType="vm:ScopeMenuEntry">
-                                  <TextBlock Text="{Binding Label}" />
-                                </DataTemplate>
-                              </MenuItem.ItemTemplate>
-                              <MenuItem.Styles>
-                                <Style Selector="MenuItem > MenuItem" x:DataType="vm:ScopeMenuEntry">
-                                  <Setter Property="Command" Value="{Binding Command}" />
-                                  <Setter Property="CommandParameter" Value="{Binding Parameter}" />
-                                </Style>
-                              </MenuItem.Styles>
-                            </MenuItem>
-                            <!-- A default rather than a share: a scope starts new
-                                 documents from one template, so this replaces
-                                 where the three above accumulate. -->
-                            <MenuItem Header="New documents start from"
-                                      ItemsSource="{Binding Owner.TemplateMenu}"
-                                      ToolTip.Tip="Which template a new drawing made in this folder begins as">
-                              <MenuItem.ItemTemplate>
-                                <DataTemplate x:DataType="vm:ScopeMenuEntry">
-                                  <TextBlock Text="{Binding Label}" />
-                                </DataTemplate>
-                              </MenuItem.ItemTemplate>
-                              <MenuItem.Styles>
-                                <Style Selector="MenuItem > MenuItem" x:DataType="vm:ScopeMenuEntry">
-                                  <Setter Property="Command" Value="{Binding Command}" />
-                                  <Setter Property="CommandParameter" Value="{Binding Parameter}" />
-                                </Style>
-                              </MenuItem.Styles>
-                            </MenuItem>
-                            <!--
-                              References invert the gesture, and the reason is in
-                              ShareSelectedAsReference: the resource is an
-                              ordinary drawing, so a list hung off the folder
-                              would be every document in the project. You pick
-                              the drawing and say how far it reaches — which is
-                              also the only place ResourceReach.Project has a
-                              gesture, and workflows 3 and 4 are exactly that.
-                            -->
-                            <MenuItem Header="Use this as reference"
-                                      IsVisible="{Binding Owner.CanShareSelectedAsReference}">
-                              <MenuItem Header="For everything filed alongside it"
-                                        Click="OnShareAsReferenceHere" />
-                              <MenuItem Header="For the whole project"
-                                        Click="OnShareAsReferenceEverywhere"
-                                        ToolTip.Tip="One environment layout every drawing works against, wherever it is filed" />
-                            </MenuItem>
-                            <!--
-                              And the half that makes the rest safe to use.
-                              Declaring is one click and it switches a project
-                              from every-resource-everywhere to scoped; without
-                              this the only way to find out what a folder
-                              declared was to open a drawing and notice the
-                              picker had changed.
-                            -->
-            <!--
-                              Two flat lists rather than one list of declarations
-                              each opening onto its own verbs. A third level
-                              cannot carry the row as a CommandParameter through
-                              a Styles setter, and the flat form is the pattern
-                              every entry above already uses — the header is the
-                              verb, the list is what it acts on.
-                            -->
-                            <MenuItem Header="Stop sharing"
-                                      IsVisible="{Binding Owner.HasDeclarations}"
-                                      ItemsSource="{Binding Owner.UnshareMenu}"
-                                      ToolTip.Tip="What this row declares — not what it inherits from above">
-                              <MenuItem.ItemTemplate>
-                                <DataTemplate x:DataType="vm:ScopeMenuEntry">
-                                  <TextBlock Text="{Binding Label}" />
-                                </DataTemplate>
-                              </MenuItem.ItemTemplate>
-                              <MenuItem.Styles>
-                                <Style Selector="MenuItem > MenuItem" x:DataType="vm:ScopeMenuEntry">
-                                  <Setter Property="Command" Value="{Binding Command}" />
-                                  <Setter Property="CommandParameter" Value="{Binding Parameter}" />
-                                </Style>
-                              </MenuItem.Styles>
-                            </MenuItem>
-                            <MenuItem Header="Reach"
-                                      IsVisible="{Binding Owner.HasDeclarations}"
-                                      ItemsSource="{Binding Owner.ReachMenu}"
-                                      ToolTip.Tip="Published reaches every folder in the project; otherwise it reaches this subtree">
-                              <MenuItem.ItemTemplate>
-                                <DataTemplate x:DataType="vm:ScopeMenuEntry">
-                                  <TextBlock Text="{Binding Label}" />
-                                </DataTemplate>
-                              </MenuItem.ItemTemplate>
-                              <MenuItem.Styles>
-                                <Style Selector="MenuItem > MenuItem" x:DataType="vm:ScopeMenuEntry">
-                                  <Setter Property="Command" Value="{Binding Command}" />
-                                  <Setter Property="CommandParameter" Value="{Binding Parameter}" />
-                                </Style>
-                              </MenuItem.Styles>
-                            </MenuItem>
+                            <MenuItem Header="Share &amp; assets… (project manager)" Click="OnProjectWindowClicked"
+                                      ToolTip.Tip="Share palettes, gradients, brush tips, symbols and references onto folders — the project manager's Assets tab shows every scope at once" />
+                            <Separator />
                             <MenuItem Header="Remove from project" Click="OnProjectRemove"
                                       ToolTip.Tip="Take it out of the index. The file stays on disk." />
                             <!-- B87. Its own entry rather than a modifier on the
@@ -2802,6 +2629,16 @@
                                 ToolTip.Tip="Show or hide what is in this folder" />
                         <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}" FontSize="11"
                                    VerticalAlignment="Center" Margin="0,0,4,0" Opacity="0.7" />
+                        <!-- The kind's own word on asset rows — automatic, from
+                             AssetKinds, so a sheet reads as reference art here
+                             the same way it does in the project manager.
+                             Right-aligned beside the other row metadata, dim,
+                             because it is recognition rather than news. -->
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding Designation}"
+                                   IsVisible="{Binding HasDesignation}"
+                                   FontSize="9" Opacity="0.5" Margin="4,0,2,0"
+                                   VerticalAlignment="Center"
+                                   ToolTip.Tip="What kind of asset this is. Automatic — every asset of a kind wears the same word and glyph." />
                         <!-- Status as a dot, because the column has to read down at a
                              glance and a word per row would not. The tooltip names it. -->
                         <Border DockPanel.Dock="Right" Width="8" Height="8" CornerRadius="4"

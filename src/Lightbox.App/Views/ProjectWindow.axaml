@@ -223,6 +223,31 @@
             </ScrollViewer>
           </Border>
 
+          <!--
+            Creating from here rather than only from the docker, because the
+            window is where a production is structured — and structuring means
+            making the folders as well as arranging them. Same rule as the
+            docker's ＋ New (B85/B65): it lands where the selection is, the
+            name is asked first, and cancelling creates nothing. What is made
+            here is saved at once, so the docker and the disk both show it.
+          -->
+          <Border DockPanel.Dock="Top" Classes="bar">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Button Content="＋ New ▾" ToolTip.Tip="Create something in this project">
+                <Button.Flyout>
+                  <MenuFlyout>
+                    <MenuItem Header="🗀  Folder…" Click="OnNewFolder"
+                              ToolTip.Tip="A folder you name, inside the selected one" />
+                    <MenuItem Header="▣  Document…" Click="OnNewDocument"
+                              ToolTip.Tip="A drawing, in the selected folder" />
+                  </MenuFlyout>
+                </Button.Flyout>
+              </Button>
+              <TextBlock Classes="dim" VerticalAlignment="Center"
+                         Text="Lands where the selection is. Right-click a row does the same." />
+            </StackPanel>
+          </Border>
+
           <Grid DockPanel.Dock="Top" ColumnDefinitions="*,190,110,120,90,200" Margin="8,6,8,2">
             <TextBlock Grid.Column="0" Classes="head" Text="NAME" />
             <TextBlock Grid.Column="1" Classes="head" Text="TAGS" />
@@ -235,6 +260,16 @@
           <ListBox x:Name="StructureRows" ItemsSource="{Binding Rows}"
                    SelectionMode="Multiple"
                    Background="Transparent" BorderThickness="0" Margin="4">
+            <!-- Click rather than Command, the docker's rule: a flyout's items
+                 live in a popup, where a window binding resolves to nothing. -->
+            <ListBox.ContextFlyout>
+              <MenuFlyout>
+                <MenuItem Header="🗀  New folder…" Click="OnNewFolder"
+                          ToolTip.Tip="A folder you name, inside the selected one" />
+                <MenuItem Header="▣  New document…" Click="OnNewDocument"
+                          ToolTip.Tip="A drawing, in the selected folder" />
+              </MenuFlyout>
+            </ListBox.ContextFlyout>
             <ListBox.Styles>
               <Style Selector="ListBoxItem">
                 <Setter Property="Padding" Value="4,1" />
@@ -249,6 +284,13 @@
                     <Border Width="{Binding Indent}" />
                     <TextBlock Text="{Binding Glyph}" />
                     <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                    <!-- The kind's own word, automatic (AssetKinds), so an
+                         asset is recognisable as what it is before reading
+                         the row it happens to sit in. -->
+                    <Border Classes="chip" VerticalAlignment="Center"
+                            IsVisible="{Binding HasDesignation}">
+                      <TextBlock Text="{Binding Designation}" FontSize="10" />
+                    </Border>
                   </StackPanel>
 
                   <ItemsControl Grid.Column="1" ItemsSource="{Binding Tags}">
@@ -350,7 +392,48 @@
           -->
           <Border DockPanel.Dock="Top" Classes="bar">
             <TextBlock Classes="dim" TextWrapping="Wrap"
-                       Text="Every scope in the project, and what it declares. Nearest wins: a document beats its folder, a folder beats the project, the project beats your own defaults. Select a row to give it something; ✕ on a chip takes it back." />
+                       Text="Every scope in the project, and what it declares. Nearest wins: a document beats its folder, a folder beats the project, the project beats your own defaults. Select a row to give it something; drag an asset from the library onto a row; ✕ on a chip takes it back, ⤒ publishes it project-wide." />
+          </Border>
+          <!--
+            The library: what the project *has*, beside the table of what each
+            scope *declares*. Sheets, palettes, gradients, brush tips and
+            symbols — the things an artist recognises as things — each wearing
+            the designation and glyph AssetKinds gives its kind. Dragging one
+            onto a row connects the two: the folder it lands on feeds every
+            document below it (a sheet is refiled, everything else declared).
+          -->
+          <Border DockPanel.Dock="Right" Width="230" Classes="bar"
+                  IsVisible="{Binding HasLibrary}">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Top" Classes="head" Text="ASSETS" Margin="0,0,0,4" />
+              <TextBlock DockPanel.Dock="Top" Classes="dim" TextWrapping="Wrap" Margin="0,0,0,6"
+                         Text="Everything the project has. Drag one onto a scope — the folder it lands on feeds every document below it." />
+              <ListBox ItemsSource="{Binding Library}"
+                       Background="Transparent" BorderThickness="0">
+                <ListBox.Styles>
+                  <Style Selector="ListBoxItem">
+                    <Setter Property="Padding" Value="2,1" />
+                    <Setter Property="MinHeight" Value="24" />
+                  </Style>
+                </ListBox.Styles>
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:AssetEntry">
+                    <Border Background="Transparent" PointerPressed="OnAssetPressed">
+                      <DockPanel>
+                        <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}"
+                                   Margin="0,0,5,0" VerticalAlignment="Center" />
+                        <Border DockPanel.Dock="Right" Classes="chip" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Designation}" FontSize="10" />
+                        </Border>
+                        <TextBlock Text="{Binding Name}" FontSize="11"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" />
+                      </DockPanel>
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </DockPanel>
           </Border>
           <Border DockPanel.Dock="Bottom" Classes="bar" IsVisible="{Binding HasAssetScope}">
             <StackPanel Orientation="Horizontal" Spacing="6">
@@ -377,7 +460,14 @@
             </ListBox.Styles>
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:AssetScope">
-                <Grid ColumnDefinitions="260,*" MinHeight="22">
+                <!-- A drop target as well as a row: the library's assets land
+                     here. Background must be set or the empty part of the row
+                     is not hit-testable and the drop never arrives. -->
+                <Grid ColumnDefinitions="260,*" MinHeight="22"
+                      Background="Transparent"
+                      DragDrop.AllowDrop="True"
+                      DragDrop.DragOver="OnAssetDragOver"
+                      DragDrop.Drop="OnAssetDrop">
                   <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
                     <Border Width="{Binding Indent}" />
                     <TextBlock Text="{Binding Name}" FontSize="11"
@@ -392,9 +482,19 @@
                         <Border Classes="chip">
                           <StackPanel Orientation="Horizontal" Spacing="3">
                             <TextBlock FontSize="10">
-                              <Run Text="{Binding Resource.Kind}" FontWeight="SemiBold" />
+                              <Run Text="{Binding Glyph}" />
+                              <Run Text="{Binding Designation}" FontWeight="SemiBold" />
                               <Run Text="{Binding Name}" />
                             </TextBlock>
+                            <!-- The docker's Reach menu, as one click on the
+                                 chip it is about. Hidden on a document
+                                 declaration, which has nothing below it. -->
+                            <Button Content="{Binding ReachGlyph}" FontSize="9" Padding="2,0"
+                                    Background="Transparent" BorderThickness="0"
+                                    IsVisible="{Binding CanReach}"
+                                    Command="{Binding $parent[ListBox].((vm:ProjectWindowViewModel)DataContext).ToggleReachCommand}"
+                                    CommandParameter="{Binding}"
+                                    ToolTip.Tip="{Binding ReachHint}" />
                             <Button Content="✕" FontSize="9" Padding="2,0"
                                     Background="Transparent" BorderThickness="0"
                                     Command="{Binding $parent[ListBox].((vm:ProjectWindowViewModel)DataContext).UndeclareOnScopeCommand}"

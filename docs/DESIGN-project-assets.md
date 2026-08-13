@@ -110,6 +110,14 @@ because it is string substitution over a tree walk.
 
 `Design` → `Draft` → `InDevelopment` → `Review` → `Ready`, plus `Reopened`.
 
+One refinement since (owner request, 2026-08-13): **a new document becomes
+`Draft` on its first save** — the write that first puts its file on disk, in
+`ProjectIo.Save` — so fresh work enters the pipeline by itself. First write
+only, and only when the status is null: a document already on disk without a
+status is imported or predates statuses, and backfilling it would invent a
+pipeline position nobody chose. Clearing a status back to null still sticks,
+so "nobody has said" remains sayable.
+
 Three things make this worth more than a label:
 
 1. **It lives on the manifest, not in the document.** Marking something Ready must

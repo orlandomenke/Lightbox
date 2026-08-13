@@ -32,6 +32,10 @@ public partial class ProjectWindow : Window
     public ProjectWindow(Project project, Action? changed = null)
     {
         _vm = new ProjectWindowViewModel(project, changed);
+        // B65's split, same as the docker: the window supplies the dialog and
+        // the decision lives on the view model, so the cancel path is testable.
+        _vm.AskName = (kind, suggested) =>
+            TextPrompt.ShowAsync(this, $"New {kind}", "Name", suggested);
         DataContext = _vm;
         InitializeComponent();
 
@@ -40,6 +44,12 @@ public partial class ProjectWindow : Window
             rows.SelectionChanged += OnStructureSelectionChanged;
         }
     }
+
+    /// <summary>
+    /// The window's state, so the owner can supply what creation needs — the
+    /// blank-document factory, the dirty mark, the save.
+    /// </summary>
+    public ProjectWindowViewModel ViewModel => _vm;
 
     /// <summary>Parameterless for the designer and the XAML compiler only.</summary>
     public ProjectWindow()
@@ -129,5 +139,59 @@ public partial class ProjectWindow : Window
         if (sender is not Control { DataContext: StatusColumn column }) return;
         e.Handled = true;
         _vm.MoveToStatus((row, column.Status));
+    }
+
+    // ---- creating structure from the window --------------------------------------
+
+    // Click rather than Command, the docker's rule for the same control: a
+    // flyout's items live in a popup, so a binding there is a coin flip that
+    // lands wrong. The handlers are one line each; the sequence they start is
+    // on the view model where a test can drive it.
+    private async void OnNewFolder(object? sender, RoutedEventArgs e) =>
+        await _vm.CreateFolderAsync();
+
+    private async void OnNewDocument(object? sender, RoutedEventArgs e) =>
+        await _vm.CreateDocumentAsync();
+
+    // ---- dragging an asset from the library onto a scope --------------------------
+
+    /// <summary>What is being dragged, so the drop knows which asset lands.</summary>
+    private AssetEntry? _draggedAsset;
+
+    /// <summary>In-process, like the status card's — the drop reads the field.</summary>
+    private static readonly DataFormat<string> AssetFormat =
+        DataFormat.CreateInProcessFormat<string>("lightbox-asset");
+
+    private async void OnAssetPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not Control { DataContext: AssetEntry asset }) return;
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+
+        _draggedAsset = asset;
+        try
+        {
+            var transfer = new DataTransfer();
+            transfer.Add(DataTransferItem.Create(AssetFormat, asset.Id));
+            await DragDrop.DoDragDropAsync(e, transfer, DragDropEffects.Move);
+        }
+        catch (Exception ex)
+        {
+            Rendering.CanvasControl.LogDiag("asset-drag", ex);
+        }
+        finally
+        {
+            _draggedAsset = null;
+        }
+    }
+
+    private void OnAssetDragOver(object? sender, DragEventArgs e) =>
+        e.DragEffects = _draggedAsset is null ? DragDropEffects.None : DragDropEffects.Move;
+
+    private void OnAssetDrop(object? sender, DragEventArgs e)
+    {
+        if (_draggedAsset is not { } asset) return;
+        if (sender is not Control { DataContext: AssetScope scope }) return;
+        e.Handled = true;
+        _vm.DropOnScope(asset, scope);
     }
 }

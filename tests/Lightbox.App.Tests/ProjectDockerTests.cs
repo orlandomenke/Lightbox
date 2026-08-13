@@ -1304,6 +1304,10 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         Assert.True(row.IsSheet);
         Assert.False(row.IsHeading);
         Assert.Equal("▤", row.Glyph);
+        // The kind's own word, automatic (AssetKinds) — the docker names the
+        // asset the same way the project manager does.
+        Assert.Equal("Reference", row.Designation);
+        Assert.True(row.HasDesignation);
         // Under its folder, indented like the documents beside it.
         Assert.Equal(knight.Id, row.Folder!.Id);
 
@@ -1339,6 +1343,38 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         Assert.Equal(goblin.Id, entry.FolderId);
         Assert.False(File.Exists(Path.Combine(_root, "knight", "knight-sheet.sheet.json")));
         Assert.True(File.Exists(Path.Combine(_root, "goblin", "knight-sheet.sheet.json")));
+    }
+
+    /// <summary>
+    /// A new document's Draft orb appears the moment the save writes it,
+    /// without waiting for something else to rebuild the tree.
+    /// </summary>
+    /// <remarks>
+    /// The save gives first-written documents their Draft status
+    /// (<c>ProjectIo.Save</c>), and the rows mirror the manifest rather than
+    /// reading it — so <c>MarkAllSaved</c> has to carry the change across, the
+    /// same way it already carries the pending flags. Without that line this
+    /// asserts on a row still showing nothing, which is B79's shape: a badge
+    /// outliving its reason, in reverse.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ASavedNewDocumentShowsItsDraftOrbAtOnce()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        WithKnight(vm);
+        var docker = vm.ProjectDocker;
+        docker.Selected = docker.Rows.First(r => r.IsFolder);
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "fresh");
+        var row = docker.Rows.Single(r => r.Animation?.Name == "fresh");
+        Assert.Null(row.Status);   // in the project, not yet in the pipeline
+
+        vm.SaveProject();
+
+        output.WriteLine($"row status after save: {row.Status}");
+        Assert.Equal(AssetStatus.Draft, row.Animation!.Status);
+        Assert.Equal(AssetStatus.Draft, row.Status);
+        Assert.True(row.HasStatus);
     }
 
     private static string MainWindowXaml()
