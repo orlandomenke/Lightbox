@@ -1582,6 +1582,22 @@ public sealed partial class MainViewModel : ObservableObject
         // a view taped onto the canvas is re-flattened the moment its sheet
         // is edited (Q69 chose live over snapshot). No linked strip, no cost.
         RefreshLinkedReferenceStrips();
+        // The guard sits here as well as inside MarkActiveTabEdited because it
+        // has always covered the rebake too: mid-switch there is no playhead
+        // worth baking against, and the arriving tab re-runs this funnel.
+        if (_switchingTabs || ActiveTab is null) return;
+        MarkActiveTabEdited();
+        RebakeLiveSamples();
+    }
+
+    /// <summary>
+    /// The bookkeeping half of <see cref="MarkDocumentEdited"/>: which tab and
+    /// which project source now carry unsaved work. Split out so a change that
+    /// dirties the file without touching a pixel (a reference dial, B191) can
+    /// say so without paying for the pixel-derived machinery above.
+    /// </summary>
+    private void MarkActiveTabEdited()
+    {
         if (_switchingTabs || ActiveTab is not { } tab) return;
         // Here rather than in OnDocumentChanged: stroke commits take that
         // method's scoped-edit early return, and a stroke is exactly the edit
@@ -1626,7 +1642,6 @@ public sealed partial class MainViewModel : ObservableObject
                 tab.RefreshDirty();
                 break;
         }
-        RebakeLiveSamples();
     }
 
     /// <summary>
@@ -12092,7 +12107,41 @@ public sealed partial class MainViewModel : ObservableObject
         // treatment layer visibility gets.
         apply(strip, value);
         OnPropertyChanged(property);
-        AfterReferenceChange();
+        AfterReferenceViewTweak();
+    }
+
+    /// <summary>
+    /// A reference dial moved — opacity, scale, visibility: repaint and mark
+    /// the file dirty, and touch nothing that is derived from the artwork.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B191.</b> These setters used to run <see cref="AfterReferenceChange"/>,
+    /// whose <see cref="MarkDocumentEdited"/> half re-bakes every
+    /// all-layers-live stroke at the playhead — a full-canvas compose and a
+    /// PNG encode per stroke — and whose direct <see cref="PublishSnapshot"/>
+    /// replays the whole frame when such a stroke is on it, because a live
+    /// frame is never cached. A slider drag fires per pointer tick, so a
+    /// painted-on document turned each tick into hundreds of milliseconds of
+    /// UI-thread work and the drag into minutes of queued replays: the
+    /// reported freeze, and the allocation storm behind the crash after it.
+    /// </para>
+    /// <para>
+    /// A strip is not a layer: no live bake, no linked-strip flatten and no
+    /// reference-view PNG can see its opacity, scale or visibility, so
+    /// skipping that machinery drops no derived state. What a dial does still
+    /// owe is the repaint — through <see cref="RequestSnapshot"/>, so a drag
+    /// coalesces to the canvas's pace instead of publishing per tick — and
+    /// the unsaved-changes bookkeeping, which is the funnel's cheap half.
+    /// </para>
+    /// </remarks>
+    private void AfterReferenceViewTweak()
+    {
+        NotifyReference();
+        RequestSnapshot();
+        _autosave.MarkDirty();
+        MarkActiveTabEdited();
+        ReferenceChanged?.Invoke();
     }
 
     /// <summary>
