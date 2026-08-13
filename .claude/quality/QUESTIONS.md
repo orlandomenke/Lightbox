@@ -2710,7 +2710,7 @@ Four questions, four answers:
    Implementation starts as its own branches per the one-objective rule.
 
 
-## Q73 · Decomposing the two big view files: which tool, which file first, and whether to cap growth — **answered 2026-08-13**
+## Q76 · Decomposing the two big view files: which tool, which file first, and whether to cap growth — **answered 2026-08-13**
 
 **Asked with the question prompt after a review of `MainViewModel.cs`,
 `MainWindow.axaml.cs` and `docs/DESIGN-mainviewmodel-decomposition.md`; all three
@@ -2767,7 +2767,7 @@ Three questions, three answers:
    hatch — raising the number in a diff is the visible form of the same decision,
    which is the reasoning behind `LIGHTBOX_PUSH_TO_MAIN` applied to a line count.
 
-## Q74 · Naming Tier 0: which cluster, in how many steps, who owns the state, and where B73 lives — **answered 2026-08-13**
+## Q77 · Naming Tier 0: which cluster, in how many steps, who owns the state, and where B73 lives — **answered 2026-08-13**
 
 **Asked with the question prompt before any code was written; all four answers
 took the recommendation.** Step 3 of
@@ -2863,7 +2863,7 @@ budget that rises once for documentation and falls by 222 for an extraction is d
 its job; one that only ever rises is a comment.
 
 **Answer 1's second half — the render core — has since been carried out, and it
-contradicted the plan recorded above.** Q74 said that cluster wanted "an
+contradicted the plan recorded above.** Q77 said that cluster wanted "an
 orchestrator holding those six collaborators, not a new owner of state". Reading
 `PublishSnapshot` end to end says otherwise on two counts, and both are worth
 keeping because the mistake is a reusable one:
@@ -2895,7 +2895,7 @@ difference between `InvalidateWholeCanvas` and `RepaintEverythingThisPublish` �
 fold transition needs the flag without losing the fingerprint, which is "equivalent
 today" only because no early return sits between the two points in `PublishSnapshot`.
 
-## Q75 · The leaf plan tops out near 9,700 lines — extract, partial-split, or accept? — **answered 2026-08-13: finish the Tier 1 leaves, against the recommendation**
+## Q78 · The leaf plan tops out near 9,700 lines — extract, partial-split, or accept? — **answered 2026-08-13: finish the Tier 1 leaves, against the recommendation**
 
 **Asked after five steps of decomposition moved `MainViewModel.cs` from 13,110 to
 12,878 — 1.8% — and the owner asked whether the file staying humongous is a
@@ -2912,7 +2912,7 @@ a mood:
   4,743. Leaves come out at 150–590 lines each, which cannot outrun the total.
 
 **The recommendation was to partial-split the view model now**, applying the half of
-Q73 that has only ever been used on the view: measured, **52 of the 61 sections
+Q76 that has only ever been used on the view: measured, **52 of the 61 sections
 (9,089 lines) move with no grouping at all**, 36 fields stay in the root, and 9
 sections need a sibling. That is the same shape as `MainWindow.axaml.cs`, which went
 5,544 → 429 in one branch with the class body proven byte-identical. Tier 0 is what
@@ -2940,7 +2940,7 @@ extractions are the evidence that the owner is where the value is.
 The partial split is not refused, only deferred — it remains the move that answers
 the size question, and this entry is what stops it being re-litigated from scratch.
 
-**Q75's leaf pass finished at two AI-path extractions, reviewed by the G12 pair.**
+**Q78's leaf pass finished at two AI-path extractions, reviewed by the G12 pair.**
 `ConfiguredArtist` took the four provider fields (`_artist`, the two labels, the
 enabled flag) and the one operation that sets them together; `ReferenceViewImages`
 took the reference-view PNG cache, the render, the downscale and the 768 px request
@@ -2978,7 +2978,7 @@ the new one, and which is correct is a question about what a provider swap means
 mid-request rather than about null-safety. That is the "needs a decision" row of the
 fix-rather-than-file rule, and it belongs in its own branch with its own question.
 
-**The deferred half of Q75 was then done, and it is what answered the size question.**
+**The deferred half of Q78 was then done, and it is what answered the size question.**
 `MainViewModel.cs` 12,749 → **655** lines across 19 partials, in two separately
 verified steps.
 

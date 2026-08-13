@@ -16,7 +16,7 @@ namespace Lightbox.App.ViewModels;
 /// one word apart.
 /// </para>
 /// <para>
-/// Tier 1 of <c>docs/DESIGN-mainviewmodel-decomposition.md</c>, extracted under Q75.
+/// Tier 1 of <c>docs/DESIGN-mainviewmodel-decomposition.md</c>, extracted under Q78.
 /// Four fields that were loose on <see cref="MainViewModel"/> — the artist, the
 /// provider label, the model label and the enabled flag — and the one operation that
 /// sets all four together.

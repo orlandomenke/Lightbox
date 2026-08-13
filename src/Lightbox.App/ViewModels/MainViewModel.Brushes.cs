@@ -18,7 +18,7 @@ namespace Lightbox.App.ViewModels;
 
 /// <summary>The brush in hand: its cursor, the two working configurations, dynamics, smudge, medium, pressure and tip.</summary>
 /// <remarks>
-/// Split out of <c>MainViewModel.cs</c> under Q75, which was 12,749 lines across 61
+/// Split out of <c>MainViewModel.cs</c> under Q78, which was 12,749 lines across 61
 /// sections. Every field this file uses is either declared here — meaning no other
 /// section touches it — or in the shared-state block at the top of
 /// <c>MainViewModel.cs</c>. See <c>docs/DESIGN-mainviewmodel-decomposition.md</c>.

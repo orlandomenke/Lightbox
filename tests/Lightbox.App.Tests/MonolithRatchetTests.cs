@@ -95,7 +95,7 @@ public class MonolithRatchetTests(ITestOutputHelper output)
     /// that only ever goes up is a comment.
     /// </para>
     /// <para>
-    /// <b>And then 12,749 → 655, when the class was split into nineteen partials (Q75).</b>
+    /// <b>And then 12,749 → 655, when the class was split into nineteen partials (Q78).</b>
     /// That is the end of this budget's usefulness rather than a milestone in it: the file
     /// it was guarding no longer exists in the form that needed guarding.
     /// </para>

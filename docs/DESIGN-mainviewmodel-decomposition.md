@@ -91,7 +91,7 @@ the *easy* sections. They were split precisely because they were already loose,
 so nothing here proves the shape tool would behave the same way. It would not —
 it reaches 30 foreign fields.
 
-**So the tool is chosen per section by what the fields say** (Q73):
+**So the tool is chosen per section by what the fields say** (Q76):
 
 | If a section… | then |
 | --- | --- |
@@ -202,7 +202,7 @@ Two clusters must be named before anything large moves. Neither is a leaf,
 neither should be split internally, and both want collaborators rather than
 partials.
 
-**Both are now named** (Q74), which was step 3 and is **done**. Naming was a pure
+**Both are now named** (Q77), which was step 3 and is **done**. Naming was a pure
 code-motion change: no line of code was altered, verified by showing the file
 identical as a multiset of lines. The extraction is the next branch.
 
@@ -353,10 +353,10 @@ one-liners, which *adds* lines here while moving a body out. **Only 55 private f
 can genuinely move.**
 
 So the earlier estimate that all ten leaves would take the file to ~9,676 was
-optimistic; the realistic floor is nearer 11,000–11,500. Leaves still buy what Q75
+optimistic; the realistic floor is nearer 11,000–11,500. Leaves still buy what Q78
 chose them for — 55 fields getting an owner, and mechanisms like "decide once, then
 hold" becoming testable on their own — but they do not answer the size question. The
-partial split (Q75) is what answers that, and it remains deferred rather than refused.
+partial split (Q78) is what answers that, and it remains deferred rather than refused.
 
 **Guides is also two features, which is why it measured 533 lines.** A
 `// ---- imported references ----` marker sat 190 lines above its own content with
@@ -409,7 +409,7 @@ call, byte-identical each time). Both touch an AI path in the view model, so **c
 gate G12 applies to both** — `ai-engineer` and `art-director` on the diff, not
 optional.
 
-**The recommendation after this measurement is the partial split** (Q75), which is
+**The recommendation after this measurement is the partial split** (Q78), which is
 what the remaining size problem actually responds to. The leaf route has given what
 it has to give.
 
@@ -508,16 +508,16 @@ touches the paint path.
 1. ~~**The ratchet.**~~ **Done.** Stops the files growing while the rest proceeds.
 2. ~~**Split `MainWindow.axaml.cs` into partials**~~ **Done** — 5,544 → 429 across
    fifteen partials, budget lowered to 429 in the same commit.
-3. ~~**Name Tier 0**~~ **Done** (Q74) — the live-paint engine moved next to its
+3. ~~**Name Tier 0**~~ **Done** (Q77) — the live-paint engine moved next to its
    state, the render core got a marker, `RequestSnapshot` moved beside
    `PublishSnapshot`. Pure code motion; nothing executes differently.
-4. ~~**Extract `LivePaintSession`**~~ **Done** (Q74) — 22 fields and four lifecycle
+4. ~~**Extract `LivePaintSession`**~~ **Done** (Q77) — 22 fields and four lifecycle
    methods left the class. `MainViewModel.cs` 13,141 → 12,919, private fields
    143 → 122, and single-section fields 53% → **63%**.
 5. ~~**Extract the render orchestrator**~~ **Done, and not as an orchestrator** —
    `PublishState` took the seven bookkeeping fields; the sequencing stayed put, for
    the reasons above. `MainViewModel.cs` 12,919 → 12,878, fields 122 → 118.
-6. **Tier 1 leaves**, one per branch (Q75). **In progress** — `GuideSnap` landed
+6. **Tier 1 leaves**, one per branch (Q78). **In progress** — `GuideSnap` landed
    first. **Read the correction under the table before planning the rest.**
 7. **Tier 2 clusters** as collaborators; Tier 3 is now unblocked — its sections have
    a named hub to take as a parameter.

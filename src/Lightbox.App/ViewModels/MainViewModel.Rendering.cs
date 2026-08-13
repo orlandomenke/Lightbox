@@ -18,7 +18,7 @@ namespace Lightbox.App.ViewModels;
 
 /// <summary>Tier 0's render and publish core: compose, route, hand off.</summary>
 /// <remarks>
-/// Split out of <c>MainViewModel.cs</c> under Q75, which was 12,749 lines across 61
+/// Split out of <c>MainViewModel.cs</c> under Q78, which was 12,749 lines across 61
 /// sections. Every field this file uses is either declared here — meaning no other
 /// section touches it — or in the shared-state block at the top of
 /// <c>MainViewModel.cs</c>. See <c>docs/DESIGN-mainviewmodel-decomposition.md</c>.
@@ -40,7 +40,7 @@ public partial class MainViewModel
     // prewarm drive. So when this cluster is extracted it wants an orchestrator
     // holding those six, not a new owner of state.
     //
-    // RequestSnapshot sits at the head of it deliberately (Q74): it schedules a
+    // RequestSnapshot sits at the head of it deliberately (Q77): it schedules a
     // publish, so it belongs beside PublishSnapshot rather than with the paint
     // path that calls it. Its DispatcherPriority.Input is B73 and does not fail
     // loudly — see its own remarks before touching it.

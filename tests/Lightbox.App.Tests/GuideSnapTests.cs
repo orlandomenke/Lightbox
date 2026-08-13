@@ -10,7 +10,7 @@ namespace Lightbox.App.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <c>GuideSnap</c> was extracted from <c>MainViewModel</c> under Q75. The geometry it
+/// <c>GuideSnap</c> was extracted from <c>MainViewModel</c> under Q78. The geometry it
 /// calls — <see cref="Snapper"/> — is already tested; what was never testable on its
 /// own is the part with memory, because reaching it meant driving a whole stroke
 /// through the view model.

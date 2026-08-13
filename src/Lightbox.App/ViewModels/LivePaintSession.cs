@@ -8,7 +8,7 @@ namespace Lightbox.App.ViewModels;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Tier 0 of <c>docs/DESIGN-mainviewmodel-decomposition.md</c>, extracted per Q74.
+/// Tier 0 of <c>docs/DESIGN-mainviewmodel-decomposition.md</c>, extracted per Q77.
 /// Twenty-two fields that lived in <see cref="MainViewModel"/> live here instead,
 /// in the manner of <see cref="SelectionManager"/>: one long-lived object, owned by
 /// the view model for its lifetime, so nothing on the paint path allocates a

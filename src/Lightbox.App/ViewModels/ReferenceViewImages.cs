@@ -11,7 +11,7 @@ namespace Lightbox.App.ViewModels;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Tier 1 of <c>docs/DESIGN-mainviewmodel-decomposition.md</c>, extracted under Q75
+/// Tier 1 of <c>docs/DESIGN-mainviewmodel-decomposition.md</c>, extracted under Q78
 /// from inside the <c>character sheets</c> section — which owned almost nothing else,
 /// being 590 lines of public API over document state. This is the part of it with a
 /// job.

@@ -10,7 +10,7 @@ namespace Lightbox.App.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <c>LivePaintSession</c> was extracted from <c>MainViewModel</c> under Q74. The
+/// <c>LivePaintSession</c> was extracted from <c>MainViewModel</c> under Q77. The
 /// extraction itself is guarded by the 71 test files that construct a view model and
 /// paint through it — if a field had been dropped or mis-wired, a live-preview test
 /// would have gone red. What those tests do <b>not</b> guard is the part with no

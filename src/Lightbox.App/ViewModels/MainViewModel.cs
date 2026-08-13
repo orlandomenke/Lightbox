@@ -261,7 +261,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>What has changed since the last publish, and what the last publish
     /// was: the dirty region, the viewport, the sequence and the on-screen
-    /// fingerprint. Seven fields that belonged to nothing — see PublishState (Q74).</summary>
+    /// fingerprint. Seven fields that belonged to nothing — see PublishState (Q77).</summary>
     private readonly PublishState _publish = new();
 
     /// <summary>What the canvas says it can display: document pixels per screen pixel.</summary>
@@ -510,7 +510,7 @@ public sealed partial class MainViewModel : ObservableObject
     //
     // Every field below is touched by more than one section, so it lives here rather
     // than in one of the partials beside this file. That is the whole rule of the
-    // split (Q75): a section's own state travels with it, shared state does not move.
+    // split (Q78): a section's own state travels with it, shared state does not move.
     // Nothing here changed except where it is declared.
     //
     // The count is the honest measure of how coupled this class still is: 54 of 114
@@ -522,7 +522,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// Character-sheet views flattened to PNG for AI reference and MCP, cached until the
-    /// document changes (B31). Extracted to ReferenceViewImages under Q75.
+    /// document changes (B31). Extracted to ReferenceViewImages under Q78.
     /// </summary>
     private readonly ReferenceViewImages _referenceImages;
 
@@ -613,7 +613,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// Which provider is configured and the artist it makes — four fields that moved
-    /// together to ConfiguredArtist (Q75), because a label describing one provider beside
+    /// together to ConfiguredArtist (Q78), because a label describing one provider beside
     /// an artist built from another is wrong in the direction nobody checks.
     /// </summary>
     private ConfiguredArtist _ai = new();
@@ -642,7 +642,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// Whether the stroke in progress has committed to a guide, and which one — the
-    /// "decide once, then hold" state machine, extracted to GuideSnap (Q75).
+    /// "decide once, then hold" state machine, extracted to GuideSnap (Q78).
     /// </summary>
     private readonly GuideSnap _guideSnap = new();
 

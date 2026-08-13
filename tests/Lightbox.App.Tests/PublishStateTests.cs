@@ -10,7 +10,7 @@ namespace Lightbox.App.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <c>PublishState</c> was extracted from <c>MainViewModel</c> under Q74. Most of it is
+/// <c>PublishState</c> was extracted from <c>MainViewModel</c> under Q77. Most of it is
 /// guarded already — <c>DirtyRegionTests</c>, <c>StrokeLatencyTests</c> and the
 /// live-preview pixel tests all fail if a publish repaints the wrong rectangle. What
 /// they cannot see is the shape of the failure this class exists to prevent, because

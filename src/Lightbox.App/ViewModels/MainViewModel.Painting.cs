@@ -18,7 +18,7 @@ namespace Lightbox.App.ViewModels;
 
 /// <summary>Pinned ghosts, the stabilizer, and the live-paint engine with its post-processing.</summary>
 /// <remarks>
-/// Split out of <c>MainViewModel.cs</c> under Q75, which was 12,749 lines across 61
+/// Split out of <c>MainViewModel.cs</c> under Q78, which was 12,749 lines across 61
 /// sections. Every field this file uses is either declared here — meaning no other
 /// section touches it — or in the shared-state block at the top of
 /// <c>MainViewModel.cs</c>. See <c>docs/DESIGN-mainviewmodel-decomposition.md</c>.
@@ -592,7 +592,7 @@ public partial class MainViewModel
     // ---- painting -----------------------------------------------------------
     //
     // Tier 0 of docs/DESIGN-mainviewmodel-decomposition.md, and now extracted: the
-    // state it used to hold — 22 fields — belongs to LivePaintSession (Q74), and
+    // state it used to hold — 22 fields — belongs to LivePaintSession (Q77), and
     // what stays here is the engine that drives it: MoveStroke, FlushLivePreview,
     // StampLiveDabs, StampLiveSmudge, EndStroke. Those stay because they also need
     // the editor, the frame cache, the brush settings and the stroke builder, and
@@ -686,7 +686,7 @@ public partial class MainViewModel
     private string _penDiagnostic = "No input seen yet — draw a stroke.";
 
     // The state of the stroke under the pen — scratch bitmaps, dab bookkeeping,
-    // the live post-process draft. Extracted to LivePaintSession per Q74: it was
+    // the live post-process draft. Extracted to LivePaintSession per Q77: it was
     // 22 fields with no owner, and the engine below is what drives them.
 
     /// <summary>All coalesced samples of one pointer event → one stamp + one (coalesced) repaint.</summary>
