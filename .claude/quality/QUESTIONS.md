@@ -2939,3 +2939,41 @@ extractions are the evidence that the owner is where the value is.
 
 The partial split is not refused, only deferred — it remains the move that answers
 the size question, and this entry is what stops it being re-litigated from scratch.
+
+**Q75's leaf pass finished at two AI-path extractions, reviewed by the G12 pair.**
+`ConfiguredArtist` took the four provider fields (`_artist`, the two labels, the
+enabled flag) and the one operation that sets them together; `ReferenceViewImages`
+took the reference-view PNG cache, the render, the downscale and the 768 px request
+cap. `MainViewModel.cs` 12,852 → 12,736.
+
+**`ai-engineer`: CLEAN.** Verified member-by-member against `HEAD` — same disposal
+order, cap applied at exactly one site, invalidation still inside `MarkDocumentEdited`
+rather than `OnDocumentChanged`, no seed/clock/ordering introduced, and the in-flight
+`CancellationTokenSource` correctly left on the view model so a provider swap
+mid-request cannot inherit the previous request's cancellation.
+
+**`art-director`: ACCEPTABLE, with one finding that was right and is now fixed.** The
+extraction copied the sentence "Line art survives the downscale" into the new class's
+header — a claim `docs/DESIGN-ai-payload.md` already contradicts: face close-ups
+rendered through this exact path at 768 lose eyebrows and turn eyes to grey smudges,
+because mipmapped minification greys a thin dark line toward the ground. **Q27 is
+answered (d) — choose the cap per view — and this refactor had quietly given a flat
+768 a more authoritative-looking home than it had before.** The remarks now carry the
+failure mode, name Q27 as the settled answer, and record its three conditions (the
+cap is shown per view, a view can be pinned, the heuristic is a pure function of the
+view). Q27's heuristic is still unbuilt; this is the placeholder saying so.
+
+**The lesson worth keeping:** a pure code move can still make a claim worse, because
+moving prose into a smaller, better-named file makes it read as more settled than it
+was. Neither the compiler nor the suite can see that, and it is what the pair is for.
+
+**One pre-existing issue surfaced and deliberately not fixed here.** `ai-engineer`
+noted that `_ai.Artist` is dereferenced inside the request lambdas without
+re-narrowing after the `is null` guard, so a `ReloadAiProvider()` landing between the
+guard and the lambda's invocation would throw. Identical in shape to the code before
+this refactor, so not introduced. **Not fixed because it needs a decision, not a
+patch:** capturing the artist at the guard makes a request that started before a
+provider swap finish on the old provider, while dereferencing late makes it finish on
+the new one, and which is correct is a question about what a provider swap means
+mid-request rather than about null-safety. That is the "needs a decision" row of the
+fix-rather-than-file rule, and it belongs in its own branch with its own question.

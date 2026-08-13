@@ -597,7 +597,8 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Test seam: inject a fake artist (or null for "no API key").</summary>
     public MainViewModel(IAiArtist? artist)
     {
-        _artist = artist;
+        _ai = new ConfiguredArtist(artist);
+        _referenceImages = new ReferenceViewImages(_cache);
         // Nothing is open. The application no longer invents a document to sit
         // behind the start screen, because Cancel then adopted a canvas nobody
         // chose — the artist got a 960×540 they never asked for, and only
@@ -1535,7 +1536,7 @@ public sealed partial class MainViewModel : ObservableObject
         // B31: the encoded reference views are only valid while the drawing is. This is the
         // funnel that sees a stroke commit — OnDocumentChanged returns early for those — so a
         // cache invalidated anywhere else would hand a model art that had since changed.
-        InvalidateReferenceViewCache();
+        _referenceImages.Invalidate();
         DocumentEdited?.Invoke();
         // Same funnel, same reason, pointed at the canvas instead of the AI:
         // a view taped onto the canvas is re-flattened the moment its sheet
@@ -2078,48 +2079,11 @@ public sealed partial class MainViewModel : ObservableObject
         },
     };
 
-    /// <summary>Flatten one character-sheet view to PNG (for AI reference and MCP).</summary>
     /// <summary>
-    /// The longest edge of a reference image sent to a model.
+    /// Character-sheet views flattened to PNG for AI reference and MCP, cached until the
+    /// document changes (B31). Extracted to ReferenceViewImages under Q75.
     /// </summary>
-    /// <remarks>
-    /// <b>Capped on the way out, never on the view.</b> An artist's sheet stays whatever size
-    /// they drew it; this is only what leaves the machine. Providers bill by area regardless
-    /// of file size, so per `docs/DESIGN-ai-payload.md` a 768 px long edge is **442 image
-    /// tokens against 691, and 244 KB against 333 KB** for a 960×540 view. Line art survives
-    /// the downscale — it is the shape the model is being asked to read, not the pixels.
-    /// </remarks>
-    private const int ReferenceLongEdge = 768;
-
-    /// <summary>
-    /// Encoded reference views, keyed by view id.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// B31. <c>Compose</c> + PNG + base64 cost <b>52 ms for one 960×540 view</b>, and it ran
-    /// on the UI thread before every AI call — about 100 ms of stall for the default two
-    /// views, producing byte-identical output each time because the sheet had not changed.
-    /// <c>_cache.Get</c> already memoised the per-layer render; what was uncached was the
-    /// expensive half.
-    /// </para>
-    /// <para>
-    /// <b>Invalidated from <see cref="MarkDocumentEdited"/>, not <c>OnDocumentChanged</c>.</b>
-    /// The bug entry proposed the latter and it would have been wrong in the dangerous
-    /// direction: <c>OnDocumentChanged</c> takes an early return for scoped edits, and a
-    /// stroke commit is exactly that — so a cache hung off it would survive the edit and hand
-    /// the model a picture of art the artist had already changed. Wrong quietly, which is
-    /// worse than slow. <c>MarkDocumentEdited</c> exists precisely because it catches what the
-    /// other one misses, and its own comment says so.
-    /// </para>
-    /// <para>
-    /// Cleared wholesale rather than per view, because over-invalidating costs one re-encode
-    /// and under-invalidating costs correctness.
-    /// </para>
-    /// </remarks>
-    private readonly Dictionary<string, string> _referenceViewPngs = new(StringComparer.Ordinal);
-
-    /// <summary>Throw away encoded reference views — something in the document moved.</summary>
-    private void InvalidateReferenceViewCache() => _referenceViewPngs.Clear();
+    private readonly ReferenceViewImages _referenceImages;
 
     /// <summary>
     /// Run the edit funnel, for a test that changes the model directly.
@@ -2134,72 +2098,22 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>One view as base64 PNG, at the size it was drawn.</summary>
     /// <remarks>
-    /// <b>Uncapped, and that is the contract.</b> This overload is what the MCP surface answers
-    /// <c>render_reference_view</c> with, and an agent asking for a picture of a view should get
-    /// the view — the 768 px cap belongs to an AI *request*, where it exists because providers
-    /// bill by area. Capping here instead shrank the MCP reply as a side effect of B31 and was
-    /// caught by <c>RenderReferenceView_ProducesDecodablePng</c>, which had asserted the
-    /// authored width since the feature landed. The cap is applied at
-    /// <see cref="EncodedReferenceView"/>, one call site, where the reason for it is true.
+    /// <b>Uncapped, and that is the contract.</b> This is what the MCP surface answers
+    /// <c>render_reference_view</c> with, and an agent asking for a picture of a view should
+    /// get the view — the 768 px cap belongs to an AI <i>request</i>, where providers bill by
+    /// area. See <see cref="ReferenceViewImages"/>.
     /// </remarks>
-    public string RenderReferenceViewPng(ReferenceView view) => RenderReferenceViewPng(view, 0);
+    public string RenderReferenceViewPng(ReferenceView view) => _referenceImages.Render(view, 0);
 
     /// <summary>One view as base64 PNG, no wider or taller than <paramref name="longEdge"/>.</summary>
-    /// <remarks>
-    /// <paramref name="longEdge"/> of 0 or less means the authored size. Explicit rather than
-    /// defaulted, so a new caller has to say which of the two it wants.
-    /// </remarks>
-    public string RenderReferenceViewPng(ReferenceView view, int longEdge)
-    {
-        var passes = new List<RenderPass>();
-        foreach (var layer in view.Layers)
-        {
-            if (!layer.Visible) continue;
-            var frame = ExposureSheet.ExposedFrame(layer, 0);
-            if (frame is null) continue;
-            passes.Add(new RenderPass(_cache.Get(frame, view.Width, view.Height), null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
-        }
-
-        // Composed at the authored size so the warm per-layer cache entries are the ones every
-        // other consumer already made, then scaled once. Scaling the composed surface rather
-        // than the geometry is the same rule as invariant 7 — no stroke coordinate is touched,
-        // and this is an outbound image rather than a document render.
-        using var image = SceneRenderer.Compose(view.Width, view.Height, passes);
-        using var sized = Downscaled(image, longEdge);
-        using var data = (sized ?? image).Encode(SkiaSharp.SKEncodedImageFormat.Png, 100)
-            ?? throw new InvalidOperationException("PNG encode failed.");
-        return Convert.ToBase64String(data.AsSpan());
-    }
-
-    /// <summary>The image no larger than <paramref name="longEdge"/>, or null if it already is.</summary>
-    private static SkiaSharp.SKImage? Downscaled(SkiaSharp.SKImage image, int longEdge)
-    {
-        var longest = Math.Max(image.Width, image.Height);
-        if (longEdge <= 0 || longest <= longEdge) return null;
-
-        var scale = longEdge / (double)longest;
-        var w = Math.Max(1, (int)Math.Round(image.Width * scale));
-        var h = Math.Max(1, (int)Math.Round(image.Height * scale));
-
-        var info = new SkiaSharp.SKImageInfo(w, h, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Premul);
-        using var surface = SkiaSharp.SKSurface.Create(info);
-        if (surface is null) return null; // no surface, no downscale — send the full size
-        surface.Canvas.Clear(SkiaSharp.SKColors.Transparent);
-        // Mipmapped linear: a plain bilinear minification of line art drops thin strokes
-        // entirely, which is the one thing the model must not lose.
-        surface.Canvas.DrawImage(
-            image,
-            new SkiaSharp.SKRect(0, 0, w, h),
-            new SkiaSharp.SKSamplingOptions(SkiaSharp.SKFilterMode.Linear, SkiaSharp.SKMipmapMode.Linear));
-        surface.Canvas.Flush();
-        return surface.Snapshot();
-    }
+    public string RenderReferenceViewPng(ReferenceView view, int longEdge) =>
+        _referenceImages.Render(view, longEdge);
 
     /// <summary>Up to two rendered character-sheet views to ride along with AI requests.</summary>
     /// <remarks>
     /// Encoded once per view and reused until the document changes — see
-    /// <see cref="_referenceViewPngs"/>. The first call after an edit pays; the ones after it
-    /// do not, which is the whole of B31.
+    /// <see cref="ReferenceViewImages"/>. The first call after an edit pays; the ones after
+    /// it do not, which is the whole of B31.
     /// </remarks>
     private IReadOnlyList<string>? CollectReferenceImages()
     {
@@ -2210,18 +2124,9 @@ public sealed partial class MainViewModel : ObservableObject
             .SelectMany(s => s.Views)
             .Where(v => v.Layers.Any(l => l.Visible))
             .Take(2)
-            .Select(EncodedReferenceView)
+            .Select(_referenceImages.Encoded)
             .ToList();
         return views.Count > 0 ? views : null;
-    }
-
-    private string EncodedReferenceView(ReferenceView view)
-    {
-        if (_referenceViewPngs.TryGetValue(view.Id, out var cached)) return cached;
-        // The one place the cap applies: this is a request, and a request is billed by area.
-        var encoded = RenderReferenceViewPng(view, ReferenceLongEdge);
-        _referenceViewPngs[view.Id] = encoded;
-        return encoded;
     }
 
     /// <summary>The color docker's state, kept in sync with <see cref="ColorHex"/>.</summary>
@@ -9752,11 +9657,11 @@ public sealed partial class MainViewModel : ObservableObject
     // ---- AI -----------------------------------------------------------------
 
     /// <summary>
-    /// Not readonly: Edit ▸ Configure ▸ AI can swap the provider while the app
-    /// is running, and an artist that could only be chosen at startup would
-    /// make "test it, then use it" a two-launch operation.
+    /// Which provider is configured and the artist it makes — four fields that moved
+    /// together to ConfiguredArtist (Q75), because a label describing one provider beside
+    /// an artist built from another is wrong in the direction nobody checks.
     /// </summary>
-    private IAiArtist? _artist;
+    private ConfiguredArtist _ai = new();
 
     private CancellationTokenSource? _aiCts;
 
@@ -9767,11 +9672,9 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _aiStatus = "";
 
-    public bool IsAiAvailable => _artist is not null;
+    public bool IsAiAvailable => _ai.IsAvailable;
 
     public bool CanUseAi => IsAiAvailable && !AiBusy;
-
-    private bool _aiEnabled = true;
 
     /// <summary>
     /// Whether AI assistance is switched on at all. The AI bar binds its
@@ -9779,7 +9682,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// off wants it gone, not greyed, and a permanently disabled row is a
     /// worse answer than an absent one — the camera's rule again.
     /// </summary>
-    public bool AiEnabled => _aiEnabled;
+    public bool AiEnabled => _ai.Enabled;
 
     public string AiUnavailableHint => IsAiAvailable
         ? ""
@@ -9787,22 +9690,8 @@ public sealed partial class MainViewModel : ObservableObject
           + "through Ollama, any OpenAI-compatible endpoint, or an agent of your own over MCP. "
           + "No provider at all? Drive Lightbox from an MCP client instead — see the README.";
 
-    private string _aiProviderLabel = "None";
-
-    /// <summary>
-    /// The configured model name, cached beside the provider label for the
-    /// same reason, and nullable because not every provider names one.
-    /// Recorded in <see cref="AiProvenance"/> on frames the AI drew.
-    /// </summary>
-    private string? _aiModelLabel;
-
-    /// <summary>
-    /// Which provider is in use. Cached rather than read from disk on every
-    /// get: it is a bound property, and a binding that touches the filesystem
-    /// each time it refreshes is a trap waiting for someone to bind it in a
-    /// list.
-    /// </summary>
-    public string AiProviderLabel => _artist is null ? "None" : _aiProviderLabel;
+    /// <summary>Which provider is in use.</summary>
+    public string AiProviderLabel => _ai.ProviderLabel;
 
     /// <summary>
     /// Rebuild the artist from what is stored. Called after the Configure
@@ -9811,12 +9700,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public void ReloadAiProvider()
     {
-        (_artist as IDisposable)?.Dispose();
-        var connection = AiSettings.Load();
-        _aiProviderLabel = connection.Provider.Name;
-        _aiModelLabel = connection.Value("model");
-        _aiEnabled = connection.Enabled;
-        _artist = AiArtistFactory.Create(connection);
+        _ai.Reload();
         OnPropertyChanged(nameof(IsAiAvailable));
         OnPropertyChanged(nameof(CanUseAi));
         OnPropertyChanged(nameof(AiEnabled));
@@ -9835,7 +9719,7 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task AiInbetweenAsync()
     {
-        if (_artist is null || AiBusy) return;
+        if (_ai.Artist is null || AiBusy) return;
         var layer = ActiveLayer;
         // The AI paths are held to the same layer rules as the artist's own
         // hand: a hidden or locked layer refuses both. This guard used to live
@@ -9882,7 +9766,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         var result = await RunAiAsync(
             $"{AiProviderLabel} is drawing {ts.Count} inbetween(s)…",
-            ct => _artist.GenerateInbetweensAsync(request, ct));
+            ct => _ai.Artist.GenerateInbetweensAsync(request, ct));
         if (result is null) return;
 
         // The model proposes; Lightbox disposes. Every frame is verified
@@ -9903,7 +9787,7 @@ public sealed partial class MainViewModel : ObservableObject
         // Refusal is per frame: the ones that passed are inserted, each at its
         // own t's slot — a null keeps the slot a hold, so partial acceptance
         // never shifts a surviving frame onto somebody else's timing.
-        var provenance = new AiProvenance(AiProviderLabel, _aiModelLabel);
+        var provenance = new AiProvenance(AiProviderLabel, _ai.ModelLabel);
         var slots = new List<Frame?>(candidates.Count);
         for (var i = 0; i < candidates.Count; i++)
         {
@@ -10013,7 +9897,7 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task AiReadSubjectAsync()
     {
-        if (_artist is null || AiBusy) return;
+        if (_ai.Artist is null || AiBusy) return;
         if (ProjectDocker.Project is null)
         {
             AiStatus = "Reading a subject needs a project — that is where a character lives.";
@@ -10041,7 +9925,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         var taxonomy = await RunAiAsync(
             $"{AiProviderLabel} is reading “{character.Name}”…",
-            ct => _artist.ReadSubjectAsync(new SubjectRequest(character.Name, sheets), ct));
+            ct => _ai.Artist.ReadSubjectAsync(new SubjectRequest(character.Name, sheets), ct));
         if (taxonomy is null) return;
 
         character.Taxonomy = taxonomy;
