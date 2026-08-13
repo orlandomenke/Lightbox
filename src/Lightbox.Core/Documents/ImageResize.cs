@@ -206,6 +206,10 @@ public static class ImageResize
             ScalePoints(stroke.Points, sx, sy);
             if (stroke.Holes is { } holes)
                 foreach (var hole in holes) ScalePoints(hole, sx, sy);
+            // The bind-pose seed path is coordinates like the points above it.
+            // Weights are ratios and stay; an authored rescale re-rolls the
+            // grain anyway (Q26), so the seeds moving with the art is right.
+            if (stroke.RestPoints is { } rest) ScalePoints(rest, sx, sy);
 
             // Size and TextureScale are the only two brush settings in
             // document pixels. Spacing, smudge length and radius, minimum

@@ -116,6 +116,50 @@ public sealed class Stroke
     public string? Label { get; set; }
 
     /// <summary>
+    /// How this stroke follows the rig: which bones move it, and by how much
+    /// per control point. Null — and absent from the file — for every stroke
+    /// that was never bound, which is every stroke in an unrigged document.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// On the stroke rather than anywhere global (invariant 4: settings that
+    /// reach pixels are per stroke). The order of the list is the fixed
+    /// evaluation order the skinning solve uses, so a reload blends in the
+    /// same sequence and lands on the same doubles.
+    /// </para>
+    /// <para>
+    /// Weights are influence, not the pose: binding a stroke changes nothing
+    /// on screen until a pose exists, and posing never writes here. See
+    /// <see cref="Skinning"/> and <c>docs/DESIGN-bones.md</c>.
+    /// </para>
+    /// </remarks>
+    public List<BoneBinding>? Weights { get; set; }
+
+    /// <summary>
+    /// The bind-pose path this stroke's dab dynamics seed from, when it
+    /// differs from <see cref="Points"/>. Null on every stroke that was never
+    /// posed — which is every stroke an artist draws.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is the field that keeps a rigged character from boiling.</b>
+    /// Every dab dynamic is seeded from the IEEE-754 bits of the dab's
+    /// position, so a stroke whose coordinates move per pose would re-roll
+    /// scatter, jitter and grain every frame. A posed stroke therefore stamps
+    /// at <see cref="Points"/> and seeds from here: same rest path, same
+    /// pixels' worth of character, whatever the pose
+    /// (<c>docs/DESIGN-bones.md</c>, "The one trap").
+    /// </para>
+    /// <para>
+    /// Written only by <see cref="Skinning.PoseStroke"/>, with one point per
+    /// entry in <see cref="Points"/> — a mismatched count means a hand-edited
+    /// document, and the renderer falls back to ordinary seeding rather than
+    /// guessing a correspondence.
+    /// </para>
+    /// </remarks>
+    public List<StrokePoint>? RestPoints { get; set; }
+
+    /// <summary>
     /// The pixels a baked all-layers smudge sampled, and where they sat.
     /// </summary>
     /// <remarks>
@@ -168,6 +212,8 @@ public sealed class Stroke
         // copy of a duplicated cel silently reshape the other, and the two would
         // then disagree with their own points.
         copy.Path = Path?.Clone();
+        copy.Weights = Weights?.Select(w => w.Clone()).ToList();
+        copy.RestPoints = RestPoints is null ? null : [.. RestPoints];
         return copy;
     }
 }
