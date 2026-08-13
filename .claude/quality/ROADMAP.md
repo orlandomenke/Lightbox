@@ -804,13 +804,13 @@ project structure bugs and `.claude/quality/comparison.md` for full analysis.
 ### Construction guides
 
 - [?] Construction guides
-- [?] Automatic volume guides
-- [?] Center of mass visualization
+- [?] Automatic volume guides — not a guide but a checker: alpha-weighted ink area per frame (the 0th moment), sparklined on the timeline and flagged on drift, so squash that loses volume is a number instead of a squint. Shares its one hard problem — segmenting "the character" from effects and props — with center of mass; v1 scopes the measurement to selected layers and makes attribution the artist's statement rather than an inference.
+- [?] Center of mass visualization — the 1st moment of the same ink mass volume measures (three more additions in the same loop): a dot per frame plus its arc across neighbours, onion-skin style, for balance and jitter. Ink centroid equals physical CoM only under uniform density, which is the right lie for a drawing aid and belongs in the tooltip, not in a density model.
 - [?] Perspective consistency guide
-- [?] Character height guide
-- [?] Limb length guide
-- [?] Eye-line guide
-- [?] Horizon guide
+- [?] Character height guide — named horizontal `Line` guides ("crown", "eyeline", "ground") in a `GuideSet` declared on the character's folder; every record and resolver for it already exists, so it is *performed*, not built, once guide-set authoring lands (see the guide-sets item under Project plumbing).
+- [?] Limb length guide — an animation checker, not a guide: distances between per-frame `Anchor` pairs compared across the sheet, flagging segments that drift. The rig already exists (anchors are declared once, positioned per drawing, reachable on canvas since B58); the measurement is trivial, and the real costs are annotating anchors on every frame and the checking surface.
+- [?] Eye-line guide — the character height guide's single-line case; falls out of the same guide-set authoring for free.
+- [?] Horizon guide — likewise: one named horizontal line shared at whatever scope the scene lives at, and its real value arrives when the perspective rig can take its vanishing points from it.
 
 ### Project plumbing
 
