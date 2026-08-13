@@ -108,6 +108,16 @@ part-way through and the whole close is called off, with everything still there.
 
 Nothing is ever discarded without being offered to you first.
 
+## The file on disk
+
+A document is a `.lightbox.json` file, and since 2026-08-13 it is written
+**gzip-compressed** — several times smaller on disk, which matters most for
+paintings, where the stroke record grows with every mark. Nothing about the
+content changed: gunzip the file and the same readable JSON is inside. Every
+document saved before the change is plain JSON and **opens exactly as it always
+did** — Lightbox looks at the file's own bytes, not its age or its name, so
+both kinds coexist and a resave simply produces the smaller form.
+
 ## Autosave
 
 Under **Edit**. Choose off, 30 seconds, 1, 5 or 15 minutes. Zero is a real
@@ -117,5 +127,9 @@ Autosave writes a **recovery copy** to your app data folder, not over your file.
 Recover by opening it. If you would rather it wrote over the real file too,
 there is a checkbox — off by default, because silently rewriting the file you
 opened takes away the ability to close without saving.
+
+The write happens **in the background**: autosave takes its snapshot in a few
+milliseconds and does the disk work off to the side, so it never pauses the
+brush — however large the painting has grown.
 
 ---

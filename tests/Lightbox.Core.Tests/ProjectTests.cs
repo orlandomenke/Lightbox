@@ -204,12 +204,15 @@ public sealed class ProjectTests : IDisposable
         var project = TwoAnimations(out var walk, out _);
         ProjectIo.Save(project);
         var path = project.PathOf(walk);
-        var original = File.ReadAllText(path);
+        var original = File.ReadAllBytes(path);
 
         File.WriteAllText(path + ".tmp", "{ this is half a document");
 
-        Assert.Equal(original, File.ReadAllText(path));
-        Assert.NotNull(DocJson.Deserialize(File.ReadAllText(path)));
+        // Bytes and Load rather than text and Deserialize: the document on
+        // disk is a gzip container now, and what this test pins — the real
+        // file untouched, still openable — is container-agnostic.
+        Assert.Equal(original, File.ReadAllBytes(path));
+        Assert.NotNull(DocJson.Load(path));
     }
 
     [Fact]

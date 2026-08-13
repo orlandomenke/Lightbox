@@ -149,6 +149,19 @@ before a single stroke is merged.
 **Not filed as a bug**, because nothing is broken: a large file is a cost, not a
 defect. It belongs on the roadmap when file size actually hurts somebody.
 
+**2026-08-13: it hurts somebody, and the first step is built.** The owner
+reported large paintings costing minutes to open and slowing the session, and
+chose (prompted, two questions): **phased** — container compression now, the
+raster checkpoint (Q60/B30) next on its own branch — and **quantisation
+deferred** to its own branch, on the recommendation that gzip alone is 6.4× and
+a capture-path change deserves its own tests. `DocJson.Save` now writes gzip
+(`CompressionLevel.Fastest`, streamed, atomic) and `Load` sniffs the container
+so every pre-existing plain-JSON document loads unchanged;
+`DocJsonCompressionTests` guards both directions and prints the achieved
+sizes. Flat point arrays (Q18's answer) remain third in the order this entry
+set. The in-session half of the report was B187 — autosave serializing on the
+UI thread — fixed on the same branch.
+
 ---
 
 ## Q61 · Resize canvas and resize image: what is allowed to change the grain? — **answered 2026-08-08, three recommendations taken and one overruled**

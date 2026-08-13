@@ -30,23 +30,37 @@ public sealed class AutosaveService
     private readonly DispatcherTimer _timer;
     private readonly Func<Doc> _docProvider;
     private readonly Func<string?>? _inPlacePath;
+    private readonly string _targetPath;
     private bool _dirty;
+    private Task _write = Task.CompletedTask;
 
     /// <param name="inPlacePath">
     /// Where the document itself lives, or null when it has never been saved.
     /// Consulted only when the setting asks for in-place autosave.
     /// </param>
+    /// <param name="targetPath">
+    /// Where the recovery copy goes; defaults to <see cref="AutosavePath"/>.
+    /// Overridable so tests do not write into the real user's recovery file.
+    /// </param>
     public AutosaveService(
         Func<Doc> docProvider,
         TimeSpan? interval = null,
-        Func<string?>? inPlacePath = null)
+        Func<string?>? inPlacePath = null,
+        string? targetPath = null)
     {
         _docProvider = docProvider;
         _inPlacePath = inPlacePath;
+        _targetPath = targetPath ?? AutosavePath;
         _timer = new DispatcherTimer { Interval = interval ?? TimeSpan.FromSeconds(60) };
         _timer.Tick += (_, _) => Flush();
         if (interval != TimeSpan.Zero) _timer.Start();
     }
+
+    /// <summary>
+    /// The background write in flight, or a completed task when the disk is
+    /// quiet. Anything that must observe the written file waits on this.
+    /// </summary>
+    public Task PendingWrite => _write;
 
     /// <summary>
     /// Change the cadence without rebuilding the service — what the settings
@@ -66,20 +80,43 @@ public sealed class AutosaveService
     /// <summary>Call whenever the document changes; the next tick persists it.</summary>
     public void MarkDirty() => _dirty = true;
 
-    /// <summary>Write now if there are unsaved changes. Failures are swallowed — autosave must never crash the app.</summary>
+    /// <summary>
+    /// Persist now if there are unsaved changes: snapshot on the calling
+    /// thread, write on a background one. Failures are swallowed — autosave
+    /// must never crash the app.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B187: the write used to happen right here, on the UI thread.</b>
+    /// Serializing a whole painting is hundreds of milliseconds at the sizes
+    /// B30 measures, so every tick of the timer was a hitch that landed
+    /// mid-stroke and grew with the document. <see cref="Doc.Clone"/> is
+    /// milliseconds even at 5 000 strokes (B142's measurement), so the artist
+    /// now pays for the snapshot and never for the serializer or the disk.
+    /// </para>
+    /// <para>
+    /// The background task works on a private clone, so it races nothing the
+    /// artist does next. If the previous write is still running when the timer
+    /// fires again, the flush keeps the dirty flag and lets a later tick
+    /// retry, rather than stacking two writers on one file.
+    /// </para>
+    /// </remarks>
     public void Flush()
     {
-        if (!_dirty) return;
-        try
+        if (!_dirty || !_write.IsCompleted) return;
+        var snapshot = _docProvider().Clone();
+        var inPlacePath = InPlace ? _inPlacePath?.Invoke() : null;
+        _dirty = false;
+        _write = Task.Run(() =>
         {
-            var doc = _docProvider();
-            Directory.CreateDirectory(Path.GetDirectoryName(AutosavePath)!);
-            DocJson.Save(doc, AutosavePath);
-            if (InPlace && _inPlacePath?.Invoke() is { Length: > 0 } path) DocJson.Save(doc, path);
-            _dirty = false;
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+            try
+            {
+                DocJson.Save(snapshot, _targetPath);
+                if (inPlacePath is { Length: > 0 } path) DocJson.Save(snapshot, path);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+            }
+        });
     }
 }
