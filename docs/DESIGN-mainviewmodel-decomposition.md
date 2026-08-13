@@ -578,3 +578,76 @@ reset that forgets to invalidate in-flight work happens.
 
 Full suite green throughout: **4,191 passed**, including every one of PR222's own guards —
 `PublishPacingTests`, `LivePostAsyncTests`, `LivePostWedgeReproTests`, `StrokeToScreenTests`.
+
+## Decoupling after the split, and the seam that turned out not to be one
+
+The split answered "is the file too big". It did not answer "is the class too coupled",
+and those are different questions: nineteen partials of one class share every field, so
+the shared-state block at the top of `MainViewModel.cs` is the whole coupling made
+visible rather than reduced. This pass went after that block, which came down from 29
+fields to 21: seven collapsed into two collaborators, and three moved into the one
+partial that used them. A tenth field elsewhere in the hub turned out to be used by
+nothing at all.
+
+**The test for whether a cluster is worth a class is not how many files touch it. It is
+whether it has an invariant somebody is maintaining by hand.** Both extractions here had
+one, and both were being got wrong or were one throw away from it.
+
+**`BrushWorkingSet`** — `_brushWork`, `_eraserWork`, `_userPresets`, `_applyingPreset`.
+The guard is why it is a class. Applying a preset assigns the bound properties, and
+every one of their setters writes back into the working settings, so the assignment has
+to be fenced or choosing a preset immediately edits it. That fence was **nine
+hand-written `_applyingPreset = true; …; _applyingPreset = false;` pairs, none of them
+in a `try`/`finally`** — in a region that reaches `Settings.Save()`, which is file I/O
+and can throw. One throw leaves the guard raised for the rest of the session, at which
+point every bound brush property silently does nothing: the size slider moves and the
+brush does not change, with no error anywhere. That is B39's shape exactly. The raise
+and the lower are now one method with a `finally`, and the flag has no public setter.
+
+**`TransformSession`** — `_transformFrames`, `_transformFilter`, `_transformPreview`,
+`_transformParts`. Same shape as `LivePaintSession`: a gesture whose state has to be
+raised together and dropped together, spread across four files. The invariant is
+ownership — `Parts.Owned` separates the bitmaps the session rasterised, which it must
+free, from the frame cache's own bitmap, borrowed when the whole frame moves. Both ways
+of getting it backwards are silent: freeing a borrowed bitmap hands the compositor a
+disposed one, and not freeing a rendered one leaks a full-canvas bitmap per in-scope
+frame per gesture — 33 MB a time at 4K, seen as memory climbing while an artist nudges a
+drawing around. It was correct, in one place, with nothing asserting it.
+
+**The selection cluster was named above and is not being extracted, because the name was
+wrong.** *Tier 2* lists `_selectionContours` and `_selectionManager` together as "the
+same feature half-extracted". They are not the same feature. `SelectionManager` holds
+**object** selection — placements, guides, reference boxes, anchors, collision shapes,
+stroke ids — and `_selectionContours` is the **region** selection, the marching-ants
+outline that clips painting. They share a word and nothing else; `Deselect` clears both
+precisely because they are two things an artist would call "the selection".
+
+Extracting `_selectionContours` into a wrapper would move a plain `List<List<StrokePoint>>`
+that has no lifetime, no derived cache to invalidate and no guard to leak. It would score
+well on the field count and buy nothing, which is the failure mode this pass is most
+likely to fall into: **motion that looks like decoupling because a number went down.** So
+it stays, and this paragraph is here instead of a class.
+
+### The field count is now guarded the way the line count was
+
+`MonolithRatchetTests` capped the hub's length and, at 670 lines, has little left to do.
+What can still rot is the rule: *a section's own state travels into the partial that owns
+it; only shared state stays in the hub.* `SharedStateRatchetTests` derives that rather
+than asserting it — it reads the field declarations out of the hub and the usages out of
+the partials, so it cannot be satisfied by editing a list.
+
+It found four fields that had drifted the wrong way and would not have been found by
+reading: `_untitledCounter` (used only by `Documents`), `_snapshotQueued` and
+`_stabilizer` (only by `Painting`), and `_featureDefaults`, **used by nothing at all** —
+`Diagnostics.cs` constructs its own.
+
+The rule it checks is "used by the hub, or by two or more partials", and the looseness is
+deliberate. The frame caches, the prewarmer and the tile fallbacks are read by exactly one
+partial each and heavily by the hub's own invalidation funnel, which is where they belong:
+a stricter rule would demand they move and would be wrong.
+
+| | |
+| --- | --- |
+| `MainViewModel.cs` | 692 → **670** |
+| shared-state block | 29 → **21** fields, ratcheted |
+| collaborators extracted | 5 → **7** |

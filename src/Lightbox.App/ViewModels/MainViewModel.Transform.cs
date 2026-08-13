@@ -533,25 +533,11 @@ public partial class MainViewModel
     private void EndTransformSession()
     {
         TransformActive = false;
-        _transformFrames.Clear();
-        _transformFilter = null;
-        ClearTransformPreview();
+        _transform.End();
         TransformEnded?.Invoke();
     }
 
     // ---- live transform preview -------------------------------------------------
-
-
-    /// <summary>
-    /// A frame's pixels split into the part the transform moves and the part
-    /// it leaves behind. With no selection everything moves and
-    /// <see cref="Static"/> is null, which is the ordinary case and costs no
-    /// extra render at all — <see cref="Moving"/> is the frame's own cached
-    /// bitmap, borrowed rather than copied.
-    /// </summary>
-    private sealed record TransformParts(SKBitmap Moving, SKBitmap? Static, bool Owned);
-
-    private readonly Dictionary<string, TransformParts> _transformParts = [];
 
     /// <summary>
     /// Show the drag. Null clears the preview and puts the pixels back where
@@ -561,29 +547,17 @@ public partial class MainViewModel
     {
         if (!TransformActive)
         {
-            if (_transformPreview is null) return;
+            if (_transform.Preview is null) return;
             matrix = null;
         }
         // Identity is "no preview": it renders the same and skips the split.
         if (matrix is { } m && m.IsIdentity) matrix = null;
-        if (_transformPreview is null && matrix is null) return;
-        _transformPreview = matrix;
+        if (_transform.Preview is null && matrix is null) return;
+        _transform.Preview = matrix;
         // The drawing can land anywhere on the canvas, so no dirty region is
         // safe here.
         _publish.InvalidateWholeCanvas();
         RequestSnapshot();
-    }
-
-    private void ClearTransformPreview()
-    {
-        _transformPreview = null;
-        foreach (var parts in _transformParts.Values)
-        {
-            if (!parts.Owned) continue;
-            parts.Moving.Dispose();
-            parts.Static?.Dispose();
-        }
-        _transformParts.Clear();
     }
 
     /// <summary>
@@ -593,22 +567,22 @@ public partial class MainViewModel
     /// not a stroke record — in which case the gizmo alone stands in, as it
     /// did before.
     /// </summary>
-    private TransformParts? PartsFor(Frame frame)
+    private TransformSession.Parts? PartsFor(Frame frame)
     {
-        if (_transformFilter is null)
+        if (_transform.Filter is null)
         {
             // Everything moves, so the layer bitmap already IS the moving part
             // and no render is needed. It is deliberately re-fetched rather
             // than remembered: the cache owns and disposes these, and a
             // remembered one becomes a dangling pointer the moment anything
             // invalidates the frame.
-            return new TransformParts(_cache.Get(frame, Scene.Width, Scene.Height), null, Owned: false);
+            return new TransformSession.Parts(_cache.Get(frame, Scene.Width, Scene.Height), null, Owned: false);
         }
 
-        if (_transformParts.TryGetValue(frame.Id, out var cached)) return cached;
+        if (_transform.Cached(frame.Id) is { } cached) return cached;
 
-        TransformParts? parts;
-        if (frame is Frame painted && _transformFilter is { } filter)
+        TransformSession.Parts? parts;
+        if (frame is Frame painted && _transform.Filter is { } filter)
         {
             var moving = painted.Strokes.Where(filter).ToList();
             var rest = painted.Strokes.Where(s => !filter(s)).ToList();
@@ -632,7 +606,7 @@ public partial class MainViewModel
             {
                 stay = FrameRasterizer.Rasterize(rest, Scene.Width, Scene.Height);
             }
-            parts = new TransformParts(
+            parts = new TransformSession.Parts(
                 FrameRasterizer.Rasterize(moving, Scene.Width, Scene.Height), stay, Owned: true);
         }
         else
@@ -640,7 +614,7 @@ public partial class MainViewModel
             parts = null;
         }
 
-        if (parts is not null) _transformParts[frame.Id] = parts;
+        if (parts is not null) _transform.Remember(frame.Id, parts);
         return parts;
     }
 
@@ -685,11 +659,11 @@ public partial class MainViewModel
 
     private void CommitTransformCore(TransformOps.PointMap map, double sizeScale, SKMatrix baselineMatrix)
     {
-        var frames = _transformFrames.ToList();
-        var filter = _transformFilter;
+        var frames = _transform.Frames.ToList();
+        var filter = _transform.Filter;
         // The preview goes first, and not only for tidiness: it borrows the
         // cache's own bitmaps, and the invalidation below disposes them.
-        ClearTransformPreview();
+        _transform.ClearPreview();
         // Invalidate before the edit so the Changed refresh re-renders from
         // the transformed record.
         foreach (var frame in frames) InvalidateFrameRender(frame.Id);

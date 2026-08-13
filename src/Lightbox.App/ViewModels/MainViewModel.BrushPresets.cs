@@ -92,7 +92,7 @@ public partial class MainViewModel
     {
         if (BrushScope != BrushScope.PerProject) return;
         if (ProjectDocker.Project is not { } project) return;
-        project.Manifest.Brush = _brushWork.Clone();
+        project.Manifest.Brush = _brushes.Brush.Clone();
     }
 
     /// <summary>Put the document's remembered brush back in the tool bar, if it has one.</summary>
@@ -106,12 +106,13 @@ public partial class MainViewModel
     {
         if (BrushScope != BrushScope.PerProject) return;
         if (ProjectDocker.Project?.Manifest.Brush is not { } remembered) return;
-        _brushWork = remembered.Clone();
+        _brushes.Brush = remembered.Clone();
         // The preset combo would otherwise still name whatever was chosen
         // before the switch, describing a brush that is no longer loaded.
-        _applyingPreset = true;
-        SelectedBrushPreset = null;
-        _applyingPreset = false;
+        _brushes.Applying(() =>
+        {
+            SelectedBrushPreset = null;
+        });
         NotifyBrushProperties();
     }
 
@@ -365,8 +366,8 @@ public partial class MainViewModel
             Tags = preset.Tags is null ? null : [.. preset.Tags],
         };
 
-        _userPresets.RemoveAll(p => p.Id == preset.Id);
-        _userPresets.Add(updated);
+        _brushes.UserPresets.RemoveAll(p => p.Id == preset.Id);
+        _brushes.UserPresets.Add(updated);
         ReplaceInChoices(preset, updated);
         PersistBrushState();
         return true;
@@ -374,21 +375,22 @@ public partial class MainViewModel
 
     /// <summary>True when the selected preset is a built-in that has been overwritten.</summary>
     public bool CanRevertBrushPreset =>
-        SelectedBrushPreset is { IsBuiltIn: true } preset && _userPresets.Any(p => p.Id == preset.Id);
+        SelectedBrushPreset is { IsBuiltIn: true } preset && _brushes.UserPresets.Any(p => p.Id == preset.Id);
 
     /// <summary>Delete the shadow over a built-in, uncovering what shipped.</summary>
     public bool RevertBrushPreset()
     {
         if (SelectedBrushPreset is not { IsBuiltIn: true } preset) return false;
-        if (_userPresets.RemoveAll(p => p.Id == preset.Id) == 0) return false;
+        if (_brushes.UserPresets.RemoveAll(p => p.Id == preset.Id) == 0) return false;
 
         var original = BuiltInPresets.Create().FirstOrDefault(p => p.Id == preset.Id);
         if (original is null) return false;
 
         ReplaceInChoices(preset, original);
-        _applyingPreset = true;
-        SelectedBrushPreset = original;
-        _applyingPreset = false;
+        _brushes.Applying(() =>
+        {
+            SelectedBrushPreset = original;
+        });
         // Apply it, or the tool bar would show the shipped brush's name over
         // the edited brush's settings and the dot would say "unchanged".
         OnSelectedBrushPresetChanged(original);
@@ -416,15 +418,16 @@ public partial class MainViewModel
     public bool DeletePreset(BrushPreset preset)
     {
         if (preset.IsBuiltIn) return RevertBrushPreset();
-        if (_userPresets.RemoveAll(p => p.Id == preset.Id) == 0) return false;
+        if (_brushes.UserPresets.RemoveAll(p => p.Id == preset.Id) == 0) return false;
 
         var at = BrushPresetChoices.IndexOf(preset);
         if (at >= 0) BrushPresetChoices.RemoveAt(at);
         if (SelectedBrushPreset?.Id == preset.Id)
         {
-            _applyingPreset = true;
-            SelectedBrushPreset = null;
-            _applyingPreset = false;
+            _brushes.Applying(() =>
+            {
+                SelectedBrushPreset = null;
+            });
         }
         RefreshTagChoices();
         NotifyPresetProperties();
@@ -455,7 +458,7 @@ public partial class MainViewModel
         var ids = presets.Where(p => !p.IsBuiltIn).Select(p => p.Id).ToHashSet(StringComparer.Ordinal);
         if (ids.Count == 0) return 0;
 
-        var removed = _userPresets.RemoveAll(p => ids.Contains(p.Id));
+        var removed = _brushes.UserPresets.RemoveAll(p => ids.Contains(p.Id));
         if (removed == 0) return 0;
 
         for (var i = BrushPresetChoices.Count - 1; i >= 0; i--)
@@ -465,9 +468,10 @@ public partial class MainViewModel
 
         if (SelectedBrushPreset is { } selected && ids.Contains(selected.Id))
         {
-            _applyingPreset = true;
-            SelectedBrushPreset = null;
-            _applyingPreset = false;
+            _brushes.Applying(() =>
+            {
+                SelectedBrushPreset = null;
+            });
         }
 
         RefreshTagChoices();
@@ -486,7 +490,7 @@ public partial class MainViewModel
     {
         var cleaned = CleanTags(tags);
 
-        if (preset.IsBuiltIn && _userPresets.All(p => p.Id != preset.Id))
+        if (preset.IsBuiltIn && _brushes.UserPresets.All(p => p.Id != preset.Id))
         {
             // Filing a shipped brush is an edit like any other, so it goes
             // through the same shadow rather than mutating the list Create()
@@ -500,13 +504,14 @@ public partial class MainViewModel
                 TipPng = preset.TipPng,
                 Tags = cleaned,
             };
-            _userPresets.Add(shadow);
+            _brushes.UserPresets.Add(shadow);
             ReplaceInChoices(preset, shadow);
             if (SelectedBrushPreset?.Id == preset.Id)
             {
-                _applyingPreset = true;
-                SelectedBrushPreset = shadow;
-                _applyingPreset = false;
+                _brushes.Applying(() =>
+                {
+                    SelectedBrushPreset = shadow;
+                });
             }
         }
         else
@@ -561,9 +566,10 @@ public partial class MainViewModel
 
         if (SelectedBrushPreset?.Id == replacement.Id)
         {
-            _applyingPreset = true;
-            SelectedBrushPreset = replacement;
-            _applyingPreset = false;
+            _brushes.Applying(() =>
+            {
+                SelectedBrushPreset = replacement;
+            });
         }
         NotifyPresetProperties();
     }
@@ -583,7 +589,7 @@ public partial class MainViewModel
         var added = 0;
         foreach (var preset in presets)
         {
-            _userPresets.Add(preset);
+            _brushes.UserPresets.Add(preset);
             BrushPresetChoices.Add(preset);
             added++;
         }
@@ -655,10 +661,10 @@ public partial class MainViewModel
     {
         PresetStore.Save(new PresetStore.State
         {
-            UserPresets = _userPresets,
+            UserPresets = _brushes.UserPresets,
             LastBrushPresetId = SelectedBrushPreset?.Id,
-            LastBrush = _brushWork.Clone(),
-            LastEraser = _eraserWork.Clone(),
+            LastBrush = _brushes.Brush.Clone(),
+            LastEraser = _brushes.Eraser.Clone(),
             SmoothingMode = _appStabilisation.Mode.ToString(),
             SmoothingWindow = _appStabilisation.Window,
             SmoothingStrength = _appStabilisation.Strength,
@@ -669,7 +675,7 @@ public partial class MainViewModel
     private void LoadBrushState()
     {
         var state = PresetStore.Load(BrushStorePath);
-        foreach (var preset in state.UserPresets) _userPresets.Add(preset);
+        foreach (var preset in state.UserPresets) _brushes.UserPresets.Add(preset);
         // Fast brushes first, expressive ones after, each group keeping the
         // order it was declared in. The badge marks them individually; the
         // grouping is what makes the two kinds legible as kinds — an artist
@@ -679,17 +685,18 @@ public partial class MainViewModel
             BrushPresetChoices.Add(preset);
         }
         RefreshTagChoices();
-        if (state.LastBrush is not null) _brushWork = state.LastBrush.Clone();
-        else _brushWork = new BrushSettings { Size = 6, Hardness = 0.8 };
-        if (state.LastEraser is not null) _eraserWork = state.LastEraser.Clone();
+        if (state.LastBrush is not null) _brushes.Brush = state.LastBrush.Clone();
+        else _brushes.Brush = new BrushSettings { Size = 6, Hardness = 0.8 };
+        if (state.LastEraser is not null) _brushes.Eraser = state.LastEraser.Clone();
         if (Enum.TryParse<SmoothingMode>(state.SmoothingMode, out var mode)) _appStabilisation.Mode = mode;
         if (state.SmoothingWindow is { } window) _appStabilisation.Window = Math.Clamp(window | 1, 3, 25);
         if (state.SmoothingStrength is { } strength) _appStabilisation.Strength = Math.Clamp(strength, 0, 0.95);
         if (state.LazyRadius is { } radius) _appStabilisation.LazyRadius = Math.Clamp(radius, 4, 200);
         // Restore the selection WITHOUT re-applying the preset (the working
         // settings above already carry the user's last tweaks on top of it).
-        _applyingPreset = true;
-        SelectedBrushPreset = BrushPresetChoices.FirstOrDefault(p => p.Id == state.LastBrushPresetId);
-        _applyingPreset = false;
+        _brushes.Applying(() =>
+        {
+            SelectedBrushPreset = BrushPresetChoices.FirstOrDefault(p => p.Id == state.LastBrushPresetId);
+        });
     }
 }

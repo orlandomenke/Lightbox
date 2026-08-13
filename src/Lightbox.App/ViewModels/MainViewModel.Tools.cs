@@ -609,9 +609,7 @@ public partial class MainViewModel
             if (TransformActive) CancelTransform();
             return false;
         }
-        _transformFrames.Clear();
-        _transformFrames.AddRange(frames);
-        _transformFilter = filter;
+        _transform.Begin(frames, filter);
         TransformActive = true;
         // The session's controls live in the Tool options docker now (Q70), so
         // starting a transform with the docker closed must open it — Apply and

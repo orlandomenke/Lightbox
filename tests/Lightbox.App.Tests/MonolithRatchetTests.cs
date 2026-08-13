@@ -119,10 +119,19 @@ public class MonolithRatchetTests(ITestOutputHelper output)
     /// of them reaches a size that stops being readable, add it then, with the number that
     /// made it necessary.
     /// </para>
+    /// <para>
+    /// <b>693 → 670 when four more fields left the hub</b> — two collaborators
+    /// (<c>BrushWorkingSet</c>, <c>TransformSession</c>), three fields moved into the one
+    /// partial that used them, and one that was used by nothing. The interesting guard on
+    /// this file is no longer here, though: at 670 lines it is readable, and what can
+    /// still rot is whether the state left in it is genuinely shared.
+    /// <c>SharedStateRatchetTests</c> measures that, and it is the one to read before
+    /// adding a field.
+    /// </para>
     /// </remarks>
     public static readonly (string Path, int Max)[] Budgets =
     [
-        ("src/Lightbox.App/ViewModels/MainViewModel.cs", 692),
+        ("src/Lightbox.App/ViewModels/MainViewModel.cs", 670),
         ("src/Lightbox.App/Rendering/CanvasControl.cs", 5122),
         ("src/Lightbox.App/Views/MainWindow.axaml", 4273),
         ("src/Lightbox.App/Views/MainWindow.axaml.cs", 455),

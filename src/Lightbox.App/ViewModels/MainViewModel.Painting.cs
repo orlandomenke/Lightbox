@@ -77,6 +77,12 @@ public partial class MainViewModel
     public IReadOnlyList<SmoothingMode> SmoothingChoices { get; } = Enum.GetValues<SmoothingMode>();
 
     /// <summary>
+    /// Steadies the hand along the stroke in flight. Reset by <c>Begin</c> at every
+    /// pen-down, so nothing carries between strokes.
+    /// </summary>
+    private readonly StrokeStabilizer _stabilizer = new();
+
+    /// <summary>
     /// The settings the stabilizer should run with for the brush in hand.
     /// </summary>
     private BrushStabilisation EffectiveStabilisation =>
@@ -1662,6 +1668,9 @@ public partial class MainViewModel
     /// lines" bug. <c>StrokeLatencyTests</c> guards the priority from the other side.
     /// </para>
     /// </remarks>
+    /// <summary>A coalesced publish is already posted, so this event joins it.</summary>
+    private bool _snapshotQueued;
+
     private void RequestSnapshot()
     {
         if (_snapshotQueued) return;
