@@ -260,6 +260,14 @@ public sealed class ShortcutMap
             new("file.save", "Save", "File", G(Key.S, KeyModifiers.Control)),
             new("file.saveAs", "Save as…", "File", G(Key.S, KeyModifiers.Control | KeyModifiers.Shift)),
 
+            // Registered rather than written onto the menu items, for the same
+            // reason as Save directly above. Ctrl+Alt+S reads as "a bigger
+            // save", which a kept version is.
+            new("file.saveVersion", "Save version (keep a copy in the project history)", "File",
+                G(Key.S, KeyModifiers.Control | KeyModifiers.Alt)),
+            new("file.versionHistory", "Version history (view and revert)", "File",
+                G(Key.H, KeyModifiers.Control | KeyModifiers.Alt)),
+
             // B58. The rig had no shortcut, no menu item and no binding, so the mode
             // could not be switched on and none of the editing behind it was
             // reachable. `Ctrl+R` is taken by the rulers, so this is the next key
