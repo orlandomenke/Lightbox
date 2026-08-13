@@ -598,6 +598,41 @@ The **TAG** and **WHO** pickers at the top narrow every tab at once — filterin
 the tree and then finding the status board showing something else would be two
 projects on one screen.
 
+### Versions
+
+A version is a **kept copy of a document or character sheet as it was saved**,
+with a label and optional notes, stored inside the project's `versions/`
+folder. Undo remembers keystrokes within a session; a version is authored —
+"roughs approved", "before the redesign" — and survives across sessions and
+machines, because it travels with the project folder.
+
+Three ways a version comes to exist:
+
+- **File ▸ Save version…** (`Ctrl+Alt+S`) keeps one of the active document or
+  sheet, after saving it. The offered label continues the numbering; the notes
+  are yours.
+- **Promoting a document to Review or Ready** — in the project window's status
+  column or board — keeps one automatically, tagged with that milestone. That
+  is what makes "export the version that was approved" answerable after
+  somebody keeps drawing: the Ready bytes are in the history even if the file
+  has moved on.
+- **Reverting** keeps one of the state being replaced, labelled *Before revert
+  to …* — so a revert can never lose work, and a second revert undoes the
+  first.
+
+**File ▸ Version history…** (`Ctrl+Alt+H`) lists them newest first — also
+reachable from a right-click on any document or sheet row in the project
+docker. Select a version and **Revert to selected** to put its file back; an
+open tab reloads to show it. Greyed lines in the list record an action (a
+revert) rather than a state, and cannot be reverted to.
+
+Versions belong to a project. A loose document has no `versions/` folder to
+keep them in, so the menu items stay greyed until the document is saved into a
+project. A project that never uses versions never grows the folder.
+
+Branching a version into its own line of work is *Planned*; today the history
+is a single line per document.
+
 ### Templates
 
 **A template is an ordinary document with a flag set.** Not a new file type, not

@@ -3474,6 +3474,16 @@ public partial class MainWindow : Window
                 _ = SaveDocumentAsAsync();
                 e.Handled = true;
                 break;
+            case "file.saveVersion":
+                // Same path as the menu item, for the reason file.save gives:
+                // the "is there anything to version" answer lives in one place.
+                OnSaveVersionClicked(this, e);
+                e.Handled = true;
+                break;
+            case "file.versionHistory":
+                OnVersionHistoryClicked(this, e);
+                e.Handled = true;
+                break;
             case "canvas.transform":
                 if (!_vm.TransformActive) _vm.BeginTransform();
                 break;
@@ -4277,6 +4287,35 @@ public partial class MainWindow : Window
     {
         SaveMenu.InputGesture = _shortcuts.Definitions.FirstOrDefault(d => d.Id == "file.save")?.Current;
         SaveAsMenu.InputGesture = _shortcuts.Definitions.FirstOrDefault(d => d.Id == "file.saveAs")?.Current;
+        SaveVersionMenu.InputGesture = _shortcuts.Definitions.FirstOrDefault(d => d.Id == "file.saveVersion")?.Current;
+        VersionHistoryMenu.InputGesture = _shortcuts.Definitions.FirstOrDefault(d => d.Id == "file.versionHistory")?.Current;
+    }
+
+    /// <summary>
+    /// <c>File ▸ Save version…</c> — ask for a label and notes, then keep a
+    /// copy of the active document or sheet in the project's history.
+    /// </summary>
+    private async void OnSaveVersionClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.VersionableResource is not { } resource || _vm.ProjectDocker.Project is not { } project)
+        {
+            _vm.AiStatus = "Versions live in a project — save this document into one first.";
+            return;
+        }
+        // The offered label continues the numbering the history already has,
+        // so accepting the default is always a sensible answer (B107's rule
+        // applied to content rather than caret position).
+        var next = Lightbox.Core.Projects.ProjectVersions.StoreFor(project)
+            .GetVersions(resource.Id).Length + 1;
+        if (await SaveVersionPrompt.ShowAsync(this, resource.Name, $"v{next}") is not { } answer) return;
+        _vm.SaveVersionOfActiveTab(answer.Label, answer.Notes);
+    }
+
+    /// <summary><c>File ▸ Version history…</c> for the active tab's resource.</summary>
+    private async void OnVersionHistoryClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.HistoryForActiveTab() is not { } history) return;
+        await new VersionHistoryWindow(history).ShowDialog(this);
     }
 
     private async void OnNewProjectClicked(object? sender, RoutedEventArgs e)
@@ -4420,6 +4459,24 @@ public partial class MainWindow : Window
 
     private void OnProjectDuplicate(object? sender, RoutedEventArgs e) =>
         _vm.ProjectDocker.DuplicateSelectedCommand.Execute(null);
+
+    /// <summary>
+    /// The docker row's road to the same history window the File menu opens —
+    /// a version is worth looking at without opening the document first.
+    /// Folders no-op: a folder is not a file and has no history of its own.
+    /// </summary>
+    private async void OnProjectRowHistory(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.ProjectDocker.Project is null || _vm.ProjectDocker.Selected is not { } row) return;
+        var history = row switch
+        {
+            { Animation: { } d } => _vm.HistoryFor(d.Id, d.Path, d.Name),
+            { Sheet: { } s } => _vm.HistoryFor(s.Id, s.Path, s.Name),
+            _ => null,
+        };
+        if (history is null) return;
+        await new VersionHistoryWindow(history).ShowDialog(this);
+    }
 
     /// <summary>
     /// Export the selected folder: count it, confirm it, then write it.

@@ -398,6 +398,9 @@ public sealed class WorkspaceTests : BrushStateIsolated
                 // went; ProjectWindowTests guards the moved surface.
                 ["Open", "Open with default app…", "Show in file manager", "Copy path",
                  "Duplicate", "Rename…",
+                 // Q75. The docker row's road to the history window; the File
+                 // menu is the other, and both open the same window.
+                 "Version history…",
                  // Q38. The artist says what a folder is; nothing derives it.
                  "Glyph", "Glyph — something else…",
                  // Q30's last mile: the plan was countable and describable and

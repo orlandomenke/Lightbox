@@ -759,6 +759,9 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsActiveDocumentTemplate));
         OnPropertyChanged(nameof(TemplateLabel));
         OnPropertyChanged(nameof(CanUpdateFromTemplate));
+        // Whether the File menu can offer a version follows the tab, the same
+        // way the template entries just above do.
+        OnPropertyChanged(nameof(CanSaveVersion));
         if (value.Editor == _editor) return;
 
         _switchingTabs = true;

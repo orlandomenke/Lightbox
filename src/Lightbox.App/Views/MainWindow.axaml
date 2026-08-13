@@ -237,6 +237,15 @@
                   IsEnabled="{Binding HasDocument}" />
         <MenuItem x:Name="SaveAsMenu" Header="Save _as…" Click="OnSaveClicked"
                   IsEnabled="{Binding HasDocument}" />
+        <!--
+          Versions are project machinery: a loose file has no versions/ folder
+          to keep them in. Disabled rather than hidden, same reasoning as Save
+          above; the click handler says why when there is no project.
+        -->
+        <MenuItem x:Name="SaveVersionMenu" Header="Save vers_ion…" Click="OnSaveVersionClicked"
+                  IsEnabled="{Binding CanSaveVersion}" />
+        <MenuItem x:Name="VersionHistoryMenu" Header="Version _history…" Click="OnVersionHistoryClicked"
+                  IsEnabled="{Binding CanSaveVersion}" />
         <Separator />
         <MenuItem Header="New _project…" Click="OnNewProjectClicked" />
         <MenuItem Header="Open p_roject…" Click="OnOpenProjectClicked" />
@@ -2683,6 +2692,8 @@
                             <MenuItem Header="Duplicate" Click="OnProjectDuplicate"
                                       ToolTip.Tip="Copy this animation, art and all — a walk into a limp" />
                             <MenuItem Header="Rename…" Click="OnProjectRowRename" />
+                            <MenuItem Header="Version history…" Click="OnProjectRowHistory"
+                                      ToolTip.Tip="Kept versions of this file — view and revert" />
                             <!--
                               Q38. The artist says what a folder is; nothing
                               derives it. Deriving a glyph from what a folder

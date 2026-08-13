@@ -651,8 +651,52 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
     {
         var documents = SelectedDocuments;
         if (documents.Count == 0) return;
-        foreach (var document in documents) document.Status = status;
+        var kept = 0;
+        foreach (var document in documents)
+        {
+            var was = document.Status;
+            document.Status = status;
+            if (CaptureMilestone(document, was)) kept++;
+        }
         Done(documents.Count, status is { } s ? $"marked {AssetStatuses.Label(s)}" : "status cleared");
+        if (kept > 0) Status += $" {Count(kept, "milestone version")} kept.";
+    }
+
+    /// <summary>
+    /// A promotion to Review or Ready keeps a version of the file as it
+    /// stands, tagged with the milestone — "which bytes were the Ready ones"
+    /// is the question a studio asks after somebody keeps drawing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// What is on disk is what is versioned. A document open and unsaved in a
+    /// tab versions its last save — status is set from this window, normally
+    /// between sessions, and reaching into the editor from here would couple
+    /// the two the way nothing else in this window does.
+    /// </para>
+    /// <para>
+    /// Failure leaves the status set and says so in the status line rather
+    /// than throwing: the artist asked for a status change and got one; the
+    /// missing version is a degradation, not a reason to refuse the edit.
+    /// </para>
+    /// </remarks>
+    private bool CaptureMilestone(DocumentRef document, AssetStatus? was)
+    {
+        var now = document.Status;
+        if (now is not (AssetStatus.Review or AssetStatus.Ready) || was == now) return false;
+        if (!File.Exists(Path.Combine(_project.Root, document.Path))) return false;
+        try
+        {
+            ProjectVersions.SaveVersion(
+                _project, document.Id, document.Path,
+                $"Marked {AssetStatuses.Label(now.Value)}", milestone: now);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Status = $"Status set, but no version could be kept: {ex.Message}";
+            return false;
+        }
     }
 
     /// <summary>Put a tag on everything selected — folders and documents alike.</summary>
@@ -1575,9 +1619,11 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
     {
         if (move.Row.Document is not { } document) return;
         if (document.Status == move.Status) return;
+        var was = document.Status;
         document.Status = move.Status;
+        var kept = CaptureMilestone(document, was);
         Status = move.Status is { } s
-            ? $"“{document.Name}” is {AssetStatuses.Label(s)}."
+            ? $"“{document.Name}” is {AssetStatuses.Label(s)}.{(kept ? " A milestone version was kept." : "")}"
             : $"“{document.Name}” has no status.";
         Rebuild();
         _changed();
