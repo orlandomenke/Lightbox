@@ -517,6 +517,39 @@ every other AI feature and are only legible together.
 - [?] Batch transform across frames
 - [x] Frame hold tools `evidence: ExposureSheet, ExposureEditingTests, RetimingTests, ExposureStep`
 - [?] Animation-aware brushes
+  - **Scoped (Q80): a brush whose mark still makes sense when there are two
+    hundred of them, played at 12 fps, some drawn by the inbetweener.** Not a
+    brush category — every brush passes through this, with project type
+    setting defaults, never availability. The floor is already built: `Hash01`
+    seeding is what stops similar strokes on neighbouring frames shimmering,
+    and it is the `[x]` deterministic-marks item above. This item is the four
+    deltas on top of that floor, each per stroke (invariant 4) and arithmetic
+    (no model — the AI reading of a neighbouring drawing is inking, under AI
+    assistance):
+  - **Grain anchoring as a per-stroke choice.** Canvas-locked paper texture is
+    right for a painting and wrong for a sequence, where a moving drawing
+    swims through fixed grain like a screen door; mark-locked grain travels
+    with the drawing. The brush carries the anchoring, the project type
+    defaults it — canvas for illustration, mark for a cycle.
+  - **Inbetweenable dynamics.** The inbetweener interpolates geometry today;
+    the brush is animation-aware when pressure profile, taper and flow along
+    the stroke interpolate too, so a generated inbetween reads as the same
+    tool making the middle drawing rather than an interpolated skeleton with
+    re-rolled character.
+  - **Authored boil, held holds (Q80: in scope, opt-in).** Geometry seeding
+    makes a hold dead-still for free, which is the right default — and removes
+    the choice. Deliberate line boil is an off-by-default per-stroke effect
+    with an authored per-frame phase stored in the record: deterministic
+    (invariant 2 holds), absent from the file unless used, so a hold can
+    breathe on 2s because the artist asked. First effect whose seed varies by
+    frame — the cost accepted in Q80 is that the seeding story grows a frame
+    dimension and needs its own re-render and hold tests.
+  - **Frame-context response, arithmetically.** Dynamics that read the
+    previous frame's stroke record as geometry — a cleanup brush weighting
+    toward the prior drawing's nearby line, or a mark that dries out as its
+    stroke moves further from its predecessor.
+  - Sequence-scale cost is the review stance over all four: `BrushCostOf`
+    badges are read against replay across a whole sequence, not one image.
 - [?] Draw once, reuse across animations
 - [?] Motion path visualization
 - [?] Motion arcs
