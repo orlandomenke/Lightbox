@@ -1275,8 +1275,10 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
     }
 
     /// <summary>
-    /// The project row refuses everything that would remove, delete or rename it
-    /// — and says so.
+    /// The project row refuses everything that would remove or delete it — and
+    /// says so. Renaming it is no longer in that list: it renames the project,
+    /// folder and all, which is its own test above
+    /// (<see cref="RenamingTheRootRowRenamesTheProjectFolderOnDisk"/>).
     /// </summary>
     /// <remarks>
     /// The control on the row above. Adding a selectable row to a panel whose
@@ -1286,7 +1288,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
     /// Silence is not enough either — a － that does nothing reads as broken.
     /// </remarks>
     [AvaloniaFact]
-    public void TheProjectRowCannotBeRemovedRenamedOrDeleted()
+    public void TheProjectRowCannotBeRemovedOrDeleted()
     {
         var vm = Vm();
         vm.NewProject(_root, "Knight");
@@ -1306,10 +1308,6 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         // No confirmation is offered for it, so the refusal above is the only
         // thing standing between a click and the project folder.
         Assert.False(docker.DeleteNeedsConfirmation);
-
-        Assert.False(docker.Rename(root, "Something else"));
-        Assert.Equal(Path.GetFileName(_root), docker.Rows[0].Name);
-        Assert.True(Directory.Exists(_root));
     }
 
     /// <summary>
