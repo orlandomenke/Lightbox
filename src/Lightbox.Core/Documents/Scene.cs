@@ -367,6 +367,19 @@ public sealed class Scene
     /// </remarks>
     public List<CollisionShape>? Shapes { get; set; }
 
+    /// <summary>
+    /// The keyframed poses struck against this timeline, or null — and null
+    /// is the default, exactly like <see cref="Camera"/>. A document that
+    /// never poses its rig writes no key.
+    /// </summary>
+    /// <remarks>
+    /// The declaration/positions split the anchors use, at rig scale: the
+    /// hierarchy and bind pose live on <see cref="Doc.Armature"/> because they
+    /// are properties of the character; a pose is struck against <em>this</em>
+    /// timeline and belongs beside the camera keys it will be read with.
+    /// </remarks>
+    public PoseTrack? PoseTrack { get; set; }
+
     /// <summary>A layer's folder, or null.</summary>
     public LayerGroup? GroupOf(Layer layer) =>
         layer.GroupId is null ? null : LayerGroups.FirstOrDefault(g => g.Id == layer.GroupId);
@@ -410,6 +423,7 @@ public sealed class Scene
         copy.Anchors = Anchors?.Select(a => a.Clone()).ToList();
         copy.Tags = Tags?.Select(t => t.Clone()).ToList();
         copy.Shapes = Shapes?.Select(s => s.Clone()).ToList();
+        copy.PoseTrack = PoseTrack?.Clone();
         return copy;
     }
 }

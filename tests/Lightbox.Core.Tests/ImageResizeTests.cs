@@ -164,6 +164,14 @@ public class ImageResizeTests
             Contours = [[new StrokePoint(10, 20, 1)]],
             Feather = 4,
         };
+        doc.Armature = new Armature
+        {
+            Bones = [new Bone { Id = "spine", X = 480, Y = 270, Length = 100, RotationDeg = 30 }],
+        };
+        doc.Scene.PoseTrack = new PoseTrack
+        {
+            Keys = [new PoseKey { Frame = 0, Bones = { ["spine"] = new BonePose { X = 12, Y = 6, RotationDeg = 15 } } }],
+        };
         doc.Scene.Layers.Add(new Layer
         {
             Cels = [new Cel { Frame = new Frame
@@ -185,6 +193,17 @@ public class ImageResizeTests
         Assert.Equal(960, doc.Scene.Pivot!.X);
         Assert.Equal(20, doc.ClipRegions["c"].Contours[0][0].X);
         Assert.Equal(8, doc.ClipRegions["c"].Feather);
+
+        var bone = doc.Armature!.Bones[0];
+        Assert.Equal(960, bone.X);
+        Assert.Equal(540, bone.Y);
+        Assert.Equal(200, bone.Length);
+        // Rotation is not a length and does not scale.
+        Assert.Equal(30, bone.RotationDeg);
+        var spinePose = doc.Scene.PoseTrack!.Keys[0].Bones["spine"];
+        Assert.Equal(24, spinePose.X);
+        Assert.Equal(12, spinePose.Y);
+        Assert.Equal(15, spinePose.RotationDeg);
 
         var frame = doc.Scene.Layers[0].Cels[0].Frame!;
         Assert.Equal(20, frame.Placements![0].X);
@@ -210,6 +229,7 @@ public class ImageResizeTests
             nameof(Scene.OriginX), nameof(Scene.OriginY),
             nameof(Scene.Layers), nameof(Scene.Guides), nameof(Scene.Camera),
             nameof(Scene.Pivot), nameof(Scene.References), nameof(Scene.Ppi),
+            nameof(Scene.PoseTrack),
 
             // Carry no document coordinate, on purpose.
             nameof(Scene.Id), nameof(Scene.Name), nameof(Scene.Fps),
