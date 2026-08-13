@@ -37,6 +37,23 @@ public static class FieldMath
     public static bool GetEnabled(NumericUpDown host) => host.GetValue(EnabledProperty);
     public static void SetEnabled(NumericUpDown host, bool value) => host.SetValue(EnabledProperty, value);
 
+    /// <summary>
+    /// Show and read this field as 0–100 while the bound value stays 0–1.
+    /// </summary>
+    /// <remarks>
+    /// Only the text changes scale. The value, the binding, the slider beside
+    /// the field, <c>Increment</c> and the stroke record all stay 0–1, which
+    /// is what keeps invariant 4 out of this entirely — a percent field is a
+    /// presentation, not a second unit the document could catch. Lives here
+    /// because the TextConverter is the one place both text directions pass
+    /// through.
+    /// </remarks>
+    public static readonly AttachedProperty<bool> PercentProperty =
+        AvaloniaProperty.RegisterAttached<NumericUpDown, bool>("Percent", typeof(FieldMath));
+
+    public static bool GetPercent(NumericUpDown host) => host.GetValue(PercentProperty);
+    public static void SetPercent(NumericUpDown host, bool value) => host.SetValue(PercentProperty, value);
+
     static FieldMath()
     {
         EnabledProperty.Changed.AddClassHandler<NumericUpDown>((host, e) =>
@@ -156,19 +173,37 @@ public static class FieldMath
     private sealed class Converter(NumericUpDown host) : IValueConverter
     {
         /// <summary>Text going in: a number as before, or an expression.</summary>
+        /// <remarks>
+        /// Never null for text that does not read as a number: an empty or
+        /// unreadable commit means <em>no change</em>, so the field's current
+        /// value comes back instead. Null used to flow into the two-way
+        /// binding, fail to become a double, and leave the field wearing a
+        /// validation error that blocked typing until something else moved
+        /// the value — clearing a field to retype it is not a request to
+        /// unset it.
+        /// </remarks>
         public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
+            return Read(value) ?? host.Value;
+        }
+
+        private decimal? Read(object? value)
+        {
             if (value is not string text || string.IsNullOrWhiteSpace(text)) return null;
+            var scale = GetPercent(host) ? 100m : 1m;
             // The path plain numbers always took, kept byte-for-byte: the
             // evaluator only earns its keep when an operator is present.
-            if (decimal.TryParse(text, host.ParsingNumberStyle, host.NumberFormat, out var plain)) return (decimal?)plain;
-            return Evaluate(text);
+            if (decimal.TryParse(text, host.ParsingNumberStyle, host.NumberFormat, out var plain)) return plain / scale;
+            return Evaluate(text) / scale;
         }
 
         /// <summary>Value going out: exactly what the control would have done.</summary>
         public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
             if (value is not decimal d) return null;
+            // A percent field shows whole points; its FormatString was written
+            // for the 0–1 scale and would render 0.5 as "50.00".
+            if (GetPercent(host)) return (d * 100m).ToString("0.#", host.NumberFormat);
             return string.IsNullOrEmpty(host.FormatString)
                 ? d.ToString(host.NumberFormat)
                 : host.FormatString.Contains('{')
