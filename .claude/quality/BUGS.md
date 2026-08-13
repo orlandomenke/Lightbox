@@ -410,27 +410,6 @@ which is a weak test and still far better than none.
   - Distinct from **B10**, which was swatch *links* dying when a project was saved and reloaded and is fixed: this is the swatch itself never reaching the file. B10's guards (`ASavedProjectKeepsItsSwatchIds`) check that an id survives, which passes whether or not the palette entry behind it was written.
   - `AProjectThatNeverAsksForThisWritesNoBrushKey` is the pattern the fix should follow — a palette that was never touched must still write nothing. Cost: M
 
-### project
-
-- [ ] **B133** `P2` `project` A shared reference is written and never read, and the manual promises two kinds nothing can create `evidence: ASharedReferenceReachesTheDocumentsUnderIt, ASheetCanBeSharedOnAFolder, AnImageCanBeSharedOnAFolder`
-  - Measured by comparing the five scoped kinds against each other. Every other kind is declared **and consumed**; references are declared only:
-
-    ```
-    PaletteScopes.VisibleTo   -> MainViewModel.cs:1938        consumed
-    GradientScopes.VisibleTo  -> MainViewModel.cs:1947        consumed
-    SymbolScopes.VisibleTo    -> SymbolBrowserViewModel.cs:210 consumed
-    TipScopes.VisibleTo       -> TipStore.cs:105              consumed
-    ReferenceScopes.VisibleTo -> (nothing in src/)            never read
-    ReferenceScopes.OfTarget  -> (nothing in src/)            never read
-    ```
-
-  - So **"Use this as reference" writes an entry into the manifest and nothing anywhere resolves it.** The declaration shows up in the folder's *Stop sharing* and *Reach* lists (`ProjectViewModel.cs:1228` labels it `"Reference"`), which is the whole of what it does. No drawing is ever shown a reference because a folder shares one.
-  - **Two of the three targets have no producer either.** `ScopedResource.Target` exists precisely because *"a reference is different"* and needs a second word (`ResourceScopes.cs:60-75`), and `ReferenceTargets` declares `Sheet`, `Document` and `Image`. The only production caller is `ProjectViewModel.ShareSelectedAsReference` (`:1136`), which always passes `Document`. `Sheet` and `Image` appear in tests and nowhere else in `src/`.
-  - **And the manual sells all three** — `docs/manual/02-documents-and-projects.md`, *"References a document draws against"*, with a row reading *"**An image** | A photo or a scan, brought in."* There is no way to share an image as a reference and nothing would read it if there were. `CLAUDE.md` is explicit that this is the worst kind: *"a manual that documents a feature nobody can use is worse than no manual, because it cannot be trusted anywhere."*
-  - P2 on reach and silence rather than severity, the same reasoning as B114: it is invisible, it affects the scoping feature Q30 shipped, and it makes a documented capability look implemented while doing nothing. Nothing is corrupted and no work is lost, so not P1.
-  - **Not to be confused with the reference that works.** `ReferenceStrip` — View → Reference, the imported sheet laid against the timeline — is fully built, embedded, animated and consumed. The two systems are entirely disconnected: what actually appears under a drawing is `Scene.References` on the document, never a scoped declaration. Fixing this means deciding whether they should meet, which is a design question and not this entry's to answer.
-  - Fix: either wire a consumer (a document resolves the references reaching it and offers them, the way `TipStore` does) or withdraw the claim from the manual and mark it *Planned*. The manual half is a two-line honesty fix and is worth doing immediately either way. Cost: S for the manual, M for the consumer.
-
 ### ui
 
 - [ ] **B180** `P2` `ui` `PaletteHierarchyTests.RenamingARowRenamesTheModel` fails about one full run in four `evidence: PaletteStateIsolated, PaletteRegistryIsolationTests, TheHierarchyTestsDoNotShareARegistry`
@@ -1325,6 +1304,26 @@ test reopens the bug.
   - `Guide.Angles` is the worst of them: not a flag but an array, recomputed from `Kind` and `Angle` on load regardless, written once per guide. `ReferenceCell.Pivot` is the one worth remembering — a tuple's members are fields rather than properties, so it serialized as an empty `"pivot": {}` and looked like nothing.
   - Found by a test written for something else. `ImageResizeTests.EveryCoordinateOnTheSceneIsAccountedFor` enumerates `Scene`'s serialized properties to prove the resize visitor handles all of them, and `HasGhostFrames` turned up in a list it had no business being in.
   - Fixed: `[JsonIgnore]` on all five, and `ADerivedPropertyOnTheDocumentModelIsMarkedAsOne` sweeps every public getter-without-setter in `Lightbox.Core.Documents` so the sixth fails a test instead of shipping. Old documents still load — the keys were never read, so ignoring them on the way in was already the behaviour.
+
+- [x] **B133** `P2` `project` A shared reference is written and never read, and the manual promises two kinds nothing can create `evidence: ReferenceScopeTests, TheRetiredDeclarationsArePrunedWhenAProjectLoads, NoSurfaceOffersTheRetiredKind, AnOldFileWithATargetKeyStillLoads, ASheetFiledOnAFolderIsTheReferenceMechanism`
+  - Measured by comparing the five scoped kinds against each other. Every other kind is declared **and consumed**; references are declared only:
+
+    ```
+    PaletteScopes.VisibleTo   -> MainViewModel.cs:1938        consumed
+    GradientScopes.VisibleTo  -> MainViewModel.cs:1947        consumed
+    SymbolScopes.VisibleTo    -> SymbolBrowserViewModel.cs:210 consumed
+    TipScopes.VisibleTo       -> TipStore.cs:105              consumed
+    ReferenceScopes.VisibleTo -> (nothing in src/)            never read
+    ReferenceScopes.OfTarget  -> (nothing in src/)            never read
+    ```
+
+  - So **"Use this as reference" writes an entry into the manifest and nothing anywhere resolves it.** The declaration shows up in the folder's *Stop sharing* and *Reach* lists (`ProjectViewModel.cs:1228` labels it `"Reference"`), which is the whole of what it does. No drawing is ever shown a reference because a folder shares one.
+  - **Two of the three targets have no producer either.** `ScopedResource.Target` exists precisely because *"a reference is different"* and needs a second word (`ResourceScopes.cs:60-75`), and `ReferenceTargets` declares `Sheet`, `Document` and `Image`. The only production caller is `ProjectViewModel.ShareSelectedAsReference` (`:1136`), which always passes `Document`. `Sheet` and `Image` appear in tests and nowhere else in `src/`.
+  - **And the manual sells all three** — `docs/manual/02-documents-and-projects.md`, *"References a document draws against"*, with a row reading *"**An image** | A photo or a scan, brought in."* There is no way to share an image as a reference and nothing would read it if there were. `CLAUDE.md` is explicit that this is the worst kind: *"a manual that documents a feature nobody can use is worse than no manual, because it cannot be trusted anywhere."*
+  - P2 on reach and silence rather than severity, the same reasoning as B114: it is invisible, it affects the scoping feature Q30 shipped, and it makes a documented capability look implemented while doing nothing. Nothing is corrupted and no work is lost, so not P1.
+  - **Not to be confused with the reference that works.** `ReferenceStrip` — View → Reference, the imported sheet laid against the timeline — is fully built, embedded, animated and consumed. The two systems are entirely disconnected: what actually appears under a drawing is `Scene.References` on the document, never a scoped declaration. Fixing this means deciding whether they should meet, which is a design question and not this entry's to answer.
+  - Fix: either wire a consumer (a document resolves the references reaching it and offers them, the way `TipStore` does) or withdraw the claim from the manual and mark it *Planned*. The manual half is a two-line honesty fix and is worth doing immediately either way. Cost: S for the manual, M for the consumer.
+  - **Fixed by retiring the declaration kind — the owner's call, prompted and answered 2026-08-13.** The third option surfaced after filing: by then, sheets-on-folders (`ProjectSheets.VisibleTo`, consumed by the Reference sheets panel) delivered exactly the promise the declarations made, so wiring a consumer would have built a second route to a shipped feature. Gone: `ReferenceScopes.Declare/VisibleTo/OfTarget/AnyDeclared`, `ReferenceTargets`, `ScopedResource.Target`, the docker's `ShareSelectedAsReference`/`ShareReference` (whose menu entries had already been removed — the producers were unreachable code), and the window's typed reference offers. Kept: `ReferenceScopes.Kind`, which is how `AssetKinds` labels a sheet ▤ Reference everywhere. Old files carrying the declarations are pruned on load (`ResourceScopes.Retract` by kind), and old `target` keys are ignored, not errors. The manual's section now names the two real mechanisms and the retirement.
 
 - [x] **B132** `P2` `project` A symbol cannot be placed on a vector layer, and nothing records a reason `evidence: ASymbolCanBePlacedOnAnyLayer, APlacementOnAFormerlyVectorLayerSurvivesAReload, AFrameWithNoPlacementsWritesNoPlacementsKey`
   - Repro was: add a vector layer, select a symbol, place it. Nothing happened. `MainViewModel.Symbols.cs:738` returned early on `activeLayer.Kind != LayerKind.Painted`, and the guard was silent — no status line, no refusal message, no cursor change.

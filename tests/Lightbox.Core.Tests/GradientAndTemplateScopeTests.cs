@@ -103,17 +103,15 @@ public class GradientAndTemplateScopeTests(ITestOutputHelper output)
 
     /// <summary>Every kind resolves without seeing the others.</summary>
     [Fact]
-    public void GradientsPalettesReferencesAndTemplatesDoNotCollide()
+    public void GradientsPalettesAndTemplatesDoNotCollide()
     {
         var (manifest, knight, _, walk) = Production();
         ResourceScopes.Declare(manifest, knight, PaletteScopes.Kind, "pal");
         ResourceScopes.Declare(manifest, knight, GradientScopes.Kind, "grad");
-        ReferenceScopes.Declare(manifest, knight, "sheet", ReferenceTargets.Sheet);
         TemplateScopes.SetDefault(manifest, knight, "tpl");
 
         Assert.Equal(["pal"], PaletteScopes.VisibleTo(manifest, walk));
         Assert.Equal(["grad"], GradientScopes.VisibleTo(manifest, walk));
-        Assert.Equal("sheet", Assert.Single(ReferenceScopes.VisibleTo(manifest, walk)!).Id);
         Assert.Equal("tpl", TemplateScopes.DefaultFor(manifest, knight));
     }
 }

@@ -280,32 +280,23 @@ nothing about it was ever specific to characters.
 
 #### References a document draws against
 
-A **reference** is something you draw against, declared on a scope the same way
-a palette is — so it reaches everything under it, at any depth. Character
-sheets above stopped needing this: filing a sheet in a folder *is* what makes
-it reach that folder's drawings. What remains declarable:
+Two mechanisms, both real:
 
-| | |
-| --- | --- |
-| **A document** | An ordinary drawing used as reference — one big environment layout, a style guide, a colour key. Not squeezed into a sheet, because it is not that shape. |
-| **An image** — *Planned* | A photo or a scan, brought in. |
+- **A sheet filed on a folder** reaches every drawing under it, at any depth —
+  that is the whole sharing model for reference art, and the Reference sheets
+  panel is where it lands. File a sheet by making it there, or drag it onto a
+  folder in the project manager's Assets tab.
+- **View → Reference** — further on in *Onion skin, references and the camera*
+  — imports a picture, slices it into frames and lays it under your drawing,
+  per document.
 
-Declare one in the project manager's Assets tab: select the folder's row and
-pick **Reference · the drawing** from the share picker. Publish it to the whole
-project with the chip's **⤒** — which is what an environment layout that both
-backgrounds and characters work from actually needs.
-
-**What sharing a reference does today, and what it does not.** It records the
-choice: the drawing appears as a chip on the folder's row and can be taken
-back or published from there. It does **not** yet put anything in front of you —
-nothing reads the declaration back and offers the reference to the drawings
-under that folder. Filed as **B133**; sheets left that gap when they moved to
-filing, and the document kind is what remains of it.
-
-**The reference you can actually draw against is a different feature and it
-works** — **View → Reference**, further on in *Onion skin, references and the
-camera*. That one imports a picture, slices it into frames and lays it under
-your drawing. The two are unrelated today.
+There used to be a third: a *reference declaration*, shared onto a folder the
+way a palette is. It was recorded and never read — nothing ever showed a
+drawing a reference because of one — and it was retired as **B133** rather
+than kept as a control that does nothing. Any such declarations in an existing
+project are cleaned up the next time it opens. If you want a drawing visible
+to other drawings as reference today, put it on a sheet or file the sheet
+beside them.
 
 #### How a folder is exported
 

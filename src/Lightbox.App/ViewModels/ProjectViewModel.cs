@@ -580,7 +580,6 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasDeclarations));
         // Whether the row can be reference at all depends on the row, so the
         // menu entry has to appear and disappear with the selection.
-        OnPropertyChanged(nameof(CanShareSelectedAsReference));
     }
 
     // ---- export (Q30 steps 3-4) ---------------------------------------------
@@ -1014,17 +1013,11 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         AfterScopeChange(project, $"Shared with {ShareScopeLabel}.");
     }
 
-    /// <summary>Share a reference — a sheet, a document or an image.</summary>
-    public void ShareReference(string id, string target, bool projectWide = false)
-    {
-        if (Project is not { } project) return;
-        var scope = ScopeOfSelected();
-        if (Already(scope, ReferenceScopes.Kind, id)) return;
-        ReferenceScopes.Declare(
-            project.Manifest, scope, id, target,
-            projectWide ? ResourceReach.Project : ResourceReach.Subtree);
-        AfterScopeChange(project, $"Shared with {ShareScopeLabel}.");
-    }
+    // The reference share lived here — ShareReference and, below, the
+    // inverted-gesture ShareSelectedAsReference — and both are gone with the
+    // kind they produced: B133 measured the declarations they wrote as read
+    // by nothing, ever. Sheets share by being filed (ProjectSheets), which is
+    // consumed end-to-end, and that is the reference mechanism now.
 
     // ---- the other four kinds, and the two verbs every kind needs ------------
     //
@@ -1153,53 +1146,6 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         if (Project is not { } project || template?.Id is not { Length: > 0 } id) return;
         TemplateScopes.SetDefault(project.Manifest, ScopeOfSelected(), id);
         AfterScopeChange(project, $"New documents in {ShareScopeLabel} start from {template.Name}.");
-    }
-
-    /// <summary>
-    /// Whether the selected row is a drawing that could be reference for others.
-    /// </summary>
-    public bool CanShareSelectedAsReference => Selected is { IsHeading: false, Animation: not null };
-
-    /// <summary>
-    /// Share the selected <em>document</em> as reference, here or project-wide.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <b>The gesture is inverted, and deliberately.</b> Every other kind picks
-    /// the resource from a list hung off the folder it lands on. References
-    /// cannot: workflow 3's reference is an ordinary document, so that list
-    /// would be "every drawing in the project" — hundreds of entries in a
-    /// context menu, and the one you want is the row you already right-clicked.
-    /// So you pick the drawing and say how far it reaches.
-    /// </para>
-    /// <para>
-    /// <b>Which is also where publishing finally has a gesture.</b>
-    /// <see cref="ResourceReach.Project"/> existed in the record and in the
-    /// resolver and nowhere an artist could ask for it, which made workflows 3
-    /// and 4 — the environment layout everything draws against, the sword in the
-    /// asset library — the two the design was written for and the two that could
-    /// not be performed.
-    /// </para>
-    /// <para>
-    /// It lands on the document's <em>own</em> folder rather than on the
-    /// selection, because the selection is the document. Subtree from there
-    /// means "everything filed alongside this", which is what an artist sharing
-    /// a layout with its neighbours means.
-    /// </para>
-    /// </remarks>
-    public void ShareSelectedAsReference(bool projectWide)
-    {
-        if (Project is not { } project || Selected?.Animation is not { } document) return;
-        var scope = ProjectFolders.ById(project.Manifest, document.FolderId);
-        if (Already(scope, ReferenceScopes.Kind, document.Id)) return;
-        ReferenceScopes.Declare(
-            project.Manifest, scope, document.Id, ReferenceTargets.Document,
-            projectWide ? ResourceReach.Project : ResourceReach.Subtree);
-        AfterScopeChange(
-            project,
-            projectWide
-                ? $"{document.Name} is reference for the whole project."
-                : $"{document.Name} is reference for {scope?.Name ?? project.Name}.");
     }
 
     /// <summary>What the selected row declares, in words, with a verb for each.</summary>

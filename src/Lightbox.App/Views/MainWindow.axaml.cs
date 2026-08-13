@@ -4594,15 +4594,6 @@ public partial class MainWindow : Window
     private void OnProjectRemove(object? sender, RoutedEventArgs e) =>
         _vm.ProjectDocker.RemoveSelectedCommand.Execute(null);
 
-    // Q30. Two entries rather than one with a held modifier: subtree and
-    // project-wide are different reaches with different blast radii, and
-    // telling them apart by a key is how somebody publishes by accident.
-    private void OnShareAsReferenceHere(object? sender, RoutedEventArgs e) =>
-        _vm.ProjectDocker.ShareSelectedAsReference(projectWide: false);
-
-    private void OnShareAsReferenceEverywhere(object? sender, RoutedEventArgs e) =>
-        _vm.ProjectDocker.ShareSelectedAsReference(projectWide: true);
-
     /// <summary>
     /// Delete for real, asking first when there is something inside.
     /// </summary>
