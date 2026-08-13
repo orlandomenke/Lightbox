@@ -7501,37 +7501,160 @@ public sealed partial class MainViewModel : ObservableObject
     ///
     /// Scheduling is left to the dispatcher rather than to a wall-clock
     /// throttle of our own. Background priority yields to pointer input and to
-    /// the Default-priority snapshot, so during a fast drag the pass runs in
-    /// whatever gaps exist and during a pause it runs immediately — which is
+    /// the Default-priority snapshot, so during a fast drag the pass starts in
+    /// whatever gaps exist and during a pause it starts immediately — which is
     /// exactly the cadence wanted, and the dispatcher already knows how busy
     /// the thread is. A cost-based throttle was tried first and was worse in
     /// the way that matters: it blocked the pass that would have settled the
     /// preview, so the mark froze part-drawn until the pen lifted.
     ///
-    /// Only one pass is ever outstanding, and a pass with nothing new to draw
-    /// returns immediately.
+    /// Only one pass is ever outstanding — the flag now spans the whole
+    /// start → worker → finish arc, not just the dispatcher post — and a pass
+    /// with nothing new to draw returns immediately.
     /// </summary>
     private void RequestLivePostProcess()
     {
         if (_livePostQueued) return;
         _livePostQueued = true;
         Avalonia.Threading.Dispatcher.UIThread.Post(
-            RenderLivePostProcess, Avalonia.Threading.DispatcherPriority.Background);
+            StartLivePostProcess, Avalonia.Threading.DispatcherPriority.Background);
     }
 
     /// <summary>
-    /// The whole stroke so far, rendered exactly as it will commit — minus the
-    /// stroke opacity and the masks, which the compositor still applies once.
+    /// Runs a live post-process work item off the UI thread. A seam because
+    /// the tests need the pass deterministic — they swap in a synchronous
+    /// runner, for the same reason the pacing tests drive
+    /// <see cref="NoteFramePresented"/> by hand.
     /// </summary>
-    private void RenderLivePostProcess()
+    internal Func<Action, System.Threading.Tasks.Task> LivePostRunner { get; set; }
+        = work => System.Threading.Tasks.Task.Run(work);
+
+    /// <summary>
+    /// Bumped whenever the live-effect state resets, so a worker pass that
+    /// outlives its stroke is recognised as stale and discarded — a result
+    /// arriving after pen-up must not resurrect a preview the commit replaced.
+    /// </summary>
+    private int _livePostGeneration;
+
+    /// <summary>
+    /// Snapshot the pass's inputs and hand the effects to a worker (B189).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The second capture is why this is asynchronous.</b> The pass ran on
+    /// the UI thread and measured 20.13 ms mean, 196.6 ms worst, 307 times in
+    /// one wet drawing session — six seconds of blocked input, sitting exactly
+    /// in the event → publish segment the pen-to-screen instrument showed
+    /// growing. The simulation itself is untouched: the same
+    /// <c>PostProcessRegion</c> arithmetic runs over copies, and
+    /// <c>ACroppedRegionPassIsBitIdenticalToTheFullOne</c> holds the output to
+    /// bit-equality with the synchronous path, because live-versus-commit
+    /// equality is the bar the effect-brush work settled on (B69/B89).
+    /// </para>
+    /// <para>
+    /// <b>Everything shared is copied here, on the thread that owns it</b> —
+    /// the stroke (points and brush both; the artist can retune a slider
+    /// mid-stroke), the stroke's region of the dab scratch, and the region of
+    /// the layer beneath that re-wetting samples
+    /// (<see cref="Media.MediumSimulator.ExistingRegionNeeded"/> is the
+    /// contract for how much). The worker touches only its copies, so the UI
+    /// thread keeps stamping dabs and the frame cache keeps evicting without
+    /// a lock anywhere.
+    /// </para>
+    /// </remarks>
+    private void StartLivePostProcess()
+    {
+        if (_strokeBuilder.Current is not { } live || !_strokeBuilder.IsActive
+            || !NeedsLivePostProcess(live.Brush)
+            || _livePostStampedCount == live.Points.Count // nothing new since last pass
+            // The pass reads the dabs from the live scratch; the blur and
+            // smudge brushes use the copy-based path instead and have none.
+            || _liveScratch is not { } dabs)
+        {
+            _livePostQueued = false;
+            return;
+        }
+
+        var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+
+        // The same stroke, minus the opacity the compositor applies — the
+        // masks stay on the overlay so they cannot be baked in twice.
+        var whole = new Stroke
+        {
+            Tool = live.Tool,
+            Color = live.Color,
+            SwatchId = live.SwatchId,
+            Brush = live.Brush.Clone(),
+            Points = [.. live.Points],
+        };
+        var count = whole.Points.Count;
+
+        if (BrushEngine.PostProcessBounds(whole, info) is not { } rect
+            || CopyRegion(dabs, rect) is not { } dabsCrop)
+        {
+            _livePostQueued = false;
+            return;
+        }
+
+        // targetPixels is the committed layer: the medium re-wets what is
+        // already there, exactly as it will on commit. Copied because the
+        // frame cache owns the original and may evict it mid-pass.
+        SKBitmap? beneathCrop = null;
+        var beneathOrigin = default(SKPointI);
+        if (PaintTarget() is { } frame
+            && _cache.Get(frame, Scene.Width, Scene.Height) is { } beneath)
+        {
+            var needed = Lightbox.Raster.Media.MediumSimulator.ExistingRegionNeeded(
+                rect, Scene.Width, Scene.Height);
+            beneathCrop = CopyRegion(beneath, needed);
+            if (beneathCrop is not null) beneathOrigin = needed.Location;
+        }
+
+        var generation = _livePostGeneration;
+        LivePostRunner(() =>
+        {
+            SKImage? processed = null;
+            var started = System.Diagnostics.Stopwatch.GetTimestamp();
+            try
+            {
+                // The dabs are already stamped, so the pass runs the effects
+                // over them rather than re-stamping every dab — the cost stops
+                // growing with the length of the stroke.
+                processed = BrushEngine.PostProcessRegion(
+                    dabsCrop, whole, rect, beneathCrop, rect.Location, beneathOrigin);
+            }
+            catch
+            {
+                // A preview must never take the application down; the raw dabs
+                // stay visible and the next pass tries again.
+            }
+            finally
+            {
+                dabsCrop.Dispose();
+                beneathCrop?.Dispose();
+            }
+            var costMs = (System.Diagnostics.Stopwatch.GetTimestamp() - started)
+                         * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            // Input priority, not Background: the finish is a few blits, and a
+            // finish starved by continuous pointer input would hold the
+            // single-flight flag and stop the next pass from ever starting.
+            Avalonia.Threading.Dispatcher.UIThread.Post(
+                () => FinishLivePostProcess(processed, rect, count, generation, costMs),
+                Avalonia.Threading.DispatcherPriority.Input);
+        });
+    }
+
+    /// <summary>
+    /// Take the worker's result back onto the preview, or drop it if the
+    /// stroke it belongs to is already over.
+    /// </summary>
+    private void FinishLivePostProcess(
+        SKImage? processed, SKRectI rect, int count, int generation, double costMs)
     {
         _livePostQueued = false;
-        if (_strokeBuilder.Current is not { } live || !_strokeBuilder.IsActive) return;
-        if (!NeedsLivePostProcess(live.Brush)) return;
-        if (_livePostStampedCount == live.Points.Count) return; // nothing new since last pass
-        // The pass reads the dabs from the live scratch; the blur and smudge
-        // brushes use the copy-based path instead and have none.
-        if (_liveScratch is not { } dabs) return;
+        using var image = processed;
+        if (image is null) return;
+        if (generation != _livePostGeneration || !_strokeBuilder.IsActive) return;
 
         var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         if (_livePostScratch is null || _livePostScratch.Width != info.Width || _livePostScratch.Height != info.Height)
@@ -7541,40 +7664,22 @@ public sealed partial class MainViewModel : ObservableObject
             _livePostUsed = null;
         }
 
-        // The same stroke, minus the opacity the compositor applies — the
-        // masks stay on the overlay so they cannot be baked in twice.
-        var whole = new Stroke
-        {
-            Tool = live.Tool,
-            Color = live.Color,
-            SwatchId = live.SwatchId,
-            Brush = live.Brush,
-            Points = [.. live.Points],
-        };
-
-        var started = System.Diagnostics.Stopwatch.GetTimestamp();
         using (var canvas = new SKCanvas(_livePostScratch))
         {
             ClearRegion(canvas, _livePostUsed);
+            using var replace = new SKPaint { BlendMode = SKBlendMode.Src };
+            canvas.DrawImage(image, rect.Left, rect.Top, replace);
+            canvas.Flush();
         }
-        // The dabs are already in the live scratch, so the pass runs the
-        // effects over them rather than re-stamping every dab — the cost of a
-        // pass stops growing with the length of the stroke.
-        // targetPixels is the committed layer: the medium re-wets what is
-        // already there, exactly as it will on commit.
-        var beneath = PaintTarget() is { } frame ? _cache.Get(frame, Scene.Width, Scene.Height) : null;
-        var bounds = BrushEngine.PostProcessDabs(dabs, _livePostScratch, whole, info, beneath);
 
-        _livePostCostMs = (System.Diagnostics.Stopwatch.GetTimestamp() - started)
-                          * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
-        _livePostStampedCount = live.Points.Count;
-        _livePostUsed = bounds;
+        _livePostCostMs = costMs;
+        _livePostStampedCount = count;
+        _livePostUsed = rect;
         LivePostPasses++;
-        LivePostTotalMs += _livePostCostMs;
-        if (_livePostCostMs > LivePostWorstMs) LivePostWorstMs = _livePostCostMs;
+        LivePostTotalMs += costMs;
+        if (costMs > LivePostWorstMs) LivePostWorstMs = costMs;
 
-        if (bounds is { } rect) MarkDirtyRegion(rect);
-        else InvalidateWholeCanvas();
+        MarkDirtyRegion(rect);
         // Through the coalescing path, not straight to PublishSnapshot. A
         // direct publish here put an extra frame on the wire for every pass on
         // top of the one the pointer event had already queued, and publishing
@@ -7585,10 +7690,27 @@ public sealed partial class MainViewModel : ObservableObject
         // Points arrived while this pass was rendering: go round again so the
         // preview settles on the whole stroke rather than stopping wherever
         // the pen happened to be when the pass started.
-        if (_strokeBuilder.Current is { } now && now.Points.Count != _livePostStampedCount)
+        if (_strokeBuilder.Current is { } now && now.Points.Count != count)
         {
             RequestLivePostProcess();
         }
+    }
+
+    /// <summary>A real copy — <c>ExtractSubset</c> alone shares the pixels.</summary>
+    private static SKBitmap? CopyRegion(SKBitmap src, SKRectI r)
+    {
+        if (r.Width <= 0 || r.Height <= 0) return null;
+        var bmp = new SKBitmap(new SKImageInfo(r.Width, r.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        using var canvas = new SKCanvas(bmp);
+        using var sub = new SKBitmap();
+        if (!src.ExtractSubset(sub, r)) { bmp.Dispose(); return null; }
+        using var px = sub.PeekPixels();
+        using var view = px is null ? null : SKImage.FromPixels(px);
+        if (view is null) { bmp.Dispose(); return null; }
+        using var replace = new SKPaint { BlendMode = SKBlendMode.Src };
+        canvas.DrawImage(view, 0, 0, replace);
+        canvas.Flush();
+        return bmp;
     }
 
     private static void ClearRegion(SKCanvas canvas, SKRectI? region)
@@ -7606,6 +7728,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void ResetLivePostProcess()
     {
+        // Anything still on a worker belongs to the stroke that just ended;
+        // its result arriving later must be recognised as stale (B189).
+        _livePostGeneration++;
         if (_livePostScratch is not null && _livePostUsed is not null)
         {
             using var canvas = new SKCanvas(_livePostScratch);
