@@ -21,7 +21,9 @@ atlas, so it gets no layout picker.
 
 The shortcut through this whole section. Right-click a document in the **Project**
 panel → **Status**, and set where it is: Design, Draft, In development, Review,
-Ready, or Reopened. A coloured dot appears on the row.
+Ready, or Reopened. A coloured dot appears on the row — and appears by itself
+the first time a new document is saved, as **Draft**, so fresh work enters the
+pipeline without being asked.
 
 Switch on **Configure ▸ Export ▸ Export automatically on a status change**, point
 it at a folder, and reaching that status exports the asset there. Finish it, mark
@@ -103,8 +105,9 @@ Everything above is **File ▸ Export for a game engine…**, which exports the
 drawing you have open. A project can do it the other way round: declare a preset
 on a folder and export the folder.
 
-**Right-click a folder ▸ Export this as** picks the preset, and that does two
-things — it sets the settings *and* it says **where one file ends**. A preset can
+**Giving the folder an Export preset** — in the project manager's **Assets**
+tab, from the row's share picker — does two
+things: it sets the settings *and* it says **where one file ends**. A preset can
 produce one file per document, one per folder inside it, or **one file for the
 whole subtree**: the knight's walk, run and idle packed into a single sheet, with
 a frame tag naming each so an engine can still tell them apart.

@@ -724,6 +724,293 @@ public sealed class ProjectWindowTests(ITestOutputHelper output)
 
         Assert.NotNull(window.DataContext);
     }
+
+    // ---- creating structure from the window -------------------------------------
+    //
+    // The docker's rules, unchanged: it lands where the selection is (B85),
+    // the name is asked first and cancelling creates nothing (B65). What the
+    // window adds is the save — created here means on disk, so the docker and
+    // a file manager both show it without a second gesture.
+
+    /// <summary>A project on real disk, wired the way the main window wires it.</summary>
+    private static (ProjectWindowViewModel Vm, Project P, ProjectFolder Knight, HashSet<string> Dirty)
+        OpenOnDisk(string root)
+    {
+        var project = ProjectIo.Create("Production", root);
+        var knight = ProjectFolders.Add(project.Manifest, "Knight");
+        Add(project, "walk", knight);
+        var dirty = new HashSet<string>();
+        var vm = new ProjectWindowViewModel(project)
+        {
+            NewDocument = () => DocumentFactory.CreateDoc(32, 32, 12),
+            DocumentCreated = r => dirty.Add(r.Id),
+            RequestSave = () => ProjectIo.Save(project, dirty),
+        };
+        return (vm, project, knight, dirty);
+    }
+
+    private static string TempRoot() =>
+        Path.Combine(Path.GetTempPath(), $"lightbox-projwin-{Guid.NewGuid():N}.lbproj");
+
+    private static void Drop(string root)
+    {
+        if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
+    public void AFolderMadeHereLandsWhereTheSelectionIsAndOnDisk()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, _, knight, _) = OpenOnDisk(root);
+            vm.SetSelection(vm.Rows.Where(r => r.IsFolder && r.Folder!.Id == knight.Id));
+
+            var made = vm.AddFolder("Poses");
+
+            Assert.Equal(knight.Id, made.ParentId);
+            Assert.Contains(vm.Rows, r => r.IsFolder && ReferenceEquals(r.Folder, made));
+            // The save materialised it, so a file manager agrees with the tree.
+            Assert.True(Directory.Exists(Path.Combine(root, "knight", "poses")));
+            Assert.Contains("written to disk", vm.Status);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void ADocumentMadeHereIsWrittenAndArrivesAsDraft()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, knight, _) = OpenOnDisk(root);
+            vm.SetSelection(vm.Rows.Where(r => r.IsFolder && r.Folder!.Id == knight.Id));
+
+            var made = vm.AddDocument("Knight - run");
+
+            Assert.Equal(knight.Id, made.FolderId);
+            Assert.True(File.Exists(Path.Combine(root, "knight", "knight-run.lightbox.json")));
+            // The save is what put it in the pipeline: first write means Draft.
+            Assert.Equal(AssetStatus.Draft, made.Status);
+            // And the docker, reading the same manifest, lists it.
+            using var docker = new ProjectViewModel(
+                () => DocumentFactory.CreateDoc(32, 32, 12), (_, _) => { }, () => { })
+            {
+                Project = project,
+            };
+            Assert.Contains(docker.Rows, r => r.Animation?.Id == made.Id);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public async Task CancellingTheNamePromptCreatesNothing()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, knight, _) = OpenOnDisk(root);
+            vm.SetSelection(vm.Rows.Where(r => r.IsFolder && r.Folder!.Id == knight.Id));
+            var suggestions = new List<string>();
+            vm.AskName = (_, suggested) =>
+            {
+                suggestions.Add(suggested);
+                return Task.FromResult<string?>(null);   // the artist cancels
+            };
+            var folders = ProjectFolders.All(project.Manifest).Count;
+            var documents = project.Manifest.Documents.Count;
+
+            await vm.CreateFolderAsync();
+            await vm.CreateDocumentAsync();
+
+            Assert.Equal(folders, ProjectFolders.All(project.Manifest).Count);
+            Assert.Equal(documents, project.Manifest.Documents.Count);
+            // The document box offered the folder's stem (B107), so naming is
+            // a continuation rather than a blank page.
+            Assert.Equal($"Knight{ProjectViewModel.NameSeparator}", suggestions[1]);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    // ---- the asset library -------------------------------------------------------
+
+    /// <summary>A project holding one asset of each library kind.</summary>
+    private static (ProjectWindowViewModel Vm, Project P, ProjectFolder Knight, SheetRef Sheet)
+        OpenWithAssets(string root)
+    {
+        var project = ProjectIo.Create("Production", root);
+        var knight = ProjectFolders.Add(project.Manifest, "Knight");
+        Add(project, "walk", knight);
+        project.Palettes.Add(new Palette { Name = "Knight warms" });
+        var gradient = new Gradient { Name = "Dusk" };
+        project.Gradients[gradient.Id] = gradient;
+        var symbol = new Symbol { Name = "Shield" };
+        project.Symbols[symbol.Id] = symbol;
+        (project.Manifest.Tips ??= []).Add(new BrushTip { Name = "Dry rake" });
+        ProjectSheets.Add(project, "Knight sheet", knight);
+        ProjectIo.Save(project);   // sheets refile disk-first, so it has to exist
+        var vm = new ProjectWindowViewModel(project);
+        return (vm, project, knight, project.Manifest.Sheets!.Single());
+    }
+
+    [Fact]
+    public void TheLibraryListsEveryAssetWearingItsKind()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, _, _, _) = OpenWithAssets(root);
+
+            var kinds = vm.Library.Select(a => a.Designation).ToList();
+            output.WriteLine(string.Join(", ", vm.Library.Select(a => $"{a.Glyph} {a.Designation} {a.Name}")));
+            Assert.Equal(["Reference", "Palette", "Gradient", "Brush tip", "Symbol"], kinds);
+            // The designation and the glyph are both automatic and both
+            // per-kind unique — recognisable before the name is read.
+            Assert.Equal(vm.Library.Count, vm.Library.Select(a => a.Glyph).Distinct().Count());
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void DroppingAPaletteOnAFolderDeclaresItAndSaysWhatItFeeds()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, knight, _) = OpenWithAssets(root);
+            var palette = vm.Library.Single(a => a.Designation == "Palette");
+            var scope = vm.Assets.Single(s => s.Folder?.Id == knight.Id);
+
+            vm.DropOnScope(palette, scope);
+
+            Assert.Contains(knight.Resources ?? [],
+                r => r.Kind == PaletteScopes.Kind && r.Id == palette.Id);
+            output.WriteLine(vm.Status);
+            // The point of the gesture is the inheritance, and it is invisible
+            // from the row — so the window says it.
+            Assert.Contains("feeds every document under “Knight”", vm.Status);
+            _ = project;
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void DroppingASheetOnAFolderRefilesItRatherThanDeclaring()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, knight, sheet) = OpenWithAssets(root);
+            var goblin = ProjectFolders.Add(project.Manifest, "Goblin");
+            ProjectIo.Save(project);
+            vm.Rebuild();
+            var entry = vm.Library.Single(a => a.Designation == "Reference");
+            var scope = vm.Assets.Single(s => s.Folder?.Id == goblin.Id);
+
+            vm.DropOnScope(entry, scope);
+
+            // Filed, because filing is what feeds a folder's documents
+            // (ProjectSheets.VisibleTo). A declaration here would be an entry
+            // nothing reads — B133's shape exactly.
+            Assert.Equal(goblin.Id, sheet.FolderId);
+            Assert.DoesNotContain(goblin.Resources ?? [], r => r.Kind == ReferenceScopes.Kind);
+            Assert.Contains("feeds every document under it", vm.Status);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void ToggleReachPublishesAndTakesBack()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, _, knight, _) = OpenWithAssets(root);
+            var palette = vm.Library.Single(a => a.Designation == "Palette");
+            vm.DropOnScope(palette, vm.Assets.Single(s => s.Folder?.Id == knight.Id));
+            var declared = vm.Assets.Single(s => s.Folder?.Id == knight.Id).All.Single();
+            Assert.True(declared.CanReach);
+            Assert.False(declared.IsPublished);
+
+            vm.ToggleReach(declared);
+            Assert.Equal(ResourceReach.Project, declared.Resource.ReachOrDefault);
+
+            vm.ToggleReach(declared);
+            Assert.Equal(ResourceReach.Subtree, declared.Resource.ReachOrDefault);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void AReferenceOfferCarriesItsTargetIntoTheDeclaration()
+    {
+        // The docker's "Use this as reference" moved here, and a reference
+        // binds a target as well as an id — an offer without one would write a
+        // declaration that names a sheet and not what to do with it.
+        var root = TempRoot();
+        try
+        {
+            var (vm, _, knight, sheet) = OpenWithAssets(root);
+            vm.SelectedScope = vm.Assets.Single(s => s.Folder?.Id == knight.Id);
+
+            var offers = vm.OfferChoices.Where(o => o.Kind == ReferenceScopes.Kind).ToList();
+            output.WriteLine(string.Join("\n", offers.Select(o => $"{o.Label} -> {o.Target}")));
+            var sheetOffer = offers.Single(o => o.Id == sheet.Id);
+            Assert.Equal(ReferenceTargets.Sheet, sheetOffer.Target);
+            Assert.Contains(offers, o => o.Target == ReferenceTargets.Document);
+
+            vm.DeclareOnScope(sheetOffer);
+
+            var declared = (knight.Resources ?? []).Single(r => r.Kind == ReferenceScopes.Kind);
+            Assert.Equal(ReferenceTargets.Sheet, declared.Target);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void ASheetRowWearsItsDesignation()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, _, _, sheet) = OpenWithAssets(root);
+
+            var row = vm.Rows.Single(r => r.Sheet?.Id == sheet.Id);
+            Assert.Equal("Reference", row.Designation);
+            Assert.True(row.HasDesignation);
+            Assert.Equal(AssetKinds.GlyphOf(ReferenceScopes.Kind), row.Glyph);
+            // Folders and drawings wear nothing — the word is for assets.
+            Assert.All(vm.Rows.Where(r => r.Sheet is null), r => Assert.False(r.HasDesignation));
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
 }
 
 /// <summary>

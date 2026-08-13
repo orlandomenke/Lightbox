@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Lightbox.Core.Documents;
 using Lightbox.Core.Projects;
 
 namespace Lightbox.App.ViewModels;
@@ -58,7 +59,28 @@ public sealed record StatusColumn(
 /// the chip is what an artist clicks. Exactly one of the three is set.
 /// </remarks>
 public sealed record Declaration(
-    ScopedResource Resource, string Name, ProjectFolder? Folder, DocumentRef? Document, bool OnProject);
+    ScopedResource Resource, string Name, ProjectFolder? Folder, DocumentRef? Document, bool OnProject)
+{
+    /// <summary>The kind's own face, so a chip is recognisable before it is read.</summary>
+    public string Glyph => AssetKinds.GlyphOf(Resource.Kind);
+
+    public string Designation => AssetKinds.LabelOf(Resource.Kind);
+
+    /// <summary>Whether this one reaches the whole project rather than its subtree.</summary>
+    public bool IsPublished => Resource.ReachOrDefault == ResourceReach.Project;
+
+    /// <summary>
+    /// Whether reach is a question here at all. A document declaration has
+    /// nothing below it, so publishing from one is the folder's job.
+    /// </summary>
+    public bool CanReach => Document is null;
+
+    public string ReachGlyph => IsPublished ? "⤓" : "⤒";
+
+    public string ReachHint => IsPublished
+        ? "Reaches the whole project — take it back to this subtree"
+        : "Reaches this subtree — publish it project-wide";
+}
 
 /// <summary>One cell of the Assets table: what a scope declares of one kind.</summary>
 public sealed record AssetCell(string Kind, IReadOnlyList<Declaration> Declared)
@@ -86,9 +108,32 @@ public sealed record AssetScope(
 }
 
 /// <summary>One entry of the "give this scope something" menu.</summary>
-public sealed record OfferChoice(AssetScope Scope, string Kind, string Id, string Label)
+/// <param name="Target">
+/// What to do with the id, for the one kind that needs saying: a reference
+/// binds a target as well as an id (<see cref="ReferenceTargets"/>). Null on
+/// every other kind, and absent from the record it writes.
+/// </param>
+public sealed record OfferChoice(AssetScope Scope, string Kind, string Id, string Label, string? Target = null)
 {
     public override string ToString() => Label;
+}
+
+/// <summary>
+/// One asset in the project's library: a reference sheet, a palette, a
+/// gradient, a brush tip or a symbol, wearing its kind.
+/// </summary>
+/// <remarks>
+/// The library lists what the project <em>has</em>, where the Assets table
+/// lists what each scope <em>declares</em> — the library is what an artist
+/// drags onto the table to connect the two. Designation and glyph come from
+/// <see cref="AssetKinds"/> and are automatic, so an asset is recognisable as
+/// what it is wherever it lands.
+/// </remarks>
+public sealed record AssetEntry(string Kind, string Id, string Name)
+{
+    public string Glyph => AssetKinds.GlyphOf(Kind);
+
+    public string Designation => AssetKinds.LabelOf(Kind);
 }
 
 /// <summary>One place a sheet can be filed: a folder, or the project when null.</summary>
@@ -156,9 +201,18 @@ public sealed partial class BoardRow : ObservableObject
 
     public string Glyph =>
         Document is not null ? "▣"
-        : Sheet is not null ? "▤"
+        : Sheet is not null ? AssetKinds.GlyphOf(ReferenceScopes.Kind)
         : Folder is { Icon: { Length: > 0 } chosen } ? chosen
         : "🗀";
+
+    /// <summary>What kind of asset this row is, in a word — empty on the rest.</summary>
+    /// <remarks>
+    /// From <see cref="AssetKinds"/>, never authored, so the docker and this
+    /// window call a sheet the same thing.
+    /// </remarks>
+    public string Designation => Sheet is not null ? AssetKinds.LabelOf(ReferenceScopes.Kind) : "";
+
+    public bool HasDesignation => Designation.Length > 0;
 
     public string Name => Document?.Name ?? Sheet?.Name ?? Folder?.Name ?? "";
 
@@ -345,6 +399,8 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(People));
         OnPropertyChanged(nameof(Assets));
         OnPropertyChanged(nameof(OfferChoices));
+        OnPropertyChanged(nameof(Library));
+        OnPropertyChanged(nameof(HasLibrary));
         OnPropertyChanged(nameof(Columns));
         OnPropertyChanged(nameof(ExportRows));
         OnPropertyChanged(nameof(ExportSummary));
@@ -625,6 +681,113 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
     }
 
     private static string Count(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
+
+    // ---- creating structure from the window ---------------------------------------
+
+    /// <summary>
+    /// Makes the blank document a new entry starts as. Supplied by the owner
+    /// so a document made here matches one made anywhere else — size, fps,
+    /// paper — rather than a second definition of "blank".
+    /// </summary>
+    public Func<Doc>? NewDocument { get; set; }
+
+    /// <summary>
+    /// Called with each document made here, before the save. The docker owns
+    /// the dirty set the project save reads, so a document it was never told
+    /// about is a document no save writes.
+    /// </summary>
+    public Action<DocumentRef>? DocumentCreated { get; set; }
+
+    /// <summary>
+    /// Saves the project. Supplied by the owner so what is made here lands on
+    /// disk at once — the docker's pending badge is for work mid-drawing, and
+    /// this window is used between drawings, where "created" should mean
+    /// "exists".
+    /// </summary>
+    public Action? RequestSave { get; set; }
+
+    /// <summary>
+    /// Ask the artist what to call it: the kind in words, and a suggestion.
+    /// Null means they cancelled. Supplied by the window, for B65's reason —
+    /// a view model that opens its own dialogs is one no test can drive, and
+    /// the cancel path is the half that goes untested otherwise.
+    /// </summary>
+    public Func<string, string, Task<string?>>? AskName { get; set; }
+
+    /// <summary>
+    /// The folder a new thing goes into: the selected folder, or the folder a
+    /// selected document sits in — B85's rule, unchanged from the docker.
+    /// </summary>
+    public ProjectFolder? TargetFolder => Selected.FirstOrDefault()?.Folder;
+
+    /// <summary>Ask for a name, then create — or create nothing if cancelled.</summary>
+    [RelayCommand]
+    public async Task CreateFolderAsync()
+    {
+        var name = AskName is null ? "Folder" : await AskName("folder", "Folder");
+        if (name is null) return;   // cancelled: nothing is written
+        AddFolder(name);
+    }
+
+    [RelayCommand]
+    public async Task CreateDocumentAsync()
+    {
+        // The same stem the docker offers (B107): the folder is what the
+        // drawing is of, and typing "walk" after "Knight - " is the gesture.
+        var suggested = TargetFolder is { } folder
+            ? $"{folder.Name}{ProjectViewModel.NameSeparator}"
+            : $"Document {Manifest.Documents.Count + 1}";
+        var name = AskName is null ? suggested : await AskName("document", suggested);
+        if (name is null) return;   // cancelled: nothing is written
+        AddDocument(name);
+    }
+
+    /// <summary>Make a folder where the selection is, and write it to disk.</summary>
+    public ProjectFolder AddFolder(string? name)
+    {
+        var parent = TargetFolder;
+        var folder = ProjectFolders.Add(Manifest, ProjectViewModel.Named(name, "Folder"), parent);
+        _changed();
+        RequestSave?.Invoke();
+        Rebuild();
+        SetSelection(Rows.Where(r => r.IsFolder && ReferenceEquals(r.Folder, folder)));
+        Status = parent is null
+            ? $"“{folder.Name}” added to the project{OnDisk}."
+            : $"“{folder.Name}” added inside “{parent.Name}”{OnDisk}.";
+        return folder;
+    }
+
+    /// <summary>Make a document where the selection is, and write it to disk.</summary>
+    /// <remarks>
+    /// The save is what gives it its status: a new document becomes Draft on
+    /// its first write (<c>ProjectIo.Save</c>), so a row made here arrives in
+    /// the pipeline rather than outside it.
+    /// </remarks>
+    public DocumentRef AddDocument(string? name)
+    {
+        var folder = TargetFolder;
+        var doc = NewDocument?.Invoke() ?? DocumentFactory.CreateDoc();
+        var reference = ProjectIo.AddDocument(
+            _project,
+            ProjectViewModel.Named(name, $"Document {Manifest.Documents.Count + 1}"),
+            doc, folder);
+        DocumentCreated?.Invoke(reference);
+        _changed();
+        RequestSave?.Invoke();
+        Rebuild();
+        SetSelection(Rows.Where(r => ReferenceEquals(r.Document, reference)));
+        Status = folder is null
+            ? $"“{reference.Name}” added to the project{OnDisk}."
+            : $"“{reference.Name}” added in “{folder.Name}”{OnDisk}.";
+        return reference;
+    }
+
+    /// <summary>How the creation message ends, honestly.</summary>
+    /// <remarks>
+    /// Without a save hook nothing was written, and saying "written to disk"
+    /// anyway would be the docker's pending badge contradicted by a sentence.
+    /// </remarks>
+    private string OnDisk => RequestSave is null ? " — save the project to write it" : " and written to disk";
 
     // ---- editing a folder's facets (closes Q39's cost) --------------------------------
 
@@ -1025,6 +1188,11 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
             };
             foreach (var row in Rows)
             {
+                // A sheet is an asset, not a scope. Before this guard a sheet
+                // row fell into the folder branch below and put its folder in
+                // the table twice — a second "Knight" row whose chips edited
+                // the same folder as the first.
+                if (row.Sheet is not null) continue;
                 scopes.Add(row.Document is { } document
                     ? new AssetScope(
                         document.Name, row.Depth + 1,
@@ -1088,13 +1256,38 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
             var choices = new List<OfferChoice>();
             foreach (var kind in AssetKinds)
             {
+                if (kind == ReferenceScopes.Kind)
+                {
+                    // A reference binds a target as well as an id, which is why
+                    // ProjectBoard.Offers refuses the kind. This window knows
+                    // the targets — a sheet is a sheet, a drawing is a document
+                    // — so both registries are offered here, typed. This is
+                    // where the docker's "Use this as reference" moved to.
+                    foreach (var sheet in Manifest.Sheets ?? [])
+                    {
+                        Offer(kind, sheet.Id, sheet.Name, ReferenceTargets.Sheet);
+                    }
+                    foreach (var document in Manifest.Documents)
+                    {
+                        // A drawing is not reference for itself.
+                        if (document.Id == scope.Document?.Id) continue;
+                        Offer(kind, document.Id, document.Name, ReferenceTargets.Document);
+                    }
+                    continue;
+                }
                 foreach (var offer in ProjectBoard.Offers(_project, kind))
                 {
-                    if (already.Any(r => r.Kind == kind && r.Id == offer.Id)) continue;
-                    choices.Add(new OfferChoice(scope, kind, offer.Id, $"{kind} · {offer.Name}"));
+                    Offer(kind, offer.Id, offer.Name, target: null);
                 }
             }
             return choices;
+
+            void Offer(string kind, string id, string name, string? target)
+            {
+                if (already.Any(r => r.Kind == kind && r.Id == id)) return;
+                choices.Add(new OfferChoice(
+                    scope, kind, id, $"{Core.Projects.AssetKinds.LabelOf(kind)} · {name}", target));
+            }
         }
     }
 
@@ -1131,20 +1324,30 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
 
         if (choice.Scope.Document is { } document)
         {
-            ResourceScopes.DeclareOn(document, choice.Kind, choice.Id);
+            ResourceScopes.DeclareOn(document, choice.Kind, choice.Id, choice.Target);
         }
         else
         {
-            ResourceScopes.Declare(Manifest, choice.Scope.Folder, choice.Kind, choice.Id);
+            ResourceScopes.Declare(
+                Manifest, choice.Scope.Folder, choice.Kind, choice.Id, target: choice.Target);
         }
 
         var name = ProjectBoard.NameOf(_project, choice.Kind, choice.Id);
         Status = first
-            ? $"{name} shared with {choice.Scope.Name}. {choice.Kind} is now scoped — "
+            ? $"{name} shared with {choice.Scope.Name} — {Feeds(choice.Scope)}. {choice.Kind} is now scoped — "
               + "elsewhere only what is declared there is offered."
-            : $"{name} shared with {choice.Scope.Name}.";
+            : $"{name} shared with {choice.Scope.Name} — {Feeds(choice.Scope)}.";
         AfterAssetChange(choice.Scope);
     }
+
+    /// <summary>
+    /// What a declaration on this scope reaches, said so the artist is told
+    /// rather than left to infer it from the resolution rules.
+    /// </summary>
+    private static string Feeds(AssetScope scope) =>
+        scope.Document is not null ? $"it feeds only “{scope.Name}”"
+        : scope.IsProject ? "it feeds every document in the project"
+        : $"it feeds every document under “{scope.Name}”";
 
     /// <summary>Take one declaration back.</summary>
     [RelayCommand]
@@ -1185,5 +1388,131 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         Rebuild();
         SelectedScope = name is null ? null : Assets.FirstOrDefault(s => s.Name == name);
         _changed();
+    }
+
+    // ---- the asset library ---------------------------------------------------------
+
+    /// <summary>
+    /// The kinds the library lists — the assets an artist recognises as
+    /// <em>things</em>: a sheet, a palette, a gradient, a brush tip, a symbol.
+    /// </summary>
+    /// <remarks>
+    /// Guides, templates and export presets are declarable and deliberately
+    /// not here: a template is a document wearing a flag and a preset is a
+    /// setting, and a library that lists settings beside artwork stops reading
+    /// as a library. They stay reachable through the share picker above.
+    /// </remarks>
+    private static readonly IReadOnlyList<string> LibraryKinds =
+        [PaletteScopes.Kind, GradientScopes.Kind, TipScopes.Kind, SymbolScopes.Kind];
+
+    /// <summary>
+    /// Every asset the project has, each wearing its designation and glyph —
+    /// what an artist drags onto a scope to feed it.
+    /// </summary>
+    /// <remarks>
+    /// Sheets first because reference art is what everything else is drawn
+    /// against, matching the order the tree already lists them in.
+    /// </remarks>
+    public IReadOnlyList<AssetEntry> Library
+    {
+        get
+        {
+            var entries = new List<AssetEntry>();
+            foreach (var sheet in Manifest.Sheets ?? [])
+            {
+                entries.Add(new AssetEntry(ReferenceScopes.Kind, sheet.Id, sheet.Name));
+            }
+            foreach (var kind in LibraryKinds)
+            {
+                foreach (var offer in ProjectBoard.Offers(_project, kind))
+                {
+                    entries.Add(new AssetEntry(kind, offer.Id, offer.Name));
+                }
+            }
+            return entries;
+        }
+    }
+
+    public bool HasLibrary => Library.Count > 0;
+
+    /// <summary>
+    /// An asset landed on a scope — what a drag from the library does.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Two operations behind one gesture, and the asset decides which.</b> A
+    /// sheet is <em>filed</em>: `ProjectSheets.VisibleTo` already feeds a
+    /// folder's sheets to every document under it, so moving the entry is the
+    /// whole assignment and no declaration is written (writing one instead
+    /// would be B133 — an entry nothing reads). Everything else is
+    /// <em>declared</em> on the scope, which is what the resolvers read.
+    /// </para>
+    /// <para>
+    /// Either way the status line says what the folder now feeds, because the
+    /// inheritance is the point of the gesture and it is invisible from the
+    /// row itself.
+    /// </para>
+    /// </remarks>
+    public void DropOnScope(AssetEntry? asset, AssetScope? scope)
+    {
+        if (asset is null || scope is null) return;
+
+        if (asset.Kind == ReferenceScopes.Kind
+            && ProjectSheets.FindRef(Manifest, asset.Id) is { } sheet)
+        {
+            if (scope.Document is not null)
+            {
+                Status = "A sheet is filed on a folder or on the project, "
+                    + "so every drawing under it can consult it.";
+                return;
+            }
+            if (!ProjectSheets.Refile(_project, sheet, scope.Folder))
+            {
+                Status = $"Could not move “{sheet.Name}”. It is still where it was.";
+                return;
+            }
+            Status = scope.Folder is null
+                ? $"“{sheet.Name}” is filed on the project — every document sees it."
+                : $"“{sheet.Name}” is filed in “{scope.Folder.Name}” — it feeds every document under it.";
+            AfterAssetChange(scope);
+            return;
+        }
+
+        if (scope.All.Any(d => d.Resource.Kind == asset.Kind && d.Resource.Id == asset.Id))
+        {
+            Status = $"“{asset.Name}” is already shared with {scope.Name}.";
+            return;
+        }
+
+        var first = !AnyDeclaredOf(asset.Kind);
+        if (scope.Document is { } document)
+        {
+            ResourceScopes.DeclareOn(document, asset.Kind, asset.Id);
+        }
+        else
+        {
+            ResourceScopes.Declare(Manifest, scope.Folder, asset.Kind, asset.Id);
+        }
+        Status = first
+            ? $"{asset.Designation} “{asset.Name}” shared with {scope.Name} — {Feeds(scope)}. "
+              + $"{asset.Kind} is now scoped — elsewhere only what is declared there is offered."
+            : $"{asset.Designation} “{asset.Name}” shared with {scope.Name} — {Feeds(scope)}.";
+        AfterAssetChange(scope);
+    }
+
+    /// <summary>
+    /// Flip a declaration between its subtree and the whole project — the
+    /// docker's Reach menu, as one click on the chip it is about.
+    /// </summary>
+    [RelayCommand]
+    public void ToggleReach(Declaration? declaration)
+    {
+        if (declaration is null || !declaration.CanReach) return;
+        if (declaration.IsPublished) ResourceScopes.Demote(declaration.Resource);
+        else ResourceScopes.Promote(declaration.Resource);
+        Status = declaration.Resource.ReachOrDefault == ResourceReach.Project
+            ? $"{declaration.Name} reaches the whole project."
+            : $"{declaration.Name} reaches its own subtree again.";
+        AfterAssetChange(null);
     }
 }

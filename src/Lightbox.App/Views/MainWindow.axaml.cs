@@ -747,54 +747,12 @@ public partial class MainWindow : Window
     /// A one-field modal. Returns null when the user cancels — which is not
     /// the same as an empty string, and the callers rely on the difference.
     /// </summary>
-    private async Task<string?> PromptForText(string title, string label, string initial)
-    {
-        var box = new TextBox { Text = initial, PlaceholderText = label };
-        string? answer = null;
-
-        var dialog = new Window
-        {
-            Title = title,
-            Width = 320,
-            SizeToContent = SizeToContent.Height,
-            CanResize = false,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-        };
-        var ok = new Button { Content = "Save", IsDefault = true, MinWidth = 72 };
-        var cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 72 };
-        ok.Click += (_, _) =>
-        {
-            answer = box.Text ?? "";
-            dialog.Close();
-        };
-        cancel.Click += (_, _) => dialog.Close();
-
-        dialog.Content = new StackPanel
-        {
-            Margin = new Avalonia.Thickness(14),
-            Spacing = 10,
-            Children =
-            {
-                new TextBlock { Text = label, Opacity = 0.8 },
-                box,
-                new StackPanel
-                {
-                    Orientation = Avalonia.Layout.Orientation.Horizontal,
-                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
-                    Spacing = 6,
-                    Children = { cancel, ok },
-                },
-            },
-        };
-        box.Focus();
-        // B107. The caret goes after what is already there rather than to the
-        // front of it. The box is now prefilled with a derived stem — "Knight - "
-        // — and typing has to continue it; a caret at index 0 would put the
-        // artist's word in front of the name they were offered.
-        box.CaretIndex = box.Text?.Length ?? 0;
-        await dialog.ShowDialog(this);
-        return answer;
-    }
+    /// <remarks>
+    /// The dialog itself is <see cref="TextPrompt"/>, shared with the project
+    /// window since it started creating documents and folders too.
+    /// </remarks>
+    private Task<string?> PromptForText(string title, string label, string initial) =>
+        TextPrompt.ShowAsync(this, title, label, initial);
 
     private void OnAutosaveOff(object? sender, RoutedEventArgs e) => _vm.AutosaveMinutes = 0;
 
@@ -3647,8 +3605,16 @@ public partial class MainWindow : Window
     private async Task OpenProjectWindowAsync()
     {
         if (_vm.ProjectDocker.Project is not { } project) return;
-        await new Views.ProjectWindow(project, () => _vm.ProjectDocker.MarkManifestChanged())
-            .ShowDialog(this);
+        var window = new Views.ProjectWindow(project, () => _vm.ProjectDocker.MarkManifestChanged());
+        // What creation needs, supplied rather than reached for: the same
+        // blank document every other creator makes, the docker's dirty set so
+        // the save writes what the window made, and the save itself so
+        // "created" means "on disk" — the window is used between drawings,
+        // where a pending badge would only defer the question.
+        window.ViewModel.NewDocument = _vm.NewProjectDocument;
+        window.ViewModel.DocumentCreated = _vm.ProjectDocker.MarkDirty;
+        window.ViewModel.RequestSave = () => _vm.SaveProject();
+        await window.ShowDialog(this);
         _vm.ProjectDocker.Refresh();
     }
 

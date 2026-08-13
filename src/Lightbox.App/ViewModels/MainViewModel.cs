@@ -2686,6 +2686,13 @@ public sealed partial class MainViewModel : ObservableObject
             scene.TransparentBackground ? null : scene.BackgroundColor);
     }
 
+    /// <summary>
+    /// A blank document sized like the current scene — what the docker's
+    /// ＋ New makes, exposed so the project window's creator makes the same
+    /// one rather than a second definition of "blank".
+    /// </summary>
+    public Doc NewProjectDocument() => NewAnimationDoc();
+
     /// <summary>Open a project animation as a tab, or focus the tab it is already in.</summary>
     private void OpenProjectDocument(DocumentRef reference, Doc doc)
     {

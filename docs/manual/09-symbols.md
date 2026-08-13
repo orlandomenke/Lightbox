@@ -47,8 +47,10 @@ identity, so replacing what that identity resolves to *is* the update.
 By default a project symbol is offered to every drawing in the project, which is
 what the table above says and what every project means until you say otherwise.
 
-**Right-click a folder and pick *Share a symbol here*** and that stops being
-true: from then on a folder is offered the symbols declared on it and on the
+**Share a symbol onto a folder** — drag it from the asset library onto the
+folder's row in the project manager's **Assets** tab, or pick it from the
+row's share picker — and that stops being true: from then on a folder is
+offered the symbols declared on it and on the
 folders above it, and nowhere else gets them. It is the only one of the folder
 declarations that *takes away* — a palette shared on a folder adds to what is
 available, a symbol shared on a folder is a decision that the rest of the
