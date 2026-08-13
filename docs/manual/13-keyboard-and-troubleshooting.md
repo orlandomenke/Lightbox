@@ -188,9 +188,12 @@ whole file rather than interpret the numbers. Two things worth knowing when
 reading it:
 
 - **Wet-media brushes carry an extra line.** A simulated medium re-renders the
-  stroke while you draw, and that pass has its own cost, printed separately. If
-  that line is flagged and the rest is healthy, the lag belongs to the medium —
-  try the same preset's fast counterpart to confirm.
+  stroke while you draw. That work runs beside the drawing rather than in its
+  way, so it cannot lag the pen — but its cost is printed separately because a
+  slow pass still shows as the *wet look arriving late*: plain dabs at the pen
+  tip that turn into the rim and the pooling a beat afterwards. If that line is
+  flagged and the rest is healthy, that settling is the medium's cost — try the
+  same preset's fast counterpart to confirm.
 - **The measurement starts when the event reaches Lightbox.** Anything the
   tablet driver or the operating system adds before that is invisible to it, so
   a clean section with a lagging hand points outside the application.

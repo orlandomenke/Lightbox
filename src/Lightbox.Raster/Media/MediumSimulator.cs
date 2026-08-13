@@ -104,12 +104,21 @@ public static class MediumSimulator
     /// Null disables both — there is nothing underneath to interact with.
     /// </param>
     /// <param name="rect">The document region the scratch covers.</param>
+    /// <param name="existingOrigin">
+    /// Where <paramref name="existing"/>'s (0,0) sits in the coordinates
+    /// <paramref name="rect"/> is expressed in. Default means "aligned" — the
+    /// full layer, as both engine callers pass it. A cropped
+    /// <paramref name="existing"/> must cover <see cref="ExistingRegionNeeded"/>
+    /// or the rim samples read the crop's clamp instead of the layer's, and
+    /// the live preview stops matching the commit by exactly those pixels.
+    /// </param>
     public static void Apply(
         SKSurface scratch,
         SKBitmap? existing,
         SKColor strokeColor,
         MediumSettings medium,
-        SKRectI rect)
+        SKRectI rect,
+        SKPointI existingOrigin = default)
     {
         if (medium.Kind == MediumKind.None) return;
         if (rect.Width < MinSide || rect.Height < MinSide) return;
@@ -134,7 +143,7 @@ public static class MediumSimulator
         SeedFromCoverage(lattice, coverage, strokeColor, medium, w, h);
         if (medium.Rewetting > 0 && existing is not null)
         {
-            SeedRewetted(lattice, existing, coverage, medium, rect, w, h, step);
+            SeedRewetted(lattice, existing, coverage, medium, rect, w, h, step, existingOrigin);
         }
 
         lattice.Run(Math.Clamp(medium.FlowSteps, 0, 32), new FluidParams(
@@ -152,7 +161,26 @@ public static class MediumSimulator
 
         var deposit = new float[w * h * 4];
         lattice.ReadDeposit(deposit);
-        WriteBack(scratch, deposit, existing, strokeColor, medium, rect, w, h, step);
+        WriteBack(scratch, deposit, existing, strokeColor, medium, rect, w, h, step, existingOrigin);
+    }
+
+    /// <summary>
+    /// The region of the layer <see cref="Apply"/> will sample for
+    /// <paramref name="rect"/> — what a caller handing over a <em>cropped</em>
+    /// <c>existing</c> must cover.
+    /// </summary>
+    /// <remarks>
+    /// The lattice samples on a <c>step</c> grid from the rect's corner, so
+    /// the pad is one step beyond the rect, clamped to the document. Computed
+    /// here rather than by the caller because <c>step</c> is this file's
+    /// arithmetic, and a copy of it in the view model is the kind that drifts.
+    /// </remarks>
+    public static SKRectI ExistingRegionNeeded(SKRectI rect, int docWidth, int docHeight)
+    {
+        var step = Math.Max(1, (int)Math.Ceiling(Math.Max(rect.Width, rect.Height) / (double)MaxSide));
+        var padded = new SKRectI(rect.Left, rect.Top, rect.Right + step, rect.Bottom + step);
+        padded.Intersect(new SKRectI(0, 0, docWidth, docHeight));
+        return padded;
     }
 
     /// <summary>
@@ -229,7 +257,7 @@ public static class MediumSimulator
     /// </summary>
     private static void SeedRewetted(
         FluidLattice lattice, SKBitmap existing, float[] coverage,
-        MediumSettings medium, SKRectI rect, int w, int h, int step)
+        MediumSettings medium, SKRectI rect, int w, int h, int step, SKPointI origin)
     {
         var rewet = (float)Math.Clamp(medium.Rewetting, 0, 1);
         var pressureMix = (float)Math.Clamp(medium.PressureMix, 0, 1);
@@ -244,8 +272,8 @@ public static class MediumSimulator
                 var c = coverage[y * w + x];
                 if (c <= 0.01f) continue;
 
-                var sx = Math.Clamp(rect.Left + x * step, 0, under.Width - 1);
-                var sy = Math.Clamp(rect.Top + y * step, 0, under.Height - 1);
+                var sx = Math.Clamp(rect.Left - origin.X + x * step, 0, under.Width - 1);
+                var sy = Math.Clamp(rect.Top - origin.Y + y * step, 0, under.Height - 1);
                 var alpha = under.AlphaAt(sx, sy);
                 if (alpha == 0) continue;
 
@@ -268,7 +296,7 @@ public static class MediumSimulator
     /// </summary>
     private static void WriteBack(
         SKSurface scratch, float[] deposit, SKBitmap? existing, SKColor strokeColor,
-        MediumSettings medium, SKRectI rect, int w, int h, int step)
+        MediumSettings medium, SKRectI rect, int w, int h, int step, SKPointI origin)
     {
         var info = new SKImageInfo(w, h, SKColorType.Rgba8888, SKAlphaType.Unpremul);
         using var small = new SKBitmap(info);
@@ -305,8 +333,8 @@ public static class MediumSimulator
                     {
                         // Layer the settled pigment over what is beneath it the
                         // way pigment layers, not the way film layers.
-                        var sx = Math.Clamp(rect.Left + x * step, 0, under.Width - 1);
-                        var sy = Math.Clamp(rect.Top + y * step, 0, under.Height - 1);
+                        var sx = Math.Clamp(rect.Left - origin.X + x * step, 0, under.Width - 1);
+                        var sy = Math.Clamp(rect.Top - origin.Y + y * step, 0, under.Height - 1);
                         settled = Pigment.FromColor(settled, hiding).Over(under.At(sx, sy), a);
                     }
 

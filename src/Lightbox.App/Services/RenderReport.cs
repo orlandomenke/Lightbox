@@ -862,20 +862,23 @@ internal static class RenderReport
             sb.AppendLine("  nothing drawn yet — the chain has no end to measure. Draw for longer.");
         }
 
-        // The wet-media pass runs on the UI thread between events, so a pass
-        // costing more than a frame is felt as a hitch mid-stroke whatever the
-        // numbers above say. Named even at zero: a capture that never exercised
-        // a wet brush should say so, or its clean bill covers only dry ones.
+        // The wet-media pass runs on a worker since B189's second capture
+        // measured it blocking the UI thread for six seconds in one session —
+        // so its cost no longer adds to the chain above, but a slow pass still
+        // shows: the true wet look settles that far behind the pen tip. Named
+        // even at zero: a capture that never exercised a wet brush should say
+        // so, or its clean bill covers only dry ones.
         if (facts.LivePost is { Passes: > 0 } wet)
         {
             var mean = wet.TotalMs / wet.Passes;
-            sb.AppendLine($"live medium passes        {wet.Passes}   mean {mean:0.##} ms   worst {wet.WorstMs:0.##} ms   (wet brushes only, on the UI thread)");
-            if (mean > 17)
+            sb.AppendLine($"live medium passes        {wet.Passes}   mean {mean:0.##} ms   worst {wet.WorstMs:0.##} ms   (wet brushes only, OFF the UI thread)");
+            if (mean > 33)
             {
-                sb.AppendLine("  !! each pass blocks input for more than a frame, so a wet brush");
-                sb.AppendLine("     hitches however healthy the chain above is. This cost is the");
-                sb.AppendLine("     medium simulation — smaller brush, smaller canvas, or a preset");
-                sb.AppendLine("     without a simulated medium to confirm the difference.");
+                sb.AppendLine("  !! a pass this slow no longer blocks input, but the simulated look");
+                sb.AppendLine("     — the rim, the pooling — settles this far behind the pen tip,");
+                sb.AppendLine("     showing plain dabs until it lands. This cost is the medium");
+                sb.AppendLine("     simulation — smaller brush, smaller canvas, or a preset without");
+                sb.AppendLine("     a simulated medium to confirm the difference.");
             }
         }
         else

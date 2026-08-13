@@ -223,22 +223,25 @@ public class StrokeToScreenTests(ITestOutputHelper output) : IDisposable
     }
 
     /// <summary>
-    /// A wet-media pass over a frame's cost blocks input however healthy the
-    /// chain is, and a capture that never used a wet brush must say so rather
-    /// than hand dry brushes' clean bill to the wet ones.
+    /// A slow wet-media pass no longer blocks input (it runs on a worker since
+    /// B189's second capture), but the wet look settles behind the pen by its
+    /// cost, so the report still flags it — and a capture that never used a
+    /// wet brush must say so rather than hand dry brushes' clean bill to the
+    /// wet ones.
     /// </summary>
     [Fact]
     public void AnExpensiveMediumPassIsFlaggedAndAnAbsentOneIsSaidOutLoud()
     {
         var expensive = Section(Stats(1, 3, 8), livePost: (12, 12 * 170.0, 240));
         output.WriteLine(expensive);
-        Assert.Contains("blocks input for more than a frame", expensive);
+        Assert.Contains("settles this far behind the pen tip", expensive);
+        Assert.Contains("no longer blocks input", expensive);
 
         var none = Section(Stats(1, 3, 8));
         Assert.Contains("no wet-media brush was used", none);
 
         var cheap = Section(Stats(1, 3, 8), livePost: (12, 12 * 4.0, 9));
-        Assert.DoesNotContain("blocks input", cheap);
+        Assert.DoesNotContain("settles this far", cheap);
         Assert.Contains("live medium passes        12", cheap);
     }
 }
