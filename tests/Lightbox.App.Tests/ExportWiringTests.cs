@@ -244,7 +244,7 @@ public sealed class ExportWiringTests(ITestOutputHelper output) : BrushStateIsol
     /// declared as one artifact produces one file with every document's frames
     /// in it, and a tag naming each so an engine can tell them apart.
     /// </remarks>
-    [AvaloniaFact(Skip = "Multi-document sprite sheet export not yet implemented")]
+    [AvaloniaFact]
     public void RunningAGroupedPlanWritesOneSheetHoldingEveryDocument()
     {
         var vm = Vm();

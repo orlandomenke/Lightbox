@@ -1651,9 +1651,12 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
     /// it is how you find out that most of a scope is held back by status before
     /// wondering why the sheet is half empty.
     /// <para>
-    /// Read-only, deliberately. Running an export is the export window's job and
-    /// duplicating the button would be two places that can disagree about what
-    /// "export" means.
+    /// It ran nowhere until the owner asked (2026-08-13) — "read-only, the
+    /// export window's job" was the original call, and what changed it is that
+    /// this tab is where the grouped artifacts live: a plan you can read but
+    /// must leave the window to run is a detour. Two surfaces cannot disagree
+    /// about what export means because they share the docker's resolution and
+    /// the one runner (<see cref="RunExportToAsync"/>).
     /// </para>
     /// </remarks>
     public IReadOnlyList<ExportRow> ExportRows
@@ -1676,6 +1679,63 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
     /// <summary>The sentence the export confirmation reads, shown here instead.</summary>
     public string ExportSummary =>
         ExportPlan.Describe(ExportPlan.For(Manifest, selection: null, PresetById));
+
+    /// <summary>
+    /// The docker's plan resolution, injected so both surfaces run the one
+    /// export the one way — loading, preset fallback and pathing included.
+    /// </summary>
+    public Func<string, List<string>, IReadOnlyList<ProjectViewModel.PlannedArtifact>>? ResolveExport { get; set; }
+
+    /// <summary>Success bookkeeping, the docker's — a failed artifact stays stale.</summary>
+    public Action<ExportArtifact, string?>? RecordExport { get; set; }
+
+    /// <summary>
+    /// Run the whole plan into a folder — the view picks the folder, this does
+    /// the rest, off-thread per artifact like the docker's own export.
+    /// </summary>
+    public async Task<int> RunExportToAsync(string destination)
+    {
+        if (ResolveExport is null) return 0;
+        var missing = new List<string>();
+        var planned = ResolveExport(destination, missing);
+        if (planned.Count == 0)
+        {
+            Status = missing.Count > 0
+                ? $"Nothing exported — {string.Join(", ", missing)} could not be read."
+                : "Nothing to export: every document was held back.";
+            return 0;
+        }
+
+        var written = 0;
+        var failed = new List<string>();
+        foreach (var item in planned)
+        {
+            try
+            {
+                var run = await Task.Run(
+                    () => Services.ExportRunner.Run(item.Documents, item.Preset, item.Path, item.Names));
+                // No files means the runner refused, and said why.
+                if (run.Files.Count == 0)
+                {
+                    failed.Add($"{item.Name}: {run.Summary}");
+                    continue;
+                }
+                written++;
+                RecordExport?.Invoke(item.Artifact, item.Path);
+            }
+            catch (Exception ex)
+            {
+                failed.Add($"{item.Name}: {ex.Message}");
+            }
+        }
+        Status = failed.Count == 0
+            ? $"Exported {written} artifact(s) → {destination}."
+            : $"Exported {written} artifact(s); {failed.Count} refused or failed — "
+              + string.Join("; ", failed);
+        _changed();
+        Rebuild();
+        return written;
+    }
 
     private ExportPreset? PresetById(string id) =>
         (Manifest.ExportPresets ?? []).FirstOrDefault(p => p.Id == id)

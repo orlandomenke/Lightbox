@@ -514,4 +514,38 @@ public class UnityExportTests : IDisposable
             File.ReadAllText(first.MetadataPath).Replace("det1", "det2"),
             File.ReadAllText(second.MetadataPath));
     }
+
+    // ---- several documents, one atlas (Q30's grouped artifact) -----------------
+
+    [Fact]
+    public void SeveralDocumentsBecomeOneAtlasWithAClipPerDocument()
+    {
+        var walk = Walking(4);
+        walk.Scene.Name = "walk";
+        walk.Scene.Fps = 12;
+        walk.Scene.Pivot = new Pivot { X = 10, Y = 20 };
+        var dash = Walking(3);
+        dash.Scene.Name = "dash";
+        dash.Scene.Fps = 24;
+        dash.Scene.Pivot = new Pivot { X = 100, Y = 110 };
+
+        var result = UnityExporter.Export(
+            [walk, dash], At("pair.png"),
+            new UnityExportOptions { Sheet = new SpriteSheetOptions { Trim = SpriteTrim.None } });
+
+        Assert.Equal(7, result.SpriteCount);
+        var block = Unity(result);
+        var clips = block.GetProperty("clips").EnumerateArray().ToList();
+        Assert.Equal(
+            ["walk", "dash"],
+            clips.Select(c => c.GetProperty("name").GetString()));
+        Assert.Equal(4, clips[1].GetProperty("from").GetInt32());
+
+        // Each frame's pivot is its own document's — trim off, so the numbers
+        // are the pivots themselves, converted, not trim arithmetic.
+        var sprites = block.GetProperty("sprites").EnumerateArray().ToList();
+        Assert.NotEqual(
+            sprites[0].GetProperty("pivot")[0].GetDouble(),
+            sprites[4].GetProperty("pivot")[0].GetDouble());
+    }
 }

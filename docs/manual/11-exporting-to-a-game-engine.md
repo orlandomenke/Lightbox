@@ -113,11 +113,27 @@ whole subtree**: the knight's walk, run and idle packed into a single sheet, wit
 a frame tag naming each so an engine can still tell them apart.
 
 **Right-click a folder ▸ Export this folder…** runs it, and counts before it
-writes — *"2 files from 47 documents, 3 held back by status"*. Two formats refuse
-to hold several documents rather than exporting the first: a **PNG sequence**,
-because numbered frames in a folder cannot say where one animation ended, and a
-**GameMaker sprite**, because that is one animation with one origin and one image
-speed. Both say so and write nothing.
+writes — *"2 files from 47 documents, 3 held back by status"*. Or run it from
+the project manager's **Export** tab: the tab shows every artifact the plan
+would produce, and **▶ Run export…** writes them all into a folder you pick —
+the same plan, the same runner, so the two cannot disagree.
+
+**What holds several documents, precisely.** A **sprite sheet** — plain,
+Unity, Godot or Unreal — takes any number: the frames concatenate in order,
+every document becomes a **frame tag** naming its range so the engine can tell
+the clips apart, and each frame keeps its own document's frame rate, pivot,
+anchors and collision shapes (a 12 fps walk and a 24 fps dash coexist in one
+file, each on its own clock). Two formats refuse rather than exporting the
+first document silently: a **PNG sequence**, because numbered frames in a
+folder cannot say where one animation ended, and a **GameMaker sprite**,
+because that is one animation with one origin and one image speed. Both say so
+and write nothing.
+
+**One drawing vs. many is a question of door, not of capability.** **File ▸
+Export for a game engine…** exports the drawing you have open — one file from
+one document, always. To put several documents into one file, use the project
+side: declare the preset on their folder as **one artifact** and run the folder
+or the Export tab.
 
 *Which folder declares what, and how declarations are seen and taken back, is in
 [Documents and

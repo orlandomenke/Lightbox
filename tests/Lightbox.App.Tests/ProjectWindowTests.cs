@@ -1357,6 +1357,60 @@ public sealed class ProjectWindowTests(ITestOutputHelper output)
         }
     }
 
+    // ---- running the export plan from the Export tab -------------------------------
+
+    [Fact]
+    public async Task TheExportTabRunsThePlanThroughTheOneRunner()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, knight, _) = OpenWithAssets(root);
+            var outDir = Path.Combine(root, "out");
+            Directory.CreateDirectory(outDir);
+            var recorded = new List<string?>();
+            // The docker's resolution, stubbed to the same shape it returns:
+            // one grouped artifact holding both of the knight's documents.
+            vm.ResolveExport = (folder, _) =>
+            {
+                var docs = project.Manifest.Documents
+                    .Select(r => ProjectIo.LoadDocument(project, r)!)
+                    .ToList();
+                var names = project.Manifest.Documents.Select(d => d.Name).ToList();
+                var preset = ExportPreset.BuiltIns.First();
+                var artifact = ExportPlan
+                    .For(project.Manifest, selection: null, _ => preset)
+                    .First(a => !a.IsEmpty);
+                return
+                [
+                    new ProjectViewModel.PlannedArtifact(
+                        artifact, preset, docs, names, "knight",
+                        Path.Combine(folder, "knight.png")),
+                ];
+            };
+            vm.RecordExport = (_, path) => recorded.Add(path);
+
+            var written = await vm.RunExportToAsync(outDir);
+
+            Assert.Equal(1, written);
+            Assert.True(File.Exists(Path.Combine(outDir, "knight.png")));
+            // Both documents in one sheet, a clip apiece — the grouped plan
+            // made runnable, which is what the tab's ▶ is for.
+            var meta = System.Text.Json.JsonDocument
+                .Parse(File.ReadAllText(Path.Combine(outDir, "knight.json"))).RootElement;
+            Assert.Equal(
+                2, meta.GetProperty("meta").GetProperty("frameTags").GetArrayLength());
+            Assert.Single(recorded);
+            output.WriteLine(vm.Status);
+            Assert.Contains("Exported 1", vm.Status);
+            _ = knight;
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
     // ---- creating assets from the Assets tab ---------------------------------------
 
     [Fact]

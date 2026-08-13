@@ -613,11 +613,17 @@
             the way you learn most of a scope is held back by status before
             wondering why the sheet came out half empty.
 
-            Read-only: running an export is the export window's job, and a second
-            button is two places that can disagree about what export means.
+            And it runs from here now (owner's ask): the plan is read where the
+            grouped artifacts live, through the docker's own resolution and the
+            one runner, so the two surfaces cannot disagree about what export
+            means.
           -->
           <Border DockPanel.Dock="Top" Classes="bar">
-            <TextBlock Classes="dim" Text="{Binding ExportSummary}" />
+            <DockPanel>
+              <Button DockPanel.Dock="Right" Content="▶ Run export…" Click="OnRunExport"
+                      ToolTip.Tip="Export every artifact below into a folder you pick — grouped scopes become one sheet with a tagged clip per document" />
+              <TextBlock Classes="dim" Text="{Binding ExportSummary}" VerticalAlignment="Center" />
+            </DockPanel>
           </Border>
           <ScrollViewer>
             <ItemsControl ItemsSource="{Binding ExportRows}" Margin="6">
