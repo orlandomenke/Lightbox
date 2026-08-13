@@ -63,6 +63,34 @@ public sealed class AutosaveService
     public Task PendingWrite => _write;
 
     /// <summary>
+    /// Block until any background write is done. Every UI-thread save of a
+    /// document file calls this first.
+    /// </summary>
+    /// <remarks>
+    /// With in-place autosave on, the background write and a manual save
+    /// target the same path, and two <see cref="DocJson.Save"/> calls on one
+    /// path collide on the temp file — worse, a stale snapshot finishing
+    /// late would roll the newer save backwards, which is silent data loss.
+    /// The fully synchronous code could not interleave writers; this wait
+    /// restores that ordering. A no-op when the disk is quiet, bounded by
+    /// one document write when it is not, and safe to call on the UI thread
+    /// because the write needs nothing from it.
+    /// </remarks>
+    public void FinishPendingWrite()
+    {
+        try
+        {
+            _write.Wait();
+        }
+        catch (AggregateException)
+        {
+            // The write's own failure is its own business — swallowed there
+            // for IO, surfaced there for bugs. The caller only needed the
+            // disk quiet, and it is.
+        }
+    }
+
+    /// <summary>
     /// Change the cadence without rebuilding the service — what the settings
     /// screen calls. Zero or null stops it.
     /// </summary>
@@ -104,8 +132,20 @@ public sealed class AutosaveService
     public void Flush()
     {
         if (!_dirty || !_write.IsCompleted) return;
-        var snapshot = _docProvider().Clone();
-        var inPlacePath = InPlace ? _inPlacePath?.Invoke() : null;
+        Doc snapshot;
+        string? inPlacePath;
+        try
+        {
+            snapshot = _docProvider().Clone();
+            inPlacePath = InPlace ? _inPlacePath?.Invoke() : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // The old, synchronous Flush held the provider inside the same
+            // filter; keeping that means the move off-thread cannot turn a
+            // swallowed failure into a crash in the timer tick.
+            return;
+        }
         _dirty = false;
         _write = Task.Run(() =>
         {

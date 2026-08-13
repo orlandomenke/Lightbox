@@ -76,6 +76,27 @@ public sealed class AutosaveServiceTests : IDisposable
     }
 
     [AvaloniaFact]
+    public void FinishPendingWriteLeavesTheDiskQuietAndTheFileComplete()
+    {
+        // The guard every manual save calls before writing a document file.
+        // With in-place autosave on, the background writer and a Ctrl+S
+        // target the same path: unsynchronized, they collide on the temp
+        // file, and a stale snapshot finishing late would silently undo the
+        // newer save. After this returns, the caller may write immediately.
+        var doc = DocWithStrokes(2);
+        var path = PathFor("autosave.lightbox.json");
+        var service = new AutosaveService(() => doc, TimeSpan.Zero, targetPath: path);
+
+        service.MarkDirty();
+        service.Flush();
+        service.FinishPendingWrite();
+
+        // No wait on PendingWrite here, deliberately: the file must be
+        // complete and the writer gone the moment the call returns.
+        Assert.Equal(2, DocJson.Load(path).Scene.Layers[0].Cels[0].Frame!.Strokes.Count);
+    }
+
+    [AvaloniaFact]
     public void ACleanDocumentWritesNothing()
     {
         var doc = DocWithStrokes(1);
