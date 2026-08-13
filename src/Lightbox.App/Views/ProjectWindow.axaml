@@ -587,6 +587,7 @@
                                     ToolTip.Tip="{Binding ReachHint}" />
                             <Button Content="✕" FontSize="10" Padding="2,0"
                                     Background="Transparent" BorderThickness="0"
+                                    IsVisible="{Binding CanRemove}"
                                     Command="{Binding $parent[ListBox].((vm:ProjectWindowViewModel)DataContext).UndeclareOnScopeCommand}"
                                     CommandParameter="{Binding}"
                                     ToolTip.Tip="Stop sharing this here" />

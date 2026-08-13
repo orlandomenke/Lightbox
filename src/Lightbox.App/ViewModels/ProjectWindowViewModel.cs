@@ -59,7 +59,8 @@ public sealed record StatusColumn(
 /// the chip is what an artist clicks. Exactly one of the three is set.
 /// </remarks>
 public sealed record Declaration(
-    ScopedResource Resource, string Name, ProjectFolder? Folder, DocumentRef? Document, bool OnProject)
+    ScopedResource Resource, string Name, ProjectFolder? Folder, DocumentRef? Document, bool OnProject,
+    SheetRef? Sheet = null)
 {
     /// <summary>The kind's own face, so a chip is recognisable before it is read.</summary>
     public string Glyph => AssetKinds.GlyphOf(Resource.Kind);
@@ -71,15 +72,34 @@ public sealed record Declaration(
 
     /// <summary>
     /// Whether reach is a question here at all. A document declaration has
-    /// nothing below it, so publishing from one is the folder's job.
+    /// nothing below it, so publishing from one is the folder's job — and a
+    /// filed sheet's reach is where it is filed, not a switch.
     /// </summary>
-    public bool CanReach => Document is null;
+    public bool CanReach => Document is null && Sheet is null;
+
+    /// <summary>
+    /// Whether the ✕ applies. A filed sheet's chip reports filing, and
+    /// "un-sharing" one would actually mean re-filing it project-wide — the
+    /// opposite gesture — so the chip shows and the drag moves it.
+    /// </summary>
+    public bool CanRemove => Sheet is null;
 
     public string ReachGlyph => IsPublished ? "⤓" : "⤒";
 
     public string ReachHint => IsPublished
         ? "Reaches the whole project — take it back to this subtree"
         : "Reaches this subtree — publish it project-wide";
+
+    /// <summary>
+    /// The pill a sheet wears on the folder it is filed on — the same chip
+    /// every declared kind gets, because an artist reading the row should not
+    /// need to know that sheets share by filing while palettes share by
+    /// declaration (the owner's report, 2026-08-13: pills were inconsistent
+    /// across kinds).
+    /// </summary>
+    public static Declaration ForSheet(SheetRef sheet, ProjectFolder folder) => new(
+        new ScopedResource { Kind = ReferenceScopes.Kind, Id = sheet.Id },
+        sheet.Name, folder, null, OnProject: false, Sheet: sheet);
 }
 
 /// <summary>One cell of the Assets table: what a scope declares of one kind.</summary>
@@ -1792,12 +1812,26 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
     }
 
     private IReadOnlyList<AssetCell> Cells(
-        List<ScopedResource>? declared, ProjectFolder? folder, DocumentRef? document, bool onProject) =>
-        [.. AssetKinds.Select(k => new AssetCell(
+        List<ScopedResource>? declared, ProjectFolder? folder, DocumentRef? document, bool onProject)
+    {
+        var cells = AssetKinds.Select(k => new AssetCell(
             k,
             [.. (declared ?? []).Where(r => r.Kind == k).Select(
                 r => new Declaration(
-                    r, ProjectBoard.NameOf(_project, k, r.Id), folder, document, onProject))]))];
+                    r, ProjectBoard.NameOf(_project, k, r.Id), folder, document, onProject))])).ToList();
+        // Sheets share by being filed, not declared — but the row must not
+        // read differently for it. A filed sheet wears the same pill, minus
+        // the verbs that make no sense on filing (✕, reach).
+        if (folder is not null)
+        {
+            var filed = (Manifest.Sheets ?? [])
+                .Where(s => s.FolderId == folder.Id)
+                .Select(s => Declaration.ForSheet(s, folder))
+                .ToList();
+            if (filed.Count > 0) cells.Add(new AssetCell(ReferenceScopes.Kind, filed));
+        }
+        return cells;
+    }
 
     /// <summary>
     /// The scope the Assets tab is about to give something to.

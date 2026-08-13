@@ -948,7 +948,10 @@ public sealed class ProjectWindowTests(ITestOutputHelper output)
             var (vm, _, knight, _) = OpenWithAssets(root);
             var palette = vm.Library.Single(a => a.Designation == "Palette");
             vm.DropOnScope(palette, vm.Assets.Single(s => s.Folder?.Id == knight.Id));
-            var declared = vm.Assets.Single(s => s.Folder?.Id == knight.Id).All.Single();
+            // The knight's row also wears its sheet's pill now; the palette
+            // declaration is the one with verbs.
+            var declared = vm.Assets.Single(s => s.Folder?.Id == knight.Id)
+                .All.Single(d => d.Sheet is null);
             Assert.True(declared.CanReach);
             Assert.False(declared.IsPublished);
 
@@ -1354,6 +1357,53 @@ public sealed class ProjectWindowTests(ITestOutputHelper output)
             {
                 Directory.Delete(renamed, recursive: true);
             }
+        }
+    }
+
+    // ---- every kind wears its pill (owner's report: they were inconsistent) --------
+
+    [Fact]
+    public void ASheetFiledOnAFolderWearsAPillOnItsScopeRow()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, _, knight, sheet) = OpenWithAssets(root);
+            var scope = vm.Assets.Single(s => s.Folder?.Id == knight.Id);
+
+            var pill = scope.All.Single(d => d.Sheet?.Id == sheet.Id);
+            Assert.Equal("Reference", pill.Designation);
+            // Filing is not a declaration: no ✕ (un-sharing would actually
+            // mean re-filing project-wide) and no reach switch.
+            Assert.False(pill.CanRemove);
+            Assert.False(pill.CanReach);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void ATemplateDefaultWearsAPillOnItsScopeRow()
+    {
+        // Pinned because the report said templates did not pill — they do,
+        // through the ordinary declaration path, and this keeps it so.
+        var root = TempRoot();
+        try
+        {
+            var (vm, _, knight, _) = OpenWithAssets(root);
+            var template = vm.Library.First(a => a.Designation == "Template");
+            vm.DropOnScope(template, vm.Assets.Single(s => s.Folder?.Id == knight.Id));
+
+            var scope = vm.Assets.Single(s => s.Folder?.Id == knight.Id);
+            var pill = scope.All.Single(d => d.Designation == "Template");
+            Assert.Equal(template.Name, pill.Name);
+            Assert.True(pill.CanRemove);   // a default can be taken back
+        }
+        finally
+        {
+            Drop(root);
         }
     }
 
