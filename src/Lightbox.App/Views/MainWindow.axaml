@@ -541,6 +541,33 @@
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>
+        <!--
+          What this workspace's bar carries. Beside the workspace picker
+          rather than at the bar's far end, because the choice belongs to the
+          workspace, not to the tool in hand — Q74's sharpening of Q70: a
+          smart bar per workspace, with size and opacity fixed outside it.
+        -->
+        <Button x:Name="QuickBarCustomize" DockPanel.Dock="Right" Classes="icon" Content="⋮"
+                Background="Transparent" BorderThickness="0" VerticalAlignment="Center"
+                ToolTip.Tip="Choose what this workspace's quick bar carries. Size and opacity are always on it.">
+          <Button.Flyout>
+            <Flyout Placement="Bottom">
+              <StackPanel Spacing="6" Width="240">
+                <TextBlock Text="Quick options for this workspace" FontWeight="SemiBold" />
+                <ItemsControl ItemsSource="{Binding Workspace.QuickBarChoices}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:QuickBarChoice">
+                      <CheckBox Content="{Binding Label}" IsChecked="{Binding IsOn}"
+                                ToolTip.Tip="{Binding Hint}" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="Size and opacity are fixed. Saved with the workspace."
+                           Opacity="0.6" FontSize="11" TextWrapping="Wrap" />
+              </StackPanel>
+            </Flyout>
+          </Button.Flyout>
+        </Button>
 
       <!--
         The tool options scroll rather than push. A brush row is wide, and
@@ -687,8 +714,13 @@
           argues against elsewhere — two copies of one control buys a second place
           to look.
         -->
-        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
-                    IsVisible="{Binding IsPaintTool}">
+        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <StackPanel.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="IsPaintTool" />
+              <Binding Path="Workspace.QuickBrushPreset" />
+            </MultiBinding>
+          </StackPanel.IsVisible>
           <!--
             The badge is the whole point of the list being ordered the way it
             is: fast brushes first, expressive ones after, so the two kinds are
@@ -805,7 +837,13 @@
         </StackPanel>
 
         <!-- Brush options -->
-        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsBrushTool}">
+        <StackPanel Orientation="Horizontal" Spacing="14">
+          <StackPanel.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="IsBrushTool" />
+              <Binding Path="Workspace.QuickBrushOptions" />
+            </MultiBinding>
+          </StackPanel.IsVisible>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Hardness" VerticalAlignment="Center" />
             <Slider Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Classes="param" VerticalAlignment="Center" />
@@ -910,8 +948,13 @@
           the gradient. Where a change happens is a spatial judgement, and a
           number is a poor way to make one.
         -->
-        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center"
-                    IsVisible="{Binding IsGradientTool}">
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <StackPanel.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="IsGradientTool" />
+              <Binding Path="Workspace.QuickGradientOptions" />
+            </MultiBinding>
+          </StackPanel.IsVisible>
           <ComboBox ItemsSource="{Binding GradientDocker.Gradients}"
                     SelectedItem="{Binding GradientDocker.SelectedGradient}"
                     Width="130" VerticalAlignment="Center" ToolTip.Tip="Gradient">
@@ -985,7 +1028,13 @@
         </StackPanel>
 
         <!-- Shape options -->
-        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsShapeTool}">
+        <StackPanel Orientation="Horizontal" Spacing="14">
+          <StackPanel.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="IsShapeTool" />
+              <Binding Path="Workspace.QuickShapeOptions" />
+            </MultiBinding>
+          </StackPanel.IsVisible>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Shape" VerticalAlignment="Center" />
             <ComboBox ItemsSource="{Binding ShapeChoices}" SelectedItem="{Binding ActiveShape}"
@@ -1008,7 +1057,13 @@
 
         <!-- Eraser options. Size and opacity are not here: they are pinned on
              the fixed section of the bar for every painting tool (Q70). -->
-        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsEraserTool}">
+        <StackPanel Orientation="Horizontal" Spacing="14">
+          <StackPanel.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="IsEraserTool" />
+              <Binding Path="Workspace.QuickEraserOptions" />
+            </MultiBinding>
+          </StackPanel.IsVisible>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Hardness" VerticalAlignment="Center" />
             <Slider Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Classes="param" VerticalAlignment="Center" />
@@ -1052,7 +1107,13 @@
              selected, and the actions that need a selection arrive with V3. An
              empty bar would still be right to register now, because a tool with
              no options panel is a tool the bar has never heard of. -->
-        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsArrowTool}">
+        <StackPanel Orientation="Horizontal" Spacing="14">
+          <StackPanel.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="IsArrowTool" />
+              <Binding Path="Workspace.QuickArrowOptions" />
+            </MultiBinding>
+          </StackPanel.IsVisible>
           <TextBlock Text="{Binding StrokeSelectionSummary}" VerticalAlignment="Center"
                      ToolTip.Tip="Click a line to select it, Shift to add. Click empty canvas to let go." />
           <TextBlock Text="Click a line, a guide or a symbol to select it."
@@ -1071,7 +1132,13 @@
           </StackPanel>
         </StackPanel>
 
-        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsFillTool}">
+        <StackPanel Orientation="Horizontal" Spacing="14">
+          <StackPanel.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="IsFillTool" />
+              <Binding Path="Workspace.QuickFillOptions" />
+            </MultiBinding>
+          </StackPanel.IsVisible>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Tolerance" VerticalAlignment="Center" />
             <NumericUpDown Value="{Binding FillTolerance}" Minimum="0" Maximum="255" Increment="4"
@@ -1097,7 +1164,13 @@
         </StackPanel>
 
         <!-- Selection options -->
-        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsSelectTool}">
+        <StackPanel Orientation="Horizontal" Spacing="14">
+          <StackPanel.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="IsSelectTool" />
+              <Binding Path="Workspace.QuickSelectOptions" />
+            </MultiBinding>
+          </StackPanel.IsVisible>
           <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
             <RadioButton GroupName="selvar" Content="◌" IsChecked="{Binding IsFreehandVariant, Mode=OneWay}"
                          Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Freehand}"
@@ -1153,6 +1226,27 @@
             <Button Content="Invert" Command="{Binding InvertSelectionCommand}" ToolTip.Tip="Invert the selection (Ctrl+Shift+I)" />
           </StackPanel>
           <TextBlock Text="Shift adds · Alt subtracts" VerticalAlignment="Center" Opacity="0.6" FontSize="12" />
+        </StackPanel>
+
+        <!--
+          The workspace's own quick options, after the tool's: not tool-gated,
+          because "play" is not a property of the brush in hand. These are what
+          the per-workspace bar exists for (Q74) — an Animation workspace keeps
+          the transport at eye level instead of down on the timeline. The
+          buttons mirror the timeline's own, same commands, same glyphs, so
+          learning one is learning both.
+        -->
+        <StackPanel x:Name="QuickTransport" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
+                    IsVisible="{Binding Workspace.QuickTransport}">
+          <Button Content="{Binding PlayPauseGlyph}" Command="{Binding TogglePlaybackCommand}"
+                  ToolTip.Tip="Play / pause" />
+        </StackPanel>
+        <StackPanel x:Name="QuickAddFrame" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
+                    IsVisible="{Binding Workspace.QuickAddFrame}">
+          <Button Content="＋" Command="{Binding AddFrameCommand}"
+                  ToolTip.Tip="Add an empty frame after this one" />
+          <Button Content="⧉" Command="{Binding DuplicateFrameCommand}"
+                  ToolTip.Tip="Duplicate current frame" />
         </StackPanel>
       </controls:OverflowBar>
       </DockPanel>

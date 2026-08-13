@@ -122,6 +122,21 @@ public sealed class DockLayout
     /// </remarks>
     public bool GuidesLocked { get; set; }
 
+    /// <summary>
+    /// What the Quick options bar carries in this arrangement, as ids from
+    /// <see cref="QuickBarCatalog"/>. Null means the layout never chose, and
+    /// the bar shows <see cref="QuickBarCatalog.ToolDefaults"/> — nullable so
+    /// an untouched workspace writes no key, per the optional-means-absent
+    /// rule. Size and opacity are not in here and cannot be: they are pinned
+    /// in the bar's fixed section, outside anything a workspace chooses.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? QuickBar { get; set; }
+
+    /// <summary>The bar's contents with the default resolved in.</summary>
+    [JsonIgnore]
+    public IReadOnlyList<string> QuickBarContents => QuickBar ?? QuickBarCatalog.ToolDefaults;
+
     /// <summary>The layout the app opens with the first time.</summary>
     public static DockLayout Default()
     {
@@ -482,6 +497,7 @@ public sealed class DockLayout
         Rulers = Rulers,
         GuidesVisible = GuidesVisible,
         GuidesLocked = GuidesLocked,
+        QuickBar = QuickBar?.ToList(),
     };
 
     // ---- persistence ---------------------------------------------------------

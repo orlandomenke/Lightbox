@@ -175,6 +175,23 @@ Saving over a built-in forks it instead of overwriting it.
 
 The picker marks a workspace you have since rearranged with a `*`.
 
+### The quick bar is the workspace's
+
+What the Quick options bar carries is part of the workspace, chosen for the
+work rather than fixed: the **Animation**, **Game art** and **Storyboard**
+workspaces put the transport (play/pause) and frame buttons at eye level, the
+single-image workspaces carry the paint kit and the marquee, and **Default**
+shows every tool's own group. Two things never move whatever the workspace
+says: **Size** and **Opacity** stay pinned on the bar's left.
+
+The **⋮** button beside the workspace picker chooses the contents — tick and
+untick what this workspace offers. The choice behaves like any other
+workspace edit: the picker marks it with `*` until you save, *reset* undoes
+it, and a saved workspace remembers it. A tool-bound group you carry still
+shows only while its tool is in hand — carrying *Fill options* does not pin a
+dead strip to the bar all day. Everything you untick stays reachable in the
+Tool options panel, which always has the full vocabulary.
+
 When you create a project, you are asked whether to keep the arrangement you
 are in or take that project type's defaults. It is a question at that moment,
 not something the project remembers.
