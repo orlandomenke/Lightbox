@@ -1517,6 +1517,15 @@ public sealed partial class MainViewModel : ObservableObject
         {
             tab.Source = null;
         }
+        // The other direction: a loose document saved inside the project
+        // joins it, and every project surface — the docker row, the manager
+        // window, the tab's badge, the assets — resolves from the manifest
+        // entry the adoption makes.
+        else if (tab is { Source: null, Kind: DocumentTabKind.Animation }
+                 && ProjectDocker.AdoptExistingFile(tab.Doc, filePath) is { } adopted)
+        {
+            tab.Source = adopted;
+        }
         // Adoption or release changes what the docker should highlight and what
         // the tab strip should badge, without the active tab having changed.
         if (tab == ActiveTab)

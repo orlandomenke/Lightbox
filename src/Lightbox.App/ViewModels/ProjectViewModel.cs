@@ -2371,6 +2371,63 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Adopt a loose document that was just saved inside the project — the
+    /// other direction of <see cref="AdoptSavedPath"/>. Returns the slot it
+    /// now occupies, or null when there is no project or the path is outside
+    /// it, which leaves the document the loose file it was.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The owner's rule (2026-08-13): a file inside the project folder is in
+    /// the project, and every surface resolves from the one manifest entry
+    /// this makes — the docker row, the manager window, the tab's P badge,
+    /// the assets. Without this, Save As into the project produced a file the
+    /// panel did not show, which is B188's complaint from the other side.
+    /// </para>
+    /// <para>
+    /// Saved onto the path of a document already in the manifest, it takes
+    /// over that slot rather than minting a twin row for one file. Otherwise
+    /// the entry is built the way <see cref="AdoptSavedPath"/> reads one:
+    /// name from the file, folder from the directory, Draft on arrival
+    /// unless it is a template.
+    /// </para>
+    /// </remarks>
+    public DocumentRef? AdoptExistingFile(Doc doc, string fullPath)
+    {
+        if (Project is not { } project) return null;
+        if (ProjectIo.RelativeInProject(project, fullPath) is not { } relative) return null;
+
+        if (project.Manifest.Documents.FirstOrDefault(d => d.Path == relative) is { } known)
+        {
+            project.Loaded[known.Id] = doc;
+            Rebuild();
+            _changed();
+            return known;
+        }
+
+        var reference = new DocumentRef
+        {
+            Name = Path.GetFileName(relative)
+                .Replace(".lightbox.json", "", StringComparison.OrdinalIgnoreCase),
+            Path = relative,
+            Frames = doc.Scene.FrameCount,
+            Fps = doc.Scene.Fps,
+            IsTemplate = doc.IsTemplateDocument ? true : null,
+        };
+        var directory = relative.Contains('/') ? relative[..relative.LastIndexOf('/')] : "";
+        reference.FolderId = ProjectFolders.All(project.Manifest)
+            .FirstOrDefault(f => ProjectFolders.PathOf(project.Manifest, f) == directory)?.Id;
+        if (reference.IsTemplate != true) reference.Status = AssetStatus.Draft;
+        project.Manifest.Documents.Add(reference);
+        project.Loaded[reference.Id] = doc;
+        Rebuild();
+        Selected = Rows.FirstOrDefault(r => r.Animation?.Id == reference.Id) ?? Selected;
+        Status = $"“{reference.Name}” was saved into the project, so it is now part of it.";
+        _changed();
+        return reference;
+    }
+
     public bool ForgetIfNeverWritten(DocumentRef? reference)
     {
         if (Project is not { } project || reference is null) return false;

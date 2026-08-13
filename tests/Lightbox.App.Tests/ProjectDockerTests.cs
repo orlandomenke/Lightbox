@@ -217,6 +217,56 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         Assert.DoesNotContain(vm.ProjectDocker.Rows, r => r.IsEditing);
     }
 
+    /// <summary>
+    /// A loose document saved inside the project joins it, and every surface
+    /// resolves from the one manifest entry: docker row (filed in the right
+    /// folder), tab badge, editing mark. Saved outside, it stays loose.
+    /// </summary>
+    [AvaloniaFact]
+    public void ALooseDocumentSavedInsideTheProjectJoinsIt()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        WithKnight(vm);
+        var knight = vm.ProjectDocker.Project!.Manifest.Folders!.Single();
+        var loose = new DocumentTab(
+            new Core.Timeline.DocumentEditor(DocumentFactory.CreateDoc(8, 8, 12)), "loose");
+        vm.Tabs.Add(loose);
+        vm.ActiveTab = loose;
+        Assert.False(loose.IsProjectWork);
+
+        var inside = Path.Combine(_root, "knight", "idle.lightbox.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(inside)!);
+        File.WriteAllText(inside, "{}");   // what the save dialog's writer did
+        vm.NotifySaved(inside);
+
+        Assert.True(loose.IsProjectWork);
+        Assert.NotNull(loose.Source);
+        var row = vm.ProjectDocker.Rows.Single(r => r.Animation?.Name == "idle");
+        Assert.Equal(knight.Id, row.Animation!.FolderId);
+        Assert.True(row.IsEditing);
+        // Draft on arrival, the first-save rule through this door too.
+        Assert.Equal(AssetStatus.Draft, row.Animation.Status);
+
+        // The other direction unchanged: saved outside, a loose file stays loose.
+        var stray = new DocumentTab(
+            new Core.Timeline.DocumentEditor(DocumentFactory.CreateDoc(8, 8, 12)), "stray");
+        vm.Tabs.Add(stray);
+        vm.ActiveTab = stray;
+        var outside = Path.Combine(Path.GetTempPath(), $"lightbox-outside-{Guid.NewGuid():N}.lightbox.json");
+        try
+        {
+            File.WriteAllText(outside, "{}");
+            vm.NotifySaved(outside);
+            Assert.Null(stray.Source);
+            Assert.False(stray.IsProjectWork);
+        }
+        finally
+        {
+            File.Delete(outside);
+        }
+    }
+
     [AvaloniaFact]
     public void OpeningAnAnimationTwiceFocusesTheTabRatherThanDuplicatingIt()
     {
