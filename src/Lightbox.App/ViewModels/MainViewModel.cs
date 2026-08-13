@@ -949,6 +949,9 @@ public sealed partial class MainViewModel : ObservableObject
         _editor.Changed -= OnDocumentChanged;
         _editor = editor;
         _editor.Changed += OnDocumentChanged;
+        // The History docker follows the active document the way everything
+        // else here does — through this funnel, not by watching tabs.
+        UndoHistory.Attach(editor);
         // B171. A selection describes *this* document's canvas, in that
         // document's coordinates, so it cannot follow the editor being swapped
         // out. Cleared here rather than in each caller because this is the
@@ -2376,7 +2379,9 @@ public sealed partial class MainViewModel : ObservableObject
         // Looked up by id inside the closure rather than captured: a snapshot
         // undo replaces Doc wholesale, so the Swatch object this ran against
         // will not be the one a later redo has to write to.
-        _editor.PerformDelta(d => SetSwatchColor(d, id, after), d => SetSwatchColor(d, id, before));
+        _editor.PerformDelta(
+            d => SetSwatchColor(d, id, after), d => SetSwatchColor(d, id, before),
+            label: "Edit swatch colour");
     }
 
     /// <summary>
@@ -5939,6 +5944,10 @@ public sealed partial class MainViewModel : ObservableObject
         Workspace.SetVisible(Docking.DockPanelId.Symbols, !Workspace.SymbolsPanelVisible);
 
     [RelayCommand]
+    private void ToggleHistoryPanel() =>
+        Workspace.SetVisible(Docking.DockPanelId.History, !Workspace.HistoryPanelVisible);
+
+    [RelayCommand]
     private void ToggleLayersPanel() =>
         Workspace.SetVisible(Docking.DockPanelId.Layers, !Workspace.LayersPanelVisible);
 
@@ -6447,7 +6456,8 @@ public sealed partial class MainViewModel : ObservableObject
             revert: doc =>
             {
                 if (CelIn(doc, layerId, index) is { } cel) cel.Frame = null;
-            });
+            },
+            label: "New drawing");
         return PaintTarget();
     }
 
@@ -7739,6 +7749,7 @@ public sealed partial class MainViewModel : ObservableObject
         try
         {
             _editor.PerformDelta(
+                label: "Stroke",
                 apply: doc =>
                 {
                     if (clip is { } c) addedClip = doc.ClipRegions.TryAdd(c.Id, c.Region);
@@ -9334,6 +9345,24 @@ public sealed partial class MainViewModel : ObservableObject
     {
         CommitSwatchEdit();
         ApplyEditScope(WhileApplyingScope(_editor.RedoScoped));
+    }
+
+    /// <summary>The History docker, built on first use and following the active tab.</summary>
+    public UndoHistoryViewModel UndoHistory => _undoHistory ??= new(JumpToHistory);
+
+    private UndoHistoryViewModel? _undoHistory;
+
+    /// <summary>
+    /// Stand the document at a history row's state — a multi-step undo or
+    /// redo, through the same guards a single step takes, invalidating what
+    /// the walked steps touched between them.
+    /// </summary>
+    private void JumpToHistory(long revision)
+    {
+        // Same two preconditions as Undo, for the same reasons.
+        _lastStrokeEnd = null;
+        CommitSwatchEdit();
+        ApplyEditScope(WhileApplyingScope(() => _editor.JumpTo(revision)));
     }
 
     private DocumentEditor.EditScope WhileApplyingScope(Func<DocumentEditor.EditScope> step)
