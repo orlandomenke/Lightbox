@@ -276,7 +276,7 @@ public partial class MainViewModel
         if (!changed) return false;
 
         RefreshDocumentOrigin();
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         PublishSnapshot();
         RefreshThumbnails();
         AiStatus = choice.IsImage

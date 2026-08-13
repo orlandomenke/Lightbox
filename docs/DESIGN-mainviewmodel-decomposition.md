@@ -11,8 +11,8 @@ not the same problem:
 
 | File | Lines | Shape | Tool | State |
 | --- | --- | --- | --- | --- |
-| `ViewModels/MainViewModel.cs` | 13,110 → **655** | large, shallow, one hub | collaborators for the hub, then partials for the rest | **done** |
-| `Views/MainWindow.axaml.cs` | 5,544 → **429** | 37 near-independent sections over one field | partials, and that is the whole job | **done** |
+| `ViewModels/MainViewModel.cs` | 13,628 → **692** | large, shallow, one hub | collaborators for the hub, then partials for the rest | **done** |
+| `Views/MainWindow.axaml.cs` | 5,706 → **455** | 37 near-independent sections over one field | partials, and that is the whole job | **done** |
 
 `MainViewModel.cs` is at once the document API, the tool state machine, the
 render scheduler and the binding surface, with no interface between the four.
@@ -530,3 +530,51 @@ product: **this is not cloud-contingent spending.** It is the one refactor that
 pays for itself in a codebase that is never hosted — the hottest file in the
 repository stops being the place every feature has to be added — and it happens
 to be the precondition for a headless split if that is ever wanted.
+
+
+## Re-applied on top of main, and what that cost
+
+**The whole restructure was re-derived against `main` after 52 commits landed under it,
+PR222 included.** That is worth recording because the alternative was tried first and
+abandoned for a reason.
+
+PR222 rewrote the live-post pipeline and added publish pacing — the exact code this
+document's Tier 0 had extracted. `RenderLivePostProcess`, a method moved in step 3, **no
+longer exists on main**. Merging main into the restructured branch produced 41 hunks
+against `MainViewModel.cs`, two of which were rewrites rather than additions (+195/−39
+and +112). Routing those into nineteen partials would have meant hand-reconciling two
+independent rewrites of the same pipeline, with no mechanical check that PR222's
+behaviour survived.
+
+So the merge took main's two files **verbatim**, dropped this branch's 34 partials, and
+the restructure was re-applied on top. PR222's behaviour is then intact by construction
+rather than by inspection — the only claim that can be made cheaply and checked.
+
+**Two things came out better for having been redone.**
+
+The split is now one **name-driven tool** rather than two line-number scripts, because
+having to redo it is exactly what made line numbers the wrong interface. It takes groups
+as lists of section names, refuses to write unless the class body is identical as a
+multiset of lines, and refuses if any marker sits at a brace depth other than 1.
+
+And **the split went first this time**, reversing the original order. Each of the five
+collaborator extractions then landed in an 800-to-1,800-line file instead of a
+13,000-line one. Q78 recorded the cost of the original ordering; this is that lesson
+applied rather than restated.
+
+**PR222's new state went into the collaborators, and improved two of them.**
+`PublishState` absorbed `_presentedSeq`, `_publishWhenPresented`, `_lastPublishTicks` and
+`_damTimerArmed` — which belong with `_publishSeq` rather than beside it, since
+`CanvasIsBehind` compares three of them at once and a deferral released twice puts a
+second frame in flight. `LivePaintSession` absorbed `_livePostGeneration`, the staleness
+counter, whose only trigger is this state being reset — so keeping them apart is how a
+reset that forgets to invalidate in-flight work happens.
+
+| | Lines |
+| --- | --- |
+| `MainViewModel.cs` | 13,628 → **692** across 18 partials |
+| `MainWindow.axaml.cs` | 5,706 → **455** across 15 partials |
+| largest partial (`Painting`) | 1,840 |
+
+Full suite green throughout: **4,191 passed**, including every one of PR222's own guards —
+`PublishPacingTests`, `LivePostAsyncTests`, `LivePostWedgeReproTests`, `StrokeToScreenTests`.

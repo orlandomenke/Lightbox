@@ -64,7 +64,7 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(GhostPinLabel));
         OnPropertyChanged(nameof(HasGhostFrames));
         MarkDocumentEdited();
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         PublishSnapshot();
     }
 
@@ -713,8 +713,8 @@ public partial class MainViewModel
     // whole stroke so far, which at 45–143 ms on a 4K canvas cannot happen on
     // every pointer event.
     //
-    // So: raw dabs go into _liveScratch immediately (2 ms, the pen never
-    // lags), and a full render of the stroke-so-far lands in _livePostScratch
+    // So: raw dabs go into _live.Scratch immediately (2 ms, the pen never
+    // lags), and a full render of the stroke-so-far lands in _live.PostScratch
     // as often as its own measured cost allows. The compositor shows the
     // rendered one when it exists. The artist sees the true mark converging a
     // fraction behind the tip rather than seeing flat dabs until pen-up, which
@@ -776,13 +776,11 @@ public partial class MainViewModel
         // to. The anchor is where that direction is measured from, so it is
         // the unsnapped start — snapping the anchor first would measure the
         // heading from a point the hand never visited.
-        _lockedGuide = null;
-        _lockDecided = false;
-        _strokeAnchor = (x, y);
+        _guideSnap.Begin(x, y);
         if (SnapToGuides && Scene.Guides is { Count: > 0 } startGuides)
         {
             (x, y) = Snapper.Point(startGuides, x, y, SnapTolerance);
-            _strokeAnchor = (x, y);
+            _guideSnap.Anchor(x, y);
         }
         // Shift+click: begin at the end of the last stroke and run straight to
         // the click. The segment is stamped now rather than on release, so the
@@ -808,8 +806,8 @@ public partial class MainViewModel
             // Straight to the click, past the stabiliser: a segment the artist
             // asked to be straight must not be rounded off by smoothing.
             _strokeBuilder.Add(x, y, pressure);
-            _strokeAnchor = (startX, startY);
-            _lockDecided = true;   // it has a direction already; no guide may re-aim it
+            // It has a direction already; no guide may re-aim it.
+            _guideSnap.HoldDirection(startX, startY);
         }
         // Live preview clips to the selection too (the registry already knows
         // the region; the document copy is added at commit).
@@ -818,10 +816,10 @@ public partial class MainViewModel
         // unlocking the layer later cannot repaint what is already down.
         _strokeBuilder.Current!.AlphaLocked = ActiveLayer.AlphaLocked;
 
-        _liveComposite?.Dispose();
-        _liveComposite = null;
-        _liveEffectBase?.Dispose();
-        _liveEffectBase = null;
+        _live.Composite?.Dispose();
+        _live.Composite = null;
+        _live.EffectBase?.Dispose();
+        _live.EffectBase = null;
         if (CurrentToolSettings.Kind is BrushKind.Blur or BrushKind.Smudge)
         {
             // Blur and smudge read the pixels they sit on, so they need a real
@@ -835,57 +833,26 @@ public partial class MainViewModel
             // the same pre-stroke pixels, so a preview that sampled the
             // composite would re-apply the effect once per pointer event — a
             // blur of a blur of a blur, forty deep by the end of a drag.
-            _liveEffectBase = _cache.Get(target, Scene.Width, Scene.Height).Copy();
-            _liveComposite = _liveEffectBase.Copy();
+            _live.EffectBase = _cache.Get(target, Scene.Width, Scene.Height).Copy();
+            _live.Composite = _live.EffectBase.Copy();
         }
         else
         {
-            EnsureLiveScratch();
-            ClearLiveScratch();
+            _live.EnsureScratch(Scene.Width, Scene.Height);
+            _live.ClearScratch();
         }
-        ResetLivePostProcess();
-        _liveStampedCount = 0;
-        _liveDabCount = 0;
-        _liveStableDabs = 0;
-        _liveTailRegion = null;
-        _liveDabs = null;
-        _liveEffectDabs = null;
-        _liveEffectSettled = 0;
-        _liveSmudgeCarry = default;
-        _liveSmudgeRegion = null;
+        _live.ResetPostProcess();
+        _live.StampedCount = 0;
+        _live.DabCount = 0;
+        _live.StableDabs = 0;
+        _live.TailRegion = null;
+        _live.Dabs = null;
+        _live.EffectDabs = null;
+        _live.EffectSettled = 0;
+        _live.SmudgeCarry = default;
+        _live.SmudgeRegion = null;
         FlushLivePreview();
         PublishSnapshot();
-    }
-
-    /// <summary>A document-sized scratch bitmap for the live preview overlay.</summary>
-    private void EnsureLiveScratch()
-    {
-        if (_liveScratch is not null && _liveScratch.Width == Scene.Width && _liveScratch.Height == Scene.Height)
-        {
-            return;
-        }
-        _liveScratchCanvas?.Dispose();
-        _liveScratch?.Dispose();
-        _liveScratch = new SKBitmap(
-            new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
-        _liveScratchCanvas = new SKCanvas(_liveScratch);
-        _liveScratchUsed = null;
-    }
-
-    /// <summary>Wipe only the region the previous stroke actually touched.</summary>
-    private void ClearLiveScratch()
-    {
-        if (_liveScratchCanvas is null) return;
-        if (_liveScratchUsed is not { } used)
-        {
-            _liveScratchCanvas.Clear(SkiaSharp.SKColors.Transparent);
-            return;
-        }
-        _liveScratchCanvas.Save();
-        _liveScratchCanvas.ClipRect(SKRect.Create(used.Left, used.Top, used.Width, used.Height));
-        _liveScratchCanvas.Clear(SkiaSharp.SKColors.Transparent);
-        _liveScratchCanvas.Restore();
-        _liveScratchUsed = null;
     }
 
     // ---- the shape tool ------------------------------------------------------------
@@ -964,7 +931,7 @@ public partial class MainViewModel
         };
         if (PrepareClipForSelection() is { } clip) _liveShape.ClipId = clip.Id;
 
-        EnsureLiveScratch();
+        _live.EnsureScratch(Scene.Width, Scene.Height);
         RenderShapePreview();
         PublishSnapshot();
     }
@@ -1035,7 +1002,7 @@ public partial class MainViewModel
             _committingScopedEdit = false;
         }
         _dirtyThumbIds.Add(target.Id);
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         PublishSnapshot();
     }
 
@@ -1043,15 +1010,15 @@ public partial class MainViewModel
     {
         if (_liveShape is null) return;
         _liveShape = null;
-        ClearLiveScratch();
-        InvalidateWholeCanvas();
+        _live.ClearScratch();
+        _publish.InvalidateWholeCanvas();
         PublishSnapshot();
     }
 
     private void RenderShapePreview()
     {
-        if (_liveShape is not { } stroke || _liveScratchCanvas is null) return;
-        ClearLiveScratch();
+        if (_liveShape is not { } stroke || _live.ScratchCanvas is null) return;
+        _live.ClearScratch();
         var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         // The same stroke the commit will record, at full opacity — the
         // overlay applies the brush's own, so baking it here would double it.
@@ -1066,19 +1033,19 @@ public partial class MainViewModel
             Points = [.. stroke.Points],
         };
         preview.Brush.Opacity = 1;
-        BrushEngine.StampStroke(_liveScratchCanvas, preview, info);
-        _liveScratchCanvas.Flush();
-        _liveScratchUsed = new SKRectI(0, 0, Scene.Width, Scene.Height);
-        InvalidateWholeCanvas();
+        BrushEngine.StampStroke(_live.ScratchCanvas, preview, info);
+        _live.ScratchCanvas.Flush();
+        _live.ScratchUsed = new SKRectI(0, 0, Scene.Width, Scene.Height);
+        _publish.InvalidateWholeCanvas();
     }
 
     public void CancelGradient()
     {
         if (_liveGradient is null) return;
         _liveGradient = null;
-        ClearLiveScratch();
+        _live.ClearScratch();
         GradientAxisChanged?.Invoke(null, null);
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         PublishSnapshot();
     }
 
@@ -1090,8 +1057,8 @@ public partial class MainViewModel
     /// </summary>
     private void RenderGradientPreview()
     {
-        if (_liveGradient is not { } stroke || _liveScratchCanvas is null) return;
-        ClearLiveScratch();
+        if (_liveGradient is not { } stroke || _live.ScratchCanvas is null) return;
+        _live.ClearScratch();
         var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         // Opacity and the alpha lock stay on the overlay so they are not baked
         // in twice; the scratch holds the unmodulated ramp.
@@ -1104,12 +1071,12 @@ public partial class MainViewModel
             Brush = new BrushSettings { Opacity = 1, AntiAlias = stroke.Brush.AntiAlias },
             Points = [.. stroke.Points],
         };
-        BrushEngine.StampStroke(_liveScratchCanvas, preview, info);
-        _liveScratchCanvas.Flush();
-        _liveScratchUsed = new SKRectI(0, 0, Scene.Width, Scene.Height);
+        BrushEngine.StampStroke(_live.ScratchCanvas, preview, info);
+        _live.ScratchCanvas.Flush();
+        _live.ScratchUsed = new SKRectI(0, 0, Scene.Width, Scene.Height);
         GradientAxisChanged?.Invoke(
             (stroke.Points[0].X, stroke.Points[0].Y), (stroke.Points[1].X, stroke.Points[1].Y));
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
     }
 
     /// <summary>All coalesced samples of one pointer event → one stamp + one (coalesced) repaint.</summary>
@@ -1157,9 +1124,9 @@ public partial class MainViewModel
     {
         if (_strokeBuilder.Current is not { } live) return;
         var points = live.Points;
-        if (_liveStampedCount >= points.Count) return;
+        if (_live.StampedCount >= points.Count) return;
 
-        var from = Math.Max(0, _liveStampedCount - 1); // overlap one point so segments connect
+        var from = Math.Max(0, _live.StampedCount - 1); // overlap one point so segments connect
         var tail = new Stroke
         {
             Tool = live.Tool,
@@ -1173,7 +1140,7 @@ public partial class MainViewModel
         var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         var segment = BrushEngine.DraftSegmentBounds(tail, info);
 
-        if (_liveComposite is not null)
+        if (_live.Composite is not null)
         {
             // The pristine base is for BLUR only, and the distinction is the
             // physics rather than a detail. A blur re-derives its dab from the
@@ -1187,24 +1154,24 @@ public partial class MainViewModel
             // commit will put them — a per-segment walk restarts the spacing phase and Densify sees
             // two points, which was 1148 px of over-coverage on the blur (B54) and the same defect
             // on the smudge (B69/B89). Only the dabs that are not settled yet are stamped.
-            var walk = BrushEngine.WalkDabs(live, _liveDensify);
-            var settled = BrushEngine.StableCount(walk, _liveEffectDabs);
+            var walk = BrushEngine.WalkDabs(live, _live.Densify);
+            var settled = BrushEngine.StableCount(walk, _live.EffectDabs);
 
             if (live.Brush.Kind == BrushKind.Blur)
             {
                 // A blur's dabs are independent — each reads the pre-stroke pixels — so the range
                 // is all it needs, and StampBlurDraft restores under the tail itself.
-                FrameRasterizer.AppendDraft(_liveComposite, live, _liveEffectBase, walk, _liveEffectSettled);
+                FrameRasterizer.AppendDraft(_live.Composite, live, _live.EffectBase, walk, _live.EffectSettled);
             }
             else
             {
                 StampLiveSmudge(live, walk, settled);
             }
 
-            _liveEffectSettled = settled;
-            _liveEffectDabs = walk;
+            _live.EffectSettled = settled;
+            _live.EffectDabs = walk;
         }
-        else if (_liveScratchCanvas is not null)
+        else if (_live.ScratchCanvas is not null)
         {
             // Dabs only — no opacity, no layer copy. The compositor lays the
             // scratch over the layer and applies the stroke's opacity once,
@@ -1216,15 +1183,15 @@ public partial class MainViewModel
             StampLiveDabs(live, info);
             if (segment is { } used)
             {
-                _liveScratchUsed = _liveScratchUsed is { } prior ? UnionRect(prior, used) : used;
+                _live.ScratchUsed = _live.ScratchUsed is { } prior ? LivePaintSession.UnionRect(prior, used) : used;
             }
         }
         // Only the segment's neighbourhood changed on screen.
-        if (segment is { } rect) MarkDirtyRegion(rect);
-        else InvalidateWholeCanvas();
-        _liveStampedCount = points.Count;
+        if (segment is { } rect) _publish.MarkDirty(rect);
+        else _publish.InvalidateWholeCanvas();
+        _live.StampedCount = points.Count;
 
-        if (_liveComposite is null && NeedsLivePostProcess(live.Brush)) RequestLivePostProcess();
+        if (_live.Composite is null && NeedsLivePostProcess(live.Brush)) RequestLivePostProcess();
     }
 
     /// <summary>
@@ -1245,7 +1212,7 @@ public partial class MainViewModel
     /// </para>
     /// <para>
     /// <b>Why this is exact rather than merely closer.</b> After the restore the composite holds
-    /// precisely "pre-stroke pixels + dabs 0..settled-1", and <see cref="_liveSmudgeCarry"/> is the
+    /// precisely "pre-stroke pixels + dabs 0..settled-1", and <see cref="_live.SmudgeCarry"/> is the
     /// colour a single pass would be carrying at that index. Replaying the rest is then the same
     /// sequence the commit runs. Reads that reach outside the restored region — a smudge samples up
     /// to <c>radius × SmudgeRadius</c> away — can only touch settled pixels, which are already
@@ -1260,7 +1227,7 @@ public partial class MainViewModel
     /// </remarks>
     private void StampLiveSmudge(Stroke live, IReadOnlyList<BrushEngine.Dab> dabs, int settled)
     {
-        if (_liveComposite is not { } composite) return;
+        if (_live.Composite is not { } composite) return;
         var info = new SKImageInfo(
             composite.Width, composite.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var canvas = new SKCanvas(composite);
@@ -1268,9 +1235,9 @@ public partial class MainViewModel
         // 1. Take back the tail lent out last time, so the composite is the settled prefix again.
         //    Only the part of the buffer that tail used — the backup is sized to the largest seen,
         //    so drawing all of it would scale a bigger image into a smaller rect.
-        if (_liveSmudgeRegion is { } lent && _liveSmudgeBackup is not null)
+        if (_live.SmudgeRegion is { } lent && _live.SmudgeBackup is not null)
         {
-            using var restore = SKImage.FromBitmap(_liveSmudgeBackup);
+            using var restore = SKImage.FromBitmap(_live.SmudgeBackup);
             using var src = new SKPaint { BlendMode = SKBlendMode.Src };
             canvas.DrawImage(
                 restore,
@@ -1278,15 +1245,15 @@ public partial class MainViewModel
                 new SKRect(lent.Left, lent.Top, lent.Right, lent.Bottom),
                 src);
             canvas.Flush();
-            _liveSmudgeRegion = null;
+            _live.SmudgeRegion = null;
         }
 
         // 2. Everything whose position has stopped moving, permanently — and the carry it ends on
         //    becomes the checkpoint the next event resumes from.
-        if (settled > _liveEffectSettled)
+        if (settled > _live.EffectSettled)
         {
-            _liveSmudgeCarry = BrushEngine.StampSmudgeRange(
-                canvas, composite, live, dabs, _liveEffectSettled, settled, _liveSmudgeCarry);
+            _live.SmudgeCarry = BrushEngine.StampSmudgeRange(
+                canvas, composite, live, dabs, _live.EffectSettled, settled, _live.SmudgeCarry);
         }
 
         // 3. The rest on loan, so the smear reaches the pen tip. Backed up first, because a smudge
@@ -1295,11 +1262,11 @@ public partial class MainViewModel
         if (BrushEngine.RangeBounds(dabs, settled, live.Brush, info) is { } tail)
         {
             canvas.Flush();
-            if (_liveSmudgeBackup is null
-                || _liveSmudgeBackup.Width < tail.Width || _liveSmudgeBackup.Height < tail.Height)
+            if (_live.SmudgeBackup is null
+                || _live.SmudgeBackup.Width < tail.Width || _live.SmudgeBackup.Height < tail.Height)
             {
-                _liveSmudgeBackup?.Dispose();
-                _liveSmudgeBackup = new SKBitmap(new SKImageInfo(
+                _live.SmudgeBackup?.Dispose();
+                _live.SmudgeBackup = new SKBitmap(new SKImageInfo(
                     Math.Max(tail.Width, 64), Math.Max(tail.Height, 64),
                     SKColorType.Rgba8888, SKAlphaType.Premul));
             }
@@ -1314,11 +1281,11 @@ public partial class MainViewModel
                     using var view = pixels is null ? null : SKImage.FromPixels(pixels);
                     if (view is not null)
                     {
-                        using var into = new SKCanvas(_liveSmudgeBackup);
+                        using var into = new SKCanvas(_live.SmudgeBackup);
                         using var src = new SKPaint { BlendMode = SKBlendMode.Src };
                         into.DrawImage(view, 0, 0, src);
                         into.Flush();
-                        _liveSmudgeRegion = tail;
+                        _live.SmudgeRegion = tail;
                     }
                 }
             }
@@ -1326,7 +1293,7 @@ public partial class MainViewModel
             // The returned carry is deliberately dropped: these dabs are provisional, so the
             // checkpoint must stay at the settled boundary.
             BrushEngine.StampSmudgeRange(
-                canvas, composite, live, dabs, settled, dabs.Count, _liveSmudgeCarry);
+                canvas, composite, live, dabs, settled, dabs.Count, _live.SmudgeCarry);
             canvas.Flush();
         }
     }
@@ -1342,47 +1309,47 @@ public partial class MainViewModel
     /// </remarks>
     private void StampLiveDabs(Stroke live, SKImageInfo info)
     {
-        if (_liveScratchCanvas is null) return;
+        if (_live.ScratchCanvas is null) return;
 
         // One walk, then every question answered from its result.
         // The walk reuses the densified prefix rather than rebuilding it, which is B46: the whole
         // stroke has to be walked every pointer event (BR1) and re-densifying it was 0.84 ms of a
         // 1.15 ms walk at 600 points, all but a fraction of it recomputing spans that cannot have
         // changed.
-        var dabs = BrushEngine.WalkDabs(live, _liveDensify);
-        var stable = BrushEngine.StableCount(dabs, _liveDabs);
-        _liveDabs = dabs;
+        var dabs = BrushEngine.WalkDabs(live, _live.Densify);
+        var stable = BrushEngine.StableCount(dabs, _live.Dabs);
+        _live.Dabs = dabs;
 
         // 1. Take back the tail lent out last time. Only the part of the buffer this
         // tail actually used: the backup is sized to the largest tail seen, so drawing
         // the whole thing would scale a bigger image into a smaller rect.
-        if (_liveTailRegion is { } lent && _liveTailBackup is not null)
+        if (_live.TailRegion is { } lent && _live.TailBackup is not null)
         {
-            using var restore = SKImage.FromBitmap(_liveTailBackup);
+            using var restore = SKImage.FromBitmap(_live.TailBackup);
             using var src = new SKPaint { BlendMode = SKBlendMode.Src };
-            _liveScratchCanvas.DrawImage(
+            _live.ScratchCanvas.DrawImage(
                 restore,
                 new SKRect(0, 0, lent.Width, lent.Height),
                 new SKRect(lent.Left, lent.Top, lent.Right, lent.Bottom),
                 src);
-            _liveScratchCanvas.Flush();
-            _liveTailRegion = null;
+            _live.ScratchCanvas.Flush();
+            _live.TailRegion = null;
         }
 
         // 2. Everything whose position has stopped moving, permanently.
-        BrushEngine.StampDabRange(_liveScratchCanvas, live, dabs, _liveStableDabs, stable);
-        _liveStableDabs = Math.Max(_liveStableDabs, Math.Min(stable, dabs.Count));
+        BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, stable);
+        _live.StableDabs = Math.Max(_live.StableDabs, Math.Min(stable, dabs.Count));
 
         // 3. The rest on loan, so the mark reaches the pen tip.
-        if (BrushEngine.RangeBounds(dabs, _liveStableDabs, live.Brush, info) is { } tail
-            && _liveScratch is not null)
+        if (BrushEngine.RangeBounds(dabs, _live.StableDabs, live.Brush, info) is { } tail
+            && _live.Scratch is not null)
         {
-            _liveScratchCanvas.Flush();
-            if (_liveTailBackup is null
-                || _liveTailBackup.Width < tail.Width || _liveTailBackup.Height < tail.Height)
+            _live.ScratchCanvas.Flush();
+            if (_live.TailBackup is null
+                || _live.TailBackup.Width < tail.Width || _live.TailBackup.Height < tail.Height)
             {
-                _liveTailBackup?.Dispose();
-                _liveTailBackup = new SKBitmap(new SKImageInfo(
+                _live.TailBackup?.Dispose();
+                _live.TailBackup = new SKBitmap(new SKImageInfo(
                     Math.Max(tail.Width, 64), Math.Max(tail.Height, 64),
                     SKColorType.Rgba8888, SKAlphaType.Premul));
             }
@@ -1397,25 +1364,25 @@ public partial class MainViewModel
             // pixels across.
             using (var region = new SKBitmap())
             {
-                if (_liveScratch.ExtractSubset(region, tail))
+                if (_live.Scratch.ExtractSubset(region, tail))
                 {
                     using var pixels = region.PeekPixels();
                     using var view = pixels is null ? null : SKImage.FromPixels(pixels);
                     if (view is not null)
                     {
-                        using var into = new SKCanvas(_liveTailBackup);
+                        using var into = new SKCanvas(_live.TailBackup);
                         using var src = new SKPaint { BlendMode = SKBlendMode.Src };
                         into.DrawImage(view, 0, 0, src);
                         into.Flush();
-                        _liveTailRegion = tail;
+                        _live.TailRegion = tail;
                     }
                 }
             }
 
-            BrushEngine.StampDabRange(_liveScratchCanvas, live, dabs, _liveStableDabs, dabs.Count);
-            _liveScratchCanvas.Flush();
+            BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, dabs.Count);
+            _live.ScratchCanvas.Flush();
         }
-        _liveDabCount = dabs.Count;
+        _live.DabCount = dabs.Count;
     }
 
     /// <summary>
@@ -1436,8 +1403,8 @@ public partial class MainViewModel
     /// </summary>
     private void RequestLivePostProcess()
     {
-        if (_livePostQueued) return;
-        _livePostQueued = true;
+        if (_live.PostQueued) return;
+        _live.PostQueued = true;
         Avalonia.Threading.Dispatcher.UIThread.Post(
             StartLivePostProcess, Avalonia.Threading.DispatcherPriority.Background);
     }
@@ -1450,13 +1417,6 @@ public partial class MainViewModel
     /// </summary>
     internal Func<Action, System.Threading.Tasks.Task> LivePostRunner { get; set; }
         = work => System.Threading.Tasks.Task.Run(work);
-
-    /// <summary>
-    /// Bumped whenever the live-effect state resets, so a worker pass that
-    /// outlives its stroke is recognised as stale and discarded — a result
-    /// arriving after pen-up must not resurrect a preview the commit replaced.
-    /// </summary>
-    private int _livePostGeneration;
 
     /// <summary>
     /// Snapshot the pass's inputs and hand the effects to a worker (B189).
@@ -1488,12 +1448,12 @@ public partial class MainViewModel
     {
         if (_strokeBuilder.Current is not { } live || !_strokeBuilder.IsActive
             || !NeedsLivePostProcess(live.Brush)
-            || _livePostStampedCount == live.Points.Count // nothing new since last pass
+            || _live.PostStampedCount == live.Points.Count // nothing new since last pass
             // The pass reads the dabs from the live scratch; the blur and
             // smudge brushes use the copy-based path instead and have none.
-            || _liveScratch is not { } dabs)
+            || _live.Scratch is not { } dabs)
         {
-            _livePostQueued = false;
+            _live.PostQueued = false;
             return;
         }
 
@@ -1514,7 +1474,7 @@ public partial class MainViewModel
         if (BrushEngine.PostProcessBounds(whole, info) is not { } rect
             || CopyRegion(dabs, rect) is not { } dabsCrop)
         {
-            _livePostQueued = false;
+            _live.PostQueued = false;
             return;
         }
 
@@ -1532,7 +1492,7 @@ public partial class MainViewModel
             if (beneathCrop is not null) beneathOrigin = needed.Location;
         }
 
-        var generation = _livePostGeneration;
+        var generation = _live.PostGeneration;
         try
         {
             LivePostRunner(Work);
@@ -1545,7 +1505,7 @@ public partial class MainViewModel
             // double up with the worker's own finally when a synchronous
             // runner ran the work before throwing; SKBitmap.Dispose is
             // idempotent, so that costs nothing.
-            _livePostQueued = false;
+            _live.PostQueued = false;
             dabsCrop.Dispose();
             beneathCrop?.Dispose();
         }
@@ -1592,10 +1552,10 @@ public partial class MainViewModel
         SKImage? processed, SKRectI rect, int count, int generation, double costMs,
         SKImageInfo computedAgainst)
     {
-        _livePostQueued = false;
+        _live.PostQueued = false;
         using var image = processed;
         if (image is null) return;
-        if (generation != _livePostGeneration || !_strokeBuilder.IsActive) return;
+        if (generation != _live.PostGeneration || !_strokeBuilder.IsActive) return;
         // The document changed size while the worker ran — a mid-stroke canvas
         // resize does not go through ClearLiveEffectState, so the generation
         // stamp cannot see it (found by the adversarial pass, reproduced with
@@ -1607,29 +1567,29 @@ public partial class MainViewModel
         if (Scene.Width != computedAgainst.Width || Scene.Height != computedAgainst.Height) return;
 
         var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        if (_livePostScratch is null || _livePostScratch.Width != info.Width || _livePostScratch.Height != info.Height)
+        if (_live.PostScratch is null || _live.PostScratch.Width != info.Width || _live.PostScratch.Height != info.Height)
         {
-            _livePostScratch?.Dispose();
-            _livePostScratch = new SKBitmap(info);
-            _livePostUsed = null;
+            _live.PostScratch?.Dispose();
+            _live.PostScratch = new SKBitmap(info);
+            _live.PostUsed = null;
         }
 
-        using (var canvas = new SKCanvas(_livePostScratch))
+        using (var canvas = new SKCanvas(_live.PostScratch))
         {
-            ClearRegion(canvas, _livePostUsed);
+            LivePaintSession.ClearRegion(canvas, _live.PostUsed);
             using var replace = new SKPaint { BlendMode = SKBlendMode.Src };
             canvas.DrawImage(image, rect.Left, rect.Top, replace);
             canvas.Flush();
         }
 
-        _livePostCostMs = costMs;
-        _livePostStampedCount = count;
-        _livePostUsed = rect;
+        _live.PostCostMs = costMs;
+        _live.PostStampedCount = count;
+        _live.PostUsed = rect;
         LivePostPasses++;
         LivePostTotalMs += costMs;
         if (costMs > LivePostWorstMs) LivePostWorstMs = costMs;
 
-        MarkDirtyRegion(rect);
+        _publish.MarkDirty(rect);
         // Through the coalescing path, not straight to PublishSnapshot. A
         // direct publish here put an extra frame on the wire for every pass on
         // top of the one the pointer event had already queued, and publishing
@@ -1666,40 +1626,6 @@ public partial class MainViewModel
             canvas.Flush();
         }
         return bmp;
-    }
-
-    private static void ClearRegion(SKCanvas canvas, SKRectI? region)
-    {
-        if (region is not { } used)
-        {
-            canvas.Clear(SKColors.Transparent);
-            return;
-        }
-        canvas.Save();
-        canvas.ClipRect(SKRect.Create(used.Left, used.Top, used.Width, used.Height));
-        canvas.Clear(SKColors.Transparent);
-        canvas.Restore();
-    }
-
-    private void ResetLivePostProcess()
-    {
-        // Anything still on a worker belongs to the stroke that just ended;
-        // its result arriving later must be recognised as stale (B189).
-        _livePostGeneration++;
-        if (_livePostScratch is not null && _livePostUsed is not null)
-        {
-            using var canvas = new SKCanvas(_livePostScratch);
-            ClearRegion(canvas, _livePostUsed);
-        }
-        _livePostUsed = null;
-        _livePostCostMs = 0;
-        _livePostStampedCount = -1;
-    }
-
-    private static SKRectI UnionRect(SKRectI a, SKRectI b)
-    {
-        a.Union(b);
-        return a;
     }
 
     /// <summary>
@@ -1750,9 +1676,9 @@ public partial class MainViewModel
         // frame waits about one compositor pass, and the compose time of the
         // frames that would have been thrown away is handed back to the
         // dispatcher — which is what was making everything else late.
-        if (CanvasIsBehind())
+        if (_publish.CanvasIsBehind(PublishDamMs))
         {
-            _publishWhenPresented = true;
+            _publish.WaitingForPresent = true;
             ArmPublishDam();
             return;
         }
@@ -1777,17 +1703,6 @@ public partial class MainViewModel
     /// </remarks>
     internal const double PublishDamMs = 250;
 
-    /// <summary>Has the canvas not yet drawn the newest published frame?</summary>
-    private bool CanvasIsBehind()
-    {
-        // Nothing has ever been presented: headless, no canvas wired, or the
-        // first frames of a session. Pacing needs a consumer to pace to.
-        if (_presentedSeq == 0) return false;
-        if (_publishSeq <= _presentedSeq) return false;
-        return (System.Diagnostics.Stopwatch.GetTimestamp() - _lastPublishTicks)
-            * 1000.0 / System.Diagnostics.Stopwatch.Frequency < PublishDamMs;
-    }
-
     /// <summary>
     /// The canvas has drawn a published frame (see
     /// <see cref="Rendering.CanvasControl.SnapshotPresented"/>). Releases the
@@ -1795,9 +1710,7 @@ public partial class MainViewModel
     /// </summary>
     internal void NoteFramePresented(long seq)
     {
-        if (seq > _presentedSeq) _presentedSeq = seq;
-        if (!_publishWhenPresented || _presentedSeq < _publishSeq) return;
-        _publishWhenPresented = false;
+        if (!_publish.NotePresented(seq)) return;
         // Through RequestSnapshot rather than straight to PublishSnapshot, so
         // the released publish still lands behind whatever pointer events are
         // already queued — B73's ordering, preserved under pacing.
@@ -1820,8 +1733,8 @@ public partial class MainViewModel
     /// </remarks>
     private void ArmPublishDam()
     {
-        if (_damTimerArmed) return;
-        _damTimerArmed = true;
+        if (_publish.DamArmed) return;
+        _publish.DamArmed = true;
         // A shade past the dam, so the release finds it expired rather than
         // racing it. Input priority for the reason SnapshotPresented gives.
         Avalonia.Threading.DispatcherTimer.RunOnce(
@@ -1839,59 +1752,20 @@ public partial class MainViewModel
     /// </summary>
     internal void ReleaseOverduePublish()
     {
-        _damTimerArmed = false;
-        if (!_publishWhenPresented) return;
-        _publishWhenPresented = false;
+        _publish.DamArmed = false;
+        if (!_publish.TakeDeferral()) return;
         // Through RequestSnapshot so a canvas that is merely slow (published
         // again inside the dam window) re-defers and re-arms rather than
         // stacking a second frame in flight.
         RequestSnapshot();
     }
 
-    private bool _damTimerArmed;
 
-    /// <summary>Newest seq the canvas has reported drawn. UI thread.</summary>
-    private long _presentedSeq;
-
-
-
-    /// <summary>
-    /// Drop the Blur/Smudge live preview and the ordinary-paint dab-walk
-    /// bookkeeping. <see cref="EndStroke"/> calls this after a real commit;
-    /// anything that abandons a stroke without going through it —
-    /// <see cref="AttachEditor"/> on a tab switch, <see cref="StartPlayback"/>
-    /// — must call it too. <c>_strokeBuilder.Cancel()</c> alone leaves
-    /// <see cref="_liveComposite"/> non-null, and every publish after that
-    /// treats a non-null <see cref="_liveComposite"/> as "an effect brush is
-    /// live on this layer" — which, left stale, silently suppressed the
-    /// overlay for every ordinary stroke, gradient and shape drag afterward,
-    /// on any document, until ink happened to reset it (B39's fix).
-    /// </summary>
-    private void ClearLiveEffectState()
-    {
-        _liveComposite?.Dispose();
-        _liveComposite = null;
-        _liveEffectBase?.Dispose();
-        _liveEffectBase = null;
-        _liveStampedCount = 0;
-        _liveDabCount = 0;
-        _liveStableDabs = 0;
-        _liveTailRegion = null;
-        _liveDabs = null;
-        _liveEffectDabs = null;
-        _liveEffectSettled = 0;
-        // The carry and the lent region go with the composite they described. The backup bitmap
-        // does not: it is reused across strokes and only ever written before it is read, so keeping
-        // it saves an allocation per stroke without any state surviving.
-        _liveSmudgeCarry = default;
-        _liveSmudgeRegion = null;
-        ResetLivePostProcess();
-    }
 
     public void EndStroke()
     {
         var stroke = _strokeBuilder.End();
-        ClearLiveEffectState();
+        _live.ClearEffectState();
         if (stroke is null) return;
         var target = PaintTarget();
         if (target is null) return;
@@ -1958,8 +1832,8 @@ public partial class MainViewModel
         // Only the stroke's own neighbourhood changed: the layer gained the
         // committed pixels and the live scratch stopped contributing there.
         var commitInfo = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        if (BrushEngine.CommitBounds(stroke, commitInfo) is { } touched) MarkDirtyRegion(touched);
-        else InvalidateWholeCanvas();
+        if (BrushEngine.CommitBounds(stroke, commitInfo) is { } touched) _publish.MarkDirty(touched);
+        else _publish.InvalidateWholeCanvas();
         PublishSnapshot();
         RefreshThumbnails();
     }

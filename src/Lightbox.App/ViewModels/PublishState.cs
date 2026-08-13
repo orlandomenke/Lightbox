@@ -87,6 +87,74 @@ sealed class PublishState
     /// <summary>The number stamped on the next snapshot, so the canvas can order them.</summary>
     internal long NextSequence() => ++_sequence;
 
+    /// <summary>The newest sequence number published.</summary>
+    internal long Sequence => _sequence;
+
+    // ---- pacing: has the canvas caught up? (B189, PR222) ---------------------
+    //
+    // These four arrived with the publish pacing and belong here rather than beside
+    // it, for the reason the class exists: they are read together with Sequence and
+    // are meaningless apart from it. CanvasIsBehind compares three of them at once,
+    // and a publish deferred without recording when it was deferred is a publish that
+    // waits forever — the failure PR222's adversarial pass found in its own first
+    // draft, where the dam was only ever checked and never released.
+    //
+    // The dispatcher half stays on the view model: arming the one-shot timer and
+    // re-entering RequestSnapshot are things this object must not know about, the same
+    // line Q77 drew for RequestSnapshot itself.
+
+    /// <summary>Newest seq the canvas has reported drawn. UI thread.</summary>
+    internal long PresentedSeq { get; private set; }
+
+    /// <summary>A coalesced publish is waiting for the canvas to catch up.</summary>
+    internal bool WaitingForPresent { get; set; }
+
+    /// <summary>When the newest publish left, for the liveness dam.</summary>
+    internal long LastPublishTicks { get; set; }
+
+    /// <summary>A one-shot dam timer is already pending, so do not arm a second.</summary>
+    internal bool DamArmed { get; set; }
+
+    /// <summary>Has the canvas not yet drawn the newest published frame?</summary>
+    /// <remarks>
+    /// False when nothing has ever been presented — headless, no canvas wired, or the
+    /// first frames of a session. <b>Pacing needs a consumer to pace to</b>, and a
+    /// pacing check that answered true here would dam every publish of B73's entire
+    /// suite, which never presents at all.
+    /// </remarks>
+    internal bool CanvasIsBehind(double damMs)
+    {
+        if (PresentedSeq == 0) return false;
+        if (_sequence <= PresentedSeq) return false;
+        return (System.Diagnostics.Stopwatch.GetTimestamp() - LastPublishTicks)
+            * 1000.0 / System.Diagnostics.Stopwatch.Frequency < damMs;
+    }
+
+    /// <summary>
+    /// Record that the canvas drew a frame. True when a deferred publish is now due.
+    /// </summary>
+    /// <remarks>
+    /// The clearing of <see cref="WaitingForPresent"/> happens here rather than at the
+    /// call site so that "a deferral was released" and "the flag is down" cannot come
+    /// apart — two releases for one deferral would put a second frame in flight, which
+    /// is the thing the pacing exists to prevent.
+    /// </remarks>
+    internal bool NotePresented(long seq)
+    {
+        if (seq > PresentedSeq) PresentedSeq = seq;
+        if (!WaitingForPresent || PresentedSeq < _sequence) return false;
+        WaitingForPresent = false;
+        return true;
+    }
+
+    /// <summary>Take a pending deferral, if there is one — for the dam timer's release.</summary>
+    internal bool TakeDeferral()
+    {
+        if (!WaitingForPresent) return false;
+        WaitingForPresent = false;
+        return true;
+    }
+
     /// <summary>
     /// Limit the next publish to a document region. Only safe when nothing outside the
     /// region can change; every other edit path must leave the default (whole-canvas)

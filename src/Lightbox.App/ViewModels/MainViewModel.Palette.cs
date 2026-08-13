@@ -158,7 +158,7 @@ public partial class MainViewModel
             InvalidateFrameRender(frame.Id);
             _dirtyThumbIds.Add(frame.Id);
         }
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         _composeRing.InvalidateAll();
 
         // The first repaint of a run lands immediately, so a one-shot recolour —
@@ -270,7 +270,7 @@ public partial class MainViewModel
         }
         // A gradient being dragged right now redefines its own preview.
         if (_liveGradient is not null) RenderGradientPreview();
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         _composeRing.InvalidateAll();
         MarkDocumentEdited();
         PublishSnapshot();

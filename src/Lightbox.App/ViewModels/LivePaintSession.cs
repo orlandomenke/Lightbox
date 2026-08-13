@@ -288,6 +288,19 @@ sealed class LivePaintSession
         ResetPostProcess();
     }
 
+    /// <summary>
+    /// Bumped whenever the live-effect state resets, so a worker pass that outlives its
+    /// stroke is recognised as stale and discarded (B189).
+    /// </summary>
+    /// <remarks>
+    /// A result arriving after pen-up must not resurrect a preview the commit replaced.
+    /// The counter lives here rather than beside the runner because it is a fact about
+    /// <i>this state having been reset</i>, and the only thing that resets it is
+    /// <see cref="ResetPostProcess"/> — keeping the two apart is how a reset that forgets
+    /// to invalidate in-flight work happens.
+    /// </remarks>
+    internal int PostGeneration { get; private set; }
+
     /// <summary>Forget the live post-process draft, so the next stroke starts clean.</summary>
     /// <remarks>
     /// <b>The bitmap is wiped, not dropped.</b> <see cref="PostScratch"/> is pooled for
@@ -299,6 +312,9 @@ sealed class LivePaintSession
     /// </remarks>
     internal void ResetPostProcess()
     {
+        // Anything still on a worker belongs to the stroke that just ended; its result
+        // arriving later must be recognised as stale (B189).
+        PostGeneration++;
         if (PostScratch is not null && PostUsed is not null)
         {
             using var canvas = new SKCanvas(PostScratch);

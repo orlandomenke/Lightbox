@@ -47,7 +47,7 @@ public partial class MainViewModel
     /// call site and shows nothing, which is how the shape tool shipped.
     /// </remarks>
     internal bool LivePreviewIsVisible =>
-        _liveScratch is not null
+        _live.Scratch is not null
         && (_liveShape is not null || _liveGradient is not null || _strokeBuilder.IsActive);
 
     public void BeginGradient(double x, double y)
@@ -80,7 +80,7 @@ public partial class MainViewModel
         };
         if (PrepareClipForSelection() is { } clip) _liveGradient.ClipId = clip.Id;
 
-        EnsureLiveScratch();
+        _live.EnsureScratch(Scene.Width, Scene.Height);
         RenderGradientPreview();
         PublishSnapshot();
     }
@@ -170,7 +170,7 @@ public partial class MainViewModel
             _committingScopedEdit = false;
         }
         _dirtyThumbIds.Add(target.Id);
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         PublishSnapshot();
         RefreshThumbnails();
         AiStatus = $"Laid down “{GradientDocker.SelectedGradient?.Name}”.";

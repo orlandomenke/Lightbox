@@ -116,7 +116,8 @@ public partial class MainViewModel
     /// <summary>Test seam: inject a fake artist (or null for "no API key").</summary>
     public MainViewModel(IAiArtist? artist)
     {
-        _artist = artist;
+        _ai = new ConfiguredArtist(artist);
+        _referenceImages = new ReferenceViewImages(_cache);
         // Nothing is open. The application no longer invents a document to sit
         // behind the start screen, because Cancel then adopted a canvas nobody
         // chose — the artist got a 960×540 they never asked for, and only

@@ -156,7 +156,7 @@ public partial class MainViewModel
         IsPlaying = false;
         StopAudio();
         _strokeBuilder.Cancel();
-        ClearLiveEffectState();
+        _live.ClearEffectState();
         _editor.Changed -= OnDocumentChanged;
         _editor = editor;
         _editor.Changed += OnDocumentChanged;

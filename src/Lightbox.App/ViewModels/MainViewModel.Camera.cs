@@ -265,7 +265,7 @@ public partial class MainViewModel
 
     partial void OnViewThroughCameraChanged(bool value)
     {
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         _composeRing.InvalidateAll();
         RefreshCamera();
         PublishSnapshot();
@@ -301,7 +301,7 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(CameraY));
         OnPropertyChanged(nameof(CameraZoom));
         OnPropertyChanged(nameof(CameraRotationDeg));
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         _composeRing.InvalidateAll();
         PublishSnapshot();
     }

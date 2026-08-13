@@ -107,7 +107,7 @@ public partial class MainViewModel
             return;
         }
         MarkDocumentEdited();
-        InvalidateWholeCanvas(); // a document-wide change can move any pixel
+        _publish.InvalidateWholeCanvas(); // a document-wide change can move any pixel
         _composeRing.InvalidateAll();
         BrushTipRegistry.Register(Doc.BrushTips);
         ClipRegionRegistry.Register(Doc.ClipRegions);
@@ -206,7 +206,7 @@ public partial class MainViewModel
     {
         Settings.CanvasQuality = value.ToString();
         Settings.Save();
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         _composeRing.InvalidateAll();
         Performance.Reset();
         PublishSnapshot();

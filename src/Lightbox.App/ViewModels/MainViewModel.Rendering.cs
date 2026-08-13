@@ -258,16 +258,13 @@ public partial class MainViewModel
     /// so tests assert on it rather than on wall-clock, which is unusable on a
     /// shared runner.
     /// </summary>
-    internal SKRectI? LastPublishClip { get; private set; }
-
-    /// <summary>What the frame currently on screen was composed for (B165).</summary>
-    private Rendering.FrameFingerprint? _lastPublished;
+    internal SKRectI? LastPublishClip => _publish.LastPublishClip;
 
     /// <summary>
     /// Playback frames that composed to the pixels already on screen and were
     /// therefore not composed at all.
     /// </summary>
-    public int FramesReused { get; private set; }
+    public int FramesReused => _publish.FramesReused;
 
     /// <summary>
     /// Forget the frame on screen, so the next publish composes rather than
@@ -281,10 +278,10 @@ public partial class MainViewModel
     /// and expensive to forget, so it is wired to the same places that already
     /// invalidate the whole canvas.
     /// </remarks>
-    internal void ForgetPublishedFrame() => _lastPublished = null;
+    internal void ForgetPublishedFrame() => _publish.LastPublished = null;
 
     /// <summary>Mark everything dirty, as any pixel-changing edit does. Tests only.</summary>
-    internal void MarkWholeCanvasDirtyForTests() => InvalidateWholeCanvas();
+    internal void MarkWholeCanvasDirtyForTests() => _publish.InvalidateWholeCanvas();
 
     /// <summary>
     /// The builder's view of a frame under a live transform. A method with a
@@ -384,8 +381,8 @@ public partial class MainViewModel
         // Any publish satisfies a deferred one — the snapshot it hands over is
         // built from the current state, which includes whatever the deferral
         // was waiting to show.
-        _publishWhenPresented = false;
-        _lastPublishTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+        _publish.WaitingForPresent = false;
+        _publish.LastPublishTicks = System.Diagnostics.Stopwatch.GetTimestamp();
 
         var scene = Scene;
 
@@ -410,15 +407,15 @@ public partial class MainViewModel
         // a second "did anything change" question there would be two answers to
         // one question, which is how they come to disagree.
         var fingerprint = new Rendering.FrameFingerprint(
-            CurrentFrameIndex, ComposeScale, _pendingViewport,
+            CurrentFrameIndex, ComposeScale, _publish.Viewport,
             CameraViewTransform(ComposeScale),
             Rendering.UnchangedLayerRun.VisibleLayers(scene));
         if (IsPlaying
             && Rendering.FrameFingerprint.WouldBeIdentical(
-                _lastPublished, fingerprint, scene,
-                anythingDirty: _dirtyIsWholeCanvas || _pendingDirty is not null))
+                _publish.LastPublished, fingerprint, scene,
+                anythingDirty: _publish.AnythingDirty))
         {
-            FramesReused++;
+            _publish.FramesReused++;
             // Still prewarm: the worker is guessing at frames after this one, and
             // a reused frame is exactly when there is spare time to do it in.
             RequestPlaybackPrewarm(IsPlaying, ComposeScale);
@@ -437,10 +434,10 @@ public partial class MainViewModel
             // throws on one. It used to be unreachable rather than safe.
             scene.Layers.Count > 0 ? ActiveLayer.Id : null,
             IsPlaying, IsLightTable,
-            HaveViewport: _pendingViewport is { Width: > 0, Height: > 0 },
+            HaveViewport: _publish.Viewport is { Width: > 0, Height: > 0 },
             Onion);
         var live = new ScenePassBuilder.LiveEdit(
-            _liveComposite, _liveScratch, _livePostScratch, _livePostStampedCount,
+            _live.Composite, _live.Scratch, _live.PostScratch, _live.PostStampedCount,
             _liveShape, _liveGradient, _strokeBuilder.Current,
             _transformPreview, _transformFrames,
             // The moving/staying split stays behind a delegate because building
@@ -494,7 +491,7 @@ public partial class MainViewModel
         // A fold transition repaints everything once (see the out parameter's
         // remarks): folded and unfolded pixels can differ by an LSB, and a
         // dirty-region patch must never mix the two on one surface.
-        if (foldTransitioned) _dirtyIsWholeCanvas = true;
+        if (foldTransitioned) _publish.RepaintEverythingThisPublish();
 
         // Compose at the resolution the canvas can actually show. A 4K document
         // in a laptop window is displayed at roughly 40%, and handing the
@@ -508,9 +505,7 @@ public partial class MainViewModel
         //
         // Read BEFORE the routing decision on purpose: whether culling is worth
         // taking depends entirely on this, per B121 in ComposePlan.
-        var dirty = _dirtyIsWholeCanvas ? null : _pendingDirty;
-        _pendingDirty = null;
-        _dirtyIsWholeCanvas = false;
+        var dirty = _publish.TakeDirty();
 
         // Which compositor, on what surface, covering what (B166). Arithmetic on
         // six numbers, and the three conditions in it were each learned by
@@ -519,12 +514,12 @@ public partial class MainViewModel
         var plan = ComposePlan.For(
             scene.Width, scene.Height,
             cameraView is null ? null : new SKSizeI(scene.Camera!.OutputWidth, scene.Camera!.OutputHeight),
-            _pendingViewport, dirty, tileNativeDoc, renderScale);
+            _publish.Viewport, dirty, tileNativeDoc, renderScale);
         var viewWidth = plan.ViewWidth;
         var viewHeight = plan.ViewHeight;
         var info = plan.Info;
 
-        var seq = ++_publishSeq;
+        var seq = _publish.NextSequence();
         var background = SceneRenderer.BackgroundOf(scene);
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var composeScope = Profile(_profilingTick, Services.TickProfile.Phase.Compose);
@@ -555,7 +550,7 @@ public partial class MainViewModel
             // happens here — it needs the tile cache — but the blending, which
             // phase 1 measured at roughly two thirds of Compose, moves to the
             // draw op where the graphics context is.
-            var vp = _pendingViewport!.Value;
+            var vp = _publish.Viewport!.Value;
             flattenedOwned = [];
             passes = FlattenTilePasses(passes, scene, vp, renderScale, flattenedOwned);
             deferred = new DeferredCompose(
@@ -611,8 +606,8 @@ public partial class MainViewModel
             Console.Error.WriteLine($"[publish] dirty={dirty} clip={usedClip} passes={passes.Count} {sw.Elapsed.TotalMilliseconds:0.0}ms");
         }
         Performance.RecordPublish(sw.Elapsed.TotalMilliseconds);
-        LastPublishClip = usedClip;
-        _lastPublished = fingerprint;
+        _publish.LastPublishClip = usedClip;
+        _publish.LastPublished = fingerprint;
         // Everything from here is the handoff: the snapshot swap, the retired
         // images being disposed, and the invalidate. Timed apart from the
         // composite above because one number for both is what sent B156 after
@@ -962,39 +957,4 @@ public partial class MainViewModel
         return image;
     }
 
-    /// <summary>
-    /// Limit the next publish to a document region. Only safe when nothing
-    /// outside the region can change; every other edit path must leave the
-    /// default (whole-canvas) invalidation alone, or stale pixels linger.
-    /// </summary>
-    private void MarkDirtyRegion(SKRectI region)
-    {
-        if (_dirtyIsWholeCanvas) return;
-        if (_pendingDirty is { } existing)
-        {
-            existing.Union(region);
-            _pendingDirty = existing;
-        }
-        else
-        {
-            _pendingDirty = region;
-        }
-    }
-
-    /// <summary>The next publish repaints everything (the safe default).</summary>
-    private void InvalidateWholeCanvas()
-    {
-        _dirtyIsWholeCanvas = true;
-        _pendingDirty = null;
-        // B165: and forget what is on screen, so the next publish composes.
-        //
-        // The reuse guard already refuses while anything is dirty, so this is
-        // belt and braces — but it is the cheap half of a pair whose expensive
-        // half is stale art. The guard rests on an existing contract: anything
-        // that changes pixels must already mark the canvas dirty, or it would not
-        // reach the screen today either. This makes that dependency explicit
-        // instead of implicit, so a future invalidation path that forgets to mark
-        // dirty fails loudly at the canvas rather than quietly here.
-        _lastPublished = null;
-    }
 }

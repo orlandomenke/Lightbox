@@ -3143,3 +3143,28 @@ argued twice: the leaf pass produced three collaborators (`GuideSnap`,
 the order was wrong: had the split come first, each of the three leaf extractions would
 have been a change to an 800-line file instead of a 12,000-line one. That cost was
 stated when the ordering was chosen and is recorded here as having been real.
+
+**All five collaborators were re-applied on top of main (52 commits, PR222 included),
+and two of them are better for it.** PR222 rewrote the live-post pipeline and added
+publish pacing — the code Tier 0 had extracted — so `RenderLivePostProcess` no longer
+exists upstream. Rather than route 41 hunks (two of them rewrites, +195/−39 and +112)
+into nineteen partials, the merge took main's files verbatim and the restructure was
+re-derived on top: PR222's behaviour is intact by construction, which is the only claim
+that is cheap to check.
+
+`PublishState` absorbed `_presentedSeq`, `_publishWhenPresented`, `_lastPublishTicks` and
+`_damTimerArmed`. They belong with `_publishSeq` rather than beside it — `CanvasIsBehind`
+compares three at once, and a deferral released twice puts a second frame in flight,
+which is what the pacing exists to prevent. `NotePresented` and `TakeDeferral` clear the
+flag inside the state so "released" and "flag down" cannot come apart.
+
+`LivePaintSession` absorbed `_livePostGeneration`, and the bump moved inside
+`ResetPostProcess` where PR222 had it. The only thing that invalidates in-flight work is
+this state being reset, so the two must not be separable.
+
+**The split went first this time**, which is the Q78 lesson applied: each extraction was
+a change to an 800-to-1,800-line file rather than a 13,000-line one, and the difference
+was obvious in how quickly each one landed.
+
+Final: `MainViewModel.cs` 13,628 → 692 across 18 partials; `MainWindow.axaml.cs`
+5,706 → 455 across 15. 4,191 tests green, PR222's own guards included.

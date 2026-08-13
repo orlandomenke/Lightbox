@@ -158,7 +158,7 @@ public partial class MainViewModel
             _committingScopedEdit = false;
         }
         _dirtyThumbIds.Add(target.Id);
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         PublishSnapshot();
         RefreshThumbnails();
         AiStatus = tool == ToolKind.ClearRegion

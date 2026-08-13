@@ -37,11 +37,9 @@ public partial class MainViewModel
     [ObservableProperty]
     private string _aiStatus = "";
 
-    public bool IsAiAvailable => _artist is not null;
+    public bool IsAiAvailable => _ai.IsAvailable;
 
     public bool CanUseAi => IsAiAvailable && !AiBusy;
-
-    private bool _aiEnabled = true;
 
     /// <summary>
     /// Whether AI assistance is switched on at all. The AI bar binds its
@@ -49,7 +47,7 @@ public partial class MainViewModel
     /// off wants it gone, not greyed, and a permanently disabled row is a
     /// worse answer than an absent one — the camera's rule again.
     /// </summary>
-    public bool AiEnabled => _aiEnabled;
+    public bool AiEnabled => _ai.Enabled;
 
     public string AiUnavailableHint => IsAiAvailable
         ? ""
@@ -57,22 +55,13 @@ public partial class MainViewModel
           + "through Ollama, any OpenAI-compatible endpoint, or an agent of your own over MCP. "
           + "No provider at all? Drive Lightbox from an MCP client instead — see the README.";
 
-    private string _aiProviderLabel = "None";
-
-    /// <summary>
-    /// The configured model name, cached beside the provider label for the
-    /// same reason, and nullable because not every provider names one.
-    /// Recorded in <see cref="AiProvenance"/> on frames the AI drew.
-    /// </summary>
-    private string? _aiModelLabel;
-
     /// <summary>
     /// Which provider is in use. Cached rather than read from disk on every
     /// get: it is a bound property, and a binding that touches the filesystem
     /// each time it refreshes is a trap waiting for someone to bind it in a
     /// list.
     /// </summary>
-    public string AiProviderLabel => _artist is null ? "None" : _aiProviderLabel;
+    public string AiProviderLabel => _ai.ProviderLabel;
 
     /// <summary>
     /// Rebuild the artist from what is stored. Called after the Configure
@@ -81,12 +70,7 @@ public partial class MainViewModel
     /// </summary>
     public void ReloadAiProvider()
     {
-        (_artist as IDisposable)?.Dispose();
-        var connection = AiSettings.Load();
-        _aiProviderLabel = connection.Provider.Name;
-        _aiModelLabel = connection.Value("model");
-        _aiEnabled = connection.Enabled;
-        _artist = AiArtistFactory.Create(connection);
+        _ai.Reload();
         OnPropertyChanged(nameof(IsAiAvailable));
         OnPropertyChanged(nameof(CanUseAi));
         OnPropertyChanged(nameof(AiEnabled));
@@ -105,7 +89,7 @@ public partial class MainViewModel
     [RelayCommand]
     private async Task AiInbetweenAsync()
     {
-        if (_artist is null || AiBusy) return;
+        if (_ai.Artist is null || AiBusy) return;
         var layer = ActiveLayer;
         // The AI paths are held to the same layer rules as the artist's own
         // hand: a hidden or locked layer refuses both. This guard used to live
@@ -152,7 +136,7 @@ public partial class MainViewModel
 
         var result = await RunAiAsync(
             $"{AiProviderLabel} is drawing {ts.Count} inbetween(s)…",
-            ct => _artist.GenerateInbetweensAsync(request, ct));
+            ct => _ai.Artist.GenerateInbetweensAsync(request, ct));
         if (result is null) return;
 
         // The model proposes; Lightbox disposes. Every frame is verified
@@ -173,7 +157,7 @@ public partial class MainViewModel
         // Refusal is per frame: the ones that passed are inserted, each at its
         // own t's slot — a null keeps the slot a hold, so partial acceptance
         // never shifts a surviving frame onto somebody else's timing.
-        var provenance = new AiProvenance(AiProviderLabel, _aiModelLabel);
+        var provenance = new AiProvenance(AiProviderLabel, _ai.ModelLabel);
         var slots = new List<Frame?>(candidates.Count);
         for (var i = 0; i < candidates.Count; i++)
         {
@@ -283,7 +267,7 @@ public partial class MainViewModel
     [RelayCommand]
     private async Task AiReadSubjectAsync()
     {
-        if (_artist is null || AiBusy) return;
+        if (_ai.Artist is null || AiBusy) return;
         if (ProjectDocker.Project is null)
         {
             AiStatus = "Reading a subject needs a project — that is where a character lives.";
@@ -311,7 +295,7 @@ public partial class MainViewModel
 
         var taxonomy = await RunAiAsync(
             $"{AiProviderLabel} is reading “{character.Name}”…",
-            ct => _artist.ReadSubjectAsync(new SubjectRequest(character.Name, sheets), ct));
+            ct => _ai.Artist.ReadSubjectAsync(new SubjectRequest(character.Name, sheets), ct));
         if (taxonomy is null) return;
 
         character.Taxonomy = taxonomy;

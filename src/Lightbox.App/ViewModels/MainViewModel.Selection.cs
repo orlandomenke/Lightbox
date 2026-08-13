@@ -564,7 +564,7 @@ public partial class MainViewModel
     /// </summary>
     private void AfterOnionChange()
     {
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         PublishSnapshot();
         Settings.Save();
     }

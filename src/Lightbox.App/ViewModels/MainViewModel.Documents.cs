@@ -744,7 +744,7 @@ public partial class MainViewModel
             OnPropertyChanged();
             // The composite path changed under the canvas, so what is on screen
             // was produced by the other one. Republish rather than wait.
-            InvalidateWholeCanvas();
+            _publish.InvalidateWholeCanvas();
             PublishSnapshot();
         }
     }

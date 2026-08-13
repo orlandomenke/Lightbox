@@ -526,7 +526,7 @@ public partial class MainViewModel
         // the abandoned preview until something else happened to repaint
         // (found by the adversarial pass on B189's publish pacing, which made
         // the stale window longer; the hole predates it).
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         PublishSnapshot();
     }
 
@@ -570,7 +570,7 @@ public partial class MainViewModel
         _transformPreview = matrix;
         // The drawing can land anywhere on the canvas, so no dirty region is
         // safe here.
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         RequestSnapshot();
     }
 

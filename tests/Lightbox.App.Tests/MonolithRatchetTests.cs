@@ -122,7 +122,7 @@ public class MonolithRatchetTests(ITestOutputHelper output)
     /// </remarks>
     public static readonly (string Path, int Max)[] Budgets =
     [
-        ("src/Lightbox.App/ViewModels/MainViewModel.cs", 802),
+        ("src/Lightbox.App/ViewModels/MainViewModel.cs", 692),
         ("src/Lightbox.App/Rendering/CanvasControl.cs", 5122),
         ("src/Lightbox.App/Views/MainWindow.axaml", 4273),
         ("src/Lightbox.App/Views/MainWindow.axaml.cs", 455),

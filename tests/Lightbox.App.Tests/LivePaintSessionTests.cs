@@ -61,6 +61,32 @@ public class LivePaintSessionTests(Xunit.ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Resetting bumps the generation, so a worker pass that outlives its stroke is
+    /// recognised as stale (B189).
+    /// </summary>
+    /// <remarks>
+    /// This counter arrived with PR222's asynchronous live post-process and moved in here
+    /// when the state did, because the only thing that invalidates in-flight work is this
+    /// state being reset — the two must not be separable. The failure it prevents is a
+    /// result landing after pen-up and resurrecting a preview the commit already replaced,
+    /// which shows as the wet pass reappearing over finished art.
+    /// </remarks>
+    [Fact]
+    public void ResettingThePostProcessInvalidatesWorkStillInFlight()
+    {
+        var live = new LivePaintSession();
+        var before = live.PostGeneration;
+
+        live.ResetPostProcess();
+        Assert.NotEqual(before, live.PostGeneration);
+
+        // And through the effect-state reset too, which is what EndStroke calls.
+        var mid = live.PostGeneration;
+        live.ClearEffectState();
+        Assert.NotEqual(mid, live.PostGeneration);
+    }
+
+    /// <summary>
     /// The wiped region is actually transparent again, so a following stroke does not
     /// inherit the previous one's pixels.
     /// </summary>

@@ -170,4 +170,84 @@ public class PublishStateTests(Xunit.ITestOutputHelper output)
         Assert.True(publish.AnythingDirty);
         Assert.Equal(new SKRectI(2, 2, 6, 6), publish.TakeDirty());
     }
+
+    // ---- pacing (B189, absorbed from PR222) ----------------------------------
+
+    /// <summary>
+    /// Nothing presented yet means no pacing — headless, or the first frames of a session.
+    /// </summary>
+    /// <remarks>
+    /// The guard that keeps B73's entire suite from being dammed: it never presents at
+    /// all, so a pacing check answering "behind" here would defer every publish it makes.
+    /// </remarks>
+    [Fact]
+    public void ACanvasThatHasNeverPresentedIsNeverBehind()
+    {
+        var publish = new PublishState();
+        publish.NextSequence();
+        publish.NextSequence();
+
+        Assert.False(publish.CanvasIsBehind(damMs: 250));
+    }
+
+    /// <summary>A canvas that has fallen behind the newest publish is behind.</summary>
+    [Fact]
+    public void ACanvasBehindTheNewestPublishIsBehindUntilTheDamExpires()
+    {
+        var publish = new PublishState { LastPublishTicks = System.Diagnostics.Stopwatch.GetTimestamp() };
+        publish.NotePresented(1);
+        publish.NextSequence();
+        publish.NextSequence();          // seq 2 published, canvas has drawn 1
+
+        Assert.True(publish.CanvasIsBehind(damMs: 250));
+        // A dam of zero is already expired, so the publish goes ahead regardless — the
+        // liveness half, which is what stops a hidden window damming forever.
+        Assert.False(publish.CanvasIsBehind(damMs: 0));
+    }
+
+    /// <summary>
+    /// A deferral is released once, by whichever of the two paths gets there first.
+    /// </summary>
+    /// <remarks>
+    /// Two releases for one deferral would put a second frame in flight, which is exactly
+    /// what the pacing exists to prevent. The flag is cleared inside the state rather than
+    /// at the call site so "released" and "flag down" cannot come apart.
+    /// </remarks>
+    [Fact]
+    public void ADeferralIsReleasedOnlyOnce()
+    {
+        var publish = new PublishState();
+        publish.NextSequence();
+        publish.WaitingForPresent = true;
+
+        Assert.True(publish.NotePresented(1));    // the canvas caught up
+        Assert.False(publish.NotePresented(1));   // ...and cannot release it twice
+        Assert.False(publish.TakeDeferral());     // nor can the dam timer
+    }
+
+    /// <summary>The dam timer can release a deferral the canvas never came back for.</summary>
+    [Fact]
+    public void TheDamTimerCanReleaseADeferralTheCanvasAbandoned()
+    {
+        var publish = new PublishState();
+        publish.NextSequence();
+        publish.WaitingForPresent = true;
+
+        Assert.True(publish.TakeDeferral());
+        Assert.False(publish.WaitingForPresent);
+    }
+
+    /// <summary>A presented frame older than the one waited on does not release it.</summary>
+    [Fact]
+    public void AnOlderPresentedFrameDoesNotReleaseTheDeferral()
+    {
+        var publish = new PublishState();
+        publish.NotePresented(5);
+        publish.NextSequence();  // 1
+        for (var i = 0; i < 9; i++) publish.NextSequence();   // ...up to 10
+        publish.WaitingForPresent = true;
+
+        Assert.False(publish.NotePresented(4));   // stale report, seq 10 still unseen
+        Assert.True(publish.WaitingForPresent);
+    }
 }

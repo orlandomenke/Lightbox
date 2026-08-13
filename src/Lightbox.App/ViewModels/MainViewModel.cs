@@ -256,14 +256,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>The bake's counters, for tests and the render report.</summary>
     internal LayerStackBake StackBake => _stackBake;
-    private long _publishSeq;
 
     /// <summary>Cache of TileStores by bitmap identity to avoid reconverting unchanged frames.</summary>
 
 
-    /// <summary>Document region changed since the last publish (null = everything).</summary>
-    private SKRectI? _pendingDirty;
-    private bool _dirtyIsWholeCanvas = true;
 
     /// <summary>What the canvas says it can display: document pixels per screen pixel.</summary>
     private double _displayScale = 1.0;
@@ -388,7 +384,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (!double.IsFinite(scale) || scale <= 0) return;
         if (Math.Abs(scale - _displayScale) < 0.001) return;
         _displayScale = scale;
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         _composeRing.InvalidateAll();
         Performance.Reset(); // old timings were taken at a different resolution
         PublishSnapshot();
@@ -406,12 +402,11 @@ public sealed partial class MainViewModel : ObservableObject
     {
         // Avoid triggering a full publish on every view change by comparing
         // and only publishing if the viewport actually changed.
-        if (_pendingViewport == viewport) return;
-        _pendingViewport = viewport;
+        if (_publish.Viewport == viewport) return;
+        _publish.Viewport = viewport;
         PublishSnapshot();
     }
 
-    private SKRectI? _pendingViewport;
 
     /// <summary>
     /// Gate for anything that changes pixels or geometry. Hidden and locked
@@ -509,6 +504,30 @@ public sealed partial class MainViewModel : ObservableObject
         ConsiderCanvasRelief();
     }
 
+    /// <summary>
+    /// Whether the stroke in progress has committed to a guide, and which one — the
+    /// "decide once, then hold" state machine (Q78).
+    /// </summary>
+    private readonly GuideSnap _guideSnap = new();
+
+    /// <summary>Which AI provider is configured and the artist it makes (Q78).</summary>
+    private ConfiguredArtist _ai;
+
+    /// <summary>Character-sheet views flattened to PNG for AI and MCP, cached (B31, Q78).</summary>
+    private readonly ReferenceViewImages _referenceImages;
+
+    /// <summary>
+    /// What has changed since the last publish, what the last publish was, and whether
+    /// the canvas has caught up (Q77, extended with PR222's pacing).
+    /// </summary>
+    private readonly PublishState _publish = new();
+
+    /// <summary>
+    /// The state of the stroke under the pen — scratch bitmaps, dab bookkeeping, the
+    /// live post-process draft and its staleness generation (Q77, B189).
+    /// </summary>
+    private readonly LivePaintSession _live = new();
+
     // ---- state shared across sections ---------------------------------------
     //
     // Every field below is used by more than one section, so it stays here rather than
@@ -576,120 +595,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Where a playback tick's time went, for the render report.</summary>
     private readonly Services.TickProfile _tickProfile = new();
 
-    private SKBitmap? _liveScratch;
-    private SKCanvas? _liveScratchCanvas;
-
-    private SKRectI? _liveScratchUsed;
-
-    private SKBitmap? _liveComposite;
-
-    /// <summary>
-    /// The pristine pre-stroke pixels an effect brush samples, kept apart
-    /// from the composite it writes into. See the note in BeginStroke.
-    /// </summary>
-    private SKBitmap? _liveEffectBase;
-    private int _liveStampedCount;
-
-    /// <summary>
-    /// How many of the live stroke's dabs are already in the scratch.
-    /// </summary>
-    /// <remarks>
-    /// Counted in <b>dabs</b>, not in points, and the two are not interchangeable: the
-    /// walk emits a dab every <c>spacing × diameter</c> of arc length, so a slow pointer
-    /// produces many points and few dabs and a fast one the reverse. This is the number
-    /// that lets the engine walk the whole stroke and draw only what is new (B45).
-    /// </remarks>
-    private int _liveDabCount;
-
-    /// <summary>
-    /// The scratch pixels under the provisional tail, before it was stamped.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <b>Why the tail is drawn and then taken back rather than simply held until it
-    /// settles.</b> A dab's position is provisional until the next point arrives, so
-    /// stamping it immediately means stamping it in the wrong place; holding it back
-    /// instead was tried and measured, and it costs too much — the live mark came out 4%
-    /// short on a long stroke and <b>39% short on a six-event flick</b>, which reads as
-    /// the stroke lagging behind the pen. An artist notices that far more than they would
-    /// notice a settled dab.
-    /// </para>
-    /// <para>
-    /// So the tail is stamped for the tip to be live, its region is remembered, and the
-    /// next event restores those exact pixels before re-stamping. Restoring by copy makes
-    /// it byte-exact, and because the stable count only ever grows, the dabs still land in
-    /// index order — which is what keeps a self-crossing accumulating the same way it does
-    /// in a single-pass render.
-    /// </para>
-    /// </remarks>
-    private SKBitmap? _liveTailBackup;
-    private SKRectI? _liveTailRegion;
-
-    /// <summary>Dabs in the scratch whose position is settled, so never taken back.</summary>
-    private int _liveStableDabs;
-
-    /// <summary>
-    /// The dab walk from the previous pointer event.
-    /// </summary>
-    /// <remarks>
-    /// Kept for two reasons, both measured. It is what the new walk is compared against to
-    /// find the settled prefix, which avoids walking the stroke a second time just to ask
-    /// that question. And walking is not free: four walks an event made a 600-event stroke
-    /// cost 3.2× more per event at the end than at the start, which invariant 6 forbids.
-    /// </remarks>
-    private List<BrushEngine.Dab>? _liveDabs;
-
-    /// <summary>
-    /// The densify cache for the stroke in hand (B46).
-    /// </summary>
-    /// <remarks>
-    /// One per view model rather than one per stroke: it keys off the points it last saw, so a new
-    /// stroke simply looks like a wholesale change and rebuilds. Kept alive between strokes so the
-    /// common case allocates nothing.
-    /// </remarks>
-    private readonly Lightbox.Core.Geometry.IncrementalDensify _liveDensify = new();
-
-    /// <summary>The effect draft's own dab bookkeeping, mirroring <see cref="_liveDabs"/>.</summary>
-    /// <remarks>
-    /// Separate because the two paths are exclusive — a stroke is either an effect or paint — and
-    /// sharing one field would make whichever ran second compare against the other's walk. B54.
-    /// </remarks>
-    private List<BrushEngine.Dab>? _liveEffectDabs;
-
-    /// <summary>How many effect dabs are already on the composite and must not be drawn again.</summary>
-    private int _liveEffectSettled;
-
-    /// <summary>
-    /// What the smudge was carrying at dab <see cref="_liveEffectSettled"/>, so a resumed range
-    /// starts where a single pass would have (B69/B89).
-    /// </summary>
-    /// <remarks>
-    /// The blur needs no equivalent: its dabs read the pre-stroke pixels and are independent of one
-    /// another. A smudge's are a chain, and this is the one link that has to survive between pointer
-    /// events. It is two values, so checkpointing it every event costs nothing.
-    /// </remarks>
-    private BrushEngine.SmudgeCarry _liveSmudgeCarry;
-
-    /// <summary>
-    /// The composite's pixels under the provisional smudge tail, before it was stamped.
-    /// </summary>
-    /// <remarks>
-    /// The same lend-and-take-back the paint scratch does in <see cref="StampLiveDabs"/>, for the
-    /// same reason and with one extra: a smudge <em>reads</em> the bitmap it writes, so re-stamping
-    /// an unsettled dab over its own previous deposit compounds the smear rather than replacing it.
-    /// Restoring first is what makes the replayed range see what a single pass would have seen.
-    /// </remarks>
-    private SKBitmap? _liveSmudgeBackup;
-    private SKRectI? _liveSmudgeRegion;
-
     private bool _snapshotQueued;
-
-    private SKBitmap? _livePostScratch;
-    private SKRectI? _livePostUsed;
-    /// <summary>Cost of the last pass, milliseconds — reported by the performance panel.</summary>
-    private double _livePostCostMs;
-    private int _livePostStampedCount = -1;
-    private bool _livePostQueued;
 
     /// <summary>
     /// Where the last committed stroke on this layer ended, or null.
@@ -712,11 +618,6 @@ public sealed partial class MainViewModel : ObservableObject
     private Stroke? _liveShape;
 
     /// <summary>A coalesced publish is waiting for the canvas to catch up.</summary>
-    private bool _publishWhenPresented;
-
-    /// <summary>When the newest publish left, for the dam above.</summary>
-    private long _lastPublishTicks;
-
     private int _playDirection = 1;
 
     private readonly List<Frame> _transformFrames = [];
@@ -758,13 +659,6 @@ public sealed partial class MainViewModel : ObservableObject
     private (int Layer, int Start, int End)? _celRange;
 
     /// <summary>
-    /// Not readonly: Edit ▸ Configure ▸ AI can swap the provider while the app
-    /// is running, and an artist that could only be chosen at startup would
-    /// make "test it, then use it" a two-launch operation.
-    /// </summary>
-    private IAiArtist? _artist;
-
-    /// <summary>
     /// True while stepping through a frame the clock has already decided to
     /// drop. See <see cref="OnPlaybackTick"/> — the playhead moves, the pixels
     /// are not made.
@@ -786,12 +680,8 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private double _snapTolerance = 12;
 
-    /// <summary>The guide the stroke in progress has locked to, if any.</summary>
-    private Guide? _lockedGuide;
 
-    private (double X, double Y) _strokeAnchor;
 
-    private bool _lockDecided;
 
     /// <summary>
     /// How much detail to composite. Only affects what is shown while you

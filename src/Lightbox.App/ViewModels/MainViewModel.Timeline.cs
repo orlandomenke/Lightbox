@@ -239,7 +239,7 @@ public partial class MainViewModel
         _playDirection = direction;
         if (IsPlaying) return;
         _strokeBuilder.Cancel();
-        ClearLiveEffectState();
+        _live.ClearEffectState();
         IsPlaying = true;
         _clock.Start(Scene.Fps, PlaybackSpeedPercent);
         TickAudio();
@@ -603,7 +603,7 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(FrameLabel));
         SyncLayerRows();
         ClampCurrentFrame(publishIfUnchanged: false);
-        InvalidateWholeCanvas();
+        _publish.InvalidateWholeCanvas();
         PublishSnapshot();
         RefreshThumbnails();
         MarkDocumentEdited();

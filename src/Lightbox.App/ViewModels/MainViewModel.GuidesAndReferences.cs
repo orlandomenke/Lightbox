@@ -119,41 +119,11 @@ public partial class MainViewModel
 
 
 
-    /// <summary>
-    /// Put a raw point where the guides say it belongs.
-    /// </summary>
-    /// <remarks>
-    /// After stabilisation, not before. Snapping first and smoothing after
-    /// would drag the point back off the guide, which is the wrong way round —
-    /// the wobble is what you want removed, the guide is what you want obeyed.
-    /// </remarks>
-    private (double X, double Y) Guided(double x, double y)
-    {
-        if (!SnapToGuides || Scene.Guides is not { Count: > 0 } guides) return (x, y);
-
-        // Locked already: hold the line, and stop reconsidering. A wobbly hand
-        // that re-chooses mid-stroke makes the line kink.
-        if (_lockedGuide is { } locked)
-        {
-            return Snapper.Along(locked, _strokeAnchor.X, _strokeAnchor.Y, x, y);
-        }
-        if (!_lockDecided)
-        {
-            if (Snapper.Lock(guides, _strokeAnchor.X, _strokeAnchor.Y, x, y) is { } found)
-            {
-                _lockedGuide = found;
-                _lockDecided = true;
-                return Snapper.Along(found, _strokeAnchor.X, _strokeAnchor.Y, x, y);
-            }
-            // Far enough to have meant something, and it matched nothing:
-            // this is a freehand stroke and asking again every event would
-            // only let a late wobble grab it.
-            var dx = x - _strokeAnchor.X;
-            var dy = y - _strokeAnchor.Y;
-            if (Math.Sqrt(dx * dx + dy * dy) >= Snapper.LockDistance) _lockDecided = true;
-        }
-        return Snapper.Point(guides, x, y, SnapTolerance);
-    }
+    /// <summary>Put a raw point where the guides say it belongs.</summary>
+    private (double X, double Y) Guided(double x, double y) =>
+        !SnapToGuides || Scene.Guides is not { Count: > 0 } guides
+            ? (x, y)
+            : _guideSnap.Apply(guides, x, y, SnapTolerance);
 
     /// <summary>Add a guide. The first one brings the machinery into being.</summary>
     public Guide AddGuide(GuideKind kind, double x, double y, double angle = 0, double spacing = 32)
