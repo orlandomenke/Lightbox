@@ -114,6 +114,32 @@ public class TransformToolTests : BrushStateIsolated
         vm.CancelTransform();
     }
 
+    /// <summary>
+    /// Escape publishes the revert. The preview is composited into every
+    /// published frame, so a cancel that only clears the model leaves the
+    /// screen showing the abandoned preview until something else happens to
+    /// repaint — the commit path repaints via the editor's document-changed
+    /// publish, and a cancel has no edit, so it must publish for itself.
+    /// Found by the adversarial pass on B189's publish pacing, which made the
+    /// stale window longer; the hole predates it.
+    /// </summary>
+    [AvaloniaFact]
+    public void CancellingATransformPublishesTheRevert()
+    {
+        var vm = PaintedVm();
+        Assert.True(vm.BeginTransform());
+        vm.PreviewTransform(SkiaSharp.SKMatrix.CreateTranslation(0, 140));
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var publishes = 0;
+        vm.SnapshotChanged += _ => publishes++;
+        vm.CancelTransform();
+
+        Assert.False(vm.TransformActive);
+        Assert.True(publishes >= 1,
+            "cancelling a transform published nothing, so the screen keeps showing the abandoned preview");
+    }
+
     [AvaloniaFact]
     public void CelRangeScope_TransformsEachDistinctDrawingOnce()
     {

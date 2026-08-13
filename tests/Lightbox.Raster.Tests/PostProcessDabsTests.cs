@@ -119,6 +119,83 @@ public class PostProcessDabsTests(ITestOutputHelper output)
             $"differs from a full render by {diff:0.00}/255");
     }
 
+    /// <summary>A real copy — <c>ExtractSubset</c> alone shares the pixels.</summary>
+    private static SKBitmap Copy(SKBitmap src, SKRectI r)
+    {
+        var bmp = new SKBitmap(new SKImageInfo(r.Width, r.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        using var canvas = new SKCanvas(bmp);
+        using var sub = new SKBitmap();
+        Assert.True(src.ExtractSubset(sub, r));
+        using var px = sub.PeekPixels();
+        using var view = SKImage.FromPixels(px);
+        using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
+        canvas.DrawImage(view, 0, 0, paint);
+        canvas.Flush();
+        return bmp;
+    }
+
+    /// <summary>
+    /// The region pass over cropped copies is bit-identical to the full pass —
+    /// not merely close, because live-versus-commit equality is the bar the
+    /// effect-brush work settled on (B69/B89), and the async live preview
+    /// (B189) hands the worker exactly these crops.
+    /// </summary>
+    /// <remarks>
+    /// Rewetting and physical mixing are both on so the beneath bitmap is
+    /// actually sampled — a transparent or unread beneath would pass this test
+    /// with the origin arithmetic wrong, which is the one defect it exists to
+    /// catch. The beneath crop covers
+    /// <see cref="Media.MediumSimulator.ExistingRegionNeeded"/>, the contract a
+    /// cropped caller signs.
+    /// </remarks>
+    [Theory]
+    [InlineData(MediumKind.Watercolour)]
+    [InlineData(MediumKind.Oil)]
+    [InlineData(MediumKind.None)] // wet edge + texture route, no beneath sampling
+    public void ACroppedRegionPassIsBitIdenticalToTheFullOne(MediumKind medium)
+    {
+        var stroke = Stroke(18, 70, medium,
+            wetEdge: medium == MediumKind.None ? 0.8 : 0,
+            texture: medium == MediumKind.None ? PaperKind.ColdPress : null);
+        stroke.Brush.Medium.Rewetting = 0.6;
+        stroke.Brush.Medium.PhysicalMixing = true;
+
+        // Something real underneath, so re-wetting has pigment to lift.
+        using var beneath = new SKBitmap(Info);
+        using (var canvas = new SKCanvas(beneath))
+        {
+            using var paint = new SKPaint { Color = new SKColor(180, 60, 40, 200) };
+            canvas.DrawRect(new SKRect(0, 400, W, 900), paint);
+            canvas.Flush();
+        }
+
+        using var dabs = Dabs(stroke);
+
+        using var full = new SKBitmap(Info);
+        var rect = BrushEngine.PostProcessDabs(dabs, full, stroke, Info, beneath);
+        Assert.NotNull(rect);
+
+        var needed = Media.MediumSimulator.ExistingRegionNeeded(rect!.Value, W, H);
+        using var dabsCrop = Copy(dabs, rect.Value);
+        using var beneathCrop = Copy(beneath, needed);
+        using var region = BrushEngine.PostProcessRegion(
+            dabsCrop, stroke, rect.Value, beneathCrop,
+            origin: rect.Value.Location, beneathOrigin: needed.Location);
+        Assert.NotNull(region);
+
+        using var viaCrops = new SKBitmap(Info);
+        using (var canvas = new SKCanvas(viaCrops))
+        {
+            using var replace = new SKPaint { BlendMode = SKBlendMode.Src };
+            canvas.DrawImage(region, rect.Value.Left, rect.Value.Top, replace);
+            canvas.Flush();
+        }
+
+        var diff = MeanDifference(full, viaCrops);
+        output.WriteLine($"medium={medium}: mean difference {diff:0.####}/255");
+        Assert.Equal(0, diff);
+    }
+
     [Fact]
     public void AStrokeThatReachesNothingReportsNoBounds()
     {

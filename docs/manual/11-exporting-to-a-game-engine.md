@@ -21,7 +21,9 @@ atlas, so it gets no layout picker.
 
 The shortcut through this whole section. Right-click a document in the **Project**
 panel → **Status**, and set where it is: Design, Draft, In development, Review,
-Ready, or Reopened. A coloured dot appears on the row.
+Ready, or Reopened. A coloured dot appears on the row — and appears by itself
+the first time a new document is saved, as **Draft**, so fresh work enters the
+pipeline without being asked.
 
 Switch on **Configure ▸ Export ▸ Export automatically on a status change**, point
 it at a folder, and reaching that status exports the asset there. Finish it, mark
@@ -103,18 +105,35 @@ Everything above is **File ▸ Export for a game engine…**, which exports the
 drawing you have open. A project can do it the other way round: declare a preset
 on a folder and export the folder.
 
-**Right-click a folder ▸ Export this as** picks the preset, and that does two
-things — it sets the settings *and* it says **where one file ends**. A preset can
+**Giving the folder an Export preset** — in the project manager's **Assets**
+tab, from the row's share picker — does two
+things: it sets the settings *and* it says **where one file ends**. A preset can
 produce one file per document, one per folder inside it, or **one file for the
 whole subtree**: the knight's walk, run and idle packed into a single sheet, with
 a frame tag naming each so an engine can still tell them apart.
 
 **Right-click a folder ▸ Export this folder…** runs it, and counts before it
-writes — *"2 files from 47 documents, 3 held back by status"*. Two formats refuse
-to hold several documents rather than exporting the first: a **PNG sequence**,
-because numbered frames in a folder cannot say where one animation ended, and a
-**GameMaker sprite**, because that is one animation with one origin and one image
-speed. Both say so and write nothing.
+writes — *"2 files from 47 documents, 3 held back by status"*. Or run it from
+the project manager's **Export** tab: the tab shows every artifact the plan
+would produce, and **▶ Run export…** writes them all into a folder you pick —
+the same plan, the same runner, so the two cannot disagree.
+
+**What holds several documents, precisely.** A **sprite sheet** — plain,
+Unity, Godot or Unreal — takes any number: the frames concatenate in order,
+every document becomes a **frame tag** naming its range so the engine can tell
+the clips apart, and each frame keeps its own document's frame rate, pivot,
+anchors and collision shapes (a 12 fps walk and a 24 fps dash coexist in one
+file, each on its own clock). Two formats refuse rather than exporting the
+first document silently: a **PNG sequence**, because numbered frames in a
+folder cannot say where one animation ended, and a **GameMaker sprite**,
+because that is one animation with one origin and one image speed. Both say so
+and write nothing.
+
+**One drawing vs. many is a question of door, not of capability.** **File ▸
+Export for a game engine…** exports the drawing you have open — one file from
+one document, always. To put several documents into one file, use the project
+side: declare the preset on their folder as **one artifact** and run the folder
+or the Export tab.
 
 *Which folder declares what, and how declarations are seen and taken back, is in
 [Documents and

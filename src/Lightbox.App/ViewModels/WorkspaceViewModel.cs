@@ -33,6 +33,10 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         _store = store;
         _layout = (store.Find(store.Current) ?? store.Workspaces[0]).Layout.Clone();
         SelectedName = store.Current;
+        foreach (var option in QuickBarCatalog.All)
+        {
+            QuickBarChoices.Add(new QuickBarChoice(this, option));
+        }
         RefreshChoices();
     }
 
@@ -71,6 +75,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(Layout));
         foreach (var info in DockPanels.All) OnPropertyChanged(VisibilityNameOf(info.Id));
+        foreach (var name in QuickNames.Values) OnPropertyChanged(name);
+        foreach (var choice in QuickBarChoices) choice.Sync();
         RefreshChoices();
         Changed?.Invoke();
     }
@@ -98,6 +104,12 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     {
         get => _layout.IsVisible(DockPanelId.Symbols);
         set => SetVisible(DockPanelId.Symbols, value);
+    }
+
+    public bool HistoryPanelVisible
+    {
+        get => _layout.IsVisible(DockPanelId.History);
+        set => SetVisible(DockPanelId.History, value);
     }
 
     public bool ToolOptionsDockerVisible
@@ -146,6 +158,12 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     {
         get => _layout.IsVisible(DockPanelId.Gradient);
         set => SetVisible(DockPanelId.Gradient, value);
+    }
+
+    public bool ChannelsDockerVisible
+    {
+        get => _layout.IsVisible(DockPanelId.Channels);
+        set => SetVisible(DockPanelId.Channels, value);
     }
 
     public bool ReferenceDockerVisible
@@ -257,8 +275,10 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         DockPanelId.Sheets => nameof(SheetsDockerVisible),
         DockPanelId.Palette => nameof(PaletteDockerVisible),
         DockPanelId.Gradient => nameof(GradientDockerVisible),
+        DockPanelId.Channels => nameof(ChannelsDockerVisible),
         DockPanelId.Reference => nameof(ReferenceDockerVisible),
         DockPanelId.Symbols => nameof(SymbolsPanelVisible),
+        DockPanelId.History => nameof(HistoryPanelVisible),
         DockPanelId.ToolOptions => nameof(ToolOptionsDockerVisible),
         DockPanelId.Xsheet => nameof(XsheetDockerVisible),
         DockPanelId.GraphEditor => nameof(GraphEditorDockerVisible),
@@ -295,6 +315,78 @@ public sealed partial class WorkspaceViewModel : ObservableObject
 
     [RelayCommand]
     private void ToggleTimeline() => SetVisible(DockPanelId.Timeline, !TimelineVisible);
+
+    // ---- the Quick options bar ------------------------------------------------
+    //
+    // One bool per catalogue entry, the same shape as the panel visibilities
+    // above and for the same reason: the bar's sections bind to a bool and
+    // nothing else. The workspace decides what the bar offers; the active tool
+    // still decides which of those offers is relevant right now, so the
+    // tool-bound sections AND these together in the XAML.
+
+    public bool QuickBrushPreset => QuickHas(QuickBarCatalog.BrushPreset);
+
+    public bool QuickBrushOptions => QuickHas(QuickBarCatalog.BrushOptions);
+
+    public bool QuickEraserOptions => QuickHas(QuickBarCatalog.EraserOptions);
+
+    public bool QuickShapeOptions => QuickHas(QuickBarCatalog.ShapeOptions);
+
+    public bool QuickFillOptions => QuickHas(QuickBarCatalog.FillOptions);
+
+    public bool QuickSelectOptions => QuickHas(QuickBarCatalog.SelectOptions);
+
+    public bool QuickGradientOptions => QuickHas(QuickBarCatalog.GradientOptions);
+
+    public bool QuickArrowOptions => QuickHas(QuickBarCatalog.ArrowOptions);
+
+    public bool QuickTransport => QuickHas(QuickBarCatalog.Transport);
+
+    public bool QuickAddFrame => QuickHas(QuickBarCatalog.AddFrame);
+
+    /// <summary>Catalogue id → the property the XAML gates that section with.</summary>
+    /// <remarks>
+    /// Public and enumerable so a test can hold the XAML to it: every entry in
+    /// the catalogue must have a gate in the bar, or the customize flyout
+    /// offers a checkbox that changes nothing.
+    /// </remarks>
+    public static readonly IReadOnlyDictionary<string, string> QuickNames =
+        new Dictionary<string, string>
+        {
+            [QuickBarCatalog.BrushPreset] = nameof(QuickBrushPreset),
+            [QuickBarCatalog.BrushOptions] = nameof(QuickBrushOptions),
+            [QuickBarCatalog.EraserOptions] = nameof(QuickEraserOptions),
+            [QuickBarCatalog.ShapeOptions] = nameof(QuickShapeOptions),
+            [QuickBarCatalog.FillOptions] = nameof(QuickFillOptions),
+            [QuickBarCatalog.SelectOptions] = nameof(QuickSelectOptions),
+            [QuickBarCatalog.GradientOptions] = nameof(QuickGradientOptions),
+            [QuickBarCatalog.ArrowOptions] = nameof(QuickArrowOptions),
+            [QuickBarCatalog.Transport] = nameof(QuickTransport),
+            [QuickBarCatalog.AddFrame] = nameof(QuickAddFrame),
+        };
+
+    public bool QuickHas(string id) => _layout.QuickBarContents.Contains(id);
+
+    /// <summary>The customize flyout's rows, one per catalogue entry, fixed.</summary>
+    public ObservableCollection<QuickBarChoice> QuickBarChoices { get; } = [];
+
+    /// <summary>
+    /// Include or drop one option — a workspace edit like any other: dirty
+    /// until saved, undone by reset, and stored per workspace.
+    /// </summary>
+    public void SetQuickOption(string id, bool on)
+    {
+        if (QuickHas(id) == on) return;
+        Mutate(l =>
+        {
+            // Materialised on first choice; order is the catalogue's, because
+            // the XAML declares the sections in that order anyway.
+            var chosen = l.QuickBarContents.ToHashSet();
+            if (on) chosen.Add(id);
+            else chosen.Remove(id);
+            l.QuickBar = QuickBarCatalog.All.Select(o => o.Id).Where(chosen.Contains).ToList();
+        });
+    }
 
     // ---- what the window drives ---------------------------------------------
 
@@ -423,4 +515,37 @@ public sealed record WorkspaceRow(string Name, bool BuiltIn, bool IsCurrent)
     public bool CanDelete => !BuiltIn;
 
     public override string ToString() => Name;
+}
+
+/// <summary>
+/// One row of the quick bar's customize flyout: a catalogue entry and whether
+/// this workspace carries it.
+/// </summary>
+/// <remarks>
+/// A live object rather than a rebuilt record like <see cref="WorkspaceRow"/>,
+/// because these rows are toggled from an open flyout — replacing the
+/// collection under a checkbox mid-click is how a flyout closes itself.
+/// <see cref="Sync"/> is called by the owner whenever the layout changes, so
+/// a workspace switch re-checks the boxes without rebuilding them.
+/// </remarks>
+public sealed class QuickBarChoice(WorkspaceViewModel owner, QuickBarOption option)
+    : ObservableObject
+{
+    public string Label => option.Label;
+
+    public string Hint => option.Hint;
+
+    public bool IsOn
+    {
+        get => owner.QuickHas(option.Id);
+        set
+        {
+            if (owner.QuickHas(option.Id) == value) return;
+            owner.SetQuickOption(option.Id, value);
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Re-announce <see cref="IsOn"/> after the layout changed underneath.</summary>
+    public void Sync() => OnPropertyChanged(nameof(IsOn));
 }

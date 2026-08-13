@@ -69,6 +69,7 @@ public sealed class CanvasControl : Control
             BrushCursorRoundnessProperty,
             BrushCursorAngleProperty,
             LazyRadiusProperty,
+            SoloProperty,
         ];
         AffectsRender<CanvasControl>(RepaintOnChange);
 
@@ -623,6 +624,19 @@ public sealed class CanvasControl : Control
     }
 
     private IReadOnlyList<GuideLine>? _guides;
+
+    /// <summary>
+    /// Show one channel of the artwork as grayscale, or all of them as normal.
+    /// View-only: the record is untouched, only the draw changes.
+    /// </summary>
+    public static readonly StyledProperty<ChannelSolo> SoloProperty =
+        AvaloniaProperty.Register<CanvasControl, ChannelSolo>(nameof(Solo));
+
+    public ChannelSolo Solo
+    {
+        get => GetValue(SoloProperty);
+        set => SetValue(SoloProperty, value);
+    }
 
     /// <summary>
     /// The rig marks to draw, or null for none — in which case no rig furniture
@@ -2010,6 +2024,7 @@ public sealed class CanvasControl : Control
         // never wake to paint it — the stroke only appeared on the NEXT event.
         // An animation-frame request forces a compositor frame regardless.
         _presentWait.Published(snapshot.Seq);
+        StrokeToScreen.Shared.Published(snapshot.Seq);
 
         if (_keepPresenting) PumpPresentLoop();
         else RequestOneFrame();
@@ -2213,7 +2228,7 @@ public sealed class CanvasControl : Control
             ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks),
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
-            _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures));
+            _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo));
     }
 
     /// <summary>
@@ -4011,6 +4026,21 @@ public sealed class CanvasControl : Control
     /// <summary>How many frames are queued behind the one on screen. Tests only.</summary>
     internal int RetiredCount => _retired.Count;
 
+    /// <summary>
+    /// A snapshot the canvas had not shown before has been drawn — its seq,
+    /// delivered on the UI thread.
+    /// </summary>
+    /// <remarks>
+    /// The publisher's back-pressure signal (B189): the view model defers the
+    /// next coalesced publish until the last one has actually been drawn, and
+    /// this is how it learns that happened. Posted at <c>Input</c> priority,
+    /// not <c>Background</c> like <see cref="FrameRendered"/>: the moment this
+    /// signal matters most is mid-stroke, which is exactly when continuous
+    /// pointer input starves <c>Background</c> — a deferred publish waiting on
+    /// a starved notification would be the lag this exists to remove.
+    /// </remarks>
+    public event Action<long>? SnapshotPresented;
+
     private void NoteRendered(long seq)
     {
         // Before the early return below, which is about keeping the high-water
@@ -4018,6 +4048,7 @@ public sealed class CanvasControl : Control
         // dropping it here would flatter the average by counting only the
         // frames that behaved.
         _presentWait.Rendered(seq);
+        StrokeToScreen.Shared.Rendered(seq);
 
         long current;
         do
@@ -4026,6 +4057,17 @@ public sealed class CanvasControl : Control
             if (seq <= current) return;
         }
         while (Interlocked.CompareExchange(ref _lastRenderedSeq, seq, current) != current);
+
+        // Only when the high-water mark moved: a cursor repaint re-draws the
+        // same snapshot many times a second, and the publisher only cares that
+        // a NEW frame reached the screen. The deferral race is safe by
+        // ordering — a publish can only be deferred while its draw's
+        // notification has not been processed yet, so the post that releases
+        // it is always already queued.
+        if (SnapshotPresented is null) return;
+        Avalonia.Threading.Dispatcher.UIThread.Post(
+            () => SnapshotPresented?.Invoke(seq),
+            Avalonia.Threading.DispatcherPriority.Input);
     }
 
     /// <summary>Frame times arrive from the render thread; marshal to the UI thread to publish them.</summary>
@@ -4058,7 +4100,8 @@ public sealed class CanvasControl : Control
         IReadOnlyList<PathNodeGlyph>? pathNodes = null,
         IReadOnlyList<Core.Documents.StrokePoint>? penPreview = null,
         IReadOnlyList<Core.Documents.StrokePoint>? pathTrace = null,
-        LayerTextureCache? textures = null) : ICustomDrawOperation
+        LayerTextureCache? textures = null,
+        ChannelSolo solo = ChannelSolo.None) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -4179,7 +4222,8 @@ public sealed class CanvasControl : Control
                 c => DrawTransparencyCheckerboard(c, view),
                 ToPainterLines(guides),
                 draftGuide is { } d ? ToPainterLine(d) : null,
-                snapshot.DocViewport);
+                snapshot.DocViewport,
+                ChannelSoloFilters.For(solo));
             DrawCameraFrame(canvas);
             DrawGradientAxis(canvas);
             // B58. Over the artwork and over the guides, under the selection ants:

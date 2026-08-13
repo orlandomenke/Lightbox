@@ -19,6 +19,36 @@ just an ordinary unlocked layer.
 
 **Ctrl+click** a layer thumbnail to select its opaque pixels.
 
+### Merging a layer down
+
+**Ctrl+E** merges the active layer into the one below it — Photoshop's and
+Krita's key. The row's right-click menu has it too (**Merge down**), for
+merging a layer that is not the active one. The merged layer keeps the lower
+layer's name, opacity, blend mode and folder, and the merge is one undo step.
+
+It walks the exposure sheet drawing by drawing: where both layers hold, the
+merged layer holds, so animating on 2s survives a merge. Where either layer
+keys a new drawing, the merged layer gets one combined drawing.
+
+**Your strokes survive wherever the merge can be exact without pixels.** Two
+plain drawings merge by keeping both stroke records, still editable and still
+readable by the AI inbetweener. What cannot stay strokes is flattened to
+pixels instead, so the merge always looks exactly like the two layers did:
+
+- a blend mode or opacity on the layer being merged — it is applied into the
+  pixels, the way merging in Photoshop applies it;
+- erasers or clear-regions on it — kept as strokes they would start erasing
+  the lower layer's marks, which they never touched;
+- alpha-locked or smudge strokes, and imported pixels — all of them read what
+  is underneath, and "underneath" changes when the layers become one.
+
+The decision is per drawing, not per layer: one blended drawing does not cost
+the other eleven their strokes. When AI assistance is on and a merge would
+flatten any drawing, Lightbox asks first, because a flattened drawing is one
+the inbetweener can no longer read. As in Photoshop, a blend mode is applied
+against the layer directly below — if it was interacting with layers deeper
+in the stack, that part of its look can shift.
+
 ---
 
 ## Selections and transforms

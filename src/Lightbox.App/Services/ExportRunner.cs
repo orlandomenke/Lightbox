@@ -82,22 +82,14 @@ public static class ExportRunner
             // image speed. Several documents are several sprites, not one
             // artifact, and packing them into a strip would give the second
             // cycle the first one's origin and speed with nothing in the file
-            // saying so.
+            // saying so. The other engines take several — an atlas with a
+            // tagged clip per document is their ordinary shape.
             ExportTarget.GameMaker when docs.Count > 1 => Refused(
                 $"A GameMaker sprite is one animation with one origin and one speed, so {docs.Count} "
                 + "documents cannot be one of them. Export per document."),
-            ExportTarget.Unity when docs.Count > 1 => Refused(
-                $"A Unity export is one atlas with one animation set, so {docs.Count} "
-                + "documents cannot be one of them. Export per document."),
-            ExportTarget.Godot when docs.Count > 1 => Refused(
-                $"A Godot export is one sprite sheet with one animation set, so {docs.Count} "
-                + "documents cannot be one of them. Export per document."),
-            ExportTarget.Unreal when docs.Count > 1 => Refused(
-                $"An Unreal export is one sprite sheet with one flipbook set, so {docs.Count} "
-                + "documents cannot be one of them. Export per document."),
-            ExportTarget.Unity => Unity(docs[0], preset, path),
-            ExportTarget.Godot => Godot(docs[0], preset, path),
-            ExportTarget.Unreal => Unreal(docs[0], preset, path),
+            ExportTarget.Unity => Unity(docs, preset, path, names),
+            ExportTarget.Godot => Godot(docs, preset, path, names),
+            ExportTarget.Unreal => Unreal(docs, preset, path, names),
             ExportTarget.GameMaker => GameMaker(docs[0], preset, path),
             _ => Sheet(docs, preset, path, names),
         };
@@ -139,10 +131,7 @@ public static class ExportRunner
     private static ExportRun Sheet(
         IReadOnlyList<Doc> docs, ExportPreset preset, string sheetPath, IReadOnlyList<string>? names)
     {
-        if (docs.Count > 1)
-            return Refused(
-                "Multi-document sprite sheet export is not yet implemented. Export per document.");
-        var result = SpriteSheetExporter.Export(docs[0], sheetPath, SheetOptions(preset));
+        var result = SpriteSheetExporter.Export(docs, sheetPath, SheetOptions(preset), names);
         var files = new List<string> { result.SheetPath, result.MetadataPath };
         var summary = SummaryOf(result);
 
@@ -155,13 +144,14 @@ public static class ExportRunner
         return new ExportRun(files, summary, result.OmittedLayers, result.SuspectedBackgrounds);
     }
 
-    private static ExportRun Unity(Doc doc, ExportPreset preset, string sheetPath)
+    private static ExportRun Unity(
+        IReadOnlyList<Doc> docs, ExportPreset preset, string sheetPath, IReadOnlyList<string>? names)
     {
-        var result = UnityExporter.Export(doc, sheetPath, new UnityExportOptions(
+        var result = UnityExporter.Export(docs, sheetPath, new UnityExportOptions(
             preset.WorldHeightUnits, preset.WriteImporter)
         {
             Sheet = SheetOptions(preset),
-        });
+        }, names);
 
         var files = new List<string> { result.SheetPath, result.MetadataPath };
         if (result.ImporterPath is { } importer) files.Add(importer);
@@ -178,12 +168,13 @@ public static class ExportRunner
             result.Sheet?.SuspectedBackgrounds ?? []);
     }
 
-    private static ExportRun Godot(Doc doc, ExportPreset preset, string sheetPath)
+    private static ExportRun Godot(
+        IReadOnlyList<Doc> docs, ExportPreset preset, string sheetPath, IReadOnlyList<string>? names)
     {
-        var result = GodotExporter.Export(doc, sheetPath, new GodotExportOptions(preset.WriteImporter)
+        var result = GodotExporter.Export(docs, sheetPath, new GodotExportOptions(preset.WriteImporter)
         {
             Sheet = SheetOptions(preset),
-        });
+        }, names);
 
         var files = new List<string> { result.SheetPath, result.MetadataPath };
         if (result.ImporterPath is { } importer) files.Add(importer);
@@ -197,13 +188,14 @@ public static class ExportRunner
             result.Sheet?.SuspectedBackgrounds ?? []);
     }
 
-    private static ExportRun Unreal(Doc doc, ExportPreset preset, string sheetPath)
+    private static ExportRun Unreal(
+        IReadOnlyList<Doc> docs, ExportPreset preset, string sheetPath, IReadOnlyList<string>? names)
     {
-        var result = UnrealExporter.Export(doc, sheetPath, new UnrealExportOptions(preset.WriteImporter)
+        var result = UnrealExporter.Export(docs, sheetPath, new UnrealExportOptions(preset.WriteImporter)
         {
             Sheet = SheetOptions(preset),
             WorldHeightUnits = preset.WorldHeightUnits,
-        });
+        }, names);
 
         var files = new List<string> { result.SheetPath, result.MetadataPath };
         if (result.ImporterPath is { } importer) files.Add(importer);

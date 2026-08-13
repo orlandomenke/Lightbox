@@ -237,6 +237,10 @@ public class LargeCanvasPerformanceTests(ITestOutputHelper output)
         {
             var vm = Vm4K(brushSize: 90);
             vm.BrushMedium = Lightbox.Core.Documents.MediumKind.Watercolour;
+            // Synchronous, so the budget below measures the pass's cost rather
+            // than the worker pool's timing. The async protocol has its own
+            // deterministic tests (LivePostAsyncTests).
+            vm.LivePostRunner = work => { work(); return Task.CompletedTask; };
 
             var sw = Stopwatch.StartNew();
             vm.BeginStroke(400, 600, 0.9);

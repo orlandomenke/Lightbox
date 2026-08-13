@@ -51,6 +51,14 @@ public sealed record SpriteSheetOptions
 /// rather than claimed — "atlas optimisation" with no number attached is a
 /// feeling.
 /// </param>
+/// <summary>Which document a sheet frame came from, and which of its frames it is.</summary>
+/// <remarks>
+/// What lets an engine block ask a frame's <em>own</em> document for its
+/// pivot, anchors and clock after several documents share one sheet. Null on
+/// a single-document result, where the answer is always (0, i).
+/// </remarks>
+public readonly record struct FrameOwner(int Document, int Frame);
+
 public sealed record SpriteSheetResult(
     string SheetPath,
     string MetadataPath,
@@ -64,7 +72,8 @@ public sealed record SpriteSheetResult(
     int SheetHeight = 0,
     long UsedArea = 0,
     IReadOnlyList<OmittedLayer>? Omitted = null,
-    IReadOnlyList<SuspectedBackground>? Suspected = null)
+    IReadOnlyList<SuspectedBackground>? Suspected = null,
+    IReadOnlyList<FrameOwner>? FrameOwners = null)
 {
     /// <summary>How much of the sheet is sprite, 0 to 1.</summary>
     public double Occupancy =>
@@ -238,6 +247,27 @@ public static class SpriteSheetExporter
         return written.Count > 0 ? written : null;
     }
 
+    /// <summary>
+    /// Several documents into one sheet — a scope declared
+    /// <see cref="ExportGrouping.OneArtifact"/> made runnable.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The rules are per document, because that is where each answer lives: a
+    /// frame's duration comes from its own document's fps, its pivot from its
+    /// own scene, background layers are decided per stack (a layer covering
+    /// one document says nothing about another's), and trim unions within a
+    /// document so each character holds still without being cropped by a
+    /// neighbour. The one thing decided across all of them is the cell — the
+    /// largest canvas wins, so nothing is cropped by whoever came first.
+    /// </para>
+    /// <para>
+    /// Every document becomes a <c>frameTags</c> entry naming its frame range
+    /// — without that, a three-cycle sheet is a wall of frames with nothing
+    /// saying where the walk ends and the run begins. A document's own tags
+    /// and events travel too, shifted to where its frames landed.
+    /// </para>
+    /// </remarks>
     public static SpriteSheetResult Export(
         IReadOnlyList<Doc> docs, string sheetPath, SpriteSheetOptions? options = null, IReadOnlyList<string>? names = null)
     {
@@ -245,9 +275,219 @@ public static class SpriteSheetExporter
         if (docs.Count == 1)
             return Export(docs[0], sheetPath, options);
 
-        // Multi-document export: combine all documents into one sheet
-        throw new NotImplementedException("Multi-document sprite sheet export is not yet implemented.");
+        var opts = options ?? new SpriteSheetOptions();
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(sheetPath))!);
+
+        // The composite canvas: the largest document decides the untrimmed
+        // cell, and the sidecar reports the same extent the cell was measured
+        // against.
+        var wholeW = docs.Max(d => d.Scene.Width);
+        var wholeH = docs.Max(d => d.Scene.Height);
+
+        using var cache = new FrameBitmapCache();
+        var frames = new List<SKImage>();
+        try
+        {
+            var cells = new List<SKRectI>();
+            var owners = new List<FrameOwner>();     // each frame's own document
+            var starts = new List<int>();            // where each document begins
+            var allOmitted = new List<OmittedLayer>();
+            var allSuspected = new List<SuspectedBackground>();
+
+            for (var d = 0; d < docs.Count; d++)
+            {
+                var scene = docs[d].Scene;
+                var count = Math.Max(1, scene.FrameCount);
+                starts.Add(frames.Count);
+
+                // Layer decisions are per stack — one document's covering
+                // layer must not silence another's art.
+                var (omitted, suspected) = DecideLayers(scene, cache, opts.Background, count);
+                allOmitted.AddRange(omitted);
+                allSuspected.AddRange(suspected);
+                var skip = omitted.Select(o => o.LayerId).ToHashSet(StringComparer.Ordinal);
+
+                var ink = new List<SKRectI>(count);
+                for (var i = 0; i < count; i++)
+                {
+                    var image = ComposeFrame(scene, cache, i, skip);
+                    frames.Add(image);
+                    ink.Add(InkBoundsOf(image));
+                    owners.Add(new FrameOwner(d, i));
+                }
+                // Trim unions within the document, so its character holds
+                // still; None takes the composite canvas, so a small document
+                // is not the crop of a large one.
+                cells.AddRange(opts.Trim == SpriteTrim.None
+                    ? ink.Select(_ => new SKRectI(0, 0, wholeW, wholeH))
+                    : CellsFor(opts.Trim, ink, scene));
+            }
+
+            var total = frames.Count;
+            var cellW = Math.Max(1, cells.Max(c => c.Width));
+            var cellH = Math.Max(1, cells.Max(c => c.Height));
+            var stride = opts.Padding;
+
+            var slots = new (int X, int Y, int W, int H)[total];
+            int sheetW, sheetH, columns, rows;
+            if (opts.Pack == SpritePack.Skyline)
+            {
+                var packed = SkylinePacker.Pack(
+                    cells.Select(c => (c.Width, c.Height)).ToList(), stride);
+                sheetW = packed.Width;
+                sheetH = packed.Height;
+                columns = 0;
+                rows = 0;
+                for (var i = 0; i < total; i++)
+                {
+                    var r = packed.Rects[i];
+                    slots[i] = (r.X, r.Y, r.Width, r.Height);
+                }
+            }
+            else
+            {
+                columns = opts.Columns is > 0
+                    ? opts.Columns.Value
+                    : Math.Max(1, (int)Math.Ceiling(Math.Sqrt(total)));
+                rows = (int)Math.Ceiling(total / (double)columns);
+                sheetW = columns * (cellW + stride * 2);
+                sheetH = rows * (cellH + stride * 2);
+                for (var i = 0; i < total; i++)
+                {
+                    slots[i] = (
+                        i % columns * (cellW + stride * 2) + stride,
+                        i / columns * (cellH + stride * 2) + stride,
+                        cellW,
+                        cellH);
+                }
+            }
+
+            var info = new SKImageInfo(sheetW, sheetH, SKColorType.Rgba8888, SKAlphaType.Premul);
+            using var surface = SKSurface.Create(info)
+                ?? throw new InvalidOperationException("Could not create sprite sheet surface.");
+            surface.Canvas.Clear(SKColors.Transparent);
+
+            var entries = new List<SheetFrame>(total);
+            for (var i = 0; i < total; i++)
+            {
+                var scene = docs[owners[i].Document].Scene;
+                var local = owners[i].Frame;
+                var cell = cells[i];
+                var (x, y, w, h) = slots[i];
+
+                surface.Canvas.Save();
+                surface.Canvas.ClipRect(SKRect.Create(x, y, w, h));
+                surface.Canvas.DrawImage(frames[i], x - cell.Left, y - cell.Top);
+                surface.Canvas.Restore();
+
+                var pivot = scene.Pivot;
+                entries.Add(new SheetFrame
+                {
+                    Filename = $"{Path.GetFileNameWithoutExtension(sheetPath)} {i}.png",
+                    Frame = new Box(x, y, w, h),
+                    Rotated = false,
+                    Trimmed = opts.Trim != SpriteTrim.None,
+                    SpriteSourceSize = new Box(cell.Left, cell.Top, w, h),
+                    // The composite extent, not the frame's own canvas — the
+                    // same one the untrimmed cell was measured against, so an
+                    // importer reconstructing the canvas is told one story.
+                    SourceSize = new Size(wholeW, wholeH),
+                    // Its own document's clock: one sheet can hold a 12 fps
+                    // cycle and a 24 fps one, and a header number cannot.
+                    Duration = (int)Math.Round(1000.0 / Math.Max(1, scene.Fps)),
+                    PivotOffset = pivot is null
+                        ? null
+                        : new Point(pivot.X - cell.Left, pivot.Y - cell.Top),
+                    Anchors = AnchorsFor(scene, local, cell),
+                    Shapes = ShapesFor(scene, local, cell),
+                });
+            }
+
+            using (var image = surface.Snapshot())
+            using (var data = image.Encode(SKEncodedImageFormat.Png, 100)
+                   ?? throw new InvalidOperationException("PNG encode failed."))
+            using (var file = File.Create(sheetPath))
+            {
+                data.SaveTo(file);
+            }
+
+            // Every document is a clip: a tag naming its range, then its own
+            // tags and events moved to where its frames landed.
+            var tags = new List<SheetTag>();
+            var events = new List<SheetEvent>();
+            for (var d = 0; d < docs.Count; d++)
+            {
+                var scene = docs[d].Scene;
+                var start = starts[d];
+                var end = d + 1 < docs.Count ? starts[d + 1] - 1 : total - 1;
+                tags.Add(new SheetTag
+                {
+                    Name = ClipName(scene, names, d),
+                    From = start,
+                    To = end,
+                });
+                foreach (var tag in TagsFor(scene) ?? [])
+                {
+                    tag.From += start;
+                    tag.To += start;
+                    tags.Add(tag);
+                }
+                foreach (var evt in EventsFor(scene) ?? [])
+                {
+                    evt.Frame += start;
+                    events.Add(evt);
+                }
+            }
+
+            var metaPath = Path.ChangeExtension(sheetPath, ".json");
+            var document = new SheetDocument
+            {
+                Frames = entries,
+                Meta = new SheetMeta
+                {
+                    App = "Lightbox",
+                    Image = Path.GetFileName(sheetPath),
+                    Format = "RGBA8888",
+                    Size = new Size(sheetW, sheetH),
+                    Scale = "1",
+                    Columns = columns,
+                    Rows = rows,
+                    Pack = opts.Pack == SpritePack.Skyline ? "skyline" : "grid",
+                    // The first document's, for a reader that wants one number;
+                    // the truth is per frame, where each document's own clock
+                    // was written.
+                    Fps = docs[0].Scene.Fps,
+                    // No single pivot can speak for several documents — each
+                    // frame carries its own.
+                    Pivot = null,
+                    FrameTags = tags,
+                    Events = events.Count > 0 ? events : null,
+                },
+            };
+            File.WriteAllText(metaPath, JsonSerializer.Serialize(document, JsonOptions));
+
+            return new SpriteSheetResult(
+                sheetPath, metaPath, cellW, cellH, columns, rows, total,
+                opts.Pack, sheetW, sheetH, entries.Sum(e => (long)e.Frame.W * e.Frame.H),
+                allOmitted, allSuspected, owners);
+        }
+        finally
+        {
+            foreach (var frame in frames) frame.Dispose();
+        }
     }
+
+    /// <summary>What a document's clip tag is called.</summary>
+    /// <remarks>
+    /// The caller's name first — an export plan passes the project's document
+    /// names, which are what the artist calls these — then the scene's own,
+    /// then a stable fallback so no clip is nameless.
+    /// </remarks>
+    private static string ClipName(Scene scene, IReadOnlyList<string>? names, int index) =>
+        names is not null && index < names.Count && !string.IsNullOrWhiteSpace(names[index])
+            ? names[index].Trim()
+        : !string.IsNullOrWhiteSpace(scene.Name) ? scene.Name.Trim()
+        : $"clip {index + 1}";
 
     public static SpriteSheetResult Export(Doc doc, string sheetPath, SpriteSheetOptions? options = null)
     {

@@ -149,6 +149,19 @@ before a single stroke is merged.
 **Not filed as a bug**, because nothing is broken: a large file is a cost, not a
 defect. It belongs on the roadmap when file size actually hurts somebody.
 
+**2026-08-13: it hurts somebody, and the first step is built.** The owner
+reported large paintings costing minutes to open and slowing the session, and
+chose (prompted, two questions): **phased** — container compression now, the
+raster checkpoint (Q60/B30) next on its own branch — and **quantisation
+deferred** to its own branch, on the recommendation that gzip alone is 6.4× and
+a capture-path change deserves its own tests. `DocJson.Save` now writes gzip
+(`CompressionLevel.Fastest`, streamed, atomic) and `Load` sniffs the container
+so every pre-existing plain-JSON document loads unchanged;
+`DocJsonCompressionTests` guards both directions and prints the achieved
+sizes. Flat point arrays (Q18's answer) remain third in the order this entry
+set. The in-session half of the report was B187 — autosave serializing on the
+UI thread — fixed on the same branch.
+
 ---
 
 ## Q61 · Resize canvas and resize image: what is allowed to change the grain? — **answered 2026-08-08, three recommendations taken and one overruled**
@@ -2708,6 +2721,120 @@ Four questions, four answers:
    as the degenerate case of stage 2's pose so nothing is thrown away.
 4. **Deliverable now? — (a) design doc + roadmap, as recommended.**
    Implementation starts as its own branches per the one-objective rule.
+
+## Q73 · Docking: the slot cap, the colour family, and where a reopened panel lands — **answered 2026-08-12**
+
+The owner asked for three rules — at most four stacked dockers per side,
+default stack groups ("for example Color, Palette and channel — latter not
+implemented, go ahead though"), and closed tabs reopening into their tab
+group unless the session or the saved workspace placed them elsewhere — and
+asked to be prompted for edge cases. Four were prompted, each with a
+recommendation, and all four recommendations were taken:
+
+- **A fifth slot never opens.** A drop (or programmatic show) that would
+  exceed the cap tabs into the nearest slot instead — nothing is refused,
+  and the panel lands where the artist can see it. `DockLayout.MaxSlotsPerSide`.
+- **Channels ships minimal but real**: red, green, blue and alpha of the
+  composited frame as grayscale thumbnails, click to solo one on the canvas,
+  click again for all. The alternative — registering an empty panel marked
+  *Planned* — puts dead weight in the default group, and the manual rule
+  about documenting what nobody can use applies to panels too. The solo is
+  view-only (invariant 5): an `SKColorFilter` on the artwork draw, the
+  record untouched.
+- **All four colour panels in one group** — Color | Palette | Gradient |
+  Channels — rather than the literal "Color, Palette and channel" with
+  Gradient evicted. Four tabs still cost one strip, and Gradient keeps the
+  home it had just been given.
+- **An orphan reopens alone.** A panel whose whole family is closed opens in
+  its own slot; the family finds it as members reopen (each closed member
+  remembers its slot-mates in `DockPlacement.LastGroupedWith`). The
+  alternative — reopening the whole family group — opens three panels
+  nobody asked for.
+
+One rule sharpened during the work: the family default applies only to a
+panel that has **never been placed** (`HomeSide == Hidden`). A panel the
+artist parked somewhere on purpose — solo included — goes back exactly
+there, which is what keeps "unless in current session grouped with other
+dockers, or if workspace is saved like that" true rather than approximate.
+
+## Q74 · The quick bar belongs to the workspace, not the tool — **answered 2026-08-13**
+
+Q70 stage 1 shipped the bar's frame — the tool icon, the pinned Size/Opacity
+pair, transform out to the docker — but left the contents untouched: the full
+per-tool vocabulary, folding into ▾ only when width forces it. On a wide
+monitor nothing folds, so the "Quick options bar" read as the old tool-options
+bar wearing a new name, and the owner reported exactly that. Asked whether to
+curate the per-tool sets now, propose them first, or leave it to stage 2.
+
+**Answer: none of the three — the owner reframed the axis.** Near-verbatim:
+*"The quick bar should be determined by workspace options not necessarily tool
+options. So the options in the quick bar can be customized by except for size
+and opacity are fixed per workspace. For example in animation it could get the
+play/pause button or add keyframe button. For illustration it could set the
+marquee option etc."* Reading Q70's original answer back, "like a smart bar
+per workspace" was already there — it had been read out as a per-tool rule,
+and this is the correction.
+
+What landed, same day:
+
+- **`QuickBarCatalog`** — the registry of everything the bar can offer, the
+  same reason `ShortcutMap` exists one level up: the customize flyout needs
+  something to enumerate. Ten entries: the eight tool groups the bar already
+  had, plus **Play/pause** and **Add frame** mirroring the timeline's own
+  buttons.
+- **`DockLayout.QuickBar`** — the workspace's choice, nullable and absent
+  from `workspaces.json` until a choice is made; null resolves to the bar as
+  it always was, so a store written before the property existed changes
+  nothing. Living on the layout buys the whole existing machinery for free:
+  dirty until saved, undone by reset, switching with the workspace.
+- **Built-in defaults chosen by the work**: Animation, Game art and
+  Storyboard carry the transport and Add frame; Illustration and Comic carry
+  the paint kit with the marquee; Asset library is minimal; Default keeps
+  the resolve-to-everything null.
+- **Tool gating stays**: a workspace decides what the bar *offers*; the tool
+  in hand still decides which of those offers is relevant right now, so
+  carrying "Fill options" shows them with the fill held rather than as a
+  dead strip all day. The two gates AND together in the XAML.
+- **The ⋮ flyout beside the workspace picker** is the customization — 
+  checkboxes over the catalogue, saved with the workspace. Size and opacity
+  are not in the catalogue at all, which is what "fixed" means mechanically
+  (`SizeAndOpacityAreNotOnOffer` keeps it true).
+
+Q70's stage 2 (drag-and-drop rearrangement) remains open and unchanged; this
+delivers the "which options" half of customization without it.
+
+## Q75 · Version control for project files: scope, storage, capture, surface — **answered 2026-08-13**
+
+The `VersionEntry`/`VersionHistoryManager` framework had sat in Core since
+M-series work with tests and no store, no content and no UI — recorded as
+FEAT-002 "framework-only" in `docs/development/PROJECT-STATUS.md`. Building it
+out needed four decisions, prompted and answered in one exchange:
+
+- **What gets versioned first?** — *documents and character sheets.* Both are
+  single files with stable manifest ids, so one file-copy mechanism serves
+  both; brushes and palettes wait until wanting history is demonstrated rather
+  than assumed.
+- **Where does history live?** — *in the project folder*, `versions/<resourceId>/`,
+  keyed by id so B188-style re-filing moves nothing. History travels with the
+  project over git or a drive, which is how projects are already shared (Q43's
+  boundary: no accounts, no sync). Registered in `SystemFolders` so B83 does
+  not report it.
+- **When is a version captured?** — *authored plus milestones.* "Save
+  version…" with a label and notes, and an automatic milestone-tagged version
+  when a document is promoted to Review or Ready — the moment a studio wants
+  the frozen copy, and the reading `VersionEntry.MilestoneStatus` was built
+  for. Not every save (unbounded, meaningless labels, duplicates autosave);
+  rolling last-N deferred as an addition that needs a retention preference.
+- **Where is the UI?** — *File menu plus one shared history window*, with the
+  same window reachable from the project docker's row menu. Menu rather than
+  project-window-only because solo painters never open the project window.
+
+Costs accepted with the answers: a promotion versions the file **as saved on
+disk** (status is set between sessions; reaching into open editors from the
+project window would couple them), and reverting an open character sheet
+closes its view tabs rather than rebinding them (B98's registration dance,
+backwards, is where that path leads). `CreateBranch` stays framework-only —
+history is one line per file until that proves insufficient.
 
 
 ## Q76 · Decomposing the two big view files: which tool, which file first, and whether to cap growth — **answered 2026-08-13**

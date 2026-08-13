@@ -45,7 +45,15 @@ public class LiveMatchesCommittedTests : BrushStateIsolated
     private const int Width = 420;
     private const int Height = 220;
 
-    private static MainViewModel Vm() => new(null) { SmoothStrokes = false, ColorHex = "#101010" };
+    // The synchronous runner, so a pumped dispatcher is enough for the wet
+    // pass to have landed — these pin the pixels; LivePostAsyncTests pins the
+    // worker choreography B189 moved the pass onto.
+    private static MainViewModel Vm() => new(null)
+    {
+        SmoothStrokes = false,
+        ColorHex = "#101010",
+        LivePostRunner = work => { work(); return Task.CompletedTask; },
+    };
 
     /// <summary>
     /// One drag, fed as <paramref name="events"/> separate pointer events along a path.

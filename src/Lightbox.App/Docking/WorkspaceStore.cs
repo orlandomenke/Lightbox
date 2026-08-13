@@ -139,7 +139,7 @@ public sealed class WorkspaceStore
     /// sidebar, and a tab costs a word in a header.
     /// </remarks>
     private static readonly DockPanelId[] Colour =
-        [DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient];
+        [DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient, DockPanelId.Channels];
 
     /// <summary>
     /// The timeline family (Q58): the track view in front, the exposure sheet
@@ -160,22 +160,43 @@ public sealed class WorkspaceStore
         });
         store.Workspaces.Add(Built("Illustration", ProjectType.Illustration,
             right: [[DockPanelId.Layers], Colour],
-            bottom: []));
+            bottom: [],
+            quick: [QuickBarCatalog.BrushPreset, QuickBarCatalog.BrushOptions,
+                    QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
+                    QuickBarCatalog.FillOptions, QuickBarCatalog.GradientOptions,
+                    QuickBarCatalog.ShapeOptions]));
         store.Workspaces.Add(Built("Animation", ProjectType.Animation,
             right: [[DockPanelId.Project], [DockPanelId.Layers], Colour],
-            bottom: [TimelineFamily]));
+            bottom: [TimelineFamily],
+            quick: [QuickBarCatalog.BrushPreset, QuickBarCatalog.BrushOptions,
+                    QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
+                    QuickBarCatalog.Transport, QuickBarCatalog.AddFrame]));
         store.Workspaces.Add(Built("Game art", ProjectType.GameArt,
-            right: [[DockPanelId.Project], [DockPanelId.Layers], [DockPanelId.Palette, DockPanelId.Color]],
-            bottom: [TimelineFamily]));
+            right: [[DockPanelId.Project], [DockPanelId.Layers],
+                    [DockPanelId.Palette, DockPanelId.Color, DockPanelId.Channels]],
+            bottom: [TimelineFamily],
+            quick: [QuickBarCatalog.BrushPreset, QuickBarCatalog.BrushOptions,
+                    QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
+                    QuickBarCatalog.FillOptions, QuickBarCatalog.Transport,
+                    QuickBarCatalog.AddFrame]));
         store.Workspaces.Add(Built("Storyboard", ProjectType.Storyboard,
             right: [[DockPanelId.Project], [DockPanelId.Sheets]],
-            bottom: [TimelineFamily]));
+            bottom: [TimelineFamily],
+            quick: [QuickBarCatalog.BrushPreset, QuickBarCatalog.BrushOptions,
+                    QuickBarCatalog.EraserOptions, QuickBarCatalog.Transport,
+                    QuickBarCatalog.AddFrame]));
         store.Workspaces.Add(Built("Comic", ProjectType.Comic,
             right: [[DockPanelId.Project], [DockPanelId.Layers], Colour, [DockPanelId.Sheets]],
-            bottom: []));
+            bottom: [],
+            quick: [QuickBarCatalog.BrushPreset, QuickBarCatalog.BrushOptions,
+                    QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
+                    QuickBarCatalog.FillOptions, QuickBarCatalog.ShapeOptions]));
         store.Workspaces.Add(Built("Asset library", ProjectType.AssetLibrary,
-            right: [[DockPanelId.Project], [DockPanelId.Palette, DockPanelId.Color]],
-            bottom: []));
+            right: [[DockPanelId.Project],
+                    [DockPanelId.Palette, DockPanelId.Color, DockPanelId.Channels]],
+            bottom: [],
+            quick: [QuickBarCatalog.BrushPreset, QuickBarCatalog.BrushOptions,
+                    QuickBarCatalog.SelectOptions]));
         store.Current = "Default";
         return store;
     }
@@ -184,14 +205,23 @@ public sealed class WorkspaceStore
     /// A built-in arrangement. Each inner array is one slot; several panels in
     /// it are tabbed together.
     /// </summary>
+    /// <param name="quick">
+    /// The Quick options bar's contents for this kind of work (Q70, sharpened
+    /// 2026-08-13: the bar is the workspace's, not the tool's). Animation and
+    /// its kin take the transport; the single-image types take the paint kit.
+    /// The "Default" workspace passes nothing and falls back to
+    /// <see cref="QuickBarCatalog.ToolDefaults"/>.
+    /// </param>
     private static Workspace Built(
-        string name, ProjectType type, DockPanelId[][] right, DockPanelId[][] bottom)
+        string name, ProjectType type, DockPanelId[][] right, DockPanelId[][] bottom,
+        string[]? quick = null)
     {
         var layout = new DockLayout();
         Fill(layout, DockSide.Right, right);
         Fill(layout, DockSide.Bottom, bottom);
         layout.AreaExtents[DockSide.Right] = 300;
         layout.AreaExtents[DockSide.Bottom] = 280;
+        layout.QuickBar = quick?.ToList();
         return new Workspace { Name = name, BuiltIn = true, DefaultFor = type, Layout = layout };
     }
 

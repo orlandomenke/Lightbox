@@ -253,7 +253,37 @@ public sealed partial class DocumentTab : ObservableObject
     /// animation is saved by the project, a loose file by its own path, and
     /// Save has to know which it is looking at.
     /// </summary>
-    public Lightbox.Core.Projects.DocumentRef? Source { get; set; }
+    /// <remarks>
+    /// A full property because the tab strip's project badge derives from it,
+    /// and a tab is adopted into a project mid-session (Save As into one) —
+    /// an init would leave the badge answering the question at open time.
+    /// </remarks>
+    public Lightbox.Core.Projects.DocumentRef? Source
+    {
+        get => _source;
+        set
+        {
+            _source = value;
+            OnPropertyChanged(nameof(IsProjectWork));
+        }
+    }
+
+    private Lightbox.Core.Projects.DocumentRef? _source;
+
+    /// <summary>
+    /// Whether this tab's work belongs to the open project — the tab strip's
+    /// P badge, so a loose file and a project animation are tellable apart
+    /// before saving teaches the difference.
+    /// </summary>
+    /// <remarks>
+    /// Any of the project slots counts: a document's <see cref="Source"/>, a
+    /// project sheet's <see cref="SheetSource"/>, a <see cref="Symbol"/> (a
+    /// symbol only exists in a project), or a reference view whose owning
+    /// document is project work.
+    /// </remarks>
+    public bool IsProjectWork =>
+        Source is not null || SheetSource is not null || Symbol is not null
+        || Owner?.Source is not null;
 
     /// <summary>
     /// Where the artist was in this document — playhead, layer, reference and

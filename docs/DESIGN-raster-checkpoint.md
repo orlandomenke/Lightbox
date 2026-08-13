@@ -101,6 +101,12 @@ as long as that direction is never reversed.
 The bank-statement shape: the strokes are every transaction, the checkpoint is a
 balance written on a date, and you only add what happened since.
 
+One name collision to keep clear of: `Lightbox.Core.Versioning` also says
+"checkpoint", meaning a milestone-marked *version* of an asset. That is history
+management — which copy of the truth is current. This is a render cache —
+derived pixels beside the truth. Whatever the field ends up called, it should
+not be "version".
+
 ### What it does not fix
 
 - **Editing an old stroke.** Change stroke #3 and everything after it must replay
@@ -116,9 +122,8 @@ balance written on a date, and you only add what happened since.
 things break, and each is enough on its own:
 
 1. **The art would double.** `FrameRasterizer.Materialize` draws `PngBase64`
-   first and *then* replays every stroke on top (`FrameRasterizer.cs:115-121`).
-   A checkpoint there renders the checkpoint plus the full record — every stroke
-   painted twice.
+   first and *then* replays every stroke on top. A checkpoint there renders the
+   checkpoint plus the full record — every stroke painted twice.
 2. **Tiling would switch itself off.** `CanTileFrame` requires `!HasBaseline`,
    because a tile is rebuilt from strokes and stored pixels cannot be
    reproduced. Every checkpointed painting would become ineligible for the
@@ -285,6 +290,15 @@ cel, so a big painting goes from a few megabytes to tens. Taken knowingly, becau
 a document that arrives on another machine without its checkpoint is a document
 that opens in 106 seconds, and PSD and `.kra` both made the same call.
 
+*(2026-08-13: the arithmetic moved under this, in the checkpoint's favour and
+against it at once. Documents are now written gzip-compressed — Q65, ~6.4× on a
+painting — so the stroke record costs far fewer bytes on disk than when this was
+written, while a checkpoint is a PNG — the container recovers its base64
+overhead and nothing more, because the pixels are already compressed. A
+checkpointed painting will therefore be* mostly checkpoint *by
+weight, which strengthens the PSD comparison — and strengthens the case below for
+making it a setting.)*
+
 ### Taken on save, rendered on a background thread
 
 The save writes the record and returns immediately; the snapshot renders off-thread
@@ -294,6 +308,14 @@ this was chosen against.
 The consequence, stated: quit straight after saving and the checkpoint may be
 missing. Harmless by construction — a missing checkpoint is a slow open, never a
 wrong one.
+
+*(2026-08-13: this pattern now ships in the codebase rather than being aspirational.
+`AutosaveService.Flush` — B187's fix — snapshots with `Doc.Clone` on the calling
+thread in milliseconds and does the serialize-and-write on a background task,
+with an in-flight guard so a tick that lands mid-write retries rather than
+stacking writers. The checkpoint render wants exactly that shape: clone cheaply
+(B142's `Doc.Clone`, 5.8 ms at 5 000 strokes, is the enabler), render off-thread
+from the private copy, attach on completion.)*
 
 ### Any edit it covers drops it
 
@@ -327,16 +349,20 @@ generous step ceiling, the way the frame cache is already budgeted: painting get
 its hundreds of steps for under a megabyte, and a snapshot-heavy session
 self-limits.
 
-`MaxUndo` is 64 today and appears in no UI. Raising it and exposing it is a
-separate, smaller piece of work than this design; it is named here so the number
-stops being invisible.
+`MaxUndo` defaults to 64 and is no longer invisible: it is exposed as **Undo
+depth** in Edit ▸ Configure (`UndoDepth` on the view model, clamped 5–500) —
+that smaller piece of work has since happened. What it exposes is still a *step
+count*; the byte budget this design decided on remains unbuilt, like the rest of
+it.
 
 ### The stall found on the way is B142
 
 Measuring undo turned up something worse than undo: `DocumentEditor.Perform`
-pushes `SnapshotStep(DocJson.Clone(Doc))`, so **every structural edit
-serialize-and-deserializes the entire document** — 615 ms warm and ~1.1 s cold at
-5 000 strokes, 72.5 MB allocated. Adding a layer to a painting freezes.
+pushed `SnapshotStep(DocJson.Clone(Doc))`, so **every structural edit
+serialize-and-deserialized the entire document** — 615 ms warm and ~1.1 s cold at
+5 000 strokes, 72.5 MB allocated. Adding a layer to a painting froze. *(Fixed
+since: `Perform` now pushes `Doc.Clone()`, a graph walk, 5.8 ms at the same
+size.)*
 
 Filed as **B142** rather than folded in here: B30 is pixel replay, this is record
 cloning, and one fix does not touch the other. They compound, because a snapshot

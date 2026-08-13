@@ -1,7 +1,8 @@
 # Colour
 
-The **Color** panel offers a hue wheel with the value slider beside it, and
-HSV, HSL, RGB and CMYK slider sets.
+The **Color** panel offers a hue ring with the saturation/value square
+inside it — hue around the ring, light and strength in the square, no
+separate slider to reach for — and HSV, HSL, RGB and CMYK slider sets.
 
 The swatch at the bottom does two things, told apart by whether you move:
 
@@ -26,8 +27,8 @@ leaves your strokes still following that swatch.
 
 Either half does two things:
 
-- **Click** it to open its own picker — the same wheel, value slider, readouts
-  and palette the Color panel shows, editing that half of the pair.
+- **Click** it to open its own picker — the same ring-and-square wheel,
+  readouts and palette the Color panel shows, editing that half of the pair.
 - **Drag** it onto the canvas to fill with that colour.
 
 The **▾** beside the pair opens the foreground picker directly. It is there
@@ -38,7 +39,7 @@ that moves on the way down should get a fill rather than a panel.
 
 Every other place a colour is set — a palette swatch, a gradient stop, the
 brush's secondary colour — is a **swatch you click**, and it opens the same
-wheel, the same value slider and the same readouts.
+ring-and-square wheel and the same readouts.
 
 Hex is at the bottom of that flyout, under the wheel, in the same order the
 Color panel uses. It is a readout you can also type into, which is the right
@@ -171,5 +172,22 @@ art follows.
 
 The **Gradient** panel shows the same editor, for when you want it open
 permanently rather than behind a click.
+
+## Channels
+
+The **Channels** panel shows what the canvas shows, one channel at a time:
+red, green and blue as grayscale, and **alpha** as coverage — transparent is
+black, solid is white. It ships as the last tab of the colour family.
+
+Click a channel to view it alone on the canvas; click it again to get all of
+them back. The solo is **viewing only** — like zoom and mirror it never
+touches the drawing, so nothing you do while soloed records any differently.
+Painting while a channel is soloed paints with your actual colour; the canvas
+just shows you one channel of the result.
+
+The thumbnails follow the current frame and redraw as you work, so the panel
+doubles as a running answer to "where is my ink actually going" — line work
+that should be pure black shows up identically in all three colour channels,
+and a stray tint shows up as a difference between them.
 
 ---

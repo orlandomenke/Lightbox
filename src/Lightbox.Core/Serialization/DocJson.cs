@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Lightbox.Core.Documents;
@@ -6,7 +7,11 @@ namespace Lightbox.Core.Serialization;
 
 /// <summary>
 /// Save/load of Lightbox documents. camelCase, enums as camelCase strings,
-/// so the on-disk format reads naturally to humans and LLMs alike.
+/// so the format reads naturally to humans and LLMs alike — and, on disk,
+/// inside a gzip container, which keeps that formatting without paying for it
+/// (Q65: 6.4× on a 400-stroke painting). <see cref="Load"/> sniffs the
+/// container, so every plain-JSON document written before the change loads
+/// unchanged, forever.
 /// </summary>
 public static class DocJson
 {
@@ -35,7 +40,47 @@ public static class DocJson
         JsonSerializer.Deserialize<Doc>(json, Options)
         ?? throw new JsonException("Document deserialized to null.");
 
-    public static void Save(Doc doc, string path) => WriteAtomic(path, Serialize(doc));
+    /// <summary>Write the document as gzip-compressed JSON, atomically.</summary>
+    /// <remarks>
+    /// <para>
+    /// The container is gzip; the content is exactly what <see cref="Serialize"/>
+    /// produces — indented, camelCase, readable the moment it is gunzipped. Q65
+    /// measured the alternatives before choosing this: a 400-stroke painting is
+    /// 9.8 MB as plain indented JSON and 1.5 MB gzipped, while every deeper
+    /// saving on the list was either worth ~0.1% after compression
+    /// (deduplicating brush blocks) or a determinism break (merging strokes).
+    /// Compressing the container is the whole of the cheap win, so it is the
+    /// only thing this does.
+    /// </para>
+    /// <para>
+    /// <see cref="CompressionLevel.Fastest"/> rather than Optimal, because a
+    /// save can happen on the UI thread when the artist presses Ctrl+S and
+    /// Q60's constraint — saving must not stall — outranks the last slice of
+    /// ratio. <c>DocJsonCompressionTests</c> prints the achieved sizes so the
+    /// trade stays visible rather than asserted.
+    /// </para>
+    /// <para>
+    /// Serialized straight into the stream rather than through
+    /// <see cref="Serialize"/>: the indented string for a large painting is
+    /// ~10 MB of UTF-16 that would exist only to be compressed and discarded.
+    /// </para>
+    /// <para>
+    /// Atomic for the same reason <see cref="WriteAtomic"/> is: temp file, then
+    /// move, so the file on disk is always the previous document or the
+    /// complete new one.
+    /// </para>
+    /// </remarks>
+    public static void Save(Doc doc, string path)
+    {
+        if (Path.GetDirectoryName(path) is { Length: > 0 } dir) Directory.CreateDirectory(dir);
+        var temp = path + ".tmp";
+        using (var file = File.Create(temp))
+        using (var gzip = new GZipStream(file, CompressionLevel.Fastest))
+        {
+            JsonSerializer.Serialize(gzip, doc, Options);
+        }
+        File.Move(temp, path, overwrite: true);
+    }
 
     /// <summary>
     /// Write to a temporary file and move it into place.
@@ -59,7 +104,27 @@ public static class DocJson
         File.Move(temp, path, overwrite: true);
     }
 
-    public static Doc Load(string path) => Deserialize(File.ReadAllText(path));
+    /// <summary>Read a document, gzipped or plain, by sniffing the container.</summary>
+    /// <remarks>
+    /// Every document written before the container was compressed is plain JSON
+    /// and must load forever — the file's own first two bytes decide, not its
+    /// extension and not its age, so both kinds keep the same
+    /// <c>.lightbox.json</c> name and nothing that stores a path had to change.
+    /// </remarks>
+    public static Doc Load(string path)
+    {
+        using var file = File.OpenRead(path);
+        var isGzip = file.ReadByte() == 0x1f && file.ReadByte() == 0x8b;
+        file.Position = 0;
+        if (isGzip)
+        {
+            using var gzip = new GZipStream(file, CompressionMode.Decompress);
+            return JsonSerializer.Deserialize<Doc>(gzip, Options)
+                ?? throw new JsonException("Document deserialized to null.");
+        }
+        using var reader = new StreamReader(file);
+        return Deserialize(reader.ReadToEnd());
+    }
 
     /// <summary>Deep clone via JSON round-trip.</summary>
     public static Doc Clone(Doc doc) => FromSnapshot(ToSnapshot(doc));

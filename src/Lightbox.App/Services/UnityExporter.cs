@@ -147,9 +147,21 @@ public static class UnityExporter
     public static UnityExportResult Export(Doc doc, string sheetPath, UnityExportOptions? options = null)
     {
         if (doc == null) throw new ArgumentNullException(nameof(doc));
+        return Export([doc], sheetPath, options);
+    }
+
+    /// <summary>
+    /// Several documents into one Unity atlas — every clock, pivot, anchor and
+    /// collider read from the frame's <em>own</em> document, which is what
+    /// <see cref="SpriteSheetResult.FrameOwners"/> exists to answer.
+    /// </summary>
+    public static UnityExportResult Export(
+        IReadOnlyList<Doc> docs, string sheetPath, UnityExportOptions? options = null,
+        IReadOnlyList<string>? names = null)
+    {
+        if (docs is not { Count: > 0 }) throw new ArgumentException("An export needs at least one document.", nameof(docs));
         var opts = options ?? new UnityExportOptions();
-        var sheet = SpriteSheetExporter.Export(doc, sheetPath, opts.Sheet);
-        var scene = doc.Scene;
+        var sheet = SpriteSheetExporter.Export(docs, sheetPath, opts.Sheet, names);
 
         // Read back what the exporter wrote rather than recomputing it. Two
         // computations of the same rect are two chances to disagree, and the
@@ -159,15 +171,21 @@ public static class UnityExporter
 
         var block = new UnityBlock
         {
-            PixelsPerUnit = UnityConvert.PixelsPerUnit(scene.Height, opts.WorldHeightUnits),
-            SecondsPerFrame = UnityConvert.SecondsPerFrame(scene.Fps),
+            // The tallest canvas decides the world scale — one atlas has one
+            // pixels-per-unit, and the largest document is the one that must
+            // not come out shrunk.
+            PixelsPerUnit = UnityConvert.PixelsPerUnit(
+                docs.Max(d => d.Scene.Height), opts.WorldHeightUnits),
+            SecondsPerFrame = UnityConvert.SecondsPerFrame(docs[0].Scene.Fps),
         };
 
+        var owners = sheet.FrameOwners;
         var frames = root.GetProperty("frames").EnumerateArray().ToList();
         for (var i = 0; i < frames.Count; i++)
         {
             var frame = frames[i];
-            var owner = scene;
+            var owner = owners is null ? docs[0].Scene : docs[owners[i].Document].Scene;
+            var local = owners?[i].Frame ?? i;
             var rect = frame.GetProperty("frame");
             var source = frame.GetProperty("spriteSourceSize");
             var cellLeft = source.GetProperty("x").GetInt32();
@@ -193,7 +211,7 @@ public static class UnityExporter
                 sprite.Pivot = [px, py];
             }
 
-            var resolved = Anchors.ResolvedAt(owner, i);
+            var resolved = Anchors.ResolvedAt(owner, local);
             if (owner.Anchors is { Count: > 0 } declared && resolved.Count > 0)
             {
                 var anchors = new Dictionary<string, double[]>(StringComparer.Ordinal);
@@ -214,7 +232,7 @@ public static class UnityExporter
             var originX = owner.Pivot?.X ?? cellLeft + w / 2.0;
             var originY = owner.Pivot?.Y ?? cellTop + h / 2.0;
 
-            var boxes = CollisionShapes.ResolvedAt(owner, i);
+            var boxes = CollisionShapes.ResolvedAt(owner, local);
             if (owner.Shapes is { Count: > 0 } shapes && boxes.Count > 0)
             {
                 var colliders = new List<UnityCollider>();
@@ -242,7 +260,11 @@ public static class UnityExporter
             block.Sprites.Add(sprite);
         }
 
-        block.Clips = ClipsFor(root, block.SecondsPerFrame);
+        // Each clip's event clock is its own document's — one sheet can hold
+        // a 12 fps cycle and a 24 fps one, and a single number cannot.
+        block.Clips = ClipsFor(root, from =>
+            UnityConvert.SecondsPerFrame(
+                (owners is null ? docs[0].Scene : docs[owners[from].Document].Scene).Fps));
 
         // Re-serialize the whole document with the block appended. Writing it as a
         // property on the object we parsed keeps every key the generic exporter
@@ -292,7 +314,7 @@ public static class UnityExporter
     /// is exactly what this subtraction wants.
     /// </para>
     /// </remarks>
-    private static List<UnityClip>? ClipsFor(JsonElement root, double perFrame)
+    private static List<UnityClip>? ClipsFor(JsonElement root, Func<int, double> perFrameAt)
     {
         var meta = root.GetProperty("meta");
         if (!meta.TryGetProperty("frameTags", out var tags)) return null;
@@ -306,6 +328,7 @@ public static class UnityExporter
         {
             var from = tag.GetProperty("from").GetInt32();
             var to = tag.GetProperty("to").GetInt32();
+            var perFrame = perFrameAt(from);
 
             var inside = events
                 .Where(e => e.GetProperty("frame").GetInt32() >= from

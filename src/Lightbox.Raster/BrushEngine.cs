@@ -636,12 +636,53 @@ public static class BrushEngine
         SKBitmap dabs, SKBitmap destination, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels,
         SKPointI origin = default)
     {
+        if (PostProcessBounds(stroke, info, origin) is not { } rect) return null;
+
+        using var snapshot = PostProcessRegion(dabs, stroke, rect, targetPixels, origin);
+        if (snapshot is null) return null;
+
+        using var target = new SKCanvas(destination);
+        using var replace = new SKPaint { BlendMode = SKBlendMode.Src };
+        target.DrawImage(snapshot, rect.Left, rect.Top, replace);
+        target.Flush();
+        return rect;
+    }
+
+    /// <summary>
+    /// The document region <see cref="PostProcessRegion"/> will write for this
+    /// stroke — computed separately so a caller running the pass on another
+    /// thread can crop its inputs on the thread that owns them first.
+    /// </summary>
+    public static SKRectI? PostProcessBounds(Stroke stroke, SKImageInfo info, SKPointI origin = default) =>
+        SegmentBounds(stroke, info, DabReach(stroke.Brush), origin);
+
+    /// <summary>
+    /// The effects half of <see cref="PostProcessDabs"/>, returning the
+    /// processed <paramref name="rect"/> as its own image instead of pasting
+    /// it — so the expensive part can run on a worker over copies while the
+    /// UI thread keeps the paste, which is the cheap part (B189).
+    /// </summary>
+    /// <param name="dabs">
+    /// The stamped dabs. Indexed via <paramref name="origin"/>: where this
+    /// bitmap's (0,0) sits in document space — the full live scratch at
+    /// <c>default</c>, or a crop of exactly <paramref name="rect"/> with
+    /// <c>origin = rect.Location</c>.
+    /// </param>
+    /// <param name="targetPixels">
+    /// The layer beneath, for re-wetting and mixing. Indexed via
+    /// <paramref name="beneathOrigin"/> the same way; a crop must cover
+    /// <see cref="Media.MediumSimulator.ExistingRegionNeeded"/> or the rim
+    /// samples stop matching the commit's.
+    /// </param>
+    public static SKImage? PostProcessRegion(
+        SKBitmap dabs, Stroke stroke, SKRectI rect, SKBitmap? targetPixels,
+        SKPointI origin = default, SKPointI beneathOrigin = default)
+    {
         var brush = stroke.Brush;
-        if (SegmentBounds(stroke, info, DabReach(brush), origin) is not { } rect) return null;
 
         // `rect` is a document rect, because the granulation pass below seeds
-        // its field from the corner; `surface` is the same region in the two
-        // bitmaps, which are indexed from the document's top-left.
+        // its field from the corner; `surface` is the same region in the dab
+        // bitmap's own indexing.
         var surface = ToSurface(rect, origin);
         var local = new SKImageInfo(rect.Width, rect.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var scratch = SKSurface.Create(local);
@@ -671,7 +712,8 @@ public static class BrushEngine
 
         if (brush.Medium.Kind != MediumKind.None)
         {
-            Media.MediumSimulator.Apply(scratch, targetPixels, StrokeColor(stroke), brush.Medium, rect);
+            Media.MediumSimulator.Apply(
+                scratch, targetPixels, StrokeColor(stroke), brush.Medium, rect, beneathOrigin);
         }
         else
         {
@@ -679,12 +721,7 @@ public static class BrushEngine
             if (HasTexture(brush)) ApplyTexture(canvas, brush, rect, local);
         }
 
-        using var snapshot = scratch.Snapshot();
-        using var target = new SKCanvas(destination);
-        using var replace = new SKPaint { BlendMode = SKBlendMode.Src };
-        target.DrawImage(snapshot, rect.Left, rect.Top, replace);
-        target.Flush();
-        return rect;
+        return scratch.Snapshot();
     }
 
     /// <summary>

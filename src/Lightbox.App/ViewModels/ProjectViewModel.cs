@@ -204,6 +204,20 @@ public sealed partial class ProjectRow : ObservableObject
     private bool _isRenaming;
 
     /// <summary>
+    /// Whether this row's document is the one in the active tab — the fixed
+    /// "you are here" of the panel, independent of what is selected.
+    /// </summary>
+    /// <remarks>
+    /// Selection answers "what will the next command act on"; this answers
+    /// "what am I looking at on the canvas". They coincide right after a
+    /// double-click and drift apart the moment the artist clicks another row
+    /// to act on it, which is exactly when losing sight of the open file
+    /// costs a mis-aimed delete.
+    /// </remarks>
+    [ObservableProperty]
+    private bool _isEditing;
+
+    /// <summary>
     /// How far in this row sits, in pixels.
     /// </summary>
     /// <remarks>
@@ -230,12 +244,32 @@ public sealed partial class ProjectRow : ObservableObject
     /// </remarks>
     public string Glyph =>
         IsRoot ? "🗁"
-        // ▤ reads as a sheet of panels — reference art, distinct from ▣'s
-        // single drawing, and it costs no colour the theme has to own.
-        : IsSheet ? "▤"
+        // The registry's glyph, so a sheet wears the same face here, in the
+        // project window and in its asset library. ▤ reads as a sheet of
+        // panels — reference art, distinct from ▣'s single drawing.
+        : IsSheet ? AssetKinds.GlyphOf(ReferenceScopes.Kind)
         : Animation is null && Folder is { Icon: { Length: > 0 } chosen } ? chosen
         : IsFolder ? "🗀"
+        // The template hint, refreshed at each save — a template is an asset
+        // and wears its kind the way a sheet does.
+        : Animation is { IsTemplate: true } ? AssetKinds.GlyphOf(TemplateScopes.Kind)
         : "▣";
+
+    /// <summary>
+    /// What kind of asset this row is, in a word — empty on folders and
+    /// ordinary drawings.
+    /// </summary>
+    /// <remarks>
+    /// Automatic, from <see cref="AssetKinds"/>, never authored: the point is
+    /// that an asset is recognisable as what it is wherever it appears, which
+    /// only holds if no surface can rename it per row.
+    /// </remarks>
+    public string Designation =>
+        IsSheet ? AssetKinds.LabelOf(ReferenceScopes.Kind)
+        : Animation is { IsTemplate: true } ? AssetKinds.LabelOf(TemplateScopes.Kind)
+        : "";
+
+    public bool HasDesignation => Designation.Length > 0;
 
     /// <summary>The chevron on a folder row, or nothing on everything else.</summary>
     public string Twisty => IsFolder ? (IsCollapsed ? "▸" : "▾") : "";
@@ -546,7 +580,6 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasDeclarations));
         // Whether the row can be reference at all depends on the row, so the
         // menu entry has to appear and disappear with the selection.
-        OnPropertyChanged(nameof(CanShareSelectedAsReference));
     }
 
     // ---- export (Q30 steps 3-4) ---------------------------------------------
@@ -980,17 +1013,11 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         AfterScopeChange(project, $"Shared with {ShareScopeLabel}.");
     }
 
-    /// <summary>Share a reference — a sheet, a document or an image.</summary>
-    public void ShareReference(string id, string target, bool projectWide = false)
-    {
-        if (Project is not { } project) return;
-        var scope = ScopeOfSelected();
-        if (Already(scope, ReferenceScopes.Kind, id)) return;
-        ReferenceScopes.Declare(
-            project.Manifest, scope, id, target,
-            projectWide ? ResourceReach.Project : ResourceReach.Subtree);
-        AfterScopeChange(project, $"Shared with {ShareScopeLabel}.");
-    }
+    // The reference share lived here — ShareReference and, below, the
+    // inverted-gesture ShareSelectedAsReference — and both are gone with the
+    // kind they produced: B133 measured the declarations they wrote as read
+    // by nothing, ever. Sheets share by being filed (ProjectSheets), which is
+    // consumed end-to-end, and that is the reference mechanism now.
 
     // ---- the other four kinds, and the two verbs every kind needs ------------
     //
@@ -1121,53 +1148,6 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         AfterScopeChange(project, $"New documents in {ShareScopeLabel} start from {template.Name}.");
     }
 
-    /// <summary>
-    /// Whether the selected row is a drawing that could be reference for others.
-    /// </summary>
-    public bool CanShareSelectedAsReference => Selected is { IsHeading: false, Animation: not null };
-
-    /// <summary>
-    /// Share the selected <em>document</em> as reference, here or project-wide.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <b>The gesture is inverted, and deliberately.</b> Every other kind picks
-    /// the resource from a list hung off the folder it lands on. References
-    /// cannot: workflow 3's reference is an ordinary document, so that list
-    /// would be "every drawing in the project" — hundreds of entries in a
-    /// context menu, and the one you want is the row you already right-clicked.
-    /// So you pick the drawing and say how far it reaches.
-    /// </para>
-    /// <para>
-    /// <b>Which is also where publishing finally has a gesture.</b>
-    /// <see cref="ResourceReach.Project"/> existed in the record and in the
-    /// resolver and nowhere an artist could ask for it, which made workflows 3
-    /// and 4 — the environment layout everything draws against, the sword in the
-    /// asset library — the two the design was written for and the two that could
-    /// not be performed.
-    /// </para>
-    /// <para>
-    /// It lands on the document's <em>own</em> folder rather than on the
-    /// selection, because the selection is the document. Subtree from there
-    /// means "everything filed alongside this", which is what an artist sharing
-    /// a layout with its neighbours means.
-    /// </para>
-    /// </remarks>
-    public void ShareSelectedAsReference(bool projectWide)
-    {
-        if (Project is not { } project || Selected?.Animation is not { } document) return;
-        var scope = ProjectFolders.ById(project.Manifest, document.FolderId);
-        if (Already(scope, ReferenceScopes.Kind, document.Id)) return;
-        ReferenceScopes.Declare(
-            project.Manifest, scope, document.Id, ReferenceTargets.Document,
-            projectWide ? ResourceReach.Project : ResourceReach.Subtree);
-        AfterScopeChange(
-            project,
-            projectWide
-                ? $"{document.Name} is reference for the whole project."
-                : $"{document.Name} is reference for {scope?.Name ?? project.Name}.");
-    }
-
     /// <summary>What the selected row declares, in words, with a verb for each.</summary>
     /// <remarks>
     /// <b>The half that makes the rest safe.</b> Declaring is one click and it
@@ -1244,18 +1224,9 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
                 ? ProjectSheets.FindRef(p.Manifest, resource.Id)?.Name ?? DocumentByIdOrNull(resource.Id)?.Name
                 : DocumentByIdOrNull(resource.Id)?.Name,
         };
-        var kind = resource.Kind switch
-        {
-            PaletteScopes.Kind => "Palette",
-            GradientScopes.Kind => "Gradient",
-            GuideScopes.Kind => "Guides",
-            SymbolScopes.Kind => "Symbol",
-            TipScopes.Kind => "Brush tip",
-            TemplateScopes.Kind => "Template",
-            ExportScopes.Kind => "Export",
-            ReferenceScopes.Kind => "Reference",
-            _ => resource.Kind,
-        };
+        // The registry's word, so the docker and the project window cannot
+        // call the same kind two things.
+        var kind = AssetKinds.LabelOf(resource.Kind);
         // The id when the name cannot be found: a declaration pointing at
         // something deleted must still be visible and removable, or the artist
         // is left with a resolver failure and no way to clear its cause.
@@ -1333,7 +1304,13 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     /// that changed something no list on this panel is showing — a character's
     /// subject reading, for one.
     /// </remarks>
-    public void MarkManifestChanged() => _changed();
+    public void MarkManifestChanged()
+    {
+        // The project window can rename the project, which moves the root out
+        // from under the directory watch. Watch is a no-op on the same path.
+        Watcher.Watch(Project?.Root);
+        _changed();
+    }
 
     /// <summary>
     /// Everything is written. Clears the dirty set — and arms the directory
@@ -1366,6 +1343,14 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         // rebuild — which is B79's shape exactly, a badge that outlives its
         // reason, and the pair of tests here caught it on the first run.
         MarkMissing();
+        // The save may have given new documents their Draft status
+        // (ProjectIo.Save's first-write rule), and the rows mirror the
+        // manifest rather than reading it — so the mirror has to be told, or
+        // the orb appears only when something else forces a rebuild.
+        foreach (var row in Rows)
+        {
+            if (row.Animation is { } animation) row.Status = animation.Status;
+        }
         OnPropertyChanged(nameof(MissingCount));
         OnPropertyChanged(nameof(HasMissing));
         Watcher.Watch(Project?.Root);
@@ -1454,10 +1439,36 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         }
         MarkMissing();
         Selected = Rows.FirstOrDefault(r => r.Key == keep);
+        ApplyEditingMark();
         OnPropertyChanged(nameof(CanReorder));
         OnPropertyChanged(nameof(TotalRunningTime));
         OnPropertyChanged(nameof(MissingCount));
         OnPropertyChanged(nameof(HasMissing));
+    }
+
+    // ---- which document is on the canvas ----------------------------------------
+
+    /// <summary>The document id the active tab is editing, or null.</summary>
+    private string? _editingId;
+
+    /// <summary>
+    /// Tell the panel which document the active tab edits, so its row can wear
+    /// the fixed highlight. Null when the canvas shows something that is not a
+    /// project document.
+    /// </summary>
+    public void MarkEditing(string? documentId)
+    {
+        _editingId = documentId;
+        ApplyEditingMark();
+    }
+
+    /// <summary>Re-applied after every rebuild — the rows are new objects.</summary>
+    private void ApplyEditingMark()
+    {
+        foreach (var row in Rows)
+        {
+            row.IsEditing = _editingId is not null && row.Animation?.Id == _editingId;
+        }
     }
 
     /// <summary>
@@ -1650,7 +1661,9 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
 
         if (row is { IsFolder: true, Folder: { } folder })
         {
-            if (!ProjectFolders.Move(project.Manifest, folder, destination)) return false;
+            // B188: the directory and everything filed below it travel with
+            // the drag, or the panel shows a tree the disk stopped having.
+            if (!ProjectIo.MoveFolder(project, folder, destination)) return false;
         }
         else if (row.Sheet is { } sheet)
         {
@@ -1663,21 +1676,13 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         }
         else if (row.Animation is { } document)
         {
-            // B106. Where the file has to end up, worked out before anything
-            // moves. PathFor reads the manifest without changing it and gives
-            // the same answer after the refile as before it — it dedupes against
-            // the documents already in the destination and excludes this one —
-            // so the disk can be moved first and the manifest only if it worked.
-            var to = ProjectFolders.PathFor(project.Manifest, document, destination);
-            if (!ProjectIo.MoveInProject(project, document.Path, to))
+            // B106's disk-first order, shared with the project window through
+            // ProjectIo.RefileDocument — one implementation of what a drag does.
+            if (!ProjectIo.RefileDocument(project, document, destination))
             {
                 Status = $"Could not move “{document.Name}” on disk. It is still where it was.";
                 return false;
             }
-            // B114. There used to be a step here that took the document out of
-            // its character or scene first, "or it would be in two places". There
-            // is one place now, so filing it is the whole move.
-            if (!ProjectFolders.FileDocument(project.Manifest, document, destination)) return false;
             _dirty.Add(document.Id);
         }
         else
@@ -2057,8 +2062,13 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     /// <c>Knight</c> rather than a document called <c>Knight -</c>. Trailing
     /// rather than anywhere: <c>Knight - walk</c> keeps its separator, because
     /// that is the name the artist finished typing.
+    /// <para>
+    /// Internal because the project window creates through the same prompt
+    /// and must trim the same stem — two copies of this rule is how the two
+    /// surfaces end up naming one gesture differently.
+    /// </para>
     /// </remarks>
-    private static string Named(string? name, string fallback)
+    internal static string Named(string? name, string fallback)
     {
         var trimmed = (name ?? "").Trim().TrimEnd('-', '–', '—', ':', '·', ' ', '\t');
         return trimmed.Length == 0 ? fallback : trimmed;
@@ -2303,10 +2313,71 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         // On disk now, so the row stops saying otherwise and the next project
         // save does not rewrite it.
         _dirty.Remove(reference.Id);
+        // A Save As writes the file itself, so ProjectIo.Save's first-write
+        // rule never sees this document — same rule applied at the other
+        // door, template exclusion included.
+        if (reference.IsTemplate != true) reference.Status ??= AssetStatus.Draft;
         Rebuild();
         Selected = Rows.FirstOrDefault(r => r.Animation?.Id == reference.Id) ?? Selected;
         _changed();
         return true;
+    }
+
+    /// <summary>
+    /// Adopt a loose document that was just saved inside the project — the
+    /// other direction of <see cref="AdoptSavedPath"/>. Returns the slot it
+    /// now occupies, or null when there is no project or the path is outside
+    /// it, which leaves the document the loose file it was.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The owner's rule (2026-08-13): a file inside the project folder is in
+    /// the project, and every surface resolves from the one manifest entry
+    /// this makes — the docker row, the manager window, the tab's P badge,
+    /// the assets. Without this, Save As into the project produced a file the
+    /// panel did not show, which is B188's complaint from the other side.
+    /// </para>
+    /// <para>
+    /// Saved onto the path of a document already in the manifest, it takes
+    /// over that slot rather than minting a twin row for one file. Otherwise
+    /// the entry is built the way <see cref="AdoptSavedPath"/> reads one:
+    /// name from the file, folder from the directory, Draft on arrival
+    /// unless it is a template.
+    /// </para>
+    /// </remarks>
+    public DocumentRef? AdoptExistingFile(Doc doc, string fullPath)
+    {
+        if (Project is not { } project) return null;
+        if (ProjectIo.RelativeInProject(project, fullPath) is not { } relative) return null;
+
+        if (project.Manifest.Documents.FirstOrDefault(d => d.Path == relative) is { } known)
+        {
+            project.Loaded[known.Id] = doc;
+            Rebuild();
+            _changed();
+            return known;
+        }
+
+        var reference = new DocumentRef
+        {
+            Name = Path.GetFileName(relative)
+                .Replace(".lightbox.json", "", StringComparison.OrdinalIgnoreCase),
+            Path = relative,
+            Frames = doc.Scene.FrameCount,
+            Fps = doc.Scene.Fps,
+            IsTemplate = doc.IsTemplateDocument ? true : null,
+        };
+        var directory = relative.Contains('/') ? relative[..relative.LastIndexOf('/')] : "";
+        reference.FolderId = ProjectFolders.All(project.Manifest)
+            .FirstOrDefault(f => ProjectFolders.PathOf(project.Manifest, f) == directory)?.Id;
+        if (reference.IsTemplate != true) reference.Status = AssetStatus.Draft;
+        project.Manifest.Documents.Add(reference);
+        project.Loaded[reference.Id] = doc;
+        Rebuild();
+        Selected = Rows.FirstOrDefault(r => r.Animation?.Id == reference.Id) ?? Selected;
+        Status = $"“{reference.Name}” was saved into the project, so it is now part of it.";
+        _changed();
+        return reference;
     }
 
     public bool ForgetIfNeverWritten(DocumentRef? reference)
@@ -2527,21 +2598,13 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
 
     /// <summary>Take a document out of the project without touching disk.</summary>
     /// <remarks>
-    /// <b>B114.</b> Three lists to take it out of, and now one — plus any
-    /// variant that pointed at it, which would otherwise be an override naming
-    /// a document the project no longer has.
+    /// The mechanics live in <see cref="ProjectIo.DetachDocument"/>, shared
+    /// with the project window; the dirty set is the one piece that is this
+    /// surface's own.
     /// </remarks>
     private void Detach(Project project, DocumentRef document)
     {
-        project.Manifest.Documents.RemoveAll(d => d.Id == document.Id);
-        foreach (var variant in ProjectFolders.All(project.Manifest)
-                     .SelectMany(f => f.Variants ?? []))
-        {
-            variant.Overrides.Remove(document.Id);
-            foreach (var (baseId, over) in variant.Overrides.ToList())
-                if (over == document.Id) variant.Overrides.Remove(baseId);
-        }
-        project.Loaded.Remove(document.Id);
+        ProjectIo.DetachDocument(project, document);
         _dirty.Remove(document.Id);
     }
 
@@ -2594,15 +2657,30 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     public bool Rename(ProjectRow row, string name)
     {
         if (Project is not { } project) return false;
-        // B62. Renaming the project row means renaming the folder the
-        // application currently has open, which is a different operation with
-        // its own questions — not something to do behind an in-place edit box.
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        // The owner's call (2026-08-13), superseding the B62-era refusal: the
+        // root row renames the project — manifest name and folder both, so the
+        // panel and a file manager keep telling one story. B62's other half
+        // stands: the row shows the folder, so the result is visible here.
         if (row.IsRoot)
         {
-            Status = "The project folder is renamed outside Lightbox.";
-            return false;
+            if (name.Trim() == row.Name) return true;   // not a change, not a failure
+            switch (ProjectIo.RenameProject(project, name))
+            {
+                case ProjectIo.RenameOutcome.NameTaken:
+                    Status = $"There is already something called “{name.Trim()}” beside the project.";
+                    return false;
+                case ProjectIo.RenameOutcome.DiskRefused:
+                    Status = "Could not rename the project folder on disk — something has it open.";
+                    return false;
+            }
+            // The watcher is aimed at a path that no longer exists.
+            Watcher.Watch(project.Root);
+            Rebuild();
+            Status = $"The project is now “{project.Name}”.";
+            _changed();
+            return true;
         }
-        if (string.IsNullOrWhiteSpace(name)) return false;
         var trimmed = name.Trim();
         if (trimmed == row.Name) return true;   // not a change, not a failure
 
@@ -2619,92 +2697,35 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         return true;
     }
 
+    // The disk-first mechanics live in ProjectIo — shared with the project
+    // window — and only the wording of the refusals is this surface's.
+
     private bool RenameFolder(Project project, ProjectFolder folder, string name)
     {
-        var was = ProjectFolders.PathOf(project.Manifest, folder);
-        if (!ProjectFolders.Rename(project.Manifest, folder, name))
+        switch (ProjectIo.RenameFolder(project, folder, name))
         {
-            Status = $"There is already a folder called “{name}” here.";
-            return false;
+            case ProjectIo.RenameOutcome.NameTaken:
+                Status = $"There is already a folder called “{name}” here.";
+                return false;
+            case ProjectIo.RenameOutcome.DiskRefused:
+                Status = $"Could not rename the folder on disk. It is still “{folder.Name}”.";
+                return false;
+            default:
+                Status = $"Renamed to “{name}”.";
+                return true;
         }
-
-        var now = ProjectFolders.PathOf(project.Manifest, folder);
-        if (!ProjectIo.MoveInProject(project, was, now))
-        {
-            // Put the tree back. A manifest that says one thing while the disk
-            // says another is worse than a refused rename, because only one of
-            // those is visible.
-            ProjectFolders.Rename(project.Manifest, folder, Path.GetFileName(was));
-            Status = $"Could not rename the folder on disk. It is still “{folder.Name}”.";
-            return false;
-        }
-
-        // Everything filed below it moved with it, so their recorded paths have
-        // to follow — they are what the next save writes to.
-        foreach (var (inside, _) in DocumentsUnder(project.Manifest, folder))
-        {
-            inside.Path = ProjectFolders.PathFor(
-                project.Manifest, inside, ProjectFolders.ById(project.Manifest, inside.FolderId));
-        }
-        Status = $"Renamed to “{name}”.";
-        return true;
     }
 
     private bool RenameDocument(Project project, DocumentRef document, string name)
     {
-        var was = document.Path;
-        document.Name = name;
-        var now = document.FolderId is null && !IsUnfiled(was)
-            // A character's animation or a scene's shot keeps the shape of the
-            // path it already has; only the file's own name changes.
-            ? RenamedLeaf(was, name)
-            : ProjectFolders.PathFor(
-                project.Manifest, document, ProjectFolders.ById(project.Manifest, document.FolderId));
-
-        if (!ProjectIo.MoveInProject(project, was, now))
+        switch (ProjectIo.RenameDocument(project, document, name))
         {
-            document.Name = Path.GetFileNameWithoutExtension(was).Replace(".lightbox", "");
-            Status = $"Could not rename the file on disk. It is still “{document.Name}”.";
-            return false;
-        }
-        document.Path = now;
-        Status = $"Renamed to “{name}”.";
-        return true;
-    }
-
-    /// <summary>
-    /// Whether a path is in the directory that holds documents belonging to no
-    /// folder.
-    /// </summary>
-    /// <remarks>
-    /// <b>B105.</b> Both names, because the directory was renamed and a project
-    /// written before that keeps its recorded paths. One name here would have
-    /// made renaming a document in an old project take the character branch
-    /// below and derive a path from a shape it does not have.
-    /// </remarks>
-    private static bool IsUnfiled(string path) =>
-        path.StartsWith($"{ProjectIo.DocumentsDir}/", StringComparison.Ordinal)
-        || path.StartsWith($"{ProjectIo.LegacyDocumentsDir}/", StringComparison.Ordinal);
-
-    /// <summary>Swap the file's own name, keeping the folders above it.</summary>
-    private static string RenamedLeaf(string path, string name)
-    {
-        var cut = path.LastIndexOf('/');
-        var directory = cut < 0 ? "" : path[..(cut + 1)];
-        return $"{directory}{ProjectIo.Slug(name)}.lightbox.json";
-    }
-
-    private static IEnumerable<(DocumentRef Document, ProjectFolder Folder)> DocumentsUnder(
-        ProjectManifest manifest, ProjectFolder folder)
-    {
-        var (folders, documents) = ProjectFolders.Contents(manifest, folder);
-        var byId = folders.ToDictionary(f => f.Id);
-        foreach (var document in documents)
-        {
-            if (document.FolderId is { } id && byId.TryGetValue(id, out var owner))
-            {
-                yield return (document, owner);
-            }
+            case ProjectIo.RenameOutcome.DiskRefused:
+                Status = $"Could not rename the file on disk. It is still “{document.Name}”.";
+                return false;
+            default:
+                Status = $"Renamed to “{name}”.";
+                return true;
         }
     }
 

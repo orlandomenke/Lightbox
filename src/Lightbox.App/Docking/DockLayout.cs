@@ -49,7 +49,21 @@ public sealed class DockPlacement
     /// </remarks>
     public bool TabActive { get; set; } = true;
 
-    public DockPlacement Clone() => (DockPlacement)MemberwiseClone();
+    /// <summary>
+    /// Who this panel was tabbed with when it was last hidden. Reopening joins
+    /// the first of these still on screen, so the group the artist made
+    /// survives a close — the family default only applies when this is empty.
+    /// </summary>
+    public List<DockPanelId> LastGroupedWith { get; set; } = [];
+
+    public DockPlacement Clone()
+    {
+        var copy = (DockPlacement)MemberwiseClone();
+        // MemberwiseClone shares the list; a shared list means hiding a panel
+        // in one workspace edits the saved copy of another.
+        copy.LastGroupedWith = [.. LastGroupedWith];
+        return copy;
+    }
 }
 
 /// <summary>
@@ -108,6 +122,21 @@ public sealed class DockLayout
     /// </remarks>
     public bool GuidesLocked { get; set; }
 
+    /// <summary>
+    /// What the Quick options bar carries in this arrangement, as ids from
+    /// <see cref="QuickBarCatalog"/>. Null means the layout never chose, and
+    /// the bar shows <see cref="QuickBarCatalog.ToolDefaults"/> — nullable so
+    /// an untouched workspace writes no key, per the optional-means-absent
+    /// rule. Size and opacity are not in here and cannot be: they are pinned
+    /// in the bar's fixed section, outside anything a workspace chooses.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? QuickBar { get; set; }
+
+    /// <summary>The bar's contents with the default resolved in.</summary>
+    [JsonIgnore]
+    public IReadOnlyList<string> QuickBarContents => QuickBar ?? QuickBarCatalog.ToolDefaults;
+
     /// <summary>The layout the app opens with the first time.</summary>
     public static DockLayout Default()
     {
@@ -131,10 +160,13 @@ public sealed class DockLayout
         // stays empty until one is made.
         layout.JoinGroup(DockPanelId.Palette, DockPanelId.Color);
         layout.JoinGroup(DockPanelId.Gradient, DockPanelId.Color);
+        layout.JoinGroup(DockPanelId.Channels, DockPanelId.Color);
         layout.Activate(DockPanelId.Color);
         layout.Place(DockPanelId.Reference).Side = DockSide.Hidden;
         // Same rule: the gear opens it the first time it is wanted.
         layout.Place(DockPanelId.ToolOptions).Side = DockSide.Hidden;
+        // And again: the Window menu opens it the first time it is wanted.
+        layout.Place(DockPanelId.History).Side = DockSide.Hidden;
         layout.AreaExtents[DockSide.Right] = 300;
         layout.AreaExtents[DockSide.Bottom] = 280;
         return layout;
@@ -273,6 +305,11 @@ public sealed class DockLayout
     /// wherever it was. Indices are renumbered so a strip is always 0..n-1
     /// with no gaps — the one bookkeeping rule everything else relies on.
     /// </summary>
+    /// <summary>The most slots a side may hold. A drop that would open a fifth
+    /// strip tabs into the nearest slot instead — the cap holds and nothing is
+    /// refused, so the panel always lands where the artist can see it.</summary>
+    public const int MaxSlotsPerSide = 4;
+
     public void Dock(DockPanelId id, DockSide side, int index)
     {
         if (side is DockSide.Floating or DockSide.Hidden)
@@ -285,6 +322,23 @@ public sealed class DockLayout
         // up behind it and cannot be counted twice by the insert below.
         placement.Side = DockSide.Hidden;
         var slots = SlotsIn(side);
+
+        if (slots.Count >= MaxSlotsPerSide)
+        {
+            // The side is full: join the nearest slot as a tab rather than
+            // opening a fifth strip. Inlined rather than JoinGroup, which
+            // refuses unmovable panels — the timeline still has to be able to
+            // land on a full bottom edge.
+            var target = Place(slots[Math.Clamp(index, 0, slots.Count - 1)][0]);
+            placement.Side = side;
+            placement.HomeSide = side;
+            placement.Order = target.Order;
+            placement.Extent = target.Extent;
+            Activate(id);
+            Renumber(SlotsIn(side));
+            if (from != side && from is not (DockSide.Floating or DockSide.Hidden)) Renumber(SlotsIn(from));
+            return;
+        }
 
         placement.Side = side;
         placement.HomeSide = side;
@@ -334,14 +388,28 @@ public sealed class DockLayout
     {
         var placement = Place(id);
         var from = placement.Side;
+        // Remember who it was tabbed with, so reopening can put it back in
+        // that group — the group the artist made outranks the family default.
+        if (from is not (DockSide.Floating or DockSide.Hidden))
+        {
+            placement.LastGroupedWith = SlotOf(id).Where(m => m != id).ToList();
+        }
         placement.Side = DockSide.Hidden;
         if (from is not (DockSide.Floating or DockSide.Hidden)) Renumber(SlotsIn(from));
     }
 
     /// <summary>
-    /// Put a hidden panel back where it last was, or on the right if it has
-    /// never been anywhere.
+    /// Put a hidden panel back on screen. In order of who has the strongest
+    /// claim: the group it was closed out of, its family's slot, the place it
+    /// last was, the fallback side.
     /// </summary>
+    /// <remarks>
+    /// The family rule is the owner's: "unopened or closed tabs always open in
+    /// [their] tab group unless in the current session grouped with other
+    /// dockers, or the workspace is saved like that." A panel whose whole
+    /// family is closed opens alone — the family finds it when a member opens
+    /// later, rather than three panels appearing that nobody asked for.
+    /// </remarks>
     public void Show(DockPanelId id, DockSide fallback = DockSide.Right)
     {
         if (IsVisible(id)) return;
@@ -351,8 +419,38 @@ public sealed class DockLayout
             Float(id, placement.FloatX, placement.FloatY, placement.FloatWidth, placement.FloatHeight);
             return;
         }
+        // The join branches are for movable panels only. JoinGroup refuses an
+        // unmovable joiner and says nothing — so routing the timeline through
+        // it left the panel hidden with its toggle ticked.
+        if (DockPanels.Of(id).Movable)
+        {
+            if (FirstDocked(placement.LastGroupedWith) is { } mate)
+            {
+                JoinGroup(id, mate);
+                return;
+            }
+            // Family only for a panel that has never been placed: one the
+            // artist parked somewhere on purpose — solo included — goes back
+            // there.
+            if (placement.HomeSide == DockSide.Hidden &&
+                FirstDocked(DockPanels.FamilyOf(id)) is { } kin)
+            {
+                JoinGroup(id, kin);
+                return;
+            }
+        }
         var side = placement.HomeSide == DockSide.Hidden ? fallback : placement.HomeSide;
         Dock(id, side, placement.Order);
+    }
+
+    /// <summary>The first of these panels that is docked in a strip, if any.</summary>
+    private DockPanelId? FirstDocked(IEnumerable<DockPanelId>? ids)
+    {
+        foreach (var id in ids ?? [])
+        {
+            if (Place(id).Side is not (DockSide.Hidden or DockSide.Floating)) return id;
+        }
+        return null;
     }
 
     // Swap is gone. It was the switcher's mechanism — "this slot shows that
@@ -401,6 +499,7 @@ public sealed class DockLayout
         Rulers = Rulers,
         GuidesVisible = GuidesVisible,
         GuidesLocked = GuidesLocked,
+        QuickBar = QuickBar?.ToList(),
     };
 
     // ---- persistence ---------------------------------------------------------

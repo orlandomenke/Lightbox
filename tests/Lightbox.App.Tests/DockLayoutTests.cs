@@ -22,11 +22,11 @@ public class DockLayoutTests
 
         Assert.Equal(
             [DockPanelId.Project, DockPanelId.Layers,
-             DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient,
+             DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient, DockPanelId.Channels,
              DockPanelId.Sheets],
             layout.PanelsIn(DockSide.Right));
         Assert.Equal(
-            [DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient],
+            [DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient, DockPanelId.Channels],
             layout.SlotOf(DockPanelId.Color));
         Assert.Equal(DockPanelId.Color, layout.ActiveOf(layout.SlotOf(DockPanelId.Color)));
         // The bottom is the timeline family (Q58): three views over one set
@@ -43,13 +43,16 @@ public class DockLayoutTests
     public void DockingIntoAStripPutsThePanelAtTheAskedForPosition()
     {
         var layout = DockLayout.Default();
+        // Make room first: the default right side is already at the slot cap,
+        // and a full side is the cap's test, not this one's.
+        layout.Hide(DockPanelId.Sheets);
         layout.Dock(DockPanelId.Palette, DockSide.Right, 1);
 
         // Docking the palette to a slot of its own also takes it out of the
         // colour family's tabs, where the default layout keeps it.
         Assert.Equal(
             [DockPanelId.Project, DockPanelId.Palette, DockPanelId.Layers,
-             DockPanelId.Color, DockPanelId.Gradient, DockPanelId.Sheets],
+             DockPanelId.Color, DockPanelId.Gradient, DockPanelId.Channels],
             layout.PanelsIn(DockSide.Right));
         Assert.DoesNotContain(DockPanelId.Palette, layout.SlotOf(DockPanelId.Color));
     }
@@ -106,6 +109,91 @@ public class DockLayoutTests
         layout.Show(DockPanelId.Palette);
 
         Assert.Equal(DockSide.Left, layout.SideOf(DockPanelId.Palette));
+    }
+
+    [Fact]
+    public void AFifthSlotNeverOpensTheDropTabsIntoTheNearestSlotInstead()
+    {
+        // The owner's cap: at most four slots per side. A drop that would
+        // open a fifth strip lands as a tab in the nearest slot — nothing is
+        // refused, and the panel is where the artist can see it.
+        var layout = DockLayout.Default();
+        // Default right: Project, Layers, Colour family, Sheets — four slots.
+        Assert.Equal(DockLayout.MaxSlotsPerSide, layout.SlotsIn(DockSide.Right).Count);
+
+        layout.Dock(DockPanelId.Reference, DockSide.Right, 1);
+
+        Assert.Equal(DockLayout.MaxSlotsPerSide, layout.SlotsIn(DockSide.Right).Count);
+        Assert.Contains(DockPanelId.Reference, layout.SlotOf(DockPanelId.Layers));
+        // And it is the tab showing, because the artist just dropped it there.
+        Assert.Equal(DockPanelId.Reference, layout.ActiveOf(layout.SlotOf(DockPanelId.Layers)));
+    }
+
+    [Fact]
+    public void MovingAPanelWithinAFullSideStillWorks()
+    {
+        // The panel leaves its slot before the count is taken, so moving one
+        // around a full side is not mistaken for adding a fifth.
+        var layout = DockLayout.Default();
+        layout.Dock(DockPanelId.Project, DockSide.Right, 3);
+
+        Assert.Equal(DockLayout.MaxSlotsPerSide, layout.SlotsIn(DockSide.Right).Count);
+        Assert.Single(layout.SlotOf(DockPanelId.Project));
+    }
+
+    [Fact]
+    public void ReopeningAPanelRejoinsTheGroupItWasClosedOutOf()
+    {
+        // "Unless in the current session grouped with other dockers" — the
+        // group the artist made outranks the family default.
+        var layout = DockLayout.Default();
+        layout.JoinGroup(DockPanelId.Palette, DockPanelId.Layers);
+        layout.Hide(DockPanelId.Palette);
+
+        layout.Show(DockPanelId.Palette);
+
+        Assert.Contains(DockPanelId.Palette, layout.SlotOf(DockPanelId.Layers));
+        Assert.DoesNotContain(DockPanelId.Palette, layout.SlotOf(DockPanelId.Color));
+    }
+
+    [Fact]
+    public void ANeverPlacedPanelOpensInItsFamilysSlot()
+    {
+        // Channels starts life hidden in an old saved layout: opening it joins
+        // the colour family's slot rather than opening a strip of its own.
+        var layout = DockLayout.Default();
+        layout.Place(DockPanelId.Channels).Side = DockSide.Hidden;
+        layout.Place(DockPanelId.Channels).HomeSide = DockSide.Hidden;
+
+        layout.Show(DockPanelId.Channels);
+
+        Assert.Contains(DockPanelId.Channels, layout.SlotOf(DockPanelId.Color));
+    }
+
+    [Fact]
+    public void AnOrphanReopensAloneAndTheFamilyFindsItLater()
+    {
+        // The whole family is closed: the panel opens alone rather than
+        // dragging three panels nobody asked for back with it. A member
+        // opened later joins it.
+        var layout = DockLayout.Default();
+        foreach (var id in (DockPanelId[])[DockPanelId.Color, DockPanelId.Palette,
+                                           DockPanelId.Gradient, DockPanelId.Channels])
+        {
+            layout.Hide(id);
+        }
+        // Never-placed, so the family rule is what would have applied.
+        layout.Place(DockPanelId.Channels).HomeSide = DockSide.Hidden;
+        layout.Place(DockPanelId.Channels).LastGroupedWith = [];
+
+        layout.Show(DockPanelId.Channels);
+        Assert.True(layout.IsVisible(DockPanelId.Channels));
+        Assert.Single(layout.SlotOf(DockPanelId.Channels));
+
+        // Gradient was closed out of the colour group; Channels is the member
+        // of that remembered group that is on screen now, so it joins it.
+        layout.Show(DockPanelId.Gradient);
+        Assert.Contains(DockPanelId.Gradient, layout.SlotOf(DockPanelId.Channels));
     }
 
     [Fact]

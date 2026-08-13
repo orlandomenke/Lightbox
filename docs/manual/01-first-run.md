@@ -55,9 +55,21 @@ From the top:
 
 ### Panels
 
-Eight panels: **Project**, **Layers**, **Color**, **Reference sheets**,
-**Palette**, **Gradient**, **Reference**, **Timeline**. Open and close them
-from **View ▸ Dockers**, where every panel toggle lives in one submenu.
+The panels — **Project**, **Layers**, **Color**, **Palette**, **Gradient**,
+**Channels**, **Reference sheets**, **Reference**, **Symbols**,
+**Tool options**, **History**, **Timeline**, **X-sheet** and **Graph editor** —
+open and close from **View ▸ Dockers**, where every panel toggle lives in one
+submenu.
+
+**History** is the undo record with names on it: every step of the open
+document — *Stroke*, *Add layer*, *Resize canvas* — listed oldest first, with
+the current state marked. **Double-click a row to stand the drawing at that
+state**, however many steps away it is; rows below the current one are dimmed
+and are what redo would replay, reachable the same way. A single click only
+selects, so scrolling the list can never rewrite the drawing. The list is this
+session's — closing the document ends it, and the oldest steps fall off past
+the undo limit. For a state that should outlive the session, keep a version
+(**File ▸ Save version…**); the two are complements, not rivals.
 
 Each panel's header is three things at once:
 
@@ -77,13 +89,20 @@ body, or on an edge, and it gets a slot of its own as before. Dragging the last
 tab out of a group leaves the remaining panel an ordinary panel again — a group
 is nothing more than the panels currently sharing a slot.
 
-Tabbing is how a workspace offers more than it has room for. Colour, palette and
-gradient ship tabbed together in every built-in arrangement, Default included:
-they are three ways of
-answering one question and you want one at a time, so they cost one slot between
-them instead of three. Things you use *at the same time* — the layers list, the
-project tree, the timeline — are never tabbed together, and dragging one there
-is the only way to make it so.
+Tabbing is how a workspace offers more than it has room for. Colour, palette,
+gradient and channels ship tabbed together in every built-in arrangement,
+Default included: they are ways of answering one question and you want one at
+a time, so they cost one slot between them instead of four. Things you use *at
+the same time* — the layers list, the project tree, the timeline — are never
+tabbed together, and dragging one there is the only way to make it so.
+
+**A side holds at most four slots.** A drop that would open a fifth strip
+lands as a tab in the nearest slot instead — nothing is refused, and the panel
+is where you dropped it, just tabbed. Reopening a closed panel follows the
+same idea: it goes back to the group you closed it out of, or joins its family
+(the colour panels, the timeline views) if it has never been placed by hand.
+A panel whose whole family is closed opens alone, and the family finds it as
+its members reopen.
 
 While you drag, two things tell you what is about to happen. A small **ghost**
 follows the pointer naming the panel you are carrying, and a **highlight** shows
@@ -166,6 +185,23 @@ what *reset* falls back to, so deleting one would take the fallback with it.
 Saving over a built-in forks it instead of overwriting it.
 
 The picker marks a workspace you have since rearranged with a `*`.
+
+### The quick bar is the workspace's
+
+What the Quick options bar carries is part of the workspace, chosen for the
+work rather than fixed: the **Animation**, **Game art** and **Storyboard**
+workspaces put the transport (play/pause) and frame buttons at eye level, the
+single-image workspaces carry the paint kit and the marquee, and **Default**
+shows every tool's own group. Two things never move whatever the workspace
+says: **Size** and **Opacity** stay pinned on the bar's left.
+
+The **⋮** button beside the workspace picker chooses the contents — tick and
+untick what this workspace offers. The choice behaves like any other
+workspace edit: the picker marks it with `*` until you save, *reset* undoes
+it, and a saved workspace remembers it. A tool-bound group you carry still
+shows only while its tool is in hand — carrying *Fill options* does not pin a
+dead strip to the bar all day. Everything you untick stays reachable in the
+Tool options panel, which always has the full vocabulary.
 
 When you create a project, you are asked whether to keep the arrangement you
 are in or take that project type's defaults. It is a question at that moment,

@@ -78,8 +78,18 @@ public sealed class ProjectTests : IDisposable
         var reloaded = ProjectIo.Load(_root);
         var animations = reloaded.Manifest.Documents;
         Assert.Equal(AssetStatus.Ready, animations.Single(a => a.Id == walk.Id).Status);
-        // And the one nobody set stays unset — "nobody has said" is not "Design".
-        Assert.Null(animations.Single(a => a.Id == idle.Id).Status);
+        // The one nobody set was brand new, so its first write put it in the
+        // pipeline as Draft — ProjectAutoDraftTests owns that rule.
+        Assert.Equal(AssetStatus.Draft, animations.Single(a => a.Id == idle.Id).Status);
+
+        // "Nobody has said" is still sayable and still writes no key: the
+        // Draft rule fires only on a first write, so clearing a status sticks.
+        idle.Status = null;
+        ProjectIo.Save(project);
+        manifest = File.ReadAllText(Path.Combine(_root, "project.json"));
+        Assert.DoesNotContain("\"status\": \"draft\"", manifest);
+        Assert.Null(ProjectIo.Load(_root).Manifest.Documents
+            .Single(a => a.Id == idle.Id).Status);
     }
 
     [Fact]
@@ -204,12 +214,15 @@ public sealed class ProjectTests : IDisposable
         var project = TwoAnimations(out var walk, out _);
         ProjectIo.Save(project);
         var path = project.PathOf(walk);
-        var original = File.ReadAllText(path);
+        var original = File.ReadAllBytes(path);
 
         File.WriteAllText(path + ".tmp", "{ this is half a document");
 
-        Assert.Equal(original, File.ReadAllText(path));
-        Assert.NotNull(DocJson.Deserialize(File.ReadAllText(path)));
+        // Bytes and Load rather than text and Deserialize: the document on
+        // disk is a gzip container now, and what this test pins — the real
+        // file untouched, still openable — is container-agnostic.
+        Assert.Equal(original, File.ReadAllBytes(path));
+        Assert.NotNull(DocJson.Load(path));
     }
 
     [Fact]

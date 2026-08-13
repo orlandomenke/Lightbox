@@ -259,7 +259,7 @@ public partial class MainViewModel
             : $"Drew a line of {session.NodeCount} points.";
         _dirtyThumbIds.Add(target.Id);
         PenChanged?.Invoke();
-        _publish.InvalidateWholeCanvas();
+        InvalidateWholeCanvas();
         PublishSnapshot();
         return true;
     }
@@ -278,7 +278,7 @@ public partial class MainViewModel
         PenWouldClose = false;
         AiStatus = "";
         PenChanged?.Invoke();
-        _publish.InvalidateWholeCanvas();
+        InvalidateWholeCanvas();
     }
 
     private void AnnouncePen()

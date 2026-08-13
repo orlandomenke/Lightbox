@@ -127,8 +127,18 @@ An animation is named after the character it lands under, the same way. Folders
 are not prefixed — they are structure, and *Knight - Locomotion* would compound
 into *Knight - Locomotion - Knight - Walk* one level down.
 
-**Rename…** on the right-click menu, or slow double-click a row. The rename
-reaches disk: renaming a folder moves the folder and everything under it.
+**Rename…** on the right-click menu, or **double-click the name** — in the
+Project panel and in the project manager's Structure tab alike. (Double-click
+elsewhere on a row still opens it; the name is the part that edits, the same
+split the Layers panel uses.) The rename reaches disk: renaming a folder moves
+the folder and everything under it.
+
+**The project itself renames too** — double-click the project row's name in
+the panel, or **✎ Rename project…** in the project manager. The `.lbproj`
+folder on disk is renamed with it (type the name with or without the suffix;
+the folder keeps whichever it had), the panel, the manager's title and
+**File ▸ Recent** all follow, and a name already taken beside the project
+refuses whole.
 
 If the name is already taken, or the file cannot be moved — open in another
 program, or a permission — the rename is **refused**, the box stays open so you
@@ -167,40 +177,42 @@ never takes an override away from somebody.
 Projects made before this existed are unchanged: every palette is offered to
 every document, exactly as before, until you declare a scope.
 
-**To share one:** right-click a folder and pick **Share a palette here**. Everything
-under that folder paints from it. A project that has never shared anything keeps
-offering every palette to every document, so nothing changes until you say so —
-and taking the last one back returns you to exactly that.
+**To share one:** open the **project manager** (▦ at the top of the Project
+panel, or **File ▸ Project manager…**), go to **Assets**, and either drag the
+palette from the asset library onto the folder's row or select the row and pick
+it from **share something here…**. Everything under that folder paints from it,
+and the status line says exactly what it now feeds. A project that has never
+shared anything keeps offering every palette to every document, so nothing
+changes until you say so — and taking the last one back returns you to exactly
+that.
 
 #### Everything a folder can decide
 
-A palette is one of six, and they all work the same way: right-click the folder,
-pick the thing, and everything underneath it — at any depth — gets it.
+A palette is one of several, and they all work the same way: give the folder
+the thing in the **project manager's Assets tab**, and everything underneath it
+— at any depth — gets it. These gestures used to live in the Project panel's
+right-click menu, one submenu per kind; they moved when that menu passed twenty
+entries, and **Share & assets…** in the menu is the door to where they went.
 
-| Right-click a folder | What it decides |
+| Give a folder… | What it decides |
 | --- | --- |
-| **Share a palette here** | What everything under it paints from |
-| **Share a gradient here** | Which gradients it can reach |
-| **Share a symbol here** | Narrows which symbols are offered under it — see below, because this one takes away rather than adds |
-| **Share a brush tip here** | Narrows which of the project's tips are offered under it — narrows, like symbols |
-| **Share guides here** | Guides drawings under it can pull in — a character height guide is this and nothing else |
-| **New documents start from** | The template a new drawing made here begins as |
-| **Export this as** | Its export settings, *and* where one file ends — see below |
+| a **Palette** | What everything under it paints from |
+| a **Gradient** | Which gradients it can reach |
+| a **Symbol** | Narrows which symbols are offered under it — see below, because this one takes away rather than adds |
+| a **Brush tip** | Narrows which of the project's tips are offered under it — narrows, like symbols |
+| **Guides** | Guides drawings under it can pull in — a character height guide is this and nothing else |
+| a **Template** | What a new drawing made here begins as |
+| an **Export** preset | Its export settings, *and* where one file ends — see below |
+| a **Reference** | A drawing or sheet everything under it draws against — see the next section |
 
-The first three **add up**: share two palettes and the folder offers both. The last
-two **replace**, because a drawing starts from one template and exports one way,
-and offering two would be offering a choice nobody made.
+The shares **add up**: share two palettes and the folder offers both. Template
+and export **replace**, because a drawing starts from one template and exports
+one way, and offering two would be offering a choice nobody made.
 
-**References work the other way round.** Right-click the *drawing* and pick **Use
-this as reference** — for everything filed alongside it, or for the whole project.
-You pick the drawing because the drawing is the thing you are looking at; a list of
-every document in the project hung off a folder would be hundreds of entries deep
-and the one you want is the row already under your pointer.
-
-**To see what a folder decides**, right-click it: **Stop sharing** lists exactly
-what that folder declares — not what it inherits from above — and clicking one
-takes it back. **Reach** lists the same things and toggles each between *this
-folder and everything under it* and *the whole project*, which is what an
+**What a folder decides is worn on its row** in the Assets tab, as chips — its
+own declarations, not what it inherits from above. The **✕** on a chip takes
+one back; **⤒** publishes it to the whole project and **⤓** takes it back to
+*this folder and everything under it* — project-wide reach is what an
 environment layout that backgrounds and characters both work from needs.
 
 **Symbols are the one that narrows.** Everything else on that list starts as
@@ -250,8 +262,8 @@ You can see and move a sheet in two places:
 
 | | |
 | --- | --- |
-| **The Project panel** | The sheet is a row (▤) under its folder, above the drawings that consult it. Double-click opens it to draw on; drag it onto another folder to re-file it. |
-| **The project window** | Select the sheet's row in **Structure** and pick a destination under **file sheet in…** — including the project itself, which every document sees. |
+| **The Project panel** | The sheet is a row (▤, marked *Reference*) under its folder, above the drawings that consult it. Double-click opens it to draw on; drag it onto another folder to re-file it. |
+| **The project window** | Select the sheet's row in **Structure** and pick a destination under **file sheet in…** — or drag the sheet from the **Assets** tab's library onto a folder's row. Both include the project itself, which every document sees. |
 
 Re-filing moves the file on disk too, the same way moving a document does, and
 changes who sees it: a sheet filed on *Goblin* stops appearing under the
@@ -268,37 +280,29 @@ nothing about it was ever specific to characters.
 
 #### References a document draws against
 
-A **reference** is something you draw against, declared on a scope the same way
-a palette is — so it reaches everything under it, at any depth. Character
-sheets above stopped needing this: filing a sheet in a folder *is* what makes
-it reach that folder's drawings. What remains declarable:
+Two mechanisms, both real:
 
-| | |
-| --- | --- |
-| **A document** | An ordinary drawing used as reference — one big environment layout, a style guide, a colour key. Not squeezed into a sheet, because it is not that shape. |
-| **An image** — *Planned* | A photo or a scan, brought in. |
+- **A sheet filed on a folder** reaches every drawing under it, at any depth —
+  that is the whole sharing model for reference art, and the Reference sheets
+  panel is where it lands. File a sheet by making it there, or drag it onto a
+  folder in the project manager's Assets tab.
+- **View → Reference** — further on in *Onion skin, references and the camera*
+  — imports a picture, slices it into frames and lays it under your drawing,
+  per document.
 
-Use a drawing as reference **for the whole project**, or publish one later from
-**Reach**, and everything can reach it — which is what an environment layout
-that both backgrounds and characters work from actually needs.
-
-**What sharing a reference does today, and what it does not.** It records the
-choice: the drawing appears in the folder's **Reach** list and can be stopped
-from sharing. It does **not** yet put anything in front of you — nothing reads
-the declaration back and offers the reference to the drawings under that folder.
-Filed as **B133**; sheets left that gap when they moved to filing, and the
-document kind is what remains of it.
-
-**The reference you can actually draw against is a different feature and it
-works** — **View → Reference**, further on in *Onion skin, references and the
-camera*. That one imports a picture, slices it into frames and lays it under
-your drawing. The two are unrelated today.
+There used to be a third: a *reference declaration*, shared onto a folder the
+way a palette is. It was recorded and never read — nothing ever showed a
+drawing a reference because of one — and it was retired as **B133** rather
+than kept as a control that does nothing. Any such declarations in an existing
+project are cleaned up the next time it opens. If you want a drawing visible
+to other drawings as reference today, put it on a sheet or file the sheet
+beside them.
 
 #### How a folder is exported
 
-Right-click a folder and pick **Export this as** to choose a preset. That does
-two things at once, and the second is the one worth knowing: it sets the
-settings, **and it says where one file ends**.
+Give a folder an export preset — **Export · the preset** in the project
+manager's Assets tab. That does two things at once, and the second is the one
+worth knowing: it sets the settings, **and it says where one file ends**.
 
 | The preset produces | What you get |
 | --- | --- |
@@ -442,10 +446,10 @@ disk are never touched either way.
 
 ### The project window
 
-**File ▸ Project window…**, or **Ctrl+P**. The docker is what you use while
-drawing — find it, open it, move it. This is what you use *between* drawings,
-and it is a separate window so it can sit on a second monitor while the canvas
-keeps the first.
+**File ▸ Project manager…**, **Ctrl+P**, or the **▦** button at the top of the
+Project panel. The docker is what you use while drawing — find it, open it,
+move it. This is what you use *between* drawings, and it is a separate window
+so it can sit on a second monitor while the canvas keeps the first.
 
 Five tabs, and a footer on all of them saying what the project holds and what is
 wrong with it: *47 documents · 12 Ready · 3 Reopened · 5 unassigned*.
@@ -456,6 +460,30 @@ carries. Select several rows and a bar appears: set the status of nine drawings
 at once, tag a folder and everything under it, assign a sequence to somebody.
 The docker has no multi-select on purpose; a bulk edit is exactly the thing you
 do between drawings rather than during one.
+
+**You can build the structure here too.** **＋ New ▾** above the tree — or
+right-click any row — makes a **folder** or a **document**, with the docker's
+rules unchanged: it lands where the selection is, the name is asked first with
+the folder's stem already typed, and cancelling creates nothing. What the
+window makes is **saved at once**, so the docker and a file manager both show
+it without a second gesture — and a document made here arrives as **Draft**,
+because every new document enters the pipeline on its first save.
+
+**And rearrange it.** Drag any row — in Structure or in the Assets tab — and
+the tree shows where it would land: a **line** above a row means *placed
+before it, in its folder's running order*; a **tint** on a folder means
+*filed inside it*. Drop on the empty space below the rows (or on the Assets
+tab's project row) to move something to the **project root**. Reordering
+writes the folder's running order, the same one the docker's ↑↓ nudge; moving
+a document moves its file, refused whole if the disk says no. Double-click a
+name to rename it in place.
+
+**And take things out of it.** Right-click, in Structure and in the Assets
+tab alike, offers the panel's two operations, which are deliberately not one:
+**Remove from project** takes the row out of the index and leaves the file or
+folder on disk — cheap to undo by hand — while **Delete permanently…** removes
+it *and* deletes it, asking first for any folder holding anything. Removing a
+folder returns its documents to the project root rather than losing them.
 
 **Select exactly one folder and a panel opens on the right** — its notes, its
 pivot, its reading and its variants, all editable. One folder rather than
@@ -475,7 +503,10 @@ it did nothing.
 **Status** is the same documents as columns: the six statuses in order, and
 *No status* last on its own. "Nobody has said" is not the same as *Design*, and
 folding them together would invent a pipeline stage for every file you imported.
-**Drag a card between columns** to change one.
+**Drag a card between columns** to change one. A new document becomes **Draft**
+on its first save, so fresh work starts in the pipeline by itself; imported and
+pre-existing files keep *no status* until you say, and clearing a status back
+to *no status* sticks.
 
 **Assets** is the one thing a right-click menu cannot be. A menu declares on one
 scope at a time and shows nothing about the others, so *why is this drawing
@@ -485,10 +516,43 @@ declares is visible at once. Nearest wins: a document beats its folder, a folder
 beats the project, and the project beats your own defaults.
 
 Select a row and the bar underneath offers everything that row could be given —
-palettes, gradients, guide sets, symbols, tips, templates, export presets — with
-the kind in front of the name, so you pick the thing rather than first picking
-which of eight words it files under. The **✕** on any chip stops sharing it
-there.
+palettes, gradients, guide sets, symbols, tips, templates, export presets and
+references — with the kind in front of the name, so you pick the thing rather
+than first picking which of eight words it files under. The **✕** on any chip
+stops sharing it there; **⤒** publishes it project-wide and **⤓** takes it back
+to the subtree.
+
+**The asset library** sits beside the table: everything the project *has* —
+reference sheets, palettes, gradients, brush tips, symbols and templates —
+each wearing an automatic designation and a glyph unique to its kind
+(▤ Reference, 🎨 Palette, ◧ Gradient, 🖌 Brush tip, ❖ Symbol, 📄 Template), so
+an asset is recognisable as what it is before you read its name. **Drag one
+onto a row** to give it to that scope, and the status line says what it now
+feeds: *"Palette 'Knight warms' shared with Knight — it feeds every document
+under 'Knight'."* Whatever a scope has shows as a **pill on its row** — every
+kind, the same way: a palette declared there, a template default, and a sheet
+filed there all read alike, though a sheet's pill has no ✕ (it reports filing;
+move the sheet by dragging it). Guide sets are the one kind the table knows
+about that nothing can create yet — *Planned*. Two kinds land differently: a **sheet** is filed on the
+folder rather than declared, because for sheets filing *is* what feeds the
+documents below; a **template** becomes the scope's one default — the drop
+replaces, and the status line names what it displaced.
+
+**Right-click makes assets**, the way Structure's right-click makes structure:
+a **reference sheet**, a **palette**, a **gradient**, or a **template** (a
+blank document already wearing the flag). Same rules as everything else —
+named first, cancelling creates nothing, saved at once — and one more that
+follows from where you clicked: made on a folder's row, a palette or gradient
+is **shared there at once**, because that is what making it *there* means. A
+sheet is filed on the folder; a template is filed there and offered for
+dropping wherever it should become the default.
+
+**And unmakes them.** The ✕ on a declaration chip stops sharing an asset at
+that scope without touching the asset. Right-click a library entry for
+**Delete permanently…**, which deletes the asset *and* every declaration of
+it — sheets and templates are files, so their files go too, after asking.
+Symbols are the one refusal: their instances live in documents, so the
+Symbols panel owns that delete.
 
 Two moments the panel says something you would otherwise have to notice: sharing
 the **first** thing of a kind is what switches that kind from *everything
@@ -529,6 +593,41 @@ The **TAG** and **WHO** pickers at the top narrow every tab at once — filterin
 the tree and then finding the status board showing something else would be two
 projects on one screen.
 
+### Versions
+
+A version is a **kept copy of a document or character sheet as it was saved**,
+with a label and optional notes, stored inside the project's `versions/`
+folder. Undo remembers keystrokes within a session; a version is authored —
+"roughs approved", "before the redesign" — and survives across sessions and
+machines, because it travels with the project folder.
+
+Three ways a version comes to exist:
+
+- **File ▸ Save version…** (`Ctrl+Alt+S`) keeps one of the active document or
+  sheet, after saving it. The offered label continues the numbering; the notes
+  are yours.
+- **Promoting a document to Review or Ready** — in the project window's status
+  column or board — keeps one automatically, tagged with that milestone. That
+  is what makes "export the version that was approved" answerable after
+  somebody keeps drawing: the Ready bytes are in the history even if the file
+  has moved on.
+- **Reverting** keeps one of the state being replaced, labelled *Before revert
+  to …* — so a revert can never lose work, and a second revert undoes the
+  first.
+
+**File ▸ Version history…** (`Ctrl+Alt+H`) lists them newest first — also
+reachable from a right-click on any document or sheet row in the project
+docker. Select a version and **Revert to selected** to put its file back; an
+open tab reloads to show it. Greyed lines in the list record an action (a
+revert) rather than a state, and cannot be reverted to.
+
+Versions belong to a project. A loose document has no `versions/` folder to
+keep them in, so the menu items stay greyed until the document is saved into a
+project. A project that never uses versions never grows the folder.
+
+Branching a version into its own line of work is *Planned*; today the history
+is a single line per document.
+
 ### Templates
 
 **A template is an ordinary document with a flag set.** Not a new file type, not
@@ -543,6 +642,14 @@ up the same way.
 | **Start from one** | **File ▸ New from template…** lists the project's templates. Pick one and you get a **copy** — yours from the first stroke. |
 | **Edit one** | Open it and draw. It is a document; every tool works on it. |
 | **Stop being one** | Untick the same menu item. Nothing else changes. |
+
+**A template is an asset, and looks like one.** From the next save its row —
+in the Project panel and in the project manager — wears 📄 and the word
+*Template*, automatically, the way a sheet wears ▤ *Reference*. It appears in
+the project manager's **asset library**, and dragging it onto a folder there
+says *new documents in this folder start from it*. That drop **replaces**
+rather than adds — a scope starts new documents from one template — and the
+status line names what it displaced.
 
 **A template is copied, never referenced.** That is the difference from a symbol,
 which *is* a live link. Because the copy has no link back, editing a template can
@@ -658,12 +765,31 @@ set up, a network share being the usual one, where a project still opens
 normally and this is how you get a current view. Like every shortcut in
 Lightbox, F5 is rebindable in **Edit ▸ Configure ▸ Shortcuts**.
 
-**Drag a document onto another character** to re-file it, or onto a
-project-level row to take it out of every character. It keeps its identity, so
-a tab already showing it stays bound to it. The file on disk is not moved
-until the next save writes it to its new path, and the old one is left alone —
-the same reasoning as **－**, which removes a row from the index and never
-deletes a drawing.
+**Drag a document or a folder onto another folder** to re-file it, or onto a
+project-level row to take it out of every folder. It keeps its identity, so a
+tab already showing it stays bound to it — and **the disk moves with it**: the
+file, or the folder's whole directory, is moved first and the project records
+it only if that worked. The project's directory and the panel's tree are the
+same thing, which a save keeps true even for a project rearranged before this
+rule existed — any file recorded outside its folder's directory is brought
+home, and a directory no layout explains is removed once nothing lives in it.
+(A stray directory *with* something in it is reported, never deleted — the
+same reasoning as **－**, which removes a row from the index and never deletes
+a drawing.)
+
+**Which file am I actually editing?** Two answers, both always on: the tab
+wears a small violet **P** badge before its name when the document belongs to
+the open project (a loose file has none — they save to different places), and
+the panel row whose document is on the canvas carries a violet bar and tint.
+That mark is not the selection: selecting a row aims the next command, and the
+bar stays put while you do.
+
+**A file inside the project folder is in the project.** Save a loose document
+into the project's directory and it joins the project on the spot — the panel
+grows its row (filed in the folder you saved it into), the tab gains the P
+badge, and it arrives as **Draft** like any other new document. Save a project
+document *outside* the project and the reverse happens: it leaves the project
+and its row goes. The badge, the panel and the disk always tell the one story.
 
 ### Variants
 

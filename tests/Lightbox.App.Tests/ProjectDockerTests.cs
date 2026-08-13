@@ -181,6 +181,125 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         Assert.Equal(reference.Id, vm.ActiveTab!.Source?.Id);
     }
 
+    /// <summary>
+    /// The root row renames the project — the folder on disk included — and
+    /// the row shows the new folder, so the result is visible where it was
+    /// asked for. Supersedes the B62-era refusal, on the owner's call.
+    /// </summary>
+    [AvaloniaFact]
+    public void RenamingTheRootRowRenamesTheProjectFolderOnDisk()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        WithKnight(vm);
+        var docker = vm.ProjectDocker;
+        // The folder keeps the suffix it had; the name it takes is the typed
+        // one. Unique per run: the target lands beside the fixture in the
+        // shared temp directory, and a fixed name collides with a stale twin.
+        var name = $"Castle-{Guid.NewGuid():N}";
+        var renamed = Path.Combine(Path.GetDirectoryName(_root)!, $"{name}.lbproj");
+        try
+        {
+            Assert.True(docker.Rename(docker.Rows[0], name));
+
+            Assert.Equal(name, docker.Project!.Name);
+            Assert.Equal(renamed, docker.Project.Root);
+            Assert.True(Directory.Exists(renamed));
+            Assert.False(Directory.Exists(_root));
+            Assert.Contains(name, docker.Rows[0].Name);
+        }
+        finally
+        {
+            if (Directory.Exists(renamed)) Directory.Delete(renamed, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// The two halves of "which file am I actually editing": the tab wears the
+    /// project badge, and the docker row wears a fixed highlight — independent
+    /// of selection, which moves the moment the artist clicks another row.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheActiveTabMarksItsRowAndWearsTheProjectBadge()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        WithKnight(vm);
+        vm.ProjectDocker.AddDocumentCommand.Execute(null);
+        var opened = vm.ProjectDocker.Rows[^1];
+
+        Assert.True(vm.ActiveTab!.IsProjectWork);
+        Assert.True(opened.IsEditing);
+
+        // Selecting a different row moves selection and not the mark.
+        vm.ProjectDocker.Selected = vm.ProjectDocker.Rows[0];
+        Assert.True(opened.IsEditing);
+        Assert.Single(vm.ProjectDocker.Rows, r => r.IsEditing);
+
+        // A rebuild — new row objects — keeps the mark.
+        vm.ProjectDocker.Refresh();
+        Assert.True(vm.ProjectDocker.Rows.Single(r => r.Animation?.Id == opened.Animation!.Id).IsEditing);
+
+        // A loose tab is neither badged nor marked. NewDocument adopts into an
+        // open project by design, so make a standalone one directly.
+        var loose = new DocumentTab(
+            new Core.Timeline.DocumentEditor(DocumentFactory.CreateDoc(8, 8, 12)), "loose");
+        vm.Tabs.Add(loose);
+        vm.ActiveTab = loose;
+        Assert.False(vm.ActiveTab!.IsProjectWork);
+        Assert.DoesNotContain(vm.ProjectDocker.Rows, r => r.IsEditing);
+    }
+
+    /// <summary>
+    /// A loose document saved inside the project joins it, and every surface
+    /// resolves from the one manifest entry: docker row (filed in the right
+    /// folder), tab badge, editing mark. Saved outside, it stays loose.
+    /// </summary>
+    [AvaloniaFact]
+    public void ALooseDocumentSavedInsideTheProjectJoinsIt()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        WithKnight(vm);
+        var knight = vm.ProjectDocker.Project!.Manifest.Folders!.Single();
+        var loose = new DocumentTab(
+            new Core.Timeline.DocumentEditor(DocumentFactory.CreateDoc(8, 8, 12)), "loose");
+        vm.Tabs.Add(loose);
+        vm.ActiveTab = loose;
+        Assert.False(loose.IsProjectWork);
+
+        var inside = Path.Combine(_root, "knight", "idle.lightbox.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(inside)!);
+        File.WriteAllText(inside, "{}");   // what the save dialog's writer did
+        vm.NotifySaved(inside);
+
+        Assert.True(loose.IsProjectWork);
+        Assert.NotNull(loose.Source);
+        var row = vm.ProjectDocker.Rows.Single(r => r.Animation?.Name == "idle");
+        Assert.Equal(knight.Id, row.Animation!.FolderId);
+        Assert.True(row.IsEditing);
+        // Draft on arrival, the first-save rule through this door too.
+        Assert.Equal(AssetStatus.Draft, row.Animation.Status);
+
+        // The other direction unchanged: saved outside, a loose file stays loose.
+        var stray = new DocumentTab(
+            new Core.Timeline.DocumentEditor(DocumentFactory.CreateDoc(8, 8, 12)), "stray");
+        vm.Tabs.Add(stray);
+        vm.ActiveTab = stray;
+        var outside = Path.Combine(Path.GetTempPath(), $"lightbox-outside-{Guid.NewGuid():N}.lightbox.json");
+        try
+        {
+            File.WriteAllText(outside, "{}");
+            vm.NotifySaved(outside);
+            Assert.Null(stray.Source);
+            Assert.False(stray.IsProjectWork);
+        }
+        finally
+        {
+            File.Delete(outside);
+        }
+    }
+
     [AvaloniaFact]
     public void OpeningAnAnimationTwiceFocusesTheTabRatherThanDuplicatingIt()
     {
@@ -1156,8 +1275,10 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
     }
 
     /// <summary>
-    /// The project row refuses everything that would remove, delete or rename it
-    /// — and says so.
+    /// The project row refuses everything that would remove or delete it — and
+    /// says so. Renaming it is no longer in that list: it renames the project,
+    /// folder and all, which is its own test above
+    /// (<see cref="RenamingTheRootRowRenamesTheProjectFolderOnDisk"/>).
     /// </summary>
     /// <remarks>
     /// The control on the row above. Adding a selectable row to a panel whose
@@ -1167,7 +1288,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
     /// Silence is not enough either — a － that does nothing reads as broken.
     /// </remarks>
     [AvaloniaFact]
-    public void TheProjectRowCannotBeRemovedRenamedOrDeleted()
+    public void TheProjectRowCannotBeRemovedOrDeleted()
     {
         var vm = Vm();
         vm.NewProject(_root, "Knight");
@@ -1187,10 +1308,6 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         // No confirmation is offered for it, so the refusal above is the only
         // thing standing between a click and the project folder.
         Assert.False(docker.DeleteNeedsConfirmation);
-
-        Assert.False(docker.Rename(root, "Something else"));
-        Assert.Equal(Path.GetFileName(_root), docker.Rows[0].Name);
-        Assert.True(Directory.Exists(_root));
     }
 
     /// <summary>
@@ -1304,6 +1421,10 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         Assert.True(row.IsSheet);
         Assert.False(row.IsHeading);
         Assert.Equal("▤", row.Glyph);
+        // The kind's own word, automatic (AssetKinds) — the docker names the
+        // asset the same way the project manager does.
+        Assert.Equal("Reference", row.Designation);
+        Assert.True(row.HasDesignation);
         // Under its folder, indented like the documents beside it.
         Assert.Equal(knight.Id, row.Folder!.Id);
 
@@ -1339,6 +1460,64 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         Assert.Equal(goblin.Id, entry.FolderId);
         Assert.False(File.Exists(Path.Combine(_root, "knight", "knight-sheet.sheet.json")));
         Assert.True(File.Exists(Path.Combine(_root, "goblin", "knight-sheet.sheet.json")));
+    }
+
+    /// <summary>
+    /// A new document's Draft orb appears the moment the save writes it,
+    /// without waiting for something else to rebuild the tree.
+    /// </summary>
+    /// <remarks>
+    /// The save gives first-written documents their Draft status
+    /// (<c>ProjectIo.Save</c>), and the rows mirror the manifest rather than
+    /// reading it — so <c>MarkAllSaved</c> has to carry the change across, the
+    /// same way it already carries the pending flags. Without that line this
+    /// asserts on a row still showing nothing, which is B79's shape: a badge
+    /// outliving its reason, in reverse.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ASavedNewDocumentShowsItsDraftOrbAtOnce()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        WithKnight(vm);
+        var docker = vm.ProjectDocker;
+        docker.Selected = docker.Rows.First(r => r.IsFolder);
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "fresh");
+        var row = docker.Rows.Single(r => r.Animation?.Name == "fresh");
+        Assert.Null(row.Status);   // in the project, not yet in the pipeline
+
+        vm.SaveProject();
+
+        output.WriteLine($"row status after save: {row.Status}");
+        Assert.Equal(AssetStatus.Draft, row.Animation!.Status);
+        Assert.Equal(AssetStatus.Draft, row.Status);
+        Assert.True(row.HasStatus);
+    }
+
+    /// <summary>
+    /// A template's row wears its kind — the word and the glyph both from
+    /// AssetKinds, both from the manifest hint the save refreshed, so no
+    /// document is loaded to draw the tree.
+    /// </summary>
+    [AvaloniaFact]
+    public void ATemplateRowInTheDockerWearsItsDesignation()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        WithKnight(vm);
+        var docker = vm.ProjectDocker;
+        var project = docker.Project!;
+        var reference = project.Manifest.Documents.First();
+        Templates.SetTemplate(project.Loaded[reference.Id], true);
+        docker.MarkDirty(reference);
+
+        vm.SaveProject();
+        docker.Refresh();
+
+        var row = docker.Rows.Single(r => r.Animation?.Id == reference.Id);
+        Assert.Equal("Template", row.Designation);
+        Assert.True(row.HasDesignation);
+        Assert.Equal(AssetKinds.GlyphOf(TemplateScopes.Kind), row.Glyph);
     }
 
     private static string MainWindowXaml()
