@@ -78,8 +78,18 @@ public sealed class ProjectTests : IDisposable
         var reloaded = ProjectIo.Load(_root);
         var animations = reloaded.Manifest.Documents;
         Assert.Equal(AssetStatus.Ready, animations.Single(a => a.Id == walk.Id).Status);
-        // And the one nobody set stays unset — "nobody has said" is not "Design".
-        Assert.Null(animations.Single(a => a.Id == idle.Id).Status);
+        // The one nobody set was brand new, so its first write put it in the
+        // pipeline as Draft — ProjectAutoDraftTests owns that rule.
+        Assert.Equal(AssetStatus.Draft, animations.Single(a => a.Id == idle.Id).Status);
+
+        // "Nobody has said" is still sayable and still writes no key: the
+        // Draft rule fires only on a first write, so clearing a status sticks.
+        idle.Status = null;
+        ProjectIo.Save(project);
+        manifest = File.ReadAllText(Path.Combine(_root, "project.json"));
+        Assert.DoesNotContain("\"status\": \"draft\"", manifest);
+        Assert.Null(ProjectIo.Load(_root).Manifest.Documents
+            .Single(a => a.Id == idle.Id).Status);
     }
 
     [Fact]

@@ -2636,7 +2636,7 @@
                              because it is recognition rather than news. -->
                         <TextBlock DockPanel.Dock="Right" Text="{Binding Designation}"
                                    IsVisible="{Binding HasDesignation}"
-                                   FontSize="9" Opacity="0.5" Margin="4,0,2,0"
+                                   FontSize="10" Opacity="0.5" Margin="4,0,2,0"
                                    VerticalAlignment="Center"
                                    ToolTip.Tip="What kind of asset this is. Automatic — every asset of a kind wears the same word and glyph." />
                         <!-- Status as a dot, because the column has to read down at a

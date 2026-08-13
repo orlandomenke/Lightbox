@@ -489,13 +489,13 @@
                             <!-- The docker's Reach menu, as one click on the
                                  chip it is about. Hidden on a document
                                  declaration, which has nothing below it. -->
-                            <Button Content="{Binding ReachGlyph}" FontSize="9" Padding="2,0"
+                            <Button Content="{Binding ReachGlyph}" FontSize="10" Padding="2,0"
                                     Background="Transparent" BorderThickness="0"
                                     IsVisible="{Binding CanReach}"
                                     Command="{Binding $parent[ListBox].((vm:ProjectWindowViewModel)DataContext).ToggleReachCommand}"
                                     CommandParameter="{Binding}"
                                     ToolTip.Tip="{Binding ReachHint}" />
-                            <Button Content="✕" FontSize="9" Padding="2,0"
+                            <Button Content="✕" FontSize="10" Padding="2,0"
                                     Background="Transparent" BorderThickness="0"
                                     Command="{Binding $parent[ListBox].((vm:ProjectWindowViewModel)DataContext).UndeclareOnScopeCommand}"
                                     CommandParameter="{Binding}"
