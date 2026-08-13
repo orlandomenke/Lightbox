@@ -127,8 +127,11 @@ An animation is named after the character it lands under, the same way. Folders
 are not prefixed — they are structure, and *Knight - Locomotion* would compound
 into *Knight - Locomotion - Knight - Walk* one level down.
 
-**Rename…** on the right-click menu, or slow double-click a row. The rename
-reaches disk: renaming a folder moves the folder and everything under it.
+**Rename…** on the right-click menu, or **double-click the name** — in the
+Project panel and in the project manager's Structure tab alike. (Double-click
+elsewhere on a row still opens it; the name is the part that edits, the same
+split the Layers panel uses.) The rename reaches disk: renaming a folder moves
+the folder and everything under it.
 
 If the name is already taken, or the file cannot be moved — open in another
 program, or a permission — the rename is **refused**, the box stays open so you
@@ -468,6 +471,15 @@ window makes is **saved at once**, so the docker and a file manager both show
 it without a second gesture — and a document made here arrives as **Draft**,
 because every new document enters the pipeline on its first save.
 
+**And rearrange it.** Drag any row — in Structure or in the Assets tab — and
+the tree shows where it would land: a **line** above a row means *placed
+before it, in its folder's running order*; a **tint** on a folder means
+*filed inside it*. Drop on the empty space below the rows (or on the Assets
+tab's project row) to move something to the **project root**. Reordering
+writes the folder's running order, the same one the docker's ↑↓ nudge; moving
+a document moves its file, refused whole if the disk says no. Double-click a
+name to rename it in place.
+
 **Select exactly one folder and a panel opens on the right** — its notes, its
 pivot, its reading and its variants, all editable. One folder rather than
 several, because "the notes of nine folders" is not a thing. This is where a
@@ -506,14 +518,25 @@ stops sharing it there; **⤒** publishes it project-wide and **⤓** takes it b
 to the subtree.
 
 **The asset library** sits beside the table: everything the project *has* —
-reference sheets, palettes, gradients, brush tips and symbols — each wearing an
-automatic designation and a glyph unique to its kind (▤ Reference, 🎨 Palette,
-◧ Gradient, 🖌 Brush tip, ❖ Symbol), so an asset is recognisable as what it is
-before you read its name. **Drag one onto a row** to give it to that scope, and
-the status line says what it now feeds: *"Palette 'Knight warms' shared with
-Knight — it feeds every document under 'Knight'."* Dropping a **sheet** files
-it on that folder rather than declaring anything, because for sheets filing
-*is* what feeds the documents below.
+reference sheets, palettes, gradients, brush tips, symbols and templates —
+each wearing an automatic designation and a glyph unique to its kind
+(▤ Reference, 🎨 Palette, ◧ Gradient, 🖌 Brush tip, ❖ Symbol, 📄 Template), so
+an asset is recognisable as what it is before you read its name. **Drag one
+onto a row** to give it to that scope, and the status line says what it now
+feeds: *"Palette 'Knight warms' shared with Knight — it feeds every document
+under 'Knight'."* Two kinds land differently: a **sheet** is filed on the
+folder rather than declared, because for sheets filing *is* what feeds the
+documents below; a **template** becomes the scope's one default — the drop
+replaces, and the status line names what it displaced.
+
+**Right-click makes assets**, the way Structure's right-click makes structure:
+a **reference sheet**, a **palette**, a **gradient**, or a **template** (a
+blank document already wearing the flag). Same rules as everything else —
+named first, cancelling creates nothing, saved at once — and one more that
+follows from where you clicked: made on a folder's row, a palette or gradient
+is **shared there at once**, because that is what making it *there* means. A
+sheet is filed on the folder; a template is filed there and offered for
+dropping wherever it should become the default.
 
 Two moments the panel says something you would otherwise have to notice: sharing
 the **first** thing of a kind is what switches that kind from *everything
@@ -568,6 +591,14 @@ up the same way.
 | **Start from one** | **File ▸ New from template…** lists the project's templates. Pick one and you get a **copy** — yours from the first stroke. |
 | **Edit one** | Open it and draw. It is a document; every tool works on it. |
 | **Stop being one** | Untick the same menu item. Nothing else changes. |
+
+**A template is an asset, and looks like one.** From the next save its row —
+in the Project panel and in the project manager — wears 📄 and the word
+*Template*, automatically, the way a sheet wears ▤ *Reference*. It appears in
+the project manager's **asset library**, and dragging it onto a folder there
+says *new documents in this folder start from it*. That drop **replaces**
+rather than adds — a scope starts new documents from one template — and the
+status line names what it displaced.
 
 **A template is copied, never referenced.** That is the difference from a symbol,
 which *is* a live link. Because the copy has no link back, editing a template can

@@ -4590,6 +4590,24 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Double-click on the name starts the rename — the layer panel's idiom,
+    /// applied to the row the pointer is on.
+    /// </summary>
+    /// <remarks>
+    /// On the name text only, and handled so the click stops there: the row's
+    /// own double-click opens the document, and one gesture must not mean both
+    /// depending on nothing the artist can see.
+    /// </remarks>
+    private void OnProjectNameDoubleTapped(object? sender, Avalonia.Input.TappedEventArgs e)
+    {
+        if (sender is not Control { DataContext: ViewModels.ProjectRow row }) return;
+        if (row.IsRoot || row.IsSheet) return;   // B62; sheets rename in their own panel
+        _vm.ProjectDocker.SelectFromPointer(row);
+        row.IsRenaming = true;
+        e.Handled = true;
+    }
+
+    /// <summary>
     /// Set the selected document's production status — and, with auto-export on, hand it
     /// to the engine.
     /// </summary>

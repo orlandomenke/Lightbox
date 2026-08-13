@@ -36,6 +36,24 @@
       <Setter Property="Padding" Value="8,5" />
       <Setter Property="Background" Value="{StaticResource BandTintBrush}" />
     </Style>
+    <!--
+      Where a drag would land: a line above the row it would be placed
+      before, a tint on the folder it would be filed into. The classes are
+      bound to the row's DropAbove/DropInto, which the drag-over handling
+      sets — so the indicator is state the row shows, not an adorner the
+      window has to place.
+    -->
+    <Style Selector="Border.rowShell">
+      <Setter Property="BorderThickness" Value="0,2,0,0" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.rowShell.dropAbove">
+      <Setter Property="BorderBrush" Value="{StaticResource AccentCyanBrush}" />
+    </Style>
+    <Style Selector="Border.rowShell.dropInto">
+      <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+    </Style>
   </Window.Styles>
 
   <DockPanel>
@@ -259,7 +277,10 @@
 
           <ListBox x:Name="StructureRows" ItemsSource="{Binding Rows}"
                    SelectionMode="Multiple"
-                   Background="Transparent" BorderThickness="0" Margin="4">
+                   Background="Transparent" BorderThickness="0" Margin="4"
+                   DragDrop.AllowDrop="True"
+                   DragDrop.DragOver="OnTreeListDragOver"
+                   DragDrop.Drop="OnTreeListDrop">
             <!-- Click rather than Command, the docker's rule: a flyout's items
                  live in a popup, where a window binding resolves to nothing. -->
             <ListBox.ContextFlyout>
@@ -278,12 +299,33 @@
             </ListBox.Styles>
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:BoardRow">
+                <!-- A drag source and a drop target, with the indicator on the
+                     shell. Background set or the empty part of the row is not
+                     hit-testable and neither the press nor the drop arrives. -->
+                <Border Classes="rowShell"
+                        Classes.dropAbove="{Binding DropAbove}"
+                        Classes.dropInto="{Binding DropInto}"
+                        PointerPressed="OnTreeRowPressed"
+                        PointerMoved="OnTreeRowMoved"
+                        DragDrop.AllowDrop="True"
+                        DragDrop.DragOver="OnTreeRowDragOver"
+                        DragDrop.Drop="OnTreeRowDrop">
                 <Grid ColumnDefinitions="*,190,110,120,90,200">
 
                   <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="5">
                     <Border Width="{Binding Indent}" />
                     <TextBlock Text="{Binding Glyph}" />
-                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                    <Panel>
+                      <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                                 IsVisible="{Binding !IsRenaming}"
+                                 Background="Transparent"
+                                 DoubleTapped="OnTreeNameDoubleTapped"
+                                 ToolTip.Tip="Double-click to rename" />
+                      <TextBox Text="{Binding Name, Mode=OneWay}" FontSize="11" MinWidth="140"
+                               IsVisible="{Binding IsRenaming}"
+                               LostFocus="OnTreeNameLostFocus"
+                               KeyDown="OnTreeNameKeyDown" />
+                    </Panel>
                     <!-- The kind's own word, automatic (AssetKinds), so an
                          asset is recognisable as what it is before reading
                          the row it happens to sit in. -->
@@ -318,6 +360,7 @@
                   <TextBlock Grid.Column="5" Classes="dim" Text="{Binding Carries}"
                              TextTrimming="CharacterEllipsis" />
                 </Grid>
+                </Border>
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
@@ -451,7 +494,25 @@
             </StackPanel>
           </Border>
           <ListBox ItemsSource="{Binding Assets}" SelectedItem="{Binding SelectedScope}"
-                   Background="Transparent" BorderThickness="0" Margin="6">
+                   Background="Transparent" BorderThickness="0" Margin="6"
+                   DragDrop.AllowDrop="True"
+                   DragDrop.DragOver="OnTreeListDragOver"
+                   DragDrop.Drop="OnTreeListDrop">
+            <!-- The tab's right-click makes assets, where Structure's makes
+                 structure. Click rather than Command — a flyout's items live
+                 in a popup, where a window binding resolves to nothing. -->
+            <ListBox.ContextFlyout>
+              <MenuFlyout>
+                <MenuItem Header="▤  New reference sheet…" Click="OnNewSheet"
+                          ToolTip.Tip="A blank sheet, filed on the selected folder — every drawing under it can consult it" />
+                <MenuItem Header="🎨  New palette…" Click="OnNewPalette"
+                          ToolTip.Tip="A new project palette. Made on a folder row, it is shared there at once." />
+                <MenuItem Header="◧  New gradient…" Click="OnNewGradient"
+                          ToolTip.Tip="A new project gradient. Made on a folder row, it is shared there at once." />
+                <MenuItem Header="📄  New template…" Click="OnNewTemplate"
+                          ToolTip.Tip="A blank document already marked as a template, filed where the selection is" />
+              </MenuFlyout>
+            </ListBox.ContextFlyout>
             <ListBox.Styles>
               <Style Selector="ListBoxItem">
                 <Setter Property="Padding" Value="2,1" />
@@ -460,14 +521,21 @@
             </ListBox.Styles>
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:AssetScope">
-                <!-- A drop target as well as a row: the library's assets land
-                     here. Background must be set or the empty part of the row
-                     is not hit-testable and the drop never arrives. -->
+                <!-- A drag source and a drop target: the library's assets land
+                     here, and the hierarchy itself rearranges by the same
+                     gesture the Structure tab has. Background must be set or
+                     the empty part of the row is not hit-testable and neither
+                     the press nor the drop arrives. -->
+                <Border Classes="rowShell"
+                        Classes.dropAbove="{Binding DropAbove}"
+                        Classes.dropInto="{Binding DropInto}"
+                        PointerPressed="OnScopeRowPressed"
+                        PointerMoved="OnScopeRowMoved"
+                        DragDrop.AllowDrop="True"
+                        DragDrop.DragOver="OnScopeDragOver"
+                        DragDrop.Drop="OnScopeDrop">
                 <Grid ColumnDefinitions="260,*" MinHeight="22"
-                      Background="Transparent"
-                      DragDrop.AllowDrop="True"
-                      DragDrop.DragOver="OnAssetDragOver"
-                      DragDrop.Drop="OnAssetDrop">
+                      Background="Transparent">
                   <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
                     <Border Width="{Binding Indent}" />
                     <TextBlock Text="{Binding Name}" FontSize="11"
@@ -506,6 +574,7 @@
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
                 </Grid>
+                </Border>
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>

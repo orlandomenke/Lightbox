@@ -94,17 +94,40 @@ public sealed record AssetCell(string Kind, IReadOnlyList<Declaration> Declared)
 }
 
 /// <summary>One row of the Assets table: a scope, and what it declares.</summary>
-/// <param name="Depth">Zero for the project, then folder depth, then documents.</param>
-public sealed record AssetScope(
-    string Name, int Depth, IReadOnlyList<AssetCell> Cells,
-    ProjectFolder? Folder, DocumentRef? Document, bool IsProject)
+/// <remarks>
+/// A class rather than a record since the hierarchy became draggable here too:
+/// the drop indicator lives on the row, and a record cannot raise a change.
+/// </remarks>
+public sealed partial class AssetScope(
+    string name, int depth, IReadOnlyList<AssetCell> cells,
+    ProjectFolder? folder, DocumentRef? document, bool isProject) : ObservableObject
 {
+    public string Name { get; } = name;
+
+    /// <summary>Zero for the project, then folder depth, then documents.</summary>
+    public int Depth { get; } = depth;
+
+    public IReadOnlyList<AssetCell> Cells { get; } = cells;
+
+    public ProjectFolder? Folder { get; } = folder;
+
+    public DocumentRef? Document { get; } = document;
+
+    public bool IsProject { get; } = isProject;
+
     public double Indent => Depth * 16;
 
     public bool DeclaresNothing => Cells.All(c => !c.Any);
 
     /// <summary>Every declaration on this scope, flattened, for the row to list.</summary>
     public IReadOnlyList<Declaration> All => [.. Cells.SelectMany(c => c.Declared)];
+
+    /// <summary>Where a drag would land, for the row to show — see BoardRow's pair.</summary>
+    [ObservableProperty]
+    private bool _dropAbove;
+
+    [ObservableProperty]
+    private bool _dropInto;
 }
 
 /// <summary>One entry of the "give this scope something" menu.</summary>
@@ -159,6 +182,7 @@ public sealed partial class BoardRow : ObservableObject
     {
         Folder = folder;
         Depth = depth;
+        _name = folder.Name;
     }
 
     public BoardRow(DocumentRef document, ProjectFolder? folder, int depth)
@@ -166,6 +190,7 @@ public sealed partial class BoardRow : ObservableObject
         Document = document;
         Folder = folder;
         Depth = depth;
+        _name = document.Name;
     }
 
     /// <summary>A character sheet, filed in a folder or project-wide when none.</summary>
@@ -180,6 +205,7 @@ public sealed partial class BoardRow : ObservableObject
         Sheet = sheet;
         Folder = folder;
         Depth = depth;
+        _name = sheet.Name;
     }
 
     /// <summary>The folder this row is, or the one a document is filed in.</summary>
@@ -200,7 +226,8 @@ public sealed partial class BoardRow : ObservableObject
     public double Indent => Depth * 16;
 
     public string Glyph =>
-        Document is not null ? "▣"
+        Document is { IsTemplate: true } ? AssetKinds.GlyphOf(TemplateScopes.Kind)
+        : Document is not null ? "▣"
         : Sheet is not null ? AssetKinds.GlyphOf(ReferenceScopes.Kind)
         : Folder is { Icon: { Length: > 0 } chosen } ? chosen
         : "🗀";
@@ -208,13 +235,37 @@ public sealed partial class BoardRow : ObservableObject
     /// <summary>What kind of asset this row is, in a word — empty on the rest.</summary>
     /// <remarks>
     /// From <see cref="AssetKinds"/>, never authored, so the docker and this
-    /// window call a sheet the same thing.
+    /// window call a sheet — and a template — the same thing.
     /// </remarks>
-    public string Designation => Sheet is not null ? AssetKinds.LabelOf(ReferenceScopes.Kind) : "";
+    public string Designation =>
+        Sheet is not null ? AssetKinds.LabelOf(ReferenceScopes.Kind)
+        : Document is { IsTemplate: true } ? AssetKinds.LabelOf(TemplateScopes.Kind)
+        : "";
 
     public bool HasDesignation => Designation.Length > 0;
 
-    public string Name => Document?.Name ?? Sheet?.Name ?? Folder?.Name ?? "";
+    /// <summary>
+    /// Observable and two-way bound while renaming; the rebuild every edit
+    /// causes re-reads it from the model, so it cannot drift.
+    /// </summary>
+    [ObservableProperty]
+    private string _name = "";
+
+    /// <summary>The name is being edited in place — double-click starts it.</summary>
+    [ObservableProperty]
+    private bool _isRenaming;
+
+    // ---- where a drag would land, for the row to show -------------------------
+    //
+    // Set by the window's drag-over handling and rendered as a line above the
+    // row (about to be placed before it) or a tint (about to be filed inside
+    // it). On the row because that is the one DataContext the template has.
+
+    [ObservableProperty]
+    private bool _dropAbove;
+
+    [ObservableProperty]
+    private bool _dropInto;
 
     /// <summary>Every tag on this row, and on the folders above a document.</summary>
     /// <remarks>
@@ -789,6 +840,236 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
     /// </remarks>
     private string OnDisk => RequestSave is null ? " — save the project to write it" : " and written to disk";
 
+    // ---- rearranging the hierarchy (both tabs drag through here) -------------------
+
+    /// <summary>
+    /// Move something to a folder — or to the project root when null —
+    /// optionally placing it before a sibling in the running order.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// One method behind both trees' drags, the way the docker's
+    /// <c>MoveInto</c> is behind its own: a folder reparents
+    /// (<see cref="ProjectFolders.Move"/>, which refuses cycles), a document
+    /// refiles disk-first (<see cref="ProjectIo.RefileDocument"/>), a sheet
+    /// refiles through its own registry.
+    /// </para>
+    /// <para>
+    /// <paramref name="beforeId"/> is the row the drop's line pointed at.
+    /// Ordering is a folder's <c>Order</c> list, so it only applies inside a
+    /// folder — the root has no record to arrange — and only between things
+    /// of the same kind, because folders and documents are arranged by
+    /// different readers of that one list.
+    /// </para>
+    /// </remarks>
+    public bool MoveTo(BoardRow dragged, ProjectFolder? destination, string? beforeId = null)
+    {
+        if (dragged is { IsFolder: true, Folder: { } folder })
+        {
+            // Dropping something onto where it already is, with no place
+            // asked for, is an ordinary slip in a tree — not a move and not
+            // an error.
+            if (folder.ParentId == destination?.Id && beforeId is null) return false;
+            if (folder.ParentId != destination?.Id
+                && !ProjectFolders.Move(Manifest, folder, destination))
+            {
+                Status = $"“{folder.Name}” cannot go there.";
+                return false;
+            }
+            if (beforeId is not null && destination is not null)
+            {
+                var children = ProjectFolders.ChildrenInOrder(Manifest, destination);
+                Reorder(
+                    IndexOf(children.Select(f => f.Id), folder.Id),
+                    IndexOf(children.Select(f => f.Id), beforeId),
+                    (from, to) => ProjectFolders.MoveFolder(Manifest, destination, from, to));
+            }
+            Moved(folder.Name, destination);
+            return true;
+        }
+        if (dragged.Sheet is { } sheet)
+        {
+            if (sheet.FolderId == destination?.Id) return false;
+            if (!ProjectSheets.Refile(_project, sheet, destination))
+            {
+                Status = $"Could not move “{sheet.Name}”. It is still where it was.";
+                return false;
+            }
+            Moved(sheet.Name, destination);
+            return true;
+        }
+        if (dragged.Document is { } document)
+        {
+            if (document.FolderId == destination?.Id && beforeId is null) return false;
+            if (document.FolderId != destination?.Id
+                && !ProjectIo.RefileDocument(_project, document, destination))
+            {
+                Status = $"Could not move “{document.Name}” on disk. It is still where it was.";
+                return false;
+            }
+            if (beforeId is not null && destination is not null)
+            {
+                var siblings = ProjectFolders.InOrder(Manifest, destination);
+                Reorder(
+                    IndexOf(siblings.Select(d => d.Id), document.Id),
+                    IndexOf(siblings.Select(d => d.Id), beforeId),
+                    (from, to) => ProjectFolders.MoveDocument(Manifest, destination, from, to));
+            }
+            Moved(document.Name, destination);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>The Assets tab's rows go through the same move.</summary>
+    public bool MoveTo(AssetScope dragged, ProjectFolder? destination, string? beforeId = null)
+    {
+        if (dragged.IsProject) return false;
+        var row = dragged.Folder is { } folder
+            ? new BoardRow(folder, 0)
+            : dragged.Document is { } document
+                ? new BoardRow(document, null, 0)
+                : null;
+        return row is not null && MoveTo(row, destination, beforeId);
+    }
+
+    /// <summary>
+    /// Place <paramref name="dragged"/> before <paramref name="target"/> in
+    /// the container that holds the target — what dropping on the line means.
+    /// </summary>
+    public bool MoveBefore(BoardRow dragged, BoardRow target)
+    {
+        if (ReferenceEquals(dragged, target)) return false;
+        if (target is { IsFolder: true, Folder: { } folder })
+        {
+            return MoveTo(dragged, ProjectFolders.ById(Manifest, folder.ParentId), folder.Id);
+        }
+        if (target.Document is { } document)
+        {
+            return MoveTo(dragged, ProjectFolders.ById(Manifest, document.FolderId), document.Id);
+        }
+        if (target.Sheet is { } sheet)
+        {
+            // Sheets sit in a fixed band of their folder, so "before the
+            // sheet" can only mean "into the folder that holds it".
+            return MoveTo(dragged, ProjectFolders.ById(Manifest, sheet.FolderId));
+        }
+        return false;
+    }
+
+    /// <summary>The Assets tab's version of the same placement.</summary>
+    public bool MoveBefore(AssetScope dragged, AssetScope target)
+    {
+        if (dragged.IsProject) return false;
+        if (target.IsProject) return MoveTo(dragged, null);
+        if (target.Folder is { } folder && target.Document is null)
+        {
+            return MoveTo(dragged, ProjectFolders.ById(Manifest, folder.ParentId), folder.Id);
+        }
+        if (target.Document is { } document)
+        {
+            return MoveTo(dragged, ProjectFolders.ById(Manifest, document.FolderId), document.Id);
+        }
+        return false;
+    }
+
+    private static void Reorder(int from, int before, Func<int, int, bool> move)
+    {
+        if (from < 0 || before < 0 || from == before) return;
+        // Taking the item out first shifts everything after it up one.
+        move(from, from < before ? before - 1 : before);
+    }
+
+    private static int IndexOf(IEnumerable<string> ids, string wanted)
+    {
+        var at = 0;
+        foreach (var id in ids)
+        {
+            if (id == wanted) return at;
+            at++;
+        }
+        return -1;
+    }
+
+    private void Moved(string name, ProjectFolder? destination)
+    {
+        Status = destination is null
+            ? $"Moved “{name}” to the project."
+            : $"Moved “{name}” to “{destination.Name}”.";
+        Rebuild();
+        _changed();
+        RequestSave?.Invoke();
+    }
+
+    // ---- renaming in place ---------------------------------------------------------
+
+    /// <summary>
+    /// Rename a row, on disk as well as in the panel — what committing the
+    /// double-click edit does. False when it could not, with the reason said.
+    /// </summary>
+    /// <remarks>
+    /// The mechanics are <see cref="ProjectIo.RenameFolder"/> and
+    /// <see cref="ProjectIo.RenameDocument"/>, shared with the docker; only
+    /// the wording here is this window's. A failed or empty edit rebuilds, so
+    /// the shown name falls back to the model's rather than keeping the text
+    /// nobody accepted.
+    /// </remarks>
+    public bool Rename(BoardRow row, string? name)
+    {
+        row.IsRenaming = false;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            Rebuild();
+            return false;
+        }
+        var trimmed = name.Trim();
+        var current = row.Document?.Name ?? row.Folder?.Name ?? "";
+        if (trimmed == current) return true;   // not a change, not a failure
+
+        bool renamed;
+        if (row is { IsFolder: true, Folder: { } folder })
+        {
+            renamed = ProjectIo.RenameFolder(_project, folder, trimmed) switch
+            {
+                ProjectIo.RenameOutcome.NameTaken => Refused(
+                    $"There is already a folder called “{trimmed}” here."),
+                ProjectIo.RenameOutcome.DiskRefused => Refused(
+                    $"Could not rename the folder on disk. It is still “{folder.Name}”."),
+                _ => true,
+            };
+        }
+        else if (row.Document is { } document)
+        {
+            renamed = ProjectIo.RenameDocument(_project, document, trimmed) switch
+            {
+                ProjectIo.RenameOutcome.DiskRefused => Refused(
+                    $"Could not rename the file on disk. It is still “{document.Name}”."),
+                _ => true,
+            };
+        }
+        else
+        {
+            // A sheet renames from the Reference sheets panel, where its
+            // views live.
+            renamed = Refused("Sheets are renamed from the Reference sheets panel.");
+        }
+
+        if (renamed)
+        {
+            Status = $"Renamed to “{trimmed}”.";
+            _changed();
+            RequestSave?.Invoke();
+        }
+        Rebuild();
+        return renamed;
+    }
+
+    private bool Refused(string why)
+    {
+        Status = why;
+        return false;
+    }
+
     // ---- editing a folder's facets (closes Q39's cost) --------------------------------
 
     /// <summary>
@@ -1184,7 +1465,7 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
             var scopes = new List<AssetScope>
             {
                 new(_project.Name, 0, Cells(Manifest.Resources, null, null, true),
-                    null, null, IsProject: true),
+                    null, null, isProject: true),
             };
             foreach (var row in Rows)
             {
@@ -1197,11 +1478,11 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
                     ? new AssetScope(
                         document.Name, row.Depth + 1,
                         Cells(document.Resources, null, document, false),
-                        null, document, IsProject: false)
+                        null, document, isProject: false)
                     : new AssetScope(
                         row.Folder!.Name, row.Depth + 1,
                         Cells(row.Folder!.Resources, row.Folder, null, false),
-                        row.Folder, null, IsProject: false));
+                        row.Folder, null, isProject: false));
             }
             return scopes;
         }
@@ -1275,6 +1556,11 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
                     }
                     continue;
                 }
+                // A template default is about the documents made *under* a
+                // scope, and a document scope has none — TemplateScopes reads
+                // the folder chain only, so an offer here would write an entry
+                // nothing resolves.
+                if (kind == TemplateScopes.Kind && scope.Document is not null) continue;
                 foreach (var offer in ProjectBoard.Offers(_project, kind))
                 {
                     Offer(kind, offer.Id, offer.Name, target: null);
@@ -1320,10 +1606,38 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
     public void DeclareOnScope(OfferChoice? choice)
     {
         if (choice is null) return;
+
+        // The one-at-a-time kinds replace rather than accumulate — a scope
+        // starts new documents from one template and exports one way, and two
+        // declarations of either would make which-one-wins depend on
+        // insertion order. The docker's menu went through SetDefault and
+        // SetPreset for exactly this reason; now that this tab is the whole
+        // declaration surface, so does it.
+        if (choice.Kind == TemplateScopes.Kind && choice.Scope.Document is null)
+        {
+            SetTemplateDefault(
+                choice.Scope, choice.Id, ProjectBoard.NameOf(_project, choice.Kind, choice.Id));
+            return;
+        }
+        if (choice.Kind == ExportScopes.Kind && choice.Scope.Document is null)
+        {
+            ExportScopes.SetPreset(Manifest, choice.Scope.Folder, choice.Id);
+            Status = $"{ProjectBoard.NameOf(_project, choice.Kind, choice.Id)} is how "
+                + $"{choice.Scope.Name} exports — and where one file ends.";
+            AfterAssetChange(choice.Scope);
+            return;
+        }
+
         var first = !AnyDeclaredOf(choice.Kind);
 
         if (choice.Scope.Document is { } document)
         {
+            // A document exports one way at a time too; its own list keeps the
+            // same replace rule the folder path gets from SetPreset.
+            if (choice.Kind == ExportScopes.Kind)
+            {
+                document.Resources?.RemoveAll(r => r.Kind == ExportScopes.Kind);
+            }
             ResourceScopes.DeclareOn(document, choice.Kind, choice.Id, choice.Target);
         }
         else
@@ -1348,6 +1662,29 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         scope.Document is not null ? $"it feeds only “{scope.Name}”"
         : scope.IsProject ? "it feeds every document in the project"
         : $"it feeds every document under “{scope.Name}”";
+
+    /// <summary>
+    /// Make a template the scope's default, saying what it displaced.
+    /// </summary>
+    /// <remarks>
+    /// <c>TemplateScopes.SetDefault</c> replaces silently, which is correct
+    /// and worth a sentence: a click that quietly un-decides an earlier
+    /// decision is the kind of thing somebody notices a week later.
+    /// </remarks>
+    private void SetTemplateDefault(AssetScope scope, string id, string name)
+    {
+        var was = (scope.Folder is { } folder ? folder.Resources : Manifest.Resources)?
+            .FirstOrDefault(r => r.Kind == TemplateScopes.Kind);
+        TemplateScopes.SetDefault(Manifest, scope.Folder, id);
+        var replaced = was is not null && was.Id != id
+            ? $" It replaces {ProjectBoard.NameOf(_project, TemplateScopes.Kind, was.Id)} — "
+              + "a scope starts new documents from one template."
+            : "";
+        Status = scope.IsProject
+            ? $"New documents in the project start from “{name}”.{replaced}"
+            : $"New documents in “{scope.Name}” start from “{name}”.{replaced}";
+        AfterAssetChange(scope);
+    }
 
     /// <summary>Take one declaration back.</summary>
     [RelayCommand]
@@ -1394,16 +1731,20 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
 
     /// <summary>
     /// The kinds the library lists — the assets an artist recognises as
-    /// <em>things</em>: a sheet, a palette, a gradient, a brush tip, a symbol.
+    /// <em>things</em>: a sheet, a palette, a gradient, a brush tip, a symbol,
+    /// a template.
     /// </summary>
     /// <remarks>
-    /// Guides, templates and export presets are declarable and deliberately
-    /// not here: a template is a document wearing a flag and a preset is a
-    /// setting, and a library that lists settings beside artwork stops reading
-    /// as a library. They stay reachable through the share picker above.
+    /// Templates are here by the owner's call (2026-08-13): a template is a
+    /// document wearing a flag, but an artist reaches for it as a thing — so
+    /// it wears the kind like the rest and drags like the rest, with the one
+    /// difference that dropping it <em>replaces</em> the scope's default
+    /// rather than accumulating. Guides and export presets stay out — those
+    /// are settings, and a library that lists settings beside artwork stops
+    /// reading as a library; the share picker above still declares them.
     /// </remarks>
     private static readonly IReadOnlyList<string> LibraryKinds =
-        [PaletteScopes.Kind, GradientScopes.Kind, TipScopes.Kind, SymbolScopes.Kind];
+        [PaletteScopes.Kind, GradientScopes.Kind, TipScopes.Kind, SymbolScopes.Kind, TemplateScopes.Kind];
 
     /// <summary>
     /// Every asset the project has, each wearing its designation and glyph —
@@ -1424,6 +1765,19 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
             }
             foreach (var kind in LibraryKinds)
             {
+                if (kind == TemplateScopes.Kind)
+                {
+                    // From the manifest hint, not Templates.InProject: the
+                    // library rebuilds on every edit, and InProject reads
+                    // every document to find the flag — the one cost the
+                    // folder layout exists to avoid. The hint refreshes at
+                    // save, which is also when the library is re-read.
+                    foreach (var document in Manifest.Documents.Where(d => d.IsTemplate == true))
+                    {
+                        entries.Add(new AssetEntry(kind, document.Id, document.Name));
+                    }
+                    continue;
+                }
                 foreach (var offer in ProjectBoard.Offers(_project, kind))
                 {
                     entries.Add(new AssetEntry(kind, offer.Id, offer.Name));
@@ -1484,6 +1838,18 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
             return;
         }
 
+        if (asset.Kind == TemplateScopes.Kind)
+        {
+            if (scope.Document is not null)
+            {
+                Status = "A template is the default for new documents, "
+                    + "so it goes on a folder or on the project.";
+                return;
+            }
+            SetTemplateDefault(scope, asset.Id, asset.Name);
+            return;
+        }
+
         var first = !AnyDeclaredOf(asset.Kind);
         if (scope.Document is { } document)
         {
@@ -1498,6 +1864,103 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
               + $"{asset.Kind} is now scoped — elsewhere only what is declared there is offered."
             : $"{asset.Designation} “{asset.Name}” shared with {scope.Name} — {Feeds(scope)}.";
         AfterAssetChange(scope);
+    }
+
+    // ---- creating assets from the Assets tab -----------------------------------
+    //
+    // The tab's right-click is "make an asset", where Structure's is "make
+    // structure" — same prompt-first rules (B65), and a new asset made with a
+    // scope row under the pointer is shared there at once, because that is
+    // what making it *there* means.
+
+    /// <summary>The folder the Assets tab's selection means, for a new asset.</summary>
+    private ProjectFolder? AssetTargetFolder =>
+        SelectedScope?.Folder
+        ?? (SelectedScope?.Document is { } document
+            ? ProjectFolders.ById(Manifest, document.FolderId)
+            : null);
+
+    /// <summary>A blank reference sheet, filed where the selection is.</summary>
+    [RelayCommand]
+    public async Task CreateSheetAsync()
+    {
+        var name = AskName is null ? "Character" : await AskName("reference sheet", "Character");
+        if (name is null) return;   // cancelled: nothing is written
+        var folder = AssetTargetFolder;
+        var sheet = ProjectSheets.Add(_project, ProjectViewModel.Named(name, "Character"), folder);
+        _changed();
+        RequestSave?.Invoke();
+        Rebuild();
+        Status = folder is null
+            ? $"“{sheet.Name}” added — every document sees it."
+            : $"“{sheet.Name}” added — it feeds every document under “{folder.Name}”.";
+    }
+
+    [RelayCommand]
+    public async Task CreatePaletteAsync()
+    {
+        var name = AskName is null ? "Palette" : await AskName("palette", "Palette");
+        if (name is null) return;
+        var palette = new Palette { Name = ProjectViewModel.Named(name, "Palette") };
+        _project.Palettes.Add(palette);
+        DeclareNewlyCreated(PaletteScopes.Kind, palette.Id, palette.Name);
+    }
+
+    [RelayCommand]
+    public async Task CreateGradientAsync()
+    {
+        var name = AskName is null ? "Gradient" : await AskName("gradient", "Gradient");
+        if (name is null) return;
+        var gradient = new Gradient { Name = ProjectViewModel.Named(name, "Gradient") };
+        _project.Gradients[gradient.Id] = gradient;
+        DeclareNewlyCreated(GradientScopes.Kind, gradient.Id, gradient.Name);
+    }
+
+    /// <summary>A blank document already wearing the template flag.</summary>
+    /// <remarks>
+    /// Making one from nothing, where File ▸ Use as template marks work
+    /// already done — both end in the same flag, and this one exists so
+    /// setting up a project's templates does not require drawing first.
+    /// </remarks>
+    [RelayCommand]
+    public async Task CreateTemplateAsync()
+    {
+        var name = AskName is null ? "Template" : await AskName("template", "Template");
+        if (name is null) return;
+        var doc = NewDocument?.Invoke() ?? DocumentFactory.CreateDoc();
+        Templates.SetTemplate(doc, true);
+        var reference = ProjectIo.AddDocument(
+            _project, ProjectViewModel.Named(name, "Template"), doc, AssetTargetFolder);
+        DocumentCreated?.Invoke(reference);
+        _changed();
+        RequestSave?.Invoke();
+        Rebuild();
+        Status = $"“{reference.Name}” is a template. New from template… offers it; "
+            + "drop it on a folder here to make it that folder's default.";
+    }
+
+    /// <summary>Share a just-made asset where it was made, and say what that did.</summary>
+    private void DeclareNewlyCreated(string kind, string id, string name)
+    {
+        var designation = Core.Projects.AssetKinds.LabelOf(kind);
+        if (AssetTargetFolder is not { } folder)
+        {
+            Status = $"{designation} “{name}” added to the project.";
+        }
+        else
+        {
+            var first = !AnyDeclaredOf(kind);
+            ResourceScopes.Declare(Manifest, folder, kind, id);
+            Status = first
+                ? $"{designation} “{name}” added and shared with “{folder.Name}” — it feeds every "
+                  + $"document under it. {kind} is now scoped — elsewhere only what is declared "
+                  + "there is offered."
+                : $"{designation} “{name}” added and shared with “{folder.Name}” — it feeds every "
+                  + "document under it.";
+        }
+        _changed();
+        RequestSave?.Invoke();
+        Rebuild();
     }
 
     /// <summary>

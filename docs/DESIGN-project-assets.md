@@ -116,7 +116,10 @@ One refinement since (owner request, 2026-08-13): **a new document becomes
 only, and only when the status is null: a document already on disk without a
 status is imported or predates statuses, and backfilling it would invent a
 pipeline position nobody chose. Clearing a status back to null still sticks,
-so "nobody has said" remains sayable.
+so "nobody has said" remains sayable. **Templates are excluded**: a template
+is machinery rather than a deliverable — the same reasoning that keeps sheets
+out of statuses — and a Draft that can never become Ready would sit on the
+status board for ever.
 
 Three things make this worth more than a label:
 
