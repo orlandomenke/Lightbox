@@ -132,4 +132,33 @@ public class ColorPickerViewModelTests
         Assert.True(p.IsCmykMode);
         Assert.False(p.IsWheelMode);
     }
+
+    /// <summary>
+    /// The panel's wheel and the flyout body are the same instrument: a hue
+    /// ring with the SV square inside it. The flyout kept the old disc when
+    /// the panel was redesigned, and the New file dialog is where the drift
+    /// got noticed — the template exists so the picker is learned once, so
+    /// the two constructions are held to the same parts here.
+    /// </summary>
+    [Fact]
+    public void TheFlyoutBodyDrawsTheSameWheelAsThePanel()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "src")))
+        {
+            dir = dir.Parent;
+        }
+        var app = Path.Combine(dir!.FullName, "src", "Lightbox.App");
+        var body = File.ReadAllText(Path.Combine(app, "Styles", "ColorPicker.axaml"));
+        var panel = File.ReadAllText(Path.Combine(app, "Views", "MainWindow.axaml"));
+
+        foreach (var source in new[] { body, panel })
+        {
+            Assert.Contains("HueRing", source);
+            Assert.Contains("Shape=\"Box\" Components=\"SaturationValue\"", source);
+        }
+        // The disc the redesign replaced must not linger in either file.
+        Assert.DoesNotContain("Components=\"HueSaturation\"", body);
+        Assert.DoesNotContain("Components=\"HueSaturation\"", panel);
+    }
 }

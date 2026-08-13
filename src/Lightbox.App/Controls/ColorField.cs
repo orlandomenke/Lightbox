@@ -8,7 +8,7 @@ namespace Lightbox.App.Controls;
 
 /// <summary>
 /// A colour, anywhere that is not the Color panel: a swatch you click to get
-/// the same wheel, the same value slider and the same readouts.
+/// the same ring-and-square wheel and the same readouts.
 /// </summary>
 /// <remarks>
 /// Every other place a colour was chosen — a palette swatch, a gradient stop,
