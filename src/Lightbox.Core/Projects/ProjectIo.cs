@@ -410,6 +410,12 @@ public static class ProjectIo
         {
             reference.Frames = project.Loaded[reference.Id].Scene.FrameCount;
             reference.Fps = project.Loaded[reference.Id].Scene.Fps;
+            // The template hint, beside the duration hints and refreshed at
+            // the same moment — it is what lets a row wear the 📄 without
+            // loading the file. True or null, never false, so an ordinary
+            // document writes no key.
+            reference.IsTemplate =
+                project.Loaded[reference.Id].IsTemplateDocument ? true : null;
             // New work enters the pipeline as Draft the moment it first lands
             // on disk. First write only — a file already on disk with no
             // status is a document somebody imported or predates statuses, and
@@ -417,10 +423,16 @@ public static class ProjectIo
             // "Nobody has said" stays sayable: clearing the status afterwards
             // is one gesture and it stays cleared.
             //
+            // Never a template: a template is reference machinery rather than
+            // a deliverable, the same reasoning that keeps sheets out of
+            // statuses — a Draft that can never become Ready would sit on the
+            // status board for ever. (The hint above is set first, on purpose.)
+            //
             // In this loop rather than the write loop below, for the reason
             // Version gives: the manifest is serialized between the two, and a
             // status set after that never reaches the file.
-            if (reference.Status is null && !File.Exists(project.PathOf(reference)))
+            if (reference.Status is null && reference.IsTemplate != true
+                && !File.Exists(project.PathOf(reference)))
             {
                 reference.Status = AssetStatus.Draft;
             }
@@ -943,6 +955,116 @@ public static class ProjectIo
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return false;
+        }
+    }
+
+    // ---- refiling and renaming, disk-first --------------------------------------
+    //
+    // These were the docker's private orchestration and moved here when the
+    // project window grew the same gestures — Q29's rule: two surfaces onto one
+    // project must share one implementation of what a drag and a rename do.
+
+    /// <summary>
+    /// File a document in a folder, moving its file first. False when the disk
+    /// refused, in which case nothing changed anywhere.
+    /// </summary>
+    /// <remarks>
+    /// <b>B106.</b> Where the file has to end up is worked out before anything
+    /// moves; <see cref="ProjectFolders.PathFor"/> reads the manifest without
+    /// changing it, so the disk can be moved first and the manifest only if it
+    /// worked. The alternative orders each leave a drawing in two places or in
+    /// none.
+    /// </remarks>
+    public static bool RefileDocument(Project project, DocumentRef document, ProjectFolder? destination)
+    {
+        var to = ProjectFolders.PathFor(project.Manifest, document, destination);
+        if (!MoveInProject(project, document.Path, to)) return false;
+        return ProjectFolders.FileDocument(project.Manifest, document, destination);
+    }
+
+    /// <summary>What a rename did, so a surface can say which refusal it was.</summary>
+    public enum RenameOutcome { Renamed, NameTaken, DiskRefused }
+
+    /// <summary>Rename a folder, on disk as well as in the manifest.</summary>
+    /// <remarks>
+    /// <b>B64.</b> Refused whole on a disk failure — the manifest is put back,
+    /// because a panel that says one thing while the disk says another is worse
+    /// than a refused rename: only one of those is visible. Everything filed
+    /// below it moved with it, so the recorded paths follow.
+    /// </remarks>
+    public static RenameOutcome RenameFolder(Project project, ProjectFolder folder, string name)
+    {
+        var originalName = folder.Name;
+        var was = ProjectFolders.PathOf(project.Manifest, folder);
+        if (!ProjectFolders.Rename(project.Manifest, folder, name)) return RenameOutcome.NameTaken;
+
+        var now = ProjectFolders.PathOf(project.Manifest, folder);
+        if (!MoveInProject(project, was, now))
+        {
+            ProjectFolders.Rename(project.Manifest, folder, originalName);
+            return RenameOutcome.DiskRefused;
+        }
+
+        foreach (var (inside, owner) in DocumentsUnder(project.Manifest, folder))
+        {
+            inside.Path = ProjectFolders.PathFor(project.Manifest, inside, owner);
+        }
+        return RenameOutcome.Renamed;
+    }
+
+    /// <summary>Rename a document, file included. The manifest follows the disk.</summary>
+    public static RenameOutcome RenameDocument(Project project, DocumentRef document, string name)
+    {
+        var was = document.Path;
+        var originalName = document.Name;
+        document.Name = name;
+        var now = document.FolderId is null && !IsUnfiled(was)
+            // A document keeps the shape of the path it already has; only the
+            // file's own name changes.
+            ? RenamedLeaf(was, name)
+            : ProjectFolders.PathFor(
+                project.Manifest, document, ProjectFolders.ById(project.Manifest, document.FolderId));
+
+        if (!MoveInProject(project, was, now))
+        {
+            document.Name = originalName;
+            return RenameOutcome.DiskRefused;
+        }
+        document.Path = now;
+        return RenameOutcome.Renamed;
+    }
+
+    /// <summary>
+    /// Whether a path is in the directory that holds documents belonging to no
+    /// folder.
+    /// </summary>
+    /// <remarks>
+    /// <b>B105.</b> Both names, because the directory was renamed and a project
+    /// written before that keeps its recorded paths.
+    /// </remarks>
+    private static bool IsUnfiled(string path) =>
+        path.StartsWith($"{DocumentsDir}/", StringComparison.Ordinal)
+        || path.StartsWith($"{LegacyDocumentsDir}/", StringComparison.Ordinal);
+
+    /// <summary>Swap the file's own name, keeping the folders above it.</summary>
+    private static string RenamedLeaf(string path, string name)
+    {
+        var cut = path.LastIndexOf('/');
+        var directory = cut < 0 ? "" : path[..(cut + 1)];
+        return $"{directory}{Slug(name)}.lightbox.json";
+    }
+
+    private static IEnumerable<(DocumentRef Document, ProjectFolder Folder)> DocumentsUnder(
+        ProjectManifest manifest, ProjectFolder folder)
+    {
+        var (folders, documents) = ProjectFolders.Contents(manifest, folder);
+        var byId = folders.ToDictionary(f => f.Id);
+        foreach (var document in documents)
+        {
+            if (document.FolderId is { } id && byId.TryGetValue(id, out var owner))
+            {
+                yield return (document, owner);
+            }
         }
     }
 

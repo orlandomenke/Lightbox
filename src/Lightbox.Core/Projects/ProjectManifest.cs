@@ -78,6 +78,26 @@ public sealed class DocumentRef
     /// <summary>Frame rate at the last save. Zero means not known.</summary>
     public int Fps { get; set; }
 
+    /// <summary>
+    /// Whether the document is a template, refreshed whenever it is written.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A hint like <see cref="Frames"/>, and for the same reason: the flag
+    /// lives in the document (<c>Doc.IsTemplate</c>, so an artist can mark
+    /// work they already did), and a row that wanted the truth would have to
+    /// load the file — which is the one thing the folder layout exists to
+    /// avoid. Written at the moment it can be right, the save that produced
+    /// the file; <c>Templates.InProject</c> stays the answer that reads the
+    /// documents.
+    /// </para>
+    /// <para>
+    /// Null rather than false when it is not one, so an ordinary document
+    /// writes no key — the same rule the flag itself follows in the document.
+    /// </para>
+    /// </remarks>
+    public bool? IsTemplate { get; set; }
+
     /// <summary>Seconds this shot runs, or null when the hint is not filled in.</summary>
     public double? Seconds => Frames > 0 && Fps > 0 ? Frames / (double)Fps : null;
 

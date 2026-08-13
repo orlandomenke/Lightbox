@@ -236,18 +236,24 @@ public sealed partial class ProjectRow : ObservableObject
         : IsSheet ? AssetKinds.GlyphOf(ReferenceScopes.Kind)
         : Animation is null && Folder is { Icon: { Length: > 0 } chosen } ? chosen
         : IsFolder ? "🗀"
+        // The template hint, refreshed at each save — a template is an asset
+        // and wears its kind the way a sheet does.
+        : Animation is { IsTemplate: true } ? AssetKinds.GlyphOf(TemplateScopes.Kind)
         : "▣";
 
     /// <summary>
     /// What kind of asset this row is, in a word — empty on folders and
-    /// drawings.
+    /// ordinary drawings.
     /// </summary>
     /// <remarks>
     /// Automatic, from <see cref="AssetKinds"/>, never authored: the point is
     /// that an asset is recognisable as what it is wherever it appears, which
     /// only holds if no surface can rename it per row.
     /// </remarks>
-    public string Designation => IsSheet ? AssetKinds.LabelOf(ReferenceScopes.Kind) : "";
+    public string Designation =>
+        IsSheet ? AssetKinds.LabelOf(ReferenceScopes.Kind)
+        : Animation is { IsTemplate: true } ? AssetKinds.LabelOf(TemplateScopes.Kind)
+        : "";
 
     public bool HasDesignation => Designation.Length > 0;
 
@@ -1676,21 +1682,13 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         }
         else if (row.Animation is { } document)
         {
-            // B106. Where the file has to end up, worked out before anything
-            // moves. PathFor reads the manifest without changing it and gives
-            // the same answer after the refile as before it — it dedupes against
-            // the documents already in the destination and excludes this one —
-            // so the disk can be moved first and the manifest only if it worked.
-            var to = ProjectFolders.PathFor(project.Manifest, document, destination);
-            if (!ProjectIo.MoveInProject(project, document.Path, to))
+            // B106's disk-first order, shared with the project window through
+            // ProjectIo.RefileDocument — one implementation of what a drag does.
+            if (!ProjectIo.RefileDocument(project, document, destination))
             {
                 Status = $"Could not move “{document.Name}” on disk. It is still where it was.";
                 return false;
             }
-            // B114. There used to be a step here that took the document out of
-            // its character or scene first, "or it would be in two places". There
-            // is one place now, so filing it is the whole move.
-            if (!ProjectFolders.FileDocument(project.Manifest, document, destination)) return false;
             _dirty.Add(document.Id);
         }
         else
@@ -2322,8 +2320,9 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         // save does not rewrite it.
         _dirty.Remove(reference.Id);
         // A Save As writes the file itself, so ProjectIo.Save's first-write
-        // rule never sees this document — same rule applied at the other door.
-        reference.Status ??= AssetStatus.Draft;
+        // rule never sees this document — same rule applied at the other
+        // door, template exclusion included.
+        if (reference.IsTemplate != true) reference.Status ??= AssetStatus.Draft;
         Rebuild();
         Selected = Rows.FirstOrDefault(r => r.Animation?.Id == reference.Id) ?? Selected;
         _changed();
@@ -2640,92 +2639,35 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         return true;
     }
 
+    // The disk-first mechanics live in ProjectIo — shared with the project
+    // window — and only the wording of the refusals is this surface's.
+
     private bool RenameFolder(Project project, ProjectFolder folder, string name)
     {
-        var was = ProjectFolders.PathOf(project.Manifest, folder);
-        if (!ProjectFolders.Rename(project.Manifest, folder, name))
+        switch (ProjectIo.RenameFolder(project, folder, name))
         {
-            Status = $"There is already a folder called “{name}” here.";
-            return false;
+            case ProjectIo.RenameOutcome.NameTaken:
+                Status = $"There is already a folder called “{name}” here.";
+                return false;
+            case ProjectIo.RenameOutcome.DiskRefused:
+                Status = $"Could not rename the folder on disk. It is still “{folder.Name}”.";
+                return false;
+            default:
+                Status = $"Renamed to “{name}”.";
+                return true;
         }
-
-        var now = ProjectFolders.PathOf(project.Manifest, folder);
-        if (!ProjectIo.MoveInProject(project, was, now))
-        {
-            // Put the tree back. A manifest that says one thing while the disk
-            // says another is worse than a refused rename, because only one of
-            // those is visible.
-            ProjectFolders.Rename(project.Manifest, folder, Path.GetFileName(was));
-            Status = $"Could not rename the folder on disk. It is still “{folder.Name}”.";
-            return false;
-        }
-
-        // Everything filed below it moved with it, so their recorded paths have
-        // to follow — they are what the next save writes to.
-        foreach (var (inside, _) in DocumentsUnder(project.Manifest, folder))
-        {
-            inside.Path = ProjectFolders.PathFor(
-                project.Manifest, inside, ProjectFolders.ById(project.Manifest, inside.FolderId));
-        }
-        Status = $"Renamed to “{name}”.";
-        return true;
     }
 
     private bool RenameDocument(Project project, DocumentRef document, string name)
     {
-        var was = document.Path;
-        document.Name = name;
-        var now = document.FolderId is null && !IsUnfiled(was)
-            // A character's animation or a scene's shot keeps the shape of the
-            // path it already has; only the file's own name changes.
-            ? RenamedLeaf(was, name)
-            : ProjectFolders.PathFor(
-                project.Manifest, document, ProjectFolders.ById(project.Manifest, document.FolderId));
-
-        if (!ProjectIo.MoveInProject(project, was, now))
+        switch (ProjectIo.RenameDocument(project, document, name))
         {
-            document.Name = Path.GetFileNameWithoutExtension(was).Replace(".lightbox", "");
-            Status = $"Could not rename the file on disk. It is still “{document.Name}”.";
-            return false;
-        }
-        document.Path = now;
-        Status = $"Renamed to “{name}”.";
-        return true;
-    }
-
-    /// <summary>
-    /// Whether a path is in the directory that holds documents belonging to no
-    /// folder.
-    /// </summary>
-    /// <remarks>
-    /// <b>B105.</b> Both names, because the directory was renamed and a project
-    /// written before that keeps its recorded paths. One name here would have
-    /// made renaming a document in an old project take the character branch
-    /// below and derive a path from a shape it does not have.
-    /// </remarks>
-    private static bool IsUnfiled(string path) =>
-        path.StartsWith($"{ProjectIo.DocumentsDir}/", StringComparison.Ordinal)
-        || path.StartsWith($"{ProjectIo.LegacyDocumentsDir}/", StringComparison.Ordinal);
-
-    /// <summary>Swap the file's own name, keeping the folders above it.</summary>
-    private static string RenamedLeaf(string path, string name)
-    {
-        var cut = path.LastIndexOf('/');
-        var directory = cut < 0 ? "" : path[..(cut + 1)];
-        return $"{directory}{ProjectIo.Slug(name)}.lightbox.json";
-    }
-
-    private static IEnumerable<(DocumentRef Document, ProjectFolder Folder)> DocumentsUnder(
-        ProjectManifest manifest, ProjectFolder folder)
-    {
-        var (folders, documents) = ProjectFolders.Contents(manifest, folder);
-        var byId = folders.ToDictionary(f => f.Id);
-        foreach (var document in documents)
-        {
-            if (document.FolderId is { } id && byId.TryGetValue(id, out var owner))
-            {
-                yield return (document, owner);
-            }
+            case ProjectIo.RenameOutcome.DiskRefused:
+                Status = $"Could not rename the file on disk. It is still “{document.Name}”.";
+                return false;
+            default:
+                Status = $"Renamed to “{name}”.";
+                return true;
         }
     }
 

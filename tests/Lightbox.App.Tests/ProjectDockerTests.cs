@@ -1377,6 +1377,32 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         Assert.True(row.HasStatus);
     }
 
+    /// <summary>
+    /// A template's row wears its kind — the word and the glyph both from
+    /// AssetKinds, both from the manifest hint the save refreshed, so no
+    /// document is loaded to draw the tree.
+    /// </summary>
+    [AvaloniaFact]
+    public void ATemplateRowInTheDockerWearsItsDesignation()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        WithKnight(vm);
+        var docker = vm.ProjectDocker;
+        var project = docker.Project!;
+        var reference = project.Manifest.Documents.First();
+        Templates.SetTemplate(project.Loaded[reference.Id], true);
+        docker.MarkDirty(reference);
+
+        vm.SaveProject();
+        docker.Refresh();
+
+        var row = docker.Rows.Single(r => r.Animation?.Id == reference.Id);
+        Assert.Equal("Template", row.Designation);
+        Assert.True(row.HasDesignation);
+        Assert.Equal(AssetKinds.GlyphOf(TemplateScopes.Kind), row.Glyph);
+    }
+
     private static string MainWindowXaml()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

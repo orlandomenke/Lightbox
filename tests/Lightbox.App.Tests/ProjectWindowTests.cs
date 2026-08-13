@@ -850,6 +850,8 @@ public sealed class ProjectWindowTests(ITestOutputHelper output)
         var project = ProjectIo.Create("Production", root);
         var knight = ProjectFolders.Add(project.Manifest, "Knight");
         Add(project, "walk", knight);
+        var colourKey = Add(project, "colour key", knight);
+        Templates.SetTemplate(project.Loaded[colourKey.Id], true);
         project.Palettes.Add(new Palette { Name = "Knight warms" });
         var gradient = new Gradient { Name = "Dusk" };
         project.Gradients[gradient.Id] = gradient;
@@ -872,7 +874,7 @@ public sealed class ProjectWindowTests(ITestOutputHelper output)
 
             var kinds = vm.Library.Select(a => a.Designation).ToList();
             output.WriteLine(string.Join(", ", vm.Library.Select(a => $"{a.Glyph} {a.Designation} {a.Name}")));
-            Assert.Equal(["Reference", "Palette", "Gradient", "Brush tip", "Symbol"], kinds);
+            Assert.Equal(["Reference", "Palette", "Gradient", "Brush tip", "Symbol", "Template"], kinds);
             // The designation and the glyph are both automatic and both
             // per-kind unique — recognisable before the name is read.
             Assert.Equal(vm.Library.Count, vm.Library.Select(a => a.Glyph).Distinct().Count());
@@ -992,6 +994,306 @@ public sealed class ProjectWindowTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void DroppingATemplateSetsTheScopesOneDefault()
+    {
+        // A template drags like any other asset and lands differently: a scope
+        // starts new documents from one template, so a drop replaces rather
+        // than accumulates — SetDefault's rule, now reachable by gesture.
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, knight, _) = OpenWithAssets(root);
+            var second = Add(project, "model sheet base", knight);
+            Templates.SetTemplate(project.Loaded[second.Id], true);
+            ProjectIo.Save(project);
+            vm.Rebuild();
+            var templates = vm.Library.Where(a => a.Designation == "Template").ToList();
+            Assert.Equal(2, templates.Count);
+            var scope = vm.Assets.Single(s => s.Folder?.Id == knight.Id);
+
+            vm.DropOnScope(templates[0], scope);
+            vm.DropOnScope(templates[1], vm.Assets.Single(s => s.Folder?.Id == knight.Id));
+
+            // One default, the second — and the replacement was said out loud.
+            var declared = Assert.Single(
+                knight.Resources ?? [], r => r.Kind == TemplateScopes.Kind);
+            Assert.Equal(templates[1].Id, declared.Id);
+            output.WriteLine(vm.Status);
+            Assert.Contains("start from", vm.Status);
+            Assert.Contains("replaces", vm.Status);
+            Assert.Equal(templates[1].Id, TemplateScopes.DefaultFor(
+                project.Manifest, knight));
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void ATemplateDroppedOnADocumentIsRefusedWithAReason()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, _, _) = OpenWithAssets(root);
+            var template = vm.Library.First(a => a.Designation == "Template");
+            var walk = project.Manifest.Documents.Single(d => d.Name == "walk");
+            var scope = vm.Assets.Single(s => s.Document?.Id == walk.Id);
+
+            vm.DropOnScope(template, scope);
+
+            Assert.Null(walk.Resources);
+            Assert.Contains("folder or on the project", vm.Status);
+            // And the share picker never offers it there either — an entry
+            // TemplateScopes cannot resolve would be a dead declaration.
+            vm.SelectedScope = scope;
+            Assert.DoesNotContain(vm.OfferChoices, o => o.Kind == TemplateScopes.Kind);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void ATemplateRowWearsItsDesignation()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, _, _) = OpenWithAssets(root);
+            var reference = project.Manifest.Documents.Single(d => d.IsTemplate == true);
+
+            var row = vm.Rows.Single(r => r.Document?.Id == reference.Id);
+            Assert.Equal("Template", row.Designation);
+            Assert.Equal(AssetKinds.GlyphOf(TemplateScopes.Kind), row.Glyph);
+            // An ordinary drawing still wears nothing.
+            var walk = vm.Rows.Single(r => r.Document?.Name == "walk");
+            Assert.False(walk.HasDesignation);
+            Assert.Equal("▣", walk.Glyph);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    // ---- rearranging the hierarchy by drag -----------------------------------------
+
+    [Fact]
+    public void DraggingAFolderToTheProjectRootReparentsIt()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, knight, _) = OpenOnDisk(root);
+            var poses = ProjectFolders.Add(project.Manifest, "Poses", knight);
+            vm.Rebuild();
+            var row = vm.Rows.Single(r => r.IsFolder && ReferenceEquals(r.Folder, poses));
+
+            Assert.True(vm.MoveTo(row, destination: null));
+
+            Assert.Null(poses.ParentId);
+            Assert.Contains("to the project", vm.Status);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void DroppingOnTheLinePlacesItBeforeTheTarget()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, knight, _) = OpenWithAssets(root);
+            // Alphabetical until arranged: colour key, then walk.
+            Assert.Equal(
+                ["colour key", "walk"],
+                ProjectFolders.InOrder(project.Manifest, knight).Select(d => d.Name));
+            var walk = vm.Rows.Single(r => r.Document?.Name == "walk");
+            var colourKey = vm.Rows.Single(r => r.Document?.Name == "colour key");
+
+            Assert.True(vm.MoveBefore(walk, colourKey));
+
+            // The drop materialised the order the line promised.
+            Assert.Equal(
+                ["walk", "colour key"],
+                ProjectFolders.InOrder(project.Manifest, knight).Select(d => d.Name));
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void MovingADocumentBetweenFoldersMovesItsFileToo()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, _, _) = OpenWithAssets(root);
+            var goblin = ProjectFolders.Add(project.Manifest, "Goblin");
+            ProjectIo.Save(project);
+            vm.Rebuild();
+            var walk = vm.Rows.Single(r => r.Document?.Name == "walk");
+
+            Assert.True(vm.MoveTo(walk, goblin));
+
+            Assert.Equal(goblin.Id, walk.Document!.FolderId);
+            Assert.False(File.Exists(Path.Combine(root, "knight", "walk.lightbox.json")));
+            Assert.True(File.Exists(Path.Combine(root, "goblin", "walk.lightbox.json")));
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void TheAssetsTabMovesTheSameHierarchy()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, knight, _) = OpenWithAssets(root);
+            var poses = ProjectFolders.Add(project.Manifest, "Poses", knight);
+            vm.Rebuild();
+            var scope = vm.Assets.Single(s => s.Folder?.Id == poses.Id);
+
+            // Onto the project row: out of every folder.
+            Assert.True(vm.MoveTo(scope, destination: null));
+
+            Assert.Null(poses.ParentId);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    // ---- renaming in place ---------------------------------------------------------
+
+    [Fact]
+    public void RenamingARowRenamesTheFileToo()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, _, _) = OpenWithAssets(root);
+            var walk = vm.Rows.Single(r => r.Document?.Name == "walk");
+
+            Assert.True(vm.Rename(walk, "stride"));
+
+            Assert.Contains(project.Manifest.Documents, d => d.Name == "stride");
+            Assert.False(File.Exists(Path.Combine(root, "knight", "walk.lightbox.json")));
+            Assert.True(File.Exists(Path.Combine(root, "knight", "stride.lightbox.json")));
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void AnEmptyOrUnchangedRenameChangesNothing()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, _, _) = OpenWithAssets(root);
+            var walk = vm.Rows.Single(r => r.Document?.Name == "walk");
+            walk.IsRenaming = true;
+
+            Assert.False(vm.Rename(walk, "   "));
+            Assert.Contains(project.Manifest.Documents, d => d.Name == "walk");
+
+            var again = vm.Rows.Single(r => r.Document?.Name == "walk");
+            Assert.True(vm.Rename(again, "walk"));   // not a change, not a failure
+            Assert.False(again.IsRenaming);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    // ---- creating assets from the Assets tab ---------------------------------------
+
+    [Fact]
+    public async Task TheAssetsTabCreatesAssetsWhereTheSelectionIs()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, knight, _) = OpenOnDisk(root);
+            vm.AskName = (kind, suggested) => Task.FromResult<string?>($"Made {kind}");
+            vm.SelectedScope = vm.Assets.Single(s => s.Folder?.Id == knight.Id);
+
+            await vm.CreateSheetAsync();
+            var sheet = Assert.Single(project.Manifest.Sheets!);
+            Assert.Equal(knight.Id, sheet.FolderId);
+            Assert.Equal("Made reference sheet", sheet.Name);
+
+            vm.SelectedScope = vm.Assets.Single(s => s.Folder?.Id == knight.Id);
+            await vm.CreatePaletteAsync();
+            var palette = Assert.Single(project.Palettes);
+            // Made on a folder row, so it is shared there at once — that is
+            // what making it *there* means — and the window says what it feeds.
+            Assert.Contains(knight.Resources!, r => r.Kind == PaletteScopes.Kind && r.Id == palette.Id);
+            output.WriteLine(vm.Status);
+            Assert.Contains("feeds every document under it", vm.Status);
+
+            vm.SelectedScope = vm.Assets.Single(s => s.Folder?.Id == knight.Id);
+            await vm.CreateGradientAsync();
+            Assert.Single(project.Gradients);
+
+            vm.SelectedScope = vm.Assets.Single(s => s.Folder?.Id == knight.Id);
+            await vm.CreateTemplateAsync();
+            var template = project.Manifest.Documents.Single(d => d.Name == "Made template");
+            Assert.True(template.IsTemplate);
+            Assert.Equal(knight.Id, template.FolderId);
+            // A template is machinery, not a deliverable: the first-save Draft
+            // rule skips it, the way sheets never take a status at all.
+            Assert.Null(template.Status);
+            Assert.True(File.Exists(Path.Combine(root, "knight", "made-template.lightbox.json")));
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public async Task CancellingAnAssetPromptCreatesNothing()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, _, _) = OpenOnDisk(root);
+            vm.AskName = (_, _) => Task.FromResult<string?>(null);
+
+            await vm.CreateSheetAsync();
+            await vm.CreatePaletteAsync();
+            await vm.CreateGradientAsync();
+            await vm.CreateTemplateAsync();
+
+            Assert.Null(project.Manifest.Sheets);
+            Assert.Empty(project.Palettes);
+            Assert.Empty(project.Gradients);
+            Assert.DoesNotContain(project.Manifest.Documents, d => d.IsTemplate == true);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
     public void ASheetRowWearsItsDesignation()
     {
         var root = TempRoot();
@@ -1003,8 +1305,11 @@ public sealed class ProjectWindowTests(ITestOutputHelper output)
             Assert.Equal("Reference", row.Designation);
             Assert.True(row.HasDesignation);
             Assert.Equal(AssetKinds.GlyphOf(ReferenceScopes.Kind), row.Glyph);
-            // Folders and drawings wear nothing — the word is for assets.
-            Assert.All(vm.Rows.Where(r => r.Sheet is null), r => Assert.False(r.HasDesignation));
+            // Folders and ordinary drawings wear nothing — the word is for
+            // assets, which in this fixture are the sheet and the template.
+            Assert.All(
+                vm.Rows.Where(r => r.Sheet is null && r.Document?.IsTemplate != true),
+                r => Assert.False(r.HasDesignation));
         }
         finally
         {

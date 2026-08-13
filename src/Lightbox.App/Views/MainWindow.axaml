@@ -2711,6 +2711,9 @@
                                makes the row scannable without reading. -->
                           <TextBlock Text="{Binding Name}" IsVisible="{Binding !IsRenaming}"
                                      Classes.offDisk="{Binding !IsOnDisk}"
+                                     Background="Transparent"
+                                     DoubleTapped="OnProjectNameDoubleTapped"
+                                     ToolTip.Tip="Double-click to rename"
                                      VerticalAlignment="Center" FontSize="11" />
                           <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                    IsVisible="{Binding IsRenaming}" VerticalAlignment="Center"
