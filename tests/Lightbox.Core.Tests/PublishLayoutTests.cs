@@ -165,6 +165,26 @@ public class PublishLayoutTests(ITestOutputHelper output)
         Assert.Contains("-o publish/win-x64/mcp", WorkflowDirectives());
     }
 
+    /// <summary>
+    /// The build helper prints a ready-to-paste Claude Desktop command, so it
+    /// carries a third copy of the path above.
+    /// </summary>
+    /// <remarks>
+    /// It is asserted for the same reason the README is, only more so: the
+    /// script's whole purpose is a fixed path that stays true across builds, so
+    /// a stale one there is copied into a config once and then trusted forever.
+    /// The server folder has moved twice already (B32, B116).
+    /// </remarks>
+    [Fact]
+    public void TheBuildHelperPrintsThePathTheServerActuallyShipsAt()
+    {
+        var script = Read("scripts", "get-build.ps1");
+        Assert.Contains(@"mcp\Lightbox.Mcp.exe", script);
+        output.WriteLine(@"get-build.ps1 prints mcp\Lightbox.Mcp.exe");
+
+        Assert.Contains("-o publish/win-x64/mcp", WorkflowDirectives());
+    }
+
     [Fact]
     public void TheManualTestingChecklistNamesTheFolderTheServerIsIn()
     {
