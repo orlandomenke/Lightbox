@@ -6828,13 +6828,11 @@ public sealed partial class MainViewModel : ObservableObject
         // to. The anchor is where that direction is measured from, so it is
         // the unsnapped start — snapping the anchor first would measure the
         // heading from a point the hand never visited.
-        _lockedGuide = null;
-        _lockDecided = false;
-        _strokeAnchor = (x, y);
+        _guideSnap.Begin(x, y);
         if (SnapToGuides && Scene.Guides is { Count: > 0 } startGuides)
         {
             (x, y) = Snapper.Point(startGuides, x, y, SnapTolerance);
-            _strokeAnchor = (x, y);
+            _guideSnap.Anchor(x, y);
         }
         // Shift+click: begin at the end of the last stroke and run straight to
         // the click. The segment is stamped now rather than on release, so the
@@ -6860,8 +6858,8 @@ public sealed partial class MainViewModel : ObservableObject
             // Straight to the click, past the stabiliser: a segment the artist
             // asked to be straight must not be rounded off by smoothing.
             _strokeBuilder.Add(x, y, pressure);
-            _strokeAnchor = (startX, startY);
-            _lockDecided = true;   // it has a direction already; no guide may re-aim it
+            // It has a direction already; no guide may re-aim it.
+            _guideSnap.HoldDirection(startX, startY);
         }
         // Live preview clips to the selection too (the registry already knows
         // the region; the document copy is added at commit).
@@ -10466,8 +10464,6 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Onion skin as the artist has set it up. Global, not per document.</summary>
     public Services.OnionSettings Onion => Settings.Onion;
 
-    // ---- imported references ------------------------------------------------------
-
     // ---- guides -----------------------------------------------------------------
 
     /// <summary>The guides on this document, or an empty list.</summary>
@@ -10560,48 +10556,17 @@ public sealed partial class MainViewModel : ObservableObject
         NotifyGuides();
     }
 
-    /// <summary>The guide the stroke in progress has locked to, if any.</summary>
-    private Guide? _lockedGuide;
-
-    private (double X, double Y) _strokeAnchor;
-
-    private bool _lockDecided;
-
     /// <summary>
-    /// Put a raw point where the guides say it belongs.
+    /// Whether the stroke in progress has committed to a guide, and which one — the
+    /// "decide once, then hold" state machine, extracted to GuideSnap (Q75).
     /// </summary>
-    /// <remarks>
-    /// After stabilisation, not before. Snapping first and smoothing after
-    /// would drag the point back off the guide, which is the wrong way round —
-    /// the wobble is what you want removed, the guide is what you want obeyed.
-    /// </remarks>
-    private (double X, double Y) Guided(double x, double y)
-    {
-        if (!SnapToGuides || Scene.Guides is not { Count: > 0 } guides) return (x, y);
+    private readonly GuideSnap _guideSnap = new();
 
-        // Locked already: hold the line, and stop reconsidering. A wobbly hand
-        // that re-chooses mid-stroke makes the line kink.
-        if (_lockedGuide is { } locked)
-        {
-            return Snapper.Along(locked, _strokeAnchor.X, _strokeAnchor.Y, x, y);
-        }
-        if (!_lockDecided)
-        {
-            if (Snapper.Lock(guides, _strokeAnchor.X, _strokeAnchor.Y, x, y) is { } found)
-            {
-                _lockedGuide = found;
-                _lockDecided = true;
-                return Snapper.Along(found, _strokeAnchor.X, _strokeAnchor.Y, x, y);
-            }
-            // Far enough to have meant something, and it matched nothing:
-            // this is a freehand stroke and asking again every event would
-            // only let a late wobble grab it.
-            var dx = x - _strokeAnchor.X;
-            var dy = y - _strokeAnchor.Y;
-            if (Math.Sqrt(dx * dx + dy * dy) >= Snapper.LockDistance) _lockDecided = true;
-        }
-        return Snapper.Point(guides, x, y, SnapTolerance);
-    }
+    /// <summary>Put a raw point where the guides say it belongs.</summary>
+    private (double X, double Y) Guided(double x, double y) =>
+        !SnapToGuides || Scene.Guides is not { Count: > 0 } guides
+            ? (x, y)
+            : _guideSnap.Apply(guides, x, y, SnapTolerance);
 
     /// <summary>Add a guide. The first one brings the machinery into being.</summary>
     public Guide AddGuide(GuideKind kind, double x, double y, double angle = 0, double spacing = 32)
@@ -10689,6 +10654,15 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>The guides changed; the canvas redraws its chrome from this.</summary>
     public event Action? GuidesChanged;
+
+    // ---- imported references ------------------------------------------------------
+    //
+    // This marker sat 190 lines above, with nothing under it, while everything it
+    // names lived inside the "guides" section. That is why guides measured 533 lines
+    // and read as one feature when it has always been two: guides and snapping above,
+    // reference strips, sheets and video below. Moving the marker is the whole of the
+    // fix — no code moved with it — and "editing the grid by hand" further down is
+    // the third part of the same feature.
 
     /// <summary>The references on this document, or an empty list.</summary>
     public IReadOnlyList<ReferenceStrip> References =>

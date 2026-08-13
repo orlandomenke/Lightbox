@@ -2894,3 +2894,48 @@ method. `PublishStateTests` sabotages it both ways, and also pins the one-line
 difference between `InvalidateWholeCanvas` and `RepaintEverythingThisPublish` — the
 fold transition needs the flag without losing the fingerprint, which is "equivalent
 today" only because no early return sits between the two points in `PublishSnapshot`.
+
+## Q75 · The leaf plan tops out near 9,700 lines — extract, partial-split, or accept? — **answered 2026-08-13: finish the Tier 1 leaves, against the recommendation**
+
+**Asked after five steps of decomposition moved `MainViewModel.cs` from 13,110 to
+12,878 — 1.8% — and the owner asked whether the file staying humongous is a
+problem.** It is, and the measurement is what makes it a real question rather than
+a mood:
+
+- The file is **7,492 code lines**, 4,140 comment, 1,247 blank. At 32% comment it is
+  *below* the repository's 40% average, so "it is heavily documented" is not
+  available as an explanation.
+- **Every Tier 1 leaf extracted would leave 9,676 lines.** All ten, each its own
+  branch with tests and a `leak-hunter` pass.
+- The reason is structural: it is not one monolith but **61 sections sharing a
+  scope**. The largest is 764 lines and there is a tail of 43 sections totalling
+  4,743. Leaves come out at 150–590 lines each, which cannot outrun the total.
+
+**The recommendation was to partial-split the view model now**, applying the half of
+Q73 that has only ever been used on the view: measured, **52 of the 61 sections
+(9,089 lines) move with no grouping at all**, 36 fields stay in the root, and 9
+sections need a sibling. That is the same shape as `MainWindow.axaml.cs`, which went
+5,544 → 429 in one branch with the class body proven byte-identical. Tier 0 is what
+made it cheap — the 22 `_live*` fields and 7 publish fields are now behind two root
+references instead of spread across those sections.
+
+**The owner chose to finish the Tier 1 leaves first instead.** What that buys:
+genuine decoupling rather than file boundaries, each leaf landing as a real
+collaborator with its own guard, in the manner of `SelectionManager`,
+`LivePaintSession` and `PublishState`. Splitting a section into a partial moves it
+without giving it an owner; extracting it gives it one, and the three Tier 0
+extractions are the evidence that the owner is where the value is.
+
+**What that choice costs**, recorded because it should not have to be rediscovered:
+
+- **Ten more branches, and the file is still ~9,700 lines at the end of them.** The
+  answer to "is it small enough now" will be no.
+- **Every one of those ten is authored inside a 12,000-line file**, which is the
+  condition the split would have removed first. The partial split would have made
+  each subsequent leaf a change to an 800-line file instead.
+- **The order is not reversible for free.** Extracting a leaf and then partialling
+  what remains is fine; partialling first would have made each extraction smaller to
+  review. Doing it second means the ten reviews are the expensive kind.
+
+The partial split is not refused, only deferred — it remains the move that answers
+the size question, and this entry is what stops it being re-litigated from scratch.

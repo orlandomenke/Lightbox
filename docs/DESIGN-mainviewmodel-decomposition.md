@@ -339,6 +339,32 @@ approach rather than the leaf. **2 is the largest win per unit of risk.** **7
 must go through the pair** — charter gate G12 requires `ai-engineer` and
 `art-director` on any diff touching an AI path in the view model, refactor or not.
 
+
+### What a leaf actually yields, measured after the first one
+
+**The line counts in this table are what a section *contains*, not what can leave
+it**, and the difference is large enough to change the plan. Across the ten leaves'
+3,203 lines there are **24 `[ObservableProperty]`, 30 `[RelayCommand]` and 119 public
+members**. The generated commands and observable properties must stay on the object
+the XAML binds to — `SnapToGuides`, `SnapTolerance` and `GridSpacing` are bound by
+name in two windows — and the public members either stay or become delegating
+one-liners, which *adds* lines here while moving a body out. **Only 55 private fields
+can genuinely move.**
+
+So the earlier estimate that all ten leaves would take the file to ~9,676 was
+optimistic; the realistic floor is nearer 11,000–11,500. Leaves still buy what Q75
+chose them for — 55 fields getting an owner, and mechanisms like "decide once, then
+hold" becoming testable on their own — but they do not answer the size question. The
+partial split (Q75) is what answers that, and it remains deferred rather than refused.
+
+**Guides is also two features, which is why it measured 533 lines.** A
+`// ---- imported references ----` marker sat 190 lines above its own content with
+nothing under it, while reference strips, sheets and video lived inside `guides`.
+Moving that one marker — no code with it — split the section into `guides` (190 ln)
+and `imported references` (320 ln), with `editing the grid by hand` (338 ln) as the
+third part of the same feature. That is the third lying marker this refactor has
+found, after `the shape tool` and `video clip bars`. **Run `monolith.py wide` before
+trusting any remaining row of this table.**
 ## Tier 2 — clusters, extracted whole or not at all
 
 Genuinely shared state. These are the collaborator cases.
@@ -406,9 +432,8 @@ touches the paint path.
 5. ~~**Extract the render orchestrator**~~ **Done, and not as an orchestrator** —
    `PublishState` took the seven bookkeeping fields; the sequencing stayed put, for
    the reasons above. `MainViewModel.cs` 12,919 → 12,878, fields 122 → 118.
-6. **Tier 1 leaves**, one per branch, guides and frame markers first — the shape
-   tool is now one of them. **Next**, and the first work here that is ordinary: Tier
-   0 is finished, so each leaf is now a self-contained branch with a small surface.
+6. **Tier 1 leaves**, one per branch (Q75). **In progress** — `GuideSnap` landed
+   first. **Read the correction under the table before planning the rest.**
 7. **Tier 2 clusters** as collaborators; Tier 3 is now unblocked — its sections have
    a named hub to take as a parameter.
 
