@@ -40,7 +40,11 @@ not reset them.
 **View → Reference** opens a panel for importing an image of an animation — a
 sprite sheet, a strip of frames, a contact sheet, a run cycle you photographed
 off paper — and laying it against the timeline. The **＋** in the panel's header
-picks the file.
+picks the file — or skip the panel entirely and **drop the file anywhere on
+the window**: any image dragged in from outside becomes a reference, the panel
+opens to show it, and a dropped video goes through the same import questions
+the ＋ asks. What Lightbox keeps is the image, not the path, so a reference
+never breaks because the file moved.
 
 Lightbox finds the frames in it by reading the gaps between the drawings, and
 puts the first on the frame you are on, the second on the next, and so on. The

@@ -9579,6 +9579,64 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ClearActiveLayer() => ClearLayerContent(ActiveLayer);
 
+    /// <summary>Merge the active layer into the one below it (Ctrl+E).</summary>
+    [RelayCommand]
+    private void MergeActiveLayerDown() => MergeLayerDown(ActiveLayer);
+
+    /// <summary>
+    /// The layer a merge-down would land on, or null when nothing is below.
+    /// A null <paramref name="layer"/> means the active one, here and on the
+    /// two methods below, so the shortcut can ask without the window holding
+    /// a layer reference.
+    /// </summary>
+    public Layer? MergeTargetOf(Layer? layer)
+    {
+        layer ??= ActiveLayer;
+        var index = Scene.Layers.FindIndex(l => l.Id == layer.Id);
+        return index > 0 ? Scene.Layers[index - 1] : null;
+    }
+
+    /// <summary>
+    /// Would merging this layer down turn any drawing into pixels? Feeds the
+    /// Q52 warning, which the window shows before calling
+    /// <see cref="MergeLayerDown"/> — and only when AI is enabled, because
+    /// "the inbetweener cannot read pixels" is noise to an artist without one.
+    /// </summary>
+    public bool MergeWouldBake(Layer? layer)
+    {
+        layer ??= ActiveLayer;
+        return MergeTargetOf(layer) is { } below
+            && Lightbox.Raster.LayerMerge.WouldBakePixels(layer, below);
+    }
+
+    /// <summary>
+    /// Merge a layer into the one below it, drawing by drawing along the
+    /// exposure sheet. One undo step; the merged layer keeps the lower
+    /// layer's name, opacity, blend mode and folder.
+    /// </summary>
+    public void MergeLayerDown(Layer? layer)
+    {
+        layer ??= ActiveLayer;
+        if (MergeTargetOf(layer) is not { } below)
+        {
+            AiStatus = $"Nothing below “{layer.Name}” to merge into.";
+            return;
+        }
+        if (!CanEdit(layer, "merge it down") || !CanEdit(below, "merge into it")) return;
+        var targetIndex = Scene.Layers.FindIndex(l => l.Id == below.Id);
+        _editor.Perform(doc =>
+        {
+            var scene = doc.Scene;
+            var upperIndex = scene.Layers.FindIndex(l => l.Id == layer.Id);
+            if (upperIndex <= 0) return;
+            Lightbox.Raster.LayerMerge.MergeDown(
+                scene, scene.Layers[upperIndex], scene.Layers[upperIndex - 1]);
+            scene.Layers.RemoveAt(upperIndex);
+        });
+        ActiveLayerIndex = targetIndex;
+        AiStatus = $"Merged “{layer.Name}” into “{below.Name}”.";
+    }
+
     /// <summary>
     /// Set a project document's status, and export it if that is what the artist asked
     /// the app to do on that status.
@@ -11094,6 +11152,29 @@ public sealed partial class MainViewModel : ObservableObject
     /// and being handed a twelve-frame reference on a one-frame document with
     /// eleven of it invisible is not a state anybody asked for.
     /// </param>
+    /// <summary>
+    /// Import an image file as a reference. Everything becomes PNG on the way
+    /// in: the document carries the image itself rather than a path — a
+    /// reference that broke when the file moved would break silently, and you
+    /// would not notice until you were drawing against nothing. False when
+    /// the file cannot be read as an image.
+    /// </summary>
+    public bool ImportReferenceImageFile(string path)
+    {
+        string png;
+        try
+        {
+            using var decoded = SKBitmap.Decode(path);
+            if (decoded is null) return false;
+            png = Lightbox.Raster.PngCodec.Encode(decoded);
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+        return ImportReference(System.IO.Path.GetFileNameWithoutExtension(path), png) is not null;
+    }
+
     public ReferenceStrip? ImportReference(
         string name, string pngBase64, SliceOptions options = default, bool addFrames = true)
     {
