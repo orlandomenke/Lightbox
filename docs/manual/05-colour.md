@@ -1,7 +1,8 @@
 # Colour
 
-The **Color** panel offers a hue wheel with the value slider beside it, and
-HSV, HSL, RGB and CMYK slider sets.
+The **Color** panel offers a hue ring with the saturation/value square
+inside it — hue around the ring, light and strength in the square, no
+separate slider to reach for — and HSV, HSL, RGB and CMYK slider sets.
 
 The swatch at the bottom does two things, told apart by whether you move:
 
@@ -26,8 +27,8 @@ leaves your strokes still following that swatch.
 
 Either half does two things:
 
-- **Click** it to open its own picker — the same wheel, value slider, readouts
-  and palette the Color panel shows, editing that half of the pair.
+- **Click** it to open its own picker — the same ring-and-square wheel,
+  readouts and palette the Color panel shows, editing that half of the pair.
 - **Drag** it onto the canvas to fill with that colour.
 
 The **▾** beside the pair opens the foreground picker directly. It is there
@@ -38,7 +39,7 @@ that moves on the way down should get a fill rather than a panel.
 
 Every other place a colour is set — a palette swatch, a gradient stop, the
 brush's secondary colour — is a **swatch you click**, and it opens the same
-wheel, the same value slider and the same readouts.
+ring-and-square wheel and the same readouts.
 
 Hex is at the bottom of that flyout, under the wheel, in the same order the
 Color panel uses. It is a readout you can also type into, which is the right

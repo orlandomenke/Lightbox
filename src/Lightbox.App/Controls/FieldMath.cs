@@ -57,7 +57,39 @@ public static class FieldMath
     static FieldMath()
     {
         EnabledProperty.Changed.AddClassHandler<NumericUpDown>((host, e) =>
-            host.TextConverter = e.NewValue is true ? new Converter(host) : null);
+        {
+            if (e.NewValue is true)
+            {
+                host.TextConverter = new Converter(host);
+                host.PropertyChanged += RestoreOnNull;
+            }
+            else
+            {
+                host.TextConverter = null;
+                host.PropertyChanged -= RestoreOnNull;
+            }
+        });
+    }
+
+    /// <summary>
+    /// An emptied field keeps its value instead of going invalid.
+    /// </summary>
+    /// <remarks>
+    /// The converter below already answers "no change" for text it cannot
+    /// read — but the control never consults it for <em>empty</em> text: the
+    /// commit short-circuits to a null value before the converter runs. That
+    /// null then reaches the two-way binding, fails to become a double, and
+    /// leaves the field wearing a validation error
+    /// ("System.InvalidOperationException…") that blocks typing until a drag
+    /// moves the value. The regression test drives the real commit path for
+    /// exactly this reason: the converter-only version of this fix passed its
+    /// unit test and missed the app.
+    /// </remarks>
+    private static void RestoreOnNull(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property != NumericUpDown.ValueProperty || sender is not NumericUpDown host) return;
+        if (e.NewValue is not null || e.OldValue is not decimal previous) return;
+        host.SetCurrentValue(NumericUpDown.ValueProperty, previous);
     }
 
     /// <summary>

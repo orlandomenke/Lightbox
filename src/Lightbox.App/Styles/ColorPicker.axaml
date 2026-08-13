@@ -7,9 +7,11 @@
     The colour picker's body, defined once.
 
     The Color panel and every flyout field show the same thing in the same
-    order — wheel with the value slider beside it, then the readouts, then hex
-    last. Two layouts that were merely similar would have to be learned twice,
-    and would drift the first time one of them was touched.
+    order — the hue ring with the SV square inside it, then the readouts, then
+    hex last. Two layouts that were merely similar would have to be learned
+    twice, and would drift the first time one of them was touched — which is
+    exactly what happened when the panel's wheel was redesigned and this body
+    was not, so a guard now holds the two to the same control.
 
     Hex sits at the bottom on purpose. Typing #c04a2f is transcribing a colour
     you already found, not choosing one; it is a readout, and it is ranked
@@ -45,18 +47,22 @@
     <DataTemplate x:Key="ColorPickerBody" DataType="vm:ColorPickerViewModel">
       <StackPanel Width="248" Spacing="8">
 
-        <!-- Wheel and value slider, side by side. The slider used to sit under
-             the wheel, where a wheel tall enough to be usable pushed it out of
-             view — the one control you reach for on every stroke. -->
-        <Grid ColumnDefinitions="*,Auto">
-          <ColorSpectrum Grid.Column="0" Shape="Ring" Components="HueSaturation"
-                         Height="180"
+        <!-- The same wheel the Color panel draws: a hue RING with the SV
+             square inside it, one unit, no separate value slider — the square
+             carries saturation and value. This template's whole reason to
+             exist is that the panel and every flyout show the same picker;
+             when the panel's wheel was redesigned to the reference this body
+             kept the old disc, and the New file dialog was the first place
+             somebody noticed the two had drifted. Sizes mirror the panel's
+             (220 ring, 130 square, 16 ring width) so the two read as one
+             instrument at two magnifications. -->
+        <Panel Width="220" Height="220" HorizontalAlignment="Center">
+          <controls:HueRing HsvColor="{Binding WheelHsv, Mode=TwoWay}" RingWidth="16" />
+          <ColorSpectrum Width="130" Height="130"
+                         HorizontalAlignment="Center" VerticalAlignment="Center"
+                         Shape="Box" Components="SaturationValue"
                          HsvColor="{Binding WheelHsv, Mode=TwoWay}" />
-          <ColorSlider Grid.Column="1" Orientation="Vertical" Width="22" Margin="8,0,0,0"
-                       ColorModel="Hsva" ColorComponent="Component3"
-                       HsvColor="{Binding WheelHsv, Mode=TwoWay}"
-                       ToolTip.Tip="Value (brightness)" />
-        </Grid>
+        </Panel>
 
         <!-- The numbers behind the colour, for reading off and for typing in. -->
         <UniformGrid Columns="3" Rows="2">
