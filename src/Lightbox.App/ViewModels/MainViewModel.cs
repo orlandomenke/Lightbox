@@ -7657,7 +7657,7 @@ public sealed partial class MainViewModel : ObservableObject
             // finish starved by continuous pointer input would hold the
             // single-flight flag and stop the next pass from ever starting.
             Avalonia.Threading.Dispatcher.UIThread.Post(
-                () => FinishLivePostProcess(processed, rect, count, generation, costMs),
+                () => FinishLivePostProcess(processed, rect, count, generation, costMs, info),
                 Avalonia.Threading.DispatcherPriority.Input);
         }
     }
@@ -7667,12 +7667,22 @@ public sealed partial class MainViewModel : ObservableObject
     /// stroke it belongs to is already over.
     /// </summary>
     private void FinishLivePostProcess(
-        SKImage? processed, SKRectI rect, int count, int generation, double costMs)
+        SKImage? processed, SKRectI rect, int count, int generation, double costMs,
+        SKImageInfo computedAgainst)
     {
         _livePostQueued = false;
         using var image = processed;
         if (image is null) return;
         if (generation != _livePostGeneration || !_strokeBuilder.IsActive) return;
+        // The document changed size while the worker ran — a mid-stroke canvas
+        // resize does not go through ClearLiveEffectState, so the generation
+        // stamp cannot see it (found by the adversarial pass, reproduced with
+        // image.resizeCanvas fired mid-stroke). The result was computed from
+        // copies of the old-sized canvas and its rect describes a position in
+        // it; pasting that into the new one puts the preview at the wrong
+        // place. Checked against the size the copies were TAKEN at, so it
+        // catches every size-changing mutation whatever path it took.
+        if (Scene.Width != computedAgainst.Width || Scene.Height != computedAgainst.Height) return;
 
         var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         if (_livePostScratch is null || _livePostScratch.Width != info.Width || _livePostScratch.Height != info.Height)

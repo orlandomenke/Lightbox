@@ -30,6 +30,11 @@ public class LiveMediumPixelTests : BrushStateIsolated
     private static MainViewModel Vm()
     {
         var vm = new MainViewModel(null);
+        // Synchronous, so a pumped dispatcher is enough for the pass to have
+        // landed: these tests pin the PIXELS of the pass, and the worker
+        // choreography that B189 moved it onto has its own suite
+        // (LivePostAsyncTests).
+        vm.LivePostRunner = work => { work(); return Task.CompletedTask; };
         vm.NewDocument(new NewDocumentSettings("Wet", W, H, 12, 72, "#ffffff", false));
         vm.SmoothStrokes = false;
         vm.ColorHex = "#2050b0";

@@ -147,6 +147,38 @@ public class LivePostAsyncTests(ITestOutputHelper output) : BrushStateIsolated
     }
 
     /// <summary>
+    /// A result computed against a canvas the document no longer has is
+    /// dropped. The generation stamp cannot see a mid-stroke canvas resize —
+    /// <c>ApplyResize</c> never goes through <c>ClearLiveEffectState</c> — so
+    /// without the size check the pass pasted old-canvas pixels at old-canvas
+    /// coordinates into the resized preview (found and reproduced by the
+    /// adversarial pass, via image.resizeCanvas fired mid-stroke).
+    /// </summary>
+    [AvaloniaFact]
+    public void AResultComputedAgainstAResizedCanvasIsDiscarded()
+    {
+        var (vm, work) = Wet();
+        Stroke(vm);
+        var pass = work.Dequeue();
+
+        var resize = new ResizeDialogViewModel(vm.Doc.Scene, ResizeMode.Canvas)
+        {
+            Width = vm.Doc.Scene.Width + 200,
+            Height = vm.Doc.Scene.Height + 200,
+        };
+        Assert.True(vm.ApplyResize(resize), "the resize was refused, so this tests nothing");
+
+        pass();                         // the pre-resize worker finishes late
+        Dispatcher.UIThread.RunJobs();
+
+        output.WriteLine($"passes accepted after a mid-stroke resize: {vm.LivePostPasses}");
+        Assert.Equal(0, vm.LivePostPasses);
+
+        vm.EndStroke();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>
     /// A runner that cannot even schedule must not wedge the single-flight
     /// flag. The adversarial pass proved the first draft did exactly that: a
     /// synchronous throw skipped every path that clears the flag, and no wet
