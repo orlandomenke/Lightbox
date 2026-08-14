@@ -358,6 +358,40 @@
           <TextBlock x:Name="AiTestExplain" TextWrapping="Wrap" FontSize="11" Opacity="0.6" />
         </StackPanel>
 
+        <StackPanel Spacing="6">
+          <TextBlock Text="Grade this model" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="A connection test says the model answers. This says what it can do: a committed set of keyframe pairs, scored by the same checks that judge its real work, reported as numbers rather than a pass mark. The one worth reading is where it stops coping with stroke count." />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <ComboBox x:Name="AiRunSizeBox" Width="150" SelectionChanged="OnAiRunSizeChanged" />
+            <Button x:Name="AiProfileButton" Content="Grade this model" Click="OnAiProfileClicked" />
+            <TextBlock x:Name="AiProfileElapsed" VerticalAlignment="Center" FontSize="11" Opacity="0.6"
+                       IsVisible="False" />
+          </StackPanel>
+          <!-- The cost before it is spent, not after. Following the brush
+               rule: the expensive option is available, deliberate, and badged
+               so the trade is made knowingly. -->
+          <TextBlock x:Name="AiRunCost" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+          <ProgressBar x:Name="AiProfileProgress" IsIndeterminate="True" Height="4"
+                       IsVisible="False" />
+          <TextBlock x:Name="AiProfileStatus" FontSize="11" TextWrapping="Wrap" />
+          <Border x:Name="AiProfileResult" Background="{StaticResource SurfaceElevatedBrush}"
+                  CornerRadius="4" Padding="10" IsVisible="False">
+            <StackPanel Spacing="4">
+              <TextBlock x:Name="AiProfileWhen" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+              <TextBlock x:Name="AiProfileStale" FontSize="11" TextWrapping="Wrap"
+                         Foreground="Goldenrod" IsVisible="False" />
+              <ItemsControl x:Name="AiProfileLines">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="x:String">
+                    <TextBlock Text="{Binding}" FontSize="11" TextWrapping="Wrap" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
         <Border Background="{StaticResource SurfaceElevatedBrush}" CornerRadius="4" Padding="10">
           <StackPanel Spacing="4">
             <TextBlock Text="The other direction" FontWeight="SemiBold" FontSize="12" />

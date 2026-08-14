@@ -78,13 +78,51 @@ public sealed class AiConnection
     [JsonIgnore]
     public bool IsComplete => Missing().Count == 0;
 
+    /// <summary>
+    /// The last capability profile measured for this connection, or null.
+    /// </summary>
+    /// <remarks>
+    /// <b>Absent unless somebody measured it</b> — <c>ai.json</c> for a
+    /// connection nobody profiled is byte-identical to one written before the
+    /// golden set existed. That needed <c>AiSettings</c>'s serializer options
+    /// to ignore nulls, which they did not: a nullable property alone would
+    /// have written <c>"lastProfile": null</c> into every file, which is the
+    /// half of "optional" that is easy to miss.
+    /// </remarks>
+    public StoredCapabilityProfile? LastProfile { get; set; }
+
     public AiConnection Clone() => new()
     {
         Enabled = Enabled,
         ProviderId = ProviderId,
         Values = new Dictionary<string, string>(Values, StringComparer.Ordinal),
+        LastProfile = LastProfile,
     };
 }
+
+/// <summary>
+/// A capability profile as it is kept between sessions: what was measured,
+/// when, and the lines it produced.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The lines rather than the whole <c>CapabilityProfile</c>, deliberately. What
+/// an artist comes back to is the reading; keeping every per-pair outcome would
+/// put a few kilobytes of scoring detail in a settings file to render the same
+/// eight lines. Re-running is how you get the detail back.
+/// </para>
+/// <para>
+/// <paramref name="Subject"/> is what the profile is *about* — provider and
+/// model. It is stored rather than derived because the connection can be
+/// pointed at a different model afterwards, and a profile shown against the
+/// wrong model is worse than no profile. The page compares the two and says so.
+/// </para>
+/// </remarks>
+public sealed record StoredCapabilityProfile(
+    string Subject,
+    DateTimeOffset Measured,
+    bool FullRun,
+    IReadOnlyList<string> Lines);
 
 public enum AiValueOrigin
 {
