@@ -461,6 +461,33 @@ at once, tag a folder and everything under it, assign a sequence to somebody.
 The docker has no multi-select on purpose; a bulk edit is exactly the thing you
 do between drawings rather than during one.
 
+**And you can leave by way of a row.** Two gestures, on the bar above the tree
+and on any row's right-click, and they are deliberately different things rather
+than one with a guess in it:
+
+- **⏵ Open** opens the selected **documents in Lightbox**, as tabs — a document
+  is artwork, and the application that owns artwork is this one. Several at
+  once if several are selected, and a document already open is brought forward
+  rather than opened twice. Folders in the selection are skipped rather than
+  refused, so selecting a sequence and asking for its drawings does what you
+  meant. **It closes the project manager**, because the window is modal and a
+  tab opened behind it is a tab you cannot see. The one thing that keeps it
+  open is a document missing from disk: the window stays and says which, or the
+  sentence would leave with the window.
+- **🗀 Show on disk** hands the selected row to your **file manager** — a folder
+  opened, a document selected inside its folder where the platform can do that
+  (Windows and macOS can; Linux has no portable way to select a file, so it
+  opens the folder). One row rather than the selection, because revealing five
+  rows means five file manager windows; it takes the first and says which it
+  showed. **🗁 Project folder** does the same for the project's own folder
+  whatever is selected.
+
+The Assets tab's right-click offers the same pair on the same rows, and its
+project row is the second way to the project folder. Double-click is *not*
+either of these here — on this window it renames a row, which the docker does
+not do, and an open that was told apart from a rename by a few pixels of
+horizontal position would take the window down by accident.
+
 **You can build the structure here too.** **＋ New ▾** above the tree — or
 right-click any row — makes a **folder** or a **document**, with the docker's
 rules unchanged: it lands where the selection is, the name is asked first with

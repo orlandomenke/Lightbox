@@ -920,7 +920,12 @@ public partial class MainViewModel
     public Doc NewProjectDocument() => NewAnimationDoc();
 
     /// <summary>Open a project animation as a tab, or focus the tab it is already in.</summary>
-    private void OpenProjectDocument(DocumentRef reference, Doc doc)
+    /// <remarks>
+    /// Public because the project window opens documents too, and it has to go
+    /// through this one rather than making its own tab — the focus-what-is-open
+    /// branch is the whole reason opening twice does not produce two tabs.
+    /// </remarks>
+    public void OpenProjectDocument(DocumentRef reference, Doc doc)
     {
         if (Tabs.FirstOrDefault(t => t.Source?.Id == reference.Id) is { } already)
         {

@@ -1555,6 +1555,326 @@ public sealed class ProjectWindowTests(ITestOutputHelper output)
             Drop(root);
         }
     }
+
+    // ---- opening a row: in Lightbox, or on disk ------------------------------------
+    //
+    // Two gestures rather than one with a guess in it. A document is artwork, so
+    // it opens here; a folder is a place, so it opens in the file manager. The
+    // reveal is driven through the `RevealOnDisk` seam, which is what makes
+    // *which path* assertable without starting a file manager — and which path
+    // is precisely what B76 got wrong in the docker, silently, for every folder.
+
+    /// <summary>The window wired the way the main window wires it, plus the two openers.</summary>
+    /// <remarks>
+    /// Closing is not in the tuple: the tests that care about it set
+    /// <c>RequestClose</c> themselves, because a count returned by value would be
+    /// a copy and would read as zero however many times the window closed.
+    /// </remarks>
+    private static (ProjectWindowViewModel Vm, Project P, List<string> Opened,
+                    List<string> Sheets, List<string> Revealed) Wired(string root)
+    {
+        var project = ProjectIo.Create("Production", root);
+        var knight = ProjectFolders.Add(project.Manifest, "Knight");
+        Add(project, "walk", knight);
+        Add(project, "idle", knight);
+        ProjectSheets.Add(project, "Knight sheet", knight);
+        ProjectIo.Save(project);
+
+        var opened = new List<string>();
+        var sheets = new List<string>();
+        var revealed = new List<string>();
+        var vm = new ProjectWindowViewModel(project)
+        {
+            OpenDocument = (reference, _) => opened.Add(reference.Name),
+            OpenSheet = sheet => sheets.Add(sheet.Name),
+            RevealOnDisk = path => { revealed.Add(path); return true; },
+        };
+        return (vm, project, opened, sheets, revealed);
+    }
+
+    [Fact]
+    public void ADocumentOpensInLightboxAndTakesTheWindowDownWithIt()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, _, opened, _, _) = Wired(root);
+            var closed = 0;
+            vm.RequestClose = () => closed++;
+
+            vm.SetSelection(vm.Rows.Where(r => r.Document?.Name == "walk"));
+            vm.OpenSelectedInLightboxCommand.Execute(null);
+
+            Assert.Equal(["walk"], opened);
+            // The window is modal on the main window, so a tab opened behind it
+            // is a tab nobody can see. Closing is what makes the gesture visible.
+            Assert.Equal(1, closed);
+            Assert.Equal("Opened it in Lightbox.", vm.Status);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void EveryDocumentInTheSelectionOpens()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, _, opened, _, _) = Wired(root);
+            var closed = 0;
+            vm.RequestClose = () => closed++;
+
+            // The folder is in the selection too, and is skipped rather than
+            // refused: selecting a sequence and asking for its drawings is an
+            // ordinary thing to do.
+            vm.SetSelection(vm.Rows.Where(r => r.IsFolder || r.Document is not null));
+            vm.OpenSelectedInLightboxCommand.Execute(null);
+
+            output.WriteLine(string.Join(", ", opened));
+            Assert.Equal(["idle", "walk"], opened.Order());
+            Assert.Equal(1, closed);
+            Assert.Contains("2 documents", vm.Status);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void ASheetInTheSelectionOpensThroughItsOwnOpener()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, _, opened, sheets, _) = Wired(root);
+
+            vm.SetSelection(vm.Rows.Where(r => r.Sheet is not null));
+            vm.OpenSelectedInLightboxCommand.Execute(null);
+
+            Assert.Equal(["Knight sheet"], sheets);
+            Assert.Empty(opened);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void AFolderOnItsOwnOpensNothingAndSaysWhereToLook()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, _, opened, _, _) = Wired(root);
+            var closed = 0;
+            vm.RequestClose = () => closed++;
+
+            vm.SetSelection(vm.Rows.Where(r => r.IsFolder));
+            vm.OpenSelectedInLightboxCommand.Execute(null);
+
+            Assert.Empty(opened);
+            // And the window stays up, or the sentence goes with it.
+            Assert.Equal(0, closed);
+            Assert.Contains("file manager", vm.Status);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void ADocumentMissingFromDiskIsReportedAndTheWindowStays()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, opened, _, _) = Wired(root);
+            var closed = 0;
+            vm.RequestClose = () => closed++;
+
+            // Both the cache and the file, or LoadDocument answers from memory.
+            var walk = project.Manifest.Documents.Single(d => d.Name == "walk");
+            project.Loaded.Remove(walk.Id);
+            File.Delete(project.PathOf(walk));
+
+            vm.SetSelection(vm.Rows.Where(r => r.Document is not null));
+            vm.OpenSelectedInLightboxCommand.Execute(null);
+
+            // The one that is there still opens — but closing would take the
+            // sentence about the other one with it, and the artist would be left
+            // with fewer tabs than rows and no reason why.
+            Assert.Equal(["idle"], opened);
+            Assert.Equal(0, closed);
+            Assert.Contains("walk", vm.Status);
+            Assert.Contains("missing from disk", vm.Status);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void AFolderRevealsItsOwnDirectoryRatherThanTheProjectRoot()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, _, _, _, revealed) = Wired(root);
+
+            vm.SetSelection(vm.Rows.Where(r => r.IsFolder));
+            vm.RevealSelectedCommand.Execute(null);
+
+            // B76's shape: every folder row resolved to the project root, so
+            // "show me this folder" showed a different one and said nothing.
+            var expected = Path.Combine(Path.GetFullPath(root), "knight");
+            output.WriteLine($"revealed {revealed.Single()}, wanted {expected}");
+            Assert.Equal(expected, revealed.Single());
+            Assert.Contains("Knight", vm.Status);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void ADocumentRevealsItsFileAndNothingElse()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, _, _, revealed) = Wired(root);
+            var walk = project.Manifest.Documents.Single(d => d.Name == "walk");
+
+            vm.SetSelection(vm.Rows.Where(r => r.Document?.Name == "walk"));
+            vm.RevealSelectedCommand.Execute(null);
+
+            Assert.Equal(Path.GetFullPath(project.PathOf(walk)), revealed.Single());
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void RevealingASelectionOpensOneFileManagerAndSaysWhichRow()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, _, _, _, revealed) = Wired(root);
+
+            vm.SetSelection(vm.Rows.Where(r => r.Document is not null));
+            vm.RevealSelectedCommand.Execute(null);
+
+            // Every other command here is a bulk edit; this one is deliberately
+            // not. Five rows would mean five file manager windows.
+            Assert.Single(revealed);
+            output.WriteLine(vm.Status);
+            Assert.Contains("first of 2 selected", vm.Status);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void TheProjectFolderIsReachableWhateverIsSelected()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, _, _, _, revealed) = Wired(root);
+
+            vm.SetSelection(vm.Rows.Where(r => r.Document?.Name == "walk"));
+            vm.RevealProjectFolderCommand.Execute(null);
+
+            Assert.Equal(root, revealed.Single());
+            Assert.Contains("Production", vm.Status);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void ARowPointingOutsideTheProjectFallsBackToTheProjectFolder()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, project, _, _, revealed) = Wired(root);
+            // The manifest is plain JSON a person or an agent can edit, and this
+            // is what an edited one looks like. The containment check lives in
+            // ProjectIo.ResolveInProject; what this pins is that the window asks
+            // it rather than combining the path itself.
+            project.Manifest.Documents.Single(d => d.Name == "walk").Path = "../../../Documents/walk.json";
+            vm.Rebuild();
+
+            vm.SetSelection(vm.Rows.Where(r => r.Document?.Name == "walk"));
+            vm.RevealSelectedCommand.Execute(null);
+
+            Assert.Equal(root, revealed.Single());
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void TheAssetsTabOpensAndRevealsTheSameRows()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, _, opened, _, revealed) = Wired(root);
+
+            // Its project row is the project's own folder — the one place the
+            // Structure tab has no row for.
+            vm.RevealScope(vm.Assets.First(s => s.IsProject));
+            Assert.Equal(root, revealed.Single());
+
+            vm.OpenScopeInLightbox(vm.Assets.First(s => s.Document?.Name == "idle"));
+            Assert.Equal(["idle"], opened);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
+
+    [Fact]
+    public void AFileManagerThatWillNotStartIsReportedRatherThanSilent()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (vm, _, _, _, _) = Wired(root);
+            // FileReveal never throws — a desktop with no file manager
+            // configured is a bad afternoon, not a reason to fall over — so
+            // false is the only report there is, and it has to reach the artist.
+            vm.RevealOnDisk = _ => false;
+
+            vm.RevealProjectFolderCommand.Execute(null);
+
+            Assert.Equal("Could not open the file manager.", vm.Status);
+        }
+        finally
+        {
+            Drop(root);
+        }
+    }
 }
 
 /// <summary>

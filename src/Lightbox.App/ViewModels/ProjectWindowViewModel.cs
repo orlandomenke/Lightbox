@@ -1203,6 +1203,204 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         : scope.Document is { } document ? new BoardRow(document, null, 0)
         : null;
 
+    // ---- opening what a row points at ----------------------------------------------
+    //
+    // Two gestures, and deliberately not one. A document is opened *in Lightbox*
+    // — it is artwork, and the application that owns artwork is this one. A
+    // folder is opened *on disk*, because a folder is not something Lightbox can
+    // show: it is a place, and the program that shows places is the file
+    // manager. The docker settled that split already, with `OpenSelected` beside
+    // `RevealSelected`; this is the same pair reaching the window's rows, which
+    // had neither.
+
+    /// <summary>
+    /// Opens a document as a tab.
+    /// </summary>
+    /// <remarks>
+    /// Supplied by the owner, and it is the same callback the docker's
+    /// double-click goes through — so a document opened from either surface
+    /// lands in the tab it is already in rather than a second one.
+    /// </remarks>
+    public Action<DocumentRef, Doc>? OpenDocument { get; set; }
+
+    /// <summary>Opens a reference sheet, the docker's <c>OpenSheet</c>.</summary>
+    public Action<SheetRef>? OpenSheet { get; set; }
+
+    /// <summary>Closes the window. Set by the window itself.</summary>
+    /// <remarks>
+    /// <b>Opening has to close this, and that is not a nicety.</b> The window is
+    /// modal on the main window — B61's reason, two surfaces writing one
+    /// manifest with neither knowing about the other — so a tab opened from here
+    /// arrives <em>behind</em> a dialog nothing can see past. The artist would
+    /// click Open, watch nothing happen, and click it again. Getting out of the
+    /// way is what makes the gesture mean what it says.
+    /// </remarks>
+    public Action? RequestClose { get; set; }
+
+    /// <summary>
+    /// Hands a path to the desktop's file manager, and says whether it went.
+    /// </summary>
+    /// <remarks>
+    /// The real one by default. It is a settable seam for the reason
+    /// <see cref="AskName"/> is: a view model that starts processes is one no
+    /// test can drive, and the half that goes untested otherwise is <em>which
+    /// path</em> was revealed — which is exactly what B76 got wrong in the
+    /// docker, silently, for every folder row.
+    /// </remarks>
+    public Func<string, bool> RevealOnDisk { get; set; } = Services.FileReveal.Reveal;
+
+    /// <summary>
+    /// Where a row lives on disk: a document's file, a sheet's file, a folder's
+    /// directory, or the project root when there is no row.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The folder case is B76.</b> The docker resolved every folder row to the
+    /// project root until that bug was fixed, so "show me this folder" showed a
+    /// different one and said nothing about it. A folder has a directory of its
+    /// own and <see cref="ProjectFolders.PathOf"/> is what knows where.
+    /// </para>
+    /// <para>
+    /// <b>Every path goes through <see cref="ProjectIo.ResolveInProject"/>.</b>
+    /// The manifest is plain JSON a person or an agent can edit, so an entry of
+    /// <c>../../../Documents</c> is one slip from a file manager opened
+    /// somewhere nobody asked for — and that check exists once, on purpose. A
+    /// row that resolves outside falls back to the project root rather than
+    /// refusing: the artist asked to be shown where this is, and the project is
+    /// the true answer when its record of the row is not.
+    /// </para>
+    /// </remarks>
+    public string PathOf(BoardRow? row)
+    {
+        var relative =
+            row?.Document?.Path ?? row?.Sheet?.Path
+            ?? (row is { IsFolder: true, Folder: { } folder }
+                ? ProjectFolders.PathOf(Manifest, folder)
+                : null);
+        return relative is null
+            ? _project.Root
+            : ProjectIo.ResolveInProject(_project, relative) ?? _project.Root;
+    }
+
+    /// <summary>
+    /// Open everything selected that Lightbox can open, then get out of the way.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Folders in the selection are skipped rather than refused: selecting a
+    /// sequence and its folder and asking for the drawings is an ordinary thing
+    /// to do, and the status line says so when nothing in the selection was
+    /// openable at all.
+    /// </para>
+    /// <para>
+    /// <b>It closes only when everything opened.</b> A document missing from disk
+    /// is reported in the status line, and closing would take that sentence with
+    /// it — the artist would be left with fewer tabs than rows and no reason why.
+    /// </para>
+    /// </remarks>
+    [RelayCommand]
+    public void OpenSelectedInLightbox()
+    {
+        var opened = 0;
+        var missing = new List<string>();
+        // A copy: the callback opens a tab, and the owner's re-read of the
+        // project is entitled to rebuild the rows underneath this loop.
+        foreach (var row in Selected.ToList())
+        {
+            if (row.Document is { } document)
+            {
+                if (OpenDocument is null) continue;
+                if (ProjectIo.LoadDocument(_project, document) is not { } doc)
+                {
+                    missing.Add(document.Name);
+                    continue;
+                }
+                OpenDocument(document, doc);
+                opened++;
+            }
+            else if (row.Sheet is { } sheet && OpenSheet is not null)
+            {
+                OpenSheet(sheet);
+                opened++;
+            }
+        }
+
+        if (missing.Count > 0)
+        {
+            Status = missing.Count == 1
+                ? $"“{missing[0]}” is missing from disk."
+                : $"{missing.Count} of the selected documents are missing from disk.";
+            return;
+        }
+        if (opened == 0)
+        {
+            Status = "Select a document to open. A folder opens in the file manager instead.";
+            return;
+        }
+        Status = opened == 1 ? "Opened it in Lightbox." : $"Opened {opened} documents in Lightbox.";
+        RequestClose?.Invoke();
+    }
+
+    /// <summary>
+    /// Show what is selected in the desktop's file manager — a folder opened, a
+    /// file selected inside its folder where the platform can do that.
+    /// </summary>
+    /// <remarks>
+    /// <b>One row, not the selection.</b> Every other command here is a bulk
+    /// edit, and this one deliberately is not: revealing five rows means five
+    /// file manager windows, which is not what anybody asking for one meant. It
+    /// takes the first of the selection and the status line names it, rather
+    /// than picking silently.
+    /// </remarks>
+    [RelayCommand]
+    public void RevealSelected() => Reveal(Selected.FirstOrDefault(), Selected.Count);
+
+    /// <summary>Show the project's own folder, whatever is selected.</summary>
+    /// <remarks>
+    /// Separate from <see cref="RevealSelected"/>, which answers the project
+    /// root only when nothing is selected. "Take me to the project on disk" is
+    /// a thing you want *while* looking at a row, and deselecting first to get
+    /// it would be a gesture with a prerequisite.
+    /// </remarks>
+    [RelayCommand]
+    public void RevealProjectFolder() => Reveal(row: null, selectedCount: 0);
+
+    /// <summary>The Assets tab's rows reveal too — its project row is the root.</summary>
+    public void RevealScope(AssetScope? scope)
+    {
+        if (scope is null || scope.IsProject) Reveal(row: null, selectedCount: 0);
+        else Reveal(AsRow(scope), selectedCount: 1);
+    }
+
+    /// <summary>The Assets tab's document rows open in Lightbox, same as Structure's.</summary>
+    public void OpenScopeInLightbox(AssetScope? scope)
+    {
+        if (scope?.Document is not { } document)
+        {
+            Status = "Select a document to open. A folder opens in the file manager instead.";
+            return;
+        }
+        SetSelection([new BoardRow(document, scope.Folder, 0)]);
+        OpenSelectedInLightbox();
+    }
+
+    private void Reveal(BoardRow? row, int selectedCount)
+    {
+        if (!RevealOnDisk(PathOf(row)))
+        {
+            // Nothing throws in FileReveal — a desktop with no file manager
+            // configured is a bad afternoon, not a reason to fall over — so
+            // false is the only report there is, and it has to reach the artist.
+            Status = "Could not open the file manager.";
+            return;
+        }
+        Status = row is null
+            ? $"Showed the project folder for “{_project.Name}” in the file manager."
+            : selectedCount > 1
+                ? $"Showed “{row.Name}” in the file manager — the first of {selectedCount} selected."
+                : $"Showed “{row.Name}” in the file manager.";
+    }
+
     /// <summary>What deleting a library asset means, said before it happens.</summary>
     public string DeleteAssetWarning(AssetEntry asset) => asset.Kind switch
     {
