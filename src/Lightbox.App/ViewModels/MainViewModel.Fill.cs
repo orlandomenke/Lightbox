@@ -348,6 +348,24 @@ public partial class MainViewModel
     private SKBitmap CompositeVisibleLayers()
     {
         var scene = Scene;
+        using var image = SceneRenderer.Compose(
+            scene.Width, scene.Height, VisiblePasses(), SkiaSharp.SKColors.Transparent);
+        return SKBitmap.FromImage(image);
+    }
+
+    /// <summary>
+    /// The visible layers at the playhead, in order, as compositing passes.
+    /// </summary>
+    /// <remarks>
+    /// Separated from <see cref="CompositeVisibleLayers"/> so the eyedropper's
+    /// one-pixel read can compose the same stack at a different size. Building
+    /// the list twice would be two answers to "what is visible", and the pointer
+    /// preview drifting from the click it predicts is precisely the failure that
+    /// makes a preview worse than none.
+    /// </remarks>
+    private List<RenderPass> VisiblePasses()
+    {
+        var scene = Scene;
         var passes = new List<RenderPass>();
         foreach (var layer in scene.Layers)
         {
@@ -358,7 +376,36 @@ public partial class MainViewModel
                 _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex), null, layer.Opacity,
                 SceneRenderer.ToSkia(layer.BlendMode)));
         }
-        using var image = SceneRenderer.Compose(scene.Width, scene.Height, passes, SkiaSharp.SKColors.Transparent);
-        return SKBitmap.FromImage(image);
+        return passes;
+    }
+
+    /// <summary>
+    /// One pixel of the visible composite, composed into a 1×1 surface.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Invariant 6 is why this exists at all.</b> The obvious implementation
+    /// is <see cref="CompositeVisibleLayers"/> and a <c>GetPixel</c>, and it is
+    /// what the eyedropper's click does — affordable once per click and a full
+    /// canvas composite per pointer event, which is the definition of the
+    /// performance regression the invariant names. Composing into a 1×1 surface
+    /// costs one clipped draw call per layer instead, so the work is
+    /// proportional to the layer count and not to the canvas.
+    /// </para>
+    /// <para>
+    /// <b>Composed rather than blended by hand.</b> Reading one pixel out of
+    /// each layer and mixing them here would be a second implementation of
+    /// layer opacity and blend modes, which would agree with the renderer until
+    /// somebody added a mode. Moving the sample point into the transform keeps
+    /// the real compositor as the only thing that knows how layers stack.
+    /// </para>
+    /// </remarks>
+    private SKColor SampleVisibleComposite(int x, int y)
+    {
+        using var image = SceneRenderer.Compose(
+            1, 1, VisiblePasses(), SkiaSharp.SKColors.Transparent,
+            SKMatrix.CreateTranslation(-x, -y));
+        using var pixel = SKBitmap.FromImage(image);
+        return pixel.GetPixel(0, 0);
     }
 }

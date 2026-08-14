@@ -324,6 +324,24 @@ it breaks the stroke you were about to make. The pointer changes to say so. It
 also stops refusing while you hold it, because picking a colour off a locked
 layer was always allowed.
 
+### The eyedropper's ring
+
+With the eyedropper in hand — chosen, or borrowed with `Ctrl` — a ring follows
+the pointer, split in two:
+
+- the **top half** is the colour you would take if you clicked now;
+- the **bottom half** is the colour you already have;
+- the **middle is a hole**, so the pixel you are aiming at is never covered.
+
+It is there so picking a colour is a comparison rather than a guess: whether a
+shadow off the drawing is actually different from the one loaded is the question
+you are asking, and the answer used to be in a panel on the other side of the
+window. Click and both halves become the same colour, which is the ring saying
+the pick landed.
+
+The ring goes away when there is nothing to pick — off the paper, mainly. Over
+bare canvas it shows the paper colour, because that is what a click there takes.
+
 ---
 
 ## Shapes

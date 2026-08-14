@@ -178,6 +178,7 @@ public partial class MainViewModel
         _hoverPoint = (x, y);
         _hoverModifiers = modifiers;
         RefreshPointerIntent();
+        RefreshPickPreview();
     }
 
     /// <summary>The pointer left the canvas: stop claiming to know where it is.</summary>
@@ -186,7 +187,35 @@ public partial class MainViewModel
         if (_hoverPoint is null) return;
         _hoverPoint = null;
         RefreshPointerIntent();
+        RefreshPickPreview();
     }
+
+    /// <summary>
+    /// Re-read the colour under the pointer, or drop it when nothing would be
+    /// picked there.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Called from the pointer paths and from the tool change, and from
+    /// nowhere else.</b> The canvas already coalesces hover reports to one per
+    /// document pixel crossed, so this runs when the answer can actually have
+    /// changed rather than per pointer event — which is what makes a composite
+    /// read affordable here at all. The tool change is the other moment: an
+    /// artist who presses <c>I</c> without moving the pointer, or borrows the
+    /// eyedropper by holding Ctrl mid-stroke, has changed the answer without
+    /// moving anything.
+    /// </para>
+    /// <para>
+    /// Not folded into <see cref="RefreshPointerIntent"/>, which is called from
+    /// layer edits and stroke commits where a bitmap read would be a cost paid
+    /// for nothing.
+    /// </para>
+    /// </remarks>
+    private void RefreshPickPreview() =>
+        PickPreviewHex =
+            PointerIntent == Rendering.CanvasCursorKind.Pick && _hoverPoint is { } p
+                ? PickedColorHexAt(p.X, p.Y)
+                : null;
 
     /// <summary>Whether a stroke coordinate falls inside the active selection.</summary>
     /// <remarks>
@@ -349,17 +378,50 @@ public partial class MainViewModel
     /// <summary>Eyedropper click: the color under the cursor (what the eye sees, incl. paper).</summary>
     public void PickColorAt(double x, double y)
     {
-        var (px, py) = ToSurface(x, y);
-        if (px < 0 || py < 0 || px >= Scene.Width || py >= Scene.Height) return;
-        using var composite = CompositeVisibleLayers();
-        var color = composite.GetPixel(px, py);
-        if (color.Alpha == 0)
-        {
-            ColorHex = Scene.TransparentBackground ? "#ffffff" : Scene.BackgroundColor;
-            return;
-        }
-        ColorHex = $"#{color.Red:x2}{color.Green:x2}{color.Blue:x2}";
+        if (PickedColorHexAt(x, y) is { } hex) ColorHex = hex;
     }
+
+    /// <summary>
+    /// The colour the eyedropper would take at a document position, or null
+    /// where it would take none.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>One definition, because two things ask.</b> The click sets the colour
+    /// and the ring around the pointer promises what the click will set — and a
+    /// promise computed separately from the thing it promises is a promise that
+    /// will eventually be broken, quietly, in the case nobody tested. The paper
+    /// fallback below is exactly such a case: transparent pixels resolve to the
+    /// paper colour, and a preview that had not been told would show the ring's
+    /// top half empty over most of a fresh drawing.
+    /// </para>
+    /// <para>
+    /// Null for "off the paper" rather than a colour, so the caller can tell
+    /// nothing-to-pick apart from picked-something-transparent. The click uses
+    /// it to leave the colour alone; the ring uses it to not appear.
+    /// </para>
+    /// </remarks>
+    public string? PickedColorHexAt(double x, double y)
+    {
+        var (px, py) = ToSurface(x, y);
+        if (px < 0 || py < 0 || px >= Scene.Width || py >= Scene.Height) return null;
+        var color = SampleVisibleComposite(px, py);
+        return color.Alpha == 0
+            ? Scene.TransparentBackground ? "#ffffff" : Scene.BackgroundColor
+            : $"#{color.Red:x2}{color.Green:x2}{color.Blue:x2}";
+    }
+
+    /// <summary>
+    /// The colour under the pointer while the eyedropper is armed, for the ring
+    /// the canvas draws around it — null whenever there is no ring to draw.
+    /// </summary>
+    /// <remarks>
+    /// Absent rather than stale. It is cleared the moment the pointer leaves the
+    /// canvas or the tool stops being an eyedropper, so the canvas never has to
+    /// decide whether what it was handed is still true.
+    /// </remarks>
+    [ObservableProperty]
+    private string? _pickPreviewHex;
 
     /// <summary>
     /// What marking on a held cel does.
@@ -411,6 +473,9 @@ public partial class MainViewModel
         // The bound sliders edit the active tool's brush configuration.
         NotifyBrushProperties();
         OnPropertyChanged(nameof(LazyRadiusForCursor));
+        // Display, so it belongs above the borrow guard below: picking up the
+        // eyedropper without moving the pointer still has to put the ring on.
+        RefreshPickPreview();
 
         // A borrow is not a decision — see MainViewModel.Momentary.cs. Everything
         // below is about an artist choosing to leave a tool, and holding Ctrl is
