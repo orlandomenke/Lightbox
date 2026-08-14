@@ -829,7 +829,9 @@ project structure bugs and `.claude/quality/comparison.md` for full analysis.
 - [?] Split-screen frame comparison
 - [?] Side-by-side animation comparison
 - [?] Pin any frame as reference
-- [?] Floating reference windows
+- [x] Floating reference windows `evidence: ReferenceBoardWindow, ReferenceBoardWindowTests`
+  - Answered as **one board rather than many windows** — see *the reference
+    board* under the reference section below (Q87).
 - [?] Pose references
 - [x] Imported animation reference, sliced into frames and laid against the timeline `evidence: ReferenceStrip, StripSlicer, StripSlicerTests, ReferenceStripTests`
 - [x] An animated symbol — a stored cycle, not a single drawing `evidence: Symbol, SymbolPlacement, FrameIndexAt, FrameOffset, SymbolRecordTests, SymbolRenderTests`
@@ -1048,7 +1050,13 @@ Four rules govern everything below, and they are not negotiable per feature:
 - [x] The AI never inserts a frame it cannot defend `evidence: InbetweenVerifier, InbetweenVerifierTests, ARubbishAnswerInsertsNothingAndSaysWhy, ARefusedFrameKeepsItsSlotAsAHold, TooCloseToTheDeterministicAnswerIsANoteNeverAVeto, PerFrameJitterIsRefusedAsIncoherent, RevealedInkBehindTheMoverIsLicensed`
   - Phase 0 of `docs/DESIGN-ai-correctness.md`: every frame a model returns is verified against the keys — betweenness, dropped strokes, licensed new ink, area-conserved volume, and temporal coherence over the *run*, which is the only check that catches boiling and the reason the verifier sees a sequence rather than a frame. A frame that fails is **refused, per frame and with the reason naming which t** (Q32) — never swapped for the deterministic answer, which stays its own command. Its slot stays a hold, so partial acceptance never shifts a surviving frame off its own timing.
   - The checks are deliberately wide — they reject "not between the keys at all", never "not where I would have put it" — and the deterministic answer passing every check is itself a pinned test. "Too close to deterministic" is a note, never a veto (Q33). The connection tester now judges with the same verifier, so a model it certifies is one the pipeline will accept.
-  - Still ahead, by phase: the repair loop (re-ask naming the fault) and adaptive request shaping.
+  - Still ahead, by phase: adaptive request shaping, and the piecewise betweenness Q83.3 needs before the AI path can fill a whole run rather than one gap.
+
+- [x] A refused frame is asked again with the fault named, not retried blindly `evidence: InbetweenRepair, RefusedFrame, InbetweenRepairTests, TheReAskCarriesTheFaultAndTheDrawingThatEarnedIt, AModelThatNeverImprovesIsRefusedAfterThreeCalls, ARepairThatWouldCostAnAlreadyAcceptedFrameIsNotAdoptedEvenWhenItGainsTwo, AFailedReAskKeepsTheFramesTheFirstCallEarned, ARefusedFrameIsAskedAgainAndTheFrameItProducesSaysSo`
+  - Phase 3 of `docs/DESIGN-ai-correctness.md`, and stage 4 of its pipeline — the step between *verify* and *refuse*. A blind retry is a second roll of the same dice; this hands the model the sentence the verifier wrote (*"the ‘near-arm’ did not stay between the keys — it sits 60px from where the motion puts it"*) **together with its own rejected drawing**, which is what turns a re-ask into an edit rather than a redraw-with-a-hint. The refusals were already written as forwardable sentences naming a stroke and a distance; this is the first thing to spend them on.
+  - **Bounded at two re-asks and on by default (Q85).** Two rather than one against the recommendation, because the common failure is a model that fixes the fault it was told about and trips a different check — one re-ask cannot see that shape. On by default unlike best-of-N, and the distinction is the reason: best-of-N buys a *better* frame, repair buys a frame *at all*, so the alternative to spending the call is an empty slot. The cost is a worst case of three calls to produce nothing, which is why the status reports the attempt while it runs and names the count when it fails.
+  - **A repair can never cost a frame that was already accepted**, and that guarantee is set-inclusion rather than arithmetic. Accepted frames carry into the next round untouched, so the only way one newly fails is coherence — a repaired neighbour that makes it jitter. A round that gains two and loses one is dropped whole, because a frame given and then taken away reads as a bug however the totals came out. Q32 is untouched throughout: nothing here relaxes a check, and a repaired frame clears the same bar as a first-attempt one.
+  - `AiProvenance.Attempts` is the durable trace, absent unless it took more than one — the status line is gone by the next action, and "how often does my model need a second go" is what tells an artist whether the model they brought is borderline.
 
 - [x] Grade the model you brought, before you depend on it `evidence: GoldenSet, CapabilityProfile, CapabilityProfiler, FreeEngineArtist, GoldenSetTests, TheFreeEngineClearsEveryConstructedPair, TheLadderFindsWhereAModelStopsCoping, TheOrganicCategoryReportsItselfUnmeasuredRatherThanVanishing, TheArcRowTellsAnArcApartFromAChord, AiCapabilityPageTests, TheCostOfARunIsShownBeforeItIsSpent, AReadingTakenOnAnotherModelSaysSoRatherThanPassingAsThisOne, AnUnprofiledConnectionWritesNoProfileKey`
   - Phase 2 of `docs/DESIGN-ai-correctness.md`, and Q34's answer: the golden set **ships**, because grading an artist's own model is the bring-your-own-model story rather than a development convenience. A committed set of keyframe pairs, scored by the same `InbetweenVerifier` the pipeline uses, produces a profile per model: schema adherence, label retention (Q18's unmeasured claim, now measured), betweenness per category, and **where the model stops coping with stroke count** — the number the design calls the most valuable and nobody measures.
@@ -1481,24 +1489,48 @@ Already built ✅:
 - Shared palette across character animations
 - **Deterministic rendering** (enables reference-aware brushes — unique capability)
 
-- Reference view in a floating window — a live viewer beside the art (Q69);
-  the window follows the sheet as it is edited, drawing still happens in the tab
 - A sheet view taped onto the canvas — flattened into a `ReferenceStrip`,
   pinned to every frame, live (Q69)
+- [x] **The reference board — a whiteboard of reference beside the art** `evidence: ReferenceBoard, BoardTile, BoardLayout, ProjectBoards, ReferenceBoardViewModel, ReferenceBoardWindow, ReferenceBoardTests, ReferenceBoardWindowTests`
+  - **What it replaced, and why the replacement is not a superset.** Q69 shipped
+    one live window per reference view, which was right about *live* and wrong
+    about *one*. An artist works from several references at once, so that meant
+    several windows, each framing one picture and none of them arrangeable
+    against another — the arrangement, which is the actual work, had nowhere to
+    live. The board is the same liveness with the arrangement as the feature, and
+    the single-view window is deleted rather than kept beside it: two windows both
+    claiming to show a reference view is how B133 started.
+  - **Every sheet in scope, flattened, laid out to fit** — a view is one picture
+    on the wall rather than a layer stack, through the same
+    `RenderReferenceViewPng` the AI payloads and the taped strip use, so the wall
+    follows an edit without a re-import. Imported files and pictures dragged off a
+    web page sit beside them. Move by dragging, resize from a corner, raise by
+    picking up, **Auto-arrange** to tidy, right-click to send behind or take down.
+  - **The arrangement persists, filed on the scope that owns the references**
+    (Q87) — one wall per subject, shared by every animation under it, which is the
+    "reference positioning persists" gap this section calls the highest friction
+    in the list. A scope with no board writes no file; a loose document keeps its
+    own board inside itself, because it has no project directory to copy an
+    imported picture into.
+  - **Imports are copied into the project, never linked.** A path into somebody's
+    downloads folder breaks silently, and a picture dragged out of a browser has
+    no durable path at all.
 
-Next for the floating window, deliberately not in the first cut (Q69):
-- [ ] **An editable canvas in the reference window** `evidence: ReferenceViewCanvasTests`
-  — draw on the sheet where it floats, instead of switching to its tab. Needs
-  input routing and a decision about shared-versus-split brush state, so it
-  starts as a design note, not a feature branch. The window's content pane is
-  a single `Image` control precisely so this replaces one control when it
-  comes.
+Next for the board, deliberately not in the first cut (Q69, Q87):
+- [ ] **An editable canvas on the reference board** `evidence: ReferenceViewCanvasTests`
+  — draw on a sheet where it hangs, instead of switching to its tab. Needs input
+  routing and a decision about shared-versus-split brush state, so it starts as a
+  design note, not a feature branch. A tile is one `Image` control precisely so
+  this replaces one control when it comes.
+- [ ] **Annotating the board non-destructively** `evidence: BoardAnnotation, BoardAnnotationTests`
+  — the market gap named below, and the board is where it now belongs: marks over
+  the wall rather than over one view, kept apart from the art they describe.
 
 ### **Critical Usability Gaps: Reference Management** ❌
 
 | Feature | Impact | Status | Competitors | Gap |
 |---------|--------|--------|-------------|-----|
-| **Reference positioning persists** | HIGH | [ ] | Harmony, Clip Studio, Aseprite save this | Lightbox loses position every session |
+| **Reference positioning persists** | HIGH | [x] | Harmony, Clip Studio, Aseprite save this | Closed by the reference board (Q87): the wall is filed on the scope that owns the references, so it opens where it was left |
 | **Non-destructive annotation layer** | MEDIUM | [ ] | Zero competitors | **Pure market gap** |
 | **Character version tagging** | CRITICAL | [ ] | Enterprise tools only | Indie teams: "final_v7_REAL.psd" chaos |
 | **Expression/pose metadata** | MEDIUM | [ ] | No animation tools | Expressions scattered in files |
@@ -1508,7 +1540,7 @@ Next for the floating window, deliberately not in the first cut (Q69):
 
 | Item | Pillar | Why | Effort | Impact | Blocker |
 |------|--------|-----|--------|--------|---------|
-| **Reference positioning persists** | 1 | Repositioned every session — highest friction | Low (100 LOC) | HIGH | None |
+| ~~**Reference positioning persists**~~ — done | 1 | Repositioned every session — highest friction | Low (100 LOC) | HIGH | Closed by the reference board |
 | **Character version tagging** | 1 | Out-of-sync versions mid-project cause rework | Low (100 LOC) | CRITICAL | None |
 | **Non-destructive annotation layer** | 1 | Artists mark up reference (proportions, anatomy); zero tools let them do this non-destructively | Medium (300 LOC) | Medium | None |
 | **Expression/pose frame metadata** | 1 | Scattered files (happy.png, sad.png); no query capability | Medium (200 LOC) | Medium | None |

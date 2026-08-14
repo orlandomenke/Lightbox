@@ -18,6 +18,12 @@ One row per layer, one cell per frame. Click a cell to go there; the current one
 is highlighted. A **keyed** cell holds a drawing; a **hold** repeats the drawing
 before it, which is what animating on 2s and 3s is made of.
 
+**Two kinds of cell look empty, and they are not the same thing.** A plain empty
+cell is inside the scene: the playhead goes there, you can select it, and a mark
+on it keys a drawing. A **hatched** cell is past the end of the scene — there is
+no frame there at all, so it cannot be clicked into or drawn on, and the playhead
+never reaches it. Extend the scene and the hatching gives way to real cells.
+
 ## The scratch track
 
 **Audio is optional and absent until you add it** — the same rule the camera

@@ -64,22 +64,24 @@ public partial class MainWindow
             _vm.OpenReferenceView(view);
     }
 
-    /// <summary>One window per view: a second click brings it forward.</summary>
-    private readonly Dictionary<string, ReferenceViewWindow> _referenceViewWindows = [];
+    /// <summary>
+    /// The reference board, if it is open. One per window rather than one per
+    /// view (Q87): the board is a wall, and a second wall showing the same
+    /// references is the thing it exists to replace.
+    /// </summary>
+    private ReferenceBoardWindow? _referenceBoard;
 
-    private void OnOpenReferenceViewWindow(object? sender, RoutedEventArgs e)
+    private void OnOpenReferenceBoard(object? sender, RoutedEventArgs e)
     {
-        if ((sender as Control)?.DataContext is not Lightbox.Core.Documents.ReferenceView view) return;
-        if (_referenceViewWindows.TryGetValue(view.Id, out var open))
+        if (_referenceBoard is { } open)
         {
             open.Activate();
             return;
         }
 
-        var sheet = _vm.ReferenceSheetsView.FirstOrDefault(s => s.Views.Contains(view));
-        var window = new ReferenceViewWindow(_vm, view, sheet?.Name ?? "Reference");
-        _referenceViewWindows[view.Id] = window;
-        window.Closed += (_, _) => _referenceViewWindows.Remove(view.Id);
+        var window = new ReferenceBoardWindow(_vm, _shortcuts);
+        _referenceBoard = window;
+        window.Closed += (_, _) => _referenceBoard = null;
         // A child of the main window: it floats beside the art, and closing
         // the application does not leave a reference orphaned on the desktop.
         window.Show(this);

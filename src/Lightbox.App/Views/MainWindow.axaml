@@ -83,8 +83,11 @@
     <Style Selector="Button.cel.tween">
       <Setter Property="Background" Value="{StaticResource CelTweenBrush}" />
     </Style>
+    <!-- Past the end of the scene: hatched, so "no frame here" cannot be read
+         as "a frame with no drawing". Q87. -->
     <Style Selector="Button.cel.virtualCell">
       <Setter Property="Opacity" Value="0.35" />
+      <Setter Property="Background" Value="{StaticResource CelVirtualHatchBrush}" />
     </Style>
     <Style Selector="Button.cel.dim">
       <Setter Property="Opacity" Value="0.45" />
@@ -3488,8 +3491,8 @@
                                 <Button Classes="icon" DockPanel.Dock="Right" Content="✎" FontSize="11"
                                         Click="OnOpenReferenceView" ToolTip.Tip="Open this view in a tab" />
                                 <Button Classes="icon" DockPanel.Dock="Right" Content="🗔" FontSize="11"
-                                        Click="OnOpenReferenceViewWindow"
-                                        ToolTip.Tip="Open this view in its own window, beside the art. It follows the sheet as you edit; drawing on it still happens in the tab." />
+                                        Click="OnOpenReferenceBoard"
+                                        ToolTip.Tip="Open the reference board — every sheet in scope on one wall, beside the art, arranged how you leave it. It follows the sheets as you edit; drawing on one still happens in its tab." />
                                 <Button Classes="icon" DockPanel.Dock="Right" Content="⧉" FontSize="11"
                                         Click="OnToggleViewOnCanvas"
                                         ToolTip.Tip="Tape this view onto the canvas — a see-through reference over the paper, under the drawing. Click again to take it down. Opacity is the reference opacity slider." />
