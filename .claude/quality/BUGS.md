@@ -521,12 +521,6 @@ which is a weak test and still far better than none.
 
   - **Sighted again 2026-08-08, and briefly misfiled as its own bug.** `MarkerNotesTests.NotesAreListedInFrameOrder` failed at **1 ms** in 2 of 5 full App-suite runs on `perf/canvas/B125-playback-through-tiles`, passing every time in isolation and in a two-class run. It was filed as B145 with a DispatcherTimer-interleaving theory before the 1 ms signature was checked against this entry — a body that never ran cannot have been raced by a timer tick, and the owner is who caught the duplicate. Two lessons folded back in: the failure is not confined to tests that touch rendering (three sightings, three unrelated test classes — the victim is whoever the harness seats next), and **grep the ledger for the signature before filing the sighting**; this entry's whole third bullet is about rediscovery being the expensive part, and it still happened.
 
-- [ ] **B16** `P3` `ui` The brush parameter flyout scrolls when it should grow `evidence: TheBrushParameterFlyoutIsNotPinnedToOneHeight`
-  - Repro: open the ⚙ flyout and switch category. Short pages have dead space; long ones get a vertical scrollbar.
-  - Cause: the flyout's grid declared `Height="430"` for five pages of different lengths.
-  - Fix: size to the page, with a `MaxHeight` so a very long one cannot run off the screen.
-  - Reported from a build. Cost: S
-
 ---
 
 ## Fixed
@@ -1802,7 +1796,7 @@ test reopens the bug.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
 
-- [x] **B199** `P2` `ui` The Bone tool wears the Move tool's icon, so the rig is unreachable from the toolbar `evidence: ToolRailTests, EveryToolHasAButtonInTheRail, NoTwoToolsWearTheSameGlyph, EveryButtonActuallyDrawsSomething, EveryIconAToolAsksForActuallyExists, EveryToolIconIsGeometryThatDrawsSomething`
+- [x] **B200** `P2` `ui` The Bone tool wears the Move tool's icon, so the rig is unreachable from the toolbar `evidence: ToolRailTests, EveryToolHasAButtonInTheRail, NoTwoToolsWearTheSameGlyph, EveryButtonActuallyDrawsSomething, EveryIconAToolAsksForActuallyExists, EveryToolIconIsGeometryThatDrawsSomething`
   - Reported by the owner after building #242 and #244: "I'm not seeing the bone tool or any option to add bones."
   - **Everything a tool can be registered in, it was registered in** — `ToolId.Bone`, `IsBoneTool`, a toolbar button with the right binding and command, `SyncCanvasToolMode`, `ShortcutMap`, the cursor map. The button drew `{StaticResource IconMove}`, a placeholder put in while the glyph was "to do" and never replaced.
   - **Why that is invisibility rather than a blemish**: `ReflowToolRail` only turns tool labels on once the rail has been *dragged* past 150px, so the default rail is icon-only. The Bone button sits immediately after Move, so what an artist actually saw was two identical four-way arrows side by side, and no bone anywhere.
@@ -2146,6 +2140,16 @@ test reopens the bug.
 - [x] **B41** `P3` `ui` Tool-options sliders and checkboxes sit above their labels `evidence: manual`
   - The bar is a fixed 30 px row and its children default to `VerticalAlignment=Stretch`; a stretched `Slider` draws its track at the top of the height it is given and a stretched `CheckBox` does the same with its box — so Size, Hardness, Opacity and "Per brush" all sat high against the text beside them.
   - Fix: styles on `OverflowBar`'s descendants rather than an alignment attribute on some forty individual controls, so a control added later is centred without anybody remembering to.
+
+- [x] **B16** `P3` `ui` The brush parameter pages scroll when they should grow `evidence: ToolOptionsHeightTests, NoBrushParameterPageIsPinnedToAHeight, NothingHostingThePagesIsPinnedEither, ThePagesAreGenuinelyDifferentLengths`
+  - Repro: open the ⚙ flyout and switch category. Short pages have dead space; long ones get a vertical scrollbar.
+  - Cause: the flyout's grid declared `Height="430"` for five pages of different lengths.
+  - Fix: size to the page, with a `MaxHeight` so a very long one cannot run off the screen.
+  - **Resolved by the redesign rather than by the fix proposed above, and the guard moved with it.** The flyout is gone: the owner moved the parameters into the **Tool options docker** - *"a tool options docker instead of keeping it in the rail"* - and the gear button now opens that panel. A docker takes the height the artist drags it to, which is a better answer than the `MaxHeight` this entry asked for, because it makes the height a choice rather than a guess somebody has to retune.
+  - **What survives the redesign is the rule underneath, so that is what is asserted.** The five pages are still five different lengths, and measured they are further apart than the original report suggested: **Medium 70px against Effects 724px**, better than tenfold. On the old `Height="430"` grid that is 360px of dead space on one page and a scrollbar on another - so a constant reintroduced anywhere on this path brings the symptom straight back, whatever the container is.
+  - The guards therefore check the *pages* rather than the flyout that used to hold them: no page pins a height, nothing between a page and the docker pins one, and the pages really are different lengths - the last so that "nothing is pinned" is a claim about something rather than a check that passes on five empty panels. Verified to bite by re-pinning one page to 430.
+  - **Why it stayed open with the work already done**: the named evidence was `TheBrushParameterFlyoutIsNotPinnedToOneHeight`, a test nobody ever wrote, against a control that then stopped existing. An anchor that never resolved cannot distinguish "not fixed" from "fixed somewhere else" - the second time today that shape has cost an investigation (see B129).
+  - Reported from a build. Cost: S
 
 - [x] **B15** `P3` `ui` The tool options bar's columns do not line up `evidence: EveryValueFieldInTheBarIsTheSameWidth, NoValueFieldInTheBarSetsAWidthOfItsOwn`
   - Repro: switch between brush, gradient and selection. The label, slider and value box start and end somewhere different each time.
