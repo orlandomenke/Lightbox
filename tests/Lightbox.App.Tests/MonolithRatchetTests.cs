@@ -133,8 +133,12 @@ public class MonolithRatchetTests(ITestOutputHelper output)
     [
         ("src/Lightbox.App/ViewModels/MainViewModel.cs", 670),
         // Lowered when the guide-grab section moved to CanvasControl.Guides.cs,
-        // the first partial split out of this file.
-        ("src/Lightbox.App/Rendering/CanvasControl.cs", 5071),
+        // the first partial split out of this file, and again 5,071 → 5,024 when
+        // CanvasControl.Pointer.cs took what the pointer draws for itself: the
+        // brush ring's record and tip-outline cache, and the eyedropper's ring.
+        // The eyedropper ring is a *new* feature and the file still came down,
+        // which is the arrangement this ratchet exists to produce.
+        ("src/Lightbox.App/Rendering/CanvasControl.cs", 5024),
         // Raised 4,273 → 4,306 (2026-08-13): the construction-guide and
         // guide-set menu entries. Menu items have no partial to live in —
         // XAML cannot be split the way the code-behind was — and a menu that

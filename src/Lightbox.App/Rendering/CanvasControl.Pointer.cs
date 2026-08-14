@@ -1,0 +1,161 @@
+using Avalonia;
+using SkiaSharp;
+
+namespace Lightbox.App.Rendering;
+
+/// <summary>
+/// Part of <see cref="CanvasControl"/>: everything the pointer draws for itself.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Two gizmos and the rule about which one is shown. The brush's size ring says
+/// how wide the next mark will be; the eyedropper's ring
+/// (<see cref="PickRing"/>) says what colour the next click will take and what
+/// it would replace. They are alternatives rather than layers — the picker has
+/// no width to preview, so a size ring under a pick ring would be a gizmo
+/// describing a tool that is not in hand.
+/// </para>
+/// <para>
+/// Split out under the monolith ratchet, which is doing exactly what it was
+/// built for: <c>CanvasControl.cs</c> is the third-riskiest file in the
+/// repository and new work belongs in a partial rather than on the end of it.
+/// The line this draws is the honest one — the pointer's own appearance is a
+/// concern, not a leftover, and the tip-outline cache that was already there
+/// came with it because it exists solely to feed the size ring.
+/// </para>
+/// </remarks>
+public sealed partial class CanvasControl
+{
+    /// <summary>
+    /// The colour the eyedropper would take at the pointer, or null when it
+    /// would take none — the top half of <see cref="PickRing"/>.
+    /// </summary>
+    /// <remarks>
+    /// A hex string rather than a colour, because that is what the view model
+    /// holds and what the click will assign. Converting once, here, is one place
+    /// for a round trip to go wrong instead of two.
+    /// </remarks>
+    public static readonly StyledProperty<string?> PickSampleHexProperty =
+        AvaloniaProperty.Register<CanvasControl, string?>(nameof(PickSampleHex));
+
+    public string? PickSampleHex
+    {
+        get => GetValue(PickSampleHexProperty);
+        set => SetValue(PickSampleHexProperty, value);
+    }
+
+    /// <summary>The colour in hand — the bottom half of <see cref="PickRing"/>.</summary>
+    public static readonly StyledProperty<string?> PickCurrentHexProperty =
+        AvaloniaProperty.Register<CanvasControl, string?>(nameof(PickCurrentHex));
+
+    public string? PickCurrentHex
+    {
+        get => GetValue(PickCurrentHexProperty);
+        set => SetValue(PickCurrentHexProperty, value);
+    }
+
+    /// <summary>
+    /// The eyedropper's ring as it should be drawn this frame, or null.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Gated on the pointer <em>intent</em> rather than on the active tool, so
+    /// the eyedropper borrowed by holding Ctrl gets the ring too — and gated on
+    /// the intent rather than on the sample resolving, so the size ring does not
+    /// come back for the moment the pointer spends off the paper. Whether there
+    /// is a colour to show is <see cref="PickRing.For"/>'s decision, which is
+    /// where it can be tested.
+    /// </para>
+    /// <para>
+    /// Black is the fallback for a missing colour in hand, not a signal: nothing
+    /// binds it to null in practice, and inventing a "no colour" state for a
+    /// swatch that always has one would be a case with no way to reach it.
+    /// </para>
+    /// </remarks>
+    private PickRing? PickRingNow() => PickRing.For(
+        PointerIntent,
+        _hoverPoint is { } p ? ((float)p.X, (float)p.Y) : null,
+        ParseHex(PickSampleHex),
+        ParseHex(PickCurrentHex) ?? SKColors.Black);
+
+    /// <summary>A bound hex colour as Skia sees it, or null when there is none.</summary>
+    /// <remarks>
+    /// The forgiving parser on purpose. This runs on a value that arrives from a
+    /// binding and is drawn immediately, so a malformed string has to mean "no
+    /// ring" — <c>BrushEngine.ParseColor</c> throws, and a throw here would be a
+    /// half-typed hex code taking the canvas down.
+    /// </remarks>
+    private static SKColor? ParseHex(string? hex)
+    {
+        if (string.IsNullOrWhiteSpace(hex)) return null;
+        if (Services.ColorSpace.HexToRgb(hex) is not { } rgb) return null;
+        // Rounded, not truncated: the parser hands back 0..1, and 128/255 comes
+        // back as 127.999… — a swatch one value off the colour the click sets is
+        // the exact drift this preview exists not to have.
+        static byte Channel(double v) => (byte)Math.Round(Math.Clamp(v, 0, 1) * 255);
+        return new SKColor(Channel(rgb.R), Channel(rgb.G), Channel(rgb.B));
+    }
+
+    /// <summary>
+    /// Brush cursor in view space (radius already view-scaled).
+    /// </summary>
+    /// <remarks>
+    /// <b>B74.</b> <see cref="BrushCursor.Outline"/> is the tip's silhouette in
+    /// unit space, already traced and cached by <c>BrushTipOutline</c>, or null
+    /// for a brush with no tip — where <see cref="BrushCursor.Roundness"/> and
+    /// <see cref="BrushCursor.AngleDeg"/> describe the ellipse the engine's round
+    /// dab actually is.
+    /// </remarks>
+    private readonly record struct BrushCursor(
+        float X, float Y, float Radius,
+        float Roundness = 1f,
+        float AngleDeg = 0f,
+        SKPath? Outline = null);
+
+    /// <summary>
+    /// The tip's outline as a unit-space path, built once per tip.
+    /// </summary>
+    /// <remarks>
+    /// <b>B74.</b> <c>BrushTipOutline</c> caches the trace; this caches the
+    /// <see cref="SKPath"/> built from it, because <c>Render</c> runs on every
+    /// pointer move and building a few hundred-segment path per frame is the same
+    /// mistake one level up. Keyed by tip id, and only ever holding one — the
+    /// cursor shows one brush at a time, so a dictionary would be a cache with no
+    /// second entry.
+    /// </remarks>
+    private string? _outlineTipId;
+    private SKPath? _outlinePath;
+
+    private SKPath? TipOutlinePath(string? tipId)
+    {
+        if (string.IsNullOrEmpty(tipId))
+        {
+            _outlinePath?.Dispose();
+            _outlinePath = null;
+            _outlineTipId = null;
+            return null;
+        }
+        if (string.Equals(tipId, _outlineTipId, StringComparison.Ordinal)) return _outlinePath;
+
+        _outlinePath?.Dispose();
+        _outlinePath = null;
+        _outlineTipId = tipId;
+
+        if (Lightbox.Raster.BrushTipOutline.Of(tipId) is not { Count: > 0 } contours) return null;
+
+        var path = new SKPath();
+        foreach (var contour in contours)
+        {
+            if (contour.Count < 3) continue;
+            path.MoveTo((float)contour[0].X, (float)contour[0].Y);
+            for (var i = 1; i < contour.Count; i++)
+            {
+                path.LineTo((float)contour[i].X, (float)contour[i].Y);
+            }
+            path.Close();
+        }
+        _outlinePath = path.IsEmpty ? null : path;
+        if (_outlinePath is null) path.Dispose();
+        return _outlinePath;
+    }
+}

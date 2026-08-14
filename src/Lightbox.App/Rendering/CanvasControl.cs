@@ -70,6 +70,8 @@ public sealed partial class CanvasControl : Control
             BrushCursorAngleProperty,
             LazyRadiusProperty,
             SoloProperty,
+            PickSampleHexProperty,
+            PickCurrentHexProperty,
         ];
         AffectsRender<CanvasControl>(RepaintOnChange);
 
@@ -939,6 +941,9 @@ public sealed partial class CanvasControl : Control
         get => GetValue(PointerIntentProperty);
         set => SetValue(PointerIntentProperty, value);
     }
+
+    // The two colours the eyedropper's ring compares are properties too, and
+    // they live in CanvasControl.Pointer.cs with the gizmo that reads them.
 
     // The intent-to-cursor mapping lives in PointerCursors now (B175): as a
     // private switch here it collapsed Pick, Fill and Precise onto one cross,
@@ -2096,8 +2101,9 @@ public sealed partial class CanvasControl : Control
         var snapshot = _snapshot;
         if (snapshot is null || Bounds.Width <= 0 || Bounds.Height <= 0) return;
 
+        // Both pointer gizmos, and which one is shown, live in CanvasControl.Pointer.cs.
         BrushCursor? cursor = null;
-        if (_hoverPoint is { } p)
+        if (_hoverPoint is { } p && PointerIntent != CanvasCursorKind.Pick)
         {
             var radius = (float)Math.Max(1.0, BrushCursorSize / 2 * FitScale() * _zoom);
             cursor = new BrushCursor(
@@ -2106,6 +2112,8 @@ public sealed partial class CanvasControl : Control
                 (float)BrushCursorAngle,
                 TipOutlinePath(BrushCursorTipId));
         }
+        var pickRing = PickRingNow();
+
         var view = new ViewState(
             snapshot.DocWidth,
             snapshot.DocHeight,
@@ -2167,55 +2175,11 @@ public sealed partial class CanvasControl : Control
             ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks),
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
-            _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo));
+            _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing));
     }
 
-    /// <summary>
-    /// The tip's outline as a unit-space path, built once per tip.
-    /// </summary>
-    /// <remarks>
-    /// <b>B74.</b> <c>BrushTipOutline</c> caches the trace; this caches the
-    /// <see cref="SKPath"/> built from it, because <c>Render</c> runs on every
-    /// pointer move and building a few hundred-segment path per frame is the same
-    /// mistake one level up. Keyed by tip id, and only ever holding one — the
-    /// cursor shows one brush at a time, so a dictionary would be a cache with no
-    /// second entry.
-    /// </remarks>
-    private string? _outlineTipId;
-    private SKPath? _outlinePath;
-
-    private SKPath? TipOutlinePath(string? tipId)
-    {
-        if (string.IsNullOrEmpty(tipId))
-        {
-            _outlinePath?.Dispose();
-            _outlinePath = null;
-            _outlineTipId = null;
-            return null;
-        }
-        if (string.Equals(tipId, _outlineTipId, StringComparison.Ordinal)) return _outlinePath;
-
-        _outlinePath?.Dispose();
-        _outlinePath = null;
-        _outlineTipId = tipId;
-
-        if (Lightbox.Raster.BrushTipOutline.Of(tipId) is not { Count: > 0 } contours) return null;
-
-        var path = new SKPath();
-        foreach (var contour in contours)
-        {
-            if (contour.Count < 3) continue;
-            path.MoveTo((float)contour[0].X, (float)contour[0].Y);
-            for (var i = 1; i < contour.Count; i++)
-            {
-                path.LineTo((float)contour[i].X, (float)contour[i].Y);
-            }
-            path.Close();
-        }
-        _outlinePath = path.IsEmpty ? null : path;
-        if (_outlinePath is null) path.Dispose();
-        return _outlinePath;
-    }
+    // The tip outline cache and TipOutlinePath moved to CanvasControl.Pointer.cs,
+    // where the rest of what the pointer draws for itself now lives.
 
     // ---- view <-> document transform ---------------------------------------
 
@@ -3828,20 +3792,7 @@ public sealed partial class CanvasControl : Control
 
     // ---- render-thread blit -------------------------------------------------
 
-    /// <summary>
-    /// Brush cursor in view space (radius already view-scaled).
-    /// </summary>
-    /// <remarks>
-    /// <b>B74.</b> <see cref="Outline"/> is the tip's silhouette in unit space,
-    /// already traced and cached by <c>BrushTipOutline</c>, or null for a brush
-    /// with no tip — where <see cref="Roundness"/> and <see cref="AngleDeg"/>
-    /// describe the ellipse the engine's round dab actually is.
-    /// </remarks>
-    private readonly record struct BrushCursor(
-        float X, float Y, float Radius,
-        float Roundness = 1f,
-        float AngleDeg = 0f,
-        SKPath? Outline = null);
+    // The BrushCursor record moved to CanvasControl.Pointer.cs.
 
     /// <summary>Pulled-string gizmo, all in document space: dead zone around the cursor, string, anchor.</summary>
     private readonly record struct LazyGizmo(
@@ -4050,7 +4001,8 @@ public sealed partial class CanvasControl : Control
         IReadOnlyList<Core.Documents.StrokePoint>? penPreview = null,
         IReadOnlyList<Core.Documents.StrokePoint>? pathTrace = null,
         LayerTextureCache? textures = null,
-        ChannelSolo solo = ChannelSolo.None) : ICustomDrawOperation
+        ChannelSolo solo = ChannelSolo.None,
+        PickRing? pickRing = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -4188,6 +4140,7 @@ public sealed partial class CanvasControl : Control
             canvas.Restore();
 
             if (cursor is { } c) DrawBrushCursor(canvas, c);
+            if (pickRing is { } ring) PickRing.Draw(canvas, ring);
             canvas.Restore();
         }
 
