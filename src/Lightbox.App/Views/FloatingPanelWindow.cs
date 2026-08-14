@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Lightbox.App.Controls;
 using Lightbox.App.Docking;
+using Lightbox.App.Services;
 
 namespace Lightbox.App.Views;
 
@@ -39,6 +40,37 @@ public sealed class FloatingPanelWindow : Window
         // the layout claiming a floating panel that is nowhere on screen.
         Closing += (_, _) => Dismissed?.Invoke(PanelId);
     }
+
+    /// <summary>
+    /// The scope a key pressed in this window belongs to: the panel it is
+    /// showing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Tearing a panel off used to silence its keyboard entirely.</b> Not
+    /// just its own bindings — every shortcut. A floating timeline answered
+    /// neither <c>I</c> (insert a key, which is its own) nor <c>B</c> (the
+    /// brush, which is general), because this window wired no key handling at
+    /// all and the main window never saw the press. Docking the panel again
+    /// brought them all back, which is what made it read as a mystery rather
+    /// than as a missing handler.
+    /// </para>
+    /// <para>
+    /// <b>The active tab, not <see cref="PanelId"/>.</b> A floating docker can
+    /// carry tabs like a docked one, and a tabbed docker showing the palette is
+    /// the palette as far as a key press is concerned — the same rule the docked
+    /// side applies, so a panel means the same thing in both places.
+    /// </para>
+    /// <para>
+    /// <b>No hover test here, and that is not a shortcut taken.</b> Docked, the
+    /// pointer picks between panels because they share a window. This window
+    /// <i>is</i> one panel, so anywhere in it is that panel — and a key only
+    /// arrives here when this window has the focus, which is the artist saying
+    /// where they are at least as plainly as the pointer would.
+    /// </para>
+    /// </remarks>
+    public ShortcutScope Scope =>
+        ShortcutScope.In((Content as Docker)?.ActiveTab ?? PanelId);
 
     /// <summary>
     /// Let go of the panel without closing it — used when the panel is being

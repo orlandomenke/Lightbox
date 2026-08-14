@@ -40,6 +40,31 @@ public partial class MainWindow
     private void OnResetView(object? sender, RoutedEventArgs e) => Canvas.ResetView();
 
 
+    /// <summary>
+    /// The release edge, so a borrowed tool comes back.
+    /// </summary>
+    /// <remarks>
+    /// Tunnelling where it is attached, because a focused control that swallows
+    /// the key-up would otherwise leave the modifier stuck down and the artist
+    /// holding an eyedropper they let go of — the failure mode that makes a
+    /// momentary tool worse than none. A named method rather than a lambda
+    /// because every floating panel window attaches it too: a hold that begins
+    /// in the main window and ends in a torn-off panel has to release, and the
+    /// two copies this would otherwise need are two chances to fix one of them.
+    /// </remarks>
+    private void OnKeyUpEdge(object? sender, KeyEventArgs e)
+    {
+        _vm.ApplyHeldModifiers(e.KeyModifiers);
+        // The other half of a momentary tool key (B176): matched on the
+        // physical key rather than the gesture, so a modifier pressed
+        // mid-hold cannot orphan the release.
+        if (_momentaryToolKey is { } held && e.Key == held.Key)
+        {
+            _momentaryToolKey = null;
+            _vm.EndMomentaryTool(held.Tool);
+        }
+    }
+
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         // Don't hijack keys while the user is typing (layer rename, color hex, AI prompt).
@@ -113,7 +138,7 @@ public partial class MainWindow
         // handlers is how a modifier gets stuck down when a key-up goes missing.
         _vm.ApplyHeldModifiers(e.KeyModifiers);
 
-        var shortcutId = _shortcuts.IdFor(e, CurrentShortcutScope());
+        var shortcutId = _shortcuts.IdFor(e, CurrentShortcutScope(sender));
 
         // A momentary tool key (B176): the press borrows, and the release
         // decides — a tap latches, a hold restores. The physical key is

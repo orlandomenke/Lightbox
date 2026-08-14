@@ -645,6 +645,12 @@ public partial class MainWindow
             place.FloatWidth = w.Width;
             place.FloatHeight = w.Height;
         };
+        // A torn-off panel keeps the keyboard it had while docked — see
+        // FloatingPanelWindow.Scope for what tearing one off used to cost.
+        window.KeyDown += OnKeyDown;
+        window.AddHandler(
+            KeyUpEvent, OnKeyUpEdge, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+
         _floating[id] = window;
         window.Show(this);
     }
@@ -701,9 +707,24 @@ public partial class MainWindow
     /// tabbed docker showing the palette is the palette as far as a key press is
     /// concerned, whatever is behind it.
     /// </para>
+    /// <para>
+    /// <b>A key from a torn-off panel is answered by that panel, and the
+    /// pointer does not get a say.</b> The hover test below reads
+    /// <see cref="_hoveredElement"/>, which only ever describes <i>this</i>
+    /// window — so a floating panel asking it would be handed wherever the main
+    /// window's pointer happened to be resting, which is a different room. The
+    /// window the key arrived in is the one piece of evidence that is certainly
+    /// about the key.
+    /// </para>
     /// </remarks>
-    private Services.ShortcutScope CurrentShortcutScope()
+    /// <param name="from">
+    /// The window the key press arrived in — the <c>sender</c> of the key
+    /// handler, which is this window for a docked panel and the floating window
+    /// for a torn-off one.
+    /// </param>
+    private Services.ShortcutScope CurrentShortcutScope(object? from = null)
     {
+        if (from is FloatingPanelWindow floating) return floating.Scope;
         if (PanelUnder(_hoveredElement) is { } hovered) return Services.ShortcutScope.In(hovered);
         if (PanelUnder(FocusManager?.GetFocusedElement() as Visual) is { } focused)
         {
@@ -724,6 +745,17 @@ public partial class MainWindow
 
     /// <summary>What the pointer is over, for <see cref="CurrentShortcutScope"/>.</summary>
     private Visual? _hoveredElement;
+
+    /// <summary>
+    /// The scope a key press would resolve in, for tests.
+    /// </summary>
+    /// <remarks>
+    /// Asserting on the scope directly rather than on what a key happened to do:
+    /// inferring it from a side effect is how a probe reports "the shortcut is
+    /// dead" when the truth is that inserting a key on a frame that already has
+    /// one changes nothing.
+    /// </remarks>
+    internal Services.ShortcutScope ShortcutScopeForTests => CurrentShortcutScope();
 
     /// <summary>Clicking anywhere on a layer-docker row makes that layer active.</summary>
     private void OnLayerRowPressed(object? sender, PointerPressedEventArgs e)

@@ -22,9 +22,26 @@ public sealed partial class ShortcutRow(ShortcutDefinition definition) : Observa
     public void Refresh() => GestureText = Definition.GestureText;
 }
 
-public sealed class ShortcutGroup(string name, IEnumerable<ShortcutRow> rows)
+/// <summary>
+/// One heading in the shortcut editor: every command that applies in one place.
+/// </summary>
+/// <remarks>
+/// <b>Grouped by where a binding applies rather than by what it does (Q82).</b>
+/// The list used to be grouped by category, which meant the two commands bound
+/// to <c>I</c> sat under "Tools" and "Timeline" with nothing saying that one of
+/// them only answers over the timeline — an artist reading the list saw the same
+/// key twice and no rule. The cost of the swap is written down in
+/// <c>QUESTIONS.md</c> → Q82: "Everywhere" is now a long group, and commands an
+/// artist thinks of together are split across headings when they happen to
+/// differ in scope. <see cref="Hint"/> is what buys the trade back — the heading
+/// states the rule instead of leaving it to be inferred.
+/// </remarks>
+public sealed class ShortcutGroup(string name, string hint, IEnumerable<ShortcutRow> rows)
 {
     public string Name { get; } = name;
+
+    /// <summary>What this heading means, in one line under it.</summary>
+    public string Hint { get; } = hint;
 
     public ObservableCollection<ShortcutRow> Rows { get; } = new(rows);
 }
@@ -919,12 +936,46 @@ public partial class ConfigureWindow : Window
         var rows = _allRows.Where(r =>
             query.Length == 0
             || r.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
-            || r.Definition.GestureText.Contains(query, StringComparison.OrdinalIgnoreCase));
+            || r.Definition.GestureText.Contains(query, StringComparison.OrdinalIgnoreCase)
+            // The scope is a heading now, so it has to be searchable too, or
+            // typing "timeline" hides the group it is the name of.
+            || r.Definition.ScopeName.Contains(query, StringComparison.OrdinalIgnoreCase));
         GroupsHost.ItemsSource = rows
-            .GroupBy(r => r.Definition.Category)
-            .Select(g => new ShortcutGroup(g.Key, g))
+            .GroupBy(r => r.Definition.ScopeName)
+            .OrderBy(g => RankOf(g.First().Definition.Context))
+            .ThenBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase)
+            .Select(g => new ShortcutGroup(
+                g.Key,
+                HintFor(g.First().Definition),
+                // Category no longer groups, so it orders instead: it is still
+                // how an artist thinks of these, and the widest group would be
+                // an undifferentiated wall without it.
+                g.OrderBy(r => r.Definition.Category, StringComparer.CurrentCultureIgnoreCase)
+                 .ThenBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase)))
             .ToList();
     }
+
+    /// <summary>Widest first, so the list reads as a fallback chain top to bottom.</summary>
+    private static int RankOf(ShortcutContext context) => context switch
+    {
+        ShortcutContext.Global => 0,
+        ShortcutContext.Canvas => 1,
+        _ => 2,
+    };
+
+    /// <summary>
+    /// The rule under the heading, so it is stated rather than inferred.
+    /// </summary>
+    private static string HintFor(ShortcutDefinition definition) => definition.Context switch
+    {
+        ShortcutContext.Global =>
+            "Everywhere — unless the panel under the pointer claims the key for itself.",
+        ShortcutContext.Canvas =>
+            "The canvas, the bars, the rail and the menu — and any panel that does not claim the key.",
+        _ =>
+            $"Only while the pointer is over {definition.ScopeName}, or it has the keyboard focus. "
+            + "Elsewhere the key keeps its usual meaning.",
+    };
 
     private void OnSearchChanged(object? sender, TextChangedEventArgs e) => RebuildGroups();
 
