@@ -264,10 +264,16 @@ public partial class MainViewModel
     public bool CommitPathEdit()
     {
         if (_pathEdit is not { Dirty: true } session) return false;
-        if (PaintTarget() is not { } frame) return false;
         if (!CanEdit(ActiveLayer, "reshape lines on it")) return false;
 
-        var strokeId = session.StrokeId;
+        // B207. The session picked its stroke off whatever the cel displays,
+        // which on a hold is the drawing it borrows; committing into that
+        // would move the line on the earlier frame too. Keying here rather
+        // than when the pen was picked up is the rule B206 settled: the
+        // record changes when an edit lands, never because a tool was chosen.
+        var ids = new List<string> { session.StrokeId };
+        if (KeyHeldCelForStrokeEdit(ids) is not { } frame) return false;
+        var strokeId = ids[0];
         var stroke = StrokesOf(frame).FirstOrDefault(s => s.Id == strokeId);
         if (stroke is null) return false;
 
