@@ -116,8 +116,14 @@ Right-click a layer and open **Follows the rig**:
 - **Nothing** — off the rig.
 
 This is per *layer*, so it covers drawings you have not made yet and frames
-you have not reached. Painted weights on an individual line still win over it
-— that is what the weight brush is for.
+you have not reached. Scrub the timeline and every drawing on the layer follows
+the pose, in playback and in every export. Painted weights on an individual
+line still win over it — that is what the weight brush is for.
+
+Your lines are never changed by this. A rigged layer decides where marks are
+*drawn*; the drawing stays exactly as you made it, so unrigging the layer
+returns it untouched. **Baking** a drawing freezes the pose into it and leaves
+the layer rigged, so the drawings you make afterwards still follow.
 
 A layer's own choice beats its link's, so you can rig the effects layer to a
 different bone from the lines it is linked to.

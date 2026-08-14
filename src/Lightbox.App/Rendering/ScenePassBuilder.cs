@@ -250,7 +250,8 @@ internal static class ScenePassBuilder
             if (tileModeOn)
             {
                 var why = TileFallback.Reason(
-                    frame, scene.Camera is not null, state.HaveViewport, liveEffectHere);
+                    frame, scene.Camera is not null, state.HaveViewport, liveEffectHere,
+                    posed: cache.Rig.IsPosed(frame));
                 tileFallbacks.Note(why);
                 if (why == TileFallbackReason.None) tileFrame = frame;
             }

@@ -160,7 +160,9 @@ each part of it.
   rig**. That covers every stroke on it, on every frame, including ones you
   draw later, and it is what you want for a character you are about to animate
   rather than a single illustration. **Link** the character's layers (lines,
-  colour, details) and rigging one rigs them all — see *Layers*.
+  colour, details) and rigging one rigs them all — see *Layers*. Nothing is
+  written onto your lines: the layer's binding is read when the drawing is
+  drawn, so linking a layer moves the drawings that were already on it.
 - **Assign to bone**: select strokes, and assign them wholly to the selected
   bone. This is the cutout workflow — each body part follows one bone — and it
   covers most rigs.

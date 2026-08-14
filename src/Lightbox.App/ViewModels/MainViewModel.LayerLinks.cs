@@ -284,6 +284,9 @@ public sealed partial class MainViewModel
     /// <summary>Re-read everything the link surface derives from the document.</summary>
     internal void NotifyLinkSurface()
     {
+        // A link that starts or stops carrying bones changes which drawings
+        // the rig moves, and nothing else on this path would notice.
+        RebuildRigIndex();
         OnPropertyChanged(nameof(ActiveLayerLink));
         OnPropertyChanged(nameof(HasActiveLayerLink));
         OnPropertyChanged(nameof(LinkCarriesBones));

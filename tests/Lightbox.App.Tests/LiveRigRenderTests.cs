@@ -47,10 +47,11 @@ public class LiveRigRenderTests
 
     private static FrameBitmapCache CacheFor(Doc doc)
     {
-        var cache = new FrameBitmapCache
-        {
-            PoseResolver = (f, cel) => Skinning.PoseFrameForRender(doc, f, cel),
-        };
+        var cache = new FrameBitmapCache { Rig = RigIndex.For(doc) };
+        // Index first, resolver second, and the resolver reads the index the
+        // cache holds — the pair must agree or a posed frame gets a key that
+        // says "any position".
+        cache.PoseResolver = (f, cel) => Skinning.PoseFrameForRender(doc, f, cel, cache.Rig);
         return cache;
     }
 
@@ -138,9 +139,29 @@ public class LiveRigRenderTests
     [Fact]
     public void ABoundFrameRefusesTheTilePath()
     {
+        // A frame carrying painted weights answers for itself, so the flag is
+        // redundant here — and it must still refuse without it.
         Assert.False(TileFrameCache.CanTileFrame(BoundFrame()));
         Assert.Equal(
             TileFallbackReason.BoundStrokes,
-            TileFallback.Reason(BoundFrame(), hasCamera: false, haveViewport: true, liveEffectHere: false));
+            TileFallback.Reason(
+                BoundFrame(), hasCamera: false, haveViewport: true, liveEffectHere: false, posed: false));
+    }
+
+    [Fact]
+    public void AFrameOnARiggedLayerRefusesTheTilePathToo()
+    {
+        // The layer-level case (Q90): no weights on the frame at all, so
+        // nothing about the frame says "posed" — and tiling it would draw the
+        // whole cycle at rest, which reads as the rig not working.
+        var plain = new Frame { Strokes = [new Stroke { Points = [new StrokePoint(1, 1, 1), new StrokePoint(9, 9, 1)] }] };
+        Assert.False(plain.HasBoundStrokes);
+
+        Assert.True(TileFrameCache.CanTileFrame(plain, posed: false));
+        Assert.False(TileFrameCache.CanTileFrame(plain, posed: true));
+        Assert.Equal(
+            TileFallbackReason.BoundStrokes,
+            TileFallback.Reason(
+                plain, hasCamera: false, haveViewport: true, liveEffectHere: false, posed: true));
     }
 }
