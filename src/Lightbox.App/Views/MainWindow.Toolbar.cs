@@ -37,6 +37,7 @@ public partial class MainWindow
             ToolId.Gradient => Rendering.CanvasControl.CanvasToolMode.Gradient,
             ToolId.Shape => Rendering.CanvasControl.CanvasToolMode.Shape,
             ToolId.Move => Rendering.CanvasControl.CanvasToolMode.Move,
+            ToolId.Bone => Rendering.CanvasControl.CanvasToolMode.Bone,
             // Reviving the object-selection mode rather than adding a parallel
             // one. It has been in the enum with its whole hit-test chain since
             // the selection manager landed, and nothing ever assigned it — so
@@ -56,6 +57,9 @@ public partial class MainWindow
             },
             _ => Rendering.CanvasControl.CanvasToolMode.Paint,
         };
+        // The Bone tool IS the rig mode (Q81): its chrome exists while the
+        // tool is active and not a moment longer.
+        _vm.ArmatureEditMode = _vm.ActiveTool == ToolId.Bone;
     }
 
     /// <summary>

@@ -628,87 +628,6 @@ public sealed partial class CanvasControl : Control
         set => SetValue(SoloProperty, value);
     }
 
-    /// <summary>
-    /// The rig marks to draw, or null for none — in which case no rig furniture
-    /// is drawn at all.
-    /// </summary>
-    /// <remarks>
-    /// <b>B58.</b> The one thing that was missing: <c>MainViewModel.RigMarks</c>
-    /// existed, was resolved through holds, and nothing ever asked for it. A plain
-    /// property with <c>InvalidateVisual</c> in the setter rather than a
-    /// <c>StyledProperty</c>, following <see cref="Guides"/> — the list is pushed
-    /// from the window when the view model says it changed, not bound, because it
-    /// is a flattened snapshot rather than a value an artist edits.
-    /// <para>
-    /// Absent rather than empty when the mode is off: <c>RigMarks</c> returns an
-    /// empty list when <c>RigEditMode</c> is false, so nothing here needs to know
-    /// about the mode at all.
-    /// </para>
-    /// </remarks>
-    public IReadOnlyList<RigMark>? RigMarks
-    {
-        get => _rigMarks;
-        set
-        {
-            _rigMarks = value;
-            InvalidateVisual();
-        }
-    }
-
-    private IReadOnlyList<RigMark>? _rigMarks;
-
-    /// <summary>
-    /// Whether a press should edit the rig instead of drawing.
-    /// </summary>
-    /// <remarks>
-    /// A mode, for the reason <c>MainViewModel.RigEditMode</c> gives: Shift, Ctrl
-    /// and Alt are already spoken for on the canvas, and a fourth meaning for one
-    /// of them is a chord nobody finds and everybody triggers by accident.
-    /// </remarks>
-    public bool RigEditMode
-    {
-        get => _rigEditMode;
-        set
-        {
-            _rigEditMode = value;
-            InvalidateVisual();
-        }
-    }
-
-    private bool _rigEditMode;
-
-    /// <summary>A press landed on the canvas in rig edit mode, in document space.</summary>
-    /// <remarks>
-    /// Void, like every other event here, so the window owns the decision. The
-    /// control then learns the answer through <see cref="BeginRigDrag"/> — the
-    /// alternative was a <c>Func</c> returning a hit, which would put the view
-    /// model's shape into the control's signature.
-    /// </remarks>
-    public event Action<double, double, double>? RigPressed;
-
-    /// <summary>A rig drag finished: the mark, the corner, and the total delta.</summary>
-    /// <remarks>
-    /// On release with the whole delta, not per pointer move, because
-    /// <c>MainViewModel.DragRig</c> is one editor step per call — a long drag
-    /// reported per event would be a hundred undo entries.
-    /// </remarks>
-    public event Action<string, RigCorner, double, double>? RigDragged;
-
-    /// <summary>An empty-canvas press in rig edit mode, for whatever the window adds there.</summary>
-    public event Action<double, double>? RigEmptyPressed;
-
-    private string? _rigDragId;
-    private RigCorner _rigDragCorner;
-    private (double X, double Y) _rigDragStart;
-
-    /// <summary>
-    /// Start dragging a mark. Called by the window once it knows what was hit.
-    /// </summary>
-    public void BeginRigDrag(string id, RigCorner corner)
-    {
-        _rigDragId = id;
-        _rigDragCorner = corner;
-    }
 
     /// <summary>
     /// The rig marks a drag is currently carrying, and how far.
@@ -993,6 +912,15 @@ public sealed partial class CanvasControl : Control
         Shape,
         Move,
         Select,
+
+        /// <summary>
+        /// The Bone tool: presses select bones, drags create or move them, and
+        /// in posing mode a drag rotates and keys at the playhead. Always in
+        /// the palette — the first drag on an unrigged document creates the
+        /// armature, which is how the capability stays reachable while the
+        /// record stays absent (Q81).
+        /// </summary>
+        Bone,
 
         /// <summary>
         /// The white arrow: nodes and handles on the one isolated stroke.
@@ -2142,7 +2070,8 @@ public sealed partial class CanvasControl : Control
             ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks), _balanceDots,
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
-            _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing));
+            _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing,
+            BoneChromes, HeatPoints));
     }
 
     // The tip outline cache and TipOutlinePath moved to CanvasControl.Pointer.cs,
@@ -2702,6 +2631,16 @@ public sealed partial class CanvasControl : Control
             {
                 case CanvasToolMode.Fill:
                     FillClicked?.Invoke(x, y, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+                    e.Handled = true;
+                    return;
+                case CanvasToolMode.Bone:
+                    _boneDragId = null;
+                    _boneDragGrab = BoneGrab.None;
+                    _boneGestureStart = (x, y);
+                    _boneGestureActive = true;
+                    // The window answers with BeginBoneDrag if the press hit a bone.
+                    BonePressed?.Invoke(x, y, FitScale() * _zoom);
+                    e.Pointer.Capture(this);
                     e.Handled = true;
                     return;
                 case CanvasToolMode.SelectWand:
@@ -3464,6 +3403,21 @@ public sealed partial class CanvasControl : Control
             e.Handled = true;
             return;
         }
+        // A bone gesture ends the same way a rig drag does: on release, with the
+        // endpoints, one editor step. The window decides what the gesture meant —
+        // create, joint move, re-aim or pose — from the grab and the mode.
+        if (_boneGestureActive)
+        {
+            var (bx, by) = ViewToDoc(e.GetPosition(this));
+            _boneGestureActive = false;
+            var boneId = _boneDragId;
+            var boneGrab = _boneDragGrab;
+            _boneDragId = null;
+            e.Pointer.Capture(null);
+            BoneGestureEnded?.Invoke(boneId, boneGrab, _boneGestureStart.X, _boneGestureStart.Y, bx, by);
+            e.Handled = true;
+            return;
+        }
         // B58. On release with the total delta, because DragRig is one editor step
         // per call — reporting per pointer move would be a hundred undo entries for
         // one drag of a hitbox.
@@ -3970,7 +3924,9 @@ public sealed partial class CanvasControl : Control
         IReadOnlyList<Core.Documents.StrokePoint>? pathTrace = null,
         LayerTextureCache? textures = null,
         ChannelSolo solo = ChannelSolo.None,
-        PickRing? pickRing = null) : ICustomDrawOperation
+        PickRing? pickRing = null,
+        IReadOnlyList<BoneChrome>? bones = null,
+        IReadOnlyList<HeatPoint>? heat = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -4103,6 +4059,11 @@ public sealed partial class CanvasControl : Control
             // The balance arc is furniture you judge against, same layer of
             // the sandwich as the rig.
             BalanceOverlayPainter.Paint(canvas, balanceDots, view.Scale);
+            // Heat under the bones, both over the rig marks: the armature is
+            // aimed with the same hand, and the heat is what a weight brush
+            // corrects against.
+            ArmatureOverlayPainter.PaintHeat(canvas, heat, view.Scale);
+            ArmatureOverlayPainter.Paint(canvas, bones, view.Scale);
             DrawAnts(canvas);
             DrawLazyGizmo(canvas);
             DrawTransformGizmo(canvas);

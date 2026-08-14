@@ -9,6 +9,13 @@ public enum ToolId
     Select,
 
     /// <summary>
+    /// Bones: create and edit the armature, pose it, and correct weights.
+    /// Always in the palette — the first drag on an unrigged document creates
+    /// the armature (Q81: a project type sets defaults, never availability).
+    /// </summary>
+    Bone,
+
+    /// <summary>
     /// The black arrow: picks <b>things</b> — a drawn line, a guide, a placed
     /// symbol, a rig anchor. Not areas of pixels.
     /// </summary>

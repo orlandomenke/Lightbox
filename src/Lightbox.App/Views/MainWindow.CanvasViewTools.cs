@@ -310,6 +310,12 @@ public partial class MainWindow
             case "tool.width":
                 _vm.SelectToolCommand.Execute(ToolId.Width);
                 break;
+            case "tool.bone":
+                _vm.SelectToolCommand.Execute(ToolId.Bone);
+                break;
+            case "armature.posingMode":
+                _vm.PosingMode = !_vm.PosingMode;
+                break;
             case "lines.simplify":
                 _vm.SimplifyLineCommand.Execute(null);
                 break;

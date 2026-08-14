@@ -1576,6 +1576,18 @@
                   <TextBlock Text="Move" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
+              <!-- The rig's one door (Q81): always here, even on an unrigged
+                   document, because the first drag is what creates the armature.
+                   Everything else the rig needs appears only while this tool is
+                   active - the mode is the tool. -->
+              <ToggleButton Classes="tool" IsChecked="{Binding IsBoneTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Bone}"
+                            ToolTip.Tip="Bone (K) - drag on empty canvas to add a bone (parented to the selected one), drag a tip to re-aim it, switch to posing to rotate and key at the playhead.">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Path Data="{StaticResource IconMove}" />
+                  <TextBlock Text="Bone" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
               <ToggleButton Classes="tool" IsChecked="{Binding IsArrowTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Arrow}"
                             ToolTip.Tip="Arrow (A) — click to select a whole line, a guide, a placed symbol or a rig anchor. Shift adds. Selects things, not areas of pixels.">

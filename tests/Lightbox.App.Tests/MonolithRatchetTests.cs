@@ -136,24 +136,23 @@ public class MonolithRatchetTests(ITestOutputHelper output)
         // guide-grab section, then the Guides/DraftGuide/BalanceDots overlay
         // properties — and once when CanvasControl.Pointer.cs took what the
         // pointer draws for itself: the brush ring's record and tip-outline
-        // cache, and the eyedropper's ring.
+        // cache, and the eyedropper's ring. Lowered again when the rig and
+        // armature overlay surfaces moved to CanvasControl.Overlays.cs.
         //
-        // 5,042 and 5,024 were the two branches' numbers and this is neither:
-        // the extractions were independent, so the merged file is smaller than
-        // either measured alone. That is the one thing to get right when this
-        // line conflicts — taking a side keeps a budget with the other side's
-        // slack already spent into it, which is a licence to grow by exactly
-        // the amount the other branch removed. Re-measure the merged tree.
-        ("src/Lightbox.App/Rendering/CanvasControl.cs", 4995),
+        // Re-measured on the merged tree, as the note below says to: the
+        // extractions on either side of a merge are independent, so the merged
+        // file is smaller than either branch measured alone, and taking a
+        // side keeps a budget with the other side's slack spent into it.
+        ("src/Lightbox.App/Rendering/CanvasControl.cs", 4956),
         // Raised 4,273 → 4,306 → 4,314 (2026-08-13): the construction-guide,
-        // guide-set and volume-check menu entries. Menu items have no partial
+        // guide-set and volume-check menu entries; → 4,326 (2026-08-14): the
+        // Bone tool's toolbar button. Buttons and menu items have no partial
         // to live in — XAML cannot be split the way the code-behind was — and
-        // a menu that hides features to satisfy a line count is the tail
-        // wagging the dog. The eyedropper's two bindings paired onto existing
-        // attribute lines rather than taking two more, which is why they are
-        // not in that sequence.
-        ("src/Lightbox.App/Views/MainWindow.axaml", 4314),
-        ("src/Lightbox.App/Views/MainWindow.axaml.cs", 455),
+        // a toolbar that hides tools to satisfy a line count is the tail
+        // wagging the dog.
+        ("src/Lightbox.App/Views/MainWindow.axaml", 4326),
+        // Lowered when the overlay-gesture wiring moved to MainWindow.Overlays.cs.
+        ("src/Lightbox.App/Views/MainWindow.axaml.cs", 449),
     ];
 
     private static string RepoRoot()

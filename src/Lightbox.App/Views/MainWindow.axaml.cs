@@ -242,30 +242,24 @@ public partial class MainWindow : Window
         _vm.ReferenceChanged += RefreshReferenceBoxes;
         _vm.GuidesChanged += RefreshGuides;
 
-        // B58. The whole reason the rig was invisible: `RigMarks` existed and
-        // nothing ever asked for it. Pushed rather than bound, following `Guides`
-        // — the list is a flattened snapshot for the render thread, not a value
-        // an artist edits.
-        _vm.PropertyChanged += (_, args) =>
+        WireOverlayGestures();
+        Canvas.BoneGestureEnded += (id, grab, x0, y0, x1, y1) =>
         {
-            if (args.PropertyName is nameof(MainViewModel.RigMarks)
-                or nameof(MainViewModel.RigEditMode)
-                or nameof(MainViewModel.SelectedRigMarkId)
-                or nameof(MainViewModel.CurrentFrameIndex))
+            if (id is null)
             {
-                RefreshRigOverlay();
+                // An empty-canvas drag creates a bone — in bind mode only;
+                // posing an empty spot means nothing and writes nothing.
+                if (!_vm.PosingMode) _vm.CreateBoneFromDrag(x0, y0, x1, y1);
             }
-        };
-        Canvas.RigPressed += (x, y, scale) =>
-        {
-            var hit = _vm.PressRig(x, y, scale);
-            if (hit is { Id: { } id }) Canvas.BeginRigDrag(id, hit.Corner);
-            RefreshRigOverlay();
-        };
-        Canvas.RigDragged += (id, corner, dx, dy) =>
-        {
-            _vm.DragRig(id, corner, dx, dy);
-            RefreshRigOverlay();
+            else if (_vm.PosingMode)
+            {
+                _vm.PoseBoneTo(id, x1, y1);
+            }
+            else if (grab is Rendering.BoneGrab.Origin or Rendering.BoneGrab.Tip)
+            {
+                _vm.DragBoneBind(id, grab, x1, y1);
+            }
+            RefreshArmatureOverlay();
         };
         InitialiseRulers();
 
