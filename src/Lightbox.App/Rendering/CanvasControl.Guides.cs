@@ -12,6 +12,63 @@ namespace Lightbox.App.Rendering;
 /// </remarks>
 public sealed partial class CanvasControl
 {
+    /// <summary>
+    /// The guides to draw, or null for none — in which case nothing
+    /// guide-related is drawn at all.
+    /// </summary>
+    public IReadOnlyList<GuideLine>? Guides
+    {
+        get => _guides;
+        set
+        {
+            _guides = value;
+            InvalidateVisual();
+        }
+    }
+
+    private IReadOnlyList<GuideLine>? _guides;
+
+    /// <summary>
+    /// A guide being pulled out of a ruler, not yet part of the document.
+    /// </summary>
+    /// <remarks>
+    /// Chrome, not data: it exists for the length of one drag and is never
+    /// written anywhere. Drawing it is the whole point of the gesture — a
+    /// guide you cannot see until you let go is one you place twice.
+    /// </remarks>
+    public GuideLine? DraftGuide
+    {
+        get => _draftGuide;
+        set
+        {
+            _draftGuide = value;
+            InvalidateVisual();
+        }
+    }
+
+    private GuideLine? _draftGuide;
+
+    /// <summary>
+    /// The volume checker's centre-of-mass arc, or null while it is off — in
+    /// which case nothing balance-related is drawn or paid for.
+    /// </summary>
+    /// <remarks>
+    /// Pushed from the window like <see cref="Guides"/> and <c>RigMarks</c>: a
+    /// flattened snapshot for the render thread, never a document object the
+    /// UI thread may be halfway through editing.
+    /// </remarks>
+    public IReadOnlyList<BalanceDot>? BalanceDots
+    {
+        get => _balanceDots;
+        set
+        {
+            _balanceDots = value;
+            InvalidateVisual();
+        }
+    }
+
+    private IReadOnlyList<BalanceDot>? _balanceDots;
+
     /// <summary>A guide was dragged, by a delta in document pixels.</summary>
     public event Action<string, double, double>? GuideMoved;
 

@@ -107,6 +107,27 @@ public class TrackView : Control
         set => SetValue(AudioPeaksProperty, value);
     }
 
+    /// <summary>
+    /// One frame's ink volume, normalised against the shot's largest frame.
+    /// A negative <paramref name="Level"/> is a frame with no ink at all.
+    /// </summary>
+    public readonly record struct VolumeBar(double Level, bool Flagged);
+
+    /// <summary>
+    /// The volume checker's per-frame band, one bar per frame, or null for no
+    /// band at all — optional means absent, the audio band's rule. Squash and
+    /// stretch preserves volume, so a level bar-line is on-model and a step in
+    /// it is the drift the checker exists to catch.
+    /// </summary>
+    public static readonly StyledProperty<IReadOnlyList<VolumeBar>?> VolumeBarsProperty =
+        AvaloniaProperty.Register<TrackView, IReadOnlyList<VolumeBar>?>(nameof(VolumeBars));
+
+    public IReadOnlyList<VolumeBar>? VolumeBars
+    {
+        get => GetValue(VolumeBarsProperty);
+        set => SetValue(VolumeBarsProperty, value);
+    }
+
     public static readonly StyledProperty<string> AudioLabelProperty =
         AvaloniaProperty.Register<TrackView, string>(nameof(AudioLabel), "Audio");
 
@@ -162,10 +183,11 @@ public class TrackView : Control
     static TrackView()
     {
         AffectsMeasure<TrackView>(
-            TracksProperty, FrameWidthProperty, FrameCountProperty, AudioPeaksProperty, VideoClipsProperty);
+            TracksProperty, FrameWidthProperty, FrameCountProperty, AudioPeaksProperty,
+            VideoClipsProperty, VolumeBarsProperty);
         AffectsRender<TrackView>(
             TracksProperty, FrameWidthProperty, CurrentFrameProperty, FrameCountProperty,
-            AudioPeaksProperty, VideoClipsProperty, AudioClipsProperty);
+            AudioPeaksProperty, VideoClipsProperty, AudioClipsProperty, VolumeBarsProperty);
     }
 
     // ---- geometry, static so the tests can hold it still ---------------------
@@ -210,9 +232,10 @@ public class TrackView : Control
         var rows = Tracks?.Count ?? 0;
         var clipRows = VideoClips?.Count ?? 0;
         var audioBand = AudioPeaks is { Count: > 0 } ? RowPitch : 0;
+        var volumeBand = VolumeBars is { Count: > 0 } ? RowPitch : 0;
         return new Size(
             Gutter + FrameCount * FrameWidth + 24,
-            RulerHeight + (rows + clipRows) * RowPitch + audioBand + 6);
+            RulerHeight + (rows + clipRows) * RowPitch + audioBand + volumeBand + 6);
     }
 
     // ---- painting -------------------------------------------------------------
@@ -360,6 +383,33 @@ public class TrackView : Control
             }
         }
 
+        // The volume checker's band, under whatever sound there is: one bar
+        // per frame, so drift reads as a step in an otherwise level skyline.
+        // Flagged frames are warm — they are the answer, not the data.
+        if (VolumeBars is { Count: > 0 } volume)
+        {
+            var top = VolumeBandTop(tracks.Count);
+            var floor = top + RowPitch - 3;
+            var span = RowPitch - 6;
+
+            var volumeName = new FormattedText(
+                "Volume", System.Globalization.CultureInfo.InvariantCulture,
+                FlowDirection.LeftToRight, typeface, 11, text);
+            context.DrawText(volumeName, new Point(10, top + RowPitch / 2 - volumeName.Height / 2));
+
+            var gap = FrameWidth >= 4 ? 1.0 : 0.0;
+            for (var f = 0; f < Math.Min(volume.Count, FrameCount); f++)
+            {
+                var bar = volume[f];
+                if (bar.Level < 0) continue;   // no ink is no bar, not a zero bar
+                var height = Math.Max(1, bar.Level * span);
+                context.DrawRectangle(bar.Flagged ? VolumeFlaggedBrush : VolumeSteadyBrush, null,
+                    new Rect(
+                        Gutter + f * FrameWidth, floor - height,
+                        Math.Max(1, FrameWidth - gap), height));
+            }
+        }
+
         // A dragged dot's ghost, so the hand sees where the drawing will land.
         if (_drag is { } d)
         {
@@ -387,6 +437,17 @@ public class TrackView : Control
 
     private double AudioBandTop(int trackCount) =>
         RulerHeight + (trackCount + (VideoClips?.Count ?? 0)) * RowPitch;
+
+    /// <summary>Below the audio band when there is one, in its place when not.</summary>
+    private double VolumeBandTop(int trackCount) =>
+        AudioBandTop(trackCount) + (AudioPeaks is { Count: > 0 } ? RowPitch : 0);
+
+    // Static, because Render runs per frame during playback and a brush per
+    // call is an allocation the band does not need. Fixed colours, not theme
+    // resources: the bars are data, and data should not change reading with
+    // the chrome.
+    private static readonly SolidColorBrush VolumeSteadyBrush = new(Color.Parse("#B44DC4FF"));
+    private static readonly SolidColorBrush VolumeFlaggedBrush = new(Color.Parse("#DCFF6A3D"));
 
     /// <summary>The bar's span with the live drag applied — the ghost the hand follows.</summary>
     private (int Start, int End) DraggedSpan(ClipBar bar, bool isAudio)
