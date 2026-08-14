@@ -4,8 +4,10 @@ Status: **Phase 0 built** (2026-08-12) — `InbetweenVerifier` in
 `Lightbox.Core/Inbetween`, the per-frame refusal path in `AiInbetweenAsync`,
 and `AiProvenance` on the frame, each with the tests the *Verification*
 section below asked for. The connection tester now judges with the same
-verifier rather than its own embryo. Phases 1–4 — the matcher upgrades, the
-golden set, repair, and adaptive shaping — remain design. The taxonomy half of
+verifier rather than its own embryo. **Phase 1's first half is built**
+(2026-08-14) — shape is in the matching cost; see *Shape in the cost* below.
+Its second half (breakdowns as a hard constraint) and phases 2–4 — the golden
+set, repair, and adaptive shaping — remain design. The taxonomy half of
 the subject reading (`DESIGN-subject-reading.md`) predates all of this.
 
 Two things Phase 0 taught that the tier table did not state, both about drag:
@@ -182,9 +184,48 @@ asks the artist for anything:
   moved by more than half its height crossed its own edges over and collapsed
   mid-motion. Greedy scored 120 where the optimum scored 80.
 - **Shape in the cost**, not only position and length: turning direction and
-  endpoint alignment separate a left arm from a right arm.
+  endpoint alignment separate a left arm from a right arm. **Built, B196** —
+  and the measurement changed what the item is. See below.
 - **`FrameRole.Breakdown` as a hard constraint** — the arc must pass through it.
   The artist already drew it; using it costs them nothing.
+
+### Shape in the cost — what building it taught
+
+The item above reads like an accuracy improvement, and it is not: the matcher
+was not scoring the wrong pairing, it was scoring **no pairing**. On an X
+rotated 20° about its own centre, all four entries of the cost matrix measured
+**0.0000** — two strokes crossing share a centroid and a length exactly, so
+position and length are both silent, and the pairing fell out of the solver's
+internal ordering. Listing the same two strokes the other way round swapped the
+match. A figure's two arms are the same fault quieter: identity 41.23 against a
+crossed 41.37, decided by hand jitter.
+
+Three things worth carrying to the rest of the phase:
+
+- **The tie is structural, so a better solver could never have found it.** When
+  two strokes of A share a centroid, every row of the matrix is identical and
+  every assignment scores the same total. B113 bought optimal assignment and
+  this was still unreachable — the fix had to be information, not search.
+- **The new terms add; they cannot multiply.** The existing cost multiplies
+  distance by a length penalty, and copying that shape would have failed on the
+  exact case being fixed, where distance is zero. Endpoint displacement and
+  signed bow are both already in pixels, so they join the sum without a tuned
+  weight — which is also why neither needs re-tuning when the canvas changes
+  size.
+- **The matcher had to be told what the interpolator already knew.**
+  `StrokeInterpolator` reverses B when its ends are crossed, so an endpoint term
+  that read point order literally would refuse pairings the interpolator handles
+  perfectly. It scores the better of the two orientations, and the bow term
+  negates alongside it. Two halves of one pipeline disagreeing about whether a
+  backwards-drawn stroke is the same mark is the kind of seam that produces
+  silent art — the same shape as B195 one layer up.
+
+**And a note on evidence, because a tie does not fail reliably.** Asserting the
+right pairing on the X passes on the *broken* build about as often as not. The
+test that fails is the one that matches the same drawing twice with its strokes
+listed in each order and asserts the two agree: a coin toss cannot be caught by
+looking at one flip. Any later check in this document that lands on a
+degenerate case — and the golden set will — wants the same treatment.
 
 ## Strengthening weak models
 
@@ -226,7 +267,7 @@ risking the work.
 | Phase | What | Why here |
 | --- | --- | --- |
 | **0** | Verifier, refusal path, provenance — **done** | Biggest win; no new model calls |
-| **1** | Matcher: shape cost, breakdowns as constraints | Deterministic; improves the non-AI path too |
+| **1** | Matcher: shape cost — **done**; breakdowns as constraints — next | Deterministic; improves the non-AI path too |
 | **2** | Golden set + capability profile | Makes reliability a number |
 | **3** | Repair loop | Needs specific findings first |
 | **4** | Adaptive shaping, best-of-N, authored wind | Needs the profile |
