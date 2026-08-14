@@ -115,6 +115,7 @@ public static class SequenceExporter
         var written = new List<string>();
 
         using var cache = new FrameBitmapCache();
+        cache.PoseResolver = (f, cel) => Skinning.PoseFrameForRender(doc, f, cel);
         for (var i = 0; i < scene.FrameCount; i++)
         {
             using var image = RenderFrame(doc, cache, i);

@@ -300,6 +300,12 @@ public static class SpriteSheetExporter
                 var count = Math.Max(1, scene.FrameCount);
                 starts.Add(frames.Count);
 
+                // The cache is shared across documents (frame ids are unique),
+                // but each document poses against its own rig — so the
+                // resolver is repointed per document, before its frames render.
+                var docHere = docs[d];
+                cache.PoseResolver = (f, cel) => Skinning.PoseFrameForRender(docHere, f, cel);
+
                 // Layer decisions are per stack — one document's covering
                 // layer must not silence another's art.
                 var (omitted, suspected) = DecideLayers(scene, cache, opts.Background, count);
@@ -498,6 +504,7 @@ public static class SpriteSheetExporter
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(sheetPath))!);
 
         using var cache = new FrameBitmapCache();
+        cache.PoseResolver = (f, cel) => Skinning.PoseFrameForRender(doc, f, cel);
         var frames = new List<SKImage>(count);
         var inkBounds = new List<SKRectI>(count);
         try

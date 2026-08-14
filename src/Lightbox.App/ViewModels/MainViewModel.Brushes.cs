@@ -133,6 +133,11 @@ public partial class MainViewModel
         _editor = new DocumentEditor(StartupDoc());
         _activeLayerIndex = FirstPaintableLayer(_editor.Doc);
         _editor.Changed += OnDocumentChanged;
+        // The live rig: a frame with bound strokes renders posed for the
+        // timeline position asking for it. Reads `_editor` at call time, so
+        // switching tabs switches the armature with everything else. A
+        // document with no rig takes the null branch inside and pays nothing.
+        _cache.PoseResolver = (frame, cel) => Skinning.PoseFrameForRender(_editor.Doc, frame, cel);
         // B147: the canvas holds its own copy of the selected outlines, and only
         // OnStrokeSelectionChanged refreshes it. Every path that reaches the
         // manager directly — picking a guide, a symbol or a reference box, all of

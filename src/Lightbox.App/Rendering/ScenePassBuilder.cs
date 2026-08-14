@@ -429,7 +429,7 @@ internal static class ScenePassBuilder
             if (index == state.FrameIndex) continue;
             if (ExposureSheet.ExposedFrame(layer, index) is not { } pinned) continue;
             passes.Add(new RenderPass(
-                cache.Get(pinned, scene.Width, scene.Height),
+                cache.Get(pinned, scene.Width, scene.Height, celIndex: index),
                 index < state.FrameIndex ? previous : next,
                 onion.Opacity));
         }
@@ -441,7 +441,9 @@ internal static class ScenePassBuilder
         foreach (var ghost in around.OrderByDescending(g => g.Steps))
         {
             passes.Add(new RenderPass(
-                cache.Get(ghost.Frame, scene.Width, scene.Height),
+                // The ghost's own position, not the playhead's: a rig-bound
+                // ghost must show the pose it holds where it lives.
+                cache.Get(ghost.Frame, scene.Width, scene.Height, celIndex: ghost.Index),
                 ghost.Before ? previous : next,
                 OnionSkin.OpacityAt(ghost.Steps, onion.Opacity, onion.Falloff)));
         }
