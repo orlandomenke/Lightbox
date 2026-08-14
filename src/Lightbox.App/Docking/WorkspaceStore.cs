@@ -289,7 +289,23 @@ public sealed class WorkspaceStore
 
         foreach (var builtIn in Default().Workspaces)
         {
-            if (store.Find(builtIn.Name) is null) store.Workspaces.Add(builtIn);
+            if (store.Find(builtIn.Name) is not { } saved)
+            {
+                store.Workspaces.Add(builtIn);
+                continue;
+            }
+            // The store saves built-ins beside the user's own, so a file
+            // written before the quick bar could be chosen carries them with
+            // no quickBar key — a null the app wrote, not the artist. Left
+            // alone it shadows the built-in's choice forever (B203):
+            // Animation never gets its transport and the bar reads as the
+            // old tool-options bar on every install that predates the
+            // feature. Filling only a null keeps any list the artist did
+            // choose, including one that dropped a default entry.
+            if (saved.BuiltIn && saved.Layout.QuickBar is null)
+            {
+                saved.Layout.QuickBar = builtIn.Layout.QuickBar?.ToList();
+            }
         }
         if (store.Find(store.Current) is null) store.Current = store.Workspaces[0].Name;
         return store;
