@@ -38,12 +38,23 @@ undo step**:
 - delete, and blank the content
 - move up and move down — the block keeps its order and stops as one against
   the top or bottom of the stack
-- the eye, the lock, the alpha lock and the onion-skin toggle
+- the eye, the lock and the alpha lock
 - **In exports** — never, always, or leave it to the export
 - **New folder from layer**, which puts the whole selection in one folder
 
 Anything you do to a row that is *not* in the selection is done to that row
 alone. Right-clicking a layer you have not selected is not a trap.
+
+**The onion-skin toggle (◉) is the exception: it is always one layer**, even
+with several selected. The eye and the locks describe the drawing, and picking
+five layers means all five. Onion skin describes what you are *looking through*
+while you work on one of them, and which layers are in the stack is something
+you tune as you go — the background off, the layer under your hand on. Sweeping
+it across a selection would clear that arrangement and give nothing back.
+
+The keyboard and the shortcut bar say "active layer" and mean it: **Toggle
+lock**, **Toggle alpha lock** and the bar's ◉ act on the active layer alone,
+never on the selection. The docker's own rows are the selection-aware ones.
 
 Clicking a cel in the timeline, walking the stack with the arrow keys, or
 opening a document all set the active layer the ordinary way, and that starts

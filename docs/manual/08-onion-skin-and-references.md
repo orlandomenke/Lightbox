@@ -9,13 +9,18 @@ usually means two behind and none ahead. Ghosts sit directly under the layer the
 belong to, so multi-layer onion reads correctly, and they are off during
 playback — the one thing playback has to show is the animation.
 
+**The same controls are on both the Timeline and the X-sheet bars**, because
+onion skin belongs to you rather than to whichever view of the animation you
+have up. They used to be on the X-sheet's bar alone, which made the Timeline tab
+look as though one drawing each way was all it could do.
+
 Everything else is behind the **⚙** next to those fields:
 
 | Setting | What it does |
 | --- | --- |
 | Mode | **Frames** ghosts this layer's other drawings. **Light table** instead dims the *other layers* at this frame, as sheets under the one you are drawing on. The paper is left alone. |
 | Opacity | How visible the nearest ghost is. |
-| Falloff | What each further ghost is worth. At **1** they are all equally visible — right for checking registration across a sequence. At **0.5** each is half the one before — right when you are drawing an inbetween. |
+| Falloff | What each further ghost is worth, and the setting that decides whether a deeper ghost is visible at all. It compounds, so it bites fast: at **0.5** the third ghost is an eighth of the nearest one's opacity, which against paper is nothing — raise the depth to 3 at that setting and it looks as though nothing happened. The default is **0.75**, which at the default opacity gives 0.35, 0.26, 0.20, 0.15 — four you can read, still clearly ranked by distance. At **1** they are all equally visible, which is right for checking registration across a sequence. |
 | Keyed drawings only | Step by drawings rather than by frames. On 2s or 3s the frame before is a hold of the drawing already on screen; this walks to the real one. |
 | Draw over the current drawing | Ghosts on top instead of underneath. Under is how a lightbox works and is what you want while drawing; over is for checking a line you have just made against the one it should match. |
 | Before / After tint | The two ghost colours. Red and blue by convention. |
@@ -23,7 +28,15 @@ Everything else is behind the **⚙** next to those fields:
 A ghost counts **drawings, not frames**: on 3s the drawing three frames back is
 still the *first* ghost, and gets the strongest opacity.
 
-Per-layer, the **◉** in the Layers panel opts a layer out of ghosting entirely.
+Per-layer, the **◉** beside a layer's name in the timeline's layer column opts
+that layer out of ghosting entirely — the background you never want ghosted, or
+a layer you are not working on. The one on the canvas shortcut bar does the same
+for the active layer.
+
+**If you raise the depth and see nothing new appear, the falloff is why**, not
+the depth. Every ghost you asked for is being drawn; the ones further out are
+simply too faint at a low falloff. Take the falloff up before you take the depth
+down.
 
 **Ghost poses.** *Pin as ghost* keeps the current frame ghosted from everywhere
 else in the sequence — the extreme you are animating towards, however far away it

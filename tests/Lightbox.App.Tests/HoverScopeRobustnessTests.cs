@@ -17,7 +17,7 @@ namespace Lightbox.App.Tests;
 
 /// <summary>
 /// The hovered scope survives the two things that made every panel binding fall
-/// through to the canvas in the real application (B196).
+/// through to the canvas in the real application (B199).
 /// </summary>
 /// <remarks>
 /// <para>

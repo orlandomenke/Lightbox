@@ -3932,6 +3932,12 @@
               <controls:OverflowBar Spacing="10" HorizontalAlignment="Center"
                                     MoreLabel="More  &#x25BE;" MenuPlacement="TopEdgeAlignedRight">
                 <views:TransportBar />
+                <!-- Onion skin belongs on both tabs, not only the X-sheet's:
+                     it is a property of the artist rather than of either view,
+                     and the depth spinners living on one tab alone left the
+                     other with no way to ask for more than one drawing each
+                     way. See OnionBar.axaml. -->
+                <views:OnionBar />
                 <!-- The scratch track (Q59). One button until there is one,
                      then the whole row — the same shape as the camera. -->
                 <Button Content="♪ Add audio" Click="OnImportAudio"
@@ -3986,70 +3992,7 @@
             <controls:OverflowBar Spacing="10" HorizontalAlignment="Center"
                                   MoreLabel="More  &#x25BE;" MenuPlacement="TopEdgeAlignedRight">
               <views:TransportBar />
-              <!-- Onion skin: the toggle stays on the bar because it is
-                   flipped constantly; everything that is set once and left
-                   alone goes behind the ⚙, so the bar does not grow a row of
-                   controls nobody touches twice in a session. -->
-              <CheckBox Content="Onion skin" IsChecked="{Binding OnionSkin}" VerticalAlignment="Center" />
-              <NumericUpDown Value="{Binding OnionBefore}" Minimum="0" Maximum="10" Increment="1"
-                             FormatString="0" Width="44" VerticalAlignment="Center"
-                             ToolTip.Tip="Drawings to ghost before the playhead" />
-              <NumericUpDown Value="{Binding OnionAfter}" Minimum="0" Maximum="10" Increment="1"
-                             FormatString="0" Width="44" VerticalAlignment="Center"
-                             ToolTip.Tip="Drawings to ghost after the playhead" />
-              <Button Content="⚙" VerticalAlignment="Center" ToolTip.Tip="Onion skin settings">
-                <Button.Flyout>
-                  <!-- Upwards: the timeline is the bottom strip, so a flyout
-                       placed below it opens off the edge of the window. -->
-                  <Flyout Placement="Top">
-                    <StackPanel Width="290" Spacing="8">
-                      <TextBlock Text="Onion skin" FontWeight="SemiBold" FontSize="12" />
-
-                      <ComboBox ItemsSource="{Binding OnionModeChoices}" SelectedItem="{Binding OnionMode}"
-                                HorizontalAlignment="Stretch"
-                                ToolTip.Tip="Frames ghosts this layer's own neighbouring drawings. Light table dims the other layers at this frame instead, as sheets under the one you are drawing on." />
-
-                      <StackPanel Spacing="8" IsVisible="{Binding !IsLightTable}">
-                        <DockPanel ToolTip.Tip="Visibility of the nearest ghost">
-                          <TextBlock Text="Opacity" Width="76" VerticalAlignment="Center" FontSize="12" />
-                          <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding OnionOpacity}" Minimum="0.02"
-                                         Maximum="1" Increment="0.05" FormatString="0.00" MinWidth="44" />
-                          <Slider Value="{Binding OnionOpacity}" Minimum="0.02" Maximum="1" Margin="4,0" />
-                        </DockPanel>
-                        <DockPanel ToolTip.Tip="What each further ghost is worth. 1 makes them all equally visible — right for checking registration across a sequence; 0.5 halves each one — right when drawing an inbetween.">
-                          <TextBlock Text="Falloff" Width="76" VerticalAlignment="Center" FontSize="12" />
-                          <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding OnionFalloff}" Minimum="0.05"
-                                         Maximum="1" Increment="0.05" FormatString="0.00" MinWidth="44" />
-                          <Slider Value="{Binding OnionFalloff}" Minimum="0.05" Maximum="1" Margin="4,0" />
-                        </DockPanel>
-
-                        <CheckBox Content="Keyed drawings only" IsChecked="{Binding OnionKeysOnly}"
-                                  ToolTip.Tip="Step by drawings rather than by frames — what &quot;the drawing before this one&quot; means on 2s or 3s, where the frame before is a hold of the drawing already on screen." />
-                        <CheckBox Content="Draw over the current drawing" IsChecked="{Binding OnionDrawOver}"
-                                  ToolTip.Tip="Under is how a lightbox works and is what you want while drawing. Over is for checking a line you have just made against the one it should match." />
-
-                        <Grid ColumnDefinitions="76,*,8,76,*" RowDefinitions="Auto">
-                          <TextBlock Grid.Column="0" Text="Before" VerticalAlignment="Center" FontSize="12" />
-                          <controls:ColorField Grid.Column="1" Hex="{Binding OnionPreviousTint, Mode=TwoWay}"
-                                               HorizontalAlignment="Left" />
-                          <TextBlock Grid.Column="3" Text="After" VerticalAlignment="Center" FontSize="12" />
-                          <controls:ColorField Grid.Column="4" Hex="{Binding OnionNextTint, Mode=TwoWay}"
-                                               HorizontalAlignment="Left" />
-                        </Grid>
-                      </StackPanel>
-
-                      <TextBlock Text="Ghost poses" FontWeight="SemiBold" FontSize="12" Margin="0,4,0,0" />
-                      <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.6"
-                                 Text="A pinned frame stays ghosted from every other frame — the extreme you are animating towards, however far away it is." />
-                      <StackPanel Orientation="Horizontal" Spacing="6">
-                        <Button Content="{Binding GhostPinLabel}" Command="{Binding ToggleGhostFrameCommand}" />
-                        <Button Content="Clear pins" Command="{Binding ClearGhostFramesCommand}"
-                                IsEnabled="{Binding HasGhostFrames}" />
-                      </StackPanel>
-                    </StackPanel>
-                  </Flyout>
-                </Button.Flyout>
-              </Button>
+              <views:OnionBar />
               <!-- How many frames fit on screen. Narrow to read the timing of
                    a long scene, wide to read the thumbnails of a short one. -->
               <DockPanel VerticalAlignment="Center" controls:OverflowBar.Flex="True"
@@ -4153,6 +4096,7 @@
                                     Extent="{Binding TimelineExtent}"
                                     MaxFrame="{Binding MaxScrubFrame}"
                                     CurrentFrame="{Binding CurrentFrameIndex, Mode=TwoWay}"
+                                    IsScrubbing="{Binding IsScrubbing, Mode=TwoWay}"
                                     RangeStart="{Binding PlaybackStartFrame, Mode=TwoWay}"
                                     RangeEnd="{Binding PlaybackEndFrame, Mode=TwoWay}"
                                     Markers="{Binding MarkersView}" />

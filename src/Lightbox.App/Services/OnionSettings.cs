@@ -47,7 +47,48 @@ public sealed class OnionSettings
     /// visible — right for checking registration across a sequence; at 0.5
     /// each is half the one before — right when drawing an inbetween.
     /// </summary>
-    public double Falloff { get; set; } = 0.5;
+    /// <remarks>
+    /// <b>0.75 rather than the 0.5 this defaulted to, because 0.5 made the
+    /// depth control look broken.</b> Compounding halves the nearest ghost's
+    /// opacity, so at the default 0.35 the ghosts came out 0.350, 0.175,
+    /// 0.0875 — the second faint and the third invisible against paper. An
+    /// artist who raised the depth to 3 saw nothing appear and reasonably
+    /// concluded that showing more than one drawing each way did not work; it
+    /// did, and every ghost was being rendered. At 0.75 the same stack is
+    /// 0.350, 0.263, 0.197, 0.148: four readable ghosts, still ranked by
+    /// distance, which is what the falloff is for.
+    /// <para>
+    /// The near ghost is unchanged either way — this only scales what is
+    /// behind it — so the inbetweening case the 0.5 default was tuned for is
+    /// a notch away rather than gone, and <see cref="FalloffChosen"/> keeps it
+    /// for anyone who went and set it.
+    /// </para>
+    /// </remarks>
+    public double Falloff { get; set; } = 0.75;
+
+    /// <summary>
+    /// The artist has set the falloff themselves, so nothing may revise it.
+    /// </summary>
+    /// <remarks>
+    /// The <c>CanvasQualityChosen</c> pattern, and it exists for the one case
+    /// a changed default cannot reach on its own: these settings persist, so
+    /// an install that has ever saved them carries an explicit
+    /// <c>"falloff": 0.5</c> and would never see the new default. Migrating
+    /// that value on load is what makes the fix reach the people who reported
+    /// the problem rather than only new installs.
+    /// <para>
+    /// It costs one thing, and it is worth naming: a file written before this
+    /// flag existed has no way to say "I chose 0.5 deliberately", so such a
+    /// choice is moved to 0.75 once. That is a single visible change to a
+    /// control the artist already knows how to set, against a default that
+    /// otherwise silently keeps its worst behaviour for exactly the people who
+    /// have used the app longest.
+    /// </para>
+    /// </remarks>
+    public bool FalloffChosen { get; set; }
+
+    /// <summary>The falloff this shipped with before 0.75 — see <see cref="FalloffChosen"/>.</summary>
+    internal const double LegacyFalloff = 0.5;
 
     /// <summary>
     /// Step by keyed drawings rather than timeline frames. What an artist on

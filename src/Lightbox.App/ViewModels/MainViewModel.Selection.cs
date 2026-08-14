@@ -501,10 +501,18 @@ public partial class MainViewModel
         set => SetOnion(Math.Clamp(value, 0.02, 1), v => Onion.Opacity = v, Onion.Opacity);
     }
 
+    /// <summary>
+    /// Setting this marks the falloff as chosen, so no future default revises
+    /// it. See <see cref="Services.OnionSettings.FalloffChosen"/>.
+    /// </summary>
     public double OnionFalloff
     {
         get => Onion.Falloff;
-        set => SetOnion(Math.Clamp(value, 0.05, 1), v => Onion.Falloff = v, Onion.Falloff);
+        set => SetOnion(Math.Clamp(value, 0.05, 1), v =>
+        {
+            Onion.Falloff = v;
+            Onion.FalloffChosen = true;
+        }, Onion.Falloff);
     }
 
     public bool OnionKeysOnly

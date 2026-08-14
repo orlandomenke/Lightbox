@@ -218,16 +218,22 @@ reading it:
   tablet driver or the operating system adds before that is invisible to it, so
   a clean section with a lagging hand points outside the application.
 
-### If playback stutters, read the tile section first
+### If playback or scrubbing stutters, read the tile section first
 
 **Play the scene, then write the report** — the section is about what happens
 while frames are flipping, so a report written from a still canvas has nothing
 in it.
 
-While a sequence plays, a drawing is held as tiles: it costs the ink on it
-rather than the whole sheet of paper, which is the difference between about
-14 ms a frame and about 137 ms at FullHD. Some drawings cannot be held that
-way, and then playback pays the slow price. The report says which, in one line:
+While the sequence is moving — playing, or being dragged along the ruler — a
+drawing is held as tiles: it costs the ink on it rather than the whole sheet of
+paper, which is the difference between about 14 ms a frame and about 137 ms at
+FullHD. **Dragging the playhead counts as moving**, so a scrub is as cheap as
+playback; the moment you let go, the still picture is drawn the ordinary way
+again, which is why a paused frame can look very slightly different from the
+same frame flying past.
+
+Some drawings cannot be held that way, and then both pay the slow price. The
+report says which, in one line:
 
 | It says | What to do about it |
 | --- | --- |

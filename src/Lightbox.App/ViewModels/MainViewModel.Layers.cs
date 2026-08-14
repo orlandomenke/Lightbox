@@ -413,12 +413,19 @@ public partial class MainViewModel
     /// The layers this toggle covers and does not already agree with. Empty
     /// means nothing to do, which is what keeps a no-op off the undo stack.
     /// </summary>
-    private List<Layer> ToggleTargets(Layer layer, Func<Layer, bool> current, bool value) =>
-        LayersForOp(layer).Where(l => current(l) != value).ToList();
+    /// <param name="alone">
+    /// Cover only <paramref name="layer"/>, whatever is selected. For the
+    /// entry points that name the active layer — the shortcut bar, the
+    /// keyboard, the menu — because a control that says "the active layer"
+    /// has to mean it. The docker's own row toggles pass false and follow
+    /// the selection, which is what the selection is for.
+    /// </param>
+    private List<Layer> ToggleTargets(Layer layer, Func<Layer, bool> current, bool value, bool alone = false) =>
+        (alone ? [layer] : LayersForOp(layer)).Where(l => current(l) != value).ToList();
 
-    internal void SetLayerVisible(Layer layer, bool visible)
+    internal void SetLayerVisible(Layer layer, bool visible, bool alone = false)
     {
-        var targets = ToggleTargets(layer, l => l.Visible, visible);
+        var targets = ToggleTargets(layer, l => l.Visible, visible, alone);
         if (targets.Count == 0) return;
         _editor.Perform(_ =>
         {
@@ -431,9 +438,9 @@ public partial class MainViewModel
     /// Undoable, like visibility — locking is a document decision an artist
     /// can change their mind about, not a view preference.
     /// </summary>
-    internal void SetLayerLocked(Layer layer, bool locked)
+    internal void SetLayerLocked(Layer layer, bool locked, bool alone = false)
     {
-        var targets = ToggleTargets(layer, l => l.Locked, locked);
+        var targets = ToggleTargets(layer, l => l.Locked, locked, alone);
         if (targets.Count == 0) return;
         _editor.Perform(_ =>
         {
@@ -443,9 +450,9 @@ public partial class MainViewModel
         NotifyLayerGating();
     }
 
-    internal void SetLayerAlphaLocked(Layer layer, bool locked)
+    internal void SetLayerAlphaLocked(Layer layer, bool locked, bool alone = false)
     {
-        var targets = ToggleTargets(layer, l => l.AlphaLocked, locked);
+        var targets = ToggleTargets(layer, l => l.AlphaLocked, locked, alone);
         if (targets.Count == 0) return;
         _editor.Perform(_ =>
         {
@@ -468,13 +475,13 @@ public partial class MainViewModel
     [RelayCommand]
     private void ToggleActiveLayerLocked()
     {
-        if (ActiveLayer is { } layer) SetLayerLocked(layer, !layer.Locked);
+        if (ActiveLayer is { } layer) SetLayerLocked(layer, !layer.Locked, alone: true);
     }
 
     [RelayCommand]
     private void ToggleActiveLayerAlphaLocked()
     {
-        if (ActiveLayer is { } layer) SetLayerAlphaLocked(layer, !layer.AlphaLocked);
+        if (ActiveLayer is { } layer) SetLayerAlphaLocked(layer, !layer.AlphaLocked, alone: true);
     }
 
     private void NotifyLayerGating()
@@ -493,23 +500,29 @@ public partial class MainViewModel
     /// Per-layer onion-skin participation. A display preference, so it is
     /// persisted (autosave) but deliberately not an undo step.
     /// </summary>
+    /// <remarks>
+    /// <b>One layer, even with several selected</b>, unlike the eye and the two
+    /// locks beside it. Those describe the drawing — hidden, locked, editable —
+    /// and an artist who picked five layers meant all five. This describes what
+    /// they are <em>looking through</em> while working on one of them, and the
+    /// arrangement of ghosts is something you tune per layer as you go: the
+    /// background stays off, the layer under the hand stays on. Sweeping it
+    /// across a selection would clear an arrangement that took a while to set up
+    /// and gives nothing back, because there is no bulk onion job to do.
+    /// </remarks>
     internal void SetLayerOnionEnabled(Layer layer, bool enabled)
     {
-        var targets = ToggleTargets(layer, l => l.OnionEnabled, enabled);
-        if (targets.Count == 0) return;
-        foreach (var target in targets)
+        if (layer.OnionEnabled == enabled) return;
+        layer.OnionEnabled = enabled;
+        // The same switch exists in two places — the timeline's layer column ◉
+        // and the shortcut bar's — and they have to agree. The row does not read
+        // the layer except when it is rebuilt, so pushing the value across is
+        // what stops one of them showing yesterday's answer.
+        if (LayerRows.FirstOrDefault(r => r.Layer.Id == layer.Id) is { } row)
         {
-            target.OnionEnabled = enabled;
-            // The same switch exists in two places — the Layers panel's ◉ and the
-            // shortcut bar's — and they have to agree. The row does not read the
-            // layer except when it is rebuilt, so pushing the value across is what
-            // stops one of them showing yesterday's answer.
-            if (LayerRows.FirstOrDefault(r => r.Layer.Id == target.Id) is { } row)
-            {
-                row.OnionEnabled = enabled;
-            }
+            row.OnionEnabled = enabled;
         }
-        if (targets.Any(t => t.Id == ActiveLayer.Id)) OnPropertyChanged(nameof(ActiveLayerOnion));
+        if (layer.Id == ActiveLayer.Id) OnPropertyChanged(nameof(ActiveLayerOnion));
         MarkDocumentEdited();
         PublishSnapshot();
     }
