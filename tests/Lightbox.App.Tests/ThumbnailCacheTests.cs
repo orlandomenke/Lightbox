@@ -6,7 +6,7 @@ using Lightbox.Core.Documents;
 namespace Lightbox.App.Tests;
 
 /// <summary>
-/// B201: undoing a layer-structure edit used to re-rasterize every drawing in
+/// B202: undoing a layer-structure edit used to re-rasterize every drawing in
 /// the timeline, for a document in which no drawing had changed.
 /// </summary>
 /// <remarks>

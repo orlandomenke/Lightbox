@@ -187,7 +187,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    /// <summary>Timeline thumbnails, keyed by drawing rather than by cell (B201).</summary>
+    /// <summary>Timeline thumbnails, keyed by drawing rather than by cell (B202).</summary>
     private readonly ThumbnailCache _thumbs = new();
 
     /// <summary>Every frame mutation goes through here, whichever cache holds it.</summary>

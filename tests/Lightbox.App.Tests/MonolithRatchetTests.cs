@@ -131,7 +131,7 @@ public class MonolithRatchetTests(ITestOutputHelper output)
     /// </remarks>
     public static readonly (string Path, int Max)[] Budgets =
     [
-        // Raised by exactly four for B201's `ThumbnailCache`: the field itself
+        // Raised by exactly four for B202's `ThumbnailCache`: the field itself
         // plus its two calls on the frame-invalidation funnel. Irreducible here
         // rather than extractable — two partials read the field, so the
         // decomposition convention puts it in the shared block, and the funnel

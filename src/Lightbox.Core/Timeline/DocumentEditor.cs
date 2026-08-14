@@ -107,7 +107,7 @@ public sealed class DocumentEditor
     /// <param name="frameContentUnchanged">
     /// Declare that this edit alters no drawing — it adds, removes, reorders or
     /// re-flags a layer and nothing else. Undo then leaves cached frame pixels
-    /// and thumbnails alone instead of dropping every one of them (B201).
+    /// and thumbnails alone instead of dropping every one of them (B202).
     /// <para>
     /// <b>Opt-in, and the default is the pessimistic answer on purpose.</b> A
     /// caller that declares this wrongly leaves the canvas showing pixels the
@@ -176,7 +176,7 @@ public sealed class DocumentEditor
     /// </summary>
     /// <param name="FrameContentUnchanged">
     /// The step moved the <em>structure</em> — added, removed, reordered or
-    /// re-flagged a layer — without altering any drawing. B201: this is the
+    /// re-flagged a layer — without altering any drawing. B202: this is the
     /// difference between an undo that re-rasterizes the whole timeline and one
     /// that re-rasterizes nothing, because a snapshot restores every frame with
     /// its id intact (<c>Frame.Clone</c> is a <c>MemberwiseClone</c>) and cached
@@ -300,7 +300,7 @@ public sealed class DocumentEditor
         /// <summary>The single frame this step touches, or null for document-wide.</summary>
         string? FrameId { get; }
 
-        /// <summary>This step altered no drawing — structure only (B201).</summary>
+        /// <summary>This step altered no drawing — structure only (B202).</summary>
         bool FrameContentUnchanged { get; }
 
         /// <summary>Take the document back to before this step; returns the doc to use.</summary>
