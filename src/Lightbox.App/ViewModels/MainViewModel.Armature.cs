@@ -118,12 +118,18 @@ public sealed partial class MainViewModel
                 ? ArmatureOps.PoseAt(Doc.Scene.PoseTrack, CurrentFrameIndex)
                 : null;
             var placements = ArmatureOps.Solve(armature, pose);
+            var handles = armature.Chains is { Count: > 0 } chains
+                ? chains.SelectMany(c => c.PoleBoneId is { } p ? new[] { c.TargetBoneId, p } : [c.TargetBoneId])
+                        .ToHashSet()
+                : [];
             var chrome = new List<BoneChrome>(armature.Bones.Count);
             foreach (var bone in armature.Bones)
             {
                 var p = placements[bone.Id];
                 var (tx, ty) = p.Tip(bone.Length);
-                chrome.Add(new BoneChrome(bone.Id, bone.Name, p.X, p.Y, tx, ty, bone.Id == SelectedBoneId));
+                chrome.Add(new BoneChrome(
+                    bone.Id, bone.Name, p.X, p.Y, tx, ty,
+                    bone.Id == SelectedBoneId, handles.Contains(bone.Id)));
             }
             return chrome;
         }
@@ -325,9 +331,14 @@ public sealed partial class MainViewModel
         _editor.Perform(doc =>
         {
             if (doc.Armature?.BoneById(id) is not { } target) return;
+            // Moving a glued bone means unglueing it. The alternative is a
+            // gesture that writes an offset the solve then ignores — a drag
+            // that visibly does nothing, which reads as the tool being broken.
+            if (target.IsConnected) Unglue(doc.Armature, target);
             target.X += lx;
             target.Y += ly;
         });
+        NotifyArmatureSurface();
         InvalidateRiggedFrames();
     }
 
@@ -339,6 +350,10 @@ public sealed partial class MainViewModel
         BonePlacement world, string? newParentId,
         IReadOnlyDictionary<string, BonePlacement> placements, Bone bone)
     {
+        // The whole point of a rebase is that the bone does not move, and a
+        // bone still glued after its parent changed would jump to the NEW
+        // parent's tip the next time it is solved. Unglue rather than teleport.
+        bone.Connected = null;
         var parent = newParentId is not null && placements.TryGetValue(newParentId, out var p)
             ? p
             : new BonePlacement(0, 0, 0);
@@ -347,6 +362,27 @@ public sealed partial class MainViewModel
         bone.X = Math.Cos(rad) * dx - Math.Sin(rad) * dy;
         bone.Y = Math.Sin(rad) * dx + Math.Cos(rad) * dy;
         bone.RotationDeg = world.RotationDeg - parent.RotationDeg;
+    }
+
+    /// <summary>
+    /// Break a bone's glue to its parent's tip without moving it: the offset
+    /// the solve was ignoring becomes the offset it reads.
+    /// </summary>
+    /// <remarks>
+    /// Called before any bind-mode edit that writes <see cref="Bone.X"/> or
+    /// <see cref="Bone.Y"/> on a connected bone, so the edit lands on values
+    /// that are actually in effect. Writing the parent's length in first is
+    /// what keeps the unglue itself invisible — the bone is where it was, and
+    /// only the drag moves it.
+    /// </remarks>
+    private static void Unglue(Armature armature, Bone bone)
+    {
+        if (bone.ParentId is { } pid && armature.BoneById(pid) is { } parent)
+        {
+            bone.X = parent.Length;
+            bone.Y = 0;
+        }
+        bone.Connected = null;
     }
 
     /// <summary>The brush mode as an index, because a ComboBox speaks indices.</summary>
@@ -394,6 +430,7 @@ public sealed partial class MainViewModel
         // A bone that undo took away must not stay selected, or the panel
         // offers rename and delete for something that is gone.
         if (SelectedBoneId is { } id && Doc.Armature?.BoneById(id) is null) SelectedBoneId = null;
+        NotifyIkSurface();
     }
 
     /// <summary>
@@ -406,11 +443,10 @@ public sealed partial class MainViewModel
     /// wherever the press landed. Bending the parent afterwards carries the
     /// whole chain, because the offset lives in the parent's frame.
     /// <para>
-    /// <b>Placed at the tip, not glued to it.</b> Re-lengthening the parent
-    /// later leaves this child where it is. Blender draws that distinction
-    /// with a connected flag on the bone, and this record has none — adding
-    /// one is a real modelling decision (it changes the solve and the file),
-    /// so it is written down rather than guessed at here.
+    /// <b>Glued to the tip, not merely placed at it</b> (Q86): the child is
+    /// <see cref="Bone.Connected"/>, so re-proportioning the parent drags the
+    /// whole chain after it rather than leaving a gap to close by hand. Any
+    /// bind-mode drag that moves the child's origin unglues it again.
     /// </para>
     /// </remarks>
     public void ExtrudeChildFrom(string parentId, double x, double y)
@@ -426,11 +462,12 @@ public sealed partial class MainViewModel
         {
             Name = NextBoneName(),
             ParentId = parentId,
-            // The parent's own frame: along its length, on its axis. A joined
-            // child is the one case where the offset is not arithmetic on a
-            // press point — it IS the parent's length.
+            // The parent's own frame: along its length, on its axis. Written
+            // as well as glued, so an unglue later has somewhere to land and
+            // a reader of the JSON sees where the joint sits.
             X = parent.Length,
             Y = 0,
+            Connected = true,
             RotationDeg = worldAngle - at.RotationDeg,
             Length = length,
         };
@@ -574,7 +611,11 @@ public sealed partial class MainViewModel
             else
             {
                 // The origin lands where the pointer is, expressed in the
-                // parent's frame — a root's frame is the document's.
+                // parent's frame — a root's frame is the document's. Dragging
+                // it off a glued joint unglues it, for the reason MoveBoneBy
+                // does: a silent no-op is worse than an unglue the artist can
+                // see and undo.
+                if (target.IsConnected && doc.Armature is { } rig) Unglue(rig, target);
                 var rad = -parentRot * Math.PI / 180.0;
                 var (dx, dy) = (x - parentPos.Item1, y - parentPos.Item2);
                 target.X = Math.Cos(rad) * dx - Math.Sin(rad) * dy;
@@ -593,6 +634,17 @@ public sealed partial class MainViewModel
     {
         if (Doc.Armature is not { } armature || armature.BoneById(id) is null) return;
 
+        // Three bones an FK rotation would silently fail on. A chain-driven
+        // bone's rotation is the solver's, so a key on it is overwritten on
+        // the very next solve; a handle and a pole are *placed* rather than
+        // aimed, so turning them moves nothing at all. All three want a
+        // translation, and the handle is the one the artist means.
+        if (ChainTouching(id) is { } chain)
+        {
+            PoseTranslateTo(chain.PoleBoneId == id || chain.TargetBoneId == id ? id : chain.TargetBoneId, x, y);
+            return;
+        }
+
         var frame = CurrentFrameIndex;
         var pose = ArmatureOps.PoseAt(Doc.Scene.PoseTrack, frame);
         var placements = ArmatureOps.Solve(armature, pose);
@@ -600,6 +652,20 @@ public sealed partial class MainViewModel
         var currentDelta = pose.GetValueOrDefault(id)?.RotationDeg ?? 0;
         var newDelta = currentDelta + ArmatureOverlay.AngleFrom(own.X, own.Y, x, y) - own.RotationDeg;
 
+        KeyPose(frame, id, p => p.RotationDeg = newDelta);
+        InvalidateRiggedFrames();
+    }
+
+    /// <summary>
+    /// Write one bone's departure from rest into the key at a frame, creating
+    /// the key — and the track — if there is none.
+    /// </summary>
+    /// <remarks>
+    /// A new key starts from what the artist SAW at this frame, the
+    /// interpolated pose, so keying one bone cannot snap its neighbours back
+    /// to rest. One undo step, because it is one <c>Perform</c>.
+    /// </remarks>
+    private void KeyPose(int frame, string boneId, Action<BonePose> edit) =>
         _editor.Perform(doc =>
         {
             var track = doc.Scene.PoseTrack ??= new PoseTrack();
@@ -607,18 +673,12 @@ public sealed partial class MainViewModel
             if (key is null)
             {
                 key = new PoseKey { Frame = frame };
-                // The new key starts from what the artist SAW at this frame —
-                // the interpolated pose — so keying one bone cannot snap its
-                // neighbours back to rest.
-                foreach (var (boneId, p) in ArmatureOps.PoseAt(doc.Scene.PoseTrack, frame))
-                    key.Bones[boneId] = p;
+                foreach (var (id, p) in ArmatureOps.PoseAt(doc.Scene.PoseTrack, frame))
+                    key.Bones[id] = p;
                 track.Keys.Add(key);
             }
-            var existing = key.Bones.TryGetValue(id, out var b) ? b : key.Bones[id] = new BonePose();
-            existing.RotationDeg = newDelta;
+            edit(key.Bones.TryGetValue(boneId, out var b) ? b : key.Bones[boneId] = new BonePose());
         });
-        InvalidateRiggedFrames();
-    }
 
     /// <summary>
     /// The weight brush is armed: Bone-tool presses paint influence for the

@@ -3,6 +3,7 @@ using Lightbox.App.Docking;
 using Lightbox.App.Rendering;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Serialization;
 
 namespace Lightbox.App.Tests;
 
@@ -295,7 +296,7 @@ public class BoneOptionsTests
     }
 
     [AvaloniaFact]
-    public void BendingTheParentCarriesTheChainButRelengthingItDoesNot()
+    public void BendingOrRelengthingTheParentBothCarryTheChain()
     {
         var vm = Rigged();
         vm.CreateBoneFromDrag(100, 100, 200, 100);
@@ -313,15 +314,51 @@ public class BoneOptionsTests
         Assert.Equal(100, posed[child].X, 6);
         Assert.Equal(200, posed[child].Y, 6);
 
-        // Re-lengthening the parent does NOT drag the child after it: the
-        // child was placed at the tip, it is not glued to it. Blender models
-        // that difference with a connected flag on the bone; this record has
-        // no such flag yet, so the honest guard is that the child stays put.
+        // Re-lengthening the parent drags the child after it, because an
+        // extruded child is glued to the tip rather than placed at it (Q86).
+        // Without the connected flag the child would stay at x=200 and the
+        // limb would come apart at the joint.
         vm.PosingMode = false;
         vm.SelectedBoneLength = 150;
         var rest = ArmatureOps.Solve(vm.Doc.Armature!);
-        Assert.Equal(200, rest[child].X, 6);
+        Assert.Equal(250, rest[child].X, 6);
         Assert.Equal(100, rest[child].Y, 6);
+    }
+
+    [AvaloniaFact]
+    public void DraggingAGluedJointUngluesItInsteadOfDoingNothing()
+    {
+        var vm = Rigged();
+        vm.CreateBoneFromDrag(100, 100, 200, 100);
+        var parent = vm.SelectedBoneId!;
+        vm.ExtrudeChildFrom(parent, 200, 180);
+        var child = vm.SelectedBoneId!;
+
+        vm.DragBoneBind(child, BoneGrab.Origin, 200, 140);
+        Assert.False(vm.Doc.Armature!.BoneById(child)!.IsConnected);
+        var moved = ArmatureOps.Solve(vm.Doc.Armature!);
+        Assert.Equal(200, moved[child].X, 6);
+        Assert.Equal(140, moved[child].Y, 6);
+
+        // And it stays put now: unglued means the parent's length no longer
+        // decides where the joint sits.
+        vm.SelectedBoneId = parent;
+        vm.SelectedBoneLength = 150;
+        var after = ArmatureOps.Solve(vm.Doc.Armature!);
+        Assert.Equal(200, after[child].X, 6);
+        Assert.Equal(140, after[child].Y, 6);
+    }
+
+    [AvaloniaFact]
+    public void AnUngluedBoneWritesNoConnectedKey()
+    {
+        var vm = Rigged();
+        vm.CreateBoneFromDrag(100, 100, 200, 100);
+        var json = DocJson.Serialize(vm.Doc);
+
+        // The camera's rule: a document whose bones are all ordinary roots
+        // pays not one key for the connected flag.
+        Assert.DoesNotContain("\"connected\"", json, StringComparison.OrdinalIgnoreCase);
     }
 
     [AvaloniaFact]
