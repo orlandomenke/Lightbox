@@ -2972,9 +2972,12 @@
                 </Border>
               </controls:Docker.BottomBar>
 
-              <!-- Topmost layer first: visibility, then the name (double-click to rename) -->
+              <!-- Topmost layer first: visibility, then the name (double-click to rename).
+                   Rows drag to reorder: a row's upper/lower half lands above/below it,
+                   a folder header files into the folder. -->
               <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <ItemsControl ItemsSource="{Binding LayerPanelItems}" Margin="4">
+                <ItemsControl ItemsSource="{Binding LayerPanelItems}" Margin="4" DragDrop.AllowDrop="True"
+                              DragDrop.DragOver="OnLayerDragOver" DragDrop.Drop="OnLayerDrop">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                       <StackPanel Orientation="Vertical" Spacing="2" />
@@ -3043,7 +3046,8 @@
                       <Border Classes="layerRow" Classes.active="{Binding IsActive}" Classes.grouped="{Binding IsGrouped}"
                               Classes.hiddenLayer="{Binding !Visible}" Classes.lockedLayer="{Binding EditsBlocked}" Classes.selected="{Binding IsSelected}"
                               Focusable="True"
-                              PointerPressed="OnLayerRowPressed">
+                              PointerPressed="OnLayerRowPressed"
+                              PointerMoved="OnLayerRowMoved" PointerReleased="OnLayerRowReleased">
                         <Border.ContextMenu>
                           <ContextMenu>
                             <MenuItem Header="Rename" Click="OnLayerMenuRename" />

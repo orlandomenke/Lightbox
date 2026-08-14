@@ -483,6 +483,10 @@ public partial class MainViewModel
         switch (TransformScope)
         {
             case TransformScope.ActiveCel:
+                // The frame the drag SHOWS, which on a hold is the drawing the
+                // cel borrows. Where the commit WRITES is a different question,
+                // answered at commit time by HeldCelNeedingKey — see
+                // KeyHeldCelForCommit.
                 Add(ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex));
                 break;
             case TransformScope.AllLayersAtFrame:
@@ -560,11 +564,87 @@ public partial class MainViewModel
         // Identity is "no preview": it renders the same and skips the split.
         if (matrix is { } m && m.IsIdentity) matrix = null;
         if (_transform.Preview is null && matrix is null) return;
+        var before = _transform.Preview;
         _transform.Preview = matrix;
-        // The drawing can land anywhere on the canvas, so no dirty region is
-        // safe here.
-        _publish.InvalidateWholeCanvas();
+        // Repaint where the moving pixels were and where they now are — the
+        // stroke path's bounded-work rule (invariant 6), which this preview
+        // used to break with a full-canvas invalidation per pointer event.
+        // Paced to the present rate, that read as a slideshow on any document
+        // where a full recomposite is slow, exactly where a brush stroke
+        // stays live. Whole-canvas remains the fallback when the moving
+        // pixels cannot be bounded from the stroke record.
+        if (PreviewDirtyRegion(before, matrix) is { } dirty)
+        {
+            _publish.MarkDirty(dirty);
+        }
+        else
+        {
+            _publish.InvalidateWholeCanvas();
+        }
         RequestSnapshot();
+    }
+
+    /// <summary>
+    /// The doc-space region one preview step changes: the session's moving
+    /// bounds through the previous matrix, unioned with the same bounds
+    /// through the new one. Null when the moving pixels cannot be bounded and
+    /// the caller must fall back to the whole canvas.
+    /// </summary>
+    /// <remarks>
+    /// Not clamped to the document here: <c>ComposePlan</c> already clamps,
+    /// and a region that leaves the canvas entirely simply patches nothing.
+    /// The two-pixel inflation is the antialias seam, the same allowance
+    /// <c>SnapshotGeometry</c> makes.
+    /// </remarks>
+    private SKRectI? PreviewDirtyRegion(SKMatrix? before, SKMatrix? after)
+    {
+        if (_transform.MovingBounds is not { } bounds) return null;
+        var was = before is { } b ? b.MapRect(bounds) : bounds;
+        var now = after is { } a ? a.MapRect(bounds) : bounds;
+        was.Union(now);
+        was.Inflate(2, 2);
+        return SKRectI.Ceiling(was);
+    }
+
+    /// <summary>
+    /// Doc-space bounds of what a preview moves, render reach included — or
+    /// null when a frame's moving pixels are not all strokes (a raster
+    /// baseline or a placement rides the layer bitmap), which is the honest
+    /// "cannot bound this" answer.
+    /// </summary>
+    /// <remarks>
+    /// The reach is <see cref="BrushEngine.ReachOf"/> per stroke rather than
+    /// half the brush size (what the gizmo's <c>TransformOps.Bounds</c> uses):
+    /// scatter and a medium's bleed put paint past the point geometry, and a
+    /// repaint region that missed it would leave crumbs of the mark behind at
+    /// the old position.
+    /// </remarks>
+    private static SKRect? PreviewMovingBounds(List<Frame> frames, Func<Stroke, bool>? filter)
+    {
+        float minX = float.MaxValue, minY = float.MaxValue;
+        float maxX = float.MinValue, maxY = float.MinValue;
+        var any = false;
+        foreach (var frame in frames)
+        {
+            // With a selection filter only strokes move and the baseline
+            // stays put; without one the whole layer bitmap moves, baseline
+            // and placements included, and strokes no longer bound it.
+            if (filter is null && (frame.HasBaseline || frame.HasPlacements)) return null;
+            foreach (var stroke in frame.Strokes)
+            {
+                if (filter is not null && !filter(stroke)) continue;
+                var reach = BrushEngine.ReachOf(stroke.Brush);
+                foreach (var p in stroke.Points)
+                {
+                    any = true;
+                    if (p.X - reach < minX) minX = (float)(p.X - reach);
+                    if (p.Y - reach < minY) minY = (float)(p.Y - reach);
+                    if (p.X + reach > maxX) maxX = (float)(p.X + reach);
+                    if (p.Y + reach > maxY) maxY = (float)(p.Y + reach);
+                }
+            }
+        }
+        return any ? new SKRect(minX, minY, maxX, maxY) : null;
     }
 
     /// <summary>
@@ -664,9 +744,61 @@ public partial class MainViewModel
         CommitTransformCore(map, 1, m);
     }
 
+    /// <summary>
+    /// The drawing a single-cel gesture is borrowing, when a commit here must
+    /// key the cel instead of writing through to it. Null when the cel has a
+    /// drawing of its own, when the scope covers more than this cel, or when
+    /// the artist has asked to edit the held drawing.
+    /// </summary>
+    /// <remarks>
+    /// Asked when the session opens, because that is when the answer is true
+    /// of what the artist is looking at; acted on at the commit, because that
+    /// is when the record is allowed to change.
+    /// </remarks>
+    private string? HeldCelNeedingKey()
+    {
+        if (TransformScope is not (TransformScope.ActiveCel or TransformScope.CelRange)) return null;
+        if (TransformScope is TransformScope.CelRange && _celSelection.Count > 0) return null;
+        if (DrawingOnAHold == HoldDrawing.EditTheHeldDrawing) return null;
+        if (ActiveLayer is not { } layer || layer.Cels.Count == 0) return null;
+        var here = Math.Clamp(CurrentFrameIndex, 0, layer.Cels.Count - 1);
+        if (layer.Cels[here].Frame is not null) return null; // a drawing of its own
+        return ExposureSheet.ExposedFrame(layer, here)?.Id;
+    }
+
+    /// <summary>
+    /// Key the held cel this gesture opened on and hand back the drawing the
+    /// commit should write to — the copy — or null when nothing needs keying.
+    /// </summary>
+    /// <remarks>
+    /// Re-checked rather than trusted: the playhead can move while a gizmo
+    /// session is open, and keying a cel the artist has since left would put a
+    /// drawing where they are standing now and still transform the one they
+    /// are not.
+    /// </remarks>
+    private Frame? KeyHeldCelForCommit()
+    {
+        if (_transform.HeldFrameIdToKey is not { } heldId) return null;
+        if (ActiveLayer is not { } layer || layer.Cels.Count == 0) return null;
+        var here = Math.Clamp(CurrentFrameIndex, 0, layer.Cels.Count - 1);
+        if (layer.Cels[here].Frame is not null) return null;                    // keyed since
+        if (ExposureSheet.ExposedFrame(layer, here)?.Id != heldId) return null; // a different hold
+        return PaintTargetOrKey();
+    }
+
     private void CommitTransformCore(TransformOps.PointMap map, double sizeScale, SKMatrix baselineMatrix)
     {
         var frames = _transform.Frames.ToList();
+        // The one point where a held cel becomes a drawing of its own. Before
+        // this line the gesture has changed nothing — which is what lets Ctrl+T
+        // followed by Escape leave the timeline as it was.
+        if (KeyHeldCelForCommit() is { } keyed)
+        {
+            for (var i = 0; i < frames.Count; i++)
+            {
+                if (frames[i].Id == _transform.HeldFrameIdToKey) frames[i] = keyed;
+            }
+        }
         var filter = _transform.Filter;
         // The preview goes first, and not only for tidiness: it borrows the
         // cache's own bitmaps, and the invalidation below disposes them.
