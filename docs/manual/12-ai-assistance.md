@@ -76,6 +76,38 @@ you can read rather than a puzzle. Lightbox never quietly substitutes its own
 deterministic inbetween for a refused frame; that engine is **＋ Inbetween**,
 one click away, and asking for the AI means getting the AI or nothing.
 
+**A refused frame gets a second and third go before it is given up on.** When a
+frame fails a check, Lightbox does not simply try again and hope — it asks the
+model once more, telling it exactly what was wrong and handing back the drawing
+it just rejected, so the model can correct that frame rather than start over.
+Up to two of these re-asks happen per frame, and only the frames that failed are
+re-asked; the ones that already passed are never redrawn. The status bar says
+which attempt it is on while it works, and **Cancel** stops it between attempts.
+
+Two things worth knowing about what this costs and what it protects:
+
+- **It can take a while.** A frame that never comes good occupies three requests
+  before it is refused, and each one is a full round-trip to the model. When
+  nothing survives, the status says so and says how many attempts it took —
+  *"Nothing was inserted after 3 attempts"* — so a long wait for an empty result
+  is at least legible.
+- **A re-ask can never lose you a frame you already had.** If correcting one
+  frame would upset a frame that already passed — usually by making the two
+  read as a jitter next to each other — Lightbox keeps what it had and leaves
+  the other frame refused. It will not trade a good frame for a different one.
+
+Frames that needed more than one attempt remember it, so the record of what the
+AI drew includes what it cost. Nothing changes about the drawing itself: a
+repaired frame is checked against exactly the same rules as one the model got
+right first time, and it is inserted only if it passes them.
+
+**When the status says a frame "matched what ＋ Inbetween would have drawn",
+read it.** It means the model returned the same answer the free deterministic
+inbetweener would have given for nothing. That is not a failure and the frame is
+perfectly usable — but it is worth knowing, because it is the safest thing a
+model can do when it is being pushed to correct itself, and if you are seeing it
+often you are paying a model to do what **＋ Inbetween** does instantly.
+
 The check is not "did the model invent something" — invention is the point.
 Revealed lines behind something that moved away, follow-through trailing a
 motion — a tail or a cape drawn as a chain of strokes counts, however long,

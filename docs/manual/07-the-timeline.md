@@ -18,6 +18,12 @@ One row per layer, one cell per frame. Click a cell to go there; the current one
 is highlighted. A **keyed** cell holds a drawing; a **hold** repeats the drawing
 before it, which is what animating on 2s and 3s is made of.
 
+**Two kinds of cell look empty, and they are not the same thing.** A plain empty
+cell is inside the scene: the playhead goes there, you can select it, and a mark
+on it keys a drawing. A **hatched** cell is past the end of the scene — there is
+no frame there at all, so it cannot be clicked into or drawn on, and the playhead
+never reaches it. Extend the scene and the hatching gives way to real cells.
+
 ## The scratch track
 
 **Audio is optional and absent until you add it** — the same rule the camera
@@ -103,6 +109,17 @@ too, for when the remark is about the whole cycle rather than one drawing.
 Right-click a cel for: insert frame, extend or reduce exposure, clear, delete
 (which pulls the rest of the row back), copy, cut, paste, markers, and the
 playback range.
+
+**Delete cel and Delete column are different edits, and the menu now says so.**
+*Delete cel* takes the drawing out of **that layer's row** and pulls the rest
+of that row back, leaving every other layer where it was. *Delete column*
+takes the frame out of the **scene** — every layer's cel at it — and pulls the
+whole sheet back, which is what you want when a beat is one frame too long. A
+column delete is refused while any layer is locked, because removing the frame
+from the others would slide them out of step with it. It is in **Edit →
+Configure → Shortcuts** under Timeline if you want a key for it; it has no
+default one, since Delete already means several things depending on where the
+pointer is.
 
 Drag a cel along its row to move it. Shift-click for a range, then apply
 exposure changes to all of it at once.

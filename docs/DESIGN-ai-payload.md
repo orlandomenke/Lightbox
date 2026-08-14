@@ -166,6 +166,63 @@ prompt, the schema and the reference images are byte-identical across every
 call in a session, so after the first they can be cached — about 90% off ~1.4k
 image tokens per call. Small, but it costs one field.
 
+## What a repair re-ask costs
+
+Added when the repair loop landed (Phase 3 of `DESIGN-ai-correctness.md`, Q85),
+because it is the first thing to make a *request count* variable rather than
+one.
+
+**Say which half, and this document has to obey its own rule here.** A repair
+changes the *number of calls*, which touches both halves and not in the same
+way.
+
+### The stroke half — tokens
+
+| | 40 strokes × 60 points |
+| --- | --- |
+| First ask | 102.1 KB |
+| Ordinary repair, carrying one rejected frame | 153.2 KB — **1.50×** |
+| Jitter repair, which also ships the accepted neighbours | 255.1 KB — **2.50×** |
+| Worst case: two re-asks, everything refused | **4.00×** across three calls |
+
+It reads as expensive and is the cheaper of the shapes available. A repair
+re-sends both keys and adds the rejected frame's strokes, which is why it is
+half again rather than a third: the keys *are* the payload, and there is no way
+to name a fault in a drawing without the drawing. The alternative — sending the
+fault sentence alone — costs a rounding error and is a blind retry with a hint,
+which spends a whole call for a much worse chance.
+
+The 2.50× row is why the neighbours are conditional. Only one refusal —
+`InbetweenFault.Incoherent`, *"it jitters against the frames beside it"* — is
+defined against frames the re-ask would not otherwise carry, so only that one
+pays for them. Every other fault names a stroke and a distance the model can
+act on with the keys and its own drawing.
+
+### The image half — bytes, and it is the one that surprises
+
+**A repair re-sends the reference images in full, and prompt caching is not
+built yet** (Order item 4, below — no artist sets `cache_control`). So a run
+with two 960×540 views attached — 666 KB and ~1.4k tokens, from the table above
+— uploads roughly **2 MB across a full-refusal run** for essentially no extra
+token cost.
+
+That is the shape this document warns about, pointed at itself: the stroke table
+says 4× and the byte cost is also 3×, and neither number is the other one. In
+practice the image half is latency rather than money — 0.3 s of upload against
+30–120 s of generation, tripled, is still invisible — which is the same reason
+compression was declined above. It is recorded so that **prompt caching moved up
+the list when repair landed**: it now saves on up to three calls per request
+instead of one, and the images are byte-identical and the same string instance
+across all of them.
+
+The lever is otherwise the same one as everywhere else here, and it is number 3
+below: **a repair inherits whatever the first ask sent.** Halving the strokes in
+a request halves the cost of every attempt at it, not just the first.
+`ARepairReAskCostsAboutHalfAgain_NotAWholeSecondRequest` holds the ordinary
+ratio under 2× and `AJitterRepairCostsMoreBecauseItShipsTheNeighbours` holds the
+expensive one under 3×, on the grounds that a repair costing a whole second
+request has stopped being a correction.
+
 ## Order
 
 1. ~~**B31** — cache the encoded reference views.~~ **Done.** 225 ms cold,
@@ -176,7 +233,10 @@ image tokens per call. Small, but it costs one field.
    the one that needs design rather than a constant.
 4. **Prompt caching** on the providers that offer it. **Now cheaper than it
    was** — the reference images are byte-identical across a session *and* the
-   same string instance, so there is nothing left to compute before caching them.
+   same string instance, so there is nothing left to compute before caching them —
+   **and worth more than it was**, because the repair loop turned one call per
+   request into up to three, each re-uploading the same images and the same two
+   keys. This moved up the list when Phase 3 landed.
 5. **Q18** — the flat-array encoding, once somebody has A/B'd adherence
    against a real provider.
 

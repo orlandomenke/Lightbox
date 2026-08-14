@@ -64,10 +64,10 @@ public class MonolithRatchetTests(ITestOutputHelper output)
     /// <b>Both live numbers came down on 2026-08-14</b> when the guide options
     /// landed. <c>CanvasControl.cs</c> 4,956 → 4,914: the <c>GuideLine</c>
     /// snapshot and <c>GuideDragEnabled</c> moved to the partial already named
-    /// for guide chrome. <c>MainWindow.axaml</c> 4,273 → 4,217: the new guide
-    /// options went into two <c>UserControl</c>s rather than into the file, and
-    /// the Select tool's quick-bar group followed them out unchanged to pay for
-    /// the two lines that reference them. That is the mechanism working as
+    /// for guide chrome. <c>MainWindow.axaml</c> 4,278 → 4,222 on the merged
+    /// tree: the new guide options went into two <c>UserControl</c>s rather
+    /// than into the file, and the Select tool's quick-bar group followed them
+    /// out unchanged to pay for the lines that reference them. That is the mechanism working as
     /// designed — a feature that needed room in a budgeted file bought it by
     /// extraction rather than by raising a number.
     /// </para>
@@ -185,7 +185,28 @@ public class MonolithRatchetTests(ITestOutputHelper output)
         // lines of slack under its own budget, and 4,275 would have banked
         // them as headroom nobody had earned. +4 over main, which is the size
         // of the change.
-        ("src/Lightbox.App/Views/MainWindow.axaml", 4217),
+        // → 4,276 (2026-08-14): the past-the-end cel's hatch (Q87) — one setter
+        // and its two-line reason. The brush itself is in Palette.axaml, where
+        // the colour system lives; only the style selector has to be here,
+        // because a selector cannot live anywhere else. Measured alone that
+        // wanted 4,272, against a main that had not yet taken the drag wiring
+        // above; both notes are kept because taking either side of the merge
+        // would delete the other's reason and leave a number nobody can
+        // account for.
+        // → 4,278 (2026-08-14): the X-sheet's Delete column menu entry and its
+        // tooltip (Q88). A menu item has nowhere else to live — the handler it
+        // calls is in MainWindow.Timeline.cs, and the command it reaches is in
+        // the view model. Measured alone that wanted 4,275, against a main
+        // without the hatch; this is the third merge in a row where the honest
+        // number is neither side's, which is the note above working as
+        // intended rather than a problem.
+        // → 4,222 (2026-08-14): the guide options, which came *down* from main's
+        // 4,278 rather than up. The new options went into two UserControls, and
+        // the Select tool's quick-bar group followed them out unchanged; the
+        // five lines the branch leaves behind are the references to the three.
+        // The honest number is again neither side's, for the fourth merge
+        // running — see the note above.
+        ("src/Lightbox.App/Views/MainWindow.axaml", 4222),
         // Lowered when the overlay-gesture wiring moved to MainWindow.Overlays.cs,
         // and again (449 → 427) when the bone gesture handler followed it there.
         // A merge had left that one block behind in the code-behind while its

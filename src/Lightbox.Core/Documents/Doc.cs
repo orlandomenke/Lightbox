@@ -15,6 +15,21 @@ public sealed class Doc
     public List<ReferenceSheet> ReferenceSheets { get; set; } = [];
 
     /// <summary>
+    /// The reference board — the wall of pinned-up reference — for a document
+    /// with no project behind it. Null until one is arranged, and absent from
+    /// the file until then.
+    /// </summary>
+    /// <remarks>
+    /// <b>The fallback, not the home</b> (Q87). In a project a board is filed on
+    /// the scope that owns the references (<c>ProjectBoards</c>), so one wall
+    /// serves every animation of the same subject. A loose file has no scope to
+    /// hang one on and no directory to copy an imported image into, so it keeps
+    /// its own board here with the pictures embedded — the same trade
+    /// <see cref="ReferenceStrip"/> makes, for the same reason.
+    /// </remarks>
+    public ReferenceBoard? ReferenceBoard { get; set; }
+
+    /// <summary>
     /// Custom brush tip shapes (id → grayscale PNG, base64). Strokes reference
     /// them by <see cref="BrushSettings.TipId"/>, so a document re-renders
     /// with no external resources.
@@ -223,6 +238,7 @@ public sealed class Doc
         var copy = (Doc)MemberwiseClone();
         copy.Scene = Scene.Clone();
         copy.ReferenceSheets = ReferenceSheets.Select(s => s.Clone()).ToList();
+        copy.ReferenceBoard = ReferenceBoard?.Clone();
         copy.BrushTips = new Dictionary<string, string>(BrushTips);
         copy.Textures = Textures is null ? null : new Dictionary<string, string>(Textures);
         copy.ClipRegions = ClipRegions.ToDictionary(e => e.Key, e => e.Value.Clone());
