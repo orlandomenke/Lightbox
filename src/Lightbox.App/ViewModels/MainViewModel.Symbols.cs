@@ -874,23 +874,29 @@ public sealed partial class MainViewModel
         if (!CanEdit(ActiveLayer, "move a symbol")) return false;
 
         var selected = _selectionManager.SelectedPlacementIds;
-        if (selected.Count > 0)
+        if (selected.Count > 0 && PlacementsHere.Any(p => selected.Contains(p.Id)))
         {
+            // Key a held cel before the grab is captured: the drag must edit
+            // this cel's own drawing, not the one the hold borrows — the same
+            // rule a mark follows, decided after the placement is known so a
+            // press that grabs nothing keys nothing. Placement ids survive
+            // the copy, so re-reading PlacementsHere below binds the same
+            // placements on the keyed drawing.
+            PaintTargetOrKey();
             var group = PlacementsHere
                 .Where(p => selected.Contains(p.Id))
                 .Select(p => (p.Id, p.X, p.Y))
                 .ToArray();
-            if (group.Length > 0)
-            {
-                _placementDrag = (x, y, group);
-                AiStatus = group.Length == 1
-                    ? "Moving a placed symbol — the symbol itself is unchanged."
-                    : $"Moving {group.Length} placed symbols — the symbols themselves are unchanged.";
-                return true;
-            }
+            _placementDrag = (x, y, group);
+            AiStatus = group.Length == 1
+                ? "Moving a placed symbol — the symbol itself is unchanged."
+                : $"Moving {group.Length} placed symbols — the symbols themselves are unchanged.";
+            return true;
         }
 
-        if (PlacementAt(x, y) is not { } placement) return false;
+        if (PlacementAt(x, y) is not { } grabbed) return false;
+        PaintTargetOrKey(); // same rule as the selected branch above
+        var placement = PlacementsHere.FirstOrDefault(p => p.Id == grabbed.Id) ?? grabbed;
         _selectedPlacementId = placement.Id;
         _placementDrag = (x, y, [(placement.Id, placement.X, placement.Y)]);
         AiStatus = "Moving a placed symbol — the symbol itself is unchanged.";

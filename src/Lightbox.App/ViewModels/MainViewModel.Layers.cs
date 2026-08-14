@@ -127,6 +127,41 @@ public partial class MainViewModel
     [RelayCommand]
     private void MoveLayerDown(LayerRow row) => MoveLayer(row, -1);
 
+    /// <summary>
+    /// Drop a dragged layer beside another row — visually above it (toward the
+    /// viewer) or below. The layer adopts the target's folder, so dragging into
+    /// a folder's block joins the folder and dragging out to a loose row leaves
+    /// it. One undo step.
+    /// </summary>
+    /// <remarks>
+    /// The panel lists topmost first while <c>Scene.Layers</c> stores bottom
+    /// first, so "above the target on screen" is "after the target in the
+    /// list" — the same inversion the ▲/▼ buttons already encode as +1 up.
+    /// </remarks>
+    internal void DropLayerOnRow(LayerRow draggedRow, LayerRow targetRow, bool above)
+    {
+        var dragged = draggedRow.Layer;
+        var target = targetRow.Layer;
+        if (dragged.Id == target.Id) return;
+        _editor.Perform(doc =>
+        {
+            var layers = doc.Scene.Layers;
+            var from = layers.FindIndex(l => l.Id == dragged.Id);
+            if (from < 0) return;
+            var layer = layers[from];
+            layers.RemoveAt(from);
+            var at = layers.FindIndex(l => l.Id == target.Id);
+            if (at < 0)
+            {
+                layers.Insert(from, layer); // target vanished mid-drag: put it back
+                return;
+            }
+            layers.Insert(above ? at + 1 : at, layer);
+            layer.GroupId = target.GroupId;
+        }, label: "Move layer", frameContentUnchanged: true);
+        ActiveLayerIndex = Scene.Layers.FindIndex(l => l.Id == dragged.Id);
+    }
+
     // ---- layer folders ----------------------------------------------------------
 
     /// <summary>The docker's item list: folder headers followed by their (uncollapsed) member rows.</summary>
@@ -164,10 +199,16 @@ public partial class MainViewModel
 
     /// <summary>Put the active layer into this folder (moved adjacent so the folder stays one block).</summary>
     [RelayCommand]
-    private void AddActiveLayerToGroup(GroupRow header)
+    private void AddActiveLayerToGroup(GroupRow header) => MoveLayerIntoGroup(ActiveLayer, header.Group);
+
+    /// <summary>
+    /// Put a layer into a folder, moved to the top of the folder's block so the
+    /// folder stays contiguous. Shared by the header's ＋ button and dropping a
+    /// dragged row on the header.
+    /// </summary>
+    internal void MoveLayerIntoGroup(Layer layer, LayerGroup group)
     {
-        var layer = ActiveLayer;
-        if (layer.GroupId == header.Group.Id) return;
+        if (layer.GroupId == group.Id) return;
         _editor.Perform(doc =>
         {
             var layers = doc.Scene.Layers;
@@ -175,7 +216,7 @@ public partial class MainViewModel
             var top = -1;
             for (var i = 0; i < layers.Count; i++)
             {
-                if (layers[i].GroupId == header.Group.Id) top = i;
+                if (layers[i].GroupId == group.Id) top = i;
             }
             if (top < 0)
             {
@@ -185,7 +226,7 @@ public partial class MainViewModel
             {
                 layers.Insert(top + 1, layer); // top of the folder's block
             }
-            layer.GroupId = header.Group.Id;
+            layer.GroupId = group.Id;
         });
         ActiveLayerIndex = Scene.Layers.FindIndex(l => l.Id == layer.Id);
     }

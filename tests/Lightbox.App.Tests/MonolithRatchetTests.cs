@@ -165,7 +165,11 @@ public class MonolithRatchetTests(ITestOutputHelper output)
         // Measured alone the last two wanted 4,327 and 4,271; taking either on
         // the merged tree would bank the extraction's slack as permanent
         // headroom, which is the one thing a ratchet must not do.
-        ("src/Lightbox.App/Views/MainWindow.axaml", 4271),
+        // → 4,275 (2026-08-14): the layer docker's drag-and-drop wiring — two
+        // pointer handlers on the row template and three DragDrop attributes
+        // on the ItemsControl. Event attributes live on the element they
+        // handle; the handlers themselves went to MainWindow.Workspace.cs.
+        ("src/Lightbox.App/Views/MainWindow.axaml", 4275),
         // Lowered when the overlay-gesture wiring moved to MainWindow.Overlays.cs,
         // and again (449 → 427) when the bone gesture handler followed it there.
         // A merge had left that one block behind in the code-behind while its

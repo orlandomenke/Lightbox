@@ -483,7 +483,13 @@ public partial class MainViewModel
         switch (TransformScope)
         {
             case TransformScope.ActiveCel:
-                Add(ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex));
+                // A hold is not a drawing of its own, and transforming this cel
+                // must not rewrite the drawing it borrows — a move on frame 2
+                // used to land on frame 1's strokes and show up on both. So a
+                // held cel is keyed with a copy first, exactly as a mark keys
+                // it, honouring the same Configure switch (Edit the held
+                // drawing) and leaving the same separate undo step.
+                Add(PaintTargetOrKey());
                 break;
             case TransformScope.AllLayersAtFrame:
                 foreach (var layer in Scene.Layers)
@@ -509,7 +515,9 @@ public partial class MainViewModel
                 }
                 else
                 {
-                    Add(ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex)); // nothing marked
+                    // Nothing marked means "this cel", so a hold keys here
+                    // for the ActiveCel case's reason.
+                    Add(PaintTargetOrKey());
                 }
                 break;
             case TransformScope.EntireAnimation:
@@ -560,11 +568,87 @@ public partial class MainViewModel
         // Identity is "no preview": it renders the same and skips the split.
         if (matrix is { } m && m.IsIdentity) matrix = null;
         if (_transform.Preview is null && matrix is null) return;
+        var before = _transform.Preview;
         _transform.Preview = matrix;
-        // The drawing can land anywhere on the canvas, so no dirty region is
-        // safe here.
-        _publish.InvalidateWholeCanvas();
+        // Repaint where the moving pixels were and where they now are — the
+        // stroke path's bounded-work rule (invariant 6), which this preview
+        // used to break with a full-canvas invalidation per pointer event.
+        // Paced to the present rate, that read as a slideshow on any document
+        // where a full recomposite is slow, exactly where a brush stroke
+        // stays live. Whole-canvas remains the fallback when the moving
+        // pixels cannot be bounded from the stroke record.
+        if (PreviewDirtyRegion(before, matrix) is { } dirty)
+        {
+            _publish.MarkDirty(dirty);
+        }
+        else
+        {
+            _publish.InvalidateWholeCanvas();
+        }
         RequestSnapshot();
+    }
+
+    /// <summary>
+    /// The doc-space region one preview step changes: the session's moving
+    /// bounds through the previous matrix, unioned with the same bounds
+    /// through the new one. Null when the moving pixels cannot be bounded and
+    /// the caller must fall back to the whole canvas.
+    /// </summary>
+    /// <remarks>
+    /// Not clamped to the document here: <c>ComposePlan</c> already clamps,
+    /// and a region that leaves the canvas entirely simply patches nothing.
+    /// The two-pixel inflation is the antialias seam, the same allowance
+    /// <c>SnapshotGeometry</c> makes.
+    /// </remarks>
+    private SKRectI? PreviewDirtyRegion(SKMatrix? before, SKMatrix? after)
+    {
+        if (_transform.MovingBounds is not { } bounds) return null;
+        var was = before is { } b ? b.MapRect(bounds) : bounds;
+        var now = after is { } a ? a.MapRect(bounds) : bounds;
+        was.Union(now);
+        was.Inflate(2, 2);
+        return SKRectI.Ceiling(was);
+    }
+
+    /// <summary>
+    /// Doc-space bounds of what a preview moves, render reach included — or
+    /// null when a frame's moving pixels are not all strokes (a raster
+    /// baseline or a placement rides the layer bitmap), which is the honest
+    /// "cannot bound this" answer.
+    /// </summary>
+    /// <remarks>
+    /// The reach is <see cref="BrushEngine.ReachOf"/> per stroke rather than
+    /// half the brush size (what the gizmo's <c>TransformOps.Bounds</c> uses):
+    /// scatter and a medium's bleed put paint past the point geometry, and a
+    /// repaint region that missed it would leave crumbs of the mark behind at
+    /// the old position.
+    /// </remarks>
+    private static SKRect? PreviewMovingBounds(List<Frame> frames, Func<Stroke, bool>? filter)
+    {
+        float minX = float.MaxValue, minY = float.MaxValue;
+        float maxX = float.MinValue, maxY = float.MinValue;
+        var any = false;
+        foreach (var frame in frames)
+        {
+            // With a selection filter only strokes move and the baseline
+            // stays put; without one the whole layer bitmap moves, baseline
+            // and placements included, and strokes no longer bound it.
+            if (filter is null && (frame.HasBaseline || frame.HasPlacements)) return null;
+            foreach (var stroke in frame.Strokes)
+            {
+                if (filter is not null && !filter(stroke)) continue;
+                var reach = BrushEngine.ReachOf(stroke.Brush);
+                foreach (var p in stroke.Points)
+                {
+                    any = true;
+                    if (p.X - reach < minX) minX = (float)(p.X - reach);
+                    if (p.Y - reach < minY) minY = (float)(p.Y - reach);
+                    if (p.X + reach > maxX) maxX = (float)(p.X + reach);
+                    if (p.Y + reach > maxY) maxY = (float)(p.Y + reach);
+                }
+            }
+        }
+        return any ? new SKRect(minX, minY, maxX, maxY) : null;
     }
 
     /// <summary>

@@ -73,6 +73,22 @@ sealed class TransformSession
     /// </remarks>
     internal SKMatrix? Preview { get; set; }
 
+    /// <summary>
+    /// Doc-space bounds of everything the gesture moves, render reach included
+    /// — or null when the moving pixels cannot be bounded from the stroke
+    /// record (a raster baseline or a placement moves with the layer), in
+    /// which case the preview repaints the whole canvas as it always did.
+    /// </summary>
+    /// <remarks>
+    /// What makes the preview bounded work (invariant 6). The preview used to
+    /// invalidate the whole canvas per pointer event, which on a large
+    /// document is a full recomposite per event — paced to the present rate,
+    /// so the drag read as a slideshow exactly where a brush stroke stays
+    /// live. With the bounds known, each event repaints only where the moving
+    /// pixels were and where they now are.
+    /// </remarks>
+    internal SKRect? MovingBounds { get; set; }
+
     /// <summary>Take the scope for a new gesture, replacing any previous one.</summary>
     internal void Begin(IEnumerable<Frame> frames, Func<Stroke, bool>? filter)
     {
@@ -86,6 +102,7 @@ sealed class TransformSession
     {
         Frames.Clear();
         Filter = null;
+        MovingBounds = null;
         ClearPreview();
     }
 
