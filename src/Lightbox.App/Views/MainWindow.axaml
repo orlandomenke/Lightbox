@@ -1186,7 +1186,6 @@
              selected, and the actions that need a selection arrive with V3. An
              empty bar would still be right to register now, because a tool with
              no options panel is a tool the bar has never heard of. -->
-        <views:BoneOptionsBar IsVisible="{Binding Workspace.QuickBoneOptions}" />
         <StackPanel Orientation="Horizontal" Spacing="14">
           <StackPanel.IsVisible>
             <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -1872,6 +1871,7 @@
         <controls:Docker x:Name="ToolOptionsDocker" PanelId="ToolOptions" Title="Tool options"
                          CloseCommand="{Binding ToggleToolOptionsDockerCommand}">
               <Panel>
+                <views:BoneOptionsBar />
                 <!-- Paint tools get the full brush editor, exactly as before. -->
                 <Grid ColumnDefinitions="110,6,*" IsVisible="{Binding IsPaintTool}">
                   <ListBox x:Name="BrushCategoryList" Grid.Column="0" SelectedIndex="0"

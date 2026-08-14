@@ -234,14 +234,40 @@ public class BoneOptionsTests
         Assert.Null(vm.Doc.Armature!.BoneById(root)!.ParentId);
     }
 
-    // ---- the bar is registered where the workspace can find it ---------------------
+    // ---- the surface keeps up with the record --------------------------------------
 
-    [Fact]
-    public void TheBoneOptionsBarIsInTheCatalogAndOnByDefault()
+    [AvaloniaFact]
+    public void UndoTakesTheBoneOffTheCanvasAndOutOfThePanel()
     {
-        Assert.Contains(QuickBarCatalog.All, o => o.Id == QuickBarCatalog.BoneOptions);
-        // Every other tool's own group is a default; a bar an artist has to go
-        // and enable is the invisibility bug wearing a preference.
-        Assert.Contains(QuickBarCatalog.BoneOptions, QuickBarCatalog.ToolDefaults);
+        var vm = Rigged();
+        vm.SelectToolCommand.Execute(ToolId.Bone);
+        vm.CreateBoneFromDrag(100, 100, 180, 100);
+        Assert.True(vm.HasArmature);
+        Assert.Single(vm.BoneChromes);
+
+        vm.UndoCommand.Execute(null);
+
+        // The record undid before this fix too. What did not happen is any of
+        // the below — so the bone stayed drawn and the panel kept its answer,
+        // which is indistinguishable from undo being broken.
+        Assert.False(vm.HasArmature, "the panel still believes there is a rig");
+        Assert.Empty(vm.BoneChromes);
+        Assert.Empty(vm.BoneRows);
+        Assert.Null(vm.SelectedBoneId);
+        Assert.False(vm.HasSelectedBone);
+    }
+
+    [AvaloniaFact]
+    public void RedoBringsItBackToBothOfThem()
+    {
+        var vm = Rigged();
+        vm.SelectToolCommand.Execute(ToolId.Bone);
+        vm.CreateBoneFromDrag(100, 100, 180, 100);
+        vm.UndoCommand.Execute(null);
+        vm.RedoCommand.Execute(null);
+
+        Assert.True(vm.HasArmature);
+        Assert.Single(vm.BoneChromes);
+        Assert.Single(vm.BoneRows);
     }
 }

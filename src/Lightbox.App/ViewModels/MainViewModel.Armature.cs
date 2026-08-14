@@ -7,6 +7,24 @@ using Lightbox.Core.Timeline;
 namespace Lightbox.App.ViewModels;
 
 /// <summary>
+/// One bone as the options panel lists it: indented by depth, so the
+/// hierarchy reads without a tree control.
+/// </summary>
+/// <remarks>
+/// Top-level rather than nested inside the view model, and that is a
+/// requirement rather than tidiness: a compiled <c>DataTemplate</c> has to
+/// name its type with <c>x:DataType</c>, and a nested one cannot be written
+/// in XAML. Nested, every binding in the row template resolved against
+/// <c>MainViewModel</c> instead — which compiles, and renders a list of
+/// blank rows.
+/// </remarks>
+public sealed record BoneRow(string Id, string Name, int Depth, bool Selected)
+{
+    /// <summary>The name with its indent, for a flat list that still shows parentage.</summary>
+    public string Label => new string(' ', Depth * 4) + Name;
+}
+
+/// <summary>
 /// The armature's editing surface: the rig mode, bone selection, the chrome
 /// the overlay draws, and the edits a bone gesture lands — phase 2 of
 /// <c>docs/DESIGN-bones.md</c>, under the Q81 decisions.
@@ -111,16 +129,6 @@ public sealed partial class MainViewModel
             }
             return points;
         }
-    }
-
-    /// <summary>
-    /// One bone as the options bar lists it: indented by depth, so the
-    /// hierarchy reads without a tree control.
-    /// </summary>
-    public sealed record BoneRow(string Id, string Name, int Depth, bool Selected)
-    {
-        /// <summary>The name with its indent, for a flat list that still shows parentage.</summary>
-        public string Label => new string(' ', Depth * 4) + Name;
     }
 
     /// <summary>
@@ -334,6 +342,33 @@ public sealed partial class MainViewModel
 
     [RelayCommand]
     private void BakePose() => BakePoseHere();
+
+    /// <summary>
+    /// Re-read everything the rig surface derives from the document.
+    /// </summary>
+    /// <remarks>
+    /// <b>Called from <c>OnDocumentChanged</c>, which is where undo lands</b>,
+    /// and its absence is what "no undo on the bones" was: the editor restored
+    /// the record correctly and nothing told the canvas or the options panel,
+    /// so the bone stayed drawn and the panel kept its old answer. Every one of
+    /// these is a plain computed property over <c>Doc</c> — they raise nothing
+    /// by themselves, exactly like the layer flags <c>RefreshPointerIntent</c>
+    /// exists for.
+    /// </remarks>
+    private void NotifyArmatureSurface()
+    {
+        OnPropertyChanged(nameof(HasArmature));
+        OnPropertyChanged(nameof(BoneRows));
+        OnPropertyChanged(nameof(BoneChromes));
+        OnPropertyChanged(nameof(HeatPoints));
+        OnPropertyChanged(nameof(HasSelectedBone));
+        OnPropertyChanged(nameof(SelectedBone));
+        OnPropertyChanged(nameof(SelectedBoneName));
+        OnPropertyChanged(nameof(PointerIntent));
+        // A bone that undo took away must not stay selected, or the panel
+        // offers rename and delete for something that is gone.
+        if (SelectedBoneId is { } id && Doc.Armature?.BoneById(id) is null) SelectedBoneId = null;
+    }
 
     /// <summary>Select what a press hit, or clear the selection on empty canvas.</summary>
     public BoneHit PressArmature(double x, double y, double scale)

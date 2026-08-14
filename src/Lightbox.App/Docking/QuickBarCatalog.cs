@@ -36,7 +36,6 @@ public static class QuickBarCatalog
     public const string SelectOptions = "select-options";
     public const string GradientOptions = "gradient-options";
     public const string ArrowOptions = "arrow-options";
-    public const string BoneOptions = "bone-options";
     public const string Transport = "transport";
     public const string AddFrame = "add-frame";
 
@@ -50,7 +49,6 @@ public static class QuickBarCatalog
         new(SelectOptions, "Selection options", "Marquee shape, feather and the selection actions while selecting"),
         new(GradientOptions, "Gradient options", "The ramp and its type while the gradient tool is in hand"),
         new(ArrowOptions, "Line selection", "What the arrow tool has picked up"),
-        new(BoneOptions, "Bone options", "The rig: its bones, the mode, and the weight brush while the bone tool is in hand"),
         new(Transport, "Play / pause", "The transport, without reaching down to the timeline"),
         new(AddFrame, "Add frame", "New and duplicated frames, without reaching down to the timeline"),
     ];
@@ -63,6 +61,6 @@ public static class QuickBarCatalog
     public static readonly IReadOnlyList<string> ToolDefaults =
     [
         BrushPreset, BrushOptions, EraserOptions, ShapeOptions,
-        FillOptions, SelectOptions, GradientOptions, ArrowOptions, BoneOptions,
+        FillOptions, SelectOptions, GradientOptions, ArrowOptions,
     ];
 }

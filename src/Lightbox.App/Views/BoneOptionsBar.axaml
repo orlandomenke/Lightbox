@@ -37,7 +37,7 @@
                 SelectedValueBinding="{Binding Id}" MinWidth="130"
                 ToolTip.Tip="Every bone in the rig, children indented under their parent. Picking one here selects it on the canvas.">
         <ComboBox.ItemTemplate>
-          <DataTemplate>
+          <DataTemplate x:DataType="vm:BoneRow">
             <TextBlock Text="{Binding Label}" FontFamily="{StaticResource MonoFontFamily}" />
           </DataTemplate>
         </ComboBox.ItemTemplate>
