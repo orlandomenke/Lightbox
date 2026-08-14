@@ -735,6 +735,51 @@ public partial class MainViewModel
         Placements = held.Placements?.Select(p => p.Clone()).ToList(),
     };
 
+    /// <summary>
+    /// Key a held cel because an edit is about to land on it, translating
+    /// stroke ids from the drawing it was borrowing to the copy's own. Returns
+    /// the drawing to write to, and rewrites <paramref name="ids"/> in place.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Reading a stroke and writing one are different questions, and B207
+    /// was the gap between them.</b> Picking must never author a cel —
+    /// <see cref="PickableStrokes"/> says so and is right — but an edit that
+    /// actually lands has to key, or it rewrites the drawing the hold borrows
+    /// and the change appears on the earlier frame. So the resolution happens
+    /// here, at the commit, rather than at the pick.
+    /// </para>
+    /// <para>
+    /// <b>The translation is needed because the copy's strokes carry fresh
+    /// ids</b>, which is the rule <see cref="Frame.Clone"/> documents: a
+    /// snapshot keeps ids so undo can restore what was there, and a duplicate
+    /// of a drawing an artist can see gets new ones. Position in the list is
+    /// the bridge — <c>KeyedCopyOf</c> copies in order — and it is exact
+    /// rather than a heuristic for the same reason.
+    /// </para>
+    /// <para>
+    /// Returns the held drawing unchanged when the cel already has one of its
+    /// own, which is the ordinary case and costs one reference comparison.
+    /// </para>
+    /// </remarks>
+    private Frame? KeyHeldCelForStrokeEdit(IList<string> ids)
+    {
+        if (PaintTarget() is not { } held) return null;
+        var indices = new int[ids.Count];
+        for (var i = 0; i < ids.Count; i++)
+        {
+            indices[i] = held.Strokes.FindIndex(s => s.Id == ids[i]);
+        }
+        if (PaintTargetOrKey() is not { } target) return null;
+        if (ReferenceEquals(target, held)) return target; // not a hold: nothing to translate
+        for (var i = 0; i < ids.Count; i++)
+        {
+            var at = indices[i];
+            if (at >= 0 && at < target.Strokes.Count) ids[i] = target.Strokes[at].Id;
+        }
+        return target;
+    }
+
     /// <summary>Get placements from the current frame for selection feedback.</summary>
     public IReadOnlyList<SymbolPlacement>? GetCurrentFramePlacements()
     {
