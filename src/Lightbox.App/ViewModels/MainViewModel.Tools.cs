@@ -694,6 +694,7 @@ public partial class MainViewModel
         }
         _transform.Begin(frames, filter);
         _transform.MovingBounds = PreviewMovingBounds(frames, filter);
+        _transform.HeldFrameIdToKey = HeldCelNeedingKey();
         TransformActive = true;
         // The session's controls live in the Tool options docker now (Q70), so
         // starting a transform with the docker closed must open it — Apply and

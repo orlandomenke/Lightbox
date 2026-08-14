@@ -856,6 +856,9 @@ public sealed partial class MainViewModel
     /// </remarks>
     private (double GrabX, double GrabY, (string Id, double FromX, double FromY)[] Items)? _placementDrag;
 
+    /// <summary>Whether this drag has already turned a held cel into a drawing of its own.</summary>
+    private bool _placementDragKeyed;
+
     public bool PlacementMoveActive => _placementDrag is not null;
 
     /// <summary>
@@ -876,29 +879,22 @@ public sealed partial class MainViewModel
         var selected = _selectionManager.SelectedPlacementIds;
         if (selected.Count > 0 && PlacementsHere.Any(p => selected.Contains(p.Id)))
         {
-            // Key a held cel before the grab is captured: the drag must edit
-            // this cel's own drawing, not the one the hold borrows — the same
-            // rule a mark follows, decided after the placement is known so a
-            // press that grabs nothing keys nothing. Placement ids survive
-            // the copy, so re-reading PlacementsHere below binds the same
-            // placements on the keyed drawing.
-            PaintTargetOrKey();
             var group = PlacementsHere
                 .Where(p => selected.Contains(p.Id))
                 .Select(p => (p.Id, p.X, p.Y))
                 .ToArray();
             _placementDrag = (x, y, group);
+            _placementDragKeyed = false;
             AiStatus = group.Length == 1
                 ? "Moving a placed symbol — the symbol itself is unchanged."
                 : $"Moving {group.Length} placed symbols — the symbols themselves are unchanged.";
             return true;
         }
 
-        if (PlacementAt(x, y) is not { } grabbed) return false;
-        PaintTargetOrKey(); // same rule as the selected branch above
-        var placement = PlacementsHere.FirstOrDefault(p => p.Id == grabbed.Id) ?? grabbed;
+        if (PlacementAt(x, y) is not { } placement) return false;
         _selectedPlacementId = placement.Id;
         _placementDrag = (x, y, [(placement.Id, placement.X, placement.Y)]);
+        _placementDragKeyed = false;
         AiStatus = "Moving a placed symbol — the symbol itself is unchanged.";
         return true;
     }
@@ -918,6 +914,18 @@ public sealed partial class MainViewModel
         {
             if (Math.Abs(dx) >= Math.Abs(dy)) dy = 0;
             else dx = 0;
+        }
+        // A held cel becomes a drawing of its own on the first real movement,
+        // not on the press: this path edits the record live (below), so it
+        // cannot wait for the release the way the transform commit does — but
+        // a press that grabs a symbol and lets go without moving it is a
+        // click, and a click must not put a drawing on the timeline. Placement
+        // ids survive the copy, so the lookup below finds the same placements
+        // on the keyed drawing.
+        if (_placementDragKeyed is false && (Math.Abs(dx) > 1e-9 || Math.Abs(dy) > 1e-9))
+        {
+            _placementDragKeyed = true;
+            PaintTargetOrKey();
         }
         // Moved live on the record, and put back by the undo step at the end if
         // the drag is abandoned. A placement is two numbers, so there is
@@ -939,6 +947,7 @@ public sealed partial class MainViewModel
     {
         if (_placementDrag is not { } drag) return;
         _placementDrag = null;
+        _placementDragKeyed = false;
 
         var frameId = PaintTarget()?.Id;
         if (frameId is null) return;
@@ -973,6 +982,7 @@ public sealed partial class MainViewModel
     {
         if (_placementDrag is not { } drag) return;
         _placementDrag = null;
+        _placementDragKeyed = false;
         foreach (var (id, fromX, fromY) in drag.Items)
         {
             if (PlacementsHere.FirstOrDefault(p => p.Id == id) is not { } placement) continue;

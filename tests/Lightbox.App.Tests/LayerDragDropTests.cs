@@ -83,6 +83,48 @@ public class LayerDragDropTests
         Assert.Null(vm.Doc.Scene.Layers.First(l => l.Id == c).GroupId);
     }
 
+    /// <summary>
+    /// The paper is the desk the drawings lie on. The ▲/▼ buttons could never
+    /// displace it — they step one place and it is already at the end — but a
+    /// drag can drop anything anywhere, and an adversarial pass on the first
+    /// draft did exactly that: a paint layer dropped below the paper row took
+    /// index 0, and the paper itself could be dragged up out of the bottom
+    /// slot. Both break the invariant BackgroundLayerTests states.
+    /// </summary>
+    [AvaloniaFact]
+    public void NothingGoesUnderThePaper_AndThePaperItselfDoesNotMove()
+    {
+        var vm = VmLayers.PaperVm();
+        vm.AddPaintedLayerCommand.Execute(null);
+        var layers = vm.Doc.Scene.Layers;
+        Assert.True(layers[0].IsBackground);
+        var paperRow = vm.LayerRows.First(r => r.Layer.IsBackground);
+        var paintRow = vm.LayerRows.First(r => !r.Layer.IsBackground);
+
+        // Dragged down, under the paper.
+        vm.DropLayerOnRow(paintRow, paperRow, above: false);
+        Assert.True(vm.Doc.Scene.Layers[0].IsBackground);
+
+        // And the paper dragged up out of the bottom slot.
+        vm.DropLayerOnRow(paperRow, paintRow, above: true);
+        Assert.True(vm.Doc.Scene.Layers[0].IsBackground);
+    }
+
+    [AvaloniaFact]
+    public void ThePaperCannotBeFiledIntoAFolder()
+    {
+        var vm = VmLayers.PaperVm();
+        vm.AddPaintedLayerCommand.Execute(null);
+        vm.CreateLayerFolderCommand.Execute(null); // folder round the active paint layer
+        var group = vm.Doc.Scene.LayerGroups.Single();
+        var paper = vm.Doc.Scene.Layers.First(l => l.IsBackground);
+
+        vm.MoveLayerIntoGroup(paper, group);
+
+        Assert.True(vm.Doc.Scene.Layers[0].IsBackground);
+        Assert.Null(vm.Doc.Scene.Layers[0].GroupId);
+    }
+
     [AvaloniaFact]
     public void DroppingOnAFolderHeader_FilesTheLayerIntoTheFolder()
     {

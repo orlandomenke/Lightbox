@@ -483,13 +483,11 @@ public partial class MainViewModel
         switch (TransformScope)
         {
             case TransformScope.ActiveCel:
-                // A hold is not a drawing of its own, and transforming this cel
-                // must not rewrite the drawing it borrows — a move on frame 2
-                // used to land on frame 1's strokes and show up on both. So a
-                // held cel is keyed with a copy first, exactly as a mark keys
-                // it, honouring the same Configure switch (Edit the held
-                // drawing) and leaving the same separate undo step.
-                Add(PaintTargetOrKey());
+                // The frame the drag SHOWS, which on a hold is the drawing the
+                // cel borrows. Where the commit WRITES is a different question,
+                // answered at commit time by HeldCelNeedingKey — see
+                // KeyHeldCelForCommit.
+                Add(ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex));
                 break;
             case TransformScope.AllLayersAtFrame:
                 foreach (var layer in Scene.Layers)
@@ -515,9 +513,7 @@ public partial class MainViewModel
                 }
                 else
                 {
-                    // Nothing marked means "this cel", so a hold keys here
-                    // for the ActiveCel case's reason.
-                    Add(PaintTargetOrKey());
+                    Add(ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex)); // nothing marked
                 }
                 break;
             case TransformScope.EntireAnimation:
@@ -748,9 +744,61 @@ public partial class MainViewModel
         CommitTransformCore(map, 1, m);
     }
 
+    /// <summary>
+    /// The drawing a single-cel gesture is borrowing, when a commit here must
+    /// key the cel instead of writing through to it. Null when the cel has a
+    /// drawing of its own, when the scope covers more than this cel, or when
+    /// the artist has asked to edit the held drawing.
+    /// </summary>
+    /// <remarks>
+    /// Asked when the session opens, because that is when the answer is true
+    /// of what the artist is looking at; acted on at the commit, because that
+    /// is when the record is allowed to change.
+    /// </remarks>
+    private string? HeldCelNeedingKey()
+    {
+        if (TransformScope is not (TransformScope.ActiveCel or TransformScope.CelRange)) return null;
+        if (TransformScope is TransformScope.CelRange && _celSelection.Count > 0) return null;
+        if (DrawingOnAHold == HoldDrawing.EditTheHeldDrawing) return null;
+        if (ActiveLayer is not { } layer || layer.Cels.Count == 0) return null;
+        var here = Math.Clamp(CurrentFrameIndex, 0, layer.Cels.Count - 1);
+        if (layer.Cels[here].Frame is not null) return null; // a drawing of its own
+        return ExposureSheet.ExposedFrame(layer, here)?.Id;
+    }
+
+    /// <summary>
+    /// Key the held cel this gesture opened on and hand back the drawing the
+    /// commit should write to — the copy — or null when nothing needs keying.
+    /// </summary>
+    /// <remarks>
+    /// Re-checked rather than trusted: the playhead can move while a gizmo
+    /// session is open, and keying a cel the artist has since left would put a
+    /// drawing where they are standing now and still transform the one they
+    /// are not.
+    /// </remarks>
+    private Frame? KeyHeldCelForCommit()
+    {
+        if (_transform.HeldFrameIdToKey is not { } heldId) return null;
+        if (ActiveLayer is not { } layer || layer.Cels.Count == 0) return null;
+        var here = Math.Clamp(CurrentFrameIndex, 0, layer.Cels.Count - 1);
+        if (layer.Cels[here].Frame is not null) return null;                    // keyed since
+        if (ExposureSheet.ExposedFrame(layer, here)?.Id != heldId) return null; // a different hold
+        return PaintTargetOrKey();
+    }
+
     private void CommitTransformCore(TransformOps.PointMap map, double sizeScale, SKMatrix baselineMatrix)
     {
         var frames = _transform.Frames.ToList();
+        // The one point where a held cel becomes a drawing of its own. Before
+        // this line the gesture has changed nothing — which is what lets Ctrl+T
+        // followed by Escape leave the timeline as it was.
+        if (KeyHeldCelForCommit() is { } keyed)
+        {
+            for (var i = 0; i < frames.Count; i++)
+            {
+                if (frames[i].Id == _transform.HeldFrameIdToKey) frames[i] = keyed;
+            }
+        }
         var filter = _transform.Filter;
         // The preview goes first, and not only for tidiness: it borrows the
         // cache's own bitmaps, and the invalidation below disposes them.

@@ -122,6 +122,50 @@ public sealed class TimelineHoldTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
+    public void OpeningATransformOnAHoldAndCancellingKeysNothing()
+    {
+        // Ctrl+T opens the gizmo before the artist has done anything, so
+        // keying there would put a drawing on the timeline for a tool the
+        // artist merely looked at. The key belongs to the commit: the preview
+        // is not an edit (invariant 1), so an abandoned transform must leave
+        // the document exactly as it found it.
+        var vm = Vm();
+        Draw(vm);
+        vm.AddFrameCommand.Execute(null);
+        var layer = vm.PaintLayer();
+        layer.Cels[1].Frame = null;
+        vm.CurrentFrameIndex = 1;
+        var undos = vm.UndoDepth;
+
+        Assert.True(vm.BeginTransform());
+        vm.PreviewTransform(SkiaSharp.SKMatrix.CreateTranslation(0, 40)); // drag the gizmo
+        vm.CancelTransform();                                             // then Escape
+
+        Assert.Null(layer.Cels[1].Frame);
+        Assert.Equal(undos, vm.UndoDepth);
+    }
+
+    [AvaloniaFact]
+    public void AMoveThatGoesNowhereKeysNothing()
+    {
+        // The other half of the same rule: a press and a release with no
+        // movement is a click, and a click must not put a drawing on the
+        // timeline. EndMove already refuses to record an identity transform;
+        // the key has to be just as reluctant.
+        var vm = Vm();
+        Draw(vm);
+        vm.AddFrameCommand.Execute(null);
+        var layer = vm.PaintLayer();
+        layer.Cels[1].Frame = null;
+        vm.CurrentFrameIndex = 1;
+
+        Assert.True(vm.BeginMove(25, 25, wholeLayer: false));
+        vm.EndMove();
+
+        Assert.Null(layer.Cels[1].Frame);
+    }
+
+    [AvaloniaFact]
     public void UnderEditTheHeldDrawing_AMoveStillEditsTheHeldDrawing()
     {
         // The Configure switch means what it says for every edit, not only

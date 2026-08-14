@@ -169,10 +169,21 @@ picture: the mark you just made is the only visible difference, and the
 earlier frame keeps its drawing exactly as it was. Erase the copy if what you
 wanted was a blank sheet.
 
-This covers every way of editing, not only the brush: **moving or transforming
-the drawing, or dragging a placed symbol, keys a held cel the same way** and
-edits the copy. It used to slip past the keying and rewrite the drawing the
-hold was borrowing, so a nudge on frame 2 showed up on frame 1 as well.
+This is not only the brush: **moving or transforming the drawing, or dragging
+a placed symbol, keys a held cel the same way** and edits the copy. Those used
+to slip past the keying and rewrite the drawing the hold was borrowing, so a
+nudge on frame 2 showed up on frame 1 as well.
+
+**One tool has not caught up yet.** Reshaping a line with the pen — dragging a
+node on a held cel — still edits the drawing the hold borrows, so the change
+appears on the earlier frame too. Key the cel first (draw on it, or use the
+timeline's own insert) if you need to reshape on a hold. It is recorded as
+B207 and is being fixed next.
+
+The key happens when you **commit** the edit, not when you pick the tool up.
+Pressing Ctrl+T on a hold and then Escape leaves the timeline exactly as it
+was, and so does clicking without dragging — a cel becomes a drawing of its
+own when you actually change something, never because you were looking at it.
 
 **Edit → Configure → Timeline** switches it to *Edit the held drawing*, which
 is right when the hold is deliberate and you are still working on that one

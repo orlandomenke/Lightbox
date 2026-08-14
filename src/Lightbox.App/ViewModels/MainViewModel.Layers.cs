@@ -121,6 +121,36 @@ public partial class MainViewModel
         ActivateWithinSelection(Scene.Layers.FindIndex(l => l.Id == id));
     }
 
+    /// <summary>
+    /// Whether a drop may go ahead, given the paper.
+    /// </summary>
+    /// <remarks>
+    /// The paper is the desk the drawings lie on, not one of them: it is the
+    /// bottom of the stack and locked, which is what makes everything paint
+    /// over it (<c>BackgroundLayerTests</c>). The ▲/▼ buttons never threatened
+    /// that — they step one place and the paper is already at the end — but a
+    /// drag can drop anything anywhere, so the rule has to be said out loud
+    /// here. Refusing silently rather than clamping: a drop that quietly did
+    /// something other than what the pointer said would be worse than one that
+    /// does nothing, and the row does not move under the cursor to suggest it.
+    /// </remarks>
+    private bool CanReorderPastPaper(Layer dragged, Layer target, bool above)
+    {
+        if (dragged.IsBackground)
+        {
+            AiStatus = $"“{dragged.Name}” is the paper — it stays at the bottom of the stack.";
+            return false;
+        }
+        // Landing under the paper is the same displacement seen from the other
+        // side, and it is the one an artist reaches by dragging *down*.
+        if (target.IsBackground && !above)
+        {
+            AiStatus = $"“{target.Name}” is the paper — nothing goes under it.";
+            return false;
+        }
+        return true;
+    }
+
     [RelayCommand]
     private void MoveLayerUp(LayerRow row) => MoveLayer(row, +1);
 
@@ -143,6 +173,7 @@ public partial class MainViewModel
         var dragged = draggedRow.Layer;
         var target = targetRow.Layer;
         if (dragged.Id == target.Id) return;
+        if (!CanReorderPastPaper(dragged, target, above)) return;
         _editor.Perform(doc =>
         {
             var layers = doc.Scene.Layers;
@@ -209,6 +240,14 @@ public partial class MainViewModel
     internal void MoveLayerIntoGroup(Layer layer, LayerGroup group)
     {
         if (layer.GroupId == group.Id) return;
+        if (layer.IsBackground)
+        {
+            // Filing the paper into a folder moves it up the stack to join that
+            // folder's block, which is the same displacement CanReorderPastPaper
+            // refuses by another route.
+            AiStatus = $"“{layer.Name}” is the paper — it stays at the bottom of the stack.";
+            return;
+        }
         _editor.Perform(doc =>
         {
             var layers = doc.Scene.Layers;
