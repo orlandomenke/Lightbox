@@ -1793,7 +1793,7 @@ test reopens the bug.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
 
-- [x] **B198** `P2` `ui` The Bone tool wears the Move tool's icon, so the rig is unreachable from the toolbar `evidence: ToolRailTests, EveryToolHasAButtonInTheRail, NoTwoToolsWearTheSameGlyph, EveryButtonActuallyDrawsSomething, EveryIconAToolAsksForActuallyExists, EveryToolIconIsGeometryThatDrawsSomething`
+- [x] **B199** `P2` `ui` The Bone tool wears the Move tool's icon, so the rig is unreachable from the toolbar `evidence: ToolRailTests, EveryToolHasAButtonInTheRail, NoTwoToolsWearTheSameGlyph, EveryButtonActuallyDrawsSomething, EveryIconAToolAsksForActuallyExists, EveryToolIconIsGeometryThatDrawsSomething`
   - Reported by the owner after building #242 and #244: "I'm not seeing the bone tool or any option to add bones."
   - **Everything a tool can be registered in, it was registered in** — `ToolId.Bone`, `IsBoneTool`, a toolbar button with the right binding and command, `SyncCanvasToolMode`, `ShortcutMap`, the cursor map. The button drew `{StaticResource IconMove}`, a placeholder put in while the glyph was "to do" and never replaced.
   - **Why that is invisibility rather than a blemish**: `ReflowToolRail` only turns tool labels on once the rail has been *dragged* past 150px, so the default rail is icon-only. The Bone button sits immediately after Move, so what an artist actually saw was two identical four-way arrows side by side, and no bone anywhere.
