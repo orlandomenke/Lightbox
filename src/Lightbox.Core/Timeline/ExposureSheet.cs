@@ -48,6 +48,70 @@ public static class ExposureSheet
         return -1;
     }
 
+    /// <summary>
+    /// The run of drawings the index sits in: from the extreme at or before it
+    /// to the next extreme, with every drawing between them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A run is bounded by extremes; an interval is bounded by drawings, and
+    /// the two are not the same thing once a breakdown exists.</b>
+    /// <see cref="NextKeyIndex"/> — despite the name — finds the next
+    /// <em>drawing</em> whatever its role, which is what the inbetween command
+    /// used to fill to. That made a breakdown an endpoint, so the easing curve
+    /// restarted at it: slow-out, slow-in, then slow-out again, twice across
+    /// one arc the animator drew as one. <see cref="SpacingChart"/> had the
+    /// other reading all along — it closes a run at the next drawing whose role
+    /// is <see cref="FrameRole.Key"/> — so the timeline held two notions of a
+    /// span that disagreed exactly when a breakdown was present. This is the
+    /// one they now share.
+    /// </para>
+    /// <para>
+    /// The closing rule is <c>SpacingChart</c>'s, deliberately including its
+    /// fallback: a run closes at the next extreme, <b>or at the last drawing on
+    /// the sheet</b>. Without that, a sequence that ends on a breakdown would
+    /// have no run at all and the command would silently do nothing where it
+    /// used to work.
+    /// </para>
+    /// <para>
+    /// Documents with no breakdowns are unaffected in every case, because
+    /// <see cref="FrameRole.Key"/> is the default role — every drawing is an
+    /// extreme, so a run and an interval are the same span.
+    /// </para>
+    /// </remarks>
+    /// <returns>
+    /// The cel indices of the run's drawings, opening extreme first and closing
+    /// extreme last, or an empty list when there is no run to fill.
+    /// </returns>
+    public static IReadOnlyList<int> RunAt(Layer layer, int i)
+    {
+        var start = -1;
+        for (var k = Math.Min(i, layer.Cels.Count - 1); k >= 0; k--)
+        {
+            if (layer.Cels[k].Frame is { Role: FrameRole.Key }) { start = k; break; }
+        }
+        // No extreme at or before the playhead — fall back to the drawing at or
+        // before it, so a sheet of nothing but breakdowns still has a span.
+        if (start < 0) start = KeyIndexAtOrBefore(layer, i);
+        if (start < 0) return [];
+
+        var end = -1;
+        var lastDrawing = -1;
+        for (var k = start + 1; k < layer.Cels.Count; k++)
+        {
+            if (layer.Cels[k].Frame is not { } frame) continue;
+            lastDrawing = k;
+            if (frame.Role == FrameRole.Key) { end = k; break; }
+        }
+        if (end < 0) end = lastDrawing;
+        if (end < 0) return [];
+
+        var run = new List<int> { start };
+        for (var k = start + 1; k <= end; k++)
+            if (layer.Cels[k].Frame is not null) run.Add(k);
+        return run;
+    }
+
     /// <summary>What re-timing a range did, for a caller that has to report it.</summary>
     /// <param name="Drawings">Drawings re-exposed. Zero means the range held none.</param>
     /// <param name="Frames">Cels the range occupies now.</param>
