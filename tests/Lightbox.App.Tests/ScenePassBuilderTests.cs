@@ -41,12 +41,12 @@ public class ScenePassBuilderTests(ITestOutputHelper output)
     private static ScenePassBuilder.State StateFor(
         Scene scene, Layer active, Action<OnionSettings>? onion = null,
         bool playing = false, bool lightTable = false, int frame = 1,
-        bool viewport = false)
+        bool viewport = false, bool scrubbing = false)
     {
         var settings = new OnionSettings { Enabled = true, Before = 1, After = 1 };
         onion?.Invoke(settings);
         return new ScenePassBuilder.State(
-            frame, active.Id, playing, lightTable, viewport, settings);
+            frame, active.Id, playing, lightTable, viewport, settings, scrubbing);
     }
 
     private static ScenePassBuilder.Result Build(
@@ -230,6 +230,104 @@ public class ScenePassBuilderTests(ITestOutputHelper output)
         Assert.False(built.TileNative);
         Assert.DoesNotContain(built.Passes, p => p.SourceFrame is not null);
         Assert.All(built.Passes, p => Assert.NotNull(p.Bitmap));
+    }
+
+    /// <summary>
+    /// <b>Dragging the playhead composites through tiles, exactly as playback
+    /// does.</b> The gate read <c>IsPlaying</c> alone, so a scrub — B29's own
+    /// repro, and a far commoner gesture than pressing play — paid the
+    /// full-bitmap cost: 49.8 ms and 570 MB resident at 1080p on sparse cels
+    /// against the tile path's 13.4 ms and 135 MB, and 260.9 ms against 32.2 at
+    /// 4K. Both states mean the same thing to the tile store, which is that the
+    /// sequence is moving.
+    /// </summary>
+    [Fact]
+    public void ScrubbingBuildsTilePassesTheSameWayPlaybackDoes()
+    {
+        var ink = LayerWith("Ink", 3);
+        var scene = SceneWith(ink);
+        using var cache = new FrameBitmapCache();
+
+        var scrubbed = Build(
+            scene,
+            StateFor(scene, ink, o => o.Enabled = false, scrubbing: true, viewport: true),
+            cache);
+        var played = Build(
+            scene,
+            StateFor(scene, ink, o => o.Enabled = false, playing: true, viewport: true),
+            cache);
+
+        output.WriteLine(
+            $"scrubbing: tileNative={scrubbed.TileNative}, "
+            + $"tilePasses={scrubbed.Passes.Count(p => p.SourceFrame is not null)}");
+        output.WriteLine(
+            $"playing:   tileNative={played.TileNative}, "
+            + $"tilePasses={played.Passes.Count(p => p.SourceFrame is not null)}");
+
+        Assert.True(scrubbed.TileNative);
+        Assert.Contains(scrubbed.Passes, p => p.SourceFrame is not null);
+
+        // Stated as an equality rather than two separate assertions: the claim is
+        // that a scrub and a playback tick reach the tile store identically, so a
+        // future change that turns one off has to turn both off.
+        Assert.Equal(played.TileNative, scrubbed.TileNative);
+        Assert.Equal(
+            played.Passes.Count(p => p.SourceFrame is not null),
+            scrubbed.Passes.Count(p => p.SourceFrame is not null));
+    }
+
+    /// <summary>
+    /// <b>A still document does not, and that is what licenses the tile route at
+    /// all.</b> Tiles are allowed while the sequence moves because the pyramid's
+    /// resample difference below 100% zoom lasts only as long as the motion; the
+    /// still picture is always composed by the bounded route. A gate that stayed
+    /// on after the drag would leave a resampled still on screen, so this is the
+    /// other half of the test above rather than a restatement of it.
+    /// </summary>
+    [Fact]
+    public void NeitherPlayingNorScrubbingBuildsNoTilePassAtAll()
+    {
+        var ink = LayerWith("Ink", 3);
+        var scene = SceneWith(ink);
+        using var cache = new FrameBitmapCache();
+
+        var built = Build(
+            scene,
+            StateFor(scene, ink, o => o.Enabled = false, viewport: true),
+            cache);
+
+        Assert.False(built.TileNative);
+        Assert.DoesNotContain(built.Passes, p => p.SourceFrame is not null);
+        Assert.All(built.Passes, p => Assert.NotNull(p.Bitmap));
+    }
+
+    /// <summary>
+    /// <b>A scrub keeps its onion ghosts, and they stay bitmap passes.</b> This is
+    /// the one real difference from playback — which suppresses ghosts entirely —
+    /// and it is why the mixed pass list matters: <c>FlattenTilePasses</c> converts
+    /// the tile-native passes and leaves the rest alone, so a scrub with onion on
+    /// composes correctly and simply wins less. A ghost that silently vanished
+    /// while dragging would be the failure this guards.
+    /// </summary>
+    [Fact]
+    public void AScrubStillDrawsItsGhostsAndTheyAreNotTilePasses()
+    {
+        var ink = LayerWith("Ink", 3);
+        var scene = SceneWith(ink);
+        using var cache = new FrameBitmapCache();
+
+        var built = Build(scene, StateFor(scene, ink, scrubbing: true, viewport: true), cache);
+
+        var ghosts = built.Passes.Where(IsGhost).ToList();
+        output.WriteLine($"{ghosts.Count} ghost pass(es) of {built.Passes.Count} while scrubbing");
+
+        Assert.NotEmpty(ghosts);
+        Assert.All(ghosts, g => Assert.Null(g.SourceFrame));
+        Assert.All(ghosts, g => Assert.NotNull(g.Bitmap));
+
+        // And the drawing itself still tiled, or the mixture being asserted is
+        // not a mixture.
+        Assert.Contains(built.Passes, p => p.SourceFrame is not null);
     }
 
     /// <summary>

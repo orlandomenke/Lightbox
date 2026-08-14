@@ -435,7 +435,8 @@ public partial class MainViewModel
             scene.Layers.Count > 0 ? ActiveLayer.Id : null,
             IsPlaying, IsLightTable,
             HaveViewport: _publish.Viewport is { Width: > 0, Height: > 0 },
-            Onion);
+            Onion,
+            IsScrubbing);
         var live = new ScenePassBuilder.LiveEdit(
             _live.Composite, _live.Scratch, _live.PostScratch, _live.PostStampedCount,
             _liveShape, _liveGradient, _strokeBuilder.Current,

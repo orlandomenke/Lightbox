@@ -32,6 +32,18 @@ public sealed class TimelineRuler : Control
     public static readonly StyledProperty<int> CurrentFrameProperty =
         AvaloniaProperty.Register<TimelineRuler, int>(nameof(CurrentFrame), defaultBindingMode: BindingMode.TwoWay);
 
+    /// <summary>Whether the playhead is being dragged right now.</summary>
+    /// <remarks>
+    /// Two-way and outward-only, like <see cref="CurrentFrame"/>: the ruler owns
+    /// the gesture and the canvas needs to know it is happening, because a moving
+    /// sequence is what licenses compositing through tiles. Dragging a loop handle
+    /// deliberately does not set it — the playhead is not moving, so there is no
+    /// motion for the tile route to be justified by.
+    /// </remarks>
+    public static readonly StyledProperty<bool> IsScrubbingProperty =
+        AvaloniaProperty.Register<TimelineRuler, bool>(
+            nameof(IsScrubbing), defaultBindingMode: BindingMode.TwoWay);
+
     /// <summary>Playback range start (-1 = unset).</summary>
     /// <remarks>
     /// Two-way: the handles on the ruler write it. Dragging the loop bounds
@@ -55,6 +67,12 @@ public sealed class TimelineRuler : Control
     {
         AffectsMeasure<TimelineRuler>(ExtentProperty, CellWidthProperty, LeadingInsetProperty);
         AffectsRender<TimelineRuler>(MaxFrameProperty, CurrentFrameProperty, RangeStartProperty, RangeEndProperty, MarkersProperty);
+    }
+
+    public bool IsScrubbing
+    {
+        get => GetValue(IsScrubbingProperty);
+        set => SetValue(IsScrubbingProperty, value);
     }
 
     public int Extent { get => GetValue(ExtentProperty); set => SetValue(ExtentProperty, value); }
@@ -85,8 +103,6 @@ public sealed class TimelineRuler : Control
     private static readonly IBrush TickBrush = new SolidColorBrush(Color.Parse("#3a3a3a"));
     private static readonly IBrush RangeStartBrush = new SolidColorBrush(Color.Parse("#4caf50"));
     private static readonly IBrush RangeEndBrush = new SolidColorBrush(Color.Parse("#e05555"));
-
-    private bool _scrubbing;
 
     // ---- the loop handles ----------------------------------------------------------
 
@@ -271,7 +287,11 @@ public sealed class TimelineRuler : Control
             return;
         }
 
-        _scrubbing = true;
+        // SetCurrentValue rather than the setter, exactly as ScrubTo does for the
+        // frame: a plain assignment on a two-way bound property overwrites the
+        // binding instead of pushing through it, and the symptom is a scrub that
+        // works once.
+        SetCurrentValue(IsScrubbingProperty, true);
         e.Pointer.Capture(this);
         ScrubTo(x);
         e.Handled = true;
@@ -292,7 +312,7 @@ public sealed class TimelineRuler : Control
             e.Handled = true;
             return;
         }
-        if (!_scrubbing) return;
+        if (!IsScrubbing) return;
         ScrubTo(x);
         e.Handled = true;
     }
@@ -307,7 +327,7 @@ public sealed class TimelineRuler : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
-        _scrubbing = false;
+        SetCurrentValue(IsScrubbingProperty, false);
         _dragging = Handle.None;
         e.Pointer.Capture(null);
     }
@@ -315,7 +335,9 @@ public sealed class TimelineRuler : Control
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
         base.OnPointerCaptureLost(e);
-        _scrubbing = false;
+        // The case that would otherwise strand the canvas on the tile route: a
+        // drag ended by losing capture never sees a release.
+        SetCurrentValue(IsScrubbingProperty, false);
         _dragging = Handle.None;
     }
 
