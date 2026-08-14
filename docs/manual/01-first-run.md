@@ -192,8 +192,11 @@ What the Quick options bar carries is part of the workspace, chosen for the
 work rather than fixed: the **Animation**, **Game art** and **Storyboard**
 workspaces put the transport (play/pause) and frame buttons at eye level, the
 single-image workspaces carry the paint kit and the marquee, and **Default**
-shows every tool's own group. Two things never move whatever the workspace
-says: **Size** and **Opacity** stay pinned on the bar's left.
+shows every tool's own group. The bar's left never moves whatever the
+workspace says: the colour pair, the **brush preset** button with its **⚙**,
+and **Size** and **Opacity** are pinned. Picking a preset puts its tool in
+your hand, so the brush button is also the way back to painting from any
+tool.
 
 The **⋮** button beside the workspace picker chooses the contents — tick and
 untick what this workspace offers. The choice behaves like any other
