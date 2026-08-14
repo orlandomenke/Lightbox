@@ -161,41 +161,41 @@ public sealed class WorkspaceStore
         store.Workspaces.Add(Built("Illustration", ProjectType.Illustration,
             right: [[DockPanelId.Layers], Colour],
             bottom: [],
-            quick: [QuickBarCatalog.BrushPreset, QuickBarCatalog.BrushOptions,
+            quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
                     QuickBarCatalog.FillOptions, QuickBarCatalog.GradientOptions,
                     QuickBarCatalog.ShapeOptions]));
         store.Workspaces.Add(Built("Animation", ProjectType.Animation,
             right: [[DockPanelId.Project], [DockPanelId.Layers], Colour],
             bottom: [TimelineFamily],
-            quick: [QuickBarCatalog.BrushPreset, QuickBarCatalog.BrushOptions,
+            quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
                     QuickBarCatalog.Transport, QuickBarCatalog.AddFrame]));
         store.Workspaces.Add(Built("Game art", ProjectType.GameArt,
             right: [[DockPanelId.Project], [DockPanelId.Layers],
                     [DockPanelId.Palette, DockPanelId.Color, DockPanelId.Channels]],
             bottom: [TimelineFamily],
-            quick: [QuickBarCatalog.BrushPreset, QuickBarCatalog.BrushOptions,
+            quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
                     QuickBarCatalog.FillOptions, QuickBarCatalog.Transport,
                     QuickBarCatalog.AddFrame]));
         store.Workspaces.Add(Built("Storyboard", ProjectType.Storyboard,
             right: [[DockPanelId.Project], [DockPanelId.Sheets]],
             bottom: [TimelineFamily],
-            quick: [QuickBarCatalog.BrushPreset, QuickBarCatalog.BrushOptions,
+            quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.Transport,
                     QuickBarCatalog.AddFrame]));
         store.Workspaces.Add(Built("Comic", ProjectType.Comic,
             right: [[DockPanelId.Project], [DockPanelId.Layers], Colour, [DockPanelId.Sheets]],
             bottom: [],
-            quick: [QuickBarCatalog.BrushPreset, QuickBarCatalog.BrushOptions,
+            quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
                     QuickBarCatalog.FillOptions, QuickBarCatalog.ShapeOptions]));
         store.Workspaces.Add(Built("Asset library", ProjectType.AssetLibrary,
             right: [[DockPanelId.Project],
                     [DockPanelId.Palette, DockPanelId.Color, DockPanelId.Channels]],
             bottom: [],
-            quick: [QuickBarCatalog.BrushPreset, QuickBarCatalog.BrushOptions,
+            quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.SelectOptions]));
         store.Current = "Default";
         return store;

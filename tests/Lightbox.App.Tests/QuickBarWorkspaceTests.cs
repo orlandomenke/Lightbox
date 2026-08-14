@@ -80,12 +80,12 @@ public sealed class QuickBarWorkspaceTests(ITestOutputHelper output)
     {
         var store = WorkspaceStore.Default();
         store.Find("Default")!.Layout.QuickBar =
-            [QuickBarCatalog.BrushPreset, QuickBarCatalog.Transport];
+            [QuickBarCatalog.BrushOptions, QuickBarCatalog.Transport];
 
         var reloaded = WorkspaceStore.Deserialize(store.Serialize());
 
         Assert.Equal(
-            [QuickBarCatalog.BrushPreset, QuickBarCatalog.Transport],
+            [QuickBarCatalog.BrushOptions, QuickBarCatalog.Transport],
             reloaded.Find("Default")!.Layout.QuickBar);
     }
 
@@ -139,11 +139,11 @@ public sealed class QuickBarWorkspaceTests(ITestOutputHelper output)
     public void ACustomisedBuiltInKeepsItsChoiceThroughTheRoundTrip()
     {
         var store = WorkspaceStore.Default();
-        store.Find("Animation")!.Layout.QuickBar = [QuickBarCatalog.BrushPreset];
+        store.Find("Animation")!.Layout.QuickBar = [QuickBarCatalog.BrushOptions];
 
         var reloaded = WorkspaceStore.Deserialize(store.Serialize());
 
-        Assert.Equal([QuickBarCatalog.BrushPreset],
+        Assert.Equal([QuickBarCatalog.BrushOptions],
             reloaded.Find("Animation")!.Layout.QuickBar);
     }
 
@@ -252,5 +252,20 @@ public sealed class QuickBarWorkspaceTests(ITestOutputHelper output)
             Assert.DoesNotContain("size", option.Id, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("opacity", option.Id, StringComparison.OrdinalIgnoreCase);
         }
+    }
+
+    /// <summary>
+    /// The preset picker joined the pinned section beside the colour pair
+    /// (owner's ask, 2026-08-14), so like size and opacity it is not on
+    /// offer: a checkbox for a control the workspace cannot move would be a
+    /// checkbox that changes nothing. The retired id may still sit in saved
+    /// lists; no gate reads it, and the XAML must not grow one back.
+    /// </summary>
+    [Fact]
+    public void ThePinnedBrushPresetIsNotOnOffer()
+    {
+        Assert.DoesNotContain(QuickBarCatalog.All, o => o.Id == QuickBarCatalog.BrushPreset);
+        Assert.DoesNotContain(QuickBarCatalog.BrushPreset, QuickBarCatalog.ToolDefaults);
+        Assert.DoesNotContain("Workspace.QuickBrushPreset", MainWindowXaml(), StringComparison.Ordinal);
     }
 }
