@@ -848,6 +848,20 @@ public partial class MainWindow
     private void OnLayerRowPressed(object? sender, PointerPressedEventArgs e)
     {
         if ((sender as Control)?.DataContext is not LayerRow row) return;
+        if (Services.LayerLinkGestures.From(
+                e.KeyModifiers, e.GetCurrentPoint(this).Properties.IsRightButtonPressed) is { } gesture)
+        {
+            // The layer has to be the active one first: every link operation
+            // is written in terms of it, and a right-click that linked the
+            // PREVIOUSLY active layer would be the worst kind of wrong — it
+            // does something, just not to the row under the pointer.
+            _vm.SelectLayer(row, toggle: false, range: false);
+            ApplyLayerLinkGesture(gesture);
+            // Handled, so the row's own context menu does not open on top of
+            // a gesture that has already done what it was asked.
+            e.Handled = true;
+            return;
+        }
         _vm.SelectLayer(
             row,
             toggle: e.KeyModifiers.HasFlag(KeyModifiers.Control),
@@ -954,6 +968,30 @@ public partial class MainWindow
                 break;
             case (GroupRow header, _):
                 _vm.MoveLayerIntoGroup(dragged.Layer, header.Group);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Carry out a link gesture on the active layer, or show the menu.
+    /// </summary>
+    /// <remarks>
+    /// The menu is built here rather than in XAML because its contents depend
+    /// on state the row does not carry — whether there is a link to leave,
+    /// what it already carries, and which bone the Bone tool has selected.
+    /// </remarks>
+    private void ApplyLayerLinkGesture(Services.LayerLinkGesture gesture)
+    {
+        switch (gesture)
+        {
+            case Services.LayerLinkGesture.LinkAbove:
+                _vm.LinkLayerAboveCommand.Execute(null);
+                break;
+            case Services.LayerLinkGesture.LinkBelow:
+                _vm.LinkLayerBelowCommand.Execute(null);
+                break;
+            case Services.LayerLinkGesture.Unlink:
+                _vm.UnlinkLayerCommand.Execute(null);
                 break;
         }
     }

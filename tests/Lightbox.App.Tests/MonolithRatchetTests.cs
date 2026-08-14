@@ -165,31 +165,31 @@ public class MonolithRatchetTests(ITestOutputHelper output)
         // Measured alone the last two wanted 4,327 and 4,271; taking either on
         // the merged tree would bank the extraction's slack as permanent
         // headroom, which is the one thing a ratchet must not do.
-        // → 4,273 (2026-08-14): the layer docker's drag-and-drop wiring — two
-        // pointer handlers on the row template and three DragDrop attributes
-        // on the ItemsControl. Event attributes live on the element they
-        // handle; the handlers themselves went to MainWindow.Workspace.cs.
-        // Measured alone that wanted 4,275, and this is the merged-tree number
-        // for the reason the paragraph above gives: the branch it met had two
-        // lines of slack under its own budget, and 4,275 would have banked
-        // them as headroom nobody had earned. +4 over main, which is the size
-        // of the change.
-        // → 4,276 (2026-08-14): the past-the-end cel's hatch (Q87) — one setter
-        // and its two-line reason. The brush itself is in Palette.axaml, where
-        // the colour system lives; only the style selector has to be here,
-        // because a selector cannot live anywhere else. Measured alone that
-        // wanted 4,272, against a main that had not yet taken the drag wiring
-        // above; both notes are kept because taking either side of the merge
-        // would delete the other's reason and leave a number nobody can
-        // account for.
-        // → 4,278 (2026-08-14): the X-sheet's Delete column menu entry and its
-        // tooltip (Q88). A menu item has nowhere else to live — the handler it
-        // calls is in MainWindow.Timeline.cs, and the command it reaches is in
-        // the view model. Measured alone that wanted 4,275, against a main
-        // without the hatch; this is the third merge in a row where the honest
-        // number is neither side's, which is the note above working as
-        // intended rather than a problem.
-        ("src/Lightbox.App/Views/MainWindow.axaml", 4278),
+        // FOUR raises have met on this line now, and the number is none of
+        // theirs — it is the merged tree's, which is the rule the paragraph
+        // above states and the one these conflicts keep testing. Taking any
+        // branch's figure banks the others' slack as headroom nobody earned;
+        // taking one side's comment deletes another's reason and leaves a
+        // number nobody can account for. So every reason stays.
+        //
+        // → the layer docker's drag-and-drop wiring: two pointer handlers on
+        // the row template and three DragDrop attributes on the ItemsControl.
+        // Event attributes live on the element they handle; the handlers
+        // themselves went to MainWindow.Workspace.cs.
+        // → the past-the-end cel's hatch (Q89): one setter and its two-line
+        // reason. The brush itself is in Palette.axaml, where the colour
+        // system lives; only the style selector has to be here, because a
+        // selector cannot live anywhere else.
+        // → the X-sheet's Delete column menu entry and its tooltip (Q88). A
+        // menu item has nowhere else to live — the handler it calls is in
+        // MainWindow.Timeline.cs, and the command it reaches is in the view
+        // model.
+        // → the layer docker's link menu (Q90): the Linking and
+        // Follows-the-rig flyouts, the same case as the entry above it. The
+        // bracket that shipped beside them did NOT raise it: that is
+        // self-contained chrome, so it went to LinkBracket.axaml and cost one
+        // hosting line instead of fourteen.
+        ("src/Lightbox.App/Views/MainWindow.axaml", 4306),
         // Lowered when the overlay-gesture wiring moved to MainWindow.Overlays.cs,
         // and again (449 → 427) when the bone gesture handler followed it there.
         // A merge had left that one block behind in the code-behind while its
