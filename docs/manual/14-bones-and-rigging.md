@@ -30,6 +30,10 @@ because its first drag is what *creates* the rig.
 - **Drag a bone's shaft** to move it bodily — children come with it. **Drag
   a tip** to re-aim and re-length it; **drag an origin** to move just that
   joint. All three edit the skeleton's rest, and each is one undo step.
+- **Shift-drag a bone's tip** to grow a child out of it, joined to the
+  parent — the fastest way to build a limb, one bone at a time. **Add child**
+  in the options panel does the same without aiming, and **Length** sets a
+  bone's size by number instead of by drag.
 - **Rename** a bone in the options bar — a pair ending `.l` and `.r` is what
   X-symmetry reads. **Delete** removes it and re-parents its children to its
   parent, leaving them exactly where they are; strokes bound to it lose that
