@@ -757,11 +757,23 @@ public partial class MainWindow
     /// </remarks>
     internal Services.ShortcutScope ShortcutScopeForTests => CurrentShortcutScope();
 
-    /// <summary>Clicking anywhere on a layer-docker row makes that layer active.</summary>
+    /// <summary>
+    /// Clicking anywhere on a layer-docker row makes that layer active. Ctrl
+    /// adds it to the selection (or drops it), Shift takes the run from the
+    /// last row picked.
+    /// </summary>
+    /// <remarks>
+    /// Ctrl+click on the row's <em>thumbnail</em> means something else entirely
+    /// — select the layer's opaque pixels — and that handler marks the event
+    /// handled, so the two never both run.
+    /// </remarks>
     private void OnLayerRowPressed(object? sender, PointerPressedEventArgs e)
     {
         if ((sender as Control)?.DataContext is not LayerRow row) return;
-        _vm.ActivateLayerCommand.Execute(row);
+        _vm.SelectLayer(
+            row,
+            toggle: e.KeyModifiers.HasFlag(KeyModifiers.Control),
+            range: e.KeyModifiers.HasFlag(KeyModifiers.Shift));
         // Pull keyboard focus off menus/sliders so the arrow-key layer walk
         // (and Delete/Backspace) reaches the window's shortcut handler.
         (sender as Control)?.Focus();

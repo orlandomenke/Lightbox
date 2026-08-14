@@ -96,12 +96,27 @@ public partial class MainViewModel
 
     // ---- layer reordering -------------------------------------------------------
 
-    /// <summary>Move a layer toward the viewer (+1) or away (−1), keeping it active.</summary>
+    /// <summary>
+    /// Move a layer toward the viewer (+1) or away (−1), keeping it active —
+    /// or the whole selection when this layer is inside it, as one step.
+    /// </summary>
     internal void MoveLayer(LayerRow row, int delta)
     {
         var id = row.Layer.Id;
-        _editor.MoveLayer(id, delta);
-        ActiveLayerIndex = Scene.Layers.FindIndex(l => l.Id == id);
+        var targets = LayersForOp(row.Layer);
+        if (targets.Count == 1)
+        {
+            _editor.MoveLayer(id, delta);
+        }
+        else
+        {
+            var ids = targets.Select(l => l.Id).ToHashSet();
+            _editor.Perform(doc => ShiftLayers(doc.Scene.Layers, ids, delta), label: "Move layers");
+        }
+        // Keeps the selection: moving a stack of layers is something an artist
+        // does twice, and a reorder that dissolved the selection would make the
+        // second press move one layer out of the group it just moved with.
+        ActivateWithinSelection(Scene.Layers.FindIndex(l => l.Id == id));
     }
 
     [RelayCommand]
@@ -132,17 +147,17 @@ public partial class MainViewModel
         }
     }
 
-    /// <summary>New folder containing the active layer.</summary>
+    /// <summary>New folder containing the active layer — or every selected layer.</summary>
     [RelayCommand]
     private void CreateLayerFolder()
     {
-        var layer = ActiveLayer;
+        var ids = LayersForOp(ActiveLayer).Select(l => l.Id).ToHashSet();
         _editor.Perform(doc =>
         {
             var group = new LayerGroup { Name = $"Folder {doc.Scene.LayerGroups.Count + 1}" };
             doc.Scene.LayerGroups.Add(group);
-            layer.GroupId = group.Id;
-        });
+            foreach (var layer in doc.Scene.Layers.Where(l => ids.Contains(l.Id))) layer.GroupId = group.Id;
+        }, label: ids.Count == 1 ? "Create layer folder" : "Create folder from layers");
     }
 
     /// <summary>Put the active layer into this folder (moved adjacent so the folder stays one block).</summary>
@@ -385,10 +400,21 @@ public partial class MainViewModel
         _editor.Perform(_ => layer.Name = trimmed);
     }
 
+    /// <summary>
+    /// The layers this toggle covers and does not already agree with. Empty
+    /// means nothing to do, which is what keeps a no-op off the undo stack.
+    /// </summary>
+    private List<Layer> ToggleTargets(Layer layer, Func<Layer, bool> current, bool value) =>
+        LayersForOp(layer).Where(l => current(l) != value).ToList();
+
     internal void SetLayerVisible(Layer layer, bool visible)
     {
-        if (layer.Visible == visible) return;
-        _editor.Perform(_ => layer.Visible = visible);
+        var targets = ToggleTargets(layer, l => l.Visible, visible);
+        if (targets.Count == 0) return;
+        _editor.Perform(_ =>
+        {
+            foreach (var target in targets) target.Visible = visible;
+        }, label: targets.Count == 1 ? "Set layer visible" : "Set layers visible");
     }
 
     /// <summary>
@@ -397,15 +423,23 @@ public partial class MainViewModel
     /// </summary>
     internal void SetLayerLocked(Layer layer, bool locked)
     {
-        if (layer.Locked == locked) return;
-        _editor.Perform(_ => layer.Locked = locked);
+        var targets = ToggleTargets(layer, l => l.Locked, locked);
+        if (targets.Count == 0) return;
+        _editor.Perform(_ =>
+        {
+            foreach (var target in targets) target.Locked = locked;
+        }, label: targets.Count == 1 ? "Set layer locked" : "Set layers locked");
         NotifyLayerGating();
     }
 
     internal void SetLayerAlphaLocked(Layer layer, bool locked)
     {
-        if (layer.AlphaLocked == locked) return;
-        _editor.Perform(_ => layer.AlphaLocked = locked);
+        var targets = ToggleTargets(layer, l => l.AlphaLocked, locked);
+        if (targets.Count == 0) return;
+        _editor.Perform(_ =>
+        {
+            foreach (var target in targets) target.AlphaLocked = locked;
+        }, label: targets.Count == 1 ? "Set layer alpha locked" : "Set layers alpha locked");
         NotifyLayerGating();
     }
 
@@ -449,17 +483,21 @@ public partial class MainViewModel
     /// </summary>
     internal void SetLayerOnionEnabled(Layer layer, bool enabled)
     {
-        if (layer.OnionEnabled == enabled) return;
-        layer.OnionEnabled = enabled;
-        // The same switch exists in two places — the Layers panel's ◉ and the
-        // shortcut bar's — and they have to agree. The row does not read the
-        // layer except when it is rebuilt, so pushing the value across is what
-        // stops one of them showing yesterday's answer.
-        if (LayerRows.FirstOrDefault(r => r.Layer.Id == layer.Id) is { } row)
+        var targets = ToggleTargets(layer, l => l.OnionEnabled, enabled);
+        if (targets.Count == 0) return;
+        foreach (var target in targets)
         {
-            row.OnionEnabled = enabled;
+            target.OnionEnabled = enabled;
+            // The same switch exists in two places — the Layers panel's ◉ and the
+            // shortcut bar's — and they have to agree. The row does not read the
+            // layer except when it is rebuilt, so pushing the value across is what
+            // stops one of them showing yesterday's answer.
+            if (LayerRows.FirstOrDefault(r => r.Layer.Id == target.Id) is { } row)
+            {
+                row.OnionEnabled = enabled;
+            }
         }
-        if (layer.Id == ActiveLayer.Id) OnPropertyChanged(nameof(ActiveLayerOnion));
+        if (targets.Any(t => t.Id == ActiveLayer.Id)) OnPropertyChanged(nameof(ActiveLayerOnion));
         MarkDocumentEdited();
         PublishSnapshot();
     }
@@ -510,18 +548,27 @@ public partial class MainViewModel
     [RelayCommand]
     private void DeleteActiveLayer() => DeleteLayer(ActiveLayer);
 
+    /// <summary>
+    /// Delete a layer — or every selected layer when this one is inside the
+    /// selection — as one undoable step.
+    /// </summary>
+    /// <remarks>
+    /// A locked layer in the selection is skipped rather than taken as a refusal
+    /// of the whole delete: <see cref="CanEdit"/> says which one and why, and the
+    /// rest still go. Refusing all five because one is locked would make the
+    /// artist unlock a layer only to delete it.
+    /// </remarks>
     public void DeleteLayer(Layer layer)
     {
-        if (!CanEdit(layer, "delete it")) return;
-        var removedIndex = Scene.Layers.FindIndex(l => l.Id == layer.Id);
+        var ids = LayersForOp(layer).Where(l => CanEdit(l, "delete it")).Select(l => l.Id).ToHashSet();
+        if (ids.Count == 0) return;
+        var removedIndex = Scene.Layers.FindIndex(l => ids.Contains(l.Id));
         if (removedIndex < 0) return;
         _editor.Perform(doc =>
         {
             var scene = doc.Scene;
-            var index = scene.Layers.FindIndex(l => l.Id == layer.Id);
-            if (index < 0) return;
-            var wasPaper = scene.Layers[index].IsBackground;
-            scene.Layers.RemoveAt(index);
+            var wasPaper = scene.Layers.Any(l => ids.Contains(l.Id) && l.IsBackground);
+            scene.Layers.RemoveAll(l => ids.Contains(l.Id));
             // Deleting the paper means there is no paper. Without this the
             // composite falls back to clearing to the scene's colour, so the
             // canvas goes opaque white and the deletion looks like it did
@@ -763,39 +810,45 @@ public partial class MainViewModel
     /// </remarks>
     public void SetLayerExportPin(Layer layer, bool? pin)
     {
-        if (layer.OmitFromExport == pin) return;
+        var ids = LayersForOp(layer).Where(l => l.OmitFromExport != pin).Select(l => l.Id).ToHashSet();
+        if (ids.Count == 0) return;
         _editor.Perform(doc =>
         {
-            if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layer.Id) is { } target)
+            foreach (var target in doc.Scene.Layers.Where(l => ids.Contains(l.Id)))
                 target.OmitFromExport = pin;
-        });
+        }, label: ids.Count == 1 ? "Set layer export pin" : "Set layer export pins");
         SyncLayerRows();
     }
 
     public void ClearLayerContent(Layer layer)
     {
+        var ids = LayersForOp(layer).Select(l => l.Id).ToHashSet();
         // Mark before the edit so the thumbnail refresh inside Changed sees them.
-        foreach (var cel in layer.Cels)
+        foreach (var target in Scene.Layers.Where(l => ids.Contains(l.Id)))
         {
-            if (cel.Frame is { } frame)
+            foreach (var cel in target.Cels)
             {
-                InvalidateFrameRender(frame.Id);
-                _dirtyThumbIds.Add(frame.Id);
+                if (cel.Frame is { } frame)
+                {
+                    InvalidateFrameRender(frame.Id);
+                    _dirtyThumbIds.Add(frame.Id);
+                }
             }
         }
         _editor.Perform(doc =>
         {
-            var target = doc.Scene.Layers.FirstOrDefault(l => l.Id == layer.Id);
-            if (target is null) return;
-            foreach (var cel in target.Cels)
+            foreach (var target in doc.Scene.Layers.Where(l => ids.Contains(l.Id)))
             {
-                if (cel.Frame is not { } frame) continue;
-                frame.Strokes.Clear();
-                // Null rather than "": clearing a layer should leave frames that
-                // write no baseline key, the same as ones that never had one.
-                frame.PngBase64 = null;
+                foreach (var cel in target.Cels)
+                {
+                    if (cel.Frame is not { } frame) continue;
+                    frame.Strokes.Clear();
+                    // Null rather than "": clearing a layer should leave frames that
+                    // write no baseline key, the same as ones that never had one.
+                    frame.PngBase64 = null;
+                }
             }
-        });
+        }, label: ids.Count == 1 ? "Clear layer content" : "Clear layers content");
     }
 
     /// <remarks>

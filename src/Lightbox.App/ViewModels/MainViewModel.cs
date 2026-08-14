@@ -634,7 +634,6 @@ public sealed partial class MainViewModel : ObservableObject
     private bool _applyingEditScope;
 
     private (int Layer, int Index) _celAnchor;
-    private (int Layer, int Start, int End)? _celRange;
 
     /// <summary>
     /// True while stepping through a frame the clock has already decided to

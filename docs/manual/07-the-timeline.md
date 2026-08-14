@@ -107,6 +107,21 @@ playback range.
 Drag a cel along its row to move it. Shift-click for a range, then apply
 exposure changes to all of it at once.
 
+**Ctrl+click picks cels one at a time**, including ones that are not next to
+each other and ones on other layers — every third cel of a cycle, or the same
+two cels across four layers. Ctrl+click a picked cel again to drop it. Shift
+still ranges from the last cel you clicked, and re-ranges rather than adding a
+second run, so it is the way to correct an overshoot.
+
+**Clear** and **delete** cover every cel you picked, on every layer, and the
+cels you left out are left alone — a delete works from the end of the row
+backwards, so the gaps it makes never shift the cels you picked next. **Copy**,
+**cut** and **paste** work on one row, because a cel clipboard is a sequence of
+drawings on one layer; copying a picked-out set takes the cels you chose in
+order and pastes them consecutively, holes closed up. If the selection reached
+other layers, the status line says which were not copied rather than pretending
+otherwise.
+
 ## Timing presets
 
 A **timing preset** is a pattern of hold lengths — how long each drawing in a
