@@ -165,20 +165,32 @@ public partial class MainWindow : Window
         // it sees the move even when a child marks it handled — a docker whose
         // content swallows pointer events would otherwise be invisible to the
         // shortcut scope and silently lose its bindings.
+        //
+        // The panel is resolved HERE, at move time, and the id is what is kept
+        // — never the element (B199; the reasoning lives on CurrentShortcutScope).
+        // The next move overwrites it and PointerExited keeps it, so lifting a
+        // pen keeps the panel and moving to the canvas releases it.
         AddHandler(
             PointerMovedEvent,
             (_, e) =>
             {
-                _hoveredElement = e.Source as Visual;
+                var source = e.Source as Visual;
+                _hoveredPanel = PanelUnder(source);
+                _pointerInWindow = true;
                 // Everything that is NOT the canvas. The canvas counts itself in
                 // its own handler, because the question the two counters answer
                 // is whether a frame reaching the screen depends on the canvas's
                 // own invalidate — and the reported symptom is that moving over
                 // a docker does not help. See InputPulse.
-                if (!IsInsideCanvas(_hoveredElement)) Rendering.InputPulse.Elsewhere();
+                if (!IsInsideCanvas(source)) Rendering.InputPulse.Elsewhere();
             },
             Avalonia.Interactivity.RoutingStrategies.Tunnel);
-        PointerExited += (_, _) => _hoveredElement = null;
+        // The pointer leaving the window — which includes a pen leaving
+        // proximity — invalidates the LIVE flags, not the remembered panel.
+        // IsPointerOver has been observed stale in both directions after this
+        // event (an X11 run kept a docker's flag true with the pointer gone),
+        // so the flag is only consulted while the pointer is known present.
+        PointerExited += (_, _) => _pointerInWindow = false;
 
         bool IsInsideCanvas(Visual? from)
         {

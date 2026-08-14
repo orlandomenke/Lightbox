@@ -16,31 +16,37 @@ using Xunit;
 namespace Lightbox.App.Tests;
 
 /// <summary>
-/// The hovered scope survives the two things that made every panel binding fall
-/// through to the canvas in the real application (B199).
+/// The hovered scope survives the states that made every panel binding fall
+/// through to the canvas in the running application (B199).
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Reported from a build, and invisible to every test that existed.</b>
-/// "Hovering the timeline and pressing I still picks a colour" — with the map
-/// correct, the binding intact, and <c>HoverShortcutScopeTests</c> green. Those
-/// tests move the mouse and immediately press a key against a still visual tree,
-/// which is the one situation in which the old implementation could not fail.
+/// <b>Reported from a build, twice, against two different implementations</b> —
+/// which is what earns this file its length. "Hovering the timeline and pressing
+/// I still picks a colour", with the map correct, the binding intact, and the
+/// end-to-end tests green both times. Each implementation read a signal that is
+/// live and correct in a headless test and dead on the artist's machine:
 /// </para>
 /// <para>
-/// <b>The two weaknesses, both in the same sentence of code.</b> The scope came
-/// from a <em>cached</em> element (the source of the last <c>PointerMoved</c>)
-/// resolved through <em>derived</em> bookkeeping (<c>Docker.ActiveTab</c>). A
-/// cache goes stale when a docker rebuilds the row under a stationary pointer —
-/// the timeline does this on every frame change — because the remembered visual
-/// is detached and its parent chain no longer reaches a docker. Bookkeeping goes
-/// stale if anything writes it without a layout pass. Either one resolves to the
-/// canvas, and the canvas is a <em>plausible</em> answer, so nothing looks
-/// broken: the key just quietly means the wrong thing.
+/// <b>Round one: the cached element.</b> The source of the last
+/// <c>PointerMoved</c> is detached the moment a docker rebuilds its rows — the
+/// timeline does on every frame change — and a detached visual's parent chain
+/// reaches no docker.
 /// </para>
 /// <para>
-/// Both tests below fail against the previous implementation and pass against
-/// the one that asks the dockers what the pointer is over.
+/// <b>Round two: the live <c>IsPointerOver</c> flags.</b> A pen leaves proximity
+/// a centimetre off the tablet, between pointing at a panel and pressing the key
+/// with the other hand. The leave clears every live flag — and the same event
+/// has been observed leaving a docker's flag stale-<i>true</i> on X11, so the
+/// flags are unreliable in both directions once the pointer is gone. A mouse
+/// never leaves proximity, which is why no mouse-driven test, headless or real,
+/// ever caught it.
+/// </para>
+/// <para>
+/// The mechanism that survives both is the one these tests pin: the panel is an
+/// <b>id resolved at move time</b>, overwritten by the next move, and kept on
+/// <c>PointerExited</c> — with the live flags consulted only while the pointer
+/// is known present.
 /// </para>
 /// </remarks>
 public class HoverScopeRobustnessTests(ITestOutputHelper output)
@@ -67,69 +73,47 @@ public class HoverScopeRobustnessTests(ITestOutputHelper output)
     private static Docker DockerFor(MainWindow window, DockPanelId id) =>
         window.GetVisualDescendants().OfType<Docker>().First(d => d.PanelId == id);
 
+    private static Lightbox.App.Rendering.CanvasControl CanvasOf(MainWindow window) =>
+        window.GetVisualDescendants().OfType<Lightbox.App.Rendering.CanvasControl>().First();
+
+    // ---- the pen (round two) --------------------------------------------------
+
     /// <summary>
-    /// The bookkeeping says one panel and the control on screen is another. The
-    /// pointer is inside the control, so the control wins.
+    /// Point the pen at the timeline, lift it off the tablet, press I with the
+    /// other hand. The proximity leave kills every live pointer signal; the key
+    /// must still belong to the timeline, because that is where the artist
+    /// pointed and nothing since says otherwise.
     /// </summary>
-    /// <remarks>
-    /// Reproduced the report exactly before the fix: scope came back as
-    /// <c>Panel/Xsheet</c> — the timeline's tab-group neighbour, which binds no
-    /// <c>I</c> — so the key fell through to the general eyedropper.
-    /// </remarks>
     [AvaloniaFact]
-    public void TheScopeFollowsTheDockerOnScreenRatherThanItsTabBookkeeping()
+    public void LiftingThePenOverTheTimelineKeepsTheTimeline()
     {
         var (window, _) = Open();
         var timeline = DockerFor(window, DockPanelId.Timeline);
 
-        // The timeline shares its slot with X-sheet and Graph editor.
-        timeline.ActiveTab = DockPanelId.Xsheet;
-        Pump();
-
         window.MouseMove(Centre(timeline, window));
         Pump();
+        Assert.Equal(ShortcutScope.In(DockPanelId.Timeline), window.ShortcutScopeForTests);
 
-        output.WriteLine($"PanelId={timeline.PanelId} ActiveTab={timeline.ActiveTab} "
-            + $"scope={window.ShortcutScopeForTests}");
+        window.SimulateProximityLossForTests();
+        Pump();
+
+        output.WriteLine($"after proximity loss: {window.ShortcutScopeForTests}");
         Assert.Equal(ShortcutScope.In(DockPanelId.Timeline), window.ShortcutScopeForTests);
     }
 
     /// <summary>
-    /// The pointer has not moved and the docker has rebuilt what is under it.
-    /// The remembered element is detached; the pointer is still in the timeline.
+    /// The same lift, end to end: I still inserts a key rather than reaching
+    /// for the eyedropper — the reported fault, both times it was reported.
     /// </summary>
     [AvaloniaFact]
-    public void TheScopeSurvivesTheRememberedElementBeingDetached()
+    public void IStillInsertsAKeyAfterThePenLifts()
     {
         var (window, vm) = Open();
         var timeline = DockerFor(window, DockPanelId.Timeline);
 
         window.MouseMove(Centre(timeline, window));
         Pump();
-        Assert.Equal(ShortcutScope.In(DockPanelId.Timeline), window.ShortcutScopeForTests);
-
-        // Exactly what a rebuilt row leaves behind: a visual with no parent.
-        window.ForgetHoveredElementForTests(new Border());
-        Pump();
-
-        output.WriteLine($"after detaching the remembered element: {window.ShortcutScopeForTests}");
-        Assert.Equal(ShortcutScope.In(DockPanelId.Timeline), window.ShortcutScopeForTests);
-    }
-
-    /// <summary>
-    /// And the whole point of it, end to end: the key still means what the panel
-    /// says, from a state where it used to mean the general thing.
-    /// </summary>
-    [AvaloniaFact]
-    public void IStillInsertsAKeyOverATimelineThatHasRebuiltUnderThePointer()
-    {
-        var (window, vm) = Open();
-        var timeline = DockerFor(window, DockPanelId.Timeline);
-
-        window.MouseMove(Centre(timeline, window));
-        Pump();
-        window.ForgetHoveredElementForTests(new Border());
-        timeline.ActiveTab = DockPanelId.GraphEditor;
+        window.SimulateProximityLossForTests();
         Pump();
 
         vm.ActiveTool = ToolId.Brush;
@@ -141,21 +125,74 @@ public class HoverScopeRobustnessTests(ITestOutputHelper output)
 
         output.WriteLine($"keys {before} -> {KeyCount(vm)}, tool {vm.ActiveTool}");
         Assert.True(KeyCount(vm) > before,
-            "I did not insert a keyframe over the timeline — it fell through to the "
-            + $"general binding and the tool is now {vm.ActiveTool}, which is the reported fault");
+            "I did not insert a keyframe after the pen lifted over the timeline — it "
+            + $"fell through to the general binding and the tool is now {vm.ActiveTool}, "
+            + "which is the reported fault");
     }
 
     /// <summary>
-    /// The other half, so the fix cannot be "every key is a timeline key": the
-    /// canvas still answers when the pointer is genuinely not over a docker.
+    /// Lifting the pen over the CANVAS must not hand the canvas's keys to a
+    /// panel: the memory is of the last place pointed, and that was no panel.
+    /// </summary>
+    [AvaloniaFact]
+    public void LiftingThePenOverTheCanvasKeepsTheCanvas()
+    {
+        var (window, _) = Open();
+
+        window.MouseMove(Centre(DockerFor(window, DockPanelId.Timeline), window));
+        Pump();
+        window.MouseMove(Centre(CanvasOf(window), window));
+        Pump();
+        window.SimulateProximityLossForTests();
+        Pump();
+
+        Assert.Equal(ShortcutScope.Canvas, window.ShortcutScopeForTests);
+    }
+
+    // ---- the rebuild (round one) ----------------------------------------------
+
+    /// <summary>
+    /// The timeline rebuilds its rows under a stationary pointer on every frame
+    /// change. Nothing the resolver keeps may die with the old rows — which is
+    /// why it keeps an id, not an element.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheScopeSurvivesTheRowsRebuildingUnderThePointer()
+    {
+        var (window, vm) = Open();
+        var timeline = DockerFor(window, DockPanelId.Timeline);
+
+        window.MouseMove(Centre(timeline, window));
+        Pump();
+        Assert.Equal(ShortcutScope.In(DockPanelId.Timeline), window.ShortcutScopeForTests);
+
+        // Frame changes rebuild the timeline's rows; the pointer does not move.
+        for (var f = 0; f < 4; f++)
+        {
+            vm.CurrentFrameIndex = f;
+            Pump();
+        }
+
+        // And the harshest form: the live flags gone too, mid-rebuild.
+        window.SimulateProximityLossForTests();
+        Pump();
+
+        output.WriteLine($"after rebuilds and proximity loss: {window.ShortcutScopeForTests}");
+        Assert.Equal(ShortcutScope.In(DockPanelId.Timeline), window.ShortcutScopeForTests);
+    }
+
+    // ---- the fix must not over-reach -------------------------------------------
+
+    /// <summary>
+    /// The canvas still answers when the pointer is genuinely over it — the fix
+    /// cannot be "every key is a panel key".
     /// </summary>
     [AvaloniaFact]
     public void TheCanvasStillAnswersWhenThePointerIsNotOverADocker()
     {
         var (window, vm) = Open();
-        var canvas = window.GetVisualDescendants().OfType<Lightbox.App.Rendering.CanvasControl>().First();
 
-        window.MouseMove(Centre(canvas, window));
+        window.MouseMove(Centre(CanvasOf(window), window));
         Pump();
 
         Assert.Equal(ShortcutScope.Canvas, window.ShortcutScopeForTests);
@@ -168,17 +205,34 @@ public class HoverScopeRobustnessTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A parked panel is in the tree at zero size. Without the visibility test it
-    /// could claim a pointer that is nowhere near it, which would be the same
-    /// bug pointing the other way.
+    /// Moving from the timeline to the canvas RELEASES the timeline — the
+    /// memory is one move deep, which is what separates "the pen went away"
+    /// from "the artist pointed somewhere else".
+    /// </summary>
+    [AvaloniaFact]
+    public void MovingToTheCanvasReleasesTheRememberedPanel()
+    {
+        var (window, _) = Open();
+
+        window.MouseMove(Centre(DockerFor(window, DockPanelId.Timeline), window));
+        Pump();
+        Assert.Equal(ShortcutScope.In(DockPanelId.Timeline), window.ShortcutScopeForTests);
+
+        window.MouseMove(Centre(CanvasOf(window), window));
+        Pump();
+        Assert.Equal(ShortcutScope.Canvas, window.ShortcutScopeForTests);
+    }
+
+    /// <summary>
+    /// A parked panel is in the tree at zero size. It must never claim the
+    /// pointer — the same bug pointing the other way.
     /// </summary>
     [AvaloniaFact]
     public void APooledPanelNeverClaimsThePointer()
     {
         var (window, _) = Open();
-        var canvas = window.GetVisualDescendants().OfType<Lightbox.App.Rendering.CanvasControl>().First();
 
-        window.MouseMove(Centre(canvas, window));
+        window.MouseMove(Centre(CanvasOf(window), window));
         Pump();
 
         var parked = window.GetVisualDescendants().OfType<Docker>()
