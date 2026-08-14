@@ -20,8 +20,16 @@ public enum FrameRole
 /// document that never used the AI is byte-identical to one from before the
 /// feature existed. It records provenance, never behaviour: deleting it
 /// changes no pixel, because the strokes are ordinary strokes.
+/// <para>
+/// <paramref name="Attempts"/> is how many times the model was asked before
+/// this drawing was defensible — <b>absent unless it took more than one</b>,
+/// under the same rule the record itself follows. It is the only durable trace
+/// of a repair: the status line saying so is gone by the next action, and
+/// "how often does my model need a second go" is the number that tells an
+/// artist whether the model they brought is borderline (Q85).
+/// </para>
 /// </remarks>
-public sealed record AiProvenance(string Provider, string? Model = null);
+public sealed record AiProvenance(string Provider, string? Model = null, int? Attempts = null);
 
 /// <summary>
 /// One drawing: strokes, an optional pixel baseline, optional placed symbols,
