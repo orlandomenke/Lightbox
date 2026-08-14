@@ -286,6 +286,90 @@ public class LedgerGateTests(ITestOutputHelper output)
         Assert.Contains("**B4**", after[2]);
     }
 
+    // -----------------------------------------------------------------------
+    // The questions are one file each (Q91), and the gate reads their ids from
+    // the filenames.
+    //
+    // Fixing the id collision left the textual one: as a single file, every branch
+    // that raised a question appended a section at the same place, so two branches
+    // raising two questions conflicted by construction. A new file conflicts with
+    // nothing — and the id being in the name is what keeps the gate cheap, because
+    // listing a ref's questions becomes one `git ls-tree` with no file reads.
+    // -----------------------------------------------------------------------
+
+    private static string RepoQuestions() =>
+        Path.Combine(RepoRoot(), ".claude", "quality", "questions");
+
+    [Fact]
+    public void EveryQuestionFileIsNamedForTheQuestionInIt()
+    {
+        var (code, said) = Questions("check");
+        output.WriteLine(said.TrimEnd());
+        Assert.Equal(0, code);
+    }
+
+    /// <summary>
+    /// The id lives in two places once a question is a file, and only one of them
+    /// is read by the gate. They have to agree or the heading is decorative.
+    /// </summary>
+    [Fact]
+    public void AQuestionWhoseNameAndHeadingDisagreeFailsItsCheck()
+    {
+        var stray = Path.Combine(RepoQuestions(), "Q9999-a-deliberately-misnamed-fixture.md");
+        File.WriteAllText(stray, "# Q9998 · A deliberately misnamed fixture\n");
+        try
+        {
+            var (code, said) = Questions("check");
+            Assert.Equal(1, code);
+            Assert.Contains("MISNAMED", said);
+        }
+        finally
+        {
+            File.Delete(stray);
+        }
+    }
+
+    /// <summary>
+    /// The index is derived from the directory, so it is not committed — the same
+    /// move `INDEX.md` and `FEATURES.md` made in Q55, and for the stronger form of
+    /// the same reason: a stored derived file is one every branch rewrites, which
+    /// is the collision this shape exists to end.
+    /// </summary>
+    [Fact]
+    public void TheGeneratedQuestionIndexIsNotTracked()
+    {
+        var info = new ProcessStartInfo("git", "ls-files .claude/quality/QUESTIONS.md")
+        {
+            WorkingDirectory = RepoRoot(),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        using var process = Process.Start(info);
+        Assert.NotNull(process);
+        var tracked = process!.StandardOutput.ReadToEnd().Trim();
+        process.WaitForExit(30_000);
+
+        Assert.True(tracked.Length == 0,
+            "QUESTIONS.md is tracked again. It is generated from .claude/quality/questions/ by "
+            + "scripts/questions.py, so committing it puts a rewritten copy in every branch and "
+            + "moves the conflict one artefact along instead of ending it (Q91).");
+    }
+
+    private (int Code, string Out) Questions(string args)
+    {
+        var info = new ProcessStartInfo("python3", $"scripts/questions.py {args}")
+        {
+            WorkingDirectory = RepoRoot(),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        using var process = Process.Start(info);
+        Assert.NotNull(process);
+        var text = process!.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
+        process.WaitForExit(60_000);
+        return (process.ExitCode, text);
+    }
+
     /// <summary>
     /// Refusing leaves the author to work out which entry gives up the number, what
     /// number is safe, and which citations in their diff mean the one that moved.

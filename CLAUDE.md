@@ -120,11 +120,16 @@ hand moved. That is invariant 2 restated from the artist's side rather than a
 constraint fighting it.
 
 When a request genuinely does not resolve against these, it belongs in
-`.claude/quality/QUESTIONS.md` rather than in a guess.
+`.claude/quality/questions/` rather than in a guess — **one file per question**,
+`python3 scripts/questions.py new "<title>"` to raise one, and
+`.claude/quality/QUESTIONS.md` is a generated index over the directory that is
+not committed (Q55's argument, Q91's application of it). Raising a question used
+to mean appending a section to a single file, so two branches raising two
+questions conflicted by construction; a new file conflicts with nothing.
 
 **Ask it in the conversation first, with a recommendation, and write the file
-afterwards — never the other way round.** A question written straight to
-`QUESTIONS.md` and mentioned in passing is a decision the owner has to go
+afterwards — never the other way round.** A question written straight to the
+directory and mentioned in passing is a decision the owner has to go
 looking for, and the file then records deliberation nobody took part in.
 Asking first makes the file record an *answer*; asking after makes it record a
 guess waiting to be corrected.
@@ -159,9 +164,9 @@ instead of being answered. So when such a run hits a decision it cannot make:
 - Title it so it cannot be mistaken for ready: `[needs a decision] …`.
 
 The point is to move unanswered questions to where the owner already looks. An
-open pull request with a question at the top is visible; a line in
-`QUESTIONS.md` is only visible to whoever opens the file, and the evidence is
-that nobody did. `QUESTIONS.md` still records the *answer* once it arrives —
+open pull request with a question at the top is visible; a file under
+`questions/` is only visible to whoever opens it, and the evidence is
+that nobody did. The directory still records the *answer* once it arrives —
 that has not changed, and it is what makes the decision survive the thread.
 
 **The session-start hook prints every unanswered question**, because a rule that

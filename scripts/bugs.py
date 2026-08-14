@@ -168,29 +168,60 @@ def duplicate_ids(bugs: list[Bug]) -> dict[str, list[Bug]]:
     return {i: b for i, b in seen.items() if len(b) > 1}
 
 
-QUESTIONS = ROOT / ".claude" / "quality" / "QUESTIONS.md"
+QUESTIONS = ROOT / ".claude" / "quality" / "questions"
 
 # ## Q18 · Do flat point arrays cost schema adherence?
 QUESTION = re.compile(r"^## (?P<id>Q\d+) · (?P<title>.*?)\s*$")
 
 
+def question_names(names: list[str]) -> str:
+    """The question ledger, as text, from filenames alone.
+
+    **A directory of one file per question is cheaper to gate than the single file
+    it replaced, not dearer.** `Q90-ledger-ids-collide.md` carries its id in its
+    name, so listing a ref's questions is one `git ls-tree` and no file reads at
+    all — where the old ledger had to be fetched and parsed in full for every ref
+    compared against. The slug stands in for the title in a report, which is all a
+    report needs it for.
+
+    Projected back into the `## Qn · title` shape so that one parser serves the
+    directory, a git ref, and the fixture files the tests hand in.
+    """
+    out = []
+    for name in sorted(names):
+        stem = Path(name).name.removesuffix(".md")
+        entry_id, _, slug = stem.partition("-")
+        if re.fullmatch(r"Q\d+", entry_id):
+            out.append(f"## {entry_id} · {slug.replace('-', ' ')}")
+    return "\n".join(out)
+
+
+def questions_now() -> str:
+    return question_names([p.name for p in QUESTIONS.glob("Q*.md")]) if QUESTIONS.is_dir() else ""
+
+
+def questions_at(spec: str) -> str | None:
+    """The question ledger as of a ref — one git call, whatever the question count."""
+    listed = _git("ls-tree", "-r", "--name-only", spec, "--",
+                  QUESTIONS.relative_to(ROOT).as_posix())
+    return question_names(listed.splitlines()) if listed is not None else None
+
+
 def duplicate_questions() -> dict[str, list[str]]:
-    """The same detector pointed at `QUESTIONS.md`, because it happened twice.
+    """The same detector pointed at the questions, because it happened twice.
 
     `duplicate_ids` above exists because two bugs shared **B39**. Two questions then
     shared **Q19** — "are Linux and macOS shipping targets" and "when a textured line
     is re-shaped, may its texture change" — for exactly the same reason: a new entry
-    numbered by eye against a file long enough that the last id is off-screen. A
-    question id is cited from `CLAUDE.md`, from design docs, from bug entries and from
-    the roadmap, so a reused one sends a reader to the wrong argument.
+    numbered by eye against a file long enough that the last id is off-screen. It
+    happened twice more after that, to Q46 and to Q73-75, and once more to Q87 —
+    which reached `main` and left `LedgerGateTests` red on the default branch.
 
     Checked here rather than in a script of its own: this is the file that already
     knows how to say "renumber all but one", and a second script is a second thing to
     remember to run.
     """
-    if not QUESTIONS.exists():
-        return {}
-    return duplicates_in(question_ids_in(QUESTIONS.read_text(encoding="utf-8")))
+    return duplicates_in(question_ids_in(questions_now()))
 
 
 # ---------------------------------------------------------------------------
@@ -282,10 +313,56 @@ def lost_ids(before: list[tuple[str, str]], after: list[tuple[str, str]]) -> lis
     return [(i, t) for i, t in before if i not in present]
 
 
-LEDGERS = (
-    ("ID", BUGS, bug_ids_in),
-    ("Q ", QUESTIONS, question_ids_in),
-)
+@dataclass
+class Ledger:
+    """One ledger, however it is stored — a file of entries or a directory of them.
+
+    The bugs are lines in `BUGS.md`; the questions are one file each under
+    `questions/`. They are gated identically all the same, because the failure
+    being gated is about *ids* rather than about storage: two branches allocating
+    the same number is the same mistake whether it lands as two lines in one file
+    or as two files with the same prefix.
+
+    Everything below therefore works on the ledger *as text* — `## Qn · title` for
+    a question, the entry line for a bug — so one parser serves the working tree,
+    a git ref, and the fixture a test hands in.
+    """
+
+    tag: str            # "ID" / "Q ", the column the report prints in
+    noun: str           # bug / question
+    prefix: str         # B / Q
+    path: Path          # the file, or the directory
+    reader: object      # text -> [(id, title)]
+    now: object         # () -> text
+    at: object          # spec -> text, for a git ref or a fixture path
+    move: object        # (moves, occurrences, base) -> what it did
+
+    @property
+    def label(self) -> str:
+        return self.path.name
+
+
+def file_ledger(tag: str, noun: str, prefix: str, path: Path) -> Ledger:
+    reader = bug_ids_in if prefix == "B" else question_ids_in
+    return Ledger(
+        tag, noun, prefix, path, reader,
+        now=lambda: path.read_text(encoding="utf-8") if path.exists() else "",
+        at=lambda spec: text_at(spec, path),
+        move=lambda moves, occurrences, base: move_in_file(path, moves, occurrences, base))
+
+
+def dir_ledger(tag: str, noun: str, prefix: str, path: Path) -> Ledger:
+    return Ledger(
+        tag, noun, prefix, path, question_ids_in,
+        now=questions_now,
+        at=lambda spec: (Path(spec).read_text(encoding="utf-8")
+                         if Path(spec).exists() else questions_at(spec)),
+        move=lambda moves, occurrences, base: move_in_dir(path, moves, occurrences, base))
+
+
+def ledgers() -> tuple[Ledger, Ledger]:
+    return (file_ledger("ID", "bug", "B", BUGS),
+            dir_ledger("Q ", "question", "Q", QUESTIONS))
 
 
 # ---------------------------------------------------------------------------
@@ -339,8 +416,8 @@ def _other_ref_tips() -> list[str]:
     return tips
 
 
-def ledger_texts(path: Path, extra: list[str] | None = None) -> list[str]:
-    """This ledger as it reads everywhere it exists.
+def ledger_texts(ledger: Ledger, extra: list[str] | None = None) -> list[str]:
+    """This ledger as it reads everywhere it exists — mine first, then everyone's.
 
     Git is consulted only for a ledger that lives *in this repository*. A fixture
     handed in by a test lives in a temporary directory, so it gets exactly the
@@ -348,31 +425,28 @@ def ledger_texts(path: Path, extra: list[str] | None = None) -> list[str]:
     reasoning `cmd_ids` applies to `--ledger`, and the thing that makes the
     allocator testable without building a repository to test it in.
     """
-    texts: list[str] = []
-    if path.exists():
-        texts.append(path.read_text(encoding="utf-8"))
+    texts: list[str] = [ledger.now()]
     for spec in extra or []:
-        if (text := text_at(spec, path)) is not None:
+        if (text := ledger.at(spec)) is not None:
             texts.append(text)
-    if path.is_relative_to(ROOT):
-        rel = path.relative_to(ROOT).as_posix()
+    if ledger.path.is_relative_to(ROOT):
         for sha in _other_ref_tips():
-            if (text := _git("show", f"{sha}:{rel}")) is not None:
+            if (text := ledger.at(sha)) is not None:
                 texts.append(text)
     return texts
 
 
-def ids_everywhere(path: Path, reader, extra: list[str] | None = None) -> set[str]:
+def ids_everywhere(ledger: Ledger, extra: list[str] | None = None) -> set[str]:
     return {entry_id
-            for text in ledger_texts(path, extra)
-            for entry_id, _ in reader(text)}
+            for text in ledger_texts(ledger, extra)
+            for entry_id, _ in ledger.reader(text)}
 
 
-def next_id(prefix: str, path: Path, reader, extra: list[str] | None = None) -> str:
+def next_id(ledger: Ledger, extra: list[str] | None = None) -> str:
     """One above the highest id on any ref, not one above this working tree's."""
-    numbers = [int(i[len(prefix):]) for i in ids_everywhere(path, reader, extra)
-               if i[len(prefix):].isdigit()]
-    return f"{prefix}{max(numbers, default=0) + 1}"
+    n = len(ledger.prefix)
+    numbers = [int(i[n:]) for i in ids_everywhere(ledger, extra) if i[n:].isdigit()]
+    return f"{ledger.prefix}{max(numbers, default=0) + 1}"
 
 
 def fetch_origin() -> str:
@@ -485,15 +559,47 @@ def move_ids(moves: dict[str, str], base: str) -> list[str]:
     return touched
 
 
-def located(text: str, prefix: str) -> list[tuple[int, str, str]]:
-    """(line number, id, title) for every entry, so an occurrence can be moved."""
-    pattern = ENTRY if prefix == "B" else QUESTION
-    return [(n, m["id"], m["title"].strip())
-            for n, line in enumerate(text.splitlines(), 1) if (m := pattern.match(line))]
+@dataclass
+class Occurrence:
+    """One entry, and the handle that lets it be moved.
+
+    `where` is a line number in a file ledger and a filename in a directory one.
+    `ours` says the branch wrote it, which is what decides who gives up the number.
+    """
+
+    where: object
+    id: str
+    title: str
+    ours: bool
 
 
-def _occurrences_to_move(source: Path, prefix: str, duplicated: dict[str, list[str]],
-                         clashed: dict[str, str], base: str | None) -> list[tuple[int, str, str]]:
+def _occurrences(ledger: Ledger, base: str | None) -> list[Occurrence]:
+    if ledger.path.is_dir():
+        names = sorted(p.name for p in ledger.path.glob("Q*.md"))
+        added = _files_added(base, ledger.path) if base else set()
+        return [Occurrence(name, name.split("-", 1)[0],
+                           name.removesuffix(".md").partition("-")[2].replace("-", " "),
+                           name in added)
+                for name in names if re.fullmatch(r"Q\d+", name.split("-", 1)[0])]
+
+    pattern = ENTRY if ledger.prefix == "B" else QUESTION
+    rel = (ledger.path.relative_to(ROOT).as_posix()
+           if ledger.path.is_relative_to(ROOT) else None)
+    added = {n for n, _ in added_lines(base).get(rel, [])} if base and rel else set()
+    return [Occurrence(n, m["id"], m["title"].strip(), n in added)
+            for n, line in enumerate(ledger.now().splitlines(), 1)
+            if (m := pattern.match(line))]
+
+
+def _files_added(base: str, folder: Path) -> set[str]:
+    """Files this branch added under a directory — a question filed here, not merged in."""
+    listed = _git("diff", "--name-status", "--diff-filter=A", base, "--",
+                  folder.relative_to(ROOT).as_posix())
+    return {Path(line.split("\t")[-1]).name for line in (listed or "").splitlines() if line}
+
+
+def _occurrences_to_move(ledger: Ledger, duplicated: dict[str, list[str]],
+                         clashed: dict[str, str], base: str | None) -> list[Occurrence]:
     """Which entry gives up the number — the one this branch wrote, every time.
 
     The other one is older. It is on the default branch, or on a branch that
@@ -506,22 +612,60 @@ def _occurrences_to_move(source: Path, prefix: str, duplicated: dict[str, list[s
     this that is: it decides which of two entries renumbers, never whether both
     survive.
     """
-    text = source.read_text(encoding="utf-8")
-    spots = located(text, prefix)
-    rel = source.relative_to(ROOT).as_posix() if source.is_relative_to(ROOT) else None
-    added = {n for n, _ in added_lines(base).get(rel, [])} if base and rel else set()
-
-    moving: list[tuple[int, str, str]] = []
+    spots = _occurrences(ledger, base)
+    moving: list[Occurrence] = []
     for entry_id in duplicated:
-        occurrences = [s for s in spots if s[1] == entry_id]
-        ours = [s for s in occurrences if s[0] in added]
-        moving.extend(ours if 0 < len(ours) < len(occurrences) else occurrences[1:])
+        same = [s for s in spots if s.id == entry_id]
+        ours = [s for s in same if s.ours]
+        moving.extend(ours if 0 < len(ours) < len(same) else same[1:])
     for entry_id in clashed:
-        moving.extend(s for s in spots if s[1] == entry_id)
+        moving.extend(s for s in spots if s.id == entry_id)
     return moving
 
 
-def clashing_ids(path: Path, reader, mine: list[tuple[str, str]],
+def move_in_file(path: Path, moves: dict[str, str],
+                 occurrences: list[Occurrence], base: str | None) -> list[str]:
+    """The entry's own line, if the citation pass did not already reach it.
+
+    It will not have when there is no repository to diff against, which is every
+    test fixture, and the line must not be left carrying the old number either way.
+    """
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    for spot in occurrences:
+        n = spot.where
+        if isinstance(n, int) and 1 <= n <= len(lines) and re.search(rf"\b{spot.id}\b", lines[n - 1]):
+            lines[n - 1] = re.sub(rf"\b{spot.id}\b", moves[spot.id], lines[n - 1])
+    path.write_text("".join(lines), encoding="utf-8")
+    return []
+
+
+def move_in_dir(folder: Path, moves: dict[str, str],
+                occurrences: list[Occurrence], base: str | None) -> list[str]:
+    """Rename the file and rewrite its heading — the two places a question's id lives.
+
+    A rename rather than a line edit, and `git mv` where git will have it, so the
+    move reads as a move in the diff rather than as one file deleted and another
+    invented. The ledger gate reads the id from the *filename*, so the heading
+    following it is not cosmetic: `questions.py check` refuses the two disagreeing.
+    """
+    said: list[str] = []
+    for spot in occurrences:
+        old_name = str(spot.where)
+        new_id = moves[spot.id]
+        source = folder / old_name
+        target = folder / f"{new_id}-{old_name.split('-', 1)[1]}"
+        if not source.exists():
+            continue
+        text = source.read_text(encoding="utf-8")
+        source.write_text(re.sub(rf"^#\s+{spot.id}\b", f"# {new_id}", text, count=1, flags=re.M),
+                          encoding="utf-8")
+        if _git("mv", str(source), str(target)) is None:
+            source.rename(target)
+        said.append(f"    renamed {old_name} -> {target.name}")
+    return said
+
+
+def clashing_ids(ledger: Ledger, mine: list[tuple[str, str]],
                  elsewhere: list[str], base: str | None) -> dict[str, str]:
     """Ids this branch created that another branch created too — id -> its title.
 
@@ -543,12 +687,12 @@ def clashing_ids(path: Path, reader, mine: list[tuple[str, str]],
     if base is None and not elsewhere:
         return {}
     base_ids = set()
-    if base is not None and (text := text_at(base, path)) is not None:
-        base_ids = {entry_id for entry_id, _ in reader(text)}
+    if base is not None and (text := ledger.at(base)) is not None:
+        base_ids = {entry_id for entry_id, _ in ledger.reader(text)}
 
     theirs: dict[str, set[str]] = {}
-    for text in ledger_texts(path, elsewhere)[1 if path.exists() else 0:]:
-        for entry_id, title in reader(text):
+    for text in ledger_texts(ledger, elsewhere)[1:]:
+        for entry_id, title in ledger.reader(text):
             theirs.setdefault(entry_id, set()).add(title.strip())
 
     return {entry_id: title for entry_id, title in mine
@@ -557,41 +701,27 @@ def clashing_ids(path: Path, reader, mine: list[tuple[str, str]],
             and title.strip() not in theirs[entry_id]}
 
 
-def renumber(source: Path, reader, prefix: str,
-             moving: list[tuple[int, str, str]], elsewhere: list[str],
-             base: str | None) -> list[str]:
+def renumber(ledger: Ledger, moving: list[Occurrence],
+             elsewhere: list[str], base: str | None) -> list[str]:
     """Move each occurrence to a fresh id, and take its citations with it.
 
-    The new ids clear every ref rather than just the file being repaired —
+    The new ids clear every ref rather than just the ledger being repaired —
     renumbering into a number the *next* branch is about to take would be a busy
     way of achieving nothing.
     """
-    taken = ids_everywhere(source, reader, elsewhere) | {i for _, i, _ in moving}
+    n = len(ledger.prefix)
+    taken = ids_everywhere(ledger, elsewhere) | {s.id for s in moving}
     moves: dict[str, str] = {}
-    for _, entry_id, _ in moving:
-        number = max((int(i[len(prefix):]) for i in taken if i[len(prefix):].isdigit()),
-                     default=0) + 1
-        moves[entry_id] = f"{prefix}{number}"
-        taken.add(moves[entry_id])
+    for spot in moving:
+        number = max((int(i[n:]) for i in taken if i[n:].isdigit()), default=0) + 1
+        moves[spot.id] = f"{ledger.prefix}{number}"
+        taken.add(moves[spot.id])
 
     said: list[str] = []
     if base is not None:
-        for where in move_ids(moves, base):
-            said.append(f"    moved a citation at {where}")
-
-    # The entry's own line, if the pass above did not already reach it — it will
-    # not have when there is no repository to diff against, which is every test
-    # fixture, and it must not be left carrying the old number either way.
-    lines = source.read_text(encoding="utf-8").splitlines(keepends=True)
-    for line_no, entry_id, _ in moving:
-        if 1 <= line_no <= len(lines) and re.search(rf"\b{entry_id}\b", lines[line_no - 1]):
-            lines[line_no - 1] = re.sub(
-                rf"\b{entry_id}\b", moves[entry_id], lines[line_no - 1])
-    source.write_text("".join(lines), encoding="utf-8")
-
-    for old, new in moves.items():
-        said.insert(0, f"  RENUMBERED {old} -> {new}")
-    return said
+        said += [f"    moved a citation at {where}" for where in move_ids(moves, base)]
+    said += ledger.move(moves, moving, base)
+    return [f"  RENUMBERED {old} -> {new}" for old, new in moves.items()] + said
 
 
 def cmd_ids(argv: list[str]) -> int:
@@ -602,7 +732,7 @@ def cmd_ids(argv: list[str]) -> int:
     right thing for CI and far too slow for a git hook — and the hook is where
     this has to run, because CI only sees a collision after it is published.
     """
-    ledgers = {name: (path, reader) for name, path, reader in LEDGERS}
+    sources = ledgers()
     overrides = {
         "ID": next((a.split("=", 1)[1] for a in argv if a.startswith("--ledger=")), None),
         "Q ": next((a.split("=", 1)[1] for a in argv if a.startswith("--questions=")), None),
@@ -622,40 +752,41 @@ def cmd_ids(argv: list[str]) -> int:
     base = base_given or (branch_base() if real else None)
 
     problems = 0
-    for name, (path, reader) in ledgers.items():
-        source = Path(overrides[name] or path)
-        if not source.exists():
+    for ledger in sources:
+        if (override := overrides[ledger.tag]) is not None:
+            ledger = file_ledger(ledger.tag, ledger.noun, ledger.prefix, Path(override))
+        if not ledger.path.exists():
             continue
-        prefix = "B" if name == "ID" else "Q"
-        now = reader(source.read_text(encoding="utf-8"))
-        print(f"  {len(now)} {'bug' if name == 'ID' else 'question'} ids in {source.name}")
+        now = ledger.reader(ledger.now())
+        print(f"  {len(now)} {ledger.noun} ids in {ledger.label}")
 
         duplicated = duplicates_in(now)
-        clashed = clashing_ids(source, reader, now, elsewhere, base)
+        clashed = clashing_ids(ledger, now, elsewhere, base)
 
         if fix and (duplicated or clashed):
-            for line in renumber(source, reader, prefix,
-                                 _occurrences_to_move(source, prefix, duplicated, clashed, base),
+            for line in renumber(ledger,
+                                 _occurrences_to_move(ledger, duplicated, clashed, base),
                                  elsewhere, base):
                 print(line)
-            now = reader(source.read_text(encoding="utf-8"))
+            now = ledger.reader(ledger.now())
             duplicated, clashed = duplicates_in(now), {}
 
         for entry_id, titles in duplicated.items():
             problems += 1
-            print(f"  DUPLICATE {name} {entry_id}  used {len(titles)} times: "
+            print(f"  DUPLICATE {ledger.tag} {entry_id}  used {len(titles)} times: "
                   + " / ".join(t[:40] for t in titles))
             print("               renumber all but one — an id is cited from tests and docs")
 
         for entry_id, title in clashed.items():
             problems += 1
-            print(f"  CLASHES   {name} {entry_id}  another branch already took it: {title[:50]}")
+            print(f"  CLASHES   {ledger.tag} {entry_id}  another branch already took it: {title[:50]}")
             print("               allocated twice — `bugs.py ids --fix` moves this branch's entry")
 
+        name = ledger.tag
         for spec in against:
-            if (before := text_at(spec, path)) is None:
+            if (before := ledger.at(spec)) is None:
                 continue
-            for entry_id, title in lost_ids(reader(before), now):
+            for entry_id, title in lost_ids(ledger.reader(before), now):
                 if os.environ.get(ALLOW_DELETION) == "1":
                     print(f"  DELETED   {name} {entry_id}  {title[:50]} — allowed by {ALLOW_DELETION}")
                     continue
@@ -686,15 +817,16 @@ def cmd_freeid(argv: list[str]) -> int:
     if which not in ("bug", "question"):
         print("usage: bugs.py freeid [bug|question] [--no-fetch]", file=sys.stderr)
         return 2
-    prefix, path, reader = ("B", BUGS, bug_ids_in) if which == "bug" else ("Q", QUESTIONS, question_ids_in)
+    bugs, questions = ledgers()
+    ledger = bugs if which == "bug" else questions
     override = next((a.split("=", 1)[1] for a in argv
                      if a.startswith("--ledger=") or a.startswith("--questions=")), None)
     extra = [a.split("=", 1)[1] for a in argv if a.startswith("--elsewhere=")]
     if override:
-        path = Path(override)
+        ledger = file_ledger(ledger.tag, ledger.noun, ledger.prefix, Path(override))
     elif "--no-fetch" not in argv:
         print(f"  {fetch_origin()}", file=sys.stderr)
-    print(next_id(prefix, path, reader, extra))
+    print(next_id(ledger, extra))
     return 0
 
 
@@ -719,7 +851,7 @@ def cmd_new(argv: list[str]) -> int:
 
     if "--no-fetch" not in argv:
         print(f"  {fetch_origin()}")
-    entry_id = next_id("B", BUGS, bug_ids_in)
+    entry_id = next_id(ledgers()[0])
     tail = f" `evidence: {evidence}`" if evidence else ""
     line = f"- [ ] **{entry_id}** `{priority}` `{domain}` {title}{tail}"
 
