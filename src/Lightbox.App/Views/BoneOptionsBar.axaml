@@ -86,6 +86,23 @@
                 ToolTip.Tip="Delete the chain and its target handle. The bones stay where they are and go back to being posed by hand." />
       </StackPanel>
     </StackPanel>
+    <!-- Spline chains, the bendy-bone deformer. One button lays the handles
+         along the run the artist already built. -->
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                IsVisible="{Binding HasSelectedBone}">
+      <Button Content="Add spline" Command="{Binding AddSplineChainCommand}"
+              IsVisible="{Binding !HasSelectedSpline}"
+              ToolTip.Tip="Lay this bone and the two above it along a curve, with three handles you drag in Pose. Tails, hair, capes." />
+      <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                  IsVisible="{Binding HasSelectedSpline}">
+        <TextBlock Text="Spline bones" VerticalAlignment="Center" Opacity="0.7" />
+        <NumericUpDown Value="{Binding SelectedSplineBoneCount, Mode=TwoWay}" Minimum="1" Maximum="32"
+                       Increment="1" FormatString="0"
+                       ToolTip.Tip="How many bones up from the end lie along the curve. Every one keeps its own length — the curve bends the run, it never stretches it." />
+        <Button Content="Remove spline" Command="{Binding RemoveSplineChainCommand}"
+                ToolTip.Tip="Delete the curve and its handles. The bones stay where they are and go back to being turned by hand." />
+      </StackPanel>
+    </StackPanel>
     <!-- Constraints. Picking a target IS the add, so the common case is one
          gesture; the editing controls only appear once there is something
          to edit. -->

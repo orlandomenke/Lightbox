@@ -99,7 +99,10 @@ public sealed class Armature
     /// <summary>The IK chains, or null — and null is the ordinary rig.</summary>
     public List<IkChain>? Chains { get; set; }
 
-    /// <summary>The constraints, or null. Resolved in list order, after IK.</summary>
+    /// <summary>The spline chains, or null. Resolved after IK, before constraints.</summary>
+    public List<SplineChain>? Splines { get; set; }
+
+    /// <summary>The constraints, or null. Resolved in list order, last of all.</summary>
     public List<BoneConstraint>? Constraints { get; set; }
 
     /// <summary>The bone with this id, or null.</summary>
@@ -111,6 +114,7 @@ public sealed class Armature
         var copy = (Armature)MemberwiseClone();
         copy.Bones = Bones.Select(b => b.Clone()).ToList();
         copy.Chains = Chains?.Select(c => c.Clone()).ToList();
+        copy.Splines = Splines?.Select(s => s.Clone()).ToList();
         copy.Constraints = Constraints?.Select(c => c.Clone()).ToList();
         return copy;
     }
@@ -217,6 +221,58 @@ public sealed class IkChain
 
     /// <summary>A copy holding no reference in common with this one.</summary>
     public IkChain Clone() => (IkChain)MemberwiseClone();
+}
+
+/// <summary>
+/// A run of bones laid along a curve drawn through control handles — the
+/// bendy-bone / curve deformer Moho and Harmony use for tails, hair and
+/// capes.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>The handles are bones, for the reason IK's target is</b> (Q86): they
+/// key on the ordinary pose track, parent to whatever should carry them, and
+/// drag with the gesture that exists. A tail that whips is three handles
+/// keyed over four frames, and nothing new had to learn how to be keyed.
+/// </para>
+/// <para>
+/// The curve is a <b>Catmull-Rom</b> through the handle origins — it passes
+/// through every handle, which is what an artist expects of something they
+/// placed, where a Bézier's interior points only pull. Bones are laid along
+/// it by arc length, each keeping its own length, so a spline chain
+/// <em>bends</em> a limb and never stretches it: invariant 7's rule restated
+/// for the rig, because a stretched bone would scale the drawing under it and
+/// re-roll its grain.
+/// </para>
+/// <para>
+/// Arc length is measured off a <b>fixed</b> sample count for
+/// <see cref="ArmatureOps.IkIterations"/>'s reason — an adaptive subdivision
+/// would take a different number of steps on inputs differing in the last
+/// bit, and the reload would not match.
+/// </para>
+/// </remarks>
+public sealed class SplineChain
+{
+    public string Id { get; set; } = Ids.NewId("spline");
+
+    public string Name { get; set; } = "Spline";
+
+    /// <summary>The last bone of the run — the curve is walked from the run's root to here.</summary>
+    public string TipBoneId { get; set; } = "";
+
+    /// <summary>How many bones, counting up from the tip, lie along the curve.</summary>
+    public int Bones { get; set; } = 3;
+
+    /// <summary>The handle bones whose origins the curve passes through, root end first.</summary>
+    public List<string> HandleBoneIds { get; set; } = [];
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public SplineChain Clone()
+    {
+        var copy = (SplineChain)MemberwiseClone();
+        copy.HandleBoneIds = [.. HandleBoneIds];
+        return copy;
+    }
 }
 
 /// <summary>
@@ -434,8 +490,9 @@ public static class ArmatureOps
         // remember.
         if (pose is null) return placements;
         var hasChains = armature.Chains is { Count: > 0 };
+        var hasSplines = armature.Splines is { Count: > 0 };
         var hasConstraints = armature.Constraints is { Count: > 0 };
-        if (!hasChains && !hasConstraints) return placements;
+        if (!hasChains && !hasSplines && !hasConstraints) return placements;
 
         // Chains resolve in list order, each against the placements the ones
         // before it left — so a hand chain whose target hangs off an arm chain
@@ -445,6 +502,14 @@ public static class ArmatureOps
         if (hasChains)
             foreach (var chain in armature.Chains!)
                 if (ApplyChain(armature, chain, solved, placements))
+                    placements = Forward(armature, solved);
+
+        // Splines next: a chain of handles is its own kind of reach, and one
+        // whose handles hang off an IK-driven limb wants the limb solved
+        // first.
+        if (hasSplines)
+            foreach (var spline in armature.Splines!)
+                if (ApplySpline(armature, spline, solved, placements))
                     placements = Forward(armature, solved);
 
         // Constraints after IK, in list order, for the same reason: a later
@@ -613,23 +678,175 @@ public static class ArmatureOps
         return true;
     }
 
-    /// <summary>The chain's bones, root-most first, walking up from its tip.</summary>
-    private static List<Bone> ChainBones(Armature armature, IkChain chain)
+    /// <summary>How many pieces each span of a spline is measured in, always.</summary>
+    /// <remarks>
+    /// Fixed for <see cref="IkIterations"/>'s reason: an adaptive subdivision
+    /// takes a different number of steps on inputs differing in the last bit,
+    /// so the reload would not match the render. Thirty-two per span is finer
+    /// than a bone length on any curve a character has.
+    /// </remarks>
+    public const int SplineSamplesPerSpan = 32;
+
+    /// <summary>
+    /// Lay a run of bones along the curve through a spline's handles, writing
+    /// the rotations into <paramref name="pose"/>. Returns whether it changed
+    /// anything.
+    /// </summary>
+    private static bool ApplySpline(
+        Armature armature, SplineChain spline,
+        Dictionary<string, BonePose> pose,
+        Dictionary<string, BonePlacement> placements)
     {
-        var count = Math.Max(1, chain.Bones);
-        var walk = armature.BoneById(chain.TipBoneId);
+        var bones = RunUpFrom(armature, spline.TipBoneId, spline.Bones);
+        if (bones.Count == 0) return false;
+
+        // Handles must exist, be at least two, and none of them may hang off
+        // the run — a handle carried by the bones it is steering is the same
+        // circle a self-targeting chain is.
+        var handles = new List<(double X, double Y)>();
+        foreach (var id in spline.HandleBoneIds)
+        {
+            if (armature.BoneById(id) is not { } handle) return false;
+            if (bones.Any(b => b.Id == id) || IsDescendantOfAny(armature, handle, bones)) return false;
+            if (!placements.TryGetValue(id, out var at)) return false;
+            handles.Add((at.X, at.Y));
+        }
+        if (handles.Count < 2) return false;
+
+        var lengths = bones.Select(b => b.Length).ToArray();
+        var joints = LayAlong(handles, lengths, (placements[bones[0].Id].X, placements[bones[0].Id].Y));
+
+        // Positions back to rotations, exactly as the IK chain does it: each
+        // bone's parent world rotation is the previous one's new answer.
+        var parentWorld = bones[0].ParentId is { } pid && placements.TryGetValue(pid, out var pp)
+            ? pp.RotationDeg
+            : 0.0;
+        for (var i = 0; i < bones.Count; i++)
+        {
+            var world = Math.Atan2(joints[i + 1].Y - joints[i].Y, joints[i + 1].X - joints[i].X) * 180.0 / Math.PI;
+            var existing = pose.GetValueOrDefault(bones[i].Id);
+            pose[bones[i].Id] = new BonePose
+            {
+                RotationDeg = world - parentWorld - bones[i].RotationDeg,
+                X = existing?.X ?? 0,
+                Y = existing?.Y ?? 0,
+            };
+            parentWorld = world;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Walk the curve from its start, dropping a joint every bone length.
+    /// </summary>
+    /// <remarks>
+    /// <b>Each bone keeps its own length.</b> Stepping along the curve by arc
+    /// length rather than fitting the run to it is what makes a spline chain
+    /// bend a limb instead of stretching it — a stretched bone would scale the
+    /// drawing bound to it and re-roll its grain, which invariant 7 forbids.
+    /// The run's own root stays where forward kinematics put it, so the curve
+    /// steers the shape and never teleports the shoulder.
+    /// </remarks>
+    private static (double X, double Y)[] LayAlong(
+        List<(double X, double Y)> handles, double[] lengths, (double X, double Y) root)
+    {
+        var curve = Sample(handles);
+        var joints = new (double X, double Y)[lengths.Length + 1];
+        joints[0] = root;
+
+        var walked = 0.0;
+        var cursor = 0;              // how far into the sampled polyline we are
+        var carried = 0.0;           // arc length consumed up to `cursor`
+        for (var i = 0; i < lengths.Length; i++)
+        {
+            walked += lengths[i];
+            while (cursor < curve.Length - 1)
+            {
+                var step = Dist(curve[cursor], curve[cursor + 1]);
+                if (carried + step >= walked) break;
+                carried += step;
+                cursor++;
+            }
+            if (cursor >= curve.Length - 1)
+            {
+                // Past the end of the curve: carry on along its last direction
+                // rather than piling the rest of the bones onto the final
+                // point. A tail longer than the curve should trail straight,
+                // not knot.
+                // `carried` stays at the arc length of the whole curve, so the
+                // overshoot keeps growing bone by bone rather than each one
+                // restarting from the end point.
+                var unit = Along(curve[^2], curve[^1], 1.0);
+                var (dx, dy) = (unit.X - curve[^2].X, unit.Y - curve[^2].Y);
+                joints[i + 1] = (curve[^1].X + dx * (walked - carried), curve[^1].Y + dy * (walked - carried));
+                continue;
+            }
+            joints[i + 1] = Along(curve[cursor], curve[cursor + 1], walked - carried);
+        }
+        return joints;
+    }
+
+    /// <summary>The Catmull-Rom curve through the handles, as a polyline.</summary>
+    /// <remarks>
+    /// The endpoints are duplicated to give the first and last spans a
+    /// neighbour, which is the standard way of making the curve start and end
+    /// exactly on the handles an artist placed rather than short of them.
+    /// </remarks>
+    private static (double X, double Y)[] Sample(List<(double X, double Y)> handles)
+    {
+        var points = new List<(double X, double Y)>(handles.Count + 2) { handles[0] };
+        points.AddRange(handles);
+        points.Add(handles[^1]);
+
+        var curve = new List<(double X, double Y)>((handles.Count - 1) * SplineSamplesPerSpan + 1);
+        for (var i = 1; i < points.Count - 2; i++)
+        {
+            var (p0, p1, p2, p3) = (points[i - 1], points[i], points[i + 1], points[i + 2]);
+            for (var s = 0; s < SplineSamplesPerSpan; s++)
+                curve.Add(CatmullRom(p0, p1, p2, p3, s / (double)SplineSamplesPerSpan));
+        }
+        curve.Add(points[^2]);
+        return [.. curve];
+    }
+
+    private static (double X, double Y) CatmullRom(
+        (double X, double Y) p0, (double X, double Y) p1,
+        (double X, double Y) p2, (double X, double Y) p3, double t)
+    {
+        var t2 = t * t;
+        var t3 = t2 * t;
+        // The uniform form, halved coefficients folded in. Deterministic by
+        // construction: doubles, a fixed expression, no branch on magnitude.
+        return (
+            0.5 * ((2 * p1.X) + (-p0.X + p2.X) * t
+                   + (2 * p0.X - 5 * p1.X + 4 * p2.X - p3.X) * t2
+                   + (-p0.X + 3 * p1.X - 3 * p2.X + p3.X) * t3),
+            0.5 * ((2 * p1.Y) + (-p0.Y + p2.Y) * t
+                   + (2 * p0.Y - 5 * p1.Y + 4 * p2.Y - p3.Y) * t2
+                   + (-p0.Y + 3 * p1.Y - 3 * p2.Y + p3.Y) * t3));
+    }
+
+    /// <summary>A run of bones ending at <paramref name="tipId"/>, root-most first.</summary>
+    private static List<Bone> RunUpFrom(Armature armature, string tipId, int count)
+    {
+        var wanted = Math.Max(1, count);
+        var walk = armature.BoneById(tipId);
         var bones = new List<Bone>();
         var seen = new HashSet<string>();
-        while (walk is not null && bones.Count < count && seen.Add(walk.Id))
+        while (walk is not null && bones.Count < wanted && seen.Add(walk.Id))
         {
             bones.Add(walk);
             walk = walk.ParentId is { } p ? armature.BoneById(p) : null;
         }
         bones.Reverse();
-        // A zero-length bone has no direction, so a chain containing one has
-        // no shape to solve for.
+        // A zero-length bone has no direction, so a run containing one has no
+        // shape to solve for.
         return bones.Any(b => b.Length <= 0) ? [] : bones;
     }
+
+    /// <summary>The chain's bones, root-most first, walking up from its tip.</summary>
+    private static List<Bone> ChainBones(Armature armature, IkChain chain) =>
+        RunUpFrom(armature, chain.TipBoneId, chain.Bones);
 
     private static bool IsDescendantOfAny(Armature armature, Bone bone, List<Bone> ancestors)
     {

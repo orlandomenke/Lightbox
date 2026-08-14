@@ -214,6 +214,7 @@ public sealed partial class MainViewModel
     {
         NotifyIkSurface();
         NotifyConstraintSurface();
+        NotifySplineSurface();
     }
 
     /// <summary>Re-read everything the IK surface derives from the document.</summary>

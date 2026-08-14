@@ -118,10 +118,16 @@ public sealed partial class MainViewModel
                 ? ArmatureOps.PoseAt(Doc.Scene.PoseTrack, CurrentFrameIndex)
                 : null;
             var placements = ArmatureOps.Solve(armature, pose);
-            var handles = armature.Chains is { Count: > 0 } chains
-                ? chains.SelectMany(c => c.PoleBoneId is { } p ? new[] { c.TargetBoneId, p } : [c.TargetBoneId])
-                        .ToHashSet()
-                : [];
+            // Everything an artist grabs to drive the rig rather than to BE
+            // the rig: IK targets and poles, and every spline handle.
+            var handles = new HashSet<string>();
+            foreach (var chain in armature.Chains ?? [])
+            {
+                handles.Add(chain.TargetBoneId);
+                if (chain.PoleBoneId is { } pole) handles.Add(pole);
+            }
+            foreach (var spline in armature.Splines ?? [])
+                handles.UnionWith(spline.HandleBoneIds);
             var chrome = new List<BoneChrome>(armature.Bones.Count);
             foreach (var bone in armature.Bones)
             {
@@ -284,6 +290,13 @@ public sealed partial class MainViewModel
             if (target.Chains is { Count: 0 }) target.Chains = null;
             target.Constraints?.RemoveAll(c => c.BoneId == id || c.TargetBoneId == id);
             if (target.Constraints is { Count: 0 }) target.Constraints = null;
+            // A spline losing a handle is not necessarily dead — three
+            // handles down to two is still a curve — so drop the handle and
+            // only drop the chain when it can no longer draw one.
+            target.Splines?.RemoveAll(s => s.TipBoneId == id);
+            foreach (var spline in target.Splines ?? []) spline.HandleBoneIds.Remove(id);
+            target.Splines?.RemoveAll(s => s.HandleBoneIds.Count < 2);
+            if (target.Splines is { Count: 0 }) target.Splines = null;
         });
 
         SelectedBoneId = null;
@@ -442,6 +455,7 @@ public sealed partial class MainViewModel
         if (SelectedBoneId is { } id && Doc.Armature?.BoneById(id) is null) SelectedBoneId = null;
         NotifyIkSurface();
         NotifyConstraintSurface();
+        NotifySplineSurface();
     }
 
     /// <summary>
@@ -653,6 +667,17 @@ public sealed partial class MainViewModel
         if (ChainTouching(id) is { } chain)
         {
             PoseTranslateTo(chain.PoleBoneId == id || chain.TargetBoneId == id ? id : chain.TargetBoneId, x, y);
+            return;
+        }
+
+        // A spline handle is placed, not aimed, for the same reason — and a
+        // bone laid out by a curve has the solver's rotation, so a key on it
+        // would be overwritten. Both want a translation of the handle.
+        if (SplineTouching(id) is { } spline)
+        {
+            PoseTranslateTo(
+                spline.HandleBoneIds.Contains(id) ? id : NearestHandle(spline, x, y),
+                x, y);
             return;
         }
 

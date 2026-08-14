@@ -125,6 +125,32 @@ sit in your file at *off*.
 - Like IK, constraints are **posing**. Switch to **Bind** and the skeleton is
   the one you built.
 
+## Spline chains — tails, hair and capes
+
+Some things are not posed joint by joint. A tail, a plait, a cape, an
+antenna: what you want is a *shape*, and the bones should follow it.
+
+Select the bone at the end of the run and press **Add spline**. Three amber
+handles appear along it, laid on the shape you already drew — so nothing
+moves until you move something. Switch to **Pose** and drag a handle; the run
+curves to follow.
+
+- **Spline bones** is how many bones up from the end lie on the curve.
+- The curve passes **through** every handle, not near it. Where you put a
+  handle is where the tail goes.
+- Every bone keeps **its own length**. A spline bends the run; it never
+  stretches it, so the drawing bound to it is never scaled and its grain
+  never re-rolls.
+- If the run is longer than the curve, the rest of it trails straight on
+  rather than bunching up at the end.
+- Dragging any bone of the run moves the nearest handle, because the run's
+  angles belong to the curve.
+- **Remove spline** deletes the curve and its handles, unless something else
+  is using one.
+
+A tail that whips is three handles keyed over four frames — the handles are
+ordinary bones, so they key, parent and drag like everything else in the rig.
+
 ## Binding drawings to bones
 
 A stroke follows the rig once it has **weights** — how much each bone moves
@@ -150,5 +176,6 @@ each part of it.
   happens against the rest pose; scrub a pose to check, come back to
   correct.
 
-*Planned:* painting weights under a live pose,
-spline chains and rig export (`docs/DESIGN-bones.md` has the whole plan).
+*Planned:* painting weights under a live pose, angle-driven corrective
+shapes, secondary motion and rig export (`docs/DESIGN-bones.md` has the
+whole plan).
