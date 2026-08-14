@@ -276,4 +276,13 @@ afterwards. Everything it does goes through the same stroke record as
 everything else, so its work is undoable and indistinguishable in kind from
 yours.
 
+**If an agent reports a bug you know was fixed, check which build it is talking
+to.** The server is a separate published program that your MCP client launches,
+so it goes on running an old copy until you rebuild it *and* fully quit and
+reopen the client — reloading is not enough. Ask the agent for `get_scene`: it
+returns `appBuild` for the running Lightbox and `mcpBuild` for the server, and
+they should name the same commit. Different means only one half was
+republished. `mcpBuild` missing altogether means the server is older than this
+feature, which settles it.
+
 ---
