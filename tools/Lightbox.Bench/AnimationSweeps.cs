@@ -264,7 +264,13 @@ public static class AnimationSweeps
         return new Scenario(
             "Recomposite the whole frame",
             "layers",
-            [1, 2, 4, 8, 16, 24],
+            // To 100, because that is the top of the range artists actually
+            // work at, and the axis used to stop at 24 — a cliff past the end
+            // of a sweep is a cliff nobody knows about (charter O9). At 100
+            // layers one 1080p frame is ~830 MB of cels against the 512 MB
+            // cache, so the top rows also show what compositing costs once a
+            // single frame no longer fits residency.
+            [1, 2, 4, 8, 16, 32, 64, 100],
             Cadence.WhilePlaying,
             Setup: n =>
             {
@@ -365,7 +371,9 @@ public static class AnimationSweeps
         return new Scenario(
             "Recomposite with a side cache, on a miss",
             "layers",
-            [1, 2, 4, 8, 16, 24],
+            // Same ladder as the plain recomposite, or the rows stop being
+            // comparable — which is this scenario's whole purpose.
+            [1, 2, 4, 8, 16, 32, 64, 100],
             Cadence.WhilePlaying,
             Setup: n =>
             {
@@ -421,7 +429,9 @@ public static class AnimationSweeps
         return new Scenario(
             "Recomposite with a side cache, on a hit",
             "layers",
-            [1, 2, 4, 8, 16, 24],
+            // Same ladder as the plain recomposite, or the rows stop being
+            // comparable — which is this scenario's whole purpose.
+            [1, 2, 4, 8, 16, 32, 64, 100],
             Cadence.WhilePlaying,
             Setup: n =>
             {
