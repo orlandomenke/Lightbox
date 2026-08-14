@@ -211,6 +211,48 @@ public partial class MainViewModel
     private bool _isPlaying;
 
     /// <summary>
+    /// The playhead is being dragged along the ruler.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Separate from <see cref="IsPlaying"/> rather than folded into it,
+    /// because only one thing is shared.</b> Both mean "the sequence is moving",
+    /// which is all the tile gate asks (<c>ScenePassBuilder</c>). Everything else
+    /// differs: a scrub draws onion ghosts and folds the layer stack, playback
+    /// does neither, and the transport, the audio tick and the profiling all
+    /// belong to playback alone. A single flag would have made every one of those
+    /// a scrub too.
+    /// </para>
+    /// <para>
+    /// <b>Set by the ruler's drag, and it must fall back to false.</b> The ruler
+    /// clears it on release <em>and</em> on capture-lost — a drag that ends
+    /// because the window lost the pointer is the case that would otherwise leave
+    /// the canvas composing through tiles indefinitely.
+    /// </para>
+    /// </remarks>
+    [ObservableProperty]
+    private bool _isScrubbing;
+
+    /// <summary>
+    /// Compose the still picture through the bounded route the moment the drag
+    /// ends.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is what keeps the tile route's own justification true.</b> Tiles
+    /// are licensed while the sequence is moving because the pyramid's resample
+    /// difference below 100% zoom only exists for as long as the motion does. The
+    /// last publish of a drag is a tiled one, and nothing else republishes when
+    /// the pointer is released — the playhead has not moved, so no frame change
+    /// fires. Without this the artist is left looking at a pyramid-resampled
+    /// still, which is precisely the thing the gate promises never to leave on
+    /// screen.
+    /// </remarks>
+    partial void OnIsScrubbingChanged(bool value)
+    {
+        if (!value) PublishSnapshot();
+    }
+
+    /// <summary>
     /// Playback walks the sheet in order, which is the one access pattern an
     /// LRU is worst at — it evicts the frames at the start to make room for
     /// the ones at the end, so coming round the loop finds everything it is
