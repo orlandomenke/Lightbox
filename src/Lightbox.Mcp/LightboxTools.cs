@@ -2,6 +2,7 @@ using System.Buffers.Text;
 using System.ComponentModel;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
@@ -31,9 +32,58 @@ public static class LightboxTools
     [McpServerTool(Name = "get_scene"), Description(
         "Get the Lightbox scene: canvas size, fps, frame count, current frame, " +
         "and the layers (id, name, kind, visibility, which frames are keyed). " +
-        "Call this first to orient yourself.")]
-    public static Task<string> GetScene(CancellationToken ct) =>
-        Text("get_scene", null, ct);
+        "Call this first to orient yourself. It also reports which builds you " +
+        "are talking to: appBuild is the running Lightbox, mcpBuild is this " +
+        "server. If they disagree, or mcpBuild is missing entirely, this server " +
+        "is an older published copy than the application — republish it and " +
+        "restart the MCP client before trusting a bug to be fixed.")]
+    public static async Task<string> GetScene(CancellationToken ct)
+    {
+        var result = await PipeBridge.CallAsync("get_scene", null, ct);
+        return WithBuild(result);
+    }
+
+    /// <summary>
+    /// Add this server's own build to a payload the app produced.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The app supplies <c>appBuild</c> and this adds <c>mcpBuild</c>, which
+    /// makes the pair say something neither could alone. The asymmetry is
+    /// deliberate and is the whole design: a server too old to have this method
+    /// still forwards the app's key verbatim, so <b>a missing <c>mcpBuild</c> is
+    /// itself the answer</b> — that server predates the stamp and is certainly
+    /// stale. A version that can only report itself when it is new enough to
+    /// report anything would be useless for exactly the case it exists for.
+    /// </para>
+    /// <para>
+    /// Failure here is silent by design. A payload that is not an object, or a
+    /// shape that changes later, must not cost the caller the scene it asked
+    /// for — a diagnostic that can break the tool it annotates is a worse bug
+    /// than the one it was added to diagnose.
+    /// </para>
+    /// </remarks>
+    private static string WithBuild(JsonElement payload)
+    {
+        if (payload.ValueKind != JsonValueKind.Object) return Raw(payload);
+        try
+        {
+            var node = JsonNode.Parse(payload.GetRawText())?.AsObject();
+            if (node is null) return Raw(payload);
+            node["mcpBuild"] = BuildInfo.Build;
+            return node.ToJsonString();
+        }
+        catch (JsonException)
+        {
+            return Raw(payload);
+        }
+    }
+
+    private static string Raw(JsonElement payload) =>
+        payload.ValueKind == JsonValueKind.Undefined ? "{}" : payload.GetRawText();
+
+    /// <summary>Test seam: <see cref="WithBuild"/> without a running app on the pipe.</summary>
+    internal static string WithBuildForTests(JsonElement payload) => WithBuild(payload);
 
     [McpServerTool(Name = "get_frame_strokes"), Description(
         "Get the strokes of the drawing exposed at a timeline frame (JSON, " +

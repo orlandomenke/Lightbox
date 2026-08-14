@@ -56,10 +56,12 @@ public sealed class FloatingPanelWindow : Window
     /// than as a missing handler.
     /// </para>
     /// <para>
-    /// <b>The active tab, not <see cref="PanelId"/>.</b> A floating docker can
-    /// carry tabs like a docked one, and a tabbed docker showing the palette is
-    /// the palette as far as a key press is concerned — the same rule the docked
-    /// side applies, so a panel means the same thing in both places.
+    /// <b>The docker's own id, not its <c>ActiveTab</c>.</b> The two agree
+    /// whenever the bookkeeping is right, because a tab group's visible control
+    /// <i>is</i> the active panel's — so this is which of them is trusted rather
+    /// than a different answer. The id belongs to the control the pointer is
+    /// physically inside; <c>ActiveTab</c> is derived state a strip rebuild
+    /// writes to. The docked side reads it the same way, for the same reason.
     /// </para>
     /// <para>
     /// <b>No hover test here, and that is not a shortcut taken.</b> Docked, the
@@ -70,7 +72,7 @@ public sealed class FloatingPanelWindow : Window
     /// </para>
     /// </remarks>
     public ShortcutScope Scope =>
-        ShortcutScope.In((Content as Docker)?.ActiveTab ?? PanelId);
+        ShortcutScope.In((Content as Docker)?.PanelId ?? PanelId);
 
     /// <summary>
     /// Let go of the panel without closing it — used when the panel is being

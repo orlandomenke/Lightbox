@@ -9,7 +9,9 @@ work everywhere — B is the brush whether you are over the canvas, a toolbar or
 panel. A panel may claim a key for itself, and then it wins **in that panel** and
 the general one still applies everywhere else: `I` inserts a keyframe over the
 timeline and reaches for the eyedropper anywhere else. A panel counts as yours
-when the pointer is over it, or when it has the keyboard focus.
+when the pointer is over it, or when it has the keyboard focus — the pointer
+being *inside* the panel is what decides, so a panel that is redrawing while you
+rest the pointer on it still answers for its own keys.
 
 A key press looks for its meaning in three places, in this order:
 

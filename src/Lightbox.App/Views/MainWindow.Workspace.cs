@@ -703,9 +703,29 @@ public partial class MainWindow
     /// where there is no pointer to consult.
     /// </para>
     /// <para>
-    /// <b>A docker's scope is its visible tab</b>, not the docker's own id: a
-    /// tabbed docker showing the palette is the palette as far as a key press is
-    /// concerned, whatever is behind it.
+    /// <b>Ask the framework what the pointer is over; do not remember it.</b>
+    /// This read <see cref="_hoveredElement"/> first — the source of the last
+    /// <c>PointerMoved</c> — and that cache has two ways to be wrong that a
+    /// headless test never sees. A row the timeline rebuilt under a stationary
+    /// pointer leaves it holding a <i>detached</i> visual, whose parent chain
+    /// stops before reaching any docker; and a move that never arrived leaves it
+    /// holding somewhere the pointer has since left. Both resolve to the canvas,
+    /// which is the shape of the reported fault: every panel binding silently
+    /// falls through to the general one. <see cref="InputElement.IsPointerOver"/>
+    /// is maintained by Avalonia on every element under the pointer, ancestors
+    /// included, so a docker can simply be asked. The cache stays as a fallback
+    /// for the case the property cannot answer.
+    /// </para>
+    /// <para>
+    /// <b>A displayed docker's scope is its own id, not its <c>ActiveTab</c>.</b>
+    /// Both are the same value whenever the bookkeeping is right — a tab group's
+    /// visible control <i>is</i> <c>_panels[active]</c>, because panels live in a
+    /// pool and the layout only names them — so this is not a behaviour change
+    /// for a healthy layout. It is a change in which of the two is trusted:
+    /// <see cref="Controls.Docker.PanelId"/> is the identity of the control the
+    /// pointer is physically inside, while <c>ActiveTab</c> is derived state a
+    /// strip rebuild writes to. Reading the fact rather than the bookkeeping
+    /// costs nothing and removes a way for the scope to be quietly wrong.
     /// </para>
     /// <para>
     /// <b>A key from a torn-off panel is answered by that panel, and the
@@ -725,6 +745,7 @@ public partial class MainWindow
     private Services.ShortcutScope CurrentShortcutScope(object? from = null)
     {
         if (from is FloatingPanelWindow floating) return floating.Scope;
+        if (DockerUnderPointer() is { } over) return Services.ShortcutScope.In(over.PanelId);
         if (PanelUnder(_hoveredElement) is { } hovered) return Services.ShortcutScope.In(hovered);
         if (PanelUnder(FocusManager?.GetFocusedElement() as Visual) is { } focused)
         {
@@ -733,12 +754,36 @@ public partial class MainWindow
         return Services.ShortcutScope.Canvas;
     }
 
-    /// <summary>The visible panel of the docker containing this element, if any.</summary>
+    /// <summary>
+    /// The docked panel the pointer is inside, asked of the panels themselves.
+    /// </summary>
+    /// <remarks>
+    /// Only ever one: dockers do not overlap, so the first match is the answer.
+    /// Parked panels are skipped by the visibility test rather than by knowing
+    /// which ones the layout is showing — a pooled docker is in the tree at zero
+    /// size and could otherwise claim a pointer that is nowhere near it.
+    /// </remarks>
+    private Controls.Docker? DockerUnderPointer()
+    {
+        foreach (var docker in _panels.Values)
+        {
+            if (docker.IsPointerOver && docker.IsEffectivelyVisible && docker.Bounds.Width > 0)
+            {
+                return docker;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The panel of the docker containing this element, if any — the fallback
+    /// for when <see cref="DockerUnderPointer"/> has no answer.
+    /// </summary>
     private static Docking.DockPanelId? PanelUnder(Visual? from)
     {
         for (var v = from; v is not null; v = v.GetVisualParent())
         {
-            if (v is Controls.Docker docker) return docker.ActiveTab;
+            if (v is Controls.Docker docker) return docker.PanelId;
         }
         return null;
     }
@@ -756,6 +801,17 @@ public partial class MainWindow
     /// one changes nothing.
     /// </remarks>
     internal Services.ShortcutScope ShortcutScopeForTests => CurrentShortcutScope();
+
+    /// <summary>
+    /// Put a detached visual in the hover cache, the way a rebuilt row does.
+    /// </summary>
+    /// <remarks>
+    /// The failure mode this exists to reproduce cannot be reached by moving a
+    /// headless mouse: it needs the tree to change under a pointer that is not
+    /// moving, which is ordinary in the running application and impossible to
+    /// stage otherwise.
+    /// </remarks>
+    internal void ForgetHoveredElementForTests(Visual detached) => _hoveredElement = detached;
 
     /// <summary>
     /// Clicking anywhere on a layer-docker row makes that layer active. Ctrl

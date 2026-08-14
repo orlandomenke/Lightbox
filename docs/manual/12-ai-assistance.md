@@ -192,6 +192,55 @@ shadowed by a stale copy.
 Changing provider takes effect immediately; there is no restart and no Save
 button.
 
+## Grading a model
+
+A connection test says the model answers. **Grade this model** says what it can
+*do*. It asks a committed set of keyframe pairs — a swing, an arc, a rotation,
+an occlusion, and a ladder of drawings with more and more strokes in them — and
+scores every answer with the same checks that judge the model's real work.
+
+The result is numbers rather than a pass mark, deliberately. There is no
+overall verdict because there is no single answer: a model weak on arcs is
+still worth using where straight interpolation is weak, and one that gives up
+past twelve strokes is fine if you send it ten. What you get is a reading:
+
+```
+Schema adherence: 100 %
+Label retention: 60 %
+Degrades past 8 strokes — send it fewer than that.
+Swing: clean (1/1)
+Arc: clean (1/1) — interpolated along the chord — no arc
+Rotation: clean (1/1)
+Occlusion: clean (1/1)
+StrokeLadder: 2/6 — ladder-16: out of context
+Organic: not measured — ships with no pairs
+```
+
+**The line worth reading is the stroke one.** It is the number nobody usually
+measures, and it is the one that decides whether a model is usable on a real
+drawing: a frame with forty strokes is ordinary, and a model that copes with
+eight will quietly produce nonsense on it.
+
+Two run sizes, and the page tells you what each will send **before** you spend
+it — a full run is roughly five times the short one, almost all of it the long
+stroke ladder. The short run grades every category and places the stroke limit
+roughly; the full run places it precisely. Start short.
+
+A run shows its progress and an elapsed clock, and **Cancel** stops it. A
+cancelled run records nothing on purpose: half a ladder would report a limit
+that is really just where you clicked.
+
+The reading is kept, so it is still there next time you open the window. It is
+stored against the model it was taken on — point the connection at a different
+model and the page says so in amber rather than letting an old reading pass as
+a new one. The old reading is not thrown away; it is still true about the old
+model, and re-running costs money.
+
+**One row always says "not measured".** *Organic* is for complex organic
+subjects — a quadruped's gait, a figure turning — and it ships empty, because
+those need answers drawn by hand rather than computed. It appears anyway so
+that a question nobody asked can never read as one the model passed.
+
 ## An agent of your own, over MCP
 
 The **Custom agent (MCP)** provider launches a server you name and calls one
@@ -226,5 +275,14 @@ which is how it checks a drawing before inbetweening it and its own results
 afterwards. Everything it does goes through the same stroke record as
 everything else, so its work is undoable and indistinguishable in kind from
 yours.
+
+**If an agent reports a bug you know was fixed, check which build it is talking
+to.** The server is a separate published program that your MCP client launches,
+so it goes on running an old copy until you rebuild it *and* fully quit and
+reopen the client — reloading is not enough. Ask the agent for `get_scene`: it
+returns `appBuild` for the running Lightbox and `mcpBuild` for the server, and
+they should name the same commit. Different means only one half was
+republished. `mcpBuild` missing altogether means the server is older than this
+feature, which settles it.
 
 ---
