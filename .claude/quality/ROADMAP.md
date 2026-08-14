@@ -829,7 +829,9 @@ project structure bugs and `.claude/quality/comparison.md` for full analysis.
 - [?] Split-screen frame comparison
 - [?] Side-by-side animation comparison
 - [?] Pin any frame as reference
-- [?] Floating reference windows
+- [x] Floating reference windows `evidence: ReferenceBoardWindow, ReferenceBoardWindowTests`
+  - Answered as **one board rather than many windows** — see *the reference
+    board* under the reference section below (Q87).
 - [?] Pose references
 - [x] Imported animation reference, sliced into frames and laid against the timeline `evidence: ReferenceStrip, StripSlicer, StripSlicerTests, ReferenceStripTests`
 - [x] An animated symbol — a stored cycle, not a single drawing `evidence: Symbol, SymbolPlacement, FrameIndexAt, FrameOffset, SymbolRecordTests, SymbolRenderTests`
@@ -1487,24 +1489,48 @@ Already built ✅:
 - Shared palette across character animations
 - **Deterministic rendering** (enables reference-aware brushes — unique capability)
 
-- Reference view in a floating window — a live viewer beside the art (Q69);
-  the window follows the sheet as it is edited, drawing still happens in the tab
 - A sheet view taped onto the canvas — flattened into a `ReferenceStrip`,
   pinned to every frame, live (Q69)
+- [x] **The reference board — a whiteboard of reference beside the art** `evidence: ReferenceBoard, BoardTile, BoardLayout, ProjectBoards, ReferenceBoardViewModel, ReferenceBoardWindow, ReferenceBoardTests, ReferenceBoardWindowTests`
+  - **What it replaced, and why the replacement is not a superset.** Q69 shipped
+    one live window per reference view, which was right about *live* and wrong
+    about *one*. An artist works from several references at once, so that meant
+    several windows, each framing one picture and none of them arrangeable
+    against another — the arrangement, which is the actual work, had nowhere to
+    live. The board is the same liveness with the arrangement as the feature, and
+    the single-view window is deleted rather than kept beside it: two windows both
+    claiming to show a reference view is how B133 started.
+  - **Every sheet in scope, flattened, laid out to fit** — a view is one picture
+    on the wall rather than a layer stack, through the same
+    `RenderReferenceViewPng` the AI payloads and the taped strip use, so the wall
+    follows an edit without a re-import. Imported files and pictures dragged off a
+    web page sit beside them. Move by dragging, resize from a corner, raise by
+    picking up, **Auto-arrange** to tidy, right-click to send behind or take down.
+  - **The arrangement persists, filed on the scope that owns the references**
+    (Q87) — one wall per subject, shared by every animation under it, which is the
+    "reference positioning persists" gap this section calls the highest friction
+    in the list. A scope with no board writes no file; a loose document keeps its
+    own board inside itself, because it has no project directory to copy an
+    imported picture into.
+  - **Imports are copied into the project, never linked.** A path into somebody's
+    downloads folder breaks silently, and a picture dragged out of a browser has
+    no durable path at all.
 
-Next for the floating window, deliberately not in the first cut (Q69):
-- [ ] **An editable canvas in the reference window** `evidence: ReferenceViewCanvasTests`
-  — draw on the sheet where it floats, instead of switching to its tab. Needs
-  input routing and a decision about shared-versus-split brush state, so it
-  starts as a design note, not a feature branch. The window's content pane is
-  a single `Image` control precisely so this replaces one control when it
-  comes.
+Next for the board, deliberately not in the first cut (Q69, Q87):
+- [ ] **An editable canvas on the reference board** `evidence: ReferenceViewCanvasTests`
+  — draw on a sheet where it hangs, instead of switching to its tab. Needs input
+  routing and a decision about shared-versus-split brush state, so it starts as a
+  design note, not a feature branch. A tile is one `Image` control precisely so
+  this replaces one control when it comes.
+- [ ] **Annotating the board non-destructively** `evidence: BoardAnnotation, BoardAnnotationTests`
+  — the market gap named below, and the board is where it now belongs: marks over
+  the wall rather than over one view, kept apart from the art they describe.
 
 ### **Critical Usability Gaps: Reference Management** ❌
 
 | Feature | Impact | Status | Competitors | Gap |
 |---------|--------|--------|-------------|-----|
-| **Reference positioning persists** | HIGH | [ ] | Harmony, Clip Studio, Aseprite save this | Lightbox loses position every session |
+| **Reference positioning persists** | HIGH | [x] | Harmony, Clip Studio, Aseprite save this | Closed by the reference board (Q87): the wall is filed on the scope that owns the references, so it opens where it was left |
 | **Non-destructive annotation layer** | MEDIUM | [ ] | Zero competitors | **Pure market gap** |
 | **Character version tagging** | CRITICAL | [ ] | Enterprise tools only | Indie teams: "final_v7_REAL.psd" chaos |
 | **Expression/pose metadata** | MEDIUM | [ ] | No animation tools | Expressions scattered in files |
@@ -1514,7 +1540,7 @@ Next for the floating window, deliberately not in the first cut (Q69):
 
 | Item | Pillar | Why | Effort | Impact | Blocker |
 |------|--------|-----|--------|--------|---------|
-| **Reference positioning persists** | 1 | Repositioned every session — highest friction | Low (100 LOC) | HIGH | None |
+| ~~**Reference positioning persists**~~ — done | 1 | Repositioned every session — highest friction | Low (100 LOC) | HIGH | Closed by the reference board |
 | **Character version tagging** | 1 | Out-of-sync versions mid-project cause rework | Low (100 LOC) | CRITICAL | None |
 | **Non-destructive annotation layer** | 1 | Artists mark up reference (proportions, anatomy); zero tools let them do this non-destructively | Medium (300 LOC) | Medium | None |
 | **Expression/pose frame metadata** | 1 | Scattered files (happy.png, sad.png); no query capability | Medium (200 LOC) | Medium | None |
