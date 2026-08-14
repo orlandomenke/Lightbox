@@ -324,8 +324,6 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     // still decides which of those offers is relevant right now, so the
     // tool-bound sections AND these together in the XAML.
 
-    public bool QuickBrushPreset => QuickHas(QuickBarCatalog.BrushPreset);
-
     public bool QuickBrushOptions => QuickHas(QuickBarCatalog.BrushOptions);
 
     public bool QuickEraserOptions => QuickHas(QuickBarCatalog.EraserOptions);
@@ -353,7 +351,6 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     public static readonly IReadOnlyDictionary<string, string> QuickNames =
         new Dictionary<string, string>
         {
-            [QuickBarCatalog.BrushPreset] = nameof(QuickBrushPreset),
             [QuickBarCatalog.BrushOptions] = nameof(QuickBrushOptions),
             [QuickBarCatalog.EraserOptions] = nameof(QuickEraserOptions),
             [QuickBarCatalog.ShapeOptions] = nameof(QuickShapeOptions),

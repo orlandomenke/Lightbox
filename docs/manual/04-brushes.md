@@ -4,19 +4,26 @@
 
 The **Quick options bar** above the canvas carries the controls you reach
 for constantly. It opens with the active tool's icon, then your two colours,
-then **Size** and **Opacity** — those two are pinned: they stay put whatever
-tool you switch to, and grey out rather than disappear when the tool in hand
-makes no mark to size. Everything to their right is the tool's own quick
-options — hardness and stabilizer for the brush, variants for the selection,
-kind and spread for the gradient — and folds into the bar's **▾** menu when
-the window gets narrow. The pinned pair never folds.
+then the **brush preset** button with its **⚙**, then **Size** and
+**Opacity**. All of those are pinned: they stay put whatever tool you switch
+to, and Size and Opacity grey out rather than disappear when the tool in
+hand makes no mark to size. Everything to their right is the tool's own
+quick options — hardness and stabilizer for the brush, variants for the
+selection, kind and spread for the gradient — and folds into the bar's **▾**
+menu when the window gets narrow. The pinned section never folds.
+
+The brush button is pinned for the same reason the colours are: which brush
+you are holding is something you change from any tool. Picking a preset also
+**puts its tool in your hand** — a brush preset hands you the brush, an
+eraser preset the eraser — so the picker is the way back to painting from
+the selection tool or the fill without visiting the rail.
 
 **⚙**, immediately right of the brush button, opens the **Tool options**
 panel with every parameter, grouped: General, Effects, Medium, Pen pressure,
 Presets. It is a docker, not a flyout — it stays open while you paint and
 test, docks anywhere a panel docks, and is also under **View → Tool
-options**. It is there for the eraser too, which has no brush button — so
-with the eraser held it is the first thing on the bar.
+options**. Like the brush button it is pinned for every tool, the eraser
+included, whose parameters it has always served.
 
 The panel follows the tool in your hand. With the brush or the eraser it is
 the parameter editor above; pick the fill, the selection, a shape or the
@@ -24,8 +31,10 @@ gradient and it shows that tool's options instead — the depth behind the
 bar's quick reach, laid out vertically with room for labels and sliders. A
 tool whose whole vocabulary fits on the bar says so rather than going blank.
 
-*Planned:* choosing which quick options sit on the bar, per workspace, by
-dragging them on and off. Size and Opacity will stay non-removable.
+Which quick options the bar carries is the **workspace's** choice — the ⋮
+beside the workspace picker ticks them on and off (see *Getting started →
+The quick bar is the workspace's*). The pinned section — colours, the brush
+button, ⚙, Size, Opacity — is not on offer there and cannot be removed.
 
 #### Finding a brush
 

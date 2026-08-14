@@ -164,9 +164,10 @@ public sealed class ToolBarAlignmentTests : BrushStateIsolated
     {
         // The brush parameters became the Tool options DOCKER (the owner's
         // call), so the gear is a plain command button. A flyout reappearing
-        // here would mean the two hosts have quietly forked.
-        var bar = OptionsBar(Open());
-        var button = bar.GetVisualDescendants().OfType<Button>()
+        // here would mean the two hosts have quietly forked. Searched from
+        // the window: the gear lives in the bar's pinned section beside the
+        // preset picker now, not inside the OverflowBar.
+        var button = Open().GetVisualDescendants().OfType<Button>()
             .First(b => b.Content as string == "⚙");
 
         Assert.Null(button.Flyout);

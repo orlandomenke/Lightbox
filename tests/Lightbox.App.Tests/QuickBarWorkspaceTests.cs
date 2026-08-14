@@ -80,12 +80,12 @@ public sealed class QuickBarWorkspaceTests(ITestOutputHelper output)
     {
         var store = WorkspaceStore.Default();
         store.Find("Default")!.Layout.QuickBar =
-            [QuickBarCatalog.BrushPreset, QuickBarCatalog.Transport];
+            [QuickBarCatalog.BrushOptions, QuickBarCatalog.Transport];
 
         var reloaded = WorkspaceStore.Deserialize(store.Serialize());
 
         Assert.Equal(
-            [QuickBarCatalog.BrushPreset, QuickBarCatalog.Transport],
+            [QuickBarCatalog.BrushOptions, QuickBarCatalog.Transport],
             reloaded.Find("Default")!.Layout.QuickBar);
     }
 
@@ -103,6 +103,63 @@ public sealed class QuickBarWorkspaceTests(ITestOutputHelper output)
         Assert.Contains(QuickBarCatalog.AddFrame, animation);
         Assert.DoesNotContain(QuickBarCatalog.Transport, illustration);
         Assert.Contains(QuickBarCatalog.SelectOptions, illustration);
+    }
+
+    /// <summary>
+    /// A workspaces.json saved before the bar could be chosen carries every
+    /// built-in without a quickBar key — the app wrote those nulls, not the
+    /// artist, and the store saves built-ins alongside the user's own. Left
+    /// alone they shadow the new defaults forever: Animation never gets its
+    /// transport and every workspace resolves to the tool defaults, which is
+    /// exactly the bar looking "not wired" (B203). Loading fills a built-in
+    /// that never chose from the built-in's own choice.
+    /// </summary>
+    [Fact]
+    public void AStoreSavedBeforeTheBarExistedStillGivesAnimationItsTransport()
+    {
+        var stale = WorkspaceStore.Default();
+        foreach (var workspace in stale.Workspaces) workspace.Layout.QuickBar = null;
+
+        var reloaded = WorkspaceStore.Deserialize(stale.Serialize());
+
+        var animation = reloaded.Find("Animation")!.Layout.QuickBarContents;
+        output.WriteLine($"Animation resolves to: {string.Join(", ", animation)}");
+        Assert.Contains(QuickBarCatalog.Transport, animation);
+        Assert.Contains(QuickBarCatalog.AddFrame, animation);
+        // "Default" genuinely never chose — it stays on the tool defaults.
+        Assert.Null(reloaded.Find("Default")!.Layout.QuickBar);
+    }
+
+    /// <summary>
+    /// The migration only fills a null. A built-in the artist customised
+    /// after the feature arrived has a materialised list, and that choice —
+    /// including having dropped an entry the default carries — must survive.
+    /// </summary>
+    [Fact]
+    public void ACustomisedBuiltInKeepsItsChoiceThroughTheRoundTrip()
+    {
+        var store = WorkspaceStore.Default();
+        store.Find("Animation")!.Layout.QuickBar = [QuickBarCatalog.BrushOptions];
+
+        var reloaded = WorkspaceStore.Deserialize(store.Serialize());
+
+        Assert.Equal([QuickBarCatalog.BrushOptions],
+            reloaded.Find("Animation")!.Layout.QuickBar);
+    }
+
+    /// <summary>
+    /// A workspace the artist saved themselves is theirs even when it never
+    /// chose: null means the tool defaults, not "adopt a built-in's list".
+    /// </summary>
+    [Fact]
+    public void AUsersOwnWorkspaceIsNotFilledInOnLoad()
+    {
+        var store = WorkspaceStore.Default();
+        store.Workspaces.Add(new Workspace { Name = "Mine", Layout = new DockLayout() });
+
+        var reloaded = WorkspaceStore.Deserialize(store.Serialize());
+
+        Assert.Null(reloaded.Find("Mine")!.Layout.QuickBar);
     }
 
     /// <summary>
@@ -195,5 +252,20 @@ public sealed class QuickBarWorkspaceTests(ITestOutputHelper output)
             Assert.DoesNotContain("size", option.Id, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("opacity", option.Id, StringComparison.OrdinalIgnoreCase);
         }
+    }
+
+    /// <summary>
+    /// The preset picker joined the pinned section beside the colour pair
+    /// (owner's ask, 2026-08-14), so like size and opacity it is not on
+    /// offer: a checkbox for a control the workspace cannot move would be a
+    /// checkbox that changes nothing. The retired id may still sit in saved
+    /// lists; no gate reads it, and the XAML must not grow one back.
+    /// </summary>
+    [Fact]
+    public void ThePinnedBrushPresetIsNotOnOffer()
+    {
+        Assert.DoesNotContain(QuickBarCatalog.All, o => o.Id == QuickBarCatalog.BrushPreset);
+        Assert.DoesNotContain(QuickBarCatalog.BrushPreset, QuickBarCatalog.ToolDefaults);
+        Assert.DoesNotContain("Workspace.QuickBrushPreset", MainWindowXaml(), StringComparison.Ordinal);
     }
 }
