@@ -1584,7 +1584,7 @@
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Bone}"
                             ToolTip.Tip="Bone (K) - drag on empty canvas to add a bone (parented to the selected one), drag a tip to re-aim it, switch to posing to rotate and key at the playhead.">
                 <StackPanel Orientation="Horizontal" Spacing="6">
-                  <Path Data="{StaticResource IconMove}" />
+                  <Path Data="{StaticResource IconBone}" />
                   <TextBlock Text="Bone" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
