@@ -47,7 +47,13 @@
                 IsVisible="{Binding HasSelectedBone}">
       <TextBox Text="{Binding SelectedBoneName, Mode=TwoWay}" Width="110"
                ToolTip.Tip="Rename the bone. Ending a pair in .l and .r is what lets X-symmetry paint both sides at once." />
-      <Button Content="Delete" Command="{Binding DeleteBoneCommand}"
+      <TextBlock Text="Length" VerticalAlignment="Center" Opacity="0.7" />
+      <NumericUpDown Value="{Binding SelectedBoneLength, Mode=TwoWay}" Minimum="4" Maximum="4000"
+                     Increment="4" FormatString="0"
+                     ToolTip.Tip="How long the bone is, in document pixels — the same thing dragging its tip changes." />
+      <Button Content="Add child" Command="{Binding AddChildBoneCommand}"
+              ToolTip.Tip="Grow a bone from this one's tip, already joined to it. Shift-drag a tip on the canvas does the same and lets you aim it." />
+            <Button Content="Delete" Command="{Binding DeleteBoneCommand}"
               ToolTip.Tip="Delete this bone. Its children are re-parented to its parent and stay where they are; strokes bound to it lose that binding." />
     </StackPanel>
     <!-- The weight brush and its settings, which had no surface at all. -->

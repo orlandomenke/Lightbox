@@ -56,7 +56,7 @@ public partial class MainWindow
             if (hit is { Id: { } id }) Canvas.BeginBoneDrag(id, hit.Grab);
             RefreshArmatureOverlay();
         };
-        Canvas.BoneGestureEnded += (id, grab, x0, y0, x1, y1) =>
+        Canvas.BoneGestureEnded += (id, grab, x0, y0, x1, y1, extruding) =>
         {
             if (id is null)
             {
@@ -67,6 +67,12 @@ public partial class MainWindow
             else if (_vm.PosingMode)
             {
                 _vm.PoseBoneTo(id, x1, y1);
+            }
+            else if (extruding && grab is Rendering.BoneGrab.Tip)
+            {
+                // Blender's idiom: take hold of the tip and pull a child out
+                // of it, already joined to the parent.
+                _vm.ExtrudeChildFrom(id, x1, y1);
             }
             else if (grab is Rendering.BoneGrab.Origin or Rendering.BoneGrab.Tip)
             {

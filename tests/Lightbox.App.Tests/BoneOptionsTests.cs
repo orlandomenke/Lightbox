@@ -270,4 +270,93 @@ public class BoneOptionsTests
         Assert.Single(vm.BoneChromes);
         Assert.Single(vm.BoneRows);
     }
+
+    // ---- building a limb -------------------------------------------------------------
+
+    [AvaloniaFact]
+    public void ExtrudingFromATipGrowsAJoinedChild()
+    {
+        var vm = Rigged();
+        vm.CreateBoneFromDrag(100, 100, 200, 100);   // a 100px bone along +x
+        var parent = vm.SelectedBoneId!;
+
+        vm.ExtrudeChildFrom(parent, 200, 180);
+
+        var child = vm.Doc.Armature!.Bones.Single(b => b.Id != parent);
+        Assert.Equal(parent, child.ParentId);
+        // Joined: the child starts exactly at the parent's tip, whatever the
+        // parent later does. That is what makes bending the parent carry the
+        // chain with no gap to close by hand.
+        var placements = ArmatureOps.Solve(vm.Doc.Armature!);
+        Assert.Equal(200, placements[child.Id].X, 6);
+        Assert.Equal(100, placements[child.Id].Y, 6);
+        Assert.Equal(80, child.Length, 6);
+        Assert.Equal(child.Id, vm.SelectedBoneId);
+    }
+
+    [AvaloniaFact]
+    public void BendingTheParentCarriesTheChainButRelengthingItDoesNot()
+    {
+        var vm = Rigged();
+        vm.CreateBoneFromDrag(100, 100, 200, 100);
+        var parent = vm.SelectedBoneId!;
+        vm.ExtrudeChildFrom(parent, 200, 180);
+        var child = vm.SelectedBoneId!;
+
+        // Rotating the parent carries the child, because the child's offset
+        // lives in the parent's frame. This is the common case and the one
+        // posing depends on.
+        vm.SelectedBoneId = parent;
+        vm.PosingMode = true;
+        vm.PoseBoneTo(parent, 100, 200);          // parent swings to point down
+        var posed = ArmatureOps.Solve(vm.Doc.Armature!, ArmatureOps.PoseAt(vm.Doc.Scene.PoseTrack, vm.CurrentFrameIndex));
+        Assert.Equal(100, posed[child].X, 6);
+        Assert.Equal(200, posed[child].Y, 6);
+
+        // Re-lengthening the parent does NOT drag the child after it: the
+        // child was placed at the tip, it is not glued to it. Blender models
+        // that difference with a connected flag on the bone; this record has
+        // no such flag yet, so the honest guard is that the child stays put.
+        vm.PosingMode = false;
+        vm.SelectedBoneLength = 150;
+        var rest = ArmatureOps.Solve(vm.Doc.Armature!);
+        Assert.Equal(200, rest[child].X, 6);
+        Assert.Equal(100, rest[child].Y, 6);
+    }
+
+    [AvaloniaFact]
+    public void LengthIsEditableByNumberAndUndoable()
+    {
+        var vm = Rigged();
+        vm.CreateBoneFromDrag(100, 100, 200, 100);
+        Assert.Equal(100, vm.SelectedBoneLength, 6);
+
+        vm.SelectedBoneLength = 42;
+        Assert.Equal(42, vm.SelectedBone!.Length, 6);
+
+        // Floored rather than accepted: a zero-length bone has no direction,
+        // so a pose rotation of it would mean nothing.
+        vm.SelectedBoneLength = 0;
+        Assert.True(vm.SelectedBone!.Length >= ArmatureOverlay.MinimumLength);
+
+        vm.UndoCommand.Execute(null);
+        vm.UndoCommand.Execute(null);
+        Assert.Equal(100, vm.SelectedBoneLength, 6);
+    }
+
+    [AvaloniaFact]
+    public void AddChildFromThePanelGrowsOneStraightOn()
+    {
+        var vm = Rigged();
+        vm.CreateBoneFromDrag(100, 100, 200, 100);
+        var parent = vm.SelectedBoneId!;
+
+        vm.AddChildBoneCommand.Execute(null);
+
+        var child = vm.Doc.Armature!.Bones.Single(b => b.Id != parent);
+        Assert.Equal(parent, child.ParentId);
+        // Straight on from the parent, so it is a starting point to aim rather
+        // than a guess about where the limb goes.
+        Assert.Equal(0, child.RotationDeg, 6);
+    }
 }
