@@ -205,8 +205,16 @@ public sealed partial class MainViewModel
         InvalidateRiggedFrames();
     }
 
-    /// <summary>The IK panel answers about the selected bone, so it moves with it.</summary>
-    partial void OnSelectedBoneIdChanged(string? value) => NotifyIkSurface();
+    /// <summary>
+    /// The IK and constraint panels both answer about the selected bone, so
+    /// they move with it. One implementation because a partial method can only
+    /// have one — the constraint half lives in its own file otherwise.
+    /// </summary>
+    partial void OnSelectedBoneIdChanged(string? value)
+    {
+        NotifyIkSurface();
+        NotifyConstraintSurface();
+    }
 
     /// <summary>Re-read everything the IK surface derives from the document.</summary>
     private void NotifyIkSurface()

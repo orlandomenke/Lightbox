@@ -274,6 +274,16 @@ public sealed partial class MainViewModel
             // a pose nobody authored for it.
             if (doc.Scene.PoseTrack is { } track)
                 foreach (var key in track.Keys) key.Bones.Remove(id);
+            // And so do the chains and constraints that named it. The solve
+            // already refuses one whose target is missing, so leaving them
+            // would not misbehave — it would be worse than that: an entry the
+            // panel lists, the artist adjusts, and nothing ever happens.
+            target.Chains?.RemoveAll(c => c.TipBoneId == id || c.TargetBoneId == id);
+            foreach (var chain in target.Chains ?? [])
+                if (chain.PoleBoneId == id) chain.PoleBoneId = null;
+            if (target.Chains is { Count: 0 }) target.Chains = null;
+            target.Constraints?.RemoveAll(c => c.BoneId == id || c.TargetBoneId == id);
+            if (target.Constraints is { Count: 0 }) target.Constraints = null;
         });
 
         SelectedBoneId = null;
@@ -431,6 +441,7 @@ public sealed partial class MainViewModel
         // offers rename and delete for something that is gone.
         if (SelectedBoneId is { } id && Doc.Armature?.BoneById(id) is null) SelectedBoneId = null;
         NotifyIkSurface();
+        NotifyConstraintSurface();
     }
 
     /// <summary>
@@ -649,8 +660,20 @@ public sealed partial class MainViewModel
         var pose = ArmatureOps.PoseAt(Doc.Scene.PoseTrack, frame);
         var placements = ArmatureOps.Solve(armature, pose);
         var own = placements[id];
-        var currentDelta = pose.GetValueOrDefault(id)?.RotationDeg ?? 0;
-        var newDelta = currentDelta + ArmatureOverlay.AngleFrom(own.X, own.Y, x, y) - own.RotationDeg;
+        // The pivot is where the bone is DRAWN — a constraint may have moved
+        // it, and the artist drags relative to what they can see. The angle,
+        // though, is measured against forward kinematics rather than against
+        // the placement: the key means "point here", and a constraint blends
+        // from it by its strength. Measuring against the constrained angle
+        // instead made the key mean nothing an artist could predict — at half
+        // strength, a drag straight right landed the bone straight left.
+        // (Unconstrained the two are the same expression, so nothing else
+        // changes.)
+        var parentWorld = armature.BoneById(id) is { ParentId: { } pid } && placements.TryGetValue(pid, out var pp)
+            ? pp.RotationDeg
+            : 0.0;
+        var rest = armature.BoneById(id)!.RotationDeg;
+        var newDelta = ArmatureOverlay.AngleFrom(own.X, own.Y, x, y) - parentWorld - rest;
 
         KeyPose(frame, id, p => p.RotationDeg = newDelta);
         InvalidateRiggedFrames();
