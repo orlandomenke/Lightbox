@@ -1048,6 +1048,14 @@ public static class BrushEngine
     }
 
     /// <summary>
+    /// How far from a stroke point this brush can put paint — scatter, tip
+    /// rotation and medium bleed included. The bound every region-limited
+    /// repaint of a finished stroke must respect; half the brush size is the
+    /// geometry of the points, not of the mark.
+    /// </summary>
+    public static float ReachOf(BrushSettings brush) => DabReach(brush);
+
+    /// <summary>
     /// How far past the dabs a simulated medium can carry paint.
     /// </summary>
     /// <remarks>
