@@ -122,8 +122,15 @@ public readonly record struct DeferredCompose(
             using var paint = new SKPaint { BlendMode = pass.Blend };
             if (pass.Opacity < 1.0)
                 paint.Color = paint.Color.WithAlpha((byte)(pass.Opacity * 255));
+            // SrcIn, matching SceneRenderer.DrawPass: the tint replaces the
+            // pass's colour and keeps its alpha, so a transparent pixel stays
+            // transparent. Multiply does the opposite — Skia's blend-mode
+            // colour filter takes the tint as source, and Multiply against a
+            // transparent destination returns the tint at full alpha, so every
+            // empty pixel of a ghost came out solid #d04040 and the canvas
+            // flooded red. B201.
             if (pass.Tint.HasValue)
-                paint.ColorFilter = SKColorFilter.CreateBlendMode(pass.Tint.Value, SKBlendMode.Multiply);
+                paint.ColorFilter = SKColorFilter.CreateBlendMode(pass.Tint.Value, SKBlendMode.SrcIn);
 
             // B169: an eraser overlay must combine with its own layer before the
             // layer meets the stack — DstOut straight onto the shared surface
