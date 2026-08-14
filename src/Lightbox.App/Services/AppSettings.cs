@@ -198,11 +198,32 @@ public sealed class AppSettings
     {
         try
         {
-            return JsonSerializer.Deserialize<AppSettings>(json, Json) ?? new AppSettings();
+            var settings = JsonSerializer.Deserialize<AppSettings>(json, Json) ?? new AppSettings();
+            settings.MigrateOnionFalloff();
+            return settings;
         }
         catch (JsonException)
         {
             return new AppSettings();
+        }
+    }
+
+    /// <summary>
+    /// Move a never-chosen onion falloff off the old default.
+    /// </summary>
+    /// <remarks>
+    /// On load rather than on save, so it reaches an install that is never
+    /// touched again, and only for a value still sitting on the old default —
+    /// anything else was set on purpose and is left alone. See
+    /// <see cref="OnionSettings.FalloffChosen"/> for what this costs the one
+    /// artist who deliberately chose 0.5 before the flag existed.
+    /// </remarks>
+    private void MigrateOnionFalloff()
+    {
+        if (Onion.FalloffChosen) return;
+        if (Math.Abs(Onion.Falloff - OnionSettings.LegacyFalloff) < 0.0001)
+        {
+            Onion.Falloff = new OnionSettings().Falloff;
         }
     }
 
