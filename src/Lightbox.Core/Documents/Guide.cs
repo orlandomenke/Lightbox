@@ -99,11 +99,47 @@ public sealed class Guide
     public double Spacing { get; set; } = 32;
 
     /// <summary>
-    /// How many divisions a <see cref="GuideKind.HeightScale"/> is tall —
-    /// "6 heads" is six of these. Null on every other kind, so a document
-    /// without a height scale writes no divisions key.
+    /// How many of the thing this kind counts, or null for the kind's default.
     /// </summary>
+    /// <remarks>
+    /// Two meanings, by kind, on one nullable key rather than two:
+    /// on a <see cref="GuideKind.HeightScale"/> it is how many heads tall the
+    /// chart is — "6 heads" is six of these — and on a
+    /// <see cref="GuideKind.VanishingPoint"/> it is how many rays are drawn
+    /// out of the point. Both answer "how many of them", both are absent until
+    /// the artist says otherwise, and a second nullable key would widen the
+    /// record for nothing. Null on every other kind, so a document with
+    /// neither writes no divisions key at all.
+    /// </remarks>
     public int? Divisions { get; set; }
+
+    /// <summary>
+    /// How many rays a vanishing point is drawn with.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A drawing property, not a constraint: a vanishing point constrains
+    /// <i>every</i> direction through it — <c>Snapper.DirectionAt</c> works
+    /// from the point, not from a ray — so changing this changes what you see
+    /// and never what you can snap to. Fewer rays to see the drawing through,
+    /// more to read the perspective.
+    /// </para>
+    /// <para>
+    /// Twenty-four when unset, which is the fan the renderer always drew.
+    /// Clamped rather than validated: a fan of one is not a fan, and past a
+    /// couple of hundred the rays close into a filled disc.
+    /// </para>
+    /// <para>Derived; never serialized — see <see cref="Angles"/>.</para>
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int RayCount => Math.Clamp(Divisions ?? DefaultRays, MinRays, MaxRays);
+
+    /// <summary>The fan a vanishing point is drawn with when nothing says otherwise.</summary>
+    public const int DefaultRays = 24;
+
+    public const int MinRays = 2;
+
+    public const int MaxRays = 180;
 
     /// <summary>Drawn on the canvas. A hidden guide still snaps — see the remarks.</summary>
     /// <remarks>

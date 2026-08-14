@@ -1,0 +1,73 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             x:Class="Lightbox.App.Views.GuideOptionsBar"
+             x:DataType="vm:MainViewModel">
+  <!--
+    A collaborator rather than 70 more lines of MainWindow.axaml, which is on
+    the monolith ratchet — the same trade BoneOptionsBar made, for the same
+    reason. The DataContext is inherited, so every binding reads the same
+    MainViewModel the quick bar around it does.
+
+    The Move tool is what picks a guide up, so it is where the numbers behind
+    one belong — and it was the one tool with no options at all. Everything
+    here changes the *selected* guide on this document, undoably; "Set as
+    default" is the separate, deliberate act that also changes what the next
+    guide of that kind is made from.
+  -->
+  <StackPanel Orientation="Horizontal" Spacing="14">
+    <StackPanel.IsVisible>
+      <MultiBinding Converter="{x:Static BoolConverters.And}">
+        <Binding Path="IsMoveTool" />
+        <Binding Path="Workspace.QuickGuideOptions" />
+        <Binding Path="HasSelectedGuide" />
+      </MultiBinding>
+    </StackPanel.IsVisible>
+    <TextBlock Text="{Binding SelectedGuideLabel}" VerticalAlignment="Center" FontWeight="SemiBold" />
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+      <TextBlock Text="X" VerticalAlignment="Center" />
+      <NumericUpDown Value="{Binding GuideX}" Minimum="-100000" Maximum="100000" Increment="1"
+                     FormatString="0.#" Classes="value" VerticalAlignment="Center"
+                     ToolTip.Tip="Where the guide sits across the canvas, in document pixels" />
+      <TextBlock Text="Y" VerticalAlignment="Center" />
+      <NumericUpDown Value="{Binding GuideY}" Minimum="-100000" Maximum="100000" Increment="1"
+                     FormatString="0.#" Classes="value" VerticalAlignment="Center"
+                     ToolTip.Tip="Where the guide sits down the canvas, in document pixels" />
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                IsVisible="{Binding SelectedGuideHasAngle}">
+      <TextBlock Text="Angle" VerticalAlignment="Center" />
+      <NumericUpDown Value="{Binding GuideAngle}" Minimum="-360" Maximum="360" Increment="1"
+                     FormatString="0.#" Classes="value" VerticalAlignment="Center"
+                     ToolTip.Tip="Degrees clockwise from horizontal" />
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                IsVisible="{Binding SelectedGuideIsGrid}">
+      <TextBlock Text="Cell" VerticalAlignment="Center" />
+      <NumericUpDown Value="{Binding GuideSpacing}" Minimum="1" Maximum="4096" Increment="1"
+                     FormatString="0.#" Classes="value" VerticalAlignment="Center"
+                     ToolTip.Tip="Grid size — the pitch of this lattice, in document pixels" />
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                IsVisible="{Binding SelectedGuideIsHeightScale}">
+      <TextBlock Text="Head" VerticalAlignment="Center" />
+      <NumericUpDown Value="{Binding GuideSpacing}" Minimum="1" Maximum="4096" Increment="1"
+                     FormatString="0.#" Classes="value" VerticalAlignment="Center"
+                     ToolTip.Tip="One head's height, in document pixels" />
+      <TextBlock Text="Heads" VerticalAlignment="Center" />
+      <NumericUpDown Value="{Binding GuideHeads}" Minimum="1" Maximum="32" Increment="1"
+                     FormatString="0" Classes="value" VerticalAlignment="Center"
+                     ToolTip.Tip="How many heads tall the character is" />
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                IsVisible="{Binding SelectedGuideIsVanishingPoint}">
+      <TextBlock Text="Rays" VerticalAlignment="Center" />
+      <NumericUpDown Value="{Binding GuideRays}" Minimum="2" Maximum="180" Increment="2"
+                     FormatString="0" Classes="value" VerticalAlignment="Center"
+                     ToolTip.Tip="How many lines are drawn out of the point. It still constrains every direction — this is what you can see, not what you can snap to" />
+    </StackPanel>
+    <Button Content="Set as default" Command="{Binding SaveGuideDefaultsCommand}"
+            VerticalAlignment="Center" IsVisible="{Binding CanSaveGuideDefaults}"
+            ToolTip.Tip="{Binding GuideDefaultsHint}" />
+  </StackPanel>
+</UserControl>

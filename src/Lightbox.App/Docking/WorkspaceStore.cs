@@ -164,13 +164,14 @@ public sealed class WorkspaceStore
             quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
                     QuickBarCatalog.FillOptions, QuickBarCatalog.GradientOptions,
-                    QuickBarCatalog.ShapeOptions]));
+                    QuickBarCatalog.ShapeOptions, QuickBarCatalog.GuideOptions]));
         store.Workspaces.Add(Built("Animation", ProjectType.Animation,
             right: [[DockPanelId.Project], [DockPanelId.Layers], Colour],
             bottom: [TimelineFamily],
             quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
-                    QuickBarCatalog.Transport, QuickBarCatalog.AddFrame]));
+                    QuickBarCatalog.Transport, QuickBarCatalog.AddFrame,
+                    QuickBarCatalog.GuideOptions]));
         store.Workspaces.Add(Built("Game art", ProjectType.GameArt,
             right: [[DockPanelId.Project], [DockPanelId.Layers],
                     [DockPanelId.Palette, DockPanelId.Color, DockPanelId.Channels]],
@@ -178,7 +179,7 @@ public sealed class WorkspaceStore
             quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
                     QuickBarCatalog.FillOptions, QuickBarCatalog.Transport,
-                    QuickBarCatalog.AddFrame]));
+                    QuickBarCatalog.AddFrame, QuickBarCatalog.GuideOptions]));
         store.Workspaces.Add(Built("Storyboard", ProjectType.Storyboard,
             right: [[DockPanelId.Project], [DockPanelId.Sheets]],
             bottom: [TimelineFamily],
@@ -190,7 +191,8 @@ public sealed class WorkspaceStore
             bottom: [],
             quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
-                    QuickBarCatalog.FillOptions, QuickBarCatalog.ShapeOptions]));
+                    QuickBarCatalog.FillOptions, QuickBarCatalog.ShapeOptions,
+                    QuickBarCatalog.GuideOptions]));
         store.Workspaces.Add(Built("Asset library", ProjectType.AssetLibrary,
             right: [[DockPanelId.Project],
                     [DockPanelId.Palette, DockPanelId.Color, DockPanelId.Channels]],

@@ -61,6 +61,17 @@ public class MonolithRatchetTests(ITestOutputHelper output)
     /// </summary>
     /// <remarks>
     /// <para>
+    /// <b>Both live numbers came down on 2026-08-14</b> when the guide options
+    /// landed. <c>CanvasControl.cs</c> 4,956 → 4,914: the <c>GuideLine</c>
+    /// snapshot and <c>GuideDragEnabled</c> moved to the partial already named
+    /// for guide chrome. <c>MainWindow.axaml</c> 4,273 → 4,217: the new guide
+    /// options went into two <c>UserControl</c>s rather than into the file, and
+    /// the Select tool's quick-bar group followed them out unchanged to pay for
+    /// the two lines that reference them. That is the mechanism working as
+    /// designed — a feature that needed room in a budgeted file bought it by
+    /// extraction rather than by raising a number.
+    /// </para>
+    /// <para>
     /// <c>MainWindow.axaml.cs</c> came down from 5,544 to 429 when the view was split
     /// into fifteen partials, which is the ratchet behaving as designed: the budget
     /// moves with the extraction that earned it, in the same commit, and the file can
@@ -150,7 +161,7 @@ public class MonolithRatchetTests(ITestOutputHelper output)
         // extractions on either side of a merge are independent, so the merged
         // file is smaller than either branch measured alone, and taking a
         // side keeps a budget with the other side's slack spent into it.
-        ("src/Lightbox.App/Rendering/CanvasControl.cs", 4956),
+        ("src/Lightbox.App/Rendering/CanvasControl.cs", 4914),
         // Raised 4,273 → 4,306 → 4,314 (2026-08-13): the construction-guide,
         // guide-set and volume-check menu entries; → 4,326 (2026-08-14): the
         // Bone tool's toolbar button. Buttons and menu items have no partial
@@ -174,7 +185,7 @@ public class MonolithRatchetTests(ITestOutputHelper output)
         // lines of slack under its own budget, and 4,275 would have banked
         // them as headroom nobody had earned. +4 over main, which is the size
         // of the change.
-        ("src/Lightbox.App/Views/MainWindow.axaml", 4273),
+        ("src/Lightbox.App/Views/MainWindow.axaml", 4217),
         // Lowered when the overlay-gesture wiring moved to MainWindow.Overlays.cs,
         // and again (449 → 427) when the bone gesture handler followed it there.
         // A merge had left that one block behind in the code-behind while its

@@ -45,6 +45,7 @@ public static class QuickBarCatalog
     public const string SelectOptions = "select-options";
     public const string GradientOptions = "gradient-options";
     public const string ArrowOptions = "arrow-options";
+    public const string GuideOptions = "guide-options";
     public const string Transport = "transport";
     public const string AddFrame = "add-frame";
 
@@ -57,6 +58,7 @@ public static class QuickBarCatalog
         new(SelectOptions, "Selection options", "Marquee shape, feather and the selection actions while selecting"),
         new(GradientOptions, "Gradient options", "The ramp and its type while the gradient tool is in hand"),
         new(ArrowOptions, "Line selection", "What the arrow tool has picked up"),
+        new(GuideOptions, "Guide options", "The guide the Move tool has picked up — where it is, and the numbers behind it"),
         new(Transport, "Play / pause", "The transport, without reaching down to the timeline"),
         new(AddFrame, "Add frame", "New and duplicated frames, without reaching down to the timeline"),
     ];
@@ -69,6 +71,6 @@ public static class QuickBarCatalog
     public static readonly IReadOnlyList<string> ToolDefaults =
     [
         BrushOptions, EraserOptions, ShapeOptions,
-        FillOptions, SelectOptions, GradientOptions, ArrowOptions,
+        FillOptions, SelectOptions, GradientOptions, ArrowOptions, GuideOptions,
     ];
 }
