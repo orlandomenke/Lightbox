@@ -111,6 +111,15 @@ public partial class MainWindow
         Canvas.RigMarks = marks.Count > 0 ? marks : null;
     }
 
+    /// <inheritdoc cref="RefreshRigOverlay"/>
+    private void RefreshArmatureOverlay()
+    {
+        var bones = _vm.BoneChromes;
+        Canvas.BoneChromes = bones.Count > 0 ? bones : null;
+        var heat = _vm.HeatPoints;
+        Canvas.HeatPoints = heat.Count > 0 ? heat : null;
+    }
+
     private static IReadOnlyList<double> Fan()
     {
         const int rays = 24;

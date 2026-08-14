@@ -170,7 +170,8 @@ public static class CanvasCursor
         ToolId.Fill or ToolId.Gradient => CanvasCursorKind.Fill,
         ToolId.Move => CanvasCursorKind.Move,
         ToolId.Pen or ToolId.Shape or ToolId.Select or ToolId.Width => CanvasCursorKind.Precise,
-        ToolId.Arrow or ToolId.DirectSelect => CanvasCursorKind.PickRecords,
+        // Bones are records picked and dragged, the arrows' kind of act.
+        ToolId.Arrow or ToolId.DirectSelect or ToolId.Bone => CanvasCursorKind.PickRecords,
         _ => CanvasCursorKind.Default,
     };
 

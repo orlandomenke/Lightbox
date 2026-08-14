@@ -446,8 +446,18 @@ public class TrackView : Control
     // call is an allocation the band does not need. Fixed colours, not theme
     // resources: the bars are data, and data should not change reading with
     // the chrome.
-    private static readonly SolidColorBrush VolumeSteadyBrush = new(Color.Parse("#B44DC4FF"));
-    private static readonly SolidColorBrush VolumeFlaggedBrush = new(Color.Parse("#DCFF6A3D"));
+    //
+    // IMMUTABLE, and that is load-bearing rather than style: a
+    // SolidColorBrush is a mutable AvaloniaObject with thread affinity, so a
+    // static one shared by two compositors throws "the calling thread cannot
+    // access this object" from whichever renders second — which is exactly
+    // how TheReadingsReachBothSurfaces flaked in CI while every local run of
+    // the same test passed. The immutable brush has no owner thread and is
+    // still one allocation for the process.
+    private static readonly Avalonia.Media.Immutable.ImmutableSolidColorBrush VolumeSteadyBrush =
+        new(Color.Parse("#B44DC4FF"));
+    private static readonly Avalonia.Media.Immutable.ImmutableSolidColorBrush VolumeFlaggedBrush =
+        new(Color.Parse("#DCFF6A3D"));
 
     /// <summary>The bar's span with the live drag applied — the ghost the hand follows.</summary>
     private (int Start, int End) DraggedSpan(ClipBar bar, bool isAudio)

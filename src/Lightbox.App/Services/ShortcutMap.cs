@@ -156,6 +156,8 @@ public sealed class ShortcutMap
             new("tool.pen", "Pen (draw a line by its points)", "Tools", G(Key.P)),
             // W for width, and free like P was. Illustrator puts this on Shift+W
             // because W is its own Blend tool; nothing here wanted the letter.
+            new("tool.bone", "Bone (rig, pose, weights)", "Tools", G(Key.K)),
+            new("armature.posingMode", "Toggle posing (bone tool: bind or pose)", "Canvas", G(Key.K, KeyModifiers.Shift)),
             new("tool.width", "Width (make a line heavier or lighter)", "Tools", G(Key.W)),
             // No default gesture, like lines.recolour above and for the same
             // reason: the sensible letters are taken, the button in the arrow's

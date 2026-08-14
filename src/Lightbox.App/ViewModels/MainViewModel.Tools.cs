@@ -50,6 +50,7 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(IsDirectSelectTool))]
     [NotifyPropertyChangedFor(nameof(IsPenTool))]
     [NotifyPropertyChangedFor(nameof(IsWidthTool))]
+    [NotifyPropertyChangedFor(nameof(IsBoneTool))]
     [NotifyPropertyChangedFor(nameof(ActiveToolLabel))]
     [NotifyPropertyChangedFor(nameof(ActiveToolHasNoPanelOptions))]
     private ToolId _activeTool = ToolId.Brush;
@@ -337,6 +338,8 @@ public partial class MainViewModel
     public bool IsGradientTool => ActiveTool == ToolId.Gradient;
 
     public bool IsMoveTool => ActiveTool == ToolId.Move;
+
+    public bool IsBoneTool => ActiveTool == ToolId.Bone;
 
     /// <summary>Brush or eraser — the tools whose strokes the brush-parameter flyout edits.</summary>
     public bool IsPaintTool => ActiveTool is ToolId.Brush or ToolId.Eraser;
