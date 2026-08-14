@@ -324,8 +324,6 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     // still decides which of those offers is relevant right now, so the
     // tool-bound sections AND these together in the XAML.
 
-    public bool QuickBrushPreset => QuickHas(QuickBarCatalog.BrushPreset);
-
     public bool QuickBrushOptions => QuickHas(QuickBarCatalog.BrushOptions);
 
     public bool QuickEraserOptions => QuickHas(QuickBarCatalog.EraserOptions);
@@ -340,8 +338,6 @@ public sealed partial class WorkspaceViewModel : ObservableObject
 
     public bool QuickArrowOptions => QuickHas(QuickBarCatalog.ArrowOptions);
 
-    public bool QuickBoneOptions => QuickHas(QuickBarCatalog.BoneOptions);
-
     public bool QuickTransport => QuickHas(QuickBarCatalog.Transport);
 
     public bool QuickAddFrame => QuickHas(QuickBarCatalog.AddFrame);
@@ -355,7 +351,6 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     public static readonly IReadOnlyDictionary<string, string> QuickNames =
         new Dictionary<string, string>
         {
-            [QuickBarCatalog.BrushPreset] = nameof(QuickBrushPreset),
             [QuickBarCatalog.BrushOptions] = nameof(QuickBrushOptions),
             [QuickBarCatalog.EraserOptions] = nameof(QuickEraserOptions),
             [QuickBarCatalog.ShapeOptions] = nameof(QuickShapeOptions),
@@ -363,7 +358,6 @@ public sealed partial class WorkspaceViewModel : ObservableObject
             [QuickBarCatalog.SelectOptions] = nameof(QuickSelectOptions),
             [QuickBarCatalog.GradientOptions] = nameof(QuickGradientOptions),
             [QuickBarCatalog.ArrowOptions] = nameof(QuickArrowOptions),
-            [QuickBarCatalog.BoneOptions] = nameof(QuickBoneOptions),
             [QuickBarCatalog.Transport] = nameof(QuickTransport),
             [QuickBarCatalog.AddFrame] = nameof(QuickAddFrame),
         };

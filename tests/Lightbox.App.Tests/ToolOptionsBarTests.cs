@@ -77,34 +77,47 @@ public sealed class ToolOptionsBarTests(ITestOutputHelper output) : BrushStateIs
     }
 
     /// <summary>
-    /// The regression the move could have caused, and the reason the group is
-    /// bound to <c>IsPaintTool</c> rather than <c>IsBrushTool</c>.
+    /// The picker and its ⚙ are pinned beside the colour pair (owner's ask,
+    /// 2026-08-14) — B77's rule applied one control over: which brush you are
+    /// holding is shared state the way colour is, on screen whatever tool is
+    /// held. This deliberately supersedes two earlier rules this file pinned:
+    /// the picker used to hide for the eraser and the ⚙ used to leave with
+    /// the non-paint tools. Neither is a dead control now — a preset carries
+    /// its own tool and applying one puts it in your hand, and the ⚙ opens
+    /// the Tool options docker, which is meaningful from anywhere.
     /// </summary>
-    [AvaloniaFact]
-    public void TheParametersButtonSurvivesSwitchingToTheEraser()
+    [AvaloniaTheory]
+    [InlineData(ToolId.Brush)]
+    [InlineData(ToolId.Eraser)]
+    [InlineData(ToolId.Fill)]
+    [InlineData(ToolId.Select)]
+    [InlineData(ToolId.Move)]
+    public void TheBrushPickerAndItsGearArePinnedForEveryTool(ToolId tool)
     {
         var (window, vm) = Open();
-
-        vm.ActiveTool = ToolId.Eraser;
+        vm.ActiveTool = tool;
         Pump();
 
-        Assert.True(
-            OnScreen(Gear(window)),
-            "the eraser lost its parameters button — the ⚙ has always served brush AND eraser");
-        Assert.False(
-            OnScreen(Picker(window)),
-            "the brush preset button should not be offered for the eraser");
+        Assert.True(OnScreen(Picker(window)), $"the brush preset button is off screen with {tool} held");
+        Assert.True(OnScreen(Gear(window)), $"the ⚙ is off screen with {tool} held");
     }
 
+    /// <summary>
+    /// What makes the pinned picker more than a label: a preset carries its
+    /// tool, so picking one from the selection tool is a way back to
+    /// painting. This is <c>ApplyPreset</c>'s existing behaviour observed
+    /// from a place it could not be observed before.
+    /// </summary>
     [AvaloniaFact]
-    public void TheParametersButtonIsGoneForToolsThatDoNotPaint()
+    public void PickingAPresetFromANonPaintToolPutsItsToolInHand()
     {
-        var (window, vm) = Open();
+        var (_, vm) = Open();
 
         vm.ActiveTool = ToolId.Select;
+        vm.ApplyPreset(vm.BrushPresetChoices.First(p => p.Id == "builtin-pencil"));
         Pump();
 
-        Assert.False(OnScreen(Gear(window)), "the selection tool is showing brush parameters");
+        Assert.Equal(ToolId.Brush, vm.ActiveTool);
     }
 
     /// <summary>

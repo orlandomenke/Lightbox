@@ -12,7 +12,12 @@ in the way.
 
 ## The Bone tool
 
-Its options bar carries everything the tool can do: which mode you are in,
+Its panel in **Tool options** carries everything the tool can do, starting
+with one switch of three positions — **Bind**, **Pose**, **Weights**. That
+switch is how you get to weight painting; the three are exclusive, because
+weights are painted against the rest pose, so arming the brush leaves posing.
+
+The panel also carries: which mode you are in,
 every bone in the rig, and the weight brush with its settings. The pointer
 says what a press would do before you make it — a **move** cursor over a
 bone you can shift, a **turn** cursor where a drag would rotate it, and a
@@ -30,6 +35,13 @@ because its first drag is what *creates* the rig.
 - **Drag a bone's shaft** to move it bodily — children come with it. **Drag
   a tip** to re-aim and re-length it; **drag an origin** to move just that
   joint. All three edit the skeleton's rest, and each is one undo step.
+- **Shift-drag a bone's tip** to grow a child out of it, **glued** to the
+  parent's tip — the fastest way to build a limb, one bone at a time. Glued
+  means the joint follows: re-length the upper arm and the forearm comes with
+  it instead of leaving a gap. Dragging the child's own origin away unglues it
+  again, and it stays where you put it from then on. **Add child** in the
+  options panel does the same without aiming, and **Length** sets a bone's
+  size by number instead of by drag.
 - **Rename** a bone in the options bar — a pair ending `.l` and `.r` is what
   X-symmetry reads. **Delete** removes it and re-parents its children to its
   parent, leaving them exactly where they are; strokes bound to it lose that
@@ -49,6 +61,95 @@ keeps them at rest, so un-keying a pose returns exactly the drawing you made.
 **Baking** writes the pose into the drawing: bound strokes become ordinary
 posed strokes, cut loose from the rig. What you bake is what you saw — the
 live view and the baked result are pixel-identical.
+
+## IK — reaching instead of turning
+
+Turning a shoulder and then an elbow to put a hand somewhere is arithmetic an
+artist should not have to do. **IK** inverts it: you place the hand and the
+arm works out its own angles.
+
+Select the bone at the end of the limb and press **Add IK**. That makes the
+whole thing in one go — a **handle**, drawn amber so it is not mistaken for a
+bone, sitting at the limb's tip. Switch to **Pose**, drag the handle, and the
+limb reaches after it. The handle is an ordinary bone, so it keys on the
+playhead like everything else, and parenting it to a prop or a ground bone is
+how a foot stays planted or a hand stays on a sword.
+
+- **IK bones** is how far up the limb the reach goes. Two is an arm or a leg;
+  more is a tail or a neck.
+- **Pole** picks a bone that says which way the elbow or knee bends. Without
+  one the limb keeps whichever way it is already bent, which is usually what
+  you want and occasionally is not.
+- Dragging *any* bone of the limb in Pose moves the handle, because the limb's
+  angles belong to the solver — you are always really moving the hand.
+- **Remove IK** deletes the chain and its handle. The bones stay exactly where
+  they are and go back to being turned by hand.
+- Out of reach, the limb points straight at the handle and stops — it stretches
+  no further than it is long.
+
+IK is **posing**, never the rest: switch back to **Bind** and the skeleton is
+the one you built, so re-lengthening a bone under a chain does what you asked
+rather than being pulled back by the solver.
+
+## Constraints — one bone following another
+
+A **constraint** makes a bone follow another bone, so you pose one thing and
+several move. Eyes that track a target, a head that looks where a hand goes,
+a prop that stays in a fist.
+
+Select the bone that should follow, and pick what it follows from
+**constrain to…**. That makes it in one go — an **aim**, because an aim reads
+instantly: the bone visibly turns to look. Then set what kind of following it
+actually is:
+
+- **Aim at** — turn to point at the target.
+- **Copy turn of** — take the target's angle, wherever it is.
+- **Copy place of** — sit where the target sits, keeping your own angle.
+
+Stack **Copy turn** and **Copy place** on the same bone and it follows the
+target completely. There is no tick-box constraint that does everything,
+because most of the combinations are never used and every one of them would
+sit in your file at *off*.
+
+- **Offset** is degrees added after the constraint resolves — a head that
+  should look slightly past what it aims at.
+- **Strength** is how far toward the constrained result the bone goes. At
+  **100%** the constraint owns the bone's turn, so posing it by hand does
+  nothing; lower it and your pose and the constraint blend. At **0%** the
+  bone is exactly where you put it.
+- Constraints resolve **top to bottom**, after IK. A later one sees what an
+  earlier one did, and a constraint can override a bone the IK solver just
+  placed.
+- A bone cannot follow itself or anything hanging off it — there would be no
+  answer — so those bones are simply not in the list.
+- Like IK, constraints are **posing**. Switch to **Bind** and the skeleton is
+  the one you built.
+
+## Spline chains — tails, hair and capes
+
+Some things are not posed joint by joint. A tail, a plait, a cape, an
+antenna: what you want is a *shape*, and the bones should follow it.
+
+Select the bone at the end of the run and press **Add spline**. Three amber
+handles appear along it, laid on the shape you already drew — so nothing
+moves until you move something. Switch to **Pose** and drag a handle; the run
+curves to follow.
+
+- **Spline bones** is how many bones up from the end lie on the curve.
+- The curve passes **through** every handle, not near it. Where you put a
+  handle is where the tail goes.
+- Every bone keeps **its own length**. A spline bends the run; it never
+  stretches it, so the drawing bound to it is never scaled and its grain
+  never re-rolls.
+- If the run is longer than the curve, the rest of it trails straight on
+  rather than bunching up at the end.
+- Dragging any bone of the run moves the nearest handle, because the run's
+  angles belong to the curve.
+- **Remove spline** deletes the curve and its handles, unless something else
+  is using one.
+
+A tail that whips is three handles keyed over four frames — the handles are
+ordinary bones, so they key, parent and drag like everything else in the rig.
 
 ## Binding drawings to bones
 
@@ -75,5 +176,6 @@ each part of it.
   happens against the rest pose; scrub a pose to check, come back to
   correct.
 
-*Planned:* painting weights under a live pose, IK, spline chains and rig
-export (`docs/DESIGN-bones.md` has the whole plan).
+*Planned:* painting weights under a live pose, angle-driven corrective
+shapes, secondary motion and rig export (`docs/DESIGN-bones.md` has the
+whole plan).

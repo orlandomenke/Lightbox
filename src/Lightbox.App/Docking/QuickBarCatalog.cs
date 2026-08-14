@@ -28,7 +28,16 @@ public sealed record QuickBarOption(string Id, string Label, string Hint);
 /// </remarks>
 public static class QuickBarCatalog
 {
+    /// <summary>
+    /// Retired id (2026-08-14, owner's ask): the preset picker is pinned
+    /// beside the colour pair and no longer on offer — the same reason size
+    /// and opacity were never in the catalogue. The constant stays because
+    /// lists saved while it was choosable still carry the string; an id no
+    /// gate reads is inert, and <see cref="WorkspaceViewModel.SetQuickOption"/>
+    /// drops unknown ids on the next edit.
+    /// </summary>
     public const string BrushPreset = "brush-preset";
+
     public const string BrushOptions = "brush-options";
     public const string EraserOptions = "eraser-options";
     public const string ShapeOptions = "shape-options";
@@ -36,13 +45,11 @@ public static class QuickBarCatalog
     public const string SelectOptions = "select-options";
     public const string GradientOptions = "gradient-options";
     public const string ArrowOptions = "arrow-options";
-    public const string BoneOptions = "bone-options";
     public const string Transport = "transport";
     public const string AddFrame = "add-frame";
 
     public static readonly IReadOnlyList<QuickBarOption> All =
     [
-        new(BrushPreset, "Brush preset", "The preset picker, and the ⚙ into every parameter"),
         new(BrushOptions, "Brush options", "Hardness, flow and smoothing while the brush is in hand"),
         new(EraserOptions, "Eraser options", "Hardness and smoothing while the eraser is in hand"),
         new(ShapeOptions, "Shape options", "Which shape, and its settings, while the shape tool is in hand"),
@@ -50,7 +57,6 @@ public static class QuickBarCatalog
         new(SelectOptions, "Selection options", "Marquee shape, feather and the selection actions while selecting"),
         new(GradientOptions, "Gradient options", "The ramp and its type while the gradient tool is in hand"),
         new(ArrowOptions, "Line selection", "What the arrow tool has picked up"),
-        new(BoneOptions, "Bone options", "The rig: its bones, the mode, and the weight brush while the bone tool is in hand"),
         new(Transport, "Play / pause", "The transport, without reaching down to the timeline"),
         new(AddFrame, "Add frame", "New and duplicated frames, without reaching down to the timeline"),
     ];
@@ -62,7 +68,7 @@ public static class QuickBarCatalog
     /// </summary>
     public static readonly IReadOnlyList<string> ToolDefaults =
     [
-        BrushPreset, BrushOptions, EraserOptions, ShapeOptions,
-        FillOptions, SelectOptions, GradientOptions, ArrowOptions, BoneOptions,
+        BrushOptions, EraserOptions, ShapeOptions,
+        FillOptions, SelectOptions, GradientOptions, ArrowOptions,
     ];
 }

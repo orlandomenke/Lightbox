@@ -755,6 +755,136 @@
       </StackPanel>
 
       <!--
+        The brush in hand, pinned beside the colour pair — B77's rule one
+        control over: which brush you hold is shared state the way colour
+        is, readable and changeable whatever tool is held. Not a dead label
+        either — a preset carries its own tool, and applying one puts that
+        tool in your hand, so this is also the way back to painting from
+        anywhere. Pinned means not on offer: the entry left the quick bar
+        catalogue the way size and opacity were never in it. The ⚙ stays
+        beside the picker it configures, and opens the Tool options docker.
+      -->
+      <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="6"
+                  VerticalAlignment="Center" Margin="0,0,10,0">
+        <!--
+          The badge is the whole point of the list being ordered the way it
+          is: fast brushes first, expressive ones after, so the two kinds are
+          contiguous rather than interleaved. ◈ marks a brush that reads the
+          canvas, simulates a medium or blends the layers underneath — not a
+          warning, a price tag, and the tooltip names what you are paying
+          for. Derived from the settings, so editing a brush moves it.
+        -->
+        <!--
+          A flyout rather than a dropdown, because a dropdown is a list and
+          what an artist has is a collection. Once there are forty brushes
+          scrolling is the wrong verb: you search for the one you mean, or
+          you go to the tag you filed it under.
+        -->
+        <!-- Off the size scale on purpose: 150 wide so a preset name reads
+             without the pinned section breathing as names change, padding
+             tighter than a plain button so name, drift dot and ▾ share it. -->
+        <Button x:Name="BrushPickerButton" Width="150" VerticalAlignment="Center" Padding="6,3"
+                Click="OnBrushPickerOpen"
+                ToolTip.Tip="Brush preset (B returns to the last configured brush). Picking one puts its tool in your hand. ◈ marks an expressive brush — richer mark, more cost.">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Right" Text="▾" FontSize="10" Opacity="0.6"
+                       VerticalAlignment="Center" Margin="4,0,0,0" />
+            <!-- The dot says the brush has drifted from the preset named beside it -->
+            <TextBlock DockPanel.Dock="Right" Text="{Binding BrushModifiedBadge}" Foreground="{StaticResource StatusWarningBrush}"
+                       FontSize="12" VerticalAlignment="Center" Margin="4,0,0,0"
+                       ToolTip.Tip="{Binding BrushModifiedTip}" />
+            <TextBlock x:Name="BrushPickerName" Text="Brush" VerticalAlignment="Center"
+                       FontSize="12" TextTrimming="CharacterEllipsis" />
+          </DockPanel>
+          <Button.Flyout>
+            <Flyout Placement="Bottom">
+              <DockPanel Width="404" MaxHeight="500">
+                <TextBox x:Name="BrushSearchBox" DockPanel.Dock="Top" Watermark="Search brushes"
+                         Margin="0,0,0,6" TextChanged="OnBrushFilterChanged" />
+                <!--
+                  Tags as chips rather than a second dropdown: the whole set
+                  is small, and seeing which ones exist is most of the value
+                  — an artist who has forgotten what they filed things under
+                  cannot search for it.
+                -->
+                <ItemsControl x:Name="BrushTagChips" DockPanel.Dock="Top" Margin="0,0,0,6"
+                              IsVisible="False">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <WrapPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                </ItemsControl>
+                <TextBlock x:Name="BrushFilterEmpty" DockPanel.Dock="Bottom" IsVisible="False"
+                           Text="No brush matches." Opacity="0.5" FontSize="11" Margin="0,6,0,0" />
+                <!--
+                  The way out of the picker, same as the tip picker's own. It
+                  is where you are when you notice you have brushes you do not
+                  want, so it is where the button to deal with them belongs.
+                -->
+                <Button DockPanel.Dock="Bottom" Content="Brush library…" Click="OnBrushLibraryClicked"
+                        HorizontalAlignment="Stretch" Margin="0,6,0,0"
+                        ToolTip.Tip="Import, rename and remove brushes" />
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                  <!--
+                    A grid of marks, not a list of names. The names in an
+                    imported collection were chosen by somebody else — "Wet
+                    bristle 04" and "Wet bristle 07" are genuinely different
+                    brushes and nothing in the words says how — so the mark
+                    is the control and the name is the caption under it. The
+                    same reasoning as the tip picker above, one level up.
+                  -->
+                  <ListBox x:Name="BrushPresetList" Background="Transparent"
+                           SelectionChanged="OnBrushPresetPicked">
+                    <ListBox.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <!-- Three columns: enough to compare neighbours without the mark getting too small to read -->
+                        <WrapPanel Orientation="Horizontal" ItemWidth="126" />
+                      </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                      <DataTemplate x:DataType="views:BrushChoice">
+                        <StackPanel Margin="0,2" Spacing="2" ToolTip.Tip="{Binding Tip}">
+                          <Panel>
+                            <Border Height="44" Background="{StaticResource CanvasPaperBrush}" CornerRadius="3">
+                              <Image Source="{Binding Preview}" Stretch="None"
+                                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <!--
+                              The cost badge sits on the picture rather than
+                              beside the name: the tile is what somebody is
+                              looking at, and a price tag off to the side of
+                              a grid is read as decoration.
+                            -->
+                            <TextBlock Text="{Binding CostBadge}" Foreground="{StaticResource StatusWarningBrush}" FontSize="11"
+                                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,1,3,0" />
+                            <!-- The one thing the picture cannot carry: the brush's real size -->
+                            <Border Background="{StaticResource CanvasPaperBrush}" CornerRadius="2" Padding="3,0"
+                                    HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,2,2">
+                              <TextBlock Text="{Binding SizeLabel}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" />
+                            </Border>
+                          </Panel>
+                          <TextBlock Text="{Binding Name}" FontSize="11" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </ScrollViewer>
+              </DockPanel>
+            </Flyout>
+          </Button.Flyout>
+        </Button>
+        <!-- Full brush parameters (brush + eraser): now a docker, per the
+             owner — "a tool options docker instead of keeping it in the
+             rail". The gear stays as the way in, and always OPENS. -->
+        <Button Content="⚙" VerticalAlignment="Center"
+                ToolTip.Tip="All brush parameters (opens the Tool options panel)"
+                Command="{Binding OpenToolOptionsCommand}" />
+        <!-- Same rule the colour group ends with: a pinned | tool-gated boundary -->
+        <Border Width="1" Margin="6,3,0,3" Background="{StaticResource BorderBrush}" />
+      </StackPanel>
+
+      <!--
         Size and Opacity, pinned — the owner's one hard rule for this bar:
         whatever the customization of Q70's stage 2 rearranges, these two do
         not move and cannot be removed. Outside the OverflowBar for the same
@@ -780,140 +910,8 @@
       <controls:OverflowBar x:Name="QuickToolOptions" Spacing="14" VerticalAlignment="Center"
                             MoreLabel="More tool options  &#x25BE;">
 
-        <!--
-          The preset picker and the ⚙ that opens every parameter, together,
-          because the ⚙ configures the brush the picker names and sat at the
-          far right of the bar past the effect and shape groups.
-
-          The group is IsPaintTool and the picker inside it is IsBrushTool, which
-          is not redundant: the ⚙ has always served the eraser too, so binding the
-          pair to IsBrushTool would have taken the eraser's parameters away. The
-          cost is that with the eraser held the ⚙ sits where the picker would be.
-          A second copy for the eraser was the alternative and is what this file
-          argues against elsewhere — two copies of one control buys a second place
-          to look.
-        -->
-        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-          <StackPanel.IsVisible>
-            <MultiBinding Converter="{x:Static BoolConverters.And}">
-              <Binding Path="IsPaintTool" />
-              <Binding Path="Workspace.QuickBrushPreset" />
-            </MultiBinding>
-          </StackPanel.IsVisible>
-          <!--
-            The badge is the whole point of the list being ordered the way it
-            is: fast brushes first, expressive ones after, so the two kinds are
-            contiguous rather than interleaved. ◈ marks a brush that reads the
-            canvas, simulates a medium or blends the layers underneath — not a
-            warning, a price tag, and the tooltip names what you are paying
-            for. Derived from the settings, so editing a brush moves it.
-          -->
-          <!--
-            A flyout rather than a dropdown, because a dropdown is a list and
-            what an artist has is a collection. Once there are forty brushes
-            scrolling is the wrong verb: you search for the one you mean, or
-            you go to the tag you filed it under.
-          -->
-          <Button x:Name="BrushPickerButton" Width="150" VerticalAlignment="Center" Padding="6,3"
-                  IsVisible="{Binding IsBrushTool}"
-                  Click="OnBrushPickerOpen"
-                  ToolTip.Tip="Brush preset (B returns to the last configured brush). ◈ marks an expressive brush — richer mark, more cost.">
-            <DockPanel>
-              <TextBlock DockPanel.Dock="Right" Text="▾" FontSize="10" Opacity="0.6"
-                         VerticalAlignment="Center" Margin="4,0,0,0" />
-              <!-- The dot says the brush has drifted from the preset named beside it -->
-              <TextBlock DockPanel.Dock="Right" Text="{Binding BrushModifiedBadge}" Foreground="{StaticResource StatusWarningBrush}"
-                         FontSize="12" VerticalAlignment="Center" Margin="4,0,0,0"
-                         ToolTip.Tip="{Binding BrushModifiedTip}" />
-              <TextBlock x:Name="BrushPickerName" Text="Brush" VerticalAlignment="Center"
-                         FontSize="12" TextTrimming="CharacterEllipsis" />
-            </DockPanel>
-            <Button.Flyout>
-              <Flyout Placement="Bottom">
-                <DockPanel Width="404" MaxHeight="500">
-                  <TextBox x:Name="BrushSearchBox" DockPanel.Dock="Top" Watermark="Search brushes"
-                           Margin="0,0,0,6" TextChanged="OnBrushFilterChanged" />
-                  <!--
-                    Tags as chips rather than a second dropdown: the whole set
-                    is small, and seeing which ones exist is most of the value
-                    — an artist who has forgotten what they filed things under
-                    cannot search for it.
-                  -->
-                  <ItemsControl x:Name="BrushTagChips" DockPanel.Dock="Top" Margin="0,0,0,6"
-                                IsVisible="False">
-                    <ItemsControl.ItemsPanel>
-                      <ItemsPanelTemplate>
-                        <WrapPanel Orientation="Horizontal" />
-                      </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                  </ItemsControl>
-                  <TextBlock x:Name="BrushFilterEmpty" DockPanel.Dock="Bottom" IsVisible="False"
-                             Text="No brush matches." Opacity="0.5" FontSize="11" Margin="0,6,0,0" />
-                  <!--
-                    The way out of the picker, same as the tip picker's own. It
-                    is where you are when you notice you have brushes you do not
-                    want, so it is where the button to deal with them belongs.
-                  -->
-                  <Button DockPanel.Dock="Bottom" Content="Brush library…" Click="OnBrushLibraryClicked"
-                          HorizontalAlignment="Stretch" Margin="0,6,0,0"
-                          ToolTip.Tip="Import, rename and remove brushes" />
-                  <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <!--
-                      A grid of marks, not a list of names. The names in an
-                      imported collection were chosen by somebody else — "Wet
-                      bristle 04" and "Wet bristle 07" are genuinely different
-                      brushes and nothing in the words says how — so the mark
-                      is the control and the name is the caption under it. The
-                      same reasoning as the tip picker above, one level up.
-                    -->
-                    <ListBox x:Name="BrushPresetList" Background="Transparent"
-                             SelectionChanged="OnBrushPresetPicked">
-                      <ListBox.ItemsPanel>
-                        <ItemsPanelTemplate>
-                          <!-- Three columns: enough to compare neighbours without the mark getting too small to read -->
-                          <WrapPanel Orientation="Horizontal" ItemWidth="126" />
-                        </ItemsPanelTemplate>
-                      </ListBox.ItemsPanel>
-                      <ListBox.ItemTemplate>
-                        <DataTemplate x:DataType="views:BrushChoice">
-                          <StackPanel Margin="0,2" Spacing="2" ToolTip.Tip="{Binding Tip}">
-                            <Panel>
-                              <Border Height="44" Background="{StaticResource CanvasPaperBrush}" CornerRadius="3">
-                                <Image Source="{Binding Preview}" Stretch="None"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-                              </Border>
-                              <!--
-                                The cost badge sits on the picture rather than
-                                beside the name: the tile is what somebody is
-                                looking at, and a price tag off to the side of
-                                a grid is read as decoration.
-                              -->
-                              <TextBlock Text="{Binding CostBadge}" Foreground="{StaticResource StatusWarningBrush}" FontSize="11"
-                                         HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,1,3,0" />
-                              <!-- The one thing the picture cannot carry: the brush's real size -->
-                              <Border Background="{StaticResource CanvasPaperBrush}" CornerRadius="2" Padding="3,0"
-                                      HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,2,2">
-                                <TextBlock Text="{Binding SizeLabel}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" />
-                              </Border>
-                            </Panel>
-                            <TextBlock Text="{Binding Name}" FontSize="11" TextTrimming="CharacterEllipsis" />
-                          </StackPanel>
-                        </DataTemplate>
-                      </ListBox.ItemTemplate>
-                    </ListBox>
-                  </ScrollViewer>
-                </DockPanel>
-              </Flyout>
-            </Button.Flyout>
-          </Button>
-          <!-- Full brush parameters (brush + eraser): now a docker, per the
-               owner — "a tool options docker instead of keeping it in the
-               rail". The gear stays as the way in, and always OPENS. -->
-          <Button Content="⚙" VerticalAlignment="Center"
-                  ToolTip.Tip="All brush parameters (opens the Tool options panel)"
-                  IsVisible="{Binding IsPaintTool}"
-                  Command="{Binding OpenToolOptionsCommand}" />
-        </StackPanel>
+        <!-- The preset picker and its ⚙ are pinned beside the colour pair
+             now, so the OverflowBar starts with the tool in hand's options. -->
 
         <!-- Brush options -->
         <StackPanel Orientation="Horizontal" Spacing="14">
@@ -1186,7 +1184,6 @@
              selected, and the actions that need a selection arrive with V3. An
              empty bar would still be right to register now, because a tool with
              no options panel is a tool the bar has never heard of. -->
-        <views:BoneOptionsBar IsVisible="{Binding Workspace.QuickBoneOptions}" />
         <StackPanel Orientation="Horizontal" Spacing="14">
           <StackPanel.IsVisible>
             <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -1872,6 +1869,7 @@
         <controls:Docker x:Name="ToolOptionsDocker" PanelId="ToolOptions" Title="Tool options"
                          CloseCommand="{Binding ToggleToolOptionsDockerCommand}">
               <Panel>
+                <views:BoneOptionsBar />
                 <!-- Paint tools get the full brush editor, exactly as before. -->
                 <Grid ColumnDefinitions="110,6,*" IsVisible="{Binding IsPaintTool}">
                   <ListBox x:Name="BrushCategoryList" Grid.Column="0" SelectedIndex="0"

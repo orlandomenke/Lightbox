@@ -161,41 +161,41 @@ public sealed class WorkspaceStore
         store.Workspaces.Add(Built("Illustration", ProjectType.Illustration,
             right: [[DockPanelId.Layers], Colour],
             bottom: [],
-            quick: [QuickBarCatalog.BrushPreset, QuickBarCatalog.BrushOptions,
+            quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
                     QuickBarCatalog.FillOptions, QuickBarCatalog.GradientOptions,
                     QuickBarCatalog.ShapeOptions]));
         store.Workspaces.Add(Built("Animation", ProjectType.Animation,
             right: [[DockPanelId.Project], [DockPanelId.Layers], Colour],
             bottom: [TimelineFamily],
-            quick: [QuickBarCatalog.BrushPreset, QuickBarCatalog.BrushOptions,
+            quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
                     QuickBarCatalog.Transport, QuickBarCatalog.AddFrame]));
         store.Workspaces.Add(Built("Game art", ProjectType.GameArt,
             right: [[DockPanelId.Project], [DockPanelId.Layers],
                     [DockPanelId.Palette, DockPanelId.Color, DockPanelId.Channels]],
             bottom: [TimelineFamily],
-            quick: [QuickBarCatalog.BrushPreset, QuickBarCatalog.BrushOptions,
+            quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
                     QuickBarCatalog.FillOptions, QuickBarCatalog.Transport,
                     QuickBarCatalog.AddFrame]));
         store.Workspaces.Add(Built("Storyboard", ProjectType.Storyboard,
             right: [[DockPanelId.Project], [DockPanelId.Sheets]],
             bottom: [TimelineFamily],
-            quick: [QuickBarCatalog.BrushPreset, QuickBarCatalog.BrushOptions,
+            quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.Transport,
                     QuickBarCatalog.AddFrame]));
         store.Workspaces.Add(Built("Comic", ProjectType.Comic,
             right: [[DockPanelId.Project], [DockPanelId.Layers], Colour, [DockPanelId.Sheets]],
             bottom: [],
-            quick: [QuickBarCatalog.BrushPreset, QuickBarCatalog.BrushOptions,
+            quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
                     QuickBarCatalog.FillOptions, QuickBarCatalog.ShapeOptions]));
         store.Workspaces.Add(Built("Asset library", ProjectType.AssetLibrary,
             right: [[DockPanelId.Project],
                     [DockPanelId.Palette, DockPanelId.Color, DockPanelId.Channels]],
             bottom: [],
-            quick: [QuickBarCatalog.BrushPreset, QuickBarCatalog.BrushOptions,
+            quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.SelectOptions]));
         store.Current = "Default";
         return store;
@@ -289,7 +289,23 @@ public sealed class WorkspaceStore
 
         foreach (var builtIn in Default().Workspaces)
         {
-            if (store.Find(builtIn.Name) is null) store.Workspaces.Add(builtIn);
+            if (store.Find(builtIn.Name) is not { } saved)
+            {
+                store.Workspaces.Add(builtIn);
+                continue;
+            }
+            // The store saves built-ins beside the user's own, so a file
+            // written before the quick bar could be chosen carries them with
+            // no quickBar key — a null the app wrote, not the artist. Left
+            // alone it shadows the built-in's choice forever (B203):
+            // Animation never gets its transport and the bar reads as the
+            // old tool-options bar on every install that predates the
+            // feature. Filling only a null keeps any list the artist did
+            // choose, including one that dropped a default entry.
+            if (saved.BuiltIn && saved.Layout.QuickBar is null)
+            {
+                saved.Layout.QuickBar = builtIn.Layout.QuickBar?.ToList();
+            }
         }
         if (store.Find(store.Current) is null) store.Current = store.Workspaces[0].Name;
         return store;
