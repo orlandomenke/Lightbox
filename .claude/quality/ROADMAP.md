@@ -251,7 +251,7 @@ answered, and answering one does not soften the other:
 | --- | --- | --- |
 | Canvas area | GPU compositing, display-only | B125, not started — **mandatory** |
 | Layer count | Do not recomposite unchanged layers | B165, not started — **mandatory** |
-| Layer count × memory | Held side composites instead of every cel resident | B197 — measured, carried by B29's candidate |
+| Layer count × memory | Held side composites instead of every cel resident | B198 — measured, carried by B29's candidate |
 | Pixels actually served | Tiles, and the compose-scale clamp | B144, B160 — built |
 
 The layer axis is swept to 100 as of 2026-08-14, and it added a fourth row: past
