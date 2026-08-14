@@ -134,63 +134,79 @@ public partial class MainViewModel
             CollectReferenceImages(),
             TaxonomyForActiveDocument());
 
-        var result = await RunAiAsync(
-            $"{AiProviderLabel} is drawing {ts.Count} inbetween(s)…",
-            ct => _ai.Artist.GenerateInbetweensAsync(request, ct));
-        if (result is null) return;
-
-        // The model proposes; Lightbox disposes. Every frame is verified
-        // against the keys before it can reach the document, and a frame that
-        // fails is refused rather than repaired or swapped for the
+        // The model proposes; Lightbox disposes — and now asks again when it
+        // disposes. Every frame is verified against the keys before it can
+        // reach the document; a refused one is re-asked with the fault named
+        // (bounded, Q85) and refused for good if it still cannot be defended.
+        // It is never repaired into acceptance or swapped for the
         // deterministic answer — per Q32, the AI never inserts a frame it
         // cannot defend, and the deterministic engine stays its own command.
-        var ordered = result.OrderBy(f => f.T).ToList();
-        var candidates = ordered
-            .Select(f => new CandidateInbetween(f.T, f.Strokes))
-            .ToList();
-        // Judged against the easing the request carried — under a timing
-        // chart that is Linear, and refusing a frame for sitting exactly on
-        // its rung would be the verifier arguing with the artist.
-        var judgement = InbetweenVerifier.Verify(
-            request.KeyframeA, request.KeyframeB, candidates, request.Easing);
+        var run = await RunAiAsync(
+            $"{AiProviderLabel} is drawing {ts.Count} inbetween(s)…",
+            ct => InbetweenRepair.RunAsync(
+                _ai.Artist,
+                request,
+                ct,
+                (attempt, count) => AiStatus =
+                    $"{AiProviderLabel} is redrawing {count} refused frame(s) — attempt {attempt}…"));
+        if (run is null) return;
 
         // Refusal is per frame: the ones that passed are inserted, each at its
         // own t's slot — a null keeps the slot a hold, so partial acceptance
         // never shifts a surviving frame onto somebody else's timing.
-        var provenance = new AiProvenance(AiProviderLabel, _ai.ModelLabel);
-        var slots = new List<Frame?>(candidates.Count);
-        for (var i = 0; i < candidates.Count; i++)
+        var slots = new List<Frame?>(run.Frames.Count);
+        foreach (var frameResult in run.Frames)
         {
-            if (!judgement.Frames[i].Accepted)
+            if (!frameResult.Accepted)
             {
                 slots.Add(null);
                 continue;
             }
-            var frame = NewFrameFor(layer, ordered[i].Strokes, FrameRole.Inbetween);
-            frame.Ai = provenance;
+            var frame = NewFrameFor(layer, [.. frameResult.Strokes!], FrameRole.Inbetween);
+            // Attempts is absent unless it took more than one, so a document
+            // whose model got it right first time serializes exactly as before
+            // repair existed.
+            frame.Ai = new AiProvenance(
+                AiProviderLabel,
+                _ai.ModelLabel,
+                frameResult.Attempts > 1 ? frameResult.Attempts : null);
             slots.Add(frame);
         }
 
-        var refused = judgement.Frames
-            .Select((f, i) => (Judgement: f, Slot: i))
-            .Where(x => !x.Judgement.Accepted)
-            .Select(x => $"frame {x.Slot + 1} of {candidates.Count} was refused: {x.Judgement.Refusal}")
+        var refused = run.Frames
+            .Select((f, i) => (Frame: f, Slot: i))
+            .Where(x => !x.Frame.Accepted)
+            .Select(x => $"frame {x.Slot + 1} of {run.Frames.Count} was refused: {x.Frame.Refusal}")
             .ToList();
 
-        var accepted = judgement.AcceptedCount;
+        var accepted = run.AcceptedCount;
         if (accepted == 0)
         {
             // A refusal and a silent no-op are different outcomes: the document
-            // is untouched, and the status says which t and why.
-            AiStatus = $"Nothing was inserted — {string.Join(" ", refused)}";
+            // is untouched, and the status says which t and why. It also says
+            // how many asks that cost, because three calls and one call are
+            // very different bills for the same empty result.
+            AiStatus = $"Nothing was inserted after {Plural(run.Calls, "attempt")} — {string.Join(" ", refused)}";
             return;
         }
 
         _editor.InsertInbetweens(layer.Id, aIndex, slots);
         CurrentFrameIndex = Math.Min(aIndex + 1, Scene.FrameCount - 1);
+        var repaired = run.Frames.Count(f => f.Accepted && f.Attempts > 1);
         var inserted = unseen is null
             ? $"Inserted {accepted} AI inbetween(s)."
             : $"Inserted {accepted} AI inbetween(s) — drawn lines only, {unseen} not tweened.";
+        if (repaired > 0) inserted += $" {repaired} needed a second ask.";
+        // Q33 says matching the deterministic answer is a note and never a
+        // veto — and a note nobody sees is not a note. It is worth saying
+        // because repair is what gives a model a reason to take that path:
+        // flattening onto the free engine's chord passes every geometric
+        // check by construction, so "corrected" and "gave up and copied the
+        // cheap engine" would otherwise look identical from the outside.
+        if (run.MatchedFreeEngineCount is var free and > 0)
+        {
+            inserted += $" {free} matched what ＋ Inbetween would have drawn.";
+        }
         AiStatus = refused.Count == 0 ? inserted : $"{inserted} {string.Join(" ", refused)}";
     }
 

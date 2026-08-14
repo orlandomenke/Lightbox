@@ -126,4 +126,95 @@ public class AiPayloadBudgetTests(ITestOutputHelper output)
         Assert.InRange(ratio, 1.8, 2.2);
     }
 
+    /// <summary>
+    /// What a repair re-ask costs, which is the number Q85's answer is spending.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A repair sends the two keys again plus the rejected frame, and asks for
+    /// only the refused ts — so the honest comparison is against the original
+    /// request, not against zero. Roughly half again is the shape to expect at
+    /// one refused frame out of three, and the budget below is set to catch a
+    /// change that makes a repair cost *more than double* a first ask, which
+    /// would mean the block had stopped being a correction and started being a
+    /// second request.
+    /// </para>
+    /// <para>
+    /// The measurement that matters more is the worst case: two re-asks is
+    /// three calls, so a run where every frame fails costs about
+    /// <c>1 + 2 × ratio</c> times a single ask. That is the bill Q85 accepted,
+    /// and printing it here is what keeps it from being rediscovered on an
+    /// invoice.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void ARepairReAskCostsAboutHalfAgain_NotAWholeSecondRequest()
+    {
+        var original = Request(40, 60);
+        var first = Prompts.InbetweenUser(original);
+
+        // One of the three ts refused, its rejected drawing handed back.
+        var repair = Prompts.InbetweenUser(original with
+        {
+            Ts = [0.5],
+            Repair =
+            [
+                new RefusedFrame(
+                    0.5,
+                    Frame(40, 60, 7),
+                    "the “part-3” did not stay between the keys — it sits 214px from where the motion puts it."),
+            ],
+        });
+
+        var ratio = (double)repair.Length / first.Length;
+        var worst = 1 + InbetweenRepair.MaxReasks * ratio;
+        output.WriteLine(
+            $"first ask {first.Length / 1024.0:F1} KB, repair {repair.Length / 1024.0:F1} KB, " +
+            $"ratio {ratio:F2} — worst case {worst:F2}x a single ask across {1 + InbetweenRepair.MaxReasks} calls");
+
+        Assert.True(ratio < 2.0, $"a repair now costs {ratio:F2}x a first ask — that is a second request, not a correction");
+    }
+
+    /// <summary>
+    /// The expensive repair, and the reason it is not the default one.
+    /// </summary>
+    /// <remarks>
+    /// A coherence refusal — <i>"it jitters against the frames beside it"</i> —
+    /// is the one fault defined against frames the re-ask would not otherwise
+    /// carry, so it ships the accepted neighbours too. That is another two
+    /// frames' strokes, and this measures what it buys and what it costs. Every
+    /// other fault sends none of it, which is what keeps the ordinary repair at
+    /// the 1.5× above rather than here.
+    /// </remarks>
+    [Fact]
+    public void AJitterRepairCostsMoreBecauseItShipsTheNeighbours()
+    {
+        var original = Request(40, 60);
+        var first = Prompts.InbetweenUser(original);
+
+        var plain = original with
+        {
+            Ts = [0.5],
+            Repair = [new RefusedFrame(0.5, Frame(40, 60, 7), "the “part-3” did not stay between the keys.")],
+        };
+        var jitter = plain with
+        {
+            Settled =
+            [
+                new AcceptedFrame(0.25, Frame(40, 60, 5)),
+                new AcceptedFrame(0.75, Frame(40, 60, 9)),
+            ],
+        };
+
+        var plainKb = Prompts.InbetweenUser(plain).Length / 1024.0;
+        var jitterKb = Prompts.InbetweenUser(jitter).Length / 1024.0;
+        var ratio = jitterKb / (first.Length / 1024.0);
+        output.WriteLine(
+            $"first ask {first.Length / 1024.0:F1} KB, plain repair {plainKb:F1} KB, " +
+            $"jitter repair {jitterKb:F1} KB — {ratio:F2}x a single ask");
+
+        // It costs about a frame per neighbour and must stay well short of
+        // being cheaper to just ask the whole thing again from scratch twice.
+        Assert.True(ratio < 3.0, $"a jitter repair now costs {ratio:F2}x a first ask");
+    }
 }

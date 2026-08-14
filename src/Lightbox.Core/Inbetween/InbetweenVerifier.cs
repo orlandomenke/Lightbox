@@ -8,13 +8,69 @@ namespace Lightbox.Core.Inbetween;
 public sealed record CandidateInbetween(double T, IReadOnlyList<Stroke> Strokes);
 
 /// <summary>
+/// Which check refused a frame, as a value rather than as prose.
+/// </summary>
+/// <remarks>
+/// <b>The sentence is for a person; this is for the code.</b> The repair loop
+/// has to treat one fault differently from the rest — <see cref="Incoherent"/>
+/// is defined against the frames beside it, so a re-ask has to carry them —
+/// and deciding that by looking for a phrase inside a user-facing sentence
+/// would break the first time somebody reworded a refusal. Two halves of one
+/// pipeline disagreeing about what a message means is the seam B195 came
+/// through, one layer up.
+/// </remarks>
+public enum InbetweenFault
+{
+    /// <summary>The frame was accepted.</summary>
+    None,
+
+    /// <summary>Its <c>t</c> is not strictly between the keys.</summary>
+    Timing,
+
+    /// <summary>Nothing that would mark: no strokes, no second point, or a dot.</summary>
+    Unusable,
+
+    /// <summary>A stroke both keys draw is missing from the answer.</summary>
+    DroppedStroke,
+
+    /// <summary>A matched stroke sits too far from where the motion puts it.</summary>
+    NotBetween,
+
+    /// <summary>A closed shape gained or lost enclosed area.</summary>
+    Volume,
+
+    /// <summary>New ink that no reveal, drag or interpretation explains.</summary>
+    ForbiddenInk,
+
+    /// <summary>
+    /// It zigzags against the frames either side of it, which reads as boiling
+    /// at speed. The one fault that is a property of the run rather than the
+    /// frame — and therefore the one a repair cannot state without saying what
+    /// the neighbours are.
+    /// </summary>
+    Incoherent,
+}
+
+/// <summary>
 /// The verdict on one candidate frame. <see cref="Refusal"/> is null when the
 /// frame is defensible; otherwise it names the stroke and the check in a
-/// sentence an artist can act on. <see cref="Notes"/> are diagnostics that
-/// never refuse — "too close to the deterministic answer" lives here, because
+/// sentence an artist can act on, and <see cref="Fault"/> says which check in a
+/// form code can branch on. <see cref="Notes"/> are diagnostics that never
+/// refuse — "too close to the deterministic answer" lives here, because
 /// distance from that answer is evidence about cost, never about correctness.
 /// </summary>
-public sealed record InbetweenJudgement(double T, string? Refusal, IReadOnlyList<string> Notes)
+/// <param name="MatchesDeterministic">
+/// The frame is what the free engine would have drawn. Reported, never
+/// thresholded (Q33) — but hoisted out of <see cref="Notes"/> into a value
+/// because it is the one signal that says a model <em>added nothing</em>, and
+/// something has to be able to act on it without reading prose.
+/// </param>
+public sealed record InbetweenJudgement(
+    double T,
+    string? Refusal,
+    IReadOnlyList<string> Notes,
+    InbetweenFault Fault = InbetweenFault.None,
+    bool MatchesDeterministic = false)
 {
     public bool Accepted => Refusal is null;
 }
@@ -125,7 +181,8 @@ public static class InbetweenVerifier
         JudgeCoherence(run, verdicts, moving);
 
         return new InbetweenRunJudgement(
-            verdicts.Select((v, i) => new InbetweenJudgement(run[i].T, v.Refusal, v.Notes)).ToList());
+            verdicts.Select((v, i) => new InbetweenJudgement(
+                run[i].T, v.Refusal, v.Notes, v.Fault, v.MatchesDeterministic)).ToList());
     }
 
     /// <summary>A matched key pair and everything the checks derive from it.</summary>
@@ -143,6 +200,8 @@ public static class InbetweenVerifier
     private sealed class FrameState
     {
         public string? Refusal;
+        public InbetweenFault Fault;
+        public bool MatchesDeterministic;
         public List<string> Notes = [];
         /// <summary>Deviation from the interpolated position, per pair index, for the coherence pass.</summary>
         public Dictionary<int, (double X, double Y)> Deviations = [];
@@ -164,11 +223,13 @@ public static class InbetweenVerifier
             // writes 0,25 would hand Phase 2's golden-set tooling two
             // spellings of one fault (CultureInvarianceTests' rule).
             state.Refusal = Invariant($"its timing is {frame.T:0.##}, which is not between the keys.");
+            state.Fault = InbetweenFault.Timing;
             return state;
         }
         if (Unusable(frame.Strokes) is { } unusable)
         {
             state.Refusal = unusable;
+            state.Fault = InbetweenFault.Unusable;
             return state;
         }
 
@@ -211,6 +272,7 @@ public static class InbetweenVerifier
             if (pair.B is null)
             {
                 state.Refusal = $"the {Quote(ctx.Name(index))} went missing — both keys draw it.";
+                state.Fault = InbetweenFault.DroppedStroke;
                 return state;
             }
             matchedCandidates.Add(pair.B.Id);
@@ -223,6 +285,7 @@ public static class InbetweenVerifier
             {
                 state.Refusal = Invariant(
                     $"the {Quote(ctx.Name(index))} did not stay between the keys — it sits {deviation:0}px from where the motion puts it.");
+                state.Fault = InbetweenFault.NotBetween;
                 return state;
             }
             state.Deviations[index] = (cCentroid.X - eCentroid.X, cCentroid.Y - eCentroid.Y);
@@ -230,6 +293,7 @@ public static class InbetweenVerifier
             if (VolumeFault(ctx, pair.A, pair.B, index) is { } volume)
             {
                 state.Refusal = volume;
+                state.Fault = InbetweenFault.Volume;
                 return state;
             }
         }
@@ -266,6 +330,7 @@ public static class InbetweenVerifier
             if (pending.Count > 0)
             {
                 state.Refusal = ForbiddenInk(pending[0]);
+                state.Fault = InbetweenFault.ForbiddenInk;
                 return state;
             }
         }
@@ -275,6 +340,7 @@ public static class InbetweenVerifier
             var mean = state.Deviations.Values.Average(d => Math.Sqrt(d.X * d.X + d.Y * d.Y));
             if (mean < AddedNothing)
             {
+                state.MatchesDeterministic = true;
                 state.Notes.Add(
                     "this frame matches the deterministic answer almost exactly — "
                     + "the model added nothing the free engine would not have.");
@@ -531,6 +597,7 @@ public static class InbetweenVerifier
                 {
                     verdicts[k].Refusal = Invariant(
                         $"the {Quote(moving[p].Name(p))} jitters against the frames beside it — {jitter:0}px off a smooth path, which reads as boiling at speed.");
+                    verdicts[k].Fault = InbetweenFault.Incoherent;
                     break;
                 }
             }
