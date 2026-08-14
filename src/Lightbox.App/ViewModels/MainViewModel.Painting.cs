@@ -400,6 +400,7 @@ public partial class MainViewModel
         _lastStrokeEnd = null;
         PruneStrokeSelection();   // and neither is a line picked on the old one
         foreach (var row in LayerRows) row.IsActive = row.SceneIndex == value;
+        SyncLayerSelectionToActive(value);
         OnPropertyChanged(nameof(FrameCells));
         OnPropertyChanged(nameof(TimelineTracks));
         OnPropertyChanged(nameof(TimelineFrameCount));

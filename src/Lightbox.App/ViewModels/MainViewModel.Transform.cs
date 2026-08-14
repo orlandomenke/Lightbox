@@ -495,14 +495,21 @@ public partial class MainViewModel
                 foreach (var cel in ActiveLayer.Cels) Add(cel.Frame);
                 break;
             case TransformScope.CelRange:
-                if (_celRange is { } r && r.Layer >= 0 && r.Layer < Scene.Layers.Count)
+                // Every selected cel, not the run between the first and the
+                // last: a Ctrl+click selection has holes in it on purpose, and
+                // transforming what an artist deselected is the one reading of
+                // this scope they cannot undo by deselecting harder.
+                if (_celSelection.Count > 0)
                 {
-                    var layer = Scene.Layers[r.Layer];
-                    for (var i = r.Start; i <= r.End; i++) Add(ExposureSheet.ExposedFrame(layer, i));
+                    foreach (var (layerIndex, index) in _celSelection)
+                    {
+                        if (layerIndex < 0 || layerIndex >= Scene.Layers.Count) continue;
+                        Add(ExposureSheet.ExposedFrame(Scene.Layers[layerIndex], index));
+                    }
                 }
                 else
                 {
-                    Add(ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex)); // no range marked
+                    Add(ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex)); // nothing marked
                 }
                 break;
             case TransformScope.EntireAnimation:

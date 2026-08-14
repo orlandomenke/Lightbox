@@ -23,7 +23,22 @@ public static class AiSettings
         PathOverride ?? System.IO.Path.Combine(
             System.IO.Path.GetDirectoryName(ApiKeyProvider.SettingsPath)!, "ai.json");
 
-    private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
+    /// <summary>
+    /// Nulls are omitted, so a setting nobody used writes no key at all.
+    /// </summary>
+    /// <remarks>
+    /// Added with <c>AiConnection.LastProfile</c>, and it is the load-bearing
+    /// half of making that optional: a nullable property on its own still
+    /// serializes, so every <c>ai.json</c> in existence would have grown a
+    /// <c>"lastProfile": null</c> for a feature nobody ran. <c>CLAUDE.md</c>
+    /// calls this out as the way "optional" quietly stops being optional, and
+    /// <c>AnUnprofiledConnectionWritesNoProfileKey</c> is the check.
+    /// </remarks>
+    private static readonly JsonSerializerOptions Json = new()
+    {
+        WriteIndented = true,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+    };
 
     /// <summary>
     /// The stored connection, or one migrated from the legacy keys, or the

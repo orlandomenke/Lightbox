@@ -204,7 +204,7 @@ public partial class MainWindow
         if (CellOf(sender) is { } cell) _vm.PasteCel(cell);
     }
 
-    // ---- multi-cel range selection (Shift+click) --------------------------------
+    // ---- multi-cel selection (Ctrl+click, Shift+click) --------------------------
 
     private static FrameCell? CellUnder(object? source) =>
         (source as Control)?.FindAncestorOfType<Button>(includeSelf: true)?.DataContext as FrameCell;
@@ -213,10 +213,18 @@ public partial class MainWindow
     {
         if (CellUnder(e.Source) is not { } cell) return;
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        // Both are handled here and marked handled, so the cell's own click —
+        // which selects the frame and clears the selection — never also runs.
         if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {
             _vm.RangeSelectTo(cell);
-            e.Handled = true; // don't also fire the cell's click (which clears the range)
+            e.Handled = true;
+            return;
+        }
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            _vm.ToggleCelSelection(cell);
+            e.Handled = true;
             return;
         }
         // Remember the press so a later move can turn it into a cel drag.

@@ -3042,7 +3042,7 @@
                     </DataTemplate>
                     <DataTemplate x:DataType="vm:LayerRow">
                       <Border Classes="layerRow" Classes.active="{Binding IsActive}" Classes.grouped="{Binding IsGrouped}"
-                              Classes.hiddenLayer="{Binding !Visible}" Classes.lockedLayer="{Binding EditsBlocked}"
+                              Classes.hiddenLayer="{Binding !Visible}" Classes.lockedLayer="{Binding EditsBlocked}" Classes.selected="{Binding IsSelected}"
                               Focusable="True"
                               PointerPressed="OnLayerRowPressed">
                         <Border.ContextMenu>
@@ -4165,7 +4165,7 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:LayerRow">
                   <Border Classes="layerRow" Classes.active="{Binding IsActive}"
-                          Classes.hiddenLayer="{Binding !Visible}">
+                          Classes.hiddenLayer="{Binding !Visible}" Classes.selected="{Binding IsSelected}">
                     <StackPanel Orientation="Horizontal" Spacing="2">
                       <!-- Both explicitly centred. They looked inconsistent
                            because they were relying on the default, and ◉ and

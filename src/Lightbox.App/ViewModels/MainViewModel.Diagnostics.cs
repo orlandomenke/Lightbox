@@ -191,6 +191,10 @@ public partial class MainViewModel
             }
         }
         RebuildLayerPanel();
+        // After the rows point at the current stack, not before: the refresh
+        // drops ids whose layer has gone, and a row still holding a deleted
+        // layer would keep one alive for a frame.
+        RefreshLayerSelectionHighlights();
         OnPropertyChanged(nameof(FrameCells));
         OnPropertyChanged(nameof(TimelineTracks));
         OnPropertyChanged(nameof(TimelineFrameCount));

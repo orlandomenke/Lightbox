@@ -392,8 +392,10 @@ public partial class MainViewModel
 
     // ---- exposure editing + cel clipboard --------------------------------------
 
-    private Layer? LayerOfCell(FrameCell cell) =>
-        cell.LayerIndex >= 0 && cell.LayerIndex < Scene.Layers.Count ? Scene.Layers[cell.LayerIndex] : null;
+    private Layer? LayerAt(int index) =>
+        index >= 0 && index < Scene.Layers.Count ? Scene.Layers[index] : null;
+
+    private Layer? LayerOfCell(FrameCell cell) => LayerAt(cell.LayerIndex);
 
     public void ExtendExposureAt(FrameCell cell)
     {
@@ -629,26 +631,47 @@ public partial class MainViewModel
     /// </summary>
     public void DeleteCelAt(FrameCell cell)
     {
-        if (LayerOfCell(cell) is not { } layer) return;
-        if (!CanEdit(layer, "delete a cel on it")) return;
-        var (start, end) = OpRangeFor(cell);
-        _editor.DeleteCels(layer.Id, start, end);
+        var touched = false;
+        foreach (var layerIndex in OpLayersFor(cell))
+        {
+            if (LayerAt(layerIndex) is not { } layer) continue;
+            if (!CanEdit(layer, "delete a cel on it")) continue;
+            foreach (var (start, end) in RunsOf(OpCelsOn(cell, layerIndex)))
+            {
+                _editor.DeleteCels(layer.Id, start, end);
+                touched = true;
+            }
+        }
+        if (!touched) return;
         _allThumbsDirty = true;
+        ClearCelRange(); // the indices it held have shifted out from under it
         RefreshThumbnails();
     }
 
     public void ClearCelAt(FrameCell cell)
     {
-        if (LayerOfCell(cell) is not { } layer) return;
-        if (!CanEdit(layer, "clear a cel on it")) return;
-        var (start, end) = OpRangeFor(cell);
-        if (start == end && ExposureSheet.FrameAtExactIndex(layer, cell.Index) is null)
+        var layers = OpLayersFor(cell);
+        // One cel and no drawing on it is worth saying so; a selection with a
+        // hold or two in it is not, because clearing the rest still did something.
+        if (layers.Count == 1 && OpCelsOn(cell, layers[0]).Count == 1
+            && LayerAt(layers[0]) is { } only
+            && ExposureSheet.FrameAtExactIndex(only, cell.Index) is null)
         {
             AiStatus = "That cel is a hold — there is no drawing to clear.";
             return;
         }
-        _editor.ClearCels(layer.Id, start, end);
-        RefreshThumbnails();
+        var touched = false;
+        foreach (var layerIndex in layers)
+        {
+            if (LayerAt(layerIndex) is not { } layer) continue;
+            if (!CanEdit(layer, "clear a cel on it")) continue;
+            foreach (var (start, end) in RunsOf(OpCelsOn(cell, layerIndex)))
+            {
+                _editor.ClearCels(layer.Id, start, end);
+                touched = true;
+            }
+        }
+        if (touched) RefreshThumbnails();
     }
 
     /// <summary>App-internal cel clipboard: a cel sequence (null = hold) + its source layer kind.</summary>
@@ -664,9 +687,9 @@ public partial class MainViewModel
     public void CopyCel(FrameCell cell)
     {
         if (LayerOfCell(cell) is not { } layer) return;
-        var (start, end) = OpRangeFor(cell);
+        var cels = OpCelsOn(cell, cell.LayerIndex);
         List<Frame?> frames;
-        if (start == end)
+        if (cels.Count <= 1)
         {
             var exposed = ExposureSheet.ExposedFrame(layer, cell.Index);
             if (exposed is null)
@@ -678,29 +701,37 @@ public partial class MainViewModel
         }
         else
         {
+            // Verbatim, holds included, so the timing survives the round trip —
+            // and the cels a Ctrl+click left out are simply not in the list, so
+            // a picked-out selection pastes as the sequence it looks like.
             frames = [];
-            for (var i = start; i <= end; i++)
+            foreach (var i in cels)
             {
                 frames.Add(DocumentEditor.CloneFrame(ExposureSheet.FrameAtExactIndex(layer, i)));
             }
         }
         _celClipboard = (frames, layer.Kind);
         OnPropertyChanged(nameof(HasCelClipboard));
-        AiStatus = frames.Count == 1 ? "Cel copied." : $"{frames.Count} cels copied.";
+        // The clipboard is one row's worth of cels, so a selection reaching
+        // other layers is copied from this one and the rest is said out loud
+        // rather than dropped silently.
+        var otherLayers = OpLayersFor(cell).Count - 1;
+        AiStatus = (frames.Count == 1 ? "Cel copied." : $"{frames.Count} cels copied.")
+            + (otherLayers > 0 ? $" Selected cels on {otherLayers} other layer(s) were not copied." : "");
     }
 
     public void CutCel(FrameCell cell)
     {
         if (LayerOfCell(cell) is not { } layer) return;
         if (!CanEdit(layer, "cut a cel from it")) return;
-        var (start, end) = OpRangeFor(cell);
-        if (start == end && ExposureSheet.FrameAtExactIndex(layer, cell.Index) is null)
+        var cels = OpCelsOn(cell, cell.LayerIndex);
+        if (cels.Count <= 1 && ExposureSheet.FrameAtExactIndex(layer, cell.Index) is null)
         {
             AiStatus = "Nothing to cut — the cel is a hold.";
             return;
         }
         CopyCel(cell);
-        _editor.ClearCels(layer.Id, start, end);
+        foreach (var (start, end) in RunsOf(cels)) _editor.ClearCels(layer.Id, start, end);
         RefreshThumbnails();
     }
 
@@ -753,25 +784,87 @@ public partial class MainViewModel
         if (CurrentCell() is { } cell) PasteCel(cell);
     }
 
-    // ---- multi-cel range selection ------------------------------------------------
+    // ---- multi-cel selection ------------------------------------------------------
 
+    /// <summary>
+    /// The cels picked in the timeline: Shift+click lays a run from the anchor,
+    /// Ctrl+click adds or removes one cel at a time.
+    /// </summary>
+    /// <remarks>
+    /// A set rather than the <c>(Layer, Start, End)</c> triple this used to be.
+    /// A triple can only say "one contiguous run on one row", which is exactly
+    /// what Ctrl+click is for departing from — and the shapes an artist reaches
+    /// for (every third cel of a cycle, the same two cels on four layers) have
+    /// holes in them by construction. <see cref="CelRange"/> still answers the
+    /// old question for the callers that only ever asked it.
+    /// </remarks>
+    private readonly HashSet<(int Layer, int Index)> _celSelection = [];
 
-    /// <summary>The selected cel range on one layer row (Shift+click), if any.</summary>
-    public (int Layer, int Start, int End)? CelRange => _celRange;
+    /// <summary>The selected cels, as (scene layer index, frame index) pairs.</summary>
+    public IReadOnlySet<(int Layer, int Index)> CelSelection => _celSelection;
 
-    /// <summary>Shift+click: select the contiguous range from the last clicked cel to this one.</summary>
+    /// <summary>
+    /// The selection read as one contiguous run on one row, or null when it is
+    /// not one — empty, holed by a Ctrl+click, or spread across layers.
+    /// </summary>
+    /// <remarks>
+    /// The shape the selection used to be stored in, kept because "is a single
+    /// run marked, and where" is still the only question some callers have.
+    /// </remarks>
+    public (int Layer, int Start, int End)? CelRange
+    {
+        get
+        {
+            if (_celSelection.Count == 0) return null;
+            var layer = _celSelection.First().Layer;
+            if (_celSelection.Any(c => c.Layer != layer)) return null;
+            var start = _celSelection.Min(c => c.Index);
+            var end = _celSelection.Max(c => c.Index);
+            return end - start + 1 == _celSelection.Count ? (layer, start, end) : null;
+        }
+    }
+
+    /// <summary>Shift+click: select the contiguous run from the anchor cel to this one.</summary>
+    /// <remarks>
+    /// The run <em>replaces</em> the selection rather than adding to it, which is
+    /// what makes Shift a way to correct an overshoot: click 4, Shift+click 20,
+    /// then Shift+click 12 and the selection is 4–12 rather than 4–20 with a
+    /// second run bolted on. Ctrl is the additive gesture; Shift is the ranging
+    /// one, and giving both the same job would leave no way to shrink a run.
+    /// </remarks>
     public void RangeSelectTo(FrameCell cell)
     {
         if (cell.IsVirtual) return;
         var anchor = _celAnchor.Layer == cell.LayerIndex ? _celAnchor : (cell.LayerIndex, cell.Index);
-        _celRange = (cell.LayerIndex, Math.Min(anchor.Index, cell.Index), Math.Max(anchor.Index, cell.Index));
+        _celSelection.Clear();
+        for (var i = Math.Min(anchor.Index, cell.Index); i <= Math.Max(anchor.Index, cell.Index); i++)
+        {
+            _celSelection.Add((cell.LayerIndex, i));
+        }
+        RefreshCelSelectionHighlights();
+    }
+
+    /// <summary>
+    /// Ctrl+click: add this cel to the selection, or drop it when it is already in.
+    /// </summary>
+    /// <remarks>
+    /// The cel also becomes the anchor either way, so a Ctrl+click followed by a
+    /// Shift+click ranges from where the hand last was rather than from wherever
+    /// the previous plain click happened to be.
+    /// </remarks>
+    public void ToggleCelSelection(FrameCell cell)
+    {
+        if (cell.IsVirtual) return;
+        var key = (cell.LayerIndex, cell.Index);
+        if (!_celSelection.Add(key)) _celSelection.Remove(key);
+        _celAnchor = key;
         RefreshCelSelectionHighlights();
     }
 
     public void ClearCelRange()
     {
-        if (_celRange is null) return;
-        _celRange = null;
+        if (_celSelection.Count == 0) return;
+        _celSelection.Clear();
         RefreshCelSelectionHighlights();
     }
 
@@ -779,19 +872,61 @@ public partial class MainViewModel
     {
         foreach (var row in LayerRows)
         {
-            foreach (var c in row.Cells)
-            {
-                c.IsSelected = _celRange is { } r
-                    && c.LayerIndex == r.Layer && c.Index >= r.Start && c.Index <= r.End;
-            }
+            foreach (var c in row.Cells) c.IsSelected = _celSelection.Contains((c.LayerIndex, c.Index));
         }
     }
 
-    /// <summary>The range the operation on this cell should cover: the selection when the cell is inside it, else just the cell.</summary>
-    private (int Start, int End) OpRangeFor(FrameCell cell) =>
-        _celRange is { } r && r.Layer == cell.LayerIndex && cell.Index >= r.Start && cell.Index <= r.End
-            ? (r.Start, r.End)
-            : (cell.Index, cell.Index);
+    /// <summary>
+    /// The cels on one layer that an operation started at <paramref name="cell"/>
+    /// covers: the selected ones when the cell is inside the selection, else just
+    /// the cell. Ascending, no duplicates.
+    /// </summary>
+    private List<int> OpCelsOn(FrameCell cell, int layerIndex)
+    {
+        if (!_celSelection.Contains((cell.LayerIndex, cell.Index)))
+        {
+            return cell.LayerIndex == layerIndex ? [cell.Index] : [];
+        }
+        return _celSelection.Where(c => c.Layer == layerIndex).Select(c => c.Index).Order().ToList();
+    }
+
+    /// <summary>
+    /// Every layer an operation started at <paramref name="cell"/> reaches:
+    /// each layer holding a selected cel when the cell is inside the selection,
+    /// else just the cell's own layer.
+    /// </summary>
+    private List<int> OpLayersFor(FrameCell cell) =>
+        _celSelection.Contains((cell.LayerIndex, cell.Index))
+            ? _celSelection.Select(c => c.Layer).Distinct().Order().ToList()
+            : [cell.LayerIndex];
+
+    /// <summary>
+    /// Ascending indices split into contiguous runs, latest run first.
+    /// </summary>
+    /// <remarks>
+    /// Descending, because the callers that need runs are the ones that
+    /// <em>remove</em> cels and pull the rest of the row back. Deleting 2–3
+    /// before 7–8 would leave 7–8 pointing two cels further along than the
+    /// artist selected, so a discontiguous delete has to be worked from the end.
+    /// </remarks>
+    private static List<(int Start, int End)> RunsOf(List<int> indices)
+    {
+        var runs = new List<(int Start, int End)>();
+        foreach (var i in indices)
+        {
+            if (runs.Count > 0 && runs[^1].End == i - 1) runs[^1] = (runs[^1].Start, i);
+            else runs.Add((i, i));
+        }
+        runs.Reverse();
+        return runs;
+    }
+
+    /// <summary>The range the operation on this cell should cover, for the callers that want one.</summary>
+    private (int Start, int End) OpRangeFor(FrameCell cell)
+    {
+        var cels = OpCelsOn(cell, cell.LayerIndex);
+        return cels.Count == 0 ? (cell.Index, cell.Index) : (cels[0], cels[^1]);
+    }
 
     /// <summary>Drop of a dragged cel: move (or Ctrl-copy) the drawing along its row.</summary>
     public void MoveCel(FrameCell from, FrameCell to, bool copy)

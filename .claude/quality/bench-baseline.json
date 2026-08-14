@@ -1,5 +1,5 @@
 {
-  "calibrationMs": 24.3,
+  "calibrationMs": 6.3,
   "partial": false,
   "scenarios": [
     {
@@ -7,19 +7,49 @@
       "dimension": "layers",
       "cadence": "WhilePlaying",
       "budgetMs": 83.3,
-      "exponent": 0.99,
+      "exponent": 1.16,
+      "cliff": 8,
+      "worstP95Calibrated": 1200.975,
+      "maxSwept": 100
+    },
+    {
+      "name": "Recomposite with a side cache, on a miss",
+      "dimension": "layers",
+      "cadence": "WhilePlaying",
+      "budgetMs": 83.3,
+      "exponent": 1.03,
+      "cliff": 2,
+      "worstP95Calibrated": 1205.261,
+      "maxSwept": 100
+    },
+    {
+      "name": "Recomposite with a side cache, on a hit",
+      "dimension": "layers",
+      "cadence": "WhilePlaying",
+      "budgetMs": 83.3,
+      "exponent": 0.01,
       "cliff": 4,
-      "worstP95Calibrated": 18.728,
-      "maxSwept": 24
+      "worstP95Calibrated": 15.345,
+      "maxSwept": 100
+    },
+    {
+      "name": "Recomposite the whole frame, by canvas size",
+      "dimension": "canvas megapixels \u00d710",
+      "cadence": "WhilePlaying",
+      "budgetMs": 83.3,
+      "exponent": 1.03,
+      "cliff": 37,
+      "worstP95Calibrated": 167.024,
+      "maxSwept": 332
     },
     {
       "name": "Recomposite a frame with onion skin",
       "dimension": "ghosts each side",
       "cadence": "WhilePlaying",
       "budgetMs": 83.3,
-      "exponent": 0.88,
+      "exponent": 0.79,
       "cliff": 1,
-      "worstP95Calibrated": 48.365,
+      "worstP95Calibrated": 114.423,
       "maxSwept": 5
     },
     {
@@ -27,19 +57,39 @@
       "dimension": "strokes",
       "cadence": "PerAction",
       "budgetMs": 100.0,
-      "exponent": 1.04,
-      "cliff": 50,
-      "worstP95Calibrated": 64.215,
+      "exponent": 1.08,
+      "cliff": 100,
+      "worstP95Calibrated": 191.274,
       "maxSwept": 800
+    },
+    {
+      "name": "Rasterise a painting from its strokes",
+      "dimension": "strokes",
+      "cadence": "PerAction",
+      "budgetMs": 100.0,
+      "exponent": 1.0,
+      "cliff": 250,
+      "worstP95Calibrated": 3322.972,
+      "maxSwept": 2000
+    },
+    {
+      "name": "Snapshot the document for one undo step",
+      "dimension": "strokes",
+      "cadence": "PerAction",
+      "budgetMs": 100.0,
+      "exponent": 0.96,
+      "cliff": null,
+      "worstP95Calibrated": 0.517,
+      "maxSwept": 5000
     },
     {
       "name": "Hold a whole scene in the frame cache",
       "dimension": "frames",
       "cadence": "PerSession",
       "budgetMs": 2000.0,
-      "exponent": 1.93,
+      "exponent": 1.87,
       "cliff": 24,
-      "worstP95Calibrated": 498.26,
+      "worstP95Calibrated": 1648.907,
       "maxSwept": 96
     },
     {
@@ -47,19 +97,59 @@
       "dimension": "frames in the scene",
       "cadence": "WhilePlaying",
       "budgetMs": 83.3,
-      "exponent": 0.85,
+      "exponent": 0.73,
       "cliff": 48,
-      "worstP95Calibrated": 9.319,
+      "worstP95Calibrated": 19.109,
       "maxSwept": 96
+    },
+    {
+      "name": "Show the next frame during playback, by canvas size",
+      "dimension": "canvas height (16:9)",
+      "cadence": "WhilePlaying",
+      "budgetMs": 83.3,
+      "exponent": 2.36,
+      "cliff": 1440,
+      "worstP95Calibrated": 55.098,
+      "maxSwept": 2160
+    },
+    {
+      "name": "Show the next frame during playback, frames held as tiles",
+      "dimension": "canvas height (16:9)",
+      "cadence": "WhilePlaying",
+      "budgetMs": 83.3,
+      "exponent": 0.94,
+      "cliff": null,
+      "worstP95Calibrated": 11.479,
+      "maxSwept": 2160
+    },
+    {
+      "name": "Show the next frame during playback, sparse cels as bitmaps",
+      "dimension": "canvas height (16:9)",
+      "cadence": "WhilePlaying",
+      "budgetMs": 83.3,
+      "exponent": 2.39,
+      "cliff": 2160,
+      "worstP95Calibrated": 48.365,
+      "maxSwept": 2160
+    },
+    {
+      "name": "Show the next frame during playback, sparse cels as tiles",
+      "dimension": "canvas height (16:9)",
+      "cadence": "WhilePlaying",
+      "budgetMs": 83.3,
+      "exponent": 1.26,
+      "cliff": null,
+      "worstP95Calibrated": 5.816,
+      "maxSwept": 2160
     },
     {
       "name": "Scrub to a frame across the sheet",
       "dimension": "frames in the scene",
       "cadence": "WhileDrawing",
       "budgetMs": 16.0,
-      "exponent": 0.84,
+      "exponent": 0.78,
       "cliff": 12,
-      "worstP95Calibrated": 9.015,
+      "worstP95Calibrated": 13.175,
       "maxSwept": 96
     },
     {
@@ -69,7 +159,7 @@
       "budgetMs": 100.0,
       "exponent": 0.14,
       "cliff": null,
-      "worstP95Calibrated": 0.75,
+      "worstP95Calibrated": 1.762,
       "maxSwept": 83
     },
     {
@@ -77,9 +167,9 @@
       "dimension": "brush diameter px",
       "cadence": "PerAction",
       "budgetMs": 100.0,
-      "exponent": 0.42,
+      "exponent": 0.47,
       "cliff": null,
-      "worstP95Calibrated": 1.362,
+      "worstP95Calibrated": 4.351,
       "maxSwept": 300
     },
     {
@@ -87,9 +177,9 @@
       "dimension": "dabs",
       "cadence": "PerAction",
       "budgetMs": 100.0,
-      "exponent": 0.9,
+      "exponent": 0.94,
       "cliff": null,
-      "worstP95Calibrated": 3.425,
+      "worstP95Calibrated": 13.265,
       "maxSwept": 400
     },
     {
@@ -97,12 +187,12 @@
       "dimension": "flow steps",
       "cadence": "PerAction",
       "budgetMs": 100.0,
-      "exponent": 0.63,
-      "cliff": 32,
-      "worstP95Calibrated": 4.538,
+      "exponent": 0.56,
+      "cliff": null,
+      "worstP95Calibrated": 10.808,
       "maxSwept": 32
     }
   ],
-  "sha": "7d4cce88b966cb3e2fe5c19b9f4fc13ac836f29d",
-  "takenAt": "2026-08-04T10:41:32+00:00"
+  "sha": "2f295b5d6691f87f209b9864f6c7b83058a86052",
+  "takenAt": "2026-08-14T10:05:57+00:00"
 }

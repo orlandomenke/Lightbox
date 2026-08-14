@@ -19,6 +19,36 @@ just an ordinary unlocked layer.
 
 **Ctrl+click** a layer thumbnail to select its opaque pixels.
 
+### Working on several layers at once
+
+Click a row to make that layer active. **Ctrl+click** another row to add it to
+the selection — or Ctrl+click a selected one to drop it. **Shift+click** takes
+every row between the last one you picked and this one; Shift+click again
+somewhere else re-ranges from the same starting row rather than adding a second
+run, so overshooting is corrected with one more click.
+
+The selected rows are tinted, and one of them — the last you clicked — is
+tinted more strongly. That one is the **active** layer, and it is where the next
+brush stroke lands. There is always exactly one, which is why Ctrl+clicking the
+only selected row does not deselect it: the app would have nowhere to paint.
+
+Anything you then do to a row in the selection is done to all of them, as **one
+undo step**:
+
+- delete, and blank the content
+- move up and move down — the block keeps its order and stops as one against
+  the top or bottom of the stack
+- the eye, the lock, the alpha lock and the onion-skin toggle
+- **In exports** — never, always, or leave it to the export
+- **New folder from layer**, which puts the whole selection in one folder
+
+Anything you do to a row that is *not* in the selection is done to that row
+alone. Right-clicking a layer you have not selected is not a trap.
+
+Clicking a cel in the timeline, walking the stack with the arrow keys, or
+opening a document all set the active layer the ordinary way, and that starts
+the selection again from the one layer.
+
 ### Merging a layer down
 
 **Ctrl+E** merges the active layer into the one below it — Photoshop's and
