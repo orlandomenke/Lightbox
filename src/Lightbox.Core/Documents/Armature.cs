@@ -43,6 +43,31 @@ public sealed class Bone
     /// <summary>Rest rotation relative to the parent, clockwise degrees.</summary>
     public double RotationDeg { get; set; }
 
+    /// <summary>
+    /// This bone's origin is its parent's tip, not an offset of its own —
+    /// null, and absent from the file, for the ordinary unglued bone.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Q86. An extruded child sets it, so re-proportioning a parent drags the
+    /// whole chain after it instead of leaving a gap to close by hand. It is
+    /// exactly Blender's connected bone, and the reason it is a flag rather
+    /// than a convention is that the alternative — writing the parent's length
+    /// into the child's <see cref="X"/> at extrude time — is a copy that goes
+    /// stale the moment the parent changes.
+    /// </para>
+    /// <para>
+    /// <see cref="X"/> and <see cref="Y"/> are ignored while it is set, rather
+    /// than kept in step: one place decides where a connected child sits, and
+    /// it is the solve.
+    /// </para>
+    /// </remarks>
+    public bool? Connected { get; set; }
+
+    /// <summary>Whether this bone is glued to its parent's tip. Derived; never serialized.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsConnected => Connected == true;
+
     /// <summary>A copy holding no reference in common with this one.</summary>
     public Bone Clone() => (Bone)MemberwiseClone();
 }
@@ -59,16 +84,20 @@ public sealed class Bone
 /// writes no key and pays no cost.
 /// </para>
 /// <para>
-/// IK chains and constraints are phase 3 of <c>docs/DESIGN-bones.md</c> and
-/// deliberately not fields yet — an empty list of constraints on every rig
-/// would be the "present-and-disabled" shape this record exists to refuse.
-/// They arrive nullable when they arrive at all.
+/// <see cref="Chains"/> is null on a rig that has no IK, for the same reason
+/// the armature itself is null on a document that has no rig: an empty list
+/// on every armature would be the "present-and-disabled" shape this record
+/// exists to refuse. Constraints and spline chains are the rest of phase 3
+/// and arrive the same way.
 /// </para>
 /// </remarks>
 public sealed class Armature
 {
     /// <summary>The bones. Order is authoring order; hierarchy comes from <see cref="Bone.ParentId"/>.</summary>
     public List<Bone> Bones { get; set; } = [];
+
+    /// <summary>The IK chains, or null — and null is the ordinary rig.</summary>
+    public List<IkChain>? Chains { get; set; }
 
     /// <summary>The bone with this id, or null.</summary>
     public Bone? BoneById(string id) => Bones.FirstOrDefault(b => b.Id == id);
@@ -78,8 +107,53 @@ public sealed class Armature
     {
         var copy = (Armature)MemberwiseClone();
         copy.Bones = Bones.Select(b => b.Clone()).ToList();
+        copy.Chains = Chains?.Select(c => c.Clone()).ToList();
         return copy;
     }
+}
+
+/// <summary>
+/// One inverse-kinematics chain: a run of bones ending at <see cref="TipBoneId"/>
+/// that reaches for a <em>target bone</em> instead of being rotated joint by
+/// joint.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>The target is a bone, not a point</b> (Q86). It costs one extra bone per
+/// limb and buys everything the rig already does for free: the target is
+/// keyed by the ordinary pose track, parented to whatever the foot should
+/// follow, and moved with the same drag as any other bone. A bare xy target
+/// would have needed its own keying, its own parenting and its own gesture,
+/// all shadowing machinery that exists.
+/// </para>
+/// <para>
+/// <see cref="PoleBoneId"/> is the bend hint: which side the knee goes. It is
+/// a hint rather than a constraint — it seeds the solve's starting shape, and
+/// FABRIK stays in the basin it starts in — because a hard pole constraint on
+/// a chain of arbitrary length has no closed form, and a solver that sometimes
+/// cannot satisfy its own constraint is worse than one that never promised.
+/// </para>
+/// </remarks>
+public sealed class IkChain
+{
+    public string Id { get; set; } = Ids.NewId("ik");
+
+    public string Name { get; set; } = "IK";
+
+    /// <summary>The last bone in the chain — the one whose tip reaches the target.</summary>
+    public string TipBoneId { get; set; } = "";
+
+    /// <summary>The bone whose origin the chain reaches for.</summary>
+    public string TargetBoneId { get; set; } = "";
+
+    /// <summary>How many bones, counting up from the tip, the solve is allowed to rotate.</summary>
+    public int Bones { get; set; } = 2;
+
+    /// <summary>A bone whose origin says which way the chain should bend, or null.</summary>
+    public string? PoleBoneId { get; set; }
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public IkChain Clone() => (IkChain)MemberwiseClone();
 }
 
 /// <summary>
@@ -271,8 +345,10 @@ public static class ArmatureOps
     }
 
     /// <summary>
-    /// The FK solve: every bone's placement in document coordinates, given a
-    /// pose. An empty pose solves the bind pose.
+    /// Every bone's placement in document coordinates, given a pose: forward
+    /// kinematics, then any IK chain the rig carries. A <b>null</b> pose is
+    /// the bind pose and never runs IK; an <b>empty</b> one is a pose that
+    /// happens to key nothing, and does.
     /// </summary>
     /// <remarks>
     /// Each bone's placement is computed exactly once, from its parent chain —
@@ -286,11 +362,181 @@ public static class ArmatureOps
     public static Dictionary<string, BonePlacement> Solve(
         Armature armature, IReadOnlyDictionary<string, BonePose>? pose = null)
     {
+        var placements = Forward(armature, pose);
+        // A null pose means "the rest", and the rest is what an artist edits
+        // in bind mode — so IK stays out of it, or every bind-mode drag would
+        // fight the solver for the joint it just moved. Every posed caller
+        // passes a dictionary (PoseAt returns an empty one, never null), so
+        // this is the bind/pose line rather than a flag to remember.
+        if (pose is null || armature.Chains is not { Count: > 0 } chains) return placements;
+
+        // Chains resolve in list order, each against the placements the ones
+        // before it left — so a hand chain whose target hangs off an arm chain
+        // sees the arm already solved. Order in the file is therefore part of
+        // the rig, which is why it is authoring order and never sorted.
+        var solved = new Dictionary<string, BonePose>(pose);
+        foreach (var chain in chains)
+            if (ApplyChain(armature, chain, solved, placements))
+                placements = Forward(armature, solved);
+        return placements;
+    }
+
+    private static Dictionary<string, BonePlacement> Forward(
+        Armature armature, IReadOnlyDictionary<string, BonePose>? pose)
+    {
         var placements = new Dictionary<string, BonePlacement>();
         foreach (var bone in armature.Bones)
             Place(armature, bone, pose, placements, visiting: []);
         return placements;
     }
+
+    /// <summary>How many FABRIK passes a chain gets, always, whatever it reached.</summary>
+    /// <remarks>
+    /// Fixed rather than converged-to-tolerance, and that is not a shortcut:
+    /// a tolerance loop runs a different number of passes on inputs that
+    /// differ in the last bit, so the same pose could solve two ways on two
+    /// machines and an inbetween would drift from its own reload
+    /// (<c>docs/DESIGN-bones.md</c>, "Determinism rules"). Twenty is well past
+    /// visual convergence for the chain lengths a character has.
+    /// </remarks>
+    public const int IkIterations = 20;
+
+    /// <summary>
+    /// Solve one chain, writing the rotations it wants into <paramref name="pose"/>.
+    /// Returns whether it changed anything.
+    /// </summary>
+    private static bool ApplyChain(
+        Armature armature, IkChain chain,
+        Dictionary<string, BonePose> pose,
+        Dictionary<string, BonePlacement> placements)
+    {
+        var bones = ChainBones(armature, chain);
+        if (bones.Count == 0) return false;
+        if (armature.BoneById(chain.TargetBoneId) is not { } targetBone) return false;
+        if (!placements.TryGetValue(targetBone.Id, out var target)) return false;
+        // A target inside the chain would move because the chain moved, and
+        // the chain would move because the target did. Refuse rather than
+        // iterate a circle: an unsolvable rig should sit still, not vibrate.
+        if (bones.Any(b => b.Id == targetBone.Id) || IsDescendantOfAny(armature, targetBone, bones)) return false;
+
+        // Joints, root first: each bone's origin, then the last bone's tip.
+        var joints = new (double X, double Y)[bones.Count + 1];
+        for (var i = 0; i < bones.Count; i++)
+            joints[i] = (placements[bones[i].Id].X, placements[bones[i].Id].Y);
+        joints[^1] = placements[bones[^1].Id].Tip(bones[^1].Length);
+
+        var lengths = bones.Select(b => b.Length).ToArray();
+        if (chain.PoleBoneId is { } poleId && placements.TryGetValue(poleId, out var pole))
+            Prebend(joints, pole);
+        Fabrik(joints, lengths, (target.X, target.Y));
+
+        // Positions back to rotations. Each chain bone's parent world rotation
+        // is the previous chain bone's NEW one, so no re-solve is needed
+        // between them — only the chain root reads its parent from the FK pass.
+        var parentWorld = bones[0].ParentId is { } pid && placements.TryGetValue(pid, out var pp)
+            ? pp.RotationDeg
+            : 0.0;
+        for (var i = 0; i < bones.Count; i++)
+        {
+            var world = Math.Atan2(joints[i + 1].Y - joints[i].Y, joints[i + 1].X - joints[i].X) * 180.0 / Math.PI;
+            var existing = pose.GetValueOrDefault(bones[i].Id);
+            pose[bones[i].Id] = new BonePose
+            {
+                RotationDeg = world - parentWorld - bones[i].RotationDeg,
+                // A pose translation is the artist's and IK has no opinion on
+                // it — only the angle is the solver's to write.
+                X = existing?.X ?? 0,
+                Y = existing?.Y ?? 0,
+            };
+            parentWorld = world;
+        }
+        return true;
+    }
+
+    /// <summary>The chain's bones, root-most first, walking up from its tip.</summary>
+    private static List<Bone> ChainBones(Armature armature, IkChain chain)
+    {
+        var count = Math.Max(1, chain.Bones);
+        var walk = armature.BoneById(chain.TipBoneId);
+        var bones = new List<Bone>();
+        var seen = new HashSet<string>();
+        while (walk is not null && bones.Count < count && seen.Add(walk.Id))
+        {
+            bones.Add(walk);
+            walk = walk.ParentId is { } p ? armature.BoneById(p) : null;
+        }
+        bones.Reverse();
+        // A zero-length bone has no direction, so a chain containing one has
+        // no shape to solve for.
+        return bones.Any(b => b.Length <= 0) ? [] : bones;
+    }
+
+    private static bool IsDescendantOfAny(Armature armature, Bone bone, List<Bone> ancestors)
+    {
+        var seen = new HashSet<string>();
+        for (var walk = bone.ParentId; walk is not null && seen.Add(walk);)
+        {
+            if (ancestors.Any(a => a.Id == walk)) return true;
+            walk = armature.BoneById(walk)?.ParentId;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Lean the interior joints toward the pole before solving, so the chain
+    /// resolves on that side. FABRIK does not leave the basin it starts in,
+    /// which is what makes a seed enough to decide a knee.
+    /// </summary>
+    private static void Prebend((double X, double Y)[] joints, BonePlacement pole)
+    {
+        for (var i = 1; i < joints.Length - 1; i++)
+            joints[i] = (joints[i].X + (pole.X - joints[i].X) * 0.5,
+                         joints[i].Y + (pole.Y - joints[i].Y) * 0.5);
+    }
+
+    /// <summary>
+    /// FABRIK — forward and backward reaching, in place, a fixed number of
+    /// times. Published and patent-free (Aristidou &amp; Lasenby, 2011).
+    /// </summary>
+    private static void Fabrik((double X, double Y)[] joints, double[] lengths, (double X, double Y) target)
+    {
+        var root = joints[0];
+        var reach = lengths.Sum();
+        var span = Dist(root, target);
+        if (span > reach)
+        {
+            // Out of reach: straight at it. Iterating instead would creep
+            // toward the same answer and cost ten passes to get there.
+            for (var i = 1; i < joints.Length; i++)
+                joints[i] = Along(root, target, lengths.Take(i).Sum());
+            return;
+        }
+
+        for (var pass = 0; pass < IkIterations; pass++)
+        {
+            joints[^1] = target;
+            for (var i = joints.Length - 2; i >= 0; i--)
+                joints[i] = Along(joints[i + 1], joints[i], lengths[i]);
+
+            joints[0] = root;
+            for (var i = 1; i < joints.Length; i++)
+                joints[i] = Along(joints[i - 1], joints[i], lengths[i - 1]);
+        }
+    }
+
+    /// <summary>A point <paramref name="d"/> from <paramref name="from"/> toward <paramref name="to"/>.</summary>
+    private static (double X, double Y) Along((double X, double Y) from, (double X, double Y) to, double d)
+    {
+        var (dx, dy) = (to.X - from.X, to.Y - from.Y);
+        var len = Math.Sqrt(dx * dx + dy * dy);
+        // Coincident points have no direction; +x is as good as any and, being
+        // fixed, keeps the solve reproducible.
+        if (len < 1e-12) return (from.X + d, from.Y);
+        return (from.X + dx / len * d, from.Y + dy / len * d);
+    }
+
+    private static double Dist((double X, double Y) a, (double X, double Y) b) =>
+        Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
 
     private static BonePlacement Place(
         Armature armature,
@@ -308,7 +554,16 @@ public static class ArmatureOps
                 : null;
 
         var delta = pose?.GetValueOrDefault(bone.Id) ?? Rest;
-        var local = new BonePlacement(bone.X + delta.X, bone.Y + delta.Y, bone.RotationDeg + delta.RotationDeg);
+        // A connected bone's origin IS the parent's tip, so its own offset is
+        // not read at all — the parent's length decides, every time it is
+        // asked. A pose translation still applies on top, because posing a
+        // joint apart from its parent is a legitimate thing to key even on a
+        // glued chain.
+        var (ox, oy) = bone.IsConnected && bone.ParentId is not null
+                       && armature.BoneById(bone.ParentId) is { } glued
+            ? (glued.Length, 0.0)
+            : (bone.X, bone.Y);
+        var local = new BonePlacement(ox + delta.X, oy + delta.Y, bone.RotationDeg + delta.RotationDeg);
 
         var world = parent is { } w ? Compose(w, local) : local;
         placements[bone.Id] = world;

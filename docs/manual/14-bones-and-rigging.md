@@ -35,10 +35,13 @@ because its first drag is what *creates* the rig.
 - **Drag a bone's shaft** to move it bodily — children come with it. **Drag
   a tip** to re-aim and re-length it; **drag an origin** to move just that
   joint. All three edit the skeleton's rest, and each is one undo step.
-- **Shift-drag a bone's tip** to grow a child out of it, joined to the
-  parent — the fastest way to build a limb, one bone at a time. **Add child**
-  in the options panel does the same without aiming, and **Length** sets a
-  bone's size by number instead of by drag.
+- **Shift-drag a bone's tip** to grow a child out of it, **glued** to the
+  parent's tip — the fastest way to build a limb, one bone at a time. Glued
+  means the joint follows: re-length the upper arm and the forearm comes with
+  it instead of leaving a gap. Dragging the child's own origin away unglues it
+  again, and it stays where you put it from then on. **Add child** in the
+  options panel does the same without aiming, and **Length** sets a bone's
+  size by number instead of by drag.
 - **Rename** a bone in the options bar — a pair ending `.l` and `.r` is what
   X-symmetry reads. **Delete** removes it and re-parents its children to its
   parent, leaving them exactly where they are; strokes bound to it lose that
@@ -58,6 +61,35 @@ keeps them at rest, so un-keying a pose returns exactly the drawing you made.
 **Baking** writes the pose into the drawing: bound strokes become ordinary
 posed strokes, cut loose from the rig. What you bake is what you saw — the
 live view and the baked result are pixel-identical.
+
+## IK — reaching instead of turning
+
+Turning a shoulder and then an elbow to put a hand somewhere is arithmetic an
+artist should not have to do. **IK** inverts it: you place the hand and the
+arm works out its own angles.
+
+Select the bone at the end of the limb and press **Add IK**. That makes the
+whole thing in one go — a **handle**, drawn amber so it is not mistaken for a
+bone, sitting at the limb's tip. Switch to **Pose**, drag the handle, and the
+limb reaches after it. The handle is an ordinary bone, so it keys on the
+playhead like everything else, and parenting it to a prop or a ground bone is
+how a foot stays planted or a hand stays on a sword.
+
+- **IK bones** is how far up the limb the reach goes. Two is an arm or a leg;
+  more is a tail or a neck.
+- **Pole** picks a bone that says which way the elbow or knee bends. Without
+  one the limb keeps whichever way it is already bent, which is usually what
+  you want and occasionally is not.
+- Dragging *any* bone of the limb in Pose moves the handle, because the limb's
+  angles belong to the solver — you are always really moving the hand.
+- **Remove IK** deletes the chain and its handle. The bones stay exactly where
+  they are and go back to being turned by hand.
+- Out of reach, the limb points straight at the handle and stops — it stretches
+  no further than it is long.
+
+IK is **posing**, never the rest: switch back to **Bind** and the skeleton is
+the one you built, so re-lengthening a bone under a chain does what you asked
+rather than being pulled back by the solver.
 
 ## Binding drawings to bones
 
@@ -84,5 +116,5 @@ each part of it.
   happens against the rest pose; scrub a pose to check, come back to
   correct.
 
-*Planned:* painting weights under a live pose, IK, spline chains and rig
-export (`docs/DESIGN-bones.md` has the whole plan).
+*Planned:* painting weights under a live pose, aim and copy constraints,
+spline chains and rig export (`docs/DESIGN-bones.md` has the whole plan).

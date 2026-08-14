@@ -17,7 +17,9 @@ public readonly record struct BoneChrome(
     double Y0,
     double X1,
     double Y1,
-    bool Selected);
+    bool Selected,
+    /// <summary>An IK handle or pole rather than a bone of the body — drawn apart, because it is dragged for a different reason.</summary>
+    bool IsHandle = false);
 
 /// <summary>Which part of a bone a press grabbed.</summary>
 public enum BoneGrab

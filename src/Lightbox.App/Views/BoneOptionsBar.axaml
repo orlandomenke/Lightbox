@@ -59,6 +59,33 @@
             <Button Content="Delete" Command="{Binding DeleteBoneCommand}"
               ToolTip.Tip="Delete this bone. Its children are re-parented to its parent and stay where they are; strokes bound to it lose that binding." />
     </StackPanel>
+    <!-- IK. One button makes a working limb, and the rest of the row only
+         appears once there is a chain to talk about. -->
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                IsVisible="{Binding HasSelectedBone}">
+      <Button Content="Add IK" Command="{Binding AddIkChainCommand}"
+              IsVisible="{Binding !HasSelectedChain}"
+              ToolTip.Tip="Make this bone the end of an IK chain: a target handle is created at its tip, and dragging that in Pose reaches the whole limb after it." />
+      <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                  IsVisible="{Binding HasSelectedChain}">
+        <TextBlock Text="IK bones" VerticalAlignment="Center" Opacity="0.7" />
+        <NumericUpDown Value="{Binding SelectedChainBoneCount, Mode=TwoWay}" Minimum="1" Maximum="16"
+                       Increment="1" FormatString="0"
+                       ToolTip.Tip="How many bones up from the chain's end the solve may turn. Two is a limb; more is a tail." />
+        <TextBlock Text="Pole" VerticalAlignment="Center" Opacity="0.7" />
+        <ComboBox ItemsSource="{Binding PoleRows}" SelectedValue="{Binding SelectedChainPoleKey, Mode=TwoWay}"
+                  SelectedValueBinding="{Binding Id}" MinWidth="120"
+                  ToolTip.Tip="A bone that says which way the knee or elbow bends. Without one the chain keeps whichever way it is already bent.">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:BoneRow">
+              <TextBlock Text="{Binding Label}" FontFamily="{StaticResource MonoFontFamily}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <Button Content="Remove IK" Command="{Binding RemoveIkChainCommand}"
+                ToolTip.Tip="Delete the chain and its target handle. The bones stay where they are and go back to being posed by hand." />
+      </StackPanel>
+    </StackPanel>
     <!-- The weight brush and its settings, which had no surface at all. -->
     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
                 IsVisible="{Binding HasArmature}">
