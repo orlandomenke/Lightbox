@@ -90,7 +90,7 @@ public sealed class LayerGroup
 /// whose members are unrelated is the ordinary case.
 /// </para>
 /// <para>
-/// <b>What travels is opt-in, per property</b> (Q89). The answer taken was a
+/// <b>What travels is opt-in, per property</b> (Q90). The answer taken was a
 /// general link rather than a bone-specific one, and the price of a general
 /// link is that every property has to answer what inheriting it means — so a
 /// link made to rig a character must not quietly start sharing alpha lock.
@@ -218,7 +218,7 @@ public sealed class Layer
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Named on the layer rather than inferred from adjacency</b> (Q89).
+    /// <b>Named on the layer rather than inferred from adjacency</b> (Q90).
     /// Layer-above/below addressing was declined because reordering layers
     /// would silently retarget it, and a link that retargets when you drag
     /// something is the invisible-failure shape this area keeps producing.

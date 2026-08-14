@@ -648,6 +648,47 @@ public partial class MainViewModel
         RefreshThumbnails();
     }
 
+    /// <summary>
+    /// Remove a whole frame from the scene — every layer's cel at that index —
+    /// and pull the rest of the sheet back. Q88.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The operation already existed and could not be found</b>, which is
+    /// why this is a route rather than a new edit: <c>DocumentEditor.DeleteFrame</c>
+    /// has always removed the column across every layer and rippled, and the
+    /// only way to reach it was one 🗑 button on the timeline bar that acted on
+    /// the playhead. The X-sheet's own right-click <em>Delete cel</em> is the
+    /// row-scoped one, so an artist looking for "take this frame out of the
+    /// scene" found the wrong verb first and concluded the right one was
+    /// missing.
+    /// </para>
+    /// <para>
+    /// Takes the frame from the cel that was clicked rather than from the
+    /// playhead: a right-click names a place, and acting somewhere else would
+    /// be the same near-miss B108 fixed in the project docker.
+    /// </para>
+    /// </remarks>
+    public void DeleteColumnAt(int frameIndex)
+    {
+        if (Scene.FrameCount <= 1) return; // a scene is never zero frames long
+        if (frameIndex < 0 || frameIndex >= Scene.FrameCount) return;
+        // Every layer loses a cel, so a locked one is a refusal for the whole
+        // column rather than something to skip past: deleting the frame from
+        // four layers and not the fifth would slide those four out of step with
+        // it, which is worse than not deleting at all.
+        if (Scene.Layers.FirstOrDefault(l => l.Locked && !l.IsBackground) is { } locked)
+        {
+            AiStatus = $"“{locked.Name}” is locked — unlock it to remove this frame from the scene.";
+            return;
+        }
+        _editor.DeleteFrame(frameIndex);
+        CurrentFrameIndex = Math.Min(CurrentFrameIndex, Scene.FrameCount - 1);
+        _allThumbsDirty = true;
+        ClearCelRange(); // the indices it held have shifted out from under it
+        RefreshThumbnails();
+    }
+
     public void ClearCelAt(FrameCell cell)
     {
         var layers = OpLayersFor(cell);

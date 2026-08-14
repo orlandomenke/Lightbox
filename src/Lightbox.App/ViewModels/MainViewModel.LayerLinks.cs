@@ -24,7 +24,7 @@ public enum LayerLinkMark
 
 /// <summary>
 /// Layer links: declaring that several layers are one drawing, and choosing
-/// what travels between them (Q89).
+/// what travels between them (Q90).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -80,7 +80,7 @@ public sealed partial class MainViewModel
     /// <remarks>
     /// A new link carries <b>bones</b> and nothing else. Rigging a character
     /// is why the gesture exists, and a link that arrived carrying everything
-    /// would be the general-mechanism trap Q89 accepted the cost of avoiding:
+    /// would be the general-mechanism trap Q90 accepted the cost of avoiding:
     /// each property is switched on deliberately.
     /// </remarks>
     private void LinkActiveToNeighbour(bool above)

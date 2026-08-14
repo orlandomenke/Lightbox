@@ -140,7 +140,7 @@ public partial class MainWindow
         if (LayerRowOf(sender) is { } row) _vm.ClearLayerContent(row.Layer);
     }
 
-    // ---- linking (Q89) --------------------------------------------------------------
+    // ---- linking (Q90) --------------------------------------------------------------
     //
     // Each of these activates the row first. The menu belongs to a row and the
     // link operations are written in terms of the ACTIVE layer, so a menu

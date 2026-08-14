@@ -10,15 +10,16 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
-## Q90 · Two kinds of empty cell look alike in the X-sheet — how are they told apart? — **answered 2026-08-14: hatch the past-the-end cells**
+## Q89 · Two kinds of empty cell look alike in the X-sheet — how are they told apart? — **answered 2026-08-14: hatch the past-the-end cells**
 
-> **Renumbered from Q87 on 2026-08-14.** Two branches took the id
-> independently and both merged, so `main` carried a duplicate that
-> `bugs.py ids` cannot see until the merge exists — which is the exact failure
-> the pre-push check was added for, arriving one merge too late. Renumbered
-> rather than either entry being dropped: taking one side of a ledger conflict
-> leaves a file with no duplicate in it and a question permanently gone. This
-> one moved because it had four citations to the whiteboard's ten.
+**Renumbered from Q87 to Q89.** Two branches took Q87 while both were open —
+this one and the reference-overlay whiteboard — and a duplicate id exists in
+neither branch, only in the merged file, so nothing either branch could run
+would have caught it. The whiteboard keeps Q87 because it is cited from eight
+places across `Lightbox.Core`, the view models and the views; this one was
+cited from two comments and a test, so moving it costs three edits instead of
+eight. Same rule the ledger applies to bug ids: both entries survive, and the
+one that is cheaper to move is the one that moves.
 
 Raised by the owner from a screenshot: *"we now have 2 types of empty cells.
 The red circled ones are after deleting cells. The green circled ones are
@@ -3696,7 +3697,7 @@ payloads and the taped-on-canvas strip use. A board that stored flattened copies
 would be a second, stale copy of every sheet in the project, and nothing would
 say when it had gone out of date.
 
-## Q89 · How a drawing knows which bone moves it — **answered 2026-08-14**
+## Q90 · How a drawing knows which bone moves it — **answered 2026-08-14**
 
 Prompted by the owner's question, which exposed more than it asked: "is it
 bound to the layer? To the layer group? Is it assignable?" The honest answer
