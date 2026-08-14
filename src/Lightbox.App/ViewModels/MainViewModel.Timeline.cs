@@ -931,32 +931,86 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// Deterministic inbetweens between the key at/before the playhead and
-    /// the next key. Strokes are interpolated, then re-rendered by the same
-    /// brush pipeline as hand-painted frames when the cels are displayed.
+    /// Deterministic inbetweens across the run the playhead sits in — extreme
+    /// to extreme, filling every gap and passing through any breakdown on the
+    /// way. Strokes are interpolated, then re-rendered by the same brush
+    /// pipeline as hand-painted frames when the cels are displayed.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The run rather than the interval (Q83).</b> This used to fill to the
+    /// next <em>drawing</em>, so a breakdown ended the span and the easing
+    /// restarted at it — one slow-out/slow-in the animator drew across a run
+    /// came out as two, stuttering at the breakdown. It also meant the artist
+    /// ran the command once per gap, and that the timing chart on the opening
+    /// key described a different span here than it did in
+    /// <see cref="SpacingChart"/>, which has closed runs at extremes all along.
+    /// </para>
+    /// <para>
+    /// A document with no breakdowns is unaffected: <c>Key</c> is the default
+    /// role, so every drawing is an extreme and the run is the interval.
+    /// </para>
+    /// <para>
+    /// One undo step for the whole run — <see cref="DocumentEditor.InsertRunInbetweens"/>
+    /// exists for that and nothing else.
+    /// </para>
+    /// </remarks>
     [RelayCommand]
     private void InsertInbetweens()
     {
         var layer = ActiveLayer;
-        var aIndex = ExposureSheet.KeyIndexAtOrBefore(layer, CurrentFrameIndex);
-        if (aIndex < 0) return;
-        var bIndex = ExposureSheet.NextKeyIndex(layer, aIndex);
-        if (bIndex < 0) return;
+        var run = ExposureSheet.RunAt(layer, CurrentFrameIndex);
+        if (run.Count < 2) return;
 
-        var a = StrokesOf(layer.Cels[aIndex].Frame!);
-        var b = StrokesOf(layer.Cels[bIndex].Frame!);
-        // The extreme's own timing chart wins over the bar's count and easing
-        // (Q58): the ladder on the drawing is the artist's spacing for this
-        // interval, and the bar is the default for extremes that have none.
-        var series = layer.Cels[aIndex].Frame!.Chart is { Count: > 0 } chart
-            ? Inbetweener.InbetweenSeries(a, b, chart)
-            : Inbetweener.InbetweenSeries(a, b, TweenCount, TweenEasing);
-        var frames = series.Select(strokes => NewFrameFor(layer, strokes, FrameRole.Inbetween)).ToList();
+        var aIndex = run[0];
+        var span = (double)(run[^1] - aIndex);
+        var stops = run
+            .Select(i => new Inbetweener.RunStop(
+                (i - aIndex) / span, StrokesOf(layer.Cels[i].Frame!)))
+            .ToList();
 
-        _editor.InsertInbetweens(layer.Id, aIndex, frames);
+        // The opening extreme's timing chart wins over the bar's count and
+        // easing (Q58), and Q83 settled what it spans: the whole run, which is
+        // what SpacingChart already reads it as. A rung is a position across
+        // the run, so it lands in whichever gap contains it.
+        var chart = layer.Cels[aIndex].Frame!.Chart;
+        var charted = chart is { Count: > 0 };
+        var easing = charted ? Easing.Linear : TweenEasing;
+
+        // Which new drawings go where. Grouped by gap, because that is how they
+        // are inserted and because a rung that coincides with a drawing the
+        // artist already made is a rung that is already satisfied.
+        var gaps = new List<(int AIndex, List<double> Times)>();
+        for (var k = 0; k < stops.Count - 1; k++)
+        {
+            double lo = stops[k].Time, hi = stops[k + 1].Time;
+            var times = charted
+                ? chart!.Where(rung => rung > lo + RungEpsilon && rung < hi - RungEpsilon).ToList()
+                : [.. Enumerable.Range(1, TweenCount).Select(j => lo + (hi - lo) * j / (TweenCount + 1))];
+            gaps.Add((run[k], times));
+        }
+
+        var filled = gaps
+            .Select(gap => (
+                gap.AIndex,
+                Frames: (IReadOnlyList<Frame?>)Inbetweener
+                    .InbetweenRun(stops, gap.Times, easing)
+                    .Select(strokes => (Frame?)NewFrameFor(layer, strokes, FrameRole.Inbetween))
+                    .ToList()))
+            .Where(gap => gap.Frames.Count > 0)
+            .ToList();
+        if (filled.Count == 0) return;
+
+        _editor.InsertRunInbetweens(layer.Id, filled);
         CurrentFrameIndex = Math.Min(aIndex + 1, Scene.FrameCount - 1);
     }
+
+    /// <summary>
+    /// How close a chart rung has to be to a drawing already in the run to
+    /// count as describing it rather than asking for a new one. Half a frame
+    /// on a twenty-frame run, which is finer than a rung can be authored.
+    /// </summary>
+    private const double RungEpsilon = 0.025;
 
     // ---- timing charts (Q58) ----------------------------------------------------
 

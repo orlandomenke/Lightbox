@@ -3,14 +3,28 @@
 
 ## Inbetweens
 
-Set the number of inbetweens and an easing, then **＋ Inbetween** interpolates
-between this key and the next. Because a frame is a stroke record, the
-inbetweener matches *strokes*, not pixels.
+Set the number of inbetweens and an easing, then **＋ Inbetween** fills the run
+the playhead is in. Because a frame is a stroke record, the inbetweener matches
+*strokes*, not pixels.
+
+**A run is extreme to extreme, and a breakdown is a stop along the way rather
+than the end of it.** Mark a cel as a breakdown and **＋ Inbetween** fills every
+gap of the run in one go — the drawings either side of the breakdown, in one
+action and one undo — and the easing runs once across the whole span instead of
+restarting at each drawing. That is the difference between one slow-out and
+slow-in across the movement and two of them with a hitch in the middle. Your
+breakdown is never moved or redrawn: it keeps its frame and its pose, and the
+inbetweens are spaced around it. If it does not sit where the easing would have
+put it, the graph editor's spacing curve is what shows you that — the app will
+not quietly re-space a drawing you placed.
+
+A sequence with no breakdowns behaves exactly as before, because every drawing
+is an extreme until you say otherwise.
 
 **A timing chart on the extreme wins over both controls.** Right-click the key's
 cel on the X-sheet and choose **Timing chart…** to pencil the classic ladder
-onto it: each rung is one inbetween, placed at its fraction of the travel to
-the next key. Drag a rung to re-space it, click the rail to add one,
+onto it: each rung is one inbetween, placed at its fraction of the travel
+across the run. Drag a rung to re-space it, click the rail to add one,
 right-click a rung to remove it; the preset buttons write the standard shapes
 (even, ease in, ease out, ease in-out) to start from. With a chart on the
 extreme, **＋ Inbetween** draws exactly one inbetween per rung, exactly where
@@ -24,7 +38,11 @@ the easing until the counts agree again.
 
 The same ladder steers **✦ AI Inbetween**: the model is asked for one frame
 per rung, at the rung's position, so accepting the AI's frames or the
-deterministic ones lands the same timing.
+deterministic ones lands the same timing. One difference to know about, for now:
+**✦ AI Inbetween** still works one gap at a time, so on a run with a breakdown
+it fills the gap you are in rather than the whole run. Sending the model a third
+drawing costs materially more per request, and that trade has not been taken
+yet.
 
 ## AI inbetweens
 

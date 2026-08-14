@@ -145,4 +145,84 @@ public sealed partial class CanvasControl
         _rigDragId = id;
         _rigDragCorner = corner;
     }
+
+    /// <summary>
+    /// Whether a Bone-tool press paints weights instead of working bones.
+    /// Pushed from the window like <see cref="RigEditMode"/>.
+    /// </summary>
+    public bool WeightPainting { get; set; }
+
+    /// <summary>A weight-brush stroke began at this document point.</summary>
+    public event Action<double, double, double>? WeightStrokeStarted;
+
+    /// <summary>One weight dab: position and pressure, per pointer move.</summary>
+    public event Action<double, double, double>? WeightDabbed;
+
+    /// <summary>The weight-brush stroke ended; the window lands the one undo step.</summary>
+    public event Action? WeightStrokeEnded;
+
+    private bool _weightStrokeActive;
+
+    /// <summary>The Bone tool's press: a weight-brush stroke or a bone gesture.</summary>
+    private void BeginBoneGesture(double x, double y, Avalonia.Input.PointerPressedEventArgs e)
+    {
+        if (WeightPainting)
+        {
+            _weightStrokeActive = true;
+            WeightStrokeStarted?.Invoke(x, y, PressureOf(e.GetCurrentPoint(this).Properties.Pressure));
+        }
+        else
+        {
+            _boneDragId = null;
+            _boneDragGrab = BoneGrab.None;
+            _boneGestureStart = (x, y);
+            _boneGestureActive = true;
+            // The window answers with BeginBoneDrag if the press hit a bone.
+            BonePressed?.Invoke(x, y, FitScale() * _zoom);
+        }
+        e.Pointer.Capture(this);
+        e.Handled = true;
+    }
+
+    /// <summary>Streams weight dabs while the brush is down. True when the move was consumed.</summary>
+    private bool ContinueBoneGesture(Avalonia.Input.PointerEventArgs e)
+    {
+        if (!_weightStrokeActive) return false;
+        var (x, y) = ViewToDoc(e.GetPosition(this));
+        WeightDabbed?.Invoke(x, y, PressureOf(e.GetCurrentPoint(this).Properties.Pressure));
+        e.Handled = true;
+        return true;
+    }
+
+    /// <summary>
+    /// A bone gesture ends the same way a rig drag does: on release, with the
+    /// endpoints, one editor step. The window decides what the gesture meant —
+    /// create, joint move, re-aim, pose, or the weight stroke's single undo
+    /// step — from the grab and the mode. True when the release was consumed.
+    /// </summary>
+    private bool EndBoneGesture(Avalonia.Input.PointerReleasedEventArgs e)
+    {
+        if (_weightStrokeActive)
+        {
+            _weightStrokeActive = false;
+            e.Pointer.Capture(null);
+            WeightStrokeEnded?.Invoke();
+            e.Handled = true;
+            return true;
+        }
+        if (!_boneGestureActive) return false;
+
+        var (bx, by) = ViewToDoc(e.GetPosition(this));
+        _boneGestureActive = false;
+        var boneId = _boneDragId;
+        var boneGrab = _boneDragGrab;
+        _boneDragId = null;
+        e.Pointer.Capture(null);
+        BoneGestureEnded?.Invoke(boneId, boneGrab, _boneGestureStart.X, _boneGestureStart.Y, bx, by);
+        e.Handled = true;
+        return true;
+    }
+
+    /// <summary>A mouse reports 0 or 0.5 depending on platform; either way a full-strength dab.</summary>
+    private static double PressureOf(float raw) => raw <= 0 ? 1.0 : raw;
 }

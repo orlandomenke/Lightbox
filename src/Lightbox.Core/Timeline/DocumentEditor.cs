@@ -433,37 +433,59 @@ public sealed class DocumentEditor
     /// (Q32) inserts three frames of four without shifting the surviving ones
     /// off their own timing: each accepted frame stays at its t's slot.
     /// </remarks>
-    public void InsertInbetweens(string layerId, int aIndex, IReadOnlyList<Frame?> frames)
+    public void InsertInbetweens(string layerId, int aIndex, IReadOnlyList<Frame?> frames) =>
+        Perform(doc => FillGap(doc, layerId, aIndex, frames));
+
+    /// <summary>
+    /// Fill several gaps of one run — <b>one undo step for the whole run</b>,
+    /// which is the only reason this exists rather than the caller looping.
+    /// </summary>
+    /// <remarks>
+    /// Gaps are filled back to front, because filling one shifts every cel
+    /// index after it. Taking them in the order the caller found them would
+    /// leave the second gap's <c>aIndex</c> pointing at whatever the first
+    /// gap's insertions pushed into that slot.
+    /// </remarks>
+    public void InsertRunInbetweens(string layerId, IReadOnlyList<(int AIndex, IReadOnlyList<Frame?> Frames)> gaps)
     {
+        if (gaps.Count == 0) return;
         Perform(doc =>
         {
-            var layer = doc.Scene.Layers.First(l => l.Id == layerId);
-            PadCels(layer, doc.Scene.FrameCount);
-            var bIndex = ExposureSheet.NextKeyIndex(layer, aIndex);
-            var gap = bIndex < 0 ? 0 : bIndex - aIndex - 1;
-            var replace = Math.Min(gap, frames.Count);
-
-            for (var k = 0; k < replace; k++)
+            foreach (var gap in gaps.OrderByDescending(g => g.AIndex))
             {
-                if (frames[k] is { } frame) layer.Cels[aIndex + 1 + k].Frame = frame;
-            }
-
-            var extra = frames.Count - replace;
-            for (var k = 0; k < extra; k++)
-            {
-                var at = aIndex + 1 + replace + k;
-                foreach (var other in doc.Scene.Layers)
-                {
-                    PadCels(other, doc.Scene.FrameCount);
-                    other.Cels.Insert(at, new Cel
-                    {
-                        Frame = other.Id == layerId ? frames[replace + k] : null,
-                    });
-                }
-                doc.Scene.FrameCount++;
-                RippleReferences(doc.Scene, at, +1);
+                if (gap.Frames.Count > 0) FillGap(doc, layerId, gap.AIndex, gap.Frames);
             }
         });
+    }
+
+    private static void FillGap(Doc doc, string layerId, int aIndex, IReadOnlyList<Frame?> frames)
+    {
+        var layer = doc.Scene.Layers.First(l => l.Id == layerId);
+        PadCels(layer, doc.Scene.FrameCount);
+        var bIndex = ExposureSheet.NextKeyIndex(layer, aIndex);
+        var gap = bIndex < 0 ? 0 : bIndex - aIndex - 1;
+        var replace = Math.Min(gap, frames.Count);
+
+        for (var k = 0; k < replace; k++)
+        {
+            if (frames[k] is { } frame) layer.Cels[aIndex + 1 + k].Frame = frame;
+        }
+
+        var extra = frames.Count - replace;
+        for (var k = 0; k < extra; k++)
+        {
+            var at = aIndex + 1 + replace + k;
+            foreach (var other in doc.Scene.Layers)
+            {
+                PadCels(other, doc.Scene.FrameCount);
+                other.Cels.Insert(at, new Cel
+                {
+                    Frame = other.Id == layerId ? frames[replace + k] : null,
+                });
+            }
+            doc.Scene.FrameCount++;
+            RippleReferences(doc.Scene, at, +1);
+        }
     }
 
     /// <summary>
