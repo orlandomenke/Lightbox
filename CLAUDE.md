@@ -489,6 +489,22 @@ collisions, 0% of the question ones, and not the worst case in the list — the
 bone-icon bug collided with another `ui` bug, inside the band it would have been
 given.
 
+**The shape that stops the *textual* conflict is one file per entry** (Q91), and
+it now applies to both places where every branch wrote to the same spot:
+
+| | |
+| --- | --- |
+| `.claude/quality/questions/` | one file per question. Raising one used to mean appending a section to a 3,689-line file, so two branches raising two questions conflicted by construction. `QUESTIONS.md` is a generated index and is **not committed**, for Q55's reason. |
+| `.claude/quality/ratchets/` | one file per line budget, holding the number and every reason it has moved. They were a table in `MonolithRatchetTests.cs`, so two branches growing two *different* oversized files still met there. |
+
+The ratchets are the case where the derived-file trick does **not** apply, and
+the reason is worth keeping: a budget looks derived — three of the four equal
+their file's exact line count — but a ceiling re-measured from the tree can never
+be exceeded, so a script that synced it would delete the mechanism and leave the
+paperwork. `ratchets.py remeasure` exists for one moment only, resolving a merge,
+where *measure on the merged tree, never take a side's number* is mechanical and
+was being done by eye. It is wired to no hook on purpose.
+
 **`python3 scripts/branchstate.py` answers "would this merge?" before a reviewer
 does**, and separates the two kinds of conflict — authored files, which need a
 decision, from the generated index, which needs a rebuild. A `PostToolUse` hook
