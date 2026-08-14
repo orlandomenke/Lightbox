@@ -229,6 +229,35 @@
   <SolidColorBrush x:Key="CelCurrentBrush" Color="{StaticResource AccentViolet}" Opacity="0.62" />
   <SolidColorBrush x:Key="CelSelectedBrush" Color="{StaticResource AccentViolet}" Opacity="0.44" />
 
+  <!--
+    Past the end of the scene. Q87.
+
+    An empty cel inside the scene and a cell past its end were both "a dark
+    box": the first is a hold or a blanked drawing, where the playhead goes and
+    a mark keys a cel; the second is nothing at all, and refuses the click. The
+    only thing separating them was an opacity, which is far too quiet to carry
+    a distinction that decides whether a click does anything.
+
+    Diagonal, and deliberately the one hatched thing in the sheet — the owner
+    chose it over dropping the grid entirely so the columns stay countable far
+    to the right, which is what you read when deciding how far to extend. Grey
+    rather than an accent, for the reason the hover tint gives: this must not
+    read as a state that means something. Wide spacing and low contrast, so a
+    row of forty of them is a texture rather than a pattern that fights the
+    drawings beside it.
+  -->
+  <DrawingBrush x:Key="CelVirtualHatchBrush"
+                TileMode="Tile" Stretch="None"
+                SourceRect="0,0,6,6" DestinationRect="0,0,6,6">
+    <DrawingBrush.Drawing>
+      <GeometryDrawing Geometry="M -1,7 L 7,-1">
+        <GeometryDrawing.Pen>
+          <Pen Brush="#808080" Thickness="1" />
+        </GeometryDrawing.Pen>
+      </GeometryDrawing>
+    </DrawingBrush.Drawing>
+  </DrawingBrush>
+
   <!-- A group's row sits above the layers it holds, so it takes the raised
        surface rather than a colour of its own. -->
   <SolidColorBrush x:Key="GroupRowBrush" Color="{StaticResource SurfaceElevated}" />

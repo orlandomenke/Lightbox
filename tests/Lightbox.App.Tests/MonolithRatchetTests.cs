@@ -174,7 +174,15 @@ public class MonolithRatchetTests(ITestOutputHelper output)
         // lines of slack under its own budget, and 4,275 would have banked
         // them as headroom nobody had earned. +4 over main, which is the size
         // of the change.
-        ("src/Lightbox.App/Views/MainWindow.axaml", 4273),
+        // → 4,276 (2026-08-14): the past-the-end cel's hatch (Q87) — one setter
+        // and its two-line reason. The brush itself is in Palette.axaml, where
+        // the colour system lives; only the style selector has to be here,
+        // because a selector cannot live anywhere else. Measured alone that
+        // wanted 4,272, against a main that had not yet taken the drag wiring
+        // above; both notes are kept because taking either side of the merge
+        // would delete the other's reason and leave a number nobody can
+        // account for.
+        ("src/Lightbox.App/Views/MainWindow.axaml", 4276),
         // Lowered when the overlay-gesture wiring moved to MainWindow.Overlays.cs,
         // and again (449 → 427) when the bone gesture handler followed it there.
         // A merge had left that one block behind in the code-behind while its

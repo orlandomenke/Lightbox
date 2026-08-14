@@ -10,6 +10,65 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
+## Q87 · Two kinds of empty cell look alike in the X-sheet — how are they told apart? — **answered 2026-08-14: hatch the past-the-end cells**
+
+Raised by the owner from a screenshot: *"we now have 2 types of empty cells.
+The red circled ones are after deleting cells. The green circled ones are
+default. The deleted ones are scrubbable and auto create keyframes when
+painting. The other are not scrubbable and unselectable. This is creating some
+confusion, though also helpful as the playerhead never reaches the empty ones.
+But still it is a bit confusing as both seem deleted."*
+
+The two are real and the model already separates them: a cel inside the scene
+with no drawing is a **hold or a blanked cel** — the playhead goes there and a
+mark keys it — while a cell past `Scene.FrameCount` is **virtual**
+(`FrameCell.IsVirtual`), refused by `SelectFrame`, by the cel drag and by the
+range highlight. The only thing saying so was `Opacity 0.35`
+(`MainWindow.axaml`, `Button.cel.virtualCell`), which is far too quiet to carry
+a distinction that decides whether a click does anything.
+
+**Answered: hatch the past-the-end cells** — keep the cell boxes and fill them
+with a faint diagonal hatch or darker tone.
+
+The recommendation was *the grid stops* — dropping the cell chrome entirely
+past the end, so the sheet visibly ends where the scene does. The owner's
+choice keeps the column grid legible far to the right, which is what you want
+when judging how far to extend a scene, and that is a real gain the
+recommendation gave up.
+
+What it costs, recorded because the choice was made knowingly: a hatch is **new
+visual vocabulary** — the sheet has no other hatched state, so it has to be
+learned rather than read, where an absent grid needs no explanation. It also
+has to stay legible against the current-frame highlight, the out-of-range dim
+(`Button.cel.dim`) and the selection tint without becoming noise, which is a
+tuning job the absent-grid option would not have had.
+
+## Q88 · What should "delete a column" be, when a column delete already exists? — **answered 2026-08-14: expose the existing one properly**
+
+Raised by the owner: *"we should also have a command for deleting a column at
+once in the timeline."*
+
+The capability is already there and unreachable, which is why it reads as
+missing. `DocumentEditor.DeleteFrame` removes the frame from **every** layer
+and ripples the rest back — a column delete in full — and the view model wraps
+it as `DeleteFrameCommand`. It is exposed as one 🗑 button on the timeline bar
+and **is not in `ShortcutMap`**, so it cannot be bound, searched or found. The
+X-sheet's own right-click *delete* is the row-scoped one (that layer's cels,
+pulling the row back), which is the one an artist finds first — hence the
+impression that only a row delete exists.
+
+**Answered: expose the existing one properly** — register it in `ShortcutMap`
+so it is bindable and searchable, and add it to the X-sheet's right-click menu
+as *Delete column*, worded to separate it from the row-scoped delete beside it.
+
+No new behaviour, which is the point: the alternatives offered were a
+non-rippling *clear the column in place* variant and a selection-driven
+multi-column delete. Both are defensible features and neither is what was
+missing here; adding one would have shipped a second thing to learn alongside
+the fix for the first. They stay unbuilt until asked for.
+
+---
+
 ## Q66 · The bug list is growing faster than it drains — what changes? — **answered 2026-08-12: fix rather than file, and a blocked run asks in a PR**
 
 Raised by the owner: *"I notice a lot more bugs being reported by the agentic
