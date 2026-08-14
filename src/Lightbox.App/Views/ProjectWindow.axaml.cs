@@ -38,6 +38,11 @@ public partial class ProjectWindow : Window
         // the decision lives on the view model, so the cancel path is testable.
         _vm.AskName = (kind, suggested) =>
             TextPrompt.ShowAsync(this, $"New {kind}", "Name", suggested);
+        // Opening a document has to take this window down with it: the dialog is
+        // modal, so a tab opened behind it is a tab nobody can see. Supplied
+        // here for the same reason AskName is — the decision is on the view
+        // model, where a test can drive it, and the window is what can close.
+        _vm.RequestClose = Close;
         DataContext = _vm;
         InitializeComponent();
 
@@ -452,6 +457,31 @@ public partial class ProjectWindow : Window
 
     private System.Collections.Generic.List<BoardRow> SelectedRows() =>
         [.. StructureRows.SelectedItems?.OfType<BoardRow>() ?? []];
+
+    // ---- opening a row: in Lightbox, or on disk -----------------------------------
+    //
+    // Click rather than Command for the flyout's items, the rule the rest of
+    // this window's menus already follow: a flyout's items live in a popup,
+    // where a window binding resolves to nothing.
+    //
+    // Not on double-click, and that is the one worth writing down. Double-click
+    // on a row's name already starts a rename here (B64's gesture), so an open
+    // on double-click would be told apart from a rename by a few pixels of
+    // horizontal position — and getting it wrong takes a modal window down and
+    // opens a tab. The docker keeps double-click-to-open because nothing there
+    // renames that way.
+
+    private void OnOpenRowInLightbox(object? sender, RoutedEventArgs e) =>
+        _vm.OpenSelectedInLightboxCommand.Execute(null);
+
+    private void OnRevealRow(object? sender, RoutedEventArgs e) =>
+        _vm.RevealSelectedCommand.Execute(null);
+
+    private void OnOpenScopeInLightbox(object? sender, RoutedEventArgs e) =>
+        _vm.OpenScopeInLightbox(_vm.SelectedScope);
+
+    private void OnRevealScope(object? sender, RoutedEventArgs e) =>
+        _vm.RevealScope(_vm.SelectedScope);
 
     private void OnRemoveScope(object? sender, RoutedEventArgs e)
     {

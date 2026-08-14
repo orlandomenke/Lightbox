@@ -378,6 +378,13 @@ public partial class MainWindow
         // docker's own resolution and bookkeeping — one export, two surfaces.
         window.ViewModel.ResolveExport = _vm.ProjectDocker.ResolveExport;
         window.ViewModel.RecordExport = _vm.ProjectDocker.RecordExport;
+        // Opening a row goes through the same two callbacks the docker's
+        // double-click uses, so a document opened from the window focuses the
+        // tab it is already in rather than arriving in a second one. The window
+        // closes itself afterwards — it is modal, and a tab behind it is
+        // invisible — and the Refresh below then runs as it does on any close.
+        window.ViewModel.OpenDocument = _vm.OpenProjectDocument;
+        window.ViewModel.OpenSheet = _vm.OpenProjectSheet;
         await window.ShowDialog(this);
         _vm.ProjectDocker.Refresh();
     }

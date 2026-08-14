@@ -182,8 +182,10 @@ public partial class MainViewModel
     /// means "let me draw on this", and an empty sheet has nothing else it could
     /// mean. The view is project state, so it is queued for the next save the
     /// same way a stroke would be.
+    ///
+    /// Public for the project window's Open too, as OpenProjectDocument is.
     /// </remarks>
-    private void OpenProjectSheet(SheetRef filed)
+    public void OpenProjectSheet(SheetRef filed)
     {
         if (ProjectDocker.Project is not { } project) return;
         if (ProjectSheets.Load(project, filed) is not { } sheet)

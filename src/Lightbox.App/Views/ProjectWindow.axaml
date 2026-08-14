@@ -250,8 +250,14 @@
             here is saved at once, so the docker and the disk both show it.
           -->
           <Border DockPanel.Dock="Top" Classes="bar">
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <Button Content="＋ New ▾" ToolTip.Tip="Create something in this project">
+            <!--
+              A WrapPanel, like the bulk bar below: five buttons and a sentence
+              do not fit the 720-pixel minimum width, and a StackPanel would
+              clip the sentence rather than move it to a second line.
+            -->
+            <WrapPanel>
+              <Button Content="＋ New ▾" Margin="0,0,6,0"
+                      ToolTip.Tip="Create something in this project">
                 <Button.Flyout>
                   <MenuFlyout>
                     <MenuItem Header="🗀  Folder…" Click="OnNewFolder"
@@ -261,12 +267,29 @@
                   </MenuFlyout>
                 </Button.Flyout>
               </Button>
-              <Button Content="✎ Rename project…" Command="{Binding RenameProjectCommand}"
+              <Button Content="✎ Rename project…" Margin="0,0,6,0"
+                      Command="{Binding RenameProjectCommand}"
                       ToolTip.Tip="Renames the project and its folder on disk">
               </Button>
+              <!--
+                The two ways out of this window, and they are different
+                gestures rather than one with a guess in it: a document is
+                artwork, so it opens in Lightbox; a folder is a place, so it
+                opens in the file manager. Opening a document closes this
+                window — it is modal, and a tab behind it is a tab nobody sees.
+              -->
+              <Button Content="⏵ Open" Margin="0,0,6,0"
+                      Command="{Binding OpenSelectedInLightboxCommand}"
+                      ToolTip.Tip="Open the selected documents in Lightbox as tabs. Closes this window." />
+              <Button Content="🗀 Show on disk" Margin="0,0,6,0"
+                      Command="{Binding RevealSelectedCommand}"
+                      ToolTip.Tip="Show the selected row in the file manager — a folder opened, a document selected inside its folder" />
+              <Button Content="🗁 Project folder" Margin="0,0,6,0"
+                      Command="{Binding RevealProjectFolderCommand}"
+                      ToolTip.Tip="Show the project's own folder in the file manager, whatever is selected" />
               <TextBlock Classes="dim" VerticalAlignment="Center"
-                         Text="Lands where the selection is. Right-click a row does the same." />
-            </StackPanel>
+                         Text="＋ New, ⏵ Open and 🗀 Show on disk act on the selection — right-click a row does the same." />
+            </WrapPanel>
           </Border>
 
           <Grid DockPanel.Dock="Top" ColumnDefinitions="*,190,110,120,90,200" Margin="8,6,8,2">
@@ -288,6 +311,14 @@
                  live in a popup, where a window binding resolves to nothing. -->
             <ListBox.ContextFlyout>
               <MenuFlyout>
+                <!-- Opening first: it is what you came to a row to do, and the
+                     two entries are the split the window is built on — artwork
+                     opens in Lightbox, a place opens in the file manager. -->
+                <MenuItem Header="⏵  Open in Lightbox" Click="OnOpenRowInLightbox"
+                          ToolTip.Tip="Open the selected documents as tabs. Closes this window." />
+                <MenuItem Header="🗀  Show in file manager" Click="OnRevealRow"
+                          ToolTip.Tip="Open the folder on disk, or show the document's file inside its folder" />
+                <Separator />
                 <MenuItem Header="🗀  New folder…" Click="OnNewFolder"
                           ToolTip.Tip="A folder you name, inside the selected one" />
                 <MenuItem Header="▣  New document…" Click="OnNewDocument"
@@ -520,6 +551,15 @@
                  in a popup, where a window binding resolves to nothing. -->
             <ListBox.ContextFlyout>
               <MenuFlyout>
+                <!-- The same pair the Structure tab's menu opens with. These
+                     rows are the same folders and documents, so leaving the
+                     gesture out here would make one tab able to do a thing the
+                     other cannot for no reason an artist could work out. -->
+                <MenuItem Header="⏵  Open in Lightbox" Click="OnOpenScopeInLightbox"
+                          ToolTip.Tip="Open the selected document as a tab. Closes this window." />
+                <MenuItem Header="🗀  Show in file manager" Click="OnRevealScope"
+                          ToolTip.Tip="Open the folder on disk — the project row shows the project's own folder" />
+                <Separator />
                 <MenuItem Header="▤  New reference sheet…" Click="OnNewSheet"
                           ToolTip.Tip="A blank sheet, filed on the selected folder — every drawing under it can consult it" />
                 <MenuItem Header="🎨  New palette…" Click="OnNewPalette"
