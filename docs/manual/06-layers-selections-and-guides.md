@@ -45,6 +45,16 @@ undo step**:
 Anything you do to a row that is *not* in the selection is done to that row
 alone. Right-clicking a layer you have not selected is not a trap.
 
+### Reordering by dragging
+
+Rows also **drag**: pick a layer up and drop it where it should go. Dropping on
+the upper half of a row lands above that row, the lower half lands below it,
+and dropping on a folder header files the layer into that folder. The layer
+takes the folder of wherever it lands — dropping between a folder's members
+joins the folder, dropping beside a loose row leaves it — and the whole drop is
+one undo step. A drag moves the one row you picked up; the ▲/▼ buttons remain
+the way to move a multi-selection as a block.
+
 **The onion-skin toggle (◉) is the exception: it is always one layer**, even
 with several selected. The eye and the locks describe the drawing, and picking
 five layers means all five. Onion skin describes what you are *looking through*
