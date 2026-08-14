@@ -522,6 +522,23 @@ public partial class MainViewModel
     /// </remarks>
     private void LeaveToolStateBehind(ToolId value)
     {
+        // B208. Reaching for a tool means you are done transforming, so the
+        // session goes — and it discards rather than applies, because the
+        // preview was never an edit (invariant 1) and committing the document
+        // from a gesture that never said "apply" is the worse mistake of the
+        // two. Enter is still the only thing that writes.
+        //
+        // Unconditional on the tool being chosen, unlike everything below it:
+        // there is no tool that can go on working a gizmo session, the Move
+        // tool included — that one opens a session of its own on the press.
+        //
+        // Worth knowing that the comment below has claimed this behaviour since
+        // B147 ("Every other modal thing here behaves the same way ... the
+        // transform session") and the line was never here. Ctrl+T then survived
+        // every tool change while the canvas quietly went back to painting,
+        // which is the other half of what B208 reported.
+        if (TransformActive) CancelTransform();
+
         CancelPolygonInProgress();
 
         // B147: leaving the arrow lets the lines go. A stroke selection is only

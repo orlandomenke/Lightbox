@@ -133,6 +133,14 @@ options** docker, which opens by itself when the session starts, so they are
 never off screen while a transform is live. Enter applies, Esc cancels,
 from the keyboard as always.
 
+**While a transform is up, the canvas belongs to it** — every press on the
+drawing goes to the handles, whatever the toolbar says. **Picking a tool ends
+the session and discards the drag**, on the grounds that reaching for the brush
+means you are done transforming. Nothing is written to the drawing that way:
+only Enter applies, so an accidental tool press costs you the drag and never
+the artwork. Holding **Ctrl** for the eyedropper is a borrow rather than a
+choice and leaves the transform alone.
+
 **Scope** decides what moves: this cel, all layers at this frame, a marked cel
 range, or the whole animation. With a selection active, only the strokes inside
 it move — and they move whole, so connected drawings stay connected.

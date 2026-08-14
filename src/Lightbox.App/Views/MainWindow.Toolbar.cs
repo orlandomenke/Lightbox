@@ -28,8 +28,40 @@ public partial class MainWindow
     // ---- toolbar ---------------------------------------------------------------
 
     /// <summary>Map the VM's tool + selection variant onto the canvas input mode.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B208. A transform session outranks the tool, and this used to overwrite
+    /// it.</b> The gizmo is on screen and every press on the canvas belongs to it
+    /// until Enter or Escape — but the canvas only routes those presses while
+    /// <c>ToolMode</c> is <c>Transform</c>, and this method asserted the mode from
+    /// <see cref="MainViewModel.ActiveTool"/> alone.
+    /// </para>
+    /// <para>
+    /// Which made <b>Ctrl+T itself</b> break the thing it starts. Holding Ctrl
+    /// borrows the eyedropper (<c>ApplyHeldModifiers</c>), the T starts the session
+    /// and sets the mode to <c>Transform</c> — and then <i>letting go of Ctrl</i>
+    /// gives the brush back, fires <c>ActiveTool</c>, and lands here, which puts the
+    /// canvas into <c>Paint</c> with the gizmo still drawn. The handles then do
+    /// nothing and the press paints a stroke across the artwork instead.
+    /// </para>
+    /// <para>
+    /// It read as intermittent because the borrow only happens from the tools that
+    /// can be borrowed <i>from</i> — brush, eraser, fill, shape, gradient. Press
+    /// Ctrl+T holding the Move tool or an arrow and <c>BorrowedFor</c> returns null,
+    /// nothing changes the tool, and the gizmo works perfectly.
+    /// </para>
+    /// <para>
+    /// The gizmo's own flag is the condition rather than
+    /// <c>MainViewModel.TransformActive</c>: the Move tool opens a session with no
+    /// gizmo (<c>BeginTransform(gizmo: false)</c>), which never claims the canvas
+    /// mode and must keep following the tool. <c>TransformEnded</c> clears the flag
+    /// before calling this, so the restore still runs.
+    /// </para>
+    /// </remarks>
     private void SyncCanvasToolMode()
     {
+        if (Canvas.TransformSessionActive) return;
+
         Canvas.ToolMode = _vm.ActiveTool switch
         {
             ToolId.Fill => Rendering.CanvasControl.CanvasToolMode.Fill,
