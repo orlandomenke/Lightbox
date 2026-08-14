@@ -13,10 +13,19 @@ resolves that against the generated code index and rewrites the checkbox.
 Because status is derived, deleting the test reopens the bug on the next sync.
 That is the property that makes the ledger worth keeping.
 
+**An id is issued, not chosen.** `new` and `freeid` allocate above every branch
+this clone can see rather than above the working tree, because "the highest
+number in the file I have" is the same number on two branches that started from
+the same `main` — which is how six bugs and three questions had to be renumbered
+by hand in the six days to 2026-08-14.
+
 Commands
     check           report; exit 1 if a mark disagrees with the code
     sync            rewrite the checkboxes in place
-    ids             ids only: unique, and none lost in a merge. No index, instant
+    ids             ids only: unique, allocated once, none lost. No index, instant
+    ids --fix       move the entry that took a number twice, citations included
+    new <domain> "<title>"    file a bug with an allocated id
+    freeid [bug|question]     print the next free id and nothing else
     next            highest-priority open bugs, for a loop to pick from
     mine <domain>   open bugs in one domain — what a working agent greps
     stats           counts per priority and per domain
@@ -279,8 +288,314 @@ LEDGERS = (
 )
 
 
+# ---------------------------------------------------------------------------
+# Allocating an id — the half of this that was missing
+#
+# WHY THIS EXISTS. Every check below this line detects a collision. None of them
+# prevented one, and the reason is that nothing here ever *issued* an id: an
+# author read the file, found the highest number in it and added one. That is
+# `max(what my branch happens to have fetched) + 1`, which two branches compute
+# to the same answer whenever they start from the same snapshot — which is what
+# starting from `main` means.
+#
+# The measurement that produced this, taken over the six days to 2026-08-14: six
+# bug renumbers and three question renumbers, one of them renumbered twice
+# because the second guess collided as well. Every one of them was a hand-edited
+# commit on a branch whose objective was something else.
+#
+# So `next_id` reads every ref this clone can see rather than the working tree
+# alone. That does not make a collision impossible — two branches allocating
+# between the same pair of fetches still land on the same number — but it moves
+# the window from "as long as your branch is open" to "as long as your fetch is
+# stale", and `cmd_ids --fix` below makes what is left cost nothing.
+# ---------------------------------------------------------------------------
+
+
+def _other_ref_tips() -> list[str]:
+    """Every branch tip this clone knows, local and remote, HEAD's own excluded.
+
+    Deliberately tips rather than history: a merged branch's ids are in the
+    default branch's tip already, and an id used on a branch that was abandoned
+    without merging is still spoken for as long as the branch exists. Both are
+    what an allocator wants to avoid.
+    """
+    listed = _git("for-each-ref", "--format=%(objectname) %(refname)",
+                  "refs/heads", "refs/remotes")
+    if not listed:
+        return []
+    # HEAD's own ref is the tree being allocated *from*, and its upstream is the
+    # same branch as somebody else's clone sees it — counting either as "another
+    # branch" would make a branch clash with itself the moment it is pushed.
+    ours = {(_git("symbolic-ref", "--quiet", "HEAD") or "").strip(),
+            (_git("rev-parse", "--symbolic-full-name", "@{upstream}") or "").strip()}
+    tips: list[str] = []
+    for line in listed.splitlines():
+        sha, _, name = line.partition(" ")
+        # `refs/remotes/*/HEAD` is a symbolic alias for a branch already listed.
+        if not sha or name in ours or name.endswith("/HEAD"):
+            continue
+        if sha not in tips:
+            tips.append(sha)
+    return tips
+
+
+def ledger_texts(path: Path, extra: list[str] | None = None) -> list[str]:
+    """This ledger as it reads everywhere it exists.
+
+    Git is consulted only for a ledger that lives *in this repository*. A fixture
+    handed in by a test lives in a temporary directory, so it gets exactly the
+    texts the test passes and nothing from this repository's history — the same
+    reasoning `cmd_ids` applies to `--ledger`, and the thing that makes the
+    allocator testable without building a repository to test it in.
+    """
+    texts: list[str] = []
+    if path.exists():
+        texts.append(path.read_text(encoding="utf-8"))
+    for spec in extra or []:
+        if (text := text_at(spec, path)) is not None:
+            texts.append(text)
+    if path.is_relative_to(ROOT):
+        rel = path.relative_to(ROOT).as_posix()
+        for sha in _other_ref_tips():
+            if (text := _git("show", f"{sha}:{rel}")) is not None:
+                texts.append(text)
+    return texts
+
+
+def ids_everywhere(path: Path, reader, extra: list[str] | None = None) -> set[str]:
+    return {entry_id
+            for text in ledger_texts(path, extra)
+            for entry_id, _ in reader(text)}
+
+
+def next_id(prefix: str, path: Path, reader, extra: list[str] | None = None) -> str:
+    """One above the highest id on any ref, not one above this working tree's."""
+    numbers = [int(i[len(prefix):]) for i in ids_everywhere(path, reader, extra)
+               if i[len(prefix):].isdigit()]
+    return f"{prefix}{max(numbers, default=0) + 1}"
+
+
+def fetch_origin() -> str:
+    """Refresh the refs the allocator reads, and say what happened either way.
+
+    An allocator is only as fresh as its last fetch, so it does its own — and
+    reports rather than fails when it cannot, because filing a bug on a train is
+    a reasonable thing to do and refusing to would send the author back to
+    counting by eye, which is the failure this exists to end.
+    """
+    try:
+        done = subprocess.run(("git", "fetch", "--quiet", "--no-tags", "origin"),
+                              cwd=ROOT, capture_output=True, text=True, timeout=45)
+    except (OSError, subprocess.TimeoutExpired):
+        return "could not reach origin — allocating from the refs already fetched"
+    if done.returncode != 0:
+        return "could not reach origin — allocating from the refs already fetched"
+    return "fetched origin"
+
+
+# ---------------------------------------------------------------------------
+# Moving an id that collided anyway
+# ---------------------------------------------------------------------------
+
+
+def default_branch_ref() -> str | None:
+    """What `origin/HEAD` records, or the usual names — asked, never assumed."""
+    recorded = (_git("symbolic-ref", "--quiet", "refs/remotes/origin/HEAD") or "").strip()
+    if recorded:
+        return recorded.rsplit("refs/remotes/", 1)[-1]
+    for candidate in ("origin/main", "origin/master", "main", "master"):
+        if _git("rev-parse", "--verify", "--quiet", candidate):
+            return candidate
+    return None
+
+
+def branch_base() -> str | None:
+    """Where this branch left the default branch — the line between mine and theirs."""
+    ref = default_branch_ref()
+    if not ref:
+        return None
+    base = _git("merge-base", "HEAD", ref)
+    return base.strip() if base else None
+
+
+HUNK = re.compile(r"^@@ -\S+ \+(?P<start>\d+)(?:,\d+)? @@")
+
+
+def added_lines(base: str) -> dict[str, list[tuple[int, str]]]:
+    """path -> [(line number, exact text)] this branch added, working tree included.
+
+    `git diff <base>` rather than `<base>...HEAD` on purpose: an entry filed a
+    moment ago and not yet committed is exactly the one most likely to need
+    renumbering, and it is the author's own line just as much as a committed one.
+    """
+    diff = _git("diff", "--unified=0", "--no-color", "--no-renames", base, "--")
+    if not diff:
+        return {}
+    found: dict[str, list[tuple[int, str]]] = {}
+    path: str | None = None
+    line_no = 0
+    for line in diff.splitlines():
+        if line.startswith("+++ "):
+            path = line[6:] if line.startswith("+++ b/") else None
+        elif (hunk := HUNK.match(line)) is not None:
+            line_no = int(hunk["start"])
+        elif path and line.startswith("+"):
+            found.setdefault(path, []).append((line_no, line[1:]))
+            line_no += 1
+    return found
+
+
+def move_ids(moves: dict[str, str], base: str) -> list[str]:
+    """Rewrite an id everywhere *this branch wrote it*, and nowhere else.
+
+    Scoped to lines the branch added because that is precisely the set of
+    citations that belong to the entry being moved. The id it collided with is
+    older, and every mention of it in the tree — a test name, a design note, the
+    other entry's own line — means the one that is keeping the number. A
+    whole-file replace would rewrite those too and point them at the wrong bug,
+    which is the failure a renumber is supposed to prevent rather than cause.
+    """
+    touched: list[str] = []
+    for rel, additions in added_lines(base).items():
+        path = ROOT / rel
+        if not path.exists():
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+        except (UnicodeDecodeError, OSError):
+            continue
+        changed = False
+        for line_no, text in additions:
+            if not 1 <= line_no <= len(lines):
+                continue
+            current = lines[line_no - 1]
+            # The diff describes the file as it was read; anything that has moved
+            # since is left alone rather than rewritten at a guessed position.
+            if current.rstrip("\r\n") != text:
+                continue
+            rewritten = current
+            for old, new in moves.items():
+                rewritten = re.sub(rf"\b{re.escape(old)}\b", new, rewritten)
+            if rewritten != current:
+                lines[line_no - 1] = rewritten
+                changed = True
+                touched.append(f"{rel}:{line_no}")
+        if changed:
+            path.write_text("".join(lines), encoding="utf-8")
+    return touched
+
+
+def located(text: str, prefix: str) -> list[tuple[int, str, str]]:
+    """(line number, id, title) for every entry, so an occurrence can be moved."""
+    pattern = ENTRY if prefix == "B" else QUESTION
+    return [(n, m["id"], m["title"].strip())
+            for n, line in enumerate(text.splitlines(), 1) if (m := pattern.match(line))]
+
+
+def _occurrences_to_move(source: Path, prefix: str, duplicated: dict[str, list[str]],
+                         clashed: dict[str, str], base: str | None) -> list[tuple[int, str, str]]:
+    """Which entry gives up the number — the one this branch wrote, every time.
+
+    The other one is older. It is on the default branch, or on a branch that
+    pushed first, and every citation of it out in the tree already means it; the
+    entry that has to move is the one whose citations are all still on this
+    branch, where they can be moved with it.
+
+    Without a repository to ask — a fixture, a clone with no default branch — the
+    first occurrence keeps the id. That is arbitrary, and it is the only part of
+    this that is: it decides which of two entries renumbers, never whether both
+    survive.
+    """
+    text = source.read_text(encoding="utf-8")
+    spots = located(text, prefix)
+    rel = source.relative_to(ROOT).as_posix() if source.is_relative_to(ROOT) else None
+    added = {n for n, _ in added_lines(base).get(rel, [])} if base and rel else set()
+
+    moving: list[tuple[int, str, str]] = []
+    for entry_id in duplicated:
+        occurrences = [s for s in spots if s[1] == entry_id]
+        ours = [s for s in occurrences if s[0] in added]
+        moving.extend(ours if 0 < len(ours) < len(occurrences) else occurrences[1:])
+    for entry_id in clashed:
+        moving.extend(s for s in spots if s[1] == entry_id)
+    return moving
+
+
+def clashing_ids(path: Path, reader, mine: list[tuple[str, str]],
+                 elsewhere: list[str], base: str | None) -> dict[str, str]:
+    """Ids this branch created that another branch created too — id -> its title.
+
+    **This is the check that runs a merge too late everywhere else.** A duplicate
+    only exists in the merged file, so `duplicates_in` cannot see the collision
+    until somebody merges, by which point the number is on two branches and one
+    of them has to be unpicked by hand. Two branches that each filed `B208` are
+    each perfectly consistent read alone.
+
+    Read together they are not, and this reads them together: an id that is in my
+    ledger, absent from where my branch left the default branch, and present in
+    somebody else's, was allocated twice. The merge-base is what keeps that from
+    firing on ordinary work — an id both sides carry because it was already on
+    `main` is shared, not clashed, however either side has edited its line since.
+
+    A matching title is the same entry rather than a collision, which is what my
+    own branch looks like once it has been pushed.
+    """
+    if base is None and not elsewhere:
+        return {}
+    base_ids = set()
+    if base is not None and (text := text_at(base, path)) is not None:
+        base_ids = {entry_id for entry_id, _ in reader(text)}
+
+    theirs: dict[str, set[str]] = {}
+    for text in ledger_texts(path, elsewhere)[1 if path.exists() else 0:]:
+        for entry_id, title in reader(text):
+            theirs.setdefault(entry_id, set()).add(title.strip())
+
+    return {entry_id: title for entry_id, title in mine
+            if entry_id not in base_ids
+            and entry_id in theirs
+            and title.strip() not in theirs[entry_id]}
+
+
+def renumber(source: Path, reader, prefix: str,
+             moving: list[tuple[int, str, str]], elsewhere: list[str],
+             base: str | None) -> list[str]:
+    """Move each occurrence to a fresh id, and take its citations with it.
+
+    The new ids clear every ref rather than just the file being repaired —
+    renumbering into a number the *next* branch is about to take would be a busy
+    way of achieving nothing.
+    """
+    taken = ids_everywhere(source, reader, elsewhere) | {i for _, i, _ in moving}
+    moves: dict[str, str] = {}
+    for _, entry_id, _ in moving:
+        number = max((int(i[len(prefix):]) for i in taken if i[len(prefix):].isdigit()),
+                     default=0) + 1
+        moves[entry_id] = f"{prefix}{number}"
+        taken.add(moves[entry_id])
+
+    said: list[str] = []
+    if base is not None:
+        for where in move_ids(moves, base):
+            said.append(f"    moved a citation at {where}")
+
+    # The entry's own line, if the pass above did not already reach it — it will
+    # not have when there is no repository to diff against, which is every test
+    # fixture, and it must not be left carrying the old number either way.
+    lines = source.read_text(encoding="utf-8").splitlines(keepends=True)
+    for line_no, entry_id, _ in moving:
+        if 1 <= line_no <= len(lines) and re.search(rf"\b{entry_id}\b", lines[line_no - 1]):
+            lines[line_no - 1] = re.sub(
+                rf"\b{entry_id}\b", moves[entry_id], lines[line_no - 1])
+    source.write_text("".join(lines), encoding="utf-8")
+
+    for old, new in moves.items():
+        said.insert(0, f"  RENUMBERED {old} -> {new}")
+    return said
+
+
 def cmd_ids(argv: list[str]) -> int:
-    """Ids only: unique within the file, and none dropped by a merge.
+    """Ids only: unique within the file, allocated once, and none dropped by a merge.
 
     Deliberately separate from `check`, which resolves every evidence anchor
     against the generated code index and rebuilds it when stale. That is the
@@ -292,28 +607,50 @@ def cmd_ids(argv: list[str]) -> int:
         "ID": next((a.split("=", 1)[1] for a in argv if a.startswith("--ledger=")), None),
         "Q ": next((a.split("=", 1)[1] for a in argv if a.startswith("--questions=")), None),
     }
+    fix = "--fix" in argv
+    elsewhere = [a.split("=", 1)[1] for a in argv if a.startswith("--elsewhere=")]
+    base_given = next((a.split("=", 1)[1] for a in argv if a.startswith("--base=")), None)
 
     # Explicit refs win; otherwise the parents of HEAD, and only when the ledgers
     # are the real ones. An overridden ledger compared against this repository's
     # history would report every id in `main` as lost, which is true of the
     # fixture and says nothing about the tree.
     against = [a for a in argv if not a.startswith("-")]
-    if not against and not any(overrides.values()):
+    real = not any(overrides.values())
+    if not against and real:
         against = merge_parents()
+    base = base_given or (branch_base() if real else None)
 
     problems = 0
     for name, (path, reader) in ledgers.items():
         source = Path(overrides[name] or path)
         if not source.exists():
             continue
+        prefix = "B" if name == "ID" else "Q"
         now = reader(source.read_text(encoding="utf-8"))
         print(f"  {len(now)} {'bug' if name == 'ID' else 'question'} ids in {source.name}")
 
-        for entry_id, titles in duplicates_in(now).items():
+        duplicated = duplicates_in(now)
+        clashed = clashing_ids(source, reader, now, elsewhere, base)
+
+        if fix and (duplicated or clashed):
+            for line in renumber(source, reader, prefix,
+                                 _occurrences_to_move(source, prefix, duplicated, clashed, base),
+                                 elsewhere, base):
+                print(line)
+            now = reader(source.read_text(encoding="utf-8"))
+            duplicated, clashed = duplicates_in(now), {}
+
+        for entry_id, titles in duplicated.items():
             problems += 1
             print(f"  DUPLICATE {name} {entry_id}  used {len(titles)} times: "
                   + " / ".join(t[:40] for t in titles))
             print("               renumber all but one — an id is cited from tests and docs")
+
+        for entry_id, title in clashed.items():
+            problems += 1
+            print(f"  CLASHES   {name} {entry_id}  another branch already took it: {title[:50]}")
+            print("               allocated twice — `bugs.py ids --fix` moves this branch's entry")
 
         for spec in against:
             if (before := text_at(spec, path)) is None:
@@ -331,8 +668,97 @@ def cmd_ids(argv: list[str]) -> int:
     if problems:
         print(f"\n{problems} problem(s) — the ledger ids are not safe to push")
         return 1
-    print("  ids unique, none lost" + (f" (against {len(against)} ref(s))" if against else ""))
+    print("  ids unique, unclashed, none lost"
+          + (f" (against {len(against)} ref(s))" if against else ""))
     return 0
+
+
+def cmd_freeid(argv: list[str]) -> int:
+    """The next id nobody has taken, on any branch. Prints it and nothing else.
+
+    Separate from `new` because a question is not one line: its heading, the
+    argument that raised it, the options and their costs are all authored, and a
+    command that generated a stub would only be generating the easy part. The id
+    is the part that has to be allocated rather than guessed, so that is the part
+    this issues.
+    """
+    which = next((a for a in argv if not a.startswith("-")), "bug")
+    if which not in ("bug", "question"):
+        print("usage: bugs.py freeid [bug|question] [--no-fetch]", file=sys.stderr)
+        return 2
+    prefix, path, reader = ("B", BUGS, bug_ids_in) if which == "bug" else ("Q", QUESTIONS, question_ids_in)
+    override = next((a.split("=", 1)[1] for a in argv
+                     if a.startswith("--ledger=") or a.startswith("--questions=")), None)
+    extra = [a.split("=", 1)[1] for a in argv if a.startswith("--elsewhere=")]
+    if override:
+        path = Path(override)
+    elif "--no-fetch" not in argv:
+        print(f"  {fetch_origin()}", file=sys.stderr)
+    print(next_id(prefix, path, reader, extra))
+    return 0
+
+
+def cmd_new(argv: list[str]) -> int:
+    """File a bug, with an id that is allocated rather than counted by eye."""
+    positional = [a for a in argv if not a.startswith("-")]
+    if len(positional) < 2:
+        print('usage: bugs.py new <domain> "<title>" [-p P2] [-e Test,Other] [--no-fetch]',
+              file=sys.stderr)
+        return 2
+    domain, title = positional[0], positional[1]
+    if domain not in DOMAINS:
+        print(f"unknown domain {domain!r} — one of: {' '.join(sorted(DOMAINS))}", file=sys.stderr)
+        return 2
+
+    priority = next((a.split("=", 1)[1] if "=" in a else a[2:] for a in argv
+                     if a.startswith("-p")), "P2")
+    evidence = next((a.split("=", 1)[1] for a in argv if a.startswith("-e=") or a.startswith("--evidence=")), "")
+    if priority not in ("P1", "P2", "P3", "P4"):
+        print(f"unknown priority {priority!r} — P1 to P4", file=sys.stderr)
+        return 2
+
+    if "--no-fetch" not in argv:
+        print(f"  {fetch_origin()}")
+    entry_id = next_id("B", BUGS, bug_ids_in)
+    tail = f" `evidence: {evidence}`" if evidence else ""
+    line = f"- [ ] **{entry_id}** `{priority}` `{domain}` {title}{tail}"
+
+    insert_entry(line, domain)
+    print(f"  {entry_id} filed under {domain}")
+    print(f"  {line}")
+    if not evidence:
+        print("  no evidence anchor yet — `check` refuses an entry that names nothing "
+              "that would prove the fix")
+    return 0
+
+
+def insert_entry(line: str, domain: str) -> None:
+    """Put the entry in its domain's group, under `## Open`.
+
+    Placed rather than appended because `sync` sorts by domain, then priority,
+    then id — appending to the end of the file would put a new bug under
+    `## Fixed`, where the next sync would move it and the diff would show a
+    relocation instead of a filing.
+    """
+    lines = BUGS.read_text(encoding="utf-8").splitlines()
+    start = lines.index(OPEN_HEADING) + 1
+    end = next((n for n in range(start, len(lines)) if lines[n].startswith("## ")), len(lines))
+
+    heading = f"### {domain}"
+    if heading in lines[start:end]:
+        at = lines.index(heading, start, end) + 1
+        while at < end and not lines[at].strip():
+            at += 1
+        lines[at:at] = [line]
+    else:
+        # Alphabetical among the groups, because that is the order `sync` writes.
+        after = [n for n in range(start, end)
+                 if lines[n].startswith("### ") and lines[n] < heading]
+        at = (next((n for n in range(after[-1] + 1, end) if lines[n].startswith("### ")), end)
+              if after else start)
+        lines[at:at] = [heading, "", line, ""]
+
+    BUGS.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 OPEN_HEADING = "## Open"
@@ -664,6 +1090,10 @@ def main() -> None:
         sys.exit(cmd_check())
     elif cmd == "ids":
         sys.exit(cmd_ids(sys.argv[2:]))
+    elif cmd == "new":
+        sys.exit(cmd_new(sys.argv[2:]))
+    elif cmd == "freeid":
+        sys.exit(cmd_freeid(sys.argv[2:]))
     elif cmd == "next":
         cmd_next()
     elif cmd == "mine":

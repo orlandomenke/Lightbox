@@ -30,6 +30,15 @@ when that check was added — four of them entire entries duplicated verbatim,
 one symptom filed twice with different evidence, and two genuinely different
 bugs sharing a number.
 
+**And ids are now issued rather than counted.** Detecting reuse never prevented
+any: an author read this file, took the highest number in it and added one,
+which is *the same number* on two branches that both started from `main`. Six
+bugs and three questions were renumbered by hand in the six days to 2026-08-14,
+one of them twice because the second guess collided too. So `bugs.py new`
+allocates above every branch the clone can see, `ids` reports a number two
+branches have taken before the merge that would prove it, and `ids --fix` moves
+this branch's entry and the citations this branch wrote for it.
+
 An entry with no `evidence:` is **refused at check time**. If you cannot name
 what would prove the fix, you have not finished describing the bug.
 
@@ -46,6 +55,9 @@ session formalizes each inbox entry into a real one, following the rules
 above, and deletes it from the inbox once it does.
 
 ```bash
+python3 scripts/bugs.py new canvas "Onion tint floods on pan" -p P1 -e OnionTintTests
+python3 scripts/bugs.py freeid question # the next free Q id, for a question you write by hand
+python3 scripts/bugs.py ids --fix      # move an id two branches took; citations follow
 python3 scripts/bugs.py check          # status; exits 1 on drift, a reused id or missing evidence
 python3 scripts/bugs.py sync           # rewrite the marks and re-sort open above fixed
 python3 scripts/bugs.py next           # highest-priority open bugs

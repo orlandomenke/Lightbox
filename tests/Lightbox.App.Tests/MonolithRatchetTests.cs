@@ -174,7 +174,7 @@ public class MonolithRatchetTests(ITestOutputHelper output)
         // lines of slack under its own budget, and 4,275 would have banked
         // them as headroom nobody had earned. +4 over main, which is the size
         // of the change.
-        // → 4,276 (2026-08-14): the past-the-end cel's hatch (Q87) — one setter
+        // → 4,276 (2026-08-14): the past-the-end cel's hatch (Q89) — one setter
         // and its two-line reason. The brush itself is in Palette.axaml, where
         // the colour system lives; only the style selector has to be here,
         // because a selector cannot live anywhere else. Measured alone that
