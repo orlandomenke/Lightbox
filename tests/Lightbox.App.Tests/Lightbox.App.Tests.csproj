@@ -16,8 +16,16 @@
     </PackageReference>
   </ItemGroup>
 
+  <!--
+    The App reference is the suite's subject; the Mcp one is there for a single seam.
+    `render_frame` spans both projects — the app renders the base64, the MCP tool wraps it
+    for the client — and the half-tested version of that (IpcTests, app side only) is exactly
+    what let B192 ship: every assertion passed on a payload nobody then checked the wrapping
+    of. McpImageBlockTests drives both halves, which needs both projects in one suite.
+  -->
   <ItemGroup>
     <ProjectReference Include="..\..\src\Lightbox.App\Lightbox.App.csproj" />
+    <ProjectReference Include="..\..\src\Lightbox.Mcp\Lightbox.Mcp.csproj" />
   </ItemGroup>
 
   <!--
