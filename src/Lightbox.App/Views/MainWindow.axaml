@@ -4186,6 +4186,8 @@
                                             ToolTip.Tip="Blank the drawing, keep its slot on the timeline" />
                                   <MenuItem Header="Delete cel" Click="OnDeleteCel"
                                             ToolTip.Tip="Remove the cel and pull the rest of this layer's row back" />
+                                  <MenuItem Header="Delete column (this frame, every layer)" Click="OnDeleteColumn"
+                                            ToolTip.Tip="Remove this frame from the scene — every layer's cel at it — and pull the rest of the sheet back" />
                                   <Separator />
                                   <MenuItem Header="Copy cel" Click="OnCopyCel" />
                                   <MenuItem Header="Cut cel" Click="OnCutCel" />

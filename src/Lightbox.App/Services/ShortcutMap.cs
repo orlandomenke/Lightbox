@@ -269,6 +269,14 @@ public sealed class ShortcutMap
             new("canvas.pickColor", "Color picker tool", "Tools", G(Key.I),
                 momentaryTool: ViewModels.ToolId.Picker),
             new("timeline.insertKey", "Insert keyframe at playhead (timeline)", "Timeline", G(Key.I), ShortcutContext.Panel, DockPanelId.Timeline),
+            // Q88. The operation is as old as DocumentEditor.DeleteFrame and was
+            // reachable only from one 🗑 button, so it could not be bound,
+            // searched or found — which is why it read as missing. No default
+            // gesture: Delete already means four context-dependent things (the
+            // twins above), and taking a fifth reading of it inside the timeline
+            // would be guessing at what an artist wants there. Bindable is what
+            // was actually missing.
+            new("timeline.deleteColumn", "Delete column (this frame, every layer)", "Timeline", null, ShortcutContext.Panel, DockPanelId.Timeline),
             new("canvas.nudgeLeft", "Nudge selection left", "Canvas", G(Key.Left), ShortcutContext.Canvas),
             new("canvas.nudgeRight", "Nudge selection right", "Canvas", G(Key.Right), ShortcutContext.Canvas),
             new("canvas.nudgeUp", "Nudge selection up", "Canvas", G(Key.Up), ShortcutContext.Canvas),

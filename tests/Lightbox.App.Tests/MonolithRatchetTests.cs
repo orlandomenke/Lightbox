@@ -174,7 +174,11 @@ public class MonolithRatchetTests(ITestOutputHelper output)
         // lines of slack under its own budget, and 4,275 would have banked
         // them as headroom nobody had earned. +4 over main, which is the size
         // of the change.
-        ("src/Lightbox.App/Views/MainWindow.axaml", 4273),
+        // → 4,275 (2026-08-14): the X-sheet's Delete column menu entry and its
+        // tooltip (Q88). A menu item has nowhere else to live — the handler it
+        // calls is in MainWindow.Timeline.cs, and the command it reaches is in
+        // the view model.
+        ("src/Lightbox.App/Views/MainWindow.axaml", 4275),
         // Lowered when the overlay-gesture wiring moved to MainWindow.Overlays.cs,
         // and again (449 → 427) when the bone gesture handler followed it there.
         // A merge had left that one block behind in the code-behind while its

@@ -189,6 +189,11 @@ public partial class MainWindow
         if (CellOf(sender) is { } cell) _vm.DeleteCelAt(cell);
     }
 
+    private void OnDeleteColumn(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.DeleteColumnAt(cell.Index);
+    }
+
     private void OnCopyCel(object? sender, RoutedEventArgs e)
     {
         if (CellOf(sender) is { } cell) _vm.CopyCel(cell);

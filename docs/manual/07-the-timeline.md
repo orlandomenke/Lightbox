@@ -104,6 +104,17 @@ Right-click a cel for: insert frame, extend or reduce exposure, clear, delete
 (which pulls the rest of the row back), copy, cut, paste, markers, and the
 playback range.
 
+**Delete cel and Delete column are different edits, and the menu now says so.**
+*Delete cel* takes the drawing out of **that layer's row** and pulls the rest
+of that row back, leaving every other layer where it was. *Delete column*
+takes the frame out of the **scene** — every layer's cel at it — and pulls the
+whole sheet back, which is what you want when a beat is one frame too long. A
+column delete is refused while any layer is locked, because removing the frame
+from the others would slide them out of step with it. It is in **Edit →
+Configure → Shortcuts** under Timeline if you want a key for it; it has no
+default one, since Delete already means several things depending on where the
+pointer is.
+
 Drag a cel along its row to move it. Shift-click for a range, then apply
 exposure changes to all of it at once.
 
