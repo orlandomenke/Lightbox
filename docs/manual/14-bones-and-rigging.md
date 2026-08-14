@@ -12,7 +12,12 @@ in the way.
 
 ## The Bone tool
 
-Its options bar carries everything the tool can do: which mode you are in,
+Its panel in **Tool options** carries everything the tool can do, starting
+with one switch of three positions — **Bind**, **Pose**, **Weights**. That
+switch is how you get to weight painting; the three are exclusive, because
+weights are painted against the rest pose, so arming the brush leaves posing.
+
+The panel also carries: which mode you are in,
 every bone in the rig, and the weight brush with its settings. The pointer
 says what a press would do before you make it — a **move** cursor over a
 bone you can shift, a **turn** cursor where a drag would rotate it, and a

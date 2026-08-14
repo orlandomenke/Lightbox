@@ -75,6 +75,30 @@ public sealed partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(PointerIntent))]
     private string? _selectedBoneId;
 
+    /// <summary>
+    /// Neither posing nor painting weights: the skeleton itself is what a
+    /// drag edits.
+    /// </summary>
+    /// <remarks>
+    /// <b>The three are one switch, and that is a fix rather than a
+    /// presentation choice.</b> They were two independent booleans, so
+    /// "posing" and "painting weights" could both be on — a state with no
+    /// meaning, because weights are painted against the rest pose (Q81) while
+    /// the canvas showed a posed one. Making them exclusive removes the state
+    /// and lets the panel show one control with three positions, which is the
+    /// answer to not being able to find weight painting at all.
+    /// </remarks>
+    public bool IsBindMode
+    {
+        get => !PosingMode && !WeightPainting;
+        set
+        {
+            if (!value) return;
+            PosingMode = false;
+            WeightPainting = false;
+        }
+    }
+
     /// <summary>Whether this document has a rig at all.</summary>
     public bool HasArmature => Doc.HasArmature;
 
@@ -436,6 +460,20 @@ public sealed partial class MainViewModel
             NotifyArmatureSurface();
             InvalidateRiggedFrames();
         }
+    }
+
+    partial void OnPosingModeChanged(bool value)
+    {
+        if (value) WeightPainting = false;
+        OnPropertyChanged(nameof(IsBindMode));
+    }
+
+    partial void OnWeightPaintingChanged(bool value)
+    {
+        // Painting happens against the rest pose, so arming the brush leaves
+        // posing rather than sitting on top of it.
+        if (value) PosingMode = false;
+        OnPropertyChanged(nameof(IsBindMode));
     }
 
     /// <summary>Grow a child of the usual length straight off the selected bone's tip.</summary>

@@ -359,4 +359,47 @@ public class BoneOptionsTests
         // than a guess about where the limb goes.
         Assert.Equal(0, child.RotationDeg, 6);
     }
+
+    // ---- one switch, three positions -------------------------------------------------
+
+    [AvaloniaFact]
+    public void TheThreeModesAreExclusiveSoTheSwitchCanShowThem()
+    {
+        var vm = Rigged();
+        Assert.True(vm.IsBindMode);
+
+        vm.PosingMode = true;
+        Assert.False(vm.IsBindMode);
+        Assert.False(vm.WeightPainting);
+
+        // Arming the brush leaves posing rather than sitting on top of it:
+        // weights are painted against the REST pose (Q81), so "posing and
+        // painting" was a state whose canvas disagreed with its edit.
+        vm.WeightPainting = true;
+        Assert.False(vm.PosingMode);
+        Assert.False(vm.IsBindMode);
+
+        // And back, through the switch's own property.
+        vm.IsBindMode = true;
+        Assert.False(vm.PosingMode);
+        Assert.False(vm.WeightPainting);
+    }
+
+    [AvaloniaFact]
+    public void EachModeAnnouncesTheSwitchMoved()
+    {
+        var vm = Rigged();
+        var fired = new List<string?>();
+        vm.PropertyChanged += (_, e) => fired.Add(e.PropertyName);
+
+        vm.WeightPainting = true;
+        // Without this the radio for Bind stays lit while the brush is armed,
+        // which is the invisibility bug in its smallest form.
+        Assert.Contains(nameof(MainViewModel.IsBindMode), fired);
+
+        fired.Clear();
+        vm.PosingMode = true;
+        Assert.Contains(nameof(MainViewModel.IsBindMode), fired);
+        Assert.Contains(nameof(MainViewModel.WeightPainting), fired);
+    }
 }
