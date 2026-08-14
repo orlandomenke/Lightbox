@@ -106,6 +106,63 @@ public sealed class QuickBarWorkspaceTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A workspaces.json saved before the bar could be chosen carries every
+    /// built-in without a quickBar key — the app wrote those nulls, not the
+    /// artist, and the store saves built-ins alongside the user's own. Left
+    /// alone they shadow the new defaults forever: Animation never gets its
+    /// transport and every workspace resolves to the tool defaults, which is
+    /// exactly the bar looking "not wired" (B203). Loading fills a built-in
+    /// that never chose from the built-in's own choice.
+    /// </summary>
+    [Fact]
+    public void AStoreSavedBeforeTheBarExistedStillGivesAnimationItsTransport()
+    {
+        var stale = WorkspaceStore.Default();
+        foreach (var workspace in stale.Workspaces) workspace.Layout.QuickBar = null;
+
+        var reloaded = WorkspaceStore.Deserialize(stale.Serialize());
+
+        var animation = reloaded.Find("Animation")!.Layout.QuickBarContents;
+        output.WriteLine($"Animation resolves to: {string.Join(", ", animation)}");
+        Assert.Contains(QuickBarCatalog.Transport, animation);
+        Assert.Contains(QuickBarCatalog.AddFrame, animation);
+        // "Default" genuinely never chose — it stays on the tool defaults.
+        Assert.Null(reloaded.Find("Default")!.Layout.QuickBar);
+    }
+
+    /// <summary>
+    /// The migration only fills a null. A built-in the artist customised
+    /// after the feature arrived has a materialised list, and that choice —
+    /// including having dropped an entry the default carries — must survive.
+    /// </summary>
+    [Fact]
+    public void ACustomisedBuiltInKeepsItsChoiceThroughTheRoundTrip()
+    {
+        var store = WorkspaceStore.Default();
+        store.Find("Animation")!.Layout.QuickBar = [QuickBarCatalog.BrushPreset];
+
+        var reloaded = WorkspaceStore.Deserialize(store.Serialize());
+
+        Assert.Equal([QuickBarCatalog.BrushPreset],
+            reloaded.Find("Animation")!.Layout.QuickBar);
+    }
+
+    /// <summary>
+    /// A workspace the artist saved themselves is theirs even when it never
+    /// chose: null means the tool defaults, not "adopt a built-in's list".
+    /// </summary>
+    [Fact]
+    public void AUsersOwnWorkspaceIsNotFilledInOnLoad()
+    {
+        var store = WorkspaceStore.Default();
+        store.Workspaces.Add(new Workspace { Name = "Mine", Layout = new DockLayout() });
+
+        var reloaded = WorkspaceStore.Deserialize(store.Serialize());
+
+        Assert.Null(reloaded.Find("Mine")!.Layout.QuickBar);
+    }
+
+    /// <summary>
     /// The "Default" workspace never chose, so it resolves to the bar as it
     /// was before any of this — every tool group, no timeline buttons. That
     /// is also what any workspaces.json written before the property existed
