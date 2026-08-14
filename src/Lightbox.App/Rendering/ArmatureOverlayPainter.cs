@@ -32,6 +32,14 @@ public static class ArmatureOverlayPainter
     /// <summary>Selection: white, the same rule every overlay follows.</summary>
     private static readonly SKColor SelectedColor = new(0xff, 0xff, 0xff);
 
+    /// <summary>
+    /// IK handles and poles: amber, so the thing an artist grabs to pose a
+    /// limb is not the same green as the limb. A handle that looked like a
+    /// bone would be findable only by knowing it was there, which is the
+    /// failure this tool has already been reported for.
+    /// </summary>
+    private static readonly SKColor HandleColor = new(0xf0, 0xb0, 0x40);
+
     /// <summary>Cold end of the heat ramp — no influence.</summary>
     private static readonly SKColor HeatCold = new(0x28, 0x50, 0xc8);
 
@@ -63,7 +71,7 @@ public static class ArmatureOverlayPainter
 
         foreach (var bone in bones)
         {
-            var colour = bone.Selected ? SelectedColor : BoneColor;
+            var colour = bone.Selected ? SelectedColor : bone.IsHandle ? HandleColor : BoneColor;
 
             // The classic bone silhouette: a kite from a wide base at the
             // origin to a point at the tip, so direction reads at a glance.

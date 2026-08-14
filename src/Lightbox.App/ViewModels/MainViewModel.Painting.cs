@@ -687,7 +687,13 @@ public partial class MainViewModel
         }
         var index = here;
         var layerId = layer.Id;
-        var fresh = new Frame();        // one class, so the layer's kind decides nothing here
+        // The key must not change the picture. The new drawing carries a copy
+        // of what the hold was showing, so the mark (or move, or erase) that
+        // prompted the key is the only visible change — a cel that went blank
+        // under the first touch read as the app losing the drawing. A layer
+        // with no key at all still starts from nothing, which is the ordinary
+        // way to start one.
+        var fresh = KeyedCopyOf(PaintTarget()); // one class, so the layer's kind decides nothing here
         _editor.PerformDelta(
             apply: doc =>
             {
@@ -706,6 +712,28 @@ public partial class MainViewModel
         var layer = doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId);
         return layer is not null && index < layer.Cels.Count ? layer.Cels[index] : null;
     }
+
+    /// <summary>
+    /// The drawing a keyed hold starts from: everything the hold was showing —
+    /// strokes, baseline pixels and placements — under a fresh frame id.
+    /// </summary>
+    /// <remarks>
+    /// Not <c>DocumentEditor.CloneFrame</c>, which leaves placements behind (a
+    /// recorded decision about duplicating a frame in time). Keying a hold is
+    /// a promise that the picture does not change, and a placement that
+    /// vanished from the cel under the first mark would break it. Fresh ids
+    /// on the frame and its strokes, because two frames sharing them would
+    /// cross their cached renders; placement ids survive the copy
+    /// (<see cref="SymbolPlacement.Clone"/>), which is what lets a drag that
+    /// keyed the cel keep hold of the placement it grabbed.
+    /// </remarks>
+    private static Frame KeyedCopyOf(Frame? held) => held is null ? new Frame() : new Frame
+    {
+        Role = held.Role,
+        PngBase64 = held.PngBase64,
+        Strokes = held.Strokes.Select(s => s.Clone()).ToList(),
+        Placements = held.Placements?.Select(p => p.Clone()).ToList(),
+    };
 
     /// <summary>Get placements from the current frame for selection feedback.</summary>
     public IReadOnlyList<SymbolPlacement>? GetCurrentFramePlacements()

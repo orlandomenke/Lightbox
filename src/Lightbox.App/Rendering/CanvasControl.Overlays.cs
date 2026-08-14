@@ -49,7 +49,10 @@ public sealed partial class CanvasControl
     /// On release with the endpoints, not per move, for <see cref="RigDragged"/>'s
     /// reason — one editor step per gesture.
     /// </summary>
-    public event Action<string?, BoneGrab, double, double, double, double>? BoneGestureEnded;
+    public event Action<string?, BoneGrab, double, double, double, double, bool>? BoneGestureEnded;
+
+    /// <summary>Shift was held on the press, so a tip drag grows a child rather than re-aiming.</summary>
+    private bool _boneExtruding;
 
     private string? _boneDragId;
     private BoneGrab _boneDragGrab;
@@ -183,6 +186,10 @@ public sealed partial class CanvasControl
             _boneDragGrab = BoneGrab.None;
             _boneGestureStart = (x, y);
             _boneGestureActive = true;
+            // Blender's E, as a drag: Shift on a tip pulls a connected child
+            // out of it. Read at the press, because the key can be let go
+            // mid-drag and the gesture is decided by how it started.
+            _boneExtruding = e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Shift);
             // The window answers with BeginBoneDrag if the press hit a bone.
             BonePressed?.Invoke(x, y, FitScale() * _zoom);
         }
@@ -224,7 +231,8 @@ public sealed partial class CanvasControl
         var boneGrab = _boneDragGrab;
         _boneDragId = null;
         e.Pointer.Capture(null);
-        BoneGestureEnded?.Invoke(boneId, boneGrab, _boneGestureStart.X, _boneGestureStart.Y, bx, by);
+        BoneGestureEnded?.Invoke(
+            boneId, boneGrab, _boneGestureStart.X, _boneGestureStart.Y, bx, by, _boneExtruding);
         e.Handled = true;
         return true;
     }
