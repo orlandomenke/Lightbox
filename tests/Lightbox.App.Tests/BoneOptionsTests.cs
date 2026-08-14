@@ -234,14 +234,172 @@ public class BoneOptionsTests
         Assert.Null(vm.Doc.Armature!.BoneById(root)!.ParentId);
     }
 
-    // ---- the bar is registered where the workspace can find it ---------------------
+    // ---- the surface keeps up with the record --------------------------------------
 
-    [Fact]
-    public void TheBoneOptionsBarIsInTheCatalogAndOnByDefault()
+    [AvaloniaFact]
+    public void UndoTakesTheBoneOffTheCanvasAndOutOfThePanel()
     {
-        Assert.Contains(QuickBarCatalog.All, o => o.Id == QuickBarCatalog.BoneOptions);
-        // Every other tool's own group is a default; a bar an artist has to go
-        // and enable is the invisibility bug wearing a preference.
-        Assert.Contains(QuickBarCatalog.BoneOptions, QuickBarCatalog.ToolDefaults);
+        var vm = Rigged();
+        vm.SelectToolCommand.Execute(ToolId.Bone);
+        vm.CreateBoneFromDrag(100, 100, 180, 100);
+        Assert.True(vm.HasArmature);
+        Assert.Single(vm.BoneChromes);
+
+        vm.UndoCommand.Execute(null);
+
+        // The record undid before this fix too. What did not happen is any of
+        // the below — so the bone stayed drawn and the panel kept its answer,
+        // which is indistinguishable from undo being broken.
+        Assert.False(vm.HasArmature, "the panel still believes there is a rig");
+        Assert.Empty(vm.BoneChromes);
+        Assert.Empty(vm.BoneRows);
+        Assert.Null(vm.SelectedBoneId);
+        Assert.False(vm.HasSelectedBone);
+    }
+
+    [AvaloniaFact]
+    public void RedoBringsItBackToBothOfThem()
+    {
+        var vm = Rigged();
+        vm.SelectToolCommand.Execute(ToolId.Bone);
+        vm.CreateBoneFromDrag(100, 100, 180, 100);
+        vm.UndoCommand.Execute(null);
+        vm.RedoCommand.Execute(null);
+
+        Assert.True(vm.HasArmature);
+        Assert.Single(vm.BoneChromes);
+        Assert.Single(vm.BoneRows);
+    }
+
+    // ---- building a limb -------------------------------------------------------------
+
+    [AvaloniaFact]
+    public void ExtrudingFromATipGrowsAJoinedChild()
+    {
+        var vm = Rigged();
+        vm.CreateBoneFromDrag(100, 100, 200, 100);   // a 100px bone along +x
+        var parent = vm.SelectedBoneId!;
+
+        vm.ExtrudeChildFrom(parent, 200, 180);
+
+        var child = vm.Doc.Armature!.Bones.Single(b => b.Id != parent);
+        Assert.Equal(parent, child.ParentId);
+        // Joined: the child starts exactly at the parent's tip, whatever the
+        // parent later does. That is what makes bending the parent carry the
+        // chain with no gap to close by hand.
+        var placements = ArmatureOps.Solve(vm.Doc.Armature!);
+        Assert.Equal(200, placements[child.Id].X, 6);
+        Assert.Equal(100, placements[child.Id].Y, 6);
+        Assert.Equal(80, child.Length, 6);
+        Assert.Equal(child.Id, vm.SelectedBoneId);
+    }
+
+    [AvaloniaFact]
+    public void BendingTheParentCarriesTheChainButRelengthingItDoesNot()
+    {
+        var vm = Rigged();
+        vm.CreateBoneFromDrag(100, 100, 200, 100);
+        var parent = vm.SelectedBoneId!;
+        vm.ExtrudeChildFrom(parent, 200, 180);
+        var child = vm.SelectedBoneId!;
+
+        // Rotating the parent carries the child, because the child's offset
+        // lives in the parent's frame. This is the common case and the one
+        // posing depends on.
+        vm.SelectedBoneId = parent;
+        vm.PosingMode = true;
+        vm.PoseBoneTo(parent, 100, 200);          // parent swings to point down
+        var posed = ArmatureOps.Solve(vm.Doc.Armature!, ArmatureOps.PoseAt(vm.Doc.Scene.PoseTrack, vm.CurrentFrameIndex));
+        Assert.Equal(100, posed[child].X, 6);
+        Assert.Equal(200, posed[child].Y, 6);
+
+        // Re-lengthening the parent does NOT drag the child after it: the
+        // child was placed at the tip, it is not glued to it. Blender models
+        // that difference with a connected flag on the bone; this record has
+        // no such flag yet, so the honest guard is that the child stays put.
+        vm.PosingMode = false;
+        vm.SelectedBoneLength = 150;
+        var rest = ArmatureOps.Solve(vm.Doc.Armature!);
+        Assert.Equal(200, rest[child].X, 6);
+        Assert.Equal(100, rest[child].Y, 6);
+    }
+
+    [AvaloniaFact]
+    public void LengthIsEditableByNumberAndUndoable()
+    {
+        var vm = Rigged();
+        vm.CreateBoneFromDrag(100, 100, 200, 100);
+        Assert.Equal(100, vm.SelectedBoneLength, 6);
+
+        vm.SelectedBoneLength = 42;
+        Assert.Equal(42, vm.SelectedBone!.Length, 6);
+
+        // Floored rather than accepted: a zero-length bone has no direction,
+        // so a pose rotation of it would mean nothing.
+        vm.SelectedBoneLength = 0;
+        Assert.True(vm.SelectedBone!.Length >= ArmatureOverlay.MinimumLength);
+
+        vm.UndoCommand.Execute(null);
+        vm.UndoCommand.Execute(null);
+        Assert.Equal(100, vm.SelectedBoneLength, 6);
+    }
+
+    [AvaloniaFact]
+    public void AddChildFromThePanelGrowsOneStraightOn()
+    {
+        var vm = Rigged();
+        vm.CreateBoneFromDrag(100, 100, 200, 100);
+        var parent = vm.SelectedBoneId!;
+
+        vm.AddChildBoneCommand.Execute(null);
+
+        var child = vm.Doc.Armature!.Bones.Single(b => b.Id != parent);
+        Assert.Equal(parent, child.ParentId);
+        // Straight on from the parent, so it is a starting point to aim rather
+        // than a guess about where the limb goes.
+        Assert.Equal(0, child.RotationDeg, 6);
+    }
+
+    // ---- one switch, three positions -------------------------------------------------
+
+    [AvaloniaFact]
+    public void TheThreeModesAreExclusiveSoTheSwitchCanShowThem()
+    {
+        var vm = Rigged();
+        Assert.True(vm.IsBindMode);
+
+        vm.PosingMode = true;
+        Assert.False(vm.IsBindMode);
+        Assert.False(vm.WeightPainting);
+
+        // Arming the brush leaves posing rather than sitting on top of it:
+        // weights are painted against the REST pose (Q81), so "posing and
+        // painting" was a state whose canvas disagreed with its edit.
+        vm.WeightPainting = true;
+        Assert.False(vm.PosingMode);
+        Assert.False(vm.IsBindMode);
+
+        // And back, through the switch's own property.
+        vm.IsBindMode = true;
+        Assert.False(vm.PosingMode);
+        Assert.False(vm.WeightPainting);
+    }
+
+    [AvaloniaFact]
+    public void EachModeAnnouncesTheSwitchMoved()
+    {
+        var vm = Rigged();
+        var fired = new List<string?>();
+        vm.PropertyChanged += (_, e) => fired.Add(e.PropertyName);
+
+        vm.WeightPainting = true;
+        // Without this the radio for Bind stays lit while the brush is armed,
+        // which is the invisibility bug in its smallest form.
+        Assert.Contains(nameof(MainViewModel.IsBindMode), fired);
+
+        fired.Clear();
+        vm.PosingMode = true;
+        Assert.Contains(nameof(MainViewModel.IsBindMode), fired);
+        Assert.Contains(nameof(MainViewModel.WeightPainting), fired);
     }
 }

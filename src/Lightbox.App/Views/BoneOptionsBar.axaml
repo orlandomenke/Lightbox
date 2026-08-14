@@ -21,10 +21,13 @@
   <StackPanel Orientation="Horizontal" Spacing="12" IsVisible="{Binding IsBoneTool}">
     <!-- Which half of the tool is in hand, said rather than remembered. -->
     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-      <RadioButton GroupName="BoneMode" Content="Bind" IsChecked="{Binding !PosingMode}"
-                   ToolTip.Tip="Edit the skeleton against its rest pose: drag empty canvas to add a bone, a shaft to move it, a tip to re-aim it. (Shift+K switches)" />
-      <RadioButton GroupName="BoneMode" Content="Pose" IsChecked="{Binding PosingMode}"
+      <RadioButton GroupName="BoneMode" Content="Bind" IsChecked="{Binding IsBindMode, Mode=TwoWay}"
+                   ToolTip.Tip="Edit the skeleton against its rest pose: drag empty canvas to add a bone, a shaft to move it, a tip to re-aim it, Shift a tip to grow a child. (Shift+K switches)" />
+      <RadioButton GroupName="BoneMode" Content="Pose" IsChecked="{Binding PosingMode, Mode=TwoWay}"
                    ToolTip.Tip="Turn bones and key the pose at the playhead. (Shift+K switches)" />
+      <RadioButton GroupName="BoneMode" Content="Weights" IsChecked="{Binding WeightPainting, Mode=TwoWay}"
+                   IsEnabled="{Binding HasArmature}"
+                   ToolTip.Tip="Paint influence for the selected bone. Painting is against the rest pose, so this leaves posing. (Ctrl+Shift+K)" />
     </StackPanel>
     <TextBlock Text="no rig yet — drag on the canvas to add the first bone"
                VerticalAlignment="Center" Opacity="0.6"
@@ -37,7 +40,7 @@
                 SelectedValueBinding="{Binding Id}" MinWidth="130"
                 ToolTip.Tip="Every bone in the rig, children indented under their parent. Picking one here selects it on the canvas.">
         <ComboBox.ItemTemplate>
-          <DataTemplate>
+          <DataTemplate x:DataType="vm:BoneRow">
             <TextBlock Text="{Binding Label}" FontFamily="{StaticResource MonoFontFamily}" />
           </DataTemplate>
         </ComboBox.ItemTemplate>
@@ -47,14 +50,18 @@
                 IsVisible="{Binding HasSelectedBone}">
       <TextBox Text="{Binding SelectedBoneName, Mode=TwoWay}" Width="110"
                ToolTip.Tip="Rename the bone. Ending a pair in .l and .r is what lets X-symmetry paint both sides at once." />
-      <Button Content="Delete" Command="{Binding DeleteBoneCommand}"
+      <TextBlock Text="Length" VerticalAlignment="Center" Opacity="0.7" />
+      <NumericUpDown Value="{Binding SelectedBoneLength, Mode=TwoWay}" Minimum="4" Maximum="4000"
+                     Increment="4" FormatString="0"
+                     ToolTip.Tip="How long the bone is, in document pixels — the same thing dragging its tip changes." />
+      <Button Content="Add child" Command="{Binding AddChildBoneCommand}"
+              ToolTip.Tip="Grow a bone from this one's tip, already joined to it. Shift-drag a tip on the canvas does the same and lets you aim it." />
+            <Button Content="Delete" Command="{Binding DeleteBoneCommand}"
               ToolTip.Tip="Delete this bone. Its children are re-parented to its parent and stay where they are; strokes bound to it lose that binding." />
     </StackPanel>
     <!-- The weight brush and its settings, which had no surface at all. -->
     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
                 IsVisible="{Binding HasArmature}">
-      <ToggleButton Content="Weights" IsChecked="{Binding WeightPainting, Mode=TwoWay}"
-                    ToolTip.Tip="Paint influence for the selected bone instead of working bones (Ctrl+Shift+K)." />
       <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
                   IsVisible="{Binding WeightPainting}">
         <ComboBox SelectedIndex="{Binding WeightBrushModeIndex, Mode=TwoWay}" MinWidth="94"

@@ -7,6 +7,24 @@ using Lightbox.Core.Timeline;
 namespace Lightbox.App.ViewModels;
 
 /// <summary>
+/// One bone as the options panel lists it: indented by depth, so the
+/// hierarchy reads without a tree control.
+/// </summary>
+/// <remarks>
+/// Top-level rather than nested inside the view model, and that is a
+/// requirement rather than tidiness: a compiled <c>DataTemplate</c> has to
+/// name its type with <c>x:DataType</c>, and a nested one cannot be written
+/// in XAML. Nested, every binding in the row template resolved against
+/// <c>MainViewModel</c> instead — which compiles, and renders a list of
+/// blank rows.
+/// </remarks>
+public sealed record BoneRow(string Id, string Name, int Depth, bool Selected)
+{
+    /// <summary>The name with its indent, for a flat list that still shows parentage.</summary>
+    public string Label => new string(' ', Depth * 4) + Name;
+}
+
+/// <summary>
 /// The armature's editing surface: the rig mode, bone selection, the chrome
 /// the overlay draws, and the edits a bone gesture lands — phase 2 of
 /// <c>docs/DESIGN-bones.md</c>, under the Q81 decisions.
@@ -52,9 +70,34 @@ public sealed partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(BoneRows))]
     [NotifyPropertyChangedFor(nameof(SelectedBone))]
     [NotifyPropertyChangedFor(nameof(SelectedBoneName))]
+    [NotifyPropertyChangedFor(nameof(SelectedBoneLength))]
     [NotifyPropertyChangedFor(nameof(HasSelectedBone))]
     [NotifyPropertyChangedFor(nameof(PointerIntent))]
     private string? _selectedBoneId;
+
+    /// <summary>
+    /// Neither posing nor painting weights: the skeleton itself is what a
+    /// drag edits.
+    /// </summary>
+    /// <remarks>
+    /// <b>The three are one switch, and that is a fix rather than a
+    /// presentation choice.</b> They were two independent booleans, so
+    /// "posing" and "painting weights" could both be on — a state with no
+    /// meaning, because weights are painted against the rest pose (Q81) while
+    /// the canvas showed a posed one. Making them exclusive removes the state
+    /// and lets the panel show one control with three positions, which is the
+    /// answer to not being able to find weight painting at all.
+    /// </remarks>
+    public bool IsBindMode
+    {
+        get => !PosingMode && !WeightPainting;
+        set
+        {
+            if (!value) return;
+            PosingMode = false;
+            WeightPainting = false;
+        }
+    }
 
     /// <summary>Whether this document has a rig at all.</summary>
     public bool HasArmature => Doc.HasArmature;
@@ -111,16 +154,6 @@ public sealed partial class MainViewModel
             }
             return points;
         }
-    }
-
-    /// <summary>
-    /// One bone as the options bar lists it: indented by depth, so the
-    /// hierarchy reads without a tree control.
-    /// </summary>
-    public sealed record BoneRow(string Id, string Name, int Depth, bool Selected)
-    {
-        /// <summary>The name with its indent, for a flat list that still shows parentage.</summary>
-        public string Label => new string(' ', Depth * 4) + Name;
     }
 
     /// <summary>
@@ -334,6 +367,128 @@ public sealed partial class MainViewModel
 
     [RelayCommand]
     private void BakePose() => BakePoseHere();
+
+    /// <summary>
+    /// Re-read everything the rig surface derives from the document.
+    /// </summary>
+    /// <remarks>
+    /// <b>Called from <c>OnDocumentChanged</c>, which is where undo lands</b>,
+    /// and its absence is what "no undo on the bones" was: the editor restored
+    /// the record correctly and nothing told the canvas or the options panel,
+    /// so the bone stayed drawn and the panel kept its old answer. Every one of
+    /// these is a plain computed property over <c>Doc</c> — they raise nothing
+    /// by themselves, exactly like the layer flags <c>RefreshPointerIntent</c>
+    /// exists for.
+    /// </remarks>
+    private void NotifyArmatureSurface()
+    {
+        OnPropertyChanged(nameof(HasArmature));
+        OnPropertyChanged(nameof(BoneRows));
+        OnPropertyChanged(nameof(BoneChromes));
+        OnPropertyChanged(nameof(HeatPoints));
+        OnPropertyChanged(nameof(HasSelectedBone));
+        OnPropertyChanged(nameof(SelectedBone));
+        OnPropertyChanged(nameof(SelectedBoneName));
+        OnPropertyChanged(nameof(SelectedBoneLength));
+        OnPropertyChanged(nameof(PointerIntent));
+        // A bone that undo took away must not stay selected, or the panel
+        // offers rename and delete for something that is gone.
+        if (SelectedBoneId is { } id && Doc.Armature?.BoneById(id) is null) SelectedBoneId = null;
+    }
+
+    /// <summary>
+    /// Grow a child from a bone's tip, reaching to where the pointer let go —
+    /// Blender's extrude, which is how a limb is built one bone at a time.
+    /// </summary>
+    /// <remarks>
+    /// <b>It starts at the parent's tip</b>, which is the difference from an
+    /// empty-canvas drag: that one parents to the selection but begins
+    /// wherever the press landed. Bending the parent afterwards carries the
+    /// whole chain, because the offset lives in the parent's frame.
+    /// <para>
+    /// <b>Placed at the tip, not glued to it.</b> Re-lengthening the parent
+    /// later leaves this child where it is. Blender draws that distinction
+    /// with a connected flag on the bone, and this record has none — adding
+    /// one is a real modelling decision (it changes the solve and the file),
+    /// so it is written down rather than guessed at here.
+    /// </para>
+    /// </remarks>
+    public void ExtrudeChildFrom(string parentId, double x, double y)
+    {
+        if (Doc.Armature is not { } armature || armature.BoneById(parentId) is not { } parent) return;
+
+        var placements = ArmatureOps.Solve(armature);
+        var at = placements[parentId];
+        var (tipX, tipY) = at.Tip(parent.Length);
+        var (length, worldAngle) = ArmatureOverlay.CreateFrom(tipX, tipY, x, y);
+
+        var child = new Bone
+        {
+            Name = NextBoneName(),
+            ParentId = parentId,
+            // The parent's own frame: along its length, on its axis. A joined
+            // child is the one case where the offset is not arithmetic on a
+            // press point — it IS the parent's length.
+            X = parent.Length,
+            Y = 0,
+            RotationDeg = worldAngle - at.RotationDeg,
+            Length = length,
+        };
+        _editor.Perform(doc => doc.Armature?.Bones.Add(child));
+
+        SelectedBoneId = child.Id;
+        NotifyArmatureSurface();
+        InvalidateRiggedFrames();
+    }
+
+    /// <summary>
+    /// The selected bone's length, as a number rather than only a drag —
+    /// "scale them easily", for the times a limb has to match a measurement.
+    /// </summary>
+    public double SelectedBoneLength
+    {
+        get => SelectedBone?.Length ?? 0;
+        set
+        {
+            if (SelectedBoneId is not { } id || SelectedBone is not { } bone) return;
+            var wanted = Math.Max(ArmatureOverlay.MinimumLength, value);
+            if (Math.Abs(bone.Length - wanted) < 1e-9) return;
+            _editor.Perform(doc =>
+            {
+                if (doc.Armature?.BoneById(id) is { } target) target.Length = wanted;
+            });
+            NotifyArmatureSurface();
+            InvalidateRiggedFrames();
+        }
+    }
+
+    partial void OnPosingModeChanged(bool value)
+    {
+        if (value) WeightPainting = false;
+        OnPropertyChanged(nameof(IsBindMode));
+    }
+
+    partial void OnWeightPaintingChanged(bool value)
+    {
+        // Painting happens against the rest pose, so arming the brush leaves
+        // posing rather than sitting on top of it.
+        if (value) PosingMode = false;
+        OnPropertyChanged(nameof(IsBindMode));
+    }
+
+    /// <summary>Grow a child of the usual length straight off the selected bone's tip.</summary>
+    [RelayCommand]
+    private void AddChildBone()
+    {
+        if (SelectedBoneId is not { } id || Doc.Armature is not { } armature) return;
+        if (armature.BoneById(id) is not { } parent) return;
+        var at = ArmatureOps.Solve(armature)[id];
+        var (tipX, tipY) = at.Tip(parent.Length);
+        // Straight on from the parent, its own length — a starting point to
+        // drag rather than a guess at where the limb goes.
+        var rad = at.RotationDeg * Math.PI / 180.0;
+        ExtrudeChildFrom(id, tipX + Math.Cos(rad) * parent.Length, tipY + Math.Sin(rad) * parent.Length);
+    }
 
     /// <summary>Select what a press hit, or clear the selection on empty canvas.</summary>
     public BoneHit PressArmature(double x, double y, double scale)

@@ -12,7 +12,12 @@ in the way.
 
 ## The Bone tool
 
-Its options bar carries everything the tool can do: which mode you are in,
+Its panel in **Tool options** carries everything the tool can do, starting
+with one switch of three positions — **Bind**, **Pose**, **Weights**. That
+switch is how you get to weight painting; the three are exclusive, because
+weights are painted against the rest pose, so arming the brush leaves posing.
+
+The panel also carries: which mode you are in,
 every bone in the rig, and the weight brush with its settings. The pointer
 says what a press would do before you make it — a **move** cursor over a
 bone you can shift, a **turn** cursor where a drag would rotate it, and a
@@ -30,6 +35,10 @@ because its first drag is what *creates* the rig.
 - **Drag a bone's shaft** to move it bodily — children come with it. **Drag
   a tip** to re-aim and re-length it; **drag an origin** to move just that
   joint. All three edit the skeleton's rest, and each is one undo step.
+- **Shift-drag a bone's tip** to grow a child out of it, joined to the
+  parent — the fastest way to build a limb, one bone at a time. **Add child**
+  in the options panel does the same without aiming, and **Length** sets a
+  bone's size by number instead of by drag.
 - **Rename** a bone in the options bar — a pair ending `.l` and `.r` is what
   X-symmetry reads. **Delete** removes it and re-parents its children to its
   parent, leaving them exactly where they are; strokes bound to it lose that

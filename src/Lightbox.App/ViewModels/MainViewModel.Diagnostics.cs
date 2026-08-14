@@ -124,6 +124,7 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(MaxScrubFrame));
         OnPropertyChanged(nameof(Fps));
         NotifyAudioSurface();
+        NotifyArmatureSurface();
         NotifyActiveLayerCompositing();
         MarkersView = Scene.Markers.ToList();
         RefreshCelSelectionHighlights();
