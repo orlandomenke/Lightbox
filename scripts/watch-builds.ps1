@@ -8,7 +8,7 @@
   Watches the folder with a FileSystemWatcher; each created or renamed file
   is unblocked (with retries while the copy is still in progress). Keep the
   window open, or start it hidden at logon by placing a shortcut in
-  shell:startup (Win+R → shell:startup) with the target:
+  shell:startup (Win+R -> shell:startup) with the target:
 
     powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File "<path>\watch-builds.ps1" -Folder "<your Builds folder>"
 
@@ -41,7 +41,7 @@ $unblock = {
             Unblock-File -LiteralPath $path -ErrorAction Stop
             return
         } catch {
-            # locked mid-copy — try again
+            # locked mid-copy -- try again
         }
     }
 }
