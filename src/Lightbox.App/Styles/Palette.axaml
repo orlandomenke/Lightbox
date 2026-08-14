@@ -114,6 +114,14 @@
     flat colour in two places where it reads differently.
   -->
   <SolidColorBrush x:Key="SelectionBrush" Color="{StaticResource AccentViolet}" Opacity="0.30" />
+  <!--
+    A row that is in a multi-selection but is not the active one. The same
+    accent at roughly half the tint, so the set reads as one block and the
+    active row still reads as the one the brush will land on — a selection
+    where every row looks equally chosen loses the only thing the artist needs
+    to know before drawing.
+  -->
+  <SolidColorBrush x:Key="SelectionWeakBrush" Color="{StaticResource AccentViolet}" Opacity="0.16" />
   <SolidColorBrush x:Key="StatusWarningSurfaceBrush" Color="{StaticResource AccentAmber}" Opacity="0.18" />
 
   <!--

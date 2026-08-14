@@ -128,6 +128,14 @@ public sealed partial class LayerRow : ObservableObject
     [ObservableProperty]
     private bool _isActive;
 
+    /// <summary>
+    /// Part of the docker's multi-layer selection (Ctrl+click / Shift+click).
+    /// Always true of the active row, and true of more than one row only while
+    /// a selection is being worked on.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isSelected;
+
     /// <summary>True while the name is being edited (double-click to start).</summary>
     [ObservableProperty]
     private bool _isRenaming;
