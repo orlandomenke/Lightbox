@@ -703,18 +703,24 @@ public partial class MainWindow
     /// where there is no pointer to consult.
     /// </para>
     /// <para>
-    /// <b>Ask the framework what the pointer is over; do not remember it.</b>
-    /// This read <see cref="_hoveredElement"/> first — the source of the last
-    /// <c>PointerMoved</c> — and that cache has two ways to be wrong that a
-    /// headless test never sees. A row the timeline rebuilt under a stationary
-    /// pointer leaves it holding a <i>detached</i> visual, whose parent chain
-    /// stops before reaching any docker; and a move that never arrived leaves it
-    /// holding somewhere the pointer has since left. Both resolve to the canvas,
-    /// which is the shape of the reported fault: every panel binding silently
-    /// falls through to the general one. <see cref="InputElement.IsPointerOver"/>
-    /// is maintained by Avalonia on every element under the pointer, ancestors
-    /// included, so a docker can simply be asked. The cache stays as a fallback
-    /// for the case the property cannot answer.
+    /// <b>The panel is a decision remembered from the last move, confirmed by
+    /// the live flags only while the pointer is known present.</b> This took
+    /// three implementations to get right, and the two dead ones each name a
+    /// state the next change must keep surviving. Caching the <i>element</i>
+    /// under the pointer died the moment a docker rebuilt its rows — a detached
+    /// visual's parent chain reaches no docker. Asking
+    /// <see cref="InputElement.IsPointerOver"/> instead died the moment a pen
+    /// left proximity, which it does a centimetre off the tablet, between
+    /// pointing at a panel and pressing the key with the other hand — the leave
+    /// clears every live flag, and the same event has also been observed
+    /// leaving a docker's flag stale-<i>true</i> on X11, so the flag is wrong in
+    /// both directions once the pointer is gone. What survives both is an
+    /// <i>id</i> resolved at move time, while the element was attached: the next
+    /// move overwrites it, and <c>PointerExited</c> deliberately does not — so
+    /// lifting the pen over the timeline keeps the timeline, and moving to the
+    /// canvas releases it. <see cref="_pointerInWindow"/> gates the live check
+    /// for the same reason: <c>IsPointerOver</c> is only evidence while the
+    /// pointer is known to be here.
     /// </para>
     /// <para>
     /// <b>A displayed docker's scope is its own id, not its <c>ActiveTab</c>.</b>
@@ -729,12 +735,11 @@ public partial class MainWindow
     /// </para>
     /// <para>
     /// <b>A key from a torn-off panel is answered by that panel, and the
-    /// pointer does not get a say.</b> The hover test below reads
-    /// <see cref="_hoveredElement"/>, which only ever describes <i>this</i>
-    /// window — so a floating panel asking it would be handed wherever the main
-    /// window's pointer happened to be resting, which is a different room. The
-    /// window the key arrived in is the one piece of evidence that is certainly
-    /// about the key.
+    /// pointer does not get a say.</b> The hover state below only ever
+    /// describes <i>this</i> window — so a floating panel asking it would be
+    /// handed wherever the main window's pointer happened to be resting, which
+    /// is a different room. The window the key arrived in is the one piece of
+    /// evidence that is certainly about the key.
     /// </para>
     /// </remarks>
     /// <param name="from">
@@ -745,8 +750,11 @@ public partial class MainWindow
     private Services.ShortcutScope CurrentShortcutScope(object? from = null)
     {
         if (from is FloatingPanelWindow floating) return floating.Scope;
-        if (DockerUnderPointer() is { } over) return Services.ShortcutScope.In(over.PanelId);
-        if (PanelUnder(_hoveredElement) is { } hovered) return Services.ShortcutScope.In(hovered);
+        if (_pointerInWindow && DockerUnderPointer() is { } over)
+        {
+            return Services.ShortcutScope.In(over.PanelId);
+        }
+        if (_hoveredPanel is { } remembered) return Services.ShortcutScope.In(remembered);
         if (PanelUnder(FocusManager?.GetFocusedElement() as Visual) is { } focused)
         {
             return Services.ShortcutScope.In(focused);
@@ -776,8 +784,9 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// The panel of the docker containing this element, if any — the fallback
-    /// for when <see cref="DockerUnderPointer"/> has no answer.
+    /// The panel of the docker containing this element, if any. Called at
+    /// pointer-move time, while the element is guaranteed attached — the id it
+    /// returns is what gets remembered, never the element itself.
     /// </summary>
     private static Docking.DockPanelId? PanelUnder(Visual? from)
     {
@@ -788,8 +797,20 @@ public partial class MainWindow
         return null;
     }
 
-    /// <summary>What the pointer is over, for <see cref="CurrentShortcutScope"/>.</summary>
-    private Visual? _hoveredElement;
+    /// <summary>
+    /// The panel the pointer last moved over, or null when that was the canvas
+    /// or the chrome. Deliberately survives <c>PointerExited</c>: a pen leaving
+    /// proximity is the pointer going away, not the artist pointing somewhere
+    /// else, and the key they press next belongs to the place they pointed.
+    /// </summary>
+    private Docking.DockPanelId? _hoveredPanel;
+
+    /// <summary>
+    /// Whether the pointer is known to be in this window — the gate on trusting
+    /// the live <c>IsPointerOver</c> flags, which go stale in both directions
+    /// once it is not.
+    /// </summary>
+    private bool _pointerInWindow;
 
     /// <summary>
     /// The scope a key press would resolve in, for tests.
@@ -803,15 +824,16 @@ public partial class MainWindow
     internal Services.ShortcutScope ShortcutScopeForTests => CurrentShortcutScope();
 
     /// <summary>
-    /// Put a detached visual in the hover cache, the way a rebuilt row does.
+    /// Put the resolver in the state a pen leaving proximity produces: the live
+    /// pointer flags no longer trusted, the remembered panel intact.
     /// </summary>
     /// <remarks>
-    /// The failure mode this exists to reproduce cannot be reached by moving a
-    /// headless mouse: it needs the tree to change under a pointer that is not
-    /// moving, which is ordinary in the running application and impossible to
-    /// stage otherwise.
+    /// The state cannot be reached by moving a headless mouse — a move to
+    /// "outside" is still a move, and it would overwrite the memory this exists
+    /// to test. Only the platform can take the pointer away without moving it,
+    /// and the headless platform never does.
     /// </remarks>
-    internal void ForgetHoveredElementForTests(Visual detached) => _hoveredElement = detached;
+    internal void SimulateProximityLossForTests() => _pointerInWindow = false;
 
     /// <summary>
     /// Clicking anywhere on a layer-docker row makes that layer active. Ctrl
