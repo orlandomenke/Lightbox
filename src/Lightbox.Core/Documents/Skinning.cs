@@ -182,6 +182,34 @@ public static class Skinning
     }
 
     /// <summary>
+    /// The frame as a render should see it at a timeline position: bound
+    /// strokes posed, everything else untouched — or the frame itself,
+    /// uncloned, when nothing here is bound. This is the live render's whole
+    /// entry point, and it is <em>the same construction bake writes</em>,
+    /// which is what keeps live and baked pixels bit-identical.
+    /// </summary>
+    /// <remarks>
+    /// A transient: same id, never serialized, rebuilt on every cache miss.
+    /// The document is not touched — invariant 1 — and a caller that renders
+    /// the result instead of the original pays only on frames that actually
+    /// bind.
+    /// </remarks>
+    public static Frame PoseFrameForRender(Doc doc, Frame frame, int frameIndex)
+    {
+        if (doc.Armature is not { Bones.Count: > 0 } armature || !frame.HasBoundStrokes)
+            return frame;
+
+        var pose = ArmatureOps.PoseAt(doc.Scene.PoseTrack, frameIndex);
+        var copy = frame.Clone();
+        for (var i = 0; i < frame.Strokes.Count; i++)
+        {
+            if (frame.Strokes[i].Weights is not { Count: > 0 }) continue;
+            copy.Strokes[i] = PoseStroke(frame.Strokes[i], armature, pose);
+        }
+        return copy;
+    }
+
+    /// <summary>
     /// Bind a stroke wholly to one bone: the cutout workflow's whole gesture,
     /// and the record stays one small entry.
     /// </summary>

@@ -214,6 +214,7 @@ public static class VideoExporter
             using (var cache = new FrameBitmapCache())
             using (var stdin = process.StandardInput.BaseStream)
             {
+                cache.PoseResolver = (f, cel) => Skinning.PoseFrameForRender(doc, f, cel);
                 for (var i = fromFrame; i <= toFrame; i++)
                 {
                     if (cancel.IsCancellationRequested) { cancelled = true; break; }

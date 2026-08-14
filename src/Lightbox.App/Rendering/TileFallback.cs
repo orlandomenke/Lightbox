@@ -28,6 +28,12 @@ public enum TileFallbackReason
 
     /// <summary>An effect stroke is in flight on this layer right now.</summary>
     LiveEffect,
+
+    /// <summary>
+    /// Strokes here follow the rig, so the frame's pixels depend on the
+    /// playhead — and the tile store knows frames only by id.
+    /// </summary>
+    BoundStrokes,
 }
 
 /// <summary>
@@ -75,6 +81,7 @@ public static class TileFallback
         if (liveEffectHere) return TileFallbackReason.LiveEffect;
         if (frame.HasBaseline) return TileFallbackReason.Baseline;
         if (frame.HasPlacements) return TileFallbackReason.Placements;
+        if (frame.HasBoundStrokes) return TileFallbackReason.BoundStrokes;
         if (!TiledRasterizer.CanTile(frame.Strokes)) return TileFallbackReason.EffectStroke;
         return TileFallbackReason.None;
     }
@@ -88,6 +95,7 @@ public static class TileFallback
         TileFallbackReason.Baseline => "frames carry imported or flattened pixels",
         TileFallbackReason.Placements => "frames place symbols",
         TileFallbackReason.EffectStroke => "frames contain smudge or blur strokes",
+        TileFallbackReason.BoundStrokes => "frames contain strokes bound to the rig",
         TileFallbackReason.LiveEffect => "a smudge or blur was in flight",
         _ => reason.ToString(),
     };

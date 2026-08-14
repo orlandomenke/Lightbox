@@ -218,6 +218,12 @@ public sealed class FramePrewarmer : IDisposable
             _pending.Clear();
             foreach (var job in jobs)
             {
+                // A rig-bound frame's pixels depend on the pose at its cel,
+                // and the detached render runs without the document to pose
+                // against — so it would warm the cache with the REST pose
+                // under a key the live path then trusts. Skipped: the frame
+                // renders on demand through the cache's own PoseResolver.
+                if (job.Frame.HasBoundStrokes) continue;
                 if (accountedFor.Add(job.Key)) _pending.Enqueue(job);
             }
             if (_running || _pending.Count == 0) return;

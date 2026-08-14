@@ -154,6 +154,27 @@ public sealed class Frame
     [System.Text.Json.Serialization.JsonIgnore]
     public bool HasPlacements => Placements is { Count: > 0 };
 
+    /// <summary>
+    /// Whether any stroke here follows the rig. Derived; never serialized.
+    /// </summary>
+    /// <remarks>
+    /// The render-time twin of <see cref="HasPlacements"/>: a bound frame's
+    /// pixels depend on where the playhead is (the pose track interpolates by
+    /// frame index), so — exactly like a frame that places a symbol — its
+    /// cached bitmap must be keyed per timeline position and it cannot take
+    /// the tile path, whose store knows frames only by id.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasBoundStrokes
+    {
+        get
+        {
+            foreach (var stroke in Strokes)
+                if (stroke.Weights is { Count: > 0 }) return true;
+            return false;
+        }
+    }
+
     /// <summary>Whether this drawing carries imported or flattened pixels.</summary>
     /// <remarks>
     /// <b>This is what "did this come from outside" should be asked of</b>, rather

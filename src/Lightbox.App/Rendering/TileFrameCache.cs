@@ -142,6 +142,7 @@ public sealed class TileFrameCache : IDisposable
     public static bool CanTileFrame(Frame frame) =>
         !frame.HasBaseline
         && !frame.HasPlacements
+        && !frame.HasBoundStrokes
         && TiledRasterizer.CanTile(frame.Strokes);
 
     /// <summary>

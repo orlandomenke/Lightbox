@@ -13,7 +13,13 @@ namespace Lightbox.Core.Timeline;
 /// get this wrong: every ghost is half as visible as the artist expects.
 /// </param>
 /// <param name="Before">Earlier in the timeline. Later ghosts take the other tint.</param>
-public readonly record struct OnionGhost(Frame Frame, int Steps, bool Before);
+/// <param name="Index">
+/// The timeline position the ghost was found at. A ghost is usually rendered
+/// by its drawing alone, but a rig-bound drawing's pixels depend on the pose
+/// at its position — this is what lets the cache pose a ghost as the frame it
+/// is, rather than as the frame the playhead is on.
+/// </param>
+public readonly record struct OnionGhost(Frame Frame, int Steps, bool Before, int Index = 0);
 
 /// <summary>
 /// Which drawings to ghost around the playhead.
@@ -67,7 +73,7 @@ public static class OnionSkin
                 ? ExposureSheet.FrameAtExactIndex(layer, i)
                 : ExposureSheet.ExposedFrame(layer, i);
             if (frame is null || !seen.Add(frame.Id)) continue;
-            ghosts.Add(new OnionGhost(frame, ++found, !forward));
+            ghosts.Add(new OnionGhost(frame, ++found, !forward, i));
         }
     }
 

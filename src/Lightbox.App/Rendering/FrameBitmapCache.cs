@@ -225,10 +225,28 @@ public sealed class FrameBitmapCache : IDisposable
         var key = string.Create(
             CultureInfo.InvariantCulture,
             $"{frame.Id}|{width}x{height}@{outputScale:0.####}");
-        return frame is Frame { HasPlacements: true }
+        // A placed symbol and a rig-bound stroke share the same property: the
+        // frame's pixels depend on where the playhead is, so the timeline
+        // position joins the key. Everything else keys by id alone.
+        return frame is { HasPlacements: true } or { HasBoundStrokes: true }
             ? string.Create(CultureInfo.InvariantCulture, $"{key}#{celIndex}")
             : key;
     }
+
+    /// <summary>
+    /// Turns a frame into what a render at a timeline position should see —
+    /// the live rig's one hook. Set by the view model to
+    /// <c>Skinning.PoseFrameForRender</c>; null renders every frame as
+    /// recorded, which is also what any frame without bound strokes gets.
+    /// </summary>
+    /// <remarks>
+    /// Consulted only on a miss, so a cache hit costs a rigged document
+    /// nothing extra — and the resolver's output is rendered, never stored or
+    /// keyed, so the transient posed frame can never leak into the record.
+    /// Pose and weight edits must invalidate the affected frames; the key
+    /// cannot see them.
+    /// </remarks>
+    public Func<Frame, int, Frame>? PoseResolver { get; set; }
 
     /// <param name="celIndex">
     /// Where on the timeline this cel is being shown. Only matters to a frame
@@ -262,7 +280,8 @@ public sealed class FrameBitmapCache : IDisposable
         }
 
         Misses++;
-        var bmp = Render(frame, width, height, outputScale, celIndex, backdrop);
+        var source = PoseResolver?.Invoke(frame, celIndex) ?? frame;
+        var bmp = Render(source, width, height, outputScale, celIndex, backdrop);
         var newNode = _lru.AddFirst(new Entry(key, frame.Id, bmp));
         _map[key] = newNode;
         CachedBytes += BytesOf(bmp);
