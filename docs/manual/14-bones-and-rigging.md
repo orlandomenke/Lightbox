@@ -91,6 +91,40 @@ IK is **posing**, never the rest: switch back to **Bind** and the skeleton is
 the one you built, so re-lengthening a bone under a chain does what you asked
 rather than being pulled back by the solver.
 
+## Constraints — one bone following another
+
+A **constraint** makes a bone follow another bone, so you pose one thing and
+several move. Eyes that track a target, a head that looks where a hand goes,
+a prop that stays in a fist.
+
+Select the bone that should follow, and pick what it follows from
+**constrain to…**. That makes it in one go — an **aim**, because an aim reads
+instantly: the bone visibly turns to look. Then set what kind of following it
+actually is:
+
+- **Aim at** — turn to point at the target.
+- **Copy turn of** — take the target's angle, wherever it is.
+- **Copy place of** — sit where the target sits, keeping your own angle.
+
+Stack **Copy turn** and **Copy place** on the same bone and it follows the
+target completely. There is no tick-box constraint that does everything,
+because most of the combinations are never used and every one of them would
+sit in your file at *off*.
+
+- **Offset** is degrees added after the constraint resolves — a head that
+  should look slightly past what it aims at.
+- **Strength** is how far toward the constrained result the bone goes. At
+  **100%** the constraint owns the bone's turn, so posing it by hand does
+  nothing; lower it and your pose and the constraint blend. At **0%** the
+  bone is exactly where you put it.
+- Constraints resolve **top to bottom**, after IK. A later one sees what an
+  earlier one did, and a constraint can override a bone the IK solver just
+  placed.
+- A bone cannot follow itself or anything hanging off it — there would be no
+  answer — so those bones are simply not in the list.
+- Like IK, constraints are **posing**. Switch to **Bind** and the skeleton is
+  the one you built.
+
 ## Binding drawings to bones
 
 A stroke follows the rig once it has **weights** — how much each bone moves
@@ -116,5 +150,5 @@ each part of it.
   happens against the rest pose; scrub a pose to check, come back to
   correct.
 
-*Planned:* painting weights under a live pose, aim and copy constraints,
+*Planned:* painting weights under a live pose,
 spline chains and rig export (`docs/DESIGN-bones.md` has the whole plan).

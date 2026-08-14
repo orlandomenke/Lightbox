@@ -86,6 +86,49 @@
                 ToolTip.Tip="Delete the chain and its target handle. The bones stay where they are and go back to being posed by hand." />
       </StackPanel>
     </StackPanel>
+    <!-- Constraints. Picking a target IS the add, so the common case is one
+         gesture; the editing controls only appear once there is something
+         to edit. -->
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                IsVisible="{Binding HasSelectedBone}">
+      <ComboBox ItemsSource="{Binding ConstraintTargetRows}" SelectedValue="{Binding ConstrainToKey, Mode=TwoWay}"
+                SelectedValueBinding="{Binding Id}" MinWidth="130"
+                ToolTip.Tip="Make this bone follow another one. Picking a bone here creates an aim at it; change what kind of following it is afterwards.">
+        <ComboBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:BoneRow">
+            <TextBlock Text="{Binding Label}" FontFamily="{StaticResource MonoFontFamily}" />
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+      <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                  IsVisible="{Binding HasSelectedConstraint}">
+        <ComboBox ItemsSource="{Binding ConstraintRows}" SelectedValue="{Binding SelectedConstraintId, Mode=TwoWay}"
+                  SelectedValueBinding="{Binding Id}" MinWidth="150"
+                  ToolTip.Tip="This bone's constraints. They resolve top to bottom, so a later one sees what an earlier one did.">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:BoneRow">
+              <TextBlock Text="{Binding Label}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <ComboBox SelectedIndex="{Binding ConstraintKindIndex, Mode=TwoWay}" MinWidth="128"
+                  ToolTip.Tip="Aim turns the bone to point at the target; Copy turn takes its angle; Copy place takes its position. Stack two for both.">
+          <ComboBoxItem Content="Aim at" />
+          <ComboBoxItem Content="Copy turn of" />
+          <ComboBoxItem Content="Copy place of" />
+        </ComboBox>
+        <TextBlock Text="Offset" VerticalAlignment="Center" Opacity="0.7" />
+        <NumericUpDown Value="{Binding ConstraintOffsetDeg, Mode=TwoWay}" Minimum="-360" Maximum="360"
+                       Increment="5" FormatString="0"
+                       ToolTip.Tip="Degrees added after the constraint resolves — a head that should look slightly past what it aims at." />
+        <TextBlock Text="Strength" VerticalAlignment="Center" Opacity="0.7" />
+        <NumericUpDown Value="{Binding ConstraintInfluencePercent, Mode=TwoWay}" Minimum="0" Maximum="100"
+                       Increment="5" FormatString="0"
+                       ToolTip.Tip="How far toward the constrained result the bone goes. 0 leaves it exactly where it was." />
+        <Button Content="Unconstrain" Command="{Binding RemoveConstraintCommand}"
+                ToolTip.Tip="Take this constraint off. The bone stays where it is and goes back to being posed by hand." />
+      </StackPanel>
+    </StackPanel>
     <!-- The weight brush and its settings, which had no surface at all. -->
     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
                 IsVisible="{Binding HasArmature}">

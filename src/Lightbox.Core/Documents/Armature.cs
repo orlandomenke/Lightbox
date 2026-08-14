@@ -84,11 +84,11 @@ public sealed class Bone
 /// writes no key and pays no cost.
 /// </para>
 /// <para>
-/// <see cref="Chains"/> is null on a rig that has no IK, for the same reason
-/// the armature itself is null on a document that has no rig: an empty list
-/// on every armature would be the "present-and-disabled" shape this record
-/// exists to refuse. Constraints and spline chains are the rest of phase 3
-/// and arrive the same way.
+/// <see cref="Chains"/> and <see cref="Constraints"/> are null on a rig that
+/// has no IK and no constraints, for the same reason the armature itself is
+/// null on a document that has no rig: an empty list on every armature would
+/// be the "present-and-disabled" shape this record exists to refuse. Spline
+/// chains are the rest of phase 3 and arrive the same way.
 /// </para>
 /// </remarks>
 public sealed class Armature
@@ -99,6 +99,9 @@ public sealed class Armature
     /// <summary>The IK chains, or null — and null is the ordinary rig.</summary>
     public List<IkChain>? Chains { get; set; }
 
+    /// <summary>The constraints, or null. Resolved in list order, after IK.</summary>
+    public List<BoneConstraint>? Constraints { get; set; }
+
     /// <summary>The bone with this id, or null.</summary>
     public Bone? BoneById(string id) => Bones.FirstOrDefault(b => b.Id == id);
 
@@ -108,8 +111,68 @@ public sealed class Armature
         var copy = (Armature)MemberwiseClone();
         copy.Bones = Bones.Select(b => b.Clone()).ToList();
         copy.Chains = Chains?.Select(c => c.Clone()).ToList();
+        copy.Constraints = Constraints?.Select(c => c.Clone()).ToList();
         return copy;
     }
+}
+
+/// <summary>What a constraint makes its bone do.</summary>
+public enum BoneConstraintKind
+{
+    /// <summary>Turn to point at the target's origin.</summary>
+    Aim,
+
+    /// <summary>Take the target's world rotation.</summary>
+    CopyRotation,
+
+    /// <summary>Take the target's origin.</summary>
+    CopyPosition,
+}
+
+/// <summary>
+/// One bone made to follow another: aim at it, copy its rotation, or sit
+/// where it sits.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Three narrow kinds rather than one wide one.</b> "Transform copy" in
+/// the bigger packages is a single constraint with a row of tick boxes, and
+/// most of the combinations are never used; stacking two of these on a bone
+/// gives the one combination that is, and every kind here does exactly one
+/// thing an artist can name. It also keeps the record honest — there is no
+/// tick box sitting at false on every constraint anybody ever wrote.
+/// </para>
+/// <para>
+/// <see cref="Influence"/> and <see cref="OffsetDeg"/> are nullable so that
+/// the ordinary constraint — all the way on, no offset — writes neither key.
+/// </para>
+/// </remarks>
+public sealed class BoneConstraint
+{
+    public string Id { get; set; } = Ids.NewId("con");
+
+    public string Name { get; set; } = "Constraint";
+
+    public BoneConstraintKind Kind { get; set; }
+
+    /// <summary>The bone that moves.</summary>
+    public string BoneId { get; set; } = "";
+
+    /// <summary>The bone it follows.</summary>
+    public string TargetBoneId { get; set; } = "";
+
+    /// <summary>Degrees added after the constraint resolves, or null for none.</summary>
+    public double? OffsetDeg { get; set; }
+
+    /// <summary>How far toward the constrained result the bone goes, 0–1. Null is all the way.</summary>
+    public double? Influence { get; set; }
+
+    /// <summary>The influence actually used. Derived; never serialized.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public double Strength => Math.Clamp(Influence ?? 1.0, 0, 1);
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public BoneConstraint Clone() => (BoneConstraint)MemberwiseClone();
 }
 
 /// <summary>
@@ -364,22 +427,119 @@ public static class ArmatureOps
     {
         var placements = Forward(armature, pose);
         // A null pose means "the rest", and the rest is what an artist edits
-        // in bind mode — so IK stays out of it, or every bind-mode drag would
-        // fight the solver for the joint it just moved. Every posed caller
-        // passes a dictionary (PoseAt returns an empty one, never null), so
-        // this is the bind/pose line rather than a flag to remember.
-        if (pose is null || armature.Chains is not { Count: > 0 } chains) return placements;
+        // in bind mode — so IK and constraints stay out of it, or every
+        // bind-mode drag would fight the solver for the joint it just moved.
+        // Every posed caller passes a dictionary (PoseAt returns an empty one,
+        // never null), so this is the bind/pose line rather than a flag to
+        // remember.
+        if (pose is null) return placements;
+        var hasChains = armature.Chains is { Count: > 0 };
+        var hasConstraints = armature.Constraints is { Count: > 0 };
+        if (!hasChains && !hasConstraints) return placements;
 
         // Chains resolve in list order, each against the placements the ones
         // before it left — so a hand chain whose target hangs off an arm chain
         // sees the arm already solved. Order in the file is therefore part of
         // the rig, which is why it is authoring order and never sorted.
         var solved = new Dictionary<string, BonePose>(pose);
-        foreach (var chain in chains)
-            if (ApplyChain(armature, chain, solved, placements))
-                placements = Forward(armature, solved);
+        if (hasChains)
+            foreach (var chain in armature.Chains!)
+                if (ApplyChain(armature, chain, solved, placements))
+                    placements = Forward(armature, solved);
+
+        // Constraints after IK, in list order, for the same reason: a later
+        // one sees what the earlier ones did. Putting them after IK is the
+        // deliberate half — a constraint on an IK-driven bone wins, which is
+        // what lets an aim override a solved elbow rather than being quietly
+        // undone by it.
+        if (hasConstraints)
+            foreach (var constraint in armature.Constraints!)
+                if (ApplyConstraint(armature, constraint, solved, placements))
+                    placements = Forward(armature, solved);
         return placements;
     }
+
+    /// <summary>
+    /// Resolve one constraint, writing what it wants into <paramref name="pose"/>.
+    /// Returns whether it changed anything.
+    /// </summary>
+    /// <remarks>
+    /// A constraint whose target depends on the bone it moves is refused
+    /// rather than iterated, exactly as a circular IK chain is: an unsolvable
+    /// rig should sit still, not oscillate between two answers.
+    /// </remarks>
+    private static bool ApplyConstraint(
+        Armature armature, BoneConstraint constraint,
+        Dictionary<string, BonePose> pose,
+        Dictionary<string, BonePlacement> placements)
+    {
+        if (constraint.Strength <= 0) return false;
+        if (armature.BoneById(constraint.BoneId) is not { } bone) return false;
+        if (armature.BoneById(constraint.TargetBoneId) is not { } target) return false;
+        if (bone.Id == target.Id || IsDescendantOf(armature, target, bone.Id)) return false;
+        if (!placements.TryGetValue(bone.Id, out var own)
+            || !placements.TryGetValue(target.Id, out var to)) return false;
+
+        var offset = constraint.OffsetDeg ?? 0;
+        var existing = pose.GetValueOrDefault(bone.Id);
+        var next = new BonePose
+        {
+            RotationDeg = existing?.RotationDeg ?? 0,
+            X = existing?.X ?? 0,
+            Y = existing?.Y ?? 0,
+        };
+
+        if (constraint.Kind == BoneConstraintKind.CopyPosition)
+        {
+            // Position is written in the bone's parent's frame, because that
+            // is the frame its own offset lives in.
+            var (px, py, prot) = bone.ParentId is { } pid && placements.TryGetValue(pid, out var pp)
+                ? (pp.X, pp.Y, pp.RotationDeg)
+                : (0.0, 0.0, 0.0);
+            var rad = -prot * Math.PI / 180.0;
+            var (dx, dy) = (to.X - px, to.Y - py);
+            var wantX = (Math.Cos(rad) * dx - Math.Sin(rad) * dy) - EffectiveX(armature, bone);
+            var wantY = (Math.Sin(rad) * dx + Math.Cos(rad) * dy) - EffectiveY(armature, bone);
+            next.X = Lerp(next.X, wantX, constraint.Strength);
+            next.Y = Lerp(next.Y, wantY, constraint.Strength);
+        }
+        else
+        {
+            var wantedWorld = constraint.Kind == BoneConstraintKind.Aim
+                ? Math.Atan2(to.Y - own.Y, to.X - own.X) * 180.0 / Math.PI + offset
+                : to.RotationDeg + offset;
+            // The pose delta is world minus everything already in the chain:
+            // the parent's world rotation and the bone's own rest rotation.
+            var parentWorld = bone.ParentId is { } pid && placements.TryGetValue(pid, out var pp)
+                ? pp.RotationDeg
+                : 0.0;
+            var want = wantedWorld - parentWorld - bone.RotationDeg;
+            next.RotationDeg = Lerp(next.RotationDeg, want, constraint.Strength);
+        }
+
+        pose[bone.Id] = next;
+        return true;
+    }
+
+    /// <summary>Whether <paramref name="bone"/> hangs off <paramref name="ancestorId"/>.</summary>
+    private static bool IsDescendantOf(Armature armature, Bone bone, string ancestorId)
+    {
+        var seen = new HashSet<string>();
+        for (var walk = bone.ParentId; walk is not null && seen.Add(walk);)
+        {
+            if (walk == ancestorId) return true;
+            walk = armature.BoneById(walk)?.ParentId;
+        }
+        return false;
+    }
+
+    /// <summary>The bone's rest x as the solve reads it — a connected bone's is its parent's length.</summary>
+    private static double EffectiveX(Armature armature, Bone bone) =>
+        bone.IsConnected && bone.ParentId is { } p && armature.BoneById(p) is { } glued ? glued.Length : bone.X;
+
+    /// <summary>The bone's rest y as the solve reads it — zero while it is glued.</summary>
+    private static double EffectiveY(Armature armature, Bone bone) =>
+        bone.IsConnected && bone.ParentId is not null && armature.BoneById(bone.ParentId) is not null ? 0 : bone.Y;
 
     private static Dictionary<string, BonePlacement> Forward(
         Armature armature, IReadOnlyDictionary<string, BonePose>? pose)
@@ -559,11 +719,10 @@ public static class ArmatureOps
         // asked. A pose translation still applies on top, because posing a
         // joint apart from its parent is a legitimate thing to key even on a
         // glued chain.
-        var (ox, oy) = bone.IsConnected && bone.ParentId is not null
-                       && armature.BoneById(bone.ParentId) is { } glued
-            ? (glued.Length, 0.0)
-            : (bone.X, bone.Y);
-        var local = new BonePlacement(ox + delta.X, oy + delta.Y, bone.RotationDeg + delta.RotationDeg);
+        var local = new BonePlacement(
+            EffectiveX(armature, bone) + delta.X,
+            EffectiveY(armature, bone) + delta.Y,
+            bone.RotationDeg + delta.RotationDeg);
 
         var world = parent is { } w ? Compose(w, local) : local;
         placements[bone.Id] = world;
