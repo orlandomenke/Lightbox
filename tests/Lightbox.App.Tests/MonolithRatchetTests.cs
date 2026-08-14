@@ -165,7 +165,15 @@ public class MonolithRatchetTests(ITestOutputHelper output)
         // Measured alone the last two wanted 4,327 and 4,271; taking either on
         // the merged tree would bank the extraction's slack as permanent
         // headroom, which is the one thing a ratchet must not do.
-        ("src/Lightbox.App/Views/MainWindow.axaml", 4271),
+        // Raised by exactly 26 for the layer docker's link menu (Q87): the
+        // Linking and Follows-the-rig flyouts. Menu items are the case this
+        // budget's note already allows — there is no smaller place for a
+        // MenuItem than the ContextMenu it belongs to, and moving the whole
+        // context menu out would take rename, reorder, merge and folders with
+        // it for no reason. The bracket that shipped beside them did NOT raise
+        // it: that is self-contained chrome, so it went to LinkBracket.axaml
+        // and cost one hosting line instead of fourteen.
+        ("src/Lightbox.App/Views/MainWindow.axaml", 4297),
         // Lowered when the overlay-gesture wiring moved to MainWindow.Overlays.cs,
         // and again (449 → 427) when the bone gesture handler followed it there.
         // A merge had left that one block behind in the code-behind while its

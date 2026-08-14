@@ -60,6 +60,58 @@ Clicking a cel in the timeline, walking the stack with the arrow keys, or
 opening a document all set the active layer the ordinary way, and that starts
 the selection again from the one layer.
 
+### Linking layers — one drawing across several
+
+A character is rarely one layer. Lines, colour, details, effects: four layers
+that are really *one drawing*. **Linking** says so once, and what the link
+carries then reaches all of them — on every frame, including the ones you have
+not drawn yet.
+
+- **Ctrl+Shift+right-click** links a layer to the one **above** it.
+- **Ctrl+Alt+right-click** links it to the one **below**.
+- **Shift+right-click** takes it back out.
+- Right-click and open **Linking** for the same options by name, plus the
+  switches below.
+
+Linking to a layer that is already in a link **joins that link** rather than
+starting a second one, so a four-layer character is three gestures and ends
+with one link.
+
+Linked rows are indented and carry a bracket down their left edge, so a set
+reads as one at a glance.
+
+**What travels a link is up to you, per property.** A link can carry several
+things, one, or nothing at all:
+
+- **Share the rig** — every layer follows the bone any one of them names. On
+  by default when you make a link, because rigging is usually why you made it.
+- **Share alpha lock**
+- **Share visibility** — hide the lines and the colour goes with them.
+
+Nothing else travels. A link made to rig a character does not quietly start
+sharing anything you did not ask it to.
+
+The gestures read the neighbour **once**, at the moment you make them. After
+that the layers know each other by name, so reordering the stack afterwards
+never breaks a link or attaches it to something else.
+
+### Making a layer follow the rig
+
+Right-click a layer and open **Follows the rig**:
+
+- **The selected bone** — every stroke on the layer follows the bone picked in
+  the Bone tool.
+- **The whole skeleton** — bound to the nearest bones by distance, the way
+  auto-bind does it.
+- **Nothing** — off the rig.
+
+This is per *layer*, so it covers drawings you have not made yet and frames
+you have not reached. Painted weights on an individual line still win over it
+— that is what the weight brush is for.
+
+A layer's own choice beats its link's, so you can rig the effects layer to a
+different bone from the lines it is linked to.
+
 ### Merging a layer down
 
 **Ctrl+E** merges the active layer into the one below it — Photoshop's and

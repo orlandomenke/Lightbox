@@ -140,6 +140,47 @@ public partial class MainWindow
         if (LayerRowOf(sender) is { } row) _vm.ClearLayerContent(row.Layer);
     }
 
+    // ---- linking (Q87) --------------------------------------------------------------
+    //
+    // Each of these activates the row first. The menu belongs to a row and the
+    // link operations are written in terms of the ACTIVE layer, so a menu
+    // opened on a row that is not active would otherwise link the wrong one —
+    // which is worse than doing nothing, because it does something.
+
+    private void OnLayerMenuLinkAbove(object? sender, RoutedEventArgs e) =>
+        OnActiveRow(sender, () => _vm.LinkLayerAboveCommand.Execute(null));
+
+    private void OnLayerMenuLinkBelow(object? sender, RoutedEventArgs e) =>
+        OnActiveRow(sender, () => _vm.LinkLayerBelowCommand.Execute(null));
+
+    private void OnLayerMenuUnlink(object? sender, RoutedEventArgs e) =>
+        OnActiveRow(sender, () => _vm.UnlinkLayerCommand.Execute(null));
+
+    private void OnLayerMenuShareRig(object? sender, RoutedEventArgs e) =>
+        OnActiveRow(sender, () => _vm.LinkCarriesBones = !_vm.LinkCarriesBones);
+
+    private void OnLayerMenuShareAlpha(object? sender, RoutedEventArgs e) =>
+        OnActiveRow(sender, () => _vm.LinkCarriesAlpha = !_vm.LinkCarriesAlpha);
+
+    private void OnLayerMenuShareVisibility(object? sender, RoutedEventArgs e) =>
+        OnActiveRow(sender, () => _vm.LinkCarriesVisibility = !_vm.LinkCarriesVisibility);
+
+    private void OnLayerMenuRigToBone(object? sender, RoutedEventArgs e) =>
+        OnActiveRow(sender, () => _vm.RigLayerToSelectedBoneCommand.Execute(null));
+
+    private void OnLayerMenuRigToSkeleton(object? sender, RoutedEventArgs e) =>
+        OnActiveRow(sender, () => _vm.RigLayerToSkeletonCommand.Execute(null));
+
+    private void OnLayerMenuUnrig(object? sender, RoutedEventArgs e) =>
+        OnActiveRow(sender, () => _vm.UnrigLayerCommand.Execute(null));
+
+    private void OnActiveRow(object? sender, Action act)
+    {
+        if (LayerRowOf(sender) is not { } row) return;
+        _vm.SelectLayer(row, toggle: false, range: false);
+        act();
+    }
+
     private void OnLayerMenuDelete(object? sender, RoutedEventArgs e)
     {
         if (LayerRowOf(sender) is { } row) _vm.DeleteLayer(row.Layer);

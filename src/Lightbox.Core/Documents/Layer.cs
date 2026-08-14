@@ -77,6 +77,66 @@ public sealed class LayerGroup
     public LayerGroup Clone() => (LayerGroup)MemberwiseClone();
 }
 
+/// <summary>
+/// A set of layers that are one drawing — lines, colour, details, effects —
+/// declared once so they behave as one.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>A link is not a folder.</b> A folder is where layers <em>sit</em>; a link
+/// is what they <em>are</em> to each other, and the two are wanted in different
+/// combinations often enough that collapsing them would cost more than it saves
+/// — a link spanning two folders is an ordinary thing to want, and a folder
+/// whose members are unrelated is the ordinary case.
+/// </para>
+/// <para>
+/// <b>What travels is opt-in, per property</b> (Q87). The answer taken was a
+/// general link rather than a bone-specific one, and the price of a general
+/// link is that every property has to answer what inheriting it means — so a
+/// link made to rig a character must not quietly start sharing alpha lock.
+/// Each travelling property is a nullable flag, absent until switched on.
+/// </para>
+/// <para>
+/// <b>It holds across every frame</b>, because it is a property of the layer
+/// structure rather than of a drawing. That is the half that matters: binding
+/// a two-layer character over two hundred frames was four hundred manual
+/// operations, and a link is one.
+/// </para>
+/// </remarks>
+public sealed class LayerLink
+{
+    public string Id { get; set; } = Ids.NewId("link");
+
+    public string Name { get; set; } = "Linked";
+
+    /// <summary>Accent colour in the docker (hex), so a link reads at a glance.</summary>
+    public string Color { get; set; } = "#c98a3a";
+
+    /// <summary>
+    /// Whether rig binding travels this link: every member follows the bone
+    /// any one of them names. Null — and absent — until switched on.
+    /// </summary>
+    public bool? Bones { get; set; }
+
+    /// <summary>Whether rig binding travels this link. Derived; never serialized.</summary>
+    [JsonIgnore] public bool CarriesBones => Bones == true;
+
+    /// <summary>Whether alpha lock travels this link.</summary>
+    public bool? Alpha { get; set; }
+
+    /// <summary>Whether alpha lock travels this link. Derived; never serialized.</summary>
+    [JsonIgnore] public bool CarriesAlpha => Alpha == true;
+
+    /// <summary>Whether visibility travels this link — hide the lines, hide the colour.</summary>
+    public bool? Visibility { get; set; }
+
+    /// <summary>Whether visibility travels this link. Derived; never serialized.</summary>
+    [JsonIgnore] public bool CarriesVisibility => Visibility == true;
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public LayerLink Clone() => (LayerLink)MemberwiseClone();
+}
+
 public sealed class Layer
 {
     public string Id { get; set; } = Ids.NewId("layer");
@@ -148,6 +208,41 @@ public sealed class Layer
 
     /// <summary>The layer folder this layer belongs to (null = ungrouped).</summary>
     public string? GroupId { get; set; }
+
+    /// <summary>The link this layer is a member of (null = unlinked).</summary>
+    public string? LinkId { get; set; }
+
+    /// <summary>
+    /// The bone every stroke on this layer follows unless it carries weights
+    /// of its own — null, and absent, on a layer that is not rigged.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Named on the layer rather than inferred from adjacency</b> (Q87).
+    /// Layer-above/below addressing was declined because reordering layers
+    /// would silently retarget it, and a link that retargets when you drag
+    /// something is the invisible-failure shape this area keeps producing.
+    /// </para>
+    /// <para>
+    /// <b>The empty string means the whole skeleton</b>, auto-bound by
+    /// distance, rather than one named bone — which is what a body wants where
+    /// a cut-out limb wants a single bone. It is a value rather than a second
+    /// nullable flag because "unrigged", "rigged to one bone" and "rigged to
+    /// the skeleton" are three states of one question.
+    /// </para>
+    /// <para>
+    /// Per-stroke <see cref="Stroke.Weights"/> still win wherever they exist:
+    /// this is the layer's answer for lines nobody has painted weights on, and
+    /// painting weights on one is how an artist overrides it.
+    /// </para>
+    /// </remarks>
+    public string? BoneId { get; set; }
+
+    /// <summary>Whether this layer follows the rig at all. Derived; never serialized.</summary>
+    [JsonIgnore] public bool IsRigged => BoneId is not null;
+
+    /// <summary>Whether this layer follows the whole skeleton rather than one bone.</summary>
+    [JsonIgnore] public bool FollowsWholeSkeleton => BoneId is { Length: 0 };
 
     /// <summary>One entry per timeline frame; a null Frame is a hold.</summary>
     public List<Cel> Cels { get; set; } = [];
