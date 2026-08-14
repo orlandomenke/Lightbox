@@ -251,7 +251,15 @@ answered, and answering one does not soften the other:
 | --- | --- | --- |
 | Canvas area | GPU compositing, display-only | B125, not started — **mandatory** |
 | Layer count | Do not recomposite unchanged layers | B165, not started — **mandatory** |
+| Layer count × memory | Held side composites instead of every cel resident | B197 — measured, carried by B29's candidate |
 | Pixels actually served | Tiles, and the compose-scale clamp | B144, B160 — built |
+
+The layer axis is swept to 100 as of 2026-08-14, and it added a fourth row: past
+about 64 layers at 1080p a single frame's cels (~830 MB) exceed the 512 MB frame
+cache, so a recomposite re-rasterizes what it just evicted — 1.04 s at 64 layers
+becomes **7.1 s at 100**. The side-composite measurement (`SideCompositeHit`)
+says what fixes it: two held surfaces are flat at **35 ms from 1 to 100 layers**,
+and holding them also removes the residency demand that builds the wall.
 
 **Why both.** A 20× GPU win takes 8K/three-layer from 1344% to 67% of budget:
 viable, barely. The same frame at ten layers is **224% after the GPU**, because
