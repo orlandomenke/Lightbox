@@ -5,12 +5,12 @@
 
 .DESCRIPTION
   Takes the newest Lightbox-win-x64-*.zip from your Downloads folder (or the
-  zip you pass with -Zip), unblocks it, and extracts it with tar — which
-  writes no Zone.Identifier download tags — into a folder named after the
+  zip you pass with -Zip), unblocks it, and extracts it with tar -- which
+  writes no Zone.Identifier download tags -- into a folder named after the
   zip (so the build kind / branch / commit stays visible). Any tags that
   slip through are stripped afterwards as a belt-and-braces pass.
 
-  It then repoints a fixed-name junction — .\Lightbox by default — at the
+  It then repoints a fixed-name junction -- .\Lightbox by default -- at the
   build just extracted, so there is one stable path that always means "the
   newest build". That exists for anything holding a path across builds, and
   the case that prompted it is the Claude Desktop MCP config: its `command`
@@ -22,13 +22,13 @@
   A junction rather than a copy or a rename, because both halves are wanted:
   every build stays on disk under its own name, tellable apart when
   something regresses, and one name still resolves to the newest. Directory
-  junctions need no admin rights and no Developer Mode — unlike symlinks,
+  junctions need no admin rights and no Developer Mode -- unlike symlinks,
   which is the whole reason this is a junction.
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File get-build.ps1
-  # newest artifact zip from Downloads → .\Lightbox-win-x64-<kind>-<branch>-<sha>\
-  #                                      .\Lightbox → that folder
+  # newest artifact zip from Downloads -> .\Lightbox-win-x64-<kind>-<branch>-<sha>\
+  #                                      .\Lightbox -> that folder
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File get-build.ps1 -Zip C:\tmp\Lightbox-win-x64-release-main-abc1234.zip -Dest D:\Builds
@@ -80,7 +80,7 @@ if ($LinkName) {
     # A zip actually called Lightbox.zip would make these the same folder, and
     # a junction to itself is not a thing worth finding out about later.
     if ([IO.Path]::GetFullPath($candidateLink) -eq [IO.Path]::GetFullPath($target)) {
-        Write-Host "Extracted folder is already named '$LinkName' — no junction needed."
+        Write-Host "Extracted folder is already named '$LinkName' -- no junction needed."
     }
     else {
         $existing = Get-Item -LiteralPath $candidateLink -Force -ErrorAction SilentlyContinue
@@ -88,11 +88,11 @@ if ($LinkName) {
                       (($existing.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)
 
         if ($existing -and -not $isJunction) {
-            # Something real is sitting on the name — an old extract from before
+            # Something real is sitting on the name -- an old extract from before
             # this script grew junctions, or a folder somebody put there. Deleting
             # it would take a build (or worse) with it, so refuse and say so. The
             # extraction above already succeeded; only the convenience is skipped.
-            Write-Warning "'$candidateLink' exists and is not a junction — leaving it alone."
+            Write-Warning "'$candidateLink' exists and is not a junction -- leaving it alone."
             Write-Warning "Move or delete it, then re-run, to get the fixed-name link."
         }
         else {
@@ -105,7 +105,7 @@ if ($LinkName) {
             # afterwards, never by whether the call threw. New-Item -ItemType
             # Junction returns $null and raises nothing at all on a platform
             # that has no junctions, so trusting the absence of an exception
-            # reports a link that was never made — the same silent-success this
+            # reports a link that was never made -- the same silent-success this
             # whole junction exists to keep out of the MCP config.
             $why = $null
             try {
@@ -128,7 +128,7 @@ if ($LinkName) {
             }
             else {
                 Write-Warning "Could not create the '$LinkName' junction$(if ($why) { ": $why" })."
-                Write-Warning 'The build itself is fine — use the full path below.'
+                Write-Warning 'The build itself is fine -- use the full path below.'
             }
         }
     }
