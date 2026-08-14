@@ -12,6 +12,13 @@ in the way.
 
 ## The Bone tool
 
+Its options bar carries everything the tool can do: which mode you are in,
+every bone in the rig, and the weight brush with its settings. The pointer
+says what a press would do before you make it — a **move** cursor over a
+bone you can shift, a **turn** cursor where a drag would rotate it, and a
+**crosshair** on empty canvas where a drag would start a new bone.
+
+
 The Bone tool (**K**) is always in the toolbar, even before a rig exists —
 because its first drag is what *creates* the rig.
 
@@ -20,8 +27,13 @@ because its first drag is what *creates* the rig.
   the parent from then on.
 - **Click** a bone to select it. Tips beat origins, and the selected bone wins
   a contested press, so you can work a joint without the neighbour stealing it.
-- **Drag a tip** to re-aim and re-length a bone; **drag an origin** to move
-  the joint. Both edit the skeleton's rest, and both are one undo step.
+- **Drag a bone's shaft** to move it bodily — children come with it. **Drag
+  a tip** to re-aim and re-length it; **drag an origin** to move just that
+  joint. All three edit the skeleton's rest, and each is one undo step.
+- **Rename** a bone in the options bar — a pair ending `.l` and `.r` is what
+  X-symmetry reads. **Delete** removes it and re-parents its children to its
+  parent, leaving them exactly where they are; strokes bound to it lose that
+  binding.
 
 ## Posing
 

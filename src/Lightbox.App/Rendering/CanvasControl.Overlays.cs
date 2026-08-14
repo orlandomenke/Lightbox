@@ -56,6 +56,12 @@ public sealed partial class CanvasControl
     private (double X, double Y) _boneGestureStart;
     private bool _boneGestureActive;
 
+    /// <summary>
+    /// Document pixels per screen pixel, for hit-tests that use screen-sized
+    /// targets. Exposed from the partial so the ratcheted file gains nothing.
+    /// </summary>
+    public double ViewScale => FitScale() * _zoom;
+
     /// <summary>The window's answer to <see cref="BonePressed"/>: this press grabbed a bone.</summary>
     public void BeginBoneDrag(string id, BoneGrab grab)
     {

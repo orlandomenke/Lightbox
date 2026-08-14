@@ -165,20 +165,32 @@ public partial class MainWindow : Window
         // it sees the move even when a child marks it handled — a docker whose
         // content swallows pointer events would otherwise be invisible to the
         // shortcut scope and silently lose its bindings.
+        //
+        // The panel is resolved HERE, at move time, and the id is what is kept
+        // — never the element (B199; the reasoning lives on CurrentShortcutScope).
+        // The next move overwrites it and PointerExited keeps it, so lifting a
+        // pen keeps the panel and moving to the canvas releases it.
         AddHandler(
             PointerMovedEvent,
             (_, e) =>
             {
-                _hoveredElement = e.Source as Visual;
+                var source = e.Source as Visual;
+                _hoveredPanel = PanelUnder(source);
+                _pointerInWindow = true;
                 // Everything that is NOT the canvas. The canvas counts itself in
                 // its own handler, because the question the two counters answer
                 // is whether a frame reaching the screen depends on the canvas's
                 // own invalidate — and the reported symptom is that moving over
                 // a docker does not help. See InputPulse.
-                if (!IsInsideCanvas(_hoveredElement)) Rendering.InputPulse.Elsewhere();
+                if (!IsInsideCanvas(source)) Rendering.InputPulse.Elsewhere();
             },
             Avalonia.Interactivity.RoutingStrategies.Tunnel);
-        PointerExited += (_, _) => _hoveredElement = null;
+        // The pointer leaving the window — which includes a pen leaving
+        // proximity — invalidates the LIVE flags, not the remembered panel.
+        // IsPointerOver has been observed stale in both directions after this
+        // event (an X11 run kept a docker's flag true with the pointer gone),
+        // so the flag is only consulted while the pointer is known present.
+        PointerExited += (_, _) => _pointerInWindow = false;
 
         bool IsInsideCanvas(Visual? from)
         {
@@ -243,24 +255,6 @@ public partial class MainWindow : Window
         _vm.GuidesChanged += RefreshGuides;
 
         WireOverlayGestures();
-        Canvas.BoneGestureEnded += (id, grab, x0, y0, x1, y1) =>
-        {
-            if (id is null)
-            {
-                // An empty-canvas drag creates a bone — in bind mode only;
-                // posing an empty spot means nothing and writes nothing.
-                if (!_vm.PosingMode) _vm.CreateBoneFromDrag(x0, y0, x1, y1);
-            }
-            else if (_vm.PosingMode)
-            {
-                _vm.PoseBoneTo(id, x1, y1);
-            }
-            else if (grab is Rendering.BoneGrab.Origin or Rendering.BoneGrab.Tip)
-            {
-                _vm.DragBoneBind(id, grab, x1, y1);
-            }
-            RefreshArmatureOverlay();
-        };
         InitialiseRulers();
 
         // Right-click on the scrub bar: the one thing worth offering there is
@@ -361,7 +355,7 @@ public partial class MainWindow : Window
         // If canvas input ever fails, say so in the status bar instead of dying silently.
         Canvas.CanvasError += message => _vm.AiStatus = message;
 
-        Canvas.PointerHovered += (x, y, mods) => _vm.UpdatePointerContext(x, y, mods);
+        Canvas.PointerHovered += (x, y, mods) => _vm.UpdatePointerContext(x, y, mods, Canvas.ViewScale);
         Canvas.PointerExited += (_, _) => _vm.ClearPointerContext();
         Canvas.ViewChanged += () =>
         {

@@ -3,9 +3,10 @@
 ## Onion skin
 
 Previous drawings tint red, next drawings blue. The checkbox on the timeline bar
-turns it on; the two number fields beside it are how many drawings to show
-**before** and **after** the playhead, asked separately because working forwards
-usually means two behind and none ahead. Ghosts sit directly under the layer they
+turns it on; the two number fields beside it, under **Ghosts**, are how many
+drawings to show **before** and **after** the playhead, asked separately because
+working forwards usually means two behind and none ahead. They start at 1 and 1,
+so onion skin out of the box is one drawing each way — raise them to see further. Ghosts sit directly under the layer they
 belong to, so multi-layer onion reads correctly, and they are off during
 playback — the one thing playback has to show is the animation.
 

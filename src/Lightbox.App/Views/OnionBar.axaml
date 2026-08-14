@@ -22,6 +22,18 @@
   -->
   <StackPanel Orientation="Horizontal" Spacing="10">
     <CheckBox Content="Onion skin" IsChecked="{Binding OnionSkin}" VerticalAlignment="Center" />
+    <!--
+      Labelled, because two bare number boxes do not say what they count.
+      Reported by the owner in exactly those terms — "it just wasn't clear this
+      controls the amount" — after looking at a bar showing 1 and 1 and reading
+      it as onion skin only being able to show one drawing each way. The
+      tooltips said so and a tooltip is not read by somebody who does not
+      already suspect there is something to read. "Ghosts" rather than "Depth"
+      because it names what appears on the canvas, and it matches how "fps" and
+      "Frames" label their neighbours on the same bar.
+    -->
+    <TextBlock Text="Ghosts" VerticalAlignment="Center" FontSize="12"
+               ToolTip.Tip="How many drawings to ghost: before the playhead, then after" />
     <NumericUpDown Value="{Binding OnionBefore}" Minimum="0" Maximum="10" Increment="1"
                    FormatString="0" Width="44" VerticalAlignment="Center"
                    ToolTip.Tip="Drawings to ghost before the playhead" />
