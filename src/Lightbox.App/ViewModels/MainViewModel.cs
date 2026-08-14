@@ -188,10 +188,23 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Every frame mutation goes through here, whichever cache holds it.</summary>
+    /// <summary>
+    /// Timeline-cell thumbnails, keyed by drawing rather than by the cell that
+    /// shows one (B199) — so rearranging the timeline costs nothing.
+    /// </summary>
+    private readonly ThumbnailCache _thumbs = new();
+
+    internal (int Hits, int Renders, int Count) ThumbnailTraffic =>
+        (_thumbs.Hits, _thumbs.Renders, _thumbs.Count);
+
     private void InvalidateFrameRender(string frameId)
     {
         _cache.Invalidate(frameId);
         _tileFrames.Invalidate(frameId);
+        // On the same funnel as the pixels it was shrunk from, so a thumbnail is
+        // dropped exactly when those pixels are and never merely because the
+        // timeline moved.
+        _thumbs.Invalidate(frameId);
         _prewarm.Flush();
     }
 
@@ -206,6 +219,7 @@ public sealed partial class MainViewModel : ObservableObject
         // certainly dead, and waiting for an LRU to notice would hold a document's
         // worth of viewports across a document switch.
         _tileFlats.Clear();
+        _thumbs.Clear();
         _prewarm.Flush();
     }
 
