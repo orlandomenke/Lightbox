@@ -34,6 +34,43 @@ public static class GeometryOps
     }
 
     /// <summary>
+    /// How far, and which way, a stroke bows off the straight line between its
+    /// own two ends — the mean signed offset from that chord, in pixels.
+    /// Positive is one side, negative the other.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The averaged sagitta rather than the offset at the midpoint, so a wobble
+    /// at one sample does not decide the answer for the whole stroke. Zero for
+    /// a straight line, and near zero for an S-curve whose two halves cancel —
+    /// which is the honest result: it means *this measure has nothing to say*
+    /// about that stroke, not that the stroke is straight.
+    /// </para>
+    /// <para>
+    /// Translation- and rotation-invariant, because it is measured against the
+    /// stroke's own chord. It **flips sign** when the points are reversed, and
+    /// any caller comparing two strokes has to decide the orientation first —
+    /// which is exactly what the endpoint pairing in
+    /// <see cref="Inbetween.StrokeMatcher"/> already decides.
+    /// </para>
+    /// </remarks>
+    public static double SignedBow(IReadOnlyList<StrokePoint> points)
+    {
+        if (points.Count < 3) return 0;
+        var a = points[0];
+        var b = points[^1];
+        double dx = b.X - a.X, dy = b.Y - a.Y;
+        var len = Math.Sqrt(dx * dx + dy * dy);
+        // A closed loop has no chord to measure against, and no bow either.
+        if (len < 1e-9) return 0;
+        double nx = -dy / len, ny = dx / len;
+        var sum = 0.0;
+        for (var i = 1; i < points.Count - 1; i++)
+            sum += (points[i].X - a.X) * nx + (points[i].Y - a.Y) * ny;
+        return sum / (points.Count - 2);
+    }
+
+    /// <summary>
     /// Resample a polyline to exactly <paramref name="n"/> points, evenly
     /// spaced by arc length. Normalizes two strokes so they can be
     /// interpolated point-by-point.
