@@ -259,6 +259,14 @@ public partial class MainWindow : Window
             {
                 _vm.DragBoneBind(id, grab, x1, y1);
             }
+            else
+            {
+                // The shaft moves the whole bone, children and all. It used to
+                // select and do nothing, which is what "no option to move bones
+                // around" meant: the only thing that moved one was the joint
+                // handle, five screen pixels wide.
+                _vm.MoveBoneBy(id, x1 - x0, y1 - y0);
+            }
             RefreshArmatureOverlay();
         };
         InitialiseRulers();
@@ -361,7 +369,7 @@ public partial class MainWindow : Window
         // If canvas input ever fails, say so in the status bar instead of dying silently.
         Canvas.CanvasError += message => _vm.AiStatus = message;
 
-        Canvas.PointerHovered += (x, y, mods) => _vm.UpdatePointerContext(x, y, mods);
+        Canvas.PointerHovered += (x, y, mods) => _vm.UpdatePointerContext(x, y, mods, Canvas.ViewScale);
         Canvas.PointerExited += (_, _) => _vm.ClearPointerContext();
         Canvas.ViewChanged += () =>
         {

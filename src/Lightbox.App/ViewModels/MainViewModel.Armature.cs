@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Lightbox.App.Rendering;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Timeline;
@@ -42,11 +43,17 @@ public sealed partial class MainViewModel
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BoneChromes))]
     [NotifyPropertyChangedFor(nameof(HeatPoints))]
+    [NotifyPropertyChangedFor(nameof(PointerIntent))]
     private bool _posingMode;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BoneChromes))]
     [NotifyPropertyChangedFor(nameof(HeatPoints))]
+    [NotifyPropertyChangedFor(nameof(BoneRows))]
+    [NotifyPropertyChangedFor(nameof(SelectedBone))]
+    [NotifyPropertyChangedFor(nameof(SelectedBoneName))]
+    [NotifyPropertyChangedFor(nameof(HasSelectedBone))]
+    [NotifyPropertyChangedFor(nameof(PointerIntent))]
     private string? _selectedBoneId;
 
     /// <summary>Whether this document has a rig at all.</summary>
@@ -105,6 +112,228 @@ public sealed partial class MainViewModel
             return points;
         }
     }
+
+    /// <summary>
+    /// One bone as the options bar lists it: indented by depth, so the
+    /// hierarchy reads without a tree control.
+    /// </summary>
+    public sealed record BoneRow(string Id, string Name, int Depth, bool Selected)
+    {
+        /// <summary>The name with its indent, for a flat list that still shows parentage.</summary>
+        public string Label => new string(' ', Depth * 4) + Name;
+    }
+
+    /// <summary>
+    /// Every bone in hierarchy order, parents before children — what the tool
+    /// options bar lists so bones can be found and picked by name rather than
+    /// only by hitting them on the canvas.
+    /// </summary>
+    public IReadOnlyList<BoneRow> BoneRows
+    {
+        get
+        {
+            if (Doc.Armature is not { Bones.Count: > 0 } armature) return [];
+            var rows = new List<BoneRow>(armature.Bones.Count);
+            void Walk(string? parentId, int depth)
+            {
+                foreach (var bone in armature.Bones.Where(b => b.ParentId == parentId))
+                {
+                    rows.Add(new BoneRow(bone.Id, bone.Name, depth, bone.Id == SelectedBoneId));
+                    Walk(bone.Id, depth + 1);
+                }
+            }
+            Walk(null, 0);
+            // A bone whose parent id resolves to nothing is a root as far as
+            // the solve is concerned, so it has to be listed as one here too —
+            // otherwise a half-broken hierarchy renders bones the list cannot
+            // show, which is the invisibility bug all over again.
+            var seen = rows.Select(r => r.Id).ToHashSet(StringComparer.Ordinal);
+            foreach (var orphan in armature.Bones.Where(b => !seen.Contains(b.Id)))
+                rows.Add(new BoneRow(orphan.Id, orphan.Name, 0, orphan.Id == SelectedBoneId));
+            return rows;
+        }
+    }
+
+    /// <summary>Whether a bone is picked, so the bar can show its controls rather than grey them.</summary>
+    public bool HasSelectedBone => SelectedBone is not null;
+
+    /// <summary>The selected bone, or null.</summary>
+    public Bone? SelectedBone =>
+        SelectedBoneId is { } id ? Doc.Armature?.BoneById(id) : null;
+
+    /// <summary>The selected bone's name, editable — renaming is how X-symmetry pairs are made.</summary>
+    public string SelectedBoneName
+    {
+        get => SelectedBone?.Name ?? "";
+        set
+        {
+            if (SelectedBone is not { } bone || bone.Name == value) return;
+            RenameSelectedBone(value);
+        }
+    }
+
+    /// <summary>
+    /// Rename the selected bone. One undo step, and it reaches pixels only
+    /// through X-symmetry pairing, so nothing needs re-rendering.
+    /// </summary>
+    public void RenameSelectedBone(string name)
+    {
+        if (SelectedBoneId is not { } id || string.IsNullOrWhiteSpace(name)) return;
+        var trimmed = name.Trim();
+        _editor.Perform(doc =>
+        {
+            if (doc.Armature?.BoneById(id) is { } bone) bone.Name = trimmed;
+        });
+        OnPropertyChanged(nameof(BoneRows));
+        OnPropertyChanged(nameof(SelectedBoneName));
+        OnPropertyChanged(nameof(BoneChromes));
+    }
+
+    /// <summary>
+    /// Delete the selected bone. Its children are re-parented to its own
+    /// parent and keep their place on the canvas.
+    /// </summary>
+    /// <remarks>
+    /// <b>Re-parented rather than deleted with it, and the children do not
+    /// move.</b> Cascading would take a whole limb with one keystroke and lose
+    /// work silently, which is the outcome the repository refuses everywhere
+    /// else (a destructive operation is its own deliberate command). Keeping
+    /// them where they are costs recomposing each child's local transform
+    /// against its new parent — without that a delete teleports the rest of
+    /// the chain, which reads as corruption.
+    /// </remarks>
+    public void DeleteSelectedBone()
+    {
+        if (SelectedBoneId is not { } id || Doc.Armature is not { } armature) return;
+        if (armature.BoneById(id) is not { } doomed) return;
+
+        // Solved before the edit: the placements the children must keep.
+        var placements = ArmatureOps.Solve(armature);
+        var newParentId = doomed.ParentId;
+
+        _editor.Perform(doc =>
+        {
+            if (doc.Armature is not { } target) return;
+            foreach (var child in target.Bones.Where(b => b.ParentId == id).ToList())
+            {
+                if (placements.TryGetValue(child.Id, out var world))
+                    Rebase(world, newParentId, placements, child);
+                child.ParentId = newParentId;
+            }
+            target.Bones.RemoveAll(b => b.Id == id);
+            // Weights pointing at a bone that no longer exists would blend
+            // against an identity delta and quietly hold their points at rest;
+            // dropping them is the honest record of "this is not bound".
+            foreach (var layer in doc.Scene.Layers)
+                foreach (var cel in layer.Cels)
+                    if (cel.Frame is { } frame)
+                        foreach (var stroke in frame.Strokes)
+                            if (stroke.Weights is { } weights && weights.RemoveAll(w => w.BoneId == id) > 0
+                                && weights.Count == 0)
+                                stroke.Weights = null;
+            // Pose keys for it go too, or a later bone reusing the id inherits
+            // a pose nobody authored for it.
+            if (doc.Scene.PoseTrack is { } track)
+                foreach (var key in track.Keys) key.Bones.Remove(id);
+        });
+
+        SelectedBoneId = null;
+        OnPropertyChanged(nameof(HasArmature));
+        OnPropertyChanged(nameof(BoneRows));
+        InvalidateRiggedFrames();
+    }
+
+    /// <summary>
+    /// Re-parent the selected bone without moving it on the canvas.
+    /// </summary>
+    public void SetSelectedBoneParent(string? parentId)
+    {
+        if (SelectedBoneId is not { } id || Doc.Armature is not { } armature) return;
+        if (armature.BoneById(id) is not { } bone || bone.ParentId == parentId) return;
+        // A bone cannot be its own ancestor, or the solve walks in a circle.
+        for (var walk = parentId; walk is not null;)
+        {
+            if (walk == id) return;
+            walk = armature.BoneById(walk)?.ParentId;
+        }
+
+        var placements = ArmatureOps.Solve(armature);
+        _editor.Perform(doc =>
+        {
+            if (doc.Armature?.BoneById(id) is not { } target) return;
+            if (placements.TryGetValue(id, out var world)) Rebase(world, parentId, placements, target);
+            target.ParentId = parentId;
+        });
+        OnPropertyChanged(nameof(BoneRows));
+        InvalidateRiggedFrames();
+    }
+
+    /// <summary>
+    /// Move a bone bodily by a canvas delta — the gesture a drag on the shaft
+    /// makes, and the one an artist reaches for first.
+    /// </summary>
+    /// <remarks>
+    /// The delta arrives in document space and the bone's offset lives in its
+    /// parent's, so it is rotated into that frame before it is added.
+    /// Children follow, because their offsets are relative to this one.
+    /// </remarks>
+    public void MoveBoneBy(string id, double dx, double dy)
+    {
+        if (Doc.Armature is not { } armature || armature.BoneById(id) is not { } bone) return;
+        if (Math.Abs(dx) < 1e-9 && Math.Abs(dy) < 1e-9) return;
+
+        var placements = ArmatureOps.Solve(armature);
+        var parentRot = bone.ParentId is not null && placements.TryGetValue(bone.ParentId, out var p)
+            ? p.RotationDeg
+            : 0.0;
+        var rad = -parentRot * Math.PI / 180.0;
+        var (lx, ly) = (Math.Cos(rad) * dx - Math.Sin(rad) * dy, Math.Sin(rad) * dx + Math.Cos(rad) * dy);
+
+        _editor.Perform(doc =>
+        {
+            if (doc.Armature?.BoneById(id) is not { } target) return;
+            target.X += lx;
+            target.Y += ly;
+        });
+        InvalidateRiggedFrames();
+    }
+
+    /// <summary>
+    /// Rewrite a bone's local offset and rotation so that it keeps the world
+    /// placement it already had under a different parent.
+    /// </summary>
+    private static void Rebase(
+        BonePlacement world, string? newParentId,
+        IReadOnlyDictionary<string, BonePlacement> placements, Bone bone)
+    {
+        var parent = newParentId is not null && placements.TryGetValue(newParentId, out var p)
+            ? p
+            : new BonePlacement(0, 0, 0);
+        var rad = -parent.RotationDeg * Math.PI / 180.0;
+        var (dx, dy) = (world.X - parent.X, world.Y - parent.Y);
+        bone.X = Math.Cos(rad) * dx - Math.Sin(rad) * dy;
+        bone.Y = Math.Sin(rad) * dx + Math.Cos(rad) * dy;
+        bone.RotationDeg = world.RotationDeg - parent.RotationDeg;
+    }
+
+    /// <summary>The brush mode as an index, because a ComboBox speaks indices.</summary>
+    public int WeightBrushModeIndex
+    {
+        get => (int)WeightBrushMode;
+        set => WeightBrushMode = (WeightBrushMode)Math.Clamp(value, 0, 2);
+    }
+
+    [RelayCommand]
+    private void DeleteBone() => DeleteSelectedBone();
+
+    [RelayCommand]
+    private void AssignStrokesToBone() => AssignSelectedStrokesToBone();
+
+    [RelayCommand]
+    private void AutoBindStrokes() => AutoBindSelectedStrokes();
+
+    [RelayCommand]
+    private void BakePose() => BakePoseHere();
 
     /// <summary>Select what a press hit, or clear the selection on empty canvas.</summary>
     public BoneHit PressArmature(double x, double y, double scale)
@@ -243,6 +472,7 @@ public sealed partial class MainViewModel
     /// step.
     /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PointerIntent))]
     private bool _weightPainting;
 
     /// <summary>Brush radius in document pixels.</summary>

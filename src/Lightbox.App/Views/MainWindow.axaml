@@ -1186,6 +1186,7 @@
              selected, and the actions that need a selection arrive with V3. An
              empty bar would still be right to register now, because a tool with
              no options panel is a tool the bar has never heard of. -->
+        <views:BoneOptionsBar IsVisible="{Binding Workspace.QuickBoneOptions}" />
         <StackPanel Orientation="Horizontal" Spacing="14">
           <StackPanel.IsVisible>
             <MultiBinding Converter="{x:Static BoolConverters.And}">

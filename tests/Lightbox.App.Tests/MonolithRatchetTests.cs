@@ -150,7 +150,7 @@ public class MonolithRatchetTests(ITestOutputHelper output)
         // to live in — XAML cannot be split the way the code-behind was — and
         // a toolbar that hides tools to satisfy a line count is the tail
         // wagging the dog.
-        ("src/Lightbox.App/Views/MainWindow.axaml", 4326),
+        ("src/Lightbox.App/Views/MainWindow.axaml", 4327),
         // Lowered when the overlay-gesture wiring moved to MainWindow.Overlays.cs.
         ("src/Lightbox.App/Views/MainWindow.axaml.cs", 449),
     ];

@@ -34,6 +34,12 @@ public enum CanvasCursorKind
     PickRecords,
 
     /// <summary>
+    /// This drag will turn something rather than move it — posing a bone, or
+    /// re-aiming one in bind mode.
+    /// </summary>
+    Rotate,
+
+    /// <summary>
     /// The tool would do nothing here, and the pointer says so before the
     /// artist finds out by trying.
     /// </summary>
@@ -174,6 +180,48 @@ public static class CanvasCursor
         ToolId.Arrow or ToolId.DirectSelect or ToolId.Bone => CanvasCursorKind.PickRecords,
         _ => CanvasCursorKind.Default,
     };
+
+    /// <summary>
+    /// What a press with the Bone tool would do where the pointer is, said as
+    /// a cursor.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The Bone tool is the one tool whose gesture changes under the
+    /// pointer</b>, and it was reported exactly that way: "I am able to move
+    /// and rotate them, but it is not clear when that happens." Everything
+    /// else in the rail does one thing wherever you press, so a per-tool
+    /// cursor was enough; here the same press moves a joint, turns a limb or
+    /// starts a new bone depending on a few pixels and a mode.
+    /// </para>
+    /// <para>
+    /// Pure, and separate from <see cref="Armed"/>, because it answers a
+    /// different question — not "what tool is in hand" but "what would happen
+    /// here". <c>ArmatureOverlay.Hit</c> supplies the grab, so the cursor and
+    /// the gesture read the same hit-test and cannot disagree.
+    /// </para>
+    /// </remarks>
+    /// <param name="posing">Posing rotates whatever it grabs; binding edits the skeleton.</param>
+    /// <param name="weightPainting">The weight brush is armed, and it is a brush like any other.</param>
+    public static CanvasCursorKind ForBone(BoneGrab grab, bool posing, bool weightPainting = false)
+    {
+        // The brush wins outright: while it is armed a press paints weights
+        // wherever it lands, bone or no bone, so the pointer must be the ring
+        // the artist is about to paint with rather than a promise about bones.
+        if (weightPainting) return CanvasCursorKind.Paint;
+
+        return grab switch
+        {
+            // Nothing under the pointer: a drag here starts a new bone, which
+            // is a placing gesture like the pen's.
+            BoneGrab.None => posing ? CanvasCursorKind.PickRecords : CanvasCursorKind.Precise,
+            // Posing turns whatever it takes hold of.
+            _ when posing => CanvasCursorKind.Rotate,
+            // Binding: the shaft and the joint move the bone, the tip re-aims it.
+            BoneGrab.Tip => CanvasCursorKind.Rotate,
+            _ => CanvasCursorKind.Move,
+        };
+    }
 
     /// <summary>
     /// Why this tool will do nothing here, or null when it will do something.
