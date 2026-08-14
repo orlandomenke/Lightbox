@@ -774,7 +774,17 @@ public static class BrushEngine
     /// ask — which was measured: four walks an event made a 600-event stroke cost 3.2×
     /// more per event at the end than at the start, and invariant 6 does not allow that.
     /// </remarks>
-    public readonly record struct Dab(SKPoint Pos, double Pressure, double Heading, double Load);
+    public readonly record struct Dab(SKPoint Pos, double Pressure, double Heading, double Load)
+    {
+        /// <summary>
+        /// The bind-pose position every dynamic hashes from, when the stroke
+        /// has been posed — null on the ordinary dab, whose <see cref="Pos"/>
+        /// is its own seed. A property rather than a fifth positional field
+        /// so the four-element deconstructions all over this file keep
+        /// meaning what they say.
+        /// </summary>
+        public SKPoint? Seed { get; init; }
+    }
 
     /// <summary>Every dab of a stroke, in order.</summary>
     /// <param name="densify">
@@ -787,6 +797,16 @@ public static class BrushEngine
     /// </param>
     public static List<Dab> WalkDabs(Stroke stroke, IncrementalDensify? densify = null)
     {
+        // A posed stroke walks its bind-pose path and stamps on its posed one
+        // (docs/DESIGN-bones.md): the walk below this branch never sees it.
+        // Note for the live rigged preview when it lands: this branch ignores
+        // `densify` — the posed walk needs none, PoseStroke pre-densified —
+        // but that also means the incremental cache does nothing for a posed
+        // stroke, so a per-pointer-event pose preview must budget a full walk
+        // per event or grow a posed equivalent of the cache (B46's cost).
+        if (stroke.RestPoints is { Count: > 1 } rest && rest.Count == stroke.Points.Count)
+            return WalkPosedDabs(stroke, rest);
+
         var brush = stroke.Brush;
         var dabs = new List<Dab>();
 
@@ -815,6 +835,102 @@ public static class BrushEngine
             previous = pos;
         }
         return dabs;
+    }
+
+    /// <summary>
+    /// The dab walk for a posed stroke: spacing, pressure and seeds come from
+    /// the <b>rest</b> path, and each dab is placed at the corresponding spot
+    /// on the posed one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the trap rule made mechanism — <em>dynamics seed from the
+    /// bind-pose coordinates; the transform moves only placement</em>. The
+    /// dab set is generated in bind space, so two poses of the same stroke
+    /// lay down the same dabs with the same scatter, jitter and grain, moved.
+    /// A walk over the posed path instead would re-roll everything wherever a
+    /// joint stretched the path, and the character would boil exactly there.
+    /// </para>
+    /// <para>
+    /// No densify on either list: <c>Skinning.PoseStroke</c> densified the
+    /// rest path before posing, precisely so the 1:1 correspondence walked
+    /// here exists. Heading and travelled distance follow the <b>posed</b>
+    /// chain — direction-following tips and paint depletion belong to the
+    /// mark the artist sees, and both vary smoothly with the pose rather
+    /// than hashing from it.
+    /// </para>
+    /// </remarks>
+    private static List<Dab> WalkPosedDabs(Stroke stroke, List<StrokePoint> rest)
+    {
+        var brush = stroke.Brush;
+        var dabs = new List<Dab>();
+        SKPoint? previous = null;
+        var heading = double.NaN;
+        double travelled = 0;
+
+        foreach (var (seed, pos, pressure) in PosedDabPositions(rest, stroke.Points, brush))
+        {
+            if (previous is { } from)
+            {
+                float dx = pos.X - from.X, dy = pos.Y - from.Y;
+                var step = Math.Sqrt(dx * dx + dy * dy);
+                travelled += step;
+                if (brush.AngleFollowsDirection && step > 0.01) heading = Math.Atan2(dy, dx) * 180 / Math.PI;
+            }
+            dabs.Add(new Dab(pos, pressure, heading, LoadAt(travelled, brush)) { Seed = seed });
+            previous = pos;
+        }
+        return dabs;
+    }
+
+    /// <summary>
+    /// <see cref="DabPositions"/>' walk run over the rest path, yielding each
+    /// dab's seed (on the rest path) and its stamped position (the same
+    /// parametric spot on the posed path). The two lists correspond 1:1.
+    /// </summary>
+    private static IEnumerable<(SKPoint Seed, SKPoint Pos, double Pressure)> PosedDabPositions(
+        IReadOnlyList<StrokePoint> rest, IReadOnlyList<StrokePoint> posed, BrushSettings brush)
+    {
+        static SKPoint At(StrokePoint p) => new((float)p.X, (float)p.Y);
+
+        var first = rest[0];
+        var firstPressure = Math.Max(first.Pressure, MinPressure);
+        yield return (At(first), At(posed[0]), firstPressure);
+
+        double StepAt(double pressure) =>
+            Math.Max(RadiusAt(brush, pressure) * 2 * brush.Spacing, MinStepPx);
+
+        var step = StepAt(firstPressure);
+        double acc = 0;
+        var prev = first;
+        var prevPosed = posed[0];
+        for (var i = 1; i < rest.Count; i++)
+        {
+            var cur = rest[i];
+            var curPosed = posed[i];
+            var d = GeometryOps.Dist(prev, cur);
+            while (d > 0 && acc + d >= step)
+            {
+                var t = (step - acc) / d;
+                var np = GeometryOps.LerpPoint(prev, cur, t);
+                // The posed position is the same chained lerp, with the same
+                // t, on the posed segment — not a fresh parameter against the
+                // segment's ends. Chaining keeps the arithmetic path
+                // identical to the rest walk's, so an identity pose lands on
+                // the very same doubles and renders the very same pixels.
+                var npPosed = GeometryOps.LerpPoint(prevPosed, curPosed, t);
+                var pressure = Math.Max(np.Pressure, MinPressure);
+                yield return (At(np), At(npPosed), pressure);
+                d -= step - acc;
+                acc = 0;
+                prev = np;
+                prevPosed = npPosed;
+                step = StepAt(pressure);
+            }
+            acc += d;
+            prev = cur;
+            prevPosed = curPosed;
+        }
     }
 
     /// <summary>
@@ -904,7 +1020,7 @@ public static class BrushEngine
         for (var i = Math.Max(0, from); i < Math.Min(to, dabs.Count); i++)
         {
             var dab = dabs[i];
-            StampDab(canvas, dab.Pos, dab.Pressure, brush, color, tip, dab.Heading, tipImage, dab.Load);
+            StampDab(canvas, dab.Pos, dab.Pressure, brush, color, tip, dab.Heading, tipImage, dab.Load, dab.Seed);
         }
     }
 
@@ -1183,7 +1299,7 @@ public static class BrushEngine
     private static void StampDab(
         SKCanvas canvas, SKPoint pos, double pressure, BrushSettings brush, SKColor color,
         SKBitmap? tip, double directionDeg = double.NaN, SKImage? tipImage = null,
-        double load = 1)
+        double load = 1, SKPoint? seed = null)
     {
         var radius = (float)(RadiusAt(brush, pressure));
         if (radius <= 0) return;
@@ -1195,21 +1311,30 @@ public static class BrushEngine
         // from an index or a clock. Two consequences that matter here: a
         // re-render is identical, and — because neighbouring frames put dabs
         // in nearly the same places — a sequence does not boil at 12 fps.
+        //
+        // A POSED stroke's dab hashes from `s` — its bind-pose position —
+        // instead, so a pose moves the mark without re-rolling it
+        // (docs/DESIGN-bones.md). The scatter block shifts `s` by the same
+        // offset it shifts `pos`, because the sites after it have always
+        // hashed the SCATTERED position: mirroring the shift is what keeps an
+        // unposed dab byte-identical to what it always was, and a posed dab's
+        // seed chain anchored entirely in bind space.
+        var s = seed ?? pos;
         if (brush.SizeJitter > 0)
         {
             var floor = Math.Clamp(brush.MinimumDiameter, 0, 1);
-            var scale = floor + (1 - floor) * (1 - Hash01(pos.X, pos.Y, 11) * brush.SizeJitter);
+            var scale = floor + (1 - floor) * (1 - Hash01(s.X, s.Y, 11) * brush.SizeJitter);
             radius = (float)(radius * scale);
             if (radius <= 0) return;
         }
 
         if (brush.FlowJitter > 0)
         {
-            alpha *= 1 - Hash01(pos.X, pos.Y, 12) * Math.Clamp(brush.FlowJitter, 0, 1);
+            alpha *= 1 - Hash01(s.X, s.Y, 12) * Math.Clamp(brush.FlowJitter, 0, 1);
             if (alpha <= 0) return;
         }
 
-        color = JitterColor(color, pos, brush);
+        color = JitterColor(color, s, brush);
 
         // Position-seeded scatter keeps re-renders identical. Pressure scales
         // how far it throws, not whether it throws — the direction stays the
@@ -1218,9 +1343,11 @@ public static class BrushEngine
         var scatter = brush.Scatter * PressureResponse.Factor(brush, BrushDynamic.Scatter, pressure);
         if (scatter > 0)
         {
-            var amount = Hash01(pos.X, pos.Y, 1) * scatter * brush.Size;
-            var angle = Hash01(pos.X, pos.Y, 2) * Math.PI * 2;
-            pos = new SKPoint(pos.X + (float)(Math.Cos(angle) * amount), pos.Y + (float)(Math.Sin(angle) * amount));
+            var amount = Hash01(s.X, s.Y, 1) * scatter * brush.Size;
+            var angle = Hash01(s.X, s.Y, 2) * Math.PI * 2;
+            var (ox, oy) = ((float)(Math.Cos(angle) * amount), (float)(Math.Sin(angle) * amount));
+            pos = new SKPoint(pos.X + ox, pos.Y + oy);
+            s = new SKPoint(s.X + ox, s.Y + oy);
         }
 
         var dabColor = color.WithAlpha((byte)Math.Round(alpha * 255));
@@ -1231,7 +1358,7 @@ public static class BrushEngine
         // Pressure fattens the dab toward circular rather than thinning it:
         // a flat brush pressed down spreads, and a curve that squashed instead
         // would make a hard press narrower than a light one.
-        var roundness = RoundnessAt(brush, pos, pressure);
+        var roundness = RoundnessAt(brush, s, pressure);
 
         if (tip is not null)
         {
@@ -1239,7 +1366,7 @@ public static class BrushEngine
             if (brush.AngleFollowsDirection && !double.IsNaN(directionDeg)) rotation += directionDeg;
             if (brush.RotationJitter > 0)
             {
-                rotation += (Hash01(pos.X, pos.Y, 3) - 0.5) * 360 * brush.RotationJitter;
+                rotation += (Hash01(s.X, s.Y, 3) - 0.5) * 360 * brush.RotationJitter;
             }
             canvas.Save();
             canvas.Translate(pos.X, pos.Y);
@@ -1808,7 +1935,7 @@ public static class BrushEngine
             {
                 LerpDab(
                     target, pixels, pos, radius, brush, deposit, strength, outputScale, heading, pressure,
-                    origin);
+                    origin, dabs[i].Seed);
             }
 
             // How much of the carried colour survives into the next dab. At 0
@@ -1949,7 +2076,7 @@ public static class BrushEngine
     private static void LerpDab(
         SKCanvas target, SKBitmap read, SKPoint pos, float radius, BrushSettings brush,
         SKColor deposit, double strength, double outputScale, double headingDeg = double.NaN,
-        double pressure = 1, SKPointI origin = default)
+        double pressure = 1, SKPointI origin = default, SKPoint? seed = null)
     {
         // The target is written through its own bitmap rather than the canvas,
         // so flush anything the canvas still holds first.
@@ -1970,7 +2097,8 @@ public static class BrushEngine
         // B70: the dab's shape, which is the tip's alpha when the brush has one. Built once per dab
         // — the transform is per dab, only the sampling is per pixel.
         var shape = new DabShape(
-            brush, new SKPoint(cx, cy), r, (float)RoundnessAt(brush, pos, pressure), headingDeg, pos);
+            brush, new SKPoint(cx, cy), r, (float)RoundnessAt(brush, seed ?? pos, pressure), headingDeg,
+            seed ?? pos);
 
         var left = Math.Max(clip.Left, (int)MathF.Floor(cx - r));
         var top = Math.Max(clip.Top, (int)MathF.Floor(cy - r));
@@ -2116,8 +2244,12 @@ public static class BrushEngine
         if (origin.X != 0 || origin.Y != 0) target.Translate(-origin.X, -origin.Y);
         var previous = (SKPoint?)null;
         var heading = double.NaN;
-        foreach (var (pos, pressure) in DabPositions(stroke))
+        // WalkDabs rather than DabPositions so a posed stroke's dabs arrive
+        // with their bind-pose seeds; heading is still recomputed here, from
+        // every step, as this path always has.
+        foreach (var walked in WalkDabs(stroke))
         {
+            var (pos, pressure) = (walked.Pos, walked.Pressure);
             var radius = (float)RadiusAt(brush, pressure);
             if (radius <= 0) continue;
             if (previous is { } from)
@@ -2135,7 +2267,7 @@ public static class BrushEngine
                 // the dab's own bounds, so the cost tracks the dab and not the canvas (invariant 6).
                 DrawBlurredThroughTip(
                     target, snapshot, whole, sampling, blurPaint, tip, tipBitmap, brush,
-                    pos, radius, pressure, heading);
+                    pos, radius, pressure, heading, walked.Seed);
                 continue;
             }
 
@@ -2272,7 +2404,7 @@ public static class BrushEngine
                 // differently from the render would be B54 again in a new place.
                 DrawBlurredThroughTip(
                     target, snapshot, whole, sampling, blurPaint, tip, tipBitmap, brush,
-                    dabs[i].Pos, radius, dabs[i].Pressure, dabs[i].Heading);
+                    dabs[i].Pos, radius, dabs[i].Pressure, dabs[i].Heading, dabs[i].Seed);
                 continue;
             }
 
@@ -2310,14 +2442,15 @@ public static class BrushEngine
     private static void DrawBlurredThroughTip(
         SKCanvas target, SKImage snapshot, SKRect whole, SKSamplingOptions sampling, SKPaint blurPaint,
         SKImage tip, SKBitmap tipBitmap, BrushSettings brush,
-        SKPoint pos, float radius, double pressure, double heading)
+        SKPoint pos, float radius, double pressure, double heading, SKPoint? seed = null)
     {
-        var roundness = (float)RoundnessAt(brush, pos, pressure);
+        var s = seed ?? pos;
+        var roundness = (float)RoundnessAt(brush, s, pressure);
         var rotation = brush.TipRotationDeg;
         if (brush.AngleFollowsDirection && !double.IsNaN(heading)) rotation += heading;
         if (brush.RotationJitter > 0)
         {
-            rotation += (Hash01(pos.X, pos.Y, 3) - 0.5) * 360 * brush.RotationJitter;
+            rotation += (Hash01(s.X, s.Y, 3) - 0.5) * 360 * brush.RotationJitter;
         }
 
         // Generous enough for a rotated tip's corner: the half-diagonal, not the radius.
