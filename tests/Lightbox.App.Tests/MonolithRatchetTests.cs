@@ -150,13 +150,15 @@ public class MonolithRatchetTests(ITestOutputHelper output)
         // to live in — XAML cannot be split the way the code-behind was — and
         // a toolbar that hides tools to satisfy a line count is the tail
         // wagging the dog.
-        // 4326 → 4327: one attribute on the TimelineRuler element already there,
-        // binding the ruler's scrub state to the view model beside the three
-        // two-way bindings it already carries (CurrentFrame, RangeStart,
-        // RangeEnd). The alternative was wiring it from code-behind purely to
-        // keep this number still, which would put one ruler binding somewhere
-        // different from the other three — a worse file for a better score.
-        ("src/Lightbox.App/Views/MainWindow.axaml", 4327),
+        // → 4,270 (2026-08-14), re-measured on the merged tree exactly as the
+        // CanvasControl note above says to. Two independent changes met here: the
+        // onion bar was extracted to OnionBar.axaml (−71) and the TimelineRuler
+        // element gained one attribute binding the ruler's scrub state beside the
+        // three two-way bindings it already carries (+1). Measured alone the
+        // second wanted 4,327; taking that number on the merged tree would bank
+        // the extraction's 57 lines of slack as permanent headroom, which is the
+        // one thing a ratchet must not do.
+        ("src/Lightbox.App/Views/MainWindow.axaml", 4270),
         // Lowered when the overlay-gesture wiring moved to MainWindow.Overlays.cs.
         ("src/Lightbox.App/Views/MainWindow.axaml.cs", 449),
     ];
