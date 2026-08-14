@@ -24,19 +24,26 @@ namespace Lightbox.App.Tests;
 /// So the tests below are in three parts — the planner still selects them, the
 /// controls are reachable from both tabs, and what comes out is visible.
 /// <para>
-/// <b>They build their own <see cref="OnionSettings"/> rather than reading the
-/// view model's.</b> A <c>MainViewModel</c> loads <c>AppSettings</c> from disk
-/// and every onion setter saves it back, so a test that sets one through the
-/// view model writes the real settings file and every view model built after it
-/// — in this run or the next — reads that value. The first version of this file
-/// did exactly that and turned green locally and red on CI, which is the
-/// signature of shared state rather than of a flaky test. Constructing the
-/// settings here also makes the assertion honest: "the falloff Lightbox ships
-/// with gives readable ghosts" is a claim about the default, and reading an
-/// ambient value cannot make it.
+/// <b>Two defences, and they answer different questions.</b>
+/// <see cref="BrushStateIsolated"/> points <c>AppSettings.Path</c> at a temp
+/// file per test, because a <c>MainViewModel</c> loads settings from disk and
+/// every onion setter saves them back — so without it a test that sets the
+/// falloff writes the real settings file and every view model built afterwards,
+/// in this run or the next, reads that value. The first version of this file
+/// did exactly that: green locally, red on CI, which is the signature of shared
+/// state rather than of a flaky test. The fixture already existed and already
+/// named onion skin as its reason; this class simply had not taken it.
+/// </para>
+/// <para>
+/// The render tests <em>also</em> build the <see cref="OnionSettings"/> they
+/// render with, and that is not belt-and-braces — it makes the assertion say
+/// what it means. "The falloff Lightbox ships with gives readable ghosts" is a
+/// claim about the default, and a test reading an ambient value cannot make it,
+/// however well isolated that value is.
 /// </para>
 /// </remarks>
-public class OnionDepthTests(Xunit.ITestOutputHelper output)
+[Collection("BrushState")]
+public class OnionDepthTests(Xunit.ITestOutputHelper output) : BrushStateIsolated
 {
     private static FrameCell Cell(MainViewModel vm, int index) =>
         vm.LayerRows.First(r => r.SceneIndex == 0).Cells.First(c => c.Index == index);
@@ -150,30 +157,44 @@ public class OnionDepthTests(Xunit.ITestOutputHelper output)
     /// second-guesses a falloff the artist set by hand.
     /// </summary>
     /// <remarks>
-    /// The only test here that touches the shared settings, because the
-    /// behaviour under test <em>is</em> the setter. It puts the file back the
-    /// way it found it: an onion setter calls <c>Settings.Save()</c>, so
-    /// without this the run leaves 0.5 on the machine and every view model
-    /// built afterwards — including in the next run — loads it.
+    /// The only test here that writes through the view model, because the
+    /// behaviour under test <em>is</em> the setter — and what it writes goes to
+    /// this test's own settings file rather than the machine's, which is what
+    /// the fixture on the class is for.
     /// </remarks>
     [AvaloniaFact]
     public void SettingTheFalloffMarksItChosen()
     {
         var vm = VmLayers.BareVm();
-        var (falloff, chosen) = (vm.Onion.Falloff, vm.Onion.FalloffChosen);
-        try
-        {
-            vm.OnionFalloff = 0.5;
 
-            Assert.True(vm.Onion.FalloffChosen);
-            Assert.Equal(0.5, vm.Onion.Falloff, 3);
-        }
-        finally
-        {
-            vm.Onion.Falloff = falloff;
-            vm.Onion.FalloffChosen = chosen;
-            vm.Settings.Save();
-        }
+        vm.OnionFalloff = 0.5;
+
+        Assert.True(vm.Onion.FalloffChosen);
+        Assert.Equal(0.5, vm.Onion.Falloff, 3);
+    }
+
+    /// <summary>
+    /// The depth an artist types is the depth that gets rendered — through the
+    /// view model and its own settings, not a locally built stand-in.
+    /// </summary>
+    /// <remarks>
+    /// The other tests here deliberately bypass the view model's settings, which
+    /// leaves one thing unguarded: that raising the spinner reaches the
+    /// compositor at all. That is the whole of the reported symptom, so it gets
+    /// the one test that goes the long way round.
+    /// </remarks>
+    [AvaloniaFact]
+    public void RaisingTheDepthThroughTheViewModelReachesTheCompositor()
+    {
+        var vm = VmWithFrames(7);
+        var layer = vm.PaintLayer();
+
+        vm.OnionBefore = 2;
+        vm.OnionAfter = 2;
+
+        var state = new ScenePassBuilder.State(3, layer.Id, false, false, true, vm.Onion);
+        using var cache = new FrameBitmapCache();
+        Assert.Equal(4, ScenePassBuilder.GhostPassesFor(layer, vm.Doc.Scene, state, cache).Count);
     }
 
     [Fact]
