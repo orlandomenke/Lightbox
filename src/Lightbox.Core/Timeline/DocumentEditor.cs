@@ -104,9 +104,23 @@ public sealed class DocumentEditor
     /// across the round trip and does not care how the copy was made.
     /// </para>
     /// </remarks>
-    public void Perform(Action<Doc> mutate, string? label = null, [CallerMemberName] string caller = "")
+    /// <param name="frameContentUnchanged">
+    /// Declare that this edit alters no drawing — it adds, removes, reorders or
+    /// re-flags a layer and nothing else. Undo then leaves cached frame pixels
+    /// and thumbnails alone instead of dropping every one of them (B202).
+    /// <para>
+    /// <b>Opt-in, and the default is the pessimistic answer on purpose.</b> A
+    /// caller that declares this wrongly leaves the canvas showing pixels the
+    /// document no longer describes — a silent wrong-picture bug, where the cost
+    /// of not declaring it is only slowness. So it goes on edits whose mutation
+    /// can be read in one screen and seen to touch no <c>Frame</c>.
+    /// </para>
+    /// </param>
+    public void Perform(
+        Action<Doc> mutate, string? label = null, bool frameContentUnchanged = false,
+        [CallerMemberName] string caller = "")
     {
-        PushStep(new SnapshotStep(Doc.Clone()), label ?? Humanize(caller));
+        PushStep(new SnapshotStep(Doc.Clone(), frameContentUnchanged), label ?? Humanize(caller));
         mutate(Doc);
         Changed?.Invoke();
     }
@@ -156,10 +170,21 @@ public sealed class DocumentEditor
         return text.ToString();
     }
 
-    /// <summary>What an undo/redo touched: nothing, one frame, or the whole document.</summary>
-    public readonly record struct EditScope(bool Any, string? FrameId)
+    /// <summary>
+    /// What an undo/redo touched: nothing, one frame, the layer structure only,
+    /// or the whole document.
+    /// </summary>
+    /// <param name="FrameContentUnchanged">
+    /// The step moved the <em>structure</em> — added, removed, reordered or
+    /// re-flagged a layer — without altering any drawing. B202: this is the
+    /// difference between an undo that re-rasterizes the whole timeline and one
+    /// that re-rasterizes nothing, because a snapshot restores every frame with
+    /// its id intact (<c>Frame.Clone</c> is a <c>MemberwiseClone</c>) and cached
+    /// pixels keyed by that id are therefore still correct.
+    /// </param>
+    public readonly record struct EditScope(bool Any, string? FrameId, bool FrameContentUnchanged = false)
     {
-        public bool DocumentWide => Any && FrameId is null;
+        public bool DocumentWide => Any && FrameId is null && !FrameContentUnchanged;
     }
 
     public void Undo() => UndoScoped();
@@ -173,7 +198,7 @@ public sealed class DocumentEditor
         Doc = entry.Step.Rollback(Doc);
         _redo.Push(entry);
         Changed?.Invoke();
-        return new EditScope(true, entry.Step.FrameId);
+        return new EditScope(true, entry.Step.FrameId, entry.Step.FrameContentUnchanged);
     }
 
     public EditScope RedoScoped()
@@ -185,7 +210,7 @@ public sealed class DocumentEditor
         // redoing back to a saved state reads as saved rather than as new work.
         _undo.Push(entry);
         Changed?.Invoke();
-        return new EditScope(true, entry.Step.FrameId);
+        return new EditScope(true, entry.Step.FrameId, entry.Step.FrameContentUnchanged);
     }
 
     private void PushStep(IEditStep step, string label)
@@ -275,6 +300,9 @@ public sealed class DocumentEditor
         /// <summary>The single frame this step touches, or null for document-wide.</summary>
         string? FrameId { get; }
 
+        /// <summary>This step altered no drawing — structure only (B202).</summary>
+        bool FrameContentUnchanged { get; }
+
         /// <summary>Take the document back to before this step; returns the doc to use.</summary>
         Doc Rollback(Doc doc);
 
@@ -296,11 +324,13 @@ public sealed class DocumentEditor
     /// nothing. Swapping rather than copying is what makes redo exact: the
     /// step always holds whichever document is not current.
     /// </remarks>
-    private sealed class SnapshotStep(Doc other) : IEditStep
+    private sealed class SnapshotStep(Doc other, bool frameContentUnchanged) : IEditStep
     {
         private Doc _other = other;
 
         public string? FrameId => null; // whole-document
+
+        public bool FrameContentUnchanged => frameContentUnchanged;
 
         public Doc Rollback(Doc doc) => Swap(doc);
 
@@ -318,6 +348,12 @@ public sealed class DocumentEditor
     private sealed class DeltaStep(Action<Doc> apply, Action<Doc> revert, string? frameId) : IEditStep
     {
         public string? FrameId => frameId;
+
+        /// <summary>
+        /// Always false: a delta either names its frame — which is already the
+        /// narrowest answer — or genuinely does not know what it touched.
+        /// </summary>
+        public bool FrameContentUnchanged => false;
 
         public Doc Rollback(Doc doc)
         {

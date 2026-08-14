@@ -111,7 +111,9 @@ public partial class MainViewModel
         else
         {
             var ids = targets.Select(l => l.Id).ToHashSet();
-            _editor.Perform(doc => ShiftLayers(doc.Scene.Layers, ids, delta), label: "Move layers");
+            _editor.Perform(
+                doc => ShiftLayers(doc.Scene.Layers, ids, delta), label: "Move layers",
+                frameContentUnchanged: true);
         }
         // Keeps the selection: moving a stack of layers is something an artist
         // does twice, and a reorder that dissolved the selection would make the
@@ -228,19 +230,19 @@ public partial class MainViewModel
     {
         var trimmed = name.Trim();
         if (trimmed.Length == 0 || group.Name == trimmed) return;
-        _editor.Perform(_ => group.Name = trimmed);
+        _editor.Perform(_ => group.Name = trimmed, frameContentUnchanged: true);
     }
 
     internal void SetGroupVisible(LayerGroup group, bool visible)
     {
         if (group.Visible == visible) return;
-        _editor.Perform(_ => group.Visible = visible);
+        _editor.Perform(_ => group.Visible = visible, frameContentUnchanged: true);
     }
 
     internal void SetGroupColor(LayerGroup group, string color)
     {
         if (group.Color == color) return;
-        _editor.Perform(_ => group.Color = color);
+        _editor.Perform(_ => group.Color = color, frameContentUnchanged: true);
     }
 
     /// <summary>Collapse is a view preference: persisted, but not an undo step.</summary>
@@ -348,6 +350,13 @@ public partial class MainViewModel
             InvalidateFrameRender(frameId);
             _dirtyThumbIds.Add(frameId);
         }
+        else if (scope.FrameContentUnchanged)
+        {
+            // Nothing to invalidate: the step moved the layer structure and no
+            // drawing changed, so every cached frame bitmap and thumbnail is
+            // still exactly right (B202). The canvas is still republished below,
+            // because which layers composite and in what order *did* change.
+        }
         else
         {
             ClearFrameRenders();
@@ -397,7 +406,7 @@ public partial class MainViewModel
             return;
         }
         if (layer.Name == trimmed) return;
-        _editor.Perform(_ => layer.Name = trimmed);
+        _editor.Perform(_ => layer.Name = trimmed, frameContentUnchanged: true);
     }
 
     /// <summary>
@@ -421,7 +430,8 @@ public partial class MainViewModel
         _editor.Perform(_ =>
         {
             foreach (var target in targets) target.Visible = visible;
-        }, label: targets.Count == 1 ? "Set layer visible" : "Set layers visible");
+        }, label: targets.Count == 1 ? "Set layer visible" : "Set layers visible",
+            frameContentUnchanged: true);
     }
 
     /// <summary>
@@ -435,7 +445,8 @@ public partial class MainViewModel
         _editor.Perform(_ =>
         {
             foreach (var target in targets) target.Locked = locked;
-        }, label: targets.Count == 1 ? "Set layer locked" : "Set layers locked");
+        }, label: targets.Count == 1 ? "Set layer locked" : "Set layers locked",
+            frameContentUnchanged: true);
         NotifyLayerGating();
     }
 
@@ -446,7 +457,8 @@ public partial class MainViewModel
         _editor.Perform(_ =>
         {
             foreach (var target in targets) target.AlphaLocked = locked;
-        }, label: targets.Count == 1 ? "Set layer alpha locked" : "Set layers alpha locked");
+        }, label: targets.Count == 1 ? "Set layer alpha locked" : "Set layers alpha locked",
+            frameContentUnchanged: true);
         NotifyLayerGating();
     }
 
@@ -454,7 +466,7 @@ public partial class MainViewModel
     internal void SetGroupLocked(LayerGroup group, bool locked)
     {
         if (group.Locked == locked) return;
-        _editor.Perform(_ => group.Locked = locked);
+        _editor.Perform(_ => group.Locked = locked, frameContentUnchanged: true);
         SyncLayerRows();
         NotifyLayerGating();
     }
@@ -546,7 +558,7 @@ public partial class MainViewModel
         {
             if (ActiveLayer.BlendMode == value) return;
             var layer = ActiveLayer;
-            _editor.Perform(_ => layer.BlendMode = value);
+            _editor.Perform(_ => layer.BlendMode = value, frameContentUnchanged: true);
             OnPropertyChanged();
         }
     }
@@ -829,7 +841,8 @@ public partial class MainViewModel
         {
             foreach (var target in doc.Scene.Layers.Where(l => ids.Contains(l.Id)))
                 target.OmitFromExport = pin;
-        }, label: ids.Count == 1 ? "Set layer export pin" : "Set layer export pins");
+        }, label: ids.Count == 1 ? "Set layer export pin" : "Set layer export pins",
+            frameContentUnchanged: true);
         SyncLayerRows();
     }
 
@@ -882,14 +895,14 @@ public partial class MainViewModel
             };
             while (layer.Cels.Count < doc.Scene.FrameCount) layer.Cels.Add(new Cel());
             doc.Scene.Layers.Add(layer);
-        });
+        }, frameContentUnchanged: true);
         ActiveLayerIndex = Scene.Layers.Count - 1;
     }
 
     [RelayCommand]
     private void ToggleActiveLayerVisible()
     {
-        _editor.Perform(_ => ActiveLayer.Visible = !ActiveLayer.Visible);
+        _editor.Perform(_ => ActiveLayer.Visible = !ActiveLayer.Visible, frameContentUnchanged: true);
         RefreshPointerIntent();
     }
 
@@ -915,6 +928,10 @@ public partial class MainViewModel
     private SKBitmap ThumbSource(Frame frame, int celIndex) =>
         _cache.Get(frame, Scene.Width, Scene.Height, celIndex: celIndex);
 
+    /// <summary>How the thumbnail cache is doing — B202's guard reads this.</summary>
+    internal (int Hits, int Renders, int Count) ThumbnailTraffic =>
+        (_thumbs.Hits, _thumbs.Renders, _thumbs.Count);
+
     /// <summary>
     /// Update timeline thumbnails lazily: only cells whose keyed frame is new,
     /// changed, or explicitly marked dirty are re-rendered.
@@ -932,13 +949,21 @@ public partial class MainViewModel
                     cell.ThumbFrameId = null;
                     continue;
                 }
-                var stale = _allThumbsDirty
-                            || cell.ThumbFrameId != frame.Id
-                            || _dirtyThumbIds.Contains(frame.Id);
-                if (!stale && cell.Thumb is not null) continue;
+                // The cell's remembered id says only whether it is already
+                // showing the right drawing; whether that drawing's thumbnail
+                // has to be *made* is the cache's question now (B202). The two
+                // used to be the same test, which is why re-pointing a row at
+                // another layer re-rendered the whole timeline.
+                // _allThumbsDirty still forces every cell through the cache: a
+                // genuine document-wide change cleared it, so the lookup misses
+                // and re-renders. What it no longer does is decide the render on
+                // its own.
+                if (!_allThumbsDirty && cell.ThumbFrameId == frame.Id && cell.Thumb is not null
+                    && !_dirtyThumbIds.Contains(frame.Id)) continue;
 
-                var bmp = ThumbSource(frame, cell.Index);
-                cell.Thumb = ThumbnailRenderer.Render(bmp);
+                var index = cell.Index;
+                cell.Thumb = _thumbs.Get(
+                    frame.Id, () => ThumbnailRenderer.Render(ThumbSource(frame, index)));
                 cell.ThumbFrameId = frame.Id;
             }
         }

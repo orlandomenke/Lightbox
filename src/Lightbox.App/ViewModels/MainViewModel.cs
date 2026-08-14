@@ -187,11 +187,15 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>Timeline thumbnails, keyed by drawing rather than by cell (B202).</summary>
+    private readonly ThumbnailCache _thumbs = new();
+
     /// <summary>Every frame mutation goes through here, whichever cache holds it.</summary>
     private void InvalidateFrameRender(string frameId)
     {
         _cache.Invalidate(frameId);
         _tileFrames.Invalidate(frameId);
+        _thumbs.Invalidate(frameId);
         _prewarm.Flush();
     }
 
@@ -206,6 +210,7 @@ public sealed partial class MainViewModel : ObservableObject
         // certainly dead, and waiting for an LRU to notice would hold a document's
         // worth of viewports across a document switch.
         _tileFlats.Clear();
+        _thumbs.Clear();
         _prewarm.Flush();
     }
 
