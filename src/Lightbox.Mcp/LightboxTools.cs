@@ -1,4 +1,6 @@
+using System.Buffers.Text;
 using System.ComponentModel;
+using System.Text;
 using System.Text.Json;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
@@ -53,9 +55,7 @@ public static class LightboxTools
         CancellationToken ct)
     {
         var result = await PipeBridge.CallAsync("render_frame", new { frameIndex }, ct);
-        var b64 = result.GetProperty("pngBase64").GetString()
-                  ?? throw new LightboxOpException("No image returned.");
-        return new ImageContentBlock { Data = Convert.FromBase64String(b64), MimeType = "image/png" };
+        return ImageBlock(result);
     }
 
     [McpServerTool(Name = "insert_inbetweens"), Description(
@@ -108,9 +108,43 @@ public static class LightboxTools
         CancellationToken ct)
     {
         var result = await PipeBridge.CallAsync("render_reference_view", new { viewId }, ct);
-        var b64 = result.GetProperty("pngBase64").GetString()
-                  ?? throw new LightboxOpException("No image returned.");
-        return new ImageContentBlock { Data = Convert.FromBase64String(b64), MimeType = "image/png" };
+        return ImageBlock(result);
+    }
+
+    /// <summary>
+    /// Wrap a payload's <c>pngBase64</c> as the image block the client sees.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="ImageContentBlock.Data"/> is <b>the UTF-8 bytes of the base64
+    /// text</b>, not the decoded image — the SDK writes those bytes straight
+    /// into the JSON string, and exposes the decoded form separately as
+    /// <c>DecodedData</c>. The name reads like the opposite, which is how this
+    /// went wrong: both tools used to hand it
+    /// <c>Convert.FromBase64String(b64)</c>, so raw PNG bytes were transcoded
+    /// as UTF-8 onto the wire and every byte that is not valid UTF-8 — starting
+    /// with the <c>0x89</c> in the PNG signature itself — became U+FFFD. The
+    /// client then failed to base64-decode the result.
+    /// </para>
+    /// <para>
+    /// It failed on every frame of every document, blank or not, at any canvas
+    /// size, because nothing about it depends on the pixels: the first byte is
+    /// already unrepresentable. Passing the text through untouched is the whole
+    /// fix; the validity check keeps the guard the old decode gave by accident,
+    /// without allocating a second copy of a 4K frame to get it.
+    /// </para>
+    /// </remarks>
+    internal static ImageContentBlock ImageBlock(JsonElement result)
+    {
+        var b64 = result.ValueKind == JsonValueKind.Object
+                  && result.TryGetProperty("pngBase64", out var png)
+            ? png.GetString()
+            : null;
+        if (string.IsNullOrEmpty(b64))
+            throw new LightboxOpException("No image returned.");
+        if (!Base64.IsValid(b64.AsSpan()))
+            throw new LightboxOpException("Lightbox returned an image that is not valid base64.");
+        return new ImageContentBlock { Data = Encoding.UTF8.GetBytes(b64), MimeType = "image/png" };
     }
 
     private static JsonElement ParseJsonArg(string json, string name)

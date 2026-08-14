@@ -202,8 +202,11 @@ this page at all.
 ## Working with an agent (MCP)
 
 Lightbox runs an MCP server, so an agent can work the document directly: read
-the scene, add strokes and frames, request inbetweens. Everything it does goes
-through the same stroke record as everything else, so its work is undoable and
-indistinguishable in kind from yours.
+the scene, add strokes and frames, request inbetweens. It can also *see* — a
+timeline frame or a character-sheet view comes back to it as a rendered image,
+which is how it checks a drawing before inbetweening it and its own results
+afterwards. Everything it does goes through the same stroke record as
+everything else, so its work is undoable and indistinguishable in kind from
+yours.
 
 ---
