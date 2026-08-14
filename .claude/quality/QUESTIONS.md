@@ -10,7 +10,16 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
-## Q87 · Two kinds of empty cell look alike in the X-sheet — how are they told apart? — **answered 2026-08-14: hatch the past-the-end cells**
+## Q89 · Two kinds of empty cell look alike in the X-sheet — how are they told apart? — **answered 2026-08-14: hatch the past-the-end cells**
+
+**Renumbered from Q87 to Q89.** Two branches took Q87 while both were open —
+this one and the reference-overlay whiteboard — and a duplicate id exists in
+neither branch, only in the merged file, so nothing either branch could run
+would have caught it. The whiteboard keeps Q87 because it is cited from eight
+places across `Lightbox.Core`, the view models and the views; this one was
+cited from two comments and a test, so moving it costs three edits instead of
+eight. Same rule the ledger applies to bug ids: both entries survive, and the
+one that is cheaper to move is the one that moves.
 
 Raised by the owner from a screenshot: *"we now have 2 types of empty cells.
 The red circled ones are after deleting cells. The green circled ones are

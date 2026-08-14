@@ -8,7 +8,7 @@ using Xunit;
 namespace Lightbox.App.Tests;
 
 /// <summary>
-/// The X-sheet has two kinds of empty cell and they used to look alike (Q87).
+/// The X-sheet has two kinds of empty cell and they used to look alike (Q89).
 /// </summary>
 /// <remarks>
 /// A cel inside the scene with no drawing is a <b>hold or a blanked drawing</b>:

@@ -205,6 +205,12 @@ public partial class MainWindow
             case "timeline.insertKey":
                 _vm.InsertKeyframeAtPlayhead();
                 break;
+            case "timeline.deleteColumn":
+                // The playhead, because a shortcut has no cel under a pointer —
+                // the menu route passes the cel that was clicked.
+                _vm.DeleteColumnAt(_vm.CurrentFrameIndex);
+                e.Handled = true;
+                break;
             case "timeline.playPause":
                 _vm.TogglePlaybackCommand.Execute(null);
                 break;

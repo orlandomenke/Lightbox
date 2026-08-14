@@ -182,7 +182,14 @@ public class MonolithRatchetTests(ITestOutputHelper output)
         // above; both notes are kept because taking either side of the merge
         // would delete the other's reason and leave a number nobody can
         // account for.
-        ("src/Lightbox.App/Views/MainWindow.axaml", 4276),
+        // → 4,278 (2026-08-14): the X-sheet's Delete column menu entry and its
+        // tooltip (Q88). A menu item has nowhere else to live — the handler it
+        // calls is in MainWindow.Timeline.cs, and the command it reaches is in
+        // the view model. Measured alone that wanted 4,275, against a main
+        // without the hatch; this is the third merge in a row where the honest
+        // number is neither side's, which is the note above working as
+        // intended rather than a problem.
+        ("src/Lightbox.App/Views/MainWindow.axaml", 4278),
         // Lowered when the overlay-gesture wiring moved to MainWindow.Overlays.cs,
         // and again (449 → 427) when the bone gesture handler followed it there.
         // A merge had left that one block behind in the code-behind while its
