@@ -131,6 +131,32 @@ public class PickRingTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// The hole stays wider than the crosshair the platform cursor puts at the
+    /// hotspot, with room to spare.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="PickRing.HoleRadius"/> is derived from
+    /// <see cref="PickRing.BandWidth"/>, so thinning the band widens the hole and
+    /// this holds by construction — until somebody thickens the band, at which
+    /// point the hole closes on the crosshair and the middle stops showing any
+    /// artwork at all. That is the failure worth catching: the ring still looks
+    /// right in every screenshot, and the one thing it exists to show is gone.
+    /// </remarks>
+    [Fact]
+    public void TheHoleClearsThePlatformCrosshair()
+    {
+        const float CrosshairArm = 7f;   // PointerCursors draws ±7px at the hotspot
+
+        output.WriteLine(
+            $"hole {PickRing.HoleRadius}, crosshair arm {CrosshairArm}, "
+            + $"clear margin {PickRing.HoleRadius - CrosshairArm}");
+        Assert.True(
+            PickRing.HoleRadius >= CrosshairArm + 4f,
+            $"the hole is {PickRing.HoleRadius}px and the crosshair reaches {CrosshairArm}px — "
+            + "widen it, or the middle shows a crosshair and no artwork.");
+    }
+
+    /// <summary>
     /// The two swatches never touch: the seam is a slot of artwork rather than a
     /// drawn line, because any line between two arbitrary colours disappears
     /// against one of them sooner or later.
@@ -160,6 +186,51 @@ public class PickRingTests(ITestOutputHelper output)
         Assert.Equal(Artwork, pixels.GetPixel((int)Centre, (int)Centre + outside));
         Assert.Equal(Artwork, pixels.GetPixel(0, 0));
     }
+
+    /// <summary>
+    /// Each swatch is still a band of colour after the two rims have taken their
+    /// bite out of it, not a line.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The trade <see cref="PickRing.BandWidth"/> exists to make, measured
+    /// rather than eyeballed.</b> The rims cost a fixed ~3.3px off the inside
+    /// edge and ~1.1px off the outside whatever the band is, so thinning it
+    /// takes from the colour twice as fast as it takes from the ring — a band of
+    /// 5 would look reasonable in the source and leave under a pixel of actual
+    /// colour, which is two colours a hairline apart and the whole point of the
+    /// gizmo gone.
+    /// </para>
+    /// <para>
+    /// <b>At a band of 12 this measures 6, and the floor is 5 on purpose.</b>
+    /// Only pixels exactly equal to the swatch are counted, so the number moves
+    /// by one on any change to the rims' antialiasing — a guard sitting exactly
+    /// on the value it measures fires on rounding rather than on a decision. One
+    /// pixel of slack still trips at a band of 10.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void EachSwatchKeepsARealRunOfColour()
+    {
+        using var surface = Draw();
+        using var pixels = Read(surface);
+
+        var sampled = RunUpwards(pixels, Sampled);
+        var inHand = RunDownwards(pixels, InHand);
+        output.WriteLine(
+            $"band {PickRing.BandWidth}: {sampled}px of sampled, {inHand}px in hand");
+
+        Assert.True(sampled >= 5, $"the sampled swatch is only {sampled}px of colour");
+        Assert.True(inHand >= 5, $"the in-hand swatch is only {inHand}px of colour");
+    }
+
+    private static int RunUpwards(SKBitmap pixels, SKColor want) =>
+        Enumerable.Range(0, (int)PickRing.OuterRadius + 1)
+            .Count(d => pixels.GetPixel((int)Centre, (int)Centre - d) == want);
+
+    private static int RunDownwards(SKBitmap pixels, SKColor want) =>
+        Enumerable.Range(0, (int)PickRing.OuterRadius + 1)
+            .Count(d => pixels.GetPixel((int)Centre, (int)Centre + d) == want);
 
     /// <summary>
     /// A translucent colour is shown as the colour, not as the colour blended

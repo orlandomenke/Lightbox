@@ -39,24 +39,34 @@ namespace Lightbox.App.Rendering;
 /// </remarks>
 public readonly record struct PickRing(float X, float Y, SKColor Sampled, SKColor Current)
 {
-    /// <summary>The clean middle, in screen pixels: nothing is drawn inside it.</summary>
-    /// <remarks>
-    /// <b>Sized against the cursor rather than against the pixel.</b> The
-    /// platform pointer draws a crosshair at the hotspot — that is what marks
-    /// the exact pixel — and its arms reach 7px, so a hole any tighter than this
-    /// is a hole with a crosshair in it and nothing else. This leaves a clear
-    /// margin all the way round the crosshair for the artwork to show through,
-    /// which is the whole reason the middle is empty.
-    /// </remarks>
-    public const float HoleRadius = 14f;
-
     /// <summary>Outer edge of the two swatches, in screen pixels.</summary>
     /// <remarks>
-    /// The band between the two radii is what the eye actually compares, so it
-    /// is the number worth being generous with: a hairline ring reads as
-    /// decoration, and two colours a hairline apart cannot be told apart at all.
+    /// How much drawing the gizmo is allowed to cover, and the only one of these
+    /// three numbers that is about size rather than weight.
     /// </remarks>
     public const float OuterRadius = 32f;
+
+    /// <summary>How thick the two swatches are, in screen pixels.</summary>
+    /// <remarks>
+    /// <b>The one to turn when the ring feels wrong</b>, because it is the only
+    /// one that trades the two things being balanced. Thicker is easier to
+    /// compare and covers more of the drawing; thinner reads as chrome and
+    /// eventually stops being a colour at all. It is not free to shrink: the
+    /// rims below take a fixed bite out of the inside edge, so halving the band
+    /// more than halves the colour left in it.
+    /// </remarks>
+    public const float BandWidth = 12f;
+
+    /// <summary>The clean middle, in screen pixels: nothing is drawn inside it.</summary>
+    /// <remarks>
+    /// Derived, so thinning the band widens the hole rather than shrinking the
+    /// ring — an artist asking for a lighter gizmo is not asking for a smaller
+    /// one. It has a floor rather than a target: the platform pointer draws a
+    /// crosshair whose arms reach 7px, and a hole that does not clear it is a
+    /// hole with a crosshair in it and no artwork, which is
+    /// <c>TheHoleClearsThePlatformCrosshair</c>'s job to catch.
+    /// </remarks>
+    public const float HoleRadius = OuterRadius - BandWidth;
 
     /// <summary>
     /// Half the gap left between the two swatches, in screen pixels.
@@ -114,14 +124,13 @@ public readonly record struct PickRing(float X, float Y, SKColor Sampled, SKColo
     /// </remarks>
     public static void Draw(SKCanvas canvas, PickRing ring)
     {
-        var band = OuterRadius - HoleRadius;
         var middle = (OuterRadius + HoleRadius) / 2f;
 
         using var swatch = new SKPaint
         {
             IsAntialias = true,
             Style = SKPaintStyle.Stroke,
-            StrokeWidth = band,
+            StrokeWidth = BandWidth,
         };
 
         // The two halves, each a stroked circle clipped to its side of the seam:
@@ -136,14 +145,14 @@ public readonly record struct PickRing(float X, float Y, SKColor Sampled, SKColo
         {
             IsAntialias = true,
             Style = SKPaintStyle.Stroke,
-            StrokeWidth = 3f,
+            StrokeWidth = PaleWidth,
             Color = new SKColor(255, 255, 255, 200),
         };
         using var dark = new SKPaint
         {
             IsAntialias = true,
             Style = SKPaintStyle.Stroke,
-            StrokeWidth = 1.4f,
+            StrokeWidth = DarkWidth,
             Color = new SKColor(0, 0, 0, 220),
         };
 
@@ -151,11 +160,30 @@ public readonly record struct PickRing(float X, float Y, SKColor Sampled, SKColo
         canvas.DrawCircle(ring.X, ring.Y, OuterRadius, pale);
         canvas.DrawCircle(ring.X, ring.Y, OuterRadius, dark);
 
-        // The hole's rim, against the swatches — both passes strictly outside
-        // HoleRadius so the middle stays exactly as the artist painted it.
-        canvas.DrawCircle(ring.X, ring.Y, HoleRadius + 0.9f, dark);
-        canvas.DrawCircle(ring.X, ring.Y, HoleRadius + 2.6f, pale);
+        // The hole's rim, against the swatches. Each radius is derived from the
+        // stroke that will be drawn on it, so both land strictly outside
+        // HoleRadius however wide the strokes get — a halo centred on the rim
+        // would tint the pixel the artist is looking at, which is the one thing
+        // this must not do. Stacked rather than overlapped, dark first: it is
+        // the pale one that has to survive against a dark swatch, so it is the
+        // one that gets its full width.
+        canvas.DrawCircle(ring.X, ring.Y, HoleRadius + RimGap + DarkWidth / 2f, dark);
+        canvas.DrawCircle(ring.X, ring.Y, HoleRadius + RimGap + DarkWidth + PaleWidth / 2f, pale);
     }
+
+    /// <summary>Outline weights, and the clearance the rim keeps off the hole.</summary>
+    /// <remarks>
+    /// Slimmer than the guides and the transform gizmo use, because these are
+    /// drawn <em>on</em> the thing they outline rather than beside it: every
+    /// pixel of rim is a pixel of swatch not shown, and at
+    /// <see cref="BandWidth"/> the pair already spends about a quarter of the
+    /// band. Heavy enough to survive an arbitrary drawing behind it and no
+    /// heavier — <c>EachSwatchKeepsARealRunOfColour</c> is what keeps the two
+    /// sides of that trade from being tuned independently until neither works.
+    /// </remarks>
+    private const float PaleWidth = 2.2f;
+    private const float DarkWidth = 1.1f;
+    private const float RimGap = 0.2f;
 
     private static void DrawHalf(
         SKCanvas canvas, PickRing ring, SKPaint swatch, SKColor color, bool top, float middle)
