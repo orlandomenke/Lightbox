@@ -23,6 +23,18 @@ namespace Lightbox.App.Tests;
 /// </list>
 /// So the tests below are in three parts — the planner still selects them, the
 /// controls are reachable from both tabs, and what comes out is visible.
+/// <para>
+/// <b>They build their own <see cref="OnionSettings"/> rather than reading the
+/// view model's.</b> A <c>MainViewModel</c> loads <c>AppSettings</c> from disk
+/// and every onion setter saves it back, so a test that sets one through the
+/// view model writes the real settings file and every view model built after it
+/// — in this run or the next — reads that value. The first version of this file
+/// did exactly that and turned green locally and red on CI, which is the
+/// signature of shared state rather than of a flaky test. Constructing the
+/// settings here also makes the assertion honest: "the falloff Lightbox ships
+/// with gives readable ghosts" is a claim about the default, and reading an
+/// ambient value cannot make it.
+/// </para>
 /// </remarks>
 public class OnionDepthTests(Xunit.ITestOutputHelper output)
 {
@@ -43,10 +55,8 @@ public class OnionDepthTests(Xunit.ITestOutputHelper output)
     public void ADepthOfThree_GhostsThreeDrawingsEachWay()
     {
         var vm = VmWithFrames(7);
-        vm.OnionBefore = 3;
-        vm.OnionAfter = 3;
 
-        var ghosts = OnionSkin.Ghosts(vm.PaintLayer(), 3, vm.OnionBefore, vm.OnionAfter, false);
+        var ghosts = OnionSkin.Ghosts(vm.PaintLayer(), 3, before: 3, after: 3, keysOnly: false);
 
         output.WriteLine(string.Join(", ",
             ghosts.Select(g => $"{(g.Before ? "-" : "+")}{g.Steps}@{g.Index}")));
@@ -59,11 +69,10 @@ public class OnionDepthTests(Xunit.ITestOutputHelper output)
     public void EveryGhostBecomesARenderPass()
     {
         var vm = VmWithFrames(7);
-        vm.OnionBefore = 3;
-        vm.OnionAfter = 3;
         var layer = vm.PaintLayer();
 
-        var state = new ScenePassBuilder.State(3, layer.Id, false, false, true, vm.Onion);
+        var onion = new OnionSettings { Before = 3, After = 3 };
+        var state = new ScenePassBuilder.State(3, layer.Id, false, false, true, onion);
         using var cache = new FrameBitmapCache();
         var passes = ScenePassBuilder.GhostPassesFor(layer, vm.Doc.Scene, state, cache);
 
@@ -78,16 +87,17 @@ public class OnionDepthTests(Xunit.ITestOutputHelper output)
     public void TheThirdGhostIsStillLegible()
     {
         var vm = VmWithFrames(7);
-        vm.OnionBefore = 3;
-        vm.OnionAfter = 3;
         var layer = vm.PaintLayer();
 
-        var state = new ScenePassBuilder.State(3, layer.Id, false, false, true, vm.Onion);
+        // The shipped defaults, deliberately — this is a claim about what an
+        // artist gets before touching anything.
+        var onion = new OnionSettings { Before = 3, After = 3 };
+        var state = new ScenePassBuilder.State(3, layer.Id, false, false, true, onion);
         using var cache = new FrameBitmapCache();
         var alphas = ScenePassBuilder.GhostPassesFor(layer, vm.Doc.Scene, state, cache)
             .Select(p => p.Opacity).Order().ToList();
 
-        output.WriteLine($"opacity {vm.OnionOpacity:F3}, falloff {vm.OnionFalloff:F3} -> "
+        output.WriteLine($"opacity {onion.Opacity:F3}, falloff {onion.Falloff:F3} -> "
             + string.Join(", ", alphas.Select(a => a.ToString("F4"))));
 
         // The faintest is the third step each way. At the old falloff of 0.5
@@ -135,16 +145,42 @@ public class OnionDepthTests(Xunit.ITestOutputHelper output)
         Assert.Equal(0.9, settings.Onion.Falloff, 3);
     }
 
+    /// <summary>
+    /// The view-model setter records the choice, so the migration never
+    /// second-guesses a falloff the artist set by hand.
+    /// </summary>
+    /// <remarks>
+    /// The only test here that touches the shared settings, because the
+    /// behaviour under test <em>is</em> the setter. It puts the file back the
+    /// way it found it: an onion setter calls <c>Settings.Save()</c>, so
+    /// without this the run leaves 0.5 on the machine and every view model
+    /// built afterwards — including in the next run — loads it.
+    /// </remarks>
     [AvaloniaFact]
     public void SettingTheFalloffMarksItChosen()
     {
         var vm = VmLayers.BareVm();
+        var (falloff, chosen) = (vm.Onion.Falloff, vm.Onion.FalloffChosen);
+        try
+        {
+            vm.OnionFalloff = 0.5;
 
-        vm.OnionFalloff = 0.5;
+            Assert.True(vm.Onion.FalloffChosen);
+            Assert.Equal(0.5, vm.Onion.Falloff, 3);
+        }
+        finally
+        {
+            vm.Onion.Falloff = falloff;
+            vm.Onion.FalloffChosen = chosen;
+            vm.Settings.Save();
+        }
+    }
 
-        Assert.True(vm.Onion.FalloffChosen);
-        // And so it survives the next round trip rather than being migrated
-        // straight back off the value just asked for.
+    [Fact]
+    public void AChosenFalloffSurvivesTheRoundTrip()
+    {
+        // The other half of the setter's promise, checked where it costs
+        // nothing: what it writes is what comes back, unmigrated.
         Assert.Equal(0.5, AppSettings.Deserialize(
             """{"Onion":{"Falloff":0.5,"FalloffChosen":true}}""").Onion.Falloff, 3);
     }
