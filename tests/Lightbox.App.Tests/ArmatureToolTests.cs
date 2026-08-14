@@ -150,6 +150,53 @@ public class ArmatureToolTests
     }
 
     [AvaloniaFact]
+    public void AWeightStrokeIsOneUndoStepAndMirrorsAcrossTheNamedPair()
+    {
+        var vm = new MainViewModel(artist: null);
+        vm.NewDocument(new NewDocumentSettings("Rig", 400, 300, 12, 72, "#ffffff", false));
+        vm.ArmatureEditMode = true;
+        vm.CreateBoneFromDrag(100, 150, 160, 150);
+        var left = vm.SelectedBoneId!;
+        vm.SelectedBoneId = null;
+        vm.CreateBoneFromDrag(300, 150, 360, 150);
+        var right = vm.SelectedBoneId!;
+        vm.Doc.Armature!.BoneById(left)!.Name = "hip.l";
+        vm.Doc.Armature!.BoneById(right)!.Name = "hip.r";
+
+        var frame = Lightbox.Core.Timeline.ExposureSheet.ExposedFrame(
+            vm.Doc.Scene.Layers.First(l => !l.IsBackground), vm.CurrentFrameIndex)!;
+        var stroke = new Stroke
+        {
+            Points =
+            [
+                new StrokePoint(110, 150, 1),   // near hip.l
+                // Exactly the mirror of the painted point across the pair's
+                // axis (x = 200, the bones' midline) — where the mirrored dab
+                // must land in full.
+                new StrokePoint(290, 150, 1),
+            ],
+        };
+        frame.Strokes.Add(stroke);
+
+        vm.SelectedBoneId = left;
+        vm.WeightPainting = true;
+        vm.BeginWeightStroke(110, 150, pressure: 1);
+        for (var i = 0; i < 12; i++) vm.WeightDab(110, 150, pressure: 1);
+        vm.EndWeightStroke();
+
+        // The painted side got the selected bone, the mirrored side its pair —
+        // the axis is the pair's own midline (x = 230), not the canvas's.
+        var painted = stroke.Weights!.First(b => b.BoneId == left);
+        var mirrored = stroke.Weights!.First(b => b.BoneId == right);
+        Assert.True(painted.WeightAt(0) > 0.9, $"painted side {painted.WeightAt(0):F3}");
+        Assert.True(mirrored.WeightAt(1) > 0.9, $"mirrored side {mirrored.WeightAt(1):F3}");
+
+        // One undo step takes the whole stroke back.
+        vm.UndoCommand.Execute(null);
+        Assert.Null(stroke.Weights);
+    }
+
+    [AvaloniaFact]
     public void CoarseAssignmentBindsTheSelectedStrokesToTheSelectedBone()
     {
         var vm = new MainViewModel(artist: null);

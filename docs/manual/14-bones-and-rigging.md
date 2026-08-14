@@ -53,8 +53,15 @@ each part of it.
 - The **heat view** shows the selected bone's influence over the current
   drawing, blue (none) through red (owned), while the Bone tool is active.
 
-*Planned:* the weight brush — painting influence directly on the canvas, with
-pressure driving strength and X-symmetry painting both sides of a named pair
-(`hip.l` / `hip.r`) at once. The rules are already in the engine; the brush
-gesture is the part still to come, along with IK, spline chains and rig
+- The **weight brush** (**Ctrl+Shift+K** while the Bone tool is active)
+  paints influence for the selected bone directly on the canvas: pressure
+  drives strength, weights normalise themselves (painting one bone up takes
+  the others down, a locked bone holds), and a whole brush stroke is one
+  undo step. With **X-symmetry** on, painting one side of a named pair
+  (`hip.l` / `hip.r`) paints the other side too, mirrored across the pair's
+  own axis — the character's spine, wherever it sits on the paper. Painting
+  happens against the rest pose; scrub a pose to check, come back to
+  correct.
+
+*Planned:* painting weights under a live pose, IK, spline chains and rig
 export (`docs/DESIGN-bones.md` has the whole plan).

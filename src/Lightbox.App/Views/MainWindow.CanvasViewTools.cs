@@ -341,6 +341,9 @@ public partial class MainWindow
             case "armature.posingMode":
                 _vm.PosingMode = !_vm.PosingMode;
                 break;
+            case "armature.weightPaint":
+                _vm.WeightPainting = !_vm.WeightPainting;
+                break;
             case "lines.simplify":
                 _vm.SimplifyLineCommand.Execute(null);
                 break;

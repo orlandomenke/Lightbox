@@ -2634,14 +2634,7 @@ public sealed partial class CanvasControl : Control
                     e.Handled = true;
                     return;
                 case CanvasToolMode.Bone:
-                    _boneDragId = null;
-                    _boneDragGrab = BoneGrab.None;
-                    _boneGestureStart = (x, y);
-                    _boneGestureActive = true;
-                    // The window answers with BeginBoneDrag if the press hit a bone.
-                    BonePressed?.Invoke(x, y, FitScale() * _zoom);
-                    e.Pointer.Capture(this);
-                    e.Handled = true;
+                    BeginBoneGesture(x, y, e);
                     return;
                 case CanvasToolMode.SelectWand:
                     WandClicked?.Invoke(x, y,
@@ -3069,6 +3062,8 @@ public sealed partial class CanvasControl : Control
                 return;
             }
 
+            if (ContinueBoneGesture(e)) return;
+
             // A single mark being dragged. It has never previewed either — B112 is
             // both paths, not just the group one — and it is the same mechanism.
             if (RigEditMode && _rigDragId is { } draggedMark)
@@ -3403,21 +3398,7 @@ public sealed partial class CanvasControl : Control
             e.Handled = true;
             return;
         }
-        // A bone gesture ends the same way a rig drag does: on release, with the
-        // endpoints, one editor step. The window decides what the gesture meant —
-        // create, joint move, re-aim or pose — from the grab and the mode.
-        if (_boneGestureActive)
-        {
-            var (bx, by) = ViewToDoc(e.GetPosition(this));
-            _boneGestureActive = false;
-            var boneId = _boneDragId;
-            var boneGrab = _boneDragGrab;
-            _boneDragId = null;
-            e.Pointer.Capture(null);
-            BoneGestureEnded?.Invoke(boneId, boneGrab, _boneGestureStart.X, _boneGestureStart.Y, bx, by);
-            e.Handled = true;
-            return;
-        }
+        if (EndBoneGesture(e)) return;
         // B58. On release with the total delta, because DragRig is one editor step
         // per call — reporting per pointer move would be a hundred undo entries for
         // one drag of a hitbox.

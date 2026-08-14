@@ -236,6 +236,120 @@ public sealed partial class MainViewModel
         InvalidateRiggedFrames();
     }
 
+    /// <summary>
+    /// The weight brush is armed: Bone-tool presses paint influence for the
+    /// selected bone instead of working bones. The arithmetic is
+    /// <see cref="WeightPaint"/>; this owns the gesture and its single undo
+    /// step.
+    /// </summary>
+    [ObservableProperty]
+    private bool _weightPainting;
+
+    /// <summary>Brush radius in document pixels.</summary>
+    [ObservableProperty]
+    private double _weightBrushRadius = 24;
+
+    [ObservableProperty]
+    private WeightBrushMode _weightBrushMode = WeightBrushMode.Add;
+
+    /// <summary>
+    /// Paint both sides of a name-paired bone at once (hip.l ↔ hip.r),
+    /// mirrored across the pair's own axis — Q81.
+    /// </summary>
+    [ObservableProperty]
+    private bool _mirrorWeights = true;
+
+    private List<(Stroke Stroke, List<BoneBinding>? Before)>? _weightGesture;
+    private string? _weightGestureFrameId;
+
+    /// <summary>Arm a weight stroke: remember what every stroke's binding was.</summary>
+    public void BeginWeightStroke(double x, double y, double pressure)
+    {
+        _weightGesture = null;
+        if (SelectedBoneId is null || Doc.Armature is null) return;
+        if (ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex) is not { } frame) return;
+
+        _weightGestureFrameId = frame.Id;
+        _weightGesture = frame.Strokes
+            .Select(s => (s, s.Weights?.Select(b => b.Clone()).ToList()))
+            .ToList();
+        WeightDab(x, y, pressure);
+    }
+
+    /// <summary>
+    /// One dab of the weight brush, live on the record for immediate heat
+    /// feedback — the undo step is landed whole at <see cref="EndWeightStroke"/>.
+    /// Pressure drives strength through the same hand that drives every brush.
+    /// </summary>
+    public void WeightDab(double x, double y, double pressure)
+    {
+        if (_weightGesture is not { } gesture) return;
+        if (SelectedBoneId is not { } boneId || Doc.Armature is not { } armature) return;
+
+        // Per-dab rate below 1 so a held brush builds rather than slams —
+        // the same reason flow exists on a paint brush.
+        var strength = Math.Clamp(pressure, 0.05, 1) * 0.35;
+        var changed = false;
+        foreach (var (stroke, _) in gesture)
+            changed |= WeightPaint.Apply(stroke, boneId, x, y, WeightBrushRadius, strength, WeightBrushMode);
+
+        if (MirrorWeights
+            && WeightPaint.MirroredBone(armature, boneId) is { } pair
+            && armature.BoneById(boneId) is { } own
+            && WeightPaint.Mirror(armature, own, pair, x, y) is { } m)
+        {
+            foreach (var (stroke, _) in gesture)
+                changed |= WeightPaint.Apply(stroke, pair.Id, m.X, m.Y, WeightBrushRadius, strength, WeightBrushMode);
+        }
+
+        if (changed) OnPropertyChanged(nameof(HeatPoints));
+    }
+
+    /// <summary>Land the whole stroke as one undo step, or nothing if nothing moved.</summary>
+    public void EndWeightStroke()
+    {
+        if (_weightGesture is not { } gesture) return;
+        _weightGesture = null;
+
+        var steps = gesture
+            .Select(g => (g.Stroke, g.Before, After: g.Stroke.Weights?.Select(b => b.Clone()).ToList()))
+            .Where(g => !SameWeights(g.Before, g.After))
+            .ToList();
+        if (steps.Count == 0) return;
+
+        // The record already holds the after-state — the dabs painted it live —
+        // so apply is idempotent by construction and PerformDelta's immediate
+        // apply(Doc) is a no-op that records the step.
+        _editor.PerformDelta(
+            apply: _ =>
+            {
+                foreach (var (stroke, _, after) in steps)
+                    stroke.Weights = after?.Select(b => b.Clone()).ToList();
+            },
+            revert: _ =>
+            {
+                foreach (var (stroke, before, _) in steps)
+                    stroke.Weights = before?.Select(b => b.Clone()).ToList();
+            },
+            affectedFrameId: _weightGestureFrameId,
+            label: "Paint weights");
+        InvalidateRiggedFrames();
+    }
+
+    private static bool SameWeights(List<BoneBinding>? a, List<BoneBinding>? b)
+    {
+        if (a is null || b is null) return a is null && b is null;
+        if (a.Count != b.Count) return false;
+        for (var i = 0; i < a.Count; i++)
+        {
+            if (a[i].BoneId != b[i].BoneId) return false;
+            var (wa, wb) = (a[i].PointWeights, b[i].PointWeights);
+            if (wa is null || wb is null) { if (wa != wb) return false; continue; }
+            if (!wa.SequenceEqual(wb)) return false;
+        }
+        return true;
+    }
+
     /// <summary>Bind every selected stroke wholly to the selected bone — the cutout gesture.</summary>
     public int AssignSelectedStrokesToBone()
     {
