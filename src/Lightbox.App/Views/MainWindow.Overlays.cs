@@ -56,5 +56,21 @@ public partial class MainWindow
             if (hit is { Id: { } id }) Canvas.BeginBoneDrag(id, hit.Grab);
             RefreshArmatureOverlay();
         };
+        Canvas.WeightStrokeStarted += (x, y, p) => _vm.BeginWeightStroke(x, y, p);
+        Canvas.WeightDabbed += (x, y, p) =>
+        {
+            _vm.WeightDab(x, y, p);
+            RefreshArmatureOverlay();
+        };
+        Canvas.WeightStrokeEnded += () =>
+        {
+            _vm.EndWeightStroke();
+            RefreshArmatureOverlay();
+        };
+        _vm.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is nameof(MainViewModel.WeightPainting))
+                Canvas.WeightPainting = _vm.WeightPainting;
+        };
     }
 }
