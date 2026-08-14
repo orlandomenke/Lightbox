@@ -11,8 +11,26 @@ the general one still applies everywhere else: `I` inserts a keyframe over the
 timeline and reaches for the eyedropper anywhere else. A panel counts as yours
 when the pointer is over it, or when it has the keyboard focus.
 
-That is why the two are not a clash to resolve, and Configure will not offer to
-resolve one — a general key and a panel key can share a gesture on purpose. Two
+A key press looks for its meaning in three places, in this order:
+
+| | Where | Example: `Delete` |
+| --- | --- | --- |
+| 1 | **The panel under the pointer**, if it claims the key | Over the Layers panel: delete the layer |
+| 2 | **The canvas**, if it claims the key | Over the Colour panel, or over the canvas itself: clear the selection's contents |
+| 3 | **Everywhere**, the general binding | `B` is the brush from all three |
+
+The practical form of that: **a panel overrides, it never blocks.** A key a panel
+has no use for keeps the meaning it has everywhere else, rather than going dead
+while your pointer happens to be resting there.
+
+**Tearing a panel off changes none of this.** A panel in its own window keeps its
+own shortcuts and the general ones — `I` still inserts a key in a floating
+timeline, and `B` still picks up the brush.
+
+Configure groups the list by **where** each binding applies, not by what it does,
+so the three rungs above are the headings you scroll through. That is also why a
+general key and a panel key sharing a gesture is not a clash to resolve, and
+Configure will not offer to resolve one — they can share on purpose. Two
 *general* commands on one gesture is the case with no answer, and that is what it
 warns about.
 
@@ -35,7 +53,7 @@ warns about.
 | Ctrl+T | Transform |
 | Ctrl+E | Merge the active layer into the one below |
 | Ctrl+A / Ctrl+D / Ctrl+Shift+I | Select all, deselect, invert |
-| Delete / Backspace | Clear the selection's contents / fill it with the background |
+| Delete / Backspace | Clear the selection's contents / fill it with the background — over the Layers panel, delete the layer / blank it |
 | Space | Play / pause |
 | ← / → | Previous, next frame |
 | X / D | Swap foreground and background / reset to black over white |

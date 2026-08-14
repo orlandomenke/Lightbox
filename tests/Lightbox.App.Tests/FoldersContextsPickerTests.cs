@@ -45,15 +45,20 @@ public class ContextShortcutTests
         var delete = new KeyEventArgs { Key = Key.Delete, KeyModifiers = KeyModifiers.None };
         Assert.Equal("docker.deleteLayer", map.IdFor(delete, ShortcutScope.In(DockPanelId.Layers)));
         Assert.Equal("select.clear", map.IdFor(delete, ShortcutScope.Canvas));
-        // And neither is global, or it would fire over the other's area too.
-        Assert.Null(map.IdFor(delete, ShortcutScope.In(DockPanelId.Timeline)));
+        // Neither is global, so the layer half stays out of the canvas and vice
+        // versa. Over a THIRD place — a docker that claims neither key — this
+        // read `Assert.Null` until Q82 put the canvas in the fallback chain.
+        // The twin arrangement is untouched: what changed is what happens where
+        // neither twin lives, and the answer is now the canvas one rather than
+        // nothing. Q82 records what that costs.
+        Assert.Equal("select.clear", map.IdFor(delete, ShortcutScope.In(DockPanelId.Timeline)));
 
         // Backspace is the same shape: the layer docker blanks a layer, the
         // canvas floods the selection with the background.
         var back = new KeyEventArgs { Key = Key.Back, KeyModifiers = KeyModifiers.None };
         Assert.Equal("docker.clearLayer", map.IdFor(back, ShortcutScope.In(DockPanelId.Layers)));
         Assert.Equal("select.fillBackground", map.IdFor(back, ShortcutScope.Canvas));
-        Assert.Null(map.IdFor(back, ShortcutScope.In(DockPanelId.Timeline)));
+        Assert.Equal("select.fillBackground", map.IdFor(back, ShortcutScope.In(DockPanelId.Timeline)));
     }
 
     [Fact]
@@ -269,12 +274,14 @@ public class LayerFolderTests
     {
         var map = new ShortcutMap();
 
-        // Delete is bound on the canvas (lines.delete) and in the layers docker
-        // (docker.deleteLayer), and neither is general — so over any other
-        // docker it must fall through to nothing rather than silently borrowing
-        // one of them. A scoped binding stays in its scope.
+        // Delete is bound on the canvas (select.clear) and in the layers docker
+        // (docker.deleteLayer). Over any OTHER docker it used to fall through to
+        // nothing; since Q82 the canvas is a rung in the chain, so it reaches
+        // the canvas command. The layers command is the one that must not leak —
+        // a panel binding still stays in its own panel, which is the half of the
+        // rule that makes per-docker bindings worth having.
         var del = new KeyEventArgs { Key = Key.Delete, KeyModifiers = KeyModifiers.None };
-        Assert.Null(map.IdFor(del, ShortcutScope.In(panel)));
+        Assert.Equal("select.clear", map.IdFor(del, ShortcutScope.In(panel)));
 
         // A general binding, however, reaches every docker. That is the half of
         // the rule an artist notices: B is the brush wherever they are.

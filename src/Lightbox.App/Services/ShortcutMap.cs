@@ -93,6 +93,23 @@ public sealed class ShortcutDefinition(
     /// <summary>This binding's place, as the resolver compares them.</summary>
     public ShortcutScope Scope => new(Context, Panel);
 
+    /// <summary>
+    /// Where this binding applies, in the artist's words — the heading the
+    /// Configure window groups by.
+    /// </summary>
+    /// <remarks>
+    /// Derived from the scope rather than stored, so a binding cannot be filed
+    /// under a heading it does not actually belong to. That is the same reason
+    /// the roadmap's checkboxes are derived: a label that can disagree with the
+    /// thing it labels eventually does.
+    /// </remarks>
+    public string ScopeName => Context switch
+    {
+        ShortcutContext.Canvas => "Canvas",
+        ShortcutContext.Panel => Docking.DockPanels.TitleOf(Panel),
+        _ => "Everywhere",
+    };
+
     public KeyGesture? Default { get; } = @default;
 
     /// <summary>The active binding (null = unbound).</summary>
@@ -302,22 +319,42 @@ public sealed class ShortcutMap
     /// The command a key press means, in the place it happened.
     /// </summary>
     /// <remarks>
-    /// <b>The place wins if it has an answer; otherwise the general binding
-    /// does.</b> That one sentence is the whole scheme, and it is what makes
-    /// <c>I</c> insert a keyframe over the timeline and pick a colour
-    /// everywhere else — including over every docker that has no <c>I</c> of its
-    /// own, which is the case the old form could not express because a docker
-    /// had to be named in an enum before it could have bindings at all.
+    /// <para>
+    /// <b>The place wins if it has an answer; otherwise the wider place does.</b>
+    /// That one sentence is the whole scheme, and it is what makes <c>I</c>
+    /// insert a keyframe over the timeline and pick a colour everywhere else —
+    /// including over every docker that has no <c>I</c> of its own, which is the
+    /// case the old form could not express because a docker had to be named in
+    /// an enum before it could have bindings at all.
+    /// </para>
+    /// <para>
+    /// <b>The chain over a docker is panel → canvas → general (Q82).</b> The
+    /// canvas rung is the part that was added, and it was a decision rather than
+    /// an oversight: it used to stop at the docker's edge, so <c>Delete</c> over
+    /// the Colour docker did nothing at all. It now clears the selection's
+    /// contents, because the artist's model is "the docker overrides, everything
+    /// else still works". What that costs is written down in
+    /// <c>QUESTIONS.md</c> → Q82: a destructive key now fires on the canvas from
+    /// a place that gives no hint the canvas is the target.
+    /// </para>
+    /// <para>
+    /// <b>Only a docker gets the canvas rung.</b> <see cref="ShortcutScope.General"/>
+    /// means "nowhere in particular", and letting canvas bindings answer there
+    /// would make a marquee-clearing <c>Delete</c> reachable from a scope that is
+    /// deliberately the narrowest one there is.
+    /// </para>
     /// </remarks>
     public string? IdFor(KeyEventArgs e, ShortcutScope scope)
     {
-        ShortcutDefinition? general = null;
+        ShortcutDefinition? canvas = null, general = null;
         foreach (var d in _definitions)
         {
             if (d.Current is not { } g || g.Key != e.Key || g.KeyModifiers != e.KeyModifiers) continue;
             if (d.Scope == scope) return d.Id;
-            if (d.Context == ShortcutContext.Global) general ??= d;
+            if (d.Context == ShortcutContext.Canvas) canvas ??= d;
+            else if (d.Context == ShortcutContext.Global) general ??= d;
         }
+        if (scope.Context == ShortcutContext.Panel && canvas is not null) return canvas.Id;
         return general?.Id;
     }
 
@@ -339,6 +376,13 @@ public sealed class ShortcutMap
     /// <c>I</c> is the eyedropper, and over the timeline it is insert-key — so
     /// reporting it as something to resolve would ask an artist to undo the
     /// design. Only an unresolvable tie is a conflict.
+    /// <para>
+    /// A canvas binding and a panel one are not a conflict either, for the same
+    /// reason and now for a second one: since Q82 the canvas is a rung in the
+    /// fallback chain, so <c>Delete</c> deletes a layer over the Layers docker
+    /// and clears the selection everywhere else. Both are reachable, which is
+    /// what "resolvable" means.
+    /// </para>
     /// </remarks>
     public ShortcutDefinition? ConflictWith(string id, KeyGesture gesture)
     {

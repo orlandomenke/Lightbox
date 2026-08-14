@@ -383,25 +383,9 @@ public partial class MainWindow : Window
         _shortcuts.Load();
         ShowSaveGestures();
         KeyDown += OnKeyDown;
-        // The release edge, so a borrowed tool comes back. Tunnelling, because a
-        // focused control that swallows the key-up would otherwise leave the
-        // modifier stuck down and the artist holding an eyedropper they let go
-        // of — the failure mode that makes a momentary tool worse than none.
-        AddHandler(
-            KeyUpEvent,
-            (_, e) =>
-            {
-                _vm.ApplyHeldModifiers(e.KeyModifiers);
-                // The other half of a momentary tool key (B176): matched on the
-                // physical key rather than the gesture, so a modifier pressed
-                // mid-hold cannot orphan the release.
-                if (_momentaryToolKey is { } held && e.Key == held.Key)
-                {
-                    _momentaryToolKey = null;
-                    _vm.EndMomentaryTool(held.Tool);
-                }
-            },
-            Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        // The release edge, so a borrowed tool comes back — see OnKeyUpEdge for
+        // why it tunnels and why it is shared with the floating panel windows.
+        AddHandler(KeyUpEvent, OnKeyUpEdge, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         // And a window that loses focus mid-hold never sees the key-up at all.
         Deactivated += (_, _) =>
         {
