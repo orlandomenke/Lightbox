@@ -8,7 +8,7 @@ namespace Lightbox.App.Rendering;
 /// <remarks>
 /// <para>
 /// <b>A thumbnail is a property of a drawing, and it used to be stored on the
-/// cell that displayed it (B199).</b> That is the whole bug. <c>SyncLayerRows</c>
+/// cell that displayed it (B201).</b> That is the whole bug. <c>SyncLayerRows</c>
 /// maps row <i>i</i> to <c>layers.Count - 1 - i</c>, so adding or removing a
 /// layer slides every row onto a <em>different</em> layer — and since staleness
 /// was decided by comparing the cell's remembered frame id against the frame now
@@ -52,7 +52,7 @@ public sealed class ThumbnailCache
 
     public int Count => _thumbs.Count;
 
-    /// <summary>How many thumbnails have been rendered rather than found (B199's guard).</summary>
+    /// <summary>How many thumbnails have been rendered rather than found (B201's guard).</summary>
     public int Renders { get; private set; }
 
     public int Hits { get; private set; }

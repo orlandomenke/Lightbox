@@ -131,7 +131,14 @@ public class MonolithRatchetTests(ITestOutputHelper output)
     /// </remarks>
     public static readonly (string Path, int Max)[] Budgets =
     [
-        ("src/Lightbox.App/ViewModels/MainViewModel.cs", 670),
+        // Raised by exactly four for B201's `ThumbnailCache`: the field itself
+        // plus its two calls on the frame-invalidation funnel. Irreducible here
+        // rather than extractable — two partials read the field, so the
+        // decomposition convention puts it in the shared block, and the funnel
+        // exists precisely so no cache can be invalidated without the others.
+        // Everything else about the fix, including all of its reasoning, is in
+        // ThumbnailCache.cs; only these four lines had to land in this file.
+        ("src/Lightbox.App/ViewModels/MainViewModel.cs", 674),
         // Lowered three times, twice as CanvasControl.Guides.cs grew — the
         // guide-grab section, then the Guides/DraftGuide/BalanceDots overlay
         // properties — and once when CanvasControl.Pointer.cs took what the

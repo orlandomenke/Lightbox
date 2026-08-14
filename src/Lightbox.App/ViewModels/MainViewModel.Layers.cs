@@ -354,7 +354,7 @@ public partial class MainViewModel
         {
             // Nothing to invalidate: the step moved the layer structure and no
             // drawing changed, so every cached frame bitmap and thumbnail is
-            // still exactly right (B199). The canvas is still republished below,
+            // still exactly right (B201). The canvas is still republished below,
             // because which layers composite and in what order *did* change.
         }
         else
@@ -928,6 +928,10 @@ public partial class MainViewModel
     private SKBitmap ThumbSource(Frame frame, int celIndex) =>
         _cache.Get(frame, Scene.Width, Scene.Height, celIndex: celIndex);
 
+    /// <summary>How the thumbnail cache is doing — B201's guard reads this.</summary>
+    internal (int Hits, int Renders, int Count) ThumbnailTraffic =>
+        (_thumbs.Hits, _thumbs.Renders, _thumbs.Count);
+
     /// <summary>
     /// Update timeline thumbnails lazily: only cells whose keyed frame is new,
     /// changed, or explicitly marked dirty are re-rendered.
@@ -947,7 +951,7 @@ public partial class MainViewModel
                 }
                 // The cell's remembered id says only whether it is already
                 // showing the right drawing; whether that drawing's thumbnail
-                // has to be *made* is the cache's question now (B199). The two
+                // has to be *made* is the cache's question now (B201). The two
                 // used to be the same test, which is why re-pointing a row at
                 // another layer re-rendered the whole timeline.
                 // _allThumbsDirty still forces every cell through the cache: a
