@@ -165,16 +165,22 @@ public class MonolithRatchetTests(ITestOutputHelper output)
         // Measured alone the last two wanted 4,327 and 4,271; taking either on
         // the merged tree would bank the extraction's slack as permanent
         // headroom, which is the one thing a ratchet must not do.
-        // Two raises met here, and the number is neither side's — it is the
+        // THREE raises met here, and the number is none of theirs — it is the
         // merged tree's, which is the rule the paragraph above states and the
-        // one a conflict like this exists to test. Taking either branch's
-        // figure would bank the other's slack as headroom nobody earned.
+        // one a conflict like this exists to test. Taking any branch's figure
+        // would bank the others' slack as headroom nobody earned. Every reason
+        // is kept, because taking one side would delete another's and leave a
+        // number nobody can account for.
         //
         // → the layer docker's drag-and-drop wiring: two pointer handlers on
         // the row template and three DragDrop attributes on the ItemsControl.
         // Event attributes live on the element they handle; the handlers
         // themselves went to MainWindow.Workspace.cs.
-        // → the layer docker's link menu (Q87): the Linking and
+        // → the past-the-end cel's hatch (Q90): one setter and its two-line
+        // reason. The brush itself is in Palette.axaml, where the colour
+        // system lives; only the style selector has to be here, because a
+        // selector cannot live anywhere else.
+        // → the layer docker's link menu (Q89): the Linking and
         // Follows-the-rig flyouts. Menu items are the case this budget's note
         // already allows — there is no smaller place for a MenuItem than the
         // ContextMenu it belongs to, and moving the whole context menu out
@@ -182,7 +188,7 @@ public class MonolithRatchetTests(ITestOutputHelper output)
         // The bracket that shipped beside them did NOT raise it: that is
         // self-contained chrome, so it went to LinkBracket.axaml and cost one
         // hosting line instead of fourteen.
-        ("src/Lightbox.App/Views/MainWindow.axaml", 4301),
+        ("src/Lightbox.App/Views/MainWindow.axaml", 4304),
         // Lowered when the overlay-gesture wiring moved to MainWindow.Overlays.cs,
         // and again (449 → 427) when the bone gesture handler followed it there.
         // A merge had left that one block behind in the code-behind while its

@@ -5,7 +5,7 @@ using Xunit;
 namespace Lightbox.Core.Tests;
 
 /// <summary>
-/// Layer links — a set of layers that are one drawing (Q87).
+/// Layer links — a set of layers that are one drawing (Q89).
 /// </summary>
 /// <remarks>
 /// <para>

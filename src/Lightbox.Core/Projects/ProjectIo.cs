@@ -1384,6 +1384,7 @@ public static class ProjectIo
     public static readonly IReadOnlySet<string> SystemFolders = new HashSet<string>(
         [
             DocumentsDir, LegacyDocumentsDir, ProjectSheets.RootDir,
+            ProjectBoards.RootDir, ProjectBoards.ImagesDir,
             "palettes", "gradients", "assets", ".autosave", ProjectVersions.Dir,
         ],
         StringComparer.OrdinalIgnoreCase);

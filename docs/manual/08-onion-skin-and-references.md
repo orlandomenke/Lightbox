@@ -98,16 +98,47 @@ and the taped copy on the canvas updates by itself. Undoing the sheet edit
 updates it back. A view that is later deleted leaves its last picture standing,
 the way a missing video file leaves its extracted frames.
 
-### A character sheet in its own window
+### The reference board
 
-The **🗔** button beside a view in the **Reference sheets** panel opens that
-view in a small window of its own — the model sheet held up next to the easel,
-instead of opened in its place. Put it beside the canvas and draw.
+The **🗔** button beside a view in the **Reference sheets** panel opens the
+**reference board** — a wall of reference beside the easel, instead of one
+picture opened in the drawing's place. Put it on a second screen, or beside the
+canvas, and draw.
 
-The window is a **viewer**: it follows the sheet live — draw on the view in its
-tab, hide one of its layers, undo, and the window updates by itself — but
-drawing happens in the tab, not in the window. One window per view; clicking
-**🗔** again brings the open one forward, and it closes with the application.
+It fills itself. Every reference sheet the document can consult is pinned up
+automatically, each view **flattened to one picture** rather than a stack of
+layers, laid out to fit the window. Sheets belonging to a folder above the
+document are in scope, so a knight's animations all open the knight's wall.
+
+| To do this | Do that |
+| --- | --- |
+| Move a picture | Drag it. Picking it up brings it to the front |
+| Resize it | Drag its bottom-right corner. The shape is kept |
+| Change the stacking | Right-click ▸ **Bring to front** / **Send to back** |
+| Take one down | Right-click ▸ **Take off the board** |
+| Tidy the whole wall | **Auto-arrange** — every picture fitted into the space there is, in the order they are in |
+| Add a picture from disk | **Add image…**, or drag files onto the board |
+| Add one from a web page | Drag the image off the page onto the board |
+| Put a sheet back up | **Sheets ▾** lists everything in scope that is not on the wall |
+| Move around | Wheel zooms, middle-drag or drag the empty background pans |
+
+The sheets on it stay **live**: draw on a view in its tab, hide one of its
+layers, undo, and its picture on the board updates by itself. Drawing still
+happens in the tab, not on the board. A view deleted from the project comes off
+the wall; imported pictures answer to nothing in the document and stay.
+
+**The arrangement is remembered.** It is saved as you make it, and belongs to
+the folder the references belong to — so every animation of the same subject
+opens the same wall, where you left it, in the session after this one. A
+document that is not in a project keeps its own board inside the file instead.
+
+**Imported pictures are copied into the project**, into a `references` folder
+beside your art. The original can be moved, renamed or deleted afterwards and
+the board is unaffected — which is the point, since a picture dragged off a web
+page has no file to point at in the first place.
+
+Clicking **🗔** again brings the open board forward; there is one board window,
+not one per picture, and it closes with the application.
 
 **What detection actually looks for.** Not gaps in the whole image — the
 drawings themselves. It finds every connected mark on the sheet and then throws

@@ -89,7 +89,7 @@ public class LayerLinkToolTests
         Assert.Equal(link.Id, At(vm, 1).LinkId);
         // A new link carries bones and nothing else — rigging is why the
         // gesture exists, and arriving with everything switched on is the
-        // general-mechanism trap Q87 paid to avoid.
+        // general-mechanism trap Q89 paid to avoid.
         Assert.True(link.CarriesBones);
         Assert.False(link.CarriesAlpha);
         Assert.False(link.CarriesVisibility);

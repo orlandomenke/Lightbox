@@ -10,6 +10,73 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
+## Q90 · Two kinds of empty cell look alike in the X-sheet — how are they told apart? — **answered 2026-08-14: hatch the past-the-end cells**
+
+> **Renumbered from Q87 on 2026-08-14.** Two branches took the id
+> independently and both merged, so `main` carried a duplicate that
+> `bugs.py ids` cannot see until the merge exists — which is the exact failure
+> the pre-push check was added for, arriving one merge too late. Renumbered
+> rather than either entry being dropped: taking one side of a ledger conflict
+> leaves a file with no duplicate in it and a question permanently gone. This
+> one moved because it had four citations to the whiteboard's ten.
+
+Raised by the owner from a screenshot: *"we now have 2 types of empty cells.
+The red circled ones are after deleting cells. The green circled ones are
+default. The deleted ones are scrubbable and auto create keyframes when
+painting. The other are not scrubbable and unselectable. This is creating some
+confusion, though also helpful as the playerhead never reaches the empty ones.
+But still it is a bit confusing as both seem deleted."*
+
+The two are real and the model already separates them: a cel inside the scene
+with no drawing is a **hold or a blanked cel** — the playhead goes there and a
+mark keys it — while a cell past `Scene.FrameCount` is **virtual**
+(`FrameCell.IsVirtual`), refused by `SelectFrame`, by the cel drag and by the
+range highlight. The only thing saying so was `Opacity 0.35`
+(`MainWindow.axaml`, `Button.cel.virtualCell`), which is far too quiet to carry
+a distinction that decides whether a click does anything.
+
+**Answered: hatch the past-the-end cells** — keep the cell boxes and fill them
+with a faint diagonal hatch or darker tone.
+
+The recommendation was *the grid stops* — dropping the cell chrome entirely
+past the end, so the sheet visibly ends where the scene does. The owner's
+choice keeps the column grid legible far to the right, which is what you want
+when judging how far to extend a scene, and that is a real gain the
+recommendation gave up.
+
+What it costs, recorded because the choice was made knowingly: a hatch is **new
+visual vocabulary** — the sheet has no other hatched state, so it has to be
+learned rather than read, where an absent grid needs no explanation. It also
+has to stay legible against the current-frame highlight, the out-of-range dim
+(`Button.cel.dim`) and the selection tint without becoming noise, which is a
+tuning job the absent-grid option would not have had.
+
+## Q88 · What should "delete a column" be, when a column delete already exists? — **answered 2026-08-14: expose the existing one properly**
+
+Raised by the owner: *"we should also have a command for deleting a column at
+once in the timeline."*
+
+The capability is already there and unreachable, which is why it reads as
+missing. `DocumentEditor.DeleteFrame` removes the frame from **every** layer
+and ripples the rest back — a column delete in full — and the view model wraps
+it as `DeleteFrameCommand`. It is exposed as one 🗑 button on the timeline bar
+and **is not in `ShortcutMap`**, so it cannot be bound, searched or found. The
+X-sheet's own right-click *delete* is the row-scoped one (that layer's cels,
+pulling the row back), which is the one an artist finds first — hence the
+impression that only a row delete exists.
+
+**Answered: expose the existing one properly** — register it in `ShortcutMap`
+so it is bindable and searchable, and add it to the X-sheet's right-click menu
+as *Delete column*, worded to separate it from the row-scoped delete beside it.
+
+No new behaviour, which is the point: the alternatives offered were a
+non-rippling *clear the column in place* variant and a selection-driven
+multi-column delete. Both are defensible features and neither is what was
+missing here; adding one would have shipped a second thing to learn alongside
+the fix for the first. They stay unbuilt until asked for.
+
+---
+
 ## Q66 · The bug list is growing faster than it drains — what changes? — **answered 2026-08-12: fix rather than file, and a blocked run asks in a PR**
 
 Raised by the owner: *"I notice a lot more bugs being reported by the agentic
@@ -3577,7 +3644,59 @@ and 2 landed.
    would match the doc's phase boundary and produce one diff touching the
    solve three ways, which is where a determinism bug is hardest to localise.
 
-## Q87 · How a drawing knows which bone moves it — **answered 2026-08-14**
+## Q87 · The reference overlay as a whiteboard: storage, imports, mouse and the old window — **answered 2026-08-14, all four as recommended**
+
+Prompted before building the roadmap's reference overlay as a PureRef-style
+board: one window holding every reference sheet in scope, flattened to one
+picture each, auto-fitted, rearrangeable by hand, and able to hold imported and
+dragged-in pictures beside them.
+
+1. **The arrangement is a project sidecar, filed per scope.** A board hangs on
+   the folder a sheet made from that document would be filed on — the top of the
+   subtree — so every animation of the knight opens the knight's wall rather than
+   rebuilding its own. Path derived from the folder id, so there is no manifest
+   entry and no migration; a scope with no board has no file. A document with no
+   project falls back to a nullable `Doc.ReferenceBoard` with its pictures
+   embedded, which is the only case where a board carries pixels. The two
+   alternatives and what they cost: **per document** is one record instead of two
+   and makes the wall per-animation, which is the friction this feature exists to
+   remove; **workspace state** touches no document at all and loses the
+   arrangement on a workspace reset, which is that same friction with a longer
+   fuse.
+2. **Imported pictures are copied into the project**, into `references/`, and the
+   tile points at the copy. Embedding them like `ReferenceStrip` does would be
+   consistent and would put tens of megabytes of base64 into a file that is
+   otherwise strokes; linking absolute paths would be free and would break
+   silently the first time a downloads folder was emptied — and a picture dragged
+   off a web page has no durable path to link in the first place. The original
+   path is kept as provenance only.
+3. **Picking a picture up raises it; the menu sends it back.** Left-press brings
+   the tile to the front and starts the move, a corner drag resizes, the wheel
+   zooms and a middle-drag pans; *Bring to front* / *Send to back* / *Take off
+   the board* are on the right-click menu and in `ShortcutMap` under a new
+   **Reference** category. Select-without-raising was the safer option and made
+   the commonest action on a board cost two gestures. The literal reading of the
+   request — LMB raises, RMB lowers — was declined because it spends the right
+   button, and the board would then have no context menu for the operations that
+   have nowhere else to go.
+4. **The board supersedes Q69's single-view window**, which is deleted rather
+   than kept beside it. Q69 was right about *live* and wrong about *one*: an
+   artist works from several references at once, so one window per view meant
+   several windows and no way to arrange them against each other. Its four
+   promises — shows the picture, follows edits, does not churn on unrelated ones,
+   stops listening when closed — are carried over as the first four tests of
+   `ReferenceBoardWindowTests`, which is what makes this a replacement rather than
+   a rewrite. Keeping both was the low-risk option and would have left two
+   surfaces claiming to show a reference view, which is exactly how B133 started.
+
+One thing that was not a preference, whichever way the four went: **a view tile
+holds no pixels.** It names the view and renders through
+`RenderReferenceViewPng`, the same definition of "the view as a picture" the AI
+payloads and the taped-on-canvas strip use. A board that stored flattened copies
+would be a second, stale copy of every sheet in the project, and nothing would
+say when it had gone out of date.
+
+## Q89 · How a drawing knows which bone moves it — **answered 2026-08-14**
 
 Prompted by the owner's question, which exposed more than it asked: "is it
 bound to the layer? To the layer group? Is it assignable?" The honest answer
