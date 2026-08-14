@@ -66,6 +66,8 @@ warns about.
 | 0 | Reset zoom, rotation, mirror and pan |
 | Shift + drag | Resize the brush |
 | Wheel / Shift+wheel | Zoom / rotate the view |
+| Ctrl+Shift+R | Auto-arrange the reference board (in the board window) |
+| Ctrl+Shift+↑ / ↓ | Bring the last picture you touched forward / send it behind (in the board window) |
 
 Zoom, rotation, mirror and pan are **view-only**. They never touch the document.
 

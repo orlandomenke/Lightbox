@@ -250,6 +250,20 @@ public sealed class ShortcutMap
             new("timeline.cutCel", "Cut cel", "Timeline", G(Key.X, KeyModifiers.Control)),
             new("timeline.pasteCel", "Paste cel", "Timeline", G(Key.V, KeyModifiers.Control)),
 
+            // The reference board's own three (Q87). Registered here rather than
+            // wired straight to the window's key handler, because a command that
+            // is not in this map cannot be found, searched or rebound — which is
+            // the failure the whole map exists for. They are resolved only by the
+            // board window, so a gesture pressed over the art never reaches them;
+            // the gestures are still kept clear of the main window's, so an
+            // artist rebinding one is not surprised by the other.
+            new("reference.arrange", "Auto-arrange the reference board", "Reference",
+                G(Key.R, KeyModifiers.Control | KeyModifiers.Shift)),
+            new("reference.front", "Bring the reference forward", "Reference",
+                G(Key.Up, KeyModifiers.Control | KeyModifiers.Shift)),
+            new("reference.back", "Send the reference behind", "Reference",
+                G(Key.Down, KeyModifiers.Control | KeyModifiers.Shift)),
+
             new("docker.deleteLayer", "Delete layer", "Dockers", G(Key.Delete), ShortcutContext.Panel, DockPanelId.Layers),
             new("docker.clearLayer", "Blank layer content", "Dockers", G(Key.Back), ShortcutContext.Panel, DockPanelId.Layers),
             // Photoshop's and Krita's key, and global like theirs: merging is
