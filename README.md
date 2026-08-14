@@ -346,6 +346,17 @@ is for working offline and for testing the pipeline.
 > moved out of `mcp\` and back again; the current answer is `mcp\`. Claude
 > Desktop fails silently on a bad `command` — the tools simply don't appear.
 
+> **Upgrading and a fixed bug is still happening?** Ask for `get_scene` and read
+> the two build strings it returns. `appBuild` is the running Lightbox and
+> `mcpBuild` is the server Claude Desktop launched; they should be the same
+> commit. **If they differ, only one half was republished — and if `mcpBuild` is
+> missing entirely, the server predates the stamp and is definitely old.** The
+> server is a *published* executable, so a fix in the source does nothing until
+> it is rebuilt and Claude Desktop is fully quit and reopened; reloading is not
+> enough, because the existing server process keeps running. The same string is
+> the first line the server writes to stderr, so it is in Claude Desktop's logs
+> even when the server fails to start.
+
 ---
 
 ## Build from source

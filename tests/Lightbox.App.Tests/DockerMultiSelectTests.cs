@@ -184,6 +184,41 @@ public class DockerMultiSelectTests
     }
 
     [AvaloniaFact]
+    public void TheOnionToggle_StaysOnOneLayer_EvenWithSeveralSelected()
+    {
+        var vm = VmWithLayers(3);
+        vm.SelectLayer(Row(vm, 0), toggle: false, range: false);
+        vm.SelectLayer(Row(vm, 2), toggle: false, range: true);
+
+        Row(vm, 2).OnionEnabled = false;
+
+        // Which layers are in the onion stack is an arrangement tuned per layer
+        // while working, not a property of the drawing like the eye or the lock.
+        Assert.False(vm.Doc.Scene.Layers[2].OnionEnabled);
+        Assert.True(vm.Doc.Scene.Layers[1].OnionEnabled);
+        Assert.True(vm.Doc.Scene.Layers[0].OnionEnabled);
+    }
+
+    [AvaloniaFact]
+    public void TheActiveLayerCommands_MeanTheActiveLayer_NotTheSelection()
+    {
+        var vm = VmWithLayers(3);
+        vm.SelectLayer(Row(vm, 0), toggle: false, range: false);
+        vm.SelectLayer(Row(vm, 2), toggle: false, range: true);
+
+        vm.ToggleActiveLayerLockedCommand.Execute(null);
+        vm.ToggleActiveLayerAlphaLockedCommand.Execute(null);
+
+        // A control that says "the active layer" has to mean it, whatever is
+        // selected — otherwise the shortcut bar and the docker row disagree
+        // about what one click does.
+        Assert.True(vm.Doc.Scene.Layers[2].Locked);
+        Assert.True(vm.Doc.Scene.Layers[2].AlphaLocked);
+        Assert.False(vm.Doc.Scene.Layers[0].Locked);
+        Assert.False(vm.Doc.Scene.Layers[0].AlphaLocked);
+    }
+
+    [AvaloniaFact]
     public void MovingASelectionUp_KeepsItTogether_AndStopsAtTheTop()
     {
         var vm = VmWithLayers(4);

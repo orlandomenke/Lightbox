@@ -78,13 +78,21 @@ internal static class ScenePassBuilder
     /// the question is asked up front it has to have an answer, and "nothing is
     /// active" is it.
     /// </param>
+    /// <param name="IsScrubbing">
+    /// The playhead is being dragged. Distinct from <paramref name="IsPlaying"/>
+    /// because the two differ in what else is on screen — a scrub still draws
+    /// onion ghosts and still folds the layer stack, and playback does neither —
+    /// but they agree on the thing tiles care about: the sequence is moving, so
+    /// a cel costs its ink rather than its paper.
+    /// </param>
     internal readonly record struct State(
         int FrameIndex,
         string? ActiveLayerId,
         bool IsPlaying,
         bool IsLightTable,
         bool HaveViewport,
-        OnionSettings Onion);
+        OnionSettings Onion,
+        bool IsScrubbing = false);
 
     /// <summary>
     /// The moving and staying halves of a frame under a live transform, as the
@@ -136,23 +144,40 @@ internal static class ScenePassBuilder
         // publish with no viewport yet, or with a camera authored, takes the
         // bounded path, and a tile pass sent there would silently vanish.
         //
-        // Playback is what turns tiles on (B144/Q62): while frames are
+        // Motion is what turns tiles on (B144/Q62): while frames are
         // flipping, a cel costs its ink rather than its paper, so a
         // scene whose full-frame bitmaps thrash the cache above 720p stays
         // resident as tiles — measured at 145 → 14 ms a frame at 1080p on
-        // sparse cels. The line is drawn at motion on purpose: a paused
+        // sparse cels. The line is drawn at motion on purpose: a still
         // publish returns to the bounded compositor, so the still picture is
         // always today's canonical render, and any resample difference the
         // pyramid introduces below 100% zoom exists only while the sequence
-        // is moving. No live stroke, transform or ghost pass exists during
-        // playback, which is what keeps the two compositors' remaining
-        // differences (live clip masks, bake folding) out of reach.
+        // is moving.
+        //
+        // **Scrubbing joins playback here, and it is the case the win was
+        // always for.** The gate read `IsPlaying` alone, so dragging the
+        // playhead — B29's own repro, and the gesture an artist makes far more
+        // often than pressing play — paid the full-bitmap cost: measured 49.8 ms
+        // and 570 MB resident at 1080p on sparse cels against the tile path's
+        // 13.4 ms and 135 MB, and 260.9 ms against 32.2 at 4K. The justification
+        // is the same sentence as playback's: the sequence is moving, and the
+        // still picture at the end of the drag is composed by the bounded route
+        // like every other still.
+        //
+        // What differs from playback is what else is on screen, and neither
+        // reaches the compositors' remaining differences. A scrub draws onion
+        // ghosts (playback suppresses them) and still folds the layer stack
+        // (playback holds the fold off) — both produce *bitmap* passes, which
+        // FlattenTilePasses leaves alone while it converts the tile-native ones,
+        // so a mixed list composes correctly and simply wins less. What a scrub
+        // does not have is a live stroke or a live transform, which is what kept
+        // live clip masks out of reach for playback and keeps them out here.
         // Whether tiles are on the table at all. The two *document* conditions —
         // a camera, and a viewport to cull against — are asked through
         // TileFallback so a report can name them; the mode check stays here
         // because "not playing" is a choice rather than a frame the tiles
         // could not serve.
-        var tileModeOn = state.IsPlaying;
+        var tileModeOn = state.IsPlaying || state.IsScrubbing;
         var tileNativeDoc = tileModeOn && scene.Camera is null && state.HaveViewport;
 
         // Where the active layer's contribution begins and ends in the pass

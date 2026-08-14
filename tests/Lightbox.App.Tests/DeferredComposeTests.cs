@@ -42,10 +42,20 @@ public class DeferredComposeTests(ITestOutputHelper output)
     ];
 
     /// <summary>
-    /// The publisher's culled compose, reproduced exactly as it stood before
-    /// stage 3b moved it. The point of copying it rather than calling the new
-    /// code is that a shared helper would agree with itself no matter what.
+    /// The publisher's culled compose, reproduced exactly as it stands. The
+    /// point of copying it rather than calling the new code is that a shared
+    /// helper would agree with itself no matter what.
     /// </summary>
+    /// <remarks>
+    /// <b>And copying has its own failure, which B201 is.</b> This reference was
+    /// copied from a publisher that tinted with <c>Multiply</c>, so it agreed
+    /// with <see cref="DeferredCompose"/> perfectly while both disagreed with
+    /// <see cref="SceneRenderer"/> — the path that decides what onion skin looks
+    /// like. Two implementations copied from each other are one implementation
+    /// with two names, and no amount of comparing them finds the fault.
+    /// <see cref="TheTintMatchesTheSceneRenderer"/> is the cross-check that
+    /// does, and it belongs beside these rather than instead of them.
+    /// </remarks>
     private static SKImage ComposeAsThePublisherDid(
         IReadOnlyList<RenderPass> passes, SKColor background, double renderScale,
         SKImageInfo info, SKRectI viewport)
@@ -64,7 +74,7 @@ public class DeferredComposeTests(ITestOutputHelper output)
             if (pass.Opacity < 1.0)
                 paint.Color = paint.Color.WithAlpha((byte)(pass.Opacity * 255));
             if (pass.Tint.HasValue)
-                paint.ColorFilter = SKColorFilter.CreateBlendMode(pass.Tint.Value, SKBlendMode.Multiply);
+                paint.ColorFilter = SKColorFilter.CreateBlendMode(pass.Tint.Value, SKBlendMode.SrcIn);
             canvas.DrawBitmap(pass.Bitmap, visible, visible, paint);
 
             if (pass.Overlay is { } overlay)
@@ -189,5 +199,55 @@ public class DeferredComposeTests(ITestOutputHelper output)
 
         Assert.True(snapshot.IsDisposed);
         Assert.Throws<ObjectDisposedException>(() => snapshot.Materialise(null));
+    }
+
+    /// <summary>
+    /// A tinted pass composites the same on the moving canvas as on the still
+    /// one — background where the ghost is empty, not tint.
+    /// </summary>
+    /// <remarks>
+    /// <b>B201, reported as "as soon as the canvas moves the entire canvas turns
+    /// red".</b> Moving the canvas is what switches the publish from the ring
+    /// (<see cref="SceneRenderer"/>) to the culled route, and only the culled
+    /// route tinted with <c>Multiply</c>. Skia's blend-mode colour filter takes
+    /// the tint as the source, and Multiply against a transparent destination
+    /// returns the tint at full alpha — so every empty pixel of a ghost layer,
+    /// which is nearly all of it, came out solid #d04040.
+    /// <para>
+    /// The assertion is on the <em>empty</em> region rather than on the mark.
+    /// The mark differed too, but only in shade, and a test that compared marks
+    /// would have read as a near miss; the flood is the whole of what an artist
+    /// saw.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void TheTintMatchesTheSceneRenderer()
+    {
+        const int w = 40, h = 40;
+        var ghost = new SKBitmap(new SKImageInfo(w, h, SKColorType.Rgba8888, SKAlphaType.Premul));
+        using (var c = new SKCanvas(ghost))
+        {
+            c.Clear(SKColors.Transparent);
+            using var p = new SKPaint { Color = SKColors.Black };
+            c.DrawRect(0, 0, 10, 10, p); // one mark; the rest of the ghost is empty
+        }
+
+        var tint = new SKColor(0xd0, 0x40, 0x40);
+        List<RenderPass> passes = [new(ghost, tint, 0.35, SKBlendMode.SrcOver)];
+        var background = new SKColor(0x80, 0x80, 0x80);
+        var info = new SKImageInfo(w, h, SKColorType.Rgba8888, SKAlphaType.Premul);
+
+        using var still = SceneRenderer.Compose(w, h, passes, background);
+        using var moving = new DeferredCompose(passes, background, 1.0, info, new SKRectI(0, 0, w, h))
+            .Compose(null, out _);
+        using var stillBmp = SKBitmap.FromImage(still);
+        using var movingBmp = SKBitmap.FromImage(moving);
+
+        output.WriteLine($"still  mark={stillBmp.GetPixel(5, 5)} empty={stillBmp.GetPixel(30, 30)}");
+        output.WriteLine($"moving mark={movingBmp.GetPixel(5, 5)} empty={movingBmp.GetPixel(30, 30)}");
+
+        Assert.Equal(background, movingBmp.GetPixel(30, 30));
+        Assert.Equal(stillBmp.GetPixel(30, 30), movingBmp.GetPixel(30, 30));
+        Assert.Equal(stillBmp.GetPixel(5, 5), movingBmp.GetPixel(5, 5));
     }
 }

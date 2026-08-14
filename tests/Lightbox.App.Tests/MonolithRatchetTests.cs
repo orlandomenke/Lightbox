@@ -150,9 +150,21 @@ public class MonolithRatchetTests(ITestOutputHelper output)
         // to live in — XAML cannot be split the way the code-behind was — and
         // a toolbar that hides tools to satisfy a line count is the tail
         // wagging the dog.
-        ("src/Lightbox.App/Views/MainWindow.axaml", 4327),
-        // Lowered when the overlay-gesture wiring moved to MainWindow.Overlays.cs.
-        ("src/Lightbox.App/Views/MainWindow.axaml.cs", 449),
+        // → 4,270 (2026-08-14), re-measured on the merged tree exactly as the
+        // CanvasControl note above says to. Three independent changes met here:
+        // the onion bar was extracted to OnionBar.axaml (−71), the TimelineRuler
+        // element gained one attribute (+1), and the bone tool's options bar
+        // arrived as BoneOptionsBar.axaml leaving one hosting line behind (+1).
+        // Measured alone the last two wanted 4,327 and 4,271; taking either on
+        // the merged tree would bank the extraction's slack as permanent
+        // headroom, which is the one thing a ratchet must not do.
+        ("src/Lightbox.App/Views/MainWindow.axaml", 4271),
+        // Lowered when the overlay-gesture wiring moved to MainWindow.Overlays.cs,
+        // and again (449 → 427) when the bone gesture handler followed it there.
+        // A merge had left that one block behind in the code-behind while its
+        // own siblings — the press, the weight stroke — sat in the partial, so
+        // reuniting them paid for the branch's new line and 21 more besides.
+        ("src/Lightbox.App/Views/MainWindow.axaml.cs", 427),
     ];
 
     private static string RepoRoot()
