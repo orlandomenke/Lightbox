@@ -165,7 +165,11 @@ public class MonolithRatchetTests(ITestOutputHelper output)
         // Measured alone the last two wanted 4,327 and 4,271; taking either on
         // the merged tree would bank the extraction's slack as permanent
         // headroom, which is the one thing a ratchet must not do.
-        ("src/Lightbox.App/Views/MainWindow.axaml", 4271),
+        // → 4,272 (2026-08-14): the past-the-end cel's hatch (Q87) — one setter
+        // and its two-line reason. The brush itself is in Palette.axaml, where
+        // the colour system lives; what has to be here is the style that uses
+        // it, because a style selector cannot live anywhere else.
+        ("src/Lightbox.App/Views/MainWindow.axaml", 4272),
         // Lowered when the overlay-gesture wiring moved to MainWindow.Overlays.cs,
         // and again (449 → 427) when the bone gesture handler followed it there.
         // A merge had left that one block behind in the code-behind while its
