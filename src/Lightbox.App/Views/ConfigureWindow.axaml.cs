@@ -350,9 +350,13 @@ public partial class ConfigureWindow : Window
             .Select((p, i) => (p, i)).First(x => x.p.Id == _ai.Provider.Id).i;
         AiTestDepthBox.ItemsSource = AiDepths.Select(d => d.Label).ToList();
         AiTestDepthBox.SelectedIndex = 0;
+        AiRunSizeBox.ItemsSource = AiRunSizes.Select(r => r.Label).ToList();
+        AiRunSizeBox.SelectedIndex = 0;
         _loadingAi = false;
         RebuildAiFields();
         RefreshAiTestExplain();
+        RefreshAiRunCost();
+        ShowStoredProfile();
     }
 
     private void OnAiEnabledChanged(object? sender, RoutedEventArgs e)
@@ -402,6 +406,10 @@ public partial class ConfigureWindow : Window
         if (_loadingAi) return;
         Lightbox.Ai.AiSettings.Save(_ai);
         _vm?.ReloadAiProvider();
+        // Typing a different model name makes a stored reading about something
+        // else, and the warning has to appear as the field changes rather than
+        // at the next window open.
+        ShowStoredProfile();
     }
 
     private void OnAiProviderChanged(object? sender, SelectionChangedEventArgs e)
@@ -477,6 +485,190 @@ public partial class ConfigureWindow : Window
             AiTestProgress.IsVisible = false;
             AiTestElapsed.IsVisible = false;
         }
+    }
+
+    // ---- grading the model (phase 2) ---------------------------------------------
+
+    private CancellationTokenSource? _aiProfileCts;
+
+    /// <summary>Test seam: the profile lines the page is currently showing.</summary>
+    internal IReadOnlyList<string> AiProfileShown { get; private set; } = [];
+
+    /// <summary>Test seam: whether the page is warning that the profile is about another model.</summary>
+    internal bool AiProfileIsStale => AiProfileStale?.IsVisible ?? false;
+
+    /// <summary>The two run sizes, in the order the picker shows them.</summary>
+    private static readonly (bool Full, string Label)[] AiRunSizes =
+    [
+        (false, "Short run"),
+        (true, "Full run"),
+    ];
+
+    private static IReadOnlyList<Lightbox.Ai.Golden.GoldenPair> AiPairs(bool full) =>
+        full ? Lightbox.Ai.Golden.GoldenSet.Full() : Lightbox.Ai.Golden.GoldenSet.Short();
+
+    private bool AiFullRun => AiRunSizes[Math.Max(0, AiRunSizeBox?.SelectedIndex ?? 0)].Full;
+
+    private void OnAiRunSizeChanged(object? sender, SelectionChangedEventArgs e) => RefreshAiRunCost();
+
+    /// <summary>
+    /// What the chosen run will send, before any of it is sent.
+    /// </summary>
+    /// <remarks>
+    /// Payload characters rather than tokens or money, because the conversion
+    /// is model-specific and a currency figure would be a guess wearing a
+    /// uniform. What the number is for is the *comparison* — the full run is
+    /// about five times the short one, and seeing that is what makes choosing
+    /// it a decision rather than a click.
+    /// </remarks>
+    private void RefreshAiRunCost()
+    {
+        if (AiRunCost is null) return;
+        var pairs = AiPairs(AiFullRun);
+        var chars = Lightbox.Ai.Golden.CapabilityProfiler.EstimatedPayloadChars(pairs);
+        var other = Lightbox.Ai.Golden.CapabilityProfiler.EstimatedPayloadChars(AiPairs(!AiFullRun));
+        AiRunCost.Text = AiFullRun
+            ? $"{pairs.Count} pairs, about {chars:N0} characters of payload — roughly {(double)chars / Math.Max(1, other):F0}× the short run. "
+              + "The long stroke ladder is what costs; it is also what finds where the model gives up."
+            : $"{pairs.Count} pairs, about {chars:N0} characters of payload. "
+              + "Enough to grade every category and place the stroke ladder roughly; the full run places it precisely.";
+    }
+
+    /// <summary>
+    /// Show the profile kept from last time, if this connection has one.
+    /// </summary>
+    /// <remarks>
+    /// It is stored against the model it was measured on, so pointing the
+    /// connection at a different model leaves a reading that is about
+    /// something else. Rather than discard it — the old reading is still true
+    /// about the old model, and re-running costs money — the page keeps it and
+    /// says whose it is.
+    /// </remarks>
+    private void ShowStoredProfile()
+    {
+        if (AiProfileResult is null) return;
+        if (_ai.LastProfile is not { } stored)
+        {
+            AiProfileShown = [];
+            AiProfileResult.IsVisible = false;
+            return;
+        }
+        ShowProfileLines(stored.Lines, stored.Subject, stored.Measured);
+    }
+
+    private void ShowProfileLines(IReadOnlyList<string> lines, string subject, DateTimeOffset measured)
+    {
+        AiProfileShown = lines;
+        AiProfileLines.ItemsSource = lines;
+        AiProfileWhen.Text = $"Measured {measured.ToLocalTime():d MMM yyyy HH:mm}";
+        var current = AiSubject();
+        var stale = !string.Equals(subject, current, StringComparison.Ordinal);
+        AiProfileStale.IsVisible = stale;
+        AiProfileStale.Text = stale
+            ? $"This reading is about {subject}, and the connection now points at {current}. Grade it again to measure what is actually configured."
+            : "";
+        AiProfileResult.IsVisible = true;
+    }
+
+    /// <summary>Who the profile is about: the provider, and the model when there is one.</summary>
+    private string AiSubject() =>
+        _ai.Value("model") is { Length: > 0 } model ? $"{_ai.Provider.Name} · {model}" : _ai.Provider.Name;
+
+    private async void OnAiProfileClicked(object? sender, RoutedEventArgs e)
+    {
+        // Same contract as Test connection: a second click cancels, so a model
+        // thinking for ten minutes never leaves a dead button.
+        if (_aiProfileCts is not null)
+        {
+            await _aiProfileCts.CancelAsync();
+            return;
+        }
+
+        Lightbox.Ai.IAiArtist? artist;
+        try
+        {
+            artist = Lightbox.Ai.AiArtistFactory.Create(_ai, ignoreSwitch: true);
+        }
+        catch (Exception ex)
+        {
+            SetAiProfileStatus(ex.Message, ok: false);
+            return;
+        }
+        if (artist is null)
+        {
+            SetAiProfileStatus("Fill the fields above first — there is no connection to grade.", ok: false);
+            return;
+        }
+
+        var full = AiFullRun;
+        var pairs = AiPairs(full);
+        var subject = AiSubject();
+        _aiProfileCts = new CancellationTokenSource();
+        AiProfileButton.Content = "Cancel";
+        AiProfileProgress.IsVisible = true;
+        AiProfileElapsed.IsVisible = true;
+
+        var started = DateTime.UtcNow;
+        var stage = $"Grading {subject} on {pairs.Count} pairs…";
+        SetAiProfileStatus(stage, ok: null);
+        var clock = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        clock.Tick += (_, _) =>
+        {
+            var elapsed = DateTime.UtcNow - started;
+            AiProfileElapsed.Text = $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:00}";
+            SetAiProfileStatus(stage, ok: null);
+        };
+        clock.Start();
+
+        try
+        {
+            var done = 0;
+            var progress = new Progress<string>(s => stage = $"{++done}/{pairs.Count} — {s}");
+            var profile = await Lightbox.Ai.Golden.CapabilityProfiler.ProfileAsync(
+                artist, subject, pairs, full, progress, _aiProfileCts.Token);
+            clock.Stop();
+
+            // Kept before it is shown, so closing the window does not lose a
+            // run somebody paid for.
+            _ai.LastProfile = new Lightbox.Ai.StoredCapabilityProfile(
+                subject, DateTimeOffset.UtcNow, full, profile.Lines());
+            SaveAi();
+            ShowProfileLines(profile.Lines(), subject, DateTimeOffset.UtcNow);
+            SetAiProfileStatus("", ok: null);
+        }
+        catch (OperationCanceledException)
+        {
+            clock.Stop();
+            // Nothing is stored for a part-finished run: half a ladder would
+            // report a degradation rung that is really where somebody clicked.
+            SetAiProfileStatus("Stopped. Nothing was recorded — a part-finished run would report the wrong limit.", ok: null);
+        }
+        catch (Exception ex)
+        {
+            clock.Stop();
+            SetAiProfileStatus(ex.Message, ok: false);
+        }
+        finally
+        {
+            clock.Stop();
+            _aiProfileCts.Dispose();
+            _aiProfileCts = null;
+            AiProfileButton.Content = "Grade this model";
+            AiProfileProgress.IsVisible = false;
+            AiProfileElapsed.IsVisible = false;
+        }
+    }
+
+    private void SetAiProfileStatus(string message, bool? ok)
+    {
+        if (AiProfileStatus is null) return;
+        AiProfileStatus.Text = message;
+        AiProfileStatus.Foreground = ok switch
+        {
+            true => Avalonia.Media.Brushes.MediumSeaGreen,
+            false => Avalonia.Media.Brushes.IndianRed,
+            _ => Avalonia.Media.Brushes.Goldenrod,
+        };
     }
 
     /// <summary>Green passed, amber connected-but-unusable, red not connected.</summary>
