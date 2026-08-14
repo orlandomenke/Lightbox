@@ -84,7 +84,7 @@
       <Setter Property="Background" Value="{StaticResource CelTweenBrush}" />
     </Style>
     <!-- Past the end of the scene: hatched, so "no frame here" cannot be read
-         as "a frame with no drawing". Q87. -->
+         as "a frame with no drawing". Q89. -->
     <Style Selector="Button.cel.virtualCell">
       <Setter Property="Opacity" Value="0.35" />
       <Setter Property="Background" Value="{StaticResource CelVirtualHatchBrush}" />

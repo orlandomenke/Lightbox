@@ -230,7 +230,7 @@
   <SolidColorBrush x:Key="CelSelectedBrush" Color="{StaticResource AccentViolet}" Opacity="0.44" />
 
   <!--
-    Past the end of the scene. Q87.
+    Past the end of the scene. Q89.
 
     An empty cel inside the scene and a cell past its end were both "a dark
     box": the first is a hold or a blanked drawing, where the playhead goes and
