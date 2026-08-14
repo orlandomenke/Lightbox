@@ -4,10 +4,12 @@ Status: **Phase 0 built** (2026-08-12) — `InbetweenVerifier` in
 `Lightbox.Core/Inbetween`, the per-frame refusal path in `AiInbetweenAsync`,
 and `AiProvenance` on the frame, each with the tests the *Verification*
 section below asked for. The connection tester now judges with the same
-verifier rather than its own embryo. **Phase 1's first half is built**
-(2026-08-14) — shape is in the matching cost; see *Shape in the cost* below.
-Its second half (breakdowns as a hard constraint) and phases 2–4 — the golden
-set, repair, and adaptive shaping — remain design. The taxonomy half of
+verifier rather than its own embryo. **Phase 1 is built**
+(2026-08-14) — shape is in the matching cost, and breakdowns now constrain the
+arc across a whole run; see the two sections under *No naming conventions*.
+Both turned out to describe something other than what was wrong, which is the
+most reusable thing the phase produced. Phases 2–4 — the golden set, repair, and
+adaptive shaping — remain design. The taxonomy half of
 the subject reading (`DESIGN-subject-reading.md`) predates all of this.
 
 Two things Phase 0 taught that the tier table did not state, both about drag:
@@ -187,7 +189,52 @@ asks the artist for anything:
   endpoint alignment separate a left arm from a right arm. **Built, B196** —
   and the measurement changed what the item is. See below.
 - **`FrameRole.Breakdown` as a hard constraint** — the arc must pass through it.
-  The artist already drew it; using it costs them nothing.
+  The artist already drew it; using it costs them nothing. **Built for the
+  deterministic path, B197/Q83 — and the item as written was wrong.** See below.
+
+### Breakdowns as a constraint — the item was already satisfied, and something else was broken
+
+This one asked for the arc to pass through a breakdown, and it already did. Not
+because anything honoured the role: `ExposureSheet.NextKeyIndex` finds the next
+*drawing* whatever its role, so a breakdown was the interval's **endpoint** and
+was therefore hit exactly. There was no constraint to add.
+
+The defect underneath was the **curve**, and it was visible only once the
+premise was checked. The timeline held two notions of a span:
+
+| | closes a span at |
+| --- | --- |
+| the inbetween command | the next **drawing** |
+| `SpacingChart.Intended` | the next **extreme**, or the end of the sheet |
+
+So the easing restarted at every breakdown: one slow-out/slow-in drawn across a
+run came out as two with a stutter in the middle. Measured on a straight
+y = 0 → 100 with a breakdown at the midpoint, the inbetweens landed at **25 and
+75**, where the same movement with no breakdown gives 12.5 and 87.5. A Q58
+timing chart meant different things in the two places for the same reason.
+
+The fix is one shared span (`ExposureSheet.RunAt`, using `SpacingChart`'s
+closing rule) and easing evaluated **once across the run**, each gap then
+interpolated linearly at the local fraction the global curve reached. The
+property that states it best, and the test that pins it: *a breakdown sitting on
+the arc changes nothing about the motion* — filling a run through it gives the
+identical numbers to filling the same movement with no breakdown at all.
+
+Three things this leaves for later phases:
+
+- **The AI path does not follow yet**, by decision rather than omission (Q83.3).
+  A third drawing in the request is ~+50% strokes — the dominant token cost —
+  and `InbetweenVerifier` would need piecewise betweenness. So the two producers
+  now disagree about the span: the exact disagreement this work removed, moved
+  one level up. Bounded, documented in the manual, and the natural thing for
+  Phase 3 to close when the verifier is being changed anyway.
+- **Piecewise betweenness is the verifier change that unblocks it.** Worth
+  designing when repair lands, not before.
+- **Check the premise before building the item.** Two of Phase 1's three
+  bullets turned out to describe something other than what was wrong — the
+  matcher was not mis-scoring but *tied*, and the breakdown was not missed but
+  *mis-eased*. Both were found by measuring the current behaviour first, and
+  neither would have been found by implementing what the bullet said.
 
 ### Shape in the cost — what building it taught
 
@@ -267,7 +314,7 @@ risking the work.
 | Phase | What | Why here |
 | --- | --- | --- |
 | **0** | Verifier, refusal path, provenance — **done** | Biggest win; no new model calls |
-| **1** | Matcher: shape cost — **done**; breakdowns as constraints — next | Deterministic; improves the non-AI path too |
+| **1** | Matcher: shape cost, breakdowns as constraints — **done** (deterministic path; the AI path keeps per-gap requests, Q83) | Deterministic; improves the non-AI path too |
 | **2** | Golden set + capability profile | Makes reliability a number |
 | **3** | Repair loop | Needs specific findings first |
 | **4** | Adaptive shaping, best-of-N, authored wind | Needs the profile |
