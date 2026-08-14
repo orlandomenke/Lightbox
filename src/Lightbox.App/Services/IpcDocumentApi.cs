@@ -55,11 +55,34 @@ public sealed class IpcDocumentApi(MainViewModel vm)
 
     // ---- ops ----------------------------------------------------------------
 
+    /// <summary>
+    /// The running application's build, answered on <c>get_scene</c> so an agent
+    /// learns it in the call it already makes first.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>It lives on this side of the pipe on purpose.</b> B195 was a bug in
+    /// the MCP server that stayed fixed in source and broken in practice,
+    /// because Claude Desktop launches a <em>published</em>
+    /// <c>Lightbox.Mcp.exe</c> and nothing tells an agent which build that is.
+    /// Putting the app's build here means even a server too old to know about
+    /// this feature still relays it — <c>LightboxTools</c> forwards the payload
+    /// verbatim.
+    /// </para>
+    /// <para>
+    /// So the pair reads as a diagnosis rather than as trivia. Both keys
+    /// present and equal is the healthy case; <c>mcpBuild</c> <b>absent</b>
+    /// means the server predates this and is certainly stale; the two
+    /// disagreeing means one half was republished and the other was not, which
+    /// is the shape of every bug that is "already fixed" and still happening.
+    /// </para>
+    /// </remarks>
     private IpcProtocol.Response GetScene()
     {
         var s = vm.Doc.Scene;
         return IpcProtocol.Response.Success(new
         {
+            AppBuild = DiagnosticLog.Build,
             s.Width,
             s.Height,
             s.Fps,
