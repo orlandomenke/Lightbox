@@ -1,0 +1,85 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             x:Class="Lightbox.App.Views.BoneOptionsBar"
+             x:DataType="vm:MainViewModel">
+  <!--
+    A collaborator rather than 76 more lines of MainWindow.axaml, which is on
+    the monolith ratchet. The ratchet's note says menu items have nowhere to
+    go and so may raise the budget; a tool's options panel is not one of
+    those - it is exactly the self-contained thing a UserControl is for, and
+    extracting it keeps the budget flat instead of spending it.
+
+    The DataContext is inherited, so every binding here reads the same
+    MainViewModel the bar around it does.
+  -->
+  <!-- The bone tool. Everything it can do was a hidden mode behind a
+       shortcut, reported as "all other options including weight painting
+       is not clear at all" — so the bar carries the mode, the brush and
+       its settings, and the bones themselves. Nothing here is greyed
+       out: controls that need a bone appear with one. -->
+  <StackPanel Orientation="Horizontal" Spacing="12" IsVisible="{Binding IsBoneTool}">
+    <!-- Which half of the tool is in hand, said rather than remembered. -->
+    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+      <RadioButton GroupName="BoneMode" Content="Bind" IsChecked="{Binding !PosingMode}"
+                   ToolTip.Tip="Edit the skeleton against its rest pose: drag empty canvas to add a bone, a shaft to move it, a tip to re-aim it. (Shift+K switches)" />
+      <RadioButton GroupName="BoneMode" Content="Pose" IsChecked="{Binding PosingMode}"
+                   ToolTip.Tip="Turn bones and key the pose at the playhead. (Shift+K switches)" />
+    </StackPanel>
+    <TextBlock Text="no rig yet — drag on the canvas to add the first bone"
+               VerticalAlignment="Center" Opacity="0.6"
+               IsVisible="{Binding !HasArmature}" />
+    <!-- The bones themselves: findable by name, not only by hitting them. -->
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                IsVisible="{Binding HasArmature}">
+      <TextBlock Text="Bone" VerticalAlignment="Center" Opacity="0.7" />
+      <ComboBox ItemsSource="{Binding BoneRows}" SelectedValue="{Binding SelectedBoneId}"
+                SelectedValueBinding="{Binding Id}" MinWidth="130"
+                ToolTip.Tip="Every bone in the rig, children indented under their parent. Picking one here selects it on the canvas.">
+        <ComboBox.ItemTemplate>
+          <DataTemplate>
+            <TextBlock Text="{Binding Label}" FontFamily="{StaticResource MonoFontFamily}" />
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                IsVisible="{Binding HasSelectedBone}">
+      <TextBox Text="{Binding SelectedBoneName, Mode=TwoWay}" Width="110"
+               ToolTip.Tip="Rename the bone. Ending a pair in .l and .r is what lets X-symmetry paint both sides at once." />
+      <Button Content="Delete" Command="{Binding DeleteBoneCommand}"
+              ToolTip.Tip="Delete this bone. Its children are re-parented to its parent and stay where they are; strokes bound to it lose that binding." />
+    </StackPanel>
+    <!-- The weight brush and its settings, which had no surface at all. -->
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                IsVisible="{Binding HasArmature}">
+      <ToggleButton Content="Weights" IsChecked="{Binding WeightPainting, Mode=TwoWay}"
+                    ToolTip.Tip="Paint influence for the selected bone instead of working bones (Ctrl+Shift+K)." />
+      <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                  IsVisible="{Binding WeightPainting}">
+        <ComboBox SelectedIndex="{Binding WeightBrushModeIndex, Mode=TwoWay}" MinWidth="94"
+                  ToolTip.Tip="Add builds influence, Subtract takes it away, Smooth averages toward the neighbours — the armpit fixer.">
+          <ComboBoxItem Content="Add" />
+          <ComboBoxItem Content="Subtract" />
+          <ComboBoxItem Content="Smooth" />
+        </ComboBox>
+        <TextBlock Text="Size" VerticalAlignment="Center" Opacity="0.7" />
+        <NumericUpDown Value="{Binding WeightBrushRadius, Mode=TwoWay}" Minimum="2" Maximum="400"
+                       Increment="2" FormatString="0"
+                       ToolTip.Tip="Brush radius in document pixels. Pressure drives strength within it." />
+        <CheckBox Content="Mirror" IsChecked="{Binding MirrorWeights, Mode=TwoWay}"
+                  ToolTip.Tip="Paint the named pair too (hip.l ↔ hip.r), mirrored across the pair's own axis." />
+      </StackPanel>
+    </StackPanel>
+    <!-- Binding actions, which only mean anything with strokes picked. -->
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                IsVisible="{Binding HasArmature}">
+      <Button Content="Assign" Command="{Binding AssignStrokesToBoneCommand}"
+              ToolTip.Tip="Bind the selected lines wholly to the selected bone — the cutout workflow." />
+      <Button Content="Auto-bind" Command="{Binding AutoBindStrokesCommand}"
+              ToolTip.Tip="Weight the selected lines against the whole skeleton by distance, then correct with the weight brush." />
+      <Button Content="Bake pose" Command="{Binding BakePoseCommand}"
+              ToolTip.Tip="Write this frame's pose into the drawing. Bound lines become ordinary posed lines." />
+    </StackPanel>
+  </StackPanel>
+</UserControl>

@@ -51,8 +51,17 @@ public static class PointerCursors
         CanvasCursorKind.Precise => Precise,
         CanvasCursorKind.Move => Move,
         CanvasCursorKind.PickRecords => Records,
+        CanvasCursorKind.Rotate => Rotate,
         _ => Default,
     };
+
+    /// <summary>
+    /// This drag turns something. <c>StandardCursorType</c> has no rotate, and
+    /// the four-way move is the one thing it must not be mistaken for — the
+    /// whole point is telling those two apart — so the nearest honest stock
+    /// cursor is the one that says "this handle turns".
+    /// </summary>
+    public static readonly Cursor Rotate = new(StandardCursorType.Hand);
 
     /// <summary>Nothing drawn — the brush ring is the pointer.</summary>
     public static readonly Cursor Hidden = new(StandardCursorType.None);

@@ -255,24 +255,6 @@ public partial class MainWindow : Window
         _vm.GuidesChanged += RefreshGuides;
 
         WireOverlayGestures();
-        Canvas.BoneGestureEnded += (id, grab, x0, y0, x1, y1) =>
-        {
-            if (id is null)
-            {
-                // An empty-canvas drag creates a bone — in bind mode only;
-                // posing an empty spot means nothing and writes nothing.
-                if (!_vm.PosingMode) _vm.CreateBoneFromDrag(x0, y0, x1, y1);
-            }
-            else if (_vm.PosingMode)
-            {
-                _vm.PoseBoneTo(id, x1, y1);
-            }
-            else if (grab is Rendering.BoneGrab.Origin or Rendering.BoneGrab.Tip)
-            {
-                _vm.DragBoneBind(id, grab, x1, y1);
-            }
-            RefreshArmatureOverlay();
-        };
         InitialiseRulers();
 
         // Right-click on the scrub bar: the one thing worth offering there is
@@ -373,7 +355,7 @@ public partial class MainWindow : Window
         // If canvas input ever fails, say so in the status bar instead of dying silently.
         Canvas.CanvasError += message => _vm.AiStatus = message;
 
-        Canvas.PointerHovered += (x, y, mods) => _vm.UpdatePointerContext(x, y, mods);
+        Canvas.PointerHovered += (x, y, mods) => _vm.UpdatePointerContext(x, y, mods, Canvas.ViewScale);
         Canvas.PointerExited += (_, _) => _vm.ClearPointerContext();
         Canvas.ViewChanged += () =>
         {

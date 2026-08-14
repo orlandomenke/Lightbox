@@ -101,7 +101,20 @@ public partial class MainViewModel
     /// </para>
     /// </remarks>
     public Rendering.CanvasCursorKind PointerIntent =>
-        Rendering.CanvasCursor.For(ActiveTool, CurrentTarget, _hoverModifiers);
+        // The Bone tool is the one whose gesture changes under the pointer,
+        // so it asks what is beneath rather than what is in hand. Everything
+        // else does one thing wherever it presses.
+        ActiveTool == ToolId.Bone
+            ? Rendering.CanvasCursor.ForBone(HoveredBoneGrab, PosingMode, WeightPainting)
+            : Rendering.CanvasCursor.For(ActiveTool, CurrentTarget, _hoverModifiers);
+
+    /// <summary>What the pointer is over, through the same hit-test the gesture uses.</summary>
+    private Rendering.BoneGrab HoveredBoneGrab =>
+        _hoverPoint is { } p
+            ? Rendering.ArmatureOverlay.Hit(BoneChromes, p.X, p.Y, _hoverScale).Grab
+            : Rendering.BoneGrab.None;
+
+    private double _hoverScale = 1.0;
 
     /// <summary>Why the active tool would do nothing here, or null.</summary>
     /// <remarks>
@@ -174,10 +187,12 @@ public partial class MainViewModel
     /// answer is used.
     /// </para>
     /// </remarks>
-    public void UpdatePointerContext(double x, double y, Avalonia.Input.KeyModifiers modifiers)
+    public void UpdatePointerContext(
+        double x, double y, Avalonia.Input.KeyModifiers modifiers, double scale = 1.0)
     {
         _hoverPoint = (x, y);
         _hoverModifiers = modifiers;
+        _hoverScale = scale;
         RefreshPointerIntent();
         RefreshPickPreview();
     }
