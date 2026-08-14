@@ -1,11 +1,16 @@
 # Bones and spline deformers for 2D — design
 
-*Status: phase 1's record layer is in (2026-08-13): `Doc.Armature`,
-`Scene.PoseTrack`, the FK solve and pose interpolation in `ArmatureOps`,
-guarded by `ArmatureTests`. No UI yet — the bone tool, posing gestures and
-armature onion-skin are still to build, as is everything from phase 2 on.
-Decisions taken with the owner 2026-08-13. The roadmap item under Pillar 3
-carries the evidence anchors that flip as the rest lands.*
+*Status: the record and solve layers of phases 1 and 2 are in (2026-08-13).
+Phase 1: `Doc.Armature`, `Scene.PoseTrack`, the FK solve and pose
+interpolation in `ArmatureOps` (`ArmatureTests`). Phase 2 core:
+`Stroke.Weights`/`BoneBinding`, LBS on stroke control points, auto-bind and
+bake in `Skinning`, and rest-pose dab seeding in `BrushEngine`
+(`SkinningTests`, `RestPoseSeedingTests` — the no-boil rule below is now a
+passing test). No UI yet: the bone tool, posing gestures, armature
+onion-skin, weight painting and the live rigged render path are still to
+build, as is everything from phase 3 on. Decisions taken with the owner
+2026-08-13. The roadmap item under Pillar 3 carries the evidence anchors
+that flip as the rest lands.*
 
 ## The tension this design resolves
 

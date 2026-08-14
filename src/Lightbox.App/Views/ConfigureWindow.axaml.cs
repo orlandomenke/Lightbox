@@ -487,8 +487,19 @@ public partial class ConfigureWindow : Window
         HoldBox.SelectedItem = _vm.DrawingOnAHold;
         LoopBox.IsChecked = _vm.LoopPlayback;
         FrameWidthBox.Value = (decimal)_vm.TimelineFrameWidth;
+        VolumeToleranceBox.Value = (decimal)Math.Round(_vm.Settings.VolumeTolerance * 100);
         _loadingTimeline = false;
         RefreshHoldHint();
+    }
+
+    private void OnVolumeToleranceChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_loadingTimeline || _vm is null || e.NewValue is not { } value) return;
+        _vm.Settings.VolumeTolerance = (double)value / 100.0;
+        _vm.Settings.Save();
+        // The readings judge against the tolerance, so a new tolerance is a
+        // new set of flags.
+        if (_vm.VolumeCheck) _vm.RecomputeVolumeCheck();
     }
 
     // ---- Export: auto-export on a status change -----------------------------------

@@ -612,21 +612,8 @@ public sealed partial class CanvasControl : Control
         string Id, int Kind, float X, float Y, float Spacing, IReadOnlyList<double> Angles,
         string? Label = null, int Divisions = 0);
 
-    /// <summary>
-    /// The guides to draw, or null for none — in which case nothing
-    /// guide-related is drawn at all.
-    /// </summary>
-    public IReadOnlyList<GuideLine>? Guides
-    {
-        get => _guides;
-        set
-        {
-            _guides = value;
-            InvalidateVisual();
-        }
-    }
-
-    private IReadOnlyList<GuideLine>? _guides;
+    // The Guides, DraftGuide and BalanceDots overlay properties live in
+    // CanvasControl.Guides.cs with the rest of the guide chrome.
 
     /// <summary>
     /// Show one channel of the artwork as grayscale, or all of them as normal.
@@ -809,26 +796,6 @@ public sealed partial class CanvasControl : Control
         }
         return shown;
     }
-
-    /// <summary>
-    /// A guide being pulled out of a ruler, not yet part of the document.
-    /// </summary>
-    /// <remarks>
-    /// Chrome, not data: it exists for the length of one drag and is never
-    /// written anywhere. Drawing it is the whole point of the gesture — a
-    /// guide you cannot see until you let go is one you place twice.
-    /// </remarks>
-    public GuideLine? DraftGuide
-    {
-        get => _draftGuide;
-        set
-        {
-            _draftGuide = value;
-            InvalidateVisual();
-        }
-    }
-
-    private GuideLine? _draftGuide;
 
     /// <summary>
     /// Whether a guide under the pointer can be picked up and moved.
@@ -2172,7 +2139,7 @@ public sealed partial class CanvasControl : Control
         context.Custom(new DrawOp(
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
-            ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks),
+            ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks), _balanceDots,
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
             _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing));
@@ -3990,6 +3957,7 @@ public sealed partial class CanvasControl : Control
         IReadOnlyList<GuideLine>? guides = null,
         GuideLine? draftGuide = null,
         IReadOnlyList<RigMark>? rigMarks = null,
+        IReadOnlyList<BalanceDot>? balanceDots = null,
         ViewModels.SelectionManager? selectionManager = null,
         Func<IReadOnlyList<Core.Documents.SymbolPlacement>?>? getPlacementsForSelection = null,
         PresentedFrame? presented = null,
@@ -4132,6 +4100,9 @@ public sealed partial class CanvasControl : Control
             // art (an opaque background layer) applies to sockets just as much.
             RigOverlayPainter.Paint(canvas, rigMarks, view.Scale);
             RigOverlayPainter.PaintLabels(canvas, rigMarks, view.Scale);
+            // The balance arc is furniture you judge against, same layer of
+            // the sandwich as the rig.
+            BalanceOverlayPainter.Paint(canvas, balanceDots, view.Scale);
             DrawAnts(canvas);
             DrawLazyGizmo(canvas);
             DrawTransformGizmo(canvas);

@@ -83,6 +83,47 @@ public sealed class Armature
 }
 
 /// <summary>
+/// One bone's influence over a stroke: who moves it, and how much per
+/// control point.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <see cref="PointWeights"/> null means <b>1.0 at every point</b> — the
+/// coarse assignment that covers the whole cutout workflow (each body part
+/// its own layer, each stroke wholly one bone's) with a single small entry.
+/// The weight brush writes per-point values only where an artist actually
+/// painted a correction, so most bindings stay coarse forever.
+/// </para>
+/// <para>
+/// Weights across a stroke's bindings are normalised at solve time, never in
+/// the record: <see cref="Skinning"/> divides by the sum where it exceeds 1
+/// and blends the remainder toward rest where it falls short, so hand-edited
+/// JSON cannot make a point fly off.
+/// </para>
+/// </remarks>
+public sealed class BoneBinding
+{
+    public string BoneId { get; set; } = "";
+
+    /// <summary>Per-control-point influence, or null for 1.0 everywhere.</summary>
+    public List<double>? PointWeights { get; set; }
+
+    /// <summary>This binding's weight at one control point.</summary>
+    public double WeightAt(int pointIndex) =>
+        PointWeights is null ? 1.0
+        : pointIndex >= 0 && pointIndex < PointWeights.Count ? PointWeights[pointIndex]
+        : 0.0;
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public BoneBinding Clone()
+    {
+        var copy = (BoneBinding)MemberwiseClone();
+        copy.PointWeights = PointWeights is null ? null : [.. PointWeights];
+        return copy;
+    }
+}
+
+/// <summary>
 /// One bone's departure from its rest pose: offsets, not absolutes, so an
 /// empty pose is the bind pose and a bone missing from a key is at rest.
 /// </summary>

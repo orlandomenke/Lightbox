@@ -35,6 +35,7 @@ public partial class MainWindow
 
     private void InitialiseOverlays()
     {
+        InitialiseVolumeCheck();
         foreach (var (_, bar) in OverlayBars())
         {
             bar.DragHost = CanvasHost;

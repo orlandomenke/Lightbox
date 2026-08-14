@@ -45,6 +45,18 @@ public sealed class AppSettings
     public RecentItems Recent { get; set; } = new();
 
     /// <summary>
+    /// How far a frame's ink area may drift from the shot's median before the
+    /// volume checker flags it, as a fraction (0.10 = ten percent).
+    /// </summary>
+    /// <remarks>
+    /// With the onion settings for the same reason they are here: the checker
+    /// reads the drawing and never touches it, so this is a property of the
+    /// artist's eye, not of any document. Ten percent is where drift starts
+    /// reading as off-model rather than as line-weight noise.
+    /// </remarks>
+    public double VolumeTolerance { get; set; } = 0.10;
+
+    /// <summary>
     /// Show the start screen when the application opens.
     /// </summary>
     /// <remarks>

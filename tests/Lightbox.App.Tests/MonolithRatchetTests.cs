@@ -132,18 +132,27 @@ public class MonolithRatchetTests(ITestOutputHelper output)
     public static readonly (string Path, int Max)[] Budgets =
     [
         ("src/Lightbox.App/ViewModels/MainViewModel.cs", 670),
-        // Lowered when the guide-grab section moved to CanvasControl.Guides.cs,
-        // the first partial split out of this file, and again 5,071 → 5,024 when
-        // CanvasControl.Pointer.cs took what the pointer draws for itself: the
-        // brush ring's record and tip-outline cache, and the eyedropper's ring.
-        // The eyedropper ring is a *new* feature and the file still came down,
-        // which is the arrangement this ratchet exists to produce.
-        ("src/Lightbox.App/Rendering/CanvasControl.cs", 5024),
-        // Raised 4,273 → 4,306 (2026-08-13): the construction-guide and
-        // guide-set menu entries. Menu items have no partial to live in —
-        // XAML cannot be split the way the code-behind was — and a menu that
-        // hides features to satisfy a line count is the tail wagging the dog.
-        ("src/Lightbox.App/Views/MainWindow.axaml", 4306),
+        // Lowered three times, twice as CanvasControl.Guides.cs grew — the
+        // guide-grab section, then the Guides/DraftGuide/BalanceDots overlay
+        // properties — and once when CanvasControl.Pointer.cs took what the
+        // pointer draws for itself: the brush ring's record and tip-outline
+        // cache, and the eyedropper's ring.
+        //
+        // 5,042 and 5,024 were the two branches' numbers and this is neither:
+        // the extractions were independent, so the merged file is smaller than
+        // either measured alone. That is the one thing to get right when this
+        // line conflicts — taking a side keeps a budget with the other side's
+        // slack already spent into it, which is a licence to grow by exactly
+        // the amount the other branch removed. Re-measure the merged tree.
+        ("src/Lightbox.App/Rendering/CanvasControl.cs", 4995),
+        // Raised 4,273 → 4,306 → 4,314 (2026-08-13): the construction-guide,
+        // guide-set and volume-check menu entries. Menu items have no partial
+        // to live in — XAML cannot be split the way the code-behind was — and
+        // a menu that hides features to satisfy a line count is the tail
+        // wagging the dog. The eyedropper's two bindings paired onto existing
+        // attribute lines rather than taking two more, which is why they are
+        // not in that sequence.
+        ("src/Lightbox.App/Views/MainWindow.axaml", 4314),
         ("src/Lightbox.App/Views/MainWindow.axaml.cs", 455),
     ];
 
