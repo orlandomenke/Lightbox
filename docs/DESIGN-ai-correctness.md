@@ -8,8 +8,11 @@ verifier rather than its own embryo. **Phase 1 is built**
 (2026-08-14) — shape is in the matching cost, and breakdowns now constrain the
 arc across a whole run; see the two sections under *No naming conventions*.
 Both turned out to describe something other than what was wrong, which is the
-most reusable thing the phase produced. Phases 2–4 — the golden set, repair, and
-adaptive shaping — remain design. The taxonomy half of
+most reusable thing the phase produced. **Phase 2's harness is built**
+(2026-08-14) — `GoldenSet`, `CapabilityProfiler` and the profile it produces,
+graded against `FreeEngineArtist` in CI for nothing; what is missing is the
+surface an artist presses, and the hand-drawn organic pairs. Phases 3–4 —
+repair and adaptive shaping — remain design. The taxonomy half of
 the subject reading (`DESIGN-subject-reading.md`) predates all of this.
 
 Two things Phase 0 taught that the tier table did not state, both about drag:
@@ -281,6 +284,49 @@ known-good answers, scored by the verifier, produces a **capability profile**
 per provider: schema adherence, betweenness, arc-following, and how many strokes
 before it degrades — the number that matters most and that nobody measures.
 
+### The harness is built, and two of its categories were vacuous first
+
+`GoldenSet`, `CapabilityProfiler` and `CapabilityProfile` land the measuring
+half. The profile carries schema adherence, label retention, a per-category
+headline and the degradation rung; it has **no overall pass or fail**, because
+the output is a plan for shaping the request and a boolean cannot carry one.
+
+`FreeEngineArtist` is the piece worth stealing for any later set: the
+deterministic engine dressed as an artist, so the whole set runs in CI for no
+tokens against a subject whose behaviour on constructed geometry is not in
+question. It inverts the direction of suspicion — a constructed pair the free
+engine cannot clear is a bug in the *pair*. Q32 is untouched: nothing wires it
+into the factory and an artist can never reach it.
+
+**Two categories passed everything and measured nothing, and both were caught
+by reading the profile the free engine produced about itself.**
+
+- **Arc.** A chord interpolation is *exactly* between the keys, so betweenness
+  accepts it and the row read "clean" for a model that added nothing. Fixed by
+  carrying **departure from the free engine's answer** in the row — reported,
+  never thresholded, per Q33. That is also the first use of the "free two-sided
+  signal" this document has always claimed and never spent.
+- **Occlusion.** The torso was drawn whole in *both* keys, so nothing was ever
+  hidden and no reveal was ever required. Fixed by drawing it in two pieces in
+  key A, with the arm across the gap.
+
+The general form, and the reason to expect more of it: **a category that cannot
+fail is worse than a missing one**, because it reports a pass. The cheapest way
+to find them is to run the set against the free engine and read every row as a
+claim about the engine — a row that says "clean" about a subject you know to be
+weak in that respect is a row that is not measuring.
+
+**A third thing the free engine caught: the label metric was wrong.** Scored
+against key A's labels, it marked a model down for dropping a label on a stroke
+that is *supposed* to disappear — the occlusion pair's `torso-lower` has no
+counterpart and correctly fades by the midpoint, and the free engine scored 95%
+on its own output. The denominator is labels present in **both** keys.
+
+Still open, and both need something this branch could not supply: the surface an
+artist presses (with the cost shown before it is spent), and the hand-drawn
+`Organic` pairs. The category ships declared and empty, and every profile prints
+it as *not measured* — a known gap rather than a silent one.
+
 **Then adapt the request to the profile.** It is a plan, not a report card:
 
 | Weakness | Adaptation |
@@ -315,7 +361,7 @@ risking the work.
 | --- | --- | --- |
 | **0** | Verifier, refusal path, provenance — **done** | Biggest win; no new model calls |
 | **1** | Matcher: shape cost, breakdowns as constraints — **done** (deterministic path; the AI path keeps per-gap requests, Q83) | Deterministic; improves the non-AI path too |
-| **2** | Golden set + capability profile | Makes reliability a number |
+| **2** | Golden set + capability profile — **harness done**; the page and the organic pairs are next | Makes reliability a number |
 | **3** | Repair loop | Needs specific findings first |
 | **4** | Adaptive shaping, best-of-N, authored wind | Needs the profile |
 
