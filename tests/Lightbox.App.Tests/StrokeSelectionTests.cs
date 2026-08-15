@@ -544,7 +544,7 @@ public class StrokeSelectionTests
         var seen = OutlineCountsFrom(vm);
         // Straight at the manager, which is what the canvas's chrome hit-tests
         // do — they never go through the view model at all.
-        vm.Selection.SelectGuide(0);
+        vm.Selection.SelectGuide("gd-anything");
 
         Assert.Contains(null, seen);
         Assert.Empty(vm.Selection.SelectedStrokeIds);

@@ -18,7 +18,7 @@
   <StackPanel Orientation="Horizontal" Spacing="14">
     <StackPanel.IsVisible>
       <MultiBinding Converter="{x:Static BoolConverters.And}">
-        <Binding Path="IsMoveTool" />
+        <Binding Path="ReachesGuides" />
         <Binding Path="Workspace.QuickGuideOptions" />
         <Binding Path="HasSelectedGuide" />
       </MultiBinding>

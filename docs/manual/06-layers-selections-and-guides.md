@@ -251,17 +251,33 @@ moving a guide afterwards never moves a line you have already drawn.
 
 #### Adjusting a guide
 
-**Pick up the Move tool and the rig wakes up.** Every guide on the canvas
-lights faintly, the one under the pointer brighter, and the one you click
-brightest of all — and a grid or an isometric rig, which is grabbed at its
+**Pick up the Move tool or the Arrow and the rig wakes up.** Every guide on the
+canvas lights faintly, the one under the pointer brighter, and the ones you
+click brightest of all — and a grid or an isometric rig, which is grabbed at its
 anchor rather than on its lines, shows that anchor as a small square you can
 aim at. With any other tool in hand the guides go back to being scenery you
 draw over, so nothing glows at you while you are drawing.
 
+**Two tools reach guides, and they do the same things to them.** The Move tool
+is the one you reach for when the job *is* the rig; the Arrow picks guides
+alongside the lines, symbols and anchors it already picks. Whichever you use,
+a guide behaves the same way — the same click, the same drag, the same options,
+and a guide you locked is out of reach of both.
+
 **Clicking a guide points the tool options at it**, in the quick bar and in the
-Tool options docker — the Move tool's only options, because moving a guide and
-changing one are the same intention reached for with the same hand. Clicking
-the drawing lets go again.
+Tool options docker, because moving a guide and changing one are the same
+intention reached for with the same hand. Clicking the drawing lets go again.
+
+**Shift adds a guide to the selection and Alt takes one out**, the same as
+everywhere else on the canvas, and dragging any guide in the group moves all of
+them together as one undo step. With more than one picked the options go quiet:
+they set *a* guide's numbers — this grid's pitch, this chart's head count — and
+there is no single guide for them to mean. The group still moves.
+
+**The selection is handed between those two tools and dropped by every other
+one.** Switching between the Move tool and the Arrow keeps what you picked,
+because both can act on it; reaching for the brush lets it go, so nothing stays
+lit over a drawing you are painting.
 
 | The selected guide | What you can set |
 | --- | --- |
@@ -328,16 +344,16 @@ guide, out of the left one for a vertical one; the guide follows the pointer
 while you aim it. Let go back over the ruler and it never existed, which is
 both how you delete one and how you get out of a drag you did not mean.
 
-**A guide on the canvas is picked up with the Move tool**, wherever the rulers
-are. The cursor changes when you are on one and the guide itself lights up;
-there is nothing floating over the drawing to click instead. The whole drag is
-one undo step, not one per twitch of the hand.
+**A guide on the canvas is picked up with the Move tool or the Arrow**, wherever
+the rulers are. The cursor changes when you are on one and the guide itself
+lights up; there is nothing floating over the drawing to click instead. The
+whole drag is one undo step, not one per twitch of the hand.
 
 The tool is the switch for all of this, on purpose: grabbing a guide and
 drawing along one are the same gesture in the same place, so something has to
 say which you meant. With any other tool in hand a guide is scenery you draw
 over and nothing can nudge it by accident. Hiding or locking the guides
-overrides even the Move tool, because both mean "leave the rig alone".
+overrides both of them, because both mean "leave the rig alone".
 
 | Edit menu | Key | What it does |
 | --- | --- | --- |
@@ -352,10 +368,12 @@ Rulers, guide visibility and the lock belong to the **workspace**, not the
 document: they are how your screen is arranged, so they save, reset and switch
 with everything else, and opening somebody else's file never rearranges them.
 
-**Several at once**: select guides with the Select tool and the Move tool drags
-the whole selection together, as one undo step. The lock still holds — locked
-guides stay put whether they were selected or not, which is the point of
-locking them.
+**Several at once**: Shift-click to add guides to the selection, Alt-click to
+take one out, and dragging any of them moves the whole group together as one
+undo step. Either guide tool does both halves — picking and dragging are the
+same tool's job, not one tool's each. `Ctrl+A` with the Arrow in hand takes
+every guide on the document at once. The lock still holds: locked guides stay
+put whether they were selected or not, which is the point of locking them.
 
 #### Guide sets — the same rig on every drawing that needs it
 

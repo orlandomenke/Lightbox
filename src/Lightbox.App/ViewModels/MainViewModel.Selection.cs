@@ -190,9 +190,9 @@ public partial class MainViewModel
             if (guides is not null && guides.Count > 0)
             {
                 _selectionManager.ClearAllSelections();
-                for (int i = 0; i < guides.Count; i++)
+                foreach (var guide in guides)
                 {
-                    _selectionManager.AddGuideToSelection(i);
+                    _selectionManager.AddGuideToSelection(guide.Id);
                 }
                 return;
             }

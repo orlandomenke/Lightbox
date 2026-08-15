@@ -2190,42 +2190,6 @@ public sealed partial class CanvasControl : Control
         return null;
     }
 
-    private int PickGuideAt(double x, double y)
-    {
-        if (_guides is null || _guides.Count == 0) return -1;
-
-        const double hitRadius = 5;  // Document units for click tolerance on a line
-        foreach (var (index, guide) in _guides.Select((g, i) => (i, g)))
-        {
-            // For a line guide, calculate perpendicular distance from point to line
-            if (guide.Angles.Count > 0)
-            {
-                var angle = guide.Angles[0];  // Use the primary angle for distance calc
-                var radians = angle * Math.PI / 180;
-                var cos = Math.Cos(radians);
-                var sin = Math.Sin(radians);
-
-                // Distance from point (x,y) to line through (guide.X, guide.Y) at angle
-                var dx = x - guide.X;
-                var dy = y - guide.Y;
-                var perpDist = Math.Abs(dx * (-sin) + dy * cos);
-
-                if (perpDist <= hitRadius)
-                    return index;
-            }
-            else
-            {
-                // Vanishing point: simple distance to point
-                var dx = x - guide.X;
-                var dy = y - guide.Y;
-                var distSq = dx * dx + dy * dy;
-                if (distSq <= hitRadius * hitRadius)
-                    return index;
-            }
-        }
-        return -1;
-    }
-
     private int PickRefBoxAt(double x, double y)
     {
         if (_referenceBoxes is null || _referenceBoxes.Count == 0) return -1;
@@ -2571,20 +2535,56 @@ public sealed partial class CanvasControl : Control
             }
 
             // A guide under the pointer is picked up before any tool sees the
-            // press. Only ever true while the rulers are showing, which is
-            // what keeps this out of the way of drawing — see GuideDragEnabled.
+            // press. Only ever true with a tool that reaches for guides, and
+            // never while they are hidden or locked, which is what keeps this
+            // out of the way of drawing — see GuideDragEnabled.
+            //
+            // B215: this is now the only way a guide is picked. The Arrow used
+            // to have its own arm further down with its own hit test, so which
+            // guides you could reach, how near you had to be and whether a lock
+            // was respected all depended on which tool was in hand.
             if (GuideDragEnabled && GuideAt(pp.Position) is { } grabbed)
             {
+                var guideShift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+                var guideAlt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+                // Whether this press lands inside a group that is already
+                // picked, asked BEFORE the selection is touched — a plain press
+                // replaces it, so afterwards the answer is always "no".
+                var inGroup =
+                    _selectionManager is { } guideSelection
+                    && guideSelection.SelectedGuideIds.Count > 1
+                    && guideSelection.IsGuideSelected(grabbed.Id);
+
                 // Picking one up is also choosing it. They are the same
                 // intention — you reach for the guide you are about to change —
                 // and a separate click to select would mean the options were
-                // never pointed at the guide you had just moved.
-                SelectGuide(grabbed.Id);
+                // never pointed at the guide you had just moved. A press inside
+                // a group is the exception: it takes hold of the group rather
+                // than dropping the rest of it, which is what every other
+                // multi-selection on this canvas does.
+                if (guideShift || guideAlt || !inGroup)
+                {
+                    SelectGuide(grabbed.Id, guideShift, guideAlt);
+                }
+
+                e.Pointer.Capture(this);
+                e.Handled = true;
+
+                // Shift and Alt edit the selection. Dragging on the same press
+                // would move guides the artist was still choosing.
+                if (guideShift || guideAlt) return;
+
+                if (inGroup)
+                {
+                    _movingGuides = true;
+                    _guideMoveLast = (x, y);
+                    GuidesMovedStarted?.Invoke();
+                    return;
+                }
+
                 _guideDrag = grabbed.Id;
                 _guideResizing = GrabsHeightScaleTop(grabbed, pp.Position);
                 _guideDragLast = (x, y);
-                e.Pointer.Capture(this);
-                e.Handled = true;
                 return;
             }
 
@@ -2674,7 +2674,7 @@ public sealed partial class CanvasControl : Control
                     // The same gate the single-guide grab uses at the top of
                     // this handler: locking guides means "pin them where they
                     // are", and a selection must not be the way round it.
-                    if (movingSelection && GuideDragEnabled && _selectionManager?.SelectedGuideIndices.Count > 0)
+                    if (movingSelection && GuideDragEnabled && _selectionManager?.SelectedGuideIds.Count > 0)
                     {
                         _movingGuides = true;
                         _guideMoveLast = (x, y);
@@ -2770,14 +2770,12 @@ public sealed partial class CanvasControl : Control
                             }
                         }
 
-                        // Then try guides
-                        var guideIndex = PickGuideAt(x, y);
-                        if (guideIndex >= 0)
-                        {
-                            _selectionManager.SelectGuideWithModifiers(guideIndex, shift, alt);
-                            e.Handled = true;
-                            return;
-                        }
+                        // Guides are not tested here: the grab at the top of this
+                        // handler has already had them, for both tools, through
+                        // the one hit test (B215). Reaching a press to this
+                        // point means it missed every guide — or that they are
+                        // hidden or locked, in which case missing them is the
+                        // whole point of the switch.
 
                         // Then try reference boxes
                         var boxIndex = PickRefBoxAt(x, y);
@@ -4434,43 +4432,17 @@ public sealed partial class CanvasControl : Control
                 }
             }
 
-            // Draw guide selections
-            if (guides is not null && guides.Count > 0)
-            {
-                foreach (var guideIndex in selectionManager.SelectedGuideIndices)
-                {
-                    if (guideIndex < 0 || guideIndex >= guides.Count) continue;
-                    var guide = guides[guideIndex];
-
-                    // Draw selected guides in yellow/gold for distinction
-                    using var paint = new SKPaint
-                    {
-                        Color = new SKColor(255, 200, 0, 200),  // Gold
-                        StrokeWidth = (float)(2f / scale),
-                        Style = SKPaintStyle.Stroke,
-                        IsAntialias = true,
-                    };
-
-                    if (guide.Angles.Count > 0)
-                    {
-                        var angle = guide.Angles[0];
-                        var radians = angle * Math.PI / 180;
-                        var dx = (float)Math.Cos(radians) * reach;
-                        var dy = (float)Math.Sin(radians) * reach;
-                        canvas.DrawLine(
-                            guide.X - dx, guide.Y - dy,
-                            guide.X + dx, guide.Y + dy,
-                            paint);
-                    }
-                    else
-                    {
-                        // Vanishing point: draw crosshairs
-                        var arm = 10f / scale;
-                        canvas.DrawLine(guide.X - arm, guide.Y, guide.X + arm, guide.Y, paint);
-                        canvas.DrawLine(guide.X, guide.Y - arm, guide.X, guide.Y + arm, paint);
-                    }
-                }
-            }
+            // Guides are not drawn here (B215). A gold line and a crosshair
+            // used to be laid over the rig from this block, which meant a
+            // selected guide was painted twice by two different pieces of code:
+            // GuidePainter drew the guide with its Emphasis, and this drew a
+            // second one on top. It could only draw two of the five kinds —
+            // anything without an Angles[0] became a crosshair, so a grid and a
+            // height scale were marked as if they were vanishing points — and
+            // it drew whatever tool was in hand, so the mark outlived the
+            // capability. Emphasis.Selected is the one route now, it knows
+            // every kind because it is the painter that draws them, and it is
+            // gated on GuideDragEnabled so it goes when the tool does.
 
             // Draw reference box selections
             if (referenceBoxes is not null && referenceBoxes.Count > 0)

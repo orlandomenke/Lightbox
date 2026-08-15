@@ -152,6 +152,11 @@ public partial class MainViewModel
         // drawn. Subscribing here makes the manager the single source: whatever
         // changes the selection, the outlines follow.
         _selectionManager.SelectionChanged += OnStrokeSelectionChanged;
+        // B215: the same argument one object along. The guide options read the
+        // manager now rather than a second selection beside it, so whatever
+        // changes the selection — a press with either tool, Ctrl+A, a click on
+        // empty canvas — is what repoints them.
+        _selectionManager.SelectionChanged += OnGuideSelectionChanged;
         _clock.Tick += OnPlaybackTick;
         Settings = AppSettings.Load();
         _snapTolerance = Settings.SnapTolerance;

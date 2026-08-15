@@ -43,8 +43,11 @@ public partial class MainWindow
         // The rulers carry a mark per guide, so they move with them.
         RefreshRulerMarks();
 
-        // Which one the options are pointed at, so the canvas can say so.
-        Canvas.SelectedGuideId = _vm.SelectedGuideId;
+        // Which ones are picked, so the canvas can say so. A snapshot of the
+        // one selection (B215) rather than the options bar's separate idea of
+        // it — the bar shows a single guide's numbers, the rig lights all of
+        // them, and both read the same set.
+        Canvas.SelectedGuideIds = _vm.Selection.SelectedGuideIds;
 
         if (!_vm.HasGuides || !_vm.Workspace.GuidesVisible)
         {
@@ -188,10 +191,10 @@ public partial class MainWindow
         // Clicking a guide points the Move tool's options at it. The canvas
         // reports the click; which guide that is and what the options then show
         // is the view model's, like every other selection.
-        Canvas.GuideSelected += id =>
+        Canvas.GuideSelected += (id, shift, alt) =>
         {
-            _vm.SelectGuide(id);
-            Canvas.SelectedGuideId = _vm.SelectedGuideId;
+            _vm.SelectGuide(id, shift, alt);
+            Canvas.SelectedGuideIds = _vm.Selection.SelectedGuideIds;
         };
 
         Canvas.GuideMoved += (id, dx, dy) =>
@@ -282,7 +285,7 @@ public partial class MainWindow
 
     private void RefreshGuideGrab() =>
         Canvas.GuideDragEnabled =
-            _vm.IsMoveTool && _vm.Workspace.GuidesVisible && !_vm.Workspace.GuidesLocked;
+            _vm.ReachesGuides && _vm.Workspace.GuidesVisible && !_vm.Workspace.GuidesLocked;
 
     private void RefreshRulerMapping()
     {

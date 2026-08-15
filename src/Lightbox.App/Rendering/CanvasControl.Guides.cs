@@ -39,13 +39,22 @@ public sealed partial class CanvasControl
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The Move tool's job, and only its job — <c>MainWindow.RefreshGuideGrab</c>
-    /// is what sets it. Grabbing a guide and drawing along one are the same
-    /// gesture in the same place, so something has to say which was meant, and
-    /// a tool says it plainly: it is visible in the palette, and it is still
-    /// the answer with the rulers down, which is most of the time. Hiding or
-    /// locking the guides overrides it, because both mean "leave the rig
-    /// alone" whatever tool is in hand.
+    /// The two tools that reach for guides, and only those two —
+    /// <c>MainWindow.RefreshGuideGrab</c> is what sets it. Grabbing a guide and
+    /// drawing along one are the same gesture in the same place, so something
+    /// has to say which was meant, and a tool says it plainly: it is visible in
+    /// the palette, and it is still the answer with the rulers down, which is
+    /// most of the time. Hiding or locking the guides overrides it, because
+    /// both mean "leave the rig alone" whatever tool is in hand.
+    /// </para>
+    /// <para>
+    /// <b>The Arrow joined the Move tool here under B215.</b> It has picked
+    /// guides since the selection manager landed — <c>ToolId.Arrow</c> says so
+    /// in as many words — through a hit test of its own that consulted neither
+    /// of the two switches above, so a locked guide was selectable with it and
+    /// a picked one could never be moved with it. One gate, one hit test: a
+    /// tool that can select a guide can move it, and neither tool can touch one
+    /// the artist has pinned.
     /// </para>
     /// <para>
     /// The cursor is one half of the affordance and the rig's own emphasis is
@@ -247,34 +256,44 @@ public sealed partial class CanvasControl
     private string? _hoverGuideId;
 
     /// <summary>
-    /// The guide the tool options are pointed at, or null.
+    /// The guides that are picked, by id.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Pushed down from the window rather than owned here, for the reason every
     /// other piece of guide state is: the document's selection outlives this
     /// control, survives an undo, and is what the options bar binds to.
+    /// </para>
+    /// <para>
+    /// <b>A set rather than one id (B215).</b> The single id was the Move
+    /// tool's selection and <c>SelectionManager</c> held the Arrow's, so a
+    /// guide could be picked in one of them and unlit in the other. This is a
+    /// snapshot of the one selection, pushed on the same schedule as
+    /// <see cref="Guides"/> — the render thread must not read a set the UI
+    /// thread is halfway through editing.
+    /// </para>
     /// </remarks>
-    public string? SelectedGuideId
+    public IReadOnlySet<string>? SelectedGuideIds
     {
-        get => _selectedGuideId;
+        get => _selectedGuideIds;
         set
         {
-            if (_selectedGuideId == value) return;
-            _selectedGuideId = value;
+            _selectedGuideIds = value;
             InvalidateVisual();
         }
     }
 
-    private string? _selectedGuideId;
+    private IReadOnlySet<string>? _selectedGuideIds;
 
     /// <summary>
-    /// A guide was clicked, or the click landed on nothing and cleared the
-    /// selection.
+    /// A guide was clicked, with the modifiers held, or the click landed on
+    /// nothing and cleared the selection.
     /// </summary>
-    public event Action<string?>? GuideSelected;
+    public event Action<string?, bool, bool>? GuideSelected;
 
     /// <summary>Raise <see cref="GuideSelected"/>, from the press handler in CanvasControl.cs.</summary>
-    private void SelectGuide(string? id) => GuideSelected?.Invoke(id);
+    private void SelectGuide(string? id, bool shift = false, bool alt = false) =>
+        GuideSelected?.Invoke(id, shift, alt);
 
     /// <summary>
     /// The guides to draw, each stamped with how prominently.
@@ -301,7 +320,7 @@ public sealed partial class CanvasControl
             lit.Add(guide with
             {
                 Emphasis =
-                    guide.Id == _selectedGuideId ? GuidePainter.Emphasis.Selected
+                    _selectedGuideIds?.Contains(guide.Id) == true ? GuidePainter.Emphasis.Selected
                     : guide.Id == _hoverGuideId ? GuidePainter.Emphasis.Hover
                     : GuidePainter.Emphasis.Grabbable,
             });
