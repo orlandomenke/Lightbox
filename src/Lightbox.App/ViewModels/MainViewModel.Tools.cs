@@ -40,6 +40,7 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(IsPickerTool))]
     [NotifyPropertyChangedFor(nameof(IsGradientTool))]
     [NotifyPropertyChangedFor(nameof(IsMoveTool))]
+    [NotifyPropertyChangedFor(nameof(ReachesGuides))]
     // Missing, and it cost the whole shape options group: nothing ever told
     // the bar the tool had changed, so IsVisible stayed false and there was no
     // way to pick a shape.
@@ -354,6 +355,26 @@ public partial class MainViewModel
 
     public bool IsMoveTool => ActiveTool == ToolId.Move;
 
+    /// <summary>
+    /// Whether the tool in hand reaches for guides — picks them, moves them,
+    /// and shows their numbers.
+    /// </summary>
+    /// <remarks>
+    /// <b>B215.</b> Two tools, one answer, asked by everything that used to ask
+    /// <see cref="IsMoveTool"/> about guides: the grab gate on the canvas, the
+    /// emphasis the rig is drawn with, and the options bar and panel. They had
+    /// drifted apart — the Arrow could select a guide through a hit test of its
+    /// own while the bar stayed blank and the drag gate stayed shut — and one
+    /// property is what stops them drifting again.
+    ///
+    /// <para>
+    /// Not the whole answer on its own: hiding or locking the guides overrides
+    /// it, whatever tool is in hand. That half lives with the workspace, which
+    /// is where those two switches are.
+    /// </para>
+    /// </remarks>
+    public bool ReachesGuides => ActiveTool is ToolId.Move or ToolId.Arrow;
+
     public bool IsBoneTool => ActiveTool == ToolId.Bone;
 
     /// <summary>Brush or eraser — the tools whose strokes the brush-parameter flyout edits.</summary>
@@ -548,6 +569,15 @@ public partial class MainViewModel
         // behaves the same way (the polygon above it, the transform session),
         // which is why this is one line rather than a mode.
         if (value != ToolId.Arrow) ClearStrokeSelection();
+
+        // B215: the same rule, applied to the category it had been leaving out.
+        // Guides are picked by the Arrow and by the Move tool, so a selection
+        // survives between those two — that is one capability handed between
+        // two tools that both have it, not drawn state outliving its tool. Any
+        // other tool and it goes, for the reason above it: a guide left lit
+        // while the brush paints over it is pointing at something the artist
+        // can no longer do.
+        if (!ReachesGuides) Selection.ClearGuideSelection();
 
         // Same one-line rule for the hover preview: it is drawn state that only
         // the white arrow can act on, so it must not outlive the tool. Without

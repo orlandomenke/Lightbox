@@ -187,21 +187,41 @@ public partial class MainViewModel
     // tool-options bar and docker, which the Move tool left empty.
 
     /// <summary>
-    /// The guide the options are pointed at, by id, or null for none.
+    /// The guide the options are pointed at, by id, or null when the selection
+    /// is empty or holds more than one.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// By id rather than by object or by position. Undo replaces the whole
     /// document, so the object under the selection is gone after one; the
     /// position shifts when a guide before it is removed. The id survives both,
     /// which is the reason <c>MainWindow.GuideById</c> already works this way.
+    /// </para>
+    /// <para>
+    /// <b>B215: derived from <see cref="Selection"/> rather than stored beside
+    /// it.</b> This used to be a second selection: the Move tool wrote here and
+    /// the Arrow wrote into the manager, neither read the other, and the
+    /// consequences were all real — the options bar stayed blank for a guide
+    /// picked with the Arrow, and the manager's own group-move was unreachable
+    /// with the tool that populated it. One selection cannot disagree with
+    /// itself, which is the whole of the fix.
+    /// </para>
+    /// <para>
+    /// Null on a multiple selection, and that is the honest answer rather than
+    /// a shortcut: the options bar edits <em>a</em> guide's numbers — a grid's
+    /// pitch, a head count — and there is no single guide for them to mean.
+    /// The group is still perfectly movable; it is the numbers that need one.
+    /// </para>
     /// </remarks>
-    [ObservableProperty]
-    private string? _selectedGuideId;
+    public string? SelectedGuideId =>
+        Selection.SelectedGuideIds is { Count: 1 } ids ? ids.First() : null;
 
-    partial void OnSelectedGuideIdChanged(string? value)
+    /// <summary>The selection moved: repoint the options and repaint the rig.</summary>
+    private void OnGuideSelectionChanged()
     {
+        OnPropertyChanged(nameof(SelectedGuideId));
         NotifySelectedGuide();
-        // The canvas draws the selected guide brightest, so a selection that
+        // The canvas draws the selected guides brightest, so a selection that
         // changed without a guide changing still has to reach it.
         GuidesChanged?.Invoke();
     }
@@ -212,8 +232,27 @@ public partial class MainViewModel
 
     public bool HasSelectedGuide => SelectedGuide is not null;
 
-    /// <summary>Select a guide by id, or clear the selection with null.</summary>
-    public void SelectGuide(string? id) => SelectedGuideId = id;
+    /// <summary>
+    /// Select a guide by id, or clear the selection with null.
+    /// </summary>
+    /// <param name="shift">Add to the selection rather than replacing it.</param>
+    /// <param name="alt">Take this one out of the selection.</param>
+    /// <remarks>
+    /// The modifiers travel because both tools that reach guides now go through
+    /// one press path (B215), and the Arrow's whole vocabulary is Shift to add
+    /// and Alt to subtract. Clearing goes through the guide category alone
+    /// rather than <c>ClearAllSelections</c>: a press that missed every guide
+    /// has said nothing about the symbol or the anchor that may also be picked.
+    /// </remarks>
+    public void SelectGuide(string? id, bool shift = false, bool alt = false)
+    {
+        if (id is null)
+        {
+            Selection.ClearGuideSelection();
+            return;
+        }
+        Selection.SelectGuideWithModifiers(id, shift, alt);
+    }
 
     public bool SelectedGuideIsGrid => SelectedGuide?.Kind == GuideKind.Grid;
 
@@ -408,7 +447,7 @@ public partial class MainViewModel
     {
         if (SelectedGuide is not { } guide) return;
         RemoveGuide(guide);
-        SelectedGuideId = null;
+        Selection.ClearGuideSelection();
     }
 
     private void NotifySelectedGuide()

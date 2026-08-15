@@ -136,9 +136,9 @@ public partial class MainViewModel
     /// <summary>Begin moving selected guides.</summary>
     public void BeginGuidesMove()
     {
-        if (_selectionManager.SelectedGuideIndices.Count == 0) return;
+        if (_selectionManager.SelectedGuideIds.Count == 0) return;
         _guidesMoveDelta = (0, 0);
-        AiStatus = $"Moving {_selectionManager.SelectedGuideIndices.Count} guide(s)";
+        AiStatus = $"Moving {_selectionManager.SelectedGuideIds.Count} guide(s)";
     }
 
     /// <summary>
@@ -180,17 +180,24 @@ public partial class MainViewModel
     /// <see cref="DragGuide"/> both skip one. Locking exists so a perspective
     /// set can be leaned on without being knocked out of place, and a group
     /// move that ignored it would be the one gesture that could.
+    ///
+    /// <para>
+    /// <b>B215 removed the index lookup this used to do</b>, and with it the
+    /// case it could not defend against: an id that names no guide resolves to
+    /// nothing, where an index that no longer names the guide it was taken from
+    /// resolves to a different one and moves it.
+    /// </para>
     /// </remarks>
     private List<Guide> SelectedGuides()
     {
         var guides = Scene.Guides;
         if (guides is null || guides.Count == 0) return [];
         var picked = new List<Guide>();
-        foreach (var index in _selectionManager.SelectedGuideIndices)
+        foreach (var guide in guides)
         {
-            if (index < 0 || index >= guides.Count) continue;
-            if (guides[index].Locked) continue;
-            picked.Add(guides[index]);
+            if (!_selectionManager.IsGuideSelected(guide.Id)) continue;
+            if (guide.Locked) continue;
+            picked.Add(guide);
         }
         return picked;
     }
