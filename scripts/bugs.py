@@ -1099,7 +1099,7 @@ def cmd_sync() -> None:
         print(f"Ledger already current — {len(bugs)} bugs.")
 
 
-def cmd_check() -> int:
+def cmd_check(against: list[str] | None = None) -> int:
     _, bugs = parse()
     resolve(bugs)
     drifted = [b for b in bugs if b.status != b.mark]
@@ -1127,14 +1127,22 @@ def cmd_check() -> int:
     # The other half of the merge failure, and the half nothing used to look for.
     # Reported here as well as in `ids` so a push to main is checked even when the
     # hook was bypassed — which is exactly the push that matters.
+    # Written against `LEDGERS`, a table that never existed — `ledgers()` is
+    # the real source — so the first merge-commit HEAD this ran on raised a
+    # NameError instead of a report (B214). A crash here is worse than the
+    # missed check it replaces: `check` runs in CI, and a PR build checks out
+    # a merge commit, which is exactly the HEAD that takes this branch.
+    # Explicit refs win (that is what makes this loop testable at all — HEAD
+    # is only sometimes a merge); otherwise the parents of HEAD, same as `ids`.
     lost: list[tuple[str, str, str]] = []
     if os.environ.get(ALLOW_DELETION) != "1":
-        for spec in merge_parents():
-            for name, path, reader in LEDGERS:
-                if not path.exists() or (before := text_at(spec, path)) is None:
+        for spec in against or merge_parents():
+            for ledger in ledgers():
+                if not ledger.path.exists() or (before := ledger.at(spec)) is None:
                     continue
-                now = reader(path.read_text(encoding="utf-8"))
-                lost += [(name, i, t) for i, t in lost_ids(reader(before), now)]
+                current = ledger.reader(ledger.now())
+                lost += [(ledger.tag, i, t)
+                         for i, t in lost_ids(ledger.reader(before), current)]
 
     open_bugs = [b for b in bugs if b.status != "x"]
     counts = {p: sum(1 for b in open_bugs if b.priority == p) for p in ("P1", "P2", "P3", "P4")}
@@ -1251,7 +1259,7 @@ def main() -> None:
     if cmd == "sync":
         cmd_sync()
     elif cmd == "check":
-        sys.exit(cmd_check())
+        sys.exit(cmd_check(sys.argv[2:]))
     elif cmd == "ids":
         sys.exit(cmd_ids(sys.argv[2:]))
     elif cmd == "new":
