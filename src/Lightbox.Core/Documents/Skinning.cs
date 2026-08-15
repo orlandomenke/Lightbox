@@ -124,10 +124,24 @@ public static class Skinning
     /// the duration of a frame.
     /// </para>
     /// </remarks>
+    /// <param name="fallback">
+    /// What binds this stroke when it carries no weights of its own — the
+    /// layer's binding (Q90). Null for the per-stroke-only behaviour.
+    /// </param>
+    /// <remarks>
+    /// <b>The fallback is read, never written.</b> A stroke on a rigged layer
+    /// stays exactly as the artist drew it in the record; only what is
+    /// <em>stamped</em> moves. That is the same rule the pose track already
+    /// follows, and it is what makes linking a layer retroactive — the
+    /// drawings that were there before the link move too — and free of a
+    /// per-stroke key on two hundred frames of work.
+    /// </remarks>
     public static Stroke PoseStroke(
-        Stroke stroke, Armature armature, IReadOnlyDictionary<string, BonePose>? pose)
+        Stroke stroke, Armature armature, IReadOnlyDictionary<string, BonePose>? pose,
+        IReadOnlyList<BoneBinding>? fallback = null)
     {
-        if (stroke.Weights is not { Count: > 0 } bindings || stroke.Points.Count == 0)
+        var bindings = stroke.Weights is { Count: > 0 } own ? own : fallback;
+        if (bindings is not { Count: > 0 } || stroke.Points.Count == 0)
             return stroke;
 
         var deltas = Deltas(armature, pose);
@@ -167,15 +181,34 @@ public static class Skinning
     /// freeze, not a render mode.
     /// </summary>
     /// <returns>How many strokes were baked.</returns>
+    /// <param name="layerBone">
+    /// The layer's binding (Q90), for the strokes that carry none of their own
+    /// — null when the layer is not rigged, the empty string for the whole
+    /// skeleton, otherwise a bone id.
+    /// </param>
+    /// <remarks>
+    /// A bake on a rigged layer is a bake, not an unlink: the strokes come out
+    /// ordinary and the LAYER keeps its binding, so drawings made on it
+    /// afterwards still follow the rig. Baking is what freezes a drawing, and
+    /// unrigging the layer is a separate thing an artist asks for separately.
+    /// </remarks>
     public static int BakeFrame(
-        Frame frame, Armature armature, IReadOnlyDictionary<string, BonePose>? pose)
+        Frame frame, Armature armature, IReadOnlyDictionary<string, BonePose>? pose,
+        string? layerBone = null)
     {
+        var named = layerBone is { Length: > 0 }
+            ? new List<BoneBinding> { new() { BoneId = layerBone } }
+            : null;
         var baked = 0;
         for (var i = 0; i < frame.Strokes.Count; i++)
         {
             var stroke = frame.Strokes[i];
-            if (stroke.Weights is not { Count: > 0 }) continue;
-            frame.Strokes[i] = PoseStroke(stroke, armature, pose);
+            var own = stroke.Weights is { Count: > 0 };
+            if (!own && (layerBone is null || !TakesLayerBinding(stroke))) continue;
+            var fallback = own ? null : named ?? AutoBoundFor(stroke, armature);
+            var posed = PoseStroke(stroke, armature, pose, fallback);
+            if (ReferenceEquals(posed, stroke)) continue;
+            frame.Strokes[i] = posed;
             baked++;
         }
         return baked;
@@ -194,19 +227,66 @@ public static class Skinning
     /// the result instead of the original pays only on frames that actually
     /// bind.
     /// </remarks>
-    public static Frame PoseFrameForRender(Doc doc, Frame frame, int frameIndex)
+    public static Frame PoseFrameForRender(Doc doc, Frame frame, int frameIndex, RigIndex? rig = null)
     {
-        if (doc.Armature is not { Bones.Count: > 0 } armature || !frame.HasBoundStrokes)
+        var index = rig ?? RigIndex.Empty;
+        if (doc.Armature is not { Bones.Count: > 0 } armature || !index.IsPosed(frame))
             return frame;
 
         var pose = ArmatureOps.PoseAt(doc.Scene.PoseTrack, frameIndex);
+        // The layer's binding, resolved ONCE for the frame rather than per
+        // stroke: a whole cutout limb is one binding, and building it four
+        // hundred times for four hundred lines would be the cost that makes a
+        // rigged layer feel slower than a rigged stroke.
+        var layerBone = index.LayerOf(frame) is { } layer ? doc.Scene.RiggedBoneOf(layer) : null;
+        var named = layerBone is { Length: > 0 }
+            ? new List<BoneBinding> { new() { BoneId = layerBone } }
+            : null;
+
         var copy = frame.Clone();
         for (var i = 0; i < frame.Strokes.Count; i++)
         {
-            if (frame.Strokes[i].Weights is not { Count: > 0 }) continue;
-            copy.Strokes[i] = PoseStroke(frame.Strokes[i], armature, pose);
+            var stroke = frame.Strokes[i];
+            var own = stroke.Weights is { Count: > 0 };
+            if (!own && (layerBone is null || !TakesLayerBinding(stroke))) continue;
+            // "The whole skeleton" has no single answer to share, so it is
+            // auto-bound per stroke — the same arithmetic the Auto-bind button
+            // does, on a copy, so the record still carries no weights. It runs
+            // on the cache's miss path beside a full rasterization of the same
+            // frame, which is where its cost belongs.
+            var fallback = own ? null : named ?? AutoBoundFor(stroke, armature);
+            copy.Strokes[i] = PoseStroke(stroke, armature, pose, fallback);
         }
         return copy;
+    }
+
+
+    /// <summary>
+    /// Whether a layer's binding should move this stroke — it carries no
+    /// weights of its own, and it has not already been posed.
+    /// </summary>
+    /// <remarks>
+    /// <b>The second half is what stops a bake from being applied twice.</b>
+    /// Baking replaces a stroke with its posed self and clears its weights, so
+    /// on a rigged LAYER a baked stroke would otherwise look exactly like an
+    /// unbaked one and be swung again on the next render — the drawing walking
+    /// further from the rig every time somebody froze it.
+    /// <para>
+    /// <see cref="Stroke.RestPoints"/> is the honest marker rather than a
+    /// coincidence being exploited: it is set by <see cref="PoseStroke"/> and
+    /// by nothing else, so "has a rest path" and "has been posed" are the same
+    /// statement. A stroke an artist drew has none.
+    /// </para>
+    /// </remarks>
+    private static bool TakesLayerBinding(Stroke stroke) =>
+        stroke.Weights is not { Count: > 0 } && stroke.RestPoints is null;
+
+    /// <summary>Weights for a stroke that follows the whole skeleton, without touching it.</summary>
+    private static IReadOnlyList<BoneBinding>? AutoBoundFor(Stroke stroke, Armature armature)
+    {
+        var scratch = stroke.Clone(newId: false);
+        AutoBind(scratch, armature);
+        return scratch.Weights;
     }
 
     /// <summary>
@@ -284,7 +364,7 @@ public static class Skinning
     /// arc fraction between the control points either side.
     /// </summary>
     private static (IReadOnlyList<StrokePoint> Points, double[][] Weights) DensifyWithWeights(
-        List<StrokePoint> points, List<BoneBinding> bindings)
+        List<StrokePoint> points, IReadOnlyList<BoneBinding> bindings)
     {
         double[] WeightsOf(int index)
         {

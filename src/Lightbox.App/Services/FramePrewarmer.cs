@@ -138,6 +138,16 @@ public sealed class FramePrewarmer : IDisposable
 
     private readonly Lock _gate = new();
     private readonly Queue<WarmRequest> _pending = new();
+
+    /// <summary>
+    /// Which drawings the rig moves — replaced by the owner alongside the
+    /// bitmap cache's copy, and for the same reason: a drawing on a rigged
+    /// LAYER carries no weights of its own (Q90), so the frame cannot answer
+    /// for it and a prewarm would bank the rest pose under a key the live
+    /// path then trusts.
+    /// </summary>
+    public Lightbox.Core.Documents.RigIndex Rig { get; set; } =
+        Lightbox.Core.Documents.RigIndex.Empty;
     private readonly Queue<Warmed> _ready = new();
 
     private int _generation;
@@ -218,12 +228,12 @@ public sealed class FramePrewarmer : IDisposable
             _pending.Clear();
             foreach (var job in jobs)
             {
-                // A rig-bound frame's pixels depend on the pose at its cel,
+                // A rig-moved frame's pixels depend on the pose at its cel,
                 // and the detached render runs without the document to pose
                 // against — so it would warm the cache with the REST pose
                 // under a key the live path then trusts. Skipped: the frame
                 // renders on demand through the cache's own PoseResolver.
-                if (job.Frame.HasBoundStrokes) continue;
+                if (Rig.IsPosed(job.Frame)) continue;
                 if (accountedFor.Add(job.Key)) _pending.Enqueue(job);
             }
             if (_running || _pending.Count == 0) return;

@@ -99,6 +99,12 @@ public partial class MainViewModel
         // or a structural edit can add, remove or replace the frames it names, and
         // a stale list would repaint the wrong ones — or, worse, none of them.
         _swatchRepaint = null;
+        // Which drawings the rig moves is derived from the layer stack, so an
+        // undo that took a link away — or a load that brought one in — has to
+        // land here before anything renders. Rebuilt even on the scoped-edit
+        // fast path: the index is a dictionary of a handful of ids, and a
+        // stale one is wrong pixels rather than a slow repaint.
+        RebuildRigIndex();
 
         if (_committingScopedEdit)
         {

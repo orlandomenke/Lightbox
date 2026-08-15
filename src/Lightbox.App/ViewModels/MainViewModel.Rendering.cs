@@ -733,7 +733,9 @@ public partial class MainViewModel
                 // No live effect can be in progress: playback abandons a stroke
                 // in flight, which is what makes this false rather than a guess.
                 var why = tileNativeDoc
-                    ? TileFallback.Reason(frame, scene.Camera is not null, true, liveEffectHere: false)
+                    ? TileFallback.Reason(
+                        frame, scene.Camera is not null, true, liveEffectHere: false,
+                        posed: _cache.Rig.IsPosed(frame))
                     : TileFallbackReason.NoViewport;
 
                 if (why == TileFallbackReason.None)
