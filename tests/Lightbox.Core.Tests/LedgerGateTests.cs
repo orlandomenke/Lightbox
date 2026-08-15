@@ -175,6 +175,24 @@ public class LedgerGateTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// <c>check</c>'s own lost-id loop ran only when HEAD was a merge commit,
+    /// and the first merge HEAD it ever saw raised a NameError instead of a
+    /// report (B214) — the loop was written against a table that never
+    /// existed, and nothing exercised it because nobody's HEAD happened to be
+    /// a merge. An explicit ref forces the loop whatever HEAD is, which is
+    /// what makes this deterministic: without the fix this run dies in a
+    /// traceback, whatever the ledgers contain.
+    /// </summary>
+    [Fact]
+    public void CheckSurvivesComparingAgainstAMergeParent()
+    {
+        var (_, said) = Bugs("check HEAD");
+
+        Assert.DoesNotContain("Traceback", said);
+        Assert.DoesNotContain("NameError", said);
+    }
+
+    /// <summary>
     /// The gate passing on a synthetic fixture proves the detector; this proves the
     /// tree. It is also what fails if a merge is resolved badly and committed.
     /// </summary>
