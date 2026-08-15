@@ -355,6 +355,27 @@ public class LedgerGateTests(ITestOutputHelper output)
             + "moves the conflict one artefact along instead of ending it (Q92).");
     }
 
+    /// <summary>
+    /// B211. `-p P3` is the spelling anybody types first, and it was refused with
+    /// "unknown priority ''" because only `-p=P3` and `-pP3` were read.
+    /// </summary>
+    [Theory]
+    [InlineData("-p PX")]
+    [InlineData("-p=PX")]
+    [InlineData("-pPX")]
+    public void SpaceSeparatedFlagsAreAccepted(string spelling)
+    {
+        // A deliberately invalid priority, so the value the parser read comes back
+        // in the error and nothing is written to the real ledger. Before the fix
+        // the space-separated form reported `unknown priority ''` — the flag's
+        // value was never read at all, so `-p P1` was refused just as loudly.
+        var (code, said) = Bugs($"new project \"A title\" {spelling} --no-fetch");
+
+        output.WriteLine(said.TrimEnd());
+        Assert.Equal(2, code);
+        Assert.Contains("unknown priority 'PX'", said);
+    }
+
     private (int Code, string Out) Questions(string args)
     {
         var info = new ProcessStartInfo("python3", $"scripts/questions.py {args}")

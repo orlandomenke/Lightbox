@@ -156,6 +156,26 @@ public class MonolithRatchetTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// B210. <c>ratchets.py remeasure</c> matched the budget with a trailing
+    /// <c>\s*$</c>, and <c>\s</c> matches newlines — so re-measuring ate the blank
+    /// line after the number and ran it into the heading below. Every merge
+    /// resolution is a re-measure, so the damage compounded silently.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(BudgetCases))]
+    public void RemeasureKeepsTheEntryReadable(string source, string relative, int max)
+    {
+        var lines = File.ReadAllLines(Path.Combine(RatchetDir(), source));
+        var at = Array.FindIndex(lines, l => l.StartsWith("budget:", StringComparison.Ordinal));
+        output.WriteLine($"{source}: budget on line {at + 1} of {lines.Length} ({relative} <= {max})");
+
+        Assert.True(at >= 0, $"{source} has no `budget:` line");
+        Assert.True(at + 1 < lines.Length && lines[at + 1].Trim().Length == 0,
+            $"{source} runs `budget:` straight into the next line. A re-measure ate the blank "
+            + "line after it — the budget regex must end the line with [ \\t]*$, not \\s*$.");
+    }
+
+    /// <summary>
     /// The reasons are the half a script cannot reproduce, and the half a merge
     /// destroys by taking one side. An entry with a number and no account of it is
     /// the state this directory exists to prevent.
