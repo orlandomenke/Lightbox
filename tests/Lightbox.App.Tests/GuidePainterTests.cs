@@ -22,7 +22,7 @@ namespace Lightbox.App.Tests;
 /// order is what <c>PaintDocument</c> owns and what the first test here drives.
 /// </para>
 /// </remarks>
-public class GuidePainterTests
+public class GuidePainterTests(ITestOutputHelper output)
 {
     private const int W = 200, H = 120;
 
@@ -231,5 +231,70 @@ public class GuidePainterTests
         using var bmp = PaintOverArtwork([coarse]);
 
         Assert.True(StrongestOnRow(bmp, H / 2).Distance > 30);
+    }
+
+    // ---- emphasis: which guide can be grabbed, and which one is being changed ----
+
+    [Fact]
+    public void EachStepOfEmphasisReadsStrongerThanTheOneBelowIt()
+    {
+        // The affordance the Move tool needs, and the reason it is three steps
+        // rather than one: "anything here can be picked up", "this one would
+        // come up", "this one is what the options are changing". If two of them
+        // read the same on screen, they answer the same question and one of
+        // them is a lie.
+        var plain = Vertical();
+        int Ink(GuidePainter.Emphasis e)
+        {
+            using var bmp = PaintOverArtwork([plain with { Emphasis = e }]);
+            return StrongestOnRow(bmp, H / 2).Distance;
+        }
+
+        var none = Ink(GuidePainter.Emphasis.None);
+        var grabbable = Ink(GuidePainter.Emphasis.Grabbable);
+        var hover = Ink(GuidePainter.Emphasis.Hover);
+        var selected = Ink(GuidePainter.Emphasis.Selected);
+
+        output.WriteLine($"none {none}, grabbable {grabbable}, hover {hover}, selected {selected}");
+        Assert.True(none < grabbable, $"grabbable ({grabbable}) must read above plain ({none})");
+        Assert.True(grabbable < hover, $"hover ({hover}) must read above grabbable ({grabbable})");
+        Assert.True(hover < selected, $"selected ({selected}) must read above hover ({hover})");
+    }
+
+    [Fact]
+    public void AGridShowsItsAnchorOnlyWhileSomethingIsReachingForIt()
+    {
+        // A grid is picked up at its anchor and nowhere else, and that anchor
+        // is an invisible point — usually the canvas corner. Without a mark,
+        // "you can drag this" is a sentence in the manual and a hunt on the
+        // screen. With the Move tool down it goes away again, because a handle
+        // floating over the artwork is the thing this design avoids.
+        var grid = new GuidePainter.Line(Kind: 1, X: 100, Y: 60, Spacing: 40, Angles: [0.0]);
+
+        using var idle = PaintOverArtwork([grid]);
+        using var reaching = PaintOverArtwork([grid with { Emphasis = GuidePainter.Emphasis.Grabbable }]);
+
+        // A pixel on the handle's left edge, off both of the lattice lines that
+        // cross the anchor: bare artwork with the tool down, warm ink with it
+        // up — warm like every other "this is a place, not a direction" mark
+        // the rig draws.
+        Assert.Equal(SKColors.White, idle.GetPixel(95, 58));
+        var lit = reaching.GetPixel(95, 58);
+        Assert.True(lit.Red > lit.Blue + 40, $"the anchor handle is not warm ink (got {lit})");
+    }
+
+    [Fact]
+    public void AGridsLatticeDoesNotWashOverTheDrawingMerelyBecauseTheMoveToolIsInHand()
+    {
+        // The ambient hint is per guide, and a grid covers the canvas: lighting
+        // its every line because a tool was picked up is a wash over the
+        // artwork, not a hint. Its anchor above is what carries the message.
+        var grid = new GuidePainter.Line(Kind: 1, X: 0, Y: 0, Spacing: 40, Angles: [0.0]);
+
+        using var idle = PaintOverArtwork([grid]);
+        using var reaching = PaintOverArtwork([grid with { Emphasis = GuidePainter.Emphasis.Grabbable }]);
+
+        // A row well away from the anchor, so only the lattice is in it.
+        Assert.Equal(StrongestOnRow(idle, H - 5).Distance, StrongestOnRow(reaching, H - 5).Distance);
     }
 }

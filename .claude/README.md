@@ -24,7 +24,8 @@ every session, and without quietly breaking what already works.
 | Run a deeper multi-round audit | invoke the `improve-loop` workflow |
 | See what the app promises today | `.claude/codemap/FEATURES.md` |
 | See where change is dangerous | `.claude/codemap/HOTSPOTS.md` |
-| Answer a blocked decision | edit `.claude/quality/QUESTIONS.md` |
+| Answer a blocked decision | edit its file in `.claude/quality/questions/` |
+| Raise one | `python3 scripts/questions.py new "<title>"` — never by picking the next number by eye |
 
 ## Why it is shaped this way
 

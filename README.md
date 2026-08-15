@@ -390,7 +390,7 @@ in GitHub Codespaces, or in VS Code with the Dev Containers extension.
 | [**User manual**](docs/MANUAL.md) | What the application does today, one file per section. Marks anything unbuilt as *Planned*. |
 | [**Roadmap**](.claude/quality/ROADMAP.md) | Six pillars and the drawing floor. **The checkboxes are derived from the code**, not asserted — delete a feature and its box un-ticks. |
 | [**Bugs**](.claude/quality/BUGS.md) | Every known defect, each naming the test that closes it. |
-| [**Open questions**](.claude/quality/QUESTIONS.md) | Decisions not yet made, and the reasoning behind the ones that were. |
+| [**Open questions**](.claude/quality/questions/) | Decisions not yet made, and the reasoning behind the ones that were. One file each; `QUESTIONS.md` is a generated index over them. |
 | [`docs/DESIGN-*.md`](docs/) | Design notes — the payload budget, performance, the brush tips, the infinite canvas. |
 
 Those files are candid by design about what is broken and what was decided

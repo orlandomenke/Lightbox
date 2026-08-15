@@ -873,6 +873,9 @@ public partial class ConfigureWindow : Window
         _loadingGuides = true;
         GridSpacingBox.Value = (decimal)_vm.GridSpacing;
         SnapToleranceBox.Value = (decimal)_vm.SnapTolerance;
+        VanishingPointRaysBox.Value = _vm.VanishingPointRays;
+        HeightScaleHeadsBox.Value = _vm.HeightScaleHeads;
+        HeightScaleFillBox.Value = (decimal)Math.Round(_vm.HeightScaleFill * 100);
         _loadingGuides = false;
         RefreshGrids();
     }
@@ -893,6 +896,26 @@ public partial class ConfigureWindow : Window
     {
         if (_loadingGuides || _vm is null || e.NewValue is not { } value) return;
         _vm.GridSpacing = (double)value;
+    }
+
+    private void OnVanishingPointRaysChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_loadingGuides || _vm is null || e.NewValue is not { } value) return;
+        _vm.VanishingPointRays = (int)value;
+    }
+
+    private void OnHeightScaleHeadsChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_loadingGuides || _vm is null || e.NewValue is not { } value) return;
+        _vm.HeightScaleHeads = (int)value;
+    }
+
+    private void OnHeightScaleFillChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        // Percent on the way in, a fraction on the way through: the setting is
+        // a share of the canvas and a percentage is how anyone says it.
+        if (_loadingGuides || _vm is null || e.NewValue is not { } value) return;
+        _vm.HeightScaleFill = (double)value / 100;
     }
 
     private void OnSnapToleranceChanged(object? sender, NumericUpDownValueChangedEventArgs e)
