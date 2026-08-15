@@ -874,7 +874,9 @@ public sealed partial class MainViewModel
             var target = ExposureSheet.ExposedFrame(
                 doc.Scene.Layers[ActiveLayerIndex], index);
             if (target is null) return;
-            baked = Skinning.BakeFrame(target, armature, ArmatureOps.PoseAt(doc.Scene.PoseTrack, index));
+            baked = Skinning.BakeFrame(
+                target, armature, ArmatureOps.PoseAt(doc.Scene.PoseTrack, index),
+                doc.Scene.RiggedBoneOf(doc.Scene.Layers[ActiveLayerIndex]));
         });
         if (baked > 0)
         {
@@ -890,13 +892,37 @@ public sealed partial class MainViewModel
     /// </summary>
     private void InvalidateRiggedFrames()
     {
+        // The index first, and that ordering is load-bearing: it decides
+        // whether a frame's cache key carries the playhead, so invalidating
+        // against a stale one would clear entries under keys that are about to
+        // change shape and leave the new ones warm and wrong.
+        RebuildRigIndex();
         foreach (var layer in Doc.Scene.Layers)
             foreach (var cel in layer.Cels)
-                if (cel.Frame is { HasBoundStrokes: true } bound)
-                    InvalidateFrameRender(bound.Id);
+                if (cel.Frame is { } drawing && _cache.Rig.IsPosed(drawing))
+                    InvalidateFrameRender(drawing.Id);
         PublishSnapshot();
         OnPropertyChanged(nameof(BoneChromes));
         OnPropertyChanged(nameof(HeatPoints));
+    }
+
+    /// <summary>
+    /// Re-read which drawings the rig moves, and hand the answer to everything
+    /// that gates on it.
+    /// </summary>
+    /// <remarks>
+    /// <b>One place builds it and every consumer is given the same instance.</b>
+    /// The bitmap cache uses it to decide whether a key carries the timeline
+    /// position, the prewarmer to decide whether a detached render is safe, and
+    /// the pose resolver to find the layer whose binding moves a drawing. Two
+    /// copies that disagreed would put a posed frame under a position-free key
+    /// — the walk cycle rendering as whichever pose arrived first.
+    /// </remarks>
+    internal void RebuildRigIndex()
+    {
+        var index = RigIndex.For(Doc);
+        _cache.Rig = index;
+        _prewarm.Rig = index;
     }
 
     /// <summary>Apply one edit to every selected stroke on the current drawing, as one undo step.</summary>

@@ -187,6 +187,36 @@
         </StackPanel>
 
         <StackPanel Spacing="6">
+          <TextBlock Text="New vanishing points" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="How many rays a vanishing point is drawn with. Fewer to see the drawing through it, more to read the perspective — the point constrains every direction either way. A placed one is changed with the Move tool." />
+          <DockPanel>
+            <NumericUpDown DockPanel.Dock="Right" x:Name="VanishingPointRaysBox" Width="120"
+                           Minimum="2" Maximum="180" Increment="2" FormatString="0"
+                           ValueChanged="OnVanishingPointRaysChanged" />
+            <TextBlock Text="Rays" VerticalAlignment="Center" />
+          </DockPanel>
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+          <TextBlock Text="New character height scales" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="What a new height scale stands at. The height is a share of the canvas rather than a pixel count, so the same default reads as a figure on any size of scene." />
+          <DockPanel>
+            <NumericUpDown DockPanel.Dock="Right" x:Name="HeightScaleHeadsBox" Width="120"
+                           Minimum="1" Maximum="32" Increment="1" FormatString="0"
+                           ValueChanged="OnHeightScaleHeadsChanged" />
+            <TextBlock Text="Heads tall" VerticalAlignment="Center" />
+          </DockPanel>
+          <DockPanel>
+            <NumericUpDown DockPanel.Dock="Right" x:Name="HeightScaleFillBox" Width="120"
+                           Minimum="5" Maximum="100" Increment="5" FormatString="0"
+                           ValueChanged="OnHeightScaleFillChanged" />
+            <TextBlock Text="Share of the canvas height, in percent" VerticalAlignment="Center" />
+          </DockPanel>
+        </StackPanel>
+
+        <StackPanel Spacing="6">
           <TextBlock Text="Snapping" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
                      Text="How close a point has to come to a guide before it is pulled onto it. Measured in document pixels, so a zoomed-in artist gets the same guides as a zoomed-out one." />

@@ -600,20 +600,9 @@ public sealed partial class CanvasControl : Control
 
     private IReadOnlyList<ReferenceBox>? _referenceBoxes;
 
-    /// <summary>
-    /// One guide, flattened for the renderer.
-    /// </summary>
-    /// <remarks>
-    /// A snapshot rather than the <c>Guide</c> itself: the renderer runs on
-    /// another thread and must never read a document object the UI thread may
-    /// be halfway through editing. Same reason the reference boxes are copied.
-    /// </remarks>
-    public readonly record struct GuideLine(
-        string Id, int Kind, float X, float Y, float Spacing, IReadOnlyList<double> Angles,
-        string? Label = null, int Divisions = 0);
-
-    // The Guides, DraftGuide and BalanceDots overlay properties live in
-    // CanvasControl.Guides.cs with the rest of the guide chrome.
+    // The GuideLine snapshot, the Guides, DraftGuide, BalanceDots and
+    // GuideDragEnabled properties and the rest of the guide chrome live in
+    // CanvasControl.Guides.cs.
 
     /// <summary>
     /// Show one channel of the artwork as grayscale, or all of them as normal.
@@ -715,28 +704,6 @@ public sealed partial class CanvasControl : Control
         }
         return shown;
     }
-
-    /// <summary>
-    /// Whether a guide under the pointer can be picked up and moved.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Off unless the rulers are showing, and that is the design rather than
-    /// an implementation detail. Grabbing a guide and drawing along one are
-    /// the same gesture in the same place, so something has to say which was
-    /// meant. Photoshop's answer is the Move tool; this app has no move tool,
-    /// so the rulers are the switch: turn them on and you are arranging the
-    /// rig, turn them off and the rig is scenery you draw over. It is one
-    /// toggle instead of a modifier nobody discovers, and it is why the
-    /// guide controls only appear on the shortcut bar when the rulers do.
-    /// </para>
-    /// <para>
-    /// The cursor is the only affordance. No handles float over the artwork —
-    /// an overlay of little buttons sits between the artist and the drawing,
-    /// and it is the thing this design exists to avoid.
-    /// </para>
-    /// </remarks>
-    public bool GuideDragEnabled { get; set; }
 
     /// <summary>The Move tool picked the drawing up. <c>wholeLayer</c> is Ctrl.</summary>
     public event Action<double, double, bool>? ContentMoveStarted;
@@ -2067,7 +2034,7 @@ public sealed partial class CanvasControl : Control
         context.Custom(new DrawOp(
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
-            ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks), _balanceDots,
+            ReferenceBoxes, _newBox, EmphasisedGuides(), _draftGuide, WithRigPreview(RigMarks), _balanceDots,
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
             _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing,
@@ -2608,6 +2575,11 @@ public sealed partial class CanvasControl : Control
             // what keeps this out of the way of drawing — see GuideDragEnabled.
             if (GuideDragEnabled && GuideAt(pp.Position) is { } grabbed)
             {
+                // Picking one up is also choosing it. They are the same
+                // intention — you reach for the guide you are about to change —
+                // and a separate click to select would mean the options were
+                // never pointed at the guide you had just moved.
+                SelectGuide(grabbed.Id);
                 _guideDrag = grabbed.Id;
                 _guideResizing = GrabsHeightScaleTop(grabbed, pp.Position);
                 _guideDragLast = (x, y);
@@ -2730,6 +2702,11 @@ public sealed partial class CanvasControl : Control
                     }
                     else
                     {
+                        // A press that reached the drawing is a press that
+                        // missed every guide, so the options let go of theirs.
+                        // Clicking away is how every other selection on this
+                        // canvas is dropped.
+                        if (GuideDragEnabled) SelectGuide(null);
                         _movingContent = true;
                         ContentMoveStarted?.Invoke(x, y, e.KeyModifiers.HasFlag(KeyModifiers.Control));
                     }
@@ -4087,7 +4064,7 @@ public sealed partial class CanvasControl : Control
             lines is null ? null : [.. lines.Select(ToPainterLine)];
 
         private static GuidePainter.Line ToPainterLine(GuideLine g) =>
-            new(g.Kind, g.X, g.Y, g.Spacing, g.Angles, g.Label, g.Divisions);
+            new(g.Kind, g.X, g.Y, g.Spacing, g.Angles, g.Label, g.Divisions, g.Emphasis);
 
         /// <summary>
         /// The reference grid, while it is being edited.

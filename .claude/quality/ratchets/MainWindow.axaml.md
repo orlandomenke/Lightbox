@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4306
+budget: 4250
 
 ## Why it is here despite being XAML
 
@@ -48,8 +48,14 @@ other's reason and leaves a number nobody can account for.
   that shipped beside them did **not** raise it: that is self-contained chrome, so
   it went to `LinkBracket.axaml` and cost one hosting line instead of fourteen.
 
-**Four raises met on this number, and it is none of theirs — it is the merged
-tree's.** That is the rule this file's header states, and it is the one these
+- **→ 4,222** (2026-08-14): the guide options, which came *down* from 4,306
+  rather than up. The new options went into two `UserControl`s and the Select
+  tool's quick-bar group followed them out unchanged; the lines this leaves
+  behind are the references to the three. A feature that needed room in a
+  budgeted file buying it by extraction is the mechanism working as designed.
+
+**Five raises and lowerings have met on this number now, and it is none of
+theirs — it is the merged tree's.** That is the rule this file's header states, and it is the one these
 conflicts keep testing. Taking any branch's figure banks the others' slack as
 headroom nobody earned; taking one side's *comment* deletes another's reason and
 leaves a number nobody can account for. So every reason above stays, and
