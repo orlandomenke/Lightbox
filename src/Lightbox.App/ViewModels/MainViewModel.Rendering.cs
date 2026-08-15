@@ -514,9 +514,32 @@ public partial class MainViewModel
         };
     }
 
+    /// <summary>
+    /// Who published while the clock was running (B178) — the counter its
+    /// entry asks for instead of another change to the publish path. Declared
+    /// in this partial because only the publish path writes it.
+    /// </summary>
+    private readonly PublishTally _publishTally = new();
+
+    /// <inheritdoc cref="_publishTally"/>
+    internal PublishTally ReportPublishTally => _publishTally;
+
     /// <summary>Composite the scene for the current playhead and hand it to the view.</summary>
-    public void PublishSnapshot()
+    /// <param name="publisher">
+    /// Compiler-stamped name of the member that asked, for B178's per-caller
+    /// tally. Never pass it by hand — the value's worth is that it cannot lie
+    /// about where the call came from.
+    /// </param>
+    public void PublishSnapshot(
+        [System.Runtime.CompilerServices.CallerMemberName] string publisher = "")
     {
+        // B178: publishing outran drawing 1.5× in the field capture — 757
+        // published against 339 ticks — and which of PublishSnapshot's 45 call
+        // sites supply the surplus is a question for a counter, not a grep.
+        // Tallied during playback only, so the table is the tick's surplus
+        // rather than thousands of legitimate pointer publishes.
+        if (IsPlaying) _publishTally.Note(publisher);
+
         // Any publish satisfies a deferred one — the snapshot it hands over is
         // built from the current state, which includes whatever the deferral
         // was waiting to show.
