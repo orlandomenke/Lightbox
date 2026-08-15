@@ -474,10 +474,54 @@ public partial class MainViewModel
     }
 
     /// <summary>Put a raw point where the guides say it belongs.</summary>
+    /// <remarks>
+    /// The <em>stroke</em> version: stateful, because a stroke commits to one
+    /// guide and is then held on it. Everything that places a single point
+    /// wants <see cref="SnappedPoint"/> instead.
+    /// </remarks>
     private (double X, double Y) Guided(double x, double y) =>
         !SnapToGuides || Scene.Guides is not { Count: > 0 } guides
             ? (x, y)
             : _guideSnap.Apply(guides, x, y, SnapTolerance);
+
+    /// <summary>
+    /// Pull one placed point onto the guides, or leave it where it was.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B216.</b> The four lines this replaces were copied at five call sites
+    /// and absent at nine more, which is the whole of that bug: snapping was
+    /// not a system tools opted into, it was a fragment each tool remembered or
+    /// forgot. A named method is what makes "does this tool snap?" a question
+    /// with one answer per tool rather than a grep.
+    /// </para>
+    /// <para>
+    /// Stateless, unlike <see cref="Guided"/>. A point being placed has no
+    /// direction to commit to — there is no travel yet to measure one from —
+    /// so the nearest guide wins and nothing is remembered between calls. That
+    /// is also what makes it safe on a hover, which is where half the new
+    /// callers are: a preview must show where the click will land, and a
+    /// stateful snap would let the preview change what the click then does.
+    /// </para>
+    /// </remarks>
+    private (double X, double Y) SnappedPoint(double x, double y) =>
+        !SnapToGuides || Scene.Guides is not { Count: > 0 } guides
+            ? (x, y)
+            : Snapper.Point(guides, x, y, SnapTolerance);
+
+    /// <summary>
+    /// The point snapper the canvas hands its own gestures through.
+    /// </summary>
+    /// <remarks>
+    /// The canvas builds the marquee shapes itself — it owns the rubber band —
+    /// so it cannot ask <see cref="SnappedPoint"/> the way the view model's own
+    /// tools do. It gets the same function through a delegate instead, which is
+    /// the pattern every other decision this control delegates already uses
+    /// (<c>SetLinePicker</c>, <c>SetPathEditEntry</c>). Handing over the
+    /// function rather than the guides keeps `Snapper` and `SnapToGuides` on
+    /// this side of the line, where the record is.
+    /// </remarks>
+    public (double X, double Y) SnapPointForCanvas(double x, double y) => SnappedPoint(x, y);
 
     /// <summary>Add a guide. The first one brings the machinery into being.</summary>
     public Guide AddGuide(

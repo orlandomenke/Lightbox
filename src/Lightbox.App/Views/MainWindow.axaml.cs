@@ -105,6 +105,10 @@ public partial class MainWindow : Window
         // Tool-aware canvas input (fill clicks, selection shapes) + ants overlay.
         Canvas.FillClicked += _vm.FillAt;
         Canvas.WandClicked += _vm.WandSelectAt;
+        // The marquee shapes are built in the canvas, so the snap has to reach
+        // them as a function (B216). Same split as every other decision here:
+        // the control has the geometry, the view model has the record.
+        Canvas.SetPointSnapper(_vm.SnapPointForCanvas);
         Canvas.SelectionShapeDrawn += _vm.ApplySelectionShape;
         Canvas.PolygonVertexAdded += _vm.AddPolygonVertex;
         Canvas.PolygonCompleted += _vm.CompletePolygon;

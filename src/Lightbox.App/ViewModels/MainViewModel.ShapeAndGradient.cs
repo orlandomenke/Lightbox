@@ -66,6 +66,13 @@ public partial class MainViewModel
         }
         CommitSwatchEdit();
 
+        // B216. The shape tool beside this one has snapped its corners since it
+        // shipped and this never snapped anything, for no reason either tool
+        // could name — the two are the same gesture, an anchor and a dragged
+        // far end, and a ramp whose axis is meant to run along a guide is at
+        // least as common as a rectangle whose corner is.
+        (x, y) = SnappedPoint(x, y);
+
         _liveGradient = new Stroke
         {
             Tool = ToolKind.Gradient,
@@ -92,6 +99,11 @@ public partial class MainViewModel
     public void MoveGradient(double x, double y, bool snapAngle = false)
     {
         if (_liveGradient is not { } stroke) return;
+        // The guides first, then Shift. Shift rotates the axis onto a fixed
+        // angle and would otherwise be undone by a guide pulling the end back
+        // off it; this order means the two compose the way they read — snap to
+        // the guide, then straighten if asked.
+        if (!snapAngle) (x, y) = SnappedPoint(x, y);
         stroke.Points[1] = GradientEnd(stroke, x, y, snapAngle);
         RenderGradientPreview();
         RequestSnapshot();
@@ -126,6 +138,7 @@ public partial class MainViewModel
     public void EndGradient(double x, double y, bool snapAngle = false)
     {
         if (_liveGradient is not { } stroke) return;
+        if (!snapAngle) (x, y) = SnappedPoint(x, y);
         stroke.Points[1] = GradientEnd(stroke, x, y, snapAngle);
         CancelGradient(); // clears the preview; the record gets the stroke below
 

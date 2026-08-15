@@ -899,9 +899,9 @@ public partial class MainViewModel
         // the unsnapped start — snapping the anchor first would measure the
         // heading from a point the hand never visited.
         _guideSnap.Begin(x, y);
-        if (SnapToGuides && Scene.Guides is { Count: > 0 } startGuides)
+        if (SnapToGuides && Scene.Guides is { Count: > 0 })
         {
-            (x, y) = Snapper.Point(startGuides, x, y, SnapTolerance);
+            (x, y) = SnappedPoint(x, y);
             _guideSnap.Anchor(x, y);
         }
         // Shift+click: begin at the end of the last stroke and run straight to
@@ -1035,10 +1035,7 @@ public partial class MainViewModel
         if (!CanEdit(ActiveLayer, "draw on it") || PaintTargetOrKey() is null) return;
         CommitSwatchEdit();
 
-        if (SnapToGuides && Scene.Guides is { Count: > 0 } guides)
-        {
-            (x, y) = Snapper.Point(guides, x, y, SnapTolerance);
-        }
+        (x, y) = SnappedPoint(x, y);
         _shapeStart = (x, y);
         _liveShape = new Stroke
         {
@@ -1063,10 +1060,7 @@ public partial class MainViewModel
     public void MoveShape(double x, double y, bool fromCentre = false, bool regular = false)
     {
         if (_liveShape is not { } stroke) return;
-        if (SnapToGuides && Scene.Guides is { Count: > 0 } guides)
-        {
-            (x, y) = Snapper.Point(guides, x, y, SnapTolerance);
-        }
+        (x, y) = SnappedPoint(x, y);
         stroke.Points = ShapeBuilder.Outline(
             ActiveShape, _shapeStart.X, _shapeStart.Y, x, y, fromCentre, regular, PolygonSides);
         RenderShapePreview();
@@ -1076,10 +1070,7 @@ public partial class MainViewModel
     public void EndShape(double x, double y, bool fromCentre = false, bool regular = false)
     {
         if (_liveShape is not { } stroke) return;
-        if (SnapToGuides && Scene.Guides is { Count: > 0 } guides)
-        {
-            (x, y) = Snapper.Point(guides, x, y, SnapTolerance);
-        }
+        (x, y) = SnappedPoint(x, y);
         stroke.Points = ShapeBuilder.Outline(
             ActiveShape, _shapeStart.X, _shapeStart.Y, x, y, fromCentre, regular, PolygonSides);
         CancelShape();

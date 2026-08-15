@@ -1248,6 +1248,30 @@ public sealed partial class CanvasControl : Control
     }
 
     /// <summary>
+    /// Put a document point where the guides say it belongs, or leave it.
+    /// </summary>
+    /// <remarks>
+    /// <b>B216.</b> The canvas owns the marquee rubber band, so unlike the
+    /// view model's own tools it cannot reach <c>SnappedPoint</c> directly. It
+    /// is handed the function instead — the same delegation every other
+    /// decision this control makes already uses — which keeps `Snapper`, the
+    /// guides and the on/off switch on the view model's side and leaves this
+    /// with the geometry it already had.
+    ///
+    /// <para>
+    /// Identity until something sets it, so a control with no snapper attached
+    /// behaves exactly as it did.
+    /// </para>
+    /// </remarks>
+    private Func<double, double, (double X, double Y)> _snapPoint = static (x, y) => (x, y);
+
+    public void SetPointSnapper(Func<double, double, (double X, double Y)>? snap) =>
+        _snapPoint = snap ?? ((x, y) => (x, y));
+
+    /// <summary>Snap a document point through <see cref="SetPointSnapper"/>.</summary>
+    private (double X, double Y) Snapped(double x, double y) => _snapPoint(x, y);
+
+    /// <summary>
     /// A marquee dragged with the arrow: the rect in document space, and
     /// whether Shift was held at the press to add rather than replace.
     /// </summary>
@@ -2627,6 +2651,10 @@ public sealed partial class CanvasControl : Control
                     }
                     else
                     {
+                        // Unsnapped here on purpose: AddPolygonVertex snaps on
+                        // the other side, where the guides are (B216). The
+                        // marquee below cannot do the same because the canvas
+                        // builds its rubber band itself.
                         PolygonVertexAdded?.Invoke(x, y);
                     }
                     e.Handled = true;
@@ -2635,13 +2663,18 @@ public sealed partial class CanvasControl : Control
                     e.Pointer.Capture(this);
                     _marqueeAdds = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
                     _dragShape.Clear();
+                    // Deliberately unsnapped, and the only selection gesture
+                    // that is: a lasso is a traced line, so pulling every
+                    // sample onto a grid would fight the hand the whole way
+                    // round. The same reason a brush snaps its start and not
+                    // its middle.
                     _dragShape.Add(new Core.Documents.StrokePoint(x, y, 1));
                     e.Handled = true;
                     return;
                 case CanvasToolMode.SelectRect:
                 case CanvasToolMode.SelectEllipse:
                     e.Pointer.Capture(this);
-                    _dragAnchor = (x, y);
+                    _dragAnchor = Snapped(x, y);
                     _marqueeAdds = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
                     _dragShape.Clear();
                     e.Handled = true;
@@ -3242,6 +3275,13 @@ public sealed partial class CanvasControl : Control
                 if (!_marqueeAdds && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
                 {
                     (dx, dy) = Squared(anchor, dx, dy);
+                }
+                // B216. The far corner, after squaring, so a square that was
+                // asked for stays square — snapping first and squaring second
+                // would take the corner straight back off the guide.
+                else
+                {
+                    (dx, dy) = Snapped(dx, dy);
                 }
                 _dragShape.Clear();
                 _dragShape.AddRange(ShapeBetween(anchor, (dx, dy), ToolMode == CanvasToolMode.SelectEllipse));

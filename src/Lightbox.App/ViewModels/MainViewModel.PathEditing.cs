@@ -233,9 +233,25 @@ public partial class MainViewModel
                 _pathEdit.PullHandlesTo(grabbed.Node, x, y);
             }
             // Every selected node, so a multi-node drag moves the shape rather
-            // than one point of it.
-            else if (_pathEdit.IsNodeSelected(grabbed.Node)) _pathEdit.MoveSelectedNodes(dx, dy);
-            else _pathEdit.MoveNode(grabbed.Node, dx, dy);
+            // than one point of it — and it moves by the raw delta, because a
+            // group has no one point that is "the" point to land on a guide.
+            else if (_pathEdit.SelectedNodes.Count > 1) _pathEdit.MoveSelectedNodes(dx, dy);
+            // B216. One node is a point being placed, so it snaps like every
+            // other placed point — the pen puts a node on a guide and the white
+            // arrow could not put that same node back on it.
+            //
+            // The delta is re-derived from where the node should END UP rather
+            // than snapping the pointer, because the grab has an offset: you
+            // catch a node slightly off its centre, and snapping the pointer
+            // would land the node that offset away from the guide.
+            //
+            // Split on the selection COUNT rather than on whether the grabbed
+            // node is selected, which is what the branch above used to ask.
+            // `GrabPathPart` selects whatever node it grabs, so by the time a
+            // drag runs the answer is always yes and the single-node arm was
+            // unreachable — the test for this landed on the lattice by accident
+            // and passed against the old code until its numbers were changed.
+            else _pathEdit.MoveNodeTo(grabbed.Node, SnappedPoint, dx, dy);
         }
         else
         {
