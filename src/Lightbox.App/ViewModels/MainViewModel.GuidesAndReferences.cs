@@ -1114,7 +1114,7 @@ public partial class MainViewModel
     /// Where a cell lands on the canvas, in document pixels.
     /// </summary>
     /// <remarks>
-    /// The same arithmetic the compositor does in <see cref="ScenePassBuilder.ReferencePasses"/>,
+    /// The same arithmetic the compositor does in <see cref="ScenePassBuilder.ReferenceSpecs"/>,
     /// exposed so the gizmos can be drawn and hit-tested against exactly what
     /// is on screen. Two copies of this would drift and the boxes would stop
     /// sitting on the drawings they describe.

@@ -139,6 +139,12 @@ public partial class MainViewModel
         // document with no rig takes the null branch inside and pays nothing.
         _cache.PoseResolver = (frame, cel) =>
             Skinning.PoseFrameForRender(_editor.Doc, frame, cel, _cache.Rig);
+        // A retired bake may still be riding in a published pass list on its
+        // way to the render thread, and every pass bitmap is pinned in the
+        // frame cache at publish — so the cache's pin-aware deferral is the
+        // one place that knows when the bitmap is truly unread. See
+        // FrameBitmapCache.DisposeExternal.
+        _stackBake.RetireBitmap = _cache.DisposeExternal;
         // B147: the canvas holds its own copy of the selected outlines, and only
         // OnStrokeSelectionChanged refreshes it. Every path that reaches the
         // manager directly — picking a guide, a symbol or a reference box, all of

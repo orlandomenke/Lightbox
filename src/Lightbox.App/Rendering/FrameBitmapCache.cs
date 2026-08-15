@@ -177,6 +177,21 @@ public sealed class FrameBitmapCache : IDisposable
     }
 
     /// <summary>
+    /// Free a bitmap the cache never owned through the same pin-aware
+    /// deferral its own contents get.
+    /// </summary>
+    /// <remarks>
+    /// For owners whose bitmaps ride in published pass lists —
+    /// <see cref="LayerStackBake"/>'s baked segments. Every pass bitmap is
+    /// pinned here at publish (owned or not; an unowned pin is just a
+    /// dictionary entry the matching unpin removes), so this is the one place
+    /// that already knows whether the render thread might still read it.
+    /// Disposing directly instead is B130's crash with a different owner: the
+    /// UI thread freeing pixels a deferred compose holds.
+    /// </remarks>
+    public void DisposeExternal(SKBitmap bmp) => DisposeOrDefer(bmp);
+
+    /// <summary>
     /// Lookups served from memory, lookups that had to render, and entries
     /// thrown out — for the render report.
     /// </summary>
