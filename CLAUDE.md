@@ -120,11 +120,16 @@ hand moved. That is invariant 2 restated from the artist's side rather than a
 constraint fighting it.
 
 When a request genuinely does not resolve against these, it belongs in
-`.claude/quality/QUESTIONS.md` rather than in a guess.
+`.claude/quality/questions/` rather than in a guess — **one file per question**,
+`python3 scripts/questions.py new "<title>"` to raise one, and
+`.claude/quality/QUESTIONS.md` is a generated index over the directory that is
+not committed (Q55's argument, Q92's application of it). Raising a question used
+to mean appending a section to a single file, so two branches raising two
+questions conflicted by construction; a new file conflicts with nothing.
 
 **Ask it in the conversation first, with a recommendation, and write the file
-afterwards — never the other way round.** A question written straight to
-`QUESTIONS.md` and mentioned in passing is a decision the owner has to go
+afterwards — never the other way round.** A question written straight to the
+directory and mentioned in passing is a decision the owner has to go
 looking for, and the file then records deliberation nobody took part in.
 Asking first makes the file record an *answer*; asking after makes it record a
 guess waiting to be corrected.
@@ -159,9 +164,9 @@ instead of being answered. So when such a run hits a decision it cannot make:
 - Title it so it cannot be mistaken for ready: `[needs a decision] …`.
 
 The point is to move unanswered questions to where the owner already looks. An
-open pull request with a question at the top is visible; a line in
-`QUESTIONS.md` is only visible to whoever opens the file, and the evidence is
-that nobody did. `QUESTIONS.md` still records the *answer* once it arrives —
+open pull request with a question at the top is visible; a file under
+`questions/` is only visible to whoever opens it, and the evidence is
+that nobody did. The directory still records the *answer* once it arrives —
 that has not changed, and it is what makes the decision survive the thread.
 
 **The session-start hook prints every unanswered question**, because a rule that
@@ -452,6 +457,53 @@ So when HEAD is a merge, every id in every parent must still be present. Both
 entries survive and the later one is renumbered above the highest id on either
 side. `LIGHTBOX_ALLOW_LEDGER_DELETION=1` exists for a deletion that is genuinely
 meant, and typing it is a decision in the same way `LIGHTBOX_PUSH_TO_MAIN=1` is.
+
+**Every word above detects a collision, and none of it stopped one.** The
+measurement that settled this, over the six days to 2026-08-14: six bug
+renumbers and three question renumbers, one bug renumbered *twice* because the
+second guess collided as well — every one a hand-edited commit on a branch whose
+objective was something else. The cause was never the checking. It was that
+nothing ever **issued** an id: an author read the ledger, took the highest number
+in it and added one, which is the same number on two branches that both started
+from `main`. So:
+
+- **`bugs.py new <domain> "<title>"` files a bug**, and `bugs.py freeid question`
+  issues an id for a question you then write by hand. Both allocate above every
+  ref the clone can see, not above the working tree, and both fetch first.
+- **`ids` reports a *clash*** — an id this branch created that another branch
+  created too — which is the same collision one merge earlier, while it is still
+  one branch's problem. It is checked against the merge base, so an id both sides
+  carry because it was already on `main` is shared rather than clashed.
+- **`ids --fix` moves the entry this branch filed**, above the highest id
+  anywhere, and rewrites the citations *this branch wrote* for it. Not the
+  others: the id it collided with is older, and every mention of it in the tree
+  already means the entry keeping the number.
+- **The pre-push hook runs the fix for you** and still refuses the push, because
+  a repair made during a push is not in the commits being pushed. It stands down
+  mid-merge, and never touches a *lost* id — putting an entry back is a judgement
+  about what it said, which no number supplies.
+
+Partitioning the number space by domain was the obvious alternative and was
+measured instead of assumed (Q91): it would have stopped roughly 60% of the bug
+collisions, 0% of the question ones, and not the worst case in the list — the
+bone-icon bug collided with another `ui` bug, inside the band it would have been
+given.
+
+**The shape that stops the *textual* conflict is one file per entry** (Q92), and
+it now applies to both places where every branch wrote to the same spot:
+
+| | |
+| --- | --- |
+| `.claude/quality/questions/` | one file per question. Raising one used to mean appending a section to a 3,689-line file, so two branches raising two questions conflicted by construction. `QUESTIONS.md` is a generated index and is **not committed**, for Q55's reason. |
+| `.claude/quality/ratchets/` | one file per line budget, holding the number and every reason it has moved. They were a table in `MonolithRatchetTests.cs`, so two branches growing two *different* oversized files still met there. |
+
+The ratchets are the case where the derived-file trick does **not** apply, and
+the reason is worth keeping: a budget looks derived — three of the four equal
+their file's exact line count — but a ceiling re-measured from the tree can never
+be exceeded, so a script that synced it would delete the mechanism and leave the
+paperwork. `ratchets.py remeasure` exists for one moment only, resolving a merge,
+where *measure on the merged tree, never take a side's number* is mechanical and
+was being done by eye. It is wired to no hook on purpose.
 
 **`python3 scripts/branchstate.py` answers "would this merge?" before a reviewer
 does**, and separates the two kinds of conflict — authored files, which need a

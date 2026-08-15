@@ -21,6 +21,12 @@ obj/
 # them to prove the tree parses. Nothing authored lives in them.
 .claude/codemap/INDEX.md
 .claude/codemap/FEATURES.md
+# QUESTIONS.md joined them on 2026-08-14, for the stronger form of the same
+# argument (Q92). It is now an index over `.claude/quality/questions/`, which is
+# where the questions themselves live — one file each, so two branches raising
+# two questions no longer append to the same place and conflict by construction.
+# `questions.py build` writes it from nothing; the session-start hook runs that.
+.claude/quality/QUESTIONS.md
 
 # Workflow agents get their own git worktrees under here.
 .claude/worktrees/

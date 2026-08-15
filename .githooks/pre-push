@@ -57,20 +57,67 @@ done
 # one side of a ledger conflict. That leaves a file with no duplicate in it, so
 # every check passes and the other branch's entry is gone for good. See
 # `lost_ids` in scripts/bugs.py.
+#
+# IT ALSO REPAIRS, AND ONLY REFUSING WAS THE GAP. Refusing tells an author that
+# two branches took the same number; it leaves them to work out which entry
+# should give it up, what number is safe to move it to, and which of the
+# citations in their diff mean the entry that moved. Six bugs and three
+# questions were renumbered that way by hand in the six days to 2026-08-14, one
+# of them twice because the second number collided as well. `ids --fix` does all
+# three mechanically, so what is left for the author is a commit.
+#
+# It repairs the working tree and still refuses the push, which is not a
+# half-measure: the commits being pushed were fixed to disk a moment ago and a
+# repair made now is not in them. Refusing is what makes the fix reach the
+# branch.
 if command -v python3 >/dev/null 2>&1; then
-  if ! ledger=$(python3 "$(git rev-parse --show-toplevel)/scripts/bugs.py" ids 2>&1); then
+  root=$(git rev-parse --show-toplevel)
+  if ! ledger=$(python3 "$root/scripts/bugs.py" ids 2>&1); then
     printf '%s\n' "$ledger" >&2
+
+    # Not mid-merge: rewriting BUGS.md while somebody is resolving a conflict in
+    # BUGS.md destroys the resolution, which is the same reason the after-build
+    # hook stands down there. And not on a lost id — that is somebody's entry
+    # gone, and putting it back is a judgement about what it said.
+    if [ -z "${LIGHTBOX_NO_LEDGER_AUTOFIX:-}" ] &&
+       [ ! -e "$root/.git/MERGE_HEAD" ] &&
+       ! printf '%s' "$ledger" | grep -q 'LOST'; then
+      echo "" >&2
+      echo "pre-push: renumbering the entry that took a number twice..." >&2
+      python3 "$root/scripts/bugs.py" ids --fix >&2 || true
+      cat >&2 <<'EOF'
+
+pre-push: refusing the push — the ledger is repaired, the commit is not.
+
+  The renumber above is in your working tree. It cannot be in the commits you
+  just tried to push, so commit it and push again:
+
+      git add -A && git commit -m "Renumber the colliding ledger id" && git push ...
+
+  Check the diff first — it moved the entry this branch filed and every citation
+  of it this branch wrote. If it moved the wrong one, the entry that keeps the
+  number should be the one that was already on the default branch.
+
+  To be told and not repaired: LIGHTBOX_NO_LEDGER_AUTOFIX=1
+
+EOF
+      exit 1
+    fi
+
     cat >&2 <<'EOF'
 
 pre-push: refusing the push — the ledger ids above are not safe.
 
   A duplicate id means two branches took the same number and the merge kept
-  both. Renumber all but one, above the highest id on either side, and update
-  every reference to the one that moved.
+  both. A clash means they took it and have not merged yet, which is the same
+  mistake caught earlier. `python3 scripts/bugs.py ids --fix` moves this
+  branch's entry, above the highest id on any branch, and takes the citations
+  this branch wrote with it.
 
   A lost id means a ledger conflict was resolved by taking one side, which
-  deletes the other side's entry. Both have to survive: put them back and
-  renumber. If an entry really is meant to go:
+  deletes the other side's entry. That is not repaired for you: both have to
+  survive, and what the missing one said is not recoverable from a number. Put
+  it back and renumber. If an entry really is meant to go:
 
       LIGHTBOX_ALLOW_LEDGER_DELETION=1 git push ...
 
