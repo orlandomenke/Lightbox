@@ -1384,6 +1384,8 @@ test reopens the bug.
   - Fix: store project palettes as JSON, ids intact. `.gpl` stays what it is — an interop format for the docker's Import/Export, not a storage format.
   - Mine, from the previous commit. Found by the variant tests rather than by review. Cost: S
 
+- [x] **B212** `P2` `project` The stroke-length performance budget is measured while `dotnet test` compiles other projects, so a parallel build fails it `evidence: TheCostOfAPassDoesNotGrowWithTheLengthOfTheStroke`
+
 - [x] **B187** `P2` `project` Autosave serializes the whole document on the UI thread, so the app hitches once a minute and the hitch grows with the painting `evidence: AutosaveServiceTests, TheWrittenFileHoldsTheStrokesAsTheyWereAtFlushTime, AFlushPersistsADocumentThatLoads, ASecondDirtyMarkAfterAFlushIsPersistedByTheNextFlush, FinishPendingWriteLeavesTheDiskQuietAndTheFileComplete`
   - Repro: paint a large document, leave autosave at its default minute, keep drawing. Every tick of the timer runs `DocJson.Save` — serializer plus disk — synchronously on the UI thread inside `Flush`, so the stall lands mid-stroke and scales with the document. B142 priced the serializer half of this at ~615 ms for a 5 000-stroke painting before its own fix; the disk write sat on top.
   - Found while working the file-size objective (this branch), fixed rather than filed per the ledger's own rule.
