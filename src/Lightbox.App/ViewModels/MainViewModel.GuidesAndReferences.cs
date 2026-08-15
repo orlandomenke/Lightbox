@@ -75,6 +75,51 @@ public partial class MainViewModel
         }
     }
 
+    /// <summary>How many rays a new vanishing point is drawn with.</summary>
+    /// <inheritdoc cref="GridSpacing" path="/remarks"/>
+    public int VanishingPointRays
+    {
+        get => Settings.VanishingPointRays;
+        set
+        {
+            var clamped = Math.Clamp(value, Guide.MinRays, Guide.MaxRays);
+            if (Settings.VanishingPointRays == clamped) return;
+            Settings.VanishingPointRays = clamped;
+            Settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>How many heads tall a new character height scale is.</summary>
+    /// <inheritdoc cref="GridSpacing" path="/remarks"/>
+    public int HeightScaleHeads
+    {
+        get => Settings.HeightScaleHeads;
+        set
+        {
+            var clamped = Math.Clamp(value, 1, 32);
+            if (Settings.HeightScaleHeads == clamped) return;
+            Settings.HeightScaleHeads = clamped;
+            Settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>How much of the canvas height a new character height scale stands in.</summary>
+    /// <inheritdoc cref="AppSettings.HeightScaleFill" path="/remarks"/>
+    public double HeightScaleFill
+    {
+        get => Settings.HeightScaleFill;
+        set
+        {
+            var clamped = Math.Clamp(value, 0.05, 1.0);
+            if (Math.Abs(Settings.HeightScaleFill - clamped) < 1e-9) return;
+            Settings.HeightScaleFill = clamped;
+            Settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
     /// <summary>The grid guides on this document, if any.</summary>
     public IReadOnlyList<Guide> GridGuides =>
         Guides.Where(g => g.Kind == GuideKind.Grid).ToList();
@@ -122,6 +167,272 @@ public partial class MainViewModel
 
 
 
+
+    /// <summary>Pin a placed guide in place, or let it go, undoably.</summary>
+    public void SetGuideLocked(Guide guide, bool locked)
+    {
+        if (guide.Locked == locked) return;
+        _editor.PerformDelta(_ => guide.Locked = locked, _ => guide.Locked = !locked);
+        NotifyGuides();
+    }
+
+    // ---- the selected guide, and the numbers behind it ---------------------------
+    //
+    // A guide has always been draggable and never adjustable: the numbers that
+    // decide what it *is* — a grid's pitch, a character's head count, how many
+    // rays come out of a vanishing point — lived in a configuration window two
+    // menus away, and half of them lived nowhere at all. The way in is the Move
+    // tool, because picking a guide up and changing it are the same intention
+    // and it is the tool already reaching for them; the options land in the
+    // tool-options bar and docker, which the Move tool left empty.
+
+    /// <summary>
+    /// The guide the options are pointed at, by id, or null for none.
+    /// </summary>
+    /// <remarks>
+    /// By id rather than by object or by position. Undo replaces the whole
+    /// document, so the object under the selection is gone after one; the
+    /// position shifts when a guide before it is removed. The id survives both,
+    /// which is the reason <c>MainWindow.GuideById</c> already works this way.
+    /// </remarks>
+    [ObservableProperty]
+    private string? _selectedGuideId;
+
+    partial void OnSelectedGuideIdChanged(string? value)
+    {
+        NotifySelectedGuide();
+        // The canvas draws the selected guide brightest, so a selection that
+        // changed without a guide changing still has to reach it.
+        GuidesChanged?.Invoke();
+    }
+
+    /// <summary>The selected guide, or null — including when its id no longer names one.</summary>
+    public Guide? SelectedGuide =>
+        SelectedGuideId is { Length: > 0 } id ? Guides.FirstOrDefault(g => g.Id == id) : null;
+
+    public bool HasSelectedGuide => SelectedGuide is not null;
+
+    /// <summary>Select a guide by id, or clear the selection with null.</summary>
+    public void SelectGuide(string? id) => SelectedGuideId = id;
+
+    public bool SelectedGuideIsGrid => SelectedGuide?.Kind == GuideKind.Grid;
+
+    public bool SelectedGuideIsHeightScale => SelectedGuide?.Kind == GuideKind.HeightScale;
+
+    public bool SelectedGuideIsVanishingPoint => SelectedGuide?.Kind == GuideKind.VanishingPoint;
+
+    /// <summary>
+    /// Whether the selected guide has an angle worth showing.
+    /// </summary>
+    /// <remarks>
+    /// A vanishing point has no angle — its directions depend on where you are
+    /// standing — and a height scale stands up, by definition. Showing a dial
+    /// that does nothing is worse than showing none.
+    /// </remarks>
+    public bool SelectedGuideHasAngle =>
+        SelectedGuide?.Kind is GuideKind.Line or GuideKind.Grid or GuideKind.Isometric;
+
+    /// <summary>What the selected guide is, for the panel's heading.</summary>
+    public string SelectedGuideLabel => SelectedGuide switch
+    {
+        null => "No guide selected",
+        { Name: { Length: > 0 } name } => name,
+        { Kind: GuideKind.Line } g => Math.Abs(((g.Angle % 180) + 180) % 180 - 90) < 1
+            ? "Vertical guide" : "Guide line",
+        { Kind: GuideKind.Grid } => "Grid",
+        { Kind: GuideKind.Isometric } => "Isometric axes",
+        { Kind: GuideKind.VanishingPoint } => "Vanishing point",
+        { Kind: GuideKind.HeightScale } => "Character height scale",
+        _ => "Guide",
+    };
+
+    /// <summary>
+    /// Move the selected guide to an exact place, as one undoable step.
+    /// </summary>
+    /// <remarks>
+    /// The typed half of the drag: dragging is how a guide is placed by eye and
+    /// this is how it is placed by number — a horizon at exactly y=540, two
+    /// vanishing points exactly as far outside the frame as each other.
+    /// </remarks>
+    public void SetGuidePosition(Guide guide, double x, double y)
+    {
+        if (guide.Locked) return;
+        var before = (guide.X, guide.Y);
+        if (Math.Abs(before.X - x) < 1e-9 && Math.Abs(before.Y - y) < 1e-9) return;
+        _editor.PerformDelta(
+            _ => { guide.X = x; guide.Y = y; },
+            _ => { guide.X = before.X; guide.Y = before.Y; });
+        NotifyGuides();
+    }
+
+    /// <summary>Change how many rays a vanishing point is drawn with, undoably.</summary>
+    public void SetVanishingPointRays(Guide guide, int rays)
+    {
+        var clamped = Math.Clamp(rays, Guide.MinRays, Guide.MaxRays);
+        var before = guide.Divisions;
+        if (before == clamped) return;
+        _editor.PerformDelta(_ => guide.Divisions = clamped, _ => guide.Divisions = before);
+        NotifyGuides();
+    }
+
+    public double GuideX
+    {
+        get => SelectedGuide?.X ?? 0;
+        set { if (SelectedGuide is { } g) SetGuidePosition(g, value, g.Y); }
+    }
+
+    public double GuideY
+    {
+        get => SelectedGuide?.Y ?? 0;
+        set { if (SelectedGuide is { } g) SetGuidePosition(g, g.X, value); }
+    }
+
+    public double GuideAngle
+    {
+        get => SelectedGuide?.Angle ?? 0;
+        set { if (SelectedGuide is { } g) SetGridAngle(g, value); }
+    }
+
+    /// <summary>A grid's cell, or one head of a height scale, in document pixels.</summary>
+    public double GuideSpacing
+    {
+        get => SelectedGuide?.Spacing ?? 0;
+        set
+        {
+            if (SelectedGuide is not { } g) return;
+            if (g.Kind == GuideKind.HeightScale) SetHeightScale(g, value, g.Divisions ?? 1);
+            else SetGridSpacing(g, value);
+        }
+    }
+
+    public int GuideHeads
+    {
+        get => SelectedGuide?.Divisions ?? HeightScaleHeads;
+        set { if (SelectedGuide is { } g) SetHeightScale(g, g.Spacing, value); }
+    }
+
+    public int GuideRays
+    {
+        get => SelectedGuide?.RayCount ?? VanishingPointRays;
+        set { if (SelectedGuide is { } g) SetVanishingPointRays(g, value); }
+    }
+
+    public bool GuideVisible
+    {
+        get => SelectedGuide?.Visible ?? true;
+        set { if (SelectedGuide is { } g) SetGuideFlags(g, value, g.Snaps); }
+    }
+
+    public bool GuideSnaps
+    {
+        get => SelectedGuide?.Snaps ?? true;
+        set { if (SelectedGuide is { } g) SetGuideFlags(g, g.Visible, value); }
+    }
+
+    public bool GuideLocked
+    {
+        get => SelectedGuide?.Locked ?? false;
+        set { if (SelectedGuide is { } g) SetGuideLocked(g, value); }
+    }
+
+    /// <summary>
+    /// Whether this kind of guide has a default worth writing back.
+    /// </summary>
+    /// <remarks>
+    /// Three kinds carry numbers a new one is made from — a grid's pitch, a
+    /// vanishing point's fan, a height scale's proportions. A guide line and
+    /// the isometric axes are made from where you put them, so there is nothing
+    /// for the button to save and it is absent rather than inert.
+    /// </remarks>
+    public bool CanSaveGuideDefaults =>
+        SelectedGuide?.Kind is GuideKind.Grid or GuideKind.VanishingPoint or GuideKind.HeightScale;
+
+    /// <summary>What "Set as default" would do, said plainly on the button's tip.</summary>
+    public string GuideDefaultsHint => SelectedGuide?.Kind switch
+    {
+        GuideKind.Grid => "Make this cell size the one new grids are created with",
+        GuideKind.VanishingPoint => "Make this many rays the fan new vanishing points are drawn with",
+        GuideKind.HeightScale => "Make this head count and this share of the canvas height what new scales stand at",
+        _ => "This kind of guide has no default to save",
+    };
+
+    /// <summary>
+    /// Write the selected guide's numbers back as the defaults new guides of
+    /// its kind are made with.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The persistent half of the owner's "temporarily or persistent": every
+    /// edit in the options is temporary in the sense that matters — it changes
+    /// this guide on this document and nothing else — and this one button is
+    /// the deliberate act that also changes what comes next. A preference that
+    /// rewrote itself every time somebody nudged one guide would make the
+    /// default meaningless.
+    /// </para>
+    /// <para>
+    /// A height scale saves a <i>proportion</i> rather than a head height in
+    /// pixels, so the default still lands as a figure on a canvas of a
+    /// different size. See <see cref="AppSettings.HeightScaleFill"/>.
+    /// </para>
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(CanSaveGuideDefaults))]
+    private void SaveGuideDefaults()
+    {
+        if (SelectedGuide is not { } guide) return;
+        switch (guide.Kind)
+        {
+            case GuideKind.Grid:
+                GridSpacing = guide.Spacing;
+                AiStatus = $"New grids will be made at {GridSpacing:0.##} px.";
+                break;
+            case GuideKind.VanishingPoint:
+                VanishingPointRays = guide.RayCount;
+                AiStatus = $"New vanishing points will be drawn with {VanishingPointRays} rays.";
+                break;
+            case GuideKind.HeightScale:
+                var heads = Math.Max(1, guide.Divisions ?? 1);
+                HeightScaleHeads = heads;
+                if (Scene.Height > 0) HeightScaleFill = guide.Spacing * heads / Scene.Height;
+                AiStatus =
+                    $"New height scales will be {HeightScaleHeads} heads tall, "
+                    + $"standing in {HeightScaleFill:P0} of the canvas.";
+                break;
+            default:
+                return;
+        }
+    }
+
+    /// <summary>Remove the guide the options are pointed at.</summary>
+    [RelayCommand]
+    private void RemoveSelectedGuide()
+    {
+        if (SelectedGuide is not { } guide) return;
+        RemoveGuide(guide);
+        SelectedGuideId = null;
+    }
+
+    private void NotifySelectedGuide()
+    {
+        OnPropertyChanged(nameof(SelectedGuide));
+        OnPropertyChanged(nameof(HasSelectedGuide));
+        OnPropertyChanged(nameof(SelectedGuideIsGrid));
+        OnPropertyChanged(nameof(SelectedGuideIsHeightScale));
+        OnPropertyChanged(nameof(SelectedGuideIsVanishingPoint));
+        OnPropertyChanged(nameof(SelectedGuideHasAngle));
+        OnPropertyChanged(nameof(SelectedGuideLabel));
+        OnPropertyChanged(nameof(GuideX));
+        OnPropertyChanged(nameof(GuideY));
+        OnPropertyChanged(nameof(GuideAngle));
+        OnPropertyChanged(nameof(GuideSpacing));
+        OnPropertyChanged(nameof(GuideHeads));
+        OnPropertyChanged(nameof(GuideRays));
+        OnPropertyChanged(nameof(GuideVisible));
+        OnPropertyChanged(nameof(GuideSnaps));
+        OnPropertyChanged(nameof(GuideLocked));
+        OnPropertyChanged(nameof(CanSaveGuideDefaults));
+        OnPropertyChanged(nameof(GuideDefaultsHint));
+        SaveGuideDefaultsCommand.NotifyCanExecuteChanged();
+    }
 
     /// <summary>Put a raw point where the guides say it belongs.</summary>
     private (double X, double Y) Guided(double x, double y) =>
@@ -272,6 +583,9 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(HasGuides));
         OnPropertyChanged(nameof(GridGuides));
         OnPropertyChanged(nameof(HeightScaleGuides));
+        // The options bar reads the selected guide's numbers, and a drag, an
+        // undo or a pull from a set all move them without going near a setter.
+        NotifySelectedGuide();
         GuidesChanged?.Invoke();
         PublishSnapshot();
         MarkDocumentEdited();

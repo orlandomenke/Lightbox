@@ -1,0 +1,76 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             x:Class="Lightbox.App.Views.SelectOptionsBar"
+             x:DataType="vm:MainViewModel">
+  <!--
+    The Select tool's quick-bar group, lifted out of MainWindow.axaml
+    unchanged when the guide options needed room beside it. A collaborator
+    rather than a raised ratchet, which is what the ratchet asks for; the
+    DataContext is inherited, so every binding still reads the same
+    MainViewModel the bar around it does.
+  -->
+  <StackPanel Orientation="Horizontal" Spacing="14">
+    <StackPanel.IsVisible>
+      <MultiBinding Converter="{x:Static BoolConverters.And}">
+        <Binding Path="IsSelectTool" />
+        <Binding Path="Workspace.QuickSelectOptions" />
+      </MultiBinding>
+    </StackPanel.IsVisible>
+    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+      <RadioButton GroupName="selvar" Content="◌" IsChecked="{Binding IsFreehandVariant, Mode=OneWay}"
+                   Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Freehand}"
+                   ToolTip.Tip="Freehand selection" />
+      <RadioButton GroupName="selvar" Content="⬠" IsChecked="{Binding IsPolygonVariant, Mode=OneWay}"
+                   Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Polygon}"
+                   ToolTip.Tip="Polygon selection (click vertices, double-click to close, Esc cancels)" />
+      <RadioButton GroupName="selvar" Content="▭" IsChecked="{Binding IsBoxVariant, Mode=OneWay}"
+                   Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Box}"
+                   ToolTip.Tip="Box selection" />
+      <RadioButton GroupName="selvar" Content="◯" IsChecked="{Binding IsEllipseVariant, Mode=OneWay}"
+                   Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Ellipse}"
+                   ToolTip.Tip="Circle/ellipse selection" />
+      <RadioButton GroupName="selvar" Content="🪄" IsChecked="{Binding IsWandVariant, Mode=OneWay}"
+                   Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Wand}"
+                   ToolTip.Tip="Magic wand — click to select a connected color region" />
+    </StackPanel>
+    <!-- Wand-only options -->
+    <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsWandVariant}" VerticalAlignment="Center">
+      <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+        <TextBlock Text="Tolerance" VerticalAlignment="Center" />
+        <NumericUpDown Value="{Binding WandTolerance}" Minimum="0" Maximum="255" Increment="4"
+                       FormatString="0" Classes="value" VerticalAlignment="Center"
+                       ToolTip.Tip="How different a pixel may be and still join the selection" />
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+        <TextBlock Text="Gap px" VerticalAlignment="Center" />
+        <NumericUpDown Value="{Binding WandGapPx}" Minimum="0" Maximum="32" Increment="1"
+                       FormatString="0" Classes="value" VerticalAlignment="Center"
+                       ToolTip.Tip="Openings up to this many pixels still count as closed" />
+      </StackPanel>
+      <CheckBox Content="Sample all layers" IsChecked="{Binding WandSampleAllLayers}" VerticalAlignment="Center"
+                ToolTip.Tip="Select from what you see (all visible layers) instead of only the active layer" />
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+      <TextBlock Text="Feather" VerticalAlignment="Center" />
+      <NumericUpDown Value="{Binding SelectionFeather}" Minimum="0" Maximum="100" Increment="1"
+                     FormatString="0" Classes="value" VerticalAlignment="Center"
+                     ToolTip.Tip="Soften the selection edge by this many pixels" />
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+      <NumericUpDown Value="{Binding SelectionAdjustPx}" Minimum="1" Maximum="64" Increment="1"
+                     FormatString="0" Classes="value" VerticalAlignment="Center"
+                     ToolTip.Tip="Pixels for Grow/Shrink" />
+      <Button Content="Grow" Command="{Binding GrowSelectionCommand}"
+              ToolTip.Tip="Enlarge the selection" />
+      <Button Content="Shrink" Command="{Binding ShrinkSelectionCommand}"
+              ToolTip.Tip="Shrink the selection" />
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+      <Button Content="All" Command="{Binding SelectAllCommand}" ToolTip.Tip="Select the whole canvas (Ctrl+A)" />
+      <Button Content="None" Command="{Binding DeselectCommand}" ToolTip.Tip="Deselect (Ctrl+D)" />
+      <Button Content="Invert" Command="{Binding InvertSelectionCommand}" ToolTip.Tip="Invert the selection (Ctrl+Shift+I)" />
+    </StackPanel>
+    <TextBlock Text="Shift adds · Alt subtracts" VerticalAlignment="Center" Opacity="0.6" FontSize="12" />
+  </StackPanel>
+</UserControl>

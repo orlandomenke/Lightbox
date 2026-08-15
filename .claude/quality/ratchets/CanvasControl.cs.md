@@ -1,6 +1,7 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 4937
+budget: 4914
+
 ## Why it has moved
 
 Newest last. Both sides of a merge keep their entry — taking one deletes the
@@ -21,3 +22,8 @@ other's reason and leaves a number nobody can account for.
   on either side of a merge are independent, so the merged file is smaller than
   either branch measured alone, and taking a side keeps a budget with the other
   side's slack spent into it. `ratchets.py remeasure` is what does this now.
+- **→ 4,914** (2026-08-14): the guide options came *down* rather than up. The
+  `GuideLine` snapshot and `GuideDragEnabled` moved to the partial already named
+  for guide chrome — a feature that needed room in a budgeted file buying it by
+  extraction rather than by raising a number, which is the mechanism working as
+  designed.
