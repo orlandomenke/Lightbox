@@ -233,9 +233,25 @@ public partial class MainViewModel
                 _pathEdit.PullHandlesTo(grabbed.Node, x, y);
             }
             // Every selected node, so a multi-node drag moves the shape rather
-            // than one point of it.
-            else if (_pathEdit.IsNodeSelected(grabbed.Node)) _pathEdit.MoveSelectedNodes(dx, dy);
-            else _pathEdit.MoveNode(grabbed.Node, dx, dy);
+            // than one point of it — and it moves by the raw delta, because a
+            // group has no one point that is "the" point to land on a guide.
+            else if (_pathEdit.SelectedNodes.Count > 1) _pathEdit.MoveSelectedNodes(dx, dy);
+            // B216. One node is a point being placed, so it snaps like every
+            // other placed point — the pen puts a node on a guide and the white
+            // arrow could not put that same node back on it.
+            //
+            // The delta is re-derived from where the node should END UP rather
+            // than snapping the pointer, because the grab has an offset: you
+            // catch a node slightly off its centre, and snapping the pointer
+            // would land the node that offset away from the guide.
+            //
+            // Split on the selection COUNT rather than on whether the grabbed
+            // node is selected, which is what the branch above used to ask.
+            // `GrabPathPart` selects whatever node it grabs, so by the time a
+            // drag runs the answer is always yes and the single-node arm was
+            // unreachable — the test for this landed on the lattice by accident
+            // and passed against the old code until its numbers were changed.
+            else _pathEdit.MoveNodeTo(grabbed.Node, SnappedPoint, dx, dy);
         }
         else
         {
@@ -325,7 +341,20 @@ public partial class MainViewModel
     /// </remarks>
     public double GrabWidthAt(double x, double y, double tolerance)
     {
+        // B217, and it is B172 one tool along: this returned -1 outside
+        // isolation and nothing in the Width tool's own path could enter one,
+        // so the tool was inert until the *black* arrow had opened the line by
+        // double-clicking it. A tool that only works as another tool's second
+        // step is not a tool.
+        //
+        // A single press, like the white arrow's, and for its reason: the
+        // double-click exists to stop a click reaching into geometry by
+        // accident on a tool where a click ordinarily means "take this whole
+        // thing". Changing a line's weight is all this tool does, so there is
+        // no accident to guard against and a second click would be a tax.
+        if (_pathEdit is null && !BeginPathEditAt(x, y, tolerance)) return -1;
         if (_pathEdit is not { } session) return -1;
+
         var (at, distance) = session.AlongAt(x, y);
         if (distance > tolerance) return -1;
 

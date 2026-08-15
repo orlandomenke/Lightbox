@@ -119,8 +119,18 @@ public partial class MainViewModel
         ApplySelectionMask(shape, add, subtract);
     }
 
+    /// <summary>Place one corner of a polygon selection.</summary>
+    /// <remarks>
+    /// <b>B216: snapped, unlike the lasso beside it.</b> A polygon vertex is
+    /// clicked rather than traced — it is a point an artist is aiming, the same
+    /// as a pen node or a shape corner — so it belongs to the set that snaps. A
+    /// freehand lasso is a traced line and stays unsnapped, because pulling
+    /// every sample onto a lattice fights the hand the whole way round, which
+    /// is the rule the brush already follows for a stroke's middle.
+    /// </remarks>
     public void AddPolygonVertex(double x, double y)
     {
+        (x, y) = SnappedPoint(x, y);
         _polygonPoints.Add(new StrokePoint(x, y, 1));
         SelectionChanged?.Invoke();
     }
