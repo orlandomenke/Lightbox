@@ -287,7 +287,7 @@ public class LedgerGateTests(ITestOutputHelper output)
     }
 
     // -----------------------------------------------------------------------
-    // The questions are one file each (Q91), and the gate reads their ids from
+    // The questions are one file each (Q92), and the gate reads their ids from
     // the filenames.
     //
     // Fixing the id collision left the textual one: as a single file, every branch
@@ -352,7 +352,7 @@ public class LedgerGateTests(ITestOutputHelper output)
         Assert.True(tracked.Length == 0,
             "QUESTIONS.md is tracked again. It is generated from .claude/quality/questions/ by "
             + "scripts/questions.py, so committing it puts a rewritten copy in every branch and "
-            + "moves the conflict one artefact along instead of ending it (Q91).");
+            + "moves the conflict one artefact along instead of ending it (Q92).");
     }
 
     private (int Code, string Out) Questions(string args)

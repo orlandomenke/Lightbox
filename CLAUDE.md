@@ -123,7 +123,7 @@ When a request genuinely does not resolve against these, it belongs in
 `.claude/quality/questions/` rather than in a guess — **one file per question**,
 `python3 scripts/questions.py new "<title>"` to raise one, and
 `.claude/quality/QUESTIONS.md` is a generated index over the directory that is
-not committed (Q55's argument, Q91's application of it). Raising a question used
+not committed (Q55's argument, Q92's application of it). Raising a question used
 to mean appending a section to a single file, so two branches raising two
 questions conflicted by construction; a new file conflicts with nothing.
 
@@ -484,12 +484,12 @@ from `main`. So:
   about what it said, which no number supplies.
 
 Partitioning the number space by domain was the obvious alternative and was
-measured instead of assumed (Q90): it would have stopped roughly 60% of the bug
+measured instead of assumed (Q91): it would have stopped roughly 60% of the bug
 collisions, 0% of the question ones, and not the worst case in the list — the
 bone-icon bug collided with another `ui` bug, inside the band it would have been
 given.
 
-**The shape that stops the *textual* conflict is one file per entry** (Q91), and
+**The shape that stops the *textual* conflict is one file per entry** (Q92), and
 it now applies to both places where every branch wrote to the same spot:
 
 | | |

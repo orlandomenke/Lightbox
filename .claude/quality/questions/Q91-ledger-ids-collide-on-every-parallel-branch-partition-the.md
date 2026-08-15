@@ -1,4 +1,4 @@
-# Q90 · Ledger ids collide on every parallel branch — partition the number space, or issue the numbers? — **answered 2026-08-14: issue them**
+# Q91 · Ledger ids collide on every parallel branch — partition the number space, or issue the numbers? — **answered 2026-08-14: issue them**
 
 Raised by the owner: *"We have a lot of ledger ID conflicts when merging due to
 working on multiple items at once. Would it be an idea to make the ledger

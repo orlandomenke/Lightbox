@@ -34,7 +34,7 @@ gets skipped.
 
 Record the answer here once it arrives, faithfully when it goes against the
 recommendation, **with what that choice costs**. `Q32` is the worked example;
-`Q90` is one where the recommendation won and the cost of it is written down
+`Q91` is one where the recommendation won and the cost of it is written down
 anyway, which is the part that survives being read a year later.
 
 A question in this directory that was never prompted is a defect, in the same
@@ -47,7 +47,7 @@ filename, so the two have to agree — `questions.py check` refuses them
 disagreeing. An answered question keeps its heading and gains the marker:
 
 ```markdown
-# Q90 · Ledger ids collide on every parallel branch — **answered 2026-08-14: issue them**
+# Q91 · Ledger ids collide on every parallel branch — **answered 2026-08-14: issue them**
 ```
 
 Nothing is deleted. An answered question keeps its file, because the argument is

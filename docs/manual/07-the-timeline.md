@@ -110,6 +110,17 @@ Right-click a cel for: insert frame, extend or reduce exposure, clear, delete
 (which pulls the rest of the row back), copy, cut, paste, markers, and the
 playback range.
 
+**Delete cel and Delete column are different edits, and the menu now says so.**
+*Delete cel* takes the drawing out of **that layer's row** and pulls the rest
+of that row back, leaving every other layer where it was. *Delete column*
+takes the frame out of the **scene** — every layer's cel at it — and pulls the
+whole sheet back, which is what you want when a beat is one frame too long. A
+column delete is refused while any layer is locked, because removing the frame
+from the others would slide them out of step with it. It is in **Edit →
+Configure → Shortcuts** under Timeline if you want a key for it; it has no
+default one, since Delete already means several things depending on where the
+pointer is.
+
 Drag a cel along its row to move it. Shift-click for a range, then apply
 exposure changes to all of it at once.
 
@@ -180,11 +191,11 @@ a placed symbol, keys a held cel the same way** and edits the copy. Those used
 to slip past the keying and rewrite the drawing the hold was borrowing, so a
 nudge on frame 2 showed up on frame 1 as well.
 
-**One tool has not caught up yet.** Reshaping a line with the pen — dragging a
-node on a held cel — still edits the drawing the hold borrows, so the change
-appears on the earlier frame too. Key the cel first (draw on it, or use the
-timeline's own insert) if you need to reshape on a hold. It is recorded as
-B207 and is being fixed next.
+This now covers the line tools too: **reshaping a line with the pen, and
+moving, nudging, recolouring or deleting selected lines**, all key a held cel
+and edit the copy. Selecting a line on a hold still authors nothing — looking
+around is not editing, and only the edit that lands makes the cel a drawing of
+its own.
 
 The key happens when you **commit** the edit, not when you pick the tool up.
 Pressing Ctrl+T on a hold and then Escape leaves the timeline exactly as it

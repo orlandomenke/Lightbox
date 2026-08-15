@@ -1,7 +1,6 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 4956
-
+budget: 4937
 ## Why it has moved
 
 Newest last. Both sides of a merge keep their entry — taking one deletes the

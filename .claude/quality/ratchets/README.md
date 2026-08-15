@@ -41,7 +41,7 @@ budget: 4276
 
 They used to be a table in `MonolithRatchetTests.cs`, so every branch touching
 *any* budgeted file edited the same C# file and two branches growing two
-different files conflicted anyway (Q91). One file each ends that.
+different files conflicted anyway (Q92). One file each ends that.
 
 ## The rules
 

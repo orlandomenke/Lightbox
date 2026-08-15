@@ -9,7 +9,7 @@ namespace Lightbox.App.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>The budgets are not in this file any more (Q91).</b> They live one per file
+/// <b>The budgets are not in this file any more (Q92).</b> They live one per file
 /// under <c>.claude/quality/ratchets/</c>, with the reasons each number has moved
 /// beside it — read that directory's <c>README.md</c> for why a ratchet rather
 /// than a plan, why line counts, and what makes raising one legitimate.

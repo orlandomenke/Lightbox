@@ -122,7 +122,7 @@ by `MonolithRatchetTests`. They may shrink and may not grow; a budget comes down
 when an extraction lands, in the same commit; there is no environment-variable
 escape hatch, because raising the number in a diff is the visible version of the
 same decision. One file each because the budgets shared a test file, so two
-branches growing two *different* oversized files conflicted anyway (Q91).
+branches growing two *different* oversized files conflicted anyway (Q92).
 
 This is deliberately not architecture. It is the cheapest mechanism that makes
 the rest of this document arithmetically possible.

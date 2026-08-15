@@ -1,0 +1,33 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             x:Class="Lightbox.App.Views.LinkBracket"
+             x:DataType="vm:LayerRow">
+  <!--
+    The link bracket: an elbow down a linked row's left edge, so a set of
+    layers that are one drawing reads as one at a glance.
+
+    A collaborator rather than fourteen more lines of MainWindow.axaml, which
+    is on the monolith ratchet. The menu items this shipped beside genuinely
+    have nowhere else to go and raise the budget; a self-contained bit of
+    chrome is exactly what a UserControl is for, so it costs the budget one
+    hosting line instead of fourteen.
+
+    Which piece is drawn is decided by the row's NEIGHBOURS, not by the link's
+    membership order — see MainViewModel.LinkMarkOf. A link's members need not
+    be adjacent, and a bracket drawn from membership order would run a line
+    down the side of a row that is not in the link at all.
+  -->
+  <Panel Width="11" Margin="1,0,1,0" IsVisible="{Binding IsLinked}"
+         ToolTip.Tip="Linked to the layers this bracket spans — they are one drawing.">
+    <Path Stroke="{Binding LinkBrush}" StrokeThickness="1.5" IsVisible="{Binding IsLinkTop}"
+          Data="M 9,7 L 4,7 L 4,22" />
+    <Path Stroke="{Binding LinkBrush}" StrokeThickness="1.5" IsVisible="{Binding IsLinkMiddle}"
+          Data="M 4,0 L 4,22 M 4,11 L 9,11" />
+    <Path Stroke="{Binding LinkBrush}" StrokeThickness="1.5" IsVisible="{Binding IsLinkBottom}"
+          Data="M 4,0 L 4,15 L 9,15" />
+    <!-- In a link, but with neither neighbour in it: a tick, joining nothing. -->
+    <Path Stroke="{Binding LinkBrush}" StrokeThickness="1.5" IsVisible="{Binding IsLinkDetached}"
+          Data="M 4,11 L 9,11" />
+  </Panel>
+</UserControl>

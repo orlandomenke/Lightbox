@@ -1,6 +1,6 @@
-# Q91 · Two shared files conflict on every parallel branch — what shape stops it? — **answered 2026-08-14: one file per entry, for both**
+# Q92 · Two shared files conflict on every parallel branch — what shape stops it? — **answered 2026-08-14: one file per entry, for both**
 
-Raised by the owner immediately after Q90, which fixed the *id* collisions and
+Raised by the owner immediately after Q91, which fixed the *id* collisions and
 left the *textual* ones: *"So for both these files it also results in a decent
 amount of conflicts. Can we find some way to mitigate that as well?"* —
 `.claude/quality/QUESTIONS.md` and `tests/Lightbox.App.Tests/MonolithRatchetTests.cs`.
@@ -12,7 +12,7 @@ two numbers involved is derived.
 
 Every branch that raised a question appended a section at the same place in a
 3,689-line file, so two branches raising two questions conflicted **by
-construction** — on top of the id collision Q90 had just dealt with.
+construction** — on top of the id collision Q91 had just dealt with.
 
 **Answered: one file per question**, `Q<id>-<slug>.md` under
 `.claude/quality/questions/`, with `QUESTIONS.md` becoming a generated index

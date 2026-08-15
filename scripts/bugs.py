@@ -178,7 +178,7 @@ def question_names(names: list[str]) -> str:
     """The question ledger, as text, from filenames alone.
 
     **A directory of one file per question is cheaper to gate than the single file
-    it replaced, not dearer.** `Q90-ledger-ids-collide.md` carries its id in its
+    it replaced, not dearer.** `Q91-ledger-ids-collide.md` carries its id in its
     name, so listing a ref's questions is one `git ls-tree` and no file reads at
     all — where the old ledger had to be fetched and parsed in full for every ref
     compared against. The slug stands in for the title in a report, which is all a

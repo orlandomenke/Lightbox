@@ -156,6 +156,11 @@ ordinary bones, so they key, parent and drag like everything else in the rig.
 A stroke follows the rig once it has **weights** — how much each bone moves
 each part of it.
 
+- **A whole layer at once** — right-click the layer and pick **Follows the
+  rig**. That covers every stroke on it, on every frame, including ones you
+  draw later, and it is what you want for a character you are about to animate
+  rather than a single illustration. **Link** the character's layers (lines,
+  colour, details) and rigging one rigs them all — see *Layers*.
 - **Assign to bone**: select strokes, and assign them wholly to the selected
   bone. This is the cutout workflow — each body part follows one bone — and it
   covers most rigs.

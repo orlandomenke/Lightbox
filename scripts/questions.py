@@ -18,7 +18,7 @@ what GitHub renders when somebody browses the directory.
 
 **The ids still come from `bugs.py freeid question`**, which allocates above
 every branch rather than above the highest number in view. The split removes the
-textual conflict; it does not by itself stop two branches choosing `Q91`.
+textual conflict; it does not by itself stop two branches choosing `Q92`.
 
 Commands
     build           write the index from the question files
@@ -44,7 +44,7 @@ README = DIR / "README.md"
 START = "<!-- contents:start -->"
 END = "<!-- contents:end -->"
 
-# `# Q90 · Ledger ids collide … — **answered 2026-08-14: issue them**`
+# `# Q91 · Ledger ids collide … — **answered 2026-08-14: issue them**`
 HEADING = re.compile(r"^#\s+(?P<id>Q\d+)\s+·\s+(?P<rest>.*?)\s*$")
 # Not anchored to the end of the line, and `re-answered` counts. Three questions
 # were reported open by a stricter version of this — one re-answered, two

@@ -168,7 +168,7 @@ jobs:
       # taking one side of the conflict leaves a perfectly consistent file.
       - name: The bug ledger is consistent and its ids are unique
         run: python3 scripts/bugs.py check
-      # The questions are one file each (Q91) and the ledger gate reads their ids
+      # The questions are one file each (Q92) and the ledger gate reads their ids
       # from the filenames, so a file whose name and heading disagree carries an
       # id that nothing checks. That is the only new way this shape can rot.
       - name: Every question file is named for the question in it

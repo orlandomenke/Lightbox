@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4276
+budget: 4306
 
 ## Why it is here despite being XAML
 
@@ -40,3 +40,17 @@ other's reason and leaves a number nobody can account for.
   system lives; only the style selector has to be here, because a selector cannot
   live anywhere else. Measured alone that wanted 4,272, against a main that had
   not yet taken the drag wiring above.
+- **→ 4,306** (2026-08-14): the X-sheet's *Delete column* menu entry and its
+  tooltip (Q88). A menu item has nowhere else to live — the handler it calls is
+  in `MainWindow.Timeline.cs`, and the command it reaches is in the view model.
+- **→ 4,306** (2026-08-14): the layer docker's link menu (Q90) — the *Linking*
+  and *Follows the rig* flyouts, the same case as the entry above it. The bracket
+  that shipped beside them did **not** raise it: that is self-contained chrome, so
+  it went to `LinkBracket.axaml` and cost one hosting line instead of fourteen.
+
+**Four raises met on this number, and it is none of theirs — it is the merged
+tree's.** That is the rule this file's header states, and it is the one these
+conflicts keep testing. Taking any branch's figure banks the others' slack as
+headroom nobody earned; taking one side's *comment* deletes another's reason and
+leaves a number nobody can account for. So every reason above stays, and
+`ratchets.py remeasure` supplies the figure.
