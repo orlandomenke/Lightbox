@@ -830,9 +830,44 @@ def cmd_freeid(argv: list[str]) -> int:
     return 0
 
 
+def _flag(argv: list[str], names: tuple[str, ...], fallback: str) -> str:
+    """`-p P3`, `-p=P3` and `-pP3` all mean the same thing.
+
+    The first of those was refused with "unknown priority ''" (B211), because
+    only the joined forms were read — and the space-separated form is the one
+    anybody types first. A flag parser that rejects the obvious spelling is a
+    command nobody reaches for twice.
+    """
+    for n, arg in enumerate(argv):
+        for name in names:
+            if arg == name:
+                return argv[n + 1] if n + 1 < len(argv) else ""
+            if arg.startswith(f"{name}="):
+                return arg.split("=", 1)[1]
+            if name.startswith("-") and not name.startswith("--") and arg.startswith(name) and len(arg) > 2:
+                return arg[len(name):]
+    return fallback
+
+
+def _positional(argv: list[str], flags: tuple[str, ...]) -> list[str]:
+    """The arguments, minus the flags and minus anything a flag consumed."""
+    out, skip = [], False
+    for arg in argv:
+        if skip:
+            skip = False
+            continue
+        if arg in flags:
+            skip = True                    # its value is the next argument
+        elif not arg.startswith("-"):
+            out.append(arg)
+    return out
+
+
 def cmd_new(argv: list[str]) -> int:
     """File a bug, with an id that is allocated rather than counted by eye."""
-    positional = [a for a in argv if not a.startswith("-")]
+    priority = _flag(argv, ("-p", "--priority"), "P2")
+    evidence = _flag(argv, ("-e", "--evidence"), "")
+    positional = _positional(argv, ("-p", "--priority", "-e", "--evidence"))
     if len(positional) < 2:
         print('usage: bugs.py new <domain> "<title>" [-p P2] [-e Test,Other] [--no-fetch]',
               file=sys.stderr)
@@ -842,9 +877,6 @@ def cmd_new(argv: list[str]) -> int:
         print(f"unknown domain {domain!r} — one of: {' '.join(sorted(DOMAINS))}", file=sys.stderr)
         return 2
 
-    priority = next((a.split("=", 1)[1] if "=" in a else a[2:] for a in argv
-                     if a.startswith("-p")), "P2")
-    evidence = next((a.split("=", 1)[1] for a in argv if a.startswith("-e=") or a.startswith("--evidence=")), "")
     if priority not in ("P1", "P2", "P3", "P4"):
         print(f"unknown priority {priority!r} — P1 to P4", file=sys.stderr)
         return 2

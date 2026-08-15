@@ -42,7 +42,10 @@ ROOT = Path(__file__).resolve().parent.parent
 DIR = ROOT / ".claude" / "quality" / "ratchets"
 
 TARGET = re.compile(r"^#\s+(?P<path>\S+)\s*$")
-BUDGET = re.compile(r"^budget:\s*(?P<lines>\d+)\s*$", re.MULTILINE)
+# `[ \t]*` rather than `\s*` on the tail: `\s` matches newlines, so the trailing
+# `\s*$` ate the blank line after the budget and `remeasure` ran the number into
+# the next heading (B210). The line ends at the line end.
+BUDGET = re.compile(r"^budget:[ \t]*(?P<lines>\d+)[ \t]*$", re.MULTILINE)
 
 # A budget this far above the file it guards has stopped guarding it: the slack
 # is room to regrow, which is what a ratchet exists to deny.

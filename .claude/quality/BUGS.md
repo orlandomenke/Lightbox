@@ -1558,6 +1558,10 @@ test reopens the bug.
   - What replaces it is `TheRetiredEightPointZeroRuntimeHasNotComeBack`, asserting the other direction: a stray `8.0.x` re-added to a solution with no `net8.0` assembly anywhere installs a runtime nothing runs on. It compares against the workflow with **comments stripped**, because the comment explaining the removal necessarily names the removed version and a raw-text search finds the explanation and reports it as the thing it is explaining. Cost: S
   - P2 because it blocks work rather than corrupting art, and today it blocks it only for someone setting up a fresh Linux environment — which is exactly what `.devcontainer` exists for, and exactly the person least able to diagnose a missing-framework error in an unfamiliar repo. See `docs/DESIGN-net10-upgrade.md`.
 
+- [x] **B211** `P3` `project` `bugs.py new -p P3` is read as an empty priority, so the space-separated form of every flag is refused `evidence: SpaceSeparatedFlagsAreAccepted`
+
+- [x] **B210** `P3` `project` `ratchets.py remeasure` swallows the blank line after the budget, so a re-measured entry loses its formatting `evidence: RemeasureKeepsTheEntryReadable`
+
 - [x] **B116** `P3` `project` The bundle puts 266 files in front of the executable, 105 MB of them debug symbols for somebody else's C++ `evidence: PublishLayoutTests, TheWindowsBundleIsPublishedAsASingleFile, NativeLibrariesAreNotSelfExtracted, NativeDebugSymbolsAreNotShipped, TheServerPublishesIntoItsOwnFolderAndTheAppDoesNot, TheDocumentedServerPathMatchesWhereItIsPublished, TheManualTestingChecklistNamesTheFolderTheServerIsIn`
   - Repro: publish as CI does and count. **Exactly 266 files in the root, 216 MB on disk, 74 MB zipped.** Finding `Lightbox.App.exe` among them is a scroll, and nothing in the folder says which of the 266 is the program.
   - Cause: a self-contained publish flattens the entire runtime into the output root. Not a mistake — it is what the shape means — and the only supported way out is single-file publishing, which bundles the apphost, the runtime, every managed assembly and both json files into one executable.
