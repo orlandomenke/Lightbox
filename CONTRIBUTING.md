@@ -30,9 +30,9 @@ promise the project cannot yet make — and half-doing it is worse than waiting.
   [troubleshooting section](docs/manual/13-keyboard-and-troubleshooting.md).
 - **Questions about how something works**, and disagreement with how it works.
   Much of the reasoning behind this codebase is written down in
-  `.claude/quality/` — the roadmap, the bug ledger, and `QUESTIONS.md`, which
-  records design decisions along with what they cost. Arguing with those is
-  useful.
+  `.claude/quality/` — the roadmap, the bug ledger, and `questions/`, which
+  records design decisions along with what they cost, one file each. Arguing
+  with those is useful.
 - **Forks.** GPL-3.0 says what you may do; nothing here asks you to do less.
 
 ## What changes when this changes

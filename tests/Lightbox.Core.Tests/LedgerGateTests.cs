@@ -183,7 +183,210 @@ public class LedgerGateTests(ITestOutputHelper output)
     {
         var (code, said) = Bugs("ids");
         Assert.Equal(0, code);
-        Assert.Contains("ids unique, none lost", said);
+        Assert.Contains("ids unique, unclashed, none lost", said);
+    }
+
+    // -----------------------------------------------------------------------
+    // Detecting a collision is not preventing one.
+    //
+    // Every test above this line proves the gate *sees* a reused id. None of them
+    // stopped one being written, because nothing here ever issued an id: an author
+    // read the ledger, took the highest number in it and added one — which is the
+    // same number on two branches that started from the same `main`. Six bugs and
+    // three questions were renumbered by hand in the six days to 2026-08-14, one
+    // of them twice because the second guess collided as well.
+    //
+    // The fixtures below hand in the other branches explicitly, so the allocator
+    // is tested without a repository to test it in. In a real run the same list
+    // comes from every ref the clone can see.
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void AnIdIsAllocatedAboveEveryBranchAndNotJustThisOne()
+    {
+        var mine = Ledger(("B1", "What my branch can see"));
+        var theirs = Ledger(("B1", "What my branch can see"), ("B7", "What another branch filed"));
+
+        var (code, said) = Bugs($"freeid bug --ledger={mine} --elsewhere={theirs}");
+
+        Assert.Equal(0, code);
+        // B2 is what counting by eye gives, and it is the number the other branch
+        // is one merge away from proving wrong.
+        Assert.Equal("B8", said.Trim());
+    }
+
+    [Fact]
+    public void TheAllocatorIssuesQuestionIdsToo()
+    {
+        // Q46 and Q73-75 collided exactly as the bug ids did, and a question has no
+        // domain to partition by even if the ledger were partitioned.
+        var mine = Questions(("Q1", "Mine"));
+        var theirs = Questions(("Q1", "Mine"), ("Q12", "Somebody else's"));
+
+        var (code, said) = Bugs($"freeid question --questions={mine} --elsewhere={theirs}");
+
+        Assert.Equal(0, code);
+        Assert.Equal("Q13", said.Trim());
+    }
+
+    /// <summary>
+    /// The collision caught before the merge that creates it — which is the only
+    /// place it can be caught while it is still one branch's problem.
+    /// </summary>
+    [Fact]
+    public void AnIdTakenOnTwoBranchesIsCaughtBeforeTheyMerge()
+    {
+        var pastBase = Ledger(("B1", "Already on main"));
+        var mine = Ledger(("B1", "Already on main"), ("B2", "What I filed"));
+        var theirs = Ledger(("B1", "Already on main"), ("B2", "What they filed"));
+
+        var (code, said) = Bugs(
+            $"ids --ledger={mine} --questions={Questions()} --base={pastBase} --elsewhere={theirs}");
+
+        Assert.Equal(1, code);
+        Assert.Contains("CLASHES   ID B2", said);
+        // Not a duplicate: neither file has B2 twice. That is the whole point —
+        // `duplicates_in` cannot see this until somebody merges.
+        Assert.DoesNotContain("DUPLICATE", said);
+    }
+
+    /// <summary>
+    /// The false positive that would make the clash check unusable: an id both
+    /// branches carry because it was on the default branch before either started.
+    /// </summary>
+    [Fact]
+    public void AnIdInheritedFromTheDefaultBranchIsNotAClash()
+    {
+        var pastBase = Ledger(("B1", "Already on main"));
+        var mine = Ledger(("B1", "Already on main, retitled here"));
+        var theirs = Ledger(("B1", "Already on main"));
+
+        var (code, said) = Bugs(
+            $"ids --ledger={mine} --questions={Questions()} --base={pastBase} --elsewhere={theirs}");
+
+        Assert.Equal(0, code);
+        Assert.DoesNotContain("CLASHES", said);
+    }
+
+    [Fact]
+    public void FixMovesTheEntryThisBranchFiledAndLeavesTheOlderOneAlone()
+    {
+        var ledger = Ledger(
+            ("B1", "The one that was here first"),
+            ("B1", "The one this branch filed"),
+            ("B4", "The highest id anybody has"));
+
+        var (code, said) = Bugs($"ids --ledger={ledger} --questions={Questions()} --fix");
+        var after = File.ReadAllLines(ledger);
+
+        Assert.Equal(0, code);
+        Assert.Contains("RENUMBERED B1 -> B5", said);
+        Assert.Contains("**B1**", after[0]);   // first in, keeps the number
+        Assert.Contains("**B5**", after[1]);   // and above B4, not merely unused here
+        Assert.Contains("**B4**", after[2]);
+    }
+
+    // -----------------------------------------------------------------------
+    // The questions are one file each (Q92), and the gate reads their ids from
+    // the filenames.
+    //
+    // Fixing the id collision left the textual one: as a single file, every branch
+    // that raised a question appended a section at the same place, so two branches
+    // raising two questions conflicted by construction. A new file conflicts with
+    // nothing — and the id being in the name is what keeps the gate cheap, because
+    // listing a ref's questions becomes one `git ls-tree` with no file reads.
+    // -----------------------------------------------------------------------
+
+    private static string RepoQuestions() =>
+        Path.Combine(RepoRoot(), ".claude", "quality", "questions");
+
+    [Fact]
+    public void EveryQuestionFileIsNamedForTheQuestionInIt()
+    {
+        var (code, said) = Questions("check");
+        output.WriteLine(said.TrimEnd());
+        Assert.Equal(0, code);
+    }
+
+    /// <summary>
+    /// The id lives in two places once a question is a file, and only one of them
+    /// is read by the gate. They have to agree or the heading is decorative.
+    /// </summary>
+    [Fact]
+    public void AQuestionWhoseNameAndHeadingDisagreeFailsItsCheck()
+    {
+        var stray = Path.Combine(RepoQuestions(), "Q9999-a-deliberately-misnamed-fixture.md");
+        File.WriteAllText(stray, "# Q9998 · A deliberately misnamed fixture\n");
+        try
+        {
+            var (code, said) = Questions("check");
+            Assert.Equal(1, code);
+            Assert.Contains("MISNAMED", said);
+        }
+        finally
+        {
+            File.Delete(stray);
+        }
+    }
+
+    /// <summary>
+    /// The index is derived from the directory, so it is not committed — the same
+    /// move `INDEX.md` and `FEATURES.md` made in Q55, and for the stronger form of
+    /// the same reason: a stored derived file is one every branch rewrites, which
+    /// is the collision this shape exists to end.
+    /// </summary>
+    [Fact]
+    public void TheGeneratedQuestionIndexIsNotTracked()
+    {
+        var info = new ProcessStartInfo("git", "ls-files .claude/quality/QUESTIONS.md")
+        {
+            WorkingDirectory = RepoRoot(),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        using var process = Process.Start(info);
+        Assert.NotNull(process);
+        var tracked = process!.StandardOutput.ReadToEnd().Trim();
+        process.WaitForExit(30_000);
+
+        Assert.True(tracked.Length == 0,
+            "QUESTIONS.md is tracked again. It is generated from .claude/quality/questions/ by "
+            + "scripts/questions.py, so committing it puts a rewritten copy in every branch and "
+            + "moves the conflict one artefact along instead of ending it (Q92).");
+    }
+
+    private (int Code, string Out) Questions(string args)
+    {
+        var info = new ProcessStartInfo("python3", $"scripts/questions.py {args}")
+        {
+            WorkingDirectory = RepoRoot(),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        using var process = Process.Start(info);
+        Assert.NotNull(process);
+        var text = process!.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
+        process.WaitForExit(60_000);
+        return (process.ExitCode, text);
+    }
+
+    /// <summary>
+    /// Refusing leaves the author to work out which entry gives up the number, what
+    /// number is safe, and which citations in their diff mean the one that moved.
+    /// That is what the nine hand-written renumber commits were.
+    /// </summary>
+    [Fact]
+    public void ThePrePushHookRepairsRatherThanOnlyRefusing()
+    {
+        var hook = File.ReadAllText(Path.Combine(RepoRoot(), ".githooks", "pre-push"));
+
+        Assert.Contains("ids --fix", hook);
+        // Never while a merge is being resolved: rewriting BUGS.md under somebody
+        // resolving a conflict in BUGS.md destroys the resolution.
+        Assert.Contains("MERGE_HEAD", hook);
+        // And never for a lost id — putting an entry back is a judgement about
+        // what it said, which a number cannot supply.
+        Assert.Contains("grep -q 'LOST'", hook);
     }
 
     [Fact]

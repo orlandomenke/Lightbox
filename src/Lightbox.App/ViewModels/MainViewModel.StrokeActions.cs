@@ -255,15 +255,31 @@ public partial class MainViewModel
     /// <remarks>
     /// One gate for all three, checked in the order an artist would want to hear
     /// about it: nothing selected is silence, a locked layer is a message.
-    /// <see cref="PaintTarget"/> rather than <c>PaintTargetOrKey</c> — acting on a
-    /// selection must not bring a cel into existence, for the same reason picking
-    /// must not.
+    /// <para>
+    /// <b>This used to resolve through <see cref="PaintTarget"/>, on the
+    /// grounds that acting on a selection must not bring a cel into existence
+    /// "for the same reason picking must not" — and that was half right in a
+    /// way that cost B207.</b> Picking must not author, because looking around
+    /// is not editing. But every caller here is an edit that lands, and an
+    /// edit that lands on a hold has to key the cel or it rewrites the drawing
+    /// the cel borrows — the change then appears on the earlier frame, which
+    /// is the bug B206 fixed for the move, the transform and the placement
+    /// drag and did not reach through this gate.
+    /// </para>
     /// </remarks>
     private (string FrameId, List<Stroke> Strokes)? StrokeEditTarget()
     {
         if (!HasStrokeSelection) return null;
-        if (PaintTarget() is not { } frame) return null;
         if (!CanEdit(ActiveLayer, "change lines on it")) return null;
+
+        // B207. Every caller of this is an edit that lands, so a held cel is
+        // keyed here — the comment above is right that *selecting* must not
+        // author a cel, and that is why the keying is at the edit rather than
+        // at the pick. The selection follows the copy's own stroke ids, so an
+        // artist who picked three lines still has three lines picked.
+        var ids = Selection.SelectedStrokeIds.ToList();
+        if (KeyHeldCelForStrokeEdit(ids) is not { } frame) return null;
+        Selection.SelectStrokes(ids);
         return (frame.Id, StrokesOf(frame));
     }
 

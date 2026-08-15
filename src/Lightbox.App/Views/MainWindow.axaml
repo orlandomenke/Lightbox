@@ -3019,10 +3019,38 @@
                               <MenuItem Header="Always export this layer" Click="OnLayerMenuExportAlways"
                                         ToolTip.Tip="Kept in even when background detection would drop it — for the asset whose background is the point: a backdrop, a sky, a tiling floor." />
                             </MenuItem>
+                            <!-- Linking, under a flyout: the same options the
+                                 modifier gestures carry, named, so they are
+                                 discoverable rather than folklore. -->
+                            <MenuItem Header="Linking">
+                              <MenuItem Header="Link to layer above" Click="OnLayerMenuLinkAbove"
+                                        ToolTip.Tip="Declare these layers one drawing — lines, colour, details — so what the link carries reaches all of them, on every frame. (Ctrl+Shift+right-click)" />
+                              <MenuItem Header="Link to layer below" Click="OnLayerMenuLinkBelow"
+                                        ToolTip.Tip="The same, downwards. (Ctrl+Alt+right-click)" />
+                              <MenuItem Header="Unlink" IsVisible="{Binding IsLinked}" Click="OnLayerMenuUnlink"
+                                        ToolTip.Tip="Take this layer out of its link. (Shift+right-click)" />
+                              <Separator IsVisible="{Binding IsLinked}" />
+                              <MenuItem Header="Share the rig" IsVisible="{Binding IsLinked}"
+                                        Click="OnLayerMenuShareRig"
+                                        ToolTip.Tip="Every layer in the link follows the bone any one of them names." />
+                              <MenuItem Header="Share alpha lock" IsVisible="{Binding IsLinked}"
+                                        Click="OnLayerMenuShareAlpha" />
+                              <MenuItem Header="Share visibility" IsVisible="{Binding IsLinked}"
+                                        Click="OnLayerMenuShareVisibility"
+                                        ToolTip.Tip="Hide the lines and the colour goes with them." />
+                            </MenuItem>
+                            <MenuItem Header="Follows the rig">
+                              <MenuItem Header="The selected bone" Click="OnLayerMenuRigToBone"
+                                        ToolTip.Tip="Every stroke on this layer follows the bone picked in the Bone tool, unless it carries painted weights of its own." />
+                              <MenuItem Header="The whole skeleton" Click="OnLayerMenuRigToSkeleton"
+                                        ToolTip.Tip="Bound to the nearest bones by distance, the way auto-bind does it." />
+                              <MenuItem Header="Nothing" Click="OnLayerMenuUnrig" />
+                            </MenuItem>
                             <MenuItem Header="Delete layer" Click="OnLayerMenuDelete" />
                           </ContextMenu>
                         </Border.ContextMenu>
                         <DockPanel>
+                          <views:LinkBracket DockPanel.Dock="Left" />
                           <ToggleButton Classes="icon glyph eye" DockPanel.Dock="Left" IsChecked="{Binding Visible}"
                                         ToolTip.Tip="Layer visibility"><Path /></ToggleButton>
                           <ToggleButton Classes="icon glyph lock" DockPanel.Dock="Left" IsChecked="{Binding Locked}"

@@ -30,6 +30,15 @@ when that check was added — four of them entire entries duplicated verbatim,
 one symptom filed twice with different evidence, and two genuinely different
 bugs sharing a number.
 
+**And ids are now issued rather than counted.** Detecting reuse never prevented
+any: an author read this file, took the highest number in it and added one,
+which is *the same number* on two branches that both started from `main`. Six
+bugs and three questions were renumbered by hand in the six days to 2026-08-14,
+one of them twice because the second guess collided too. So `bugs.py new`
+allocates above every branch the clone can see, `ids` reports a number two
+branches have taken before the merge that would prove it, and `ids --fix` moves
+this branch's entry and the citations this branch wrote for it.
+
 An entry with no `evidence:` is **refused at check time**. If you cannot name
 what would prove the fix, you have not finished describing the bug.
 
@@ -46,6 +55,9 @@ session formalizes each inbox entry into a real one, following the rules
 above, and deletes it from the inbox once it does.
 
 ```bash
+python3 scripts/bugs.py new canvas "Onion tint floods on pan" -p P1 -e OnionTintTests
+python3 scripts/bugs.py freeid question # the next free Q id, for a question you write by hand
+python3 scripts/bugs.py ids --fix      # move an id two branches took; citations follow
 python3 scripts/bugs.py check          # status; exits 1 on drift, a reused id or missing evidence
 python3 scripts/bugs.py sync           # rewrite the marks and re-sort open above fixed
 python3 scripts/bugs.py next           # highest-priority open bugs
@@ -444,14 +456,6 @@ which is a weak test and still far better than none.
   - Reported: swatches appear not to be saved on creation in a project, and not saved or loaded for a standalone file either.
   - Distinct from **B10**, which was swatch *links* dying when a project was saved and reloaded and is fixed: this is the swatch itself never reaching the file. B10's guards (`ASavedProjectKeepsItsSwatchIds`) check that an id survives, which passes whether or not the palette entry behind it was written.
   - `AProjectThatNeverAsksForThisWritesNoBrushKey` is the pattern the fix should follow — a palette that was never touched must still write nothing. Cost: M
-
-### timeline
-
-- [ ] **B207** `P1` `timeline` Reshaping a line with the pen on a held cel rewrites the drawing the hold borrows, so the edit lands on the earlier frame `evidence: PathEditOnAHoldKeysTheCel`
-  - **B206 through a tool B206 did not reach**, found by the adversarial pass on it: `CommitPathEdit` (`MainViewModel.PathEditing.cs`) and `PickableStrokes` (`MainViewModel.StrokeSelection.cs`) resolve their frame with `PaintTarget()` rather than `PaintTargetOrKey()`, so dragging a bezier node on a hold opens isolation on the borrowed drawing and commits the moved points straight into it. Reproduced: after `BeginPathEdit` + `DragPathPart` + `CommitPathEdit` on a held cel, the cel is still unkeyed and the earlier frame's stroke has moved.
-  - Filed rather than fixed in B206's own branch for the one-objective rule — that branch was already three fixes and a feature, and this needs a change to a file it does not touch. It is next, not later.
-  - **The fix is not a one-line swap, which is why it wants its own branch.** Keying produces a *copy*, and `KeyedCopyOf` gives the copied strokes fresh ids — so a path-edit session holding a stroke id from the borrowed drawing would commit into a frame where that id does not exist. Either the copy preserves stroke ids (which `Frame.Clone` already does, and which would make every id-based tool survive keying by construction) or the path session re-resolves its target after the key. The first is the better answer and is a decision about what a keyed copy *is*, so it is worth making deliberately rather than inside another branch's diff.
-  - Same shape as B206 for severity: silent, lands on a frame the artist is not looking at, and is only found by scrubbing back. P1. Cost: S once the id question is answered.
 
 ### ui
 
@@ -1616,6 +1620,15 @@ test reopens the bug.
   - `EveryCreateEntryProducesSomethingOnDisk` saves and looks at the filesystem rather than at rows, because a manifest entry with nothing behind it looks identical to a real one until the project is reopened.
 
 ### timeline
+
+- [x] **B207** `P1` `timeline` Editing lines on a held cel rewrites the drawing the hold borrows, so the edit lands on the earlier frame `evidence: StrokeEditOnAHoldTests, PathEditOnAHoldKeysTheCel, MovingSelectedLinesOnAHoldKeysTheCel, TheSelectionSurvivesTheKeying, PickingALineOnAHoldStillAuthorsNothing`
+  - **B206 through a tool B206 did not reach**, found by the adversarial pass on it: `CommitPathEdit` (`MainViewModel.PathEditing.cs`) and `PickableStrokes` (`MainViewModel.StrokeSelection.cs`) resolve their frame with `PaintTarget()` rather than `PaintTargetOrKey()`, so dragging a bezier node on a hold opens isolation on the borrowed drawing and commits the moved points straight into it. Reproduced: after `BeginPathEdit` + `DragPathPart` + `CommitPathEdit` on a held cel, the cel is still unkeyed and the earlier frame's stroke has moved.
+  - Filed rather than fixed in B206's own branch for the one-objective rule — that branch was already three fixes and a feature, and this needs a change to a file it does not touch. It is next, not later.
+  - **The fix is not a one-line swap, which is why it wanted its own branch.** Keying produces a *copy*, and `KeyedCopyOf` gives the copied strokes fresh ids — so a session holding a stroke id from the borrowed drawing would commit into a frame where that id does not exist.
+  - **It was two gates, not one.** `CommitPathEdit` was the reported half; `StrokeEditTarget` (`MainViewModel.StrokeActions.cs`) is the same hole for *every* stroke-selection action — delete, move, nudge, recolour — and its own comment argued for `PaintTarget` on the grounds that "acting on a selection must not bring a cel into existence, for the same reason picking must not". That is half right in the way that cost this bug: **picking must not author, and an edit that lands must**. The keying therefore sits at the commit, which is also what keeps Ctrl+T-then-Escape from leaving a drawing behind (B206).
+  - **This entry recommended the wrong fix and the code corrected it.** It proposed that `KeyedCopyOf` preserve stroke ids, "which `Frame.Clone` already does". Reading `Frame.Clone` says the opposite: it carries ids *because it is an undo snapshot* and has to restore the frame that was there, and it names `DocumentEditor.CloneFrame` as the contrast — a duplicate of a drawing an artist can see gets a **fresh** id. Keying a hold is that second thing, so fresh ids were already right and preserving them would have contradicted a documented distinction. The edit re-resolves instead: `KeyHeldCelForStrokeEdit` records each stroke's *index* before keying and re-points the ids afterwards, exact rather than heuristic because `KeyedCopyOf` copies in order. The selection is re-pointed with it, so an artist who picked three lines still has three picked.
+  - No question reached the owner in the end, because the codebase settled it. The wrong recommendation is left above rather than quietly deleted: a ledger that edits out its bad guesses stops being evidence of how a decision was actually reached.
+  - Same shape as B206 for severity: silent, lands on a frame the artist is not looking at, and is only found by scrubbing back. P1. Cost: S once the id question is answered.
 
 - [x] **B206** `P1` `timeline` Moving or transforming on a held cel rewrites the drawing the hold borrows, so the edit shows up on the earlier frame too `evidence: AMoveOnAHoldKeysTheCel_AndLeavesTheHeldDrawingAlone, UnderEditTheHeldDrawing_AMoveStillEditsTheHeldDrawing`
   - Reported: draw on frame 1, stand on frame 2 (a hold), move the drawing — frame 1's drawing moves with it. **This covers the move, the transform and the placement drag; the pen's own reshaping is B207**, filed from this entry's adversarial pass and not closed by it. The auto-key that makes a *mark* on a hold safe (`PaintTargetOrKey`, the Drawing-on-a-hold setting) was only wired into the brush path; the transform tool's `ActiveCel` scope resolved the hold with `ExposureSheet.ExposedFrame` and handed the *held* frame to the session, so the commit rewrote the borrowed drawing's stroke points. Placement drags had the same shape through `PlacementsHere`, which reads `PaintTarget()`.

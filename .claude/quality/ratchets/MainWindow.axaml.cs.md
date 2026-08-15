@@ -1,0 +1,19 @@
+# src/Lightbox.App/Views/MainWindow.axaml.cs
+
+budget: 427
+
+## Why it has moved
+
+Newest last. Both sides of a merge keep their entry — taking one deletes the
+other's reason and leaves a number nobody can account for.
+
+- **5,544 → 429** when the view was split into fifteen partials. That is the
+  ratchet behaving as designed: the budget moves with the extraction that earned
+  it, in the same commit, and the file can never climb back. The partials are not
+  budgeted — the largest is 747 lines and none is near the size that makes a file
+  unreadable. A budget belongs here when a file is already too big, not as a cap
+  on every file in the project.
+- **449 → 427** when the bone gesture handler followed the overlay-gesture wiring
+  into `MainWindow.Overlays.cs`. A merge had left that one block behind in the
+  code-behind while its own siblings — the press, the weight stroke — sat in the
+  partial, so reuniting them paid for the branch's new line and 21 more besides.

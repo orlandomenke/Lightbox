@@ -151,6 +151,63 @@ public sealed partial class LayerRow : ObservableObject
     /// <summary>Inside a layer folder (indented in the docker, eject button shown).</summary>
     public bool IsGrouped => Layer.GroupId is not null;
 
+    /// <summary>In a link — the docker marks it, or the artist cannot tell it is one drawing.</summary>
+    public bool IsLinked => Layer.LinkId is not null;
+
+    /// <summary>The link's accent colour, for the docker's marker.</summary>
+    public string LinkColor => _owner.LinkColorOf(Layer);
+
+    /// <summary>The bracket's brush.</summary>
+    /// <remarks>
+    /// Immutable, because a docker row's brush is read on the render thread
+    /// and a mutable <c>SolidColorBrush</c> is thread-affine — the failure
+    /// <c>TrackView</c> already produced as cross-thread test flake.
+    /// </remarks>
+    public Avalonia.Media.IBrush LinkBrush =>
+        new Avalonia.Media.Immutable.ImmutableSolidColorBrush(
+            Avalonia.Media.Color.Parse(LinkColor));
+
+    /// <summary>What this layer's strokes follow, said out loud on the row.</summary>
+    /// <remarks>
+    /// Empty on an unrigged layer, so the docker shows nothing rather than the
+    /// word "none" on every row of every document that never rigged.
+    /// </remarks>
+    public string RigBadge => _owner.RigBadgeOf(Layer);
+
+    /// <summary>Whether the row has anything to say about the rig.</summary>
+    public bool HasRigBadge => RigBadge.Length > 0;
+
+    /// <summary>Which piece of the link bracket this row draws.</summary>
+    public LayerLinkMark LinkMark => _owner.LinkMarkOf(Layer);
+
+    /// <summary>The bracket's corner, running down to the next member.</summary>
+    public bool IsLinkTop => LinkMark == LayerLinkMark.Top;
+
+    /// <summary>The bracket's line, with a tick into this row.</summary>
+    public bool IsLinkMiddle => LinkMark == LayerLinkMark.Middle;
+
+    /// <summary>The bracket coming down into its last corner.</summary>
+    public bool IsLinkBottom => LinkMark == LayerLinkMark.Bottom;
+
+    /// <summary>In a link whose other members are not adjacent — a tick, joining nothing.</summary>
+    public bool IsLinkDetached => LinkMark == LayerLinkMark.Detached;
+
+    /// <summary>Re-read the link-derived properties after a link edit.</summary>
+    internal void SyncLinkFromModel()
+    {
+        OnPropertyChanged(nameof(IsLinked));
+        OnPropertyChanged(nameof(LinkMark));
+        OnPropertyChanged(nameof(IsLinkTop));
+        OnPropertyChanged(nameof(IsLinkMiddle));
+        OnPropertyChanged(nameof(IsLinkBottom));
+        OnPropertyChanged(nameof(IsLinkDetached));
+        OnPropertyChanged(nameof(LinkColor));
+        OnPropertyChanged(nameof(LinkBrush));
+        OnPropertyChanged(nameof(RigBadge));
+        OnPropertyChanged(nameof(HasRigBadge));
+        OnPropertyChanged(nameof(Visible));
+    }
+
     internal void SyncFromModel(Layer layer, int sceneIndex)
     {
         Layer = layer;
@@ -164,6 +221,7 @@ public sealed partial class LayerRow : ObservableObject
         _lockedByFolder = _owner.IsLayerLockedByFolder(layer);
         _syncing = false;
         OnPropertyChanged(nameof(IsGrouped));
+        SyncLinkFromModel();
     }
 
     partial void OnNameChanged(string value)
