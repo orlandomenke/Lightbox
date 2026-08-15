@@ -245,19 +245,61 @@ public class PostProcessDabsTests(ITestOutputHelper output)
             Median(segments, viaStampStroke: true);
         }
 
-        var shortPost = Median(6, viaStampStroke: false);
-        var longPost = Median(60, viaStampStroke: false);
+        // THE SHORT AND LONG MEASUREMENTS ARE TAKEN TOGETHER, AND THE BEST RATIO
+        // OF SEVERAL PAIRS IS THE ANSWER (B212).
+        //
+        // This asserts on a *ratio*, and a ratio is only meaningful when both
+        // halves saw the same machine. Taking all the short runs and then all
+        // the long ones does not guarantee that: under `dotnet test
+        // Lightbox.sln` this assembly runs while MSBuild is still compiling
+        // Lightbox.App, so a compile that starts or ends between the two halves
+        // inflates one and not the other. That is what failed on 2026-08-15,
+        // and the log proves it was the machine rather than the pass — it
+        // reported PostProcessDabs at 48.8 ms against StampStroke at 35.9 ms,
+        // which is impossible, since StampStroke *contains* the post-process.
+        // The same commit was green three hours earlier.
+        //
+        // `Bench.FastestMs` cannot save this on its own: it takes the fastest of
+        // five runs, and the contention here was a twenty-second compile — every
+        // run inside the window is slow, so there is no fast one to find.
+        //
+        // Measuring a pair back to back makes contention *cancel*: both halves
+        // are scaled by roughly the same factor and the ratio survives. Taking
+        // the smallest ratio over several pairs then only needs one pair to land
+        // in a quiet window, which is the property fastest-of-N was reaching for
+        // and could not have per-measurement.
+        var best = double.MaxValue;
+        double shortPost = 0, longPost = 0;
+        for (var pair = 0; pair < 3; pair++)
+        {
+            var s = Median(6, viaStampStroke: false);
+            var l = Median(60, viaStampStroke: false);
+            output.WriteLine($"PostProcessDabs  6 seg {s,7:0.0} ms | 60 seg {l,7:0.0} ms  ({l / Math.Max(0.01, s):0.00}x)");
+            if (l / Math.Max(0.01, s) < best)
+            {
+                (best, shortPost, longPost) = (l / Math.Max(0.01, s), s, l);
+            }
+        }
+
+        // The control, logged and not asserted on. It is what tells a later
+        // reader whether a failure was the pass or the box: StampStroke does
+        // strictly more work than PostProcessDabs, so measuring it as cheaper is
+        // a machine artefact and nothing else.
         var shortStamp = Median(6, viaStampStroke: true);
         var longStamp = Median(60, viaStampStroke: true);
-
-        output.WriteLine($"PostProcessDabs  6 seg {shortPost,7:0.0} ms | 60 seg {longPost,7:0.0} ms");
         output.WriteLine($"StampStroke      6 seg {shortStamp,7:0.0} ms | 60 seg {longStamp,7:0.0} ms");
+        if (shortStamp < shortPost)
+        {
+            output.WriteLine($"NOTE: StampStroke measured cheaper than the pass it contains "
+                             + $"({shortStamp:0.0} < {shortPost:0.0} ms) — this box was contended, "
+                             + "so read the ratio above rather than the milliseconds");
+        }
 
         // Ten times the stroke for well under twice the cost. Re-stamping every
         // dab put this near-linear, which is what made a long wet stroke feel
-        // like the preview had given up.
-        Assert.True(longPost < shortPost * 2,
-            $"a 10x longer stroke cost {longPost / Math.Max(0.01, shortPost):0.0}x as much " +
-            $"({shortPost:0.0} -> {longPost:0.0} ms)");
+        // like the preview had given up. Measured at 1.44x on an idle box.
+        Assert.True(best < 2,
+            $"a 10x longer stroke cost {best:0.0}x as much " +
+            $"({shortPost:0.0} -> {longPost:0.0} ms), best of 3 paired measurements");
     }
 }
