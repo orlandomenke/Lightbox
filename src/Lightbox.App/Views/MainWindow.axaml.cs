@@ -148,6 +148,9 @@ public partial class MainWindow : Window
         // owns the pixels. Feeding the matrix across on every gizmo change is
         // what makes the drawing move with the box instead of after it.
         Canvas.TransformGizmoChanged += () => _vm.PreviewTransform(Canvas.TransformMatrix);
+        // The ants ride the same matrix the moving pixels composite through,
+        // so the outline follows the drag instead of catching up on release.
+        _vm.TransformPreviewChanged += Canvas.SetSelectionPreviewTransform;
         Canvas.TransformMenuRequested += ShowTransformMenu;
         WireGradientRamp();
         SyncCanvasToolMode();
