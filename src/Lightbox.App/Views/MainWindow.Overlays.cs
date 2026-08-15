@@ -56,36 +56,17 @@ public partial class MainWindow
             if (hit is { Id: { } id }) Canvas.BeginBoneDrag(id, hit.Grab);
             RefreshArmatureOverlay();
         };
+        // Both halves of the gesture go through the view model's one
+        // dispatch (MainViewModel.BoneGesture.cs): the drag previews, the
+        // release lands the editor step. The window only relays.
+        Canvas.BoneDragged += (id, grab, x0, y0, x, y, extruding) =>
+        {
+            _vm.PreviewBoneGesture(id, grab, x0, y0, x, y, extruding);
+            RefreshArmatureOverlay();
+        };
         Canvas.BoneGestureEnded += (id, grab, x0, y0, x1, y1, extruding) =>
         {
-            if (id is null)
-            {
-                // An empty-canvas drag creates a bone — in bind mode only;
-                // posing an empty spot means nothing and writes nothing.
-                if (!_vm.PosingMode) _vm.CreateBoneFromDrag(x0, y0, x1, y1);
-            }
-            else if (_vm.PosingMode)
-            {
-                _vm.PoseBoneTo(id, x1, y1);
-            }
-            else if (extruding && grab is Rendering.BoneGrab.Tip)
-            {
-                // Blender's idiom: take hold of the tip and pull a child out
-                // of it, already joined to the parent.
-                _vm.ExtrudeChildFrom(id, x1, y1);
-            }
-            else if (grab is Rendering.BoneGrab.Origin or Rendering.BoneGrab.Tip)
-            {
-                _vm.DragBoneBind(id, grab, x1, y1);
-            }
-            else
-            {
-                // The shaft moves the whole bone, children and all. It used to
-                // select and do nothing, which is what "no option to move bones
-                // around" meant: the only thing that moved one was the joint
-                // handle, five screen pixels wide.
-                _vm.MoveBoneBy(id, x1 - x0, y1 - y0);
-            }
+            _vm.EndBoneGesture(id, grab, x0, y0, x1, y1, extruding);
             RefreshArmatureOverlay();
         };
         Canvas.WeightStrokeStarted += (x, y, p) => _vm.BeginWeightStroke(x, y, p);

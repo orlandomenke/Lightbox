@@ -51,6 +51,14 @@ public sealed partial class CanvasControl
     /// </summary>
     public event Action<string?, BoneGrab, double, double, double, double, bool>? BoneGestureEnded;
 
+    /// <summary>
+    /// The same gesture per pointer move, for the live preview — chrome only,
+    /// no editor step. The release still lands everything through
+    /// <see cref="BoneGestureEnded"/>; a drag the view model never previews
+    /// still commits exactly as it always did.
+    /// </summary>
+    public event Action<string?, BoneGrab, double, double, double, double, bool>? BoneDragged;
+
     /// <summary>Shift was held on the press, so a tip drag grows a child rather than re-aiming.</summary>
     private bool _boneExtruding;
 
@@ -197,12 +205,23 @@ public sealed partial class CanvasControl
         e.Handled = true;
     }
 
-    /// <summary>Streams weight dabs while the brush is down. True when the move was consumed.</summary>
+    /// <summary>
+    /// Streams weight dabs while the brush is down, and reports every other
+    /// bone drag for the live preview. True when the move was consumed.
+    /// </summary>
     private bool ContinueBoneGesture(Avalonia.Input.PointerEventArgs e)
     {
-        if (!_weightStrokeActive) return false;
+        if (_weightStrokeActive)
+        {
+            var (wx, wy) = ViewToDoc(e.GetPosition(this));
+            WeightDabbed?.Invoke(wx, wy, PressureOf(e.GetCurrentPoint(this).Properties.Pressure));
+            e.Handled = true;
+            return true;
+        }
+        if (!_boneGestureActive) return false;
         var (x, y) = ViewToDoc(e.GetPosition(this));
-        WeightDabbed?.Invoke(x, y, PressureOf(e.GetCurrentPoint(this).Properties.Pressure));
+        BoneDragged?.Invoke(
+            _boneDragId, _boneDragGrab, _boneGestureStart.X, _boneGestureStart.Y, x, y, _boneExtruding);
         e.Handled = true;
         return true;
     }
