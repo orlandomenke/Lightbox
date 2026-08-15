@@ -64,6 +64,40 @@ public class StrokeToScreenTests(ITestOutputHelper output) : IDisposable
     }
 
     /// <summary>
+    /// The correction B189's second capture demanded: the oldest anchor is
+    /// coalescing depth times staleness, the newest is staleness alone, and a
+    /// burst spread over real time must show the newest anchor younger than
+    /// the oldest — otherwise deeper coalescing reads as more lag by
+    /// construction, which is exactly how that capture misread itself.
+    /// </summary>
+    [Fact]
+    public void TheNewestAnchorIsYoungerThanTheOldestAcrossASpreadBurst()
+    {
+        var s = new StrokeToScreen();
+
+        s.Stamped(StrokeToScreen.EventArrived());
+        // A real gap, so old and new anchors measurably differ. These tests
+        // already measure wall time; 25 ms is cheap and unambiguous.
+        Thread.Sleep(25);
+        s.Stamped(StrokeToScreen.EventArrived());
+        s.Published(seq: 3);
+        s.Rendered(seq: 3);
+
+        var stats = s.Snapshot;
+        output.WriteLine(
+            $"oldest->publish {stats.WaitToPublish.MeanMs:0.##} ms, "
+            + $"newest->publish {stats.TipToPublish.MeanMs:0.##} ms, "
+            + $"pen->screen {stats.PenToScreen.MeanMs:0.##} ms, "
+            + $"tip->screen {stats.TipToScreen.MeanMs:0.##} ms");
+        Assert.True(stats.WaitToPublish.MeanMs >= 20, "the spread did not register on the oldest anchor");
+        Assert.True(stats.TipToPublish.MeanMs < stats.WaitToPublish.MeanMs,
+            "the newest anchor is not younger than the oldest — the two are still one number");
+        Assert.True(stats.TipToScreen.MeanMs < stats.PenToScreen.MeanMs);
+        Assert.Equal(stats.Drawn, stats.TipToScreen.Count);
+        Assert.Equal(stats.Publishes, stats.TipToPublish.Count);
+    }
+
+    /// <summary>
     /// Publishes with no stroke behind them — playback, thumbnails, a fill —
     /// must record nothing, or every capture is polluted by whatever else the
     /// session did and the section stops being about drawing.
@@ -134,13 +168,18 @@ public class StrokeToScreenTests(ITestOutputHelper output) : IDisposable
 
     private static StrokeToScreen.Stats Stats(
         double stampMean, double toPublishMean, double toDrawMean,
-        int drawn = 100, int superseded = 0) =>
+        int drawn = 100, int superseded = 0, double? tipToScreenMean = null) =>
         new(Events: drawn * 2, Publishes: drawn + superseded, Drawn: drawn,
             Superseded: superseded,
             Stamp: new(drawn * 2, stampMean, stampMean * 3),
             WaitToPublish: new(drawn + superseded, toPublishMean, toPublishMean * 3),
             WaitToDraw: new(drawn, toDrawMean, toDrawMean * 3),
-            PenToScreen: new(drawn, toPublishMean + toDrawMean, (toPublishMean + toDrawMean) * 3));
+            PenToScreen: new(drawn, toPublishMean + toDrawMean, (toPublishMean + toDrawMean) * 3),
+            TipToPublish: new(drawn + superseded, toPublishMean / 2, toPublishMean * 1.5),
+            TipToScreen: new(
+                drawn,
+                tipToScreenMean ?? toPublishMean / 2 + toDrawMean,
+                (tipToScreenMean ?? toPublishMean / 2 + toDrawMean) * 3));
 
     private string Section(
         StrokeToScreen.Stats? stats,
@@ -206,6 +245,34 @@ public class StrokeToScreenTests(ITestOutputHelper output) : IDisposable
         var text = Section(Stats(stampMean: 2, toPublishMean: 40, toDrawMean: 5));
         output.WriteLine(text);
         Assert.Contains("BETWEEN stamp and publish", text);
+    }
+
+    /// <summary>
+    /// Both anchors print, and when most of the PEN line is coalescing rather
+    /// than staleness the section says so — the misreading B189's second
+    /// capture actually produced (11.4 events gathered over ~90 ms read as
+    /// more lag while the tip's was falling).
+    /// </summary>
+    [Fact]
+    public void TheTipLineSeparatesCoalescingDepthFromStaleness()
+    {
+        var text = Section(Stats(
+            stampMean: 2, toPublishMean: 80, toDrawMean: 20, tipToScreenMean: 30));
+        output.WriteLine(text);
+        Assert.Contains("TIP -> SCREEN", text);
+        Assert.Contains("newest event", text);
+        Assert.Contains("coalescing depth, not staleness", text);
+    }
+
+    /// <summary>A tip as stale as the pen is real lag, and gets no excuse.</summary>
+    [Fact]
+    public void ATipAsStaleAsThePenGetsNoCoalescingNote()
+    {
+        var text = Section(Stats(
+            stampMean: 2, toPublishMean: 80, toDrawMean: 20, tipToScreenMean: 95));
+        output.WriteLine(text);
+        Assert.Contains("TIP -> SCREEN", text);
+        Assert.DoesNotContain("coalescing depth, not staleness", text);
     }
 
     /// <summary>

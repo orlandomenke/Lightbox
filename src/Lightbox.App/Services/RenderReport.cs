@@ -849,13 +849,26 @@ internal static class RenderReport
         sb.AppendLine($"publishes carrying ink    {s.Publishes}  ({perPublish:0.#} events per publish)");
         if (s.Publishes > 0)
         {
-            sb.AppendLine($"  event -> publish        mean {s.WaitToPublish.MeanMs,7:0.##} ms   worst {s.WaitToPublish.WorstMs,7:0.##} ms");
+            sb.AppendLine($"  event -> publish        mean {s.WaitToPublish.MeanMs,7:0.##} ms   worst {s.WaitToPublish.WorstMs,7:0.##} ms   (oldest event carried)");
+            sb.AppendLine($"    newest event          mean {s.TipToPublish.MeanMs,7:0.##} ms   worst {s.TipToPublish.WorstMs,7:0.##} ms");
         }
         if (s.Drawn > 0)
         {
             sb.AppendLine($"  publish -> drawn        mean {s.WaitToDraw.MeanMs,7:0.##} ms   worst {s.WaitToDraw.WorstMs,7:0.##} ms");
             sb.AppendLine($"  PEN -> SCREEN           mean {s.PenToScreen.MeanMs,7:0.##} ms   worst {s.PenToScreen.WorstMs,7:0.##} ms"
                           + $"   ({s.Drawn} drawn, {s.Superseded} replaced first)");
+            sb.AppendLine($"  TIP -> SCREEN           mean {s.TipToScreen.MeanMs,7:0.##} ms   worst {s.TipToScreen.WorstMs,7:0.##} ms");
+            // B189's second capture is why these are two numbers: the oldest
+            // anchor grew from 4.7 to 11.4 events of coalescing when the
+            // publish pacing landed, and read as MORE lag while the tip's was
+            // falling. The gap between the two lines is coalescing depth; the
+            // TIP line alone is how far the freshest ink runs behind the hand.
+            var gap = s.PenToScreen.MeanMs - s.TipToScreen.MeanMs;
+            if (gap > s.TipToScreen.MeanMs && s.TipToScreen.MeanMs > 0)
+            {
+                sb.AppendLine($"    ({gap:0.#} ms of the PEN line is coalescing depth, not staleness —");
+                sb.AppendLine("     publishes are batching well rather than falling behind)");
+            }
         }
         else
         {
