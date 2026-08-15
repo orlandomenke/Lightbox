@@ -1,5 +1,8 @@
 using Lightbox.App.Rendering;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Timeline;
+using Lightbox.Raster;
+using SkiaSharp;
 
 namespace Lightbox.App.ViewModels;
 
@@ -26,6 +29,13 @@ public sealed partial class MainViewModel
 
     /// <summary>The playhead pose with the provisional key merged in, or null.</summary>
     private Dictionary<string, BonePose>? _bonePreviewPose;
+
+    /// <summary>
+    /// Where the last pose-preview publish painted, so the next one can put
+    /// those pixels back as well as paint the new ones — old ∪ new, the same
+    /// shape <c>PreviewDirtyRegion</c> gives the transform preview.
+    /// </summary>
+    private SKRectI? _bonePreviewDirty;
 
     /// <summary>
     /// Show what the release would do, per pointer move. Chrome only — the
@@ -109,6 +119,27 @@ public sealed partial class MainViewModel
         if (_bonePreviewArmature is null && _bonePreviewPose is null) return;
         _bonePreviewArmature = null;
         _bonePreviewPose = null;
+        // Pixels previewed the provisional pose; put the committed one back.
+        // On a release that commits, InvalidateRiggedFrames repeats this a
+        // moment later — the publishes coalesce, and a cancelled drag has no
+        // other path back to the record's pixels.
+        if (_bonePreviewDirty is { } dirty)
+        {
+            var affected = PosedFramesAtPlayhead();
+            foreach (var frame in affected)
+            {
+                _cache.Invalidate(frame.Id);
+                _stackBake.NoteFrameChanged(frame.Id);
+            }
+            // Two regions to repaint: where the preview drew (erase it) and
+            // where the committed pose puts the strokes back. The stored rect
+            // only remembers the first — the last event's preview bounds.
+            var committed = PosedReach(
+                affected, ArmatureOps.PoseAt(Doc.Scene.PoseTrack, CurrentFrameIndex));
+            _publish.MarkDirty(committed is { } home ? SKRectI.Union(dirty, home) : dirty);
+            _bonePreviewDirty = null;
+            RequestSnapshot();
+        }
         OnPropertyChanged(nameof(BoneChromes));
     }
 
@@ -159,5 +190,95 @@ public sealed partial class MainViewModel
         _bonePreviewPose = pose;
         _bonePreviewArmature = null;
         OnPropertyChanged(nameof(BoneChromes));
+        PublishPosePreview();
+    }
+
+    /// <summary>
+    /// Q81 decision 5's pixel half: the bound strokes at the playhead
+    /// re-render through the provisional pose, per pointer event, and only
+    /// the region they can reach is repainted. The render itself goes
+    /// through the cache's normal miss path — the resolver sees
+    /// <see cref="_bonePreviewPose"/> — so the preview pixels are the commit
+    /// pixels by construction, expensive brushes excepted (they ghost, and
+    /// land exactly on release).
+    /// </summary>
+    private void PublishPosePreview()
+    {
+        if (_bonePreviewPose is null) return;
+        var affected = PosedFramesAtPlayhead();
+        if (affected.Count == 0) return; // chrome-only rig: nothing bound to repaint
+
+        // First event of the drag: where the committed pose put the pixels
+        // is where they must be repainted FROM, so measure it once.
+        _bonePreviewDirty ??= PosedReach(affected, ArmatureOps.PoseAt(Doc.Scene.PoseTrack, CurrentFrameIndex));
+
+        foreach (var frame in affected)
+        {
+            _cache.Invalidate(frame.Id);
+            _stackBake.NoteFrameChanged(frame.Id);
+        }
+
+        var now = PosedReach(affected, _bonePreviewPose);
+        var patch = (_bonePreviewDirty, now) switch
+        {
+            ({ } a, { } b) => SKRectI.Union(a, b),
+            ({ } a, null) => a,
+            (null, { } b) => b,
+            _ => (SKRectI?)null,
+        };
+        if (patch is { } rect) _publish.MarkDirty(rect);
+        else _publish.InvalidateWholeCanvas();
+        if (now is { } moved) _bonePreviewDirty = moved;
+        RequestSnapshot(); // paced by the publish dam, like every live preview
+    }
+
+    /// <summary>The drawings the pose drag can move: visible, exposed at the playhead, rigged.</summary>
+    private List<Frame> PosedFramesAtPlayhead()
+    {
+        var frames = new List<Frame>();
+        foreach (var layer in Scene.Layers)
+        {
+            if (!Scene.IsLayerVisible(layer)) continue;
+            if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is not { } frame) continue;
+            if (!_cache.Rig.IsPosed(frame)) continue;
+            frames.Add(frame);
+        }
+        return frames;
+    }
+
+    /// <summary>
+    /// The doc-space region these frames' bound strokes cover under a pose,
+    /// render reach included — <c>PreviewMovingBounds</c>' arithmetic pointed
+    /// at posed geometry. Unbound strokes are skipped by identity: the pose
+    /// funnel only replaces the strokes it moves.
+    /// </summary>
+    private SKRectI? PosedReach(List<Frame> frames, IReadOnlyDictionary<string, BonePose> pose)
+    {
+        float minX = float.MaxValue, minY = float.MaxValue;
+        float maxX = float.MinValue, maxY = float.MinValue;
+        var any = false;
+        foreach (var frame in frames)
+        {
+            var posed = Skinning.PoseFrameForRender(Doc, frame, CurrentFrameIndex, _cache.Rig, pose);
+            if (ReferenceEquals(posed, frame)) continue;
+            for (var i = 0; i < frame.Strokes.Count; i++)
+            {
+                if (ReferenceEquals(posed.Strokes[i], frame.Strokes[i])) continue;
+                var stroke = posed.Strokes[i];
+                var reach = (float)BrushEngine.ReachOf(stroke.Brush);
+                foreach (var p in stroke.Points)
+                {
+                    any = true;
+                    if ((float)p.X - reach < minX) minX = (float)p.X - reach;
+                    if ((float)p.Y - reach < minY) minY = (float)p.Y - reach;
+                    if ((float)p.X + reach > maxX) maxX = (float)p.X + reach;
+                    if ((float)p.Y + reach > maxY) maxY = (float)p.Y + reach;
+                }
+            }
+        }
+        if (!any) return null;
+        var rect = new SKRect(minX, minY, maxX, maxY);
+        rect.Inflate(2, 2); // the antialias seam, SnapshotGeometry's allowance
+        return SKRectI.Ceiling(rect);
     }
 }

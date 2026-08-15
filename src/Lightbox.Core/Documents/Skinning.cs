@@ -227,13 +227,30 @@ public static class Skinning
     /// the result instead of the original pays only on frames that actually
     /// bind.
     /// </remarks>
-    public static Frame PoseFrameForRender(Doc doc, Frame frame, int frameIndex, RigIndex? rig = null)
+    /// <param name="poseOverride">
+    /// A pose to render instead of the track's — the pose-drag preview's
+    /// provisional key, merged over the playhead's pose by the caller. Going
+    /// through this same entry point is what keeps the preview exact: the
+    /// pixels mid-drag are the pixels the release lands (Q81 decision 5).
+    /// </param>
+    /// <param name="ghostOverBudget">
+    /// Q81 decision 5's degrade: strokes whose brush is badged
+    /// <see cref="BrushCost.Expressive"/> — a simulated medium, a canvas
+    /// reader, a layer sampler — render as a thin centreline ghost during the
+    /// drag and land exactly on release. Only those: the badge is what the
+    /// picker already shows, so the trade the artist accepted is the trade
+    /// the drag makes.
+    /// </param>
+    public static Frame PoseFrameForRender(
+        Doc doc, Frame frame, int frameIndex, RigIndex? rig = null,
+        IReadOnlyDictionary<string, BonePose>? poseOverride = null,
+        bool ghostOverBudget = false)
     {
         var index = rig ?? RigIndex.Empty;
         if (doc.Armature is not { Bones.Count: > 0 } armature || !index.IsPosed(frame))
             return frame;
 
-        var pose = ArmatureOps.PoseAt(doc.Scene.PoseTrack, frameIndex);
+        var pose = poseOverride ?? ArmatureOps.PoseAt(doc.Scene.PoseTrack, frameIndex);
         // The layer's binding, resolved ONCE for the frame rather than per
         // stroke: a whole cutout limb is one binding, and building it four
         // hundred times for four hundred lines would be the cost that makes a
@@ -255,9 +272,34 @@ public static class Skinning
             // on the cache's miss path beside a full rasterization of the same
             // frame, which is where its cost belongs.
             var fallback = own ? null : named ?? AutoBoundFor(stroke, armature);
-            copy.Strokes[i] = PoseStroke(stroke, armature, pose, fallback);
+            var posed = PoseStroke(stroke, armature, pose, fallback);
+            if (ghostOverBudget && BrushCostOf.Settings(stroke.Brush) == BrushCost.Expressive)
+                GhostCentreline(posed);
+            copy.Strokes[i] = posed;
         }
         return copy;
+    }
+
+    /// <summary>
+    /// Re-brush a posed transient as its own thin centreline: same colour,
+    /// same path, none of the passes that blow the frame budget. Mutates the
+    /// posed copy only — <see cref="PoseStroke"/> returned a fresh stroke,
+    /// and the brush written here is a fresh clone, so the record's own
+    /// settings are never touched.
+    /// </summary>
+    private static void GhostCentreline(Stroke posed)
+    {
+        var ghost = posed.Brush.Clone();
+        ghost.Kind = BrushKind.Paint;
+        ghost.Medium = new MediumSettings();
+        ghost.SampleSource = SampleSource.ThisLayer;
+        ghost.WetEdge = 0;
+        ghost.Granulation = 0;
+        ghost.Size = Math.Min(ghost.Size, 2.5);
+        // Half strength, so the ghost reads as provisional rather than as the
+        // mark suddenly thinning.
+        ghost.Opacity = Math.Min(ghost.Opacity, 0.5);
+        posed.Brush = ghost;
     }
 
 
