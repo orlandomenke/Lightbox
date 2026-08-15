@@ -48,6 +48,11 @@ public partial class MainWindow : Window
             _vm.DragPathPart,
             () => _vm.CommitPathEdit(),
             _vm.HoverPathAt);
+        // B217: the whole-line preview, for the two tools that take a whole
+        // line. Same split as everything else here — the canvas reports where
+        // the pointer is, the view model decides what is under it.
+        Canvas.SetLineHover(_vm.HoverStrokeAt);
+        _vm.HoveredLineChanged += Canvas.SetHoveredLine;
         // One subscription for both halves, because they are one fact: the nodes
         // the overlay draws must be the nodes the hit test will find. B147 is the
         // cost of a canvas keeping a copy that something forgets to refresh.

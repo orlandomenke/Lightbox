@@ -585,6 +585,11 @@ public partial class MainViewModel
         // is painting over them.
         if (value != ToolId.DirectSelect) ClearPathHover();
 
+        // B217: the same one-line rule for the whole-line preview. It belongs
+        // to the two tools that take a whole line, and outside them it is an
+        // outline drawn over artwork nothing is about to pick up.
+        if (value is not (ToolId.Arrow or ToolId.Width)) ClearStrokeHover();
+
         // The pen parks rather than committing: the path in progress survives
         // the switch, stays traced on screen, and the pen resumes it. It used
         // to finish here — which kept the work (right) but ended a path the

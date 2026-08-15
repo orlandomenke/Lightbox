@@ -1248,30 +1248,6 @@ public sealed partial class CanvasControl : Control
     }
 
     /// <summary>
-    /// Put a document point where the guides say it belongs, or leave it.
-    /// </summary>
-    /// <remarks>
-    /// <b>B216.</b> The canvas owns the marquee rubber band, so unlike the
-    /// view model's own tools it cannot reach <c>SnappedPoint</c> directly. It
-    /// is handed the function instead — the same delegation every other
-    /// decision this control makes already uses — which keeps `Snapper`, the
-    /// guides and the on/off switch on the view model's side and leaves this
-    /// with the geometry it already had.
-    ///
-    /// <para>
-    /// Identity until something sets it, so a control with no snapper attached
-    /// behaves exactly as it did.
-    /// </para>
-    /// </remarks>
-    private Func<double, double, (double X, double Y)> _snapPoint = static (x, y) => (x, y);
-
-    public void SetPointSnapper(Func<double, double, (double X, double Y)>? snap) =>
-        _snapPoint = snap ?? ((x, y) => (x, y));
-
-    /// <summary>Snap a document point through <see cref="SetPointSnapper"/>.</summary>
-    private (double X, double Y) Snapped(double x, double y) => _snapPoint(x, y);
-
-    /// <summary>
     /// A marquee dragged with the arrow: the rect in document space, and
     /// whether Shift was held at the press to add rather than replace.
     /// </summary>
@@ -2062,7 +2038,7 @@ public sealed partial class CanvasControl : Control
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
             _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing,
-            BoneChromes, HeatPoints));
+            BoneChromes, HeatPoints, _hoveredLines));
     }
 
     // The tip outline cache and TipOutlinePath moved to CanvasControl.Pointer.cs,
@@ -3198,6 +3174,24 @@ public sealed partial class CanvasControl : Control
                 return;
             }
 
+            // B217. The other two tools that take hold of a whole line: show
+            // which one they would take. Same discipline as the white arrow's
+            // preview below — the view model answers whether the line changed,
+            // so travelling along one already previewed costs a hit test and no
+            // rebuild.
+            //
+            // Suppressed while either tool is mid-gesture: once the Arrow is
+            // dragging what it picked, or the Width tool has hold of a line,
+            // highlighting whatever the pointer passes over would be describing
+            // a click that cannot happen until the button comes up.
+            if (ToolMode is CanvasToolMode.Select or CanvasToolMode.Width
+                && _lineDragFrom is null && _lineMarqueeFrom is null && _widthGrab < 0)
+            {
+                var (lx, ly) = ViewToDoc(e.GetPosition(this));
+                _hoverLine?.Invoke(lx, ly, DocTolerance(GrabPixels));
+                // Not handled, for the reason the white arrow's preview gives.
+            }
+
             // Not dragging anything, white arrow in hand: preview the line
             // under the pointer. The view model answers whether the preview
             // actually moved, so an unchanged hover costs a hit test and no
@@ -3922,7 +3916,8 @@ public sealed partial class CanvasControl : Control
         ChannelSolo solo = ChannelSolo.None,
         PickRing? pickRing = null,
         IReadOnlyList<BoneChrome>? bones = null,
-        IReadOnlyList<HeatPoint>? heat = null) : ICustomDrawOperation
+        IReadOnlyList<HeatPoint>? heat = null,
+        IReadOnlyList<SelectedLine>? hoveredLines = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -4226,7 +4221,19 @@ public sealed partial class CanvasControl : Control
 
         private void DrawSelectedLines(SKCanvas canvas)
         {
-            if (selectedLines is null || selectedLines.Count == 0) return;
+            // The hover goes underneath, so a line that is both hovered and
+            // picked reads as picked. B217: one painter for both, because two
+            // would be the divergence B215 spent a branch removing one object
+            // along — a hover that did not look like a dimmer selection would
+            // stop saying "this is the thing the click will take".
+            DrawLineOutlines(canvas, hoveredLines, alpha: 0.45f, dragging: false);
+            DrawLineOutlines(canvas, selectedLines, alpha: 1f, dragging: lineDrag != default);
+        }
+
+        private void DrawLineOutlines(
+            SKCanvas canvas, IReadOnlyList<SelectedLine>? lines, float alpha, bool dragging)
+        {
+            if (lines is null || lines.Count == 0) return;
 
             var scale = Math.Max(0.01f, view.Scale);
             // While a drag is in flight the outline is the only thing that moves.
@@ -4236,7 +4243,6 @@ public sealed partial class CanvasControl : Control
             // release. Translating the canvas rather than the points keeps this
             // free of per-point work, and keeps stroke coordinates untouched
             // until the edit is actually committed.
-            var dragging = lineDrag != default;
             if (dragging)
             {
                 canvas.Save();
@@ -4244,7 +4250,7 @@ public sealed partial class CanvasControl : Control
             }
             using var halo = new SKPaint
             {
-                Color = SKColors.Cyan.WithAlpha(70),
+                Color = SKColors.Cyan.WithAlpha((byte)(70 * alpha)),
                 StrokeWidth = 6f / scale,
                 Style = SKPaintStyle.Stroke,
                 StrokeCap = SKStrokeCap.Round,
@@ -4253,7 +4259,7 @@ public sealed partial class CanvasControl : Control
             };
             using var core = new SKPaint
             {
-                Color = SKColors.Cyan,
+                Color = SKColors.Cyan.WithAlpha((byte)(255 * alpha)),
                 StrokeWidth = 1.5f / scale,
                 Style = SKPaintStyle.Stroke,
                 StrokeCap = SKStrokeCap.Round,
@@ -4261,7 +4267,7 @@ public sealed partial class CanvasControl : Control
                 IsAntialias = true,
             };
 
-            foreach (var line in selectedLines)
+            foreach (var line in lines)
             {
                 if (line.Points.Length < 2) continue;
                 using var path = new SKPath();

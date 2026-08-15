@@ -341,7 +341,20 @@ public partial class MainViewModel
     /// </remarks>
     public double GrabWidthAt(double x, double y, double tolerance)
     {
+        // B217, and it is B172 one tool along: this returned -1 outside
+        // isolation and nothing in the Width tool's own path could enter one,
+        // so the tool was inert until the *black* arrow had opened the line by
+        // double-clicking it. A tool that only works as another tool's second
+        // step is not a tool.
+        //
+        // A single press, like the white arrow's, and for its reason: the
+        // double-click exists to stop a click reaching into geometry by
+        // accident on a tool where a click ordinarily means "take this whole
+        // thing". Changing a line's weight is all this tool does, so there is
+        // no accident to guard against and a second click would be a tax.
+        if (_pathEdit is null && !BeginPathEditAt(x, y, tolerance)) return -1;
         if (_pathEdit is not { } session) return -1;
+
         var (at, distance) = session.AlongAt(x, y);
         if (distance > tolerance) return -1;
 

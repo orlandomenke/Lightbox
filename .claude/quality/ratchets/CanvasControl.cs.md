@@ -1,6 +1,6 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 4914
+budget: 4932
 
 ## Why it has moved
 
@@ -27,3 +27,12 @@ other's reason and leaves a number nobody can account for.
   for guide chrome — a feature that needed room in a budgeted file buying it by
   extraction rather than by raising a number, which is the mechanism working as
   designed.
+- **→ 4,932** (2026-08-15, B217): +18 for the whole-line hover, after extraction
+  had already paid for most of it. The hovered-line surface and the B216 point
+  snapper both went to `CanvasControl.Overlays.cs` — the partial that exists for
+  exactly this — and what is left could not follow them: the hook that fires the
+  hover lives inside the pointer-move handler, and the split that lets the
+  preview reuse the selection's own outline painter lives inside the nested
+  `DrawOp`. Both are gesture and paint code in the places the gesture and the
+  paint happen, so extracting them would mean moving the handler rather than the
+  feature. The exact eighteen lines, recorded rather than rounded up.
