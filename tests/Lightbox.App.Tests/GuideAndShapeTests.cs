@@ -16,7 +16,7 @@ namespace Lightbox.App.Tests;
 /// document with no guides pays nothing.
 /// </remarks>
 [Collection("BrushState")]
-public class GuideAndShapeTests : BrushStateIsolated
+public class GuideAndShapeTests(Xunit.ITestOutputHelper output) : BrushStateIsolated
 {
     private static MainViewModel Vm() => new(null) { SmoothStrokes = false };
 
@@ -525,5 +525,162 @@ public class GuideAndShapeTests : BrushStateIsolated
         Assert.True(
             Math.Abs(17 - contour[0].Y) <= 1,
             $"the lasso corner moved to {contour[0].Y}, so something snapped it");
+    }
+
+    // ---- B225: moving a drawing snaps it to the guides ----------------------------------
+    //
+    // The last gap the tool audit found: B216 gave the guides to every tool
+    // that *places a point*, and left the ones that move a *thing* by a delta,
+    // because that needed an answer to "what part of the moved thing lands on
+    // the guide". Q98 answered it: the bounds, corners and centre.
+
+    /// <summary>A drawing dragged near a guide lands its edge on it.</summary>
+    [AvaloniaFact]
+    public void MovingADrawingSnapsItsEdgeToAGuide()
+    {
+        var vm = Vm();
+        // A vertical ruler at x = 300.
+        vm.AddGuide(GuideKind.Line, 300, 0, angle: 90);
+        vm.BeginStroke(100, 100, 1);
+        vm.MoveStroke(200, 100, 1);
+        vm.EndStroke();
+
+        var line = Last(vm);
+        var rightEdge = line.Points[^1].X + line.Brush.Size / 2;
+
+        vm.ActiveTool = ToolId.Move;
+        Assert.True(vm.BeginMove(150, 100, wholeLayer: false));
+        // Drag so the right edge lands a few pixels short of the guide.
+        var shortfall = 300 - rightEdge - 4;
+        vm.UpdateMove(150 + shortfall, 100, axisLock: false);
+        vm.EndMove();
+
+        var moved = Last(vm);
+        var landedEdge = moved.Points[^1].X + moved.Brush.Size / 2;
+        output.WriteLine($"right edge landed at {landedEdge:F2}, guide at 300");
+        Near(300, landedEdge);
+    }
+
+    /// <summary>Out of reach of every guide, the move is exactly what the hand did.</summary>
+    /// <remarks>
+    /// The test that stops the one above passing vacuously: a snap that fires
+    /// everywhere would satisfy it too, and would make the tool impossible to
+    /// place anything with.
+    /// </remarks>
+    [AvaloniaFact]
+    public void AMoveFarFromEveryGuideIsNotCorrected()
+    {
+        var vm = Vm();
+        vm.AddGuide(GuideKind.Line, 300, 0, angle: 90);
+        vm.BeginStroke(100, 100, 1);
+        vm.MoveStroke(140, 100, 1);
+        vm.EndStroke();
+
+        var before = Last(vm).Points[0].X;
+
+        vm.ActiveTool = ToolId.Move;
+        Assert.True(vm.BeginMove(120, 100, wholeLayer: false));
+        vm.UpdateMove(120, 400, axisLock: false);   // straight down, nowhere near it
+        vm.EndMove();
+
+        Near(before, Last(vm).Points[0].X);
+        Near(400, Last(vm).Points[0].Y);
+    }
+
+    /// <summary>Snapping off means the guides do not touch a move either.</summary>
+    /// <remarks>
+    /// One switch for the whole application: a move goes through the same
+    /// SnappedPoint every placed point does, so ⌗ turns this off with
+    /// everything else rather than needing its own control.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TurningSnappingOffLeavesAMoveAlone()
+    {
+        var vm = Vm();
+        vm.AddGuide(GuideKind.Line, 300, 0, angle: 90);
+        vm.BeginStroke(100, 100, 1);
+        vm.MoveStroke(200, 100, 1);
+        vm.EndStroke();
+        vm.SnapToGuides = false;
+
+        var line = Last(vm);
+        var rightEdge = line.Points[^1].X + line.Brush.Size / 2;
+        var shortfall = 300 - rightEdge - 4;
+
+        vm.ActiveTool = ToolId.Move;
+        Assert.True(vm.BeginMove(150, 100, wholeLayer: false));
+        vm.UpdateMove(150 + shortfall, 100, axisLock: false);
+        vm.EndMove();
+
+        var moved = Last(vm);
+        var landedEdge = moved.Points[^1].X + moved.Brush.Size / 2;
+        // Exactly where the hand put it — four pixels short of the guide.
+        Near(296, landedEdge);
+    }
+
+    /// <summary>
+    /// Held to an axis, the move still snaps along that axis and not off it.
+    /// </summary>
+    /// <remarks>
+    /// The composition question, and the same answer the gradient gives Shift:
+    /// the constraint the artist asked for out loud wins, and the guides work
+    /// within it. A snap that pulled the move off a held axis would make Shift
+    /// and the guides unusable together.
+    /// </remarks>
+    [AvaloniaFact]
+    public void AnAxisLockedMoveStillSnapsAlongThatAxis()
+    {
+        var vm = Vm();
+        vm.AddGuide(GuideKind.Line, 300, 0, angle: 90);
+        vm.BeginStroke(100, 100, 1);
+        vm.MoveStroke(200, 100, 1);
+        vm.EndStroke();
+
+        var line = Last(vm);
+        var startY = line.Points[0].Y;
+        var rightEdge = line.Points[^1].X + line.Brush.Size / 2;
+        var shortfall = 300 - rightEdge - 4;
+
+        vm.ActiveTool = ToolId.Move;
+        Assert.True(vm.BeginMove(150, 100, wholeLayer: false));
+        // Mostly sideways with a wobble, Shift held: the wobble is dropped.
+        vm.UpdateMove(150 + shortfall, 118, axisLock: true);
+        vm.EndMove();
+
+        var moved = Last(vm);
+        Near(300, moved.Points[^1].X + moved.Brush.Size / 2);
+        Near(startY, moved.Points[0].Y);
+    }
+
+    /// <summary>The centre lines up with a vanishing point, not just the corners.</summary>
+    /// <remarks>
+    /// Why the centre is one of the five candidates: a corner is what you line
+    /// up against a ruler, and the middle is what you line up against a point.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheCentreOfWhatIsMovingCanLandOnAVanishingPoint()
+    {
+        var vm = Vm();
+        vm.AddGuide(GuideKind.VanishingPoint, 400, 300);
+        vm.BeginStroke(100, 100, 1);
+        vm.MoveStroke(140, 140, 1);
+        vm.EndStroke();
+
+        var line = Last(vm);
+        var midX = (line.Points[0].X + line.Points[^1].X) / 2;
+        var midY = (line.Points[0].Y + line.Points[^1].Y) / 2;
+
+        vm.ActiveTool = ToolId.Move;
+        Assert.True(vm.BeginMove(midX, midY, wholeLayer: false));
+        // Aim the centre a few pixels off the point.
+        vm.UpdateMove(400 - 5, 300 - 5, axisLock: false);
+        vm.EndMove();
+
+        var moved = Last(vm);
+        var landedMidX = (moved.Points[0].X + moved.Points[^1].X) / 2;
+        var landedMidY = (moved.Points[0].Y + moved.Points[^1].Y) / 2;
+        output.WriteLine($"centre landed at ({landedMidX:F2}, {landedMidY:F2}), point at (400, 300)");
+        Near(400, landedMidX);
+        Near(300, landedMidY);
     }
 }

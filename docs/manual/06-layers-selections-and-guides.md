@@ -257,6 +257,14 @@ by hand does not, past its first point: a lasso and the middle of a brush
 stroke follow your hand, because a guide pulling at every sample would fight
 you the whole way round.
 
+**Moving something snaps its edges and its middle**, rather than wherever you
+took hold of it — so lining a drawing up against a ruler means dragging it near
+the ruler, not grabbing its exact edge first. The corners find rulers and grids;
+the centre finds a vanishing point. Whichever is nearest is the one that lands,
+and if nothing is within reach the drawing goes exactly where your hand put it.
+This is the Move tool and dragging lines picked with the Arrow; the transform
+handles do not snap yet.
+
 Previews tell the truth about this. The pen's rubber band runs to the place the
 node will actually land rather than to the pointer, so what you see before the
 click is what the click does.
