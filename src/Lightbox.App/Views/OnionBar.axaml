@@ -40,6 +40,23 @@
     <NumericUpDown Value="{Binding OnionAfter}" Minimum="0" Maximum="10" Increment="1"
                    FormatString="0" Width="44" VerticalAlignment="Center"
                    ToolTip.Tip="Drawings to ghost after the playhead" />
+    <!--
+      The motion trail lives beside onion skin because the two answer the same
+      question — where is the drawing going — at two scales: ghosts show the
+      neighbouring drawings whole, the trail shows the subject's path and
+      spacing across many. Its depths are separate from the ghosts' because a
+      spacing chart wants more drawings than anyone wants ghosted.
+    -->
+    <CheckBox Content="Motion trail" IsChecked="{Binding MotionTrail}" VerticalAlignment="Center"
+              ToolTip.Tip="A line through where the subject is on each drawing — its pivot anchor if placed, else the centre of its ink. The gaps between ticks are the spacing." />
+    <TextBlock Text="Trail" VerticalAlignment="Center" FontSize="12"
+               ToolTip.Tip="How many drawings the trail runs through: before the playhead, then after" />
+    <NumericUpDown Value="{Binding MotionTrailBefore}" Minimum="0" Maximum="30" Increment="1"
+                   FormatString="0" Width="44" VerticalAlignment="Center"
+                   ToolTip.Tip="Drawings trailed before the playhead" />
+    <NumericUpDown Value="{Binding MotionTrailAfter}" Minimum="0" Maximum="30" Increment="1"
+                   FormatString="0" Width="44" VerticalAlignment="Center"
+                   ToolTip.Tip="Drawings trailed after the playhead" />
     <Button Content="⚙" VerticalAlignment="Center" ToolTip.Tip="Onion skin settings">
       <Button.Flyout>
         <!-- Upwards: the timeline is the bottom strip, so a flyout placed

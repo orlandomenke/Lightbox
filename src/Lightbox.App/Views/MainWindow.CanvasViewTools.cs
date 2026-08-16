@@ -317,6 +317,9 @@ public partial class MainWindow
                 _vm.RigEditMode = !_vm.RigEditMode;
                 e.Handled = true;
                 break;
+            case "canvas.motionTrail":
+                _vm.MotionTrail = !_vm.MotionTrail;
+                break;
             case "canvas.showGuides":
                 _vm.Workspace.GuidesVisible = !_vm.Workspace.GuidesVisible;
                 break;

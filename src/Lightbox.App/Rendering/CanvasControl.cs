@@ -1994,7 +1994,7 @@ public sealed partial class CanvasControl : Control
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
             _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing,
             BoneChromes, HeatPoints, _hoveredLines,
-            FillPreviewForFrame(), _fillPreviewWand, _fillPreviewColor));
+            FillPreviewForFrame(), _fillPreviewWand, _fillPreviewColor, TrailPoints));
     }
 
     // The tip outline cache and TipOutlinePath moved to CanvasControl.Pointer.cs,
@@ -3896,7 +3896,8 @@ public sealed partial class CanvasControl : Control
         IReadOnlyList<SelectedLine>? hoveredLines = null,
         SKPath? fillPreview = null,
         bool fillPreviewWand = false,
-        SKColor fillPreviewColor = default) : ICustomDrawOperation
+        SKColor fillPreviewColor = default,
+        IReadOnlyList<Core.Timeline.TrailPoint>? trail = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -4030,6 +4031,9 @@ public sealed partial class CanvasControl : Control
             // The balance arc is furniture you judge against, same layer of
             // the sandwich as the rig.
             BalanceOverlayPainter.Paint(canvas, balanceDots, view.Scale);
+            // The trail is judged against too, and sits under the armature so
+            // the bones stay aimable over it.
+            MotionTrailPainter.Paint(canvas, trail, view.Scale);
             // Heat under the bones, both over the rig marks: the armature is
             // aimed with the same hand, and the heat is what a weight brush
             // corrects against.

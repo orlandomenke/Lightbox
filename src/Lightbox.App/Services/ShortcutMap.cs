@@ -257,6 +257,11 @@ public sealed class ShortcutMap
             new("canvas.lockGuides", "Lock guides", "Canvas",
                 G(Key.OemSemicolon, KeyModifiers.Control | KeyModifiers.Alt)),
             new("canvas.resetView", "Reset view", "Canvas", G(Key.D0)),
+            // No default gesture, like lines.recolour and for its reason: the
+            // sensible letters are taken (M mirrors, T transforms), the
+            // checkbox on the timeline bar is the way in, and being here is
+            // what lets an artist bind it to whatever they have free.
+            new("canvas.motionTrail", "Show motion trail (path and spacing)", "Canvas", null),
 
             new("timeline.playPause", "Play / pause", "Timeline", G(Key.Space)),
             new("timeline.prevFrame", "Previous frame (scrub)", "Timeline", G(Key.Left), ShortcutContext.Panel, DockPanelId.Timeline),

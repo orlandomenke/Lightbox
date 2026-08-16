@@ -49,6 +49,35 @@ Onion settings belong to you, not to the artwork: they are kept across sessions,
 survive rearranging or switching workspaces, and opening another document does
 not reset them.
 
+## The motion trail
+
+**Motion trail**, beside the onion controls on the timeline bar, draws a line
+through where the subject is on each drawing around the playhead, with a tick
+per drawing — earlier ticks red, later ones blue, the current drawing ringed in
+white. The two **Trail** fields set how many drawings it runs through each way,
+separately from the ghost depths, because a spacing chart wants more drawings
+than anyone wants ghosted.
+
+**The gaps between the ticks are the spacing.** Even gaps read as even speed;
+gaps closing up read as an ease-in — the same chart animators draw on paper
+margins, taken off the drawings you already made. A hold is one tick, not a
+pile of them, so counting ticks counts drawings.
+
+Where each tick sits comes from the drawing itself: a **pivot anchor** placed
+on the drawing (rig edit mode, `Ctrl+K`) if there is one, else the centre of
+the drawing's ink. A **filled** tick is an anchor — your own statement of where
+the subject is; a **hollow** tick is the derived centre — a guess that wobbles
+with the silhouette. If an arc looks wrong on hollow ticks, anchor the drawings
+before trusting it. Sockets are ignored: a hand's attachment point is not where
+the character is.
+
+The trail follows the **active layer**, is view-only — it never touches the
+document — and like the ghosts it is off during playback, coming back the
+moment you stop. Its settings are kept with you across sessions, like onion
+skin's. It has no key out of the box; **Configure → Shortcuts → “Show motion
+trail”** binds one. A drawing with strokes bound to bones is trailed where it
+was drawn, not where the pose moved it — trailing the posed motion is *Planned*.
+
 ## Animation references
 
 **View → Reference** opens a panel for importing an image of an animation — a

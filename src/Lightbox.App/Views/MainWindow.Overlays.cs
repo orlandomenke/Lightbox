@@ -37,6 +37,13 @@ public partial class MainWindow
             RefreshRigOverlay();
         };
 
+        // The motion trail is the simplest push of all: the view model owns
+        // every hook that can move a tick, so the window only ferries the
+        // list. Refreshed once here so a trail left on last session shows
+        // without waiting for the playhead to move.
+        _vm.MotionTrailChanged += points => Canvas.TrailPoints = points;
+        _vm.RefreshMotionTrail();
+
         // The armature overlay follows the rig's pattern exactly: pushed
         // snapshots, window-mediated hits, one editor step per gesture.
         _vm.PropertyChanged += (_, args) =>

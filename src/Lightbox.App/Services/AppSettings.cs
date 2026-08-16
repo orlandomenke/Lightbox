@@ -39,6 +39,12 @@ public sealed class AppSettings
     public OnionSettings Onion { get; set; } = new();
 
     /// <summary>
+    /// The motion trail, here for the same reason <see cref="Onion"/> is: a
+    /// drawing aid that never reaches pixels, set up the way the artist works.
+    /// </summary>
+    public MotionTrailSettings Trail { get; set; } = new();
+
+    /// <summary>
     /// What you had open last. See <see cref="RecentItems"/> for why it lives
     /// with the person rather than with any document.
     /// </summary>
