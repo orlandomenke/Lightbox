@@ -14,7 +14,13 @@ namespace Lightbox.App.Tests;
 /// badged expensive ghost as their posed centreline, landing exactly on
 /// release. The record never changes until the release (invariant 1).
 /// </summary>
-public class PoseDragPixelPreviewTests(ITestOutputHelper output)
+/// <remarks>
+/// In the <c>BrushState</c> collection because the end-to-end test sets
+/// brush parameters, and those live in a process-wide store: running beside
+/// a test that assumes defaults hands it this one's brush.
+/// </remarks>
+[Collection("BrushState")]
+public class PoseDragPixelPreviewTests(ITestOutputHelper output) : BrushStateIsolated
 {
     private const int W = 200, H = 200;
 
