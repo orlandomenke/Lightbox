@@ -146,13 +146,30 @@ public sealed class ShortcutMap
                 G(Key.C, KeyModifiers.Control | KeyModifiers.Alt)),
             new("image.resizeImage", "Resize image", "Image",
                 G(Key.I, KeyModifiers.Control | KeyModifiers.Alt)),
-            new("tool.brush", "Brush", "Tools", G(Key.B)),
+            // B221: B, F and V join E and I as spring-loaded. The machinery has
+            // been tool-agnostic since B176 and two of thirteen keys used it,
+            // which made the tap-or-hold rule read as a quirk of the eraser
+            // rather than as how the keyboard works. These three are the ones
+            // where borrowing is a real gesture and the tool carries no modal
+            // state to strand on release — holding V to shift something and
+            // letting go back into the brush is the one artists reach for most.
+            //
+            // Deliberately not S: repeat-S cycles the selection variants, so a
+            // hold would have to mean a third thing on a key that already means
+            // two. And deliberately not the pen, the arrows or the width tool —
+            // those carry a session a released key would leave parked, which is
+            // the same reason MainViewModel.Momentary's table will not borrow
+            // *from* them.
+            new("tool.brush", "Brush", "Tools", G(Key.B),
+                momentaryTool: ViewModels.ToolId.Brush),
             new("tool.eraser", "Eraser", "Tools", G(Key.E),
                 momentaryTool: ViewModels.ToolId.Eraser),
-            new("tool.fill", "Fill", "Tools", G(Key.F)),
+            new("tool.fill", "Fill", "Tools", G(Key.F),
+                momentaryTool: ViewModels.ToolId.Fill),
             new("tool.gradient", "Gradient", "Tools", G(Key.G)),
             new("tool.select", "Select / next variant", "Tools", G(Key.S)),
-            new("tool.move", "Move (drawing and guides)", "Tools", G(Key.V)),
+            new("tool.move", "Move (drawing and guides)", "Tools", G(Key.V),
+                momentaryTool: ViewModels.ToolId.Move),
             // The only tool that had no key at all. U is Photoshop's shape tool
             // and was free here — the shape *variant* stays a tool option, like
             // the select tool's, so one letter covers all four.

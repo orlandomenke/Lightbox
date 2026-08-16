@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4250
+budget: 4251
 
 ## Why it is here despite being XAML
 
@@ -60,3 +60,9 @@ conflicts keep testing. Taking any branch's figure banks the others' slack as
 headroom nobody earned; taking one side's *comment* deletes another's reason and
 leaves a number nobody can account for. So every reason above stays, and
 `ratchets.py remeasure` supplies the figure.
+- **→ 4,251** (2026-08-16, B221): one line, and it is the whole cost of a new
+  options bar. `LineOptionsBar` is a `UserControl` for the reason
+  `BoneOptionsBar` and `GuideOptionsBar` are — the feature's thirty lines live in
+  their own file — so what lands here is the single `<views:LineOptionsBar />`
+  that puts it in the strip. A budget that refused this would be refusing the
+  registration rather than the code, which is the opposite of what it is for.

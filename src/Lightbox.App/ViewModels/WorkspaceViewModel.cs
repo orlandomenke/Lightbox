@@ -340,6 +340,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject
 
     public bool QuickGuideOptions => QuickHas(QuickBarCatalog.GuideOptions);
 
+    public bool QuickLineOptions => QuickHas(QuickBarCatalog.LineOptions);
+
     public bool QuickTransport => QuickHas(QuickBarCatalog.Transport);
 
     public bool QuickAddFrame => QuickHas(QuickBarCatalog.AddFrame);
@@ -361,6 +363,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject
             [QuickBarCatalog.GradientOptions] = nameof(QuickGradientOptions),
             [QuickBarCatalog.ArrowOptions] = nameof(QuickArrowOptions),
             [QuickBarCatalog.GuideOptions] = nameof(QuickGuideOptions),
+            [QuickBarCatalog.LineOptions] = nameof(QuickLineOptions),
             [QuickBarCatalog.Transport] = nameof(QuickTransport),
             [QuickBarCatalog.AddFrame] = nameof(QuickAddFrame),
         };
