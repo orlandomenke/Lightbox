@@ -52,6 +52,13 @@ public sealed partial class MainViewModel
             return;
         }
 
+        // A fresh clone per move is deliberate, and leak-hunter has priced
+        // it: a rig is tens of small objects, so this is the same order of
+        // transient gen0 garbage the paint path makes per event — retained
+        // by nothing. The alternative (an idempotent re-apply onto one
+        // persistent scratch) would give the preview its own edit path,
+        // which is exactly the drift the shared construction exists to
+        // prevent.
         Armature scratch;
         if (Doc.Armature is { } armature) scratch = armature.Clone();
         else if (id is null) scratch = new Armature(); // first drag on an unrigged document
