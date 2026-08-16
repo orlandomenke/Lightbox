@@ -1,6 +1,6 @@
 # src/Lightbox.App/ViewModels/MainViewModel.cs
 
-budget: 674
+budget: 636
 
 ## Why it has moved
 
