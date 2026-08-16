@@ -37,6 +37,13 @@ without thinking about it. The split is how long the key is down: a quick press
 is a choice, anything longer is a borrow, which is Photoshop's spring-loaded
 rule, so the reflex transfers.
 
+**A held E erases at the brush's size.** A hold is a correction to the mark you
+just made, so the borrowed eraser takes that mark's size rather than whatever
+the eraser was last set to — and letting go puts the eraser's own size back
+along with your brush. Tap E instead and the eraser is yours as you last
+configured it, size included. Resize the eraser *during* a hold and that is a
+decision: the new size sticks as the eraser's own.
+
 The other tool keys only latch. **S** is taken — pressing it again cycles the
 selection variants, so it cannot also mean "hold me". The pen, both arrows and
 the Width tool are left out for the reason Ctrl is: they have work in flight,
