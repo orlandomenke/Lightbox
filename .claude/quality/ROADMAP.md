@@ -574,10 +574,36 @@ every other AI feature and are only legible together.
   - Sequence-scale cost is the review stance over all four: `BrushCostOf`
     badges are read against replay across a whole sequence, not one image.
 - [?] Draw once, reuse across animations
-- [?] Motion path visualization
+- [x] Motion path visualization `evidence: MotionTrail, MotionTrailPainter, MotionTrailTests, MotionTrailOverlayTests, TheTrailRunsInTimelineOrderWithTheCurrentDrawingMarked, TheViewModelHandsTheWindowTheTrailAndKeepsItCurrent, TheToggleIsRegisteredSoItCanBeFoundAndRebound`
+  - **Landed 2026-08-16 with spacing visualization as one overlay — the motion
+    trail (Q98)** — because they are one thing: a polyline through the
+    subject's position on each drawing around the playhead, a tick per
+    drawing, and the gaps between ticks *are* the spacing. Earlier red, later
+    blue (the onion tints, one convention not two), current ringed white.
+  - **The tracked point is the drawing's authored pivot anchor, else its ink
+    bounds' centre** (Q98's second half). Filled tick = authored, hollow =
+    derived, so an artist knows which ticks to trust before fixing an arc off
+    them. Sockets are ignored — a hand's attachment point is not the subject —
+    and `Scene.Pivot` is deliberately no fallback: one point for the whole
+    document is a dot, not a motion.
+  - **View-only and record-clean**: `MotionTrail.PointsAround` is pure Core
+    arithmetic riding `OnionSkin.Ghosts` (holds resolve to one tick, depth
+    counts drawings), the painter follows `RigOverlayPainter`'s
+    bitmap-testable discipline, and the toggle is a registered shortcut plus
+    the timeline-bar checkbox beside onion skin. Settings persist app-side
+    like onion's.
+  - **Known edge, accepted for the slice**: a rig-bound drawing is trailed
+    where it was drawn, not where the pose moved it — the manual marks posed
+    trails *Planned*, and it belongs to the arcs/analyzer follow-ups this
+    substrate exists for.
 - [?] Motion arcs
 - [?] Arc prediction
-- [?] Spacing visualization
+- [x] Spacing visualization `evidence: TheTrailPaintsTicksAndTheLineBetweenThem, AHoldIsOneTickNotTwo, AnAuthoredPivotBeatsTheDerivedCentre, ErasingSaysNothingAboutWhereTheSubjectIs`
+  - The motion trail's other half — see the item above; one overlay, two
+    promises. The hold rule is the load-bearing one for spacing: a tick per
+    cel would pile invisible coincident dots on every hold and make tick
+    counting lie about drawing counts, so ticks count drawings and a hold on
+    2s is one tick standing still.
 - [?] Spacing assistant
 - [x] Timing charts `evidence: TimingChart, TimingChartView, TimingChartTests, TimingChartVmTests, TheChartPlacesTheInbetweensExactlyOnItsRungs, TheInbetweenerObeysTheChartOverTheBar`
   - The ladder on the extreme (Q58): `Frame.Chart` holds the rungs, the cel

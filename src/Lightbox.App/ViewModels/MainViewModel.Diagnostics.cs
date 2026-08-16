@@ -117,6 +117,12 @@ public partial class MainViewModel
         // actually there. A no-op on the ordinary commit path, which clears
         // before it performs.
         ClearBoneGesturePreview();
+        // Any edit can move a drawing's centre or its anchors, and the trail
+        // must show the record as it now stands. A boolean when it is off;
+        // when it is on, one bounds walk over the trailed drawings per
+        // commit — the same order as the repaint the commit already pays,
+        // and per gesture rather than per tick, which is the line B152 drew.
+        RefreshMotionTrail();
 
         if (_committingScopedEdit)
         {

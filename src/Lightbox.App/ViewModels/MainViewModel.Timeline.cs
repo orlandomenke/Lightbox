@@ -153,6 +153,12 @@ public partial class MainViewModel
             // Which reference frame is showing, and therefore which cell the
             // alignment fields are editing, is a property of the playhead.
             NotifyReference();
+            // The trail's window and its current tick both move with the
+            // playhead. A boolean when the trail is off, and nothing at all
+            // while playing — RefreshMotionTrail clears it for the run and
+            // OnIsPlayingChanged recomputes once on the stop, so the bounds
+            // walk never rides the tick (B152).
+            if (!IsPlaying) RefreshMotionTrail();
         }
         using (Profile(profiling, Services.TickProfile.Phase.Audio))
         {

@@ -293,6 +293,12 @@ public partial class MainViewModel
         // showing whatever frame playback started on. Catching up once on the
         // stop costs one sweep; catching up per tick cost the frame rate.
         if (!value) RefreshLayerThumbs();
+
+        // The trail gets the ghosts' playback rule and B152's treatment at
+        // once: playing clears it (the one thing playback has to show is the
+        // animation), stopping recomputes it once — never per tick, where its
+        // bounds walk would be the thumbnail mistake again.
+        RefreshMotionTrail();
     }
 
 
@@ -451,6 +457,7 @@ public partial class MainViewModel
         // A different layer can refuse the tool the last one accepted.
         RefreshPointerIntent();
         NotifyActiveLayerCompositing();
+        RefreshMotionTrail();   // the trail follows the layer being drawn on
         PublishSnapshot();
     }
 

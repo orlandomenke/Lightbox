@@ -118,6 +118,27 @@ public sealed partial class CanvasControl
     private IReadOnlyList<RigMark>? _rigMarks;
 
     /// <summary>
+    /// The motion trail's ticks, or null for none — absent when the trail is
+    /// off, following <see cref="RigMarks"/>: a flattened snapshot pushed from
+    /// the window when the view model says it changed, not bound.
+    /// </summary>
+    public IReadOnlyList<Core.Timeline.TrailPoint>? TrailPoints
+    {
+        get => _trailPoints;
+        set
+        {
+            // Null arrives on every refresh while the trail is off; without
+            // this, an aid nobody switched on would still invalidate the
+            // canvas once per document change.
+            if (ReferenceEquals(_trailPoints, value)) return;
+            _trailPoints = value;
+            InvalidateVisual();
+        }
+    }
+
+    private IReadOnlyList<Core.Timeline.TrailPoint>? _trailPoints;
+
+    /// <summary>
     /// Whether a press should edit the rig instead of drawing.
     /// </summary>
     /// <remarks>

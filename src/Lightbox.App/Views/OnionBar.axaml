@@ -40,7 +40,19 @@
     <NumericUpDown Value="{Binding OnionAfter}" Minimum="0" Maximum="10" Increment="1"
                    FormatString="0" Width="44" VerticalAlignment="Center"
                    ToolTip.Tip="Drawings to ghost after the playhead" />
-    <Button Content="⚙" VerticalAlignment="Center" ToolTip.Tip="Onion skin settings">
+    <!--
+      The motion trail lives beside onion skin because the two answer the same
+      question — where is the drawing going — at two scales: ghosts show the
+      neighbouring drawings whole, the trail shows the subject's path and
+      spacing across many. Only the switch is out here: its depths went behind
+      the ⚙ when the first laid-out measurement (OnionBarOverflowTests) showed
+      the labelled pair pushing the bar's next group into the ▾ at an ordinary
+      window width — and unlike the ghost depths, which are part of working
+      out an inbetween, trail depths are set once and left.
+    -->
+    <CheckBox Content="Motion trail" IsChecked="{Binding MotionTrail}" VerticalAlignment="Center"
+              ToolTip.Tip="A line through where the subject is on each drawing — its pivot anchor if placed, else the centre of its ink. The gaps between ticks are the spacing. Depths are behind the ⚙." />
+    <Button Content="⚙" VerticalAlignment="Center" ToolTip.Tip="Onion skin and motion trail settings">
       <Button.Flyout>
         <!-- Upwards: the timeline is the bottom strip, so a flyout placed
              below it opens off the edge of the window. -->
@@ -80,6 +92,17 @@
                                      HorizontalAlignment="Left" />
               </Grid>
             </StackPanel>
+
+            <TextBlock Text="Motion trail" FontWeight="SemiBold" FontSize="12" Margin="0,4,0,0" />
+            <Grid ColumnDefinitions="76,*,8,76,*" RowDefinitions="Auto"
+                  ToolTip.Tip="How many drawings the trail runs through, each way from the playhead">
+              <TextBlock Grid.Column="0" Text="Before" VerticalAlignment="Center" FontSize="12" />
+              <NumericUpDown Grid.Column="1" Value="{Binding MotionTrailBefore}" Minimum="0" Maximum="30"
+                             Increment="1" FormatString="0" MinWidth="44" HorizontalAlignment="Left" />
+              <TextBlock Grid.Column="3" Text="After" VerticalAlignment="Center" FontSize="12" />
+              <NumericUpDown Grid.Column="4" Value="{Binding MotionTrailAfter}" Minimum="0" Maximum="30"
+                             Increment="1" FormatString="0" MinWidth="44" HorizontalAlignment="Left" />
+            </Grid>
 
             <TextBlock Text="Ghost poses" FontWeight="SemiBold" FontSize="12" Margin="0,4,0,0" />
             <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.6"
