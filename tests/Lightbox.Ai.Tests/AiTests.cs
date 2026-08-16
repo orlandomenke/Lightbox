@@ -114,6 +114,46 @@ public class WireMappingTests
             Scene));
     }
 
+    /// <summary>
+    /// B233, at the seam that matters: the wire has two tools and the document
+    /// has six, so <c>ToWire</c> calls everything that is not an eraser a
+    /// brush. For a fill that is lossy and honest; for a cleared region it is a
+    /// phantom — a brush stroke tracing the outline of a space the artist
+    /// emptied, charged for in tokens and reasoned about as if it were a mark.
+    /// </summary>
+    /// <remarks>
+    /// Composed rather than unit-tested, because the fix is that the two are
+    /// always composed: <c>EffectiveStrokes</c> runs first and there is no
+    /// cleared region left for <c>ToWire</c> to mis-describe. A test of
+    /// <c>ToWire</c> alone would pass on the broken build and on this one.
+    /// </remarks>
+    [Fact]
+    public void AClearedRegionNeverReachesTheWire()
+    {
+        Stroke Line(double y) => new()
+        {
+            Brush = new BrushSettings { Size = 6 },
+            Points = [new(20, y, 1), new(80, y, 1)],
+        };
+        var cleared = new Stroke
+        {
+            Tool = ToolKind.ClearRegion,
+            Brush = new BrushSettings { Size = 1 },
+            Points = [new(0, 0, 1), new(100, 0, 1), new(100, 100, 1), new(0, 100, 1)],
+        };
+
+        var wire = StrokeRecordCleaner
+            .EffectiveStrokes([Line(50), Line(300), cleared])
+            .Select(StrokeWire.ToWire)
+            .ToList();
+
+        // One stroke on the wire: the line outside the cleared square. Not the
+        // line it emptied, and not the clear masquerading as a brush.
+        var only = Assert.Single(wire);
+        Assert.Equal("brush", only.Tool);
+        Assert.Equal(300, only.Points[0].Y);
+    }
+
     [Fact]
     public void FromWire_MapsEraserAndLabel()
     {
