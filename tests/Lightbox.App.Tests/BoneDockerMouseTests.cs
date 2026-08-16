@@ -14,7 +14,7 @@ using Lightbox.Core.Documents;
 namespace Lightbox.App.Tests;
 
 /// <summary>
-/// The bone panel under a real pointer — B236's regression tests. Every
+/// The bone panel under a real pointer — B242's regression tests. Every
 /// control in the panel was correctly wired and every prior test passed,
 /// because the tests drove properties; a mouse could reach none of it. The
 /// generic tool-options page (<c>NonPaintToolOptions</c>) is a later sibling
