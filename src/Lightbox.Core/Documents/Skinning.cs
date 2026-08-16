@@ -276,7 +276,10 @@ public static class Skinning
         if (doc.Armature is not { Bones.Count: > 0 } armature || !index.IsPosed(frame))
             return frame;
 
-        var pose = poseOverride ?? ArmatureOps.PoseAt(doc.Scene.PoseTrack, frameIndex);
+        // The render pose: secondary motion in force. An explicit override (a
+        // live drag's provisional pose) wins as before — a mid-gesture preview
+        // shows the hand's pose plain, and the springs land on release.
+        var pose = poseOverride ?? ArmatureOps.EffectivePoseAt(armature, doc.Scene.PoseTrack, frameIndex);
         // Resolved once for the drawing rather than per stroke: the stops are
         // sorted and bracketed each time, and doing that per line would make a
         // corrective's cost scale with the drawing instead of with itself.

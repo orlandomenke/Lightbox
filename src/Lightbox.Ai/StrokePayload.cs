@@ -63,6 +63,21 @@ public static class StrokeWire
 
     // ---- outbound: Core -> wire --------------------------------------------
 
+    /// <summary>
+    /// Describe a stroke to a model.
+    /// </summary>
+    /// <remarks>
+    /// <b>The wire has two tools and the document has six, so this collapses —
+    /// and it must be handed an <em>effective</em> record, not a raw one.</b>
+    /// Everything that is not an eraser is described as a brush, which is a
+    /// reasonable lossy summary of a fill or a gradient (there is a mark there,
+    /// and roughly where) and a flat lie about a
+    /// <see cref="ToolKind.ClearRegion"/>, which is an absence: the model would
+    /// be told a brush stroke traces the outline of a region the artist
+    /// emptied. B233. Both callers run <c>StrokeRecordCleaner.EffectiveStrokes</c>
+    /// first, which drops every erasure and everything they erased — this note
+    /// exists so a third caller does not arrive without it.
+    /// </remarks>
     public static StrokeDto ToWire(Stroke s)
     {
         var points = s.Points.Count > MaxWirePoints

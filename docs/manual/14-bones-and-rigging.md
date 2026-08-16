@@ -21,6 +21,8 @@ Below the switch, the panel lists **every bone in the rig**, children indented
 under their parents. Picking one there selects it on the canvas — the same
 selection a click on the canvas makes — and the selected bone draws **white**
 where the others draw green, the same colour selection wears on every overlay.
+Every bone and handle sits on a dark rim, so the chrome reads on white paper
+and dark canvases alike.
 The rest of the panel is what you can do to the picked bone (rename, length,
 add child, delete, IK, spline, constraints), the weight brush while it is
 armed, and the binding actions. The pointer
@@ -65,6 +67,13 @@ editing it. The pose is keyed **at the playhead automatically** — pose the arm
 on frame 8 and a pose key lands on frame 8, interpolating from and to the keys
 either side, with the frames between showing the blend. Scrub the timeline and
 bound drawings follow the pose live, in playback and in every export.
+
+**The skeleton has its own onion skin.** With onion skin on, posing also
+shows outline ghosts of the skeleton at the neighbouring **pose keys** — warm
+behind the playhead, cool ahead, the same colours the drawing's ghosts wear —
+so an inbetween pose is judged against where it came from and where it goes.
+The onion bar's switch and depths drive it, and a ghost is never grabbed: a
+press through one lands on the real skeleton or the canvas.
 
 **The drawing follows the drag, not just the bones.** Bound strokes re-render
 through the provisional pose as you drag, exactly — the same render the
@@ -200,6 +209,28 @@ A fix belongs to **the drawing**, so it works for the cutout way of animating,
 where a limb is one drawing you reuse across the whole sequence. It is not a
 tool for correcting two hundred hand-drawn frames.
 
+## Jiggle — secondary motion
+
+Some motion nobody should have to key: the tip of a tail arriving late, ears
+that carry on after the head stops, an antenna that will not sit still. Tick
+**Jiggle** on a bone and it follows the motion driving it through a spring —
+lagging behind, swinging past, settling.
+
+- **Catch up** is how hard the bone is pulled toward where the pose wants
+  it. Low is a whippy antenna; high follows almost immediately.
+- **Settle** is how quickly the swing dies. Low keeps it bouncing; high is a
+  heavy tail that lands at once.
+- The swing is computed **from the pose track, one step per frame** — never
+  from the clock — so the same document renders the same swing on every
+  machine, every export, forever. Scrubbing backwards replays it exactly.
+- Children ride the swing, so one jiggled bone at the base of a chain moves
+  everything after it. Jiggle belongs on bones you turn by hand — a bone
+  driven by IK, a spline or a constraint gets its swing overwritten by the
+  solver, the same way hand-posing one does nothing.
+- Keys never record the swing: what you author is the pose, and the jiggle
+  is how the frames between and after breathe. **Baking** writes what you
+  see, swing included.
+
 ## Binding drawings to bones
 
 A stroke follows the rig once it has **weights** — how much each bone moves
@@ -220,9 +251,10 @@ each part of it.
   hips, anywhere two bones share one drawing — is what the heat view and the
   weight brush are for.
 - The **heat view** shows the selected bone's influence over the current
-  drawing, blue (none) through red (owned), while the Bone tool is active.
-  The dots sit on the drawing **as it is posed at the playhead**, so what
-  you see is what you would paint.
+  drawing, blue (none) through red (owned), while the **weight brush is
+  armed** — in Bind and Pose the ink stays clean. The dots sit on the
+  drawing **as it is posed at the playhead**, so what you see is what you
+  would paint.
 
 - The **weight brush** (**Ctrl+Shift+K** while the Bone tool is active)
   paints influence for the selected bone directly on the canvas: pressure
@@ -239,5 +271,4 @@ each part of it.
   drawing re-renders with the corrected weights when the brush lifts; the
   heat dots follow live under it, dab by dab.
 
-*Planned:* secondary motion and rig export (`docs/DESIGN-bones.md` has the
-whole plan).
+*Planned:* rig export (`docs/DESIGN-bones.md` has the whole plan).
