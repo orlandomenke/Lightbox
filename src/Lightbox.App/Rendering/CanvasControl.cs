@@ -2556,6 +2556,27 @@ public sealed partial class CanvasControl : Control
                 return;
             }
 
+            // Ctrl inside a marquee takes hold of what is in it (Q104), and it
+            // is asked before the eyedropper below because it is the narrower
+            // claim: the view model refuses unless there is a selection and the
+            // press landed inside it, so every other place on the canvas still
+            // fetches a colour. Whichever it turns out to be, the pointer has
+            // already said so — on hover, through CanvasCursor.Effective.
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Control)
+                && _beginSelectionMove?.Invoke(x, y) == true)
+            {
+                // The line drag's own channel, deliberately: the move, the
+                // release that commits it and the one that discards a press
+                // that went nowhere are the same three questions, and the ants
+                // already follow the session's preview matrix.
+                e.Pointer.Capture(this);
+                _lineDragFrom = (x, y);
+                _lineDragTo = (x, y);
+                _lineMoveLive = true;
+                e.Handled = true;
+                return;
+            }
+
             // Ctrl is a held eyedropper while painting or filling: the colour
             // you want is almost always already on the canvas, and reaching
             // for a tool to fetch it breaks the stroke you were about to make.

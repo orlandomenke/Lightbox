@@ -303,7 +303,9 @@ the test needs relaxing.
 
 ### Editing
 
-- [x] Selection tools `evidence: SelectVariant, ClipRegion, SelectionTests, ClipRegionRegistry`
+- [x] Selection tools `evidence: SelectVariant, ClipRegion, SelectionTests, ClipRegionRegistry, BeginSelectionMove, SelectionCtrlMoveTests, CtrlInsideAMarqueeMeansMoveRatherThanPick, CtrlOutsideTheMarqueeStillPicksAColour, WithNoSelectionCtrlIsTheEyedropperExactlyAsBefore, ThePointerSaysMoveWhileCtrlIsHeldOverTheSelection, TheDragMovesWhatIsInsideAndLeavesWhatIsNot, APressAsksAboutTheSelectionBeforeItFetchesAColour`
+  - **Built: Ctrl inside a selection drags what is in it (Q104).** Requested as *"when selecting and pressing ctrl and hovering on a selected area (and during) enable moving"*, and the whole question was where the boundary sits, because Ctrl was already the held eyedropper. The narrower claim wins: the move needs a selection *and* the pointer inside it, so the picker keeps the rest of the canvas. That is only defensible because the cursor says which one is armed before the press — the item above, one commit earlier.
+  - **It reuses rather than adds**, which is the point: `BeginSelectionMove` is `BeginLineMove` with a different refusal, the filter is `DerivedTransformFilter`, the press rides the line drag's own move/commit/discard channel, and the marching ants already follow a session's preview matrix. Nothing new had to be built for the undo step, the axis lock, the guides or the outline.
 - [x] Warp transform `evidence: TransformToolTests, TransformBegun`
 - [?] Liquify
 - [?] Clone stamp

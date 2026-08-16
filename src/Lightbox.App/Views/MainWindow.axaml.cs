@@ -38,6 +38,11 @@ public partial class MainWindow : Window
         // composite preview rather than arriving on release, and the whole drag
         // is one undo step — which is what MainViewModel.StrokeActions said it
         // wanted and could not have while the filter had no line source.
+        // Q104: Ctrl on the artwork inside a marquee moves what is in it. It
+        // rides the line drag's move/release channel below rather than growing
+        // one of its own — the same events, the same commit, the same discard
+        // of a press that went nowhere.
+        Canvas.SetSelectionMoveEntry(_vm.BeginSelectionMove);
         Canvas.SelectedLinesMoveStarted += _vm.BeginLineMove;
         Canvas.SelectedLinesMoved += (x, y, axisLock) => _vm.UpdateMove(x, y, axisLock);
         Canvas.SelectedLinesMoveEnded += _vm.EndMove;

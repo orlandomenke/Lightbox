@@ -110,13 +110,21 @@ public readonly record struct CanvasCursorChoice(CanvasCursorKind Kind, double A
 /// every tool everywhere. Written the other way round the zero value is the
 /// permissive one, and there is nothing to get wrong.
 /// </para>
+/// <para>
+/// <b><see cref="SelectionToMove"/> is named the other way round and obeys the
+/// same rule</b>, because it is the one field that grants rather than refuses.
+/// The test is not the spelling, it is that <c>default</c> must be the harmless
+/// answer — and here that is "there is no selection, so Ctrl goes on picking a
+/// colour exactly as it always did".
+/// </para>
 /// </remarks>
 public readonly record struct CanvasTarget(
     bool LayerHidden = false,
     bool LayerLocked = false,
     bool AlphaLocked = false,
     bool NothingUnderPointer = false,
-    bool OutsideSelection = false);
+    bool OutsideSelection = false,
+    bool SelectionToMove = false);
 
 /// <summary>
 /// One place that decides what the pointer shows, and why.
@@ -174,6 +182,14 @@ public static class CanvasCursor
     /// artist holds mid-stroke is the one the cursor lies about.
     /// </para>
     /// <para>
+    /// <b>Inside a marquee that same Ctrl takes hold of the selection instead
+    /// (Q104).</b> One modifier with two meanings, told apart by <em>place</em>
+    /// — which is only defensible because the pointer now says which one it is
+    /// before the press, and it does so on hover as well as during the drag.
+    /// The narrower claim wins: a selection has to exist and the pointer has to
+    /// be inside it, so the eyedropper keeps the rest of the canvas.
+    /// </para>
+    /// <para>
     /// <b>Only this one.</b> Shift and Alt change what several tools <em>do</em>
     /// — a fill inverts, a wand adds or subtracts, a move constrains — but not
     /// which <em>kind</em> of action it is, and a cursor that changed for each
@@ -182,10 +198,17 @@ public static class CanvasCursor
     /// showing none.
     /// </para>
     /// </remarks>
-    public static ToolId Effective(ToolId tool, KeyModifiers modifiers) =>
-        modifiers.HasFlag(KeyModifiers.Control) && HeldPickerApplies(tool)
-            ? ToolId.Picker
-            : tool;
+    public static ToolId Effective(
+        ToolId tool, KeyModifiers modifiers, CanvasTarget target = default)
+    {
+        if (!modifiers.HasFlag(KeyModifiers.Control)) return tool;
+        // Inside a marquee, Ctrl takes hold of what is in it. This is asked
+        // first because it is the narrower claim — it needs a selection *and*
+        // the pointer inside it — so the eyedropper keeps every other place on
+        // the canvas, which is nearly all of it.
+        if (target.SelectionToMove && !target.OutsideSelection) return ToolId.Move;
+        return HeldPickerApplies(tool) ? ToolId.Picker : tool;
+    }
 
     /// <summary>
     /// The tools the canvas lets Ctrl turn into an eyedropper — paint and fill,
@@ -207,7 +230,7 @@ public static class CanvasCursor
     public static CanvasCursorKind For(
         ToolId tool, CanvasTarget target, KeyModifiers modifiers = KeyModifiers.None)
     {
-        var effective = Effective(tool, modifiers);
+        var effective = Effective(tool, modifiers, target);
         return Refusal(effective, target) is not null
             ? CanvasCursorKind.Forbidden
             : Armed(effective);
@@ -287,7 +310,7 @@ public static class CanvasCursor
     public static string? Refusal(
         ToolId tool, CanvasTarget target, KeyModifiers modifiers = KeyModifiers.None)
     {
-        tool = Effective(tool, modifiers);
+        tool = Effective(tool, modifiers, target);
         if (!Paints(tool)) return null;
 
         if (target.LayerHidden) return "This layer is hidden — turn its eye back on to draw here.";
