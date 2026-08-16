@@ -442,6 +442,42 @@ public sealed class DocumentEditor
         });
     }
 
+    /// <summary>
+    /// Grow the scene so <paramref name="index"/> is a real frame. Returns true
+    /// when it had to.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The scene's length is a consequence of where the artist worked, not a
+    /// gate they have to open first.</b> On paper you write on row forty and the
+    /// sheet is forty long; you do not declare the length and then fill it. The
+    /// playhead may stand past the end of the scene, and this is what the first
+    /// edit there calls so the frame it is about to write to exists.
+    /// </para>
+    /// <para>
+    /// The new cels are unkeyed, which already <em>means</em> hold — so a scene
+    /// grown from five frames to twenty exposes drawing five across the gap,
+    /// exactly as an artist extending an exposure would expect, and nothing has
+    /// to fill anything in.
+    /// </para>
+    /// <para>
+    /// <c>frameContentUnchanged</c>, because no drawing's pixels change: the
+    /// cels added are holds of what already existed. The canvas is still
+    /// republished — what the playhead's frame shows does change — but no
+    /// cached render is dropped (B202).
+    /// </para>
+    /// </remarks>
+    public bool GrowToInclude(int index)
+    {
+        if (index < Doc.Scene.FrameCount) return false;
+        Perform(doc =>
+        {
+            doc.Scene.FrameCount = index + 1;
+            foreach (var layer in doc.Scene.Layers) PadCels(layer, doc.Scene.FrameCount);
+        }, label: "Extend the scene", frameContentUnchanged: true);
+        return true;
+    }
+
     /// <summary>Duplicate the exposed frame at index i into a new cel after it.</summary>
     public void DuplicateFrame(int i)
     {

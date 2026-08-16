@@ -701,9 +701,34 @@ public partial class MainViewModel
     /// </summary>
     private long? _lastAutoKeyRevision;
 
+    /// <summary>
+    /// The revision of the scene-growth step the last <see cref="PaintTargetOrKey"/>
+    /// pushed, or null when the playhead was already inside the scene.
+    /// </summary>
+    /// <remarks>
+    /// <b>B236 and Q103 meet here, and the defect is only visible where they
+    /// cross.</b> An erasure that rubbed nothing out is not recorded — and
+    /// sweeping one across blank canvas *past the end of the scene* both keys a
+    /// cel and lengthens the scene. Discarding the key alone would leave the
+    /// scene permanently longer for a gesture that, by that rule, did nothing to
+    /// nothing. Neither branch could see it: the growth did not exist when the
+    /// discard was written, and the discard did not exist when the growth was.
+    /// </remarks>
+    private long? _lastAutoGrowRevision;
+
     private Frame? PaintTargetOrKey()
     {
+        // Both bookkeeping resets first, so an early return below cannot leave
+        // either pointing at a step from a previous gesture.
         _lastAutoKeyRevision = null;
+        _lastAutoGrowRevision = null;
+        if (ActiveLayer is null) return null;
+        // Q103. The playhead may stand past the end of the scene, where scrubbing
+        // authored nothing; this is the edit that lands, so the scene grows to
+        // reach it. The cels the growth adds are holds, so a drawing made at
+        // frame twenty on a five-frame scene holds drawing five across the gap —
+        // which is what an artist dragging the playhead out and drawing means.
+        EnsureSceneReachesPlayhead();
         if (ActiveLayer is not { } layer || layer.Cels.Count == 0) return null;
         var here = Math.Clamp(CurrentFrameIndex, 0, layer.Cels.Count - 1);
         // A cel that holds an earlier drawing is not a drawing of its own. What
@@ -770,6 +795,27 @@ public partial class MainViewModel
         Strokes = held.Strokes.Select(s => s.Clone()).ToList(),
         Placements = held.Placements?.Select(p => p.Clone()).ToList(),
     };
+
+    /// <summary>
+    /// Make the playhead's frame a real one, growing the scene when it is past
+    /// the end. One undoable step of its own, like the keying it precedes.
+    /// </summary>
+    /// <remarks>
+    /// Called by the edits that land, never by navigation — scrubbing past the
+    /// end must author nothing, which is the same line B206 and B207 drew
+    /// between picking and editing.
+    /// </remarks>
+    private void EnsureSceneReachesPlayhead()
+    {
+        if (CurrentFrameIndex < Scene.FrameCount) return;
+        var to = CurrentFrameIndex;
+        var revision = _editor.NextRevision;
+        if (_editor.GrowToInclude(to))
+        {
+            _lastAutoGrowRevision = revision;
+            AiStatus = $"Scene extended to {to + 1} frames.";
+        }
+    }
 
     /// <summary>
     /// Key a held cel because an edit is about to land on it, translating
@@ -2041,8 +2087,14 @@ public partial class MainViewModel
         // DiscardStep raises the editor's Changed event, which is the same
         // signal the keying itself fired, so everything that reacted to the
         // cel appearing reacts to it going away.
+        // Newest first: the growth was pushed before the keying, and a step is
+        // discarded by revision, so unwinding in the order they landed would
+        // leave the later one sitting on a document the earlier one has already
+        // taken back.
         if (_lastAutoKeyRevision is { } keyed) _editor.DiscardStep(keyed);
+        if (_lastAutoGrowRevision is { } grown) _editor.DiscardStep(grown);
         _lastAutoKeyRevision = null;
+        _lastAutoGrowRevision = null;
 
         var commitInfo = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         if (BrushEngine.CommitBounds(stroke, commitInfo) is { } touched) _publish.MarkDirty(touched);

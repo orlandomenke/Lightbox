@@ -990,12 +990,19 @@ public partial class MainViewModel
     [RelayCommand]
     private void SelectFrame(FrameCell cell)
     {
-        if (cell.IsVirtual) return; // no frame there yet — insert one via right-click
         if (cell.LayerIndex >= 0 && cell.LayerIndex < Scene.Layers.Count)
             ActiveLayerIndex = cell.LayerIndex;
         CurrentFrameIndex = cell.Index;
-        _celAnchor = (cell.LayerIndex, cell.Index);
         ClearCelRange();
+
+        // Q103. A hatched cell can be stood on and cannot be *selected as a cel*,
+        // and the anchor is where that line is drawn: there is no cel out there
+        // to copy, cut, delete or range from, so leaving the anchor unset keeps
+        // a following Shift+click from building a range over frames that do not
+        // exist. Standing on it still authors nothing — the scene grows on the
+        // first edit, not on arriving.
+        if (cell.IsVirtual) return;
+        _celAnchor = (cell.LayerIndex, cell.Index);
     }
 
     // ---- thumbnails ----------------------------------------------------------

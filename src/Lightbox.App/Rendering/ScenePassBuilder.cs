@@ -315,7 +315,16 @@ internal static class ScenePassBuilder
             var ghosts = GhostSpecsFor(layer, scene, state);
             if (!state.Onion.DrawOver) passes.AddRange(ghosts);
 
-            var frame = ExposureSheet.ExposedFrame(layer, state.FrameIndex);
+            // Past the end of the scene the canvas shows no drawing (Q103).
+            // `ExposedFrame` walks back from the last cel, so asking it would
+            // answer with the final drawing — and past-the-end would then look
+            // exactly like a hold, undoing the distinction the sheet's hatching
+            // draws. The ghosts below still show, and so does the rig (it
+            // resolves through the exposure and is meant to: an armature is
+            // continuous, so posing the next frame needs to see the last pose).
+            var frame = state.FrameIndex < scene.FrameCount
+                ? ExposureSheet.ExposedFrame(layer, state.FrameIndex)
+                : null;
             if (frame is null)
             {
                 // An empty cel is exactly when onion skin earns its keep: you

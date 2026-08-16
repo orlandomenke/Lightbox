@@ -145,6 +145,54 @@ public class NoOpErasureTests(ITestOutputHelper output) : BrushStateIsolated
     }
 
     /// <summary>
+    /// The same rule one step further out: past the end of the scene, where the
+    /// gesture lengthens the scene as well as keying a cel.
+    /// </summary>
+    /// <remarks>
+    /// <b>Only visible where B236 and Q103 cross, which is why neither branch
+    /// could have had this test.</b> The playhead may stand past the end of the
+    /// scene and the first edit there grows it — so an eraser swept across blank
+    /// canvas out there pushed two steps, and discarding only the keying left
+    /// the scene permanently longer for a gesture that, by this file's own rule,
+    /// did nothing to nothing. A change to the timing is exactly what
+    /// <see cref="ErasingNothingOnAHoldLeavesTheHoldAlone"/> exists to prevent,
+    /// one frame along.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ErasingNothingPastTheEndDoesNotLengthenTheScene()
+    {
+        var vm = Fresh();
+        Drag(vm, 100, 200, 400, 200);
+        var frames = vm.Doc.Scene.FrameCount;
+        var stepsBefore = vm.RecordedStepCount;
+
+        vm.CurrentFrameIndex = frames + 5;
+        vm.ActiveTool = ToolId.Eraser;
+        Drag(vm, 600, 420, 750, 500);      // blank canvas, well clear of the line
+
+        output.WriteLine($"frames {frames} -> {vm.Doc.Scene.FrameCount}");
+        Assert.Equal(frames, vm.Doc.Scene.FrameCount);
+        Assert.Equal(stepsBefore, vm.RecordedStepCount);
+    }
+
+    /// <summary>
+    /// And drawing out there still grows it, or the discard above would have
+    /// quietly broken the whole of Q103.
+    /// </summary>
+    [AvaloniaFact]
+    public void DrawingPastTheEndStillLengthensTheScene()
+    {
+        var vm = Fresh();
+        Drag(vm, 100, 200, 400, 200);
+        vm.CurrentFrameIndex = vm.Doc.Scene.FrameCount + 5;
+        var want = vm.CurrentFrameIndex + 1;
+
+        Drag(vm, 120, 220, 300, 260);      // a mark, not an erase
+
+        Assert.Equal(want, vm.Doc.Scene.FrameCount);
+    }
+
+    /// <summary>
     /// And the same gesture over ink still keys, or the no-op rule would have
     /// quietly broken erasing on a hold altogether.
     /// </summary>

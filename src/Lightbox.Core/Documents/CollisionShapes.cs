@@ -82,7 +82,13 @@ public static class CollisionShapes
     public static int SetAcross(Layer layer, int start, int count, string shapeId, ShapeBox box)
     {
         if (layer.Cels.Count == 0 || count < 1) return 0;
-        start = Math.Clamp(start, 0, layer.Cels.Count - 1);
+        // Refused rather than clamped when the index is past the sheet. Clamping
+        // wrote the pose onto the LAST drawing instead — silently, and onto a
+        // frame the artist is not looking at, which is B206's shape. Unreachable
+        // while the playhead was pinned inside the scene; reachable the moment
+        // it could stand past the end, so the safe answer is to do nothing and
+        // let the caller grow the scene first (DocumentEditor.GrowToInclude).
+        if (start < 0 || start >= layer.Cels.Count) return 0;
         var end = Math.Min(layer.Cels.Count, start + count);
 
         var touched = new HashSet<string>(StringComparer.Ordinal);
@@ -111,7 +117,13 @@ public static class CollisionShapes
     public static int ClearAcross(Layer layer, int start, int count, string shapeId)
     {
         if (layer.Cels.Count == 0 || count < 1) return 0;
-        start = Math.Clamp(start, 0, layer.Cels.Count - 1);
+        // Refused rather than clamped when the index is past the sheet. Clamping
+        // wrote the pose onto the LAST drawing instead — silently, and onto a
+        // frame the artist is not looking at, which is B206's shape. Unreachable
+        // while the playhead was pinned inside the scene; reachable the moment
+        // it could stand past the end, so the safe answer is to do nothing and
+        // let the caller grow the scene first (DocumentEditor.GrowToInclude).
+        if (start < 0 || start >= layer.Cels.Count) return 0;
         var end = Math.Min(layer.Cels.Count, start + count);
 
         var touched = new HashSet<string>(StringComparer.Ordinal);
