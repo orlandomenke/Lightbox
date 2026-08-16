@@ -133,8 +133,79 @@ public partial class MainViewModel
             if (Math.Abs(dx) >= Math.Abs(dy)) dy = 0;
             else dx = 0;
         }
+        // B225. The guides after the axis lock, so a constrained move still
+        // snaps along the axis it was held to rather than being pulled off it.
+        // Same order the gradient uses for Shift, and for the same reason: the
+        // constraint the artist asked for out loud wins.
+        (dx, dy) = SnappedMove(dx, dy);
         _moveDelta = (dx, dy);
         PreviewTransform(SKMatrix.CreateTranslation((float)dx, (float)dy));
+    }
+
+    /// <summary>
+    /// Correct a move so the moving artwork lands on a guide, if one is near.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B225: the <em>bounds</em> snap, not the grab point.</b> Photoshop's
+    /// Move tool does it this way and the reflex transfers, but the reason is
+    /// independent of that: "line this up with the guide" is a claim about the
+    /// edge of the artwork, and snapping where you happened to take hold would
+    /// mean grabbing exactly the edge to align it. The grab point is the
+    /// version that is simpler to build and harder to use.
+    /// </para>
+    /// <para>
+    /// <b>Five candidates — four corners and the centre.</b> Corners are what
+    /// an artist lines up against a ruler; the centre is what they line up
+    /// against a vanishing point or the middle of a grid cell. Edge midpoints
+    /// were left out because a corner already covers each edge on one axis, and
+    /// nine candidates competing for one drag is how a snap starts feeling
+    /// like it is arguing with you.
+    /// </para>
+    /// <para>
+    /// <b>The smallest correction wins.</b> Every candidate is offered to
+    /// <c>SnappedPoint</c> — B216's shared helper, so this obeys the same
+    /// guides, the same tolerance and the same on/off switch as everything
+    /// else, rather than inventing a second kind of snapping. The one that
+    /// moves least is the one the hand was closest to meaning.
+    /// </para>
+    /// <para>
+    /// <b>Bounded.</b> <see cref="TransformSession.SnapBounds"/> is computed
+    /// once when the session opens, so a pointer move costs five point-snaps
+    /// against the guide list and no geometry — not work proportional to the
+    /// drawing, which is what invariant 6 forbids in a per-event path.
+    /// </para>
+    /// </remarks>
+    private (double X, double Y) SnappedMove(double dx, double dy)
+    {
+        if (!SnapToGuides || Scene.Guides is not { Count: > 0 }) return (dx, dy);
+        if (_transform.SnapBounds is not { } bounds) return (dx, dy);
+
+        (double X, double Y)[] candidates =
+        [
+            (bounds.Left, bounds.Top), (bounds.Right, bounds.Top),
+            (bounds.Left, bounds.Bottom), (bounds.Right, bounds.Bottom),
+            (bounds.MidX, bounds.MidY),
+        ];
+
+        var bestDistance = double.MaxValue;
+        (double X, double Y) best = (dx, dy);
+        foreach (var (cx, cy) in candidates)
+        {
+            var landedX = cx + dx;
+            var landedY = cy + dy;
+            var (snappedX, snappedY) = SnappedPoint(landedX, landedY);
+            var correctionX = snappedX - landedX;
+            var correctionY = snappedY - landedY;
+            // Nothing was near enough to pull this candidate anywhere.
+            if (correctionX == 0 && correctionY == 0) continue;
+
+            var distance = correctionX * correctionX + correctionY * correctionY;
+            if (distance >= bestDistance) continue;
+            bestDistance = distance;
+            best = (dx + correctionX, dy + correctionY);
+        }
+        return best;
     }
 
     /// <summary>Put it down. One undo step for the whole drag, or nothing at all.</summary>

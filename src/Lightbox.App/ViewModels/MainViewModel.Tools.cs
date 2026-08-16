@@ -770,6 +770,12 @@ public partial class MainViewModel
         }
         _transform.Begin(frames, filter);
         _transform.MovingBounds = PreviewMovingBounds(frames, filter);
+        // B225: the gizmo's own box, which is what a move lines up against a
+        // guide. Set from the same value the gizmo is raised with below, so the
+        // box that snaps and the box on screen cannot disagree.
+        _transform.SnapBounds = new SKRect(
+            (float)bounds.Value.MinX, (float)bounds.Value.MinY,
+            (float)bounds.Value.MaxX, (float)bounds.Value.MaxY);
         _transform.HeldFrameIdToKey = HeldCelNeedingKey();
         TransformActive = true;
         // The session's controls live in the Tool options docker now (Q70), so
