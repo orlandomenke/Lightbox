@@ -154,4 +154,80 @@ public class DocumentEditorTests
         Assert.Same(tweens[0], layer.Cels[1].Frame);
         Assert.All(ed.Doc.Scene.Layers, l => Assert.Equal(3, l.Cels.Count));
     }
+
+    // ---- discarding a step that changed nothing (B234) -----------------------
+
+    /// <summary>
+    /// The primitive B234 needed: a caller that pushed a step, did the work and
+    /// then found the work came to nothing takes the step back as though it had
+    /// never been pushed.
+    /// </summary>
+    [Fact]
+    public void DiscardStep_RollsBackAndLeavesNoTrace()
+    {
+        var ed = NewEditor();
+        var before = ed.Doc.Scene.FrameCount;
+
+        var revision = ed.NextRevision;
+        ed.Perform(d => d.Scene.Layers[0].Cels.Add(new Cel()), label: "Speculative");
+
+        Assert.True(ed.DiscardStep(revision));
+        Assert.Equal(before, ed.Doc.Scene.FrameCount);
+        Assert.False(ed.CanUndo);
+    }
+
+    /// <summary>
+    /// <b>Not an undo, and this is the assertion that says so.</b> An undo is a
+    /// decision and leaves a redo behind; a discard is an admission that the
+    /// step should not have existed, so redoing your way back into a state
+    /// nobody authored must be impossible.
+    /// </summary>
+    [Fact]
+    public void DiscardStep_LeavesNothingToRedo()
+    {
+        var ed = NewEditor();
+        var revision = ed.NextRevision;
+        ed.Perform(d => d.Scene.Layers[0].Cels.Add(new Cel()));
+
+        ed.DiscardStep(revision);
+
+        Assert.False(ed.CanRedo);
+        var before = ed.Doc.Scene.Layers[0].Cels.Count;
+        ed.Redo();
+        Assert.Equal(before, ed.Doc.Scene.Layers[0].Cels.Count);
+    }
+
+    /// <summary>
+    /// The guard that turns a race into a quiet no. Something else pushed a
+    /// step in between, so the revision handed back is no longer on top —
+    /// discarding "the last step" there would throw away somebody else's edit.
+    /// </summary>
+    [Fact]
+    public void DiscardStep_RefusesWhenItIsNoLongerTheLastStep()
+    {
+        var ed = NewEditor();
+        var before = ed.Doc.Scene.Layers[0].Cels.Count;
+        var mine = ed.NextRevision;
+        ed.Perform(d => d.Scene.Layers[0].Cels.Add(new Cel()));
+        ed.Perform(d => d.Scene.Layers[0].Cels.Add(new Cel()));   // somebody else
+
+        Assert.False(ed.DiscardStep(mine));
+        // Both steps still stand: refusing is the safe answer, not a partial one.
+        Assert.Equal(before + 2, ed.Doc.Scene.Layers[0].Cels.Count);
+    }
+
+    /// <summary>
+    /// A discarded revision is never issued again, so a stale reference to it
+    /// can never match a later step and discard the wrong thing.
+    /// </summary>
+    [Fact]
+    public void DiscardStep_DoesNotHandTheRevisionOutTwice()
+    {
+        var ed = NewEditor();
+        var first = ed.NextRevision;
+        ed.Perform(d => d.Scene.Layers[0].Cels.Add(new Cel()));
+        ed.DiscardStep(first);
+
+        Assert.True(ed.NextRevision > first);
+    }
 }

@@ -19,10 +19,25 @@ public class TemporaryToolModifierTests : BrushStateIsolated
     private static List<Stroke> Strokes(MainViewModel vm) =>
         ((Frame)vm.Doc.Scene.Layers.First(l => !l.IsBackground).Cels[0].Frame!).Strokes;
 
+    /// <summary>
+    /// Something to rub out, laid down first. <b>B234</b>: an erasure that
+    /// changes no pixels is not recorded at all, so an erase test on blank
+    /// canvas would now be asserting on a stroke that correctly does not exist.
+    /// The ink is scaffolding for the assertion, not the subject of it.
+    /// </summary>
+    private static void Ink(MainViewModel vm)
+    {
+        vm.BeginStroke(10, 10, 1);
+        vm.MoveStroke(40, 40, 1);
+        vm.EndStroke();
+    }
+
     [AvaloniaFact]
     public void AltHeld_ErasesWithTheCurrentBrush_WithoutSwitchingTools()
     {
         var vm = new MainViewModel(null) { SmoothStrokes = false, BrushSize = 37 };
+        Ink(vm);
+
         vm.BeginStroke(10, 10, 1, eraseWithCurrentBrush: true);
         vm.MoveStroke(40, 40, 1);
         vm.EndStroke();
@@ -47,7 +62,10 @@ public class TemporaryToolModifierTests : BrushStateIsolated
     [AvaloniaFact]
     public void TheEraserToolStillErases_EvenWithoutAlt()
     {
-        var vm = new MainViewModel(null) { SmoothStrokes = false, IsEraser = true };
+        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        Ink(vm);
+
+        vm.IsEraser = true;
         vm.ActiveTool = ToolId.Eraser;
         vm.BeginStroke(10, 10, 1);
         vm.MoveStroke(40, 40, 1);
