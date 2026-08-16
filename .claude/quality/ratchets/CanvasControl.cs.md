@@ -1,6 +1,6 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 4932
+budget: 4961
 
 ## Why it has moved
 
@@ -56,3 +56,10 @@ other's reason and leaves a number nobody can account for.
   together. **Nothing was wrong with either change.** A remeasure that removes
   unearned slack can turn a parallel branch red on merge, and the honest
   response is this entry rather than leaving the slack in place to avoid it.
+- **→ 4,961** (2026-08-16, B231 and the board projection): +29 for the
+  reference stack becoming workable from the canvas — two events
+  (`ReferenceAlignPressed`, so a grab in align mode picks the strip under the
+  pointer, and `ReferenceMenuRequested`, the right-click stack menu) and the
+  press-handler branches that raise them. The branches cannot leave this file:
+  they are lines inside the one pointer-pressed decision chain, and the window
+  owns everything they mean.

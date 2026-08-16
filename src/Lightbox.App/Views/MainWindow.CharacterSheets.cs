@@ -94,6 +94,43 @@ public partial class MainWindow
     }
 
     /// <summary>
+    /// Right-click over a projected reference: select it and offer the stack
+    /// menu. Forward and back move it through the other references — the
+    /// whole stack stays over the paper and under every drawing layer.
+    /// </summary>
+    private void OnReferenceMenuRequested(double x, double y, Point viewPos)
+    {
+        var index = _vm.ReferenceStripAt(x, y);
+        if (index < 0) return;
+        // Selecting is the first thing the menu means: the highlight and the
+        // Reference docker now talk about the strip under the pointer.
+        _vm.ActiveReferenceIndex = index;
+        var count = _vm.References.Count;
+
+        MenuItem Item(string header, bool enabled, Action action)
+        {
+            var item = new MenuItem { Header = header, IsEnabled = enabled };
+            item.Click += (_, _) => action();
+            return item;
+        }
+
+        var menu = new ContextMenu
+        {
+            ItemsSource = new Control[]
+            {
+                Item("Bring forward", index < count - 1, () => _vm.MoveReferenceInStack(index, index + 1)),
+                Item("Send backward", index > 0, () => _vm.MoveReferenceInStack(index, index - 1)),
+                Item("Bring to front", index < count - 1, () => _vm.MoveReferenceInStack(index, count - 1)),
+                Item("Send to back", index > 0, () => _vm.MoveReferenceInStack(index, 0)),
+                new Separator(),
+                Item("Take off the canvas", true, () => _vm.RemoveReferenceCommand.Execute(null)),
+            },
+            Placement = PlacementMode.Pointer,
+        };
+        menu.Open(Canvas);
+    }
+
+    /// <summary>
     /// The text in a sheet or view name box, captured when it took focus, so
     /// losing focus can tell a rename from a click-through.
     /// </summary>

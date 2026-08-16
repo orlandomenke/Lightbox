@@ -270,7 +270,12 @@ public partial class MainViewModel
 
         if (scene.References?.FirstOrDefault(s => s.SheetViewId == view.Id) is { } taped)
         {
-            target.Editor.Perform(doc => doc.Scene.References?.Remove(taped));
+            target.Editor.Perform(doc =>
+            {
+                doc.Scene.References?.Remove(taped);
+                // Absent, not empty — the same step RemoveReference takes.
+                if (doc.Scene.References is { Count: 0 }) doc.Scene.References = null;
+            });
             Lightbox.Raster.ReferenceStripRegistry.Forget(taped.Id);
             AfterReferenceChange();
             return null;
@@ -306,6 +311,97 @@ public partial class MainViewModel
     public bool IsViewOnCanvas(ReferenceView view) =>
         (SaveTargetTab?.Doc ?? Doc).Scene.References
             ?.Any(s => s.SheetViewId == view.Id) == true;
+
+    /// <summary>
+    /// Project a board tile onto the canvas, or take the projection down —
+    /// the board's counterpart of <see cref="ToggleViewOnCanvas"/>, toggled
+    /// the same way. Returns the strip, or null when it was removed, the
+    /// tile has no picture, or there is nowhere to put one.
+    /// </summary>
+    /// <remarks>
+    /// The same <see cref="ReferenceStrip"/> as every other reference, on
+    /// purpose: it composites over the paper and under every drawing layer,
+    /// never enters the layer stack, never reaches an exported pixel, and
+    /// keeps its link — a view tile stays live through
+    /// <see cref="ReferenceStrip.SheetViewId"/>, an image tile is remembered
+    /// through <see cref="ReferenceStrip.BoardTileId"/> so projecting is a
+    /// toggle rather than an accumulation.
+    /// </remarks>
+    /// <param name="pixels">
+    /// The tile's picture as encoded image bytes — the board view model's
+    /// <c>PixelsFor</c>, passed in because only the open board knows how to
+    /// resolve a project-relative path. Ignored for a view tile, whose
+    /// picture is rendered live here.
+    /// </param>
+    public ReferenceStrip? ToggleTileOnCanvas(BoardTile tile, byte[]? pixels)
+    {
+        // A view tile's projection IS the taped view, so the two toggles must
+        // be the same toggle — otherwise the docker's button and the board's
+        // menu would each put up a copy the other cannot take down.
+        if (tile.IsView)
+        {
+            var view = ReferenceSheetsView.SelectMany(s => s.Views)
+                .FirstOrDefault(v => v.Id == tile.ViewId);
+            return view is null ? null : ToggleViewOnCanvas(view);
+        }
+
+        if (TargetTab is not { } target) return null;
+        var scene = target.Doc.Scene;
+
+        if (scene.References?.FirstOrDefault(s => s.BoardTileId == tile.Id) is { } projected)
+        {
+            target.Editor.Perform(doc =>
+            {
+                doc.Scene.References?.Remove(projected);
+                if (doc.Scene.References is { Count: 0 }) doc.Scene.References = null;
+            });
+            Lightbox.Raster.ReferenceStripRegistry.Forget(projected.Id);
+            AfterReferenceChange();
+            return null;
+        }
+
+        if (pixels is null) return null;
+        // Through a codec rather than Decode(byte[]): a copied-in file can be
+        // any format, and bytes no codec recognises must mean "no picture"
+        // rather than a throw — the same reading ImportReferenceImageBytes has.
+        using var data = SKData.CreateCopy(pixels);
+        using var codec = SKCodec.Create(data);
+        if (codec is null) return null;
+        using var decoded = SKBitmap.Decode(codec);
+        if (decoded is null) return null;
+
+        var strip = new ReferenceStrip
+        {
+            Name = tile.Name,
+            Png = PngCodec.Encode(decoded),
+            SheetWidth = decoded.Width,
+            SheetHeight = decoded.Height,
+            Cells = [new ReferenceCell { X = 0, Y = 0, Width = decoded.Width, Height = decoded.Height }],
+            BoardTileId = tile.Id,
+            Pinned = true,
+        };
+        strip.Scale = FitScale(strip, scene);
+        strip.CentreOn(scene.Width, scene.Height);
+
+        var index = 0;
+        target.Editor.Perform(doc =>
+        {
+            doc.Scene.References ??= [];
+            index = doc.Scene.References.Count;
+            doc.Scene.References.Add(strip);
+        });
+        Lightbox.Raster.ReferenceStripRegistry.Register([(strip.Id, strip.Png)]);
+        ActiveReferenceIndex = index;
+        AfterReferenceChange();
+        return strip;
+    }
+
+    /// <summary>Whether this board tile is currently projected onto the canvas.</summary>
+    public bool IsTileOnCanvas(BoardTile tile) =>
+        (SaveTargetTab?.Doc ?? Doc).Scene.References is { } strips
+        && (tile.IsView
+            ? strips.Any(s => s.SheetViewId == tile.ViewId)
+            : strips.Any(s => s.BoardTileId == tile.Id));
 
     /// <summary>
     /// Guards <see cref="RefreshLinkedReferenceStrips"/> against the edits it

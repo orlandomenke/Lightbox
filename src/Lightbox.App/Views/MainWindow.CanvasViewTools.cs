@@ -187,6 +187,10 @@ public partial class MainWindow
                 _vm.ProjectDocker.RefreshFromDiskCommand.Execute(null);
                 e.Handled = true;
                 break;
+            case "reference.board":
+                OnOpenReferenceBoard(this, e);
+                e.Handled = true;
+                break;
             case "project.window":
                 // Harmless with no project, for the same reason as above: the
                 // method guards on it rather than the key handler holding a

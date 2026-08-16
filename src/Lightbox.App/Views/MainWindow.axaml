@@ -486,6 +486,12 @@
                     IsChecked="{Binding Workspace.HistoryPanelVisible, Mode=TwoWay}"
                     ToolTip.Tip="Every undoable step of this document, named — click one to stand the drawing at that state" />
         </MenuItem>
+        <!-- A window rather than a docker, so it lives outside the submenu:
+             the wall floats beside the art, on whichever screen has room. -->
+        <!-- No InputGesture: the command lives in ShortcutMap, and a remap
+             would make a hard-coded label lie. -->
+        <MenuItem Header="Reference _board…" Click="OnOpenReferenceBoard"
+                  ToolTip.Tip="A wall for reference of any kind — character sheets, images from disk, pictures dragged from the web — arranged how you leave it" />
         <Separator />
         <!-- The bars that sit on the canvas. Separate from the panels above
              because they are a different trade: a panel takes room away from
@@ -502,10 +508,11 @@
              else's file must not rearrange your screen. -->
         <MenuItem Header="_Workspace">
           <MenuItem Header="Save current workspace" Click="OnSaveWorkspace"
-                    ToolTip.Tip="Update the selected workspace with the arrangement on screen" />
-          <MenuItem Header="Save as new workspace…" Click="OnSaveWorkspaceAs" />
-          <MenuItem Header="Reset to saved" Click="OnResetWorkspace"
-                    ToolTip.Tip="Discard the changes and go back to what this workspace says" />
+                    ToolTip.Tip="Overwrite the selected workspace with the arrangement on screen — built-ins included" />
+          <MenuItem Header="Save as new workspace…" Click="OnSaveWorkspaceAs"
+                    ToolTip.Tip="Keep the arrangement as a workspace of its own; an unchanged name becomes “… (edited)”" />
+          <MenuItem Header="Reset workspace" Click="OnResetWorkspace"
+                    ToolTip.Tip="Discard the changes — a built-in goes back to how it shipped" />
         </MenuItem>
       </MenuItem>
 
@@ -3531,8 +3538,15 @@
                          CloseCommand="{Binding ToggleSheetsDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
-                  <Button Classes="text" Content="＋ Sheet" Click="OnAddReferenceSheet"
-                          ToolTip.Tip="Add a character sheet (reference art, not part of the animation)" />
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <Button Classes="text" Content="＋ Sheet" Click="OnAddReferenceSheet"
+                            ToolTip.Tip="Add a character sheet (reference art, not part of the animation)" />
+                    <!-- The board used to be reachable only from a view row's icon,
+                         which needs a sheet with a view to exist before the button
+                         does — invisible exactly when the wall is empty. -->
+                    <Button Classes="text" Content="Board…" Click="OnOpenReferenceBoard"
+                            ToolTip.Tip="Open the reference board — every sheet in scope on one wall, plus any image dropped from disk or the web" />
+                  </StackPanel>
                 </Border>
               </controls:Docker.TopBar>
               <ScrollViewer VerticalScrollBarVisibility="Auto">

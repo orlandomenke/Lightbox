@@ -958,6 +958,21 @@ public sealed partial class CanvasControl : Control
     /// </summary>
     public event Action<double, double, bool>? ReferenceDragged;
 
+    /// <summary>
+    /// A press in align mode, in document coordinates, before the drag — the
+    /// window picks the reference under it, so dragging moves the one you
+    /// grabbed rather than whichever was active last.
+    /// </summary>
+    public event Action<double, double>? ReferenceAlignPressed;
+
+    /// <summary>
+    /// Right-click over the art with no transform in flight: document x, y
+    /// and the view position. The window decides whether a taped-up
+    /// reference is under it and opens its stack menu — decided there, not
+    /// here, because the control does not know the document.
+    /// </summary>
+    public event Action<double, double, Point>? ReferenceMenuRequested;
+
     private bool _aligningReference;
 
     // ---- the reference grid gesture -------------------------------------------
@@ -2424,6 +2439,16 @@ public sealed partial class CanvasControl : Control
                 return;
             }
 
+            // Right-click anywhere else: offer a taped-up reference's stack
+            // menu, if one is under the pointer. The window decides — a
+            // right-click over bare canvas stays what it always was, nothing.
+            if (kind == PointerUpdateKind.RightButtonPressed && !_painting)
+            {
+                var (rx, ry) = ViewToDoc(pp.Position);
+                ReferenceMenuRequested?.Invoke(rx, ry, pp.Position);
+                return;
+            }
+
             if (kind != PointerUpdateKind.LeftButtonPressed && !pp.Properties.IsLeftButtonPressed) return;
 
             var (x, y) = ViewToDoc(pp.Position);
@@ -2434,6 +2459,10 @@ public sealed partial class CanvasControl : Control
             // then have to find and undo.
             if (ReferenceAlignMode)
             {
+                // Grab the reference under the pointer, not whichever was
+                // active last — the window answers by switching the selection
+                // before the first move arrives.
+                ReferenceAlignPressed?.Invoke(x, y);
                 _aligningReference = true;
                 _alignLast = new Point(x, y);
                 e.Pointer.Capture(this);
