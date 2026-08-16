@@ -45,6 +45,19 @@ public static class QuickBarCatalog
     public const string SelectOptions = "select-options";
     public const string GradientOptions = "gradient-options";
     public const string ArrowOptions = "arrow-options";
+
+    /// <summary>
+    /// What you can do to the line you are inside — Simplify, and its count.
+    /// </summary>
+    /// <remarks>
+    /// <b>B221.</b> The capability shipped with vector phase 4c and the
+    /// registration did not, which is this catalogue's whole reason for
+    /// existing: the customize flyout enumerates it, so an entry that is not
+    /// here cannot be chosen, and <c>Simplify</c> had no control on any surface
+    /// at all — a command in <c>ShortcutMap</c> with a null gesture, documented
+    /// in the manual as living somewhere nothing drew.
+    /// </remarks>
+    public const string LineOptions = "line-options";
     public const string GuideOptions = "guide-options";
     public const string Transport = "transport";
     public const string AddFrame = "add-frame";
@@ -58,6 +71,7 @@ public static class QuickBarCatalog
         new(SelectOptions, "Selection options", "Marquee shape, feather and the selection actions while selecting"),
         new(GradientOptions, "Gradient options", "The ramp and its type while the gradient tool is in hand"),
         new(ArrowOptions, "Line selection", "What the arrow tool has picked up"),
+        new(LineOptions, "Inside a line", "Simplify, and how many points the line you are inside has"),
         new(GuideOptions, "Guide options", "The guide the Move tool has picked up — where it is, and the numbers behind it"),
         new(Transport, "Play / pause", "The transport, without reaching down to the timeline"),
         new(AddFrame, "Add frame", "New and duplicated frames, without reaching down to the timeline"),
@@ -72,5 +86,6 @@ public static class QuickBarCatalog
     [
         BrushOptions, EraserOptions, ShapeOptions,
         FillOptions, SelectOptions, GradientOptions, ArrowOptions, GuideOptions,
+        LineOptions,
     ];
 }

@@ -53,6 +53,7 @@ warns about.
 | Delete | Delete the selected lines |
 | Arrows | Nudge the selected lines a pixel, ten with Shift (Arrow tool only) |
 | Ctrl (hold) | Borrow the eyedropper; let go and your tool comes back |
+| B, E, F, V, I (hold) | Tap to switch tools as always; **hold** one, use it, and let go to land back where you were |
 | I | Eyedropper — anywhere except the timeline, where it inserts a key |
 | Ctrl+Z / Ctrl+Y | Undo, redo |
 | Ctrl+T | Transform |

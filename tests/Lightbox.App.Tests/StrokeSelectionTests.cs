@@ -569,4 +569,65 @@ public class StrokeSelectionTests
 
     private static List<Stroke> StrokesOfCurrentFrame(MainViewModel vm) =>
         vm.Doc.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame?.Strokes ?? [];
+
+    // ---- B221: what "all" means with an arrow in hand ---------------------------------
+
+    /// <summary>Ctrl+A with the Arrow takes the lines.</summary>
+    /// <remarks>
+    /// <b>It never did.</b> Strokes were not in <c>SelectAll</c>'s object arm at
+    /// all — it tried placements, guides, reference boxes, anchors and collision
+    /// shapes, and lines are the Arrow's primary subject and the thing its own
+    /// documentation leads with. On an ordinary drawing with none of those five,
+    /// Ctrl+A fell through every arm and selected nothing.
+    /// </remarks>
+    [AvaloniaFact]
+    public void SelectAllWithTheArrowTakesTheLines()
+    {
+        var vm = WithStrokes(Line(100, 100, 300, 100), Line(100, 200, 300, 200));
+        vm.ActiveTool = ToolId.Arrow;
+
+        vm.SelectAllCommand.Execute(null);
+
+        Assert.Equal(2, vm.Selection.SelectedStrokeIds.Count);
+    }
+
+    /// <summary>
+    /// It takes every kind at once, not the first kind that is not empty.
+    /// </summary>
+    /// <remarks>
+    /// The arm was a cascade of early returns, so on a drawing that had a guide
+    /// on it "select all" meant "select the guide" and left every line behind.
+    /// Which kind you got depended on which happened to be first in a list
+    /// nobody was looking at.
+    /// </remarks>
+    [AvaloniaFact]
+    public void SelectAllWithTheArrowTakesEveryKindRatherThanTheFirstNonEmptyOne()
+    {
+        var vm = WithStrokes(Line(100, 100, 300, 100));
+        vm.AddGuide(Lightbox.Core.Documents.GuideKind.Line, 0, 150);
+        vm.ActiveTool = ToolId.Arrow;
+
+        vm.SelectAllCommand.Execute(null);
+
+        Assert.Single(vm.Selection.SelectedStrokeIds);
+        Assert.Single(vm.Selection.SelectedGuideIds);
+    }
+
+    /// <summary>With a painting tool in hand, "all" still means the canvas.</summary>
+    /// <remarks>
+    /// The half that must not change. B168 established that one property
+    /// answers this for both Ctrl+A and Ctrl+D, and widening the object arm is
+    /// exactly the change that could have leaked into the other branch.
+    /// </remarks>
+    [AvaloniaFact]
+    public void SelectAllWithABrushStillMeansTheWholeCanvas()
+    {
+        var vm = WithStrokes(Line(100, 100, 300, 100));
+        vm.ActiveTool = ToolId.Brush;
+
+        vm.SelectAllCommand.Execute(null);
+
+        Assert.True(vm.HasSelection);
+        Assert.Empty(vm.Selection.SelectedStrokeIds);
+    }
 }
