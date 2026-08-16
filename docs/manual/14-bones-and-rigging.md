@@ -171,6 +171,35 @@ curves to follow.
 A tail that whips is three handles keyed over four frames — the handles are
 ordinary bones, so they key, parent and drag like everything else in the rig.
 
+## Joint fixes — drawing the shape a bend should have
+
+Bend a joint far enough and the skinning goes wrong: the inside of the elbow
+collapses, the outside pinches. That is not a weights problem — the correct
+shape at 120° is not a blend of anything — so you **draw it**.
+
+Bend the joint to where it looks wrong. Select the bone, and in **Joint fixes**
+press **Draw a fix here**. The drawing changes to its posed self, and every
+tool works on it normally: move points, reshape lines, whatever fixes it. Then
+press **Keep the fix**.
+
+From then on, the fix **eases in** as that joint approaches that angle, and
+holds past it. At rest the drawing is exactly as you made it.
+
+- Bend further and draw again for a **second stop**; the shape ramps between
+  them. Drawing at an angle you have already used replaces that stop.
+- The second capture starts from the first fix already applied, so you are
+  always correcting what you can see.
+- **Discard** puts the drawing back and keeps nothing. Leaving Pose mode does
+  the same.
+- Your lines are never changed. A fix decides where marks are *drawn*, the
+  same way a pose does, so removing it returns the drawing untouched.
+- Add or delete lines during a capture and those lines are skipped — the fix
+  can only describe lines that were there when it started.
+
+A fix belongs to **the drawing**, so it works for the cutout way of animating,
+where a limb is one drawing you reuse across the whole sequence. It is not a
+tool for correcting two hundred hand-drawn frames.
+
 ## Binding drawings to bones
 
 A stroke follows the rig once it has **weights** — how much each bone moves
@@ -203,6 +232,5 @@ each part of it.
   happens against the rest pose; scrub a pose to check, come back to
   correct.
 
-*Planned:* painting weights under a live pose, angle-driven corrective
-shapes, secondary motion and rig export (`docs/DESIGN-bones.md` has the
+*Planned:* painting weights under a live pose, secondary motion and rig export (`docs/DESIGN-bones.md` has the
 whole plan).

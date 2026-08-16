@@ -211,6 +211,41 @@
                 ToolTip.Tip="Write this frame's pose into the drawing. Bound lines become ordinary posed lines." />
       </StackPanel>
 
+      <!-- Correctives (Q100). A bent joint that skinning collapses is fixed by
+           drawing the right shape once; it eases in as the joint approaches
+           that angle. The capture is a mode, so the panel says loudly that it
+           is open and offers only the two ways out. -->
+      <StackPanel Spacing="6" IsVisible="{Binding HasArmature}">
+        <TextBlock Text="Joint fixes" FontWeight="SemiBold" FontSize="12" />
+        <Button Content="Draw a fix here" Command="{Binding BeginCorrectiveCommand}"
+                IsVisible="{Binding !CapturingCorrective}"
+                ToolTip.Tip="Bend the joint, then press this: the drawing is posed so you can correct it with the ordinary tools, and what you change is kept as the shape for this angle. Needs Pose mode and a selected bone." />
+        <StackPanel Spacing="6" IsVisible="{Binding CapturingCorrective}">
+          <TextBlock Text="{Binding CorrectiveStatus}" TextWrapping="Wrap" FontSize="12" Opacity="0.8" />
+          <TextBlock Text="Fix the drawing with any tool, then keep it."
+                     TextWrapping="Wrap" FontSize="12" Opacity="0.6" />
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Content="Keep the fix" Command="{Binding CaptureCorrectiveCommand}"
+                    ToolTip.Tip="Store what you moved as this joint's shape at this angle, and put the drawing back." />
+            <Button Content="Discard" Command="{Binding CancelCorrectiveCommand}"
+                    ToolTip.Tip="Put the drawing back and keep nothing." />
+          </StackPanel>
+        </StackPanel>
+        <StackPanel Spacing="4" IsVisible="{Binding HasCorrectives}">
+          <ListBox x:Name="CorrectiveList" MaxHeight="110"
+                   ItemsSource="{Binding CorrectiveRows}"
+                   ToolTip.Tip="The fixes on this drawing, and the angles each was drawn at.">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:BoneRow">
+                <TextBlock Text="{Binding Name}" FontSize="12" />
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+          <Button Content="Remove fix" Click="OnRemoveCorrective"
+                  ToolTip.Tip="Take the picked fix off this drawing. The bones and the drawing are untouched." />
+        </StackPanel>
+      </StackPanel>
+
     </StackPanel>
   </ScrollViewer>
 </UserControl>

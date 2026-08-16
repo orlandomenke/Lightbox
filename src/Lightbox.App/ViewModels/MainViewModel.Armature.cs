@@ -431,6 +431,7 @@ public sealed partial class MainViewModel
         NotifyIkSurface();
         NotifyConstraintSurface();
         NotifySplineSurface();
+        NotifyCorrectiveSurface();
     }
 
     /// <summary>
@@ -494,6 +495,10 @@ public sealed partial class MainViewModel
     {
         if (value) WeightPainting = false;
         OnPropertyChanged(nameof(IsBindMode));
+        // Drawing a fix is a posing gesture — leaving posing mid-capture would
+        // strand the baked drawing in the record with no way back to it.
+        if (!value && CapturingCorrective) CancelCorrectiveCommand.Execute(null);
+        NotifyCorrectiveSurface();
     }
 
     partial void OnWeightPaintingChanged(bool value)

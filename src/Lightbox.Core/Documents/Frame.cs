@@ -183,6 +183,23 @@ public sealed class Frame
         }
     }
 
+    /// <summary>
+    /// Shapes the artist drew at joint extremes, or null — and null is every
+    /// ordinary drawing (Q100).
+    /// </summary>
+    /// <remarks>
+    /// On the frame because a corrective names strokes by id, so it belongs to
+    /// the drawing that holds them and travels with it through copy, paste and
+    /// symbols. It fixes <em>a drawing</em>: the cutout workflow, where a limb
+    /// is one drawing reused across the sequence. It is not a tool for two
+    /// hundred hand-drawn frames, and the manual says so.
+    /// </remarks>
+    public List<Corrective>? Correctives { get; set; }
+
+    /// <summary>Whether the rig reshapes this drawing at some joint angle.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasCorrectives => Correctives is { Count: > 0 };
+
     /// <summary>Whether this drawing carries imported or flattened pixels.</summary>
     /// <remarks>
     /// <b>This is what "did this come from outside" should be asked of</b>, rather
@@ -216,6 +233,7 @@ public sealed class Frame
         copy.Anchors = Anchors is null ? null : new Dictionary<string, AnchorPoint>(Anchors);
         copy.Shapes = Shapes is null ? null : new Dictionary<string, ShapeBox>(Shapes);
         copy.Chart = Chart is null ? null : [.. Chart];
+        copy.Correctives = Correctives?.Select(c => c.Clone()).ToList();
         return copy;
     }
 }
