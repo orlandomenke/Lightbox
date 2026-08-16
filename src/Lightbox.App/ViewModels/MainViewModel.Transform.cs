@@ -552,10 +552,23 @@ public partial class MainViewModel
     {
         TransformActive = false;
         _transform.End();
+        // Commit and cancel both land here, so the chrome's preview matrix
+        // cannot outlive the session however it ends. On a commit the raise
+        // and the contour move happen in one synchronous chain, so no frame
+        // can render between them with the transform applied twice.
+        TransformPreviewChanged?.Invoke(null);
         TransformEnded?.Invoke();
     }
 
     // ---- live transform preview -------------------------------------------------
+
+    /// <summary>
+    /// The matrix the live preview is compositing through, null when it
+    /// clears. The canvas subscribes so chrome that outlines the moving
+    /// pixels — the marching ants — rides the same matrix the pixels do,
+    /// instead of freezing at the pre-drag position until the commit.
+    /// </summary>
+    public event Action<SKMatrix?>? TransformPreviewChanged;
 
     /// <summary>
     /// Show the drag. Null clears the preview and puts the pixels back where
@@ -573,6 +586,7 @@ public partial class MainViewModel
         if (_transform.Preview is null && matrix is null) return;
         var before = _transform.Preview;
         _transform.Preview = matrix;
+        TransformPreviewChanged?.Invoke(matrix);
         // Repaint where the moving pixels were and where they now are — the
         // stroke path's bounded-work rule (invariant 6), which this preview
         // used to break with a full-canvas invalidation per pointer event.

@@ -304,6 +304,18 @@ fraction behind the cursor. That is the last stroke of the brush waiting until i
 knows which way you turned, and it is deliberate — the alternative is stamps that
 visibly jump into place.
 
+### The bucket shows its region before you click
+
+Hover with the **Fill** tool and the region a click would flood is tinted in
+the colour you are holding, its outline drawn solid. It is traced by the same
+code the click runs — same tolerance, same gap setting, same smart-fill
+sampling — so the click gives you exactly the tinted region, never a surprise.
+Moving inside a region costs nothing (the answer cannot change until you cross
+its edge); the trace runs in the background, so a fast hand never waits on it.
+The magic wand previews the same way, as a faint, still dashed outline —
+dashes mean selection, and it stays faint and still so it cannot be mistaken
+for one you have already made.
+
 ## Drawing fast
 
 A pen reports its position at a fixed rate, so the faster you draw, the further

@@ -249,19 +249,14 @@ public sealed partial class MainViewModel
         var pose = ArmatureOps.PoseAt(Doc.Scene.PoseTrack, frame);
         var placements = ArmatureOps.Solve(armature, pose);
         // The target's own offset lives in its parent's frame, so the pointer
-        // has to be taken there before it can be written as a delta.
-        var (px, py, prot) = target.ParentId is { } pid && placements.TryGetValue(pid, out var pp)
-            ? (pp.X, pp.Y, pp.RotationDeg)
-            : (0.0, 0.0, 0.0);
-        var rad = -prot * Math.PI / 180.0;
-        var (dx, dy) = (x - px, y - py);
-        var localX = Math.Cos(rad) * dx - Math.Sin(rad) * dy;
-        var localY = Math.Sin(rad) * dx + Math.Cos(rad) * dy;
+        // has to be taken there before it can be written as a delta. The
+        // arithmetic is ArmatureGesture's, shared with the live preview.
+        var (tx, ty) = ArmatureGesture.PoseTranslationDelta(placements, target, x, y);
 
         KeyPose(frame, target.Id, p =>
         {
-            p.X = localX - target.X;
-            p.Y = localY - target.Y;
+            p.X = tx;
+            p.Y = ty;
         });
         InvalidateRiggedFrames();
     }

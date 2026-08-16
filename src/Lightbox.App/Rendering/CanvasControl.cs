@@ -1696,38 +1696,8 @@ public sealed partial class CanvasControl : Control
 
     public event Action<bool, bool>? PolygonCompleted;
 
-    // Selection overlay state (marching ants) — pushed by the window.
-    private IReadOnlyList<List<Core.Documents.StrokePoint>> _selectionContours = [];
-    private IReadOnlyList<Core.Documents.StrokePoint> _polygonInProgress = [];
-    private float _antsPhase;
-    private bool _antsAnimating;
-
-    public void SetSelectionOverlay(
-        IReadOnlyList<List<Core.Documents.StrokePoint>> contours,
-        IReadOnlyList<Core.Documents.StrokePoint> polygonInProgress)
-    {
-        _selectionContours = contours;
-        _polygonInProgress = polygonInProgress;
-        InvalidateVisual();
-        StartAntsIfNeeded();
-    }
-
-    private void StartAntsIfNeeded()
-    {
-        if (_antsAnimating || (_selectionContours.Count == 0 && _polygonInProgress.Count == 0)) return;
-        if (TopLevel.GetTopLevel(this) is not { } top) return;
-        _antsAnimating = true;
-        top.RequestAnimationFrame(OnAntsFrame);
-    }
-
-    private void OnAntsFrame(TimeSpan _)
-    {
-        _antsAnimating = false;
-        if (_selectionContours.Count == 0 && _polygonInProgress.Count == 0) return;
-        _antsPhase = (_antsPhase + 0.35f) % 8f;
-        InvalidateVisual();
-        StartAntsIfNeeded();
-    }
+    // The selection overlay — ants state, its animation, and the live
+    // transform preview it rides — lives in CanvasControl.Selection.cs.
 
     // in-progress drag shape (doc space)
     private readonly List<Core.Documents.StrokePoint> _dragShape = [];
@@ -1985,24 +1955,9 @@ public sealed partial class CanvasControl : Control
             (float)(Bounds.Width / 2 + _pan.X),
             (float)(Bounds.Height / 2 + _pan.Y));
 
-        // Selection overlay paths (doc space; the op transforms them with the view).
-        SKPath? ants = null;
-        if (_selectionContours.Count > 0 || _dragShape.Count >= 3)
-        {
-            var contours = new List<IReadOnlyList<Core.Documents.StrokePoint>>(_selectionContours);
-            if (_dragShape.Count >= 3) contours.Add(_dragShape.ToList());
-            ants = BrushEngine.PathFromContours(contours);
-        }
-        SKPath? openPath = null;
-        if (_polygonInProgress.Count >= 2)
-        {
-            openPath = new SKPath();
-            openPath.MoveTo((float)_polygonInProgress[0].X, (float)_polygonInProgress[0].Y);
-            for (var i = 1; i < _polygonInProgress.Count; i++)
-            {
-                openPath.LineTo((float)_polygonInProgress[i].X, (float)_polygonInProgress[i].Y);
-            }
-        }
+        // Selection overlay paths (doc space; the op transforms them with the
+        // view) — built in CanvasControl.Selection.cs from the cached base.
+        var (ants, openPath) = AntsPathsForFrame();
 
         LazyGizmo? lazy = null;
         if (LazyRadius > 0 && _hoverPoint is { } lp)
@@ -2038,7 +1993,8 @@ public sealed partial class CanvasControl : Control
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
             _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing,
-            BoneChromes, HeatPoints, _hoveredLines));
+            BoneChromes, HeatPoints, _hoveredLines,
+            FillPreviewForFrame(), _fillPreviewWand, _fillPreviewColor));
     }
 
     // The tip outline cache and TipOutlinePath moved to CanvasControl.Pointer.cs,
@@ -3668,6 +3624,26 @@ public sealed partial class CanvasControl : Control
             GradientDragCancelled?.Invoke();
             return;
         }
+        if (_weightStrokeActive)
+        {
+            // End rather than abandon: the dabs already painted are record
+            // edits waiting for their one undo step, and dropping the end
+            // event would leave them with none.
+            _weightStrokeActive = false;
+            WeightStrokeEnded?.Invoke();
+            return;
+        }
+        if (_boneGestureActive)
+        {
+            // Abandon rather than commit, and drop the live preview with it —
+            // losing capture is not a decision the artist made. B219 made
+            // this visible: before the preview, a lost bone drag merely did
+            // nothing; now it would leave provisional chrome on screen.
+            _boneGestureActive = false;
+            _boneDragId = null;
+            BoneGestureCancelled?.Invoke();
+            return;
+        }
         if (!_painting) return;
         _painting = false;
         _paintPointerId = -1;
@@ -3917,7 +3893,10 @@ public sealed partial class CanvasControl : Control
         PickRing? pickRing = null,
         IReadOnlyList<BoneChrome>? bones = null,
         IReadOnlyList<HeatPoint>? heat = null,
-        IReadOnlyList<SelectedLine>? hoveredLines = null) : ICustomDrawOperation
+        IReadOnlyList<SelectedLine>? hoveredLines = null,
+        SKPath? fillPreview = null,
+        bool fillPreviewWand = false,
+        SKColor fillPreviewColor = default) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -3929,6 +3908,7 @@ public sealed partial class CanvasControl : Control
         {
             ants?.Dispose();
             antsOpen?.Dispose();
+            fillPreview?.Dispose();
         }
 
         public void Render(ImmediateDrawingContext context)
@@ -4055,6 +4035,8 @@ public sealed partial class CanvasControl : Control
             // corrects against.
             ArmatureOverlayPainter.PaintHeat(canvas, heat, view.Scale);
             ArmatureOverlayPainter.Paint(canvas, bones, view.Scale);
+            // Under the ants: a committed selection outranks a would-be one.
+            FillPreviewPainter.Draw(canvas, fillPreview, fillPreviewWand, fillPreviewColor, view.Scale);
             DrawAnts(canvas);
             DrawLazyGizmo(canvas);
             DrawTransformGizmo(canvas);

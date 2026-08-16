@@ -239,20 +239,23 @@ public partial class MainViewModel
     /// The fill itself, without the tool check — a colour dropped on the
     /// canvas fills whatever tool happens to be selected.
     /// </summary>
-    private void FillAtInternal(double x, double y, bool invertSmart = false)
+    /// <summary>
+    /// The region a fill at this point would flood — the one function behind
+    /// the click and the hover preview, the pick ring's principle: a preview
+    /// computed separately from the thing it previews breaks quietly in the
+    /// case nobody tested.
+    /// </summary>
+    /// <param name="sampleTarget">
+    /// The frame to sample when smart fill is off. The click passes the paint
+    /// target (which may key a held cel); the preview passes the exposed frame
+    /// read-only, because a hover must never edit the timeline.
+    /// </param>
+    private FloodFill.Result? FillRegion(double x, double y, bool invertSmart, Frame? sampleTarget)
     {
-        if (IsPlaying) return;
-        if (!CanEdit(ActiveLayer, "fill on it")) return;
-        if (PaintTargetOrKey() is not { } target) return;
-
         var scene = Scene;
         SKBitmap? owned = null;
         try
         {
-            // Held Shift flips it for this click only. A line-art layer over a
-            // painted background wants smart fill nine times out of ten and
-            // the active layer alone on the tenth; going to the options bar
-            // and back for that one is the interruption worth removing.
             var smart = SmartFill ^ invertSmart;
             SKBitmap sample;
             if (smart)
@@ -260,85 +263,102 @@ public partial class MainViewModel
                 owned = CompositeVisibleLayers();
                 sample = owned;
             }
-            else
+            else if (sampleTarget is { } target)
             {
                 sample = _cache.Get(target, scene.Width, scene.Height);
             }
+            else
+            {
+                return null;
+            }
 
             var (seedX, seedY) = ToSurface(x, y);
-            var result = FloodFill.Fill(
+            return FloodFill.Fill(
                 sample,
                 seedX,
                 seedY,
                 new FloodFill.Options(FillTolerance, FillGapPx, FillGrowPx),
                 SelectionMask(scene.Width, scene.Height));
-            if (result is null)
-            {
-                AiStatus = "Nothing fillable at that spot.";
-                return;
-            }
-
-            var stroke = new Stroke
-            {
-                Tool = ToolKind.Fill,
-                Color = ColorHex,
-                SwatchId = ActiveSwatchId,
-                PaletteId = ActivePaletteId,
-                Brush = new BrushSettings { Opacity = 1, AntiAlias = AntiAliasing },
-                // Out of surface space: a fill is a stroke, and a stroke's
-                // points are the record's coordinates (invariant 1).
-                Points = ToDocument([result.Outer])[0],
-                Holes = result.Holes.Count > 0 ? ToDocument(result.Holes) : null,
-                Label = "fill",
-            };
-            var clip = PrepareClipForSelection();
-            if (clip is not null) stroke.ClipId = clip.Value.Id;
-            var below = FillBelowLines;
-
-            // Fill-above stamps incrementally onto the cached frame; fill-below
-            // changes stroke order, so only that path pays a frame re-render.
-            if (below)
-            {
-                InvalidateFrameRender(target.Id);
-            }
-            else
-            {
-                AppendToFrameRender(target, stroke);
-            }
-
-            var frameId = target.Id;
-            var addedClip = false;
-            _committingScopedEdit = true;
-            try
-            {
-                _editor.PerformDelta(
-                    apply: doc =>
-                    {
-                        if (clip is { } c) addedClip = doc.ClipRegions.TryAdd(c.Id, c.Region);
-                        var list = StrokeListIn(doc, frameId);
-                        if (list is null) return;
-                        if (below) list.Insert(UnderLineWorkIndex(list), stroke);
-                        else list.Add(stroke);
-                    },
-                    revert: doc =>
-                    {
-                        RemoveStrokeById(doc, frameId, stroke.Id);
-                        if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
-                    },
-                    affectedFrameId: frameId);
-            }
-            finally
-            {
-                _committingScopedEdit = false;
-            }
-            _dirtyThumbIds.Add(target.Id);
-            PublishSnapshot();
-            RefreshThumbnails();
         }
         finally
         {
             owned?.Dispose();
         }
+    }
+
+    private void FillAtInternal(double x, double y, bool invertSmart = false)
+    {
+        if (IsPlaying) return;
+        if (!CanEdit(ActiveLayer, "fill on it")) return;
+        if (PaintTargetOrKey() is not { } target) return;
+
+        // Held Shift flips it for this click only. A line-art layer over a
+        // painted background wants smart fill nine times out of ten and
+        // the active layer alone on the tenth; going to the options bar
+        // and back for that one is the interruption worth removing.
+        var result = FillRegion(x, y, invertSmart, target);
+        if (result is null)
+        {
+            AiStatus = "Nothing fillable at that spot.";
+            return;
+        }
+
+        var stroke = new Stroke
+        {
+            Tool = ToolKind.Fill,
+            Color = ColorHex,
+            SwatchId = ActiveSwatchId,
+            PaletteId = ActivePaletteId,
+            Brush = new BrushSettings { Opacity = 1, AntiAlias = AntiAliasing },
+            // Out of surface space: a fill is a stroke, and a stroke's
+            // points are the record's coordinates (invariant 1).
+            Points = ToDocument([result.Outer])[0],
+            Holes = result.Holes.Count > 0 ? ToDocument(result.Holes) : null,
+            Label = "fill",
+        };
+        var clip = PrepareClipForSelection();
+        if (clip is not null) stroke.ClipId = clip.Value.Id;
+        var below = FillBelowLines;
+
+        // Fill-above stamps incrementally onto the cached frame; fill-below
+        // changes stroke order, so only that path pays a frame re-render.
+        if (below)
+        {
+            InvalidateFrameRender(target.Id);
+        }
+        else
+        {
+            AppendToFrameRender(target, stroke);
+        }
+
+        var frameId = target.Id;
+        var addedClip = false;
+        _committingScopedEdit = true;
+        try
+        {
+            _editor.PerformDelta(
+                apply: doc =>
+                {
+                    if (clip is { } c) addedClip = doc.ClipRegions.TryAdd(c.Id, c.Region);
+                    var list = StrokeListIn(doc, frameId);
+                    if (list is null) return;
+                    if (below) list.Insert(UnderLineWorkIndex(list), stroke);
+                    else list.Add(stroke);
+                },
+                revert: doc =>
+                {
+                    RemoveStrokeById(doc, frameId, stroke.Id);
+                    if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
+                },
+                affectedFrameId: frameId);
+        }
+        finally
+        {
+            _committingScopedEdit = false;
+        }
+        _dirtyThumbIds.Add(target.Id);
+        PublishSnapshot();
+        RefreshThumbnails();
     }
 
     /// <summary>
