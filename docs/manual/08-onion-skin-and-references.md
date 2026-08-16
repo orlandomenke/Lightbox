@@ -54,9 +54,10 @@ not reset them.
 **Motion trail**, beside the onion controls on the timeline bar, draws a line
 through where the subject is on each drawing around the playhead, with a tick
 per drawing — earlier ticks red, later ones blue, the current drawing ringed in
-white. The two **Trail** fields set how many drawings it runs through each way,
-separately from the ghost depths, because a spacing chart wants more drawings
-than anyone wants ghosted.
+white. How many drawings it runs through each way is set behind the **⚙**,
+under its own heading — separate numbers from the ghost depths, because a
+spacing chart wants more drawings than anyone wants ghosted, and starting at
+four each way.
 
 **The gaps between the ticks are the spacing.** Even gaps read as even speed;
 gaps closing up read as an ease-in — the same chart animators draw on paper

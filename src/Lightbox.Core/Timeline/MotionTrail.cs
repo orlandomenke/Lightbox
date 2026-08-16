@@ -11,13 +11,21 @@ namespace Lightbox.Core.Timeline;
 /// this is the position the walk reached it at, not necessarily the keyed cel.
 /// </param>
 /// <param name="Current">The drawing the playhead is on.</param>
+/// <param name="Before">
+/// Earlier in the timeline than the playhead, carried from
+/// <see cref="OnionGhost.Before"/> rather than re-derived from indices by the
+/// painter — which is what makes the tint split survive a playhead standing
+/// on a drawing that has no tick of its own (empty, unanchored): the painter
+/// has no current index to compare against there, and the first version's
+/// fallback painted future segments in the past's colour.
+/// </param>
 /// <param name="Anchored">
 /// True when the position is the artist's own pivot anchor rather than the
 /// derived stroke-bounds centre — the painter marks the difference, because an
 /// authored point is a statement and a derived one is a guess.
 /// </param>
 public readonly record struct TrailPoint(
-    int Index, double X, double Y, bool Current, bool Anchored, string FrameId);
+    int Index, double X, double Y, bool Current, bool Before, bool Anchored, string FrameId);
 
 /// <summary>
 /// Where the subject is on each drawing around the playhead — the substrate
@@ -57,14 +65,14 @@ public static class MotionTrail
         {
             if (Locate(scene, ghost.Frame) is { } at)
                 points.Add(new TrailPoint(
-                    ghost.Index, at.X, at.Y, Current: false, at.Anchored, ghost.Frame.Id));
+                    ghost.Index, at.X, at.Y, Current: false, ghost.Before, at.Anchored, ghost.Frame.Id));
         }
 
         if (ExposureSheet.ExposedFrame(layer, index) is { } current
             && Locate(scene, current) is { } here)
         {
             points.Add(new TrailPoint(
-                index, here.X, here.Y, Current: true, here.Anchored, current.Id));
+                index, here.X, here.Y, Current: true, Before: false, here.Anchored, current.Id));
         }
 
         points.Sort(static (a, b) => a.Index.CompareTo(b.Index));

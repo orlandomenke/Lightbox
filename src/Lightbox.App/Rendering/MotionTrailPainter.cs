@@ -54,27 +54,23 @@ public static class MotionTrailPainter
         };
         using var dot = new SKPaint { IsAntialias = true };
 
-        // The playhead's own position splits the trail into its two tints.
-        // When the current drawing has no tick (empty, unanchored), everything
-        // resolves against the nearest indices instead of vanishing.
-        var currentIndex = points[^1].Index;
-        foreach (var p in points)
-        {
-            if (p.Current) currentIndex = p.Index;
-        }
-
+        // The split is the record's, not re-derived here: each tick carries
+        // which side of the playhead it is on, so a playhead standing on a
+        // drawing with no tick of its own cannot skew the tints. A segment
+        // takes its later endpoint's side — the walk *into* the current
+        // drawing is part of the past, the walk out of it is the future.
         for (var i = 1; i < points.Count; i++)
         {
             var a = points[i - 1];
             var b = points[i];
-            line.Color = (b.Index <= currentIndex ? BeforeColor : AfterColor).WithAlpha(170);
+            line.Color = (b.Before || b.Current ? BeforeColor : AfterColor).WithAlpha(170);
             canvas.DrawLine((float)a.X, (float)a.Y, (float)b.X, (float)b.Y, line);
         }
 
         foreach (var p in points)
         {
             var color = p.Current ? CurrentColor
-                : p.Index < currentIndex ? BeforeColor
+                : p.Before ? BeforeColor
                 : AfterColor;
             var x = (float)p.X;
             var y = (float)p.Y;

@@ -49,9 +49,9 @@ public sealed class MotionTrailOverlayTests(ITestOutputHelper output) : BrushSta
     {
         var points = new List<TrailPoint>
         {
-            new(0, 20, 80, Current: false, Anchored: true, "A"),
-            new(1, 100, 80, Current: true, Anchored: true, "B"),
-            new(2, 180, 80, Current: false, Anchored: true, "C"),
+            new(0, 20, 80, Current: false, Before: true, Anchored: true, "A"),
+            new(1, 100, 80, Current: true, Before: false, Anchored: true, "B"),
+            new(2, 180, 80, Current: false, Before: false, Anchored: true, "C"),
         };
 
         var (painted, bmp) = PaintOf(points);
@@ -71,7 +71,7 @@ public sealed class MotionTrailOverlayTests(ITestOutputHelper output) : BrushSta
     [Fact]
     public void OneTickIsNotAMotionAndPaintsNothing()
     {
-        var (painted, _) = PaintOf([new(0, 100, 80, true, true, "A")]);
+        var (painted, _) = PaintOf([new(0, 100, 80, true, false, true, "A")]);
         Assert.Equal(0, painted);
         Assert.Equal(0, PaintOf(null).Painted);
     }
@@ -87,13 +87,13 @@ public sealed class MotionTrailOverlayTests(ITestOutputHelper output) : BrushSta
         // inside the tick's radius, so the probe reads the tick alone.
         var anchored = new List<TrailPoint>
         {
-            new(0, 50, 80, false, Anchored: true, "A"),
-            new(1, 150, 80, false, Anchored: true, "B"),
+            new(0, 50, 80, false, Before: true, Anchored: true, "A"),
+            new(1, 150, 80, false, Before: false, Anchored: true, "B"),
         };
         var derived = new List<TrailPoint>
         {
-            new(0, 50, 80, false, Anchored: false, "A"),
-            new(1, 150, 80, false, Anchored: false, "B"),
+            new(0, 50, 80, false, Before: true, Anchored: false, "A"),
+            new(1, 150, 80, false, Before: false, Anchored: false, "B"),
         };
 
         var (_, filled) = PaintOf(anchored);
@@ -106,6 +106,31 @@ public sealed class MotionTrailOverlayTests(ITestOutputHelper output) : BrushSta
         // And the hollow tick's rim is still there — hollow, not missing.
         Assert.True(hollow.GetPixel(50, 77).Alpha > 8 || hollow.GetPixel(50, 83).Alpha > 8,
             "the derived tick has no rim at all");
+    }
+
+    [Fact]
+    public void TheTintSplitSurvivesAPlayheadWithNoTickOfItsOwn()
+    {
+        // The adversary's repro: the playhead stands on an empty drawing, so
+        // no point is Current. The first painter derived the split from a
+        // current index it did not have, fell back to the last tick, and
+        // painted the future red. The split is the record's Before flag now,
+        // so the future stays blue with nothing to compare against.
+        var points = new List<TrailPoint>
+        {
+            new(-2, 20, 80, false, Before: true, true, "A"),
+            new(-1, 60, 80, false, Before: true, true, "B"),
+            new(1, 140, 80, false, Before: false, true, "C"),
+            new(2, 180, 80, false, Before: false, true, "D"),
+        };
+
+        var (_, bmp) = PaintOf(points);
+        var past = bmp.GetPixel(40, 80);     // between A and B
+        var future = bmp.GetPixel(160, 80);  // between C and D
+        output.WriteLine($"past ({past.Red},{past.Green},{past.Blue}) future ({future.Red},{future.Green},{future.Blue})");
+
+        Assert.True(past.Red > past.Blue, "the past is not the warm tint");
+        Assert.True(future.Blue > future.Red, "a future segment painted in the past's colour");
     }
 
     [AvaloniaFact]
