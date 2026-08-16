@@ -48,15 +48,40 @@
            That was the reported "no indication of what bone is selected" —
            the panel deselected the bone the moment it heard about it. -->
       <StackPanel Spacing="4" IsVisible="{Binding HasArmature}">
-        <TextBlock Text="Bones" FontWeight="SemiBold" FontSize="12" />
-        <!-- Capped at ~8 rows so a deep rig scrolls here rather than pushing
-             the bone's own controls off the bottom of the docker. -->
-        <ListBox x:Name="BoneList" MaxHeight="200"
+        <!-- The header is the collapse toggle: a deep rig's list is context,
+             not the work surface, and folding it away gives the docker back
+             to the controls that are. -->
+        <ToggleButton x:Name="BoneListToggle" Classes="ghost" IsChecked="True"
+                      Padding="2,0" HorizontalAlignment="Left"
+                      ToolTip.Tip="Show or hide the bone list.">
+          <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+            <Path Classes="icon" Width="8" Height="8" Data="{StaticResource IconChevronDown}"
+                  IsVisible="{Binding #BoneListToggle.IsChecked}" />
+            <Path Classes="icon" Width="8" Height="8" Data="{StaticResource IconChevronRight}"
+                  IsVisible="{Binding !#BoneListToggle.IsChecked}" />
+            <TextBlock Text="Bones" FontWeight="SemiBold" FontSize="12" />
+          </StackPanel>
+        </ToggleButton>
+        <!-- Capped at ~7 of the layer list's row heights so a deep rig
+             scrolls here rather than pushing the bone's own controls off the
+             bottom of the docker. -->
+        <ListBox x:Name="BoneList" MaxHeight="160"
+                 IsVisible="{Binding #BoneListToggle.IsChecked}"
                  SelectionChanged="OnBoneListSelectionChanged"
                  ToolTip.Tip="Every bone in the rig, children indented under their parent. Picking one here selects it on the canvas.">
+          <ListBox.Styles>
+            <!-- The layer list's density, not the theme's: a bone row is one
+                 short name, and the default 32px rows were what let a small
+                 rig fill the docker. -->
+            <Style Selector="ListBoxItem">
+              <Setter Property="MinHeight" Value="22" />
+              <Setter Property="Padding" Value="6,1" />
+            </Style>
+          </ListBox.Styles>
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="vm:BoneRow">
-              <TextBlock Text="{Binding Label}" FontFamily="{StaticResource MonoFontFamily}" />
+              <TextBlock Text="{Binding Label}" FontFamily="{StaticResource MonoFontFamily}"
+                         FontSize="12" VerticalAlignment="Center" />
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>

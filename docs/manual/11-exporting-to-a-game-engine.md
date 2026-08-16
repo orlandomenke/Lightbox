@@ -171,6 +171,28 @@ sprite's offset from the middle of the region rather than as a fraction of it.
 Godot 4; on 3.x the frame timings would be dropped without saying so. Lightbox
 never touches `project.godot` or the `.godot/` cache — Godot owns those.
 
+**If the document has a rig**, the Godot export also writes `<name>_rig.json`
+and `lightbox_import_rig.gd`. Run that script the same way and it builds a
+**Skeleton2D** scene beside each rig file — the bones as `Bone2D` nodes with
+their rest transforms, and an `AnimationPlayer` whose animation plays the
+motion **exactly as you saw it**: IK, constraints, spline chains and jiggle
+are already baked into the per-frame samples, so nothing in the engine has to
+re-solve anything. A document with no rig writes neither file.
+
+## Exporting the rig — DragonBones
+
+The **Rig + DragonBones** format exports the skeleton and its motion as a
+DragonBones skeleton file (`<name>_ske.json`) plus Lightbox's own
+`<name>_rig.json` — the source of truth the conversion came from. Use it for
+engines with an existing DragonBones importer (Unity, and others); pair it
+with a sprite-sheet export for the pixels. One document per file: a skeleton
+file is one rig's motion. A document with no rig is refused with a sentence
+saying so.
+
+DragonBones is a published, BSD-licensed format. Lightbox will never write
+Spine's or Live2D's formats — their licences are the reason, and it is a
+deliberate wall rather than a gap.
+
 **For Unreal** you get the sheet, the sidecar and `lightbox_import.py`. Put them
 anywhere under the project's `Content` folder, enable the **Python Editor Script
 Plugin** and **Paper2D**, then run the script from **Tools ▸ Execute Python

@@ -87,6 +87,14 @@
         </StackPanel>
 
         <StackPanel Spacing="6">
+          <TextBlock Text="Canvas quality during playback" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="A still drawing rewards sharpness; a running animation rewards frame rate. Lowering this keeps the canvas crisp while you draw and composites smaller frames only while a scene plays." />
+          <ComboBox x:Name="PlaybackQualityBox" Width="260" SelectionChanged="OnPlaybackQualityChanged" />
+          <TextBlock x:Name="PlaybackQualityHint" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
           <TextBlock Text="Undo history" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
                      Text="Brush strokes are stored as cheap deltas, but structural edits keep a copy of the whole document, so deep history costs memory on a long scene." />

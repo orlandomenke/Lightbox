@@ -80,6 +80,18 @@ public sealed class DocumentEditor
         Doc = doc;
     }
 
+    /// <summary>
+    /// The revision the next pushed step will carry — read before pushing, so a
+    /// caller can hand it to <see cref="DiscardStep"/> later if the step turns
+    /// out to have changed nothing.
+    /// </summary>
+    /// <remarks>
+    /// Reading it is not reserving it: two callers that read and then push in
+    /// turn get different numbers, because the counter only moves inside
+    /// <c>PushStep</c>. The value is only meaningful to whoever pushes next.
+    /// </remarks>
+    public long NextRevision => _nextRevision + 1;
+
     public bool CanUndo => _undo.Count > 0;
     public bool CanRedo => _redo.Count > 0;
 
@@ -211,6 +223,42 @@ public sealed class DocumentEditor
         _undo.Push(entry);
         Changed?.Invoke();
         return new EditScope(true, entry.Step.FrameId, entry.Step.FrameContentUnchanged);
+    }
+
+    /// <summary>
+    /// Take back a step that turned out to have changed nothing, as though it
+    /// had never been pushed. Returns whether it was still there to take back.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Not <see cref="Undo"/>, and the difference is the whole point.</b> An
+    /// undo is an artist's decision and leaves a redo behind; this is a caller
+    /// admitting the step should not have existed, so it leaves no trace on
+    /// either stack. Redoing your way back into a state nobody authored is not
+    /// a feature.
+    /// </para>
+    /// <para>
+    /// <b>Guarded by revision, because "the last step" is a race.</b> A caller
+    /// pushes a step, does some work, and only then discovers the work came to
+    /// nothing — and anything that ran in between may have pushed a step of its
+    /// own. Discarding whatever happens to be on top would then throw away
+    /// somebody else's edit. Passing the revision the caller was given makes
+    /// the no-longer-top case a quiet <c>false</c> rather than data loss.
+    /// </para>
+    /// <para>
+    /// <b><see cref="Revision"/> goes backwards and <c>_nextRevision</c> does
+    /// not.</b> Revision reads the top of the stack, so it correctly returns to
+    /// the pre-step state — but the counter keeps climbing, so a discarded
+    /// number is never handed out twice and a stale reference to it can never
+    /// match a later step.
+    /// </para>
+    /// </remarks>
+    public bool DiscardStep(long revision)
+    {
+        if (_undo.Count == 0 || _undo.Peek().Revision != revision) return false;
+        Doc = _undo.Pop().Step.Rollback(Doc);
+        Changed?.Invoke();
+        return true;
     }
 
     private void PushStep(IEditStep step, string label)

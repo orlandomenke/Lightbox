@@ -934,6 +934,8 @@ public partial class ConfigureWindow : Window
         _loadingPerformance = true;
         QualityBox.ItemsSource = _vm.CanvasQualityChoices;
         QualityBox.SelectedItem = _vm.CanvasQuality;
+        PlaybackQualityBox.ItemsSource = _vm.PlaybackQualityChoices;
+        PlaybackQualityBox.SelectedItem = _vm.PlaybackQualityChoice;
         UndoDepthBox.Value = _vm.UndoDepth;
         CacheBudgetBox.Value = _vm.FrameCacheBudgetMb;
         GpuCompositeBox.IsChecked = _vm.GpuCompositing;
@@ -1013,6 +1015,16 @@ public partial class ConfigureWindow : Window
             ViewModels.CanvasQuality.Half =>
                 "Softer while you work; the drawing itself is unaffected. Best on a large canvas or a slower machine.",
             _ => "Matches the screen: full detail when zoomed in, less when zoomed out. The right default.",
+        };
+        PlaybackQualityHint.Text = _vm.PlaybackQuality switch
+        {
+            ViewModels.CanvasQuality.Full =>
+                "Playback pays for the sharpest frames. Only worth it on a machine with headroom to spare.",
+            ViewModels.CanvasQuality.Half =>
+                "Frames composite at half size while a scene runs — the single biggest lever when playback stutters. Drawing stays at the quality above.",
+            ViewModels.CanvasQuality.Display =>
+                "Playback matches the screen, whatever you draw at.",
+            _ => "Playback composites at the same quality you draw at. The right default until playback stutters.",
         };
     }
 
@@ -1128,6 +1140,16 @@ public partial class ConfigureWindow : Window
             // Through the choosing path: from here it is a decision, and the
             // software-rendering fallback must never revise it again.
             _vm.ChooseCanvasQuality(quality);
+            RefreshMeasured();
+        }
+    }
+
+    private void OnPlaybackQualityChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingPerformance || _vm is null) return;
+        if (PlaybackQualityBox.SelectedItem is string choice)
+        {
+            _vm.PlaybackQualityChoice = choice;
             RefreshMeasured();
         }
     }

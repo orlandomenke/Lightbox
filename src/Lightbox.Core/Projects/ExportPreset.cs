@@ -118,6 +118,18 @@ public enum ExportTarget
     /// else needs (world height). Naming it makes that visible.
     /// </remarks>
     Unity,
+
+    /// <summary>
+    /// The rig as a DragonBones skeleton file (<c>*_ske.json</c>), with our own
+    /// rig JSON beside it. Motion only — pixels travel by sprite sheet.
+    /// </summary>
+    /// <remarks>
+    /// The one target that needs an armature and touches no sheet: it exports
+    /// the skeleton and its baked animation, for the engines whose DragonBones
+    /// importers already exist. A document with no rig is refused with a
+    /// sentence, not exported empty.
+    /// </remarks>
+    DragonBones,
 }
 
 /// <summary>
