@@ -10,6 +10,29 @@ namespace Lightbox.App.Rendering;
 /// thread may be halfway through editing. The view model solves FK once and
 /// flattens; everything here is doubles.
 /// </remarks>
+/// <summary>
+/// Whether a chrome entry is the live skeleton or an onion ghost of a
+/// neighbouring pose key.
+/// </summary>
+/// <remarks>
+/// A field on <see cref="BoneChrome"/> rather than a second list through the
+/// draw op, and the ratchet is why: ghosts ride the plumbing the bones
+/// already have — one property, one push, one paint call — and only the
+/// painter and the hit-test, which live outside the ratcheted file, know the
+/// difference. A ghost is never hit: it shows where a pose came from or
+/// goes to, it is not a thing to grab.
+/// </remarks>
+public enum BoneGhost
+{
+    None,
+
+    /// <summary>The nearest pose keys behind the playhead.</summary>
+    Before,
+
+    /// <summary>The nearest pose keys ahead of it.</summary>
+    After,
+}
+
 public readonly record struct BoneChrome(
     string Id,
     string Name,
@@ -19,7 +42,8 @@ public readonly record struct BoneChrome(
     double Y1,
     bool Selected,
     /// <summary>An IK handle or pole rather than a bone of the body — drawn apart, because it is dragged for a different reason.</summary>
-    bool IsHandle = false);
+    bool IsHandle = false,
+    BoneGhost Ghost = BoneGhost.None);
 
 /// <summary>Which part of a bone a press grabbed.</summary>
 public enum BoneGrab
@@ -81,19 +105,21 @@ public static class ArmatureOverlay
 
         foreach (var selectedFirst in new[] { true, false })
         {
+            // Ghosts are furniture: they show a neighbouring pose, and a
+            // press through one must land on whatever real bone is under it.
             foreach (var bone in bones)
             {
-                if (bone.Selected != selectedFirst) continue;
+                if (bone.Ghost is not BoneGhost.None || bone.Selected != selectedFirst) continue;
                 if (Dist(x, y, bone.X1, bone.Y1) <= handle) return new BoneHit(bone.Id, BoneGrab.Tip);
             }
             foreach (var bone in bones)
             {
-                if (bone.Selected != selectedFirst) continue;
+                if (bone.Ghost is not BoneGhost.None || bone.Selected != selectedFirst) continue;
                 if (Dist(x, y, bone.X0, bone.Y0) <= handle) return new BoneHit(bone.Id, BoneGrab.Origin);
             }
             foreach (var bone in bones)
             {
-                if (bone.Selected != selectedFirst) continue;
+                if (bone.Ghost is not BoneGhost.None || bone.Selected != selectedFirst) continue;
                 if (DistToSegment(x, y, bone) <= body) return new BoneHit(bone.Id, BoneGrab.Body);
             }
         }

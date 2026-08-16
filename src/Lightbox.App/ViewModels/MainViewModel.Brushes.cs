@@ -174,6 +174,11 @@ public partial class MainViewModel
         {
             _canvasQuality = storedQuality;
         }
+        // Null (or anything unrecognised) means "same as while drawing".
+        if (Enum.TryParse<CanvasQuality>(Settings.PlaybackQuality, out var storedPlayback))
+        {
+            _playbackQuality = storedPlayback;
+        }
         _autosave = new AutosaveService(
             () => SaveTargetTab?.Doc ?? Doc,
             Settings.AutosaveInterval,

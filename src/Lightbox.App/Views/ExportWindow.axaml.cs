@@ -47,6 +47,7 @@ public partial class ExportWindow : Window
             "PNG sequence", "Sprite sheet",
             "Sprite sheet + Unity", "Sprite sheet + Godot",
             "Sprite sheet + Unreal", "Strips + GameMaker",
+            "Rig + DragonBones",
         };
         TrimBox.ItemsSource = new[]
         {
@@ -115,6 +116,7 @@ public partial class ExportWindow : Window
             ExportTarget.Godot => 3,
             ExportTarget.Unreal => 4,
             ExportTarget.GameMaker => 5,
+            ExportTarget.DragonBones => 6,
             _ => 1,
         };
         TrimBox.SelectedIndex = preset.Trim switch
@@ -158,6 +160,7 @@ public partial class ExportWindow : Window
             3 => ExportTarget.Godot,
             4 => ExportTarget.Unreal,
             5 => ExportTarget.GameMaker,
+            6 => ExportTarget.DragonBones,
             _ => ExportTarget.SpriteSheet,
         },
         Trim = TrimBox.SelectedIndex switch

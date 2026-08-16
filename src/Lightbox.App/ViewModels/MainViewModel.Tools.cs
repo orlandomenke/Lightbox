@@ -54,6 +54,7 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(IsBoneTool))]
     [NotifyPropertyChangedFor(nameof(ActiveToolLabel))]
     [NotifyPropertyChangedFor(nameof(ActiveToolHasNoPanelOptions))]
+    [NotifyPropertyChangedFor(nameof(UsesGenericToolOptions))]
     private ToolId _activeTool = ToolId.Brush;
 
     [ObservableProperty]
@@ -427,6 +428,21 @@ public partial class MainViewModel
     public bool ActiveToolHasNoPanelOptions => ActiveTool is
         ToolId.Move or ToolId.Picker or ToolId.Arrow or
         ToolId.DirectSelect or ToolId.Pen or ToolId.Width;
+
+    /// <summary>
+    /// Whether the Tool options docker shows the generic per-tool pages
+    /// rather than a tool's own panel.
+    /// </summary>
+    /// <remarks>
+    /// <b>The Bone tool is excluded because its panel is a sibling in the same
+    /// host, and the generic page sat invisibly on top of it.</b> The page had
+    /// nothing to show for the Bone tool, so it rendered as nothing — and
+    /// still hit-tested, which made every control under it dead to the mouse
+    /// while keyboard shortcuts worked. "Unresponsive" was this overlay, not
+    /// the controls; a control that cannot be clicked does not exist, however
+    /// correctly it is wired.
+    /// </remarks>
+    public bool UsesGenericToolOptions => !IsPaintTool && !IsBoneTool;
 
     /// <summary>Eyedropper click: the color under the cursor (what the eye sees, incl. paper).</summary>
     public void PickColorAt(double x, double y)

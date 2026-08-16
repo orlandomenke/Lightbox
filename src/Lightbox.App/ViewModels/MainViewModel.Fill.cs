@@ -147,7 +147,22 @@ public partial class MainViewModel
         };
         if (PrepareClipForSelection() is { } clip) stroke.ClipId = clip.Id;
 
+        // B236, the area form: clearing a selection that held nothing is the
+        // same act as rubbing out blank canvas, so it is recorded the same way
+        // — which is to say not at all. A fill always adds paint and never asks.
+        var erasure = IsErasure(stroke)
+            ? StrokeChangeProbe.Open(stroke, _cache.Get(target, scene.Width, scene.Height))
+            : null;
+
         AppendToFrameRender(target, stroke);
+
+        if (erasure?.ChangedNothing() == true)
+        {
+            DiscardErasureThatDidNothing(stroke);
+            AiStatus = "There was nothing in the selection to clear.";
+            return;
+        }
+
         _committingScopedEdit = true;
         try
         {
@@ -194,6 +209,17 @@ public partial class MainViewModel
     private void DeleteSelectionContents()
     {
         if (IsPlaying) return;
+        // The Bone tool first, ahead of both selections: with the armature in
+        // hand, the thing on screen with selection chrome is a bone, and
+        // Delete erasing the drawing underneath it instead would be the key
+        // acting on something the artist cannot currently see is selected.
+        // Same shape as B173 — the decision lives in the command, where the
+        // Configure window can rebind it, not in a branch in the key handler.
+        if (ArmatureEditMode && HasSelectedBone)
+        {
+            DeleteSelectedBone();
+            return;
+        }
         if (HasSelection)
         {
             if (!CanEdit(ActiveLayer, "erase on it")) return;

@@ -239,7 +239,7 @@ public sealed partial class CanvasControl
     /// Light the guide under the pointer.
     /// </summary>
     /// <remarks>
-    /// <b>B228 took the cursor half of this away.</b> It used to set the cursor
+    /// <b>B241 took the cursor half of this away.</b> It used to set the cursor
     /// as well, which was right while guides were the only grabbable chrome and
     /// wrong the moment the gizmo, the camera and the reference boxes wanted the
     /// same treatment — two writers of one property, and the later one silently

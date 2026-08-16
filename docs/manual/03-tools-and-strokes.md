@@ -69,12 +69,24 @@ round the whole character. Hold **Shift** as you start the drag to add to what
 you already have. The box is cyan and dashed rather than the marching ants of an
 area selection, because it is doing a different job.
 
-It picks what you can see. Where two lines cross you get the one on top, and an
-eraser stroke never steals a click from ink that is visible underneath it —
-though an eraser on its own is selectable, so a stray one can still be removed.
+It picks what you can see. Where two lines cross you get the one on top.
 Clicking inside a filled shape picks the fill; clicking in a hole in that shape
 does not, because the hole is not part of it. A gradient is picked by the line
 you dragged to make it, not by everywhere it reaches.
+
+**What you erased is not there to pick.** An eraser leaves a record of itself so
+that reloading a drawing rebuilds it exactly, but as far as every tool is
+concerned the rub and what it rubbed out have both gone: you cannot click an
+eraser stroke, a box dragged over one does not sweep it up, and clicking the gap
+an eraser left picks nothing rather than the line that used to run through it. A
+line erased along its whole length is out of reach entirely. **Undo is what
+brings an erasure back** — it is the only thing that does, so an eraser stroke
+you did not mean to make is undone rather than selected and deleted.
+
+Erasing lightly is a different act and is treated as one. An eraser below full
+opacity *fades* a line rather than removing it, and a faded line is still a line
+you can pick, move and recolour. The same goes for a line rubbed through the
+middle: the surviving ends are still yours, and only the gap is out of reach.
 
 **Guides and symbols win over lines** where they overlap. The drawing is the
 thing that is everywhere, so if it won, a guide crossing a line would be
@@ -288,6 +300,22 @@ selection is an entry in the document, referenced by the strokes clipped to it).
 
 Settings that reach pixels — anti-aliasing, pressure curves — are recorded **on
 each stroke**, so changing a preference never alters art you have already made.
+
+**An erase that rubbed nothing out is not recorded.** Sweep the eraser across
+blank canvas, or press Delete with an empty selection, and nothing is written:
+no stroke on the drawing, and no step in the history. It did nothing to nothing,
+so there is nothing to keep. Erasing down the gap between two lines counts as
+nothing too — what matters is whether any pixel changed, not whether ink was
+nearby.
+
+The one consequence worth knowing: **Ctrl+Z straight after an erase that hit
+nothing takes back whatever you did before it**, because as far as the drawing is
+concerned that erase never happened. An erase that *did* rub something out is
+recorded and undone exactly as it always was.
+
+This also keeps the timeline honest. Erasing on a **hold** normally starts a new
+drawing on that frame — but if the erase turns out to have hit nothing, the hold
+stays a hold. A gesture that changed no pixels never changes your timing.
 
 ## What you see while drawing is what you get
 

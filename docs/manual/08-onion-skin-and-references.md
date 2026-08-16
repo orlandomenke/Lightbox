@@ -130,10 +130,11 @@ the way a missing video file leaves its extracted frames.
 
 ### The reference board
 
-The **🗔** button beside a view in the **Reference sheets** panel opens the
-**reference board** — a wall of reference beside the easel, instead of one
-picture opened in the drawing's place. Put it on a second screen, or beside the
-canvas, and draw.
+**View → Reference board…**, the **Board…** button at the top of the
+**Reference sheets** panel, the **🗔** icon beside any view in it, or
+`Ctrl+Shift+B` — all open the **reference board**: a wall of reference beside
+the easel, instead of one picture opened in the drawing's place. Put it on a
+second screen, or beside the canvas, and draw.
 
 It fills itself. Every reference sheet the document can consult is pinned up
 automatically, each view **flattened to one picture** rather than a stack of
@@ -145,6 +146,8 @@ document are in scope, so a knight's animations all open the knight's wall.
 | Move a picture | Drag it. Picking it up brings it to the front |
 | Resize it | Drag its bottom-right corner. The shape is kept |
 | Change the stacking | Right-click ▸ **Bring to front** / **Send to back** |
+| Put one on the canvas | Right-click ▸ **Project onto the canvas** — see below |
+| Lay one onto the timeline | Right-click ▸ **Lay onto the timeline as frames** — the frame analysis the Reference panel's **＋** does, fed from the wall |
 | Take one down | Right-click ▸ **Take off the board** |
 | Tidy the whole wall | **Auto-arrange** — every picture fitted into the space there is, in the order they are in |
 | Add a picture from disk | **Add image…**, or drag files onto the board |
@@ -169,6 +172,44 @@ page has no file to point at in the first place.
 
 Clicking **🗔** again brings the open board forward; there is one board window,
 not one per picture, and it closes with the application.
+
+### Projecting a board reference onto the canvas
+
+Right-click any picture on the board and choose **Project onto the canvas** to
+tape it over the drawing area — any picture, not only sheet views: a file from
+disk or an image dragged off a web page projects the same way. The projection
+sits **over the paper and under every drawing layer**, so an opaque background
+does not hide it and your lines always draw on top. It is **not a layer**: it
+never appears in the layer stack, never reaches an exported pixel, and its
+opacity is the reference opacity slider like any taped-up reference.
+
+The projection **keeps its link**. A sheet view stays live — draw on the sheet
+in its tab and the canvas copy follows. Asking the same tile again takes the
+projection down rather than stacking a second copy, and the board's menu reads
+**Take off the canvas** while one is up.
+
+On the canvas itself:
+
+| To do this | Do that |
+| --- | --- |
+| Select a projected reference | Right-click it, or grab it in align mode (**Align on canvas** in the Reference panel) |
+| Move it | **Align on canvas**, then drag |
+| Bring it forward or back | Right-click ▸ **Bring forward** / **Send backward** (or **to front** / **to back**) among the other references |
+| Take it down | Right-click ▸ **Take off the canvas**, or the board's menu |
+
+Forward and back move a reference among the *other references* — the whole
+stack stays beneath the drawing layers, which is what a reference is for.
+
+**Projecting and laying onto the timeline are different acts.** A projection is
+one picture pinned over the paper on every frame. **Lay onto the timeline as
+frames** instead runs the picture through the same analysis as the Reference
+panel's **＋** import: the frames are found in it (a sprite sheet, a strip, a
+run cycle), laid against the timeline from the frame you are on, and the
+timeline grows to fit. The Reference panel opens so you can fix the grid
+(**Cols**/**Rows** ▸ **Apply grid**), rescale, and align — everything in
+*Animation references* above applies. Laying the same picture twice is two
+imports, exactly like pressing **＋** twice; taking a projection down never
+touches a laid-out animation.
 
 **What detection actually looks for.** Not gaps in the whole image — the
 drawings themselves. It finds every connected mark on the sheet and then throws

@@ -595,6 +595,12 @@ public partial class MainViewModel
     {
         _publish.InvalidateWholeCanvas();
         PublishSnapshot();
+        // The armature's ghosts read the same switch and depths the drawing's
+        // ghosts do, so the skeleton chrome moves when the onion bar does —
+        // and the ghost memo is keyed by playhead alone, so a depth change
+        // has to drop it by hand.
+        _ghostChromeCache = null;
+        OnPropertyChanged(nameof(BoneChromes));
         Settings.Save();
     }
 }

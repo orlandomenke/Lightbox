@@ -80,6 +80,18 @@ public sealed class DocumentEditor
         Doc = doc;
     }
 
+    /// <summary>
+    /// The revision the next pushed step will carry — read before pushing, so a
+    /// caller can hand it to <see cref="DiscardStep"/> later if the step turns
+    /// out to have changed nothing.
+    /// </summary>
+    /// <remarks>
+    /// Reading it is not reserving it: two callers that read and then push in
+    /// turn get different numbers, because the counter only moves inside
+    /// <c>PushStep</c>. The value is only meaningful to whoever pushes next.
+    /// </remarks>
+    public long NextRevision => _nextRevision + 1;
+
     public bool CanUndo => _undo.Count > 0;
     public bool CanRedo => _redo.Count > 0;
 
@@ -211,6 +223,42 @@ public sealed class DocumentEditor
         _undo.Push(entry);
         Changed?.Invoke();
         return new EditScope(true, entry.Step.FrameId, entry.Step.FrameContentUnchanged);
+    }
+
+    /// <summary>
+    /// Take back a step that turned out to have changed nothing, as though it
+    /// had never been pushed. Returns whether it was still there to take back.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Not <see cref="Undo"/>, and the difference is the whole point.</b> An
+    /// undo is an artist's decision and leaves a redo behind; this is a caller
+    /// admitting the step should not have existed, so it leaves no trace on
+    /// either stack. Redoing your way back into a state nobody authored is not
+    /// a feature.
+    /// </para>
+    /// <para>
+    /// <b>Guarded by revision, because "the last step" is a race.</b> A caller
+    /// pushes a step, does some work, and only then discovers the work came to
+    /// nothing — and anything that ran in between may have pushed a step of its
+    /// own. Discarding whatever happens to be on top would then throw away
+    /// somebody else's edit. Passing the revision the caller was given makes
+    /// the no-longer-top case a quiet <c>false</c> rather than data loss.
+    /// </para>
+    /// <para>
+    /// <b><see cref="Revision"/> goes backwards and <c>_nextRevision</c> does
+    /// not.</b> Revision reads the top of the stack, so it correctly returns to
+    /// the pre-step state — but the counter keeps climbing, so a discarded
+    /// number is never handed out twice and a stale reference to it can never
+    /// match a later step.
+    /// </para>
+    /// </remarks>
+    public bool DiscardStep(long revision)
+    {
+        if (_undo.Count == 0 || _undo.Peek().Revision != revision) return false;
+        Doc = _undo.Pop().Step.Rollback(Doc);
+        Changed?.Invoke();
+        return true;
     }
 
     private void PushStep(IEditStep step, string label)
@@ -392,6 +440,42 @@ public sealed class DocumentEditor
             doc.Scene.FrameCount++;
             RippleReferences(doc.Scene, at, +1);
         });
+    }
+
+    /// <summary>
+    /// Grow the scene so <paramref name="index"/> is a real frame. Returns true
+    /// when it had to.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The scene's length is a consequence of where the artist worked, not a
+    /// gate they have to open first.</b> On paper you write on row forty and the
+    /// sheet is forty long; you do not declare the length and then fill it. The
+    /// playhead may stand past the end of the scene, and this is what the first
+    /// edit there calls so the frame it is about to write to exists.
+    /// </para>
+    /// <para>
+    /// The new cels are unkeyed, which already <em>means</em> hold — so a scene
+    /// grown from five frames to twenty exposes drawing five across the gap,
+    /// exactly as an artist extending an exposure would expect, and nothing has
+    /// to fill anything in.
+    /// </para>
+    /// <para>
+    /// <c>frameContentUnchanged</c>, because no drawing's pixels change: the
+    /// cels added are holds of what already existed. The canvas is still
+    /// republished — what the playhead's frame shows does change — but no
+    /// cached render is dropped (B202).
+    /// </para>
+    /// </remarks>
+    public bool GrowToInclude(int index)
+    {
+        if (index < Doc.Scene.FrameCount) return false;
+        Perform(doc =>
+        {
+            doc.Scene.FrameCount = index + 1;
+            foreach (var layer in doc.Scene.Layers) PadCels(layer, doc.Scene.FrameCount);
+        }, label: "Extend the scene", frameContentUnchanged: true);
+        return true;
     }
 
     /// <summary>Duplicate the exposed frame at index i into a new cel after it.</summary>

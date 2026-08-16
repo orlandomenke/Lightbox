@@ -101,7 +101,24 @@ public partial class MainViewModel
     private const int VirtualTail = 24;
 
     /// <summary>Last frame the ruler may scrub to.</summary>
-    public int MaxScrubFrame => Scene.FrameCount - 1;
+    /// <remarks>
+    /// <b>The sheet's extent, not the scene's length (Q103).</b> The playhead may
+    /// stand past the end of the scene: the scene's length is a consequence of
+    /// where the artist worked, not a gate they have to open before working, and
+    /// requiring a keyframe or a hold before you can even go somewhere is the
+    /// gate. Bounded by what the X-sheet actually draws, so it is self-limiting
+    /// and needs no number of its own — if you can see the cell, you can stand
+    /// on it.
+    /// <para>
+    /// Scrubbing there authors nothing. Playback is a different question and is
+    /// deliberately unchanged: it runs to <see cref="EffectiveEndFrame"/>, which
+    /// clamps to the scene and to the playback range.
+    /// </para>
+    /// </remarks>
+    public int MaxScrubFrame => TimelineExtent - 1;
+
+    /// <summary>Whether the playhead is standing past the end of the scene.</summary>
+    public bool PlayheadPastTheEnd => CurrentFrameIndex >= Scene.FrameCount;
 
     public string FrameLabel => $"{CurrentFrameIndex + 1} / {Scene.FrameCount}";
 
@@ -159,6 +176,13 @@ public partial class MainViewModel
             // OnIsPlayingChanged recomputes once on the stop, so the bounds
             // walk never rides the tick (B152).
             if (!IsPlaying) RefreshMotionTrail();
+
+            // The rig's whole editing surface reads the playhead's pose — the
+            // chrome in pose and weight modes, the heat dots on the posed
+            // drawing, the correctives list for this frame — so a scrub has to
+            // move it. Same B152 shape as the trail: never per playback tick,
+            // caught up once by OnIsPlayingChanged when the run stops.
+            if (!IsPlaying && ArmatureEditMode) RefreshArmatureAtPlayhead();
         }
         using (Profile(profiling, Services.TickProfile.Phase.Audio))
         {
@@ -606,6 +630,7 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(TimelineExtent));
         OnPropertyChanged(nameof(MaxScrubFrame));
         OnPropertyChanged(nameof(FrameLabel));
+        OnPropertyChanged(nameof(PlayheadPastTheEnd));
         SyncLayerRows();
         ClampCurrentFrame(publishIfUnchanged: false);
         _publish.InvalidateWholeCanvas();

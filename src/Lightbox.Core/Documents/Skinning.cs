@@ -14,6 +14,19 @@ public readonly record struct RigidDelta(double Cos, double Sin, double Tx, doub
 
     public (double X, double Y) Apply(double x, double y) =>
         (Cos * x - Sin * y + Tx, Sin * x + Cos * y + Ty);
+
+    /// <summary>
+    /// The inverse map, posed space back to bind space — a rotation is
+    /// orthogonal, so its transpose undoes it exactly and no matrix is
+    /// inverted. What lets a dab made on the posed drawing be reasoned
+    /// about at rest (X-symmetry's axis lives there).
+    /// </summary>
+    public (double X, double Y) Unapply(double x, double y)
+    {
+        var dx = x - Tx;
+        var dy = y - Ty;
+        return (Cos * dx + Sin * dy, -Sin * dx + Cos * dy);
+    }
 }
 
 /// <summary>
@@ -136,16 +149,24 @@ public static class Skinning
     /// drawings that were there before the link move too — and free of a
     /// per-stroke key on two hundred frames of work.
     /// </remarks>
+    /// <param name="correction">
+    /// Rest-space offsets from a corrective (Q100), one per control point, or
+    /// null. Applied to the rest shape <b>before</b> skinning, which is what
+    /// makes a drawn fix compose with the pose, IK, splines and constraints
+    /// without any of them knowing correctives exist.
+    /// </param>
     public static Stroke PoseStroke(
         Stroke stroke, Armature armature, IReadOnlyDictionary<string, BonePose>? pose,
-        IReadOnlyList<BoneBinding>? fallback = null)
+        IReadOnlyList<BoneBinding>? fallback = null,
+        IReadOnlyList<PointOffset>? correction = null)
     {
         var bindings = stroke.Weights is { Count: > 0 } own ? own : fallback;
         if (bindings is not { Count: > 0 } || stroke.Points.Count == 0)
             return stroke;
 
         var deltas = Deltas(armature, pose);
-        var (rest, weights) = DensifyWithWeights(stroke.Points, bindings);
+        var source = Corrected(stroke.Points, correction);
+        var (rest, weights) = DensifyWithWeights(source, bindings);
 
         var posed = new List<StrokePoint>(rest.Count);
         for (var i = 0; i < rest.Count; i++)
@@ -199,6 +220,10 @@ public static class Skinning
         var named = layerBone is { Length: > 0 }
             ? new List<BoneBinding> { new() { BoneId = layerBone } }
             : null;
+        // Baked with the correctives in force, or a freeze would give back the
+        // collapsed joint the artist drew the fix to cure — the live view and
+        // the baked result have to be the same picture.
+        var corrections = CorrectiveOps.Resolve(frame.Correctives, pose);
         var baked = 0;
         for (var i = 0; i < frame.Strokes.Count; i++)
         {
@@ -206,7 +231,8 @@ public static class Skinning
             var own = stroke.Weights is { Count: > 0 };
             if (!own && (layerBone is null || !TakesLayerBinding(stroke))) continue;
             var fallback = own ? null : named ?? AutoBoundFor(stroke, armature);
-            var posed = PoseStroke(stroke, armature, pose, fallback);
+            var posed = PoseStroke(
+                stroke, armature, pose, fallback, corrections.GetValueOrDefault(stroke.Id));
             if (ReferenceEquals(posed, stroke)) continue;
             frame.Strokes[i] = posed;
             baked++;
@@ -250,7 +276,14 @@ public static class Skinning
         if (doc.Armature is not { Bones.Count: > 0 } armature || !index.IsPosed(frame))
             return frame;
 
-        var pose = poseOverride ?? ArmatureOps.PoseAt(doc.Scene.PoseTrack, frameIndex);
+        // The render pose: secondary motion in force. An explicit override (a
+        // live drag's provisional pose) wins as before — a mid-gesture preview
+        // shows the hand's pose plain, and the springs land on release.
+        var pose = poseOverride ?? ArmatureOps.EffectivePoseAt(armature, doc.Scene.PoseTrack, frameIndex);
+        // Resolved once for the drawing rather than per stroke: the stops are
+        // sorted and bracketed each time, and doing that per line would make a
+        // corrective's cost scale with the drawing instead of with itself.
+        var corrections = CorrectiveOps.Resolve(frame.Correctives, pose);
         // The layer's binding, resolved ONCE for the frame rather than per
         // stroke: a whole cutout limb is one binding, and building it four
         // hundred times for four hundred lines would be the cost that makes a
@@ -272,7 +305,8 @@ public static class Skinning
             // on the cache's miss path beside a full rasterization of the same
             // frame, which is where its cost belongs.
             var fallback = own ? null : named ?? AutoBoundFor(stroke, armature);
-            var posed = PoseStroke(stroke, armature, pose, fallback);
+            var posed = PoseStroke(
+                stroke, armature, pose, fallback, corrections.GetValueOrDefault(stroke.Id));
             if (ghostOverBudget && BrushCostOf.Settings(stroke.Brush) == BrushCost.Expressive)
                 GhostCentreline(posed);
             copy.Strokes[i] = posed;
@@ -323,12 +357,129 @@ public static class Skinning
     private static bool TakesLayerBinding(Stroke stroke) =>
         stroke.Weights is not { Count: > 0 } && stroke.RestPoints is null;
 
+    /// <summary>
+    /// The stroke's control points with a corrective applied, or the points
+    /// themselves when nothing corrects them.
+    /// </summary>
+    /// <remarks>
+    /// <b>Matched by count, and dropped outright when it does not match.</b> A
+    /// stroke that has been re-shaped since the fix was drawn no longer
+    /// describes the same points, and sliding the offsets onto whichever
+    /// points happen to line up would move the wrong part of the line — a
+    /// wrong drawing rather than an uncorrected one. The list is returned
+    /// uncloned when there is nothing to do, so an ordinary drawing allocates
+    /// nothing.
+    /// </remarks>
+    private static List<StrokePoint> Corrected(
+        List<StrokePoint> points, IReadOnlyList<PointOffset>? correction)
+    {
+        if (correction is not { Count: > 0 } || correction.Count != points.Count) return points;
+
+        var moved = new List<StrokePoint>(points.Count);
+        for (var i = 0; i < points.Count; i++)
+        {
+            var p = points[i];
+            moved.Add(p with { X = p.X + correction[i].X, Y = p.Y + correction[i].Y });
+        }
+        return moved;
+    }
+
     /// <summary>Weights for a stroke that follows the whole skeleton, without touching it.</summary>
     private static IReadOnlyList<BoneBinding>? AutoBoundFor(Stroke stroke, Armature armature)
     {
         var scratch = stroke.Clone(newId: false);
         AutoBind(scratch, armature);
         return scratch.Weights;
+    }
+
+    /// <summary>
+    /// The stroke's control points, posed — no densification, one output per
+    /// input.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is the authoring path, not the drawing path.</b> Rendering
+    /// densifies first so a joint bends along the curve rather than along a
+    /// chord; capturing a corrective must not, because the artist edits
+    /// control points and the offsets are stored against them. One in, one
+    /// out is what makes the diff at the end of a capture line up.
+    /// </remarks>
+    public static List<StrokePoint> PoseControlPoints(
+        Stroke stroke, Armature armature, IReadOnlyDictionary<string, BonePose>? pose,
+        IReadOnlyList<BoneBinding>? fallback = null,
+        IReadOnlyList<PointOffset>? correction = null)
+    {
+        var bindings = stroke.Weights is { Count: > 0 } own ? own : fallback;
+        var source = Corrected(stroke.Points, correction);
+        if (bindings is not { Count: > 0 }) return [.. source];
+
+        var deltas = Deltas(armature, pose);
+        var posed = new List<StrokePoint>(source.Count);
+        for (var i = 0; i < source.Count; i++)
+        {
+            var weights = new double[bindings.Count];
+            for (var b = 0; b < bindings.Count; b++) weights[b] = bindings[b].WeightAt(i);
+            posed.Add(Blend(source[i], bindings, weights, deltas));
+        }
+        return posed;
+    }
+
+    /// <summary>
+    /// Turn a displacement the artist made in POSED space into the rest-space
+    /// offset that would produce it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Linear-blend skinning is <b>affine in the rest point</b>: posed =
+    /// (Σ wᵢRᵢ)·rest + Σ wᵢtᵢ. So each point has a 2×2 linear part M, and the
+    /// rest offset that lands a point where the artist dragged it is
+    /// M⁻¹·(what they dragged).
+    /// </para>
+    /// <para>
+    /// M is <b>probed rather than rebuilt</b>: pose the stroke once with every
+    /// point nudged by (1,0) and once by (0,1), and the two displacements are
+    /// M's columns exactly. That is three poses instead of a second
+    /// implementation of the blend that could drift from the first — the same
+    /// reason live and bake share one construction.
+    /// </para>
+    /// <para>
+    /// A singular M — every bone's weight zero at that point, so nothing moves
+    /// it — gives back the displacement unchanged rather than dividing by
+    /// zero: an unbound point is in rest space already.
+    /// </para>
+    /// </remarks>
+    public static PointOffset[] RestOffsetsFor(
+        Stroke stroke, Armature armature, IReadOnlyDictionary<string, BonePose>? pose,
+        IReadOnlyList<StrokePoint> posedTarget,
+        IReadOnlyList<BoneBinding>? fallback = null)
+    {
+        var count = stroke.Points.Count;
+        var offsets = new PointOffset[count];
+        if (posedTarget.Count != count) return offsets;
+
+        var at = PoseControlPoints(stroke, armature, pose, fallback);
+        var byX = PoseControlPoints(stroke, armature, pose, fallback, Uniform(count, 1, 0));
+        var byY = PoseControlPoints(stroke, armature, pose, fallback, Uniform(count, 0, 1));
+
+        for (var i = 0; i < count; i++)
+        {
+            // M's columns, read off the probes.
+            var (a, c) = (byX[i].X - at[i].X, byX[i].Y - at[i].Y);
+            var (b, d) = (byY[i].X - at[i].X, byY[i].Y - at[i].Y);
+            var (dx, dy) = (posedTarget[i].X - at[i].X, posedTarget[i].Y - at[i].Y);
+
+            var det = a * d - b * c;
+            offsets[i] = Math.Abs(det) < 1e-12
+                ? new PointOffset(dx, dy)
+                : new PointOffset((d * dx - b * dy) / det, (a * dy - c * dx) / det);
+        }
+        return offsets;
+    }
+
+    private static PointOffset[] Uniform(int count, double x, double y)
+    {
+        var offsets = new PointOffset[count];
+        Array.Fill(offsets, new PointOffset(x, y));
+        return offsets;
     }
 
     /// <summary>

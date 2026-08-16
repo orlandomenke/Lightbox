@@ -176,13 +176,17 @@ opening someone else's file must not rearrange your screen.
 Seven ship with the app: one per project type, plus **Default**. Switch with the
 picker at the top right of the Quick options bar.
 
-- **View → Workspace → Save current workspace** updates the selected one.
-- **Save as new workspace…** stores the arrangement under a new name.
-- **Reset to saved** discards your changes.
+- **View → Workspace → Save current workspace** overwrites the selected one
+  with the arrangement on screen — built-ins included. No copy is made.
+- **Save as new workspace…** stores the arrangement as a workspace of its own.
+  Leave the name unchanged and it becomes **“Name (edited)”**, because this
+  route always makes a new workspace.
+- **Reset workspace** discards your changes. A built-in goes back to **how it
+  shipped** — even after you have saved over it — and a workspace of your own
+  goes back to what you last saved.
 
 Saved workspaces carry a bin in the picker. The built-ins do not: a built-in is
 what *reset* falls back to, so deleting one would take the fallback with it.
-Saving over a built-in forks it instead of overwriting it.
 
 The picker marks a workspace you have since rearranged with a `*`.
 

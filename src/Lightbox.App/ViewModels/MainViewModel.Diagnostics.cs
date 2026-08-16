@@ -144,6 +144,7 @@ public partial class MainViewModel
         ClampCurrentFrame(publishIfUnchanged: !_applyingEditScope);
         SyncLayerRows();
         OnPropertyChanged(nameof(FrameLabel));
+        OnPropertyChanged(nameof(PlayheadPastTheEnd));
         OnPropertyChanged(nameof(TimelineExtent));
         OnPropertyChanged(nameof(MaxScrubFrame));
         OnPropertyChanged(nameof(Fps));
@@ -175,7 +176,10 @@ public partial class MainViewModel
     /// </summary>
     private void ClampCurrentFrame(bool publishIfUnchanged = true)
     {
-        var max = Math.Max(0, Scene.FrameCount - 1);
+        // The sheet's extent rather than the scene's length (Q103): the playhead
+        // is allowed past the end, and shrinking the scene pulls it back only as
+        // far as the sheet still draws.
+        var max = Math.Max(0, TimelineExtent - 1);
         if (CurrentFrameIndex > max) CurrentFrameIndex = max;
         else if (publishIfUnchanged) PublishSnapshot();
     }
@@ -248,6 +252,61 @@ public partial class MainViewModel
     {
         Settings.CanvasQualityChosen = true;
         CanvasQuality = value;   // its handler saves
+    }
+
+    /// <summary>
+    /// The quality while an animation runs, or null to keep
+    /// <see cref="CanvasQuality"/> during playback too.
+    /// </summary>
+    /// <remarks>
+    /// Drawing and playback want opposite trades — sharpness on a still,
+    /// frame rate on a moving sequence — so an animator can hold Full while
+    /// inking and still play back at Half. <see cref="EffectiveCanvasQuality"/>
+    /// is the one place the two are resolved.
+    /// </remarks>
+    [ObservableProperty]
+    private CanvasQuality? _playbackQuality;
+
+    /// <summary>
+    /// The quality the compositor should honour right now: the playback
+    /// choice while the sequence is running, the drawing choice otherwise.
+    /// </summary>
+    /// <remarks>
+    /// Playback only, not scrubbing: a scrub is a drawing act — the onion
+    /// ghosts are up and the artist is reading individual drawings — so it
+    /// keeps the quality they chose to draw at.
+    /// </remarks>
+    private CanvasQuality EffectiveCanvasQuality =>
+        IsPlaying && PlaybackQuality is { } playback ? playback : CanvasQuality;
+
+    partial void OnPlaybackQualityChanged(CanvasQuality? value)
+    {
+        Settings.PlaybackQuality = value?.ToString();
+        Settings.Save();
+        // Only playback reads this, so a still canvas has nothing to redo —
+        // but a change made while the scene is running takes effect now, the
+        // same way the drawing quality does.
+        if (!IsPlaying) return;
+        _publish.InvalidateWholeCanvas();
+        _composeRing.InvalidateAll();
+        Performance.Reset();
+        PublishSnapshot();
+    }
+
+    /// <summary>The playback answers, in the order they are offered.</summary>
+    public IReadOnlyList<string> PlaybackQualityChoices { get; } =
+        ["Same as while drawing", "Display", "Full", "Half"];
+
+    /// <summary>
+    /// The playback quality as the Configure page words it. "Same as while
+    /// drawing" stores nothing, so the default keeps following the drawing
+    /// quality rather than freezing to whatever it happened to be.
+    /// </summary>
+    public string PlaybackQualityChoice
+    {
+        get => PlaybackQuality?.ToString() ?? PlaybackQualityChoices[0];
+        set => PlaybackQuality =
+            Enum.TryParse<CanvasQuality>(value, out var quality) ? quality : null;
     }
 
     /// <summary>

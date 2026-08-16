@@ -1,6 +1,6 @@
-# Q100 · Resize cursors: the platform's eight, or drawn at the real angle? — **answered 2026-08-16: drawn, at the exact angle**
+# Q107 · Resize cursors: the platform's eight, or drawn at the real angle? — **answered 2026-08-16: drawn, at the exact angle**
 
-Asked during **B228**, which gave a cursor to every grabbable thing on the
+Asked during **B241**, which gave a cursor to every grabbable thing on the
 canvas. Most of them are stock — a four-way arrow for a move, a hand for a pan —
 and one is not: a handle that resizes has a *direction*, and the transform box
 can be turned to any angle, on a canvas that can itself be rotated and mirrored.

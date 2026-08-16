@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml.cs
 
-budget: 429
+budget: 437
 
 ## Why it has moved
 
@@ -28,8 +28,12 @@ other's reason and leaves a number nobody can account for.
   and now has a beginning, a middle, an end and a cancel, because it is a
   session rather than an event. This file's job is exactly that wiring, so a
   gesture gaining phases costs lines here by construction.
-- **→ 429** (2026-08-16, Q104): +5 for one wiring line and the four explaining
+- **→ 437** (2026-08-16, Q104): +5 for one wiring line and the four explaining
   it — Ctrl-inside-a-marquee rides the line drag's existing move/commit/discard
   channel rather than growing one of its own, and that is exactly the kind of
   thing a reader of this file has to be told, because the evidence for it is in
   the *absence* of four more subscriptions.
+- **→ 432** (2026-08-16, board projection): +8 for two canvas wirings in the
+  constructor — the align-mode pick and the reference stack menu — beside the
+  reference-drag wiring they extend. Delegated decisions are hooked up here by
+  construction, the same pricing as B216/B217's entry above.

@@ -193,6 +193,11 @@ public sealed class ShortcutMap
             new("tool.bone", "Bone (rig, pose, weights)", "Tools", G(Key.K)),
             new("armature.weightPaint", "Toggle the weight brush (bone tool)", "Canvas", G(Key.K, KeyModifiers.Control | KeyModifiers.Shift)),
             new("armature.posingMode", "Toggle posing (bone tool: bind or pose)", "Canvas", G(Key.K, KeyModifiers.Shift)),
+            // No default gesture, for `lines.recolour`'s reason: Delete already
+            // reaches it — `select.clear` asks the armature first while the
+            // Bone tool is in hand — and being here is what lets an artist give
+            // it a dedicated key that works from any tool.
+            new("armature.deleteBone", "Delete the selected bone", "Canvas", null),
             new("tool.width", "Width (make a line heavier or lighter)", "Tools", G(Key.W)),
             // No default gesture, like lines.recolour above and for the same
             // reason: the sensible letters are taken, the button in the arrow's
@@ -279,6 +284,11 @@ public sealed class ShortcutMap
             // board window, so a gesture pressed over the art never reaches them;
             // the gestures are still kept clear of the main window's, so an
             // artist rebinding one is not surprised by the other.
+            // Resolved by the main window, unlike the three below: opening the
+            // board is asked for from the art, not from a window that does not
+            // exist yet.
+            new("reference.board", "Open the reference board", "Reference",
+                G(Key.B, KeyModifiers.Control | KeyModifiers.Shift)),
             new("reference.arrange", "Auto-arrange the reference board", "Reference",
                 G(Key.R, KeyModifiers.Control | KeyModifiers.Shift)),
             new("reference.front", "Bring the reference forward", "Reference",

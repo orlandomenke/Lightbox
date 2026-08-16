@@ -215,6 +215,14 @@ public partial class MainWindow : Window
             if (wholeSheet) _vm.NudgeReference(dx, dy);
             else _vm.NudgeReferenceCell(dx, dy);
         };
+        // Grabbing in align mode picks the reference under the pointer first,
+        // so the drag moves the one you reached for. A miss keeps the current
+        // selection — empty canvas is not a statement about which reference.
+        Canvas.ReferenceAlignPressed += (x, y) =>
+        {
+            if (_vm.ReferenceStripAt(x, y) is var hit && hit >= 0) _vm.ActiveReferenceIndex = hit;
+        };
+        Canvas.ReferenceMenuRequested += OnReferenceMenuRequested;
         Canvas.Bind(
             Rendering.CanvasControl.ReferenceAlignModeProperty,
             new Avalonia.Data.Binding(nameof(ViewModels.MainViewModel.ReferenceAlignMode)) { Source = _vm });

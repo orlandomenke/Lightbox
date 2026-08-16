@@ -120,6 +120,12 @@ public sealed partial class MainViewModel
     /// <summary>Write a mark's geometry to the drawing the current frame exposes.</summary>
     private void WriteRig(RigMark mark)
     {
+        // Q103, and the reason the rig writers now refuse an index past the sheet
+        // rather than clamping to it: posing past the end would otherwise have
+        // written the pose onto the LAST drawing, silently, on a frame the
+        // artist is not looking at. Growing first is what makes posing out
+        // there mean what it looks like it means.
+        EnsureSceneReachesPlayhead();
         var layerId = ActiveLayer.Id;
         var frame = CurrentFrameIndex;
 

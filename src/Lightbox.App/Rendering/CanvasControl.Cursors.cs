@@ -4,7 +4,7 @@ using Avalonia.Input;
 namespace Lightbox.App.Rendering;
 
 /// <summary>
-/// What the pointer looks like, decided in one place (B228).
+/// What the pointer looks like, decided in one place (B241).
 /// </summary>
 /// <remarks>
 /// <para>
