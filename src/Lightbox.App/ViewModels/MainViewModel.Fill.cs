@@ -147,7 +147,7 @@ public partial class MainViewModel
         };
         if (PrepareClipForSelection() is { } clip) stroke.ClipId = clip.Id;
 
-        // B236, the area form: clearing a selection that held nothing is the
+        // B237, the area form: clearing a selection that held nothing is the
         // same act as rubbing out blank canvas, so it is recorded the same way
         // — which is to say not at all. A fill always adds paint and never asks.
         var erasure = IsErasure(stroke)

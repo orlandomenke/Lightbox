@@ -20,7 +20,7 @@ public class TemporaryToolModifierTests : BrushStateIsolated
         ((Frame)vm.Doc.Scene.Layers.First(l => !l.IsBackground).Cels[0].Frame!).Strokes;
 
     /// <summary>
-    /// Something to rub out, laid down first. <b>B236</b>: an erasure that
+    /// Something to rub out, laid down first. <b>B237</b>: an erasure that
     /// changes no pixels is not recorded at all, so an erase test on blank
     /// canvas would now be asserting on a stroke that correctly does not exist.
     /// The ink is scaffolding for the assertion, not the subject of it.

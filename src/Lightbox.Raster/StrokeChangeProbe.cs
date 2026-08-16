@@ -8,7 +8,7 @@ namespace Lightbox.Raster;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>B236, and only erasures ask.</b> An eraser swept over blank canvas, or a
+/// <b>B237, and only erasures ask.</b> An eraser swept over blank canvas, or a
 /// selection cleared while it held nothing, is a gesture that did nothing to
 /// nothing — and recording it leaves a stroke on the drawing and a step in the
 /// history for an act with no result. Every other tool <em>adds</em> something,
