@@ -159,6 +159,13 @@ public partial class MainViewModel
             // OnIsPlayingChanged recomputes once on the stop, so the bounds
             // walk never rides the tick (B152).
             if (!IsPlaying) RefreshMotionTrail();
+
+            // The rig's whole editing surface reads the playhead's pose — the
+            // chrome in pose and weight modes, the heat dots on the posed
+            // drawing, the correctives list for this frame — so a scrub has to
+            // move it. Same B152 shape as the trail: never per playback tick,
+            // caught up once by OnIsPlayingChanged when the run stops.
+            if (!IsPlaying && ArmatureEditMode) RefreshArmatureAtPlayhead();
         }
         using (Profile(profiling, Services.TickProfile.Phase.Audio))
         {

@@ -119,7 +119,11 @@ public sealed partial class MainViewModel
             var source = _bonePreviewArmature ?? Doc.Armature;
             if (source is not { Bones.Count: > 0 } armature) return [];
 
-            var pose = PosingMode
+            // Weights joined posing here when painting went live-pose: the
+            // brush works on the drawing as it stands at the playhead, so the
+            // skeleton has to stand there too or clicking a bone would mean
+            // aiming at where it is not.
+            var pose = PosingMode || WeightPainting
                 ? _bonePreviewPose ?? ArmatureOps.PoseAt(Doc.Scene.PoseTrack, CurrentFrameIndex)
                 : null;
             var placements = ArmatureOps.Solve(armature, pose);
@@ -148,9 +152,12 @@ public sealed partial class MainViewModel
 
     /// <summary>
     /// The heat view: the selected bone's influence at every control point of
-    /// every stroke on the current drawing, at bind positions — weight
-    /// painting works at rest (Q81). Empty when nothing is selected or the
-    /// mode is off: no bone means no heat, not a cold canvas.
+    /// every stroke on the current drawing, drawn where the artist sees the
+    /// drawing — the posed positions at the playhead. The <em>weights</em> are
+    /// still rest-pose facts (Q81); only where the dots sit follows the pose,
+    /// which is what lets the armpit being fixed be the armpit on screen.
+    /// Empty when nothing is selected or the mode is off: no bone means no
+    /// heat, not a cold canvas.
     /// </summary>
     public IReadOnlyList<HeatPoint> HeatPoints
     {
@@ -159,18 +166,55 @@ public sealed partial class MainViewModel
             if (!ArmatureEditMode || SelectedBoneId is not { } boneId) return [];
             if (ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex) is not { } frame) return [];
 
+            var pose = ArmatureOps.PoseAt(Doc.Scene.PoseTrack, CurrentFrameIndex);
+            var posed = PosedPointsFor(frame, pose);
             var points = new List<HeatPoint>();
             foreach (var stroke in frame.Strokes)
             {
                 var binding = stroke.Weights?.FirstOrDefault(b => b.BoneId == boneId);
+                var at = posed?.GetValueOrDefault(stroke.Id);
                 for (var i = 0; i < stroke.Points.Count; i++)
                 {
-                    points.Add(new HeatPoint(
-                        stroke.Points[i].X, stroke.Points[i].Y, binding?.WeightAt(i) ?? 0));
+                    var p = at is { } live && i < live.Count ? live[i] : stroke.Points[i];
+                    points.Add(new HeatPoint(p.X, p.Y, binding?.WeightAt(i) ?? 0));
                 }
             }
             return points;
         }
+    }
+
+    /// <summary>
+    /// Where every control point of a drawing sits under a pose — one list per
+    /// stroke, one entry per control point, correctives in force. Null when
+    /// nothing poses (no keys, no fixes), which is the cue to use the rest
+    /// positions without paying for a solve.
+    /// </summary>
+    /// <remarks>
+    /// The construction is the render's (<see cref="Skinning.PoseControlPoints"/>
+    /// with the layer's binding as fallback and the resolved correctives), so
+    /// where the heat dot sits and where the brush hits is where the ink is
+    /// actually drawn — three answers from one arithmetic, which is the only
+    /// number of implementations that cannot disagree.
+    /// </remarks>
+    private Dictionary<string, List<StrokePoint>>? PosedPointsFor(
+        Frame frame, IReadOnlyDictionary<string, BonePose> pose)
+    {
+        if (Doc.Armature is not { Bones.Count: > 0 } armature) return null;
+        var corrections = CorrectiveOps.Resolve(frame.Correctives, pose);
+        if (pose.Count == 0 && corrections.Count == 0) return null;
+
+        var layerBone = Doc.Scene.RiggedBoneOf(ActiveLayer);
+        var named = layerBone is { Length: > 0 }
+            ? new List<BoneBinding> { new() { BoneId = layerBone } }
+            : null;
+
+        var posed = new Dictionary<string, List<StrokePoint>>(frame.Strokes.Count);
+        foreach (var stroke in frame.Strokes)
+        {
+            posed[stroke.Id] = Skinning.PoseControlPoints(
+                stroke, armature, pose, named, corrections.GetValueOrDefault(stroke.Id));
+        }
+        return posed;
     }
 
     /// <summary>
@@ -401,6 +445,20 @@ public sealed partial class MainViewModel
 
     [RelayCommand]
     private void BakePose() => BakePoseHere();
+
+    /// <summary>
+    /// Re-read the slice of the rig surface that depends on <em>where the
+    /// playhead is</em>: the posed chrome, the heat dots on the posed drawing,
+    /// and which correctives are in force. Called on scrub and on playback
+    /// stop — never per playback tick (B152).
+    /// </summary>
+    internal void RefreshArmatureAtPlayhead()
+    {
+        OnPropertyChanged(nameof(BoneChromes));
+        OnPropertyChanged(nameof(HeatPoints));
+        OnPropertyChanged(nameof(CorrectiveRows));
+        OnPropertyChanged(nameof(HasCorrectives));
+    }
 
     /// <summary>
     /// Re-read everything the rig surface derives from the document.
@@ -693,26 +751,52 @@ public sealed partial class MainViewModel
     /// One dab of the weight brush, live on the record for immediate heat
     /// feedback — the undo step is landed whole at <see cref="EndWeightStroke"/>.
     /// Pressure drives strength through the same hand that drives every brush.
+    /// The dab hits the points <em>where the artist sees them</em> — their
+    /// posed positions at the playhead — so weights can be corrected while
+    /// looking at the deformation being corrected. The weights themselves stay
+    /// rest-pose facts on the same indices (Q81).
     /// </summary>
     public void WeightDab(double x, double y, double pressure)
     {
         if (_weightGesture is not { } gesture) return;
         if (SelectedBoneId is not { } boneId || Doc.Armature is not { } armature) return;
 
+        // Recomputed per dab rather than per gesture, and that is the
+        // feedback loop working rather than waste: each dab changes weights,
+        // weights change where the posed points sit, and the next dab has to
+        // hit them where the just-refreshed heat shows them. Bounded by the
+        // drawing's own points (invariant 6), the same walk Apply makes.
+        var pose = ArmatureOps.PoseAt(Doc.Scene.PoseTrack, CurrentFrameIndex);
+        var frame = ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex);
+        var posed = frame is not null && frame.Id == _weightGestureFrameId
+            ? PosedPointsFor(frame, pose)
+            : null;
+
         // Per-dab rate below 1 so a held brush builds rather than slams —
         // the same reason flow exists on a paint brush.
         var strength = Math.Clamp(pressure, 0.05, 1) * 0.35;
         var changed = false;
         foreach (var (stroke, _) in gesture)
-            changed |= WeightPaint.Apply(stroke, boneId, x, y, WeightBrushRadius, strength, WeightBrushMode);
+            changed |= WeightPaint.Apply(
+                stroke, boneId, x, y, WeightBrushRadius, strength, WeightBrushMode,
+                hitPoints: posed?.GetValueOrDefault(stroke.Id));
 
         if (MirrorWeights
             && WeightPaint.MirroredBone(armature, boneId) is { } pair
-            && armature.BoneById(boneId) is { } own
-            && WeightPaint.Mirror(armature, own, pair, x, y) is { } m)
+            && armature.BoneById(boneId) is { } own)
         {
-            foreach (var (stroke, _) in gesture)
-                changed |= WeightPaint.Apply(stroke, pair.Id, m.X, m.Y, WeightBrushRadius, strength, WeightBrushMode);
+            // Posed, the mirrored dab has to land on the pair's limb wherever
+            // its pose put it — the rest-space mirror would paint thin air.
+            var m = posed is null
+                ? WeightPaint.Mirror(armature, own, pair, x, y)
+                : WeightPaint.MirrorPosed(armature, own, pair, Skinning.Deltas(armature, pose), x, y);
+            if (m is { } mirrored)
+            {
+                foreach (var (stroke, _) in gesture)
+                    changed |= WeightPaint.Apply(
+                        stroke, pair.Id, mirrored.X, mirrored.Y, WeightBrushRadius, strength, WeightBrushMode,
+                        hitPoints: posed?.GetValueOrDefault(stroke.Id));
+            }
         }
 
         if (changed) OnPropertyChanged(nameof(HeatPoints));
