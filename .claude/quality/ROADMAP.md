@@ -1575,6 +1575,18 @@ Already built ✅:
     under the pointer before dragging it. List order is z-order, the same
     back-to-front reading the compositor and the board itself use.
 
+- [x] **Lay a board reference onto the timeline as frames** `evidence: ImportBoardTileAsAnimation, LayingATileOntoTheTimeline_SlicesFramesFromThePlayhead, LayingATileWithNoPicture_ImportsNothing`
+  - **The Reference docker's analysis, fed from the wall.** The docker's ＋
+    import — slice the sheet, lay the cells from the playhead, grow the
+    timeline to fit — was reachable only through its own file picker and the
+    window drop, while the board became where references actually arrive. One
+    context-menu item closes the gap by calling the same `ImportReference`
+    path, and the docker is revealed on success because the grid, scale and
+    alignment adjustments live there.
+  - **An import, not a projection** — no `BoardTileId`, no pin: laying twice
+    is two imports like pressing ＋ twice, and taking a projection down must
+    never delete an animation somebody laid out.
+
 Next for the board, deliberately not in the first cut (Q69, Q87):
 - [ ] **An editable canvas on the reference board** `evidence: ReferenceViewCanvasTests`
   — draw on a sheet where it hangs, instead of switching to its tab. Needs input

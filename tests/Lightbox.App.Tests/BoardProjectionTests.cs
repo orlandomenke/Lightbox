@@ -132,6 +132,53 @@ public class BoardProjectionTests
         Assert.DoesNotContain("\"boardTileId\"", json);
     }
 
+    /// <summary>A little sprite sheet: two figures side by side on a plain ground.</summary>
+    private static byte[] SheetPng()
+    {
+        using var bmp = new SKBitmap(64, 20);
+        bmp.Erase(SKColors.White);
+        using (var canvas = new SKCanvas(bmp))
+        using (var paint = new SKPaint { Color = new SKColor(40, 40, 40) })
+        {
+            canvas.DrawRect(SKRect.Create(4, 4, 22, 12), paint);
+            canvas.DrawRect(SKRect.Create(38, 4, 22, 12), paint);
+        }
+        using var image = SKImage.FromBitmap(bmp);
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        return data.ToArray();
+    }
+
+    [AvaloniaFact]
+    public void LayingATileOntoTheTimeline_SlicesFramesFromThePlayhead()
+    {
+        // The Reference docker's analysis, reachable from the wall: the same
+        // slicer, the same layout from the playhead, the same timeline
+        // extension the docker's ＋ import does.
+        var vm = VmLayers.PaperVm();
+        var tile = new BoardTile { Name = "Run", Png = Convert.ToBase64String(SheetPng()) };
+
+        var strip = vm.ImportBoardTileAsAnimation(tile, SheetPng());
+
+        Assert.NotNull(strip);
+        Assert.Equal(2, strip!.Cells.Count);
+        Assert.Equal(0, strip.FirstAssignedSlot());
+        Assert.True(vm.Doc.Scene.FrameCount >= 2);
+        // An import, not a projection: no pin, no board link — taking a
+        // projection down must never delete a laid-out animation.
+        Assert.False(strip.Pinned);
+        Assert.Null(strip.BoardTileId);
+    }
+
+    [AvaloniaFact]
+    public void LayingATileWithNoPicture_ImportsNothing()
+    {
+        var vm = VmLayers.PaperVm();
+
+        Assert.Null(vm.ImportBoardTileAsAnimation(ImageTile(), null));
+        Assert.Null(vm.ImportBoardTileAsAnimation(ImageTile(), [9, 9, 9]));
+        Assert.Null(vm.Doc.Scene.References);
+    }
+
     [AvaloniaFact]
     public void TheProjectionRoundTrips_LinkIntact()
     {
