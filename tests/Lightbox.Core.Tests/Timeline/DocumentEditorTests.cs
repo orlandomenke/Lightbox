@@ -155,10 +155,10 @@ public class DocumentEditorTests
         Assert.All(ed.Doc.Scene.Layers, l => Assert.Equal(3, l.Cels.Count));
     }
 
-    // ---- discarding a step that changed nothing (B234) -----------------------
+    // ---- discarding a step that changed nothing (B236) -----------------------
 
     /// <summary>
-    /// The primitive B234 needed: a caller that pushed a step, did the work and
+    /// The primitive B236 needed: a caller that pushed a step, did the work and
     /// then found the work came to nothing takes the step back as though it had
     /// never been pushed.
     /// </summary>

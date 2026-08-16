@@ -685,7 +685,7 @@ public partial class MainViewModel
     /// </summary>
     /// <summary>
     /// The revision of the cel-keying step the last <see cref="PaintTargetOrKey"/>
-    /// pushed, or null when it did not have to key anything (B234).
+    /// pushed, or null when it did not have to key anything (B236).
     /// </summary>
     private long? _lastAutoKeyRevision;
 
@@ -712,7 +712,7 @@ public partial class MainViewModel
         // with no key at all still starts from nothing, which is the ordinary
         // way to start one.
         var fresh = KeyedCopyOf(PaintTarget()); // one class, so the layer's kind decides nothing here
-        // B234: remembered so a gesture that turns out to have changed nothing
+        // B236: remembered so a gesture that turns out to have changed nothing
         // can take the key back with it. Sweeping an eraser across a hold and
         // hitting no ink would otherwise break the hold and add a drawing to
         // the exposure sheet — a bigger surprise than the stray stroke, and one
@@ -1940,7 +1940,7 @@ public partial class MainViewModel
         // to pause on drawings with many strokes. Appending the exact stroke
         // to the previously exact bitmap is the same sequence Materialize
         // would run, so the pixels stay bit-identical.
-        // B234: an erasure is measured across the append, because the only
+        // B236: an erasure is measured across the append, because the only
         // honest answer to "did this rub anything out" is the pixels. Opened
         // before the stamp and read after it — see StrokeChangeProbe for why
         // this is exact rather than a geometry test, and why nothing but an
@@ -1999,7 +1999,7 @@ public partial class MainViewModel
 
     /// <summary>
     /// Throw away an erasure that rubbed nothing out, and the cel it keyed on
-    /// its way in (B234).
+    /// its way in (B236).
     /// </summary>
     /// <remarks>
     /// <para>

@@ -5,7 +5,7 @@ using Lightbox.Core.Documents;
 namespace Lightbox.App.Tests;
 
 /// <summary>
-/// B234: an erasure that rubbed nothing out is not recorded — not as a stroke,
+/// B236: an erasure that rubbed nothing out is not recorded — not as a stroke,
 /// and not as a step in the history.
 /// </summary>
 /// <remarks>

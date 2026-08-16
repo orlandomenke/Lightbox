@@ -1,6 +1,6 @@
 # Q102 · When is an erasure worth recording? — **answered 2026-08-16: when it changed a pixel**
 
-Asked at the start of **B234**, and answered by the owner in the same exchange:
+Asked at the start of **B236**, and answered by the owner in the same exchange:
 
 > *"Erasing something that wasn't there to begin with should not be kept. Not as
 > a stroke, not in the undo history. As it did nothing to nothing."*
