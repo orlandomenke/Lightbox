@@ -451,6 +451,11 @@
                   IsChecked="{Binding VolumeCheck, Mode=TwoWay}"
                   ToolTip.Tip="Measures the active layer's ink per frame: area (squash and stretch preserves volume, so drift is off-model) as a band on the timeline, and its centre of mass as an arc on the canvas. The centroid is the true centre of mass only for uniform density — the honest lie a drawing aid tells. Tolerance is in Configure ▸ Timeline." />
         <Separator />
+        <!-- Here as well as on a sheet's button: the board is not only for
+             character sheets, and an artist who has none still wants one (B206). -->
+        <MenuItem Header="Reference _board" Click="OnOpenReferenceBoard"
+                  ToolTip.Tip="A wall of reference beside the art: every sheet in scope pinned up, plus any pictures you drop on it. Arrange them however you like — the wall is remembered." />
+        <Separator />
         <!-- Every docker toggle in one submenu (Q56): twelve checkable items
              inline made View a list to scan past to reach anything else. -->
         <MenuItem Header="_Dockers">

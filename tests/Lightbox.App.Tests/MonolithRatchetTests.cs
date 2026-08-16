@@ -165,7 +165,14 @@ public class MonolithRatchetTests(ITestOutputHelper output)
         // Measured alone the last two wanted 4,327 and 4,271; taking either on
         // the merged tree would bank the extraction's slack as permanent
         // headroom, which is the one thing a ratchet must not do.
-        ("src/Lightbox.App/Views/MainWindow.axaml", 4271),
+        // → 4,274 (2026-08-14): the View entry that opens the reference board,
+        // three lines including the reason. B206 is the case for it — the board
+        // could only be opened from a character sheet's button, so an artist who
+        // had made no sheet could not reach a window that does not need one. The
+        // note above applies unchanged: a menu item has no partial to live in,
+        // and a doorway hidden to satisfy a line count is the tail wagging the
+        // dog.
+        ("src/Lightbox.App/Views/MainWindow.axaml", 4274),
         // Lowered when the overlay-gesture wiring moved to MainWindow.Overlays.cs,
         // and again (449 → 427) when the bone gesture handler followed it there.
         // A merge had left that one block behind in the code-behind while its

@@ -66,8 +66,15 @@ warns about.
 | 0 | Reset zoom, rotation, mirror and pan |
 | Shift + drag | Resize the brush |
 | Wheel / Shift+wheel | Zoom / rotate the view |
-| Ctrl+Shift+R | Auto-arrange the reference board (in the board window) |
-| Ctrl+Shift+↑ / ↓ | Bring the last picture you touched forward / send it behind (in the board window) |
+| Alt+R | Open the reference board |
+| Ctrl+Shift+R / Ctrl+Shift+F | On the board: auto-arrange / fit everything on screen |
+| Ctrl+Shift+↑ / ↓ | On the board: bring the last picture you touched forward / send it behind |
+| Delete / Ctrl+V | On the board: take the picture off it / paste a picture onto it |
+
+**The board window has its own keys**, and that is why `Delete` and `Ctrl+V` can
+mean something there without disturbing what they mean over the art: it is a
+separate window, so a key pressed in it reaches nothing else. Configure lists
+them under **Reference board**.
 
 Zoom, rotation, mirror and pan are **view-only**. They never touch the document.
 

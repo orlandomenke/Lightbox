@@ -105,7 +105,13 @@ public sealed class ReferenceBoardWindow : Window
         board.PointerWheelChanged += OnWheel;
 
         KeyDown += OnKeyDown;
+        // On the window and on the surface both. AllowDrop is inherited, but the
+        // board is the control a drop is actually over and the one whose
+        // coordinates decide where the picture lands — saying so here is what
+        // makes that independent of how inheritance happens to resolve.
         DragDrop.SetAllowDrop(this, true);
+        DragDrop.SetAllowDrop(board, true);
+        DragDrop.SetAllowDrop(_surface, true);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DropEvent, OnDrop);
 
@@ -128,7 +134,10 @@ public sealed class ReferenceBoardWindow : Window
     private Control Toolbar()
     {
         var arrange = new Button { Content = "Auto-arrange", Classes = { "tertiary" } };
-        arrange.Click += (_, _) => BoardModel.Arrange(BoardWidth, BoardHeight);
+        arrange.Click += (_, _) => ArrangeAndShow();
+
+        var fit = new Button { Content = "Fit", Classes = { "tertiary" } };
+        fit.Click += (_, _) => FitToView();
 
         var add = new Button { Content = "Add image…", Classes = { "tertiary" } };
         add.Click += async (_, _) => await AddImageAsync();
@@ -140,7 +149,7 @@ public sealed class ReferenceBoardWindow : Window
             Orientation = Avalonia.Layout.Orientation.Horizontal,
             Spacing = 6,
             Margin = new Thickness(8, 6),
-            Children = { arrange, add, _sheetsButton },
+            Children = { arrange, fit, add, _sheetsButton },
         };
         Grid.SetRow(bar, 0);
         return bar;
@@ -149,6 +158,67 @@ public sealed class ReferenceBoardWindow : Window
     private double BoardWidth => _surface.Bounds.Width > 1 ? _surface.Bounds.Width : Width;
 
     private double BoardHeight => _surface.Bounds.Height > 1 ? _surface.Bounds.Height : Height - 44;
+
+    // ---- the board is bigger than the window ----------------------------------------
+
+    /// <summary>
+    /// A point on screen as a point on the board.
+    /// </summary>
+    /// <remarks>
+    /// The board is not the window: it is panned and zoomed under it, and extends
+    /// as far in every direction as an artist drags something. Every placement
+    /// therefore goes through this rather than using window coordinates, or a
+    /// picture dropped while panned would land wherever the wall happened to be
+    /// scrolled to.
+    /// </remarks>
+    private Point ToBoard(Point onScreen) =>
+        new((onScreen.X - _pan.X) / _zoom.ScaleX, (onScreen.Y - _pan.Y) / _zoom.ScaleY);
+
+    /// <summary>The middle of what is on screen, in board coordinates.</summary>
+    private Point ViewCentre => ToBoard(new Point(BoardWidth / 2, BoardHeight / 2));
+
+    /// <summary>Tidy the wall, then look at it — the two halves of one button.</summary>
+    /// <remarks>
+    /// Arranging alone would lay the tiles out at the board's origin while the
+    /// artist was looking somewhere else entirely, so the tidy-up would appear to
+    /// have emptied the board.
+    /// </remarks>
+    private void ArrangeAndShow()
+    {
+        BoardModel.Arrange(BoardWidth, BoardHeight);
+        FitToView();
+    }
+
+    /// <summary>
+    /// Zoom and pan so everything on the board is on screen — the way back when a
+    /// picture has been dragged off into the distance.
+    /// </summary>
+    public void FitToView()
+    {
+        if (BoardModel.Tiles.Count == 0)
+        {
+            _zoom.ScaleX = _zoom.ScaleY = 1;
+            _pan.X = _pan.Y = 0;
+            return;
+        }
+
+        var left = BoardModel.Tiles.Min(t => t.X);
+        var top = BoardModel.Tiles.Min(t => t.Y);
+        var right = BoardModel.Tiles.Max(t => t.X + t.Width);
+        var bottom = BoardModel.Tiles.Max(t => t.Y + t.Height);
+
+        const double margin = 24;
+        var scale = Math.Min(
+            (BoardWidth - margin * 2) / Math.Max(1, right - left),
+            (BoardHeight - margin * 2) / Math.Max(1, bottom - top));
+        // Never magnified: a wall of two small pictures blown up to fill the
+        // window would be showing them at a size nobody chose.
+        scale = Math.Clamp(scale, 0.05, 1);
+
+        _zoom.ScaleX = _zoom.ScaleY = scale;
+        _pan.X = (BoardWidth - (right - left) * scale) / 2 - left * scale;
+        _pan.Y = (BoardHeight - (bottom - top) * scale) / 2 - top * scale;
+    }
 
     // ---- the sheets menu ---------------------------------------------------------
 
@@ -422,7 +492,7 @@ public sealed class ReferenceBoardWindow : Window
     /// </summary>
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_shortcuts?.IdFor(e) is not { } id) return;
+        if (_shortcuts?.IdFor(e, Services.ShortcutScope.Board) is not { } id) return;
         switch (id)
         {
             case "reference.arrange":
@@ -433,6 +503,16 @@ public sealed class ReferenceBoardWindow : Window
                 break;
             case "reference.back" when _touched is { } back:
                 BoardModel.SendToBack(back);
+                break;
+            case "reference.fit":
+                FitToView();
+                break;
+            case "reference.remove" when _touched is { } gone:
+                BoardModel.Remove(gone);
+                _touched = null;
+                break;
+            case "reference.paste":
+                _ = PasteImageAsync();
                 break;
             default:
                 return;
@@ -481,11 +561,66 @@ public sealed class ReferenceBoardWindow : Window
             AllowMultiple = true,
             FileTypeFilter = [FilePickerFileTypes.ImageAll],
         });
+        // Into the middle of what the artist is looking at, which is the picker's
+        // equivalent of "where you dropped it".
+        var centre = ViewCentre;
+        var step = 0;
         foreach (var file in files)
         {
-            if (file.TryGetLocalPath() is { } path) BoardModel.AddImageFile(path);
+            if (file.TryGetLocalPath() is not { } path) continue;
+            BoardModel.AddImageFile(path, (centre.X + step * 24, centre.Y + step * 24));
+            step++;
         }
     }
+
+    /// <summary>
+    /// Paste a picture from the clipboard — the other half of how reference
+    /// arrives, and the one a screenshot takes.
+    /// </summary>
+    private async Task PasteImageAsync()
+    {
+        if (Clipboard is not { } clipboard) return;
+        var centre = ViewCentre;
+        try
+        {
+            if (await clipboard.TryGetDataAsync() is not { } data) return;
+
+            // A copied *file* first: that is what a file manager and most
+            // browsers put on the clipboard, and it keeps the picture's name.
+            if (await data.TryGetValuesAsync(DataFormat.File) is { } files)
+            {
+                var step = 0;
+                foreach (var file in files)
+                {
+                    if (file.TryGetLocalPath() is not { } path) continue;
+                    if (BoardModel.AddImageFile(path, (centre.X + step * 24, centre.Y + step * 24)) is not null)
+                    {
+                        step++;
+                    }
+                }
+                if (step > 0) return;
+            }
+
+            foreach (var format in ClipboardImageFormats)
+            {
+                if (await data.TryGetValueAsync(format) is not { Length: > 0 } bytes) continue;
+                if (BoardModel.AddImageBytes("Pasted", bytes, (centre.X, centre.Y)) is not null) return;
+            }
+            _vm.AiStatus = "There is no picture on the clipboard to pin up.";
+        }
+        catch (Exception ex)
+        {
+            Rendering.CanvasControl.LogDiag("reference-board-paste", ex);
+        }
+    }
+
+    /// <summary>What a copied picture arrives as, best first.</summary>
+    private static readonly DataFormat<byte[]>[] ClipboardImageFormats =
+    [
+        DataFormat.CreateBytesPlatformFormat("image/png"),
+        DataFormat.CreateBytesPlatformFormat("image/jpeg"),
+        DataFormat.CreateBytesPlatformFormat("image/bmp"),
+    ];
 
     /// <summary>Formats a picture dragged out of a browser can arrive in.</summary>
     private static readonly DataFormat<string> UriListFormat =
@@ -532,11 +667,23 @@ public sealed class ReferenceBoardWindow : Window
     /// <summary>Pictures dropped on the wall are pinned up, in the order they came.</summary>
     private async void OnDrop(object? sender, DragEventArgs e)
     {
+        // Where the pointer let go, on the board — not below everything already
+        // up, which is off the bottom of the window on any wall that has been
+        // arranged to fill it (B204).
+        var at = ToBoard(e.GetPosition(_surface.Parent as Visual ?? this));
+
         var files = DroppedFiles(e);
         if (files.Count > 0)
         {
             e.Handled = true;
-            foreach (var path in files) BoardModel.AddImageFile(path);
+            // Several files fan out from the drop rather than stacking exactly on
+            // top of each other, so a folder dropped at once is legible.
+            var step = 0;
+            foreach (var path in files)
+            {
+                BoardModel.AddImageFile(path, (at.X + step * 24, at.Y + step * 24));
+                step++;
+            }
             return;
         }
 
@@ -550,7 +697,10 @@ public sealed class ReferenceBoardWindow : Window
         {
             var bytes = await Services.WebImageDrop.FetchAsync(uri);
             if (bytes is null) continue;
-            if (BoardModel.AddImageBytes(Services.WebImageDrop.NameFor(uri), bytes) is not null) return;
+            if (BoardModel.AddImageBytes(Services.WebImageDrop.NameFor(uri), bytes, (at.X, at.Y)) is not null)
+            {
+                return;
+            }
         }
         _vm.AiStatus = "That drop did not contain an image Lightbox could read.";
     }

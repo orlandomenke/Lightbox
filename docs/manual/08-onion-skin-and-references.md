@@ -100,27 +100,40 @@ the way a missing video file leaves its extracted frames.
 
 ### The reference board
 
-The **🗔** button beside a view in the **Reference sheets** panel opens the
-**reference board** — a wall of reference beside the easel, instead of one
-picture opened in the drawing's place. Put it on a second screen, or beside the
-canvas, and draw.
+**View ▸ Reference board** (or `Alt+R`) opens the **reference board** — a wall of
+reference beside the easel, instead of one picture opened in the drawing's
+place. Put it on a second screen, or beside the canvas, and draw. The **🗔**
+button beside a view in the **Reference sheets** panel opens the same one.
 
-It fills itself. Every reference sheet the document can consult is pinned up
-automatically, each view **flattened to one picture** rather than a stack of
-layers, laid out to fit the window. Sheets belonging to a folder above the
+**It does not need a character sheet.** With no sheets at all it opens empty and
+you drop photographs on it — that is a perfectly ordinary way to use it.
+
+Where there *are* sheets it fills itself: every reference sheet the document can
+consult is pinned up, each view **flattened to one picture** rather than a stack
+of layers, laid out to fit the window. Sheets belonging to a folder above the
 document are in scope, so a knight's animations all open the knight's wall.
+
+**The board is bigger than the window.** It extends as far in every direction as
+you drag something, so pictures go wherever you want them and the window is a
+view onto the wall rather than the whole of it.
 
 | To do this | Do that |
 | --- | --- |
 | Move a picture | Drag it. Picking it up brings it to the front |
 | Resize it | Drag its bottom-right corner. The shape is kept |
 | Change the stacking | Right-click ▸ **Bring to front** / **Send to back** |
-| Take one down | Right-click ▸ **Take off the board** |
+| Take one down | Right-click ▸ **Take off the board**, or `Delete` |
 | Tidy the whole wall | **Auto-arrange** — every picture fitted into the space there is, in the order they are in |
-| Add a picture from disk | **Add image…**, or drag files onto the board |
+| Find something you have lost | **Fit** (`Ctrl+Shift+F`) zooms out until everything on the board is on screen |
+| Add a picture from disk | Drag files onto the board, or **Add image…** |
 | Add one from a web page | Drag the image off the page onto the board |
+| Paste one | `Ctrl+V` — a copied file, or a screenshot straight off the clipboard |
 | Put a sheet back up | **Sheets ▾** lists everything in scope that is not on the wall |
 | Move around | Wheel zooms, middle-drag or drag the empty background pans |
+
+**A picture lands where you put it** — under the pointer when you drop it, in the
+middle of the view when it comes from the picker or the clipboard. Drop several
+at once and they fan out from that point rather than stacking exactly.
 
 The sheets on it stay **live**: draw on a view in its tab, hide one of its
 layers, undo, and its picture on the board updates by itself. Drawing still
@@ -137,8 +150,8 @@ beside your art. The original can be moved, renamed or deleted afterwards and
 the board is unaffected — which is the point, since a picture dragged off a web
 page has no file to point at in the first place.
 
-Clicking **🗔** again brings the open board forward; there is one board window,
-not one per picture, and it closes with the application.
+Opening it again brings the board you already have forward; there is one board
+window, not one per picture, and it closes with the application.
 
 **What detection actually looks for.** Not gaps in the whole image — the
 drawings themselves. It finds every connected mark on the sheet and then throws

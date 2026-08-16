@@ -272,6 +272,9 @@ public partial class MainWindow
             case "docker.mergeDown":
                 RequestMergeDown(null); // null = the active layer
                 break;
+            case "reference.board":
+                OnOpenReferenceBoard(null, new RoutedEventArgs());
+                break;
             // Flipping: hop between key drawings without leaving the pen.
             case "timeline.prevKey":
                 _vm.PreviousKeyframeCommand.Execute(null);
