@@ -106,6 +106,12 @@ public partial class MainViewModel
         // stale one is wrong pixels rather than a slow repaint.
         RebuildRigIndex();
 
+        // What a click would flood may have changed under a still pointer —
+        // the fill that just committed there is the common case. Forgetting
+        // the traced region is cheap; the recompute only runs if a preview
+        // is actually up.
+        ForgetFillPreviewRegion();
+
         if (_committingScopedEdit)
         {
             MarkDocumentEdited();

@@ -47,6 +47,11 @@ because its first drag is what *creates* the rig.
   parent, leaving them exactly where they are; strokes bound to it lose that
   binding.
 
+**Every one of these drags shows its result while you drag.** The bone you
+are creating, moving, re-aiming or extruding follows the pointer, computed by
+the same code the release runs — so where the drag shows it is where letting
+go puts it, and the whole gesture is still a single undo step.
+
 ## Posing
 
 Switch to **posing** (**Shift+K**) and dragging a bone rotates it instead of
@@ -54,6 +59,15 @@ editing it. The pose is keyed **at the playhead automatically** — pose the arm
 on frame 8 and a pose key lands on frame 8, interpolating from and to the keys
 either side, with the frames between showing the blend. Scrub the timeline and
 bound drawings follow the pose live, in playback and in every export.
+
+**The drawing follows the drag, not just the bones.** Bound strokes re-render
+through the provisional pose as you drag, exactly — the same render the
+release lands, so nothing settles or shifts on pen-up. The one exception is a
+stroke whose brush carries the expensive badge (a simulated medium, smudge or
+blur, layer sampling): it draws as a thin ghost of its own centreline during
+the drag and lands exactly when you release. Nothing is keyed until you let go —
+and a drag the window loses (focus stolen mid-gesture) is abandoned, the
+drawing snapping back to its keyed pose.
 
 A pose never touches your lines. It decides where they are *drawn*; the record
 keeps them at rest, so un-keying a pose returns exactly the drawing you made.

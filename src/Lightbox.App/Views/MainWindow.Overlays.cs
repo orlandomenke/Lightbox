@@ -69,6 +69,15 @@ public partial class MainWindow
             _vm.EndBoneGesture(id, grab, x0, y0, x1, y1, extruding);
             RefreshArmatureOverlay();
         };
+        Canvas.BoneGestureCancelled += () =>
+        {
+            _vm.ClearBoneGesturePreview();
+            RefreshArmatureOverlay();
+        };
+        // The bucket's and the wand's hover preview: traced in the view
+        // model by the same functions the click runs, drawn by the canvas
+        // as chrome.
+        _vm.FillPreviewChanged += (contours, wand, hex) => Canvas.SetFillPreview(contours, wand, hex);
         Canvas.WeightStrokeStarted += (x, y, p) => _vm.BeginWeightStroke(x, y, p);
         Canvas.WeightDabbed += (x, y, p) =>
         {

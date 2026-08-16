@@ -59,6 +59,12 @@ public sealed partial class CanvasControl
     /// </summary>
     public event Action<string?, BoneGrab, double, double, double, double, bool>? BoneDragged;
 
+    /// <summary>
+    /// The gesture died without a release — pointer capture lost — so the
+    /// preview must be dropped without committing anything.
+    /// </summary>
+    public event Action? BoneGestureCancelled;
+
     /// <summary>Shift was held on the press, so a tip drag grows a child rather than re-aiming.</summary>
     private bool _boneExtruding;
 

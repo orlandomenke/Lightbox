@@ -74,6 +74,34 @@ public partial class CanvasControl
         => (SelectionAnts.FramePath(_antsBase, _selectionPreview, _dragShape),
             SelectionAnts.OpenPath(_polygonInProgress));
 
+    // ---- fill / wand hover preview -----------------------------------------
+
+    private SKPath? _fillPreviewBase;
+    private bool _fillPreviewWand;
+    private SKColor _fillPreviewColor = SKColors.Black;
+
+    /// <summary>
+    /// The region the bucket or the wand would take at the pointer, pushed
+    /// by the window from the view model's trace — null contours clear it.
+    /// Cached as a path here for the ants' reason: the overlay repaints at
+    /// pointer rate and the region only changes when the trace does.
+    /// </summary>
+    public void SetFillPreview(
+        IReadOnlyList<List<Core.Documents.StrokePoint>>? contours, bool wand, string colorHex)
+    {
+        _fillPreviewBase?.Dispose();
+        _fillPreviewBase = contours is { Count: > 0 }
+            ? Raster.BrushEngine.PathFromContours(contours)
+            : null;
+        _fillPreviewWand = wand;
+        _fillPreviewColor = SKColor.TryParse(colorHex, out var c) ? c : SKColors.Black;
+        InvalidateVisual();
+    }
+
+    /// <summary>A per-frame copy for the op to own, like the ants base.</summary>
+    private SKPath? FillPreviewForFrame() =>
+        _fillPreviewBase is { } path ? new SKPath(path) : null;
+
     private void StartAntsIfNeeded()
     {
         if (_antsAnimating || (_selectionContours.Count == 0 && _polygonInProgress.Count == 0)) return;
