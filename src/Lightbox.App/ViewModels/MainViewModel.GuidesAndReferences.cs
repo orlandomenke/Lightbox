@@ -1164,6 +1164,49 @@ public partial class MainViewModel
         AfterReferenceChange();
     }
 
+    /// <summary>
+    /// The reference showing under a document point, or -1 — topmost wins,
+    /// which is the last one in the list, the same back-to-front reading the
+    /// compositor gives <see cref="Scene.References"/>.
+    /// </summary>
+    public int ReferenceStripAt(double x, double y)
+    {
+        if (Scene.References is not { } strips) return -1;
+        for (var i = strips.Count - 1; i >= 0; i--)
+        {
+            var strip = strips[i];
+            if (!strip.Visible || strip.Opacity <= 0) continue;
+            if (strip.CellAt(CurrentFrameIndex) is not { } cell) continue;
+            var (cx, cy, w, h) = CellRect(strip, cell);
+            if (x >= cx && x <= cx + w && y >= cy && y <= cy + h) return i;
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// Move one reference through the stack — list order is z-order, so this
+    /// is "bring it forward" and "send it backward" in one method. The whole
+    /// stack still sits over the paper and under every drawing layer; only
+    /// how the references overlap each other changes.
+    /// </summary>
+    public void MoveReferenceInStack(int from, int to)
+    {
+        if (Scene.References is not { } strips) return;
+        to = Math.Clamp(to, 0, strips.Count - 1);
+        if (from < 0 || from >= strips.Count || from == to) return;
+        _editor.Perform(doc =>
+        {
+            var live = doc.Scene.References!;
+            var strip = live[from];
+            live.RemoveAt(from);
+            live.Insert(to, strip);
+        });
+        // Follow the strip, so the panel and the gizmos keep talking about
+        // the one the artist just moved.
+        ActiveReferenceIndex = to;
+        AfterReferenceChange();
+    }
+
     // ---- editing the grid by hand ---------------------------------------------
 
     /// <summary>

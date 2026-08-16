@@ -1560,6 +1560,20 @@ Already built ✅:
     downloads folder breaks silently, and a picture dragged out of a browser has
     no durable path at all.
 
+- [x] **Project a board reference onto the canvas** `evidence: ToggleTileOnCanvas, BoardTileId, MoveReferenceInStack, ReferenceStripAt, BoardProjectionTests, ProjectingAnImageTile_TapesItsPictureToTheCanvas_Linked, TheStackMenuMovesAReferenceForwardAndBack, RightClickFindsTheTopmostReferenceUnderThePoint`
+  - **Any tile, not only sheet views** — right-click a picture on the wall and
+    it is taped onto the canvas as a pinned `ReferenceStrip`: over the paper
+    (so an opaque background layer does not hide it), under every drawing
+    layer, never a layer of its own, never in an export. A view tile's
+    projection *is* the taped view — one toggle, shared with the docker's
+    button — and an image tile keeps its link through `BoardTileId`, which is
+    what makes projecting a toggle instead of an accumulation.
+  - **The stack is workable from the canvas.** Right-click a projected
+    reference to select it and bring it forward or back among the other
+    references, or take it down; grabbing in align mode picks the reference
+    under the pointer before dragging it. List order is z-order, the same
+    back-to-front reading the compositor and the board itself use.
+
 Next for the board, deliberately not in the first cut (Q69, Q87):
 - [ ] **An editable canvas on the reference board** `evidence: ReferenceViewCanvasTests`
   — draw on a sheet where it hangs, instead of switching to its tab. Needs input

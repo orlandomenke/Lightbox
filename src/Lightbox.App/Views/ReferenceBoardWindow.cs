@@ -259,6 +259,12 @@ public sealed class ReferenceBoardWindow : Window
 
     private ContextMenu MenuFor(BoardTile tile)
     {
+        // The projection toggle: the tile onto the canvas, over the paper and
+        // under the drawing, still linked to this tile. The header is decided
+        // when the menu opens, because whether it is up changes from the
+        // canvas side too — the strip menu's "take off the canvas".
+        var project = new MenuItem { Header = "Project onto the canvas" };
+        project.Click += (_, _) => _vm.ToggleTileOnCanvas(tile, BoardModel.PixelsFor(tile));
         var front = new MenuItem { Header = "Bring to front" };
         front.Click += (_, _) => BoardModel.BringToFront(tile);
         var back = new MenuItem { Header = "Send to back" };
@@ -267,10 +273,15 @@ public sealed class ReferenceBoardWindow : Window
         remove.Click += (_, _) => BoardModel.Remove(tile);
 
         var menu = new ContextMenu();
+        menu.Items.Add(project);
+        menu.Items.Add(new Separator());
         menu.Items.Add(front);
         menu.Items.Add(back);
         menu.Items.Add(new Separator());
         menu.Items.Add(remove);
+        menu.Opened += (_, _) => project.Header = _vm.IsTileOnCanvas(tile)
+            ? "Take off the canvas"
+            : "Project onto the canvas";
         return menu;
     }
 

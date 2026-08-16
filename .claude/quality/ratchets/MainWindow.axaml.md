@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4391
+budget: 4405
 
 ## Why it is here despite being XAML
 
@@ -74,3 +74,8 @@ leaves a number nobody can account for. So every reason above stays, and
   control, no handler and no binding that was not already there. The next
   extraction should still come out of this number; the raise only prices the
   shape the same buttons now have.
+- **→ 4,405** (2026-08-16, B230/B231): +14 for the reference board's two
+  always-present entry points — the View menu item and the Sheets docker's
+  **Board…** button, which is B231's fix and has to be markup — and the
+  workspace menu's tooltips saying what save, save-as and reset now actually
+  do (B230).

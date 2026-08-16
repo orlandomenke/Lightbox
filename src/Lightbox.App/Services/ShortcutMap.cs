@@ -279,6 +279,11 @@ public sealed class ShortcutMap
             // board window, so a gesture pressed over the art never reaches them;
             // the gestures are still kept clear of the main window's, so an
             // artist rebinding one is not surprised by the other.
+            // Resolved by the main window, unlike the three below: opening the
+            // board is asked for from the art, not from a window that does not
+            // exist yet.
+            new("reference.board", "Open the reference board", "Reference",
+                G(Key.B, KeyModifiers.Control | KeyModifiers.Shift)),
             new("reference.arrange", "Auto-arrange the reference board", "Reference",
                 G(Key.R, KeyModifiers.Control | KeyModifiers.Shift)),
             new("reference.front", "Bring the reference forward", "Reference",
