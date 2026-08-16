@@ -71,14 +71,14 @@ public class TransformPreviewTests : BrushStateIsolated
         var vm = Painted();
         var strokes = ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes;
         var before = strokes[0].Points.Select(p => (p.X, p.Y)).ToList();
-        var undos = vm.UndoDepth;
+        var undos = vm.RecordedStepCount;
 
         Assert.True(vm.BeginTransform());
         vm.PreviewTransform(SKMatrix.CreateTranslation(0, 140));
         _ = PixelAt(vm, 150, 200);
 
         Assert.Equal(before, strokes[0].Points.Select(p => (p.X, p.Y)).ToList());
-        Assert.Equal(undos, vm.UndoDepth);
+        Assert.Equal(undos, vm.RecordedStepCount);
     }
 
     [AvaloniaFact]

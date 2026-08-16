@@ -630,4 +630,204 @@ public class StrokeSelectionTests
         Assert.True(vm.HasSelection);
         Assert.Empty(vm.Selection.SelectedStrokeIds);
     }
+
+    // ---- B223: the picked lines can be transformed --------------------------------------
+    //
+    // ROADMAP.md said this "wants a TransformScope meaning 'these strokes
+    // inside this cel'; every scope today is a set of cels, so the transform
+    // session cannot express it yet". The scope was never the obstacle —
+    // TransformSession has taken a stroke filter all along and the marquee has
+    // used it. What was missing was a filter built from the line selection.
+
+    /// <summary>Ctrl+T with lines picked scales those lines and nothing else.</summary>
+    [AvaloniaFact]
+    public void TransformingWithLinesPickedScalesOnlyThose()
+    {
+        var moving = Line(100, 100, 300, 100);
+        var still = Line(100, 400, 300, 400);
+        var vm = WithStrokes(moving, still);
+        vm.ActiveTool = ToolId.Arrow;
+        vm.PickStrokeAt(200, 100, tolerance: 4);
+
+        Assert.True(vm.BeginTransform());
+        vm.CommitTransformAffine(0, 0, 2, 1, 0, 0, 0);
+
+        // The picked line doubled across; the other did not move at all.
+        Assert.Equal(600, moving.Points[^1].X, 1);
+        Assert.Equal(100, still.Points[0].X, 1);
+        Assert.Equal(300, still.Points[^1].X, 1);
+    }
+
+    /// <summary>Rotating them works too — the thing a plain move never offered.</summary>
+    [AvaloniaFact]
+    public void ThePickedLinesCanBeRotated()
+    {
+        var line = Line(100, 100, 300, 100);
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.Arrow;
+        vm.PickStrokeAt(200, 100, tolerance: 4);
+
+        Assert.True(vm.BeginTransform());
+        vm.CommitTransformAffine(200, 100, 1, 1, Math.PI / 2, 0, 0);
+
+        // Turned a quarter about its own middle: the run is now vertical.
+        Assert.Equal(200, line.Points[0].X, 1);
+        Assert.Equal(200, line.Points[^1].X, 1);
+        Assert.NotEqual(line.Points[0].Y, line.Points[^1].Y, 1);
+    }
+
+    /// <summary>
+    /// The scope pins to this drawing while lines are picked, and says why.
+    /// </summary>
+    /// <remarks>
+    /// A stroke lives in exactly one drawing, so a wider scope would collect
+    /// cels the picked lines are not on — not a wider transform, the same one
+    /// with frames that resolve to nothing.
+    /// </remarks>
+    [AvaloniaFact]
+    public void APickedLinePinsTheScopeToItsOwnDrawing()
+    {
+        var line = Line(100, 100, 300, 100);
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.Arrow;
+        vm.PickStrokeAt(200, 100, tolerance: 4);
+
+        Assert.True(vm.ScopeIsPinnedToThisCel);
+        Assert.NotEqual("", vm.ScopePinnedReason);
+
+        // Even asked for the whole animation, the transform is this drawing's.
+        vm.TransformScope = TransformScope.EntireAnimation;
+        Assert.True(vm.BeginTransform());
+        vm.CommitTransformAffine(0, 0, 1, 1, 0, 40, 0);
+
+        Assert.Equal(140, line.Points[0].X, 1);
+    }
+
+    /// <summary>
+    /// With a marquee up as well, the marquee is what Ctrl+T takes.
+    /// </summary>
+    /// <remarks>
+    /// <b>The owner's call against the recommendation (Q97).</b> The
+    /// recommendation was to let the tool in hand decide, reusing the property
+    /// Ctrl+A and Ctrl+D already share. This is the chosen order, and the test
+    /// exists as much to pin the cost as the behaviour: a marquee somewhere off
+    /// screen outranks the lines you can see highlighted.
+    /// </remarks>
+    [AvaloniaFact]
+    public void AMarqueeOutranksThePickedLines()
+    {
+        var inside = Line(100, 100, 300, 100);
+        var outside = Line(100, 400, 300, 400);
+        var vm = WithStrokes(inside, outside);
+        vm.ActiveTool = ToolId.Arrow;
+
+        // Pick the line the marquee does NOT cover, then marquee the other.
+        vm.PickStrokeAt(200, 400, tolerance: 4);
+        vm.ApplySelectionShape(
+            [new(50, 50, 1), new(400, 50, 1), new(400, 200, 1), new(50, 200, 1)],
+            add: false, subtract: false);
+
+        Assert.Equal("the selection", Subject(vm));
+
+        Assert.True(vm.BeginTransform());
+        vm.CommitTransformAffine(0, 0, 1, 1, 0, 40, 0);
+
+        // The marquee's line moved; the picked one stayed where it was.
+        Assert.Equal(140, inside.Points[0].X, 1);
+        Assert.Equal(100, outside.Points[0].X, 1);
+    }
+
+    /// <summary>The session says which of the two it took.</summary>
+    /// <remarks>
+    /// What pays back the precedence above: the failure it makes possible is
+    /// silent, so the session names its subject rather than leaving it to be
+    /// discovered on release.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheSessionSaysWhatItIsMoving()
+    {
+        var vm = WithStrokes(Line(100, 100, 300, 100));
+        Assert.Equal("", vm.TransformSubject);
+
+        vm.ActiveTool = ToolId.Arrow;
+        vm.PickStrokeAt(200, 100, tolerance: 4);
+        Assert.True(vm.BeginTransform());
+
+        Assert.Equal("the selected line", vm.TransformSubject);
+    }
+
+    /// <summary>A drag on a picked line runs as a session and is one undo step.</summary>
+    /// <remarks>
+    /// The drag used to report one delta on release, so the drawing arrived
+    /// after the fact. Through the session the pixels follow the pointer, and
+    /// the whole drag is still exactly one step.
+    /// </remarks>
+    [AvaloniaFact]
+    public void DraggingAPickedLineIsOneSessionAndOneUndoStep()
+    {
+        var line = Line(100, 100, 300, 100);
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.Arrow;
+        vm.PickStrokeAt(200, 100, tolerance: 4);
+        var steps = vm.RecordedStepCount;
+
+        Assert.True(vm.BeginLineMove(200, 100));
+        vm.UpdateMove(240, 100, axisLock: false);
+        vm.UpdateMove(280, 130, axisLock: false);
+        vm.EndMove();
+
+        Assert.Equal(180, line.Points[0].X, 1);
+        Assert.Equal(130, line.Points[0].Y, 1);
+        Assert.Equal(steps + 1, vm.RecordedStepCount);
+
+        vm.UndoCommand.Execute(null);
+
+        // Re-read rather than reusing the captured reference. A transform
+        // commits through DocumentEditor.Perform, which is a *snapshot* step —
+        // undo replaces the whole instance tree, so the object this test was
+        // holding is orphaned and would report the moved coordinates for ever.
+        // B103's lesson, and it bit this test before it guarded anything.
+        var restored = StrokeOf(vm, line.Id);
+        Assert.Equal(100, restored.Points[0].X, 1);
+        Assert.Equal(100, restored.Points[0].Y, 1);
+    }
+
+    /// <summary>The stroke with this id, read fresh out of the document.</summary>
+    private static Stroke StrokeOf(MainViewModel vm, string id) =>
+        ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes.First(s => s.Id == id);
+
+    /// <summary>A press that went nowhere leaves no step behind.</summary>
+    [AvaloniaFact]
+    public void APressOnALineThatDidNotMoveCommitsNothing()
+    {
+        var vm = WithStrokes(Line(100, 100, 300, 100));
+        vm.ActiveTool = ToolId.Arrow;
+        vm.PickStrokeAt(200, 100, tolerance: 4);
+        var steps = vm.RecordedStepCount;
+
+        Assert.True(vm.BeginLineMove(200, 100));
+        vm.CancelMove();
+
+        Assert.Equal(steps, vm.RecordedStepCount);
+        Assert.False(vm.TransformActive);
+    }
+
+    /// <summary>With nothing picked there is no line session to open.</summary>
+    [AvaloniaFact]
+    public void ThereIsNoLineMoveWithoutPickedLines()
+    {
+        var vm = WithStrokes(Line(100, 100, 300, 100));
+        vm.ActiveTool = ToolId.Arrow;
+
+        Assert.False(vm.BeginLineMove(200, 100));
+        Assert.False(vm.TransformActive);
+    }
+
+    private static string Subject(MainViewModel vm)
+    {
+        vm.BeginTransform();
+        var subject = vm.TransformSubject;
+        vm.CancelTransform();
+        return subject;
+    }
 }

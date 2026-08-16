@@ -203,6 +203,11 @@ choice and leaves the transform alone.
 range, or the whole animation. With a selection active, only the strokes inside
 it move — and they move whole, so connected drawings stay connected.
 
+**Lines picked with the Arrow can be transformed too**, and then the scope is
+this drawing, because a line lives on one. If you have both an area selected and
+lines picked, the **area wins**; the transform says which it took when it starts,
+so you are not left guessing.
+
 Because strokes are geometry, a transform is **lossless**: rotating and
 rotating back leaves no softening.
 

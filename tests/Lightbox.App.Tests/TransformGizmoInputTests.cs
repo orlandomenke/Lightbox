@@ -175,18 +175,18 @@ public sealed class TransformGizmoInputTests(ITestOutputHelper output) : BrushSt
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         PressCtrlT(window);
         var strokes = vm.PaintedCel().Strokes.Count;
-        var undos = vm.UndoDepth;
+        var undos = vm.RecordedStepCount;
 
         vm.ActiveTool = ToolId.Eraser;
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         output.WriteLine($"tool {vm.ActiveTool}, txActive {canvas.TransformSessionActive}, "
-                         + $"toolMode {canvas.ToolMode}, undo {undos} -> {vm.UndoDepth}");
+                         + $"toolMode {canvas.ToolMode}, undo {undos} -> {vm.RecordedStepCount}");
         Assert.False(vm.TransformActive);
         Assert.False(canvas.TransformSessionActive);
         Assert.Equal(CanvasControl.CanvasToolMode.Paint, canvas.ToolMode);   // the eraser paints
         // Discarded, not committed: no edit, no undo step, and the record untouched.
-        Assert.Equal(undos, vm.UndoDepth);
+        Assert.Equal(undos, vm.RecordedStepCount);
         Assert.Equal(strokes, vm.PaintedCel().Strokes.Count);
     }
 

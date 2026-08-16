@@ -733,17 +733,18 @@ public partial class MainViewModel
     /// handles, and a gizmo appearing under the pointer for the length of a
     /// nudge is noise.
     /// </param>
-    public bool BeginTransform(bool gizmo = true)
+    /// <param name="filter">
+    /// What moves, overriding the selection the session would derive. Only the
+    /// line drag passes this (B223): a drag on a line you are holding moves
+    /// that line, whatever else happens to be selected elsewhere, because
+    /// direct manipulation cannot mean something other than the thing under
+    /// your hand.
+    /// </param>
+    public bool BeginTransform(bool gizmo = true, Func<Stroke, bool>? filter = null)
     {
         if (!CanEdit(ActiveLayer, "transform it")) return false;
         var frames = CollectTransformFrames();
-        Func<Stroke, bool>? filter = null;
-        if (HasSelection)
-        {
-            int w = Scene.Width, h = Scene.Height;
-            var mask = MaskFromContours(_selectionContours, w, h);
-            filter = s => TransformOps.MajorityInside(s, mask, w, h);
-        }
+        filter ??= DerivedTransformFilter();
         var bounds = TransformOps.Bounds(frames, filter);
         if (frames.Count == 0 || bounds is null)
         {
@@ -764,4 +765,62 @@ public partial class MainViewModel
         if (gizmo) TransformBegun?.Invoke(b.MinX, b.MinY, b.MaxX, b.MaxY);
         return true;
     }
+
+    /// <summary>
+    /// What a transform started from a menu or a key should move, or null for
+    /// the whole scope.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B223. The marquee wins when both are up</b> — the owner's call
+    /// against the recommendation, recorded in Q97 with what it costs. The
+    /// recommendation was to let the tool in hand decide, reusing
+    /// <c>ObjectSelectionIsTheSubject</c>, which <c>Ctrl+A</c> and <c>Ctrl+D</c>
+    /// already share. The cost of this order is precise and worth naming here
+    /// rather than only in the question: a marquee left up somewhere off screen
+    /// silently outranks the lines you can see highlighted, and that is the
+    /// state hardest to notice you are in. <see cref="TransformSubject"/> is
+    /// what pays it back — the session says which one it took.
+    /// </para>
+    /// <para>
+    /// <b>A line selection is not consulted at all when a marquee is up</b>,
+    /// rather than being intersected with it. Two filters ANDed would mean a
+    /// transform that moves neither what you marqueed nor what you picked, and
+    /// there is no way to show that on a canvas.
+    /// </para>
+    /// </remarks>
+    private Func<Stroke, bool>? DerivedTransformFilter()
+    {
+        if (HasSelection)
+        {
+            int w = Scene.Width, h = Scene.Height;
+            var mask = MaskFromContours(_selectionContours, w, h);
+            return s => TransformOps.MajorityInside(s, mask, w, h);
+        }
+        return StrokeSelectionFilter();
+    }
+
+    /// <summary>The picked lines as a filter, or null when nothing is picked.</summary>
+    /// <remarks>
+    /// By id, because the session outlives the list it was built from — the
+    /// same reason <c>SelectionManager</c> holds ids, one layer up.
+    /// </remarks>
+    private Func<Stroke, bool>? StrokeSelectionFilter() =>
+        HasStrokeSelection ? s => Selection.IsStrokeSelected(s.Id) : null;
+
+    /// <summary>
+    /// What the live session is moving, in the artist's words.
+    /// </summary>
+    /// <remarks>
+    /// The visible half of the precedence above. A transform that quietly took
+    /// the marquee when the lines were the thing on screen is the failure the
+    /// chosen order makes possible, so the session says which it took instead
+    /// of leaving it to be discovered on release.
+    /// </remarks>
+    public string TransformSubject =>
+        !TransformActive ? ""
+        : HasSelection ? "the selection"
+        : HasStrokeSelection ? (Selection.SelectedStrokeIds.Count == 1
+            ? "the selected line" : $"{Selection.SelectedStrokeIds.Count} selected lines")
+        : "this drawing";
 }

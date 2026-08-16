@@ -75,6 +75,45 @@ public partial class MainViewModel
         return true;
     }
 
+    /// <summary>
+    /// Pick up the picked lines. Returns whether a session started.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B223, and it is the paragraph <c>MainViewModel.StrokeActions</c> has
+    /// carried since the Arrow shipped.</b> That file says, in as many words,
+    /// that the move "would get live preview and one-undo-step-per-drag from
+    /// BeginTransform / PreviewTransform / CommitTransformAffine, and reusing
+    /// that here looked obvious. It is not available yet: every TransformScope
+    /// is a set of cels, and there is no scope meaning 'these strokes inside
+    /// this cel'." The scope was never the obstacle — <c>TransformSession</c>
+    /// has taken a stroke filter all along, and the marquee has used it. What
+    /// was missing was a filter built from the line selection, which is one
+    /// method.
+    /// </para>
+    /// <para>
+    /// <b>The filter is passed explicitly rather than derived</b>, and that is
+    /// the one place this departs from Q97's precedence. A menu command asks
+    /// "what is selected"; a drag asks "what am I holding", and those differ
+    /// when a marquee is up somewhere else. Letting the marquee outrank the
+    /// line under the pointer would make a direct-manipulation drag move
+    /// something the artist is not touching.
+    /// </para>
+    /// </remarks>
+    public bool BeginLineMove(double x, double y)
+    {
+        if (StrokeSelectionFilter() is not { } lines) return false;
+
+        // A line lives on one drawing, so the scope is that drawing —
+        // ScopeIsPinnedToThisCel makes CollectTransformFrames agree without
+        // this having to set the property and restart anything.
+        if (!BeginTransform(gizmo: false, filter: lines)) return false;
+        _moveAnchor = (x, y);
+        _moveDelta = default;
+        AiStatus = $"Moving {TransformSubject}";
+        return true;
+    }
+
     /// <param name="axisLock">
     /// Shift: hold the move to one axis, whichever it has gone furthest along.
     /// The same thing Shift means on every other tool here.
@@ -478,6 +517,31 @@ public partial class MainViewModel
         if (TransformActive) BeginTransform();
     }
 
+    /// <summary>
+    /// Whether the scope is pinned to this cel because a line selection is
+    /// what is being transformed.
+    /// </summary>
+    /// <remarks>
+    /// <b>B223.</b> A line selection is a set of stroke ids, and a stroke lives
+    /// in exactly one drawing — so "all layers at this frame" or "the whole
+    /// animation" would collect a hundred cels and find the picked lines in one
+    /// of them. That is not a wider transform, it is the same transform with
+    /// ninety-nine frames that resolve to nothing, and a scope control offering
+    /// it would be describing work it cannot do.
+    ///
+    /// <para>
+    /// Only when the lines are actually the subject: a marquee outranks them
+    /// (Q97), and a marquee legitimately spans cels, so the scope stays live.
+    /// </para>
+    /// </remarks>
+    public bool ScopeIsPinnedToThisCel => !HasSelection && HasStrokeSelection;
+
+    /// <summary>Why the scope control is not offering its other options.</summary>
+    public string ScopePinnedReason =>
+        ScopeIsPinnedToThisCel
+            ? "Scope is this drawing while lines are picked — a line lives on one drawing."
+            : "";
+
     /// <summary>Distinct drawings in scope (holds share Frame instances — dedupe by id).</summary>
     private List<Frame> CollectTransformFrames()
     {
@@ -486,6 +550,15 @@ public partial class MainViewModel
         void Add(Frame? f)
         {
             if (f is not null && seen.Add(f.Id)) frames.Add(f);
+        }
+        // B223: the picked lines are on one drawing, so that is the scope
+        // whatever the control last said. Asked before the switch rather than
+        // as a sixth case, because it is not a scope an artist chooses — it is
+        // the others becoming unavailable.
+        if (ScopeIsPinnedToThisCel)
+        {
+            Add(ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex));
+            return frames;
         }
         switch (TransformScope)
         {
@@ -840,8 +913,15 @@ public partial class MainViewModel
             }
             NotifySelection();
         }
+        // B223: and so does the line highlight, for the same reason one line
+        // along. The outline is rebuilt from the strokes rather than mapped
+        // like the contours above, because the strokes have just been rewritten
+        // and re-reading them cannot disagree with what was written.
+        if (HasStrokeSelection) OnStrokeSelectionChanged();
         EndTransformSession();
-        AiStatus = $"Transformed {frames.Count} drawing{(frames.Count == 1 ? "" : "s")}.";
+        AiStatus = HasStrokeSelection && !HasSelection
+            ? $"Transformed {TransformSubject}."
+            : $"Transformed {frames.Count} drawing{(frames.Count == 1 ? "" : "s")}.";
     }
 
     private SKSamplingOptions SamplingFor(TransformSampling mode) => mode switch

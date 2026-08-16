@@ -126,8 +126,22 @@ Everything is one undo step per action, however many lines are selected.
 > differently. If you need a mark preserved exactly, move the **layer** rather
 > than the line.
 
-*Planned:* scaling and rotating what you picked, and a box with handles to do it
-with.
+**Scale and rotate what you picked** with **Ctrl+T**, the same transform the
+rest of the application uses — the handles appear around the lines rather than
+around the whole drawing, and only they move. Enter applies, Esc cancels.
+
+While lines are picked the **scope** is this drawing and says so: a line lives
+on one drawing, so "all layers" or "the whole animation" would name cels it is
+not on.
+
+**A marquee selection wins if you have one up.** If you have both an area
+selected and lines picked, Ctrl+T transforms the area — so if a transform takes
+something you did not expect, the usual reason is a marquee still up somewhere
+off screen, and **Ctrl+D** is the answer. The transform says what it is moving
+when it starts, so you can see which one it took before you drag anything.
+
+Dragging picked lines now moves them **as you drag** rather than on release, and
+the whole drag is still one undo step.
 
 ### Reshaping a line
 
