@@ -293,7 +293,11 @@ public partial class MainWindow
             _vm.ReportDocWidth,
             _vm.ReportDocHeight,
             _vm.ReportDisplayScale,
-            _vm.CanvasQuality.ToString(),
+            // The report mostly describes playback, so when a playback quality
+            // is set the string has to say which quality the run actually used.
+            _vm.PlaybackQuality is { } playbackQuality
+                ? $"{_vm.CanvasQuality} while drawing, {playbackQuality} in playback"
+                : _vm.CanvasQuality.ToString(),
             _vm.ReportComposeScale,
             Rendering.CanvasControl.DurableFrameEnabled,
             totals.Presents > 0,

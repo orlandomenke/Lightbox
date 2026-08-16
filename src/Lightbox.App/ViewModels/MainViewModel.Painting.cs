@@ -269,6 +269,18 @@ public partial class MainViewModel
 
     partial void OnIsPlayingChanged(bool value)
     {
+        // The playback quality takes effect on this flag, so when one is set
+        // the flip is the same event as a zoom step: every cached frame is at
+        // the other resolution, and the timings were measured there too. Both
+        // transitions publish right after this handler — StartPlayback and
+        // Pause each end in PublishSnapshot — so invalidating is enough.
+        if (PlaybackQuality is { } playback && playback != CanvasQuality)
+        {
+            _publish.InvalidateWholeCanvas();
+            _composeRing.InvalidateAll();
+            Performance.Reset();
+        }
+
         // Both caches: playback publishes through the tile store since Q62,
         // so the scan protection has to follow the frames wherever they live
         // (B182 — the tile half went unflipped for a while, and thrashed).

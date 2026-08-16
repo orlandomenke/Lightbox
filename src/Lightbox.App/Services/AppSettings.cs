@@ -165,6 +165,22 @@ public sealed class AppSettings
     public string CanvasQuality { get; set; } = "Display";
 
     /// <summary>
+    /// How much detail the canvas composites while an animation is running,
+    /// or null to use <see cref="CanvasQuality"/> for playback too.
+    /// </summary>
+    /// <remarks>
+    /// Split from <see cref="CanvasQuality"/> because the two moments want
+    /// opposite trades: drawing rewards sharpness on a still image, playback
+    /// rewards frames per second on a moving one. Null is the default and the
+    /// interesting value — "same as while drawing" — so somebody who never
+    /// thinks about it keeps one quality everywhere, and lowering the drawing
+    /// quality on a slow machine lowers playback with it. A string for
+    /// <see cref="BrushMemory"/>'s reason: an unrecognised value falls back
+    /// to the default instead of refusing to load.
+    /// </remarks>
+    public string? PlaybackQuality { get; set; }
+
+    /// <summary>
     /// Whether a human picked the canvas quality.
     /// </summary>
     /// <remarks>
