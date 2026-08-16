@@ -2006,6 +2006,10 @@ test reopens the bug.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
 
+- [x] **B233** `P2` `ui` The bone chrome is invisible on white paper - the selected bone measures 1.00:1 `evidence: TheSelectedBoneIsVisibleOnWhitePaper, OrdinaryBonesAndHandlesGetTheRimToo`
+  - Found by the 2026-08-16 visual audit, by arithmetic rather than taste: selected-bone white on white paper is a 1.00:1 contrast ratio, 1.14:1 on warm paper; the green bones (1.8:1) and amber handles (1.9:1) were little better. The whole overlay family was calibrated on a dark canvas, where white measures 14:1 — which is why it looked fine everywhere the chrome was designed and vanished everywhere artists actually paint.
+  - Fixed the way marching ants solve the same problem: every live bone and handle draws over a dark translucent rim, so a light line over a dark one is legible on any ground; on dark canvases the rim fades into what is behind it. Ghost bones deliberately get no rim — they should recede.
+
 - [x] **B231** `P2` `ui` The reference board is unreachable until a sheet with a view exists `evidence: ReferenceBoardReachabilityTests, TheViewMenuOpensTheBoard, TheSheetsDockerOpensTheBoardBeforeAnySheetExists, OpeningTheBoardIsABindableShortcut`
   - Reported by the owner: *"We created a superseding reference window as a type of blackboard… But I have no option to open it, it seems."* The feature was finished, tested and invisible.
   - Cause: the only entry point was an icon on a **view row** in the Reference sheets docker — a button that exists once a sheet with a view does. The board's main audience at first open is someone with *no* sheets who wants a wall to drop images onto, which is exactly when the button was absent. Q87 built the board and registered its three commands in `ShortcutMap`, but "open it" was never a command, so the map, the menus and the search all had nothing to offer — the *land the places it shows up* failure, on the surface that opens the feature rather than one inside it.
@@ -2303,6 +2307,10 @@ test reopens the bug.
   - Cause: `MainViewModel.HasProject` forwards to `ProjectDocker.HasProject` and so has no notification of its own. The relay it depended on was the docker's *change callback*, which fires when the docker edits the project — and adopting one is not an edit.
   - Fix: relay `ProjectViewModel.PropertyChanged` for `HasProject` directly.
   - Reported from a build. Cost: S
+
+- [x] **B234** `P3` `ui` Heat dots sprinkle the ink in Bind and Pose modes, where no brush can use them `evidence: HeatShowsOnlyWhileTheWeightBrushIsArmed`
+  - `HeatPoints` gated only on the Bone tool being active and a bone being selected, so zero-influence blue dots covered every line while the artist was building or posing the skeleton. The dots answer "what would the weight brush touch" — outside Weights mode that question has no brush, and the answer is noise.
+  - Fixed by gating on the weight brush being armed, which is also when the dots' posed positions mean something to correct against.
 
 - [x] **B209** `P3` `ui` `CanvasCursorTests` paints without taking the BrushState collection, so it can read another class's brush store `evidence: CanvasCursorTests, AlphaLockRefusesOverBareCanvasAndAllowsOverPaint`
   - Found while landing B208: the alpha-lock test went red once under full-solution load, reporting a refusal *over paint it had just laid down*. In isolation it passes every time, on this branch and on `main` — which is the signature of the parallelism hazard rather than of a bug in the code it guards.

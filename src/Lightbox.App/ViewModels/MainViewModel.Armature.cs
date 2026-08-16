@@ -138,6 +138,31 @@ public sealed partial class MainViewModel
             foreach (var spline in armature.Splines ?? [])
                 handles.UnionWith(spline.HandleBoneIds);
             var chrome = new List<BoneChrome>(armature.Bones.Count);
+
+            // The armature's onion skin: the skeleton at the neighbouring
+            // pose keys, tinted the way the drawing's ghosts are, so an
+            // inbetween pose is judged against where it came from and where
+            // it goes. Keys rather than frames, and that is the decision:
+            // pose keys are where poses are authored, and a ghost one frame
+            // away on an interpolated track is a near-copy that says nothing.
+            // First in the list so the live skeleton draws over them.
+            if (PosingMode && Onion.Enabled && Doc.Scene.PoseTrack is { Keys.Count: > 0 } track)
+            {
+                foreach (var (ghostFrame, kind) in GhostKeyFrames(track))
+                {
+                    var at = ArmatureOps.Solve(armature, ArmatureOps.PoseAt(track, ghostFrame));
+                    foreach (var bone in armature.Bones)
+                    {
+                        // A handle on a pose nobody can grab is clutter.
+                        if (handles.Contains(bone.Id)) continue;
+                        var g = at[bone.Id];
+                        var (gx, gy) = g.Tip(bone.Length);
+                        chrome.Add(new BoneChrome(
+                            bone.Id, bone.Name, g.X, g.Y, gx, gy, false, false, kind));
+                    }
+                }
+            }
+
             foreach (var bone in armature.Bones)
             {
                 var p = placements[bone.Id];
@@ -151,19 +176,35 @@ public sealed partial class MainViewModel
     }
 
     /// <summary>
+    /// The pose-key frames the armature ghosts: up to <c>Onion.Before</c>
+    /// keys behind the playhead and <c>Onion.After</c> ahead, nearest first —
+    /// the onion bar's own depth controls, read for the skeleton.
+    /// </summary>
+    private IEnumerable<(int Frame, BoneGhost Kind)> GhostKeyFrames(PoseTrack track)
+    {
+        var frames = track.Keys.Select(k => k.Frame).Distinct().OrderBy(f => f).ToList();
+        foreach (var f in Enumerable.Reverse(frames).Where(f => f < CurrentFrameIndex).Take(Math.Max(0, Onion.Before)))
+            yield return (f, BoneGhost.Before);
+        foreach (var f in frames.Where(f => f > CurrentFrameIndex).Take(Math.Max(0, Onion.After)))
+            yield return (f, BoneGhost.After);
+    }
+
+    /// <summary>
     /// The heat view: the selected bone's influence at every control point of
     /// every stroke on the current drawing, drawn where the artist sees the
     /// drawing — the posed positions at the playhead. The <em>weights</em> are
     /// still rest-pose facts (Q81); only where the dots sit follows the pose,
     /// which is what lets the armpit being fixed be the armpit on screen.
-    /// Empty when nothing is selected or the mode is off: no bone means no
-    /// heat, not a cold canvas.
+    /// Empty when nothing is selected or the weight brush is not armed: the
+    /// dots answer "what would this brush touch", so outside Weights mode
+    /// they are noise sprinkled over the ink — zero-influence blue on every
+    /// line while the artist is only building the skeleton.
     /// </summary>
     public IReadOnlyList<HeatPoint> HeatPoints
     {
         get
         {
-            if (!ArmatureEditMode || SelectedBoneId is not { } boneId) return [];
+            if (!ArmatureEditMode || !WeightPainting || SelectedBoneId is not { } boneId) return [];
             if (ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex) is not { } frame) return [];
 
             var pose = ArmatureOps.PoseAt(Doc.Scene.PoseTrack, CurrentFrameIndex);

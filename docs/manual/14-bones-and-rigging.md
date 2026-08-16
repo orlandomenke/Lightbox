@@ -21,6 +21,8 @@ Below the switch, the panel lists **every bone in the rig**, children indented
 under their parents. Picking one there selects it on the canvas — the same
 selection a click on the canvas makes — and the selected bone draws **white**
 where the others draw green, the same colour selection wears on every overlay.
+Every bone and handle sits on a dark rim, so the chrome reads on white paper
+and dark canvases alike.
 The rest of the panel is what you can do to the picked bone (rename, length,
 add child, delete, IK, spline, constraints), the weight brush while it is
 armed, and the binding actions. The pointer
@@ -65,6 +67,13 @@ editing it. The pose is keyed **at the playhead automatically** — pose the arm
 on frame 8 and a pose key lands on frame 8, interpolating from and to the keys
 either side, with the frames between showing the blend. Scrub the timeline and
 bound drawings follow the pose live, in playback and in every export.
+
+**The skeleton has its own onion skin.** With onion skin on, posing also
+shows outline ghosts of the skeleton at the neighbouring **pose keys** — warm
+behind the playhead, cool ahead, the same colours the drawing's ghosts wear —
+so an inbetween pose is judged against where it came from and where it goes.
+The onion bar's switch and depths drive it, and a ghost is never grabbed: a
+press through one lands on the real skeleton or the canvas.
 
 **The drawing follows the drag, not just the bones.** Bound strokes re-render
 through the provisional pose as you drag, exactly — the same render the
@@ -220,9 +229,10 @@ each part of it.
   hips, anywhere two bones share one drawing — is what the heat view and the
   weight brush are for.
 - The **heat view** shows the selected bone's influence over the current
-  drawing, blue (none) through red (owned), while the Bone tool is active.
-  The dots sit on the drawing **as it is posed at the playhead**, so what
-  you see is what you would paint.
+  drawing, blue (none) through red (owned), while the **weight brush is
+  armed** — in Bind and Pose the ink stays clean. The dots sit on the
+  drawing **as it is posed at the playhead**, so what you see is what you
+  would paint.
 
 - The **weight brush** (**Ctrl+Shift+K** while the Bone tool is active)
   paints influence for the selected bone directly on the canvas: pressure
