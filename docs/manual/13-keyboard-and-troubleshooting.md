@@ -53,6 +53,7 @@ warns about.
 | Delete | Delete the selected lines |
 | Arrows | Nudge the selected lines a pixel, ten with Shift (Arrow tool only) |
 | Ctrl (hold) | Borrow the eyedropper; let go and your tool comes back |
+| B, E, F, V, I (hold) | Tap to switch tools as always; **hold** one, use it, and let go to land back where you were |
 | I | Eyedropper — anywhere except the timeline, where it inserts a key |
 | Ctrl+Z / Ctrl+Y | Undo, redo |
 | Ctrl+T | Transform |
@@ -66,7 +67,7 @@ warns about.
 | 0 | Reset zoom, rotation, mirror and pan |
 | Shift + drag | Resize the brush |
 | Wheel / Shift+wheel | Zoom / rotate the view |
-| Alt+R | Open the reference board |
+| Ctrl+Shift+B | Open the reference board |
 | Ctrl+Shift+R / Ctrl+Shift+F | On the board: auto-arrange / fit everything on screen |
 | Ctrl+Shift+↑ / ↓ | On the board: bring the last picture you touched forward / send it behind |
 | Delete / Ctrl+V | On the board: take the picture off it / paste a picture onto it |
@@ -121,6 +122,17 @@ used.
 
 It only changes what you see while working. **The drawing, the exports and the
 thumbnails are always full resolution**, whatever this is set to.
+
+**Canvas quality during playback**, just below it, is the same ladder applied
+to a different moment. A still drawing rewards sharpness and a running
+animation rewards frame rate, so the two are separate settings: you can ink at
+Full and still play the scene back at Half, which is the single biggest lever
+when playback stutters. It is set to *Same as while drawing* by default — one
+quality everywhere until you say otherwise — and it only takes hold while a
+scene is actually playing. Scrubbing the playhead counts as drawing, not
+playback: the onion ghosts are up and you are reading individual drawings, so
+it keeps the drawing quality. The same full-resolution promise holds — exports
+and the file on disk never read either setting.
 
 ### Blending layers on the graphics card
 

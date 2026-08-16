@@ -1262,7 +1262,6 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         Assert.False(root.IsLoose);
         Assert.Null(root.Animation);
         Assert.Equal(0, root.Indent);
-        Assert.Equal("", root.Twisty);
         // And never "not on disk" — PathOf answers the project root for several
         // row kinds, so MarkMissing has to exclude it or the project reports
         // itself missing.

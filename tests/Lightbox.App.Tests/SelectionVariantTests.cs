@@ -77,13 +77,13 @@ public sealed class SelectionVariantTests : BrushStateIsolated
             vm.SelectVariantOfCommand.Execute(variant);
             Pump(window);
 
-            var checkedGlyphs = window.GetVisualDescendants().OfType<RadioButton>()
+            var checkedVariants = window.GetVisualDescendants().OfType<RadioButton>()
                 .Where(r => r.GroupName == "selvar" && r.IsChecked == true)
-                .Select(r => r.Content as string)
+                .Select(r => r.CommandParameter)
                 .ToList();
 
-            Assert.Single(checkedGlyphs);
-            Assert.Equal(GlyphOf(variant), checkedGlyphs[0]);
+            Assert.Single(checkedVariants);
+            Assert.Equal(variant, checkedVariants[0]);
         }
     }
 
@@ -95,7 +95,7 @@ public sealed class SelectionVariantTests : BrushStateIsolated
         Pump(window);
 
         var wand = window.GetVisualDescendants().OfType<RadioButton>()
-            .First(r => r.GroupName == "selvar" && (r.Content as string) == "🪄");
+            .First(r => r.GroupName == "selvar" && Equals(r.CommandParameter, SelectVariant.Wand));
         wand.Command!.Execute(wand.CommandParameter);
         Pump(window);
 
@@ -115,12 +115,4 @@ public sealed class SelectionVariantTests : BrushStateIsolated
         if (b.Command?.CanExecute(b.CommandParameter) == true) b.Command.Execute(b.CommandParameter);
     }
 
-    private static string GlyphOf(SelectVariant v) => v switch
-    {
-        SelectVariant.Polygon => "⬠",
-        SelectVariant.Box => "▭",
-        SelectVariant.Ellipse => "◯",
-        SelectVariant.Wand => "🪄",
-        _ => "◌",
-    };
 }

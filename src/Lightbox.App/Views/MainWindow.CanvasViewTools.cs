@@ -187,6 +187,10 @@ public partial class MainWindow
                 _vm.ProjectDocker.RefreshFromDiskCommand.Execute(null);
                 e.Handled = true;
                 break;
+            case "reference.board":
+                OnOpenReferenceBoard(this, e);
+                e.Handled = true;
+                break;
             case "project.window":
                 // Harmless with no project, for the same reason as above: the
                 // method guards on it rather than the key handler holding a
@@ -204,6 +208,12 @@ public partial class MainWindow
                 break;
             case "timeline.insertKey":
                 _vm.InsertKeyframeAtPlayhead();
+                break;
+            case "timeline.deleteColumn":
+                // The playhead, because a shortcut has no cel under a pointer —
+                // the menu route passes the cel that was clicked.
+                _vm.DeleteColumnAt(_vm.CurrentFrameIndex);
+                e.Handled = true;
                 break;
             case "timeline.playPause":
                 _vm.TogglePlaybackCommand.Execute(null);
@@ -272,9 +282,6 @@ public partial class MainWindow
             case "docker.mergeDown":
                 RequestMergeDown(null); // null = the active layer
                 break;
-            case "reference.board":
-                OnOpenReferenceBoard(null, new RoutedEventArgs());
-                break;
             // Flipping: hop between key drawings without leaving the pen.
             case "timeline.prevKey":
                 _vm.PreviousKeyframeCommand.Execute(null);
@@ -314,6 +321,9 @@ public partial class MainWindow
                 _vm.RigEditMode = !_vm.RigEditMode;
                 e.Handled = true;
                 break;
+            case "canvas.motionTrail":
+                _vm.MotionTrail = !_vm.MotionTrail;
+                break;
             case "canvas.showGuides":
                 _vm.Workspace.GuidesVisible = !_vm.Workspace.GuidesVisible;
                 break;
@@ -346,6 +356,9 @@ public partial class MainWindow
                 break;
             case "armature.weightPaint":
                 _vm.WeightPainting = !_vm.WeightPainting;
+                break;
+            case "armature.deleteBone":
+                _vm.DeleteBoneCommand.Execute(null);
                 break;
             case "lines.simplify":
                 _vm.SimplifyLineCommand.Execute(null);

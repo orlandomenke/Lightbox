@@ -37,6 +37,17 @@ namespace Lightbox.App.Rendering;
 /// publishes falling behind input.
 /// </para>
 /// <para>
+/// <b>The newest event is anchored beside the oldest, because one number was
+/// carrying two meanings.</b> B189's second capture read <em>worse</em> after
+/// the pacing landed — 89.8 ms event → publish — and a third of that was
+/// arithmetic, not lag: pacing coalesces more events per publish (4.7 → 11.4),
+/// and eleven events gathered over ~90 ms make the oldest old even when the
+/// pen tip is fresh. The oldest anchor is coalescing depth <em>times</em>
+/// staleness; the newest is staleness alone — how far the tip itself runs
+/// behind the hand. Reading them together is what tells "publishes are
+/// falling behind" apart from "publishes are batching well".
+/// </para>
+/// <para>
 /// <b>Two threads touch this</b> — events, stamps and publishes on the UI
 /// thread, draws on the render thread — so everything is behind one lock, taken
 /// a handful of times per pointer event, which at hand speed is nothing.
@@ -55,16 +66,18 @@ internal sealed class StrokeToScreen
     /// </summary>
     public const int Tracked = 16;
 
-    private readonly (long Seq, long EventTicks, long PublishTicks, int Events)[] _pending =
-        new (long, long, long, int)[Tracked];
+    private readonly (long Seq, long EventTicks, long NewestTicks, long PublishTicks, int Events)[]
+        _pending = new (long, long, long, long, int)[Tracked];
 
     private readonly Lock _gate = new();
 
     private int _next;
 
-    // The oldest event stamped since the last ink-carrying publish, and how
-    // many the next publish will cover. Zero ticks means nothing is waiting.
+    // The oldest and newest events stamped since the last ink-carrying
+    // publish, and how many the next publish will cover. Zero oldest ticks
+    // means nothing is waiting.
     private long _oldestTicks;
+    private long _newestTicks;
     private int _batched;
 
     private int _events;
@@ -76,8 +89,10 @@ internal sealed class StrokeToScreen
     // waits are per publish, and pen→screen only exists for drawn frames.
     private double _stampTotalMs, _stampWorstMs;
     private double _toPublishTotalMs, _toPublishWorstMs;
+    private double _tipToPublishTotalMs, _tipToPublishWorstMs;
     private double _toDrawTotalMs, _toDrawWorstMs;
     private double _totalTotalMs, _totalWorstMs;
+    private double _tipTotalMs, _tipWorstMs;
 
     /// <summary>A pointer event has reached the stroke handler. UI thread.</summary>
     /// <returns>The timestamp to hand back to <see cref="Stamped"/>.</returns>
@@ -94,7 +109,10 @@ internal sealed class StrokeToScreen
             if (ms > _stampWorstMs) _stampWorstMs = ms;
             // The oldest waiting event wins: it is the mark furthest behind
             // the pen, so it is the honest anchor for the publish's latency.
+            // The newest is kept beside it — staleness without the coalescing
+            // term — so the two stop sharing one number (see the remarks).
             if (_oldestTicks == 0) _oldestTicks = eventTicks;
+            _newestTicks = eventTicks;
             _batched++;
         }
     }
@@ -112,18 +130,22 @@ internal sealed class StrokeToScreen
 
             var now = Stopwatch.GetTimestamp();
             var wait = Ms(now - _oldestTicks);
+            var tipWait = Ms(now - _newestTicks);
 
             var slot = _next++ % Tracked;
             // Whatever this overwrites was replaced before anything drew it —
             // ink that never reached the screen at all.
             if (_pending[slot].EventTicks != 0) _superseded++;
-            _pending[slot] = (seq, _oldestTicks, now, _batched);
+            _pending[slot] = (seq, _oldestTicks, _newestTicks, now, _batched);
 
             _publishes++;
             _toPublishTotalMs += wait;
             if (wait > _toPublishWorstMs) _toPublishWorstMs = wait;
+            _tipToPublishTotalMs += tipWait;
+            if (tipWait > _tipToPublishWorstMs) _tipToPublishWorstMs = tipWait;
 
             _oldestTicks = 0;
+            _newestTicks = 0;
             _batched = 0;
         }
     }
@@ -140,6 +162,7 @@ internal sealed class StrokeToScreen
 
                 var draw = Ms(now - _pending[i].PublishTicks);
                 var total = Ms(now - _pending[i].EventTicks);
+                var tip = Ms(now - _pending[i].NewestTicks);
                 _pending[i] = default;
 
                 _drawn++;
@@ -147,6 +170,8 @@ internal sealed class StrokeToScreen
                 if (draw > _toDrawWorstMs) _toDrawWorstMs = draw;
                 _totalTotalMs += total;
                 if (total > _totalWorstMs) _totalWorstMs = total;
+                _tipTotalMs += tip;
+                if (tip > _tipWorstMs) _tipWorstMs = tip;
                 return;
             }
         }
@@ -159,6 +184,7 @@ internal sealed class StrokeToScreen
             Array.Clear(_pending);
             _next = 0;
             _oldestTicks = 0;
+            _newestTicks = 0;
             _batched = 0;
             _events = 0;
             _publishes = 0;
@@ -166,8 +192,10 @@ internal sealed class StrokeToScreen
             _superseded = 0;
             _stampTotalMs = _stampWorstMs = 0;
             _toPublishTotalMs = _toPublishWorstMs = 0;
+            _tipToPublishTotalMs = _tipToPublishWorstMs = 0;
             _toDrawTotalMs = _toDrawWorstMs = 0;
             _totalTotalMs = _totalWorstMs = 0;
+            _tipTotalMs = _tipWorstMs = 0;
         }
     }
 
@@ -184,9 +212,19 @@ internal sealed class StrokeToScreen
     /// <param name="WaitToPublish">Oldest event → its publish, per publish.</param>
     /// <param name="WaitToDraw">Publish → drawn, per drawn frame.</param>
     /// <param name="PenToScreen">Oldest event → drawn — the artist's number.</param>
+    /// <param name="TipToPublish">
+    /// Newest event → its publish, per publish. Staleness without the
+    /// coalescing term: how long the freshest ink waited, however many events
+    /// the publish gathered.
+    /// </param>
+    /// <param name="TipToScreen">
+    /// Newest event → drawn. Read against <paramref name="PenToScreen"/>: a
+    /// wide gap between them is deep coalescing, not deep lag.
+    /// </param>
     public readonly record struct Stats(
         int Events, int Publishes, int Drawn, int Superseded,
-        Segment Stamp, Segment WaitToPublish, Segment WaitToDraw, Segment PenToScreen);
+        Segment Stamp, Segment WaitToPublish, Segment WaitToDraw, Segment PenToScreen,
+        Segment TipToPublish = default, Segment TipToScreen = default);
 
     public Stats Snapshot
     {
@@ -199,7 +237,9 @@ internal sealed class StrokeToScreen
                     Seg(_events, _stampTotalMs, _stampWorstMs),
                     Seg(_publishes, _toPublishTotalMs, _toPublishWorstMs),
                     Seg(_drawn, _toDrawTotalMs, _toDrawWorstMs),
-                    Seg(_drawn, _totalTotalMs, _totalWorstMs));
+                    Seg(_drawn, _totalTotalMs, _totalWorstMs),
+                    Seg(_publishes, _tipToPublishTotalMs, _tipToPublishWorstMs),
+                    Seg(_drawn, _tipTotalMs, _tipWorstMs));
             }
         }
     }

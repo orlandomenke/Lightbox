@@ -63,6 +63,14 @@ public sealed class OnionBarOverflowTests(Xunit.ITestOutputHelper output) : Brus
             // And the switch that turns it on, which is the one flipped most.
             Assert.Contains(onion.GetSelfAndVisualDescendants().OfType<CheckBox>(),
                 c => c.Content as string == "Onion skin" && c.Bounds.Width > 0);
+
+            // The motion trail's switch shares the bar and the same hazard.
+            // Its depth fields are deliberately NOT out here: the first
+            // laid-out measurement showed the labelled pair pushing the bar's
+            // next group into the ▾, so they live behind the ⚙ and the
+            // spinner count above staying at two is part of what this guards.
+            Assert.Contains(onion.GetSelfAndVisualDescendants().OfType<CheckBox>(),
+                c => c.Content as string == "Motion trail" && c.Bounds.Width > 0);
         }
         finally
         {

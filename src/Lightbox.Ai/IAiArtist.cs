@@ -13,7 +13,56 @@ public sealed record InbetweenRequest(
     IReadOnlyList<double> Ts,
     Easing Easing,
     IReadOnlyList<string>? ReferenceImages = null,
-    SubjectTaxonomy? Taxonomy = null);
+    SubjectTaxonomy? Taxonomy = null,
+    IReadOnlyList<RefusedFrame>? Repair = null,
+    IReadOnlyList<AcceptedFrame>? Settled = null);
+
+/// <summary>
+/// A frame from an earlier attempt that passed and is now fixed — context for
+/// a repair, never something to redraw.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Sent only when a refusal needs it, because it is the expensive kind of
+/// context.</b> Most faults name a stroke and a distance the model can act on
+/// with the keys and its own rejected drawing alone.
+/// <see cref="InbetweenFault.Incoherent"/> cannot: <i>“it jitters against the
+/// frames beside it”</i> is defined entirely against frames the re-ask would
+/// otherwise not carry, so a model told that and shown nothing can only guess.
+/// It is the one fault in the set that fails the *would an inbetweener know
+/// what to change* test.
+/// </para>
+/// <para>
+/// So these ride along on a coherence repair and on nothing else. Sending them
+/// always would put roughly another whole frame's strokes on every re-ask for
+/// faults that had no use for them — see <c>DESIGN-ai-payload.md</c>, where
+/// strokes are the token cost and there is no cheaper honest substitute for
+/// showing a drawing.
+/// </para>
+/// </remarks>
+public sealed record AcceptedFrame(double T, IReadOnlyList<Stroke> Strokes);
+
+/// <summary>
+/// A frame the verifier refused, handed back to the model so the next ask is a
+/// correction rather than another roll of the dice.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>The strokes are the reason this record exists.</b> The fault already
+/// reads like a sentence a person could act on — <i>“the ‘near-arm’ did not
+/// stay between the keys — it sits 60px from where the motion puts it”</i> —
+/// but it names a stroke in a drawing the model can no longer see, and a model
+/// asked to fix a stroke it cannot see has to redraw the frame from the keys
+/// again. Sending its own rejected answer back turns the re-ask into an edit.
+/// </para>
+/// <para>
+/// It costs roughly one extra frame's strokes beside the two keys, on the
+/// repair call only — measured against <c>DESIGN-ai-payload.md</c>'s rule that
+/// strokes are what tokens are made of. That is the price of the choice and it
+/// is paid only by runs that were about to lose the frame entirely.
+/// </para>
+/// </remarks>
+public sealed record RefusedFrame(double T, IReadOnlyList<Stroke> Strokes, string Fault);
 
 /// <summary>
 /// Ask what a character is, from the sheets the artist drew of it.

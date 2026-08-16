@@ -329,6 +329,29 @@ public sealed class ReferenceBoardWindow : Window
 
     private ContextMenu MenuFor(BoardTile tile)
     {
+        // The projection toggle: the tile onto the canvas, over the paper and
+        // under the drawing, still linked to this tile. The header is decided
+        // when the menu opens, because whether it is up changes from the
+        // canvas side too — the strip menu's "take off the canvas".
+        var project = new MenuItem { Header = "Project onto the canvas" };
+        project.Click += (_, _) => _vm.ToggleTileOnCanvas(tile, BoardModel.PixelsFor(tile));
+        // The Reference docker's import, fed from the wall: frames found in
+        // the picture and laid against the timeline from the playhead. The
+        // docker is revealed on success because that is where the grid, the
+        // scale and the alignment live — an import you then cannot adjust
+        // reads as a wrong guess rather than a starting point.
+        var lay = new MenuItem { Header = "Lay onto the timeline as frames" };
+        lay.Click += (_, _) =>
+        {
+            if (_vm.ImportBoardTileAsAnimation(tile, BoardModel.PixelsFor(tile)) is not null)
+            {
+                _vm.ReferenceDockerVisible = true;
+            }
+            else
+            {
+                _vm.AiStatus = $"“{tile.Name}” has no readable picture to lay out.";
+            }
+        };
         var front = new MenuItem { Header = "Bring to front" };
         front.Click += (_, _) => BoardModel.BringToFront(tile);
         var back = new MenuItem { Header = "Send to back" };
@@ -337,10 +360,16 @@ public sealed class ReferenceBoardWindow : Window
         remove.Click += (_, _) => BoardModel.Remove(tile);
 
         var menu = new ContextMenu();
+        menu.Items.Add(project);
+        menu.Items.Add(lay);
+        menu.Items.Add(new Separator());
         menu.Items.Add(front);
         menu.Items.Add(back);
         menu.Items.Add(new Separator());
         menu.Items.Add(remove);
+        menu.Opened += (_, _) => project.Header = _vm.IsTileOnCanvas(tile)
+            ? "Take off the canvas"
+            : "Project onto the canvas";
         return menu;
     }
 
@@ -669,7 +698,7 @@ public sealed class ReferenceBoardWindow : Window
     {
         // Where the pointer let go, on the board — not below everything already
         // up, which is off the bottom of the window on any wall that has been
-        // arranged to fill it (B204).
+        // arranged to fill it (B243).
         var at = ToBoard(e.GetPosition(_surface.Parent as Visual ?? this));
 
         var files = DroppedFiles(e);

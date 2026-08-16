@@ -34,10 +34,12 @@
               </Flyout>
             </Button.Flyout>
           </Button>
-          <Button x:Name="PART_Clear" Classes="icon" Content="✕" FontSize="9"
+          <Button x:Name="PART_Clear" Classes="icon"
                   Background="Transparent" BorderThickness="0"
                   IsVisible="{TemplateBinding AllowsNone}"
-                  ToolTip.Tip="No colour" />
+                  ToolTip.Tip="No colour">
+            <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconClose}" />
+          </Button>
         </StackPanel>
       </ControlTemplate>
     </Setter>
@@ -127,10 +129,13 @@
               the one I am looking at", and making that a two-step choice to
               serve the rarer one would tax every use of the button.
             -->
-            <Button DockPanel.Dock="Right" Classes="icon" Content="▾" FontSize="9"
+            <Button DockPanel.Dock="Right" Classes="icon"
                     Padding="3,0" Background="Transparent" BorderThickness="0"
                     IsVisible="{Binding HasPalette}"
                     ToolTip.Tip="Add it to a particular palette">
+              <Button.Content>
+                <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconChevronDown}" />
+              </Button.Content>
               <Button.Flyout>
                 <MenuFlyout ItemsSource="{Binding PaletteTargets}">
                   <MenuFlyout.ItemTemplate>
@@ -149,10 +154,12 @@
                 </MenuFlyout>
               </Button.Flyout>
             </Button>
-            <Button DockPanel.Dock="Right" Classes="icon" Content="＋" FontSize="10"
+            <Button DockPanel.Dock="Right" Classes="icon"
                     Padding="4,0" Background="Transparent" BorderThickness="0"
                     Command="{Binding AddToPaletteCommand}"
-                    ToolTip.Tip="Add this colour to the palette — the selected one, or a new one if there is none yet" />
+                    ToolTip.Tip="Add this colour to the palette — the selected one, or a new one if there is none yet">
+              <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconPlus}" />
+            </Button>
             <TextBlock Text="Palette" FontSize="10" Opacity="0.6" VerticalAlignment="Center" />
           </DockPanel>
           <ItemsControl ItemsSource="{Binding PaletteSwatches}" IsVisible="{Binding HasPalette}">

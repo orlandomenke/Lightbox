@@ -294,6 +294,26 @@ public sealed class PathEditSession
         Dirty = true;
     }
 
+    /// <summary>
+    /// Move one node by an offset, then let <paramref name="snap"/> place it.
+    /// </summary>
+    /// <remarks>
+    /// <b>The snap is applied to the node's destination, not to the offset.</b>
+    /// A grab catches a node slightly off its centre, so snapping the pointer
+    /// would settle the node that same offset away from the guide — near it,
+    /// never on it, and wrong by a different amount every time. Asking where
+    /// the node lands and correcting that is the only version where a node put
+    /// on a guide is actually on it.
+    /// </remarks>
+    public void MoveNodeTo(int index, Func<double, double, (double X, double Y)> snap, double dx, double dy)
+    {
+        if (index < 0 || index >= Path.Nodes.Count) return;
+        if (dx == 0 && dy == 0) return;
+        var node = Path.Nodes[index];
+        var (x, y) = snap(node.X + dx, node.Y + dy);
+        MoveNode(index, x - node.X, y - node.Y);
+    }
+
     /// <summary>Move every selected node by the same offset.</summary>
     public void MoveSelectedNodes(double dx, double dy)
     {

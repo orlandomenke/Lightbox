@@ -168,7 +168,7 @@ public sealed class ToolBarAlignmentTests : BrushStateIsolated
         // the window: the gear lives in the bar's pinned section beside the
         // preset picker now, not inside the OverflowBar.
         var button = Open().GetVisualDescendants().OfType<Button>()
-            .First(b => b.Content as string == "⚙");
+            .First(b => (b.GetValue(ToolTip.TipProperty) as string)?.StartsWith("All brush parameters") == true);
 
         Assert.Null(button.Flyout);
         Assert.NotNull(button.Command);

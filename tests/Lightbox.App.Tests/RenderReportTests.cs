@@ -66,14 +66,16 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         bool gpuCompositeOptedIn = false,
         (int Hits, int Misses, long Bytes)? textureResidency = null,
         (long Frames, long Flattens)? awaitingUnpin = null,
-        (int Frames, int Flattens)? pinned = null) =>
+        (int Frames, int Flattens)? pinned = null,
+        PublishTally? publishesByCaller = null) =>
         new(backend, backend != "GPU", onGpu, gpuFailed, maxTexture,
             docWidth, docHeight, 1.0, "Full", 1.0, durableEnabled, hasPresented,
             Pacing: pacing, PresentWait: presentWait,
             TickPhases: tickPhases, TickCount: tickCount, FrameCache: frameCache, Scene: scene,
             AnimationFrames: animationFrames, RenderMedianMs: renderMedianMs,
             TextureResidency: textureResidency, GpuCompositeOptedIn: gpuCompositeOptedIn,
-            AwaitingUnpin: awaitingUnpin, Pinned: pinned);
+            AwaitingUnpin: awaitingUnpin, Pinned: pinned,
+            PublishesByCaller: publishesByCaller);
 
     /// <summary>
     /// The four states behind one boolean, and the reason this test exists: the

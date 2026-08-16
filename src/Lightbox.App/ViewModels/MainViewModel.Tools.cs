@@ -40,6 +40,7 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(IsPickerTool))]
     [NotifyPropertyChangedFor(nameof(IsGradientTool))]
     [NotifyPropertyChangedFor(nameof(IsMoveTool))]
+    [NotifyPropertyChangedFor(nameof(ReachesGuides))]
     // Missing, and it cost the whole shape options group: nothing ever told
     // the bar the tool had changed, so IsVisible stayed false and there was no
     // way to pick a shape.
@@ -53,6 +54,7 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(IsBoneTool))]
     [NotifyPropertyChangedFor(nameof(ActiveToolLabel))]
     [NotifyPropertyChangedFor(nameof(ActiveToolHasNoPanelOptions))]
+    [NotifyPropertyChangedFor(nameof(UsesGenericToolOptions))]
     private ToolId _activeTool = ToolId.Brush;
 
     [ObservableProperty]
@@ -195,6 +197,7 @@ public partial class MainViewModel
         _hoverScale = scale;
         RefreshPointerIntent();
         RefreshPickPreview();
+        RefreshFillPreview();
     }
 
     /// <summary>The pointer left the canvas: stop claiming to know where it is.</summary>
@@ -204,6 +207,7 @@ public partial class MainViewModel
         _hoverPoint = null;
         RefreshPointerIntent();
         RefreshPickPreview();
+        RefreshFillPreview();
     }
 
     /// <summary>
@@ -354,6 +358,26 @@ public partial class MainViewModel
 
     public bool IsMoveTool => ActiveTool == ToolId.Move;
 
+    /// <summary>
+    /// Whether the tool in hand reaches for guides — picks them, moves them,
+    /// and shows their numbers.
+    /// </summary>
+    /// <remarks>
+    /// <b>B215.</b> Two tools, one answer, asked by everything that used to ask
+    /// <see cref="IsMoveTool"/> about guides: the grab gate on the canvas, the
+    /// emphasis the rig is drawn with, and the options bar and panel. They had
+    /// drifted apart — the Arrow could select a guide through a hit test of its
+    /// own while the bar stayed blank and the drag gate stayed shut — and one
+    /// property is what stops them drifting again.
+    ///
+    /// <para>
+    /// Not the whole answer on its own: hiding or locking the guides overrides
+    /// it, whatever tool is in hand. That half lives with the workspace, which
+    /// is where those two switches are.
+    /// </para>
+    /// </remarks>
+    public bool ReachesGuides => ActiveTool is ToolId.Move or ToolId.Arrow;
+
     public bool IsBoneTool => ActiveTool == ToolId.Bone;
 
     /// <summary>Brush or eraser — the tools whose strokes the brush-parameter flyout edits.</summary>
@@ -382,6 +406,13 @@ public partial class MainViewModel
         ToolId.DirectSelect => "Direct select",
         ToolId.Pen => "Pen",
         ToolId.Width => "Width",
+        // B221. It fell through to ToString() and read "Bone", which is the
+        // right word by luck rather than by decision — the fallback is there so
+        // a tool added tomorrow shows *something*, not so a shipped tool can
+        // skip the table. Every other tool whose label differs from its enum
+        // name is in here; the one that agreed by accident was the one nobody
+        // noticed was missing.
+        ToolId.Bone => "Bone",
         _ => ActiveTool.ToString(),
     };
 
@@ -392,6 +423,21 @@ public partial class MainViewModel
     public bool ActiveToolHasNoPanelOptions => ActiveTool is
         ToolId.Move or ToolId.Picker or ToolId.Arrow or
         ToolId.DirectSelect or ToolId.Pen or ToolId.Width;
+
+    /// <summary>
+    /// Whether the Tool options docker shows the generic per-tool pages
+    /// rather than a tool's own panel.
+    /// </summary>
+    /// <remarks>
+    /// <b>The Bone tool is excluded because its panel is a sibling in the same
+    /// host, and the generic page sat invisibly on top of it.</b> The page had
+    /// nothing to show for the Bone tool, so it rendered as nothing — and
+    /// still hit-tested, which made every control under it dead to the mouse
+    /// while keyboard shortcuts worked. "Unresponsive" was this overlay, not
+    /// the controls; a control that cannot be clicked does not exist, however
+    /// correctly it is wired.
+    /// </remarks>
+    public bool UsesGenericToolOptions => !IsPaintTool && !IsBoneTool;
 
     /// <summary>Eyedropper click: the color under the cursor (what the eye sees, incl. paper).</summary>
     public void PickColorAt(double x, double y)
@@ -492,8 +538,10 @@ public partial class MainViewModel
         NotifyBrushProperties();
         OnPropertyChanged(nameof(LazyRadiusForCursor));
         // Display, so it belongs above the borrow guard below: picking up the
-        // eyedropper without moving the pointer still has to put the ring on.
+        // eyedropper without moving the pointer still has to put the ring on —
+        // and picking up the bucket has to trace what a click would flood.
         RefreshPickPreview();
+        RefreshFillPreview();
 
         // A borrow is not a decision — see MainViewModel.Momentary.cs. Everything
         // below is about an artist choosing to leave a tool, and holding Ctrl is
@@ -522,6 +570,23 @@ public partial class MainViewModel
     /// </remarks>
     private void LeaveToolStateBehind(ToolId value)
     {
+        // B208. Reaching for a tool means you are done transforming, so the
+        // session goes — and it discards rather than applies, because the
+        // preview was never an edit (invariant 1) and committing the document
+        // from a gesture that never said "apply" is the worse mistake of the
+        // two. Enter is still the only thing that writes.
+        //
+        // Unconditional on the tool being chosen, unlike everything below it:
+        // there is no tool that can go on working a gizmo session, the Move
+        // tool included — that one opens a session of its own on the press.
+        //
+        // Worth knowing that the comment below has claimed this behaviour since
+        // B147 ("Every other modal thing here behaves the same way ... the
+        // transform session") and the line was never here. Ctrl+T then survived
+        // every tool change while the canvas quietly went back to painting,
+        // which is the other half of what B208 reported.
+        if (TransformActive) CancelTransform();
+
         CancelPolygonInProgress();
 
         // B147: leaving the arrow lets the lines go. A stroke selection is only
@@ -532,11 +597,25 @@ public partial class MainViewModel
         // which is why this is one line rather than a mode.
         if (value != ToolId.Arrow) ClearStrokeSelection();
 
+        // B215: the same rule, applied to the category it had been leaving out.
+        // Guides are picked by the Arrow and by the Move tool, so a selection
+        // survives between those two — that is one capability handed between
+        // two tools that both have it, not drawn state outliving its tool. Any
+        // other tool and it goes, for the reason above it: a guide left lit
+        // while the brush paints over it is pointing at something the artist
+        // can no longer do.
+        if (!ReachesGuides) Selection.ClearGuideSelection();
+
         // Same one-line rule for the hover preview: it is drawn state that only
         // the white arrow can act on, so it must not outlive the tool. Without
         // this the last-hovered line keeps its points on screen while the brush
         // is painting over them.
         if (value != ToolId.DirectSelect) ClearPathHover();
+
+        // B217: the same one-line rule for the whole-line preview. It belongs
+        // to the two tools that take a whole line, and outside them it is an
+        // outline drawn over artwork nothing is about to pick up.
+        if (value is not (ToolId.Arrow or ToolId.Width)) ClearStrokeHover();
 
         // The pen parks rather than committing: the path in progress survives
         // the switch, stays traced on screen, and the pen resumes it. It used
@@ -605,6 +684,24 @@ public partial class MainViewModel
     public void WandSelectAt(double x, double y, bool add, bool subtract)
     {
         if (ActiveTool != ToolId.Select || IsPlaying) return;
+        var result = WandRegion(x, y, report: true);
+        if (result is null) return;
+        int w = Scene.Width, h = Scene.Height;
+        var contours = new List<List<StrokePoint>> { result.Outer };
+        contours.AddRange(result.Holes);
+        ApplySelectionMask(MaskFromContours(contours, w, h), add, subtract);
+    }
+
+    /// <summary>
+    /// The region a wand click would select — the one function behind the
+    /// click and the hover preview, like <c>FillRegion</c> beside it.
+    /// </summary>
+    /// <param name="report">
+    /// Put the "nothing there" answers on the status line. The click wants
+    /// them; a hover asking the same question does not get to nag.
+    /// </param>
+    private FloodFill.Result? WandRegion(double x, double y, bool report = false)
+    {
         int w = Scene.Width, h = Scene.Height;
         SKBitmap? owned = null;
         try
@@ -620,8 +717,8 @@ public partial class MainViewModel
                 var frame = ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex);
                 if (frame is null)
                 {
-                    AiStatus = "The active layer has nothing drawn to select here.";
-                    return;
+                    if (report) AiStatus = "The active layer has nothing drawn to select here.";
+                    return null;
                 }
                 sample = _cache.Get(frame, w, h);
             }
@@ -630,14 +727,8 @@ public partial class MainViewModel
             var result = FloodFill.Fill(
                 sample, wandX, wandY,
                 new FloodFill.Options(WandTolerance, WandGapPx));
-            if (result is null)
-            {
-                AiStatus = "Nothing selectable at that spot.";
-                return;
-            }
-            var contours = new List<List<StrokePoint>> { result.Outer };
-            contours.AddRange(result.Holes);
-            ApplySelectionMask(MaskFromContours(contours, w, h), add, subtract);
+            if (result is null && report) AiStatus = "Nothing selectable at that spot.";
+            return result;
         }
         finally
         {
@@ -674,17 +765,18 @@ public partial class MainViewModel
     /// handles, and a gizmo appearing under the pointer for the length of a
     /// nudge is noise.
     /// </param>
-    public bool BeginTransform(bool gizmo = true)
+    /// <param name="filter">
+    /// What moves, overriding the selection the session would derive. Only the
+    /// line drag passes this (B223): a drag on a line you are holding moves
+    /// that line, whatever else happens to be selected elsewhere, because
+    /// direct manipulation cannot mean something other than the thing under
+    /// your hand.
+    /// </param>
+    public bool BeginTransform(bool gizmo = true, Func<Stroke, bool>? filter = null)
     {
         if (!CanEdit(ActiveLayer, "transform it")) return false;
         var frames = CollectTransformFrames();
-        Func<Stroke, bool>? filter = null;
-        if (HasSelection)
-        {
-            int w = Scene.Width, h = Scene.Height;
-            var mask = MaskFromContours(_selectionContours, w, h);
-            filter = s => TransformOps.MajorityInside(s, mask, w, h);
-        }
+        filter ??= DerivedTransformFilter();
         var bounds = TransformOps.Bounds(frames, filter);
         if (frames.Count == 0 || bounds is null)
         {
@@ -693,6 +785,14 @@ public partial class MainViewModel
             return false;
         }
         _transform.Begin(frames, filter);
+        _transform.MovingBounds = PreviewMovingBounds(frames, filter);
+        // B225: the gizmo's own box, which is what a move lines up against a
+        // guide. Set from the same value the gizmo is raised with below, so the
+        // box that snaps and the box on screen cannot disagree.
+        _transform.SnapBounds = new SKRect(
+            (float)bounds.Value.MinX, (float)bounds.Value.MinY,
+            (float)bounds.Value.MaxX, (float)bounds.Value.MaxY);
+        _transform.HeldFrameIdToKey = HeldCelNeedingKey();
         TransformActive = true;
         // The session's controls live in the Tool options docker now (Q70), so
         // starting a transform with the docker closed must open it — Apply and
@@ -703,4 +803,62 @@ public partial class MainViewModel
         if (gizmo) TransformBegun?.Invoke(b.MinX, b.MinY, b.MaxX, b.MaxY);
         return true;
     }
+
+    /// <summary>
+    /// What a transform started from a menu or a key should move, or null for
+    /// the whole scope.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B223. The marquee wins when both are up</b> — the owner's call
+    /// against the recommendation, recorded in Q97 with what it costs. The
+    /// recommendation was to let the tool in hand decide, reusing
+    /// <c>ObjectSelectionIsTheSubject</c>, which <c>Ctrl+A</c> and <c>Ctrl+D</c>
+    /// already share. The cost of this order is precise and worth naming here
+    /// rather than only in the question: a marquee left up somewhere off screen
+    /// silently outranks the lines you can see highlighted, and that is the
+    /// state hardest to notice you are in. <see cref="TransformSubject"/> is
+    /// what pays it back — the session says which one it took.
+    /// </para>
+    /// <para>
+    /// <b>A line selection is not consulted at all when a marquee is up</b>,
+    /// rather than being intersected with it. Two filters ANDed would mean a
+    /// transform that moves neither what you marqueed nor what you picked, and
+    /// there is no way to show that on a canvas.
+    /// </para>
+    /// </remarks>
+    private Func<Stroke, bool>? DerivedTransformFilter()
+    {
+        if (HasSelection)
+        {
+            int w = Scene.Width, h = Scene.Height;
+            var mask = MaskFromContours(_selectionContours, w, h);
+            return s => TransformOps.MajorityInside(s, mask, w, h);
+        }
+        return StrokeSelectionFilter();
+    }
+
+    /// <summary>The picked lines as a filter, or null when nothing is picked.</summary>
+    /// <remarks>
+    /// By id, because the session outlives the list it was built from — the
+    /// same reason <c>SelectionManager</c> holds ids, one layer up.
+    /// </remarks>
+    private Func<Stroke, bool>? StrokeSelectionFilter() =>
+        HasStrokeSelection ? s => Selection.IsStrokeSelected(s.Id) : null;
+
+    /// <summary>
+    /// What the live session is moving, in the artist's words.
+    /// </summary>
+    /// <remarks>
+    /// The visible half of the precedence above. A transform that quietly took
+    /// the marquee when the lines were the thing on screen is the failure the
+    /// chosen order makes possible, so the session says which it took instead
+    /// of leaving it to be discovered on release.
+    /// </remarks>
+    public string TransformSubject =>
+        !TransformActive ? ""
+        : HasSelection ? "the selection"
+        : HasStrokeSelection ? (Selection.SelectedStrokeIds.Count == 1
+            ? "the selected line" : $"{Selection.SelectedStrokeIds.Count} selected lines")
+        : "this drawing";
 }

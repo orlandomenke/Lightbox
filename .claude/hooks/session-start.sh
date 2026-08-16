@@ -117,13 +117,13 @@ echo "toolchain: ready"
 # and it costs one line when the file is clean.
 (
   cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}"
-  q=".claude/quality/QUESTIONS.md"
-  if [ -f "$q" ]; then
-    # A heading is answered when it says so; everything else is still open.
-    open=$(grep -E "^## Q[0-9]+ " "$q" | grep -v "answered" || true)
-    if [ -n "$open" ]; then
-      echo "questions: $(echo "$open" | wc -l | tr -d " ") unanswered — ASK these, do not expect them to be read:"
-      echo "$open" | sed "s/^## /  /"
-    fi
+  # The questions are one file each under .claude/quality/questions/ and the
+  # index over them is generated, so build it before reading anything: a fresh
+  # clone has no index at all, and a branch switch leaves a stale one.
+  python3 scripts/questions.py build >/dev/null 2>&1 || true
+  open=$(python3 scripts/questions.py open 2>/dev/null || true)
+  if [ -n "$open" ]; then
+    echo "questions: $(echo "$open" | wc -l | tr -d " ") unanswered — ASK these, do not expect them to be read:"
+    echo "$open" | sed "s/^/  /"
   fi
 )

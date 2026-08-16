@@ -75,6 +75,45 @@ public partial class MainViewModel
         return true;
     }
 
+    /// <summary>
+    /// Pick up the picked lines. Returns whether a session started.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B223, and it is the paragraph <c>MainViewModel.StrokeActions</c> has
+    /// carried since the Arrow shipped.</b> That file says, in as many words,
+    /// that the move "would get live preview and one-undo-step-per-drag from
+    /// BeginTransform / PreviewTransform / CommitTransformAffine, and reusing
+    /// that here looked obvious. It is not available yet: every TransformScope
+    /// is a set of cels, and there is no scope meaning 'these strokes inside
+    /// this cel'." The scope was never the obstacle — <c>TransformSession</c>
+    /// has taken a stroke filter all along, and the marquee has used it. What
+    /// was missing was a filter built from the line selection, which is one
+    /// method.
+    /// </para>
+    /// <para>
+    /// <b>The filter is passed explicitly rather than derived</b>, and that is
+    /// the one place this departs from Q97's precedence. A menu command asks
+    /// "what is selected"; a drag asks "what am I holding", and those differ
+    /// when a marquee is up somewhere else. Letting the marquee outrank the
+    /// line under the pointer would make a direct-manipulation drag move
+    /// something the artist is not touching.
+    /// </para>
+    /// </remarks>
+    public bool BeginLineMove(double x, double y)
+    {
+        if (StrokeSelectionFilter() is not { } lines) return false;
+
+        // A line lives on one drawing, so the scope is that drawing —
+        // ScopeIsPinnedToThisCel makes CollectTransformFrames agree without
+        // this having to set the property and restart anything.
+        if (!BeginTransform(gizmo: false, filter: lines)) return false;
+        _moveAnchor = (x, y);
+        _moveDelta = default;
+        AiStatus = $"Moving {TransformSubject}";
+        return true;
+    }
+
     /// <param name="axisLock">
     /// Shift: hold the move to one axis, whichever it has gone furthest along.
     /// The same thing Shift means on every other tool here.
@@ -94,8 +133,79 @@ public partial class MainViewModel
             if (Math.Abs(dx) >= Math.Abs(dy)) dy = 0;
             else dx = 0;
         }
+        // B225. The guides after the axis lock, so a constrained move still
+        // snaps along the axis it was held to rather than being pulled off it.
+        // Same order the gradient uses for Shift, and for the same reason: the
+        // constraint the artist asked for out loud wins.
+        (dx, dy) = SnappedMove(dx, dy);
         _moveDelta = (dx, dy);
         PreviewTransform(SKMatrix.CreateTranslation((float)dx, (float)dy));
+    }
+
+    /// <summary>
+    /// Correct a move so the moving artwork lands on a guide, if one is near.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B225: the <em>bounds</em> snap, not the grab point.</b> Photoshop's
+    /// Move tool does it this way and the reflex transfers, but the reason is
+    /// independent of that: "line this up with the guide" is a claim about the
+    /// edge of the artwork, and snapping where you happened to take hold would
+    /// mean grabbing exactly the edge to align it. The grab point is the
+    /// version that is simpler to build and harder to use.
+    /// </para>
+    /// <para>
+    /// <b>Five candidates — four corners and the centre.</b> Corners are what
+    /// an artist lines up against a ruler; the centre is what they line up
+    /// against a vanishing point or the middle of a grid cell. Edge midpoints
+    /// were left out because a corner already covers each edge on one axis, and
+    /// nine candidates competing for one drag is how a snap starts feeling
+    /// like it is arguing with you.
+    /// </para>
+    /// <para>
+    /// <b>The smallest correction wins.</b> Every candidate is offered to
+    /// <c>SnappedPoint</c> — B216's shared helper, so this obeys the same
+    /// guides, the same tolerance and the same on/off switch as everything
+    /// else, rather than inventing a second kind of snapping. The one that
+    /// moves least is the one the hand was closest to meaning.
+    /// </para>
+    /// <para>
+    /// <b>Bounded.</b> <see cref="TransformSession.SnapBounds"/> is computed
+    /// once when the session opens, so a pointer move costs five point-snaps
+    /// against the guide list and no geometry — not work proportional to the
+    /// drawing, which is what invariant 6 forbids in a per-event path.
+    /// </para>
+    /// </remarks>
+    private (double X, double Y) SnappedMove(double dx, double dy)
+    {
+        if (!SnapToGuides || Scene.Guides is not { Count: > 0 }) return (dx, dy);
+        if (_transform.SnapBounds is not { } bounds) return (dx, dy);
+
+        (double X, double Y)[] candidates =
+        [
+            (bounds.Left, bounds.Top), (bounds.Right, bounds.Top),
+            (bounds.Left, bounds.Bottom), (bounds.Right, bounds.Bottom),
+            (bounds.MidX, bounds.MidY),
+        ];
+
+        var bestDistance = double.MaxValue;
+        (double X, double Y) best = (dx, dy);
+        foreach (var (cx, cy) in candidates)
+        {
+            var landedX = cx + dx;
+            var landedY = cy + dy;
+            var (snappedX, snappedY) = SnappedPoint(landedX, landedY);
+            var correctionX = snappedX - landedX;
+            var correctionY = snappedY - landedY;
+            // Nothing was near enough to pull this candidate anywhere.
+            if (correctionX == 0 && correctionY == 0) continue;
+
+            var distance = correctionX * correctionX + correctionY * correctionY;
+            if (distance >= bestDistance) continue;
+            bestDistance = distance;
+            best = (dx + correctionX, dy + correctionY);
+        }
+        return best;
     }
 
     /// <summary>Put it down. One undo step for the whole drag, or nothing at all.</summary>
@@ -136,9 +246,9 @@ public partial class MainViewModel
     /// <summary>Begin moving selected guides.</summary>
     public void BeginGuidesMove()
     {
-        if (_selectionManager.SelectedGuideIndices.Count == 0) return;
+        if (_selectionManager.SelectedGuideIds.Count == 0) return;
         _guidesMoveDelta = (0, 0);
-        AiStatus = $"Moving {_selectionManager.SelectedGuideIndices.Count} guide(s)";
+        AiStatus = $"Moving {_selectionManager.SelectedGuideIds.Count} guide(s)";
     }
 
     /// <summary>
@@ -180,17 +290,24 @@ public partial class MainViewModel
     /// <see cref="DragGuide"/> both skip one. Locking exists so a perspective
     /// set can be leaned on without being knocked out of place, and a group
     /// move that ignored it would be the one gesture that could.
+    ///
+    /// <para>
+    /// <b>B215 removed the index lookup this used to do</b>, and with it the
+    /// case it could not defend against: an id that names no guide resolves to
+    /// nothing, where an index that no longer names the guide it was taken from
+    /// resolves to a different one and moves it.
+    /// </para>
     /// </remarks>
     private List<Guide> SelectedGuides()
     {
         var guides = Scene.Guides;
         if (guides is null || guides.Count == 0) return [];
         var picked = new List<Guide>();
-        foreach (var index in _selectionManager.SelectedGuideIndices)
+        foreach (var guide in guides)
         {
-            if (index < 0 || index >= guides.Count) continue;
-            if (guides[index].Locked) continue;
-            picked.Add(guides[index]);
+            if (!_selectionManager.IsGuideSelected(guide.Id)) continue;
+            if (guide.Locked) continue;
+            picked.Add(guide);
         }
         return picked;
     }
@@ -471,6 +588,31 @@ public partial class MainViewModel
         if (TransformActive) BeginTransform();
     }
 
+    /// <summary>
+    /// Whether the scope is pinned to this cel because a line selection is
+    /// what is being transformed.
+    /// </summary>
+    /// <remarks>
+    /// <b>B223.</b> A line selection is a set of stroke ids, and a stroke lives
+    /// in exactly one drawing — so "all layers at this frame" or "the whole
+    /// animation" would collect a hundred cels and find the picked lines in one
+    /// of them. That is not a wider transform, it is the same transform with
+    /// ninety-nine frames that resolve to nothing, and a scope control offering
+    /// it would be describing work it cannot do.
+    ///
+    /// <para>
+    /// Only when the lines are actually the subject: a marquee outranks them
+    /// (Q97), and a marquee legitimately spans cels, so the scope stays live.
+    /// </para>
+    /// </remarks>
+    public bool ScopeIsPinnedToThisCel => !HasSelection && HasStrokeSelection;
+
+    /// <summary>Why the scope control is not offering its other options.</summary>
+    public string ScopePinnedReason =>
+        ScopeIsPinnedToThisCel
+            ? "Scope is this drawing while lines are picked — a line lives on one drawing."
+            : "";
+
     /// <summary>Distinct drawings in scope (holds share Frame instances — dedupe by id).</summary>
     private List<Frame> CollectTransformFrames()
     {
@@ -480,9 +622,22 @@ public partial class MainViewModel
         {
             if (f is not null && seen.Add(f.Id)) frames.Add(f);
         }
+        // B223: the picked lines are on one drawing, so that is the scope
+        // whatever the control last said. Asked before the switch rather than
+        // as a sixth case, because it is not a scope an artist chooses — it is
+        // the others becoming unavailable.
+        if (ScopeIsPinnedToThisCel)
+        {
+            Add(ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex));
+            return frames;
+        }
         switch (TransformScope)
         {
             case TransformScope.ActiveCel:
+                // The frame the drag SHOWS, which on a hold is the drawing the
+                // cel borrows. Where the commit WRITES is a different question,
+                // answered at commit time by HeldCelNeedingKey — see
+                // KeyHeldCelForCommit.
                 Add(ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex));
                 break;
             case TransformScope.AllLayersAtFrame:
@@ -541,10 +696,23 @@ public partial class MainViewModel
     {
         TransformActive = false;
         _transform.End();
+        // Commit and cancel both land here, so the chrome's preview matrix
+        // cannot outlive the session however it ends. On a commit the raise
+        // and the contour move happen in one synchronous chain, so no frame
+        // can render between them with the transform applied twice.
+        TransformPreviewChanged?.Invoke(null);
         TransformEnded?.Invoke();
     }
 
     // ---- live transform preview -------------------------------------------------
+
+    /// <summary>
+    /// The matrix the live preview is compositing through, null when it
+    /// clears. The canvas subscribes so chrome that outlines the moving
+    /// pixels — the marching ants — rides the same matrix the pixels do,
+    /// instead of freezing at the pre-drag position until the commit.
+    /// </summary>
+    public event Action<SKMatrix?>? TransformPreviewChanged;
 
     /// <summary>
     /// Show the drag. Null clears the preview and puts the pixels back where
@@ -560,11 +728,88 @@ public partial class MainViewModel
         // Identity is "no preview": it renders the same and skips the split.
         if (matrix is { } m && m.IsIdentity) matrix = null;
         if (_transform.Preview is null && matrix is null) return;
+        var before = _transform.Preview;
         _transform.Preview = matrix;
-        // The drawing can land anywhere on the canvas, so no dirty region is
-        // safe here.
-        _publish.InvalidateWholeCanvas();
+        TransformPreviewChanged?.Invoke(matrix);
+        // Repaint where the moving pixels were and where they now are — the
+        // stroke path's bounded-work rule (invariant 6), which this preview
+        // used to break with a full-canvas invalidation per pointer event.
+        // Paced to the present rate, that read as a slideshow on any document
+        // where a full recomposite is slow, exactly where a brush stroke
+        // stays live. Whole-canvas remains the fallback when the moving
+        // pixels cannot be bounded from the stroke record.
+        if (PreviewDirtyRegion(before, matrix) is { } dirty)
+        {
+            _publish.MarkDirty(dirty);
+        }
+        else
+        {
+            _publish.InvalidateWholeCanvas();
+        }
         RequestSnapshot();
+    }
+
+    /// <summary>
+    /// The doc-space region one preview step changes: the session's moving
+    /// bounds through the previous matrix, unioned with the same bounds
+    /// through the new one. Null when the moving pixels cannot be bounded and
+    /// the caller must fall back to the whole canvas.
+    /// </summary>
+    /// <remarks>
+    /// Not clamped to the document here: <c>ComposePlan</c> already clamps,
+    /// and a region that leaves the canvas entirely simply patches nothing.
+    /// The two-pixel inflation is the antialias seam, the same allowance
+    /// <c>SnapshotGeometry</c> makes.
+    /// </remarks>
+    private SKRectI? PreviewDirtyRegion(SKMatrix? before, SKMatrix? after)
+    {
+        if (_transform.MovingBounds is not { } bounds) return null;
+        var was = before is { } b ? b.MapRect(bounds) : bounds;
+        var now = after is { } a ? a.MapRect(bounds) : bounds;
+        was.Union(now);
+        was.Inflate(2, 2);
+        return SKRectI.Ceiling(was);
+    }
+
+    /// <summary>
+    /// Doc-space bounds of what a preview moves, render reach included — or
+    /// null when a frame's moving pixels are not all strokes (a raster
+    /// baseline or a placement rides the layer bitmap), which is the honest
+    /// "cannot bound this" answer.
+    /// </summary>
+    /// <remarks>
+    /// The reach is <see cref="BrushEngine.ReachOf"/> per stroke rather than
+    /// half the brush size (what the gizmo's <c>TransformOps.Bounds</c> uses):
+    /// scatter and a medium's bleed put paint past the point geometry, and a
+    /// repaint region that missed it would leave crumbs of the mark behind at
+    /// the old position.
+    /// </remarks>
+    private static SKRect? PreviewMovingBounds(List<Frame> frames, Func<Stroke, bool>? filter)
+    {
+        float minX = float.MaxValue, minY = float.MaxValue;
+        float maxX = float.MinValue, maxY = float.MinValue;
+        var any = false;
+        foreach (var frame in frames)
+        {
+            // With a selection filter only strokes move and the baseline
+            // stays put; without one the whole layer bitmap moves, baseline
+            // and placements included, and strokes no longer bound it.
+            if (filter is null && (frame.HasBaseline || frame.HasPlacements)) return null;
+            foreach (var stroke in frame.Strokes)
+            {
+                if (filter is not null && !filter(stroke)) continue;
+                var reach = BrushEngine.ReachOf(stroke.Brush);
+                foreach (var p in stroke.Points)
+                {
+                    any = true;
+                    if (p.X - reach < minX) minX = (float)(p.X - reach);
+                    if (p.Y - reach < minY) minY = (float)(p.Y - reach);
+                    if (p.X + reach > maxX) maxX = (float)(p.X + reach);
+                    if (p.Y + reach > maxY) maxY = (float)(p.Y + reach);
+                }
+            }
+        }
+        return any ? new SKRect(minX, minY, maxX, maxY) : null;
     }
 
     /// <summary>
@@ -664,9 +909,61 @@ public partial class MainViewModel
         CommitTransformCore(map, 1, m);
     }
 
+    /// <summary>
+    /// The drawing a single-cel gesture is borrowing, when a commit here must
+    /// key the cel instead of writing through to it. Null when the cel has a
+    /// drawing of its own, when the scope covers more than this cel, or when
+    /// the artist has asked to edit the held drawing.
+    /// </summary>
+    /// <remarks>
+    /// Asked when the session opens, because that is when the answer is true
+    /// of what the artist is looking at; acted on at the commit, because that
+    /// is when the record is allowed to change.
+    /// </remarks>
+    private string? HeldCelNeedingKey()
+    {
+        if (TransformScope is not (TransformScope.ActiveCel or TransformScope.CelRange)) return null;
+        if (TransformScope is TransformScope.CelRange && _celSelection.Count > 0) return null;
+        if (DrawingOnAHold == HoldDrawing.EditTheHeldDrawing) return null;
+        if (ActiveLayer is not { } layer || layer.Cels.Count == 0) return null;
+        var here = Math.Clamp(CurrentFrameIndex, 0, layer.Cels.Count - 1);
+        if (layer.Cels[here].Frame is not null) return null; // a drawing of its own
+        return ExposureSheet.ExposedFrame(layer, here)?.Id;
+    }
+
+    /// <summary>
+    /// Key the held cel this gesture opened on and hand back the drawing the
+    /// commit should write to — the copy — or null when nothing needs keying.
+    /// </summary>
+    /// <remarks>
+    /// Re-checked rather than trusted: the playhead can move while a gizmo
+    /// session is open, and keying a cel the artist has since left would put a
+    /// drawing where they are standing now and still transform the one they
+    /// are not.
+    /// </remarks>
+    private Frame? KeyHeldCelForCommit()
+    {
+        if (_transform.HeldFrameIdToKey is not { } heldId) return null;
+        if (ActiveLayer is not { } layer || layer.Cels.Count == 0) return null;
+        var here = Math.Clamp(CurrentFrameIndex, 0, layer.Cels.Count - 1);
+        if (layer.Cels[here].Frame is not null) return null;                    // keyed since
+        if (ExposureSheet.ExposedFrame(layer, here)?.Id != heldId) return null; // a different hold
+        return PaintTargetOrKey();
+    }
+
     private void CommitTransformCore(TransformOps.PointMap map, double sizeScale, SKMatrix baselineMatrix)
     {
         var frames = _transform.Frames.ToList();
+        // The one point where a held cel becomes a drawing of its own. Before
+        // this line the gesture has changed nothing — which is what lets Ctrl+T
+        // followed by Escape leave the timeline as it was.
+        if (KeyHeldCelForCommit() is { } keyed)
+        {
+            for (var i = 0; i < frames.Count; i++)
+            {
+                if (frames[i].Id == _transform.HeldFrameIdToKey) frames[i] = keyed;
+            }
+        }
         var filter = _transform.Filter;
         // The preview goes first, and not only for tidiness: it borrows the
         // cache's own bitmaps, and the invalidation below disposes them.
@@ -701,8 +998,15 @@ public partial class MainViewModel
             }
             NotifySelection();
         }
+        // B223: and so does the line highlight, for the same reason one line
+        // along. The outline is rebuilt from the strokes rather than mapped
+        // like the contours above, because the strokes have just been rewritten
+        // and re-reading them cannot disagree with what was written.
+        if (HasStrokeSelection) OnStrokeSelectionChanged();
         EndTransformSession();
-        AiStatus = $"Transformed {frames.Count} drawing{(frames.Count == 1 ? "" : "s")}.";
+        AiStatus = HasStrokeSelection && !HasSelection
+            ? $"Transformed {TransformSubject}."
+            : $"Transformed {frames.Count} drawing{(frames.Count == 1 ? "" : "s")}.";
     }
 
     private SKSamplingOptions SamplingFor(TransformSampling mode) => mode switch

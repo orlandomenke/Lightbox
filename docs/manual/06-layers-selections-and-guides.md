@@ -45,6 +45,16 @@ undo step**:
 Anything you do to a row that is *not* in the selection is done to that row
 alone. Right-clicking a layer you have not selected is not a trap.
 
+### Reordering by dragging
+
+Rows also **drag**: pick a layer up and drop it where it should go. Dropping on
+the upper half of a row lands above that row, the lower half lands below it,
+and dropping on a folder header files the layer into that folder. The layer
+takes the folder of wherever it lands — dropping between a folder's members
+joins the folder, dropping beside a loose row leaves it — and the whole drop is
+one undo step. A drag moves the one row you picked up; the ▲/▼ buttons remain
+the way to move a multi-selection as a block.
+
 **The onion-skin toggle (◉) is the exception: it is always one layer**, even
 with several selected. The eye and the locks describe the drawing, and picking
 five layers means all five. Onion skin describes what you are *looking through*
@@ -59,6 +69,64 @@ never on the selection. The docker's own rows are the selection-aware ones.
 Clicking a cel in the timeline, walking the stack with the arrow keys, or
 opening a document all set the active layer the ordinary way, and that starts
 the selection again from the one layer.
+
+### Linking layers — one drawing across several
+
+A character is rarely one layer. Lines, colour, details, effects: four layers
+that are really *one drawing*. **Linking** says so once, and what the link
+carries then reaches all of them — on every frame, including the ones you have
+not drawn yet.
+
+- **Ctrl+Shift+right-click** links a layer to the one **above** it.
+- **Ctrl+Alt+right-click** links it to the one **below**.
+- **Shift+right-click** takes it back out.
+- Right-click and open **Linking** for the same options by name, plus the
+  switches below.
+
+Linking to a layer that is already in a link **joins that link** rather than
+starting a second one, so a four-layer character is three gestures and ends
+with one link.
+
+Linked rows are indented and carry a bracket down their left edge, so a set
+reads as one at a glance.
+
+**What travels a link is up to you, per property.** A link can carry several
+things, one, or nothing at all:
+
+- **Share the rig** — every layer follows the bone any one of them names. On
+  by default when you make a link, because rigging is usually why you made it.
+- **Share alpha lock**
+- **Share visibility** — hide the lines and the colour goes with them.
+
+Nothing else travels. A link made to rig a character does not quietly start
+sharing anything you did not ask it to.
+
+The gestures read the neighbour **once**, at the moment you make them. After
+that the layers know each other by name, so reordering the stack afterwards
+never breaks a link or attaches it to something else.
+
+### Making a layer follow the rig
+
+Right-click a layer and open **Follows the rig**:
+
+- **The selected bone** — every stroke on the layer follows the bone picked in
+  the Bone tool.
+- **The whole skeleton** — bound to the nearest bones by distance, the way
+  auto-bind does it.
+- **Nothing** — off the rig.
+
+This is per *layer*, so it covers drawings you have not made yet and frames
+you have not reached. Scrub the timeline and every drawing on the layer follows
+the pose, in playback and in every export. Painted weights on an individual
+line still win over it — that is what the weight brush is for.
+
+Your lines are never changed by this. A rigged layer decides where marks are
+*drawn*; the drawing stays exactly as you made it, so unrigging the layer
+returns it untouched. **Baking** a drawing freezes the pose into it and leaves
+the layer rigged, so the drawings you make afterwards still follow.
+
+A layer's own choice beats its link's, so you can rig the effects layer to a
+different bone from the lines it is linked to.
 
 ### Merging a layer down
 
@@ -96,7 +164,9 @@ in the stack, that part of its look can shift.
 
 Marquee, freehand, polygon, ellipse and magic wand, with **Shift** to add and
 **Alt** to subtract. Grow, shrink and feather. A selection clips painting, and
-the clip is part of the record, so a reload paints the same shape.
+the clip is part of the record, so a reload paints the same shape. The wand
+shows the region it would take as a faint, still dashed outline before you
+click — faint and still so it cannot be read as a selection you already made.
 
 **Ctrl+D deselects, whatever tool you are holding.** Worth saying plainly
 because a selection clips painting: if the brush seems to have stopped working,
@@ -117,15 +187,29 @@ selected.
 **Ctrl+T** starts a transform. The gizmo gives move, scale, rotate and a
 draggable pivot; **Perspective** mode gives four free corners. The drawing
 moves *with* the gizmo — you see the result while you drag, not after you
-commit. The session's controls — scope, sampling, perspective, mirror,
+commit — and the selection's marching ants ride along with it, so the outline
+and the pixels never disagree about where the drawing is. The session's controls — scope, sampling, perspective, mirror,
 Reset, **Apply** and **Cancel** — live on their own page of the **Tool
 options** docker, which opens by itself when the session starts, so they are
 never off screen while a transform is live. Enter applies, Esc cancels,
 from the keyboard as always.
 
+**While a transform is up, the canvas belongs to it** — every press on the
+drawing goes to the handles, whatever the toolbar says. **Picking a tool ends
+the session and discards the drag**, on the grounds that reaching for the brush
+means you are done transforming. Nothing is written to the drawing that way:
+only Enter applies, so an accidental tool press costs you the drag and never
+the artwork. Holding **Ctrl** for the eyedropper is a borrow rather than a
+choice and leaves the transform alone.
+
 **Scope** decides what moves: this cel, all layers at this frame, a marked cel
 range, or the whole animation. With a selection active, only the strokes inside
 it move — and they move whole, so connected drawings stay connected.
+
+**Lines picked with the Arrow can be transformed too**, and then the scope is
+this drawing, because a line lives on one. If you have both an area selected and
+lines picked, the **area wins**; the transform says which it took when it starts,
+so you are not left guessing.
 
 Because strokes are geometry, a transform is **lossless**: rotating and
 rotating back leaves no softening.
@@ -168,10 +252,95 @@ anything, and hiding a guide does *not* stop it snapping — those are two
 switches, because hiding a rig to look at the drawing under it is something you
 do constantly.
 
+**What snaps: anything you aim, and nothing you trace.** A point you place
+deliberately goes to the guides — a stroke's start, a shape's corners, a
+gradient's axis, a pen node, a polygon selection's corners, a rectangular or
+elliptical marquee, and a point dragged with the white arrow. A line you draw
+by hand does not, past its first point: a lasso and the middle of a brush
+stroke follow your hand, because a guide pulling at every sample would fight
+you the whole way round.
+
+**Moving something snaps its edges and its middle**, rather than wherever you
+took hold of it — so lining a drawing up against a ruler means dragging it near
+the ruler, not grabbing its exact edge first. The corners find rulers and grids;
+the centre finds a vanishing point. Whichever is nearest is the one that lands,
+and if nothing is within reach the drawing goes exactly where your hand put it.
+This is the Move tool and dragging lines picked with the Arrow; the transform
+handles do not snap yet.
+
+Previews tell the truth about this. The pen's rubber band runs to the place the
+node will actually land rather than to the pointer, so what you see before the
+click is what the click does.
+
+**Holding Shift beats a guide where the two disagree.** Shift asks for an angle
+— a level gradient, a square marquee — and a guide asks for a place; if a guide
+pulled the end back off the angle you had just asked for, one of the two would
+be lying. So with Shift down the angle wins, and the guides keep the other end.
+
 Guides are saved with the document, like the camera, and drawn *over* the
 artwork, translucent — under it they would vanish the moment they crossed an
 opaque background layer. The snapped points are what the stroke records, so
 moving a guide afterwards never moves a line you have already drawn.
+
+#### Adjusting a guide
+
+**Pick up the Move tool or the Arrow and the rig wakes up.** Every guide on the
+canvas lights faintly, the one under the pointer brighter, and the ones you
+click brightest of all — and a grid or an isometric rig, which is grabbed at its
+anchor rather than on its lines, shows that anchor as a small square you can
+aim at. With any other tool in hand the guides go back to being scenery you
+draw over, so nothing glows at you while you are drawing.
+
+**Two tools reach guides, and they do the same things to them.** The Move tool
+is the one you reach for when the job *is* the rig; the Arrow picks guides
+alongside the lines, symbols and anchors it already picks. Whichever you use,
+a guide behaves the same way — the same click, the same drag, the same options,
+and a guide you locked is out of reach of both.
+
+**Clicking a guide points the tool options at it**, in the quick bar and in the
+Tool options docker, because moving a guide and changing one are the same
+intention reached for with the same hand. Clicking the drawing lets go again.
+
+**Shift adds a guide to the selection and Alt takes one out**, the same as
+everywhere else on the canvas, and dragging any guide in the group moves all of
+them together as one undo step. With more than one picked the options go quiet:
+they set *a* guide's numbers — this grid's pitch, this chart's head count — and
+there is no single guide for them to mean. The group still moves.
+
+**The selection is handed between those two tools and dropped by every other
+one.** Switching between the Move tool and the Arrow keeps what you picked,
+because both can act on it; reaching for the brush lets it go, so nothing stays
+lit over a drawing you are painting.
+
+| The selected guide | What you can set |
+| --- | --- |
+| Any guide | **X** and **Y**, in document pixels — the typed half of the drag, for a horizon at exactly y=540 or two vanishing points exactly as far outside the frame as each other |
+| Guide line, grid, isometric | **Angle**, in degrees clockwise from horizontal |
+| Grid | **Cell size** — the pitch of *this* lattice |
+| Character height scale | **Head height** and **Heads** — the same two numbers the top-rung drag changes, typed exactly |
+| Vanishing point | **Rays** — how many lines are drawn out of the point |
+| Any guide | **Shown**, **Snaps** and **Locked** — and **Remove** |
+
+Every one of those changes *this guide, on this drawing*, and every one is an
+undo step. A locked guide ignores the fields exactly as it ignores a drag.
+
+**The ray count is what you see, not what you can snap to.** A vanishing point
+constrains every direction through it whatever the fan is drawn at — fewer rays
+to see the drawing through it, more to read the perspective, and the strokes
+land in the same place either way.
+
+**"Set as default" is the other half.** It is the deliberate act that also
+changes what the *next* guide of that kind is made from: a grid's cell size, a
+vanishing point's fan, a height scale's proportions. Without it nothing you do
+here reaches beyond the drawing in front of you, which is the point — a
+preference that rewrote itself every time you nudged one guide would not be a
+default. The same values live in **Edit → Configure → Guides and grid** if you
+would rather type them there.
+
+A height scale saves a *proportion* rather than a head height in pixels — "six
+heads standing in seven tenths of the canvas" — so the same default still lands
+as a figure on a scene of a different size. Resizing a document afterwards does
+not move a chart already on it; its size is document data by then.
 
 #### The character height scale, and the named lines
 
@@ -208,19 +377,20 @@ guide, out of the left one for a vertical one; the guide follows the pointer
 while you aim it. Let go back over the ruler and it never existed, which is
 both how you delete one and how you get out of a drag you did not mean.
 
-While the rulers are up, **a guide on the canvas can be picked up and moved**.
-The cursor changes when you are on one; there is nothing floating over the
-drawing to click instead. The whole drag is one undo step, not one per twitch
-of the hand.
+**A guide on the canvas is picked up with the Move tool or the Arrow**, wherever
+the rulers are. The cursor changes when you are on one and the guide itself
+lights up; there is nothing floating over the drawing to click instead. The
+whole drag is one undo step, not one per twitch of the hand.
 
-Rulers are the switch for all of this, on purpose: grabbing a guide and drawing
-along one are the same gesture in the same place, so putting the rulers up says
-which you meant. With them down, a guide is scenery you draw over and nothing
-can nudge it by accident.
+The tool is the switch for all of this, on purpose: grabbing a guide and
+drawing along one are the same gesture in the same place, so something has to
+say which you meant. With any other tool in hand a guide is scenery you draw
+over and nothing can nudge it by accident. Hiding or locking the guides
+overrides both of them, because both mean "leave the rig alone".
 
 | Edit menu | Key | What it does |
 | --- | --- | --- |
-| Show rulers | `Ctrl+R` | The strips, and with them the drag-out and the grab |
+| Show rulers | `Ctrl+R` | The strips, and with them the drag-out |
 | Show guides | `Ctrl+;` | Take the rig off the screen. It still snaps |
 | Lock guides | `Ctrl+Alt+;` | Pin them where they are, rulers or no rulers |
 
@@ -231,10 +401,12 @@ Rulers, guide visibility and the lock belong to the **workspace**, not the
 document: they are how your screen is arranged, so they save, reset and switch
 with everything else, and opening somebody else's file never rearranges them.
 
-**Several at once**: select guides with the Select tool and the Move tool drags
-the whole selection together, as one undo step. The lock still holds — locked
-guides stay put whether they were selected or not, which is the point of
-locking them.
+**Several at once**: Shift-click to add guides to the selection, Alt-click to
+take one out, and dragging any of them moves the whole group together as one
+undo step. Either guide tool does both halves — picking and dragging are the
+same tool's job, not one tool's each. `Ctrl+A` with the Arrow in hand takes
+every guide on the document at once. The lock still holds: locked guides stay
+put whether they were selected or not, which is the point of locking them.
 
 #### Guide sets — the same rig on every drawing that needs it
 
@@ -262,10 +434,12 @@ scoped, and a document is offered what its own folder (or the folders above
 it) declares: the knight's height guide stops appearing in the goblin's menu.
 This is the same scoping palettes, gradients and brush tips use.
 
-#### Grid settings
+#### Guide defaults, and the guides already placed
 
-**Edit → Configure → Guides and grid** holds the cell size a new grid is made
-with and how close a point has to come to a guide to be pulled onto it. It also
+**Edit → Configure → Guides and grid** holds what new guides are made from —
+a grid's cell size, a vanishing point's ray count, a height scale's head count
+and its share of the canvas height — and how close a point has to come to a
+guide to be pulled onto it. It also
 lists the grids and height scales already on the document, where a grid's pitch
 and angle, a scale's head height and count, and each one's drawing and snapping
 can be changed after the fact — each one an undoable step.

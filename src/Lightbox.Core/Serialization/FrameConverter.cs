@@ -90,6 +90,9 @@ public sealed class FrameConverter : JsonConverter<Frame>
         if (root.TryGetProperty("chart", out var chart))
             frame.Chart = JsonSerializer.Deserialize<List<double>>(chart.GetRawText(), options);
 
+        if (root.TryGetProperty("correctives", out var correctives))
+            frame.Correctives = JsonSerializer.Deserialize<List<Corrective>>(correctives.GetRawText(), options);
+
         return frame;
     }
 
@@ -139,6 +142,12 @@ public sealed class FrameConverter : JsonConverter<Frame>
         {
             writer.WritePropertyName("chart");
             JsonSerializer.Serialize(writer, value.Chart, options);
+        }
+
+        if (value.HasCorrectives)
+        {
+            writer.WritePropertyName("correctives");
+            JsonSerializer.Serialize(writer, value.Correctives, options);
         }
 
         writer.WriteEndObject();

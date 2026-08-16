@@ -39,7 +39,7 @@ public enum ShortcutContext
     /// The reference board, which is a window of its own rather than a docker.
     /// </summary>
     /// <remarks>
-    /// <b>Why this is not just another global binding</b> (B205). The board wants
+    /// <b>Why this is not just another global binding</b> (B244). The board wants
     /// <c>Delete</c> for "take this off the wall" and <c>Ctrl+V</c> for "paste a
     /// picture", and both are already spoken for: <c>Delete</c> is deliberately
     /// *not* a general binding (Q82 — a destructive key must not fire on the
@@ -172,13 +172,30 @@ public sealed class ShortcutMap
                 G(Key.C, KeyModifiers.Control | KeyModifiers.Alt)),
             new("image.resizeImage", "Resize image", "Image",
                 G(Key.I, KeyModifiers.Control | KeyModifiers.Alt)),
-            new("tool.brush", "Brush", "Tools", G(Key.B)),
+            // B221: B, F and V join E and I as spring-loaded. The machinery has
+            // been tool-agnostic since B176 and two of thirteen keys used it,
+            // which made the tap-or-hold rule read as a quirk of the eraser
+            // rather than as how the keyboard works. These three are the ones
+            // where borrowing is a real gesture and the tool carries no modal
+            // state to strand on release — holding V to shift something and
+            // letting go back into the brush is the one artists reach for most.
+            //
+            // Deliberately not S: repeat-S cycles the selection variants, so a
+            // hold would have to mean a third thing on a key that already means
+            // two. And deliberately not the pen, the arrows or the width tool —
+            // those carry a session a released key would leave parked, which is
+            // the same reason MainViewModel.Momentary's table will not borrow
+            // *from* them.
+            new("tool.brush", "Brush", "Tools", G(Key.B),
+                momentaryTool: ViewModels.ToolId.Brush),
             new("tool.eraser", "Eraser", "Tools", G(Key.E),
                 momentaryTool: ViewModels.ToolId.Eraser),
-            new("tool.fill", "Fill", "Tools", G(Key.F)),
+            new("tool.fill", "Fill", "Tools", G(Key.F),
+                momentaryTool: ViewModels.ToolId.Fill),
             new("tool.gradient", "Gradient", "Tools", G(Key.G)),
             new("tool.select", "Select / next variant", "Tools", G(Key.S)),
-            new("tool.move", "Move (drawing and guides)", "Tools", G(Key.V)),
+            new("tool.move", "Move (drawing and guides)", "Tools", G(Key.V),
+                momentaryTool: ViewModels.ToolId.Move),
             // The only tool that had no key at all. U is Photoshop's shape tool
             // and was free here — the shape *variant* stays a tool option, like
             // the select tool's, so one letter covers all four.
@@ -202,6 +219,11 @@ public sealed class ShortcutMap
             new("tool.bone", "Bone (rig, pose, weights)", "Tools", G(Key.K)),
             new("armature.weightPaint", "Toggle the weight brush (bone tool)", "Canvas", G(Key.K, KeyModifiers.Control | KeyModifiers.Shift)),
             new("armature.posingMode", "Toggle posing (bone tool: bind or pose)", "Canvas", G(Key.K, KeyModifiers.Shift)),
+            // No default gesture, for `lines.recolour`'s reason: Delete already
+            // reaches it — `select.clear` asks the armature first while the
+            // Bone tool is in hand — and being here is what lets an artist give
+            // it a dedicated key that works from any tool.
+            new("armature.deleteBone", "Delete the selected bone", "Canvas", null),
             new("tool.width", "Width (make a line heavier or lighter)", "Tools", G(Key.W)),
             // No default gesture, like lines.recolour above and for the same
             // reason: the sensible letters are taken, the button in the arrow's
@@ -266,6 +288,11 @@ public sealed class ShortcutMap
             new("canvas.lockGuides", "Lock guides", "Canvas",
                 G(Key.OemSemicolon, KeyModifiers.Control | KeyModifiers.Alt)),
             new("canvas.resetView", "Reset view", "Canvas", G(Key.D0)),
+            // No default gesture, like lines.recolour and for its reason: the
+            // sensible letters are taken (M mirrors, T transforms), the
+            // checkbox on the timeline bar is the way in, and being here is
+            // what lets an artist bind it to whatever they have free.
+            new("canvas.motionTrail", "Show motion trail (path and spacing)", "Canvas", null),
 
             new("timeline.playPause", "Play / pause", "Timeline", G(Key.Space)),
             new("timeline.prevFrame", "Previous frame (scrub)", "Timeline", G(Key.Left), ShortcutContext.Panel, DockPanelId.Timeline),
@@ -276,17 +303,13 @@ public sealed class ShortcutMap
             new("timeline.cutCel", "Cut cel", "Timeline", G(Key.X, KeyModifiers.Control)),
             new("timeline.pasteCel", "Paste cel", "Timeline", G(Key.V, KeyModifiers.Control)),
 
-            // The reference board's own three (Q87). Registered here rather than
-            // wired straight to the window's key handler, because a command that
-            // is not in this map cannot be found, searched or rebound — which is
-            // the failure the whole map exists for. They are resolved only by the
-            // board window, so a gesture pressed over the art never reaches them;
-            // the gestures are still kept clear of the main window's, so an
-            // artist rebinding one is not surprised by the other.
-            // Everything the board window does, in its own scope (B205) — so
-            // Delete and Ctrl+V can mean what they obviously mean there without
-            // becoming a second answer to a gesture the canvas or the timeline
-            // already owns.
+            // Everything the board window does (Q87), in its own scope. Here
+            // rather than wired straight to the window's key handler, because a
+            // command that is not in this map cannot be found, searched or
+            // rebound — which is the failure the whole map exists for. The scope
+            // is what lets them stay here (B244): Delete and Ctrl+V mean what
+            // they obviously mean on a board without becoming a second answer to
+            // a gesture the canvas or the timeline already owns.
             new("reference.arrange", "Auto-arrange the board", "Reference",
                 G(Key.R, KeyModifiers.Control | KeyModifiers.Shift), ShortcutContext.Board),
             new("reference.fit", "Fit everything on screen", "Reference",
@@ -301,7 +324,8 @@ public sealed class ShortcutMap
                 G(Key.V, KeyModifiers.Control), ShortcutContext.Board),
             // The one that is not board-scoped, because it is how the board is
             // reached from the art in the first place.
-            new("reference.board", "Open the reference board", "Reference", G(Key.R, KeyModifiers.Alt)),
+            new("reference.board", "Open the reference board", "Reference",
+                G(Key.B, KeyModifiers.Control | KeyModifiers.Shift)),
 
             new("docker.deleteLayer", "Delete layer", "Dockers", G(Key.Delete), ShortcutContext.Panel, DockPanelId.Layers),
             new("docker.clearLayer", "Blank layer content", "Dockers", G(Key.Back), ShortcutContext.Panel, DockPanelId.Layers),
@@ -322,6 +346,14 @@ public sealed class ShortcutMap
             new("canvas.pickColor", "Color picker tool", "Tools", G(Key.I),
                 momentaryTool: ViewModels.ToolId.Picker),
             new("timeline.insertKey", "Insert keyframe at playhead (timeline)", "Timeline", G(Key.I), ShortcutContext.Panel, DockPanelId.Timeline),
+            // Q88. The operation is as old as DocumentEditor.DeleteFrame and was
+            // reachable only from one 🗑 button, so it could not be bound,
+            // searched or found — which is why it read as missing. No default
+            // gesture: Delete already means four context-dependent things (the
+            // twins above), and taking a fifth reading of it inside the timeline
+            // would be guessing at what an artist wants there. Bindable is what
+            // was actually missing.
+            new("timeline.deleteColumn", "Delete column (this frame, every layer)", "Timeline", null, ShortcutContext.Panel, DockPanelId.Timeline),
             new("canvas.nudgeLeft", "Nudge selection left", "Canvas", G(Key.Left), ShortcutContext.Canvas),
             new("canvas.nudgeRight", "Nudge selection right", "Canvas", G(Key.Right), ShortcutContext.Canvas),
             new("canvas.nudgeUp", "Nudge selection up", "Canvas", G(Key.Up), ShortcutContext.Canvas),
@@ -409,7 +441,7 @@ public sealed class ShortcutMap
             if (d.Scope == scope) return d.Id;
             // A board binding is reachable from the board and nowhere else: its
             // window is the separation that lets it share a gesture at all
-            // (B205). Collecting it as a fallback would undo exactly that.
+            // (B244). Collecting it as a fallback would undo exactly that.
             if (d.Context == ShortcutContext.Board) continue;
             if (d.Context == ShortcutContext.Canvas) canvas ??= d;
             else if (d.Context == ShortcutContext.Global) general ??= d;

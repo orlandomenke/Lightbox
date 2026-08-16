@@ -180,7 +180,7 @@ public sealed class ReferenceBoardViewModel
     /// everything already up.
     /// </param>
     /// <remarks>
-    /// <b>The placement is the caller's, and that is the whole of B204.</b> Every
+    /// <b>The placement is the caller's, and that is the whole of B243.</b> Every
     /// import used to land under the bottom-most tile, which on a wall that had
     /// been auto-arranged to fill the window is <em>below the visible area</em>:
     /// the picture arrived, the file was copied, nothing appeared, and the only

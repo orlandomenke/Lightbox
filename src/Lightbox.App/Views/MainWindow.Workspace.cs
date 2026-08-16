@@ -293,7 +293,11 @@ public partial class MainWindow
             _vm.ReportDocWidth,
             _vm.ReportDocHeight,
             _vm.ReportDisplayScale,
-            _vm.CanvasQuality.ToString(),
+            // The report mostly describes playback, so when a playback quality
+            // is set the string has to say which quality the run actually used.
+            _vm.PlaybackQuality is { } playbackQuality
+                ? $"{_vm.CanvasQuality} while drawing, {playbackQuality} in playback"
+                : _vm.CanvasQuality.ToString(),
             _vm.ReportComposeScale,
             Rendering.CanvasControl.DurableFrameEnabled,
             totals.Presents > 0,
@@ -317,7 +321,8 @@ public partial class MainWindow
             _vm.PinnedBitmaps,
             _vm.TileStoreBytes,
             Rendering.StrokeToScreen.Shared.Snapshot,
-            (_vm.LivePostPasses, _vm.LivePostTotalMs, _vm.LivePostWorstMs));
+            (_vm.LivePostPasses, _vm.LivePostTotalMs, _vm.LivePostWorstMs),
+            _vm.ReportPublishTally);
     }
 
     /// <summary>
@@ -848,6 +853,20 @@ public partial class MainWindow
     private void OnLayerRowPressed(object? sender, PointerPressedEventArgs e)
     {
         if ((sender as Control)?.DataContext is not LayerRow row) return;
+        if (Services.LayerLinkGestures.From(
+                e.KeyModifiers, e.GetCurrentPoint(this).Properties.IsRightButtonPressed) is { } gesture)
+        {
+            // The layer has to be the active one first: every link operation
+            // is written in terms of it, and a right-click that linked the
+            // PREVIOUSLY active layer would be the worst kind of wrong — it
+            // does something, just not to the row under the pointer.
+            _vm.SelectLayer(row, toggle: false, range: false);
+            ApplyLayerLinkGesture(gesture);
+            // Handled, so the row's own context menu does not open on top of
+            // a gesture that has already done what it was asked.
+            e.Handled = true;
+            return;
+        }
         _vm.SelectLayer(
             row,
             toggle: e.KeyModifiers.HasFlag(KeyModifiers.Control),
@@ -855,6 +874,131 @@ public partial class MainWindow
         // Pull keyboard focus off menus/sliders so the arrow-key layer walk
         // (and Delete/Backspace) reaches the window's shortcut handler.
         (sender as Control)?.Focus();
+
+        // A plain left press may become a drag; a modified press is a selection
+        // gesture and never one. The threshold decides which in OnLayerRowMoved.
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed
+            && e.KeyModifiers is KeyModifiers.None)
+        {
+            _layerDragCandidate = row;
+            _layerDragFrom = e.GetCurrentPoint(this).Position;
+            _layerDragPress = e;
+        }
+    }
+
+    // ---- drag a layer row up or down the stack -------------------------------
+
+    private static readonly DataFormat<LayerRow> LayerRowDragFormat =
+        DataFormat.CreateInProcessFormat<LayerRow>("lightbox-layer-row");
+
+    private LayerRow? _layerDragCandidate;
+    private Point _layerDragFrom;
+    private PointerPressedEventArgs? _layerDragPress;
+
+    private async void OnLayerRowMoved(object? sender, PointerEventArgs e)
+    {
+        if (_layerDragPress is not { } press || _layerDragCandidate is not { } row) return;
+        if ((sender as Control)?.DataContext is not LayerRow over || !ReferenceEquals(over, row)) return;
+        var point = e.GetCurrentPoint(this);
+        // A move with the button up means the release happened somewhere this
+        // handler never saw; disarm rather than wait (the cel drag's lesson).
+        if (!point.Properties.IsLeftButtonPressed)
+        {
+            _layerDragCandidate = null;
+            _layerDragPress = null;
+            return;
+        }
+        var delta = point.Position - _layerDragFrom;
+        if (Math.Abs(delta.X) < Input.CelDragGesture.ThresholdPx
+            && Math.Abs(delta.Y) < Input.CelDragGesture.ThresholdPx) return;
+
+        try
+        {
+            var transfer = new DataTransfer();
+            transfer.Add(DataTransferItem.Create(LayerRowDragFormat, row));
+            await DragDrop.DoDragDropAsync(press, transfer, DragDropEffects.Move);
+        }
+        catch (Exception ex)
+        {
+            Rendering.CanvasControl.LogDiag("layer-row-drag", ex);
+        }
+        finally
+        {
+            _layerDragCandidate = null;
+            _layerDragPress = null;
+        }
+    }
+
+    private void OnLayerRowReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        _layerDragCandidate = null;
+        _layerDragPress = null;
+    }
+
+    private static LayerRow? DraggedLayerOf(DragEventArgs e) =>
+        e.DataTransfer is { } transfer ? transfer.TryGetValue(LayerRowDragFormat) : null;
+
+    /// <summary>
+    /// The row or folder header under the drop pointer, with its visual so the
+    /// drop can tell the upper half from the lower.
+    /// </summary>
+    private static (object? Item, Control? Container) LayerDropTargetOf(DragEventArgs e)
+    {
+        var control = e.Source as Control;
+        while (control is not null && control.DataContext is not (LayerRow or GroupRow))
+        {
+            control = control.Parent as Control;
+        }
+        return (control?.DataContext, control);
+    }
+
+    private void OnLayerDragOver(object? sender, DragEventArgs e)
+    {
+        var (item, _) = LayerDropTargetOf(e);
+        e.DragEffects = DraggedLayerOf(e) is not null && item is not null
+            ? DragDropEffects.Move
+            : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void OnLayerDrop(object? sender, DragEventArgs e)
+    {
+        if (DraggedLayerOf(e) is not { } dragged) return;
+        e.Handled = true;
+        switch (LayerDropTargetOf(e))
+        {
+            case (LayerRow target, { } container) when !ReferenceEquals(target, dragged):
+                var above = e.GetPosition(container).Y < container.Bounds.Height / 2;
+                _vm.DropLayerOnRow(dragged, target, above);
+                break;
+            case (GroupRow header, _):
+                _vm.MoveLayerIntoGroup(dragged.Layer, header.Group);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Carry out a link gesture on the active layer, or show the menu.
+    /// </summary>
+    /// <remarks>
+    /// The menu is built here rather than in XAML because its contents depend
+    /// on state the row does not carry — whether there is a link to leave,
+    /// what it already carries, and which bone the Bone tool has selected.
+    /// </remarks>
+    private void ApplyLayerLinkGesture(Services.LayerLinkGesture gesture)
+    {
+        switch (gesture)
+        {
+            case Services.LayerLinkGesture.LinkAbove:
+                _vm.LinkLayerAboveCommand.Execute(null);
+                break;
+            case Services.LayerLinkGesture.LinkBelow:
+                _vm.LinkLayerBelowCommand.Execute(null);
+                break;
+            case Services.LayerLinkGesture.Unlink:
+                _vm.UnlinkLayerCommand.Execute(null);
+                break;
+        }
     }
 
     /// <summary>

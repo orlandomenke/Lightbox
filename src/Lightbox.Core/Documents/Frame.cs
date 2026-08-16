@@ -20,8 +20,16 @@ public enum FrameRole
 /// document that never used the AI is byte-identical to one from before the
 /// feature existed. It records provenance, never behaviour: deleting it
 /// changes no pixel, because the strokes are ordinary strokes.
+/// <para>
+/// <paramref name="Attempts"/> is how many times the model was asked before
+/// this drawing was defensible — <b>absent unless it took more than one</b>,
+/// under the same rule the record itself follows. It is the only durable trace
+/// of a repair: the status line saying so is gone by the next action, and
+/// "how often does my model need a second go" is the number that tells an
+/// artist whether the model they brought is borderline (Q85).
+/// </para>
 /// </remarks>
-public sealed record AiProvenance(string Provider, string? Model = null);
+public sealed record AiProvenance(string Provider, string? Model = null, int? Attempts = null);
 
 /// <summary>
 /// One drawing: strokes, an optional pixel baseline, optional placed symbols,
@@ -175,6 +183,23 @@ public sealed class Frame
         }
     }
 
+    /// <summary>
+    /// Shapes the artist drew at joint extremes, or null — and null is every
+    /// ordinary drawing (Q100).
+    /// </summary>
+    /// <remarks>
+    /// On the frame because a corrective names strokes by id, so it belongs to
+    /// the drawing that holds them and travels with it through copy, paste and
+    /// symbols. It fixes <em>a drawing</em>: the cutout workflow, where a limb
+    /// is one drawing reused across the sequence. It is not a tool for two
+    /// hundred hand-drawn frames, and the manual says so.
+    /// </remarks>
+    public List<Corrective>? Correctives { get; set; }
+
+    /// <summary>Whether the rig reshapes this drawing at some joint angle.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasCorrectives => Correctives is { Count: > 0 };
+
     /// <summary>Whether this drawing carries imported or flattened pixels.</summary>
     /// <remarks>
     /// <b>This is what "did this come from outside" should be asked of</b>, rather
@@ -208,6 +233,7 @@ public sealed class Frame
         copy.Anchors = Anchors is null ? null : new Dictionary<string, AnchorPoint>(Anchors);
         copy.Shapes = Shapes is null ? null : new Dictionary<string, ShapeBox>(Shapes);
         copy.Chart = Chart is null ? null : [.. Chart];
+        copy.Correctives = Correctives?.Select(c => c.Clone()).ToList();
         return copy;
     }
 }

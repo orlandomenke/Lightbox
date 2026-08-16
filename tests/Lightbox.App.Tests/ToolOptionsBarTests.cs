@@ -43,8 +43,7 @@ public sealed class ToolOptionsBarTests(ITestOutputHelper output) : BrushStateIs
 
     private static Button Gear(MainWindow w) =>
         w.GetVisualDescendants().OfType<Button>()
-            .First(b => b.Content as string == "⚙"
-                        && (b.GetValue(ToolTip.TipProperty) as string)?.StartsWith("All brush parameters") == true);
+            .First(b => (b.GetValue(ToolTip.TipProperty) as string)?.StartsWith("All brush parameters") == true);
 
     private static Button Picker(MainWindow w) =>
         w.GetVisualDescendants().OfType<Button>().First(b => b.Name == "BrushPickerButton");

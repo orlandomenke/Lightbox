@@ -1172,4 +1172,225 @@ public class PathEditingTests(ITestOutputHelper output)
         session.SetCorner(index, false);
         return session;
     }
+
+    // ---- B217: the two tools that take a whole line ----------------------------------
+    //
+    // The white arrow has previewed what it would reach into since the vector
+    // work landed. The Arrow and the Width tool — the two that take hold of a
+    // whole line — showed nothing at all, and the Width tool could not even
+    // reach a line on its own.
+
+    /// <summary>Hovering with the Arrow shows the line the click would take.</summary>
+    [AvaloniaFact]
+    public void HoveringWithTheArrowPreviewsTheLineItWouldPick()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.Arrow;
+
+        (IReadOnlyList<StrokePoint> Points, bool Closed)? shown = null;
+        vm.HoveredLineChanged += outline => shown = outline;
+
+        var on = line.Points[line.Points.Count / 2];
+        Assert.True(vm.HoverStrokeAt(on.X, on.Y, tolerance: 8));
+
+        Assert.Equal(line.Id, vm.HoveredStrokeId);
+        Assert.NotNull(shown);
+        // The outline is the line's own points, so what is lit is exactly what
+        // would be picked rather than an approximation of it.
+        Assert.Equal(line.Points.Count, shown!.Value.Points.Count);
+    }
+
+    /// <summary>
+    /// Travelling along a line already previewed rebuilds nothing.
+    /// </summary>
+    /// <remarks>
+    /// A hover fires on every pointer event, so a preview that rebuilt per move
+    /// would put work proportional to a stroke's length in a per-event path —
+    /// invariant 6's exact prohibition, and the same guard the white arrow's
+    /// preview carries.
+    /// </remarks>
+    [AvaloniaFact]
+    public void HoveringAlongTheSameLineDoesNotRepublishIt()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.Arrow;
+
+        var published = 0;
+        vm.HoveredLineChanged += _ => published++;
+
+        var a = line.Points[line.Points.Count / 3];
+        var b = line.Points[line.Points.Count / 2];
+        Assert.True(vm.HoverStrokeAt(a.X, a.Y, tolerance: 8));
+        Assert.False(vm.HoverStrokeAt(b.X, b.Y, tolerance: 8));
+
+        Assert.Equal(1, published);
+    }
+
+    /// <summary>Moving off the line puts the preview away.</summary>
+    [AvaloniaFact]
+    public void HoveringEmptyCanvasClearsTheLinePreview()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.Arrow;
+
+        var on = line.Points[line.Points.Count / 2];
+        Assert.True(vm.HoverStrokeAt(on.X, on.Y, tolerance: 8));
+        Assert.True(vm.HoverStrokeAt(on.X, on.Y + 400, tolerance: 8));
+
+        Assert.Null(vm.HoveredStrokeId);
+    }
+
+    /// <summary>
+    /// A line that is already picked does not also preview.
+    /// </summary>
+    /// <remarks>
+    /// It is drawn selected already, so a hover on top would be two outlines
+    /// saying the same thing at two brightnesses.
+    /// </remarks>
+    [AvaloniaFact]
+    public void AnAlreadySelectedLineIsNotAlsoPreviewed()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.Arrow;
+
+        var on = line.Points[line.Points.Count / 2];
+        Assert.True(vm.PickStrokeAt(on.X, on.Y, tolerance: 8));
+        vm.HoverStrokeAt(on.X, on.Y, tolerance: 8);
+
+        Assert.Null(vm.HoveredStrokeId);
+    }
+
+    /// <summary>The preview belongs to its tools and does not outlive them.</summary>
+    /// <remarks>
+    /// The rule the line selection and the node preview both already follow:
+    /// drawn state must not point at a capability the artist no longer has.
+    /// Without it the last-hovered line keeps its outline while the brush
+    /// paints over it.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheLinePreviewGoesWhenTheToolThatCouldUseItDoes()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.Arrow;
+
+        var on = line.Points[line.Points.Count / 2];
+        Assert.True(vm.HoverStrokeAt(on.X, on.Y, tolerance: 8));
+
+        // Handed to the other tool that takes a whole line: still previewed.
+        vm.ActiveTool = ToolId.Width;
+        Assert.Equal(line.Id, vm.HoveredStrokeId);
+
+        vm.ActiveTool = ToolId.Brush;
+        Assert.Null(vm.HoveredStrokeId);
+    }
+
+    /// <summary>
+    /// The Width tool takes hold of a line with nothing isolated first.
+    /// </summary>
+    /// <remarks>
+    /// B172 one tool along. <c>GrabWidthAt</c> returned -1 outside isolation and
+    /// nothing in the Width tool's own path could enter one, so it worked only
+    /// as the black arrow's second step — every existing test in this file opens
+    /// the session by hand before reaching for it, which is what hid this.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheWidthToolCanTakeHoldOfALineOnItsOwn()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.Width;
+        Assert.False(vm.PathEditActive);
+
+        var on = line.Points[line.Points.Count / 3];
+        var at = vm.GrabWidthAt(on.X, on.Y, tolerance: 8);
+
+        Assert.True(at >= 0, "the width tool could not reach a line on its own");
+        Assert.True(vm.PathEditActive);
+        Assert.Equal(line.Id, vm.IsolatedStrokeId);
+    }
+
+    /// <summary>And having reached it, the drag still changes the weight.</summary>
+    /// <remarks>
+    /// The entry is only worth anything if the gesture it starts completes —
+    /// a grab that opens a session and then cannot act on it would be a
+    /// different bug wearing this one's fix.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ReachingALineWithTheWidthToolAndDraggingChangesItsWeight()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.Width;
+
+        var points = Lightbox.Core.Geometry.PathFlattener.Flatten(
+            PathEditSession.Open(line)!.Path);
+        var grabbed = points[points.Count / 6];
+
+        var at = vm.GrabWidthAt(grabbed.X, grabbed.Y, tolerance: 8);
+        Assert.True(at >= 0);
+
+        var before = vm.PathEdit!.Weight!.At(at);
+        vm.DragWidth(at, grabbed.X, grabbed.Y - 30);
+        var after = vm.PathEdit!.Weight!.At(at);
+        output.WriteLine($"weight at {at:F3}: {before:F3} -> {after:F3}");
+
+        Assert.True(after > before, $"the line did not fatten ({before} -> {after})");
+    }
+
+    // ---- B221: Simplify finally has somewhere to live --------------------------------
+
+    /// <summary>
+    /// The isolated line says how many points it has, and the number moves when
+    /// Simplify moves it.
+    /// </summary>
+    /// <remarks>
+    /// <b>The count is half of what Simplify is</b>, by the command's own
+    /// argument: "Simplify with no number is a button an artist presses and then
+    /// squints at the canvas to find out what it did". Until the options bar
+    /// existed the number had nowhere to be shown — the command was in
+    /// <c>ShortcutMap</c> with a null gesture and no control anywhere, so it was
+    /// reachable only by an artist who first went and invented a keybinding for
+    /// a feature they had no way to discover.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheIsolatedLineSaysHowManyPointsItHasAndSimplifyMovesTheNumber()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        Assert.Equal("", vm.IsolatedLineSummary);
+
+        vm.BeginPathEdit(line.Id);
+        var before = vm.PathEdit!.NodeCount;
+        Assert.Equal($"{before} points", vm.IsolatedLineSummary);
+
+        vm.SimplifyLineCommand.Execute(null);
+
+        var after = vm.PathEdit!.NodeCount;
+        output.WriteLine($"{before} points -> {after}");
+        Assert.True(after < before, $"simplify did not reduce the count ({before} -> {after})");
+        Assert.Equal($"{after} points", vm.IsolatedLineSummary);
+    }
+
+    /// <summary>Leaving the line leaves nothing on the bar.</summary>
+    /// <remarks>
+    /// The bar is gated on the session, so the text has to go with it — a count
+    /// left behind would describe a line the artist is no longer inside.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheLineSummaryGoesWhenTheSessionDoes()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.BeginPathEdit(line.Id);
+        Assert.NotEqual("", vm.IsolatedLineSummary);
+
+        vm.EndPathEdit();
+
+        Assert.Equal("", vm.IsolatedLineSummary);
+    }
 }

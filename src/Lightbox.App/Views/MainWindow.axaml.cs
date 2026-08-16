@@ -33,11 +33,15 @@ public partial class MainWindow : Window
         Canvas.SetLinePicker(_vm.PickStrokeAt);
         _vm.SelectedLinesChanged += Canvas.SetSelectedLines;
         Canvas.LinesMarqueed += (rect, add) => _vm.PickStrokesIn(rect, add);
-        // The drag commits on release. The outline follows the pointer while the
-        // button is down (chrome only, see DrawSelectedLines) and the pixels move
-        // once, here — a per-move re-render would repaint the whole frame from its
-        // strokes, which is exactly what invariant 6 forbids.
-        Canvas.SelectedLinesDragged += (dx, dy) => _vm.MoveSelectedStrokes(dx, dy);
+        // B223: the drag is a transform session, the same one Ctrl+T and the
+        // Move tool open. The pixels follow the pointer through the session's
+        // composite preview rather than arriving on release, and the whole drag
+        // is one undo step — which is what MainViewModel.StrokeActions said it
+        // wanted and could not have while the filter had no line source.
+        Canvas.SelectedLinesMoveStarted += _vm.BeginLineMove;
+        Canvas.SelectedLinesMoved += (x, y, axisLock) => _vm.UpdateMove(x, y, axisLock);
+        Canvas.SelectedLinesMoveEnded += _vm.EndMove;
+        Canvas.SelectedLinesMoveCancelled += _vm.CancelMove;
         // Reshaping one line (vector phase 2). The canvas owns the gesture and
         // nothing else: every decision — what was grabbed, where it may go, when
         // it becomes an undo step — is the view model's, so all of it is
@@ -48,6 +52,11 @@ public partial class MainWindow : Window
             _vm.DragPathPart,
             () => _vm.CommitPathEdit(),
             _vm.HoverPathAt);
+        // B217: the whole-line preview, for the two tools that take a whole
+        // line. Same split as everything else here — the canvas reports where
+        // the pointer is, the view model decides what is under it.
+        Canvas.SetLineHover(_vm.HoverStrokeAt);
+        _vm.HoveredLineChanged += Canvas.SetHoveredLine;
         // One subscription for both halves, because they are one fact: the nodes
         // the overlay draws must be the nodes the hit test will find. B147 is the
         // cost of a canvas keeping a copy that something forgets to refresh.
@@ -105,6 +114,10 @@ public partial class MainWindow : Window
         // Tool-aware canvas input (fill clicks, selection shapes) + ants overlay.
         Canvas.FillClicked += _vm.FillAt;
         Canvas.WandClicked += _vm.WandSelectAt;
+        // The marquee shapes are built in the canvas, so the snap has to reach
+        // them as a function (B216). Same split as every other decision here:
+        // the control has the geometry, the view model has the record.
+        Canvas.SetPointSnapper(_vm.SnapPointForCanvas);
         Canvas.SelectionShapeDrawn += _vm.ApplySelectionShape;
         Canvas.PolygonVertexAdded += _vm.AddPolygonVertex;
         Canvas.PolygonCompleted += _vm.CompletePolygon;
@@ -132,23 +145,7 @@ public partial class MainWindow : Window
         Rendering.CanvasControl.BackendDetected += WriteStartupRenderReport;
         Canvas.CursorPressureChanged += (pressure, penDown) => _vm.SetCursorPressure(pressure, penDown);
 
-        // Transform session: the VM owns the frames, the canvas owns the gizmo.
-        _vm.TransformBegun += (minX, minY, maxX, maxY) =>
-        {
-            Canvas.BeginTransformGizmo(minX, minY, maxX, maxY);
-            Canvas.ToolMode = Rendering.CanvasControl.CanvasToolMode.Transform;
-        };
-        _vm.TransformEnded += () =>
-        {
-            Canvas.EndTransformGizmo();
-            TransformPerspectiveToggle.IsChecked = false; // gizmo resets per session
-            SyncCanvasToolMode();
-        };
-        // The gizmo is the authority on the shape of the drag; the view model
-        // owns the pixels. Feeding the matrix across on every gizmo change is
-        // what makes the drawing move with the box instead of after it.
-        Canvas.TransformGizmoChanged += () => _vm.PreviewTransform(Canvas.TransformMatrix);
-        Canvas.TransformMenuRequested += ShowTransformMenu;
+        WireTransformSession(); // window side lives in MainWindow.Transform.cs
         WireGradientRamp();
         SyncCanvasToolMode();
 
@@ -213,6 +210,14 @@ public partial class MainWindow : Window
             if (wholeSheet) _vm.NudgeReference(dx, dy);
             else _vm.NudgeReferenceCell(dx, dy);
         };
+        // Grabbing in align mode picks the reference under the pointer first,
+        // so the drag moves the one you reached for. A miss keeps the current
+        // selection — empty canvas is not a statement about which reference.
+        Canvas.ReferenceAlignPressed += (x, y) =>
+        {
+            if (_vm.ReferenceStripAt(x, y) is var hit && hit >= 0) _vm.ActiveReferenceIndex = hit;
+        };
+        Canvas.ReferenceMenuRequested += OnReferenceMenuRequested;
         Canvas.Bind(
             Rendering.CanvasControl.ReferenceAlignModeProperty,
             new Avalonia.Data.Binding(nameof(ViewModels.MainViewModel.ReferenceAlignMode)) { Source = _vm });

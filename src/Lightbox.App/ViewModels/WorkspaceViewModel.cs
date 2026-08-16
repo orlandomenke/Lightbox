@@ -338,6 +338,10 @@ public sealed partial class WorkspaceViewModel : ObservableObject
 
     public bool QuickArrowOptions => QuickHas(QuickBarCatalog.ArrowOptions);
 
+    public bool QuickGuideOptions => QuickHas(QuickBarCatalog.GuideOptions);
+
+    public bool QuickLineOptions => QuickHas(QuickBarCatalog.LineOptions);
+
     public bool QuickTransport => QuickHas(QuickBarCatalog.Transport);
 
     public bool QuickAddFrame => QuickHas(QuickBarCatalog.AddFrame);
@@ -358,6 +362,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject
             [QuickBarCatalog.SelectOptions] = nameof(QuickSelectOptions),
             [QuickBarCatalog.GradientOptions] = nameof(QuickGradientOptions),
             [QuickBarCatalog.ArrowOptions] = nameof(QuickArrowOptions),
+            [QuickBarCatalog.GuideOptions] = nameof(QuickGuideOptions),
+            [QuickBarCatalog.LineOptions] = nameof(QuickLineOptions),
             [QuickBarCatalog.Transport] = nameof(QuickTransport),
             [QuickBarCatalog.AddFrame] = nameof(QuickAddFrame),
         };
@@ -450,10 +456,24 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         _store.Save();
     }
 
-    /// <summary>Store the arrangement on screen under a name.</summary>
+    /// <summary>
+    /// Store the arrangement on screen as a <em>new</em> workspace. A name
+    /// left unchanged still gets a new workspace — "Name (edited)" — because
+    /// this is "save as new"; overwriting what is selected is
+    /// <see cref="SaveCurrent"/>'s job, and doing it from here would make the
+    /// two menu items the same command.
+    /// </summary>
     [RelayCommand]
     public void SaveAs(string name)
     {
+        name = name.Trim();
+        // The unchanged name forks rather than overwrites; the store already
+        // does the same for any built-in's name, edited or not.
+        if (string.Equals(name, SelectedName, StringComparison.OrdinalIgnoreCase)
+            && _store.Find(name) is { BuiltIn: false })
+        {
+            name += " (edited)";
+        }
         var saved = _store.Save(name, _layout);
         SelectedName = saved.Name;
         IsDirty = false;
@@ -461,17 +481,36 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         RefreshChoices();
     }
 
-    /// <summary>Update the workspace showing now, in place.</summary>
-    [RelayCommand]
-    public void SaveCurrent() => SaveAs(SelectedName);
-
     /// <summary>
-    /// Throw away the changes and go back to what the selected workspace says.
-    /// A built-in resets to how it shipped, because a built-in is never
-    /// overwritten in the first place.
+    /// Update the workspace showing now, in place — built-ins included. No
+    /// fork, no "(edited)": pressing save on the workspace you are in means
+    /// "keep it like this", and reset still knows how a built-in shipped.
     /// </summary>
     [RelayCommand]
-    public void Reset() => Apply(SelectedName);
+    public void SaveCurrent()
+    {
+        if (_store.Update(SelectedName, _layout) is null) return;
+        IsDirty = false;
+        _store.Save();
+        RefreshChoices();
+    }
+
+    /// <summary>
+    /// Throw away the changes and go back to what the selected workspace
+    /// originally said. A built-in resets to how it shipped — even one that
+    /// has since been saved over, because "reset" on a workspace the app
+    /// ships is a promise about the app, not about the file.
+    /// </summary>
+    [RelayCommand]
+    public void Reset()
+    {
+        if (_store.Find(SelectedName) is { BuiltIn: true } builtIn
+            && WorkspaceStore.ShippedLayout(builtIn.Name) is { } shipped)
+        {
+            builtIn.Layout = shipped;
+        }
+        Apply(SelectedName);
+    }
 
     /// <summary>Delete a saved workspace. Built-ins and the last one refuse.</summary>
     [RelayCommand]

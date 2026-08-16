@@ -207,7 +207,6 @@ public partial class MainViewModel
     public event Action? LazyBrushCleared;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(PlayPauseGlyph))]
     private bool _isPlaying;
 
     /// <summary>
@@ -270,6 +269,18 @@ public partial class MainViewModel
 
     partial void OnIsPlayingChanged(bool value)
     {
+        // The playback quality takes effect on this flag, so when one is set
+        // the flip is the same event as a zoom step: every cached frame is at
+        // the other resolution, and the timings were measured there too. Both
+        // transitions publish right after this handler — StartPlayback and
+        // Pause each end in PublishSnapshot — so invalidating is enough.
+        if (PlaybackQuality is { } playback && playback != CanvasQuality)
+        {
+            _publish.InvalidateWholeCanvas();
+            _composeRing.InvalidateAll();
+            Performance.Reset();
+        }
+
         // Both caches: playback publishes through the tile store since Q62,
         // so the scan protection has to follow the frames wherever they live
         // (B182 — the tile half went unflipped for a while, and thrashed).
@@ -293,6 +304,17 @@ public partial class MainViewModel
         // showing whatever frame playback started on. Catching up once on the
         // stop costs one sweep; catching up per tick cost the frame rate.
         if (!value) RefreshLayerThumbs();
+
+        // The trail gets the ghosts' playback rule and B152's treatment at
+        // once: playing clears it (the one thing playback has to show is the
+        // animation), stopping recomputes it once — never per tick, where its
+        // bounds walk would be the thumbnail mistake again.
+        RefreshMotionTrail();
+
+        // The armature chrome and heat read the playhead's pose, skipped per
+        // tick for B152's reason; the stop leaves the playhead wherever the
+        // run ended, so they catch up here the way the thumbnails do.
+        if (!value && ArmatureEditMode) RefreshArmatureAtPlayhead();
     }
 
 
@@ -451,6 +473,7 @@ public partial class MainViewModel
         // A different layer can refuse the tool the last one accepted.
         RefreshPointerIntent();
         NotifyActiveLayerCompositing();
+        RefreshMotionTrail();   // the trail follows the layer being drawn on
         PublishSnapshot();
     }
 
@@ -672,8 +695,40 @@ public partial class MainViewModel
     /// The new cel is a separate undo step from the stroke that prompted it,
     /// so one undo takes the mark back and a second takes the cel away.
     /// </summary>
+    /// <summary>
+    /// The revision of the cel-keying step the last <see cref="PaintTargetOrKey"/>
+    /// pushed, or null when it did not have to key anything (B236).
+    /// </summary>
+    private long? _lastAutoKeyRevision;
+
+    /// <summary>
+    /// The revision of the scene-growth step the last <see cref="PaintTargetOrKey"/>
+    /// pushed, or null when the playhead was already inside the scene.
+    /// </summary>
+    /// <remarks>
+    /// <b>B236 and Q103 meet here, and the defect is only visible where they
+    /// cross.</b> An erasure that rubbed nothing out is not recorded — and
+    /// sweeping one across blank canvas *past the end of the scene* both keys a
+    /// cel and lengthens the scene. Discarding the key alone would leave the
+    /// scene permanently longer for a gesture that, by that rule, did nothing to
+    /// nothing. Neither branch could see it: the growth did not exist when the
+    /// discard was written, and the discard did not exist when the growth was.
+    /// </remarks>
+    private long? _lastAutoGrowRevision;
+
     private Frame? PaintTargetOrKey()
     {
+        // Both bookkeeping resets first, so an early return below cannot leave
+        // either pointing at a step from a previous gesture.
+        _lastAutoKeyRevision = null;
+        _lastAutoGrowRevision = null;
+        if (ActiveLayer is null) return null;
+        // Q103. The playhead may stand past the end of the scene, where scrubbing
+        // authored nothing; this is the edit that lands, so the scene grows to
+        // reach it. The cels the growth adds are holds, so a drawing made at
+        // frame twenty on a five-frame scene holds drawing five across the gap —
+        // which is what an artist dragging the playhead out and drawing means.
+        EnsureSceneReachesPlayhead();
         if (ActiveLayer is not { } layer || layer.Cels.Count == 0) return null;
         var here = Math.Clamp(CurrentFrameIndex, 0, layer.Cels.Count - 1);
         // A cel that holds an earlier drawing is not a drawing of its own. What
@@ -687,7 +742,19 @@ public partial class MainViewModel
         }
         var index = here;
         var layerId = layer.Id;
-        var fresh = new Frame();        // one class, so the layer's kind decides nothing here
+        // The key must not change the picture. The new drawing carries a copy
+        // of what the hold was showing, so the mark (or move, or erase) that
+        // prompted the key is the only visible change — a cel that went blank
+        // under the first touch read as the app losing the drawing. A layer
+        // with no key at all still starts from nothing, which is the ordinary
+        // way to start one.
+        var fresh = KeyedCopyOf(PaintTarget()); // one class, so the layer's kind decides nothing here
+        // B236: remembered so a gesture that turns out to have changed nothing
+        // can take the key back with it. Sweeping an eraser across a hold and
+        // hitting no ink would otherwise break the hold and add a drawing to
+        // the exposure sheet — a bigger surprise than the stray stroke, and one
+        // an artist is far less likely to spot.
+        _lastAutoKeyRevision = _editor.NextRevision;
         _editor.PerformDelta(
             apply: doc =>
             {
@@ -705,6 +772,94 @@ public partial class MainViewModel
     {
         var layer = doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId);
         return layer is not null && index < layer.Cels.Count ? layer.Cels[index] : null;
+    }
+
+    /// <summary>
+    /// The drawing a keyed hold starts from: everything the hold was showing —
+    /// strokes, baseline pixels and placements — under a fresh frame id.
+    /// </summary>
+    /// <remarks>
+    /// Not <c>DocumentEditor.CloneFrame</c>, which leaves placements behind (a
+    /// recorded decision about duplicating a frame in time). Keying a hold is
+    /// a promise that the picture does not change, and a placement that
+    /// vanished from the cel under the first mark would break it. Fresh ids
+    /// on the frame and its strokes, because two frames sharing them would
+    /// cross their cached renders; placement ids survive the copy
+    /// (<see cref="SymbolPlacement.Clone"/>), which is what lets a drag that
+    /// keyed the cel keep hold of the placement it grabbed.
+    /// </remarks>
+    private static Frame KeyedCopyOf(Frame? held) => held is null ? new Frame() : new Frame
+    {
+        Role = held.Role,
+        PngBase64 = held.PngBase64,
+        Strokes = held.Strokes.Select(s => s.Clone()).ToList(),
+        Placements = held.Placements?.Select(p => p.Clone()).ToList(),
+    };
+
+    /// <summary>
+    /// Make the playhead's frame a real one, growing the scene when it is past
+    /// the end. One undoable step of its own, like the keying it precedes.
+    /// </summary>
+    /// <remarks>
+    /// Called by the edits that land, never by navigation — scrubbing past the
+    /// end must author nothing, which is the same line B206 and B207 drew
+    /// between picking and editing.
+    /// </remarks>
+    private void EnsureSceneReachesPlayhead()
+    {
+        if (CurrentFrameIndex < Scene.FrameCount) return;
+        var to = CurrentFrameIndex;
+        var revision = _editor.NextRevision;
+        if (_editor.GrowToInclude(to))
+        {
+            _lastAutoGrowRevision = revision;
+            AiStatus = $"Scene extended to {to + 1} frames.";
+        }
+    }
+
+    /// <summary>
+    /// Key a held cel because an edit is about to land on it, translating
+    /// stroke ids from the drawing it was borrowing to the copy's own. Returns
+    /// the drawing to write to, and rewrites <paramref name="ids"/> in place.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Reading a stroke and writing one are different questions, and B207
+    /// was the gap between them.</b> Picking must never author a cel —
+    /// <see cref="PickableStrokes"/> says so and is right — but an edit that
+    /// actually lands has to key, or it rewrites the drawing the hold borrows
+    /// and the change appears on the earlier frame. So the resolution happens
+    /// here, at the commit, rather than at the pick.
+    /// </para>
+    /// <para>
+    /// <b>The translation is needed because the copy's strokes carry fresh
+    /// ids</b>, which is the rule <see cref="Frame.Clone"/> documents: a
+    /// snapshot keeps ids so undo can restore what was there, and a duplicate
+    /// of a drawing an artist can see gets new ones. Position in the list is
+    /// the bridge — <c>KeyedCopyOf</c> copies in order — and it is exact
+    /// rather than a heuristic for the same reason.
+    /// </para>
+    /// <para>
+    /// Returns the held drawing unchanged when the cel already has one of its
+    /// own, which is the ordinary case and costs one reference comparison.
+    /// </para>
+    /// </remarks>
+    private Frame? KeyHeldCelForStrokeEdit(IList<string> ids)
+    {
+        if (PaintTarget() is not { } held) return null;
+        var indices = new int[ids.Count];
+        for (var i = 0; i < ids.Count; i++)
+        {
+            indices[i] = held.Strokes.FindIndex(s => s.Id == ids[i]);
+        }
+        if (PaintTargetOrKey() is not { } target) return null;
+        if (ReferenceEquals(target, held)) return target; // not a hold: nothing to translate
+        for (var i = 0; i < ids.Count; i++)
+        {
+            var at = indices[i];
+            if (at >= 0 && at < target.Strokes.Count) ids[i] = target.Strokes[at].Id;
+        }
+        return target;
     }
 
     /// <summary>Get placements from the current frame for selection feedback.</summary>
@@ -826,9 +981,9 @@ public partial class MainViewModel
         // the unsnapped start — snapping the anchor first would measure the
         // heading from a point the hand never visited.
         _guideSnap.Begin(x, y);
-        if (SnapToGuides && Scene.Guides is { Count: > 0 } startGuides)
+        if (SnapToGuides && Scene.Guides is { Count: > 0 })
         {
-            (x, y) = Snapper.Point(startGuides, x, y, SnapTolerance);
+            (x, y) = SnappedPoint(x, y);
             _guideSnap.Anchor(x, y);
         }
         // Shift+click: begin at the end of the last stroke and run straight to
@@ -962,10 +1117,7 @@ public partial class MainViewModel
         if (!CanEdit(ActiveLayer, "draw on it") || PaintTargetOrKey() is null) return;
         CommitSwatchEdit();
 
-        if (SnapToGuides && Scene.Guides is { Count: > 0 } guides)
-        {
-            (x, y) = Snapper.Point(guides, x, y, SnapTolerance);
-        }
+        (x, y) = SnappedPoint(x, y);
         _shapeStart = (x, y);
         _liveShape = new Stroke
         {
@@ -990,10 +1142,7 @@ public partial class MainViewModel
     public void MoveShape(double x, double y, bool fromCentre = false, bool regular = false)
     {
         if (_liveShape is not { } stroke) return;
-        if (SnapToGuides && Scene.Guides is { Count: > 0 } guides)
-        {
-            (x, y) = Snapper.Point(guides, x, y, SnapTolerance);
-        }
+        (x, y) = SnappedPoint(x, y);
         stroke.Points = ShapeBuilder.Outline(
             ActiveShape, _shapeStart.X, _shapeStart.Y, x, y, fromCentre, regular, PolygonSides);
         RenderShapePreview();
@@ -1003,10 +1152,7 @@ public partial class MainViewModel
     public void EndShape(double x, double y, bool fromCentre = false, bool regular = false)
     {
         if (_liveShape is not { } stroke) return;
-        if (SnapToGuides && Scene.Guides is { Count: > 0 } guides)
-        {
-            (x, y) = Snapper.Point(guides, x, y, SnapTolerance);
-        }
+        (x, y) = SnappedPoint(x, y);
         stroke.Points = ShapeBuilder.Outline(
             ActiveShape, _shapeStart.X, _shapeStart.Y, x, y, fromCentre, regular, PolygonSides);
         CancelShape();
@@ -1852,7 +1998,22 @@ public partial class MainViewModel
         // to pause on drawings with many strokes. Appending the exact stroke
         // to the previously exact bitmap is the same sequence Materialize
         // would run, so the pixels stay bit-identical.
+        // B236: an erasure is measured across the append, because the only
+        // honest answer to "did this rub anything out" is the pixels. Opened
+        // before the stamp and read after it — see StrokeChangeProbe for why
+        // this is exact rather than a geometry test, and why nothing but an
+        // erasure pays for it.
+        var erasure = IsErasure(stroke)
+            ? StrokeChangeProbe.Open(stroke, _cache.Get(target, Scene.Width, Scene.Height))
+            : null;
+
         AppendToFrameRender(target, stroke); // pre-stroke state (record not yet updated)
+
+        if (erasure?.ChangedNothing() == true)
+        {
+            DiscardErasureThatDidNothing(stroke);
+            return;
+        }
 
         // Undo without snapshotting the whole document (the other pen-lift
         // pause). The frame is resolved by id at apply/revert time: a
@@ -1888,5 +2049,58 @@ public partial class MainViewModel
         else _publish.InvalidateWholeCanvas();
         PublishSnapshot();
         RefreshThumbnails();
+    }
+
+    /// <summary>The two ways a stroke takes paint away rather than adding it.</summary>
+    private static bool IsErasure(Stroke stroke) =>
+        stroke.Tool is ToolKind.Eraser or ToolKind.ClearRegion;
+
+    /// <summary>
+    /// Throw away an erasure that rubbed nothing out, and the cel it keyed on
+    /// its way in (B236).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Nothing is recorded and nothing is undone</b>, which is the owner's
+    /// rule: <i>"erasing something that wasn't there to begin with should not be
+    /// kept — not as a stroke, not in the undo history. It did nothing to
+    /// nothing."</i> The consequence is worth stating plainly: Ctrl+Z after a
+    /// no-op erase takes back whatever you did <em>before</em> it, because as
+    /// far as the document is concerned the erase never happened.
+    /// </para>
+    /// <para>
+    /// <b>The frame render is left exactly as it is, on purpose.</b> The stroke
+    /// has already been appended to the cached bitmap and the tiles — and the
+    /// probe has just proved that append changed not one byte, so there is
+    /// nothing to roll back. Rebuilding the frame here would cost a full replay
+    /// to reach the picture already on screen.
+    /// </para>
+    /// <para>
+    /// <b>The publish still happens.</b> The live scratch was drawing the
+    /// erase-in-progress and has to stop; the thumbnails do not, because the
+    /// drawing they show is unchanged.
+    /// </para>
+    /// </remarks>
+    private void DiscardErasureThatDidNothing(Stroke stroke)
+    {
+        // The cel goes back to being a hold. No refresh call here on purpose:
+        // DiscardStep raises the editor's Changed event, which is the same
+        // signal the keying itself fired, so everything that reacted to the
+        // cel appearing reacts to it going away.
+        // Newest first: the growth was pushed before the keying, and a step is
+        // discarded by revision, so unwinding in the order they landed would
+        // leave the later one sitting on a document the earlier one has already
+        // taken back.
+        if (_lastAutoKeyRevision is { } keyed) _editor.DiscardStep(keyed);
+        if (_lastAutoGrowRevision is { } grown) _editor.DiscardStep(grown);
+        _lastAutoKeyRevision = null;
+        _lastAutoGrowRevision = null;
+
+        var commitInfo = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        if (BrushEngine.CommitBounds(stroke, commitInfo) is { } touched) _publish.MarkDirty(touched);
+        else _publish.InvalidateWholeCanvas();
+        PublishSnapshot();
+
+        AiStatus = "That erased nothing, so nothing was recorded.";
     }
 }

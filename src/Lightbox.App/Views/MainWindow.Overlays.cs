@@ -37,6 +37,13 @@ public partial class MainWindow
             RefreshRigOverlay();
         };
 
+        // The motion trail is the simplest push of all: the view model owns
+        // every hook that can move a tick, so the window only ferries the
+        // list. Refreshed once here so a trail left on last session shows
+        // without waiting for the playhead to move.
+        _vm.MotionTrailChanged += points => Canvas.TrailPoints = points;
+        _vm.RefreshMotionTrail();
+
         // The armature overlay follows the rig's pattern exactly: pushed
         // snapshots, window-mediated hits, one editor step per gesture.
         _vm.PropertyChanged += (_, args) =>
@@ -56,38 +63,28 @@ public partial class MainWindow
             if (hit is { Id: { } id }) Canvas.BeginBoneDrag(id, hit.Grab);
             RefreshArmatureOverlay();
         };
-        Canvas.BoneGestureEnded += (id, grab, x0, y0, x1, y1, extruding) =>
+        // Both halves of the gesture go through the view model's one
+        // dispatch (MainViewModel.BoneGesture.cs): the drag previews, the
+        // release lands the editor step. The window only relays.
+        Canvas.BoneDragged += (id, grab, x0, y0, x, y, extruding) =>
         {
-            if (id is null)
-            {
-                // An empty-canvas drag creates a bone — in bind mode only;
-                // posing an empty spot means nothing and writes nothing.
-                if (!_vm.PosingMode) _vm.CreateBoneFromDrag(x0, y0, x1, y1);
-            }
-            else if (_vm.PosingMode)
-            {
-                _vm.PoseBoneTo(id, x1, y1);
-            }
-            else if (extruding && grab is Rendering.BoneGrab.Tip)
-            {
-                // Blender's idiom: take hold of the tip and pull a child out
-                // of it, already joined to the parent.
-                _vm.ExtrudeChildFrom(id, x1, y1);
-            }
-            else if (grab is Rendering.BoneGrab.Origin or Rendering.BoneGrab.Tip)
-            {
-                _vm.DragBoneBind(id, grab, x1, y1);
-            }
-            else
-            {
-                // The shaft moves the whole bone, children and all. It used to
-                // select and do nothing, which is what "no option to move bones
-                // around" meant: the only thing that moved one was the joint
-                // handle, five screen pixels wide.
-                _vm.MoveBoneBy(id, x1 - x0, y1 - y0);
-            }
+            _vm.PreviewBoneGesture(id, grab, x0, y0, x, y, extruding);
             RefreshArmatureOverlay();
         };
+        Canvas.BoneGestureEnded += (id, grab, x0, y0, x1, y1, extruding) =>
+        {
+            _vm.EndBoneGesture(id, grab, x0, y0, x1, y1, extruding);
+            RefreshArmatureOverlay();
+        };
+        Canvas.BoneGestureCancelled += () =>
+        {
+            _vm.ClearBoneGesturePreview();
+            RefreshArmatureOverlay();
+        };
+        // The bucket's and the wand's hover preview: traced in the view
+        // model by the same functions the click runs, drawn by the canvas
+        // as chrome.
+        _vm.FillPreviewChanged += (contours, wand, hex) => Canvas.SetFillPreview(contours, wand, hex);
         Canvas.WeightStrokeStarted += (x, y, p) => _vm.BeginWeightStroke(x, y, p);
         Canvas.WeightDabbed += (x, y, p) =>
         {

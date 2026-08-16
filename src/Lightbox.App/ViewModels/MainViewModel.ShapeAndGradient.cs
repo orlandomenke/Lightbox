@@ -66,6 +66,13 @@ public partial class MainViewModel
         }
         CommitSwatchEdit();
 
+        // B216. The shape tool beside this one has snapped its corners since it
+        // shipped and this never snapped anything, for no reason either tool
+        // could name — the two are the same gesture, an anchor and a dragged
+        // far end, and a ramp whose axis is meant to run along a guide is at
+        // least as common as a rectangle whose corner is.
+        (x, y) = SnappedPoint(x, y);
+
         _liveGradient = new Stroke
         {
             Tool = ToolKind.Gradient,
@@ -92,6 +99,11 @@ public partial class MainViewModel
     public void MoveGradient(double x, double y, bool snapAngle = false)
     {
         if (_liveGradient is not { } stroke) return;
+        // The guides first, then Shift. Shift rotates the axis onto a fixed
+        // angle and would otherwise be undone by a guide pulling the end back
+        // off it; this order means the two compose the way they read — snap to
+        // the guide, then straighten if asked.
+        if (!snapAngle) (x, y) = SnappedPoint(x, y);
         stroke.Points[1] = GradientEnd(stroke, x, y, snapAngle);
         RenderGradientPreview();
         RequestSnapshot();
@@ -101,31 +113,40 @@ public partial class MainViewModel
     /// How far apart the snapped angles are, in degrees.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Fifteen, so the four squares and the four diagonals are all on it and
-    /// there is still somewhere to put an angle between them. The same number
-    /// the guide lock uses, for the same reason.
+    /// there is still somewhere to put an angle between them. A gradient's
+    /// angle is a continuous quantity being nudged onto a nice value, which is
+    /// why it is finer than the forty-five a shape and a pen use — there, Shift
+    /// means "level, upright or true diagonal", and offering eight more
+    /// directions in between makes it miss.
+    /// </para>
+    /// <para>
+    /// <b>B218 corrected what this used to claim.</b> It said "the same number
+    /// the guide lock uses, for the same reason", and only the first half was
+    /// true: <c>Snapper.LockDegrees</c> is also fifteen and is not a step at all
+    /// — it is how far off a stroke's heading may be and still count as meant
+    /// for a guide. A tolerance and a lattice are different things that happened
+    /// to share a number, and a comment asserting a shared reason is how two
+    /// constants come to be changed together by someone who believes it.
+    /// </para>
     /// </remarks>
     public const double GradientSnapDegrees = 15;
 
     private static StrokePoint GradientEnd(Stroke stroke, double x, double y, bool snapAngle)
     {
         if (!snapAngle) return new StrokePoint(x, y, 1);
-        var ax = stroke.Points[0].X;
-        var ay = stroke.Points[0].Y;
-        var dx = x - ax;
-        var dy = y - ay;
-        var length = Math.Sqrt(dx * dx + dy * dy);
-        if (length < 1e-9) return new StrokePoint(x, y, 1);
-        // The angle snaps; the length does not. Same division of labour as a
-        // ruler — the guide decides the direction, the hand decides how far.
-        var degrees = Math.Atan2(dy, dx) * 180 / Math.PI;
-        var snapped = Math.Round(degrees / GradientSnapDegrees) * GradientSnapDegrees * Math.PI / 180;
-        return new StrokePoint(ax + Math.Cos(snapped) * length, ay + Math.Sin(snapped) * length, 1);
+        // The arithmetic is Snapper.OnNearestAngle's (B218); the fifteen is this
+        // tool's, and the constant above says why.
+        var anchor = stroke.Points[0];
+        var (sx, sy) = Snapper.OnNearestAngle(anchor.X, anchor.Y, x, y, GradientSnapDegrees);
+        return new StrokePoint(sx, sy, 1);
     }
 
     public void EndGradient(double x, double y, bool snapAngle = false)
     {
         if (_liveGradient is not { } stroke) return;
+        if (!snapAngle) (x, y) = SnappedPoint(x, y);
         stroke.Points[1] = GradientEnd(stroke, x, y, snapAngle);
         CancelGradient(); // clears the preview; the record gets the stroke below
 

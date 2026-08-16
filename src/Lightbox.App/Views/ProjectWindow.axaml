@@ -83,8 +83,10 @@
         <ComboBox MinWidth="140" ItemsSource="{Binding TagsInUse}"
                   SelectedItem="{Binding TagFilter}"
                   PlaceholderText="every tag" />
-        <Button Content="✕" Command="{Binding ClearTagFilterCommand}"
-                ToolTip.Tip="Show every row again" />
+        <Button Command="{Binding ClearTagFilterCommand}"
+                ToolTip.Tip="Show every row again">
+          <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconClose}" />
+        </Button>
         <TextBlock Classes="head" VerticalAlignment="Center" Margin="10,0,0,0" Text="WHO" />
         <ComboBox MinWidth="140" ItemsSource="{Binding People}"
                   SelectedItem="{Binding AssigneeFilter}"
@@ -95,8 +97,10 @@
             </DataTemplate>
           </ComboBox.ItemTemplate>
         </ComboBox>
-        <Button Content="✕" Command="{Binding ClearAssigneeFilterCommand}"
-                ToolTip.Tip="Show everybody's rows again" />
+        <Button Command="{Binding ClearAssigneeFilterCommand}"
+                ToolTip.Tip="Show everybody's rows again">
+          <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconClose}" />
+        </Button>
       </StackPanel>
     </Border>
 
@@ -225,9 +229,11 @@
                         <Grid ColumnDefinitions="*,auto" MinHeight="24">
                           <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="11"
                                      VerticalAlignment="Center" />
-                          <Button Grid.Column="1" Content="✕" FontSize="10"
+                          <Button Grid.Column="1"
                                   Command="{Binding $parent[ItemsControl].((vm:ProjectWindowViewModel)DataContext).RemoveVariantCommand}"
-                                  CommandParameter="{Binding}" />
+                                  CommandParameter="{Binding}">
+                            <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconClose}" />
+                          </Button>
                         </Grid>
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -619,18 +625,29 @@
                             <!-- The docker's Reach menu, as one click on the
                                  chip it is about. Hidden on a document
                                  declaration, which has nothing below it. -->
-                            <Button Content="{Binding ReachGlyph}" FontSize="10" Padding="2,0"
+                            <Button Padding="2,0"
                                     Background="Transparent" BorderThickness="0"
                                     IsVisible="{Binding CanReach}"
                                     Command="{Binding $parent[ListBox].((vm:ProjectWindowViewModel)DataContext).ToggleReachCommand}"
                                     CommandParameter="{Binding}"
-                                    ToolTip.Tip="{Binding ReachHint}" />
-                            <Button Content="✕" FontSize="10" Padding="2,0"
+                                    ToolTip.Tip="{Binding ReachHint}">
+                              <!-- The arrow carries the state: up to the bar
+                                   publishes, down from it takes back. -->
+                              <Panel>
+                                <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconArrowUpToBar}"
+                                      IsVisible="{Binding !IsPublished}" />
+                                <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconArrowDownToBar}"
+                                      IsVisible="{Binding IsPublished}" />
+                              </Panel>
+                            </Button>
+                            <Button Padding="2,0"
                                     Background="Transparent" BorderThickness="0"
                                     IsVisible="{Binding CanRemove}"
                                     Command="{Binding $parent[ListBox].((vm:ProjectWindowViewModel)DataContext).UndeclareOnScopeCommand}"
                                     CommandParameter="{Binding}"
-                                    ToolTip.Tip="Stop sharing this here" />
+                                    ToolTip.Tip="Stop sharing this here">
+                              <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconClose}" />
+                            </Button>
                           </StackPanel>
                         </Border>
                       </DataTemplate>

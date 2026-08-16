@@ -101,7 +101,24 @@ public partial class MainViewModel
     private const int VirtualTail = 24;
 
     /// <summary>Last frame the ruler may scrub to.</summary>
-    public int MaxScrubFrame => Scene.FrameCount - 1;
+    /// <remarks>
+    /// <b>The sheet's extent, not the scene's length (Q103).</b> The playhead may
+    /// stand past the end of the scene: the scene's length is a consequence of
+    /// where the artist worked, not a gate they have to open before working, and
+    /// requiring a keyframe or a hold before you can even go somewhere is the
+    /// gate. Bounded by what the X-sheet actually draws, so it is self-limiting
+    /// and needs no number of its own — if you can see the cell, you can stand
+    /// on it.
+    /// <para>
+    /// Scrubbing there authors nothing. Playback is a different question and is
+    /// deliberately unchanged: it runs to <see cref="EffectiveEndFrame"/>, which
+    /// clamps to the scene and to the playback range.
+    /// </para>
+    /// </remarks>
+    public int MaxScrubFrame => TimelineExtent - 1;
+
+    /// <summary>Whether the playhead is standing past the end of the scene.</summary>
+    public bool PlayheadPastTheEnd => CurrentFrameIndex >= Scene.FrameCount;
 
     public string FrameLabel => $"{CurrentFrameIndex + 1} / {Scene.FrameCount}";
 
@@ -153,6 +170,19 @@ public partial class MainViewModel
             // Which reference frame is showing, and therefore which cell the
             // alignment fields are editing, is a property of the playhead.
             NotifyReference();
+            // The trail's window and its current tick both move with the
+            // playhead. A boolean when the trail is off, and nothing at all
+            // while playing — RefreshMotionTrail clears it for the run and
+            // OnIsPlayingChanged recomputes once on the stop, so the bounds
+            // walk never rides the tick (B152).
+            if (!IsPlaying) RefreshMotionTrail();
+
+            // The rig's whole editing surface reads the playhead's pose — the
+            // chrome in pose and weight modes, the heat dots on the posed
+            // drawing, the correctives list for this frame — so a scrub has to
+            // move it. Same B152 shape as the trail: never per playback tick,
+            // caught up once by OnIsPlayingChanged when the run stops.
+            if (!IsPlaying && ArmatureEditMode) RefreshArmatureAtPlayhead();
         }
         using (Profile(profiling, Services.TickProfile.Phase.Audio))
         {
@@ -252,9 +282,6 @@ public partial class MainViewModel
         if (IsPlaying) Pause();
         else Play();
     }
-
-    /// <summary>One button for both, so the shortcut bar costs one slot.</summary>
-    public string PlayPauseGlyph => IsPlaying ? "⏸" : "▶";
 
     /// <summary>
     /// Whether transport controls are worth showing at all.
@@ -603,6 +630,7 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(TimelineExtent));
         OnPropertyChanged(nameof(MaxScrubFrame));
         OnPropertyChanged(nameof(FrameLabel));
+        OnPropertyChanged(nameof(PlayheadPastTheEnd));
         SyncLayerRows();
         ClampCurrentFrame(publishIfUnchanged: false);
         _publish.InvalidateWholeCanvas();
@@ -643,6 +671,47 @@ public partial class MainViewModel
             }
         }
         if (!touched) return;
+        _allThumbsDirty = true;
+        ClearCelRange(); // the indices it held have shifted out from under it
+        RefreshThumbnails();
+    }
+
+    /// <summary>
+    /// Remove a whole frame from the scene — every layer's cel at that index —
+    /// and pull the rest of the sheet back. Q88.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The operation already existed and could not be found</b>, which is
+    /// why this is a route rather than a new edit: <c>DocumentEditor.DeleteFrame</c>
+    /// has always removed the column across every layer and rippled, and the
+    /// only way to reach it was one 🗑 button on the timeline bar that acted on
+    /// the playhead. The X-sheet's own right-click <em>Delete cel</em> is the
+    /// row-scoped one, so an artist looking for "take this frame out of the
+    /// scene" found the wrong verb first and concluded the right one was
+    /// missing.
+    /// </para>
+    /// <para>
+    /// Takes the frame from the cel that was clicked rather than from the
+    /// playhead: a right-click names a place, and acting somewhere else would
+    /// be the same near-miss B108 fixed in the project docker.
+    /// </para>
+    /// </remarks>
+    public void DeleteColumnAt(int frameIndex)
+    {
+        if (Scene.FrameCount <= 1) return; // a scene is never zero frames long
+        if (frameIndex < 0 || frameIndex >= Scene.FrameCount) return;
+        // Every layer loses a cel, so a locked one is a refusal for the whole
+        // column rather than something to skip past: deleting the frame from
+        // four layers and not the fifth would slide those four out of step with
+        // it, which is worse than not deleting at all.
+        if (Scene.Layers.FirstOrDefault(l => l.Locked && !l.IsBackground) is { } locked)
+        {
+            AiStatus = $"“{locked.Name}” is locked — unlock it to remove this frame from the scene.";
+            return;
+        }
+        _editor.DeleteFrame(frameIndex);
+        CurrentFrameIndex = Math.Min(CurrentFrameIndex, Scene.FrameCount - 1);
         _allThumbsDirty = true;
         ClearCelRange(); // the indices it held have shifted out from under it
         RefreshThumbnails();

@@ -3,6 +3,7 @@ using Lightbox.Ai;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Projects;
+using Lightbox.Core.Serialization;
 
 namespace Lightbox.App.Tests;
 
@@ -10,14 +11,26 @@ namespace Lightbox.App.Tests;
 internal sealed class FakeArtist : IAiArtist
 {
     public AiResult<List<InbetweenFrameResult>>? InbetweenResult { get; set; }
+
+    /// <summary>
+    /// One answer per call, for tests about the repair loop. When it runs dry
+    /// — or is never set — <see cref="InbetweenResult"/> answers instead, which
+    /// is what makes "this model never improves" the default rather than
+    /// something each test has to spell out.
+    /// </summary>
+    public Queue<AiResult<List<InbetweenFrameResult>>> InbetweenAnswers { get; } = new();
+
     public AiResult<SubjectTaxonomy>? SubjectResult { get; set; }
     public InbetweenRequest? LastInbetweenRequest { get; private set; }
+    public int InbetweenCalls { get; private set; }
     public SubjectRequest? LastSubjectRequest { get; private set; }
 
     public Task<AiResult<List<InbetweenFrameResult>>> GenerateInbetweensAsync(
         InbetweenRequest request, CancellationToken ct)
     {
         LastInbetweenRequest = request;
+        InbetweenCalls++;
+        if (InbetweenAnswers.Count > 0) return Task.FromResult(InbetweenAnswers.Dequeue());
         return Task.FromResult(InbetweenResult
             ?? AiResult<List<InbetweenFrameResult>>.Error("unscripted", false));
     }
@@ -174,6 +187,64 @@ public class AiIntegrationTests
 
         var frame = vm.PaintLayer().Cels[1].Frame!;
         Assert.NotNull(frame.Ai); // Q31: the frame records that AI drew it
+        // Absent unless it took more than one ask, so a model that gets it
+        // right first time writes exactly what it wrote before repair existed.
+        Assert.Null(frame.Ai!.Attempts);
+        Assert.DoesNotContain("\"attempts\"", DocJson.Serialize(vm.Doc));
+    }
+
+    /// <summary>
+    /// Phase 3: a refused frame is asked again with the fault named, and the
+    /// corrected drawing lands with a record of what it cost.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task ARefusedFrameIsAskedAgainAndTheFrameItProducesSaysSo()
+    {
+        var artist = new FakeArtist();
+        // Key A handed back as the inbetween — refused — then a real one.
+        artist.InbetweenAnswers.Enqueue(AiResult<List<InbetweenFrameResult>>.Success(
+            [new InbetweenFrameResult(0.5, [Seg(10)])]));
+        artist.InbetweenAnswers.Enqueue(AiResult<List<InbetweenFrameResult>>.Success(
+            [new InbetweenFrameResult(0.5, [Seg(35)])]));
+        var vm = VmWithTwoKeys(artist);
+        vm.TweenCount = 1;
+
+        await vm.AiInbetweenCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, artist.InbetweenCalls);
+        var frame = vm.PaintLayer().Cels[1].Frame!;
+        Assert.Equal(35, frame.Strokes[0].Points[0].Y);
+        Assert.Equal(2, frame.Ai!.Attempts);
+        Assert.Contains("Inserted 1", vm.AiStatus);
+        Assert.Contains("needed a second ask", vm.AiStatus);
+
+        // The re-ask carried the fault and the drawing that earned it, rather
+        // than being the same request sent twice.
+        var repair = Assert.Single(artist.LastInbetweenRequest!.Repair!);
+        Assert.Contains("did not stay between the keys", repair.Fault);
+        Assert.Equal(10, repair.Strokes[0].Points[0].Y);
+    }
+
+    /// <summary>
+    /// Bounded (Q85), and the status says what the empty result cost — three
+    /// calls and one call are very different bills for the same nothing.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AModelThatKeepsFailingStopsAfterThreeAsksAndSaysHowMany()
+    {
+        var artist = new FakeArtist
+        {
+            InbetweenResult = AiResult<List<InbetweenFrameResult>>.Success(
+                [new InbetweenFrameResult(0.5, [Seg(10)])]),
+        };
+        var vm = VmWithTwoKeys(artist);
+        vm.TweenCount = 1;
+
+        await vm.AiInbetweenCommand.ExecuteAsync(null);
+
+        Assert.Equal(1 + InbetweenRepair.MaxReasks, artist.InbetweenCalls);
+        Assert.Equal(2, vm.Doc.Scene.FrameCount); // still nothing inserted
+        Assert.Contains("Nothing was inserted after 3 attempts", vm.AiStatus);
     }
 
     [AvaloniaFact]

@@ -116,11 +116,13 @@ plan sat unstarted than the plan proposed to remove.
 
 An extraction that costs a branch, a full suite run and a `leak-hunter` pass per
 leaf cannot outrun feature work landing in the same file. So the growth is capped
-from the other side first: `MonolithRatchetTests` holds a line budget for the
-four oversized files, seeded at their current lengths. They may shrink and may
-not grow; a budget comes down when an extraction lands, in the same commit; there
-is no environment-variable escape hatch, because raising the number in a diff is
-the visible version of the same decision.
+from the other side first: `.claude/quality/ratchets/` holds a line budget for
+the four oversized files, one file each, seeded at their current lengths and read
+by `MonolithRatchetTests`. They may shrink and may not grow; a budget comes down
+when an extraction lands, in the same commit; there is no environment-variable
+escape hatch, because raising the number in a diff is the visible version of the
+same decision. One file each because the budgets shared a test file, so two
+branches growing two *different* oversized files conflicted anyway (Q92).
 
 This is deliberately not architecture. It is the cheapest mechanism that makes
 the rest of this document arithmetically possible.

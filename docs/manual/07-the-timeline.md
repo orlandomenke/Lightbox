@@ -18,6 +18,32 @@ One row per layer, one cell per frame. Click a cell to go there; the current one
 is highlighted. A **keyed** cell holds a drawing; a **hold** repeats the drawing
 before it, which is what animating on 2s and 3s is made of.
 
+**Two kinds of cell look empty, and they are not the same thing.** A plain empty
+cell is inside the scene: it is a hold or a blanked drawing, and a mark on it
+keys a drawing. A **hatched** cell is past the end of the scene — there is no
+frame there yet.
+
+**You can still go there, and that is how a scene gets longer.** Drag the
+playhead onto a hatched cell, or click one, and the playhead stands on it; the
+canvas shows no drawing, because there is none, while onion skin and any
+armature still show so you have something to work against. Nothing has changed
+in your document yet — scrubbing out there costs nothing and leaves no undo
+step.
+
+**The scene grows when you edit, not when you arrive.** Make a mark, or pose a
+rig, on a hatched cell and the scene extends to reach it. The frames in between
+become **holds**, so the drawing that was last up stays up across the gap —
+which is how you hold one drawing for ten frames: drag the playhead ten frames
+out and draw. Extending is its own undo step, so one undo takes the mark back
+and another gives the length back.
+
+How far out you can go is however far the sheet is drawn — if you can see the
+cell, you can stand on it.
+
+**Playback is not affected.** Playing runs to the end of the scene, or to the
+start and end you set for the playback range, and never out into the hatching.
+Scrubbing is free; playing is bounded.
+
 ## The scratch track
 
 **Audio is optional and absent until you add it** — the same rule the camera
@@ -104,6 +130,17 @@ Right-click a cel for: insert frame, extend or reduce exposure, clear, delete
 (which pulls the rest of the row back), copy, cut, paste, markers, and the
 playback range.
 
+**Delete cel and Delete column are different edits, and the menu now says so.**
+*Delete cel* takes the drawing out of **that layer's row** and pulls the rest
+of that row back, leaving every other layer where it was. *Delete column*
+takes the frame out of the **scene** — every layer's cel at it — and pulls the
+whole sheet back, which is what you want when a beat is one frame too long. A
+column delete is refused while any layer is locked, because removing the frame
+from the others would slide them out of step with it. It is in **Edit →
+Configure → Shortcuts** under Timeline if you want a key for it; it has no
+default one, since Delete already means several things depending on where the
+pointer is.
+
 Drag a cel along its row to move it. Shift-click for a range, then apply
 exposure changes to all of it at once.
 
@@ -163,9 +200,33 @@ a drawing where you made one. The alternative silently edits the frame being
 held, so your stroke turns up on the earlier frame too and the cel you drew on
 stays empty and dark.
 
+The new drawing **starts as a copy of what the hold was showing** — strokes,
+imported pixels and placed symbols alike — so keying never changes the
+picture: the mark you just made is the only visible difference, and the
+earlier frame keeps its drawing exactly as it was. Erase the copy if what you
+wanted was a blank sheet.
+
+This is not only the brush: **moving or transforming the drawing, or dragging
+a placed symbol, keys a held cel the same way** and edits the copy. Those used
+to slip past the keying and rewrite the drawing the hold was borrowing, so a
+nudge on frame 2 showed up on frame 1 as well.
+
+This now covers the line tools too: **reshaping a line with the pen, and
+moving, nudging, recolouring or deleting selected lines**, all key a held cel
+and edit the copy. Selecting a line on a hold still authors nothing — looking
+around is not editing, and only the edit that lands makes the cel a drawing of
+its own.
+
+The key happens when you **commit** the edit, not when you pick the tool up.
+Pressing Ctrl+T on a hold and then Escape leaves the timeline exactly as it
+was, and so does clicking without dragging — a cel becomes a drawing of its
+own when you actually change something, never because you were looking at it.
+
 **Edit → Configure → Timeline** switches it to *Edit the held drawing*, which
 is right when the hold is deliberate and you are still working on that one
-pose — touching it up without breaking the hold.
+pose — touching it up without breaking the hold. That switch governs the
+editing tools too: with it set, a move on a hold moves the held drawing and
+keys nothing.
 
 Keying is a separate undo step from the mark that prompted it: one undo takes
 the stroke back and leaves the new drawing, a second takes the drawing away and

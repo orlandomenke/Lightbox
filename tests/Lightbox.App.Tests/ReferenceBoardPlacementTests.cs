@@ -6,9 +6,9 @@ using SkiaSharp;
 namespace Lightbox.App.Tests;
 
 /// <summary>
-/// Where a picture lands when it arrives on the board (B204), that the board can
-/// be reached and used with no character sheet at all (B206), and that its keys
-/// stay inside its own window (B205).
+/// Where a picture lands when it arrives on the board (B243), that the board can
+/// be reached and used with no character sheet at all (B245), and that its keys
+/// stay inside its own window (B244).
 /// </summary>
 [Collection("BrushState")]
 public class ReferenceBoardPlacementTests : BrushStateIsolated
@@ -77,7 +77,7 @@ public class ReferenceBoardPlacementTests : BrushStateIsolated
                 .Max(t => t.Y + t.Height);
             Assert.True(
                 tile.Y < bottomOfTheSheets,
-                $"landed at {tile.Y}, below the wall's bottom edge at {bottomOfTheSheets} — off screen (B204)");
+                $"landed at {tile.Y}, below the wall's bottom edge at {bottomOfTheSheets} — off screen (B243)");
         }
         finally
         {
@@ -123,7 +123,7 @@ public class ReferenceBoardPlacementTests : BrushStateIsolated
         return (point.X, point.Y);
     }
 
-    // ---- reachable without a sheet (B206) ---------------------------------------------
+    // ---- reachable without a sheet (B245) ---------------------------------------------
 
     [AvaloniaFact]
     public void TheBoardOpensWithNoSheetsAtAll()
@@ -149,7 +149,7 @@ public class ReferenceBoardPlacementTests : BrushStateIsolated
         }
     }
 
-    // ---- the board's keys stay in the board (B205) -------------------------------------
+    // ---- the board's keys stay in the board (B244) -------------------------------------
 
     [AvaloniaFact]
     public void TheBoardsKeysDoNotAnswerOutsideTheBoard()
@@ -177,7 +177,7 @@ public class ReferenceBoardPlacementTests : BrushStateIsolated
     [AvaloniaFact]
     public void TheBoardIsReachableFromTheViewMenu()
     {
-        // The doorway B206 was about: opening the board must not require a sheet
+        // The doorway B245 was about: opening the board must not require a sheet
         // to exist, so the command that opens it is registered rather than living
         // only on a button beside a view.
         var map = new Lightbox.App.Services.ShortcutMap();

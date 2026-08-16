@@ -177,6 +177,21 @@ public sealed class FrameBitmapCache : IDisposable
     }
 
     /// <summary>
+    /// Free a bitmap the cache never owned through the same pin-aware
+    /// deferral its own contents get.
+    /// </summary>
+    /// <remarks>
+    /// For owners whose bitmaps ride in published pass lists —
+    /// <see cref="LayerStackBake"/>'s baked segments. Every pass bitmap is
+    /// pinned here at publish (owned or not; an unowned pin is just a
+    /// dictionary entry the matching unpin removes), so this is the one place
+    /// that already knows whether the render thread might still read it.
+    /// Disposing directly instead is B130's crash with a different owner: the
+    /// UI thread freeing pixels a deferred compose holds.
+    /// </remarks>
+    public void DisposeExternal(SKBitmap bmp) => DisposeOrDefer(bmp);
+
+    /// <summary>
     /// Lookups served from memory, lookups that had to render, and entries
     /// thrown out — for the render report.
     /// </summary>
@@ -220,18 +235,36 @@ public sealed class FrameBitmapCache : IDisposable
     /// Keying on it unconditionally would give a held drawing one cached
     /// bitmap per exposure, which is the cache doing the opposite of its job.
     /// </remarks>
-    private static string KeyOf(Frame frame, int width, int height, double outputScale, int celIndex)
+    private string KeyOf(Frame frame, int width, int height, double outputScale, int celIndex)
     {
         var key = string.Create(
             CultureInfo.InvariantCulture,
             $"{frame.Id}|{width}x{height}@{outputScale:0.####}");
-        // A placed symbol and a rig-bound stroke share the same property: the
+        // A placed symbol and a rig-moved drawing share the same property: the
         // frame's pixels depend on where the playhead is, so the timeline
         // position joins the key. Everything else keys by id alone.
-        return frame is { HasPlacements: true } or { HasBoundStrokes: true }
+        //
+        // Asked of the RIG INDEX rather than of the frame, because a drawing
+        // on a rigged LAYER carries no weights of its own (Q90) — it would key
+        // by id alone and every frame of the walk cycle would come back as
+        // whichever pose rendered first.
+        return frame.HasPlacements || Rig.IsPosed(frame)
             ? string.Create(CultureInfo.InvariantCulture, $"{key}#{celIndex}")
             : key;
     }
+
+    /// <summary>
+    /// Which drawings the rig moves. Replaced by the owner when the document
+    /// changes; <see cref="RigIndex.Empty"/> means "ask the frame", which is
+    /// what every document that never rigged gets.
+    /// </summary>
+    /// <remarks>
+    /// <b>Set this before the resolver, and replace both together.</b> They
+    /// answer the same question — the index decides whether a frame's key
+    /// carries the playhead, the resolver decides what it renders as — and a
+    /// pair that disagree gives one pose a key that says "any position".
+    /// </remarks>
+    public RigIndex Rig { get; set; } = RigIndex.Empty;
 
     /// <summary>
     /// Turns a frame into what a render at a timeline position should see —

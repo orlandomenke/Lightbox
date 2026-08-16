@@ -73,6 +73,56 @@ sealed class TransformSession
     /// </remarks>
     internal SKMatrix? Preview { get; set; }
 
+    /// <summary>
+    /// Doc-space bounds of everything the gesture moves, render reach included
+    /// — or null when the moving pixels cannot be bounded from the stroke
+    /// record (a raster baseline or a placement moves with the layer), in
+    /// which case the preview repaints the whole canvas as it always did.
+    /// </summary>
+    /// <remarks>
+    /// What makes the preview bounded work (invariant 6). The preview used to
+    /// invalidate the whole canvas per pointer event, which on a large
+    /// document is a full recomposite per event — paced to the present rate,
+    /// so the drag read as a slideshow exactly where a brush stroke stays
+    /// live. With the bounds known, each event repaints only where the moving
+    /// pixels were and where they now are.
+    /// </remarks>
+    internal SKRect? MovingBounds { get; set; }
+
+    /// <summary>
+    /// The box the gizmo is drawn around — what a move snaps to the guides.
+    /// </summary>
+    /// <remarks>
+    /// <b>B225, and deliberately not <see cref="MovingBounds"/>.</b> That one
+    /// is a repaint-region optimisation and returns null whenever the moving
+    /// content is not bounded by strokes alone — a frame with a baseline, or
+    /// with placements on it — because then the whole layer bitmap moves and
+    /// there is no smaller region to repaint. Snapping against it would have
+    /// worked on a clean drawing and silently done nothing on a painted one,
+    /// which is the worst shape a snap can have.
+    ///
+    /// <para>
+    /// This is the rect the artist can actually see the handles around, which
+    /// is the only box it makes sense to line up against a guide.
+    /// </para>
+    /// </remarks>
+    internal SKRect? SnapBounds { get; set; }
+
+    /// <summary>
+    /// The id of the drawing this session is <em>borrowing</em> — set when the
+    /// gesture opened on a held cel that a commit must key rather than write
+    /// through. Null when the cel has a drawing of its own.
+    /// </summary>
+    /// <remarks>
+    /// The record must not change until the commit. Keying when the session
+    /// opened was the obvious place and the wrong one: Ctrl+T raises the gizmo
+    /// before the artist has done anything, so it put a drawing on the
+    /// timeline for a tool that was merely picked up, and Escape left it
+    /// there. The preview is not an edit (invariant 1), so an abandoned
+    /// transform has to leave the document exactly as it found it.
+    /// </remarks>
+    internal string? HeldFrameIdToKey { get; set; }
+
     /// <summary>Take the scope for a new gesture, replacing any previous one.</summary>
     internal void Begin(IEnumerable<Frame> frames, Func<Stroke, bool>? filter)
     {
@@ -86,6 +136,9 @@ sealed class TransformSession
     {
         Frames.Clear();
         Filter = null;
+        MovingBounds = null;
+        SnapBounds = null;
+        HeldFrameIdToKey = null;
         ClearPreview();
     }
 

@@ -31,9 +31,17 @@ whole layer".
 
 **The tool keys work the same way when held.** Tap **E** and you have chosen
 the eraser, as ever; *hold* **E**, scrub, and let go, and you never left the
-brush. **I** does the same for the eyedropper. The split is how long the key is
-down — a quick press is a choice, anything longer is a borrow — which is
-Photoshop's spring-loaded rule, so the reflex transfers.
+brush. **B**, **F**, **V** and **I** do the same — brush, fill, move and the
+eyedropper — so you can reach for one, use it and land back where you were
+without thinking about it. The split is how long the key is down: a quick press
+is a choice, anything longer is a borrow, which is Photoshop's spring-loaded
+rule, so the reflex transfers.
+
+The other tool keys only latch. **S** is taken — pressing it again cycles the
+selection variants, so it cannot also mean "hold me". The pen, both arrows and
+the Width tool are left out for the reason Ctrl is: they have work in flight,
+and letting go of a key is not a good way to finish a path you were in the
+middle of placing.
 
 ### Arrow and Select are not the same tool
 
@@ -50,18 +58,35 @@ a Shift-click that misses leaves your selection alone, because you are part-way
 through building one. **What you have picked is traced in cyan**, so it is
 always clear which line you got.
 
+**Hovering shows you the line before you take it**, traced faintly in the same
+cyan — a dimmer version of what the click is about to give you. Where lines
+overlap that is the difference between picking the one you meant and finding out
+afterwards. The Width tool previews the same way, for the same reason.
+
 **Drag from empty canvas** to sweep up everything the box touches — touched, not
 enclosed, so a box across a limb takes its lines without your having to draw one
 round the whole character. Hold **Shift** as you start the drag to add to what
 you already have. The box is cyan and dashed rather than the marching ants of an
 area selection, because it is doing a different job.
 
-It picks what you can see. Where two lines cross you get the one on top, and an
-eraser stroke never steals a click from ink that is visible underneath it —
-though an eraser on its own is selectable, so a stray one can still be removed.
+It picks what you can see. Where two lines cross you get the one on top.
 Clicking inside a filled shape picks the fill; clicking in a hole in that shape
 does not, because the hole is not part of it. A gradient is picked by the line
 you dragged to make it, not by everywhere it reaches.
+
+**What you erased is not there to pick.** An eraser leaves a record of itself so
+that reloading a drawing rebuilds it exactly, but as far as every tool is
+concerned the rub and what it rubbed out have both gone: you cannot click an
+eraser stroke, a box dragged over one does not sweep it up, and clicking the gap
+an eraser left picks nothing rather than the line that used to run through it. A
+line erased along its whole length is out of reach entirely. **Undo is what
+brings an erasure back** — it is the only thing that does, so an eraser stroke
+you did not mean to make is undone rather than selected and deleted.
+
+Erasing lightly is a different act and is treated as one. An eraser below full
+opacity *fades* a line rather than removing it, and a faded line is still a line
+you can pick, move and recolour. The same goes for a line rubbed through the
+middle: the surviving ends are still yours, and only the gap is out of reach.
 
 **Guides and symbols win over lines** where they overlap. The drawing is the
 thing that is everywhere, so if it won, a guide crossing a line would be
@@ -113,8 +138,22 @@ Everything is one undo step per action, however many lines are selected.
 > differently. If you need a mark preserved exactly, move the **layer** rather
 > than the line.
 
-*Planned:* scaling and rotating what you picked, and a box with handles to do it
-with.
+**Scale and rotate what you picked** with **Ctrl+T**, the same transform the
+rest of the application uses — the handles appear around the lines rather than
+around the whole drawing, and only they move. Enter applies, Esc cancels.
+
+While lines are picked the **scope** is this drawing and says so: a line lives
+on one drawing, so "all layers" or "the whole animation" would name cels it is
+not on.
+
+**A marquee selection wins if you have one up.** If you have both an area
+selected and lines picked, Ctrl+T transforms the area — so if a transform takes
+something you did not expect, the usual reason is a marquee still up somewhere
+off screen, and **Ctrl+D** is the answer. The transform says what it is moving
+when it starts, so you can see which one it took before you drag anything.
+
+Dragging picked lines now moves them **as you drag** rather than on release, and
+the whole drag is still one undo step.
 
 ### Reshaping a line
 
@@ -149,10 +188,14 @@ Each drag is **one undo step**, however far you pushed the point around.
 
 ### Fewer points
 
-**Simplify** — in the Arrow's options while you are inside a line — refits the
-line through fewer points and tells you how many are left: *"Simplified: 31
-points to 12."* Press it again and it goes further. Each press is its own undo
-step, so one too many costs a single **Ctrl+Z** rather than the whole line.
+**Simplify** — on the quick bar while you are inside a line, beside the count
+of points it currently has — refits the line through fewer points and tells you
+how many are left: *"Simplified: 31 points to 12."* Press it again and it goes
+further. Each press is its own undo step, so one too many costs a single
+**Ctrl+Z** rather than the whole line.
+
+It appears with the line you are inside rather than with a tool, because that is
+what it acts on — go in with the white arrow or the Width tool and it is there.
 
 It refits **the line as it is now**, not the line you originally drew, so
 reshaping first and simplifying afterwards keeps the reshape. It also keeps the
@@ -162,11 +205,15 @@ A shape that genuinely needs the points it has says so rather than doing nothing
 
 ### Making a line heavier or lighter
 
-**The Width tool (W)** changes how thick a line is along its length. Go into a
-line the usual way — double-click it with the Arrow — then drag away from the
-line to fatten it there, or back towards it to thin it. The change is local: it
-spreads a short way either side of where you are pointing and leaves the rest of
-the line as you drew it.
+**The Width tool (W)** changes how thick a line is along its length. Hover a
+line and it lights up; drag away from it to fatten it there, or back towards it
+to thin it. The change is local: it spreads a short way either side of where you
+are pointing and leaves the rest of the line as you drew it.
+
+You do not have to open the line first — the drag takes hold of whatever is
+under the pointer, one press, the same as the white arrow. If you are already
+inside a line reshaping its points, reaching for this works on that line without
+leaving.
 
 It is the same number your pen pressure writes, so a line you drew with a taper
 and a line you widened by hand are the same kind of thing afterwards. A line
@@ -254,6 +301,22 @@ selection is an entry in the document, referenced by the strokes clipped to it).
 Settings that reach pixels — anti-aliasing, pressure curves — are recorded **on
 each stroke**, so changing a preference never alters art you have already made.
 
+**An erase that rubbed nothing out is not recorded.** Sweep the eraser across
+blank canvas, or press Delete with an empty selection, and nothing is written:
+no stroke on the drawing, and no step in the history. It did nothing to nothing,
+so there is nothing to keep. Erasing down the gap between two lines counts as
+nothing too — what matters is whether any pixel changed, not whether ink was
+nearby.
+
+The one consequence worth knowing: **Ctrl+Z straight after an erase that hit
+nothing takes back whatever you did before it**, because as far as the drawing is
+concerned that erase never happened. An erase that *did* rub something out is
+recorded and undone exactly as it always was.
+
+This also keeps the timeline honest. Erasing on a **hold** normally starts a new
+drawing on that frame — but if the erase turns out to have hit nothing, the hold
+stays a hold. A gesture that changed no pixels never changes your timing.
+
 ## What you see while drawing is what you get
 
 **The mark under the pen is the mark you will have when you let go.** Not close
@@ -282,6 +345,18 @@ The one thing you may notice: on a fast flick the very tip of the mark settles a
 fraction behind the cursor. That is the last stroke of the brush waiting until it
 knows which way you turned, and it is deliberate — the alternative is stamps that
 visibly jump into place.
+
+### The bucket shows its region before you click
+
+Hover with the **Fill** tool and the region a click would flood is tinted in
+the colour you are holding, its outline drawn solid. It is traced by the same
+code the click runs — same tolerance, same gap setting, same smart-fill
+sampling — so the click gives you exactly the tinted region, never a surprise.
+Moving inside a region costs nothing (the answer cannot change until you cross
+its edge); the trace runs in the background, so a fast hand never waits on it.
+The magic wand previews the same way, as a faint, still dashed outline —
+dashes mean selection, and it stays faint and still so it cannot be mistaken
+for one you have already made.
 
 ## Drawing fast
 
@@ -341,6 +416,36 @@ the pick landed.
 
 The ring goes away when there is nothing to pick — off the paper, mainly. Over
 bare canvas it shows the paper colour, because that is what a click there takes.
+
+### The pointer also tells you what you are about to grab
+
+Nothing floats over your drawing in Lightbox — there is no row of buttons on the
+canvas and no handles except the ones a gizmo puts there — so the pointer is what
+says a thing under it can be taken hold of, and which way it will go.
+
+- **A double-headed arrow means this drags a size.** It lies along the direction
+  the handle actually travels: across a corner of the transform box, straight up
+  or straight across from an edge, up and down on the top rung of a height chart.
+  Turn the canvas and the arrows turn with it, because they describe the movement
+  your hand makes rather than the one the document would see.
+- **A four-way arrow means this moves.** Inside the transform box, on a guide, on
+  the transform box's pivot, on a reference sheet's box, and on a corner of a
+  perspective warp — a warped corner goes wherever you put it, so there is no
+  direction to point along.
+- **A curved arrow means this turns.** Outside the transform box, on the camera
+  frame's rotate handle, and on a bone you are posing.
+- **A hand means you are holding the canvas itself** — a middle-button drag, or
+  the pan tool.
+
+Two things this promises. It **keeps the shape for the whole drag**, so a scale
+that started at a corner does not turn into a move cursor when your hand crosses
+the middle of the box; and it **changes the moment you hold a key**, without
+waiting for you to move, so a modifier that borrows another tool says so straight
+away.
+
+The pointer is also honest about what it cannot offer: a guide only shows a grab
+when a guide *can* be grabbed — with a brush in hand, or with the rig locked or
+hidden, it is scenery and the pointer stays the brush's.
 
 ---
 

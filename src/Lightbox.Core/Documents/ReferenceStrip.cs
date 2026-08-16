@@ -119,6 +119,20 @@ public sealed class ReferenceStrip
     public string? SheetViewId { get; set; }
 
     /// <summary>
+    /// The reference-board tile this strip is a projection of, or null for a
+    /// strip that did not come off the board — and null writes no key, the
+    /// usual rule.
+    /// </summary>
+    /// <remarks>
+    /// The link is what makes projecting a toggle — the same tile asked for
+    /// twice takes the projection down instead of stacking a second copy —
+    /// and it degrades the way <see cref="SheetViewId"/> does: a tile taken
+    /// off the board leaves the projected pixels standing, because losing
+    /// the source is no reason to lose the picture.
+    /// </remarks>
+    public string? BoardTileId { get; set; }
+
+    /// <summary>
     /// Show the first cell on every frame, ignoring the slot row — the strip
     /// as a photograph taped to the lightbox rather than footage laid along
     /// the timeline.

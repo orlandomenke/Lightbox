@@ -13,6 +13,74 @@ namespace Lightbox.App.Rendering;
 public sealed partial class CanvasControl
 {
     /// <summary>
+    /// One guide, flattened for the renderer.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A snapshot rather than the <c>Guide</c> itself: the renderer runs on
+    /// another thread and must never read a document object the UI thread may
+    /// be halfway through editing. Same reason the reference boxes are copied.
+    /// </para>
+    /// <para>
+    /// <see cref="GuidePainter.Emphasis"/> is not pushed with the rest: the
+    /// window knows what the guides <i>are</i>, and this control knows what the
+    /// pointer is over, so it is stamped on at draw time by
+    /// <see cref="EmphasisedGuides"/> rather than making a hover round-trip
+    /// through the view model to repaint.
+    /// </para>
+    /// </remarks>
+    public readonly record struct GuideLine(
+        string Id, int Kind, float X, float Y, float Spacing, IReadOnlyList<double> Angles,
+        string? Label = null, int Divisions = 0,
+        GuidePainter.Emphasis Emphasis = GuidePainter.Emphasis.None);
+
+    /// <summary>
+    /// Whether a guide under the pointer can be picked up and moved.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The two tools that reach for guides, and only those two —
+    /// <c>MainWindow.RefreshGuideGrab</c> is what sets it. Grabbing a guide and
+    /// drawing along one are the same gesture in the same place, so something
+    /// has to say which was meant, and a tool says it plainly: it is visible in
+    /// the palette, and it is still the answer with the rulers down, which is
+    /// most of the time. Hiding or locking the guides overrides it, because
+    /// both mean "leave the rig alone" whatever tool is in hand.
+    /// </para>
+    /// <para>
+    /// <b>The Arrow joined the Move tool here under B215.</b> It has picked
+    /// guides since the selection manager landed — <c>ToolId.Arrow</c> says so
+    /// in as many words — through a hit test of its own that consulted neither
+    /// of the two switches above, so a locked guide was selectable with it and
+    /// a picked one could never be moved with it. One gate, one hit test: a
+    /// tool that can select a guide can move it, and neither tool can touch one
+    /// the artist has pinned.
+    /// </para>
+    /// <para>
+    /// The cursor is one half of the affordance and the rig's own emphasis is
+    /// the other: while this is on, every guide is drawn a shade up from
+    /// scenery, the one under the pointer brighter still, and the selected one
+    /// brightest — see <see cref="EmphasisedGuides"/>. No handles float over
+    /// the artwork, which is the thing this design exists to avoid; the guides
+    /// simply say that they are reachable right now.
+    /// </para>
+    /// </remarks>
+    public bool GuideDragEnabled
+    {
+        get => _guideDragEnabled;
+        set
+        {
+            if (_guideDragEnabled == value) return;
+            _guideDragEnabled = value;
+            // The whole rig changes emphasis on this, so the switch has to
+            // repaint — picking up the Move tool is what makes it visible.
+            InvalidateVisual();
+        }
+    }
+
+    private bool _guideDragEnabled;
+
+    /// <summary>
     /// The guides to draw, or null for none — in which case nothing
     /// guide-related is drawn at all.
     /// </summary>
@@ -167,13 +235,99 @@ public sealed partial class CanvasControl
     private const int GuideKindLine = 0;
     private const int GuideKindHeightScale = 4;
 
-    private bool _overGuide;
-
+    /// <summary>
+    /// Light the guide under the pointer.
+    /// </summary>
+    /// <remarks>
+    /// <b>B241 took the cursor half of this away.</b> It used to set the cursor
+    /// as well, which was right while guides were the only grabbable chrome and
+    /// wrong the moment the gizmo, the camera and the reference boxes wanted the
+    /// same treatment — two writers of one property, and the later one silently
+    /// winning. <c>CanvasCursorNow</c> is the single writer now and asks about
+    /// guides in its own order; this keeps the emphasis, which is the half that
+    /// was always guide-specific.
+    /// </remarks>
     private void UpdateGuideHoverCursor(Point view)
     {
-        var over = GuideDragEnabled && GuideAt(view) is not null;
-        if (over == _overGuide) return;
-        _overGuide = over;
-        Cursor = over ? PointerCursors.Move : PointerCursors.For(PointerIntent);
+        var id = (GuideDragEnabled ? GuideAt(view) : null)?.Id;
+        if (id == _hoverGuideId) return;
+        _hoverGuideId = id;
+        InvalidateVisual();
+    }
+
+    /// <summary>The guide the pointer is on, or null. Chrome only; never pushed anywhere.</summary>
+    private string? _hoverGuideId;
+
+    /// <summary>
+    /// The guides that are picked, by id.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Pushed down from the window rather than owned here, for the reason every
+    /// other piece of guide state is: the document's selection outlives this
+    /// control, survives an undo, and is what the options bar binds to.
+    /// </para>
+    /// <para>
+    /// <b>A set rather than one id (B215).</b> The single id was the Move
+    /// tool's selection and <c>SelectionManager</c> held the Arrow's, so a
+    /// guide could be picked in one of them and unlit in the other. This is a
+    /// snapshot of the one selection, pushed on the same schedule as
+    /// <see cref="Guides"/> — the render thread must not read a set the UI
+    /// thread is halfway through editing.
+    /// </para>
+    /// </remarks>
+    public IReadOnlySet<string>? SelectedGuideIds
+    {
+        get => _selectedGuideIds;
+        set
+        {
+            _selectedGuideIds = value;
+            InvalidateVisual();
+        }
+    }
+
+    private IReadOnlySet<string>? _selectedGuideIds;
+
+    /// <summary>
+    /// A guide was clicked, with the modifiers held, or the click landed on
+    /// nothing and cleared the selection.
+    /// </summary>
+    public event Action<string?, bool, bool>? GuideSelected;
+
+    /// <summary>Raise <see cref="GuideSelected"/>, from the press handler in CanvasControl.cs.</summary>
+    private void SelectGuide(string? id, bool shift = false, bool alt = false) =>
+        GuideSelected?.Invoke(id, shift, alt);
+
+    /// <summary>
+    /// The guides to draw, each stamped with how prominently.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Nothing is lit unless a guide can actually be picked up — with a brush
+    /// in hand, or the guides locked or hidden, the rig is scenery again and
+    /// this returns the pushed list untouched, allocating nothing. That is also
+    /// what stops the highlight from being a distraction while drawing: it
+    /// appears with the tool that can use it.
+    /// </para>
+    /// <para>
+    /// A fresh list rather than a mutation, because <c>_guides</c> is the
+    /// snapshot the render thread reads — see <see cref="GuideLine"/>.
+    /// </para>
+    /// </remarks>
+    internal IReadOnlyList<GuideLine>? EmphasisedGuides()
+    {
+        if (!GuideDragEnabled || _guides is not { Count: > 0 } guides) return _guides;
+        var lit = new List<GuideLine>(guides.Count);
+        foreach (var guide in guides)
+        {
+            lit.Add(guide with
+            {
+                Emphasis =
+                    _selectedGuideIds?.Contains(guide.Id) == true ? GuidePainter.Emphasis.Selected
+                    : guide.Id == _hoverGuideId ? GuidePainter.Emphasis.Hover
+                    : GuidePainter.Emphasis.Grabbable,
+            });
+        }
+        return lit;
     }
 }

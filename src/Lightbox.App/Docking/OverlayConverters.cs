@@ -18,9 +18,6 @@ public static class OverlayConverters
         new FuncValueConverter<bool, Avalonia.Layout.Orientation>(
             vertical => vertical ? Avalonia.Layout.Orientation.Vertical : Avalonia.Layout.Orientation.Horizontal);
 
-    public static readonly IValueConverter CollapseGlyph =
-        new FuncValueConverter<bool, string>(collapsed => collapsed ? "▸" : "▾");
-
     /// <summary>
     /// The zoom readout needs a slot longer than a tile, along whichever way the bar runs.
     /// </summary>

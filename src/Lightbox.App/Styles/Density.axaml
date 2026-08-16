@@ -209,6 +209,17 @@
     <Setter Property="FontSize" Value="11" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
+  <!--
+    The drawn glyph inside a tile. 13 in a 26 square: half the tile, which is
+    the proportion the layer rows' stateful pairs already settled on. Sites
+    with less room (a caption close, a stacked reorder chevron) shrink the
+    Path inline — a one-off is allowed to size itself, the class is not.
+  -->
+  <Style Selector="Path.icon">
+    <Setter Property="Width" Value="13" />
+    <Setter Property="Height" Value="13" />
+  </Style>
+
   <Style Selector="ToggleButton.icon">
     <Setter Property="MinWidth" Value="26" />
     <Setter Property="MaxWidth" Value="26" />

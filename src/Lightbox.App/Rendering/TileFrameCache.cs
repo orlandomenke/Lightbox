@@ -139,9 +139,14 @@ public sealed class TileFrameCache : IDisposable
     /// reproduce. Reading <see cref="Frame.HasBaseline"/> rather than
     /// <c>PngBase64.Length == 0</c> also matters now the field is nullable.
     /// </remarks>
-    public static bool CanTileFrame(Frame frame) =>
+    public static bool CanTileFrame(Frame frame, bool posed = false) =>
         !frame.HasBaseline
         && !frame.HasPlacements
+        // A rig-moved drawing cannot be rebuilt from stored tiles, because the
+        // tile store knows frames by id and a posed frame is a different
+        // picture at every position. `posed` covers the layer-level binding
+        // (Q90), which the frame itself cannot answer for.
+        && !posed
         && !frame.HasBoundStrokes
         && TiledRasterizer.CanTile(frame.Strokes);
 
