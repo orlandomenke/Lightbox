@@ -1,6 +1,6 @@
 # Q101 · Which bone-system phase next, after the panel fixes? — **answered 2026-08-16: live-pose weight painting**
 
-Asked after B228/B229 landed (PR #304): phases 1–3 of `docs/DESIGN-bones.md`
+Asked after B240/B229 landed (PR #304): phases 1–3 of `docs/DESIGN-bones.md`
 are built, the doc says nothing further starts until the owner schedules it,
 and the owner asked to continue. Prompted with four options.
 
