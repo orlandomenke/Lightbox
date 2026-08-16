@@ -1,6 +1,6 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 4928
+budget: 4932
 
 ## Why it has moved
 
@@ -43,3 +43,16 @@ other's reason and leaves a number nobody can account for.
   release that commits or discards — three edits inside the pointer handlers,
   which is the one place they can be. The gesture is the thing that grew, and a
   gesture cannot be extracted from the handler that receives it.
+- **→ 4,932** (2026-08-16): +4 for the motion trail's draw-op wiring — the pass
+  parameter, the field and the `MotionTrailPainter.Paint` call, all inside the
+  nested `DrawOp` where the painting happens.
+- **Worth recording *why* this needed a raise at all, because the interaction is
+  the instructive part.** The entry above lowered this to 4,928 by re-measuring
+  the merged tree, which was correct: both sides of that merge had extracted
+  code, so the budget was carrying slack neither branch had earned. The motion
+  trail was in flight at the time, written against the old 4,946, and its four
+  lines fitted inside that slack — so it was green on its own branch, green
+  against the pre-remeasure `main`, and over the line the moment the two landed
+  together. **Nothing was wrong with either change.** A remeasure that removes
+  unearned slack can turn a parallel branch red on merge, and the honest
+  response is this entry rather than leaving the slack in place to avoid it.
