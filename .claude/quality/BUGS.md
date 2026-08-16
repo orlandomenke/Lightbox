@@ -2006,7 +2006,7 @@ test reopens the bug.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
 
-- [x] **B233** `P2` `ui` The bone chrome is invisible on white paper - the selected bone measures 1.00:1 `evidence: TheSelectedBoneIsVisibleOnWhitePaper, OrdinaryBonesAndHandlesGetTheRimToo`
+- [x] **B235** `P2` `ui` The bone chrome is invisible on white paper - the selected bone measures 1.00:1 `evidence: TheSelectedBoneIsVisibleOnWhitePaper, OrdinaryBonesAndHandlesGetTheRimToo`
   - Found by the 2026-08-16 visual audit, by arithmetic rather than taste: selected-bone white on white paper is a 1.00:1 contrast ratio, 1.14:1 on warm paper; the green bones (1.8:1) and amber handles (1.9:1) were little better. The whole overlay family was calibrated on a dark canvas, where white measures 14:1 — which is why it looked fine everywhere the chrome was designed and vanished everywhere artists actually paint.
   - Fixed the way marching ants solve the same problem: every live bone and handle draws over a dark translucent rim, so a light line over a dark one is legible on any ground; on dark canvases the rim fades into what is behind it. Ghost bones deliberately get no rim — they should recede.
 

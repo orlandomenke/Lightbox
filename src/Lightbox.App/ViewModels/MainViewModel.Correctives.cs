@@ -102,7 +102,10 @@ public sealed partial class MainViewModel
         if (ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex) is not { } frame) return;
         if (SelectedBoneId is not { } driver) return;
 
-        var pose = ArmatureOps.PoseAt(Doc.Scene.PoseTrack, CurrentFrameIndex);
+        // The render's pose, springs included: the baked shape must be the
+        // shape the canvas was showing, or entering capture visibly shifts
+        // the drawing under the artist's pen.
+        var pose = ArmatureOps.EffectivePoseAt(armature, Doc.Scene.PoseTrack, CurrentFrameIndex);
         var layerBone = Doc.Scene.RiggedBoneOf(ActiveLayer);
         var named = layerBone is { Length: > 0 }
             ? new List<BoneBinding> { new() { BoneId = layerBone } }
@@ -152,7 +155,9 @@ public sealed partial class MainViewModel
         if (_correctiveFrameId is not { } frameId) return;
         if (FrameById(Doc, frameId) is not { } edited) return;
 
-        var pose = ArmatureOps.PoseAt(Doc.Scene.PoseTrack, CurrentFrameIndex);
+        // The same render pose the capture began under — the diff must be
+        // measured against the baseline's own arithmetic.
+        var pose = ArmatureOps.EffectivePoseAt(armature, Doc.Scene.PoseTrack, CurrentFrameIndex);
         var layerBone = Doc.Scene.RiggedBoneOf(ActiveLayer);
         var named = layerBone is { Length: > 0 }
             ? new List<BoneBinding> { new() { BoneId = layerBone } }

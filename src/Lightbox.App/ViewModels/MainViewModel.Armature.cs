@@ -124,7 +124,7 @@ public sealed partial class MainViewModel
             // skeleton has to stand there too or clicking a bone would mean
             // aiming at where it is not.
             var pose = PosingMode || WeightPainting
-                ? _bonePreviewPose ?? ArmatureOps.PoseAt(Doc.Scene.PoseTrack, CurrentFrameIndex)
+                ? _bonePreviewPose ?? ArmatureOps.EffectivePoseAt(armature, Doc.Scene.PoseTrack, CurrentFrameIndex)
                 : null;
             var placements = ArmatureOps.Solve(armature, pose);
             // Everything an artist grabs to drive the rig rather than to BE
@@ -148,19 +148,31 @@ public sealed partial class MainViewModel
             // First in the list so the live skeleton draws over them.
             if (PosingMode && Onion.Enabled && Doc.Scene.PoseTrack is { Keys.Count: > 0 } track)
             {
-                foreach (var (ghostFrame, kind) in GhostKeyFrames(track))
+                // Memoised per playhead position: BoneChromes is re-read on
+                // every pointer move of a pose drag, and the ghosts — several
+                // spring-window solves each — do not change until the document
+                // or the playhead does. The memo is dropped wherever the
+                // document-facing notifications fire, so a stale ghost cannot
+                // outlive the edit that moved its key.
+                if (_ghostChromeCache is not { } cached || cached.Frame != CurrentFrameIndex)
                 {
-                    var at = ArmatureOps.Solve(armature, ArmatureOps.PoseAt(track, ghostFrame));
-                    foreach (var bone in armature.Bones)
+                    var ghosts = new List<BoneChrome>();
+                    foreach (var (ghostFrame, kind) in GhostKeyFrames(track))
                     {
-                        // A handle on a pose nobody can grab is clutter.
-                        if (handles.Contains(bone.Id)) continue;
-                        var g = at[bone.Id];
-                        var (gx, gy) = g.Tip(bone.Length);
-                        chrome.Add(new BoneChrome(
-                            bone.Id, bone.Name, g.X, g.Y, gx, gy, false, false, kind));
+                        var at = ArmatureOps.Solve(armature, ArmatureOps.EffectivePoseAt(armature, track, ghostFrame));
+                        foreach (var bone in armature.Bones)
+                        {
+                            // A handle on a pose nobody can grab is clutter.
+                            if (handles.Contains(bone.Id)) continue;
+                            var g = at[bone.Id];
+                            var (gx, gy) = g.Tip(bone.Length);
+                            ghosts.Add(new BoneChrome(
+                                bone.Id, bone.Name, g.X, g.Y, gx, gy, false, false, kind));
+                        }
                     }
+                    _ghostChromeCache = cached = (CurrentFrameIndex, ghosts);
                 }
+                chrome.AddRange(cached.Ghosts);
             }
 
             foreach (var bone in armature.Bones)
@@ -174,6 +186,9 @@ public sealed partial class MainViewModel
             return chrome;
         }
     }
+
+    /// <summary>The ghost skeletons at a playhead position, kept until something moves.</summary>
+    private (int Frame, List<BoneChrome> Ghosts)? _ghostChromeCache;
 
     /// <summary>
     /// The pose-key frames the armature ghosts: up to <c>Onion.Before</c>
@@ -207,7 +222,7 @@ public sealed partial class MainViewModel
             if (!ArmatureEditMode || !WeightPainting || SelectedBoneId is not { } boneId) return [];
             if (ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex) is not { } frame) return [];
 
-            var pose = ArmatureOps.PoseAt(Doc.Scene.PoseTrack, CurrentFrameIndex);
+            var pose = EffectivePoseHere();
             var posed = PosedPointsFor(frame, pose);
             var points = new List<HeatPoint>();
             foreach (var stroke in frame.Strokes)
@@ -223,6 +238,16 @@ public sealed partial class MainViewModel
             return points;
         }
     }
+
+    /// <summary>
+    /// The render pose at the playhead — springs included, so the heat, the
+    /// dab and the chrome agree with the pixels — or an empty pose on an
+    /// unrigged document.
+    /// </summary>
+    private Dictionary<string, BonePose> EffectivePoseHere() =>
+        Doc.Armature is { } armature
+            ? ArmatureOps.EffectivePoseAt(armature, Doc.Scene.PoseTrack, CurrentFrameIndex)
+            : [];
 
     /// <summary>
     /// Where every control point of a drawing sits under a pose — one list per
@@ -495,6 +520,7 @@ public sealed partial class MainViewModel
     /// </summary>
     internal void RefreshArmatureAtPlayhead()
     {
+        _ghostChromeCache = null;
         OnPropertyChanged(nameof(BoneChromes));
         OnPropertyChanged(nameof(HeatPoints));
         OnPropertyChanged(nameof(CorrectiveRows));
@@ -515,6 +541,7 @@ public sealed partial class MainViewModel
     /// </remarks>
     private void NotifyArmatureSurface()
     {
+        _ghostChromeCache = null;
         OnPropertyChanged(nameof(HasArmature));
         OnPropertyChanged(nameof(BoneRows));
         OnPropertyChanged(nameof(BoneChromes));
@@ -523,6 +550,9 @@ public sealed partial class MainViewModel
         OnPropertyChanged(nameof(SelectedBone));
         OnPropertyChanged(nameof(SelectedBoneName));
         OnPropertyChanged(nameof(SelectedBoneLength));
+        OnPropertyChanged(nameof(SelectedBoneJiggles));
+        OnPropertyChanged(nameof(SelectedBoneJiggleStiffness));
+        OnPropertyChanged(nameof(SelectedBoneJiggleDamping));
         OnPropertyChanged(nameof(PointerIntent));
         // A bone that undo took away must not stay selected, or the panel
         // offers rename and delete for something that is gone.
@@ -588,6 +618,52 @@ public sealed partial class MainViewModel
             NotifyArmatureSurface();
             InvalidateRiggedFrames();
         }
+    }
+
+    /// <summary>
+    /// Whether the selected bone jiggles — phase 5's switch. Turning it on
+    /// authors a <see cref="BoneJiggle"/> with its defaults; turning it off
+    /// removes the record entirely (absent, not disabled).
+    /// </summary>
+    public bool SelectedBoneJiggles
+    {
+        get => SelectedBone?.Jiggle is not null;
+        set
+        {
+            if (SelectedBoneId is not { } id || SelectedBoneJiggles == value) return;
+            _editor.Perform(doc =>
+            {
+                if (doc.Armature?.BoneById(id) is { } bone)
+                    bone.Jiggle = value ? new BoneJiggle() : null;
+            });
+            NotifyArmatureSurface();
+            InvalidateRiggedFrames();
+        }
+    }
+
+    /// <summary>How hard the jiggle is pulled toward the pose, 0.01–1.</summary>
+    public double SelectedBoneJiggleStiffness
+    {
+        get => SelectedBone?.Jiggle?.Stiffness ?? 0.2;
+        set => EditJiggle(j => j.Stiffness = Math.Clamp(value, 0.01, 1));
+    }
+
+    /// <summary>How quickly the swing dies, 0–1.</summary>
+    public double SelectedBoneJiggleDamping
+    {
+        get => SelectedBone?.Jiggle?.Damping ?? 0.15;
+        set => EditJiggle(j => j.Damping = Math.Clamp(value, 0.02, 1));
+    }
+
+    private void EditJiggle(Action<BoneJiggle> edit)
+    {
+        if (SelectedBoneId is not { } id || SelectedBone?.Jiggle is null) return;
+        _editor.Perform(doc =>
+        {
+            if (doc.Armature?.BoneById(id)?.Jiggle is { } jiggle) edit(jiggle);
+        });
+        NotifyArmatureSurface();
+        InvalidateRiggedFrames();
     }
 
     partial void OnPosingModeChanged(bool value)
@@ -807,7 +883,7 @@ public sealed partial class MainViewModel
         // weights change where the posed points sit, and the next dab has to
         // hit them where the just-refreshed heat shows them. Bounded by the
         // drawing's own points (invariant 6), the same walk Apply makes.
-        var pose = ArmatureOps.PoseAt(Doc.Scene.PoseTrack, CurrentFrameIndex);
+        var pose = EffectivePoseHere();
         var frame = ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex);
         var posed = frame is not null && frame.Id == _weightGestureFrameId
             ? PosedPointsFor(frame, pose)
@@ -920,7 +996,7 @@ public sealed partial class MainViewModel
                 doc.Scene.Layers[ActiveLayerIndex], index);
             if (target is null) return;
             baked = Skinning.BakeFrame(
-                target, armature, ArmatureOps.PoseAt(doc.Scene.PoseTrack, index),
+                target, armature, ArmatureOps.EffectivePoseAt(armature, doc.Scene.PoseTrack, index),
                 doc.Scene.RiggedBoneOf(doc.Scene.Layers[ActiveLayerIndex]));
         });
         if (baked > 0)
@@ -937,6 +1013,7 @@ public sealed partial class MainViewModel
     /// </summary>
     private void InvalidateRiggedFrames()
     {
+        _ghostChromeCache = null;
         // The index first, and that ordering is load-bearing: it decides
         // whether a frame's cache key carries the playhead, so invalidating
         // against a stale one would clear entries under keys that are about to

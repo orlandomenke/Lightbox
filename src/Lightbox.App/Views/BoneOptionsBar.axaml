@@ -32,7 +32,7 @@
                      ToolTip.Tip="Turn bones and key the pose at the playhead. (Shift+K switches)" />
         <RadioButton GroupName="BoneMode" Content="Weights" IsChecked="{Binding WeightPainting, Mode=TwoWay}"
                      IsEnabled="{Binding HasArmature}"
-                     ToolTip.Tip="Paint influence for the selected bone. Painting is against the rest pose, so this leaves posing. (Ctrl+Shift+K)" />
+                     ToolTip.Tip="Paint influence for the selected bone, on the drawing as it is posed at the playhead — pose the joint to where it goes wrong and fix it there. (Ctrl+Shift+K)" />
       </StackPanel>
 
       <TextBlock Text="no rig yet — drag on the canvas to add the first bone"
@@ -81,6 +81,24 @@
                   ToolTip.Tip="Grow a bone from this one's tip, already joined to it. Shift-drag a tip on the canvas does the same and lets you aim it." />
           <Button x:Name="DeleteBoneButton" Content="Delete" Command="{Binding DeleteBoneCommand}"
                   ToolTip.Tip="Delete this bone (Delete). Its children are re-parented to its parent and stay where they are; strokes bound to it lose that binding." />
+        </StackPanel>
+        <!-- Secondary motion. The checkbox authors the record; the numbers
+             only exist while it does — absent, not disabled. -->
+        <CheckBox Content="Jiggle" IsChecked="{Binding SelectedBoneJiggles, Mode=TwoWay}"
+                  ToolTip.Tip="The bone lags and settles behind the motion driving it — tails, ears, antennae. Solved per frame from the pose track, so the same document always renders the same swing." />
+        <StackPanel Spacing="6" IsVisible="{Binding SelectedBoneJiggles}">
+          <DockPanel>
+            <TextBlock Text="Catch up" Width="52" VerticalAlignment="Center" FontSize="12" Opacity="0.7" />
+            <NumericUpDown Value="{Binding SelectedBoneJiggleStiffness, Mode=TwoWay}" Minimum="0.01" Maximum="1"
+                           Increment="0.05" FormatString="0.00"
+                           ToolTip.Tip="How hard the bone is pulled toward where the pose wants it. Low is a whippy antenna, high follows almost immediately." />
+          </DockPanel>
+          <DockPanel>
+            <TextBlock Text="Settle" Width="52" VerticalAlignment="Center" FontSize="12" Opacity="0.7" />
+            <NumericUpDown Value="{Binding SelectedBoneJiggleDamping, Mode=TwoWay}" Minimum="0.02" Maximum="1"
+                           Increment="0.05" FormatString="0.00"
+                           ToolTip.Tip="How quickly the swing dies. Low keeps it bouncing; high is a heavy tail that settles at once." />
+          </DockPanel>
         </StackPanel>
       </StackPanel>
 
