@@ -707,6 +707,49 @@ public class StrokeSelectionTests
         Assert.Single(vm.Selection.SelectedGuideIds);
     }
 
+    /// <summary>
+    /// B243: "all" does not mean the erasures. Select-all was built against the
+    /// pre-B232 picker and took the raw record, so Ctrl+A selected the eraser
+    /// strokes a click and a marquee had just been taught to refuse — and
+    /// Delete then resurrected erased ink through the one door left open. The
+    /// wholly-erased line is out too, for rule three's reason: it is not on the
+    /// canvas, so "all" cannot include it.
+    /// </summary>
+    [AvaloniaFact]
+    public void SelectAllDoesNotTakeTheErasures()
+    {
+        var visible = Line(100, 100, 300, 100);
+        var erased = Line(100, 300, 300, 300);
+        var vm = WithStrokes(visible, erased, Erase(80, 300, 320, 300, size: 40));
+        vm.ActiveTool = ToolId.Arrow;
+
+        vm.SelectAllCommand.Execute(null);
+
+        Assert.Equal([visible.Id], vm.Selection.SelectedStrokeIds);
+
+        // And the proof it matters: deleting "all" removes the visible line
+        // and leaves the erasure erased, rather than bringing the other back.
+        var frame = (Frame)vm.PaintLayer().Cels[0].Frame!;
+        vm.DeleteSelectedStrokes();
+        Assert.Contains(frame.Strokes, s => s.Tool == ToolKind.Eraser);
+        Assert.Contains(frame.Strokes, s => s.Id == erased.Id);
+        Assert.DoesNotContain(frame.Strokes, s => s.Id == visible.Id);
+    }
+
+    /// <summary>Same rule from the white arrow, which shares the object arm.</summary>
+    [AvaloniaFact]
+    public void SelectAllWithTheDirectSelectDoesNotTakeTheErasuresEither()
+    {
+        var visible = Line(100, 100, 300, 100);
+        var vm = WithStrokes(visible, Line(100, 300, 300, 300, size: 30));
+        ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes[1].Tool = ToolKind.Eraser;
+        vm.ActiveTool = ToolId.DirectSelect;
+
+        vm.SelectAllCommand.Execute(null);
+
+        Assert.Equal([visible.Id], vm.Selection.SelectedStrokeIds);
+    }
+
     /// <summary>With a painting tool in hand, "all" still means the canvas.</summary>
     /// <remarks>
     /// The half that must not change. B168 established that one property
