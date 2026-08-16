@@ -308,9 +308,36 @@ def lost_ids(before: list[tuple[str, str]], after: list[tuple[str, str]]) -> lis
     and moves below the rule, and an answered question keeps its heading with the
     answer appended. So a vanished id is always worth refusing. When one really
     must go, `LIGHTBOX_ALLOW_LEDGER_DELETION=1` says so deliberately.
+
+    **B227: an id that moved is not an id that went.** This compared ids alone,
+    so a *renumber* — the entry still here under a different number — looked
+    exactly like a deletion. That is not a hypothetical: `ids --fix` renumbers,
+    the message printed beside this one recommends renumbering ("keep both and
+    renumber"), and the pre-push hook runs the fix for you. So the tool's own
+    remedy tripped its own check, and on a merge it tripped it permanently: the
+    pre-renumber commit stays a merge parent for ever, so the id is missing from
+    every future comparison against it.
+
+    The title is what settles it, and both sides already carry one. An entry
+    whose title reappears under another id has moved; only a title that is gone
+    as well is a loss. Comparing titles rather than adding a rename ledger keeps
+    this working for a renumber done by hand, which is what somebody resolving a
+    conflict at 2am will actually do.
     """
     present = {entry_id for entry_id, _ in after}
-    return [(i, t) for i, t in before if i not in present]
+    # Titles that arrived under an id `before` did not have — a renumber's
+    # destination looks exactly like that, and so does a genuinely new entry,
+    # which is harmless here: a new entry's title will not match a lost one's.
+    moved = {_title_key(title) for entry_id, title in after if entry_id not in {i for i, _ in before}}
+    return [
+        (i, t) for i, t in before
+        if i not in present and _title_key(t) not in moved
+    ]
+
+
+def _title_key(title: str) -> str:
+    """A title reduced to what a renumber cannot change."""
+    return " ".join(title.lower().split())
 
 
 @dataclass

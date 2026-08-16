@@ -158,6 +158,58 @@ public class LedgerGateTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// An entry that was renumbered is not an entry that went.
+    /// </summary>
+    /// <remarks>
+    /// <b>B227, and the tool was tripping over its own advice.</b> The loss
+    /// check compared ids alone, so a renumber — the entry still present under
+    /// a different number — was indistinguishable from a deletion. That is
+    /// exactly what <c>ids --fix</c> does, what the message printed beside the
+    /// loss recommends ("keep both and renumber"), and what the pre-push hook
+    /// runs for you.
+    ///
+    /// <para>
+    /// On a merge it was permanent rather than momentary: the pre-renumber
+    /// commit stays a merge parent for ever, so the old id is missing from
+    /// every future comparison against it and no amount of further work clears
+    /// the refusal.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void ARenumberedEntryIsNotReportedAsLost()
+    {
+        var before = Ledger(("B1", "A thing"), ("B2", "Something unrelated"));
+        // B2 became B9 — the entry is here, under a new number.
+        var after = Ledger(("B1", "A thing"), ("B9", "Something unrelated"));
+
+        var (code, said) = Bugs($"ids --ledger={after} --questions={Questions()} {before}");
+
+        Assert.DoesNotContain("LOST", said);
+        Assert.Equal(0, code);
+    }
+
+    /// <summary>
+    /// A renumber alongside a real deletion still catches the deletion.
+    /// </summary>
+    /// <remarks>
+    /// The test that stops the fix above from being "stop reporting losses".
+    /// One entry moves and another genuinely goes, in the same comparison; only
+    /// the one that went is named.
+    /// </remarks>
+    [Fact]
+    public void ARenumberDoesNotHideARealLossBesideIt()
+    {
+        var before = Ledger(("B1", "Kept"), ("B2", "Renumbered"), ("B3", "Genuinely deleted"));
+        var after = Ledger(("B1", "Kept"), ("B9", "Renumbered"));
+
+        var (code, said) = Bugs($"ids --ledger={after} --questions={Questions()} {before}");
+
+        Assert.Equal(1, code);
+        Assert.Contains("LOST      ID B3", said);
+        Assert.DoesNotContain("LOST      ID B2", said);
+    }
+
+    /// <summary>
     /// Refusing every deletion would be a rule nobody could work around, so there
     /// is one way to say it is meant — and it has to be typed.
     /// </summary>
