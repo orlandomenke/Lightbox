@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Lightbox.App.ViewModels;
 
@@ -71,6 +72,20 @@ public partial class BoneOptionsBar : UserControl
         {
             _syncing = false;
         }
+    }
+
+    /// <summary>Take the picked fix off the drawing.</summary>
+    /// <remarks>
+    /// A click handler rather than a command with a parameter, for the reason
+    /// the bone list is wired by hand: the list is rebuilt whenever the drawing
+    /// changes, and a two-way selection binding answers each rebuild by writing
+    /// its own selection away.
+    /// </remarks>
+    private void OnRemoveCorrective(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is null) return;
+        if (this.FindControl<ListBox>("CorrectiveList")?.SelectedItem is BoneRow row)
+            _vm.RemoveCorrective(row.Id);
     }
 
     private void OnBoneListSelectionChanged(object? sender, SelectionChangedEventArgs e)
