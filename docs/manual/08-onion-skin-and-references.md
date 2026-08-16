@@ -147,6 +147,7 @@ document are in scope, so a knight's animations all open the knight's wall.
 | Resize it | Drag its bottom-right corner. The shape is kept |
 | Change the stacking | Right-click ▸ **Bring to front** / **Send to back** |
 | Put one on the canvas | Right-click ▸ **Project onto the canvas** — see below |
+| Lay one onto the timeline | Right-click ▸ **Lay onto the timeline as frames** — the frame analysis the Reference panel's **＋** does, fed from the wall |
 | Take one down | Right-click ▸ **Take off the board** |
 | Tidy the whole wall | **Auto-arrange** — every picture fitted into the space there is, in the order they are in |
 | Add a picture from disk | **Add image…**, or drag files onto the board |
@@ -198,6 +199,17 @@ On the canvas itself:
 
 Forward and back move a reference among the *other references* — the whole
 stack stays beneath the drawing layers, which is what a reference is for.
+
+**Projecting and laying onto the timeline are different acts.** A projection is
+one picture pinned over the paper on every frame. **Lay onto the timeline as
+frames** instead runs the picture through the same analysis as the Reference
+panel's **＋** import: the frames are found in it (a sprite sheet, a strip, a
+run cycle), laid against the timeline from the frame you are on, and the
+timeline grows to fit. The Reference panel opens so you can fix the grid
+(**Cols**/**Rows** ▸ **Apply grid**), rescale, and align — everything in
+*Animation references* above applies. Laying the same picture twice is two
+imports, exactly like pressing **＋** twice; taking a projection down never
+touches a laid-out animation.
 
 **What detection actually looks for.** Not gaps in the whole image — the
 drawings themselves. It finds every connected mark on the sheet and then throws

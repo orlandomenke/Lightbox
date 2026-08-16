@@ -396,6 +396,47 @@ public partial class MainViewModel
         return strip;
     }
 
+    /// <summary>
+    /// Lay a board tile onto the timeline as animation frames — the Reference
+    /// docker's import, fed from the wall. The picture goes through the same
+    /// slicer as the docker's ＋ button: frames detected (or re-cut from the
+    /// docker's Cols/Rows afterwards), laid from the playhead, the timeline
+    /// extended to fit. Returns the strip, or null when the tile has no
+    /// readable picture.
+    /// </summary>
+    /// <remarks>
+    /// An <em>import</em>, not a projection: the strip is an ordinary timeline
+    /// reference with no <see cref="ReferenceStrip.BoardTileId"/>, so it does
+    /// not toggle with "project onto the canvas" — asking for frames twice is
+    /// two imports, the same as pressing ＋ twice, and taking the projection
+    /// down must not delete an animation somebody laid out.
+    /// </remarks>
+    public ReferenceStrip? ImportBoardTileAsAnimation(BoardTile tile, byte[]? pixels)
+    {
+        string? png = null;
+        if (tile.IsView)
+        {
+            var view = ReferenceSheetsView.SelectMany(s => s.Views)
+                .FirstOrDefault(v => v.Id == tile.ViewId);
+            if (view is not null) png = RenderReferenceViewPng(view);
+        }
+        else if (pixels is not null)
+        {
+            // Through a codec, the usual reading: a copied-in file can be any
+            // format and unreadable bytes mean "no picture", not a throw.
+            using var data = SKData.CreateCopy(pixels);
+            using var codec = SKCodec.Create(data);
+            if (codec is not null && SKBitmap.Decode(codec) is { } decoded)
+            {
+                using (decoded)
+                {
+                    png = PngCodec.Encode(decoded);
+                }
+            }
+        }
+        return png is null ? null : ImportReference(tile.Name, png);
+    }
+
     /// <summary>Whether this board tile is currently projected onto the canvas.</summary>
     public bool IsTileOnCanvas(BoardTile tile) =>
         (SaveTargetTab?.Doc ?? Doc).Scene.References is { } strips
