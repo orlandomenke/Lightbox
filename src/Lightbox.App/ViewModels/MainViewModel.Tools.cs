@@ -196,6 +196,7 @@ public partial class MainViewModel
         _hoverScale = scale;
         RefreshPointerIntent();
         RefreshPickPreview();
+        RefreshFillPreview();
     }
 
     /// <summary>The pointer left the canvas: stop claiming to know where it is.</summary>
@@ -205,6 +206,7 @@ public partial class MainViewModel
         _hoverPoint = null;
         RefreshPointerIntent();
         RefreshPickPreview();
+        RefreshFillPreview();
     }
 
     /// <summary>
@@ -520,8 +522,10 @@ public partial class MainViewModel
         NotifyBrushProperties();
         OnPropertyChanged(nameof(LazyRadiusForCursor));
         // Display, so it belongs above the borrow guard below: picking up the
-        // eyedropper without moving the pointer still has to put the ring on.
+        // eyedropper without moving the pointer still has to put the ring on —
+        // and picking up the bucket has to trace what a click would flood.
         RefreshPickPreview();
+        RefreshFillPreview();
 
         // A borrow is not a decision — see MainViewModel.Momentary.cs. Everything
         // below is about an artist choosing to leave a tool, and holding Ctrl is
@@ -664,6 +668,24 @@ public partial class MainViewModel
     public void WandSelectAt(double x, double y, bool add, bool subtract)
     {
         if (ActiveTool != ToolId.Select || IsPlaying) return;
+        var result = WandRegion(x, y, report: true);
+        if (result is null) return;
+        int w = Scene.Width, h = Scene.Height;
+        var contours = new List<List<StrokePoint>> { result.Outer };
+        contours.AddRange(result.Holes);
+        ApplySelectionMask(MaskFromContours(contours, w, h), add, subtract);
+    }
+
+    /// <summary>
+    /// The region a wand click would select — the one function behind the
+    /// click and the hover preview, like <c>FillRegion</c> beside it.
+    /// </summary>
+    /// <param name="report">
+    /// Put the "nothing there" answers on the status line. The click wants
+    /// them; a hover asking the same question does not get to nag.
+    /// </param>
+    private FloodFill.Result? WandRegion(double x, double y, bool report = false)
+    {
         int w = Scene.Width, h = Scene.Height;
         SKBitmap? owned = null;
         try
@@ -679,8 +701,8 @@ public partial class MainViewModel
                 var frame = ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex);
                 if (frame is null)
                 {
-                    AiStatus = "The active layer has nothing drawn to select here.";
-                    return;
+                    if (report) AiStatus = "The active layer has nothing drawn to select here.";
+                    return null;
                 }
                 sample = _cache.Get(frame, w, h);
             }
@@ -689,14 +711,8 @@ public partial class MainViewModel
             var result = FloodFill.Fill(
                 sample, wandX, wandY,
                 new FloodFill.Options(WandTolerance, WandGapPx));
-            if (result is null)
-            {
-                AiStatus = "Nothing selectable at that spot.";
-                return;
-            }
-            var contours = new List<List<StrokePoint>> { result.Outer };
-            contours.AddRange(result.Holes);
-            ApplySelectionMask(MaskFromContours(contours, w, h), add, subtract);
+            if (result is null && report) AiStatus = "Nothing selectable at that spot.";
+            return result;
         }
         finally
         {

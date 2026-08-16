@@ -145,23 +145,7 @@ public partial class MainWindow : Window
         Rendering.CanvasControl.BackendDetected += WriteStartupRenderReport;
         Canvas.CursorPressureChanged += (pressure, penDown) => _vm.SetCursorPressure(pressure, penDown);
 
-        // Transform session: the VM owns the frames, the canvas owns the gizmo.
-        _vm.TransformBegun += (minX, minY, maxX, maxY) =>
-        {
-            Canvas.BeginTransformGizmo(minX, minY, maxX, maxY);
-            Canvas.ToolMode = Rendering.CanvasControl.CanvasToolMode.Transform;
-        };
-        _vm.TransformEnded += () =>
-        {
-            Canvas.EndTransformGizmo();
-            TransformPerspectiveToggle.IsChecked = false; // gizmo resets per session
-            SyncCanvasToolMode();
-        };
-        // The gizmo is the authority on the shape of the drag; the view model
-        // owns the pixels. Feeding the matrix across on every gizmo change is
-        // what makes the drawing move with the box instead of after it.
-        Canvas.TransformGizmoChanged += () => _vm.PreviewTransform(Canvas.TransformMatrix);
-        Canvas.TransformMenuRequested += ShowTransformMenu;
+        WireTransformSession(); // window side lives in MainWindow.Transform.cs
         WireGradientRamp();
         SyncCanvasToolMode();
 

@@ -164,7 +164,9 @@ in the stack, that part of its look can shift.
 
 Marquee, freehand, polygon, ellipse and magic wand, with **Shift** to add and
 **Alt** to subtract. Grow, shrink and feather. A selection clips painting, and
-the clip is part of the record, so a reload paints the same shape.
+the clip is part of the record, so a reload paints the same shape. The wand
+shows the region it would take as a faint, still dashed outline before you
+click — faint and still so it cannot be read as a selection you already made.
 
 **Ctrl+D deselects, whatever tool you are holding.** Worth saying plainly
 because a selection clips painting: if the brush seems to have stopped working,
@@ -185,7 +187,8 @@ selected.
 **Ctrl+T** starts a transform. The gizmo gives move, scale, rotate and a
 draggable pivot; **Perspective** mode gives four free corners. The drawing
 moves *with* the gizmo — you see the result while you drag, not after you
-commit. The session's controls — scope, sampling, perspective, mirror,
+commit — and the selection's marching ants ride along with it, so the outline
+and the pixels never disagree about where the drawing is. The session's controls — scope, sampling, perspective, mirror,
 Reset, **Apply** and **Cancel** — live on their own page of the **Tool
 options** docker, which opens by itself when the session starts, so they are
 never off screen while a transform is live. Enter applies, Esc cancels,

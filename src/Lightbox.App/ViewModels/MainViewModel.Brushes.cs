@@ -137,8 +137,14 @@ public partial class MainViewModel
         // timeline position asking for it. Reads `_editor` at call time, so
         // switching tabs switches the armature with everything else. A
         // document with no rig takes the null branch inside and pays nothing.
+        // Mid pose-drag the playhead's position renders the provisional pose
+        // instead, expensive brushes ghosting to centrelines — Q81 decision 5,
+        // through the same funnel that keeps live and baked bit-identical.
         _cache.PoseResolver = (frame, cel) =>
-            Skinning.PoseFrameForRender(_editor.Doc, frame, cel, _cache.Rig);
+            Skinning.PoseFrameForRender(
+                _editor.Doc, frame, cel, _cache.Rig,
+                cel == CurrentFrameIndex ? _bonePreviewPose : null,
+                ghostOverBudget: _bonePreviewPose is not null && cel == CurrentFrameIndex);
         // A retired bake may still be riding in a published pass list on its
         // way to the render thread, and every pass bitmap is pinned in the
         // frame cache at publish — so the cache's pin-aware deferral is the
