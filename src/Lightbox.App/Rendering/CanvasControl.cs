@@ -600,20 +600,9 @@ public sealed partial class CanvasControl : Control
 
     private IReadOnlyList<ReferenceBox>? _referenceBoxes;
 
-    /// <summary>
-    /// One guide, flattened for the renderer.
-    /// </summary>
-    /// <remarks>
-    /// A snapshot rather than the <c>Guide</c> itself: the renderer runs on
-    /// another thread and must never read a document object the UI thread may
-    /// be halfway through editing. Same reason the reference boxes are copied.
-    /// </remarks>
-    public readonly record struct GuideLine(
-        string Id, int Kind, float X, float Y, float Spacing, IReadOnlyList<double> Angles,
-        string? Label = null, int Divisions = 0);
-
-    // The Guides, DraftGuide and BalanceDots overlay properties live in
-    // CanvasControl.Guides.cs with the rest of the guide chrome.
+    // The GuideLine snapshot, the Guides, DraftGuide, BalanceDots and
+    // GuideDragEnabled properties and the rest of the guide chrome live in
+    // CanvasControl.Guides.cs.
 
     /// <summary>
     /// Show one channel of the artwork as grayscale, or all of them as normal.
@@ -715,28 +704,6 @@ public sealed partial class CanvasControl : Control
         }
         return shown;
     }
-
-    /// <summary>
-    /// Whether a guide under the pointer can be picked up and moved.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Off unless the rulers are showing, and that is the design rather than
-    /// an implementation detail. Grabbing a guide and drawing along one are
-    /// the same gesture in the same place, so something has to say which was
-    /// meant. Photoshop's answer is the Move tool; this app has no move tool,
-    /// so the rulers are the switch: turn them on and you are arranging the
-    /// rig, turn them off and the rig is scenery you draw over. It is one
-    /// toggle instead of a modifier nobody discovers, and it is why the
-    /// guide controls only appear on the shortcut bar when the rulers do.
-    /// </para>
-    /// <para>
-    /// The cursor is the only affordance. No handles float over the artwork —
-    /// an overlay of little buttons sits between the artist and the drawing,
-    /// and it is the thing this design exists to avoid.
-    /// </para>
-    /// </remarks>
-    public bool GuideDragEnabled { get; set; }
 
     /// <summary>The Move tool picked the drawing up. <c>wholeLayer</c> is Ctrl.</summary>
     public event Action<double, double, bool>? ContentMoveStarted;
@@ -990,6 +957,21 @@ public sealed partial class CanvasControl : Control
     /// Shift: move the whole sheet rather than this one frame.
     /// </summary>
     public event Action<double, double, bool>? ReferenceDragged;
+
+    /// <summary>
+    /// A press in align mode, in document coordinates, before the drag — the
+    /// window picks the reference under it, so dragging moves the one you
+    /// grabbed rather than whichever was active last.
+    /// </summary>
+    public event Action<double, double>? ReferenceAlignPressed;
+
+    /// <summary>
+    /// Right-click over the art with no transform in flight: document x, y
+    /// and the view position. The window decides whether a taped-up
+    /// reference is under it and opens its stack menu — decided there, not
+    /// here, because the control does not know the document.
+    /// </summary>
+    public event Action<double, double, Point>? ReferenceMenuRequested;
 
     private bool _aligningReference;
 
@@ -1729,38 +1711,8 @@ public sealed partial class CanvasControl : Control
 
     public event Action<bool, bool>? PolygonCompleted;
 
-    // Selection overlay state (marching ants) — pushed by the window.
-    private IReadOnlyList<List<Core.Documents.StrokePoint>> _selectionContours = [];
-    private IReadOnlyList<Core.Documents.StrokePoint> _polygonInProgress = [];
-    private float _antsPhase;
-    private bool _antsAnimating;
-
-    public void SetSelectionOverlay(
-        IReadOnlyList<List<Core.Documents.StrokePoint>> contours,
-        IReadOnlyList<Core.Documents.StrokePoint> polygonInProgress)
-    {
-        _selectionContours = contours;
-        _polygonInProgress = polygonInProgress;
-        InvalidateVisual();
-        StartAntsIfNeeded();
-    }
-
-    private void StartAntsIfNeeded()
-    {
-        if (_antsAnimating || (_selectionContours.Count == 0 && _polygonInProgress.Count == 0)) return;
-        if (TopLevel.GetTopLevel(this) is not { } top) return;
-        _antsAnimating = true;
-        top.RequestAnimationFrame(OnAntsFrame);
-    }
-
-    private void OnAntsFrame(TimeSpan _)
-    {
-        _antsAnimating = false;
-        if (_selectionContours.Count == 0 && _polygonInProgress.Count == 0) return;
-        _antsPhase = (_antsPhase + 0.35f) % 8f;
-        InvalidateVisual();
-        StartAntsIfNeeded();
-    }
+    // The selection overlay — ants state, its animation, and the live
+    // transform preview it rides — lives in CanvasControl.Selection.cs.
 
     // in-progress drag shape (doc space)
     private readonly List<Core.Documents.StrokePoint> _dragShape = [];
@@ -2018,24 +1970,9 @@ public sealed partial class CanvasControl : Control
             (float)(Bounds.Width / 2 + _pan.X),
             (float)(Bounds.Height / 2 + _pan.Y));
 
-        // Selection overlay paths (doc space; the op transforms them with the view).
-        SKPath? ants = null;
-        if (_selectionContours.Count > 0 || _dragShape.Count >= 3)
-        {
-            var contours = new List<IReadOnlyList<Core.Documents.StrokePoint>>(_selectionContours);
-            if (_dragShape.Count >= 3) contours.Add(_dragShape.ToList());
-            ants = BrushEngine.PathFromContours(contours);
-        }
-        SKPath? openPath = null;
-        if (_polygonInProgress.Count >= 2)
-        {
-            openPath = new SKPath();
-            openPath.MoveTo((float)_polygonInProgress[0].X, (float)_polygonInProgress[0].Y);
-            for (var i = 1; i < _polygonInProgress.Count; i++)
-            {
-                openPath.LineTo((float)_polygonInProgress[i].X, (float)_polygonInProgress[i].Y);
-            }
-        }
+        // Selection overlay paths (doc space; the op transforms them with the
+        // view) — built in CanvasControl.Selection.cs from the cached base.
+        var (ants, openPath) = AntsPathsForFrame();
 
         LazyGizmo? lazy = null;
         if (LazyRadius > 0 && _hoverPoint is { } lp)
@@ -2067,11 +2004,12 @@ public sealed partial class CanvasControl : Control
         context.Custom(new DrawOp(
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
-            ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks), _balanceDots,
+            ReferenceBoxes, _newBox, EmphasisedGuides(), _draftGuide, WithRigPreview(RigMarks), _balanceDots,
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
             _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing,
-            BoneChromes, HeatPoints));
+            BoneChromes, HeatPoints, _hoveredLines,
+            FillPreviewForFrame(), _fillPreviewWand, _fillPreviewColor, TrailPoints));
     }
 
     // The tip outline cache and TipOutlinePath moved to CanvasControl.Pointer.cs,
@@ -2221,42 +2159,6 @@ public sealed partial class CanvasControl : Control
                 return placement;
         }
         return null;
-    }
-
-    private int PickGuideAt(double x, double y)
-    {
-        if (_guides is null || _guides.Count == 0) return -1;
-
-        const double hitRadius = 5;  // Document units for click tolerance on a line
-        foreach (var (index, guide) in _guides.Select((g, i) => (i, g)))
-        {
-            // For a line guide, calculate perpendicular distance from point to line
-            if (guide.Angles.Count > 0)
-            {
-                var angle = guide.Angles[0];  // Use the primary angle for distance calc
-                var radians = angle * Math.PI / 180;
-                var cos = Math.Cos(radians);
-                var sin = Math.Sin(radians);
-
-                // Distance from point (x,y) to line through (guide.X, guide.Y) at angle
-                var dx = x - guide.X;
-                var dy = y - guide.Y;
-                var perpDist = Math.Abs(dx * (-sin) + dy * cos);
-
-                if (perpDist <= hitRadius)
-                    return index;
-            }
-            else
-            {
-                // Vanishing point: simple distance to point
-                var dx = x - guide.X;
-                var dy = y - guide.Y;
-                var distSq = dx * dx + dy * dy;
-                if (distSq <= hitRadius * hitRadius)
-                    return index;
-            }
-        }
-        return -1;
     }
 
     private int PickRefBoxAt(double x, double y)
@@ -2537,6 +2439,16 @@ public sealed partial class CanvasControl : Control
                 return;
             }
 
+            // Right-click anywhere else: offer a taped-up reference's stack
+            // menu, if one is under the pointer. The window decides — a
+            // right-click over bare canvas stays what it always was, nothing.
+            if (kind == PointerUpdateKind.RightButtonPressed && !_painting)
+            {
+                var (rx, ry) = ViewToDoc(pp.Position);
+                ReferenceMenuRequested?.Invoke(rx, ry, pp.Position);
+                return;
+            }
+
             if (kind != PointerUpdateKind.LeftButtonPressed && !pp.Properties.IsLeftButtonPressed) return;
 
             var (x, y) = ViewToDoc(pp.Position);
@@ -2547,6 +2459,10 @@ public sealed partial class CanvasControl : Control
             // then have to find and undo.
             if (ReferenceAlignMode)
             {
+                // Grab the reference under the pointer, not whichever was
+                // active last — the window answers by switching the selection
+                // before the first move arrives.
+                ReferenceAlignPressed?.Invoke(x, y);
                 _aligningReference = true;
                 _alignLast = new Point(x, y);
                 e.Pointer.Capture(this);
@@ -2604,15 +2520,56 @@ public sealed partial class CanvasControl : Control
             }
 
             // A guide under the pointer is picked up before any tool sees the
-            // press. Only ever true while the rulers are showing, which is
-            // what keeps this out of the way of drawing — see GuideDragEnabled.
+            // press. Only ever true with a tool that reaches for guides, and
+            // never while they are hidden or locked, which is what keeps this
+            // out of the way of drawing — see GuideDragEnabled.
+            //
+            // B215: this is now the only way a guide is picked. The Arrow used
+            // to have its own arm further down with its own hit test, so which
+            // guides you could reach, how near you had to be and whether a lock
+            // was respected all depended on which tool was in hand.
             if (GuideDragEnabled && GuideAt(pp.Position) is { } grabbed)
             {
+                var guideShift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+                var guideAlt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+                // Whether this press lands inside a group that is already
+                // picked, asked BEFORE the selection is touched — a plain press
+                // replaces it, so afterwards the answer is always "no".
+                var inGroup =
+                    _selectionManager is { } guideSelection
+                    && guideSelection.SelectedGuideIds.Count > 1
+                    && guideSelection.IsGuideSelected(grabbed.Id);
+
+                // Picking one up is also choosing it. They are the same
+                // intention — you reach for the guide you are about to change —
+                // and a separate click to select would mean the options were
+                // never pointed at the guide you had just moved. A press inside
+                // a group is the exception: it takes hold of the group rather
+                // than dropping the rest of it, which is what every other
+                // multi-selection on this canvas does.
+                if (guideShift || guideAlt || !inGroup)
+                {
+                    SelectGuide(grabbed.Id, guideShift, guideAlt);
+                }
+
+                e.Pointer.Capture(this);
+                e.Handled = true;
+
+                // Shift and Alt edit the selection. Dragging on the same press
+                // would move guides the artist was still choosing.
+                if (guideShift || guideAlt) return;
+
+                if (inGroup)
+                {
+                    _movingGuides = true;
+                    _guideMoveLast = (x, y);
+                    GuidesMovedStarted?.Invoke();
+                    return;
+                }
+
                 _guideDrag = grabbed.Id;
                 _guideResizing = GrabsHeightScaleTop(grabbed, pp.Position);
                 _guideDragLast = (x, y);
-                e.Pointer.Capture(this);
-                e.Handled = true;
                 return;
             }
 
@@ -2655,6 +2612,10 @@ public sealed partial class CanvasControl : Control
                     }
                     else
                     {
+                        // Unsnapped here on purpose: AddPolygonVertex snaps on
+                        // the other side, where the guides are (B216). The
+                        // marquee below cannot do the same because the canvas
+                        // builds its rubber band itself.
                         PolygonVertexAdded?.Invoke(x, y);
                     }
                     e.Handled = true;
@@ -2663,13 +2624,18 @@ public sealed partial class CanvasControl : Control
                     e.Pointer.Capture(this);
                     _marqueeAdds = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
                     _dragShape.Clear();
+                    // Deliberately unsnapped, and the only selection gesture
+                    // that is: a lasso is a traced line, so pulling every
+                    // sample onto a grid would fight the hand the whole way
+                    // round. The same reason a brush snaps its start and not
+                    // its middle.
                     _dragShape.Add(new Core.Documents.StrokePoint(x, y, 1));
                     e.Handled = true;
                     return;
                 case CanvasToolMode.SelectRect:
                 case CanvasToolMode.SelectEllipse:
                     e.Pointer.Capture(this);
-                    _dragAnchor = (x, y);
+                    _dragAnchor = Snapped(x, y);
                     _marqueeAdds = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
                     _dragShape.Clear();
                     e.Handled = true;
@@ -2702,7 +2668,7 @@ public sealed partial class CanvasControl : Control
                     // The same gate the single-guide grab uses at the top of
                     // this handler: locking guides means "pin them where they
                     // are", and a selection must not be the way round it.
-                    if (movingSelection && GuideDragEnabled && _selectionManager?.SelectedGuideIndices.Count > 0)
+                    if (movingSelection && GuideDragEnabled && _selectionManager?.SelectedGuideIds.Count > 0)
                     {
                         _movingGuides = true;
                         _guideMoveLast = (x, y);
@@ -2730,6 +2696,11 @@ public sealed partial class CanvasControl : Control
                     }
                     else
                     {
+                        // A press that reached the drawing is a press that
+                        // missed every guide, so the options let go of theirs.
+                        // Clicking away is how every other selection on this
+                        // canvas is dropped.
+                        if (GuideDragEnabled) SelectGuide(null);
                         _movingContent = true;
                         ContentMoveStarted?.Invoke(x, y, e.KeyModifiers.HasFlag(KeyModifiers.Control));
                     }
@@ -2793,14 +2764,12 @@ public sealed partial class CanvasControl : Control
                             }
                         }
 
-                        // Then try guides
-                        var guideIndex = PickGuideAt(x, y);
-                        if (guideIndex >= 0)
-                        {
-                            _selectionManager.SelectGuideWithModifiers(guideIndex, shift, alt);
-                            e.Handled = true;
-                            return;
-                        }
+                        // Guides are not tested here: the grab at the top of this
+                        // handler has already had them, for both tools, through
+                        // the one hit test (B215). Reaching a press to this
+                        // point means it missed every guide — or that they are
+                        // hidden or locked, in which case missing them is the
+                        // whole point of the switch.
 
                         // Then try reference boxes
                         var boxIndex = PickRefBoxAt(x, y);
@@ -2844,6 +2813,12 @@ public sealed partial class CanvasControl : Control
                             e.Pointer.Capture(this);
                             _lineDragFrom = (x, y);
                             _lineDragTo = (x, y);
+                            // B223: the move is a transform session now, so it
+                            // opens on the press. It may still turn out to be a
+                            // click — the release cancels a session that went
+                            // nowhere, which is cheaper than deciding here and
+                            // missing the moves in between.
+                            _lineMoveLive = SelectedLinesMoveStarted?.Invoke(x, y) ?? false;
                         }
                         else
                         {
@@ -3190,6 +3165,24 @@ public sealed partial class CanvasControl : Control
                 return;
             }
 
+            // B217. The other two tools that take hold of a whole line: show
+            // which one they would take. Same discipline as the white arrow's
+            // preview below — the view model answers whether the line changed,
+            // so travelling along one already previewed costs a hit test and no
+            // rebuild.
+            //
+            // Suppressed while either tool is mid-gesture: once the Arrow is
+            // dragging what it picked, or the Width tool has hold of a line,
+            // highlighting whatever the pointer passes over would be describing
+            // a click that cannot happen until the button comes up.
+            if (ToolMode is CanvasToolMode.Select or CanvasToolMode.Width
+                && _lineDragFrom is null && _lineMarqueeFrom is null && _widthGrab < 0)
+            {
+                var (lx, ly) = ViewToDoc(e.GetPosition(this));
+                _hoverLine?.Invoke(lx, ly, DocTolerance(GrabPixels));
+                // Not handled, for the reason the white arrow's preview gives.
+            }
+
             // Not dragging anything, white arrow in hand: preview the line
             // under the pointer. The view model answers whether the preview
             // actually moved, so an unchanged hover costs a hit test and no
@@ -3246,8 +3239,15 @@ public sealed partial class CanvasControl : Control
             if (_lineDragFrom is not null)
             {
                 _lineDragTo = ViewToDoc(e.GetPosition(this));
-                // Only chrome moves here, so this is a repaint of the overlay
-                // rather than a re-render of the frame. See DrawSelectedLines.
+                // The outline is chrome and moves here; the pixels move in the
+                // session's composite preview (B223), which is why this reports
+                // the position as well as repainting. Before that, the drawing
+                // stayed put for the whole drag and arrived on release.
+                if (_lineMoveLive)
+                {
+                    SelectedLinesMoved?.Invoke(
+                        _lineDragTo.X, _lineDragTo.Y, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+                }
                 InvalidateVisual();
                 e.Handled = true;
                 return;
@@ -3267,6 +3267,13 @@ public sealed partial class CanvasControl : Control
                 if (!_marqueeAdds && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
                 {
                     (dx, dy) = Squared(anchor, dx, dy);
+                }
+                // B216. The far corner, after squaring, so a square that was
+                // asked for stays square — snapping first and squaring second
+                // would take the corner straight back off the guide.
+                else
+                {
+                    (dx, dy) = Snapped(dx, dy);
                 }
                 _dragShape.Clear();
                 _dragShape.AddRange(ShapeBetween(anchor, (dx, dy), ToolMode == CanvasToolMode.SelectEllipse));
@@ -3496,9 +3503,15 @@ public sealed partial class CanvasControl : Control
             // A press that went nowhere is the click that selected the line, and
             // committing it would put an identity move in the history for every
             // selection an artist makes.
-            if (travelled >= LineDragMinimumPixels)
+            if (_lineMoveLive)
             {
-                SelectedLinesDragged?.Invoke(landed.X - dragFrom.X, landed.Y - dragFrom.Y);
+                _lineMoveLive = false;
+                // A press that went nowhere is the click that selected the
+                // line, so its session is discarded rather than committed —
+                // otherwise every selection an artist makes leaves an identity
+                // move in the history.
+                if (travelled >= LineDragMinimumPixels) SelectedLinesMoveEnded?.Invoke();
+                else SelectedLinesMoveCancelled?.Invoke();
             }
             InvalidateVisual();
             e.Handled = true;
@@ -3659,6 +3672,26 @@ public sealed partial class CanvasControl : Control
             GradientDragCancelled?.Invoke();
             return;
         }
+        if (_weightStrokeActive)
+        {
+            // End rather than abandon: the dabs already painted are record
+            // edits waiting for their one undo step, and dropping the end
+            // event would leave them with none.
+            _weightStrokeActive = false;
+            WeightStrokeEnded?.Invoke();
+            return;
+        }
+        if (_boneGestureActive)
+        {
+            // Abandon rather than commit, and drop the live preview with it —
+            // losing capture is not a decision the artist made. B219 made
+            // this visible: before the preview, a lost bone drag merely did
+            // nothing; now it would leave provisional chrome on screen.
+            _boneGestureActive = false;
+            _boneDragId = null;
+            BoneGestureCancelled?.Invoke();
+            return;
+        }
         if (!_painting) return;
         _painting = false;
         _paintPointerId = -1;
@@ -3740,11 +3773,6 @@ public sealed partial class CanvasControl : Control
     /// in the undo history for every selection an artist makes.
     /// </remarks>
     private const double LineDragMinimumPixels = 3.0;
-
-    /// <summary>
-    /// A drag of the selected lines finished — the offset, in document units.
-    /// </summary>
-    public event Action<double, double>? SelectedLinesDragged;
 
     /// <summary>The live drag offset, for the outline to follow while dragging.</summary>
     private SKPoint LineDragOffset() => _lineDragFrom is { } from
@@ -3907,7 +3935,12 @@ public sealed partial class CanvasControl : Control
         ChannelSolo solo = ChannelSolo.None,
         PickRing? pickRing = null,
         IReadOnlyList<BoneChrome>? bones = null,
-        IReadOnlyList<HeatPoint>? heat = null) : ICustomDrawOperation
+        IReadOnlyList<HeatPoint>? heat = null,
+        IReadOnlyList<SelectedLine>? hoveredLines = null,
+        SKPath? fillPreview = null,
+        bool fillPreviewWand = false,
+        SKColor fillPreviewColor = default,
+        IReadOnlyList<Core.Timeline.TrailPoint>? trail = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -3919,6 +3952,7 @@ public sealed partial class CanvasControl : Control
         {
             ants?.Dispose();
             antsOpen?.Dispose();
+            fillPreview?.Dispose();
         }
 
         public void Render(ImmediateDrawingContext context)
@@ -4040,11 +4074,16 @@ public sealed partial class CanvasControl : Control
             // The balance arc is furniture you judge against, same layer of
             // the sandwich as the rig.
             BalanceOverlayPainter.Paint(canvas, balanceDots, view.Scale);
+            // The trail is judged against too, and sits under the armature so
+            // the bones stay aimable over it.
+            MotionTrailPainter.Paint(canvas, trail, view.Scale);
             // Heat under the bones, both over the rig marks: the armature is
             // aimed with the same hand, and the heat is what a weight brush
             // corrects against.
             ArmatureOverlayPainter.PaintHeat(canvas, heat, view.Scale);
             ArmatureOverlayPainter.Paint(canvas, bones, view.Scale);
+            // Under the ants: a committed selection outranks a would-be one.
+            FillPreviewPainter.Draw(canvas, fillPreview, fillPreviewWand, fillPreviewColor, view.Scale);
             DrawAnts(canvas);
             DrawLazyGizmo(canvas);
             DrawTransformGizmo(canvas);
@@ -4087,7 +4126,7 @@ public sealed partial class CanvasControl : Control
             lines is null ? null : [.. lines.Select(ToPainterLine)];
 
         private static GuidePainter.Line ToPainterLine(GuideLine g) =>
-            new(g.Kind, g.X, g.Y, g.Spacing, g.Angles, g.Label, g.Divisions);
+            new(g.Kind, g.X, g.Y, g.Spacing, g.Angles, g.Label, g.Divisions, g.Emphasis);
 
         /// <summary>
         /// The reference grid, while it is being edited.
@@ -4211,7 +4250,19 @@ public sealed partial class CanvasControl : Control
 
         private void DrawSelectedLines(SKCanvas canvas)
         {
-            if (selectedLines is null || selectedLines.Count == 0) return;
+            // The hover goes underneath, so a line that is both hovered and
+            // picked reads as picked. B217: one painter for both, because two
+            // would be the divergence B215 spent a branch removing one object
+            // along — a hover that did not look like a dimmer selection would
+            // stop saying "this is the thing the click will take".
+            DrawLineOutlines(canvas, hoveredLines, alpha: 0.45f, dragging: false);
+            DrawLineOutlines(canvas, selectedLines, alpha: 1f, dragging: lineDrag != default);
+        }
+
+        private void DrawLineOutlines(
+            SKCanvas canvas, IReadOnlyList<SelectedLine>? lines, float alpha, bool dragging)
+        {
+            if (lines is null || lines.Count == 0) return;
 
             var scale = Math.Max(0.01f, view.Scale);
             // While a drag is in flight the outline is the only thing that moves.
@@ -4221,7 +4272,6 @@ public sealed partial class CanvasControl : Control
             // release. Translating the canvas rather than the points keeps this
             // free of per-point work, and keeps stroke coordinates untouched
             // until the edit is actually committed.
-            var dragging = lineDrag != default;
             if (dragging)
             {
                 canvas.Save();
@@ -4229,7 +4279,7 @@ public sealed partial class CanvasControl : Control
             }
             using var halo = new SKPaint
             {
-                Color = SKColors.Cyan.WithAlpha(70),
+                Color = SKColors.Cyan.WithAlpha((byte)(70 * alpha)),
                 StrokeWidth = 6f / scale,
                 Style = SKPaintStyle.Stroke,
                 StrokeCap = SKStrokeCap.Round,
@@ -4238,7 +4288,7 @@ public sealed partial class CanvasControl : Control
             };
             using var core = new SKPaint
             {
-                Color = SKColors.Cyan,
+                Color = SKColors.Cyan.WithAlpha((byte)(255 * alpha)),
                 StrokeWidth = 1.5f / scale,
                 Style = SKPaintStyle.Stroke,
                 StrokeCap = SKStrokeCap.Round,
@@ -4246,7 +4296,7 @@ public sealed partial class CanvasControl : Control
                 IsAntialias = true,
             };
 
-            foreach (var line in selectedLines)
+            foreach (var line in lines)
             {
                 if (line.Points.Length < 2) continue;
                 using var path = new SKPath();
@@ -4457,43 +4507,17 @@ public sealed partial class CanvasControl : Control
                 }
             }
 
-            // Draw guide selections
-            if (guides is not null && guides.Count > 0)
-            {
-                foreach (var guideIndex in selectionManager.SelectedGuideIndices)
-                {
-                    if (guideIndex < 0 || guideIndex >= guides.Count) continue;
-                    var guide = guides[guideIndex];
-
-                    // Draw selected guides in yellow/gold for distinction
-                    using var paint = new SKPaint
-                    {
-                        Color = new SKColor(255, 200, 0, 200),  // Gold
-                        StrokeWidth = (float)(2f / scale),
-                        Style = SKPaintStyle.Stroke,
-                        IsAntialias = true,
-                    };
-
-                    if (guide.Angles.Count > 0)
-                    {
-                        var angle = guide.Angles[0];
-                        var radians = angle * Math.PI / 180;
-                        var dx = (float)Math.Cos(radians) * reach;
-                        var dy = (float)Math.Sin(radians) * reach;
-                        canvas.DrawLine(
-                            guide.X - dx, guide.Y - dy,
-                            guide.X + dx, guide.Y + dy,
-                            paint);
-                    }
-                    else
-                    {
-                        // Vanishing point: draw crosshairs
-                        var arm = 10f / scale;
-                        canvas.DrawLine(guide.X - arm, guide.Y, guide.X + arm, guide.Y, paint);
-                        canvas.DrawLine(guide.X, guide.Y - arm, guide.X, guide.Y + arm, paint);
-                    }
-                }
-            }
+            // Guides are not drawn here (B215). A gold line and a crosshair
+            // used to be laid over the rig from this block, which meant a
+            // selected guide was painted twice by two different pieces of code:
+            // GuidePainter drew the guide with its Emphasis, and this drew a
+            // second one on top. It could only draw two of the five kinds —
+            // anything without an Angles[0] became a crosshair, so a grid and a
+            // height scale were marked as if they were vanishing points — and
+            // it drew whatever tool was in hand, so the mark outlived the
+            // capability. Emphasis.Selected is the one route now, it knows
+            // every kind because it is the painter that draws them, and it is
+            // gated on GuideDragEnabled so it goes when the tool does.
 
             // Draw reference box selections
             if (referenceBoxes is not null && referenceBoxes.Count > 0)

@@ -1,0 +1,86 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             x:Class="Lightbox.App.Views.GuideOptionsPanel"
+             x:DataType="vm:MainViewModel">
+  <!--
+    The vertical twin of GuideOptionsBar — same bindings, same order, room for
+    labels and sliders. A collaborator rather than 85 more lines of
+    MainWindow.axaml, which is on the monolith ratchet.
+  -->
+  <StackPanel Spacing="6" IsVisible="{Binding ReachesGuides}">
+    <TextBlock Text="{Binding SelectedGuideLabel}" FontSize="12" FontWeight="SemiBold" />
+    <TextBlock Text="Click a guide on the canvas to adjust it. Every guide lights up faintly while the Move tool is in hand; the one under the pointer brighter, the selected one brightest."
+               FontSize="11" Opacity="0.55" TextWrapping="Wrap"
+               IsVisible="{Binding !HasSelectedGuide}" />
+    <StackPanel Spacing="6" IsVisible="{Binding HasSelectedGuide}">
+      <DockPanel>
+        <TextBlock Text="X" Width="90" VerticalAlignment="Center" FontSize="12" />
+        <NumericUpDown Value="{Binding GuideX}" Minimum="-100000" Maximum="100000"
+                       Increment="1" FormatString="0.#" MinWidth="44"
+                       ToolTip.Tip="Where the guide sits across the canvas, in document pixels" />
+      </DockPanel>
+      <DockPanel>
+        <TextBlock Text="Y" Width="90" VerticalAlignment="Center" FontSize="12" />
+        <NumericUpDown Value="{Binding GuideY}" Minimum="-100000" Maximum="100000"
+                       Increment="1" FormatString="0.#" MinWidth="44"
+                       ToolTip.Tip="Where the guide sits down the canvas, in document pixels" />
+      </DockPanel>
+      <DockPanel IsVisible="{Binding SelectedGuideHasAngle}">
+        <TextBlock Text="Angle" Width="90" VerticalAlignment="Center" FontSize="12" />
+        <NumericUpDown DockPanel.Dock="Right" Value="{Binding GuideAngle}" Minimum="-360" Maximum="360"
+                       Increment="1" FormatString="0.#" MinWidth="44"
+                       ToolTip.Tip="Degrees clockwise from horizontal" />
+        <Slider Value="{Binding GuideAngle}" Minimum="-180" Maximum="180" Margin="4,0" />
+      </DockPanel>
+      <DockPanel IsVisible="{Binding SelectedGuideIsGrid}">
+        <TextBlock Text="Cell size" Width="90" VerticalAlignment="Center" FontSize="12" />
+        <NumericUpDown DockPanel.Dock="Right" Value="{Binding GuideSpacing}" Minimum="1" Maximum="4096"
+                       Increment="1" FormatString="0.#" MinWidth="44"
+                       ToolTip.Tip="The pitch of this lattice, in document pixels" />
+        <Slider Value="{Binding GuideSpacing}" Minimum="1" Maximum="512" Margin="4,0" />
+      </DockPanel>
+      <StackPanel Spacing="6" IsVisible="{Binding SelectedGuideIsHeightScale}">
+        <DockPanel>
+          <TextBlock Text="Head height" Width="90" VerticalAlignment="Center" FontSize="12" />
+          <NumericUpDown DockPanel.Dock="Right" Value="{Binding GuideSpacing}" Minimum="1" Maximum="4096"
+                         Increment="1" FormatString="0.#" MinWidth="44"
+                         ToolTip.Tip="One head's height, in document pixels. Dragging the top rung on the canvas does the same thing" />
+          <Slider Value="{Binding GuideSpacing}" Minimum="1" Maximum="512" Margin="4,0" />
+        </DockPanel>
+        <DockPanel>
+          <TextBlock Text="Heads" Width="90" VerticalAlignment="Center" FontSize="12" />
+          <NumericUpDown DockPanel.Dock="Right" Value="{Binding GuideHeads}" Minimum="1" Maximum="32"
+                         Increment="1" FormatString="0" MinWidth="44"
+                         ToolTip.Tip="How many heads tall the character is" />
+          <Slider Value="{Binding GuideHeads}" Minimum="1" Maximum="16" Margin="4,0" />
+        </DockPanel>
+      </StackPanel>
+      <DockPanel IsVisible="{Binding SelectedGuideIsVanishingPoint}">
+        <TextBlock Text="Rays" Width="90" VerticalAlignment="Center" FontSize="12" />
+        <NumericUpDown DockPanel.Dock="Right" Value="{Binding GuideRays}" Minimum="2" Maximum="180"
+                       Increment="2" FormatString="0" MinWidth="44"
+                       ToolTip.Tip="How many lines are drawn out of the point" />
+        <Slider Value="{Binding GuideRays}" Minimum="2" Maximum="72" Margin="4,0" />
+      </DockPanel>
+      <TextBlock Text="The point constrains every direction through it — the ray count is what you see, not what you can snap to."
+                 FontSize="11" Opacity="0.55" TextWrapping="Wrap"
+                 IsVisible="{Binding SelectedGuideIsVanishingPoint}" />
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <CheckBox Content="Shown" FontSize="12" IsChecked="{Binding GuideVisible}"
+                  ToolTip.Tip="Take it off the screen. A hidden guide still snaps" />
+        <CheckBox Content="Snaps" FontSize="12" IsChecked="{Binding GuideSnaps}"
+                  ToolTip.Tip="Whether strokes are held to it" />
+        <CheckBox Content="Locked" FontSize="12" IsChecked="{Binding GuideLocked}"
+                  ToolTip.Tip="Pin it, so neither a drag nor these fields can move it" />
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="4">
+        <Button Content="Set as default" Command="{Binding SaveGuideDefaultsCommand}" FontSize="12"
+                IsVisible="{Binding CanSaveGuideDefaults}"
+                ToolTip.Tip="{Binding GuideDefaultsHint}" />
+        <Button Content="Remove" Command="{Binding RemoveSelectedGuideCommand}" FontSize="12"
+                ToolTip.Tip="Delete this guide. Strokes already drawn against it do not move" />
+      </StackPanel>
+    </StackPanel>
+  </StackPanel>
+</UserControl>

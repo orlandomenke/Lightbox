@@ -231,11 +231,11 @@ public class RulerAndGuideEditTests : BrushStateIsolated
     // ---- moving a guide on the canvas ---------------------------------------------
 
     [AvaloniaFact]
-    public void AGuideIsOnlyGrabbableWithTheMoveTool()
+    public void AGuideIsOnlyGrabbableWithATheToolsThatReachForOne()
     {
         // Grabbing a guide and drawing along one are the same gesture in the
         // same place, so something has to say which was meant. The rulers used
-        // to; the Move tool does now, and it works with the rulers down.
+        // to; the tool does now, and it works with the rulers down.
         var (window, vm) = Open();
         var canvas = CanvasOf(window);
         vm.AddGuide(GuideKind.Line, 0, 100);
@@ -244,6 +244,12 @@ public class RulerAndGuideEditTests : BrushStateIsolated
         Assert.False(canvas.GuideDragEnabled);
 
         vm.ActiveTool = ToolId.Move;
+        Pump(window);
+        Assert.True(canvas.GuideDragEnabled);
+
+        // B215: and the Arrow, which has picked guides all along through a hit
+        // test of its own and could never move one.
+        vm.ActiveTool = ToolId.Arrow;
         Pump(window);
         Assert.True(canvas.GuideDragEnabled);
 
@@ -327,6 +333,212 @@ public class RulerAndGuideEditTests : BrushStateIsolated
         // And the whole of it is one step, not one per pointer event.
         vm.UndoCommand.Execute(null);
         Assert.Equal(200, guide.Y, 1);
+    }
+
+    // ---- one selection, whichever tool picked it (B215) -----------------------------
+    //
+    // The bug these guard is a pair of parallel systems rather than a wrong
+    // line: the Move tool wrote MainViewModel.SelectedGuideId and the Arrow
+    // wrote SelectionManager, neither read the other, and each had a hit test
+    // and a painter of its own. Every test below fails on the old code for a
+    // different one of those seams, which is why they are separate.
+
+    /// <summary>
+    /// Picking a guide with the Arrow points the options at it.
+    /// </summary>
+    /// <remarks>
+    /// The most visible half of the split. The Arrow is documented as the tool
+    /// that picks guides, and picking one used to write into a selection the
+    /// options bar did not read — so the numbers stayed blank for the tool
+    /// whose whole job is picking things.
+    /// </remarks>
+    [AvaloniaFact]
+    public void PickingAGuideWithTheArrowPointsTheOptionsAtIt()
+    {
+        var (window, vm) = Open();
+        vm.ActiveTool = ToolId.Arrow;
+        var guide = vm.AddGuide(GuideKind.Line, 0, 200, angle: 0);
+        Pump(window);
+
+        var canvas = CanvasOf(window);
+        var (_, top) = canvas.DocToView(0, 200);
+        canvas.RaiseEvent(Press(window, canvas, new Point(300, top)));
+        canvas.RaiseEvent(Release(window, canvas, new Point(300, top)));
+        Pump(window);
+
+        Assert.Equal(guide.Id, vm.SelectedGuideId);
+        Assert.Same(guide, vm.SelectedGuide);
+        Assert.True(vm.Selection.IsGuideSelected(guide.Id));
+    }
+
+    /// <summary>
+    /// Picking one with the Move tool puts it in the same set the group move
+    /// reads.
+    /// </summary>
+    /// <remarks>
+    /// The other direction, and the one that made <c>BeginGuidesMove</c>
+    /// unreachable: the Move tool is the only tool the drag gate ever opened
+    /// for, and it was the one tool that never put anything in the set the drag
+    /// resolves against.
+    /// </remarks>
+    [AvaloniaFact]
+    public void PickingAGuideWithTheMoveToolPutsItInTheOneSelection()
+    {
+        var (window, vm) = Open();
+        vm.ActiveTool = ToolId.Move;
+        var guide = vm.AddGuide(GuideKind.Line, 0, 200, angle: 0);
+        Pump(window);
+
+        var canvas = CanvasOf(window);
+        var (_, top) = canvas.DocToView(0, 200);
+        canvas.RaiseEvent(Press(window, canvas, new Point(300, top)));
+        canvas.RaiseEvent(Release(window, canvas, new Point(300, top)));
+        Pump(window);
+
+        Assert.True(vm.Selection.IsGuideSelected(guide.Id));
+        Assert.Equal(guide.Id, vm.SelectedGuideId);
+    }
+
+    /// <summary>Shift adds a second guide, and the Arrow then drags both.</summary>
+    /// <remarks>
+    /// The capability the split cost outright. Multi-select lived in the
+    /// manager, which only the Arrow filled; the group drag was gated on the
+    /// Move tool, which never filled it. Both halves are one tool's now.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheArrowAddsToTheSelectionWithShiftAndThenMovesTheGroup()
+    {
+        var (window, vm) = Open();
+        vm.ActiveTool = ToolId.Arrow;
+        var first = vm.AddGuide(GuideKind.Line, 0, 200, angle: 0);
+        var second = vm.AddGuide(GuideKind.Line, 0, 260, angle: 0);
+        Pump(window);
+
+        var canvas = CanvasOf(window);
+        var (_, firstView) = canvas.DocToView(0, 200);
+        var (_, secondView) = canvas.DocToView(0, 260);
+
+        canvas.RaiseEvent(Press(window, canvas, new Point(300, firstView)));
+        canvas.RaiseEvent(Release(window, canvas, new Point(300, firstView)));
+        canvas.RaiseEvent(Press(window, canvas, new Point(300, secondView), KeyModifiers.Shift));
+        canvas.RaiseEvent(Release(window, canvas, new Point(300, secondView)));
+        Pump(window);
+
+        Assert.Equal(2, vm.Selection.SelectedGuideIds.Count);
+        // Two picked, so no single one for the numbers to describe.
+        Assert.Null(vm.SelectedGuideId);
+
+        // A press inside the group takes hold of the group rather than
+        // dropping the rest of it, and both travel the same distance.
+        var (_, dropped) = canvas.DocToView(0, 230);
+        canvas.RaiseEvent(Press(window, canvas, new Point(300, firstView)));
+        canvas.RaiseEvent(Move(window, canvas, new Point(300, dropped)));
+        canvas.RaiseEvent(Release(window, canvas, new Point(300, dropped)));
+        Pump(window);
+
+        Assert.Equal(230, first.Y, 1);
+        Assert.Equal(290, second.Y, 1);
+    }
+
+    /// <summary>
+    /// A locked guide is out of the Arrow's reach as well as the Move tool's.
+    /// </summary>
+    /// <remarks>
+    /// The Arrow's own hit test consulted neither the workspace lock nor
+    /// <c>Guide.Locked</c>, so pinning a perspective set stopped one tool from
+    /// touching it and not the other. Locking means "leave the rig alone"
+    /// whatever is in hand, which is only true if one gate answers for both.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheArrowCannotPickAGuideTheArtistHasLocked()
+    {
+        var (window, vm) = Open();
+        vm.ActiveTool = ToolId.Arrow;
+        var guide = vm.AddGuide(GuideKind.Line, 0, 200, angle: 0);
+        vm.Workspace.GuidesLocked = true;
+        Pump(window);
+
+        var canvas = CanvasOf(window);
+        var (_, top) = canvas.DocToView(0, 200);
+        canvas.RaiseEvent(Press(window, canvas, new Point(300, top)));
+        canvas.RaiseEvent(Release(window, canvas, new Point(300, top)));
+        Pump(window);
+
+        Assert.False(vm.Selection.IsGuideSelected(guide.Id));
+        Assert.Null(vm.SelectedGuideId);
+    }
+
+    /// <summary>
+    /// Leaving both guide tools lets the selection go, the way the line
+    /// selection already did.
+    /// </summary>
+    /// <remarks>
+    /// A selection outlives the tool that made it only when the tool it is
+    /// handed to can also use it — the Arrow and the Move tool both can. A
+    /// brush cannot, and a guide left lit under one is drawn state pointing at
+    /// a capability the artist no longer has. The rule was written for strokes
+    /// and applied to strokes alone; guides kept their highlight all the way
+    /// into a painting session.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheGuideSelectionSurvivesBetweenTheTwoGuideToolsAndNoFurther()
+    {
+        var (window, vm) = Open();
+        vm.ActiveTool = ToolId.Arrow;
+        var guide = vm.AddGuide(GuideKind.Line, 0, 200, angle: 0);
+        Pump(window);
+
+        var canvas = CanvasOf(window);
+        var (_, top) = canvas.DocToView(0, 200);
+        canvas.RaiseEvent(Press(window, canvas, new Point(300, top)));
+        canvas.RaiseEvent(Release(window, canvas, new Point(300, top)));
+        Pump(window);
+        Assert.True(vm.Selection.IsGuideSelected(guide.Id));
+
+        // Handed to the other tool that reaches for guides: still picked.
+        vm.ActiveTool = ToolId.Move;
+        Pump(window);
+        Assert.True(vm.Selection.IsGuideSelected(guide.Id));
+
+        vm.ActiveTool = ToolId.Brush;
+        Pump(window);
+        Assert.False(vm.Selection.IsGuideSelected(guide.Id));
+        Assert.Null(vm.SelectedGuideId);
+    }
+
+    /// <summary>
+    /// Deleting a guide before the selected one does not move the selection
+    /// onto its neighbour.
+    /// </summary>
+    /// <remarks>
+    /// The reason the set is keyed by id, and the failure it removes is silent:
+    /// held by position, a selection points at whatever slid into that slot,
+    /// so the next drag moves a guide the artist never picked. The manager's
+    /// own doc comment made this argument for strokes and the guide set was
+    /// keyed by index anyway.
+    /// </remarks>
+    [AvaloniaFact]
+    public void RemovingAnEarlierGuideLeavesTheSelectionOnTheSameOne()
+    {
+        var (window, vm) = Open();
+        vm.ActiveTool = ToolId.Arrow;
+        var first = vm.AddGuide(GuideKind.Line, 0, 100, angle: 0);
+        var second = vm.AddGuide(GuideKind.Line, 0, 200, angle: 0);
+        Pump(window);
+
+        vm.Selection.SelectGuide(second.Id);
+        vm.RemoveGuide(first);
+        Pump(window);
+
+        Assert.Equal(second.Id, vm.SelectedGuideId);
+        Assert.Same(second, vm.SelectedGuide);
+
+        // And the group move resolves to the same guide rather than to
+        // whatever now sits where it used to.
+        vm.BeginGuidesMove();
+        vm.UpdateGuidesMove(0, 40);
+        vm.EndGuidesMove();
+        Assert.Equal(240, second.Y, 1);
     }
 
     [AvaloniaFact]
@@ -417,8 +629,8 @@ public class RulerAndGuideEditTests : BrushStateIsolated
         var first = vm.AddGuide(GuideKind.Line, 0, 100);
         var second = vm.AddGuide(GuideKind.Line, 0, 200);
         var untouched = vm.AddGuide(GuideKind.Line, 0, 300);
-        vm.Selection.AddGuideToSelection(0);
-        vm.Selection.AddGuideToSelection(1);
+        vm.Selection.AddGuideToSelection(first.Id);
+        vm.Selection.AddGuideToSelection(second.Id);
 
         vm.BeginGuidesMove();
         vm.UpdateGuidesMove(0, 5);
@@ -437,7 +649,7 @@ public class RulerAndGuideEditTests : BrushStateIsolated
     {
         var (_, vm) = Open();
         var guide = vm.AddGuide(GuideKind.Line, 0, 100);
-        vm.Selection.AddGuideToSelection(0);
+        vm.Selection.AddGuideToSelection(guide.Id);
 
         vm.BeginGuidesMove();
         vm.UpdateGuidesMove(0, 30);
@@ -451,8 +663,8 @@ public class RulerAndGuideEditTests : BrushStateIsolated
         var (_, vm) = Open();
         var first = vm.AddGuide(GuideKind.Line, 0, 100);
         var second = vm.AddGuide(GuideKind.Line, 0, 200);
-        vm.Selection.AddGuideToSelection(0);
-        vm.Selection.AddGuideToSelection(1);
+        vm.Selection.AddGuideToSelection(first.Id);
+        vm.Selection.AddGuideToSelection(second.Id);
 
         vm.BeginGuidesMove();
         vm.UpdateGuidesMove(0, 10);
@@ -480,8 +692,8 @@ public class RulerAndGuideEditTests : BrushStateIsolated
         var locked = vm.AddGuide(GuideKind.Line, 0, 100);
         var free = vm.AddGuide(GuideKind.Line, 0, 200);
         locked.Locked = true;
-        vm.Selection.AddGuideToSelection(0);
-        vm.Selection.AddGuideToSelection(1);
+        vm.Selection.AddGuideToSelection(locked.Id);
+        vm.Selection.AddGuideToSelection(free.Id);
 
         vm.BeginGuidesMove();
         vm.UpdateGuidesMove(0, 40);
@@ -495,14 +707,13 @@ public class RulerAndGuideEditTests : BrushStateIsolated
     public void AGroupGuideDragThatWentNowhereIsNotAnEdit()
     {
         var (_, vm) = Open();
-        vm.AddGuide(GuideKind.Line, 0, 100);
-        vm.Selection.AddGuideToSelection(0);
-        var steps = vm.UndoDepth;
+        vm.Selection.AddGuideToSelection(vm.AddGuide(GuideKind.Line, 0, 100).Id);
+        var steps = vm.RecordedStepCount;
 
         vm.BeginGuidesMove();
         vm.EndGuidesMove();
 
-        Assert.Equal(steps, vm.UndoDepth);
+        Assert.Equal(steps, vm.RecordedStepCount);
     }
 
     // ---- what the rulers show ------------------------------------------------------
@@ -629,10 +840,11 @@ public class RulerAndGuideEditTests : BrushStateIsolated
     private static Point Root(Window window, Visual target, Point local) =>
         target.TranslatePoint(local, window) ?? local;
 
-    private static PointerPressedEventArgs Press(Window window, Control target, Point at) =>
+    private static PointerPressedEventArgs Press(
+        Window window, Control target, Point at, KeyModifiers modifiers = KeyModifiers.None) =>
         new(target, TestPointer, window, Root(window, target, at), 0,
             new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.LeftButtonPressed),
-            KeyModifiers.None);
+            modifiers);
 
     private static PointerEventArgs Move(Window window, Control target, Point at) =>
         new(InputElement.PointerMovedEvent, target, TestPointer, window, Root(window, target, at), 0,

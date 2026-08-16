@@ -200,15 +200,12 @@ public sealed class PenSession
     {
         if (Path.Nodes.Count == 0) return (x, y);
 
+        // The arithmetic is Snapper.OnNearestAngle's (B218); the forty-five is
+        // this tool's, and the constant above says why it is not the gradient's
+        // fifteen.
         var anchor = Path.Nodes[^1];
-        var dx = x - anchor.X;
-        var dy = y - anchor.Y;
-        var length = Math.Sqrt(dx * dx + dy * dy);
-        if (length < 1e-9) return (x, y);
-
-        var degrees = Math.Atan2(dy, dx) * 180 / Math.PI;
-        var snapped = Math.Round(degrees / ConstrainDegrees) * ConstrainDegrees * Math.PI / 180;
-        return (anchor.X + Math.Cos(snapped) * length, anchor.Y + Math.Sin(snapped) * length);
+        return Lightbox.Core.Geometry.Snapper.OnNearestAngle(
+            anchor.X, anchor.Y, x, y, ConstrainDegrees);
     }
 
     // ---- what it looks like ----------------------------------------------------

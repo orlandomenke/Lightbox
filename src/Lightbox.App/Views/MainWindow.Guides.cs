@@ -33,7 +33,8 @@ public partial class MainWindow
     /// <remarks>
     /// A vanishing point constrains a continuum of directions, so it is
     /// flattened here into an evenly spread fan. Drawing every direction would
-    /// be a filled disc; twenty-four is enough to read as perspective and few
+    /// be a filled disc; how many is the guide's own — twenty-four until the
+    /// artist says otherwise, which is enough to read as perspective and few
     /// enough to see the drawing through. The renderer stays dumb about what a
     /// guide means, which is what keeps it off the document objects.
     /// </remarks>
@@ -41,6 +42,12 @@ public partial class MainWindow
     {
         // The rulers carry a mark per guide, so they move with them.
         RefreshRulerMarks();
+
+        // Which ones are picked, so the canvas can say so. A snapshot of the
+        // one selection (B215) rather than the options bar's separate idea of
+        // it — the bar shows a single guide's numbers, the rig lights all of
+        // them, and both read the same set.
+        Canvas.SelectedGuideIds = _vm.Selection.SelectedGuideIds;
 
         if (!_vm.HasGuides || !_vm.Workspace.GuidesVisible)
         {
@@ -52,7 +59,7 @@ public partial class MainWindow
         {
             if (!guide.Visible) continue;
             var angles = guide.Kind == GuideKind.VanishingPoint
-                ? Fan()
+                ? Fan(guide.RayCount)
                 : guide.Angles;
             lines.Add(new Rendering.CanvasControl.GuideLine(
                 guide.Id, (int)guide.Kind, (float)guide.X, (float)guide.Y,
@@ -120,9 +127,8 @@ public partial class MainWindow
         Canvas.HeatPoints = heat.Count > 0 ? heat : null;
     }
 
-    private static IReadOnlyList<double> Fan()
+    private static IReadOnlyList<double> Fan(int rays)
     {
-        const int rays = 24;
         var angles = new double[rays];
         for (var i = 0; i < rays; i++) angles[i] = i * (180.0 / rays);
         return angles;
@@ -181,6 +187,15 @@ public partial class MainWindow
         Canvas.ShapesMoveStarted += _vm.BeginShapesMove;
         Canvas.ShapesMoved += (dx, dy) => _vm.UpdateShapesMove(dx, dy);
         Canvas.ShapesMovedEnded += _vm.EndShapesMove;
+
+        // Clicking a guide points the Move tool's options at it. The canvas
+        // reports the click; which guide that is and what the options then show
+        // is the view model's, like every other selection.
+        Canvas.GuideSelected += (id, shift, alt) =>
+        {
+            _vm.SelectGuide(id, shift, alt);
+            Canvas.SelectedGuideIds = _vm.Selection.SelectedGuideIds;
+        };
 
         Canvas.GuideMoved += (id, dx, dy) =>
         {
@@ -270,7 +285,7 @@ public partial class MainWindow
 
     private void RefreshGuideGrab() =>
         Canvas.GuideDragEnabled =
-            _vm.IsMoveTool && _vm.Workspace.GuidesVisible && !_vm.Workspace.GuidesLocked;
+            _vm.ReachesGuides && _vm.Workspace.GuidesVisible && !_vm.Workspace.GuidesLocked;
 
     private void RefreshRulerMapping()
     {
@@ -395,9 +410,13 @@ public partial class MainWindow
     {
         // On the horizon — a third of the way down is where one usually is —
         // and off to one side, since a VP directly ahead gives you nothing to
-        // draw along.
+        // draw along. The fan comes from the configuration, like the grid's
+        // pitch: Edit ▸ Configure ▸ Guides and grid, or "Set as default" on a
+        // vanishing point you have already dialled in.
         var scene = _vm.Doc.Scene;
-        _vm.AddGuide(GuideKind.VanishingPoint, scene.Width * 0.15, scene.Height / 3.0);
+        _vm.AddGuide(
+            GuideKind.VanishingPoint, scene.Width * 0.15, scene.Height / 3.0,
+            divisions: _vm.VanishingPointRays);
     }
 
     /// <summary>
@@ -408,10 +427,12 @@ public partial class MainWindow
     private void OnAddHeightScale(object? sender, RoutedEventArgs e)
     {
         var scene = _vm.Doc.Scene;
-        const int divisions = 6;
-        // Seven tenths of the canvas height, so the chart is unmistakably a
-        // figure and still leaves headroom to pull the top up.
-        var unit = scene.Height * 0.7 / divisions;
+        var divisions = Math.Max(1, _vm.HeightScaleHeads);
+        // A share of the canvas height rather than a pixel count, so the chart
+        // is unmistakably a figure on any size of scene and still leaves
+        // headroom to pull the top up. Seven tenths until the artist saves a
+        // different proportion as their default.
+        var unit = scene.Height * _vm.HeightScaleFill / divisions;
         _vm.AddGuide(
             GuideKind.HeightScale, scene.Width / 2.0, scene.Height * 0.85,
             spacing: unit, divisions: divisions);

@@ -264,13 +264,21 @@ public class GuideTests
     }
 
     [Fact]
-    public void OnlyAHeightScaleWritesADivisionsKey()
+    public void OnlyAGuideThatCountsSomethingWritesADivisionsKey()
     {
-        // Optional means absent: divisions is the height scale's key and no
-        // other guide's, so a document without one never carries it.
+        // Optional means absent: divisions belongs to the two kinds that count
+        // something — a height scale's heads and a vanishing point's rays — so
+        // a document with neither never carries it.
         var plain = new Doc();
         plain.Scene.Guides = [Line(0), Grid(24)];
         Assert.DoesNotContain("divisions", DocJson.Serialize(plain), StringComparison.OrdinalIgnoreCase);
+
+        // And a vanishing point nobody has dialled is one of those: it draws
+        // the default fan without saying so on disk.
+        var untouched = new Doc();
+        untouched.Scene.Guides = [new Guide { Kind = GuideKind.VanishingPoint, X = 40, Y = 60 }];
+        Assert.Equal(Guide.DefaultRays, untouched.Scene.Guides[0].RayCount);
+        Assert.DoesNotContain("divisions", DocJson.Serialize(untouched), StringComparison.OrdinalIgnoreCase);
 
         var charted = new Doc();
         charted.Scene.Guides = [Scale(unit: 90, heads: 6)];
@@ -278,6 +286,38 @@ public class GuideTests
         Assert.Equal(GuideKind.HeightScale, back.Scene.Guides![0].Kind);
         Assert.Equal(6, back.Scene.Guides[0].Divisions);
         Assert.Equal(90, back.Scene.Guides[0].Spacing);
+    }
+
+    [Fact]
+    public void AVanishingPointsRayCountIsClampedAndSurvivesAReload()
+    {
+        // A fan of one is not a fan, and past a couple of hundred the rays
+        // close into a filled disc — so the count is clamped where it is read
+        // rather than trusted from the file.
+        var few = new Guide { Kind = GuideKind.VanishingPoint, Divisions = 0 };
+        var many = new Guide { Kind = GuideKind.VanishingPoint, Divisions = 100_000 };
+        Assert.Equal(Guide.MinRays, few.RayCount);
+        Assert.Equal(Guide.MaxRays, many.RayCount);
+
+        var doc = new Doc();
+        doc.Scene.Guides = [new Guide { Kind = GuideKind.VanishingPoint, X = 10, Y = 20, Divisions = 8 }];
+        var back = DocJson.Deserialize(DocJson.Serialize(doc));
+        Assert.Equal(8, back.Scene.Guides![0].RayCount);
+    }
+
+    [Fact]
+    public void TheRayCountChangesNothingAboutWhatAVanishingPointConstrains()
+    {
+        // It is a drawing property: the point constrains every direction
+        // through it, so a fan of four and a fan of forty snap identically.
+        // Anything else would make "show me fewer lines" quietly change the
+        // record a stroke lands on.
+        var sparse = new Guide { Kind = GuideKind.VanishingPoint, X = 100, Y = 100, Divisions = 4 };
+        var dense = new Guide { Kind = GuideKind.VanishingPoint, X = 100, Y = 100, Divisions = 64 };
+
+        Assert.Equal(
+            Snapper.DirectionAt(sparse, 300, 220),
+            Snapper.DirectionAt(dense, 300, 220));
     }
 
     // ---- absence -----------------------------------------------------------------
@@ -321,5 +361,119 @@ public class GuideTests
 
         Near(23, x);
         Near(47, y);
+    }
+
+    // ---- constraining an angle (B218) ----------------------------------------------
+    //
+    // The same nine lines were written out three times — ShapeBuilder,
+    // PenSession and the gradient tool — identical but for one constant. These
+    // guard the shared arithmetic AND the fact that the three steps stay
+    // different, because collapsing them to one number is the plausible-looking
+    // mistake this consolidation makes newly available.
+
+    [Theory]
+    // A drag 10° off level, at a 45° step: rounds down to level.
+    [InlineData(45, 10, 0)]
+    // 35° off, same step: rounds up to the diagonal.
+    [InlineData(45, 35, 45)]
+    // The same 35° at a 15° step lands on 30 rather than 45 — the one case
+    // that tells the two policies apart.
+    [InlineData(15, 35, 30)]
+    [InlineData(15, 10, 15)]
+    // Negative headings round the same way.
+    [InlineData(45, -35, -45)]
+    [InlineData(90, 40, 0)]
+    public void AnAngleIsRoundedToTheNearestStep(double step, double heading, double expected)
+    {
+        var radians = heading * Math.PI / 180;
+        var (x, y) = Snapper.OnNearestAngle(
+            0, 0, 100 * Math.Cos(radians), 100 * Math.Sin(radians), step);
+
+        var landed = Math.Atan2(y, x) * 180 / Math.PI;
+        Near(expected, landed);
+    }
+
+    /// <summary>The direction is constrained and the reach is not.</summary>
+    /// <remarks>
+    /// The ruler's own division of labour, and the half that is easy to lose in
+    /// a rewrite: clamping the length as well is the version that feels like
+    /// the tool is arguing with you.
+    /// </remarks>
+    [Fact]
+    public void ConstrainingAnAngleKeepsTheDistanceTheHandTravelled()
+    {
+        var (x, y) = Snapper.OnNearestAngle(10, 20, 10 + 60, 20 + 22, stepDegrees: 45);
+
+        var travelled = Math.Sqrt(Math.Pow(x - 10, 2) + Math.Pow(y - 20, 2));
+        Near(Math.Sqrt(60 * 60 + 22 * 22), travelled);
+    }
+
+    /// <summary>A drag that went nowhere is left alone.</summary>
+    /// <remarks>
+    /// There is no direction to round, so any answer would be invented — and
+    /// the invented one is due east, which is what a click with no drag would
+    /// visibly jump to.
+    /// </remarks>
+    [Fact]
+    public void AConstraintOnADragThatWentNowhereChangesNothing()
+    {
+        var (x, y) = Snapper.OnNearestAngle(42, 17, 42, 17, stepDegrees: 45);
+
+        Near(42, x);
+        Near(17, y);
+    }
+
+    /// <summary>
+    /// The three tools keep three different steps, and two of them differ.
+    /// </summary>
+    /// <remarks>
+    /// The guard on the refactor rather than on the arithmetic. Sharing one
+    /// function makes "why are there three constants?" an inviting question,
+    /// and the answer is that a shape and a pen mean "level, upright or true
+    /// diagonal" while a gradient is a continuous angle being nudged onto a
+    /// nice value. This fails the moment somebody unifies the numbers.
+    /// </remarks>
+    [Fact]
+    public void TheStepsStayDifferentBecauseTheToolsMeanDifferentThings()
+    {
+        Assert.Equal(45, ShapeBuilder.LineSnapDegrees);
+
+        // A heading a shape rounds to 45 and a gradient rounds to 30.
+        var radians = 35 * Math.PI / 180;
+        var far = (X: 100 * Math.Cos(radians), Y: 100 * Math.Sin(radians));
+
+        var shaped = Snapper.OnNearestAngle(0, 0, far.X, far.Y, ShapeBuilder.LineSnapDegrees);
+        var ramped = Snapper.OnNearestAngle(0, 0, far.X, far.Y, 15);
+
+        Near(45, Math.Atan2(shaped.Y, shaped.X) * 180 / Math.PI);
+        Near(30, Math.Atan2(ramped.Y, ramped.X) * 180 / Math.PI);
+    }
+
+    /// <summary>
+    /// The lock tolerance is not a step, whatever number it happens to share.
+    /// </summary>
+    /// <remarks>
+    /// <c>LockDegrees</c> is how far off a stroke's heading may be and still
+    /// count as meant for a guide; a step is a lattice of allowed directions.
+    /// The gradient's constant claimed they were the same thing for the same
+    /// reason until B218, which is the sort of comment that gets two unrelated
+    /// numbers changed together.
+    /// </remarks>
+    [Fact]
+    public void TheGuideLockToleranceIsNotAnAngleStep()
+    {
+        // 12° off a horizontal guide is inside the tolerance, so a stroke
+        // heading that way is taken by the guide and flattened onto it.
+        var radians = 12 * Math.PI / 180;
+        var guides = new[] { Line(0) };
+        Assert.NotNull(Snapper.Lock(
+            guides, 0, 0, 40 * Math.Cos(radians), 40 * Math.Sin(radians)));
+
+        // Used as a *step*, the same fifteen would round that heading to 15 and
+        // leave it well off the guide. Tolerance: taken and flattened to 0.
+        // Step: rounded to the nearest allowed direction, which is not 0.
+        var (x, y) = Snapper.OnNearestAngle(
+            0, 0, 40 * Math.Cos(radians), 40 * Math.Sin(radians), Snapper.LockDegrees);
+        Near(15, Math.Atan2(y, x) * 180 / Math.PI);
     }
 }

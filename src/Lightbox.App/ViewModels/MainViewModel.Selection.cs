@@ -119,8 +119,18 @@ public partial class MainViewModel
         ApplySelectionMask(shape, add, subtract);
     }
 
+    /// <summary>Place one corner of a polygon selection.</summary>
+    /// <remarks>
+    /// <b>B216: snapped, unlike the lasso beside it.</b> A polygon vertex is
+    /// clicked rather than traced — it is a point an artist is aiming, the same
+    /// as a pen node or a shape corner — so it belongs to the set that snaps. A
+    /// freehand lasso is a traced line and stays unsnapped, because pulling
+    /// every sample onto a lattice fights the hand the whole way round, which
+    /// is the rule the brush already follows for a stroke's middle.
+    /// </remarks>
     public void AddPolygonVertex(double x, double y)
     {
+        (x, y) = SnappedPoint(x, y);
         _polygonPoints.Add(new StrokePoint(x, y, 1));
         SelectionChanged?.Invoke();
     }
@@ -171,64 +181,7 @@ public partial class MainViewModel
         // With an arrow in hand, "all" means the objects; otherwise the canvas.
         if (ObjectSelectionIsTheSubject)
         {
-            var frame = PaintTargetOrKey();
-            if (frame is not Frame pf) return;
-
-            // Select all placements on current frame
-            if (pf.Placements is not null && pf.Placements.Count > 0)
-            {
-                _selectionManager.ClearAllSelections();
-                foreach (var placement in pf.Placements)
-                {
-                    _selectionManager.AddPlacementToSelection(placement.Id);
-                }
-                return;
-            }
-
-            // Select all guides in the document
-            var guides = Doc?.Scene?.Guides;
-            if (guides is not null && guides.Count > 0)
-            {
-                _selectionManager.ClearAllSelections();
-                for (int i = 0; i < guides.Count; i++)
-                {
-                    _selectionManager.AddGuideToSelection(i);
-                }
-                return;
-            }
-
-            // Select all reference boxes
-            var activeRef = ActiveReference;
-            if (activeRef?.Cells is not null && activeRef.Cells.Count > 0)
-            {
-                _selectionManager.ClearAllSelections();
-                for (int i = 0; i < activeRef.Cells.Count; i++)
-                {
-                    _selectionManager.AddRefBoxToSelection(i);
-                }
-                return;
-            }
-
-            // Select all anchors (if rig edit mode is on)
-            if (RigEditMode && Doc?.Scene?.Anchors is not null && Doc.Scene.Anchors.Count > 0)
-            {
-                _selectionManager.ClearAllSelections();
-                foreach (var anchor in Doc.Scene.Anchors)
-                {
-                    _selectionManager.AddAnchorToSelection(anchor.Id);
-                }
-                return;
-            }
-
-            // Select all collision shapes (if rig edit mode is on)
-            if (RigEditMode && Doc?.Scene?.Shapes is not null && Doc.Scene.Shapes.Count > 0)
-            {
-                _selectionManager.ClearAllSelections();
-                foreach (var shape in Doc.Scene.Shapes)
-                {
-                    _selectionManager.AddShapeToSelection(shape.Id);
-                }
-            }
+            SelectEveryObject();
         }
         else
         {
@@ -238,6 +191,74 @@ public partial class MainViewModel
                 [new(0, 0, 1), new(Scene.Width, 0, 1), new(Scene.Width, Scene.Height, 1), new(0, Scene.Height, 1)],
             ];
             NotifySelection();
+        }
+    }
+
+    /// <summary>
+    /// Take every object on the canvas the arrows can pick.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B221: every kind, in one selection.</b> This was a cascade of
+    /// early returns — placements, or else guides, or else reference boxes, or
+    /// else anchors, or else collision shapes — so "select all" meant "select
+    /// all of whichever kind happens to be first and non-empty". On a drawing
+    /// with a symbol on it, Ctrl+A took the symbol and left every line.
+    /// </para>
+    /// <para>
+    /// <b>And lines were not in the list at all</b>, which is the half that
+    /// makes it a defect rather than an inconsistency: strokes are the Arrow's
+    /// primary subject — the thing its own documentation leads with — so on an
+    /// ordinary drawing with no symbols and no guides, Ctrl+A fell through
+    /// every arm and selected nothing.
+    /// </para>
+    /// <para>
+    /// Cleared once at the top rather than per kind, because every
+    /// <c>Select*</c> on the manager clears everything before it adds: doing it
+    /// inside the loop is what made the cascade's early returns necessary in
+    /// the first place, since the second kind would have wiped the first.
+    /// </para>
+    /// </remarks>
+    private void SelectEveryObject()
+    {
+        _selectionManager.ClearAllSelections();
+
+        // The lines, through the same list the Arrow's own picking uses, so
+        // "all" and "the one under the pointer" cannot disagree about what is
+        // pickable — a hidden or locked layer's strokes are neither.
+        foreach (var stroke in PickableStrokes()) _selectionManager.AddStrokeToSelection(stroke.Id);
+
+        if (PaintTargetOrKey() is Frame { Placements: { Count: > 0 } placements })
+        {
+            foreach (var placement in placements)
+            {
+                _selectionManager.AddPlacementToSelection(placement.Id);
+            }
+        }
+
+        if (Doc?.Scene?.Guides is { Count: > 0 } guides)
+        {
+            foreach (var guide in guides) _selectionManager.AddGuideToSelection(guide.Id);
+        }
+
+        if (ActiveReference?.Cells is { Count: > 0 } cells)
+        {
+            for (var i = 0; i < cells.Count; i++) _selectionManager.AddRefBoxToSelection(i);
+        }
+
+        // The rig's own objects only while the rig is being edited. Off, they
+        // are not on screen and not pickable, so taking them would be a
+        // selection of things the artist cannot see.
+        if (!RigEditMode) return;
+
+        if (Doc?.Scene?.Anchors is { Count: > 0 } anchors)
+        {
+            foreach (var anchor in anchors) _selectionManager.AddAnchorToSelection(anchor.Id);
+        }
+
+        if (Doc?.Scene?.Shapes is { Count: > 0 } shapes)
+        {
+            foreach (var shape in shapes) _selectionManager.AddShapeToSelection(shape.Id);
         }
     }
 
@@ -574,6 +595,12 @@ public partial class MainViewModel
     {
         _publish.InvalidateWholeCanvas();
         PublishSnapshot();
+        // The armature's ghosts read the same switch and depths the drawing's
+        // ghosts do, so the skeleton chrome moves when the onion bar does —
+        // and the ghost memo is keyed by playhead alone, so a depth change
+        // has to drop it by hand.
+        _ghostChromeCache = null;
+        OnPropertyChanged(nameof(BoneChromes));
         Settings.Save();
     }
 }

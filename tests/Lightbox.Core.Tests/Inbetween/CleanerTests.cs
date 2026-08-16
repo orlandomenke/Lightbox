@@ -55,6 +55,84 @@ public class StrokeRecordCleanerTests
         Assert.Same(s1, result[0]);
         Assert.Same(s2, result[1]);
     }
+
+    // ---- B233: a cleared region is an erasure too -----------------------------
+
+    /// <summary>A square emptied out of the drawing — the "clear selection" stroke.</summary>
+    private static Stroke Cleared(double x, double y, double w, double h) => new()
+    {
+        Tool = ToolKind.ClearRegion,
+        Brush = new BrushSettings { Size = 1 },
+        Points =
+        [
+            new(x, y, 1), new(x + w, y, 1), new(x + w, y + h, 1), new(x, y + h, 1),
+        ],
+    };
+
+    /// <summary>
+    /// B233: clearing a selection took the paint away and left both halves of
+    /// it in the effective record — the strokes it emptied, and the clear
+    /// itself. Anything asking what is on the drawing was told about a shape
+    /// that is not there and a line that was rubbed out.
+    /// </summary>
+    [Fact]
+    public void ClearedRegion_IsDropped_AndSoIsWhatItCleared()
+    {
+        var victim = Line(20, 50, 80, 50);
+        var survivor = Line(20, 300, 80, 300);
+        var cleared = Cleared(0, 0, 100, 100);
+
+        var result = StrokeRecordCleaner.EffectiveStrokes([victim, survivor, cleared]);
+
+        var s = Assert.Single(result);
+        Assert.Same(survivor, s);
+    }
+
+    /// <summary>
+    /// A cleared region is an <em>area</em>, not a path along its outline.
+    /// Reading its points the way an eraser's are read would only cover what
+    /// sits near the edge, so a shape cleared out of the middle of a drawing
+    /// would come back — which is the failure this test would catch and a
+    /// tests-only-the-outline implementation would not.
+    /// </summary>
+    [Fact]
+    public void ClearedRegion_EmptiesItsInsideRatherThanItsOutline()
+    {
+        // Well inside a 200-square clear, and nowhere near any of its edges.
+        var deepInside = Line(95, 100, 105, 100);
+        var cleared = Cleared(0, 0, 200, 200);
+
+        Assert.Empty(StrokeRecordCleaner.EffectiveStrokes([deepInside, cleared]));
+    }
+
+    /// <summary>
+    /// And it only empties its own inside: a hole in the cleared contour is not
+    /// part of it, under the same even-odd rule the render composited it with.
+    /// </summary>
+    [Fact]
+    public void ClearedRegion_LeavesWhatIsInsideItsHoles()
+    {
+        var inTheHole = Line(95, 100, 105, 100);
+        var cleared = Cleared(0, 0, 200, 200);
+        cleared.Holes = [[new(80, 80, 1), new(120, 80, 1), new(120, 120, 1), new(80, 120, 1)]];
+
+        var s = Assert.Single(StrokeRecordCleaner.EffectiveStrokes([inTheHole, cleared]));
+        Assert.Same(inTheHole, s);
+    }
+
+    /// <summary>
+    /// Order still decides, as it does for an eraser: ink drawn after a clear
+    /// was never cleared, and dropping it would delete work an artist can see.
+    /// </summary>
+    [Fact]
+    public void ClearedRegion_DoesNotTouchInkDrawnAfterIt()
+    {
+        var cleared = Cleared(0, 0, 200, 200);
+        var after = Line(95, 100, 105, 100);
+
+        var s = Assert.Single(StrokeRecordCleaner.EffectiveStrokes([cleared, after]));
+        Assert.Same(after, s);
+    }
 }
 
 public class EraserResurrectionTests

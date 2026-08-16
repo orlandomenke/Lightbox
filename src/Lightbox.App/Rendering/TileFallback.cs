@@ -73,15 +73,25 @@ public static class TileFallback
     /// <param name="hasCamera">The scene has an authored camera.</param>
     /// <param name="haveViewport">A viewport has been measured.</param>
     /// <param name="liveEffectHere">A live blur or smudge is replacing this layer.</param>
+    /// <param name="posed">
+    /// The rig moves this drawing — <c>RigIndex.IsPosed</c>. Passed in rather
+    /// than read off the frame, because a drawing on a rigged LAYER carries no
+    /// weights of its own (Q90) and the frame cannot answer for it. Required
+    /// rather than defaulted: a call site that forgot would tile a posed frame
+    /// and draw it at rest, which looks like the rig not working at all.
+    /// </param>
     public static TileFallbackReason Reason(
-        Frame frame, bool hasCamera, bool haveViewport, bool liveEffectHere)
+        Frame frame, bool hasCamera, bool haveViewport, bool liveEffectHere, bool posed)
     {
         if (!haveViewport) return TileFallbackReason.NoViewport;
         if (hasCamera) return TileFallbackReason.Camera;
         if (liveEffectHere) return TileFallbackReason.LiveEffect;
         if (frame.HasBaseline) return TileFallbackReason.Baseline;
         if (frame.HasPlacements) return TileFallbackReason.Placements;
-        if (frame.HasBoundStrokes) return TileFallbackReason.BoundStrokes;
+        // Either half is enough, and neither implies the other: a stroke can
+        // carry painted weights on a layer nobody rigged, and a rigged layer
+        // moves strokes that carry no weights of their own.
+        if (posed || frame.HasBoundStrokes) return TileFallbackReason.BoundStrokes;
         if (!TiledRasterizer.CanTile(frame.Strokes)) return TileFallbackReason.EffectStroke;
         return TileFallbackReason.None;
     }

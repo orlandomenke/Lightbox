@@ -995,7 +995,7 @@ public partial class MainViewModel
         CurrentFrameIndex = cell.Index;
         ClearCelRange();
 
-        // Q90. A hatched cell can be stood on and cannot be *selected as a cel*,
+        // Q103. A hatched cell can be stood on and cannot be *selected as a cel*,
         // and the anchor is where that line is drawn: there is no cel out there
         // to copy, cut, delete or range from, so leaving the anchor unset keeps
         // a following Shift+click from building a range over frames that do not

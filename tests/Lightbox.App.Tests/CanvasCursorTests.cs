@@ -23,7 +23,19 @@ namespace Lightbox.App.Tests;
 /// an artist cannot tell that apart from a broken application.
 /// </para>
 /// </remarks>
-public class CanvasCursorTests(ITestOutputHelper output)
+/// <remarks>
+/// <b>In the BrushState collection because it paints.</b> Half the refusal tests set a
+/// brush size, pick a tool and lay a stroke through the real path — which is exactly
+/// what <c>BrushStateIsolation</c>'s own rule covers: <i>any test that changes a brush
+/// must take this collection so it does not run beside one that assumes defaults.</i>
+/// It did not, and the miss is not theoretical — <c>AlphaLockRefusesOverBareCanvas</c>
+/// went red once under full-solution load, reporting a refusal over paint it had just
+/// laid down, because the brush store path is a process-wide static an isolated class
+/// running in parallel had swapped underneath it. In isolation it passes every time,
+/// which is the signature of this hazard rather than of a bug in the code it guards.
+/// </remarks>
+[Collection("BrushState")]
+public class CanvasCursorTests(ITestOutputHelper output) : BrushStateIsolated
 {
     // ---- the tool is legible before it is used ------------------------------------------
 

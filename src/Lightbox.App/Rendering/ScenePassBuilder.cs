@@ -38,8 +38,59 @@ namespace Lightbox.App.Rendering;
 internal static class ScenePassBuilder
 {
     /// <summary>
-    /// The pass list, plus where the active layer's own contribution begins
-    /// and ends in it.
+    /// One pass, described rather than materialized: what to draw and how,
+    /// with the cel fetch deferred until somebody proves it is needed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why the fetch is deferred (B198).</b> <see cref="Build"/> used to call
+    /// <c>cache.Get</c> for every visible layer before the fold ever saw the
+    /// list — so on a document whose working set exceeds the frame-cache budget
+    /// (about 64 layers at 1080p), every publish re-rasterized the cels the
+    /// previous publish had just evicted, and the fold could never engage
+    /// because eviction hands back a fresh instance and a bitmap-identity key
+    /// never repeats. Describing first lets <see cref="LayerStackBake"/> serve
+    /// a baked segment and <em>skip the fetches entirely</em>: cels under a
+    /// valid bake stop needing residency at all, which is the whole of B198's
+    /// wall.
+    /// </para>
+    /// <para>
+    /// <b>The spec doubles as the bake's cache key</b>, which is why every
+    /// field that reaches pixels is here and value-comparable. A
+    /// <see cref="Frame"/> compares by reference — the same identity
+    /// <see cref="Lightbox.Core.Timeline.ExposureSheet"/> exposes and
+    /// <see cref="UnchangedLayerRun"/> already keys on — so a hold is a hit and
+    /// a different drawing is a miss without touching a single pixel. What
+    /// reference identity cannot see is an in-place edit to the frame's
+    /// content; that arrives through the view model's invalidation funnel
+    /// (<c>InvalidateFrameRender</c>) as
+    /// <see cref="LayerStackBake.NoteFrameChanged"/>.
+    /// </para>
+    /// </remarks>
+    /// <param name="CelFrame">
+    /// The frame whose cached render this pass draws, fetched at materialize
+    /// time — or null when <paramref name="Bitmap"/> already carries the
+    /// pixels (a live composite, a transform part, a reference sheet).
+    /// </param>
+    /// <param name="CelIndex">
+    /// The playhead position the fetch is for — a rig-posed frame renders
+    /// differently per cel, so it is part of the fetch and part of the key.
+    /// </param>
+    internal readonly record struct PassSpec(
+        Frame? CelFrame,
+        int CelIndex,
+        SKBitmap? Bitmap,
+        SKColor? Tint,
+        double Opacity,
+        SKBlendMode Blend = SKBlendMode.SrcOver,
+        StrokeOverlay? Overlay = null,
+        SKMatrix? Matrix = null,
+        SKRectI? Source = null,
+        Frame? SourceFrame = null);
+
+    /// <summary>
+    /// The described pass list, plus where the active layer's own contribution
+    /// begins and ends in it.
     /// </summary>
     /// <remarks>
     /// The two indices are what <see cref="LayerStackBake"/> folds around: the
@@ -50,9 +101,15 @@ internal static class ScenePassBuilder
     /// cel, a transform preview and an ordinary layer each close the segment at
     /// a different point.
     /// </remarks>
+    internal readonly record struct Plan(
+        List<PassSpec> Specs, int ActiveStart, int ActiveEnd, bool TileNative);
+
+    /// <summary>
+    /// The materialized pass list — <see cref="Plan"/> with its fetches done.
+    /// </summary>
     /// <param name="TileNative">
     /// Whether tile-carrying passes were built. Reported rather than recomputed
-    /// by the caller **because the comment in <see cref="Build"/> is a
+    /// by the caller **because the comment in <see cref="Describe"/> is a
     /// requirement, not an observation**: a tile pass is only legible to the
     /// tiled compositor, so the decision to build one must equal the
     /// decision to use it, and a pass sent to the bounded path would silently
@@ -131,13 +188,51 @@ internal static class ScenePassBuilder
     }
 
     /// <summary>
-    /// Build the pass list for one publish.
+    /// Build the pass list for one publish: describe, then materialize every
+    /// spec. The publish path itself calls <see cref="Describe"/> and lets
+    /// <see cref="LayerStackBake"/> decide which specs never need fetching;
+    /// this is the two glued together for callers that want the old shape.
     /// </summary>
     internal static Result Build(
         Scene scene, State state, FrameBitmapCache cache, TileFallbackTally tileFallbacks,
         LiveEdit live)
     {
-        var passes = new List<RenderPass>();
+        var plan = Describe(scene, state, cache, tileFallbacks, live);
+        var passes = new List<RenderPass>(plan.Specs.Count);
+        foreach (var spec in plan.Specs)
+        {
+            passes.Add(Materialize(spec, cache, scene.Width, scene.Height));
+        }
+        return new Result(passes, plan.ActiveStart, plan.ActiveEnd, plan.TileNative);
+    }
+
+    /// <summary>
+    /// Turn one spec into a drawable pass, fetching the cel from the cache when
+    /// the spec deferred it. The only place a described pass touches pixels.
+    /// </summary>
+    internal static RenderPass Materialize(
+        in PassSpec spec, FrameBitmapCache cache, int width, int height) =>
+        new(
+            spec.CelFrame is { } frame
+                ? cache.Get(frame, width, height, celIndex: spec.CelIndex)
+                : spec.Bitmap,
+            spec.Tint, spec.Opacity, spec.Blend, spec.Overlay, spec.Matrix, spec.Source,
+            spec.SourceFrame);
+
+    /// <summary>
+    /// Describe the pass list for one publish without fetching a single cel.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="cache"/> is consulted for one question that reads no
+    /// pixels — whether a frame is rig-posed, a tile fallback reason — and
+    /// never for a bitmap; the fetches live in <see cref="Materialize"/> so
+    /// that a baked segment can skip them (B198).
+    /// </remarks>
+    internal static Plan Describe(
+        Scene scene, State state, FrameBitmapCache cache, TileFallbackTally tileFallbacks,
+        LiveEdit live)
+    {
+        var passes = new List<PassSpec>();
 
         // Tile-native passes are only legible to the tiled compositor, so
         // the decision to build them must equal the decision to use it — a
@@ -202,7 +297,7 @@ internal static class ScenePassBuilder
             // against, not something you are drawing on top of.
             if (!referencesQueued && !layer.IsBackground)
             {
-                passes.AddRange(ReferencePasses(scene, state));
+                passes.AddRange(ReferenceSpecs(scene, state));
                 referencesQueued = true;
             }
 
@@ -217,10 +312,10 @@ internal static class ScenePassBuilder
             // paper, the paper painted over every ghost. Interleaving is also
             // what makes multi-layer onion read correctly — a layer's ghosts
             // sit under it, exactly as its own earlier frames would.
-            var ghosts = GhostPassesFor(layer, scene, state, cache);
+            var ghosts = GhostSpecsFor(layer, scene, state);
             if (!state.Onion.DrawOver) passes.AddRange(ghosts);
 
-            // Past the end of the scene the canvas shows no drawing (Q90).
+            // Past the end of the scene the canvas shows no drawing (Q103).
             // `ExposedFrame` walks back from the last cel, so asking it would
             // answer with the final drawing — and past-the-end would then look
             // exactly like a hold, undoing the distinction the sheet's hatching
@@ -249,6 +344,7 @@ internal static class ScenePassBuilder
             // TileFrameCache.CanTileFrame) falls back to the bitmap path, as
             // does the active layer while a live blur/smudge is replacing it.
             Frame? tileFrame = null;
+            Frame? celFrame = null;
             SKBitmap? bmp = null;
             var liveEffectHere = live.Composite is not null
                 && live.BrushStroke is not null && isActive;
@@ -259,14 +355,10 @@ internal static class ScenePassBuilder
             if (tileModeOn)
             {
                 var why = TileFallback.Reason(
-                    frame, scene.Camera is not null, state.HaveViewport, liveEffectHere);
+                    frame, scene.Camera is not null, state.HaveViewport, liveEffectHere,
+                    posed: cache.Rig.IsPosed(frame));
                 tileFallbacks.Note(why);
                 if (why == TileFallbackReason.None) tileFrame = frame;
-            }
-
-            if (tileFrame is null)
-            {
-                bmp = cache.Get(frame, scene.Width, scene.Height, celIndex: state.FrameIndex);
             }
 
             // Blur and smudge REPLACE the layer rather than overlaying it.
@@ -277,9 +369,16 @@ internal static class ScenePassBuilder
             // exactly this, and FlushLivePreview has been appending each drag
             // segment to it every event; it simply was never shown, so the
             // smear only appeared when the pen lifted and the commit landed.
+            // The cel fetch is not made for this layer at all: the composite
+            // IS the layer, redone, so fetching the cached render underneath
+            // it was a materialization nothing ever drew.
             if (liveEffectHere)
             {
                 bmp = live.Composite;
+            }
+            else if (tileFrame is null)
+            {
+                celFrame = frame;
             }
 
             var overlay = OverlayFor(live, isActive);
@@ -294,12 +393,13 @@ internal static class ScenePassBuilder
             {
                 if (parts.Static is { } stay)
                 {
-                    passes.Add(new RenderPass(
-                        stay, null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
+                    passes.Add(new PassSpec(
+                        null, state.FrameIndex, stay, null, layer.Opacity,
+                        SceneRenderer.ToSkia(layer.BlendMode)));
                 }
-                passes.Add(new RenderPass(
-                    parts.Moving, null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
-                    overlay, preview));
+                passes.Add(new PassSpec(
+                    null, state.FrameIndex, parts.Moving, null, layer.Opacity,
+                    SceneRenderer.ToSkia(layer.BlendMode), overlay, preview));
                 if (state.Onion.DrawOver) passes.AddRange(ghosts);
                 if (isActive) activeEnd = passes.Count;
                 continue;
@@ -316,8 +416,9 @@ internal static class ScenePassBuilder
                 && !layer.IsBackground && !isActive
                 ? layer.Opacity * state.Onion.Opacity
                 : layer.Opacity;
-            passes.Add(new RenderPass(
-                bmp, null, opacity, SceneRenderer.ToSkia(layer.BlendMode), overlay,
+            passes.Add(new PassSpec(
+                celFrame, state.FrameIndex, bmp, null, opacity,
+                SceneRenderer.ToSkia(layer.BlendMode), overlay,
                 SourceFrame: tileFrame));
 
             // Draw-over puts them above instead. Under is how a lightbox works
@@ -331,9 +432,9 @@ internal static class ScenePassBuilder
         // A document with nothing but paper in it still shows its reference —
         // that is the state you are in when you have imported one and have not
         // drawn anything yet, which is every time you start.
-        if (!referencesQueued) passes.AddRange(ReferencePasses(scene, state));
+        if (!referencesQueued) passes.AddRange(ReferenceSpecs(scene, state));
 
-        return new Result(passes, activeStart, activeEnd, tileNativeDoc);
+        return new Plan(passes, activeStart, activeEnd, tileNativeDoc);
     }
 
     /// <summary>
@@ -425,12 +526,30 @@ internal static class ScenePassBuilder
     }
 
     /// <summary>
+    /// <see cref="GhostSpecsFor"/> with the fetches done — the shape the onion
+    /// tests assert on, kept because a materialized ghost list is also the
+    /// honest unit to test opacity falloff against.
+    /// </summary>
+    internal static IReadOnlyList<RenderPass> GhostPassesFor(
+        Layer layer, Scene scene, State state, FrameBitmapCache cache)
+    {
+        var specs = GhostSpecsFor(layer, scene, state);
+        if (specs.Count == 0) return [];
+        var passes = new List<RenderPass>(specs.Count);
+        foreach (var spec in specs)
+        {
+            passes.Add(Materialize(spec, cache, scene.Width, scene.Height));
+        }
+        return passes;
+    }
+
+    /// <summary>
     /// The ghost passes for one layer: the drawings around the playhead, the
     /// frames pinned as ghosts, or — in light-table mode — nothing, because
     /// that mode ghosts other layers rather than other frames.
     /// </summary>
-    internal static IReadOnlyList<RenderPass> GhostPassesFor(
-        Layer layer, Scene scene, State state, FrameBitmapCache cache)
+    internal static IReadOnlyList<PassSpec> GhostSpecsFor(
+        Layer layer, Scene scene, State state)
     {
         var onion = state.Onion;
         // Ghosts are a drawing aid. During playback they are noise, and the
@@ -454,7 +573,7 @@ internal static class ScenePassBuilder
             return [];
         }
 
-        var passes = new List<RenderPass>();
+        var passes = new List<PassSpec>();
 
         // Pinned first, so they sit furthest back: they are the reference the
         // near ghosts and the current drawing are being placed against.
@@ -462,8 +581,8 @@ internal static class ScenePassBuilder
         {
             if (index == state.FrameIndex) continue;
             if (ExposureSheet.ExposedFrame(layer, index) is not { } pinned) continue;
-            passes.Add(new RenderPass(
-                cache.Get(pinned, scene.Width, scene.Height, celIndex: index),
+            passes.Add(new PassSpec(
+                pinned, index, null,
                 index < state.FrameIndex ? previous : next,
                 onion.Opacity));
         }
@@ -474,10 +593,10 @@ internal static class ScenePassBuilder
             layer, state.FrameIndex, onion.Before, onion.After, onion.KeysOnly);
         foreach (var ghost in around.OrderByDescending(g => g.Steps))
         {
-            passes.Add(new RenderPass(
+            passes.Add(new PassSpec(
                 // The ghost's own position, not the playhead's: a rig-bound
                 // ghost must show the pose it holds where it lives.
-                cache.Get(ghost.Frame, scene.Width, scene.Height, celIndex: ghost.Index),
+                ghost.Frame, ghost.Index, null,
                 ghost.Before ? previous : next,
                 OnionSkin.OpacityAt(ghost.Steps, onion.Opacity, onion.Falloff)));
         }
@@ -498,13 +617,13 @@ internal static class ScenePassBuilder
     /// copied or scaled here — the cell is cut out of the sheet by the
     /// compositor, which is doing a blit either way.
     /// </remarks>
-    internal static IReadOnlyList<RenderPass> ReferencePasses(Scene scene, State state)
+    internal static IReadOnlyList<PassSpec> ReferenceSpecs(Scene scene, State state)
     {
         // The overwhelmingly common case — no references — costs nothing, which
         // matters because this runs on every publish of every document.
         if (scene.References is not { Count: > 0 } strips) return [];
 
-        var passes = new List<RenderPass>();
+        var passes = new List<PassSpec>();
         foreach (var strip in strips)
         {
             if (!strip.Visible || strip.Opacity <= 0) continue;
@@ -516,8 +635,9 @@ internal static class ScenePassBuilder
                 scale, scale,
                 (float)(strip.OffsetX + cell.Dx),
                 (float)(strip.OffsetY + cell.Dy));
-            passes.Add(new RenderPass(
-                sheet, null, strip.Opacity, SKBlendMode.SrcOver, null, matrix,
+            passes.Add(new PassSpec(
+                null, state.FrameIndex, sheet, null, strip.Opacity, SKBlendMode.SrcOver,
+                null, matrix,
                 SKRectI.Create(cell.X, cell.Y, cell.Width, cell.Height)));
         }
         return passes;

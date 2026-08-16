@@ -102,7 +102,7 @@ public partial class MainViewModel
 
     /// <summary>Last frame the ruler may scrub to.</summary>
     /// <remarks>
-    /// <b>The sheet's extent, not the scene's length (Q90).</b> The playhead may
+    /// <b>The sheet's extent, not the scene's length (Q103).</b> The playhead may
     /// stand past the end of the scene: the scene's length is a consequence of
     /// where the artist worked, not a gate they have to open before working, and
     /// requiring a keyframe or a hold before you can even go somewhere is the
@@ -170,6 +170,19 @@ public partial class MainViewModel
             // Which reference frame is showing, and therefore which cell the
             // alignment fields are editing, is a property of the playhead.
             NotifyReference();
+            // The trail's window and its current tick both move with the
+            // playhead. A boolean when the trail is off, and nothing at all
+            // while playing — RefreshMotionTrail clears it for the run and
+            // OnIsPlayingChanged recomputes once on the stop, so the bounds
+            // walk never rides the tick (B152).
+            if (!IsPlaying) RefreshMotionTrail();
+
+            // The rig's whole editing surface reads the playhead's pose — the
+            // chrome in pose and weight modes, the heat dots on the posed
+            // drawing, the correctives list for this frame — so a scrub has to
+            // move it. Same B152 shape as the trail: never per playback tick,
+            // caught up once by OnIsPlayingChanged when the run stops.
+            if (!IsPlaying && ArmatureEditMode) RefreshArmatureAtPlayhead();
         }
         using (Profile(profiling, Services.TickProfile.Phase.Audio))
         {
@@ -269,9 +282,6 @@ public partial class MainViewModel
         if (IsPlaying) Pause();
         else Play();
     }
-
-    /// <summary>One button for both, so the shortcut bar costs one slot.</summary>
-    public string PlayPauseGlyph => IsPlaying ? "⏸" : "▶";
 
     /// <summary>
     /// Whether transport controls are worth showing at all.

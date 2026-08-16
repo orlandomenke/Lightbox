@@ -79,7 +79,8 @@ internal static class RenderReport
         (int Frames, int Flattens)? Pinned = null,
         (long Bytes, long Budget)? TileStore = null,
         Rendering.StrokeToScreen.Stats? StrokeWait = null,
-        (int Passes, double TotalMs, double WorstMs)? LivePost = null);
+        (int Passes, double TotalMs, double WorstMs)? LivePost = null,
+        Rendering.PublishTally? PublishesByCaller = null);
 
     /// <summary>
     /// Whether playback got the tile path, and what stopped it.
@@ -814,6 +815,62 @@ internal static class RenderReport
     }
 
     /// <summary>
+    /// Who published while the clock was running, busiest first (B178).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The section B178's entry asked for by name: a per-caller publish
+    /// tally, not another change to the publish path.</b> Its capture showed
+    /// 757 publishes against 339 ticks — about 2.2 per tick — and the surplus
+    /// is the backlog behind the 176 ms mean wait and the frames replaced
+    /// unseen. A loop that presents at ~26 Hz against a playhead at ~10 Hz
+    /// should never build a backlog; one does because something publishes
+    /// when the playhead has not moved, and this table names it.
+    /// </para>
+    /// <para>
+    /// The verdict compares publishes against ticks rather than judging any
+    /// caller by its name, because the tick's own publishes are the baseline
+    /// — one per advance — and everything above that line is the surplus,
+    /// whoever made it.
+    /// </para>
+    /// </remarks>
+    private static void AppendPublishTally(StringBuilder sb, Facts facts)
+    {
+        sb.AppendLine("-- who publishes during playback (B178) ----------------------");
+        if (facts.PublishesByCaller is not { Total: > 0 } tally)
+        {
+            sb.AppendLine("publishes while playing   none yet — this needs the scene PLAYED first");
+            sb.AppendLine();
+            return;
+        }
+
+        var rows = tally.Snapshot();
+        sb.AppendLine($"publishes while playing   {tally.Total}, from {rows.Count} caller(s)");
+        foreach (var (caller, count) in rows)
+        {
+            sb.AppendLine($"  {caller,-24}{count}");
+        }
+
+        sb.AppendLine();
+        if (facts.Pacing is { Ticks: > 0 } pacing)
+        {
+            var perTick = (double)tally.Total / pacing.Ticks;
+            sb.AppendLine(perTick <= 1.15
+                ? $"  >> {perTick:0.##} publish(es) per tick — the playhead accounts for the"
+                  + "\n     publishing, so a backlog here is not being fed by a surplus."
+                : $"  >> {perTick:0.##} publishes per tick. One per advance is the playhead's own;"
+                  + "\n     the rest are the surplus B178 is about, and the biggest caller above"
+                  + "\n     that is not the tick is where to look first.");
+        }
+        else
+        {
+            sb.AppendLine("  >> No tick data in this capture, so the table cannot be judged");
+            sb.AppendLine("     against the playhead. Play the scene and write the report again.");
+        }
+        sb.AppendLine();
+    }
+
+    /// <summary>
     /// How long the ink takes to follow the pen, segment by segment (B189).
     /// </summary>
     /// <remarks>
@@ -849,13 +906,26 @@ internal static class RenderReport
         sb.AppendLine($"publishes carrying ink    {s.Publishes}  ({perPublish:0.#} events per publish)");
         if (s.Publishes > 0)
         {
-            sb.AppendLine($"  event -> publish        mean {s.WaitToPublish.MeanMs,7:0.##} ms   worst {s.WaitToPublish.WorstMs,7:0.##} ms");
+            sb.AppendLine($"  event -> publish        mean {s.WaitToPublish.MeanMs,7:0.##} ms   worst {s.WaitToPublish.WorstMs,7:0.##} ms   (oldest event carried)");
+            sb.AppendLine($"    newest event          mean {s.TipToPublish.MeanMs,7:0.##} ms   worst {s.TipToPublish.WorstMs,7:0.##} ms");
         }
         if (s.Drawn > 0)
         {
             sb.AppendLine($"  publish -> drawn        mean {s.WaitToDraw.MeanMs,7:0.##} ms   worst {s.WaitToDraw.WorstMs,7:0.##} ms");
             sb.AppendLine($"  PEN -> SCREEN           mean {s.PenToScreen.MeanMs,7:0.##} ms   worst {s.PenToScreen.WorstMs,7:0.##} ms"
                           + $"   ({s.Drawn} drawn, {s.Superseded} replaced first)");
+            sb.AppendLine($"  TIP -> SCREEN           mean {s.TipToScreen.MeanMs,7:0.##} ms   worst {s.TipToScreen.WorstMs,7:0.##} ms");
+            // B189's second capture is why these are two numbers: the oldest
+            // anchor grew from 4.7 to 11.4 events of coalescing when the
+            // publish pacing landed, and read as MORE lag while the tip's was
+            // falling. The gap between the two lines is coalescing depth; the
+            // TIP line alone is how far the freshest ink runs behind the hand.
+            var gap = s.PenToScreen.MeanMs - s.TipToScreen.MeanMs;
+            if (gap > s.TipToScreen.MeanMs && s.TipToScreen.MeanMs > 0)
+            {
+                sb.AppendLine($"    ({gap:0.#} ms of the PEN line is coalescing depth, not staleness —");
+                sb.AppendLine("     publishes are batching well rather than falling behind)");
+            }
         }
         else
         {
@@ -1265,6 +1335,7 @@ internal static class RenderReport
         AppendPrewarm(sb, facts.Prewarm);
         AppendPacing(sb, facts.Pacing);
         AppendPresentWait(sb, facts);
+        AppendPublishTally(sb, facts);
         AppendStrokeLatency(sb, facts);
         AppendTickBreakdown(sb, facts);
 

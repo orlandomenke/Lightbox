@@ -12,7 +12,19 @@ namespace Lightbox.App.Tests;
 /// </summary>
 public sealed class QuickBarWorkspaceTests(ITestOutputHelper output)
 {
-    private static string MainWindowXaml()
+    /// <summary>
+    /// Every view's markup, joined — the bar's own file and the option groups
+    /// that have been lifted out of it into <c>UserControl</c>s.
+    /// </summary>
+    /// <remarks>
+    /// It read <c>MainWindow.axaml</c> alone, which was true until a group
+    /// moved out: the monolith ratchet pushes self-contained sections into
+    /// collaborators, and a gate that had simply changed address then read as a
+    /// gate that had gone missing. What this guards is that a catalogue entry
+    /// switches something on screen — which file the switch lives in was never
+    /// the point.
+    /// </remarks>
+    private static string BarXaml()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "src")))
@@ -20,8 +32,9 @@ public sealed class QuickBarWorkspaceTests(ITestOutputHelper output)
             dir = dir.Parent;
         }
         Assert.NotNull(dir);
-        return File.ReadAllText(Path.Combine(
-            dir!.FullName, "src", "Lightbox.App", "Views", "MainWindow.axaml"));
+        var views = Path.Combine(dir!.FullName, "src", "Lightbox.App", "Views");
+        return string.Join(
+            '\n', Directory.EnumerateFiles(views, "*.axaml").Select(File.ReadAllText));
     }
 
     // ---- the catalogue and the bar cannot drift apart ------------------------------------
@@ -34,7 +47,7 @@ public sealed class QuickBarWorkspaceTests(ITestOutputHelper output)
     [Fact]
     public void EveryCatalogueEntryGatesASectionOfTheBar()
     {
-        var xaml = MainWindowXaml();
+        var xaml = BarXaml();
         var unwired = QuickBarCatalog.All
             .Where(option => !xaml.Contains(
                 "Workspace." + WorkspaceViewModel.QuickNames[option.Id], StringComparison.Ordinal))
@@ -266,6 +279,6 @@ public sealed class QuickBarWorkspaceTests(ITestOutputHelper output)
     {
         Assert.DoesNotContain(QuickBarCatalog.All, o => o.Id == QuickBarCatalog.BrushPreset);
         Assert.DoesNotContain(QuickBarCatalog.BrushPreset, QuickBarCatalog.ToolDefaults);
-        Assert.DoesNotContain("Workspace.QuickBrushPreset", MainWindowXaml(), StringComparison.Ordinal);
+        Assert.DoesNotContain("Workspace.QuickBrushPreset", BarXaml(), StringComparison.Ordinal);
     }
 }

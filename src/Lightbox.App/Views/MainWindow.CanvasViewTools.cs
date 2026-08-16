@@ -187,6 +187,10 @@ public partial class MainWindow
                 _vm.ProjectDocker.RefreshFromDiskCommand.Execute(null);
                 e.Handled = true;
                 break;
+            case "reference.board":
+                OnOpenReferenceBoard(this, e);
+                e.Handled = true;
+                break;
             case "project.window":
                 // Harmless with no project, for the same reason as above: the
                 // method guards on it rather than the key handler holding a
@@ -317,6 +321,9 @@ public partial class MainWindow
                 _vm.RigEditMode = !_vm.RigEditMode;
                 e.Handled = true;
                 break;
+            case "canvas.motionTrail":
+                _vm.MotionTrail = !_vm.MotionTrail;
+                break;
             case "canvas.showGuides":
                 _vm.Workspace.GuidesVisible = !_vm.Workspace.GuidesVisible;
                 break;
@@ -349,6 +356,9 @@ public partial class MainWindow
                 break;
             case "armature.weightPaint":
                 _vm.WeightPainting = !_vm.WeightPainting;
+                break;
+            case "armature.deleteBone":
+                _vm.DeleteBoneCommand.Execute(null);
                 break;
             case "lines.simplify":
                 _vm.SimplifyLineCommand.Execute(null);

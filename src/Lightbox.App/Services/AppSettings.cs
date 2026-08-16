@@ -39,6 +39,12 @@ public sealed class AppSettings
     public OnionSettings Onion { get; set; } = new();
 
     /// <summary>
+    /// The motion trail, here for the same reason <see cref="Onion"/> is: a
+    /// drawing aid that never reaches pixels, set up the way the artist works.
+    /// </summary>
+    public MotionTrailSettings Trail { get; set; } = new();
+
+    /// <summary>
     /// What you had open last. See <see cref="RecentItems"/> for why it lives
     /// with the person rather than with any document.
     /// </summary>
@@ -104,6 +110,27 @@ public sealed class AppSettings
 
     /// <summary>How close a point must be to a guide to be pulled onto it, in document pixels.</summary>
     public double SnapTolerance { get; set; } = 12;
+
+    /// <summary>How many rays a new vanishing point is drawn with.</summary>
+    /// <inheritdoc cref="GridSpacing" path="/remarks"/>
+    public int VanishingPointRays { get; set; } = Lightbox.Core.Documents.Guide.DefaultRays;
+
+    /// <summary>How many heads tall a new character height scale is.</summary>
+    /// <inheritdoc cref="GridSpacing" path="/remarks"/>
+    public int HeightScaleHeads { get; set; } = 6;
+
+    /// <summary>
+    /// How much of the canvas height a new character height scale stands in.
+    /// </summary>
+    /// <remarks>
+    /// A fraction rather than a head height in pixels, because the head height
+    /// that reads as a figure on a 1080-high scene is the wrong one on a 4K
+    /// scene — and the thing an artist means by "that is my default character"
+    /// is the proportion, not the pixel count. Applied when the scale is
+    /// placed and never afterwards: once it is on the canvas its size is
+    /// document data, and a preference must not reach back into it.
+    /// </remarks>
+    public double HeightScaleFill { get; set; } = 0.7;
 
     /// <summary>
     /// Whether the brush belongs to the tool or to the drawing —

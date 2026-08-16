@@ -207,7 +207,6 @@ public partial class MainViewModel
     public event Action? LazyBrushCleared;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(PlayPauseGlyph))]
     private bool _isPlaying;
 
     /// <summary>
@@ -293,6 +292,17 @@ public partial class MainViewModel
         // showing whatever frame playback started on. Catching up once on the
         // stop costs one sweep; catching up per tick cost the frame rate.
         if (!value) RefreshLayerThumbs();
+
+        // The trail gets the ghosts' playback rule and B152's treatment at
+        // once: playing clears it (the one thing playback has to show is the
+        // animation), stopping recomputes it once — never per tick, where its
+        // bounds walk would be the thumbnail mistake again.
+        RefreshMotionTrail();
+
+        // The armature chrome and heat read the playhead's pose, skipped per
+        // tick for B152's reason; the stop leaves the playhead wherever the
+        // run ended, so they catch up here the way the thumbnails do.
+        if (!value && ArmatureEditMode) RefreshArmatureAtPlayhead();
     }
 
 
@@ -451,6 +461,7 @@ public partial class MainViewModel
         // A different layer can refuse the tool the last one accepted.
         RefreshPointerIntent();
         NotifyActiveLayerCompositing();
+        RefreshMotionTrail();   // the trail follows the layer being drawn on
         PublishSnapshot();
     }
 
@@ -675,7 +686,7 @@ public partial class MainViewModel
     private Frame? PaintTargetOrKey()
     {
         if (ActiveLayer is null) return null;
-        // Q90. The playhead may stand past the end of the scene, where scrubbing
+        // Q103. The playhead may stand past the end of the scene, where scrubbing
         // authored nothing; this is the edit that lands, so the scene grows to
         // reach it. The cels the growth adds are holds, so a drawing made at
         // frame twenty on a five-frame scene holds drawing five across the gap —
@@ -759,6 +770,51 @@ public partial class MainViewModel
         {
             AiStatus = $"Scene extended to {to + 1} frames.";
         }
+    }
+
+    /// <summary>
+    /// Key a held cel because an edit is about to land on it, translating
+    /// stroke ids from the drawing it was borrowing to the copy's own. Returns
+    /// the drawing to write to, and rewrites <paramref name="ids"/> in place.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Reading a stroke and writing one are different questions, and B207
+    /// was the gap between them.</b> Picking must never author a cel —
+    /// <see cref="PickableStrokes"/> says so and is right — but an edit that
+    /// actually lands has to key, or it rewrites the drawing the hold borrows
+    /// and the change appears on the earlier frame. So the resolution happens
+    /// here, at the commit, rather than at the pick.
+    /// </para>
+    /// <para>
+    /// <b>The translation is needed because the copy's strokes carry fresh
+    /// ids</b>, which is the rule <see cref="Frame.Clone"/> documents: a
+    /// snapshot keeps ids so undo can restore what was there, and a duplicate
+    /// of a drawing an artist can see gets new ones. Position in the list is
+    /// the bridge — <c>KeyedCopyOf</c> copies in order — and it is exact
+    /// rather than a heuristic for the same reason.
+    /// </para>
+    /// <para>
+    /// Returns the held drawing unchanged when the cel already has one of its
+    /// own, which is the ordinary case and costs one reference comparison.
+    /// </para>
+    /// </remarks>
+    private Frame? KeyHeldCelForStrokeEdit(IList<string> ids)
+    {
+        if (PaintTarget() is not { } held) return null;
+        var indices = new int[ids.Count];
+        for (var i = 0; i < ids.Count; i++)
+        {
+            indices[i] = held.Strokes.FindIndex(s => s.Id == ids[i]);
+        }
+        if (PaintTargetOrKey() is not { } target) return null;
+        if (ReferenceEquals(target, held)) return target; // not a hold: nothing to translate
+        for (var i = 0; i < ids.Count; i++)
+        {
+            var at = indices[i];
+            if (at >= 0 && at < target.Strokes.Count) ids[i] = target.Strokes[at].Id;
+        }
+        return target;
     }
 
     /// <summary>Get placements from the current frame for selection feedback.</summary>
@@ -880,9 +936,9 @@ public partial class MainViewModel
         // the unsnapped start — snapping the anchor first would measure the
         // heading from a point the hand never visited.
         _guideSnap.Begin(x, y);
-        if (SnapToGuides && Scene.Guides is { Count: > 0 } startGuides)
+        if (SnapToGuides && Scene.Guides is { Count: > 0 })
         {
-            (x, y) = Snapper.Point(startGuides, x, y, SnapTolerance);
+            (x, y) = SnappedPoint(x, y);
             _guideSnap.Anchor(x, y);
         }
         // Shift+click: begin at the end of the last stroke and run straight to
@@ -1016,10 +1072,7 @@ public partial class MainViewModel
         if (!CanEdit(ActiveLayer, "draw on it") || PaintTargetOrKey() is null) return;
         CommitSwatchEdit();
 
-        if (SnapToGuides && Scene.Guides is { Count: > 0 } guides)
-        {
-            (x, y) = Snapper.Point(guides, x, y, SnapTolerance);
-        }
+        (x, y) = SnappedPoint(x, y);
         _shapeStart = (x, y);
         _liveShape = new Stroke
         {
@@ -1044,10 +1097,7 @@ public partial class MainViewModel
     public void MoveShape(double x, double y, bool fromCentre = false, bool regular = false)
     {
         if (_liveShape is not { } stroke) return;
-        if (SnapToGuides && Scene.Guides is { Count: > 0 } guides)
-        {
-            (x, y) = Snapper.Point(guides, x, y, SnapTolerance);
-        }
+        (x, y) = SnappedPoint(x, y);
         stroke.Points = ShapeBuilder.Outline(
             ActiveShape, _shapeStart.X, _shapeStart.Y, x, y, fromCentre, regular, PolygonSides);
         RenderShapePreview();
@@ -1057,10 +1107,7 @@ public partial class MainViewModel
     public void EndShape(double x, double y, bool fromCentre = false, bool regular = false)
     {
         if (_liveShape is not { } stroke) return;
-        if (SnapToGuides && Scene.Guides is { Count: > 0 } guides)
-        {
-            (x, y) = Snapper.Point(guides, x, y, SnapTolerance);
-        }
+        (x, y) = SnappedPoint(x, y);
         stroke.Points = ShapeBuilder.Outline(
             ActiveShape, _shapeStart.X, _shapeStart.Y, x, y, fromCentre, regular, PolygonSides);
         CancelShape();

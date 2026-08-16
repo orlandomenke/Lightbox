@@ -56,6 +56,62 @@ public static class Snapper
     /// </remarks>
     public const double LockDistance = 6;
 
+    // ---- constraining an angle ----------------------------------------------------
+
+    /// <summary>
+    /// The far end of a drag, rotated onto the nearest multiple of
+    /// <paramref name="stepDegrees"/> measured from the anchor.
+    /// </summary>
+    /// <param name="stepDegrees">
+    /// How far apart the allowed directions are. <b>The caller's, not this
+    /// function's</b> — see the remarks.
+    /// </param>
+    /// <remarks>
+    /// <para>
+    /// <b>The angle is constrained and the length is not.</b> The drag still
+    /// reaches where the hand went; only its direction is decided. Clamping the
+    /// length as well is the version that feels like the tool is arguing with
+    /// you, and it is the same division of labour a ruler has — the guide
+    /// decides the direction, the hand decides how far.
+    /// </para>
+    /// <para>
+    /// <b>B218: the step is a parameter because the three callers genuinely
+    /// disagree, and they are right to.</b> This was the same nine lines written
+    /// out three times — in <c>ShapeBuilder</c>, in <c>PenSession</c> and in the
+    /// gradient tool — identical but for one constant, which is the shape of
+    /// duplication that survives review because each copy looks correct on its
+    /// own. What is *not* duplicated is the number: a shape and a pen ask for
+    /// 45° because Shift there means "level, upright or true diagonal" and
+    /// offering eight more directions between them makes it miss, while a
+    /// gradient asks for 15° because its angle is a continuous quantity being
+    /// nudged onto a nice value. Sharing the arithmetic and keeping the policies
+    /// is the whole of the fix; collapsing them to one number would have been a
+    /// behaviour change wearing a refactor's clothes.
+    /// </para>
+    /// <para>
+    /// <b>Not to be confused with <see cref="LockDegrees"/></b>, which is 15 and
+    /// is <em>not</em> a step: it is how far off a stroke's heading may be and
+    /// still count as meant for a guide — a tolerance for choosing between
+    /// guides, not a lattice of allowed directions. The two share a number and
+    /// nothing else, and a comment on the gradient's constant claimed otherwise
+    /// until this landed.
+    /// </para>
+    /// </remarks>
+    public static (double X, double Y) OnNearestAngle(
+        double anchorX, double anchorY, double x, double y, double stepDegrees)
+    {
+        var dx = x - anchorX;
+        var dy = y - anchorY;
+        var length = Math.Sqrt(dx * dx + dy * dy);
+        // Nowhere to point. Returning the input rather than an arbitrary
+        // direction is what stops a click-without-drag jumping to due east.
+        if (length < 1e-9 || stepDegrees <= 0) return (x, y);
+
+        var degrees = Math.Atan2(dy, dx) * 180 / Math.PI;
+        var snapped = Math.Round(degrees / stepDegrees) * stepDegrees * Math.PI / 180;
+        return (anchorX + Math.Cos(snapped) * length, anchorY + Math.Sin(snapped) * length);
+    }
+
     // ---- snapping one point ------------------------------------------------------
 
     /// <summary>

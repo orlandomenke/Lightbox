@@ -90,6 +90,25 @@ sealed class TransformSession
     internal SKRect? MovingBounds { get; set; }
 
     /// <summary>
+    /// The box the gizmo is drawn around — what a move snaps to the guides.
+    /// </summary>
+    /// <remarks>
+    /// <b>B225, and deliberately not <see cref="MovingBounds"/>.</b> That one
+    /// is a repaint-region optimisation and returns null whenever the moving
+    /// content is not bounded by strokes alone — a frame with a baseline, or
+    /// with placements on it — because then the whole layer bitmap moves and
+    /// there is no smaller region to repaint. Snapping against it would have
+    /// worked on a clean drawing and silently done nothing on a painted one,
+    /// which is the worst shape a snap can have.
+    ///
+    /// <para>
+    /// This is the rect the artist can actually see the handles around, which
+    /// is the only box it makes sense to line up against a guide.
+    /// </para>
+    /// </remarks>
+    internal SKRect? SnapBounds { get; set; }
+
+    /// <summary>
     /// The id of the drawing this session is <em>borrowing</em> — set when the
     /// gesture opened on a held cel that a commit must key rather than write
     /// through. Null when the cel has a drawing of its own.
@@ -118,6 +137,7 @@ sealed class TransformSession
         Frames.Clear();
         Filter = null;
         MovingBounds = null;
+        SnapBounds = null;
         HeldFrameIdToKey = null;
         ClearPreview();
     }

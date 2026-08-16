@@ -189,6 +189,100 @@ public class StrokeSelectionTests
         Assert.Empty(vm.SelectionContours);
     }
 
+    // ---- B232: an erasure is not an object -----------------------------------
+
+    /// <summary>An eraser drawn along the same path a brush would take.</summary>
+    private static Stroke Erase(double x0, double y0, double x1, double y1, double size = 30)
+    {
+        var stroke = Line(x0, y0, x1, y1, size);
+        stroke.Tool = ToolKind.Eraser;
+        return stroke;
+    }
+
+    /// <summary>
+    /// B232, exactly as it was reported: erase across a line, click the eraser's
+    /// own sweep, press Delete — and the erased ink comes back. The click landed
+    /// on canvas that looks blank and the drawing gained a line, which is the
+    /// opposite of what Delete means.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Both halves of the gap are checked</b>, because the bug has two. At
+    /// (300, 260) the eraser is the only thing whose geometry reaches, and it
+    /// was handed back — that is the report as written. At (300, 300) the ink
+    /// stroke is <em>also</em> there as far as the record is concerned, its
+    /// points passing straight through the gap, so hiding only the eraser would
+    /// leave the click selecting a line nobody can see.
+    /// </para>
+    /// <para>
+    /// The assertion that matters is the last one: the erasure is still in the
+    /// record afterwards, so the gap is still a gap. Undo is what takes an
+    /// erasure back, and this test does not touch undo because undo was never
+    /// broken.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void DeletingWhereAnEraserWentDoesNotBringTheLineBack()
+    {
+        var ink = Line(200, 300, 400, 300);
+        var eraser = Erase(300, 250, 300, 350);
+        var vm = WithStrokes(ink, eraser);
+        vm.ActiveTool = ToolId.Arrow;
+
+        Assert.False(vm.PickStrokeAt(300, 260, tolerance: 2));   // on the eraser
+        Assert.False(vm.PickStrokeAt(300, 300, tolerance: 2));   // in the gap it left
+
+        Assert.False(vm.HasStrokeSelection);
+        Assert.Equal(0, vm.DeleteSelectedStrokes());
+        Assert.Contains(
+            ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes, s => s.Id == eraser.Id);
+    }
+
+    /// <summary>
+    /// A line rubbed out along its whole length is gone as far as every tool is
+    /// concerned: the Arrow cannot click it, a marquee over it catches nothing,
+    /// and the white arrow cannot reach into its geometry. The record still
+    /// holds it so undo can bring it back, and that is the only thing that can.
+    /// </summary>
+    [AvaloniaFact]
+    public void AWhollyErasedLineIsOutOfEveryToolsReach()
+    {
+        var vm = WithStrokes(Line(200, 300, 400, 300), Erase(180, 300, 420, 300));
+        vm.ActiveTool = ToolId.Arrow;
+
+        Assert.False(vm.PickStrokeAt(300, 300, tolerance: 2));
+        Assert.Equal(0, vm.PickStrokesIn(SKRect.Create(100, 200, 400, 200)));
+        Assert.False(vm.HoverStrokeAt(300, 300, tolerance: 2));
+        Assert.Null(vm.HoveredStrokeId);
+        Assert.False(vm.BeginPathEditAt(300, 300, tolerance: 2));
+        Assert.False(vm.PathEditActive);
+    }
+
+    /// <summary>
+    /// The same trap with a box instead of a click, and the one an artist is
+    /// more likely to fall into: a marquee over the drawing reports the lines it
+    /// caught and says nothing about the eraser lying among them, so Delete
+    /// takes three lines away and puts a fourth back.
+    /// </summary>
+    [AvaloniaFact]
+    public void AMarqueeOverAnErasedAreaCatchesOnlyTheInk()
+    {
+        var ink = Line(200, 300, 400, 300);
+        var vm = WithStrokes(ink, Erase(300, 250, 300, 350));
+        vm.ActiveTool = ToolId.Arrow;
+
+        var count = vm.PickStrokesIn(SKRect.Create(150, 200, 350, 250));
+
+        Assert.Equal(1, count);
+        Assert.Equal([ink.Id], vm.Selection.SelectedStrokeIds);
+
+        // And deleting what it caught leaves the erasure behind rather than
+        // reviving it: one stroke goes, the eraser stays.
+        Assert.Equal(1, vm.DeleteSelectedStrokes());
+        var left = ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes;
+        Assert.Equal([ToolKind.Eraser], left.Select(s => s.Tool));
+    }
+
     // ---- what the selection survives -----------------------------------------
 
     /// <summary>
@@ -544,7 +638,7 @@ public class StrokeSelectionTests
         var seen = OutlineCountsFrom(vm);
         // Straight at the manager, which is what the canvas's chrome hit-tests
         // do — they never go through the view model at all.
-        vm.Selection.SelectGuide(0);
+        vm.Selection.SelectGuide("gd-anything");
 
         Assert.Contains(null, seen);
         Assert.Empty(vm.Selection.SelectedStrokeIds);
@@ -569,4 +663,265 @@ public class StrokeSelectionTests
 
     private static List<Stroke> StrokesOfCurrentFrame(MainViewModel vm) =>
         vm.Doc.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame?.Strokes ?? [];
+
+    // ---- B221: what "all" means with an arrow in hand ---------------------------------
+
+    /// <summary>Ctrl+A with the Arrow takes the lines.</summary>
+    /// <remarks>
+    /// <b>It never did.</b> Strokes were not in <c>SelectAll</c>'s object arm at
+    /// all — it tried placements, guides, reference boxes, anchors and collision
+    /// shapes, and lines are the Arrow's primary subject and the thing its own
+    /// documentation leads with. On an ordinary drawing with none of those five,
+    /// Ctrl+A fell through every arm and selected nothing.
+    /// </remarks>
+    [AvaloniaFact]
+    public void SelectAllWithTheArrowTakesTheLines()
+    {
+        var vm = WithStrokes(Line(100, 100, 300, 100), Line(100, 200, 300, 200));
+        vm.ActiveTool = ToolId.Arrow;
+
+        vm.SelectAllCommand.Execute(null);
+
+        Assert.Equal(2, vm.Selection.SelectedStrokeIds.Count);
+    }
+
+    /// <summary>
+    /// It takes every kind at once, not the first kind that is not empty.
+    /// </summary>
+    /// <remarks>
+    /// The arm was a cascade of early returns, so on a drawing that had a guide
+    /// on it "select all" meant "select the guide" and left every line behind.
+    /// Which kind you got depended on which happened to be first in a list
+    /// nobody was looking at.
+    /// </remarks>
+    [AvaloniaFact]
+    public void SelectAllWithTheArrowTakesEveryKindRatherThanTheFirstNonEmptyOne()
+    {
+        var vm = WithStrokes(Line(100, 100, 300, 100));
+        vm.AddGuide(Lightbox.Core.Documents.GuideKind.Line, 0, 150);
+        vm.ActiveTool = ToolId.Arrow;
+
+        vm.SelectAllCommand.Execute(null);
+
+        Assert.Single(vm.Selection.SelectedStrokeIds);
+        Assert.Single(vm.Selection.SelectedGuideIds);
+    }
+
+    /// <summary>With a painting tool in hand, "all" still means the canvas.</summary>
+    /// <remarks>
+    /// The half that must not change. B168 established that one property
+    /// answers this for both Ctrl+A and Ctrl+D, and widening the object arm is
+    /// exactly the change that could have leaked into the other branch.
+    /// </remarks>
+    [AvaloniaFact]
+    public void SelectAllWithABrushStillMeansTheWholeCanvas()
+    {
+        var vm = WithStrokes(Line(100, 100, 300, 100));
+        vm.ActiveTool = ToolId.Brush;
+
+        vm.SelectAllCommand.Execute(null);
+
+        Assert.True(vm.HasSelection);
+        Assert.Empty(vm.Selection.SelectedStrokeIds);
+    }
+
+    // ---- B223: the picked lines can be transformed --------------------------------------
+    //
+    // ROADMAP.md said this "wants a TransformScope meaning 'these strokes
+    // inside this cel'; every scope today is a set of cels, so the transform
+    // session cannot express it yet". The scope was never the obstacle —
+    // TransformSession has taken a stroke filter all along and the marquee has
+    // used it. What was missing was a filter built from the line selection.
+
+    /// <summary>Ctrl+T with lines picked scales those lines and nothing else.</summary>
+    [AvaloniaFact]
+    public void TransformingWithLinesPickedScalesOnlyThose()
+    {
+        var moving = Line(100, 100, 300, 100);
+        var still = Line(100, 400, 300, 400);
+        var vm = WithStrokes(moving, still);
+        vm.ActiveTool = ToolId.Arrow;
+        vm.PickStrokeAt(200, 100, tolerance: 4);
+
+        Assert.True(vm.BeginTransform());
+        vm.CommitTransformAffine(0, 0, 2, 1, 0, 0, 0);
+
+        // The picked line doubled across; the other did not move at all.
+        Assert.Equal(600, moving.Points[^1].X, 1);
+        Assert.Equal(100, still.Points[0].X, 1);
+        Assert.Equal(300, still.Points[^1].X, 1);
+    }
+
+    /// <summary>Rotating them works too — the thing a plain move never offered.</summary>
+    [AvaloniaFact]
+    public void ThePickedLinesCanBeRotated()
+    {
+        var line = Line(100, 100, 300, 100);
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.Arrow;
+        vm.PickStrokeAt(200, 100, tolerance: 4);
+
+        Assert.True(vm.BeginTransform());
+        vm.CommitTransformAffine(200, 100, 1, 1, Math.PI / 2, 0, 0);
+
+        // Turned a quarter about its own middle: the run is now vertical.
+        Assert.Equal(200, line.Points[0].X, 1);
+        Assert.Equal(200, line.Points[^1].X, 1);
+        Assert.NotEqual(line.Points[0].Y, line.Points[^1].Y, 1);
+    }
+
+    /// <summary>
+    /// The scope pins to this drawing while lines are picked, and says why.
+    /// </summary>
+    /// <remarks>
+    /// A stroke lives in exactly one drawing, so a wider scope would collect
+    /// cels the picked lines are not on — not a wider transform, the same one
+    /// with frames that resolve to nothing.
+    /// </remarks>
+    [AvaloniaFact]
+    public void APickedLinePinsTheScopeToItsOwnDrawing()
+    {
+        var line = Line(100, 100, 300, 100);
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.Arrow;
+        vm.PickStrokeAt(200, 100, tolerance: 4);
+
+        Assert.True(vm.ScopeIsPinnedToThisCel);
+        Assert.NotEqual("", vm.ScopePinnedReason);
+
+        // Even asked for the whole animation, the transform is this drawing's.
+        vm.TransformScope = TransformScope.EntireAnimation;
+        Assert.True(vm.BeginTransform());
+        vm.CommitTransformAffine(0, 0, 1, 1, 0, 40, 0);
+
+        Assert.Equal(140, line.Points[0].X, 1);
+    }
+
+    /// <summary>
+    /// With a marquee up as well, the marquee is what Ctrl+T takes.
+    /// </summary>
+    /// <remarks>
+    /// <b>The owner's call against the recommendation (Q97).</b> The
+    /// recommendation was to let the tool in hand decide, reusing the property
+    /// Ctrl+A and Ctrl+D already share. This is the chosen order, and the test
+    /// exists as much to pin the cost as the behaviour: a marquee somewhere off
+    /// screen outranks the lines you can see highlighted.
+    /// </remarks>
+    [AvaloniaFact]
+    public void AMarqueeOutranksThePickedLines()
+    {
+        var inside = Line(100, 100, 300, 100);
+        var outside = Line(100, 400, 300, 400);
+        var vm = WithStrokes(inside, outside);
+        vm.ActiveTool = ToolId.Arrow;
+
+        // Pick the line the marquee does NOT cover, then marquee the other.
+        vm.PickStrokeAt(200, 400, tolerance: 4);
+        vm.ApplySelectionShape(
+            [new(50, 50, 1), new(400, 50, 1), new(400, 200, 1), new(50, 200, 1)],
+            add: false, subtract: false);
+
+        Assert.Equal("the selection", Subject(vm));
+
+        Assert.True(vm.BeginTransform());
+        vm.CommitTransformAffine(0, 0, 1, 1, 0, 40, 0);
+
+        // The marquee's line moved; the picked one stayed where it was.
+        Assert.Equal(140, inside.Points[0].X, 1);
+        Assert.Equal(100, outside.Points[0].X, 1);
+    }
+
+    /// <summary>The session says which of the two it took.</summary>
+    /// <remarks>
+    /// What pays back the precedence above: the failure it makes possible is
+    /// silent, so the session names its subject rather than leaving it to be
+    /// discovered on release.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheSessionSaysWhatItIsMoving()
+    {
+        var vm = WithStrokes(Line(100, 100, 300, 100));
+        Assert.Equal("", vm.TransformSubject);
+
+        vm.ActiveTool = ToolId.Arrow;
+        vm.PickStrokeAt(200, 100, tolerance: 4);
+        Assert.True(vm.BeginTransform());
+
+        Assert.Equal("the selected line", vm.TransformSubject);
+    }
+
+    /// <summary>A drag on a picked line runs as a session and is one undo step.</summary>
+    /// <remarks>
+    /// The drag used to report one delta on release, so the drawing arrived
+    /// after the fact. Through the session the pixels follow the pointer, and
+    /// the whole drag is still exactly one step.
+    /// </remarks>
+    [AvaloniaFact]
+    public void DraggingAPickedLineIsOneSessionAndOneUndoStep()
+    {
+        var line = Line(100, 100, 300, 100);
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.Arrow;
+        vm.PickStrokeAt(200, 100, tolerance: 4);
+        var steps = vm.RecordedStepCount;
+
+        Assert.True(vm.BeginLineMove(200, 100));
+        vm.UpdateMove(240, 100, axisLock: false);
+        vm.UpdateMove(280, 130, axisLock: false);
+        vm.EndMove();
+
+        Assert.Equal(180, line.Points[0].X, 1);
+        Assert.Equal(130, line.Points[0].Y, 1);
+        Assert.Equal(steps + 1, vm.RecordedStepCount);
+
+        vm.UndoCommand.Execute(null);
+
+        // Re-read rather than reusing the captured reference. A transform
+        // commits through DocumentEditor.Perform, which is a *snapshot* step —
+        // undo replaces the whole instance tree, so the object this test was
+        // holding is orphaned and would report the moved coordinates for ever.
+        // B103's lesson, and it bit this test before it guarded anything.
+        var restored = StrokeOf(vm, line.Id);
+        Assert.Equal(100, restored.Points[0].X, 1);
+        Assert.Equal(100, restored.Points[0].Y, 1);
+    }
+
+    /// <summary>The stroke with this id, read fresh out of the document.</summary>
+    private static Stroke StrokeOf(MainViewModel vm, string id) =>
+        ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes.First(s => s.Id == id);
+
+    /// <summary>A press that went nowhere leaves no step behind.</summary>
+    [AvaloniaFact]
+    public void APressOnALineThatDidNotMoveCommitsNothing()
+    {
+        var vm = WithStrokes(Line(100, 100, 300, 100));
+        vm.ActiveTool = ToolId.Arrow;
+        vm.PickStrokeAt(200, 100, tolerance: 4);
+        var steps = vm.RecordedStepCount;
+
+        Assert.True(vm.BeginLineMove(200, 100));
+        vm.CancelMove();
+
+        Assert.Equal(steps, vm.RecordedStepCount);
+        Assert.False(vm.TransformActive);
+    }
+
+    /// <summary>With nothing picked there is no line session to open.</summary>
+    [AvaloniaFact]
+    public void ThereIsNoLineMoveWithoutPickedLines()
+    {
+        var vm = WithStrokes(Line(100, 100, 300, 100));
+        vm.ActiveTool = ToolId.Arrow;
+
+        Assert.False(vm.BeginLineMove(200, 100));
+        Assert.False(vm.TransformActive);
+    }
+
+    private static string Subject(MainViewModel vm)
+    {
+        vm.BeginTransform();
+        var subject = vm.TransformSubject;
+        vm.CancelTransform();
+        return subject;
+    }
 }

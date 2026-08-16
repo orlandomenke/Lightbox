@@ -7,7 +7,7 @@ using SkiaSharp;
 namespace Lightbox.App.Tests;
 
 /// <summary>
-/// Q90 — the playhead may stand past the end of the scene, and the scene grows
+/// Q103 — the playhead may stand past the end of the scene, and the scene grows
 /// when an edit lands there.
 /// </summary>
 /// <remarks>

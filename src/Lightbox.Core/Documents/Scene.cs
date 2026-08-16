@@ -236,6 +236,12 @@ public sealed class Scene
     public List<LayerGroup> LayerGroups { get; set; } = [];
 
     /// <summary>
+    /// Layer links (see <see cref="LayerLink"/>), or null — and null is the
+    /// ordinary document, which has never linked anything.
+    /// </summary>
+    public List<LayerLink>? LayerLinks { get; set; }
+
+    /// <summary>
     /// Animation frame groups created by expanding multi-frame symbols across the timeline.
     /// Null unless used, so a document that never places animated symbols writes no key.
     /// </summary>
@@ -384,13 +390,61 @@ public sealed class Scene
     public LayerGroup? GroupOf(Layer layer) =>
         layer.GroupId is null ? null : LayerGroups.FirstOrDefault(g => g.Id == layer.GroupId);
 
+    /// <summary>A layer's link, or null.</summary>
+    public LayerLink? LinkOf(Layer layer) =>
+        layer.LinkId is null ? null : LayerLinks?.FirstOrDefault(l => l.Id == layer.LinkId);
+
+    /// <summary>Every layer in the same link as this one, including it.</summary>
+    public IEnumerable<Layer> LinkedWith(Layer layer) =>
+        layer.LinkId is null ? [layer] : Layers.Where(l => l.LinkId == layer.LinkId);
+
+    /// <summary>
+    /// The bone this layer's unweighted strokes follow: its own, or the one a
+    /// link-mate names when the link carries bones.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The layer's own answer wins, so a link is a default rather than an
+    /// override — an artist who rigs the effects layer to a different bone
+    /// than the lines meant it, and a link that silently overwrote that would
+    /// be losing authored work to a convenience.
+    /// </para>
+    /// <para>
+    /// Otherwise the first link-mate that names one wins, in layer order, so
+    /// the answer does not depend on which member is asked. A link that does
+    /// not carry bones resolves nothing, which is the whole point of the
+    /// per-property flags: linking for visibility must not rig anything.
+    /// </para>
+    /// </remarks>
+    public string? RiggedBoneOf(Layer layer)
+    {
+        if (layer.BoneId is { } own) return own;
+        if (LinkOf(layer) is not { CarriesBones: true }) return null;
+        foreach (var mate in LinkedWith(layer))
+            if (mate.BoneId is { } shared) return shared;
+        return null;
+    }
+
+    /// <summary>Whether this layer's strokes follow the rig, by its own binding or its link's.</summary>
+    public bool IsLayerRigged(Layer layer) => RiggedBoneOf(layer) is not null;
+
     /// <summary>The frame group containing a symbol placement, or null.</summary>
     public FrameGroup? GroupOf(string placementId) =>
         FrameGroups?.FirstOrDefault(g => g.PlacementIds.Contains(placementId));
 
     /// <summary>Layer visibility including its folder's (what compositing must use).</summary>
-    public bool IsLayerVisible(Layer layer) =>
-        layer.Visible && GroupOf(layer) is not { Visible: false };
+    /// <remarks>
+    /// A link carrying visibility hides its members together — hide the lines
+    /// and the colour goes with them. Any member being hidden hides them all,
+    /// rather than a designated one deciding: there is no primary layer in a
+    /// link, and picking one would make the answer depend on layer order.
+    /// </remarks>
+    public bool IsLayerVisible(Layer layer)
+    {
+        if (!layer.Visible || GroupOf(layer) is { Visible: false }) return false;
+        if (LinkOf(layer) is not { CarriesVisibility: true }) return true;
+        return LinkedWith(layer).All(l => l.Visible && GroupOf(l) is not { Visible: false });
+    }
 
     /// <summary>
     /// Whether a layer accepts edits: not locked itself, and not inside a
@@ -413,6 +467,7 @@ public sealed class Scene
         copy.Layers = Layers.Select(l => l.Clone()).ToList();
         copy.Markers = Markers.Select(m => m.Clone()).ToList();
         copy.LayerGroups = LayerGroups.Select(g => g.Clone()).ToList();
+        copy.LayerLinks = LayerLinks?.Select(l => l.Clone()).ToList();
         copy.FrameGroups = FrameGroups?.Select(g => g.Clone()).ToList();
         copy.GhostFrames = GhostFrames is null ? null : [.. GhostFrames];
         copy.References = References?.Select(r => r.Clone()).ToList();

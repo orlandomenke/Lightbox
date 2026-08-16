@@ -68,8 +68,56 @@ public sealed class Bone
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsConnected => Connected == true;
 
+    /// <summary>
+    /// Secondary motion — the bone lags and settles behind the motion driving
+    /// it — or null, and absent from the file, for the ordinary bone.
+    /// </summary>
+    public BoneJiggle? Jiggle { get; set; }
+
     /// <summary>A copy holding no reference in common with this one.</summary>
-    public Bone Clone() => (Bone)MemberwiseClone();
+    public Bone Clone()
+    {
+        var copy = (Bone)MemberwiseClone();
+        copy.Jiggle = Jiggle?.Clone();
+        return copy;
+    }
+}
+
+/// <summary>
+/// A bone's secondary motion: it follows what the pose asks of it through a
+/// spring, so a fast parent leaves it behind and it swings back and settles —
+/// tails, ears, antennae, the tip of a cape. Phase 5 of
+/// <c>docs/DESIGN-bones.md</c>.
+/// </summary>
+/// <remarks>
+/// Two numbers rather than a physics sheet, because this is a drawing
+/// application: <see cref="Stiffness"/> is how hard the bone is pulled toward
+/// where the pose wants it, <see cref="Damping"/> is how quickly the swing
+/// dies. Low stiffness with low damping is a whippy antenna; higher damping
+/// is a heavy tail. The integration is one fixed step per <em>frame</em> —
+/// never wall clock — seeded settled at the first pose key, so the same
+/// document renders the same pixels forever (determinism rules,
+/// <c>docs/DESIGN-bones.md</c>).
+/// </remarks>
+public sealed class BoneJiggle
+{
+    /// <summary>Pull toward the posed target per frame, 0.01–1. Higher catches up faster.</summary>
+    public double Stiffness { get; set; } = 0.2;
+
+    /// <summary>
+    /// How much of the swing each frame keeps, 0.02–1. Higher settles sooner.
+    /// </summary>
+    /// <remarks>
+    /// The floor is load-bearing, not taste: evaluation replays a bounded
+    /// window of history (<see cref="ArmatureOps.SettleHorizonFrames"/>), and
+    /// a truly undamped spring never forgets, so its phase would depend on
+    /// where the window starts. At 0.02 the transient decays to under one
+    /// percent inside the window and the cut is invisible.
+    /// </remarks>
+    public double Damping { get; set; } = 0.15;
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public BoneJiggle Clone() => (BoneJiggle)MemberwiseClone();
 }
 
 /// <summary>
@@ -461,6 +509,111 @@ public static class ArmatureOps
             return result;
         }
         return CopyPoses(keys[^1]);
+    }
+
+    /// <summary>
+    /// The pose a <em>render</em> uses at a frame: <see cref="PoseAt"/>, with
+    /// secondary motion folded in — each jiggling bone's rotation is the
+    /// spring-filtered history of what the track asked of it, integrated one
+    /// fixed step per frame across the settle window. With no jiggling bone
+    /// this <b>is</b> <see cref="PoseAt"/> plus one scan of the bone list;
+    /// with one, the cost is the window's — bounded, never the document's.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Render pose, never authoring pose.</b> Keys are seeded from
+    /// <see cref="PoseAt"/> and drags are measured against it — a key that
+    /// baked the jiggle in would replay the lag on top of itself. The split
+    /// mirrors bind/pose: what the artist wrote versus what the frame shows.
+    /// </para>
+    /// <para>
+    /// Deterministic by the design's rules: doubles, one step per frame index
+    /// (never a clock), bones in authoring order, state seeded <em>settled</em>
+    /// — at the window's edge the spring sits exactly where the pose puts it,
+    /// from geometry rather than randomness. Two evaluations, or a reload,
+    /// agree to the bit. The walk costs one base solve per window frame, at
+    /// most <see cref="SettleHorizonFrames"/> of them, on a rig of tens of
+    /// bones — bounded microseconds against the raster work a frame render
+    /// already does, and only on documents that jiggle.
+    /// </para>
+    /// <para>
+    /// The spring writes into the bone's <em>local</em> rotation, so children
+    /// ride the swing. A bone whose rotation the solvers own (an IK chain
+    /// member, a spline bone, a constrained bone) gets its jiggle overwritten
+    /// by the very next solve — the same rule an FK drag on one has — so
+    /// jiggle belongs on FK bones: tails, ears, antennae.
+    /// </para>
+    /// </remarks>
+    /// <summary>
+    /// How many frames of history a spring replays: its whole memory, because
+    /// the damping floor (<see cref="BoneJiggle.Damping"/>) guarantees any
+    /// older transient has decayed below one percent. The window is what makes
+    /// evaluation <b>bounded work</b> (invariant 6): without it the cost of a
+    /// frame grew with its distance from the first key, which put unbounded
+    /// walks inside per-pointer-event paths — the weight brush's dab, the heat
+    /// view, the chrome. A fixed deterministic window is the same pure
+    /// function everywhere; a document-length walk is a leak.
+    /// </summary>
+    public const int SettleHorizonFrames = 240;
+
+    public static Dictionary<string, BonePose> EffectivePoseAt(
+        Armature armature, PoseTrack? track, int frame)
+    {
+        var basePose = PoseAt(track, frame);
+        var keys = Ordered(track);
+        if (keys.Count == 0) return basePose;
+
+        // Authoring order, fixed — part of what makes two runs bit-identical.
+        List<Bone>? jigglers = null;
+        foreach (var bone in armature.Bones)
+            if (bone.Jiggle is not null)
+                (jigglers ??= []).Add(bone);
+        if (jigglers is null) return basePose;
+
+        var start = Math.Max(Math.Min(keys[0].Frame, frame), frame - SettleHorizonFrames);
+        var angle = new double[jigglers.Count];
+        var velocity = new double[jigglers.Count];
+        var target = new double[jigglers.Count];
+        for (var f = start; f <= frame; f++)
+        {
+            var solved = Solve(armature, f == frame ? basePose : PoseAt(track, f));
+            for (var i = 0; i < jigglers.Count; i++)
+                target[i] = solved[jigglers[i].Id].RotationDeg;
+            if (f == start)
+            {
+                // Settled at the gate: the spring starts exactly where the
+                // pose puts it, so a still rig never wobbles on its own.
+                target.CopyTo(angle, 0);
+                continue;
+            }
+            for (var i = 0; i < jigglers.Count; i++)
+            {
+                var spring = jigglers[i].Jiggle!;
+                var k = Math.Clamp(spring.Stiffness, 0.01, 1);
+                // The damping floor and the horizon are one design — see
+                // SettleHorizonFrames.
+                var keep = 1 - Math.Clamp(spring.Damping, 0.02, 1);
+                velocity[i] = (velocity[i] + k * (target[i] - angle[i])) * keep;
+                angle[i] += velocity[i];
+            }
+        }
+
+        var result = new Dictionary<string, BonePose>(basePose.Count + jigglers.Count);
+        foreach (var (id, p) in basePose) result[id] = p;
+        for (var i = 0; i < jigglers.Count; i++)
+        {
+            var extra = angle[i] - target[i];
+            if (Math.Abs(extra) < 1e-12) continue;
+            // Local and world rotation differ by the parent chain, which the
+            // extra cancels out of — so a world-angle spring lands as a plain
+            // local addend, and children follow because the chain does.
+            var pose = result.TryGetValue(jigglers[i].Id, out var existing)
+                ? existing.Clone()
+                : new BonePose();
+            pose.RotationDeg += extra;
+            result[jigglers[i].Id] = pose;
+        }
+        return result;
     }
 
     /// <summary>

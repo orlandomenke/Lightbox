@@ -27,8 +27,37 @@ namespace Lightbox.App.Rendering;
 public static class GuidePainter
 {
     private const int KindGrid = 1;
+    private const int KindIsometric = 2;
     private const int KindVanishingPoint = 3;
     private const int KindHeightScale = 4;
+
+    /// <summary>
+    /// How prominently one guide is drawn.
+    /// </summary>
+    /// <remarks>
+    /// Three states above plain, and they answer three different questions the
+    /// artist is asking at three different moments: <i>can I grab anything
+    /// here</i>, <i>would this one come up</i>, and <i>which one am I
+    /// changing</i>. Ambient exists because most guides are grabbed at their
+    /// anchor — a grid's origin and a vanishing point are single invisible
+    /// points on a canvas full of lines — so without it, picking one up is
+    /// hunting. It is on only while the Move tool is in hand, so a rig you are
+    /// drawing against never lights up at you.
+    /// </remarks>
+    public enum Emphasis
+    {
+        /// <summary>Chrome to draw against: the faint rig, unchanged.</summary>
+        None,
+
+        /// <summary>The Move tool is in hand, so every guide here can be picked up.</summary>
+        Grabbable,
+
+        /// <summary>The pointer is on this one; a press would take it.</summary>
+        Hover,
+
+        /// <summary>The one the options are pointed at.</summary>
+        Selected,
+    }
 
     /// <summary>A guide flattened for the render thread. See <c>CanvasControl.GuideLine</c>.</summary>
     /// <remarks>
@@ -39,7 +68,7 @@ public static class GuidePainter
     /// </remarks>
     public readonly record struct Line(
         int Kind, float X, float Y, float Spacing, IReadOnlyList<double> Angles,
-        string? Label = null, int Divisions = 0);
+        string? Label = null, int Divisions = 0, Emphasis Emphasis = Emphasis.None);
 
     /// <summary>
     /// Checkerboard, artwork, guides — in the one order that works.
@@ -122,8 +151,33 @@ public static class GuidePainter
 
             foreach (var guide in lines)
             {
+                // One pair of paints, re-tinted per guide rather than one pair
+                // per emphasis: a document rarely has more than a handful of
+                // guides, and four sets of paints allocated per frame to save
+                // two field writes is the wrong trade.
+                Tint(thin, mark, guide.Emphasis, scale);
+
+                // The grab point, shown only while something is reaching for
+                // it. A grid and an isometric rig are picked up at their
+                // anchor — never on their lines, or a grid would cover the
+                // canvas in grab targets and nothing else could be picked up —
+                // and that anchor is an invisible point, on a grid usually the
+                // canvas corner. Without a mark, "you can drag this" is a
+                // sentence in the manual and a hunt on the screen.
+                if (guide.Emphasis != Emphasis.None
+                    && guide.Kind is KindGrid or KindIsometric)
+                {
+                    Anchor(canvas, guide.X, guide.Y, mark, scale);
+                }
+
                 if (guide.Kind == KindGrid)
                 {
+                    // The lattice itself brightens only when it is the one
+                    // under the pointer or under the options. A whole-canvas
+                    // grid lit up merely because the Move tool is in hand is a
+                    // wash over the drawing, which is the opposite of what the
+                    // ambient hint is for — its anchor above is enough.
+                    if (guide.Emphasis == Emphasis.Grabbable) Tint(thin, mark, Emphasis.None, scale);
                     Grid(canvas, guide, thin, scale, docW, docH);
                     continue;
                 }
@@ -161,6 +215,48 @@ public static class GuidePainter
             IsAntialias = true,
         };
         foreach (var angle in pulled.Angles) Ray(canvas, pulled.X, pulled.Y, angle, reach, drafting);
+    }
+
+    /// <summary>
+    /// The handle a guide is picked up by: a small square on its anchor, at a
+    /// fixed size on screen like every other piece of the rig.
+    /// </summary>
+    private static void Anchor(SKCanvas canvas, float x, float y, SKPaint mark, float scale)
+    {
+        var arm = 5f / scale;
+        canvas.DrawRect(x - arm, y - arm, arm * 2, arm * 2, mark);
+    }
+
+    /// <summary>
+    /// Point the two paints at one guide's emphasis.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Both colour <i>and</i> weight change, deliberately: colour alone is not
+    /// enough to tell three states apart through a drawing, and a colour-only
+    /// scheme is the one that disappears for a colour-blind artist. The rig
+    /// stays translucent at every level — a selected guide is still something
+    /// you have to see the art through.
+    /// </para>
+    /// <para>
+    /// Line widths are divided by the zoom for the reason every other width
+    /// here is: the rig is chrome and must stay the same weight on screen at
+    /// 25% and at 800%.
+    /// </para>
+    /// </remarks>
+    private static void Tint(SKPaint thin, SKPaint mark, Emphasis emphasis, float scale)
+    {
+        var (line, point, width) = emphasis switch
+        {
+            Emphasis.Grabbable => (new SKColor(110, 175, 250, 150), new SKColor(245, 140, 95, 220), 1f),
+            Emphasis.Hover => (new SKColor(150, 205, 255, 205), new SKColor(255, 165, 110, 235), 1.5f),
+            Emphasis.Selected => (new SKColor(255, 200, 105, 240), new SKColor(255, 200, 105, 255), 2f),
+            _ => (new SKColor(80, 150, 240, 110), new SKColor(240, 120, 80, 200), 1f),
+        };
+        thin.Color = line;
+        thin.StrokeWidth = width / scale;
+        mark.Color = point;
+        mark.StrokeWidth = (width + 0.5f) / scale;
     }
 
     /// <summary>

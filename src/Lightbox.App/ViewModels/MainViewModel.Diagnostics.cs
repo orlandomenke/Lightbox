@@ -99,6 +99,30 @@ public partial class MainViewModel
         // or a structural edit can add, remove or replace the frames it names, and
         // a stale list would repaint the wrong ones — or, worse, none of them.
         _swatchRepaint = null;
+        // Which drawings the rig moves is derived from the layer stack, so an
+        // undo that took a link away — or a load that brought one in — has to
+        // land here before anything renders. Rebuilt even on the scoped-edit
+        // fast path: the index is a dictionary of a handful of ids, and a
+        // stale one is wrong pixels rather than a slow repaint.
+        RebuildRigIndex();
+
+        // What a click would flood may have changed under a still pointer —
+        // the fill that just committed there is the common case. Forgetting
+        // the traced region is cheap; the recompute only runs if a preview
+        // is actually up.
+        ForgetFillPreviewRegion();
+        // An edit landing while a bone gesture previews means undo fired
+        // mid-drag: the preview describes a document that no longer exists,
+        // so drop it. The next pointer move re-previews against what is
+        // actually there. A no-op on the ordinary commit path, which clears
+        // before it performs.
+        ClearBoneGesturePreview();
+        // Any edit can move a drawing's centre or its anchors, and the trail
+        // must show the record as it now stands. A boolean when it is off;
+        // when it is on, one bounds walk over the trailed drawings per
+        // commit — the same order as the repaint the commit already pays,
+        // and per gesture rather than per tick, which is the line B152 drew.
+        RefreshMotionTrail();
 
         if (_committingScopedEdit)
         {
@@ -152,7 +176,7 @@ public partial class MainViewModel
     /// </summary>
     private void ClampCurrentFrame(bool publishIfUnchanged = true)
     {
-        // The sheet's extent rather than the scene's length (Q90): the playhead
+        // The sheet's extent rather than the scene's length (Q103): the playhead
         // is allowed past the end, and shrinking the scene pulls it back only as
         // far as the sheet still draws.
         var max = Math.Max(0, TimelineExtent - 1);
@@ -320,6 +344,38 @@ public partial class MainViewModel
             $"The canvas is taking {Performance.FrameMs:0} ms a frame to show, so quality has been "
             + "lowered to Half while you work. The drawing, exports and thumbnails are unaffected. "
             + "Edit ▸ Configure ▸ Performance changes it.";
+    }
+
+    /// <summary>
+    /// How many steps are actually on the undo stack right now.
+    /// </summary>
+    /// <remarks>
+    /// <b>B224, and the name is the whole point of it.</b> Four tests asking
+    /// "did this gesture record an edit?" reached for <see cref="UndoDepth"/>,
+    /// which is <c>MaxUndo</c> — the *setting* for how many steps are kept, not
+    /// how many there are. So they captured a constant, performed a gesture,
+    /// and asserted the constant had not changed: green whether the gesture
+    /// recorded a step or not. A test that cannot fail is worse than no test,
+    /// because it is counted as coverage.
+    ///
+    /// <para>
+    /// Undone steps do not count — they are on the redo side and a redo would
+    /// bring them back, so "how many edits are behind me" is the undo line
+    /// alone. Reading it allocates a small list of labels and touches no
+    /// document, which is why a test may call it freely.
+    /// </para>
+    /// </remarks>
+    internal int RecordedStepCount
+    {
+        get
+        {
+            var steps = 0;
+            foreach (var entry in _editor.History)
+            {
+                if (!entry.IsUndone) steps++;
+            }
+            return steps;
+        }
     }
 
     /// <summary>Undo steps kept. Deltas are cheap; snapshots hold a whole document each.</summary>

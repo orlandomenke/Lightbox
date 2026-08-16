@@ -43,17 +43,27 @@ public static class WeightPaint
     /// same input stack every other brush does.
     /// </param>
     /// <param name="lockedBones">Bone ids whose influence must not move.</param>
+    /// <param name="hitPoints">
+    /// Where each control point should be hit-tested — the posed positions,
+    /// when the artist is painting on a posed drawing — one per
+    /// <see cref="Stroke.Points"/> entry. Null (or a count that does not
+    /// match, which means the caller's pose is stale) falls back to the rest
+    /// positions. The <em>weights</em> land on the same indices either way:
+    /// the record never changes shape, only where the brush finds it.
+    /// </param>
     public static bool Apply(
         Stroke stroke, string boneId, double cx, double cy, double radius,
-        double strength, WeightBrushMode mode, IReadOnlySet<string>? lockedBones = null)
+        double strength, WeightBrushMode mode, IReadOnlySet<string>? lockedBones = null,
+        IReadOnlyList<StrokePoint>? hitPoints = null)
     {
         if (radius <= 0 || strength <= 0 || stroke.Points.Count == 0) return false;
         if (lockedBones?.Contains(boneId) == true) return false;
+        if (hitPoints is not null && hitPoints.Count != stroke.Points.Count) hitPoints = null;
 
         var changed = false;
         for (var i = 0; i < stroke.Points.Count; i++)
         {
-            var p = stroke.Points[i];
+            var p = hitPoints?[i] ?? stroke.Points[i];
             var dx = p.X - cx;
             var dy = p.Y - cy;
             var d2 = dx * dx + dy * dy;
@@ -176,6 +186,31 @@ public static class WeightPaint
         var my = (pa.Y + pb.Y) / 2;
         var dot = ((x - mx) * nx + (y - my) * ny) / len2;
         return (x - 2 * dot * nx, y - 2 * dot * ny);
+    }
+
+    /// <summary>
+    /// Where the mirrored dab lands when the drawing on screen is <em>posed</em>:
+    /// ride the painted bone's own motion back to rest, mirror across the
+    /// pair's bind axis there — the axis is a rest-pose fact (Q81) — and ride
+    /// the paired bone's motion out again. Under an identity pose every delta
+    /// is the identity and this is exactly <see cref="Mirror"/>.
+    /// </summary>
+    /// <remarks>
+    /// The trip to rest uses the painted bone's rigid delta as the inverse of
+    /// the deformation. That is exact wherever the painted bone owns the dab's
+    /// neighbourhood — which is where an artist aims a weight brush — and an
+    /// approximation in blended regions, where the true inverse differs per
+    /// point. The approximation only moves <em>where the mirrored brush
+    /// lands</em>, never what a weight means, and the falloff forgives being a
+    /// few pixels off the way it forgives an imperfect hand.
+    /// </remarks>
+    public static (double X, double Y)? MirrorPosed(
+        Armature armature, Bone own, Bone pair,
+        IReadOnlyDictionary<string, RigidDelta> deltas, double x, double y)
+    {
+        var (rx, ry) = deltas.GetValueOrDefault(own.Id, RigidDelta.Identity).Unapply(x, y);
+        if (Mirror(armature, own, pair, rx, ry) is not { } m) return null;
+        return deltas.GetValueOrDefault(pair.Id, RigidDelta.Identity).Apply(m.X, m.Y);
     }
 
     private static readonly (string Left, string Right)[] Suffixes =

@@ -68,10 +68,21 @@ public sealed partial class MainViewModel
         [new BoneRow("", "(no pole)", 0, false), .. BoneRows];
 
     /// <summary>The pole picker's value, which speaks "" rather than null.</summary>
-    public string SelectedChainPoleKey
+    /// <remarks>
+    /// Null and "" are different speakers. "" is the artist picking the
+    /// "(no pole)" row; null is the combo box clearing itself while its items
+    /// are rebuilt, which happens on every rig change. Treating them alike
+    /// meant a panel refresh silently deleted the pole it was displaying —
+    /// the same write-back that kept a bone from staying selected.
+    /// </remarks>
+    public string? SelectedChainPoleKey
     {
         get => SelectedChainPoleId ?? "";
-        set => SelectedChainPoleId = string.IsNullOrEmpty(value) ? null : value;
+        set
+        {
+            if (value is null) return;
+            SelectedChainPoleId = value.Length == 0 ? null : value;
+        }
     }
 
     /// <summary>
@@ -249,19 +260,14 @@ public sealed partial class MainViewModel
         var pose = ArmatureOps.PoseAt(Doc.Scene.PoseTrack, frame);
         var placements = ArmatureOps.Solve(armature, pose);
         // The target's own offset lives in its parent's frame, so the pointer
-        // has to be taken there before it can be written as a delta.
-        var (px, py, prot) = target.ParentId is { } pid && placements.TryGetValue(pid, out var pp)
-            ? (pp.X, pp.Y, pp.RotationDeg)
-            : (0.0, 0.0, 0.0);
-        var rad = -prot * Math.PI / 180.0;
-        var (dx, dy) = (x - px, y - py);
-        var localX = Math.Cos(rad) * dx - Math.Sin(rad) * dy;
-        var localY = Math.Sin(rad) * dx + Math.Cos(rad) * dy;
+        // has to be taken there before it can be written as a delta. The
+        // arithmetic is ArmatureGesture's, shared with the live preview.
+        var (tx, ty) = ArmatureGesture.PoseTranslationDelta(placements, target, x, y);
 
         KeyPose(frame, target.Id, p =>
         {
-            p.X = localX - target.X;
-            p.Y = localY - target.Y;
+            p.X = tx;
+            p.Y = ty;
         });
         InvalidateRiggedFrames();
     }

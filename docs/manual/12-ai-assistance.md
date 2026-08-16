@@ -66,6 +66,14 @@ knight's animations ride with the knight's sheet, wherever it was drawn. They ar
 whatever size you drew it at, and only the copy in the request is smaller. Hide
 every layer in a view and it stops being sent.
 
+**What you erased is not sent.** The AI is given the drawing, not the drawing's
+history: erasures and the lines they rubbed out are both left out of the
+request, whether you erased with the Eraser or cleared a selection. This is
+worth knowing for two reasons — you are not billed for artwork you deliberately
+removed, and the model never inbetweens a line you took off the page. The record
+still keeps all of it so the drawing rebuilds exactly and undo still works; it
+just is not part of what the request describes.
+
 **Frames the AI cannot defend are refused.** Every frame that comes back is
 checked against your two keys before it can touch the document: it has to lie
 between them, carry every stroke both keys draw, keep a closed shape's volume,

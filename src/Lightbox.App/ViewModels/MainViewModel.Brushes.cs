@@ -137,7 +137,20 @@ public partial class MainViewModel
         // timeline position asking for it. Reads `_editor` at call time, so
         // switching tabs switches the armature with everything else. A
         // document with no rig takes the null branch inside and pays nothing.
-        _cache.PoseResolver = (frame, cel) => Skinning.PoseFrameForRender(_editor.Doc, frame, cel);
+        // Mid pose-drag the playhead's position renders the provisional pose
+        // instead, expensive brushes ghosting to centrelines — Q81 decision 5,
+        // through the same funnel that keeps live and baked bit-identical.
+        _cache.PoseResolver = (frame, cel) =>
+            Skinning.PoseFrameForRender(
+                _editor.Doc, frame, cel, _cache.Rig,
+                cel == CurrentFrameIndex ? _bonePreviewPose : null,
+                ghostOverBudget: _bonePreviewPose is not null && cel == CurrentFrameIndex);
+        // A retired bake may still be riding in a published pass list on its
+        // way to the render thread, and every pass bitmap is pinned in the
+        // frame cache at publish — so the cache's pin-aware deferral is the
+        // one place that knows when the bitmap is truly unread. See
+        // FrameBitmapCache.DisposeExternal.
+        _stackBake.RetireBitmap = _cache.DisposeExternal;
         // B147: the canvas holds its own copy of the selected outlines, and only
         // OnStrokeSelectionChanged refreshes it. Every path that reaches the
         // manager directly — picking a guide, a symbol or a reference box, all of
@@ -145,6 +158,11 @@ public partial class MainViewModel
         // drawn. Subscribing here makes the manager the single source: whatever
         // changes the selection, the outlines follow.
         _selectionManager.SelectionChanged += OnStrokeSelectionChanged;
+        // B215: the same argument one object along. The guide options read the
+        // manager now rather than a second selection beside it, so whatever
+        // changes the selection — a press with either tool, Ctrl+A, a click on
+        // empty canvas — is what repoints them.
+        _selectionManager.SelectionChanged += OnGuideSelectionChanged;
         _clock.Tick += OnPlaybackTick;
         Settings = AppSettings.Load();
         _snapTolerance = Settings.SnapTolerance;

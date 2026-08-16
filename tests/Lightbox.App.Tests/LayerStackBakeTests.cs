@@ -148,6 +148,98 @@ public sealed class LayerStackBakeTests(ITestOutputHelper output) : BrushStateIs
             $"a stroke drawn beneath the bake is not visible ({px}) — the bake is stale");
     }
 
+    /// <summary>
+    /// The stale-bake case B29's entry demands a guard for, in its strongest
+    /// form: the repaint changes pixels on a covered layer <em>in place</em>,
+    /// with the layer never made active and the frame object never replaced —
+    /// so the spec key still matches, and the only thing standing between the
+    /// served bake and yesterday's pixels is the invalidation funnel calling
+    /// <see cref="LayerStackBake.NoteFrameChanged"/>. An undo cannot spring
+    /// this trap (a snapshot undo swaps the whole document, which resets the
+    /// bake wholesale), and neither can drawing on the layer (making it
+    /// active reshapes the segments). A swatch recolour is the real path:
+    /// <c>RepaintForSwatch</c> walks every frame using the swatch, on
+    /// whatever layer it lives.
+    /// </summary>
+    [AvaloniaFact]
+    public void RecolouringASwatchOnACoveredLayerIsNotServedFromTheBake()
+    {
+        var vm = VmLayers.PaperVm();
+        vm.StackBake.Enabled = true;
+        vm.SmoothStrokes = false;
+        vm.BrushSize = 24;
+        vm.AddPaintedLayerCommand.Execute(null);
+        vm.AddPaintedLayerCommand.Execute(null);
+
+        // Layer 1's stroke is linked to a swatch, so it can be recoloured
+        // later without touching the layer; 2 and 3 get plain strokes. With
+        // layer 3 active, the below bake covers paper + 1 + 2 — comfortably
+        // past the fold's two-pass minimum, with the swatch stroke inside it.
+        if (!vm.PaletteDocker.HasPalette) vm.PaletteDocker.AddPaletteCommand.Execute(null);
+        vm.ColorHex = "#ff0000";
+        vm.PaletteDocker.AddSwatchCommand.Execute(null);
+        var row = vm.PaletteDocker.Swatches[^1];
+        vm.PaletteDocker.SelectedSwatch = row;
+        vm.ActiveLayerIndex = 1;
+        vm.BeginStroke(100, 100, 1);
+        vm.MoveStroke(100, 200, 1);
+        vm.EndStroke();
+        vm.ColorHex = "#000000"; // break the swatch link for the plain strokes
+        for (var i = 2; i <= 3; i++)
+        {
+            vm.ActiveLayerIndex = i;
+            vm.BeginStroke(100 * i, 100, 1);
+            vm.MoveStroke(100 * i, 200, 1);
+            vm.EndStroke();
+        }
+        vm.ActiveLayerIndex = 3; // layer 1 is now inside the below-active bake
+
+        Published(vm).Dispose();
+        Published(vm).Dispose();
+        Published(vm).Dispose();
+        Assert.True(vm.StackBake.FoldedPublishes >= 1, "arrange failed: nothing folded");
+
+        // The recolour repaints layer 1's frame in place — same Frame object,
+        // same opacity, same everything the key can see.
+        row.Color = "#0000ff";
+
+        using var shown = Published(vm);
+        var scale = shown.Width / (double)vm.Doc.Scene.Width;
+        var px = shown.GetPixel((int)(100 * scale), (int)(150 * scale));
+        output.WriteLine($"pixel on the recoloured stroke: {px}");
+        Assert.True(px.Blue > 128 && px.Red < 128,
+            $"the stroke is still its old colour ({px}) — the bake served stale pixels");
+    }
+
+    /// <summary>
+    /// The B198 half of the fold: a served segment's cels are not fetched, so
+    /// they do not need to be resident. The counter is the contract — every
+    /// skipped fetch is a cache lookup that can no longer miss, and on a
+    /// document whose working set outgrows the budget a miss is a full
+    /// re-rasterization.
+    /// </summary>
+    [AvaloniaFact]
+    public void AServedPublishNeverFetchesTheCoveredCels()
+    {
+        var vm = LayeredVm();
+        Published(vm).Dispose();
+        Published(vm).Dispose();
+        Published(vm).Dispose();
+        Assert.True(vm.StackBake.FoldedPublishes >= 1, "arrange failed: nothing folded");
+
+        var skipped = vm.StackBake.FetchesSkipped;
+        var rebuilds = vm.StackBake.Rebuilds;
+        Published(vm).Dispose();
+
+        var delta = vm.StackBake.FetchesSkipped - skipped;
+        output.WriteLine($"cel fetches skipped on one served publish: {delta}");
+        // Layer 1 below and layer 3 above at minimum; the paper counts too
+        // when it renders as a cel.
+        Assert.True(delta >= 2,
+            $"only {delta} fetches were skipped — the served segments are still fetching their cels");
+        Assert.Equal(rebuilds, vm.StackBake.Rebuilds);
+    }
+
     [AvaloniaFact]
     public void ANonNormalBlendModeRefusesToFoldAndStillRendersIt()
     {

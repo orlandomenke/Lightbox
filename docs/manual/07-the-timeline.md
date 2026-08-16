@@ -211,11 +211,11 @@ a placed symbol, keys a held cel the same way** and edits the copy. Those used
 to slip past the keying and rewrite the drawing the hold was borrowing, so a
 nudge on frame 2 showed up on frame 1 as well.
 
-**One tool has not caught up yet.** Reshaping a line with the pen — dragging a
-node on a held cel — still edits the drawing the hold borrows, so the change
-appears on the earlier frame too. Key the cel first (draw on it, or use the
-timeline's own insert) if you need to reshape on a hold. It is recorded as
-B207 and is being fixed next.
+This now covers the line tools too: **reshaping a line with the pen, and
+moving, nudging, recolouring or deleting selected lines**, all key a held cel
+and edit the copy. Selecting a line on a hold still authors nothing — looking
+around is not editing, and only the edit that lands makes the cel a drawing of
+its own.
 
 The key happens when you **commit** the edit, not when you pick the tool up.
 Pressing Ctrl+T on a hold and then Escape leaves the timeline exactly as it

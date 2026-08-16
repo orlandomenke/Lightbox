@@ -296,6 +296,145 @@ public partial class MainViewModel
     private Func<Frame, ScenePassBuilder.TransformSplit?>? _passTransformSplit;
 
     /// <summary>
+    /// The fetch the fold defers — cached in a field for the same reason as
+    /// <see cref="_passTransformSplit"/>: a lambda capturing <c>this</c>
+    /// allocates per publish, and a publish runs per pointer event.
+    /// </summary>
+    private Func<ScenePassBuilder.PassSpec, RenderPass>? _materializePass;
+
+    /// <summary>
+    /// Every cel fetched for the publish in flight, pinned from the moment it
+    /// leaves the cache until the publish is over.
+    /// </summary>
+    /// <remarks>
+    /// <b>Closes a use-after-free that was reachable before anything here
+    /// changed.</b> A publish materializes its whole pass list before
+    /// compositing, and the cache disposes an unpinned bitmap the moment
+    /// eviction picks it — so on a document whose single-frame working set
+    /// exceeds the byte budget (about 64 layers at 1080p against the 512 MB
+    /// default, B198's exact measurement), fetching layer N evicted and freed
+    /// layer 1's bitmap while the pass list still referenced it, and the
+    /// composite drew disposed pixels. The bench never hit it because it
+    /// composes each pass as it fetches; the publish path does not have that
+    /// luxury. <c>PinPasses</c> could not help — it pins at snapshot creation,
+    /// after the whole list is already materialized. So the pin moves to the
+    /// fetch, and the release to the end of the publish, by which point the
+    /// snapshot holds its own pins on everything that is still referenced.
+    /// </remarks>
+    private readonly List<SKBitmap> _fetchHolds = [];
+
+    private RenderPass MaterializePass(ScenePassBuilder.PassSpec spec)
+    {
+        var pass = ScenePassBuilder.Materialize(spec, _cache, Scene.Width, Scene.Height);
+        // Only cache-owned bitmaps need the hold: eviction is the only thing
+        // that frees pixels mid-publish, and it only reaches what the cache
+        // owns. Live scratches, transform parts and reference sheets are
+        // owned elsewhere and outlive the publish on their own.
+        if (spec.CelFrame is not null && pass.Bitmap is { } bmp)
+        {
+            _cache.Pin(bmp);
+            _fetchHolds.Add(bmp);
+        }
+        return pass;
+    }
+
+    /// <inheritdoc cref="_fetchHolds"/>
+    private void ReleaseFetchHolds()
+    {
+        for (var i = 0; i < _fetchHolds.Count; i++) _cache.Unpin(_fetchHolds[i]);
+        _fetchHolds.Clear();
+    }
+
+    /// <summary>
+    /// B170's debug tripwire: a live stroke's scratch is owned and mutated by
+    /// the UI thread, so a deferred compose that carries one is reading — and
+    /// possibly outliving — a bitmap nobody handed over. The culled route
+    /// should only go deferred on whole-canvas publishes, which a live stroke
+    /// does not ordinarily produce; the known exception is a live pass that
+    /// returns no bounds and invalidates the whole canvas mid-stroke, which is
+    /// exactly the unusual publish the diagnosis wants caught in the act.
+    /// Debug builds only — the shipped build records the breadcrumb instead.
+    /// </summary>
+    /// <remarks>
+    /// The tiled route is deliberately not asserted: with the unbounded canvas
+    /// on, every publish goes deferred, live overlays included — a known open
+    /// hazard recorded in B170, and an assert that fires on every unbounded
+    /// stroke would be noise rather than a tripwire.
+    /// </remarks>
+    [System.Diagnostics.Conditional("DEBUG")]
+    private static void AssertNoLiveScratchCrossesTheThread(List<RenderPass> passes)
+    {
+        for (var i = 0; i < passes.Count; i++)
+        {
+            System.Diagnostics.Debug.Assert(
+                passes[i].Overlay is null,
+                "B170: a live stroke's scratch is crossing to the render thread "
+                + "on the culled route — record how this publish came about.");
+        }
+    }
+
+    /// <summary>Every frame mutation goes through here, whichever cache holds it.</summary>
+    /// <remarks>
+    /// The stack bake is in the list because its spec key compares frames by
+    /// reference and an edit mutates the frame behind the reference — this
+    /// funnel is the only thing standing between an under-the-bake edit and
+    /// stale art on screen. A mutation path that bypasses the funnel is a
+    /// defect here even if every cache happens to survive it.
+    /// </remarks>
+    private void InvalidateFrameRender(string frameId)
+    {
+        _cache.Invalidate(frameId);
+        _tileFrames.Invalidate(frameId);
+        _thumbs.Invalidate(frameId);
+        _stackBake.NoteFrameChanged(frameId);
+        _prewarm.Flush();
+    }
+
+    /// <inheritdoc cref="InvalidateFrameRender"/>
+    private void ClearFrameRenders()
+    {
+        _cache.Clear();
+        _tileFrames.Clear();
+        // Correctness does not need this — every flatten key carries the stamp of
+        // tiles that no longer exist, so none of them can be found again. It is
+        // here because "the whole document changed" is the moment those bytes are
+        // certainly dead, and waiting for an LRU to notice would hold a document's
+        // worth of viewports across a document switch.
+        _tileFlats.Clear();
+        _thumbs.Clear();
+        _stackBake.Reset();
+        _prewarm.Flush();
+    }
+
+    /// <summary>
+    /// Commit one stroke's pixels incrementally — onto the cached bitmap, and
+    /// into the cached tiles when playback holds this frame as tiles. Both
+    /// are invariant 6's shape: work proportional to the stroke.
+    /// </summary>
+    private void AppendToFrameRender(Lightbox.Core.Documents.Frame target, Stroke stroke)
+    {
+        // Unconditionally, now that playback warms the tile cache on bounded
+        // documents too: a no-op for a frame tiles do not hold, and a stroke
+        // tiles cannot say evicts the frame's entry itself. Skipping this on
+        // the bounded arm would leave playback-warmed tiles one stroke stale
+        // — the next play would show the drawing without its newest line.
+        // A warm in flight was started from this frame's record as it stood a
+        // stroke ago. The bitmap arm below caches the frame either way, so a
+        // stale bitmap warm would be refused on arrival — but the tile arm
+        // returns without caching anything, and a stale tile warm would then
+        // install a version of the drawing missing its newest line. Flushing is
+        // free here: warms are only ever requested while playing.
+        _prewarm.Flush();
+        _tileFrames.Append(target, stroke, Scene.Width, Scene.Height);
+        FrameRasterizer.Append(_cache.Get(target, Scene.Width, Scene.Height), stroke);
+        // Almost always a no-op — the active layer's own segment is never
+        // baked — but the same Frame can be exposed on another layer too, and
+        // a bake covering that layer would otherwise keep the pre-stroke
+        // pixels. Two hash lookups buys never having to think about it.
+        _stackBake.NoteFrameChanged(target.Id);
+    }
+
+    /// <summary>
     /// Hold every cached bitmap a published pass list borrows, and give back the
     /// release that lets go of them.
     /// </summary>
@@ -375,14 +514,41 @@ public partial class MainViewModel
         };
     }
 
+    /// <summary>
+    /// Who published while the clock was running (B178) — the counter its
+    /// entry asks for instead of another change to the publish path. Declared
+    /// in this partial because only the publish path writes it.
+    /// </summary>
+    private readonly PublishTally _publishTally = new();
+
+    /// <inheritdoc cref="_publishTally"/>
+    internal PublishTally ReportPublishTally => _publishTally;
+
     /// <summary>Composite the scene for the current playhead and hand it to the view.</summary>
-    public void PublishSnapshot()
+    /// <param name="publisher">
+    /// Compiler-stamped name of the member that asked, for B178's per-caller
+    /// tally. Never pass it by hand — the value's worth is that it cannot lie
+    /// about where the call came from.
+    /// </param>
+    public void PublishSnapshot(
+        [System.Runtime.CompilerServices.CallerMemberName] string publisher = "")
     {
+        // B178: publishing outran drawing 1.5× in the field capture — 757
+        // published against 339 ticks — and which of PublishSnapshot's 45 call
+        // sites supply the surplus is a question for a counter, not a grep.
+        // Tallied during playback only, so the table is the tick's surplus
+        // rather than thousands of legitimate pointer publishes.
+        if (IsPlaying) _publishTally.Note(publisher);
+
         // Any publish satisfies a deferred one — the snapshot it hands over is
         // built from the current state, which includes whatever the deferral
         // was waiting to show.
         _publish.WaitingForPresent = false;
         _publish.LastPublishTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+
+        // Belt to the release at the end of this method: if an exception left
+        // holds behind, the next publish must not stack a second set on top.
+        ReleaseFetchHolds();
 
         var scene = Scene;
 
@@ -449,25 +615,28 @@ public partial class MainViewModel
             // publish happens per pointer event while drawing.
             _passTransformSplit ??= TransformSplitFor);
 
-        var built = ScenePassBuilder.Build(scene, passState, _cache, _tileFallbacks, live);
-        var passes = built.Passes;
-        var activeStart = built.ActiveStart;
-        var activeEnd = built.ActiveEnd;
+        var built = ScenePassBuilder.Describe(scene, passState, _cache, _tileFallbacks, live);
         var tileNativeDoc = built.TileNative;
 
-        // Fold the layers that are not being drawn on into two baked bitmaps —
-        // see LayerStackBake for the whole argument. Held off during playback,
-        // where the pass list changes every frame and a bake could never be
-        // reused before it was stale. Downstream (the ring, the culled path,
-        // the tiled path) sees a shorter list of the same pixels.
+        // Fold the layers that are not being drawn on into two baked bitmaps,
+        // and materialize the rest — see LayerStackBake for the whole
+        // argument. The fold sits BETWEEN describing and fetching on purpose
+        // (B198): a spec under a valid bake is never handed to the cache, so
+        // its cel does not need to be resident at all, which is what dissolves
+        // the wall where one frame's working set outgrows the cache budget and
+        // every recomposite re-rasterizes what the last one evicted. Held off
+        // during playback, where the pass list changes every frame and a bake
+        // could never be reused before it was stale. Downstream (the ring, the
+        // culled path, the tiled path) sees a shorter list of the same pixels.
         // Both folds are asked every publish, even the one that will decline.
         // Each owns a "was I serving a bake last time" flag, and skipping the call
         // leaves that flag stale — so stopping playback could miss a fold
         // transition, and a missed transition is folded and unfolded pixels mixed
         // on one surface by a dirty-region patch. Declining is cheap; not asking
         // is not.
-        passes = _stackBake.Fold(
-            passes, activeStart, activeEnd, scene.Width, scene.Height, hold: IsPlaying,
+        var passes = _stackBake.Fold(
+            built, scene.Width, scene.Height, hold: IsPlaying,
+            _materializePass ??= MaterializePass,
             out var foldTransitioned);
 
         // B165. During playback the not-being-drawn-on segment changes every
@@ -520,6 +689,21 @@ public partial class MainViewModel
         var viewHeight = plan.ViewHeight;
         var info = plan.Info;
 
+        // B170's breadcrumb: if the next thing that happens is a native crash,
+        // the report can at least say whether a stroke was live and which
+        // compositor the last publish took — the two facts its diagnosis
+        // needs from the next sighting. Const strings on purpose; this runs
+        // per pointer event and an enum ToString allocates.
+        Services.DiagnosticLog.NoteRender(
+            live.BrushStroke is not null || live.Shape is not null
+                || live.Gradient is not null || live.Composite is not null,
+            plan.Route switch
+            {
+                ComposeRoute.Ring => "ring",
+                ComposeRoute.ViewportCulled => "culled (deferred)",
+                _ => "tiled (deferred)",
+            });
+
         var seq = _publish.NextSequence();
         var background = SceneRenderer.BackgroundOf(scene);
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -567,6 +751,7 @@ public partial class MainViewModel
             // publish and filled all of it, so nothing is lost by building it on
             // the render thread instead, where the graphics context is. The ring
             // and the tiled path stay here; see DeferredCompose for why.
+            AssertNoLiveScratchCrossesTheThread(passes);
             deferred = new DeferredCompose(passes, background, renderScale, info, cullRect);
             image = null;
             usedClip = cullRect;
@@ -641,6 +826,12 @@ public partial class MainViewModel
             image?.Dispose();
             if (flattenedOwned is not null) foreach (var b in flattenedOwned) b.Dispose();
         }
+
+        // The snapshot above holds its own pins on every bitmap still in the
+        // pass list, so the per-fetch holds have done their job: from here a
+        // later fetch evicting an earlier one is deferred disposal, not a
+        // use-after-free.
+        ReleaseFetchHolds();
 
         // Last, and after the frame is on its way to the screen: the worker
         // starts on the frames after this one while the artist is looking at
@@ -733,7 +924,9 @@ public partial class MainViewModel
                 // No live effect can be in progress: playback abandons a stroke
                 // in flight, which is what makes this false rather than a guess.
                 var why = tileNativeDoc
-                    ? TileFallback.Reason(frame, scene.Camera is not null, true, liveEffectHere: false)
+                    ? TileFallback.Reason(
+                        frame, scene.Camera is not null, true, liveEffectHere: false,
+                        posed: _cache.Rig.IsPosed(frame))
                     : TileFallbackReason.NoViewport;
 
                 if (why == TileFallbackReason.None)

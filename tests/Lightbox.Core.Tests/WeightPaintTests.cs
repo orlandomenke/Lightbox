@@ -170,4 +170,90 @@ public class WeightPaintTests
         Assert.Equal(280, m.X, 9);
         Assert.Equal(250, m.Y, 9);
     }
+
+    // ---- painting on the posed drawing --------------------------------------------
+
+    [Fact]
+    public void ADabHitsThePointWhereItIsDrawnNotWhereItRests()
+    {
+        var stroke = Line();
+        // The drawing on screen is posed: every point shifted (+100, +50).
+        var posed = stroke.Points.Select(p => p with { X = p.X + 100, Y = p.Y + 50 }).ToList();
+
+        // A dab where the artist sees point 2 — its POSED position.
+        var changed = WeightPaint.Apply(
+            stroke, "arm", cx: 120, cy: 50, radius: 12, strength: 1, WeightBrushMode.Add,
+            hitPoints: posed);
+
+        Assert.True(changed);
+        // The weight lands on the same index the artist aimed at, and the
+        // rest-position neighbourhood of that dab (points 0..4 at y=0) is
+        // untouched by the dab's rest-space coordinates.
+        Assert.Equal(1, stroke.Weights![0].WeightAt(2), 9);
+        Assert.Equal(0, stroke.Weights![0].WeightAt(0), 9);
+
+        // And the same dab against the rest positions misses everything —
+        // which is what painting on a posed drawing used to do.
+        var untouched = Line();
+        Assert.False(WeightPaint.Apply(
+            untouched, "arm", cx: 120, cy: 50, radius: 12, strength: 1, WeightBrushMode.Add));
+    }
+
+    [Fact]
+    public void AStaleHitListIsIgnoredRatherThanMisread()
+    {
+        var stroke = Line(5);
+        // Three positions for a five-point stroke: the caller's pose is stale
+        // (a point was added mid-gesture). Index arithmetic against it would
+        // paint the wrong points, so the brush falls back to rest.
+        var stale = Line(3).Points;
+
+        var changed = WeightPaint.Apply(
+            stroke, "arm", cx: 20, cy: 0, radius: 12, strength: 1, WeightBrushMode.Add,
+            hitPoints: stale);
+
+        Assert.True(changed);
+        Assert.Equal(1, stroke.Weights![0].WeightAt(2), 9);
+    }
+
+    [Fact]
+    public void TheMirroredDabLandsOnThePairsPosedLimb()
+    {
+        // Two mirrored bones about x=100: hip.l at (60,0), hip.r at (140,0).
+        var armature = new Armature();
+        var left = new Bone { Name = "hip.l", X = 60, Y = 0, Length = 30 };
+        var right = new Bone { Name = "hip.r", X = 140, Y = 0, Length = 30 };
+        armature.Bones.Add(left);
+        armature.Bones.Add(right);
+
+        // Identity deltas: posed mirroring must be exactly the rest mirror.
+        var identity = new Dictionary<string, RigidDelta>();
+        var atRest = WeightPaint.Mirror(armature, left, right, 70, 10)!.Value;
+        var posedSame = WeightPaint.MirrorPosed(armature, left, right, identity, 70, 10)!.Value;
+        Assert.Equal(atRest.X, posedSame.X, 9);
+        Assert.Equal(atRest.Y, posedSame.Y, 9);
+
+        // Pose the pair apart: left carried +0+20, right carried +0-40. A dab
+        // made at the LEFT limb's posed position must come out at the RIGHT
+        // limb's posed position — the rest mirror, ridden out on the pair's
+        // own motion.
+        var deltas = new Dictionary<string, RigidDelta>
+        {
+            [left.Id] = new RigidDelta(1, 0, 0, 20),
+            [right.Id] = new RigidDelta(1, 0, 0, -40),
+        };
+        var m = WeightPaint.MirrorPosed(armature, left, right, deltas, 70, 10 + 20)!.Value;
+        Assert.Equal(130, m.X, 9);          // rest mirror of x=70 about x=100
+        Assert.Equal(10 - 40, m.Y, 9);      // the rest y, carried by the pair's delta
+    }
+
+    [Fact]
+    public void UnapplyInvertsApplyExactly()
+    {
+        var delta = new RigidDelta(Math.Cos(0.7), Math.Sin(0.7), 12.5, -3.25);
+        var (px, py) = delta.Apply(41.5, -17.25);
+        var (x, y) = delta.Unapply(px, py);
+        Assert.Equal(41.5, x, 12);
+        Assert.Equal(-17.25, y, 12);
+    }
 }

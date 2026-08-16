@@ -8,7 +8,20 @@ public sealed class SelectionManager
 {
     /// <summary>Currently selected object IDs by category.</summary>
     private readonly HashSet<string> _selectedPlacementIds = [];
-    private readonly HashSet<int> _selectedGuideIndices = [];
+
+    /// <summary>
+    /// Guides picked on the canvas, by <c>Guide.Id</c>.
+    /// </summary>
+    /// <remarks>
+    /// <b>B215.</b> By id for the reason the stroke set below gives at length,
+    /// and it applied here all along: <c>RemoveGuide</c> exists, so a selection
+    /// held by position comes to mean a different guide the moment one before
+    /// it goes — and an undo replaces the whole list, which
+    /// <c>MainViewModel.SelectedGuides</c> already had to work around by
+    /// resolving to references before a drag rather than during one.
+    /// </remarks>
+    private readonly HashSet<string> _selectedGuideIds = [];
+
     private readonly HashSet<int> _selectedRefBoxIndices = [];
     private readonly HashSet<string> _selectedAnchorIds = [];
     private readonly HashSet<string> _selectedShapeIds = [];
@@ -30,16 +43,16 @@ public sealed class SelectionManager
     public event Action? SelectionChanged;
 
     /// <summary>True if there are any selected objects.</summary>
-    public bool HasSelection => _selectedPlacementIds.Count > 0 || _selectedGuideIndices.Count > 0 || _selectedRefBoxIndices.Count > 0 || _selectedAnchorIds.Count > 0 || _selectedShapeIds.Count > 0 || _selectedStrokeIds.Count > 0;
+    public bool HasSelection => _selectedPlacementIds.Count > 0 || _selectedGuideIds.Count > 0 || _selectedRefBoxIndices.Count > 0 || _selectedAnchorIds.Count > 0 || _selectedShapeIds.Count > 0 || _selectedStrokeIds.Count > 0;
 
     /// <summary>Number of selected objects across all types.</summary>
-    public int SelectionCount => _selectedPlacementIds.Count + _selectedGuideIndices.Count + _selectedRefBoxIndices.Count + _selectedAnchorIds.Count + _selectedShapeIds.Count + _selectedStrokeIds.Count;
+    public int SelectionCount => _selectedPlacementIds.Count + _selectedGuideIds.Count + _selectedRefBoxIndices.Count + _selectedAnchorIds.Count + _selectedShapeIds.Count + _selectedStrokeIds.Count;
 
     /// <summary>Get all selected placement IDs.</summary>
     public IReadOnlySet<string> SelectedPlacementIds => _selectedPlacementIds;
 
-    /// <summary>Get all selected guide indices.</summary>
-    public IReadOnlySet<int> SelectedGuideIndices => _selectedGuideIndices;
+    /// <summary>Get all selected guide ids.</summary>
+    public IReadOnlySet<string> SelectedGuideIds => _selectedGuideIds;
 
     /// <summary>Get all selected reference box indices.</summary>
     public IReadOnlySet<int> SelectedRefBoxIndices => _selectedRefBoxIndices;
@@ -60,7 +73,7 @@ public sealed class SelectionManager
     public bool IsPlacementSelected(string placementId) => _selectedPlacementIds.Contains(placementId);
 
     /// <summary>Check if a guide is selected.</summary>
-    public bool IsGuideSelected(int guideIndex) => _selectedGuideIndices.Contains(guideIndex);
+    public bool IsGuideSelected(string guideId) => _selectedGuideIds.Contains(guideId);
 
     /// <summary>Check if a reference box is selected.</summary>
     public bool IsRefBoxSelected(int boxIndex) => _selectedRefBoxIndices.Contains(boxIndex);
@@ -105,21 +118,37 @@ public sealed class SelectionManager
     }
 
     /// <summary>Select a single guide (clears other selections).</summary>
-    public void SelectGuide(int guideIndex)
+    public void SelectGuide(string guideId)
     {
-        if (_selectedGuideIndices.Count == 1 && _selectedGuideIndices.Contains(guideIndex))
+        if (_selectedGuideIds.Count == 1 && _selectedGuideIds.Contains(guideId))
             return;
 
         ClearAllSelections();
-        _selectedGuideIndices.Add(guideIndex);
+        _selectedGuideIds.Add(guideId);
         SelectionChanged?.Invoke();
     }
 
     /// <summary>Add a guide to selection.</summary>
-    public void AddGuideToSelection(int guideIndex)
+    public void AddGuideToSelection(string guideId)
     {
-        if (_selectedGuideIndices.Add(guideIndex))
+        if (_selectedGuideIds.Add(guideId))
             SelectionChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Drop the guide selection, leaving every other category alone.
+    /// </summary>
+    /// <remarks>
+    /// A press that missed every guide is what calls this, and it has said
+    /// nothing about the placement or the anchor that may also be picked — so
+    /// <see cref="ClearAllSelections"/> would be answering a question nobody
+    /// asked.
+    /// </remarks>
+    public void ClearGuideSelection()
+    {
+        if (_selectedGuideIds.Count == 0) return;
+        _selectedGuideIds.Clear();
+        SelectionChanged?.Invoke();
     }
 
     /// <summary>Select a single reference box (clears other selections).</summary>
@@ -222,7 +251,7 @@ public sealed class SelectionManager
         bool hadSelection = HasSelection;
         _selectedStrokeIds.Clear();
         _selectedPlacementIds.Clear();
-        _selectedGuideIndices.Clear();
+        _selectedGuideIds.Clear();
         _selectedRefBoxIndices.Clear();
         _selectedAnchorIds.Clear();
         _selectedShapeIds.Clear();
@@ -245,17 +274,17 @@ public sealed class SelectionManager
     }
 
     /// <summary>Handle guide selection with modifiers.</summary>
-    public void SelectGuideWithModifiers(int guideIndex, bool shift, bool alt)
+    public void SelectGuideWithModifiers(string guideId, bool shift, bool alt)
     {
         if (alt)
         {
-            if (_selectedGuideIndices.Remove(guideIndex))
+            if (_selectedGuideIds.Remove(guideId))
                 SelectionChanged?.Invoke();
         }
         else if (shift)
-            AddGuideToSelection(guideIndex);
+            AddGuideToSelection(guideId);
         else
-            SelectGuide(guideIndex);
+            SelectGuide(guideId);
     }
 
     /// <summary>Handle reference box selection with modifiers.</summary>

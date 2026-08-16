@@ -27,14 +27,67 @@ namespace Lightbox.Raster;
 /// underneath it — so the reversal is explicit here and pinned by a test.
 /// </para>
 /// <para>
-/// <b>Rule two: ink before erasers.</b> An eraser stroke is a real record entry
-/// with real geometry, and it has to be selectable or a stray one could never be
-/// removed. But its mark is the <em>absence</em> of ink, so if an artist clicks
-/// where a line is visible and gets the eraser that cut across it, the
-/// application appears to have selected nothing. So ink strokes are offered
-/// first — topmost-first among themselves — and erasers only after them. You
-/// pick what you can see; if the only thing there is an eraser, you get the
-/// eraser.
+/// <b>Rule two: an erasure is not an object.</b> An eraser stroke is a real
+/// record entry with real geometry, and for a while that was taken to mean it
+/// must be selectable "or a stray one could never be removed". It is the wrong
+/// conclusion, and B232 is what it cost: erase a line, click where the line
+/// used to be, press Delete — and the line comes back, because deleting the
+/// eraser deletes the erasure. That reads as the application undoing something
+/// nobody asked it to undo. An eraser's mark is the <em>absence</em> of ink, so
+/// there is nothing there to take hold of: <see cref="ToolKind.Eraser"/> and
+/// <see cref="ToolKind.ClearRegion"/> — the path form and the area form of the
+/// same act — are never offered by a click or caught by a marquee. Undo is what
+/// reverses an erasure, which is where an artist already looks for it.
+/// </para>
+/// <para>
+/// The cost is stated rather than hidden: an eraser stroke that erased nothing
+/// can now only be removed by undoing back past it. It leaves no mark, so there
+/// is nothing on the canvas to point at and no way to have meant it — which is
+/// the same reason it cannot be clicked.
+/// </para>
+/// <para>
+/// <b>Rule three: erased ink is not there either, and this is the half that is
+/// easy to miss.</b> Picking reads the <em>record</em>, and the record still
+/// says a rubbed-out line runs through the gap the eraser left — so hiding the
+/// eraser alone leaves the click landing on a line nobody can see, which is the
+/// same complaint wearing the other hat. A point is only offered to a stroke if
+/// no <em>later</em> erasure has taken the paint away there; a line erased along
+/// its whole length is therefore unreachable by any tool that goes through this
+/// class, which is every one of them.
+/// </para>
+/// <para>
+/// Three things bound rule three, all in the safe direction — when in doubt the
+/// paint is treated as still there, because failing to offer a mark an artist
+/// can plainly see is much worse than offering one they cannot:
+/// </para>
+/// <list type="bullet">
+/// <item><b>Partial erasures do not count.</b> <c>Brush.Opacity</c> is the alpha
+/// the whole erasing layer composites at, so an eraser below 1 leaves paint
+/// behind by construction — it faded the line rather than removing it, and a
+/// faded line is still a line to click on.</item>
+/// <item><b>A clipped erasure only erases inside its clip</b>, resolved through
+/// <see cref="ClipRegionRegistry"/> the same way the render resolves it. Feather
+/// is ignored, so a softened edge counts as not-erased.</item>
+/// <item><b>The grab tolerance is not extended to erasures.</b> Tolerance is a
+/// courtesy to a click, not paint — lending it to an eraser would eat a sliver
+/// of visible ink either side of every rub.</item>
+/// </list>
+/// <para>
+/// A marquee applies rule three per stroke rather than per point: it drops what
+/// is <em>wholly</em> erased and keeps what is partly erased, because a
+/// half-rubbed line is still on the canvas and boxing any part of it is a
+/// reasonable way to ask for it.
+/// </para>
+/// <para>
+/// <b>This is the second place that computes what an erasure left behind, and
+/// the two are meant to differ.</b> <c>StrokeRecordCleaner</c> answers the same
+/// question for the inbetweener, which resurrects erased artwork if it matches
+/// on the raw record — but it answers it as a <em>whole-stroke judgement with a
+/// tolerance</em> (85% of 32 resampled points, so a nearly-erased line is close
+/// enough to gone for a tween). A click cannot use a tolerance: it needs to know
+/// about the one point under the cursor, and "85% erased" says nothing about
+/// whether <em>this</em> pixel is ink. Sharing the code would mean one of the
+/// two callers getting an answer to a question it did not ask.
 /// </para>
 /// <para>
 /// <b>The index carries reach, not repaint bounds — and it matters here.</b>
@@ -57,8 +110,8 @@ namespace Lightbox.Raster;
 public static class StrokePicker
 {
     /// <summary>
-    /// Record positions of every stroke under the point, nearest-of-the-topmost
-    /// first, with erasers after ink.
+    /// Record positions of every stroke under the point, topmost first. Erasures
+    /// are not among them — see rule two.
     /// </summary>
     /// <param name="tolerance">
     /// Extra grab distance in <em>document</em> units, on top of the stroke's own
@@ -73,7 +126,7 @@ public static class StrokePicker
         double tolerance)
     {
         var ink = new List<int>();
-        var erasers = new List<int>();
+        var lastErasure = -1;
 
         var reach = (int)Math.Ceiling(tolerance) + 1;
         var box = new SKRectI((int)x - reach, (int)y - reach, (int)x + reach + 1, (int)y + reach + 1);
@@ -82,14 +135,22 @@ public static class StrokePicker
         {
             if (position < 0 || position >= strokes.Count) continue;
             var stroke = strokes[position];
+            if (!IsPickable(stroke))
+            {
+                if (ErasesPoint(stroke, x, y)) lastErasure = position;
+                continue;
+            }
             if (!Covers(stroke, x, y, tolerance)) continue;
-            (stroke.Tool == ToolKind.Eraser ? erasers : ink).Add(position);
+            ink.Add(position);
         }
+
+        // Rule three. Ascending in, so anything earlier than the last erasure to
+        // pass through here has had its paint taken away at this point — the
+        // record still holds the line, and the canvas does not.
+        if (lastErasure >= 0) ink.RemoveAll(position => position < lastErasure);
 
         // Ascending in, topmost out — see rule one in the class remarks.
         ink.Reverse();
-        erasers.Reverse();
-        ink.AddRange(erasers);
         return ink;
     }
 
@@ -126,12 +187,124 @@ public static class StrokePicker
         if (box.Width <= 0 || box.Height <= 0) return [];
 
         var caught = new List<int>();
+        var erasures = ErasurePositions(strokes);
         foreach (var position in index.Intersecting(box))
         {
             if (position < 0 || position >= strokes.Count) continue;
-            if (Touches(strokes[position], normalised)) caught.Add(position);
+            // Rule two applies to a sweep as much as to a click, and more
+            // quietly: a marquee that swallowed the eraser lying under the ink
+            // would resurrect what it erased on the next Delete, with nothing
+            // on screen to say the eraser had been caught.
+            if (!IsPickable(strokes[position])) continue;
+            if (!Touches(strokes[position], normalised)) continue;
+            // Rule three, per stroke: a wholly rubbed-out line is not on the
+            // canvas, so a box drawn over where it used to be catches nothing.
+            if (!SurvivesAnywhere(strokes, erasures, position)) continue;
+            caught.Add(position);
         }
         return caught;
+    }
+
+    /// <summary>
+    /// Is this stroke something an artist can take hold of?
+    /// </summary>
+    /// <remarks>
+    /// Rule two, in one place so a click and a marquee cannot disagree about it.
+    /// The two erasing kinds are grouped here the same way
+    /// <see cref="LayerMerge"/> and <c>MotionTrail</c> already group them:
+    /// separate kinds because they are <em>rendered</em> differently — a path
+    /// walked laying dabs versus a filled contour — and one thing as far as
+    /// anything downstream of the render is concerned.
+    /// </remarks>
+    private static bool IsPickable(Stroke stroke) =>
+        stroke.Tool is not (ToolKind.Eraser or ToolKind.ClearRegion);
+
+    /// <summary>
+    /// Has this erasure taken the paint away at this exact point?
+    /// </summary>
+    /// <remarks>
+    /// The geometry is read the same way the render reads it — an eraser is a
+    /// path walked laying dabs, a cleared region is an even-odd contour — and
+    /// the three limits in rule three are applied here rather than at the two
+    /// call sites, so a click and a marquee cannot come to different answers
+    /// about the same rub.
+    /// </remarks>
+    private static bool ErasesPoint(Stroke stroke, double x, double y)
+    {
+        if (stroke.Points.Count == 0) return false;
+
+        // Below full opacity the erasing layer composites at less than 1, so
+        // paint survives underneath it by construction. That is a fade, and a
+        // faded line is still a line.
+        if (stroke.Brush.Opacity < 1) return false;
+
+        if (stroke.ClipId is { } clip)
+        {
+            // Unresolvable means unknown, and unknown means not erased — the
+            // safe direction. Feather is ignored for the same reason: a softened
+            // edge only partly erases, so the hard contour is the honest limit.
+            if (ClipRegionRegistry.Resolve(clip) is not { } region) return false;
+            if (!GeometryOps.ContainsEvenOdd(region.Contours, x, y)) return false;
+        }
+
+        if (stroke.Tool == ToolKind.ClearRegion)
+        {
+            var contours = new List<IReadOnlyList<StrokePoint>> { stroke.Points };
+            if (stroke.Holes is not null) contours.AddRange(stroke.Holes);
+            return GeometryOps.ContainsEvenOdd(contours, x, y);
+        }
+
+        // No tolerance: half the brush is what the rub reached, and lending it
+        // the click's grab distance would eat visible ink either side of it.
+        return NearPolyline(stroke.Points, x, y, stroke.Brush.Size / 2, closed: false);
+    }
+
+    /// <summary>Where the erasures are in the record, ascending.</summary>
+    /// <remarks>
+    /// Gathered once per marquee rather than per caught stroke. A frame holds
+    /// tens of erasures against hundreds of strokes, so this is the cheap end of
+    /// the sweep — and the common case, a frame with none, makes
+    /// <see cref="SurvivesAnywhere"/> free.
+    /// </remarks>
+    private static List<int> ErasurePositions(IReadOnlyList<Stroke> strokes)
+    {
+        var positions = new List<int>();
+        for (var i = 0; i < strokes.Count; i++)
+        {
+            if (!IsPickable(strokes[i])) positions.Add(i);
+        }
+        return positions;
+    }
+
+    /// <summary>
+    /// Is any part of this stroke still on the canvas?
+    /// </summary>
+    /// <remarks>
+    /// Sampled at the stroke's own points, which is the same resolution the
+    /// record holds it at, and it exits on the first survivor — so a stroke
+    /// nothing has erased costs one point against the erasures that come after
+    /// it, and a frame with no erasures costs nothing at all.
+    /// </remarks>
+    private static bool SurvivesAnywhere(
+        IReadOnlyList<Stroke> strokes, List<int> erasures, int position)
+    {
+        // Ascending, so the first erasure past this stroke starts the range and
+        // there is nothing to allocate. Written as loops rather than LINQ for
+        // that reason — this runs per caught stroke per point.
+        var first = 0;
+        while (first < erasures.Count && erasures[first] <= position) first++;
+        if (first == erasures.Count) return true;
+
+        foreach (var point in strokes[position].Points)
+        {
+            var erased = false;
+            for (var i = first; i < erasures.Count && !erased; i++)
+            {
+                erased = ErasesPoint(strokes[erasures[i]], point.X, point.Y);
+            }
+            if (!erased) return true;
+        }
+        return false;
     }
 
     /// <summary>

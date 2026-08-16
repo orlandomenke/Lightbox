@@ -52,6 +52,29 @@ internal static class DiagnosticLog
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
         ?? "unknown";
 
+    // ---- render breadcrumb (B170) --------------------------------------------
+
+    private static bool _renderStrokeLive;
+    private static string _renderRoute = "none yet";
+
+    /// <summary>
+    /// What the render pipeline was doing, for the crash report.
+    /// </summary>
+    /// <remarks>
+    /// B170 — "Lightbox sometimes dies while erasing" — has no repro, and its
+    /// diagnosis names a hazard that only opens on unusual publishes: a live
+    /// stroke whose scratch crosses to the render thread. The two facts that
+    /// would turn the next sighting into evidence are whether a stroke was
+    /// live and which route the last publish took, so the publish path leaves
+    /// them here, as plain field writes (this runs per pointer event — no
+    /// formatting, no allocation until a crash actually happens).
+    /// </remarks>
+    public static void NoteRender(bool strokeLive, string route)
+    {
+        _renderStrokeLive = strokeLive;
+        _renderRoute = route;
+    }
+
     /// <summary>
     /// Record a crash, and leave a marker so the next run can mention it.
     /// </summary>
@@ -75,6 +98,8 @@ internal static class DiagnosticLog
                 $"os      {Environment.OSVersion}",
                 $"runtime {Environment.Version}",
                 $"where   {context}",
+                $"render  last publish took the {_renderRoute} route, "
+                    + (_renderStrokeLive ? "with a stroke in flight" : "no stroke in flight"),
                 "",
                 ex.ToString(),
                 "",

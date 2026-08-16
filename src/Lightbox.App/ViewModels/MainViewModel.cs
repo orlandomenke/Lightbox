@@ -190,52 +190,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Timeline thumbnails, keyed by drawing rather than by cell (B202).</summary>
     private readonly ThumbnailCache _thumbs = new();
 
-    /// <summary>Every frame mutation goes through here, whichever cache holds it.</summary>
-    private void InvalidateFrameRender(string frameId)
-    {
-        _cache.Invalidate(frameId);
-        _tileFrames.Invalidate(frameId);
-        _thumbs.Invalidate(frameId);
-        _prewarm.Flush();
-    }
-
-    /// <inheritdoc cref="InvalidateFrameRender"/>
-    private void ClearFrameRenders()
-    {
-        _cache.Clear();
-        _tileFrames.Clear();
-        // Correctness does not need this — every flatten key carries the stamp of
-        // tiles that no longer exist, so none of them can be found again. It is
-        // here because "the whole document changed" is the moment those bytes are
-        // certainly dead, and waiting for an LRU to notice would hold a document's
-        // worth of viewports across a document switch.
-        _tileFlats.Clear();
-        _thumbs.Clear();
-        _prewarm.Flush();
-    }
-
-    /// <summary>
-    /// Commit one stroke's pixels incrementally — onto the cached bitmap, and
-    /// into the cached tiles when playback holds this frame as tiles. Both
-    /// are invariant 6's shape: work proportional to the stroke.
-    /// </summary>
-    private void AppendToFrameRender(Lightbox.Core.Documents.Frame target, Stroke stroke)
-    {
-        // Unconditionally, now that playback warms the tile cache on bounded
-        // documents too: a no-op for a frame tiles do not hold, and a stroke
-        // tiles cannot say evicts the frame's entry itself. Skipping this on
-        // the bounded arm would leave playback-warmed tiles one stroke stale
-        // — the next play would show the drawing without its newest line.
-        // A warm in flight was started from this frame's record as it stood a
-        // stroke ago. The bitmap arm below caches the frame either way, so a
-        // stale bitmap warm would be refused on arrival — but the tile arm
-        // returns without caching anything, and a stale tile warm would then
-        // install a version of the drawing missing its newest line. Flushing is
-        // free here: warms are only ever requested while playing.
-        _prewarm.Flush();
-        _tileFrames.Append(target, stroke, Scene.Width, Scene.Height);
-        FrameRasterizer.Append(_cache.Get(target, Scene.Width, Scene.Height), stroke);
-    }
+    // InvalidateFrameRender / ClearFrameRenders / AppendToFrameRender — the
+    // render-cache funnel — live in MainViewModel.Rendering.cs with the
+    // publish pipeline they serve.
 
     private readonly StrokeBuilder _strokeBuilder = new();
     private readonly PlaybackClock _clock = new();
@@ -252,14 +209,19 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// Baked below-active/above-active layer stacks, so a repaint while
-    /// drawing blends three passes instead of one per layer. Self-invalidating
-    /// by key (see its remarks); the only explicit resets are the wholesale
-    /// ones where the document itself changes under it.
+    /// drawing blends three passes instead of one per layer — and, since the
+    /// key became the described pass list, so the cels under a valid bake are
+    /// never fetched at all (B198). Structural changes invalidate through the
+    /// key; content changes arrive through <c>InvalidateFrameRender</c>, which
+    /// is why that funnel must not grow bypasses.
     /// </summary>
     private readonly LayerStackBake _stackBake = new();
 
     /// <summary>The bake's counters, for tests and the render report.</summary>
     internal LayerStackBake StackBake => _stackBake;
+
+    /// <summary>The frame cache's counters, for the residency tests.</summary>
+    internal FrameBitmapCache FrameCache => _cache;
 
     /// <summary>Cache of TileStores by bitmap identity to avoid reconverting unchanged frames.</summary>
 

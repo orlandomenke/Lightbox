@@ -41,6 +41,22 @@ public partial class MainViewModel
     /// <summary>The isolated stroke's id, for the canvas to grey around.</summary>
     public string? IsolatedStrokeId => _pathEdit?.StrokeId;
 
+    /// <summary>
+    /// How many points the isolated line has, for the options bar.
+    /// </summary>
+    /// <remarks>
+    /// <b>B221: the count is half of what Simplify is.</b> The command's own
+    /// doc says so — "Simplify with no number is a button an artist presses and
+    /// then squints at the canvas to find out what it did" — and until the bar
+    /// existed the number had nowhere to be shown, so pressing the (unbound)
+    /// shortcut told you the before and after in a status line and nothing told
+    /// you where you had got to.
+    /// </remarks>
+    public string IsolatedLineSummary =>
+        _pathEdit is { } session
+            ? session.NodeCount == 1 ? "1 point" : $"{session.NodeCount} points"
+            : "";
+
     /// <summary>Raised when isolation begins or ends, so the canvas can redraw.</summary>
     public event Action? PathEditChanged;
 
@@ -97,6 +113,7 @@ public partial class MainViewModel
         PathEditChanged?.Invoke();
         OnPropertyChanged(nameof(PathEditActive));
         OnPropertyChanged(nameof(IsolatedStrokeId));
+        OnPropertyChanged(nameof(IsolatedLineSummary));
         PublishSnapshot();
         return true;
     }
@@ -120,6 +137,7 @@ public partial class MainViewModel
         PathEditChanged?.Invoke();
         OnPropertyChanged(nameof(PathEditActive));
         OnPropertyChanged(nameof(IsolatedStrokeId));
+        OnPropertyChanged(nameof(IsolatedLineSummary));
         PublishSnapshot();
     }
 
@@ -233,9 +251,25 @@ public partial class MainViewModel
                 _pathEdit.PullHandlesTo(grabbed.Node, x, y);
             }
             // Every selected node, so a multi-node drag moves the shape rather
-            // than one point of it.
-            else if (_pathEdit.IsNodeSelected(grabbed.Node)) _pathEdit.MoveSelectedNodes(dx, dy);
-            else _pathEdit.MoveNode(grabbed.Node, dx, dy);
+            // than one point of it — and it moves by the raw delta, because a
+            // group has no one point that is "the" point to land on a guide.
+            else if (_pathEdit.SelectedNodes.Count > 1) _pathEdit.MoveSelectedNodes(dx, dy);
+            // B216. One node is a point being placed, so it snaps like every
+            // other placed point — the pen puts a node on a guide and the white
+            // arrow could not put that same node back on it.
+            //
+            // The delta is re-derived from where the node should END UP rather
+            // than snapping the pointer, because the grab has an offset: you
+            // catch a node slightly off its centre, and snapping the pointer
+            // would land the node that offset away from the guide.
+            //
+            // Split on the selection COUNT rather than on whether the grabbed
+            // node is selected, which is what the branch above used to ask.
+            // `GrabPathPart` selects whatever node it grabs, so by the time a
+            // drag runs the answer is always yes and the single-node arm was
+            // unreachable — the test for this landed on the lattice by accident
+            // and passed against the old code until its numbers were changed.
+            else _pathEdit.MoveNodeTo(grabbed.Node, SnappedPoint, dx, dy);
         }
         else
         {
@@ -264,10 +298,16 @@ public partial class MainViewModel
     public bool CommitPathEdit()
     {
         if (_pathEdit is not { Dirty: true } session) return false;
-        if (PaintTarget() is not { } frame) return false;
         if (!CanEdit(ActiveLayer, "reshape lines on it")) return false;
 
-        var strokeId = session.StrokeId;
+        // B207. The session picked its stroke off whatever the cel displays,
+        // which on a hold is the drawing it borrows; committing into that
+        // would move the line on the earlier frame too. Keying here rather
+        // than when the pen was picked up is the rule B206 settled: the
+        // record changes when an edit lands, never because a tool was chosen.
+        var ids = new List<string> { session.StrokeId };
+        if (KeyHeldCelForStrokeEdit(ids) is not { } frame) return false;
+        var strokeId = ids[0];
         var stroke = StrokesOf(frame).FirstOrDefault(s => s.Id == strokeId);
         if (stroke is null) return false;
 
@@ -319,7 +359,20 @@ public partial class MainViewModel
     /// </remarks>
     public double GrabWidthAt(double x, double y, double tolerance)
     {
+        // B217, and it is B172 one tool along: this returned -1 outside
+        // isolation and nothing in the Width tool's own path could enter one,
+        // so the tool was inert until the *black* arrow had opened the line by
+        // double-clicking it. A tool that only works as another tool's second
+        // step is not a tool.
+        //
+        // A single press, like the white arrow's, and for its reason: the
+        // double-click exists to stop a click reaching into geometry by
+        // accident on a tool where a click ordinarily means "take this whole
+        // thing". Changing a line's weight is all this tool does, so there is
+        // no accident to guard against and a second click would be a tax.
+        if (_pathEdit is null && !BeginPathEditAt(x, y, tolerance)) return -1;
         if (_pathEdit is not { } session) return -1;
+
         var (at, distance) = session.AlongAt(x, y);
         if (distance > tolerance) return -1;
 
@@ -404,6 +457,9 @@ public partial class MainViewModel
             return;
         }
         AiStatus = $"Simplified: {before} points to {session.NodeCount}.";
+        // The count on the bar is the whole point of pressing this, so it has
+        // to move with the line rather than only when a session opens.
+        OnPropertyChanged(nameof(IsolatedLineSummary));
         PathEditChanged?.Invoke();
     }
 
