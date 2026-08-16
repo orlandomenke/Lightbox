@@ -287,6 +287,27 @@ public class PaperFieldTests
         Assert.True(per < 25, $"warm 1600x1200 fill took {per:F2} ms");
     }
 
+    /// <summary>
+    /// How many 64x64 fills the small side is timed over.
+    /// </summary>
+    /// <remarks>
+    /// <b>B226: sized so the measurement is milliseconds, not microseconds.</b>
+    /// One 64x64 fill is ~3 µs, so the old 200 timed ~0.6 ms — small enough
+    /// that a single scheduler slice on a shared runner moves the number by
+    /// several times. 5,000 puts ~15 ms on the clock, which is the point of
+    /// timing a loop at all: the per-call cost has to be recovered from a total
+    /// that is large compared to the noise rather than comparable to it.
+    /// </remarks>
+    private const int SmallFills = 5_000;
+
+    /// <summary>How many 1024x1024 fills the large side is timed over.</summary>
+    /// <remarks>
+    /// One is ~0.34 ms, so 30 is ~10 ms — the same order as the small side's
+    /// total, which is what keeps the ratio a comparison of per-pixel cost
+    /// rather than of how long each loop happened to run.
+    /// </remarks>
+    private const int LargeFills = 30;
+
     [Fact]
     [Trait("Category", "Performance")]
     public void FillCostFollowsTheRegionNotTheCanvas()
@@ -294,25 +315,40 @@ public class PaperFieldTests
         // Invariant 6: a stroke that touches a small rect must not pay for
         // the sheet. Timing a 64x64 fill against a 1024x1024 one catches a
         // rewrite that quietly evaluates the whole field per call.
+        //
+        // B226: the counts are chosen so *both* sides are timed over
+        // milliseconds. This asserted the same ratio over 200 small fills —
+        // ~0.6 ms of real work — and a ratio whose denominator is three
+        // microseconds is not measuring the code, it is measuring the
+        // scheduler. On a shared CI runner that denominator inflated 5.6x
+        // while a faster CPU halved the numerator, and a ratio that reads
+        // 93-121x on a quiet machine came out at 9.3x against a 20x floor.
+        //
+        // The floor is deliberately unchanged: the honest fix for a
+        // measurement too small to trust is a bigger measurement, not a looser
+        // assertion. Loosening it would have kept the flake and weakened the
+        // invariant-6 guard the test exists for.
         PaperField.HeightAt(0, 0, PaperKind.ColdPress, Scale);
         var small = new float[64 * 64];
         var large = new float[1024 * 1024];
 
         for (var i = 0; i < 50; i++) PaperField.Fill(small, 64, 64, i, i, PaperKind.ColdPress, Scale);
         var sw = Stopwatch.StartNew();
-        for (var i = 0; i < 200; i++) PaperField.Fill(small, 64, 64, i, i, PaperKind.ColdPress, Scale);
+        for (var i = 0; i < SmallFills; i++) PaperField.Fill(small, 64, 64, i, i, PaperKind.ColdPress, Scale);
         sw.Stop();
-        var smallMs = sw.Elapsed.TotalMilliseconds / 200;
+        var smallMs = sw.Elapsed.TotalMilliseconds / SmallFills;
 
         PaperField.Fill(large, 1024, 1024, 0, 0, PaperKind.ColdPress, Scale);
         sw.Restart();
-        for (var i = 0; i < 10; i++) PaperField.Fill(large, 1024, 1024, i, i, PaperKind.ColdPress, Scale);
+        for (var i = 0; i < LargeFills; i++) PaperField.Fill(large, 1024, 1024, i, i, PaperKind.ColdPress, Scale);
         sw.Stop();
-        var largeMs = sw.Elapsed.TotalMilliseconds / 10;
+        var largeMs = sw.Elapsed.TotalMilliseconds / LargeFills;
 
         // 256x the pixels; anything under 20x is not region-proportional.
         Assert.True(largeMs > smallMs * 20,
-            $"64x64 took {smallMs:F4} ms and 1024x1024 took {largeMs:F4} ms — cost is not tracking the region");
+            $"64x64 took {smallMs:F4} ms and 1024x1024 took {largeMs:F4} ms "
+            + $"(ratio {largeMs / smallMs:F1}x over {SmallFills}/{LargeFills} fills) "
+            + "— cost is not tracking the region");
     }
 }
 
