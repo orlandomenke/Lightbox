@@ -33,6 +33,18 @@ public static class ArmatureOverlayPainter
     private static readonly SKColor SelectedColor = new(0xff, 0xff, 0xff);
 
     /// <summary>
+    /// The dark rim under every bone and handle — what makes the chrome read
+    /// on paper. White-means-selected was calibrated on a dark canvas, where
+    /// it measures 14:1; on the white paper most documents are it measured
+    /// <b>1.00:1</b> — the selected bone literally disappeared, and the green
+    /// and amber were little better (~1.8:1). Marching ants solve the same
+    /// problem the same way: a light line over a dark one is legible on any
+    /// ground. Translucent, so on dark canvases it fades into what is behind
+    /// it instead of fattening the chrome.
+    /// </summary>
+    private static readonly SKColor RimColor = new(0x20, 0x20, 0x20, 0xc8);
+
+    /// <summary>
     /// IK handles and poles: amber, so the thing an artist grabs to pose a
     /// limb is not the same green as the limb. A handle that looked like a
     /// bone would be findable only by knowing it was there, which is the
@@ -53,6 +65,13 @@ public static class ArmatureOverlayPainter
     public const float BoneBaseScreen = 4.5f;
 
     /// <summary>Paint the bones. Expects the canvas already in document space; null or empty draws nothing.</summary>
+    /// <remarks>
+    /// Ghosts first, then the live skeleton, whatever order the list arrived
+    /// in — a neighbouring pose is context and must never sit over the thing
+    /// being aimed at. Live bones draw over a dark rim (<see cref="RimColor"/>);
+    /// ghosts deliberately have none, and are outlines without handles: they
+    /// should recede, and a handle on a pose nobody can grab is a lie.
+    /// </remarks>
     public static void Paint(SKCanvas canvas, IReadOnlyList<BoneChrome>? bones, float scale)
     {
         if (bones is not { Count: > 0 }) return;
@@ -68,10 +87,23 @@ public static class ArmatureOverlayPainter
             Style = SKPaintStyle.Stroke,
             StrokeWidth = 1.5f * px,
         };
+        using var rim = new SKPaint
+        {
+            IsAntialias = true,
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 3.5f * px,
+            Color = RimColor,
+        };
 
+        foreach (var ghostPass in new[] { true, false })
         foreach (var bone in bones)
         {
-            var colour = bone.Selected ? SelectedColor : bone.IsHandle ? HandleColor : BoneColor;
+            var isGhost = bone.Ghost is not BoneGhost.None;
+            if (isGhost != ghostPass) continue;
+
+            var colour = isGhost
+                ? (bone.Ghost is BoneGhost.Before ? SceneRenderer.OnionPrevTint : SceneRenderer.OnionNextTint)
+                : bone.Selected ? SelectedColor : bone.IsHandle ? HandleColor : BoneColor;
 
             // The classic bone silhouette: a kite from a wide base at the
             // origin to a point at the tip, so direction reads at a glance.
@@ -87,6 +119,13 @@ public static class ArmatureOverlayPainter
                 path.LineTo((float)bone.X1, (float)bone.Y1);
                 path.LineTo((float)(bone.X0 + dx * 0.18 - nx), (float)(bone.Y0 + dy * 0.18 - ny));
                 path.Close();
+                if (isGhost)
+                {
+                    stroke.Color = colour.WithAlpha(0x96);
+                    canvas.DrawPath(path, stroke);
+                    continue;
+                }
+                canvas.DrawPath(path, rim);
                 fill.Color = colour.WithAlpha(0x50);
                 canvas.DrawPath(path, fill);
                 stroke.Color = colour;
@@ -95,8 +134,10 @@ public static class ArmatureOverlayPainter
 
             // Handles on both ends — filled at the origin (a joint), open at
             // the tip (a direction), matching what each grab does.
+            canvas.DrawCircle((float)bone.X0, (float)bone.Y0, handle * 0.8f, rim);
             fill.Color = colour;
             canvas.DrawCircle((float)bone.X0, (float)bone.Y0, handle * 0.8f, fill);
+            canvas.DrawCircle((float)bone.X1, (float)bone.Y1, handle * 0.8f, rim);
             stroke.Color = colour;
             canvas.DrawCircle((float)bone.X1, (float)bone.Y1, handle * 0.8f, stroke);
         }
