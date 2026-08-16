@@ -8,7 +8,7 @@ namespace Lightbox.App.Tests;
 
 /// <summary>
 /// The bone chrome's legibility and its onion skin — the 2026-08-16 visual
-/// audit's three findings (B233, B234, and the phase-1 armature onion skin).
+/// audit's three findings (B235, B234, and the phase-1 armature onion skin).
 /// </summary>
 /// <remarks>
 /// The audit measured rather than squinted: the selected bone is white, and
@@ -40,7 +40,7 @@ public class BoneChromeVisualTests
         return darkest;
     }
 
-    // ---- B233: the chrome reads on white paper --------------------------------------
+    // ---- B235: the chrome reads on white paper --------------------------------------
 
     [Fact]
     public void TheSelectedBoneIsVisibleOnWhitePaper()

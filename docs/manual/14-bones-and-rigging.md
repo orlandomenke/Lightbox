@@ -209,6 +209,28 @@ A fix belongs to **the drawing**, so it works for the cutout way of animating,
 where a limb is one drawing you reuse across the whole sequence. It is not a
 tool for correcting two hundred hand-drawn frames.
 
+## Jiggle — secondary motion
+
+Some motion nobody should have to key: the tip of a tail arriving late, ears
+that carry on after the head stops, an antenna that will not sit still. Tick
+**Jiggle** on a bone and it follows the motion driving it through a spring —
+lagging behind, swinging past, settling.
+
+- **Catch up** is how hard the bone is pulled toward where the pose wants
+  it. Low is a whippy antenna; high follows almost immediately.
+- **Settle** is how quickly the swing dies. Low keeps it bouncing; high is a
+  heavy tail that lands at once.
+- The swing is computed **from the pose track, one step per frame** — never
+  from the clock — so the same document renders the same swing on every
+  machine, every export, forever. Scrubbing backwards replays it exactly.
+- Children ride the swing, so one jiggled bone at the base of a chain moves
+  everything after it. Jiggle belongs on bones you turn by hand — a bone
+  driven by IK, a spline or a constraint gets its swing overwritten by the
+  solver, the same way hand-posing one does nothing.
+- Keys never record the swing: what you author is the pose, and the jiggle
+  is how the frames between and after breathe. **Baking** writes what you
+  see, swing included.
+
 ## Binding drawings to bones
 
 A stroke follows the rig once it has **weights** — how much each bone moves
@@ -249,5 +271,4 @@ each part of it.
   drawing re-renders with the corrected weights when the brush lifts; the
   heat dots follow live under it, dab by dab.
 
-*Planned:* secondary motion and rig export (`docs/DESIGN-bones.md` has the
-whole plan).
+*Planned:* rig export (`docs/DESIGN-bones.md` has the whole plan).
