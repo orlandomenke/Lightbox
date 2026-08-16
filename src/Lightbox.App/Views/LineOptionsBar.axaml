@@ -1,0 +1,37 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             x:Class="Lightbox.App.Views.LineOptionsBar"
+             x:DataType="vm:MainViewModel">
+  <!--
+    B221. Simplify has existed, worked and been documented since phase 4c, and
+    had no control anywhere: `lines.simplify` is in ShortcutMap with a null
+    gesture, so it was bindable and unbound, and the manual said it lived "in
+    the Arrow's options while you are inside a line" — a place nothing ever
+    drew. A capability reachable only by an artist who first goes and invents a
+    keybinding for it is one nobody finds.
+
+    A collaborator rather than more of MainWindow.axaml, which is on the
+    monolith ratchet — the trade BoneOptionsBar and GuideOptionsBar both made,
+    for the same reason. The DataContext is inherited.
+
+    Gated on the isolation session rather than on a tool, and that is the
+    correction the manual needed as much as the control was: simplifying acts on
+    the line you are *inside*, which is the white arrow's and the Width tool's
+    state, not the black Arrow's. Showing it whenever either of those tools is
+    merely in hand would be a button that does nothing until you have gone into
+    a line.
+  -->
+  <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+    <StackPanel.IsVisible>
+      <MultiBinding Converter="{x:Static BoolConverters.And}">
+        <Binding Path="PathEditActive" />
+        <Binding Path="Workspace.QuickLineOptions" />
+      </MultiBinding>
+    </StackPanel.IsVisible>
+    <TextBlock Text="{Binding IsolatedLineSummary}" VerticalAlignment="Center"
+               ToolTip.Tip="How many points the line you are inside currently has." />
+    <Button Content="Simplify" Command="{Binding SimplifyLineCommand}"
+            ToolTip.Tip="Refit the line through fewer points. Press again to go further — each press is its own undo step, so one too many costs one Ctrl+Z." />
+  </StackPanel>
+</UserControl>

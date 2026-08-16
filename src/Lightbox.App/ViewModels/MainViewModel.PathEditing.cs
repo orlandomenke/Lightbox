@@ -41,6 +41,22 @@ public partial class MainViewModel
     /// <summary>The isolated stroke's id, for the canvas to grey around.</summary>
     public string? IsolatedStrokeId => _pathEdit?.StrokeId;
 
+    /// <summary>
+    /// How many points the isolated line has, for the options bar.
+    /// </summary>
+    /// <remarks>
+    /// <b>B221: the count is half of what Simplify is.</b> The command's own
+    /// doc says so — "Simplify with no number is a button an artist presses and
+    /// then squints at the canvas to find out what it did" — and until the bar
+    /// existed the number had nowhere to be shown, so pressing the (unbound)
+    /// shortcut told you the before and after in a status line and nothing told
+    /// you where you had got to.
+    /// </remarks>
+    public string IsolatedLineSummary =>
+        _pathEdit is { } session
+            ? session.NodeCount == 1 ? "1 point" : $"{session.NodeCount} points"
+            : "";
+
     /// <summary>Raised when isolation begins or ends, so the canvas can redraw.</summary>
     public event Action? PathEditChanged;
 
@@ -97,6 +113,7 @@ public partial class MainViewModel
         PathEditChanged?.Invoke();
         OnPropertyChanged(nameof(PathEditActive));
         OnPropertyChanged(nameof(IsolatedStrokeId));
+        OnPropertyChanged(nameof(IsolatedLineSummary));
         PublishSnapshot();
         return true;
     }
@@ -120,6 +137,7 @@ public partial class MainViewModel
         PathEditChanged?.Invoke();
         OnPropertyChanged(nameof(PathEditActive));
         OnPropertyChanged(nameof(IsolatedStrokeId));
+        OnPropertyChanged(nameof(IsolatedLineSummary));
         PublishSnapshot();
     }
 
@@ -439,6 +457,9 @@ public partial class MainViewModel
             return;
         }
         AiStatus = $"Simplified: {before} points to {session.NodeCount}.";
+        // The count on the bar is the whole point of pressing this, so it has
+        // to move with the line rather than only when a session opens.
+        OnPropertyChanged(nameof(IsolatedLineSummary));
         PathEditChanged?.Invoke();
     }
 

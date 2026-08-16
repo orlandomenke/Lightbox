@@ -110,19 +110,13 @@ public static class ShapeBuilder
     /// The far end of a line, rotated onto the nearest snapped angle.
     /// </summary>
     /// <remarks>
-    /// The angle snaps and the length does not, so the line still reaches
-    /// where the hand went. Clamping the length as well is the version that
-    /// feels like the tool is arguing with you.
+    /// The arithmetic is <see cref="Snapper.OnNearestAngle"/>'s (B218); the
+    /// forty-five is this tool's, and the constant above says why.
     /// </remarks>
     private static StrokePoint SnappedEnd(double x0, double y0, double x1, double y1)
     {
-        var dx = x1 - x0;
-        var dy = y1 - y0;
-        var length = Math.Sqrt(dx * dx + dy * dy);
-        if (length < 1e-9) return At(x1, y1);
-        var degrees = Math.Atan2(dy, dx) * 180 / Math.PI;
-        var snapped = Math.Round(degrees / LineSnapDegrees) * LineSnapDegrees * Math.PI / 180;
-        return At(x0 + Math.Cos(snapped) * length, y0 + Math.Sin(snapped) * length);
+        var (x, y) = Snapper.OnNearestAngle(x0, y0, x1, y1, LineSnapDegrees);
+        return At(x, y);
     }
 
     private static List<StrokePoint> Ellipse(double left, double top, double right, double bottom)

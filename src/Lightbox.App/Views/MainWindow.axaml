@@ -1248,6 +1248,7 @@
 
         <!-- The Move tool's options: the guide it has picked up. -->
         <views:GuideOptionsBar />
+        <views:LineOptionsBar />
 
         <!--
           The workspace's own quick options, after the tool's: not tool-gated,

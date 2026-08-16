@@ -1341,4 +1341,56 @@ public class PathEditingTests(ITestOutputHelper output)
 
         Assert.True(after > before, $"the line did not fatten ({before} -> {after})");
     }
+
+    // ---- B221: Simplify finally has somewhere to live --------------------------------
+
+    /// <summary>
+    /// The isolated line says how many points it has, and the number moves when
+    /// Simplify moves it.
+    /// </summary>
+    /// <remarks>
+    /// <b>The count is half of what Simplify is</b>, by the command's own
+    /// argument: "Simplify with no number is a button an artist presses and then
+    /// squints at the canvas to find out what it did". Until the options bar
+    /// existed the number had nowhere to be shown — the command was in
+    /// <c>ShortcutMap</c> with a null gesture and no control anywhere, so it was
+    /// reachable only by an artist who first went and invented a keybinding for
+    /// a feature they had no way to discover.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheIsolatedLineSaysHowManyPointsItHasAndSimplifyMovesTheNumber()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        Assert.Equal("", vm.IsolatedLineSummary);
+
+        vm.BeginPathEdit(line.Id);
+        var before = vm.PathEdit!.NodeCount;
+        Assert.Equal($"{before} points", vm.IsolatedLineSummary);
+
+        vm.SimplifyLineCommand.Execute(null);
+
+        var after = vm.PathEdit!.NodeCount;
+        output.WriteLine($"{before} points -> {after}");
+        Assert.True(after < before, $"simplify did not reduce the count ({before} -> {after})");
+        Assert.Equal($"{after} points", vm.IsolatedLineSummary);
+    }
+
+    /// <summary>Leaving the line leaves nothing on the bar.</summary>
+    /// <remarks>
+    /// The bar is gated on the session, so the text has to go with it — a count
+    /// left behind would describe a line the artist is no longer inside.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheLineSummaryGoesWhenTheSessionDoes()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.BeginPathEdit(line.Id);
+        Assert.NotEqual("", vm.IsolatedLineSummary);
+
+        vm.EndPathEdit();
+
+        Assert.Equal("", vm.IsolatedLineSummary);
+    }
 }

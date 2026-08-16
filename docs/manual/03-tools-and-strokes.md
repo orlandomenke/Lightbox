@@ -31,9 +31,17 @@ whole layer".
 
 **The tool keys work the same way when held.** Tap **E** and you have chosen
 the eraser, as ever; *hold* **E**, scrub, and let go, and you never left the
-brush. **I** does the same for the eyedropper. The split is how long the key is
-down — a quick press is a choice, anything longer is a borrow — which is
-Photoshop's spring-loaded rule, so the reflex transfers.
+brush. **B**, **F**, **V** and **I** do the same — brush, fill, move and the
+eyedropper — so you can reach for one, use it and land back where you were
+without thinking about it. The split is how long the key is down: a quick press
+is a choice, anything longer is a borrow, which is Photoshop's spring-loaded
+rule, so the reflex transfers.
+
+The other tool keys only latch. **S** is taken — pressing it again cycles the
+selection variants, so it cannot also mean "hold me". The pen, both arrows and
+the Width tool are left out for the reason Ctrl is: they have work in flight,
+and letting go of a key is not a good way to finish a path you were in the
+middle of placing.
 
 ### Arrow and Select are not the same tool
 
@@ -154,10 +162,14 @@ Each drag is **one undo step**, however far you pushed the point around.
 
 ### Fewer points
 
-**Simplify** — in the Arrow's options while you are inside a line — refits the
-line through fewer points and tells you how many are left: *"Simplified: 31
-points to 12."* Press it again and it goes further. Each press is its own undo
-step, so one too many costs a single **Ctrl+Z** rather than the whole line.
+**Simplify** — on the quick bar while you are inside a line, beside the count
+of points it currently has — refits the line through fewer points and tells you
+how many are left: *"Simplified: 31 points to 12."* Press it again and it goes
+further. Each press is its own undo step, so one too many costs a single
+**Ctrl+Z** rather than the whole line.
+
+It appears with the line you are inside rather than with a tool, because that is
+what it acts on — go in with the white arrow or the Width tool and it is there.
 
 It refits **the line as it is now**, not the line you originally drew, so
 reshaping first and simplifying afterwards keeps the reshape. It also keeps the

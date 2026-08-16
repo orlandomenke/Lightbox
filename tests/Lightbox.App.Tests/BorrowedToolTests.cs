@@ -1,5 +1,6 @@
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Lightbox.App.Services;
 using Lightbox.App.ViewModels;
 
 namespace Lightbox.App.Tests;
@@ -292,5 +293,75 @@ public class BorrowedToolTests(ITestOutputHelper output) : BrushStateIsolated
 
         Assert.Equal(ToolId.Brush, vm.ActiveTool);
         Assert.False(vm.IsHoldingMomentaryTool);
+    }
+
+    // ---- B221: which keys are spring-loaded --------------------------------------------
+
+    /// <summary>
+    /// The keys that hold, hold; the ones that must not, do not.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The machinery has been tool-agnostic since B176 and two of thirteen keys
+    /// used it, which made tap-or-hold read as a quirk of the eraser rather than
+    /// as how the keyboard works. B, F and V joined on the owner's call (Q96).
+    /// </para>
+    /// <para>
+    /// <b>The exclusions are the half worth asserting.</b> The pen, both arrows
+    /// and the width tool carry a session that a released key would leave
+    /// parked, because a borrow deliberately skips the side effects a chosen
+    /// switch runs — the same reason <c>BorrowedFor</c> will not borrow *from*
+    /// them. And <c>tool.select</c> stays out because repeat-S already cycles
+    /// the selection variants, so a hold would be a third meaning on a key that
+    /// has two.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("tool.brush", ToolId.Brush)]
+    [InlineData("tool.eraser", ToolId.Eraser)]
+    [InlineData("tool.fill", ToolId.Fill)]
+    [InlineData("tool.move", ToolId.Move)]
+    [InlineData("canvas.pickColor", ToolId.Picker)]
+    public void TheseToolKeysAreSpringLoaded(string id, ToolId tool)
+    {
+        var entry = new ShortcutMap().Definitions.Single(s => s.Id == id);
+        Assert.Equal(tool, entry.MomentaryTool);
+    }
+
+    [Theory]
+    // A session a released key would strand.
+    [InlineData("tool.pen")]
+    [InlineData("tool.arrow")]
+    [InlineData("tool.directselect")]
+    [InlineData("tool.width")]
+    // Already means two things on repeat; a hold would be a third.
+    [InlineData("tool.select")]
+    public void TheseToolKeysAreNotSpringLoaded(string id)
+    {
+        var entry = new ShortcutMap().Definitions.Single(s => s.Id == id);
+        Assert.Null(entry.MomentaryTool);
+    }
+
+    /// <summary>
+    /// Every spring-loaded key names a tool that can be borrowed without
+    /// stranding anything.
+    /// </summary>
+    /// <remarks>
+    /// The general form of the table above, so a row added later cannot quietly
+    /// make a modal tool holdable. <c>SetToolWithoutSideEffects</c> is what a
+    /// borrow uses, so a tool whose leaving matters must never be on the end of
+    /// one.
+    /// </remarks>
+    [Fact]
+    public void NoSpringLoadedKeyBorrowsAToolThatCarriesASession()
+    {
+        ToolId[] modal = [ToolId.Pen, ToolId.Arrow, ToolId.DirectSelect, ToolId.Width];
+
+        var offenders = new ShortcutMap().Definitions
+            .Where(s => s.MomentaryTool is { } t && modal.Contains(t))
+            .Select(s => s.Id)
+            .ToList();
+
+        Assert.Empty(offenders);
     }
 }

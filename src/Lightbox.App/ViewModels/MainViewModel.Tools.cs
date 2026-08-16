@@ -405,6 +405,13 @@ public partial class MainViewModel
         ToolId.DirectSelect => "Direct select",
         ToolId.Pen => "Pen",
         ToolId.Width => "Width",
+        // B221. It fell through to ToString() and read "Bone", which is the
+        // right word by luck rather than by decision — the fallback is there so
+        // a tool added tomorrow shows *something*, not so a shipped tool can
+        // skip the table. Every other tool whose label differs from its enum
+        // name is in here; the one that agreed by accident was the one nobody
+        // noticed was missing.
+        ToolId.Bone => "Bone",
         _ => ActiveTool.ToString(),
     };
 
