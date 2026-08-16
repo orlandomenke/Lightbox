@@ -54,10 +54,7 @@ public partial class MainViewModel
 
         // Snapping before constraining, because a guide is a place and Shift is
         // a direction: an artist who has both on wants the node on the guide.
-        if (SnapToGuides && Scene.Guides is { Count: > 0 } guides)
-        {
-            (x, y) = Snapper.Point(guides, x, y, SnapTolerance);
-        }
+        (x, y) = SnappedPoint(x, y);
         if (shift) (x, y) = _pen.Constrain(x, y);
 
         // The press answers the question the hover was asking.
@@ -110,6 +107,12 @@ public partial class MainViewModel
     public void PenHover(double x, double y, double tolerance = 0, bool shift = false)
     {
         if (_pen is not { NodeCount: > 0 } session) return;
+        // B216. Snapped in the same order the press uses, and for the reason
+        // the rubber band exists at all: it is a promise about where the next
+        // click will put a node. Only the press snapped, so with a grid on, the
+        // band ran to the pointer and the node then landed somewhere else —
+        // the one thing a preview must never do.
+        (x, y) = SnappedPoint(x, y);
         if (shift) (x, y) = session.Constrain(x, y);
 
         // Within closing distance the rubber band snaps onto the first node:

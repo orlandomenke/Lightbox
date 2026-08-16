@@ -247,6 +247,23 @@ anything, and hiding a guide does *not* stop it snapping — those are two
 switches, because hiding a rig to look at the drawing under it is something you
 do constantly.
 
+**What snaps: anything you aim, and nothing you trace.** A point you place
+deliberately goes to the guides — a stroke's start, a shape's corners, a
+gradient's axis, a pen node, a polygon selection's corners, a rectangular or
+elliptical marquee, and a point dragged with the white arrow. A line you draw
+by hand does not, past its first point: a lasso and the middle of a brush
+stroke follow your hand, because a guide pulling at every sample would fight
+you the whole way round.
+
+Previews tell the truth about this. The pen's rubber band runs to the place the
+node will actually land rather than to the pointer, so what you see before the
+click is what the click does.
+
+**Holding Shift beats a guide where the two disagree.** Shift asks for an angle
+— a level gradient, a square marquee — and a guide asks for a place; if a guide
+pulled the end back off the angle you had just asked for, one of the two would
+be lying. So with Shift down the angle wins, and the guides keep the other end.
+
 Guides are saved with the document, like the camera, and drawn *over* the
 artwork, translucent — under it they would vanish the moment they crossed an
 opaque background layer. The snapped points are what the stroke records, so

@@ -1993,7 +1993,8 @@ public sealed partial class CanvasControl : Control
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
             _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing,
-            BoneChromes, HeatPoints, FillPreviewForFrame(), _fillPreviewWand, _fillPreviewColor));
+            BoneChromes, HeatPoints, _hoveredLines,
+            FillPreviewForFrame(), _fillPreviewWand, _fillPreviewColor));
     }
 
     // The tip outline cache and TipOutlinePath moved to CanvasControl.Pointer.cs,
@@ -2582,6 +2583,10 @@ public sealed partial class CanvasControl : Control
                     }
                     else
                     {
+                        // Unsnapped here on purpose: AddPolygonVertex snaps on
+                        // the other side, where the guides are (B216). The
+                        // marquee below cannot do the same because the canvas
+                        // builds its rubber band itself.
                         PolygonVertexAdded?.Invoke(x, y);
                     }
                     e.Handled = true;
@@ -2590,13 +2595,18 @@ public sealed partial class CanvasControl : Control
                     e.Pointer.Capture(this);
                     _marqueeAdds = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
                     _dragShape.Clear();
+                    // Deliberately unsnapped, and the only selection gesture
+                    // that is: a lasso is a traced line, so pulling every
+                    // sample onto a grid would fight the hand the whole way
+                    // round. The same reason a brush snaps its start and not
+                    // its middle.
                     _dragShape.Add(new Core.Documents.StrokePoint(x, y, 1));
                     e.Handled = true;
                     return;
                 case CanvasToolMode.SelectRect:
                 case CanvasToolMode.SelectEllipse:
                     e.Pointer.Capture(this);
-                    _dragAnchor = (x, y);
+                    _dragAnchor = Snapped(x, y);
                     _marqueeAdds = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
                     _dragShape.Clear();
                     e.Handled = true;
@@ -3120,6 +3130,24 @@ public sealed partial class CanvasControl : Control
                 return;
             }
 
+            // B217. The other two tools that take hold of a whole line: show
+            // which one they would take. Same discipline as the white arrow's
+            // preview below — the view model answers whether the line changed,
+            // so travelling along one already previewed costs a hit test and no
+            // rebuild.
+            //
+            // Suppressed while either tool is mid-gesture: once the Arrow is
+            // dragging what it picked, or the Width tool has hold of a line,
+            // highlighting whatever the pointer passes over would be describing
+            // a click that cannot happen until the button comes up.
+            if (ToolMode is CanvasToolMode.Select or CanvasToolMode.Width
+                && _lineDragFrom is null && _lineMarqueeFrom is null && _widthGrab < 0)
+            {
+                var (lx, ly) = ViewToDoc(e.GetPosition(this));
+                _hoverLine?.Invoke(lx, ly, DocTolerance(GrabPixels));
+                // Not handled, for the reason the white arrow's preview gives.
+            }
+
             // Not dragging anything, white arrow in hand: preview the line
             // under the pointer. The view model answers whether the preview
             // actually moved, so an unchanged hover costs a hit test and no
@@ -3197,6 +3225,13 @@ public sealed partial class CanvasControl : Control
                 if (!_marqueeAdds && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
                 {
                     (dx, dy) = Squared(anchor, dx, dy);
+                }
+                // B216. The far corner, after squaring, so a square that was
+                // asked for stays square — snapping first and squaring second
+                // would take the corner straight back off the guide.
+                else
+                {
+                    (dx, dy) = Snapped(dx, dy);
                 }
                 _dragShape.Clear();
                 _dragShape.AddRange(ShapeBetween(anchor, (dx, dy), ToolMode == CanvasToolMode.SelectEllipse));
@@ -3858,6 +3893,7 @@ public sealed partial class CanvasControl : Control
         PickRing? pickRing = null,
         IReadOnlyList<BoneChrome>? bones = null,
         IReadOnlyList<HeatPoint>? heat = null,
+        IReadOnlyList<SelectedLine>? hoveredLines = null,
         SKPath? fillPreview = null,
         bool fillPreviewWand = false,
         SKColor fillPreviewColor = default) : ICustomDrawOperation
@@ -4167,7 +4203,19 @@ public sealed partial class CanvasControl : Control
 
         private void DrawSelectedLines(SKCanvas canvas)
         {
-            if (selectedLines is null || selectedLines.Count == 0) return;
+            // The hover goes underneath, so a line that is both hovered and
+            // picked reads as picked. B217: one painter for both, because two
+            // would be the divergence B215 spent a branch removing one object
+            // along — a hover that did not look like a dimmer selection would
+            // stop saying "this is the thing the click will take".
+            DrawLineOutlines(canvas, hoveredLines, alpha: 0.45f, dragging: false);
+            DrawLineOutlines(canvas, selectedLines, alpha: 1f, dragging: lineDrag != default);
+        }
+
+        private void DrawLineOutlines(
+            SKCanvas canvas, IReadOnlyList<SelectedLine>? lines, float alpha, bool dragging)
+        {
+            if (lines is null || lines.Count == 0) return;
 
             var scale = Math.Max(0.01f, view.Scale);
             // While a drag is in flight the outline is the only thing that moves.
@@ -4177,7 +4225,6 @@ public sealed partial class CanvasControl : Control
             // release. Translating the canvas rather than the points keeps this
             // free of per-point work, and keeps stroke coordinates untouched
             // until the edit is actually committed.
-            var dragging = lineDrag != default;
             if (dragging)
             {
                 canvas.Save();
@@ -4185,7 +4232,7 @@ public sealed partial class CanvasControl : Control
             }
             using var halo = new SKPaint
             {
-                Color = SKColors.Cyan.WithAlpha(70),
+                Color = SKColors.Cyan.WithAlpha((byte)(70 * alpha)),
                 StrokeWidth = 6f / scale,
                 Style = SKPaintStyle.Stroke,
                 StrokeCap = SKStrokeCap.Round,
@@ -4194,7 +4241,7 @@ public sealed partial class CanvasControl : Control
             };
             using var core = new SKPaint
             {
-                Color = SKColors.Cyan,
+                Color = SKColors.Cyan.WithAlpha((byte)(255 * alpha)),
                 StrokeWidth = 1.5f / scale,
                 Style = SKPaintStyle.Stroke,
                 StrokeCap = SKStrokeCap.Round,
@@ -4202,7 +4249,7 @@ public sealed partial class CanvasControl : Control
                 IsAntialias = true,
             };
 
-            foreach (var line in selectedLines)
+            foreach (var line in lines)
             {
                 if (line.Points.Length < 2) continue;
                 using var path = new SKPath();

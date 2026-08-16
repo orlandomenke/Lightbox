@@ -50,6 +50,11 @@ a Shift-click that misses leaves your selection alone, because you are part-way
 through building one. **What you have picked is traced in cyan**, so it is
 always clear which line you got.
 
+**Hovering shows you the line before you take it**, traced faintly in the same
+cyan — a dimmer version of what the click is about to give you. Where lines
+overlap that is the difference between picking the one you meant and finding out
+afterwards. The Width tool previews the same way, for the same reason.
+
 **Drag from empty canvas** to sweep up everything the box touches — touched, not
 enclosed, so a box across a limb takes its lines without your having to draw one
 round the whole character. Hold **Shift** as you start the drag to add to what
@@ -162,11 +167,15 @@ A shape that genuinely needs the points it has says so rather than doing nothing
 
 ### Making a line heavier or lighter
 
-**The Width tool (W)** changes how thick a line is along its length. Go into a
-line the usual way — double-click it with the Arrow — then drag away from the
-line to fatten it there, or back towards it to thin it. The change is local: it
-spreads a short way either side of where you are pointing and leaves the rest of
-the line as you drew it.
+**The Width tool (W)** changes how thick a line is along its length. Hover a
+line and it lights up; drag away from it to fatten it there, or back towards it
+to thin it. The change is local: it spreads a short way either side of where you
+are pointing and leaves the rest of the line as you drew it.
+
+You do not have to open the line first — the drag takes hold of whatever is
+under the pointer, one press, the same as the white arrow. If you are already
+inside a line reshaping its points, reaching for this works on that line without
+leaving.
 
 It is the same number your pen pressure writes, so a line you drew with a taper
 and a line you widened by hand are the same kind of thing afterwards. A line

@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml.cs
 
-budget: 427
+budget: 436
 
 ## Why it has moved
 
@@ -17,3 +17,9 @@ other's reason and leaves a number nobody can account for.
   into `MainWindow.Overlays.cs`. A merge had left that one block behind in the
   code-behind while its own siblings — the press, the weight stroke — sat in the
   partial, so reuniting them paid for the branch's new line and 21 more besides.
+- **→ 436** (2026-08-15, B216/B217): +9 for two wirings in the constructor —
+  the point snapper the canvas builds its marquees through, and the whole-line
+  hover's two halves. This file's job *is* the wiring: every handler the canvas
+  delegates to the view model is hooked up here, so a new delegated decision
+  costs lines here by construction and there is nowhere else for them to be.
+  Nine lines, six of which are the comment saying which bug they serve.
