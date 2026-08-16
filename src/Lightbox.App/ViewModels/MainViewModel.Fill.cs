@@ -147,7 +147,22 @@ public partial class MainViewModel
         };
         if (PrepareClipForSelection() is { } clip) stroke.ClipId = clip.Id;
 
+        // B236, the area form: clearing a selection that held nothing is the
+        // same act as rubbing out blank canvas, so it is recorded the same way
+        // — which is to say not at all. A fill always adds paint and never asks.
+        var erasure = IsErasure(stroke)
+            ? StrokeChangeProbe.Open(stroke, _cache.Get(target, scene.Width, scene.Height))
+            : null;
+
         AppendToFrameRender(target, stroke);
+
+        if (erasure?.ChangedNothing() == true)
+        {
+            DiscardErasureThatDidNothing(stroke);
+            AiStatus = "There was nothing in the selection to clear.";
+            return;
+        }
+
         _committingScopedEdit = true;
         try
         {

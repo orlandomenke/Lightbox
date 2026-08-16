@@ -695,8 +695,15 @@ public partial class MainViewModel
     /// The new cel is a separate undo step from the stroke that prompted it,
     /// so one undo takes the mark back and a second takes the cel away.
     /// </summary>
+    /// <summary>
+    /// The revision of the cel-keying step the last <see cref="PaintTargetOrKey"/>
+    /// pushed, or null when it did not have to key anything (B236).
+    /// </summary>
+    private long? _lastAutoKeyRevision;
+
     private Frame? PaintTargetOrKey()
     {
+        _lastAutoKeyRevision = null;
         if (ActiveLayer is not { } layer || layer.Cels.Count == 0) return null;
         var here = Math.Clamp(CurrentFrameIndex, 0, layer.Cels.Count - 1);
         // A cel that holds an earlier drawing is not a drawing of its own. What
@@ -717,6 +724,12 @@ public partial class MainViewModel
         // with no key at all still starts from nothing, which is the ordinary
         // way to start one.
         var fresh = KeyedCopyOf(PaintTarget()); // one class, so the layer's kind decides nothing here
+        // B236: remembered so a gesture that turns out to have changed nothing
+        // can take the key back with it. Sweeping an eraser across a hold and
+        // hitting no ink would otherwise break the hold and add a drawing to
+        // the exposure sheet — a bigger surprise than the stray stroke, and one
+        // an artist is far less likely to spot.
+        _lastAutoKeyRevision = _editor.NextRevision;
         _editor.PerformDelta(
             apply: doc =>
             {
@@ -1939,7 +1952,22 @@ public partial class MainViewModel
         // to pause on drawings with many strokes. Appending the exact stroke
         // to the previously exact bitmap is the same sequence Materialize
         // would run, so the pixels stay bit-identical.
+        // B236: an erasure is measured across the append, because the only
+        // honest answer to "did this rub anything out" is the pixels. Opened
+        // before the stamp and read after it — see StrokeChangeProbe for why
+        // this is exact rather than a geometry test, and why nothing but an
+        // erasure pays for it.
+        var erasure = IsErasure(stroke)
+            ? StrokeChangeProbe.Open(stroke, _cache.Get(target, Scene.Width, Scene.Height))
+            : null;
+
         AppendToFrameRender(target, stroke); // pre-stroke state (record not yet updated)
+
+        if (erasure?.ChangedNothing() == true)
+        {
+            DiscardErasureThatDidNothing(stroke);
+            return;
+        }
 
         // Undo without snapshotting the whole document (the other pen-lift
         // pause). The frame is resolved by id at apply/revert time: a
@@ -1975,5 +2003,52 @@ public partial class MainViewModel
         else _publish.InvalidateWholeCanvas();
         PublishSnapshot();
         RefreshThumbnails();
+    }
+
+    /// <summary>The two ways a stroke takes paint away rather than adding it.</summary>
+    private static bool IsErasure(Stroke stroke) =>
+        stroke.Tool is ToolKind.Eraser or ToolKind.ClearRegion;
+
+    /// <summary>
+    /// Throw away an erasure that rubbed nothing out, and the cel it keyed on
+    /// its way in (B236).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Nothing is recorded and nothing is undone</b>, which is the owner's
+    /// rule: <i>"erasing something that wasn't there to begin with should not be
+    /// kept — not as a stroke, not in the undo history. It did nothing to
+    /// nothing."</i> The consequence is worth stating plainly: Ctrl+Z after a
+    /// no-op erase takes back whatever you did <em>before</em> it, because as
+    /// far as the document is concerned the erase never happened.
+    /// </para>
+    /// <para>
+    /// <b>The frame render is left exactly as it is, on purpose.</b> The stroke
+    /// has already been appended to the cached bitmap and the tiles — and the
+    /// probe has just proved that append changed not one byte, so there is
+    /// nothing to roll back. Rebuilding the frame here would cost a full replay
+    /// to reach the picture already on screen.
+    /// </para>
+    /// <para>
+    /// <b>The publish still happens.</b> The live scratch was drawing the
+    /// erase-in-progress and has to stop; the thumbnails do not, because the
+    /// drawing they show is unchanged.
+    /// </para>
+    /// </remarks>
+    private void DiscardErasureThatDidNothing(Stroke stroke)
+    {
+        // The cel goes back to being a hold. No refresh call here on purpose:
+        // DiscardStep raises the editor's Changed event, which is the same
+        // signal the keying itself fired, so everything that reacted to the
+        // cel appearing reacts to it going away.
+        if (_lastAutoKeyRevision is { } keyed) _editor.DiscardStep(keyed);
+        _lastAutoKeyRevision = null;
+
+        var commitInfo = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        if (BrushEngine.CommitBounds(stroke, commitInfo) is { } touched) _publish.MarkDirty(touched);
+        else _publish.InvalidateWholeCanvas();
+        PublishSnapshot();
+
+        AiStatus = "That erased nothing, so nothing was recorded.";
     }
 }
