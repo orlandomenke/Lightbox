@@ -81,6 +81,185 @@ public static class PointerCursors
     private static Cursor? _pick;
     private static Cursor? _fill;
 
+    // ---- the angled cursors (B228) ---------------------------------------------------
+
+    /// <summary>
+    /// A double-headed arrow lying along <paramref name="degrees"/>, for a
+    /// handle that resizes along that direction.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Drawn at the real angle rather than snapped to one of the platform's
+    /// eight (Q100, the owner's call against the recommendation).</b> The stock
+    /// set — <c>SizeWestEast</c>, <c>SizeNorthSouth</c> and the four corner
+    /// cursors — covers 45° steps, which is exact for an unrotated box and wrong
+    /// by up to 22.5° for any other. Drawing it means a box turned 30° gets a
+    /// cursor at 30°.
+    /// </para>
+    /// <para>
+    /// <b>What that costs, recorded because it was the argument against.</b>
+    /// These are our bitmaps on every platform, so they do not inherit the
+    /// system cursor theme, they do not follow a user's cursor-size accessibility
+    /// setting, and the hotspot is ours to keep correct. The mitigations are the
+    /// ones <see cref="Badged"/> already established: the same halo-under-dark
+    /// double pass so the arrow survives any drawing beneath it, the same
+    /// hotspot as every other canvas cursor, and the same catch-and-fall-back,
+    /// because a pointer is the one thing that must never take the window down.
+    /// </para>
+    /// <para>
+    /// <b>Cached per whole degree, and symmetric.</b> A double arrow at 200° is
+    /// the arrow at 20°, so the cache is keyed mod 180 — at most 180 entries of
+    /// 32×32, and a rotation drag re-uses one the moment the angle repeats.
+    /// Rendering a bitmap per pointer move is exactly the per-event cost
+    /// invariant 6 rules out.
+    /// </para>
+    /// </remarks>
+    public static Cursor ResizeAt(double degrees)
+    {
+        var key = ((int)Math.Round(degrees) % 180 + 180) % 180;
+        if (_resize.TryGetValue(key, out var cached)) return cached;
+        var made = DrawDoubleArrow(key) ?? Move;
+        _resize[key] = made;
+        return made;
+    }
+
+    private static readonly Dictionary<int, Cursor> _resize = [];
+
+    /// <summary>
+    /// The turn cursor: an arc with a head, for the gizmo's outside-the-box
+    /// rotate and the bone tool's pose drag.
+    /// </summary>
+    /// <remarks>
+    /// <b>Drawn because there is no stock one.</b> <c>StandardCursorType</c> has
+    /// no rotate at all, and <c>Hand</c> stood in for it — which reads as "grab
+    /// and pan" on every platform where a hand means exactly that. The one thing
+    /// this must not be mistaken for is the four-way move, and an arc is not
+    /// mistakable for one.
+    /// </remarks>
+    public static Cursor Turn => _turn ??= DrawTurn() ?? Rotate;
+
+    private static Cursor? _turn;
+
+    /// <summary>Dragging the canvas itself: the hand that is holding it.</summary>
+    /// <remarks>
+    /// Stock, unlike the two above, because every platform has a hand and this
+    /// is the one gesture where "grab and pan" is precisely the meaning.
+    /// </remarks>
+    public static readonly Cursor Grab = new(StandardCursorType.Hand);
+
+    /// <summary>
+    /// Two arrowheads on a shaft through the hotspot, at <paramref name="degrees"/>.
+    /// </summary>
+    /// <remarks>
+    /// Null rather than a throw when there is no render surface — headless runs
+    /// have no application to render into, and the caller falls back to a stock
+    /// cursor rather than losing the pointer.
+    /// </remarks>
+    private static Cursor? DrawDoubleArrow(double degrees)
+    {
+        try
+        {
+            var bitmap = new RenderTargetBitmap(
+                new PixelSize(CursorSize, CursorSize), new Vector(96, 96));
+            using (var ctx = bitmap.CreateDrawingContext())
+            {
+                var radians = degrees * Math.PI / 180;
+                var dx = Math.Cos(radians);
+                var dy = Math.Sin(radians);
+                var centre = new Point(HotspotX, HotspotY);
+
+                // Sized to the hotspot's quadrant rather than the bitmap, so the
+                // arrow stays centred on the point that acts.
+                const double reach = 7.0;
+                const double head = 3.2;
+                var a = new Point(centre.X - dx * reach, centre.Y - dy * reach);
+                var b = new Point(centre.X + dx * reach, centre.Y + dy * reach);
+
+                // Halo first and wider, then the dark line over it — the
+                // marching-ants reason: a cursor that vanishes against half the
+                // drawings is a cursor that cannot be trusted.
+                foreach (var pen in new[]
+                {
+                    new Pen(new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)), 3.5),
+                    new Pen(Brushes.Black, 1.4),
+                })
+                {
+                    ctx.DrawLine(pen, a, b);
+                    Arrowhead(ctx, pen, a, -dx, -dy, head);
+                    Arrowhead(ctx, pen, b, dx, dy, head);
+                }
+            }
+            return new Cursor(bitmap, new PixelPoint(HotspotX, HotspotY));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Two short strokes back from a tip, making a chevron.</summary>
+    private static void Arrowhead(
+        DrawingContext ctx, Pen pen, Point tip, double dx, double dy, double size)
+    {
+        // The shaft direction turned ±140°, which is the angle that reads as an
+        // arrow rather than as a T or a cross at cursor size.
+        foreach (var turn in new[] { 2.44, -2.44 })
+        {
+            var cos = Math.Cos(turn);
+            var sin = Math.Sin(turn);
+            ctx.DrawLine(pen, tip, new Point(
+                tip.X + (dx * cos - dy * sin) * size,
+                tip.Y + (dx * sin + dy * cos) * size));
+        }
+    }
+
+    /// <summary>An arc with a head on it: this drag turns something.</summary>
+    private static Cursor? DrawTurn()
+    {
+        try
+        {
+            var bitmap = new RenderTargetBitmap(
+                new PixelSize(CursorSize, CursorSize), new Vector(96, 96));
+            using (var ctx = bitmap.CreateDrawingContext())
+            {
+                var centre = new Point(HotspotX, HotspotY);
+                const double r = 6.0;
+
+                var arc = new StreamGeometry();
+                using (var g = arc.Open())
+                {
+                    // Three-quarters of a turn, so the gap says which way round
+                    // it goes; a full ring would read as a target.
+                    var from = new Point(centre.X + r, centre.Y);
+                    g.BeginFigure(from, false);
+                    g.ArcTo(
+                        new Point(centre.X, centre.Y - r),
+                        new Size(r, r), 0, false, SweepDirection.CounterClockwise);
+                    g.ArcTo(
+                        new Point(centre.X, centre.Y + r),
+                        new Size(r, r), 0, false, SweepDirection.CounterClockwise);
+                    g.EndFigure(false);
+                }
+
+                foreach (var pen in new[]
+                {
+                    new Pen(new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)), 3.5),
+                    new Pen(Brushes.Black, 1.4),
+                })
+                {
+                    ctx.DrawGeometry(null, pen, arc);
+                    // The head sits at the arc's end, pointing the way it sweeps.
+                    Arrowhead(ctx, pen, new Point(centre.X, centre.Y + r), -1, 0, 3.2);
+                }
+            }
+            return new Cursor(bitmap, new PixelPoint(HotspotX, HotspotY));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     /// <summary>Where the badged cursors act, in cursor pixels.</summary>
     /// <remarks>
     /// Public so the tests can assert the hotspot is the crosshair and not the

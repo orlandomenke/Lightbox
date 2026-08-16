@@ -235,21 +235,24 @@ public sealed partial class CanvasControl
     private const int GuideKindLine = 0;
     private const int GuideKindHeightScale = 4;
 
-    private bool _overGuide;
-
+    /// <summary>
+    /// Light the guide under the pointer.
+    /// </summary>
+    /// <remarks>
+    /// <b>B228 took the cursor half of this away.</b> It used to set the cursor
+    /// as well, which was right while guides were the only grabbable chrome and
+    /// wrong the moment the gizmo, the camera and the reference boxes wanted the
+    /// same treatment — two writers of one property, and the later one silently
+    /// winning. <c>CanvasCursorNow</c> is the single writer now and asks about
+    /// guides in its own order; this keeps the emphasis, which is the half that
+    /// was always guide-specific.
+    /// </remarks>
     private void UpdateGuideHoverCursor(Point view)
     {
-        var hit = GuideDragEnabled ? GuideAt(view) : null;
-        var over = hit is not null;
-        var id = hit?.Id;
-        if (id != _hoverGuideId)
-        {
-            _hoverGuideId = id;
-            InvalidateVisual();
-        }
-        if (over == _overGuide) return;
-        _overGuide = over;
-        Cursor = over ? PointerCursors.Move : PointerCursors.For(PointerIntent);
+        var id = (GuideDragEnabled ? GuideAt(view) : null)?.Id;
+        if (id == _hoverGuideId) return;
+        _hoverGuideId = id;
+        InvalidateVisual();
     }
 
     /// <summary>The guide the pointer is on, or null. Chrome only; never pushed anywhere.</summary>

@@ -389,6 +389,36 @@ the pick landed.
 The ring goes away when there is nothing to pick — off the paper, mainly. Over
 bare canvas it shows the paper colour, because that is what a click there takes.
 
+### The pointer also tells you what you are about to grab
+
+Nothing floats over your drawing in Lightbox — there is no row of buttons on the
+canvas and no handles except the ones a gizmo puts there — so the pointer is what
+says a thing under it can be taken hold of, and which way it will go.
+
+- **A double-headed arrow means this drags a size.** It lies along the direction
+  the handle actually travels: across a corner of the transform box, straight up
+  or straight across from an edge, up and down on the top rung of a height chart.
+  Turn the canvas and the arrows turn with it, because they describe the movement
+  your hand makes rather than the one the document would see.
+- **A four-way arrow means this moves.** Inside the transform box, on a guide, on
+  the transform box's pivot, on a reference sheet's box, and on a corner of a
+  perspective warp — a warped corner goes wherever you put it, so there is no
+  direction to point along.
+- **A curved arrow means this turns.** Outside the transform box, on the camera
+  frame's rotate handle, and on a bone you are posing.
+- **A hand means you are holding the canvas itself** — a middle-button drag, or
+  the pan tool.
+
+Two things this promises. It **keeps the shape for the whole drag**, so a scale
+that started at a corner does not turn into a move cursor when your hand crosses
+the middle of the box; and it **changes the moment you hold a key**, without
+waiting for you to move, so a modifier that borrows another tool says so straight
+away.
+
+The pointer is also honest about what it cannot offer: a guide only shows a grab
+when a guide *can* be grabbed — with a brush in hand, or with the rig locked or
+hidden, it is scenery and the pointer stays the brush's.
+
 ---
 
 ## Shapes

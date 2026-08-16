@@ -1,6 +1,6 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 4932
+budget: 4952
 
 ## Why it has moved
 
@@ -56,3 +56,15 @@ other's reason and leaves a number nobody can account for.
   together. **Nothing was wrong with either change.** A remeasure that removes
   unearned slack can turn a parallel branch red on merge, and the honest
   response is this entry rather than leaving the slack in place to avoid it.
+- **→ 4,952** (2026-08-16, B228): +20 for the cursor becoming a single decision.
+  Everything that could be extracted was: the whole decision — twelve grabs, the
+  angle arithmetic and the hit tests behind them — is a new partial,
+  `CanvasControl.Cursors.cs`, and the two `OnPointerPressed`/`OnPointerReleased`
+  wrappers went there too, because they exist for the cursor and nothing else
+  even though the handlers they wrap do not. What is left in this file is the
+  part that cannot move: the hover call inside the pointer-move handler, the
+  `_cursorAt = null` in `OnPointerExited`, the re-ask in the `PointerIntent`
+  class handler (a static constructor cannot be split from the type it
+  initialises), and the two `Core` bodies the wrappers now call. Every one of
+  them is a hook in the place the event arrives, and moving a hook means moving
+  the handler rather than the feature — the same reason B217 and B223 record.

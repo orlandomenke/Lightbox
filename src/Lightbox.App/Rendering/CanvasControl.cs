@@ -75,13 +75,25 @@ public sealed partial class CanvasControl : Control
         ];
         AffectsRender<CanvasControl>(RepaintOnChange);
 
-        // The intent decides the platform cursor, and nothing else does — a
+        // The intent decides the platform cursor and nothing else does — a
         // second writer of Cursor is how the pointer ends up disagreeing with
         // what the tool will actually do.
+        //
+        // B228: that sentence was already false when it was written. The guide
+        // hover was a second writer, gated by a flag so the two would not fight,
+        // and every affordance added after it would have needed another flag.
+        // So the intent no longer sets the cursor directly — it re-asks the one
+        // question, which knows about the tool AND about everything under the
+        // pointer. With the pointer off the canvas there is nothing to ask
+        // about, so the tool's own answer stands.
         PointerIntentProperty.Changed.AddClassHandler<CanvasControl, CanvasCursorKind>(
             (control, e) =>
             {
-                if (control._overGuide) return;
+                if (control._cursorAt is not null)
+                {
+                    control.RefreshCanvasCursor();
+                    return;
+                }
                 control.Cursor = PointerCursors.For(e.NewValue.GetValueOrDefault());
             });
     }
@@ -2394,7 +2406,7 @@ public sealed partial class CanvasControl : Control
 
     // ---- pointer input ------------------------------------------------------
 
-    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    private void OnPointerPressedCore(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
         try
@@ -2875,6 +2887,10 @@ public sealed partial class CanvasControl : Control
         _exitCount++;
         ReportHoverChurn(e);
         _hoverPoint = null;
+        // Nothing to re-ask about once the pointer is gone, so a later tool
+        // change falls back to the tool's own cursor rather than answering
+        // about wherever the pointer happened to leave.
+        _cursorAt = null;
         InvalidateVisual();
     }
 
@@ -3047,8 +3063,12 @@ public sealed partial class CanvasControl : Control
 
             // The cursor is the whole affordance — the pointer changing shape
             // over a guide is what tells you it can be picked up, instead of a
-            // row of buttons floating over the drawing.
+            // row of buttons floating over the drawing. B228: the same is now
+            // true of the gizmo's six handles, the camera's three, a reference
+            // box corner and the height scale's top, so the hover asks one
+            // question for all of them rather than only about guides.
             UpdateGuideHoverCursor(e.GetPosition(this));
+            RefreshCanvasCursor(e.GetPosition(this), e.KeyModifiers);
 
             if (_aligningReference)
             {
@@ -3291,7 +3311,7 @@ public sealed partial class CanvasControl : Control
         }
     }
 
-    protected override void OnPointerReleased(PointerReleasedEventArgs e)
+    private void OnPointerReleasedCore(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
         if (_movingGuides)

@@ -44,6 +44,51 @@ public enum CanvasCursorKind
     /// artist finds out by trying.
     /// </summary>
     Forbidden,
+
+    /// <summary>
+    /// This drag resizes something along an axis, and the axis is carried
+    /// beside the kind — see <c>CanvasCursorChoice</c>.
+    /// </summary>
+    /// <remarks>
+    /// <b>B228: the one kind that is not self-contained.</b> Every other value
+    /// here names a cursor outright; a resize names a family of them, because
+    /// the gizmo rotates and the arrow has to lie along the handle's real
+    /// direction on screen. The angle travels with it rather than being folded
+    /// into eight enum members, which is what lets the cursor be drawn at 30°
+    /// for a box turned 30° (Q100).
+    /// </remarks>
+    Resize,
+
+    /// <summary>The canvas itself is being dragged: the hand holding it.</summary>
+    Grab,
+}
+
+/// <summary>
+/// What the pointer should be right now — a kind, and an angle when the kind
+/// needs one.
+/// </summary>
+/// <remarks>
+/// <b>The decision, separated from the drawing (B228).</b> Rendering a cursor
+/// needs a render surface, which a headless run has not got, so a test that
+/// asked for the <c>Cursor</c> object would be asserting against the
+/// catch-and-fall-back rather than against the choice. This is the choice: pure
+/// data, comparable, and the thing worth pinning. <c>PointerCursors</c> turns it
+/// into pixels.
+/// </remarks>
+/// <param name="Angle">
+/// Degrees clockwise from screen-right, for <see cref="CanvasCursorKind.Resize"/>.
+/// Meaningless and zero for every other kind.
+/// </param>
+public readonly record struct CanvasCursorChoice(CanvasCursorKind Kind, double Angle = 0)
+{
+    public static implicit operator CanvasCursorChoice(CanvasCursorKind kind) => new(kind);
+
+    /// <summary>A resize along a screen direction.</summary>
+    public static CanvasCursorChoice ResizeAt(double degrees) =>
+        // Normalised here rather than at each call site, so two directions that
+        // are the same axis compare equal — a double arrow at 200° IS the one
+        // at 20°, and a test should not have to know which the caller produced.
+        new(CanvasCursorKind.Resize, ((degrees % 180) + 180) % 180);
 }
 
 /// <summary>
