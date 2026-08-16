@@ -189,6 +189,100 @@ public class StrokeSelectionTests
         Assert.Empty(vm.SelectionContours);
     }
 
+    // ---- B232: an erasure is not an object -----------------------------------
+
+    /// <summary>An eraser drawn along the same path a brush would take.</summary>
+    private static Stroke Erase(double x0, double y0, double x1, double y1, double size = 30)
+    {
+        var stroke = Line(x0, y0, x1, y1, size);
+        stroke.Tool = ToolKind.Eraser;
+        return stroke;
+    }
+
+    /// <summary>
+    /// B232, exactly as it was reported: erase across a line, click the eraser's
+    /// own sweep, press Delete — and the erased ink comes back. The click landed
+    /// on canvas that looks blank and the drawing gained a line, which is the
+    /// opposite of what Delete means.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Both halves of the gap are checked</b>, because the bug has two. At
+    /// (300, 260) the eraser is the only thing whose geometry reaches, and it
+    /// was handed back — that is the report as written. At (300, 300) the ink
+    /// stroke is <em>also</em> there as far as the record is concerned, its
+    /// points passing straight through the gap, so hiding only the eraser would
+    /// leave the click selecting a line nobody can see.
+    /// </para>
+    /// <para>
+    /// The assertion that matters is the last one: the erasure is still in the
+    /// record afterwards, so the gap is still a gap. Undo is what takes an
+    /// erasure back, and this test does not touch undo because undo was never
+    /// broken.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void DeletingWhereAnEraserWentDoesNotBringTheLineBack()
+    {
+        var ink = Line(200, 300, 400, 300);
+        var eraser = Erase(300, 250, 300, 350);
+        var vm = WithStrokes(ink, eraser);
+        vm.ActiveTool = ToolId.Arrow;
+
+        Assert.False(vm.PickStrokeAt(300, 260, tolerance: 2));   // on the eraser
+        Assert.False(vm.PickStrokeAt(300, 300, tolerance: 2));   // in the gap it left
+
+        Assert.False(vm.HasStrokeSelection);
+        Assert.Equal(0, vm.DeleteSelectedStrokes());
+        Assert.Contains(
+            ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes, s => s.Id == eraser.Id);
+    }
+
+    /// <summary>
+    /// A line rubbed out along its whole length is gone as far as every tool is
+    /// concerned: the Arrow cannot click it, a marquee over it catches nothing,
+    /// and the white arrow cannot reach into its geometry. The record still
+    /// holds it so undo can bring it back, and that is the only thing that can.
+    /// </summary>
+    [AvaloniaFact]
+    public void AWhollyErasedLineIsOutOfEveryToolsReach()
+    {
+        var vm = WithStrokes(Line(200, 300, 400, 300), Erase(180, 300, 420, 300));
+        vm.ActiveTool = ToolId.Arrow;
+
+        Assert.False(vm.PickStrokeAt(300, 300, tolerance: 2));
+        Assert.Equal(0, vm.PickStrokesIn(SKRect.Create(100, 200, 400, 200)));
+        Assert.False(vm.HoverStrokeAt(300, 300, tolerance: 2));
+        Assert.Null(vm.HoveredStrokeId);
+        Assert.False(vm.BeginPathEditAt(300, 300, tolerance: 2));
+        Assert.False(vm.PathEditActive);
+    }
+
+    /// <summary>
+    /// The same trap with a box instead of a click, and the one an artist is
+    /// more likely to fall into: a marquee over the drawing reports the lines it
+    /// caught and says nothing about the eraser lying among them, so Delete
+    /// takes three lines away and puts a fourth back.
+    /// </summary>
+    [AvaloniaFact]
+    public void AMarqueeOverAnErasedAreaCatchesOnlyTheInk()
+    {
+        var ink = Line(200, 300, 400, 300);
+        var vm = WithStrokes(ink, Erase(300, 250, 300, 350));
+        vm.ActiveTool = ToolId.Arrow;
+
+        var count = vm.PickStrokesIn(SKRect.Create(150, 200, 350, 250));
+
+        Assert.Equal(1, count);
+        Assert.Equal([ink.Id], vm.Selection.SelectedStrokeIds);
+
+        // And deleting what it caught leaves the erasure behind rather than
+        // reviving it: one stroke goes, the eraser stays.
+        Assert.Equal(1, vm.DeleteSelectedStrokes());
+        var left = ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes;
+        Assert.Equal([ToolKind.Eraser], left.Select(s => s.Tool));
+    }
+
     // ---- what the selection survives -----------------------------------------
 
     /// <summary>

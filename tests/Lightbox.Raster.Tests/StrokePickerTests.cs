@@ -13,9 +13,10 @@ namespace Lightbox.Raster.Tests;
 /// Two rules carry more weight than the rest and are tested first.
 /// <b>Topmost wins</b>, which reverses <see cref="StrokeIndex"/>'s ascending
 /// contract on purpose — an artist clicks what they can see, and that is the
-/// stroke painted last. And <b>ink beats erasers</b>, because an eraser's mark is
-/// the absence of ink, so picking one where a line is plainly visible reads as
-/// having selected nothing.
+/// stroke painted last. And <b>an erasure is not an object</b>: an eraser's mark
+/// is the absence of ink, so there is nothing there to take hold of, and a click
+/// or a marquee that grabbed one would resurrect what it erased on the next
+/// Delete (B232).
 /// </remarks>
 public class StrokePickerTests(ITestOutputHelper output)
 {
@@ -68,11 +69,20 @@ public class StrokePickerTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// An eraser drawn across a visible line does not steal the click, even
-    /// though it is later in the record and passes through the same point.
+    /// Where an eraser crossed a line there is nothing at all: not the eraser,
+    /// which is an absence rather than a mark, and not the ink, which is no
+    /// longer there to click on.
     /// </summary>
+    /// <remarks>
+    /// This used to assert an <em>ordering</em> — ink offered before the eraser
+    /// that cut across it — on the reading that both were pickable and only the
+    /// priority was in question. B232 is what that reading cost, and the two
+    /// halves of it meet exactly here: rule two takes the eraser out of the
+    /// answer and rule three takes the ink out, so a list that once held two
+    /// entries holds none.
+    /// </remarks>
     [Fact]
-    public void AnEraserDoesNotStealAClickFromInkUnderIt()
+    public void WhereAnEraserCrossedALineThereIsNothingToPick()
     {
         List<Stroke> strokes =
         [
@@ -82,19 +92,202 @@ public class StrokePickerTests(ITestOutputHelper output)
         var hits = StrokePicker.At(strokes, IndexOf(strokes), 500, 500, tolerance: 2);
 
         output.WriteLine($"ink at 0, eraser at 1, hits: [{string.Join(", ", hits)}]");
-        Assert.Equal(0, hits[0]);
+        Assert.Empty(hits);
     }
 
     /// <summary>
-    /// But an eraser is still selectable, or a stray one could never be removed.
+    /// B232: an eraser is not selectable even with nothing under it. Deleting
+    /// one un-erases, so being able to click it is a way to bring back a line
+    /// the artist removed — the click lands on blank canvas and the drawing
+    /// changes. There is no mark there to have meant, so the click picks
+    /// nothing, and undo is what reverses an erasure.
     /// </summary>
     [Fact]
-    public void AnEraserWithNothingUnderItIsStillPicked()
+    public void AnEraserIsNotSelectableEvenWithNothingUnderIt()
     {
         List<Stroke> strokes = [Line(100, 100, 200, 200, tool: ToolKind.Eraser)];
         var hit = StrokePicker.TopmostAt(strokes, IndexOf(strokes), 150, 150, tolerance: 2);
 
+        output.WriteLine($"click on a lone eraser: {hit?.ToString() ?? "nothing"}");
+        Assert.Null(hit);
+    }
+
+    /// <summary>
+    /// The area form of the same act. <see cref="ToolKind.ClearRegion"/> is a
+    /// separate kind because it renders differently — a filled contour rather
+    /// than a walked path — and it takes ink away just the same, so picking it
+    /// would put the ink back exactly the way picking an eraser would.
+    /// </summary>
+    /// <remarks>
+    /// <b>On its edge, not in its middle</b>, and the first draft of this test
+    /// got that wrong and passed for the wrong reason. <see cref="Covers"/>
+    /// treats only <see cref="ToolKind.Fill"/> as an area, so a click in the
+    /// middle of a cleared region has always missed — asserting on it proves
+    /// nothing about the rule. The edge is where a cleared region was reachable,
+    /// and a marquee catches it outright.
+    /// </remarks>
+    [Fact]
+    public void AClearedRegionIsNotSelectableEither()
+    {
+        var cleared = Box(200, 200, 400, 400);
+        cleared.Tool = ToolKind.ClearRegion;
+
+        List<Stroke> strokes = [cleared];
+        var index = IndexOf(strokes);
+        var onTheEdge = StrokePicker.TopmostAt(strokes, index, 400, 200, tolerance: 1);
+        var swept = StrokePicker.Within(strokes, index, SKRect.Create(100, 100, 600, 600));
+
+        output.WriteLine(
+            $"click on its edge: {onTheEdge?.ToString() ?? "nothing"}, marquee caught {swept.Count}");
+        Assert.Null(onTheEdge);
+        Assert.Empty(swept);
+    }
+
+    /// <summary>
+    /// And a marquee does not sweep one up. This is the quieter half of B232:
+    /// a box dragged over the drawing shows a count and an outline for the ink
+    /// it caught and says nothing about the eraser lying under it, so Delete
+    /// removes three lines and returns a fourth.
+    /// </summary>
+    [Fact]
+    public void AMarqueeDoesNotSweepUpAnEraser()
+    {
+        List<Stroke> strokes =
+        [
+            Line(400, 500, 600, 500),
+            Line(500, 400, 500, 600, tool: ToolKind.Eraser),
+        ];
+
+        var caught = StrokePicker.Within(
+            strokes, IndexOf(strokes), SKRect.Create(300, 300, 400, 400));
+
+        output.WriteLine($"caught: [{string.Join(", ", caught)}]");
+        Assert.Equal([0], caught);
+    }
+
+    // ---- rule three: erased ink is not there either --------------------------
+
+    /// <summary>An eraser wide enough to take a size-10 line clean out.</summary>
+    private static Stroke Erase(double x0, double y0, double x1, double y1, double size = 40) =>
+        Line(x0, y0, x1, y1, size, ToolKind.Eraser);
+
+    /// <summary>
+    /// The gap an eraser left is empty, and clicking it picks nothing. Hiding
+    /// the eraser alone would leave the click landing on a line the artist
+    /// cannot see — the same complaint from the other side.
+    /// </summary>
+    [Fact]
+    public void ClickingTheGapAnEraserLeftPicksNothing()
+    {
+        List<Stroke> strokes = [Line(400, 500, 600, 500), Erase(500, 400, 500, 600)];
+        var index = IndexOf(strokes);
+
+        var inTheGap = StrokePicker.TopmostAt(strokes, index, 500, 500, tolerance: 2);
+        var onTheInk = StrokePicker.TopmostAt(strokes, index, 420, 500, tolerance: 2);
+
+        output.WriteLine($"in the gap: {inTheGap?.ToString() ?? "nothing"}, on the ink: {onTheInk?.ToString() ?? "nothing"}");
+        Assert.Null(inTheGap);
+        Assert.Equal(0, onTheInk);       // the surviving ends are still the artist's line
+    }
+
+    /// <summary>
+    /// Order is the whole of it: an eraser only takes away what was already
+    /// down. Ink drawn <em>after</em> a rub is untouched by it, and a picker
+    /// that ignored record order would make redrawing over an erased area
+    /// produce lines nothing can select.
+    /// </summary>
+    [Fact]
+    public void InkDrawnAfterAnEraserIsUntouchedByIt()
+    {
+        List<Stroke> strokes = [Erase(500, 400, 500, 600), Line(400, 500, 600, 500)];
+        var hit = StrokePicker.TopmostAt(strokes, IndexOf(strokes), 500, 500, tolerance: 2);
+
+        Assert.Equal(1, hit);
+    }
+
+    /// <summary>
+    /// A line rubbed out along its whole length is gone, so a marquee over
+    /// where it used to be catches nothing — which is the state the artist
+    /// believes they are in after erasing a stroke.
+    /// </summary>
+    [Fact]
+    public void AMarqueeDoesNotCatchAWhollyErasedLine()
+    {
+        List<Stroke> strokes = [Line(400, 500, 600, 500), Erase(380, 500, 620, 500)];
+        var caught = StrokePicker.Within(
+            strokes, IndexOf(strokes), SKRect.Create(300, 400, 400, 200));
+
+        output.WriteLine($"caught: [{string.Join(", ", caught)}]");
+        Assert.Empty(caught);
+    }
+
+    /// <summary>
+    /// But a line rubbed through the middle is still on the canvas, and boxing
+    /// any part of it still asks for it. A marquee is a set-gathering gesture
+    /// over lines that exist, and this one does.
+    /// </summary>
+    [Fact]
+    public void AMarqueeStillCatchesAPartlyErasedLine()
+    {
+        List<Stroke> strokes = [Line(400, 500, 600, 500), Erase(500, 400, 500, 600)];
+        var caught = StrokePicker.Within(
+            strokes, IndexOf(strokes), SKRect.Create(300, 400, 400, 200));
+
+        Assert.Equal([0], caught);
+    }
+
+    /// <summary>
+    /// An eraser below full opacity <em>fades</em> a line rather than removing
+    /// it: <c>Brush.Opacity</c> is the alpha the erasing layer composites at, so
+    /// paint survives underneath by construction. A faded line is plainly on the
+    /// canvas, and refusing to select it is the one failure worse than the bug
+    /// this rule fixes.
+    /// </summary>
+    [Fact]
+    public void AHalfStrengthEraserLeavesTheLinePickable()
+    {
+        var faded = Erase(500, 400, 500, 600);
+        faded.Brush.Opacity = 0.5;
+
+        List<Stroke> strokes = [Line(400, 500, 600, 500), faded];
+        var hit = StrokePicker.TopmostAt(strokes, IndexOf(strokes), 500, 500, tolerance: 2);
+
+        output.WriteLine($"under a half-strength eraser: {hit?.ToString() ?? "nothing"}");
         Assert.Equal(0, hit);
+    }
+
+    /// <summary>
+    /// An erasure made inside a selection only erased inside it. The clip is
+    /// resolved the same way the render resolves it, so ink just outside the
+    /// selection stays pickable — and an unresolvable clip is treated as having
+    /// erased nothing, which is the safe direction.
+    /// </summary>
+    [Fact]
+    public void AClippedEraserOnlyErasesInsideItsClip()
+    {
+        ClipRegionRegistry.Register("pick-test-clip", new ClipRegion
+        {
+            Contours =
+            [[
+                new StrokePoint(300, 300, 1),
+                new StrokePoint(520, 300, 1),
+                new StrokePoint(520, 700, 1),
+                new StrokePoint(300, 700, 1),
+            ]],
+        });
+
+        // One long rub across the whole line, clipped to its left half.
+        var rub = Erase(380, 500, 620, 500);
+        rub.ClipId = "pick-test-clip";
+
+        List<Stroke> strokes = [Line(400, 500, 600, 500), rub];
+        var index = IndexOf(strokes);
+        var inside = StrokePicker.TopmostAt(strokes, index, 450, 500, tolerance: 2);
+        var outside = StrokePicker.TopmostAt(strokes, index, 580, 500, tolerance: 2);
+
+        output.WriteLine($"inside the clip: {inside?.ToString() ?? "nothing"}, outside it: {outside?.ToString() ?? "nothing"}");
+        Assert.Null(inside);
+        Assert.Equal(0, outside);
     }
 
     // ---- the tolerance -------------------------------------------------------
