@@ -3601,7 +3601,7 @@ public sealed partial class CanvasControl : Control
         if (_boneGestureActive)
         {
             // Abandon rather than commit, and drop the live preview with it —
-            // losing capture is not a decision the artist made. B217 made
+            // losing capture is not a decision the artist made. B219 made
             // this visible: before the preview, a lost bone drag merely did
             // nothing; now it would leave provisional chrome on screen.
             _boneGestureActive = false;
@@ -3999,7 +3999,8 @@ public sealed partial class CanvasControl : Control
             // corrects against.
             ArmatureOverlayPainter.PaintHeat(canvas, heat, view.Scale);
             ArmatureOverlayPainter.Paint(canvas, bones, view.Scale);
-            DrawFillPreview(canvas); // under the ants: a committed selection outranks a would-be one
+            // Under the ants: a committed selection outranks a would-be one.
+            FillPreviewPainter.Draw(canvas, fillPreview, fillPreviewWand, fillPreviewColor, view.Scale);
             DrawAnts(canvas);
             DrawLazyGizmo(canvas);
             DrawTransformGizmo(canvas);
@@ -4708,57 +4709,6 @@ public sealed partial class CanvasControl : Control
         }
 
         /// <summary>Marching ants for the selection + in-progress shapes (drawn in doc space).</summary>
-        /// <summary>
-        /// What the bucket or the wand would take at the pointer. The bucket's
-        /// answer is a tint of the colour in hand plus its outline — "this is
-        /// the mark the click makes"; the wand's is a faint, still dash —
-        /// selection's visual language (the dash means selection) at preview
-        /// strength, unanimated so it cannot be read as already selected.
-        /// </summary>
-        private void DrawFillPreview(SKCanvas canvas)
-        {
-            if (fillPreview is null) return;
-            var scale = Math.Max(0.01f, view.Scale);
-            if (fillPreviewWand)
-            {
-                var dash = 4f / scale;
-                using var faintWhite = new SKPaint
-                {
-                    IsAntialias = true,
-                    Style = SKPaintStyle.Stroke,
-                    StrokeWidth = 1.2f / scale,
-                    Color = new SKColor(255, 255, 255, 110),
-                    PathEffect = SKPathEffect.CreateDash([dash, dash], dash),
-                };
-                using var faintBlack = new SKPaint
-                {
-                    IsAntialias = true,
-                    Style = SKPaintStyle.Stroke,
-                    StrokeWidth = 1.2f / scale,
-                    Color = new SKColor(0, 0, 0, 110),
-                    PathEffect = SKPathEffect.CreateDash([dash, dash], 0),
-                };
-                canvas.DrawPath(fillPreview, faintBlack);
-                canvas.DrawPath(fillPreview, faintWhite);
-                return;
-            }
-            using var tint = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Fill,
-                Color = fillPreviewColor.WithAlpha(48),
-            };
-            using var outline = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1f / scale,
-                Color = fillPreviewColor.WithAlpha(180),
-            };
-            canvas.DrawPath(fillPreview, tint);
-            canvas.DrawPath(fillPreview, outline);
-        }
-
         private void DrawAnts(SKCanvas canvas)
         {
             if (ants is null && antsOpen is null) return;
