@@ -357,6 +357,9 @@ public partial class MainWindow
             case "armature.weightPaint":
                 _vm.WeightPainting = !_vm.WeightPainting;
                 break;
+            case "armature.deleteBone":
+                _vm.DeleteBoneCommand.Execute(null);
+                break;
             case "lines.simplify":
                 _vm.SimplifyLineCommand.Execute(null);
                 break;

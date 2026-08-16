@@ -193,6 +193,11 @@ public sealed class ShortcutMap
             new("tool.bone", "Bone (rig, pose, weights)", "Tools", G(Key.K)),
             new("armature.weightPaint", "Toggle the weight brush (bone tool)", "Canvas", G(Key.K, KeyModifiers.Control | KeyModifiers.Shift)),
             new("armature.posingMode", "Toggle posing (bone tool: bind or pose)", "Canvas", G(Key.K, KeyModifiers.Shift)),
+            // No default gesture, for `lines.recolour`'s reason: Delete already
+            // reaches it — `select.clear` asks the armature first while the
+            // Bone tool is in hand — and being here is what lets an artist give
+            // it a dedicated key that works from any tool.
+            new("armature.deleteBone", "Delete the selected bone", "Canvas", null),
             new("tool.width", "Width (make a line heavier or lighter)", "Tools", G(Key.W)),
             // No default gesture, like lines.recolour above and for the same
             // reason: the sensible letters are taken, the button in the arrow's
