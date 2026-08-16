@@ -128,10 +128,12 @@
                          it knows where "back" is. -->
                     <Button x:Name="PART_Float" FontSize="11" Padding="6,2"
                             IsVisible="{TemplateBinding CanFloat}" />
-                    <Button Content="✕" FontSize="11" Padding="6,2"
+                    <Button Padding="6,2"
                             Command="{TemplateBinding CloseCommand}"
                             IsVisible="{TemplateBinding CloseCommand, Converter={x:Static ObjectConverters.IsNotNull}}"
-                            ToolTip.Tip="Close this panel (reopen via the View menu)" />
+                            ToolTip.Tip="Close this panel (reopen via the View menu)">
+                      <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconClose}" />
+                    </Button>
                   </StackPanel>
                   <!--
                     The tab strip, which is also the title.
@@ -236,17 +238,28 @@
               <Border x:Name="PART_Grip" Cursor="SizeAll" Background="#00000001"
                       MinWidth="12" MinHeight="12"
                       ToolTip.Tip="Drag to any edge of the canvas">
-                <TextBlock Text="⠿" FontSize="12" Opacity="0.55"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <Path Classes="icon" Width="12" Height="12" Opacity="0.55"
+                      Data="{StaticResource IconGrip}"
+                      HorizontalAlignment="Center" VerticalAlignment="Center" />
               </Border>
               <ContentPresenter Content="{TemplateBinding Content}"
                                 HorizontalAlignment="Center" VerticalAlignment="Center"
                                 IsVisible="{Binding !Collapsed, RelativeSource={RelativeSource TemplatedParent}}" />
-              <Button x:Name="PART_Collapse" Classes="icon" FontSize="9"
-                      Content="{Binding Collapsed, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static docking:OverlayConverters.CollapseGlyph}}"
-                      ToolTip.Tip="Roll the bar up to its grip" />
-              <Button x:Name="PART_Close" Classes="icon" Content="✕" FontSize="9" Padding="4,2"
-                      ToolTip.Tip="Hide this bar (bring it back from the View menu)" />
+              <Button x:Name="PART_Collapse" Classes="icon"
+                      ToolTip.Tip="Roll the bar up to its grip">
+                <!-- The chevron carries the state: down while open, sideways
+                     while rolled up — the same pair every tree row uses. -->
+                <Panel>
+                  <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconChevronDown}"
+                        IsVisible="{Binding !Collapsed, RelativeSource={RelativeSource TemplatedParent}}" />
+                  <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconChevronRight}"
+                        IsVisible="{Binding Collapsed, RelativeSource={RelativeSource TemplatedParent}}" />
+                </Panel>
+              </Button>
+              <Button x:Name="PART_Close" Classes="icon" Padding="4,2"
+                      ToolTip.Tip="Hide this bar (bring it back from the View menu)">
+                <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconClose}" />
+              </Button>
             </StackPanel>
           </Border>
         </ControlTemplate>

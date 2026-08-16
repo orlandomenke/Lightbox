@@ -190,7 +190,6 @@ public sealed partial class ProjectRow : ObservableObject
     /// the same lesson from the other side.
     /// </remarks>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Twisty))]
     private bool _isCollapsed;
 
     [ObservableProperty]
@@ -270,9 +269,6 @@ public sealed partial class ProjectRow : ObservableObject
         : "";
 
     public bool HasDesignation => Designation.Length > 0;
-
-    /// <summary>The chevron on a folder row, or nothing on everything else.</summary>
-    public string Twisty => IsFolder ? (IsCollapsed ? "▸" : "▾") : "";
 
     /// <summary>
     /// The production status, mirrored from the manifest so the row can show it.

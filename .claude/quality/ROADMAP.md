@@ -329,12 +329,22 @@ the test needs relaxing.
 - [ ] Save as an ordinary image format — PNG, JPEG, SVG `evidence: ImageSaveFormat, SaveAsImage, ImageSaveTests, ASvgSaveKeepsVectorLayersAsPaths`
   - Export writes sheets and sequences for engines; there is no plain "save this as a picture". PNG and JPEG are small and mostly plumbing. **SVG is the interesting one and should not be faked**: a raster document cannot become an SVG except as an embedded bitmap, which is a lie in a vector wrapper. It is only honest for the vector layers, and it needs the vector side to be richer first — which is what makes it the same item as the one below.
   - JPEG needs a quality control and a warning that it has no alpha, or somebody exports a character on a white box and finds out later.
-- [~] Lightbox draws its own icons `evidence: IconSet, IconSetTests, EveryToolbarButtonResolvesAnIcon, NoToolButtonDrawsAGlyphFromASystemFont, EveryIconIsAuthoredOnTheSameGrid, ASelectionVariantIsNeverTheShapeToolsOutline, IconSourceDocument`
+- [~] Lightbox draws its own icons `evidence: IconSet, IconSetTests, EveryToolbarButtonResolvesAnIcon, NoButtonAnywhereWearsAGlyphInsteadOfAnIcon, EveryIconIsAuthoredOnTheSameGrid, ASelectionVariantIsNeverTheShapeToolsOutline, IconSourceDocument`
   - Every icon in the app should be one set, made deliberately rather than assembled. The interesting part is *how*: **the app should draw them itself**. That needs vector tooling good enough to author a 16 px glyph and an SVG save that emits real paths, which is the honest dependency chain — icons wait on the vector side, and the vector side is worth having anyway.
   - Generating the SVGs directly is the fallback and is fine as a first pass, but it is a worse test of the product: a drawing application that cannot make its own icons is telling you something about its vector tooling. Dogfooding here is a feature, not a vanity.
   - The mechanical half is separable and can land first: one place that names every icon, so a missing one fails a test instead of showing a blank button, and so a redraw is a single swap. That also settles the cut-off-icon complaints, which are a sizing question the current pile of assets cannot answer consistently.
   - **Built: the registry, and the twelve icons that were still characters.** `IconSet` names all 33 and is walked from both ends — every name resolves to a geometry, and every geometry drawn in `Icons.axaml` is named. Four tool buttons were drawing Unicode from the system font: `➤` and `➢` for the two arrows, four box-drawing characters for the shape variants, and five for the select variants including **U+1FA84, an emoji** — full colour beside monoline glyphs where the platform had that character, a blank box where it did not. `NoToolButtonDrawsAGlyphFromASystemFont` is written against the *shape* of that mistake rather than against those eleven characters, so the next one fails too.
   - **The select variants are a system rather than five drawings**: the *dash* means selection, the shape means which one. That is what lets a sixth variant be drawn later without inventing a visual language for it, and it is why the box and the ellipse are not the shape tool's outlines reused — a solid outline is a shape the tool will draw, a dashed one is a region it will select, and those two tools sit next to each other in the rail.
+  - **Extended to the whole application** (2026-08-16): the other ~50 glyph
+    buttons — the transport, the view and shortcut bars, every docker's verbs,
+    the select-variant radios, the docker chrome (float/dock, collapse, grip)
+    and the stateful pairs behind bound properties (play/pause, the collapse
+    chevrons, the publish arrows) — now draw from the same set, which grew to
+    ~75 geometries. `NoButtonAnywhereWearsAGlyphInsteadOfAnIcon` widens the
+    tool-rail guard to every Button, ToggleButton and RadioButton in the app;
+    labels with words in them ("＋ Swatch") stay typography on purpose. This
+    unblocks the 26→20 tile question Density.axaml records, which is its own
+    change because the rows resize with it.
   - **Still the fallback this item warns about**: these were authored as SVG path data by hand, not drawn in Lightbox. `IconSourceDocument` is the anchor that will resolve when the set has a `.lbx` source and an SVG export behind it, and it deliberately does not resolve today. What landed is the registry that makes that redraw a single swap, which is the order the item asked for.
 
 ---

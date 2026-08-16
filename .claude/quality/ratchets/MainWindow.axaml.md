@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4251
+budget: 4391
 
 ## Why it is here despite being XAML
 
@@ -66,3 +66,11 @@ leaves a number nobody can account for. So every reason above stays, and
   their own file — so what lands here is the single `<views:LineOptionsBar />`
   that puts it in the strip. A budget that refused this would be refusing the
   registration rather than the code, which is the opposite of what it is for.
+- **→ 4,391** (2026-08-16): +140, and every line of it is markup shape rather
+  than new surface. The icon set replaced the glyph buttons: a button whose
+  face was a one-character `Content` attribute now carries a `<Path>` child
+  (two for the stateful pairs — play/pause, the collapse chevrons), which
+  costs two to five lines per button across some fifty buttons and adds no
+  control, no handler and no binding that was not already there. The next
+  extraction should still come out of this number; the raise only prices the
+  shape the same buttons now have.

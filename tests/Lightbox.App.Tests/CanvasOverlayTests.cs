@@ -315,16 +315,16 @@ public sealed class CanvasOverlayTests : BrushStateIsolated
     [AvaloniaFact]
     public void OneButtonForPlayAndPause()
     {
+        // The button carries both drawings and shows one at a time, keyed off
+        // IsPlaying — the state the two Path.IsVisible bindings read.
         var (_, vm) = Open();
-        Assert.Equal("▶", vm.PlayPauseGlyph);
+        Assert.False(vm.IsPlaying);
 
         vm.TogglePlaybackCommand.Execute(null);
         Assert.True(vm.IsPlaying);
-        Assert.Equal("⏸", vm.PlayPauseGlyph);
 
         vm.TogglePlaybackCommand.Execute(null);
         Assert.False(vm.IsPlaying);
-        Assert.Equal("▶", vm.PlayPauseGlyph);
     }
 
     [AvaloniaFact]

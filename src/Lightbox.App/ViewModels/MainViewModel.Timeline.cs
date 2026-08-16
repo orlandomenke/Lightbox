@@ -259,9 +259,6 @@ public partial class MainViewModel
         else Play();
     }
 
-    /// <summary>One button for both, so the shortcut bar costs one slot.</summary>
-    public string PlayPauseGlyph => IsPlaying ? "⏸" : "▶";
-
     /// <summary>
     /// Whether transport controls are worth showing at all.
     /// </summary>

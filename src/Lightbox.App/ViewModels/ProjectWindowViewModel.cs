@@ -84,8 +84,6 @@ public sealed record Declaration(
     /// </summary>
     public bool CanRemove => Sheet is null;
 
-    public string ReachGlyph => IsPublished ? "⤓" : "⤒";
-
     public string ReachHint => IsPublished
         ? "Reaches the whole project — take it back to this subtree"
         : "Reaches this subtree — publish it project-wide";

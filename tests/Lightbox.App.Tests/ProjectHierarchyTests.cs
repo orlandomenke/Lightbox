@@ -99,7 +99,6 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
 
         Assert.True(docker.IsCollapsed(art));
         Assert.True(RowFor(docker, art).IsCollapsed);
-        Assert.Equal("▸", RowFor(docker, art).Twisty);
         Assert.DoesNotContain(docker.Rows, r => r.Name == "Backgrounds");
         Assert.DoesNotContain(docker.Rows, r => r.Name == "Rooftop");
 

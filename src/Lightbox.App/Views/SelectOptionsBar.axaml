@@ -18,21 +18,31 @@
       </MultiBinding>
     </StackPanel.IsVisible>
     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-      <RadioButton GroupName="selvar" Content="◌" IsChecked="{Binding IsFreehandVariant, Mode=OneWay}"
+      <RadioButton GroupName="selvar" IsChecked="{Binding IsFreehandVariant, Mode=OneWay}"
                    Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Freehand}"
-                   ToolTip.Tip="Freehand selection" />
-      <RadioButton GroupName="selvar" Content="⬠" IsChecked="{Binding IsPolygonVariant, Mode=OneWay}"
+                   ToolTip.Tip="Freehand selection">
+        <Path Classes="icon" Data="{StaticResource IconSelectLasso}" />
+      </RadioButton>
+      <RadioButton GroupName="selvar" IsChecked="{Binding IsPolygonVariant, Mode=OneWay}"
                    Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Polygon}"
-                   ToolTip.Tip="Polygon selection (click vertices, double-click to close, Esc cancels)" />
-      <RadioButton GroupName="selvar" Content="▭" IsChecked="{Binding IsBoxVariant, Mode=OneWay}"
+                   ToolTip.Tip="Polygon selection (click vertices, double-click to close, Esc cancels)">
+        <Path Classes="icon" Data="{StaticResource IconSelectPolygon}" />
+      </RadioButton>
+      <RadioButton GroupName="selvar" IsChecked="{Binding IsBoxVariant, Mode=OneWay}"
                    Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Box}"
-                   ToolTip.Tip="Box selection" />
-      <RadioButton GroupName="selvar" Content="◯" IsChecked="{Binding IsEllipseVariant, Mode=OneWay}"
+                   ToolTip.Tip="Box selection">
+        <Path Classes="icon" Data="{StaticResource IconSelectBox}" />
+      </RadioButton>
+      <RadioButton GroupName="selvar" IsChecked="{Binding IsEllipseVariant, Mode=OneWay}"
                    Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Ellipse}"
-                   ToolTip.Tip="Circle/ellipse selection" />
-      <RadioButton GroupName="selvar" Content="🪄" IsChecked="{Binding IsWandVariant, Mode=OneWay}"
+                   ToolTip.Tip="Circle/ellipse selection">
+        <Path Classes="icon" Data="{StaticResource IconSelectEllipse}" />
+      </RadioButton>
+      <RadioButton GroupName="selvar" IsChecked="{Binding IsWandVariant, Mode=OneWay}"
                    Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Wand}"
-                   ToolTip.Tip="Magic wand — click to select a connected color region" />
+                   ToolTip.Tip="Magic wand — click to select a connected color region">
+        <Path Classes="icon" Data="{StaticResource IconSelectWand}" />
+      </RadioButton>
     </StackPanel>
     <!-- Wand-only options -->
     <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsWandVariant}" VerticalAlignment="Center">
