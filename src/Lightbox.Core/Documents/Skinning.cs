@@ -14,6 +14,19 @@ public readonly record struct RigidDelta(double Cos, double Sin, double Tx, doub
 
     public (double X, double Y) Apply(double x, double y) =>
         (Cos * x - Sin * y + Tx, Sin * x + Cos * y + Ty);
+
+    /// <summary>
+    /// The inverse map, posed space back to bind space — a rotation is
+    /// orthogonal, so its transpose undoes it exactly and no matrix is
+    /// inverted. What lets a dab made on the posed drawing be reasoned
+    /// about at rest (X-symmetry's axis lives there).
+    /// </summary>
+    public (double X, double Y) Unapply(double x, double y)
+    {
+        var dx = x - Tx;
+        var dy = y - Ty;
+        return (Cos * dx + Sin * dy, -Sin * dx + Cos * dy);
+    }
 }
 
 /// <summary>

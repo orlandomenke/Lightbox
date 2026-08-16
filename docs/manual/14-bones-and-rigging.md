@@ -14,8 +14,8 @@ in the way.
 
 Its panel in **Tool options** carries everything the tool can do, starting
 with one switch of three positions — **Bind**, **Pose**, **Weights**. That
-switch is how you get to weight painting; the three are exclusive, because
-weights are painted against the rest pose, so arming the brush leaves posing.
+switch is how you get to weight painting; the three are exclusive — a
+Weights drag paints influence, it never turns a bone.
 
 Below the switch, the panel lists **every bone in the rig**, children indented
 under their parents. Picking one there selects it on the canvas — the same
@@ -221,6 +221,8 @@ each part of it.
   weight brush are for.
 - The **heat view** shows the selected bone's influence over the current
   drawing, blue (none) through red (owned), while the Bone tool is active.
+  The dots sit on the drawing **as it is posed at the playhead**, so what
+  you see is what you would paint.
 
 - The **weight brush** (**Ctrl+Shift+K** while the Bone tool is active)
   paints influence for the selected bone directly on the canvas: pressure
@@ -228,9 +230,14 @@ each part of it.
   the others down, a locked bone holds), and a whole brush stroke is one
   undo step. With **X-symmetry** on, painting one side of a named pair
   (`hip.l` / `hip.r`) paints the other side too, mirrored across the pair's
-  own axis — the character's spine, wherever it sits on the paper. Painting
-  happens against the rest pose; scrub a pose to check, come back to
-  correct.
+  own axis — the character's spine, wherever it sits on the paper, and the
+  mirrored dab lands on the other limb **wherever its own pose put it**.
+  You can paint at any frame: the brush works on the drawing you are
+  looking at — pose the arm to where the armpit goes wrong, and fix the
+  weights right there. The weights themselves are still stored against the
+  rest drawing, so nothing about a pose changes what a weight means. The
+  drawing re-renders with the corrected weights when the brush lifts; the
+  heat dots follow live under it, dab by dab.
 
-*Planned:* painting weights under a live pose, secondary motion and rig export (`docs/DESIGN-bones.md` has the
+*Planned:* secondary motion and rig export (`docs/DESIGN-bones.md` has the
 whole plan).

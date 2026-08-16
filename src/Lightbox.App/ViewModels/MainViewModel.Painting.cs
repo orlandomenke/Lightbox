@@ -298,6 +298,11 @@ public partial class MainViewModel
         // animation), stopping recomputes it once — never per tick, where its
         // bounds walk would be the thumbnail mistake again.
         RefreshMotionTrail();
+
+        // The armature chrome and heat read the playhead's pose, skipped per
+        // tick for B152's reason; the stop leaves the playhead wherever the
+        // run ended, so they catch up here the way the thumbnails do.
+        if (!value && ArmatureEditMode) RefreshArmatureAtPlayhead();
     }
 
 
