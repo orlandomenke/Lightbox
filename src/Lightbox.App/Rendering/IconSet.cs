@@ -73,10 +73,61 @@ public static class IconSet
 
     public const string Close = "IconClose";
     public const string Plus = "IconPlus";
+    public const string Minus = "IconMinus";
     public const string Trash = "IconTrash";
     public const string Folder = "IconFolder";
     public const string Eject = "IconEject";
     public const string ChevronDown = "IconChevronDown";
+    public const string ChevronUp = "IconChevronUp";
+    public const string ChevronRight = "IconChevronRight";
+    public const string Gear = "IconGear";
+    public const string Kebab = "IconKebab";
+    public const string Pencil = "IconPencil";
+    public const string Duplicate = "IconDuplicate";
+    public const string Undo = "IconUndo";
+    public const string Redo = "IconRedo";
+    public const string ArrowUp = "IconArrowUp";
+    public const string ArrowDown = "IconArrowDown";
+    public const string ArrowUpToBar = "IconArrowUpToBar";
+    public const string ArrowDownToBar = "IconArrowDownToBar";
+    public const string SwapHorizontal = "IconSwapHorizontal";
+    public const string SwapVertical = "IconSwapVertical";
+    public const string Refresh = "IconRefresh";
+    public const string Key = "IconKey";
+    public const string Grip = "IconGrip";
+
+    // ---- transforms of the drawing or the view ------------------------------
+
+    public const string MirrorHorizontal = "IconMirrorHorizontal";
+    public const string MirrorVertical = "IconMirrorVertical";
+    public const string RotateCw = "IconRotateCw";
+    public const string RotateCcw = "IconRotateCcw";
+    public const string Home = "IconHome";
+
+    // ---- the shortcut bar's toggles -----------------------------------------
+
+    public const string Camera = "IconCamera";
+    public const string Snap = "IconSnap";
+    public const string Guides = "IconGuides";
+    public const string ReferenceGrid = "IconReferenceGrid";
+
+    // ---- panels and windows -------------------------------------------------
+
+    public const string Window = "IconWindow";
+    public const string Board = "IconBoard";
+    public const string Float = "IconFloat";
+    public const string Dock = "IconDock";
+
+    // ---- the transport ------------------------------------------------------
+
+    public const string Play = "IconPlay";
+    public const string PlayReverse = "IconPlayReverse";
+    public const string Pause = "IconPause";
+    public const string SkipToStart = "IconSkipToStart";
+    public const string SkipToEnd = "IconSkipToEnd";
+    public const string FastRewind = "IconFastRewind";
+    public const string FastForward = "IconFastForward";
+    public const string Loop = "IconLoop";
 
     /// <summary>The refusal, worn by the pointer rather than by a button.</summary>
     public const string Forbidden = "IconForbidden";
@@ -94,7 +145,14 @@ public static class IconSet
         Brush, Eraser, Fill, Picker, Gradient, Move, Bone, Pen, Width, Arrow, Points,
         ShapeLine, ShapeRect, ShapeEllipse, ShapePolygon,
         SelectLasso, SelectBox, SelectEllipse, SelectPolygon, SelectWand,
-        Close, Plus, Trash, Folder, Eject, ChevronDown,
+        Close, Plus, Minus, Trash, Folder, Eject, ChevronDown, ChevronUp, ChevronRight,
+        Gear, Kebab, Pencil, Duplicate, Undo, Redo,
+        ArrowUp, ArrowDown, ArrowUpToBar, ArrowDownToBar,
+        SwapHorizontal, SwapVertical, Refresh, Key, Grip,
+        MirrorHorizontal, MirrorVertical, RotateCw, RotateCcw, Home,
+        Camera, Snap, Guides, ReferenceGrid,
+        Window, Board, Float, Dock,
+        Play, PlayReverse, Pause, SkipToStart, SkipToEnd, FastRewind, FastForward, Loop,
         Forbidden,
     ];
 

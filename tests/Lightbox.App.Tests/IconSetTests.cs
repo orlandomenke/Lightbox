@@ -1,10 +1,15 @@
 using System.Text.RegularExpressions;
+using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media;
+using Avalonia.VisualTree;
+using Lightbox.App.Controls;
+using Lightbox.App.Docking;
 using Lightbox.App.Rendering;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Geometry;
 using Xunit;
+using ShapePath = Avalonia.Controls.Shapes.Path;
 
 namespace Lightbox.App.Tests;
 
@@ -144,6 +149,86 @@ public class IconSetTests(ITestOutputHelper output)
                 ? "tool rail is all geometry"
                 : $"glyphs still in the rail: {string.Join(" ", offenders)}");
         Assert.Empty(offenders);
+    }
+
+    /// <summary>
+    /// No button anywhere wears a bare character where an icon belongs.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The tool-rail guard above, widened to the whole application once the
+    /// set grew big enough to cover it: any Button, ToggleButton or
+    /// RadioButton whose literal Content is entirely non-ASCII is a glyph
+    /// borrowed from the system font, with everything that entails — no
+    /// styleable stroke, no disabled dimming, per-platform metrics, and the
+    /// 26px tile that DESIGN.md records as waiting on exactly this.
+    /// </para>
+    /// <para>
+    /// A label with words in it passes ("＋ Swatch", "✦ AI Inbetween"): text
+    /// is typography and keeps its prefix. Bound Content is invisible to this
+    /// scan; the stateful pairs it cannot see (play/pause, collapse chevrons)
+    /// are dual <c>Path</c>s toggled by IsVisible instead, so there is nothing
+    /// left for a binding to hand a character to.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void NoButtonAnywhereWearsAGlyphInsteadOfAnIcon()
+    {
+        var offenders = new List<string>();
+        var files = new[] { AppDir("Views"), AppDir("Styles") }
+            .SelectMany(dir => Directory.EnumerateFiles(dir, "*.axaml", SearchOption.AllDirectories))
+            .Append(AppDir("App.axaml"));
+
+        foreach (var file in files)
+        {
+            var xaml = File.ReadAllText(file);
+            foreach (Match m in Regex.Matches(
+                         xaml,
+                         @"<(Button|ToggleButton|RadioButton|DropDownButton)\b[^>]*?Content=""([^""]+)""",
+                         RegexOptions.Singleline))
+            {
+                var content = m.Groups[2].Value;
+                if (content.StartsWith("{", StringComparison.Ordinal)) continue; // bound, not literal
+                var visible = content.Replace(" ", "");
+                if (visible.Length > 0 && visible.All(c => c > 127))
+                {
+                    offenders.Add($"{Path.GetFileName(file)}: {content}");
+                }
+            }
+        }
+
+        output.WriteLine(
+            offenders.Count == 0
+                ? "every icon button is geometry"
+                : $"glyph buttons remain: {string.Join(", ", offenders)}");
+        Assert.Empty(offenders);
+    }
+
+    /// <summary>
+    /// The docker's float button actually renders its drawn icon.
+    /// </summary>
+    /// <remarks>
+    /// The one conversion with wiring subtle enough to break silently: a style
+    /// cannot hand the same Path instance to every docker, so the drawing
+    /// arrives via a ContentTemplate over a placeholder Content. If a later
+    /// edit drops the placeholder or the template, the button goes blank and
+    /// nothing else fails — this is the something else.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheDockerFloatButtonRendersADrawnIcon()
+    {
+        var docker = new Docker { PanelId = DockPanelId.Layers, Title = "x" };
+        var window = new Window { Content = docker };
+        window.Show();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var floatButton = docker.GetVisualDescendants().OfType<Button>()
+            .First(b => b.Name == "PART_Float");
+        var drawing = floatButton.GetVisualDescendants().OfType<ShapePath>().FirstOrDefault();
+
+        Assert.NotNull(drawing);
+        Assert.NotNull(drawing!.Data);
+        window.Close();
     }
 
     /// <summary>
