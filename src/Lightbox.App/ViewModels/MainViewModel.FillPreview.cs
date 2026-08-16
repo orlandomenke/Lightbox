@@ -27,6 +27,7 @@ public partial class MainViewModel
 {
     private List<List<StrokePoint>>? _fillPreviewContours;
     private bool _fillPreviewIsWand;
+    private bool _fillPreviewInvert;
     private string? _fillPreviewColor;
 
     /// <summary>Doc-space region for the containment shortcut; disposed on replace.</summary>
@@ -57,8 +58,14 @@ public partial class MainViewModel
         }
         var (x, y) = _hoverPoint!.Value;
         var wand = ActiveTool != ToolId.Fill;
+        // Shift is the click's one-off smart-fill flip, so the trace must
+        // read it too — the adversarial pass proved a Shift+click filled a
+        // region the preview had never shown. Shift on the wand means "add
+        // to the selection" and changes no region, so only the bucket cares.
+        var invert = !wand && _hoverModifiers.HasFlag(Avalonia.Input.KeyModifiers.Shift);
         if (_fillPreviewContours is not null
             && _fillPreviewIsWand == wand
+            && _fillPreviewInvert == invert
             && _fillPreviewRegion?.Contains((float)x, (float)y) == true)
         {
             // Same connected region, same answer — but the tint must follow
@@ -89,9 +96,10 @@ public partial class MainViewModel
             }
             var (x, y) = _hoverPoint!.Value;
             var wand = ActiveTool != ToolId.Fill;
+            var invert = !wand && _hoverModifiers.HasFlag(Avalonia.Input.KeyModifiers.Shift);
             var result = wand
                 ? WandRegion(x, y)
-                : FillRegion(x, y, invertSmart: false,
+                : FillRegion(x, y, invert,
                     ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex));
             if (result is null)
             {
@@ -105,6 +113,7 @@ public partial class MainViewModel
 
             _fillPreviewContours = contours;
             _fillPreviewIsWand = wand;
+            _fillPreviewInvert = invert;
             _fillPreviewColor = ColorHex;
             _fillPreviewRegion?.Dispose();
             _fillPreviewRegion = BrushEngine.PathFromContours(contours);

@@ -111,6 +111,12 @@ public partial class MainViewModel
         // the traced region is cheap; the recompute only runs if a preview
         // is actually up.
         ForgetFillPreviewRegion();
+        // An edit landing while a bone gesture previews means undo fired
+        // mid-drag: the preview describes a document that no longer exists,
+        // so drop it. The next pointer move re-previews against what is
+        // actually there. A no-op on the ordinary commit path, which clears
+        // before it performs.
+        ClearBoneGesturePreview();
 
         if (_committingScopedEdit)
         {

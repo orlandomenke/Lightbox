@@ -116,6 +116,32 @@ public class BoneGesturePreviewTests(ITestOutputHelper output)
     }
 
     [AvaloniaFact]
+    public void TheModeTheDragPreviewedIsTheModeTheReleaseLands()
+    {
+        // The adversarial pass's counterexample: the posing toggle is a
+        // hotkey that can fire while the button is down. A bind-mode drag
+        // whose preview showed the origin moving must land the bind edit on
+        // release, not a pose key aimed at the same point.
+        var vm = RiggedVm();
+        var id = vm.Doc.Armature!.Bones[0].Id;
+        Assert.False(vm.PosingMode);
+
+        vm.PreviewBoneGesture(id, BoneGrab.Origin, 100, 100, 120, 130, extruding: false);
+        vm.PosingMode = true; // Shift+K mid-hold
+        vm.EndBoneGesture(id, BoneGrab.Origin, 100, 100, 120, 130, extruding: false);
+
+        var bone = vm.Doc.Armature.Bones[0];
+        Assert.Equal(120, bone.X, 6);
+        Assert.Equal(130, bone.Y, 6);
+        Assert.Null(vm.Doc.Scene.PoseTrack); // and no key was smuggled in
+
+        // A plain click with no preview reads the live mode — it showed
+        // nothing to contradict.
+        vm.EndBoneGesture(id, BoneGrab.Tip, 120, 130, 120, 190, extruding: false);
+        Assert.NotNull(vm.Doc.Scene.PoseTrack);
+    }
+
+    [AvaloniaFact]
     public void TheReleaseIsStillOneUndoStep()
     {
         var vm = RiggedVm();

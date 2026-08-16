@@ -38,13 +38,25 @@ public sealed partial class MainViewModel
     private SKRectI? _bonePreviewDirty;
 
     /// <summary>
+    /// The mode the gesture is being previewed in, latched at its first
+    /// preview. The posing toggle is a hotkey that can fire while the button
+    /// is still down, and a release that read the <em>live</em> mode landed a
+    /// pose key after a drag whose preview showed a bind edit the whole way —
+    /// the adversarial pass's counterexample to "one construction, twice".
+    /// What was shown is what lands; a click that never previewed anything
+    /// still reads the live mode, because it showed nothing to contradict.
+    /// </summary>
+    private bool? _boneGesturePosing;
+
+    /// <summary>
     /// Show what the release would do, per pointer move. Chrome only — the
     /// record is untouched, which is what keeps one undo step per gesture.
     /// </summary>
     public void PreviewBoneGesture(
         string? id, BoneGrab grab, double x0, double y0, double x, double y, bool extruding)
     {
-        if (PosingMode)
+        _boneGesturePosing ??= PosingMode;
+        if (_boneGesturePosing.Value)
         {
             // Posing an empty spot means nothing and writes nothing — the
             // same refusal the release makes.
@@ -93,13 +105,16 @@ public sealed partial class MainViewModel
     public void EndBoneGesture(
         string? id, BoneGrab grab, double x0, double y0, double x1, double y1, bool extruding)
     {
+        // The mode the drag previewed in, not the mode of this instant —
+        // see _boneGesturePosing. Read before the clear resets the latch.
+        var posing = _boneGesturePosing ?? PosingMode;
         ClearBoneGesturePreview();
         if (id is null)
         {
             // An empty-canvas drag creates a bone — in bind mode only.
-            if (!PosingMode) CreateBoneFromDrag(x0, y0, x1, y1);
+            if (!posing) CreateBoneFromDrag(x0, y0, x1, y1);
         }
-        else if (PosingMode)
+        else if (posing)
         {
             PoseBoneTo(id, x1, y1);
         }
@@ -123,6 +138,7 @@ public sealed partial class MainViewModel
     /// <summary>Drop the provisional chrome; the record never knew about it.</summary>
     public void ClearBoneGesturePreview()
     {
+        _boneGesturePosing = null;
         if (_bonePreviewArmature is null && _bonePreviewPose is null) return;
         _bonePreviewArmature = null;
         _bonePreviewPose = null;

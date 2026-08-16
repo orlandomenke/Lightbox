@@ -40,6 +40,20 @@ public class FillHoverPreviewTests(ITestOutputHelper output) : BrushStateIsolate
 
     private static void Flush() => Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
+    /// <summary>A cheap shape fingerprint: outer-contour bounding area.</summary>
+    private static double PathAreaProxy(IReadOnlyList<List<StrokePoint>> contours)
+    {
+        double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
+        foreach (var p in contours[0])
+        {
+            minX = Math.Min(minX, p.X);
+            minY = Math.Min(minY, p.Y);
+            maxX = Math.Max(maxX, p.X);
+            maxY = Math.Max(maxY, p.Y);
+        }
+        return (maxX - minX) * (maxY - minY);
+    }
+
     [AvaloniaFact]
     public void TheHoverTracesExactlyWhatTheClickWouldFill()
     {
@@ -115,6 +129,47 @@ public class FillHoverPreviewTests(ITestOutputHelper output) : BrushStateIsolate
         vm.ActiveTool = ToolId.Brush;
         Flush();
         Assert.Null(previewed);
+    }
+
+    [AvaloniaFact]
+    public void ShiftRetracesSoThePreviewIsWhatTheShiftClickFills()
+    {
+        // The adversarial pass proved the divergence: Shift flips smart-fill
+        // sampling at the click, so a trace that ignored the modifier showed
+        // a region the Shift+click would never fill. The setup is its repro:
+        // the box on a lower layer, a blank layer active — smart sampling
+        // sees the box, the active layer alone sees nothing.
+        var vm = VmWithShape();
+        vm.AddPaintedLayerCommand.Execute(null);
+        vm.ActiveLayerIndex = vm.Doc.Scene.Layers.Count - 1;
+        vm.ActiveTool = ToolId.Fill;
+        Assert.True(vm.SmartFill);
+        IReadOnlyList<List<StrokePoint>>? previewed = null;
+        vm.FillPreviewChanged += (contours, _, _) => previewed = contours;
+
+        vm.UpdatePointerContext(150, 100, KeyModifiers.None);
+        Flush();
+        var plain = previewed;
+
+        vm.UpdatePointerContext(150, 100, KeyModifiers.Shift);
+        Flush();
+        var shifted = previewed;
+
+        Assert.NotNull(plain);
+        Assert.NotNull(shifted);
+        // The two samplings trace different regions here — which is exactly
+        // why the trace must read the modifier.
+        Assert.NotEqual(PathAreaProxy(plain!), PathAreaProxy(shifted!));
+
+        // And the Shift trace is what the Shift+click commits, point for point.
+        vm.FillAt(150, 100, invertSmart: true);
+        var fill = Assert.Single(vm.PaintedCel().Strokes, s => s.Tool == ToolKind.Fill);
+        Assert.Equal(shifted![0].Count, fill.Points.Count);
+        for (var i = 0; i < fill.Points.Count; i++)
+        {
+            Assert.Equal(shifted[0][i].X, fill.Points[i].X, 6);
+            Assert.Equal(shifted[0][i].Y, fill.Points[i].Y, 6);
+        }
     }
 
     [AvaloniaFact]
