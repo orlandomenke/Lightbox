@@ -532,7 +532,7 @@ public class GuideAndShapeTests(Xunit.ITestOutputHelper output) : BrushStateIsol
     // The last gap the tool audit found: B216 gave the guides to every tool
     // that *places a point*, and left the ones that move a *thing* by a delta,
     // because that needed an answer to "what part of the moved thing lands on
-    // the guide". Q98 answered it: the bounds, corners and centre.
+    // the guide". Q99 answered it: the bounds, corners and centre.
 
     /// <summary>A drawing dragged near a guide lands its edge on it.</summary>
     [AvaloniaFact]

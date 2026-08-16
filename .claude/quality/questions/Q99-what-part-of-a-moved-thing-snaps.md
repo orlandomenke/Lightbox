@@ -1,4 +1,4 @@
-# Q98 · What part of a moved thing snaps to a guide? — **answered 2026-08-16: its bounds, corners and centre**
+# Q99 · What part of a moved thing snaps to a guide? — **answered 2026-08-16: its bounds, corners and centre**
 
 Asked at the end of **B216**, which gave the guides to every tool that *places a
 point* — the brush's start, a shape's corners, a gradient's axis, a pen node, a
