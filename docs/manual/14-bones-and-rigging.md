@@ -271,4 +271,8 @@ each part of it.
   drawing re-renders with the corrected weights when the brush lifts; the
   heat dots follow live under it, dab by dab.
 
-*Planned:* rig export (`docs/DESIGN-bones.md` has the whole plan).
+**Exporting the rig**: the Godot export writes a `Skeleton2D` importer beside
+the sheet when the document is rigged, and the **Rig + DragonBones** format
+exports the skeleton file for engines with a DragonBones importer — see
+*Exporting to a game engine*. All six phases of `docs/DESIGN-bones.md` are
+built.

@@ -2351,7 +2351,7 @@
                   this is the vertical home with room for labels.
                 -->
                 <ScrollViewer x:Name="NonPaintToolOptions" VerticalScrollBarVisibility="Auto"
-                              IsVisible="{Binding !IsPaintTool}">
+                              IsVisible="{Binding UsesGenericToolOptions}">
                   <StackPanel Spacing="6">
                     <TextBlock x:Name="ToolOptionsToolName" Text="{Binding ActiveToolLabel}" FontWeight="SemiBold" FontSize="12" />
 
