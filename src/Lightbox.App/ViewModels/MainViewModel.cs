@@ -262,7 +262,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// step is a cache miss rather than a wrong-sized hit.
     /// </para>
     /// </remarks>
-    private double ComposeScale => WorthScaling(CanvasQuality switch
+    private double ComposeScale => WorthScaling(EffectiveCanvasQuality switch
     {
         CanvasQuality.Full => Math.Clamp(_displayScale * 2.0, 0.125, 1.0),
         CanvasQuality.Half => Math.Clamp(_displayScale * 0.5, 0.125, 1.0),

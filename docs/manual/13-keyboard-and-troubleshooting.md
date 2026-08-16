@@ -116,6 +116,17 @@ used.
 It only changes what you see while working. **The drawing, the exports and the
 thumbnails are always full resolution**, whatever this is set to.
 
+**Canvas quality during playback**, just below it, is the same ladder applied
+to a different moment. A still drawing rewards sharpness and a running
+animation rewards frame rate, so the two are separate settings: you can ink at
+Full and still play the scene back at Half, which is the single biggest lever
+when playback stutters. It is set to *Same as while drawing* by default — one
+quality everywhere until you say otherwise — and it only takes hold while a
+scene is actually playing. Scrubbing the playhead counts as drawing, not
+playback: the onion ghosts are up and you are reading individual drawings, so
+it keeps the drawing quality. The same full-resolution promise holds — exports
+and the file on disk never read either setting.
+
 ### Blending layers on the graphics card
 
 *Experimental, and off, because it is not yet known to be faster.*

@@ -164,6 +164,72 @@ public class CanvasQualityEffectTests : BrushStateIsolated
     }
 
     /// <summary>
+    /// The playback quality is a second setting, and it governs exactly one
+    /// moment: while the animation runs. A still canvas composites at the
+    /// drawing quality before playback and again after it.
+    /// </summary>
+    /// <remarks>
+    /// Asserted on the published image, like everything in this file: the
+    /// setting existing, persisting and showing in Configure would all stay
+    /// green if <c>EffectiveCanvasQuality</c> were never consulted.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ThePlaybackQualityAppliesOnlyWhileTheAnimationRuns()
+    {
+        var vm = new MainViewModel(null);
+        vm.SetDisplayScale(1.0);
+        vm.CanvasQuality = CanvasQuality.Display;
+        vm.PlaybackQuality = CanvasQuality.Half;
+
+        var still = Publish(vm);
+        vm.IsPlaying = true;
+        var playing = Publish(vm);
+        vm.IsPlaying = false;
+        var stopped = Publish(vm);
+
+        Assert.True(still.W > 0 && playing.W > 0, "nothing was published");
+        Assert.True(playing.W < still.W && playing.H < still.H,
+            $"playing published {playing.W}x{playing.H} against the still's {still.W}x{still.H}");
+        Assert.Equal(still, stopped);
+    }
+
+    /// <summary>
+    /// With no playback choice made, playing keeps the drawing quality — the
+    /// default follows rather than freezing to some second value.
+    /// </summary>
+    [AvaloniaFact]
+    public void WithNoPlaybackChoicePlayingKeepsTheDrawingQuality()
+    {
+        var vm = new MainViewModel(null);
+        vm.SetDisplayScale(1.0);
+        vm.CanvasQuality = CanvasQuality.Half;
+        Assert.Null(vm.PlaybackQuality);
+
+        var still = Publish(vm);
+        vm.IsPlaying = true;
+        var playing = Publish(vm);
+        vm.IsPlaying = false;
+
+        Assert.True(still.W > 0, "nothing was published");
+        Assert.Equal(still, playing);
+    }
+
+    /// <summary>
+    /// The choice survives a restart, and clearing it back to "same as while
+    /// drawing" survives one too — null must not be remembered as a value.
+    /// </summary>
+    [AvaloniaFact]
+    public void ThePlaybackChoiceSurvivesARestart()
+    {
+        var vm = new MainViewModel(null);
+        vm.PlaybackQuality = CanvasQuality.Half;
+        Assert.Equal(CanvasQuality.Half, new MainViewModel(null).PlaybackQuality);
+
+        vm.PlaybackQuality = null;
+        Assert.Null(new MainViewModel(null).PlaybackQuality);
+    }
+
+    /// <summary>
     /// The ladder keeps its order at every display scale: Half ≤ Display ≤ Full.
     /// </summary>
     [AvaloniaFact]

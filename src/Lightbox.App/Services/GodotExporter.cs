@@ -6,7 +6,12 @@ using Lightbox.Core.Export;
 namespace Lightbox.App.Services;
 
 /// <param name="WriteImporter">Write the Godot-side importer script beside the sheet.</param>
-public sealed record GodotExportOptions(bool WriteImporter = true)
+/// <param name="IncludeRig">
+/// Write each rigged document's rig JSON (and its importer) beside the sheet.
+/// A document with no armature writes nothing whichever way this is set —
+/// optional means absent.
+/// </param>
+public sealed record GodotExportOptions(bool WriteImporter = true, bool IncludeRig = true)
 {
     public SpriteSheetOptions Sheet { get; init; } = new();
 }
@@ -17,7 +22,14 @@ public sealed record GodotExportResult(
     string? ImporterPath,
     int SpriteCount,
     int ClipCount,
-    SpriteSheetResult? Sheet = null);
+    SpriteSheetResult? Sheet = null)
+{
+    /// <summary>One rig JSON per rigged document, empty for unrigged exports.</summary>
+    public IReadOnlyList<string> RigPaths { get; init; } = [];
+
+    /// <summary>The rig importer script, when any rig was written.</summary>
+    public string? RigImporterPath { get; init; }
+}
 
 /// <summary>
 /// Export for Godot: the atlas, the sidecar, and a Godot-side importer in GDScript.
@@ -148,8 +160,48 @@ public static class GodotExporter
             ? tags.GetArrayLength()
             : 0;
 
+        // The rig, when there is one: our schema beside the sheet, and a
+        // Godot-side importer that builds the Skeleton2D through Godot's own
+        // API — the same rule the sheet importer follows, because the .tscn
+        // that lands must be one Godot wrote.
+        var rigPaths = new List<string>();
+        string? rigImporterPath = null;
+        if (opts.IncludeRig)
+        {
+            var directory = Path.GetDirectoryName(Path.GetFullPath(sheetPath))!;
+            var baseName = Path.GetFileNameWithoutExtension(sheetPath);
+            for (var i = 0; i < docs.Count; i++)
+            {
+                if (!Lightbox.Core.Export.RigExport.HasRig(docs[i])) continue;
+                var stem = docs.Count == 1
+                    ? baseName
+                    : Sanitized(names is not null && i < names.Count ? names[i] : $"{baseName}_{i + 1}");
+                var rigPath = Path.Combine(directory, stem + "_rig.json");
+                File.WriteAllText(rigPath, Lightbox.Core.Export.RigExport.ExportJson(docs[i]));
+                rigPaths.Add(rigPath);
+            }
+            if (rigPaths.Count > 0 && opts.WriteImporter)
+            {
+                rigImporterPath = Path.Combine(directory, "lightbox_import_rig.gd");
+                // Only if absent, the sheet importer's rule: it is source we
+                // ship and somebody may have adjusted it.
+                if (!File.Exists(rigImporterPath)) File.WriteAllText(rigImporterPath, RigImporterSource);
+            }
+        }
+
         return new GodotExportResult(
-            sheet.SheetPath, sheet.MetadataPath, importerPath, frames.Count, clips, sheet);
+            sheet.SheetPath, sheet.MetadataPath, importerPath, frames.Count, clips, sheet)
+        {
+            RigPaths = rigPaths,
+            RigImporterPath = rigImporterPath,
+        };
+    }
+
+    /// <summary>A document name as a file stem: whatever the filesystem would refuse, replaced.</summary>
+    private static string Sanitized(string name)
+    {
+        var stem = string.Concat(name.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)).Trim();
+        return stem.Length == 0 ? "rig" : stem;
     }
 
     /// <summary>
@@ -292,5 +344,120 @@ public static class GodotExporter
                 if i < durations.size():
                     duration = float(durations[i])
                 sprite_frames.add_frame(name, atlases[i], duration)
+        """;
+
+    /// <summary>
+    /// The Godot-side rig importer, shipped as GDScript for the sheet
+    /// importer's reason: the scene that lands is one Godot's own API built,
+    /// so its serialised form is Godot's business and stays correct across
+    /// versions. Lightbox writes JSON; nothing else.
+    /// </summary>
+    internal const string RigImporterSource = """
+        # Lightbox → Godot rig importer.
+        #
+        # Open this in the script editor and press Ctrl+Shift+X (File ▸ Run). It finds
+        # every *_rig.json under res:// and builds a Skeleton2D scene beside each —
+        # the bones as Bone2D children with their rest transforms, and an
+        # AnimationPlayer whose "animation" plays the baked frames.
+        #
+        # The baked frames already carry everything Lightbox solved — IK, constraints,
+        # spline chains, the jiggle springs — so nothing here re-implements them: the
+        # engine plays exactly what the artist saw.
+        #
+        # It never touches project.godot or the .godot/ cache. Godot owns those.
+        @tool
+        extends EditorScript
+
+        func _run() -> void:
+            var count := 0
+            for path in _find_rigs("res://"):
+                _build(path)
+                count += 1
+            print("Lightbox: built %d rig scene(s)." % count)
+
+        func _find_rigs(root: String) -> PackedStringArray:
+            var found := PackedStringArray()
+            var dir := DirAccess.open(root)
+            if dir == null:
+                return found
+            dir.list_dir_begin()
+            var entry := dir.get_next()
+            while entry != "":
+                var path := root.path_join(entry)
+                if dir.current_is_dir() and not entry.begins_with("."):
+                    found.append_array(_find_rigs(path))
+                elif entry.ends_with("_rig.json"):
+                    found.append(path)
+                entry = dir.get_next()
+            dir.list_dir_end()
+            return found
+
+        func _build(path: String) -> void:
+            var text := FileAccess.get_file_as_string(path)
+            var rig: Dictionary = JSON.parse_string(text)
+            if rig == null or not rig.has("bones"):
+                push_warning("Lightbox: %s is not a rig file." % path)
+                return
+
+            var skeleton := Skeleton2D.new()
+            skeleton.name = "Skeleton2D"
+            var nodes := {}
+            for bone_data in rig["bones"]:
+                var bone := Bone2D.new()
+                bone.name = bone_data["name"]
+                bone.position = Vector2(bone_data["x"], bone_data["y"])
+                bone.rotation = deg_to_rad(bone_data["rotationDeg"])
+                bone.set_length(bone_data["length"])
+                nodes[bone_data["name"]] = bone
+            for bone_data in rig["bones"]:
+                var bone: Bone2D = nodes[bone_data["name"]]
+                var parent = bone_data.get("parent")
+                if parent != null and nodes.has(parent):
+                    nodes[parent].add_child(bone)
+                else:
+                    skeleton.add_child(bone)
+            for bone_name in nodes:
+                nodes[bone_name].rest = nodes[bone_name].transform
+
+            var animation := Animation.new()
+            var fps: int = rig.get("fps", 12)
+            var frame_count: int = rig.get("frameCount", 1)
+            animation.length = float(frame_count) / float(fps)
+            animation.loop_mode = Animation.LOOP_LINEAR
+            for bone_name in nodes:
+                var bone_path := _path_to(skeleton, nodes[bone_name])
+                var rot := animation.add_track(Animation.TYPE_VALUE)
+                animation.track_set_path(rot, NodePath(bone_path + ":rotation"))
+                var pos := animation.add_track(Animation.TYPE_VALUE)
+                animation.track_set_path(pos, NodePath(bone_path + ":position"))
+                for frame_data in rig.get("baked", []):
+                    var local = frame_data["bones"].get(bone_name)
+                    if local == null:
+                        continue
+                    var at := float(frame_data["frame"]) / float(fps)
+                    animation.track_insert_key(rot, at, deg_to_rad(local["rotationDeg"]))
+                    animation.track_insert_key(pos, at, Vector2(local["x"], local["y"]))
+
+            var library := AnimationLibrary.new()
+            library.add_animation("animation", animation)
+            var player := AnimationPlayer.new()
+            player.name = "AnimationPlayer"
+            skeleton.add_child(player)
+            player.add_animation_library("", library)
+
+            _own(skeleton, skeleton)
+            var scene := PackedScene.new()
+            scene.pack(skeleton)
+            var out := path.get_basename() + ".tscn"
+            ResourceSaver.save(scene, out)
+            print("Lightbox: %s -> %s" % [path, out])
+
+        func _path_to(root: Node, node: Node) -> String:
+            return str(root.get_path_to(node))
+
+        func _own(node: Node, root: Node) -> void:
+            for child in node.get_children():
+                child.owner = root
+                _own(child, root)
         """;
 }

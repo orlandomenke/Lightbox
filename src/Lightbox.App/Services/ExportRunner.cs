@@ -89,6 +89,16 @@ public static class ExportRunner
                 + "documents cannot be one of them. Export per document."),
             ExportTarget.Unity => Unity(docs, preset, path, names),
             ExportTarget.Godot => Godot(docs, preset, path, names),
+            // One skeleton file per document: a ske.json is one armature's
+            // motion, and packing several into one file would leave the
+            // second rig playing under the first one's name.
+            ExportTarget.DragonBones when docs.Count > 1 => Refused(
+                $"A DragonBones skeleton file is one rig's motion, so {docs.Count} documents "
+                + "cannot be one of them. Export per document."),
+            ExportTarget.DragonBones when !Lightbox.Core.Export.RigExport.HasRig(docs[0]) => Refused(
+                "This document has no rig. The DragonBones export carries the skeleton and its "
+                + "motion; draw a bone with the Bone tool first, or export a sheet instead."),
+            ExportTarget.DragonBones => DragonBones(docs[0], path),
             ExportTarget.Unreal => Unreal(docs, preset, path, names),
             ExportTarget.GameMaker => GameMaker(docs[0], preset, path),
             _ => Sheet(docs, preset, path, names),
@@ -186,6 +196,17 @@ public static class ExportRunner
             + Path.GetFileName(result.SheetPath),
             result.Sheet?.OmittedLayers ?? [],
             result.Sheet?.SuspectedBackgrounds ?? []);
+    }
+
+    private static ExportRun DragonBones(Doc doc, string path)
+    {
+        var result = DragonBonesExporter.Export(doc, path);
+        return new ExportRun(
+            [result.SkeletonPath, result.RigPath],
+            $"{result.BoneCount} bone(s), {result.FrameCount} baked frame(s) for DragonBones → "
+            + Path.GetFileName(result.SkeletonPath),
+            [],
+            []);
     }
 
     private static ExportRun Unreal(

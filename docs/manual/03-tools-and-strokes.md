@@ -301,6 +301,22 @@ selection is an entry in the document, referenced by the strokes clipped to it).
 Settings that reach pixels — anti-aliasing, pressure curves — are recorded **on
 each stroke**, so changing a preference never alters art you have already made.
 
+**An erase that rubbed nothing out is not recorded.** Sweep the eraser across
+blank canvas, or press Delete with an empty selection, and nothing is written:
+no stroke on the drawing, and no step in the history. It did nothing to nothing,
+so there is nothing to keep. Erasing down the gap between two lines counts as
+nothing too — what matters is whether any pixel changed, not whether ink was
+nearby.
+
+The one consequence worth knowing: **Ctrl+Z straight after an erase that hit
+nothing takes back whatever you did before it**, because as far as the drawing is
+concerned that erase never happened. An erase that *did* rub something out is
+recorded and undone exactly as it always was.
+
+This also keeps the timeline honest. Erasing on a **hold** normally starts a new
+drawing on that frame — but if the erase turns out to have hit nothing, the hold
+stays a hold. A gesture that changed no pixels never changes your timing.
+
 ## What you see while drawing is what you get
 
 **The mark under the pen is the mark you will have when you let go.** Not close
