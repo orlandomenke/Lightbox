@@ -68,10 +68,21 @@ public sealed partial class MainViewModel
         [new BoneRow("", "(no pole)", 0, false), .. BoneRows];
 
     /// <summary>The pole picker's value, which speaks "" rather than null.</summary>
-    public string SelectedChainPoleKey
+    /// <remarks>
+    /// Null and "" are different speakers. "" is the artist picking the
+    /// "(no pole)" row; null is the combo box clearing itself while its items
+    /// are rebuilt, which happens on every rig change. Treating them alike
+    /// meant a panel refresh silently deleted the pole it was displaying —
+    /// the same write-back that kept a bone from staying selected.
+    /// </remarks>
+    public string? SelectedChainPoleKey
     {
         get => SelectedChainPoleId ?? "";
-        set => SelectedChainPoleId = string.IsNullOrEmpty(value) ? null : value;
+        set
+        {
+            if (value is null) return;
+            SelectedChainPoleId = value.Length == 0 ? null : value;
+        }
     }
 
     /// <summary>

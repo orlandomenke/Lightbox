@@ -17,8 +17,13 @@ with one switch of three positions — **Bind**, **Pose**, **Weights**. That
 switch is how you get to weight painting; the three are exclusive, because
 weights are painted against the rest pose, so arming the brush leaves posing.
 
-The panel also carries: which mode you are in,
-every bone in the rig, and the weight brush with its settings. The pointer
+Below the switch, the panel lists **every bone in the rig**, children indented
+under their parents. Picking one there selects it on the canvas — the same
+selection a click on the canvas makes — and the selected bone draws **white**
+where the others draw green, the same colour selection wears on every overlay.
+The rest of the panel is what you can do to the picked bone (rename, length,
+add child, delete, IK, spline, constraints), the weight brush while it is
+armed, and the binding actions. The pointer
 says what a press would do before you make it — a **move** cursor over a
 bone you can shift, a **turn** cursor where a drag would rotate it, and a
 **crosshair** on empty canvas where a drag would start a new bone.
@@ -42,8 +47,9 @@ because its first drag is what *creates* the rig.
   again, and it stays where you put it from then on. **Add child** in the
   options panel does the same without aiming, and **Length** sets a bone's
   size by number instead of by drag.
-- **Rename** a bone in the options bar — a pair ending `.l` and `.r` is what
-  X-symmetry reads. **Delete** removes it and re-parents its children to its
+- **Rename** a bone in the options panel — a pair ending `.l` and `.r` is what
+  X-symmetry reads. **Delete** (the button, or the **Delete** key while the
+  Bone tool is in hand) removes it and re-parents its children to its
   parent, leaving them exactly where they are; strokes bound to it lose that
   binding.
 
