@@ -366,4 +366,32 @@ public sealed partial class CanvasControl
     private Func<double, double, double, bool>? _hoverLine;
 
     public void SetLineHover(Func<double, double, double, bool>? hover) => _hoverLine = hover;
+
+    // ---- the picked lines being moved (B223) ---------------------------------------
+    //
+    // The drag used to report one delta on release and the drawing arrived
+    // after the fact. It is a transform session now — the same one the Move
+    // tool and Ctrl+T use — so it needs a beginning and a middle as well as an
+    // end. Declared here rather than in CanvasControl.cs, which is on the
+    // ratchet.
+
+    /// <summary>Whether a line-move session is live for the current drag.</summary>
+    /// <remarks>
+    /// The view model answers whether it actually opened one — a press on a
+    /// line whose layer is locked does not — so the moves and the release only
+    /// talk to a session that exists.
+    /// </remarks>
+    private bool _lineMoveLive;
+
+    /// <summary>A drag on the picked lines began. Returns whether a session opened.</summary>
+    public event Func<double, double, bool>? SelectedLinesMoveStarted;
+
+    /// <summary>The drag moved, in document coordinates. The flag is Shift: hold one axis.</summary>
+    public event Action<double, double, bool>? SelectedLinesMoved;
+
+    /// <summary>The drag finished and should become one undo step.</summary>
+    public event Action? SelectedLinesMoveEnded;
+
+    /// <summary>The press turned out to be a click; throw the session away.</summary>
+    public event Action? SelectedLinesMoveCancelled;
 }

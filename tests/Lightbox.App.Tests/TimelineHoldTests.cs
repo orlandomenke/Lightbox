@@ -135,14 +135,14 @@ public sealed class TimelineHoldTests : BrushStateIsolated
         var layer = vm.PaintLayer();
         layer.Cels[1].Frame = null;
         vm.CurrentFrameIndex = 1;
-        var undos = vm.UndoDepth;
+        var undos = vm.RecordedStepCount;
 
         Assert.True(vm.BeginTransform());
         vm.PreviewTransform(SkiaSharp.SKMatrix.CreateTranslation(0, 40)); // drag the gizmo
         vm.CancelTransform();                                             // then Escape
 
         Assert.Null(layer.Cels[1].Frame);
-        Assert.Equal(undos, vm.UndoDepth);
+        Assert.Equal(undos, vm.RecordedStepCount);
     }
 
     [AvaloniaFact]

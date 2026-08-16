@@ -2784,6 +2784,12 @@ public sealed partial class CanvasControl : Control
                             e.Pointer.Capture(this);
                             _lineDragFrom = (x, y);
                             _lineDragTo = (x, y);
+                            // B223: the move is a transform session now, so it
+                            // opens on the press. It may still turn out to be a
+                            // click — the release cancels a session that went
+                            // nowhere, which is cheaper than deciding here and
+                            // missing the moves in between.
+                            _lineMoveLive = SelectedLinesMoveStarted?.Invoke(x, y) ?? false;
                         }
                         else
                         {
@@ -3204,8 +3210,15 @@ public sealed partial class CanvasControl : Control
             if (_lineDragFrom is not null)
             {
                 _lineDragTo = ViewToDoc(e.GetPosition(this));
-                // Only chrome moves here, so this is a repaint of the overlay
-                // rather than a re-render of the frame. See DrawSelectedLines.
+                // The outline is chrome and moves here; the pixels move in the
+                // session's composite preview (B223), which is why this reports
+                // the position as well as repainting. Before that, the drawing
+                // stayed put for the whole drag and arrived on release.
+                if (_lineMoveLive)
+                {
+                    SelectedLinesMoved?.Invoke(
+                        _lineDragTo.X, _lineDragTo.Y, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+                }
                 InvalidateVisual();
                 e.Handled = true;
                 return;
@@ -3461,9 +3474,15 @@ public sealed partial class CanvasControl : Control
             // A press that went nowhere is the click that selected the line, and
             // committing it would put an identity move in the history for every
             // selection an artist makes.
-            if (travelled >= LineDragMinimumPixels)
+            if (_lineMoveLive)
             {
-                SelectedLinesDragged?.Invoke(landed.X - dragFrom.X, landed.Y - dragFrom.Y);
+                _lineMoveLive = false;
+                // A press that went nowhere is the click that selected the
+                // line, so its session is discarded rather than committed —
+                // otherwise every selection an artist makes leaves an identity
+                // move in the history.
+                if (travelled >= LineDragMinimumPixels) SelectedLinesMoveEnded?.Invoke();
+                else SelectedLinesMoveCancelled?.Invoke();
             }
             InvalidateVisual();
             e.Handled = true;
@@ -3725,11 +3744,6 @@ public sealed partial class CanvasControl : Control
     /// in the undo history for every selection an artist makes.
     /// </remarks>
     private const double LineDragMinimumPixels = 3.0;
-
-    /// <summary>
-    /// A drag of the selected lines finished — the offset, in document units.
-    /// </summary>
-    public event Action<double, double>? SelectedLinesDragged;
 
     /// <summary>The live drag offset, for the outline to follow while dragging.</summary>
     private SKPoint LineDragOffset() => _lineDragFrom is { } from

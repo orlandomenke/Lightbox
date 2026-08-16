@@ -342,6 +342,38 @@ public partial class MainViewModel
             + "Edit ▸ Configure ▸ Performance changes it.";
     }
 
+    /// <summary>
+    /// How many steps are actually on the undo stack right now.
+    /// </summary>
+    /// <remarks>
+    /// <b>B224, and the name is the whole point of it.</b> Four tests asking
+    /// "did this gesture record an edit?" reached for <see cref="UndoDepth"/>,
+    /// which is <c>MaxUndo</c> — the *setting* for how many steps are kept, not
+    /// how many there are. So they captured a constant, performed a gesture,
+    /// and asserted the constant had not changed: green whether the gesture
+    /// recorded a step or not. A test that cannot fail is worse than no test,
+    /// because it is counted as coverage.
+    ///
+    /// <para>
+    /// Undone steps do not count — they are on the redo side and a redo would
+    /// bring them back, so "how many edits are behind me" is the undo line
+    /// alone. Reading it allocates a small list of labels and touches no
+    /// document, which is why a test may call it freely.
+    /// </para>
+    /// </remarks>
+    internal int RecordedStepCount
+    {
+        get
+        {
+            var steps = 0;
+            foreach (var entry in _editor.History)
+            {
+                if (!entry.IsUndone) steps++;
+            }
+            return steps;
+        }
+    }
+
     /// <summary>Undo steps kept. Deltas are cheap; snapshots hold a whole document each.</summary>
     public int UndoDepth
     {

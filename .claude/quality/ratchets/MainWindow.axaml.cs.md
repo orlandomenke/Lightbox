@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml.cs
 
-budget: 436
+budget: 440
 
 ## Why it has moved
 
@@ -23,3 +23,8 @@ other's reason and leaves a number nobody can account for.
   delegates to the view model is hooked up here, so a new delegated decision
   costs lines here by construction and there is nowhere else for them to be.
   Nine lines, six of which are the comment saying which bug they serve.
+- **→ 440** (2026-08-16, B223): +4, and it is one subscription becoming four.
+  The line drag used to report a single delta on release (`SelectedLinesDragged`)
+  and now has a beginning, a middle, an end and a cancel, because it is a
+  session rather than an event. This file's job is exactly that wiring, so a
+  gesture gaining phases costs lines here by construction.
