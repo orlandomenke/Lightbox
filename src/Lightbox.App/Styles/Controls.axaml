@@ -344,12 +344,49 @@
   </Style>
 
   <!--
+    Any drawn icon that is not part of a stateful pair: the Path opts in with
+    Classes="icon" and gets the set's one stroke treatment. The size is the
+    Path's, not the button's — a 13px drawing sits in a 26px tile, a caption
+    ✕ shrinks itself inline — so the button keeps whatever role (icon, text,
+    tool) it already had. The default size lives in Density.axaml with the
+    rest of the scale.
+  -->
+  <Style Selector="Path.icon">
+    <Setter Property="Stroke" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="StrokeThickness" Value="1.5" />
+    <Setter Property="StrokeLineCap" Value="Round" />
+    <Setter Property="StrokeJoin" Value="Round" />
+    <Setter Property="Fill" Value="{x:Null}" />
+    <Setter Property="Stretch" Value="Uniform" />
+  </Style>
+  <!-- Text content dims itself through Foreground when a button disables;
+       a stroked Path has to be told. -->
+  <Style Selector="Button:disabled Path.icon">
+    <Setter Property="Opacity" Value="0.35" />
+  </Style>
+  <Style Selector="ToggleButton:disabled Path.icon">
+    <Setter Property="Opacity" Value="0.35" />
+  </Style>
+
+  <!--
     Overlay-bar glyphs: the shortcut bar's tiles all share one chrome, so a
     stateful glyph there keeps the TILE look of its neighbours — only the
     drawing swaps. The .glyph chrome (transparent, dim-when-off) is for rows
     whose ground carries the colour; a tile carries its own.
   -->
   <Style Selector="controls|CanvasOverlayBar ToggleButton Path">
+    <Setter Property="Stroke" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="StrokeThickness" Value="1.5" />
+    <Setter Property="StrokeLineCap" Value="Round" />
+    <Setter Property="StrokeJoin" Value="Round" />
+    <Setter Property="Fill" Value="{x:Null}" />
+    <Setter Property="Stretch" Value="Uniform" />
+    <Setter Property="Width" Value="15" />
+    <Setter Property="Height" Value="15" />
+  </Style>
+  <!-- The bars' plain buttons (zoom, rotate, play) wear the same 15px drawing
+       as the tiles beside them, so the grid keeps one weight throughout. -->
+  <Style Selector="controls|CanvasOverlayBar Button Path">
     <Setter Property="Stroke" Value="{StaticResource TextPrimaryBrush}" />
     <Setter Property="StrokeThickness" Value="1.5" />
     <Setter Property="StrokeLineCap" Value="Round" />
@@ -564,14 +601,26 @@
     <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}" />
   </Style>
 
-  <!-- The docker's float button: ⧉ floats a docked panel, and on a floating
-       one the same button reads ⇱ and docks it back where it came from. -->
+  <!-- The docker's float button: a window-with-arrow floats a docked panel,
+       and on a floating one the same button reads as an arrow into the corner
+       and docks it back where it came from. Content is a placeholder for the
+       template to bite on; the drawing lives in the ContentTemplate because a
+       style cannot hand the same Path instance to every docker. -->
   <Style Selector="controls|Docker /template/ Button#PART_Float">
-    <Setter Property="Content" Value="⧉" />
+    <Setter Property="Content" Value="" />
+    <Setter Property="ContentTemplate">
+      <DataTemplate>
+        <Path Classes="icon" Width="11" Height="11" Data="{StaticResource IconFloat}" />
+      </DataTemplate>
+    </Setter>
     <Setter Property="ToolTip.Tip" Value="Float this panel in its own window" />
   </Style>
   <Style Selector="controls|Docker[IsFloating=True] /template/ Button#PART_Float">
-    <Setter Property="Content" Value="⇱" />
+    <Setter Property="ContentTemplate">
+      <DataTemplate>
+        <Path Classes="icon" Width="11" Height="11" Data="{StaticResource IconDock}" />
+      </DataTemplate>
+    </Setter>
     <Setter Property="ToolTip.Tip" Value="Dock this panel back where it came from" />
   </Style>
 

@@ -47,8 +47,6 @@ public sealed partial class GroupRow : ObservableObject
     [ObservableProperty]
     private string _color = "#4a6ea9";
 
-    public string CollapseGlyph => Collapsed ? "▸" : "▾";
-
     /// <summary>The folder's accent color for the header bar.</summary>
     public Avalonia.Media.IBrush ColorBrush =>
         Avalonia.Media.Brush.Parse(Color);
@@ -76,7 +74,6 @@ public sealed partial class GroupRow : ObservableObject
 
     partial void OnCollapsedChanged(bool value)
     {
-        OnPropertyChanged(nameof(CollapseGlyph));
         if (!_syncing) _owner.SetGroupCollapsed(Group, value);
     }
 }

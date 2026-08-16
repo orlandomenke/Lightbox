@@ -626,9 +626,10 @@
           workspace, not to the tool in hand — Q74's sharpening of Q70: a
           smart bar per workspace, with size and opacity fixed outside it.
         -->
-        <Button x:Name="QuickBarCustomize" DockPanel.Dock="Right" Classes="icon" Content="⋮"
+        <Button x:Name="QuickBarCustomize" DockPanel.Dock="Right" Classes="icon"
                 Background="Transparent" BorderThickness="0" VerticalAlignment="Center"
                 ToolTip.Tip="Choose what this workspace's quick bar carries. Size and opacity are always on it.">
+          <Path Classes="icon" Data="{StaticResource IconKebab}" />
           <Button.Flyout>
             <Flyout Placement="Bottom">
               <!-- No fixed width: the longest label sizes the flyout, so the
@@ -739,9 +740,10 @@
           to decide *not* to open it, so the picker is one committed click
           away and never the accidental result of a hand that moved.
         -->
-        <Button x:Name="ColorPickerDropdown" Classes="icon" Content="▾" FontSize="9"
+        <Button x:Name="ColorPickerDropdown" Classes="icon"
                 VerticalAlignment="Center" Background="Transparent" BorderThickness="0"
                 ToolTip.Tip="Colour picker">
+          <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconChevronDown}" />
           <Button.Flyout>
             <Flyout Placement="Bottom">
               <ContentControl Content="{Binding ColorPicker}"
@@ -749,9 +751,11 @@
             </Flyout>
           </Button.Flyout>
         </Button>
-        <Button Classes="icon" Content="⇄" FontSize="10" VerticalAlignment="Center"
+        <Button Classes="icon" VerticalAlignment="Center"
                 Background="Transparent" BorderThickness="0"
-                Command="{Binding SwapColorsCommand}" ToolTip.Tip="Swap foreground and background (X)" />
+                Command="{Binding SwapColorsCommand}" ToolTip.Tip="Swap foreground and background (X)">
+          <Path Classes="icon" Data="{StaticResource IconSwapHorizontal}" />
+        </Button>
         <!-- A rule, so the tool's own options read as a separate group rather
              than as more colour controls. -->
         <Border Width="1" Margin="6,3,0,3" Background="{StaticResource BorderBrush}" />
@@ -880,9 +884,11 @@
         <!-- Full brush parameters (brush + eraser): now a docker, per the
              owner — "a tool options docker instead of keeping it in the
              rail". The gear stays as the way in, and always OPENS. -->
-        <Button Content="⚙" VerticalAlignment="Center"
+        <Button VerticalAlignment="Center"
                 ToolTip.Tip="All brush parameters (opens the Tool options panel)"
-                Command="{Binding OpenToolOptionsCommand}" />
+                Command="{Binding OpenToolOptionsCommand}">
+          <Path Classes="icon" Data="{StaticResource IconGear}" />
+        </Button>
         <!-- Same rule the colour group ends with: a pinned | tool-gated boundary -->
         <Border Width="1" Margin="6,3,0,3" Background="{StaticResource BorderBrush}" />
       </StackPanel>
@@ -1084,13 +1090,17 @@
                     <ComboBox ItemsSource="{Binding GradientDocker.SpreadChoices}"
                               SelectedItem="{Binding GradientDocker.Spread}" Width="92" FontSize="11"
                               ToolTip.Tip="What happens beyond the ends of the ramp" />
-                    <Button Classes="icon" Content="＋" FontSize="10"
+                    <Button Classes="icon"
                             Command="{Binding GradientDocker.AddGradientCommand}"
-                            ToolTip.Tip="New gradient" />
-                    <Button Classes="icon" Content="✕" FontSize="10"
+                            ToolTip.Tip="New gradient">
+                      <Path Classes="icon" Data="{StaticResource IconPlus}" />
+                    </Button>
+                    <Button Classes="icon"
                             Command="{Binding GradientDocker.RemoveGradientCommand}"
                             IsEnabled="{Binding GradientDocker.HasGradient}"
-                            ToolTip.Tip="Delete this gradient" />
+                            ToolTip.Tip="Delete this gradient">
+                      <Path Classes="icon" Data="{StaticResource IconClose}" />
+                    </Button>
                   </StackPanel>
                 </StackPanel>
               </Flyout>
@@ -1260,15 +1270,24 @@
         -->
         <StackPanel x:Name="QuickTransport" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
                     IsVisible="{Binding Workspace.QuickTransport}">
-          <Button Classes="icon" Content="{Binding PlayPauseGlyph}" Command="{Binding TogglePlaybackCommand}"
-                  ToolTip.Tip="Play / pause" />
+          <Button Classes="icon" Command="{Binding TogglePlaybackCommand}"
+                  ToolTip.Tip="Play / pause">
+            <Panel>
+              <Path Classes="icon" Data="{StaticResource IconPlay}" IsVisible="{Binding !IsPlaying}" />
+              <Path Classes="icon" Data="{StaticResource IconPause}" IsVisible="{Binding IsPlaying}" />
+            </Panel>
+          </Button>
         </StackPanel>
         <StackPanel x:Name="QuickAddFrame" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
                     IsVisible="{Binding Workspace.QuickAddFrame}">
-          <Button Classes="icon" Content="＋" Command="{Binding AddFrameCommand}"
-                  ToolTip.Tip="Add an empty frame after this one" />
-          <Button Classes="icon" Content="⧉" Command="{Binding DuplicateFrameCommand}"
-                  ToolTip.Tip="Duplicate current frame" />
+          <Button Classes="icon" Command="{Binding AddFrameCommand}"
+                  ToolTip.Tip="Add an empty frame after this one">
+            <Path Classes="icon" Data="{StaticResource IconPlus}" />
+          </Button>
+          <Button Classes="icon" Command="{Binding DuplicateFrameCommand}"
+                  ToolTip.Tip="Duplicate current frame">
+            <Path Classes="icon" Data="{StaticResource IconDuplicate}" />
+          </Button>
         </StackPanel>
       </controls:OverflowBar>
       </DockPanel>
@@ -1289,8 +1308,10 @@
                 Command="{Binding AiInbetweenCommand}"
                 IsEnabled="{Binding CanUseAi}"
                 ToolTip.Tip="Ask the model to draw the inbetweens between this key and the next" />
-        <Button Content="✕" Command="{Binding CancelAiCommand}" IsVisible="{Binding AiBusy}"
-                ToolTip.Tip="Cancel the AI request" />
+        <Button Command="{Binding CancelAiCommand}" IsVisible="{Binding AiBusy}"
+                ToolTip.Tip="Cancel the AI request">
+          <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconClose}" />
+        </Button>
         <ProgressBar IsIndeterminate="True" Width="90" IsVisible="{Binding AiBusy}" VerticalAlignment="Center" />
         <TextBlock Text="{Binding AiStatus}" VerticalAlignment="Center" Opacity="0.85" TextTrimming="CharacterEllipsis" />
         <!--
@@ -1365,8 +1386,10 @@
                     <Button Content="{Binding DisplayTitle}" Background="Transparent" BorderThickness="0" Padding="11,2"
                             Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateTabCommand}"
                             CommandParameter="{Binding}" />
-                    <Button Classes="icon" Content="✕" FontSize="10" Background="Transparent" BorderThickness="0"
-                            Click="OnCloseTabClicked" ToolTip.Tip="Close document" />
+                    <Button Classes="icon" Background="Transparent" BorderThickness="0"
+                            Click="OnCloseTabClicked" ToolTip.Tip="Close document">
+                      <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconClose}" />
+                    </Button>
                   </StackPanel>
                   <Border Classes="tabline" />
                 </Panel>
@@ -1661,7 +1684,9 @@
           <controls:CanvasOverlayBar x:Name="ViewBar" OverlayId="View" Title="View">
             <StackPanel Spacing="2"
                         Orientation="{Binding IsVertical, RelativeSource={RelativeSource AncestorType=controls:CanvasOverlayBar}, Converter={x:Static docking:OverlayConverters.VerticalToOrientation}}">
-              <Button Content="−" Click="OnZoomOut" ToolTip.Tip="Zoom out (mouse wheel)" />
+              <Button Click="OnZoomOut" ToolTip.Tip="Zoom out (mouse wheel)">
+                <Path Data="{StaticResource IconMinus}" />
+              </Button>
               <!--
                 The one wide readout. It turns to fit a narrow bar, with its
                 feet towards the canvas, because that is the side you are
@@ -1687,12 +1712,22 @@
                   </TextBlock.RenderTransform>
                 </TextBlock>
               </Button>
-              <Button Content="＋" Click="OnZoomIn" ToolTip.Tip="Zoom in (mouse wheel)" />
-              <Button Content="↺" Click="OnRotateCcw" ToolTip.Tip="Rotate view 15° counter-clockwise (Shift+wheel)" />
-              <Button Content="↻" Click="OnRotateCw" ToolTip.Tip="Rotate view 15° clockwise (Shift+wheel)" />
-              <Button x:Name="MirrorButton" Content="⇋" Click="OnToggleMirror"
-                      ToolTip.Tip="Mirror the view horizontally (M) — a drawing aid, the artwork is untouched" />
-              <Button Content="⌂" Click="OnResetView" ToolTip.Tip="Reset zoom, rotation, mirror and pan (0)" />
+              <Button Click="OnZoomIn" ToolTip.Tip="Zoom in (mouse wheel)">
+                <Path Data="{StaticResource IconPlus}" />
+              </Button>
+              <Button Click="OnRotateCcw" ToolTip.Tip="Rotate view 15° counter-clockwise (Shift+wheel)">
+                <Path Data="{StaticResource IconRotateCcw}" />
+              </Button>
+              <Button Click="OnRotateCw" ToolTip.Tip="Rotate view 15° clockwise (Shift+wheel)">
+                <Path Data="{StaticResource IconRotateCw}" />
+              </Button>
+              <Button x:Name="MirrorButton" Click="OnToggleMirror"
+                      ToolTip.Tip="Mirror the view horizontally (M) — a drawing aid, the artwork is untouched">
+                <Path Data="{StaticResource IconMirrorHorizontal}" />
+              </Button>
+              <Button Click="OnResetView" ToolTip.Tip="Reset zoom, rotation, mirror and pan (0)">
+                <Path Data="{StaticResource IconHome}" />
+              </Button>
             </StackPanel>
           </controls:CanvasOverlayBar>
 
@@ -1718,13 +1753,17 @@
                         Orientation="{Binding IsVertical, RelativeSource={RelativeSource AncestorType=controls:CanvasOverlayBar}, Converter={x:Static docking:OverlayConverters.VerticalToOrientation}}">
               <ToggleButton Classes="onion" IsChecked="{Binding ActiveLayerOnion}"
                             ToolTip.Tip="Onion skin on the active layer" ><Path /></ToggleButton>
-              <ToggleButton Content="🎥" IsChecked="{Binding ViewThroughCamera}"
+              <ToggleButton IsChecked="{Binding ViewThroughCamera}"
                             IsVisible="{Binding HasCamera}"
-                            ToolTip.Tip="View through the camera" />
-              <Button Content="{Binding PlayPauseGlyph}"
-                      Command="{Binding TogglePlaybackCommand}"
+                            ToolTip.Tip="View through the camera"><Path Data="{StaticResource IconCamera}" /></ToggleButton>
+              <Button Command="{Binding TogglePlaybackCommand}"
                       IsVisible="{Binding ShowsTransport}"
-                      ToolTip.Tip="Play / pause (Space)" />
+                      ToolTip.Tip="Play / pause (Space)">
+                <Panel>
+                  <Path Data="{StaticResource IconPlay}" IsVisible="{Binding !IsPlaying}" />
+                  <Path Data="{StaticResource IconPause}" IsVisible="{Binding IsPlaying}" />
+                </Panel>
+              </Button>
               <!--
                 Absent unless there is a reference to edit. A document with no
                 sheet imported has nothing for this to switch on, and a toggle
@@ -1732,9 +1771,9 @@
               -->
               <!-- Absent unless a guide has been placed: nothing to snap to
                    means nothing to switch. -->
-              <ToggleButton Content="⌗" IsChecked="{Binding SnapToGuides}"
+              <ToggleButton IsChecked="{Binding SnapToGuides}"
                             IsVisible="{Binding HasGuides}"
-                            ToolTip.Tip="Snap to guides" />
+                            ToolTip.Tip="Snap to guides"><Path Data="{StaticResource IconSnap}" /></ToggleButton>
               <!--
                 Guide visibility and locking, next to the rulers that make
                 them. Only while the rulers are up: they are the switch that
@@ -1742,15 +1781,15 @@
                 and off the rig cannot move, so two buttons about moving it
                 would be two dead buttons.
               -->
-              <ToggleButton Content="⌐" IsChecked="{Binding Workspace.GuidesVisible}"
+              <ToggleButton IsChecked="{Binding Workspace.GuidesVisible}"
                             IsVisible="{Binding Workspace.RulersVisible}"
-                            ToolTip.Tip="Show guides (Ctrl+;) — hidden ones still snap" />
-              <ToggleButton Content="🔒" IsChecked="{Binding Workspace.GuidesLocked}"
+                            ToolTip.Tip="Show guides (Ctrl+;) — hidden ones still snap"><Path Data="{StaticResource IconGuides}" /></ToggleButton>
+              <ToggleButton IsChecked="{Binding Workspace.GuidesLocked}"
                             IsVisible="{Binding Workspace.RulersVisible}"
-                            ToolTip.Tip="Lock guides (Ctrl+Alt+;) — pin them where they are" />
-              <ToggleButton Content="⊞" IsChecked="{Binding ReferenceGridEditMode}"
+                            ToolTip.Tip="Lock guides (Ctrl+Alt+;) — pin them where they are"><Path Data="{StaticResource IconLockClosed}" /></ToggleButton>
+              <ToggleButton IsChecked="{Binding ReferenceGridEditMode}"
                             IsVisible="{Binding HasReferences}"
-                            ToolTip.Tip="Edit the reference grid — drag the boxes, drag a corner to resize, right-click for the pivot. Esc leaves." />
+                            ToolTip.Tip="Edit the reference grid — drag the boxes, drag a corner to resize, right-click for the pivot. Esc leaves."><Path Data="{StaticResource IconReferenceGrid}" /></ToggleButton>
             </StackPanel>
           </controls:CanvasOverlayBar>
 
@@ -1992,9 +2031,11 @@
                           scans folder paints differently on the next machine.
                         -->
                         <DockPanel ToolTip.Tip="Use a scan or photograph of real paper. It goes into the drawing, so the file still paints the right grain anywhere.">
-                          <Button DockPanel.Dock="Right" x:Name="ClearTextureButton" Content="✕"
+                          <Button DockPanel.Dock="Right" x:Name="ClearTextureButton"
                                   Click="OnClearTextureClicked" Margin="6,0,0,0"
-                                  ToolTip.Tip="Back to the built-in surfaces" />
+                                  ToolTip.Tip="Back to the built-in surfaces">
+                            <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconClose}" />
+                          </Button>
                           <Button Content="Paper image…" Click="OnImportTextureClicked"
                                   HorizontalAlignment="Stretch" />
                         </DockPanel>
@@ -2341,21 +2382,31 @@
                       <!-- Its own group name: the bar carries the same radios, and
                            two groups sharing a name uncheck each other. -->
                       <StackPanel Orientation="Horizontal" Spacing="4">
-                        <RadioButton GroupName="selvarPanel" Content="◌" IsChecked="{Binding IsFreehandVariant, Mode=OneWay}"
+                        <RadioButton GroupName="selvarPanel" IsChecked="{Binding IsFreehandVariant, Mode=OneWay}"
                                      Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Freehand}"
-                                     ToolTip.Tip="Freehand selection" />
-                        <RadioButton GroupName="selvarPanel" Content="⬠" IsChecked="{Binding IsPolygonVariant, Mode=OneWay}"
+                                     ToolTip.Tip="Freehand selection">
+                          <Path Classes="icon" Data="{StaticResource IconSelectLasso}" />
+                        </RadioButton>
+                        <RadioButton GroupName="selvarPanel" IsChecked="{Binding IsPolygonVariant, Mode=OneWay}"
                                      Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Polygon}"
-                                     ToolTip.Tip="Polygon selection" />
-                        <RadioButton GroupName="selvarPanel" Content="▭" IsChecked="{Binding IsBoxVariant, Mode=OneWay}"
+                                     ToolTip.Tip="Polygon selection">
+                          <Path Classes="icon" Data="{StaticResource IconSelectPolygon}" />
+                        </RadioButton>
+                        <RadioButton GroupName="selvarPanel" IsChecked="{Binding IsBoxVariant, Mode=OneWay}"
                                      Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Box}"
-                                     ToolTip.Tip="Box selection" />
-                        <RadioButton GroupName="selvarPanel" Content="◯" IsChecked="{Binding IsEllipseVariant, Mode=OneWay}"
+                                     ToolTip.Tip="Box selection">
+                          <Path Classes="icon" Data="{StaticResource IconSelectBox}" />
+                        </RadioButton>
+                        <RadioButton GroupName="selvarPanel" IsChecked="{Binding IsEllipseVariant, Mode=OneWay}"
                                      Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Ellipse}"
-                                     ToolTip.Tip="Circle/ellipse selection" />
-                        <RadioButton GroupName="selvarPanel" Content="🪄" IsChecked="{Binding IsWandVariant, Mode=OneWay}"
+                                     ToolTip.Tip="Circle/ellipse selection">
+                          <Path Classes="icon" Data="{StaticResource IconSelectEllipse}" />
+                        </RadioButton>
+                        <RadioButton GroupName="selvarPanel" IsChecked="{Binding IsWandVariant, Mode=OneWay}"
                                      Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Wand}"
-                                     ToolTip.Tip="Magic wand — click to select a connected color region" />
+                                     ToolTip.Tip="Magic wand — click to select a connected color region">
+                          <Path Classes="icon" Data="{StaticResource IconSelectWand}" />
+                        </RadioButton>
                       </StackPanel>
                       <StackPanel Spacing="6" IsVisible="{Binding IsWandVariant}">
                         <DockPanel>
@@ -2492,10 +2543,14 @@
                                     Click="OnTransformPerspectiveToggled"
                                     ToolTip.Tip="Drag the four corners freely instead of the affine box" />
                       <StackPanel Orientation="Horizontal" Spacing="6">
-                        <Button Content="⇋" FontSize="13" Click="OnTransformMirrorH"
-                                ToolTip.Tip="Mirror horizontally in place (around the pivot)" />
-                        <Button Content="⇵" FontSize="13" Click="OnTransformMirrorV"
-                                ToolTip.Tip="Mirror vertically in place (around the pivot)" />
+                        <Button Click="OnTransformMirrorH"
+                                ToolTip.Tip="Mirror horizontally in place (around the pivot)">
+                          <Path Classes="icon" Data="{StaticResource IconMirrorHorizontal}" />
+                        </Button>
+                        <Button Click="OnTransformMirrorV"
+                                ToolTip.Tip="Mirror vertically in place (around the pivot)">
+                          <Path Classes="icon" Data="{StaticResource IconMirrorVertical}" />
+                        </Button>
                         <Button Content="Reset" FontSize="12" Click="OnTransformReset"
                                 ToolTip.Tip="Back to the untransformed drawing (session stays open)" />
                       </StackPanel>
@@ -2539,19 +2594,25 @@
                          production is structured and shared — and the second
                          surface is worthless if reaching it means the menu
                          bar. -->
-                    <Button Classes="icon" DockPanel.Dock="Right" Content="▦"
+                    <Button Classes="icon" DockPanel.Dock="Right"
                             Click="OnProjectWindowClicked"
-                            ToolTip.Tip="Open the project manager — structure, statuses, assets and sharing" />
-                    <Button Classes="icon" DockPanel.Dock="Right" Content="🗁"
+                            ToolTip.Tip="Open the project manager — structure, statuses, assets and sharing">
+                      <Path Classes="icon" Data="{StaticResource IconBoard}" />
+                    </Button>
+                    <Button Classes="icon" DockPanel.Dock="Right"
                             Command="{Binding ProjectDocker.RevealSelectedCommand}"
-                            ToolTip.Tip="Show the selected item in the file manager" />
+                            ToolTip.Tip="Show the selected item in the file manager">
+                      <Path Classes="icon" Data="{StaticResource IconFolder}" />
+                    </Button>
                     <!-- B61. The folder is watched, so this is rarely needed —
                          and it is the only way back when the watch could not be
                          armed, which ProjectWatcher allows on purpose so a
                          project on a network share still opens. -->
-                    <Button Classes="icon" DockPanel.Dock="Right" Content="⟳"
+                    <Button Classes="icon" DockPanel.Dock="Right"
                             Command="{Binding ProjectDocker.RefreshFromDiskCommand}"
-                            ToolTip.Tip="Re-read the project from disk (F5)" />
+                            ToolTip.Tip="Re-read the project from disk (F5)">
+                      <Path Classes="icon" Data="{StaticResource IconRefresh}" />
+                    </Button>
                     <StackPanel Orientation="Horizontal" Spacing="4">
                       <Button Classes="text" Content="＋ New ▾" ToolTip.Tip="Create something in this project">
                         <Button.Flyout>
@@ -2583,22 +2644,28 @@
                           </MenuFlyout>
                         </Button.Flyout>
                       </Button>
-                      <Button Classes="icon" Content="－"
+                      <Button Classes="icon"
                               Command="{Binding ProjectDocker.RemoveSelectedCommand}"
                               IsEnabled="{Binding ProjectDocker.HasSelection}"
-                              ToolTip.Tip="Remove from the project (the file stays on disk)" />
+                              ToolTip.Tip="Remove from the project (the file stays on disk)">
+                        <Path Classes="icon" Data="{StaticResource IconMinus}" />
+                      </Button>
                       <!--
                         B114. Absent until there is a tree to arrange, rather
                         than until there are scenes: any folder carries a running
                         order now, so hiding these until something is ordered
                         would hide the only way to start ordering it.
                       -->
-                      <Button Classes="icon" Content="↑" IsVisible="{Binding ProjectDocker.CanReorder}"
+                      <Button Classes="icon" IsVisible="{Binding ProjectDocker.CanReorder}"
                               Command="{Binding ProjectDocker.MoveSelectedUpCommand}"
-                              ToolTip.Tip="Earlier in the running order" />
-                      <Button Classes="icon" Content="↓" IsVisible="{Binding ProjectDocker.CanReorder}"
+                              ToolTip.Tip="Earlier in the running order">
+                        <Path Classes="icon" Data="{StaticResource IconArrowUp}" />
+                      </Button>
+                      <Button Classes="icon" IsVisible="{Binding ProjectDocker.CanReorder}"
                               Command="{Binding ProjectDocker.MoveSelectedDownCommand}"
-                              ToolTip.Tip="Later in the running order" />
+                              ToolTip.Tip="Later in the running order">
+                        <Path Classes="icon" Data="{StaticResource IconArrowDown}" />
+                      </Button>
                     </StackPanel>
                   </DockPanel>
                 </Border>
@@ -2800,12 +2867,19 @@
                              gesture cannot mean both. Empty and hit-test-invisible
                              on every other row, so nothing shifts sideways. -->
                         <Button DockPanel.Dock="Left" Classes="text"
-                                Content="{Binding Twisty}" FontSize="9" Width="12" Padding="0"
+                                Width="12" Padding="0"
                                 IsVisible="{Binding IsFolder}"
                                 VerticalAlignment="Center" Opacity="0.7"
                                 Command="{Binding $parent[Window].DataContext.ProjectDocker.ToggleCollapsedCommand}"
                                 CommandParameter="{Binding}"
-                                ToolTip.Tip="Show or hide what is in this folder" />
+                                ToolTip.Tip="Show or hide what is in this folder">
+                          <Panel>
+                            <Path Classes="icon" Width="8" Height="8" Data="{StaticResource IconChevronDown}"
+                                  IsVisible="{Binding !IsCollapsed}" />
+                            <Path Classes="icon" Width="8" Height="8" Data="{StaticResource IconChevronRight}"
+                                  IsVisible="{Binding IsCollapsed}" />
+                          </Panel>
+                        </Button>
                         <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}" FontSize="11"
                                    VerticalAlignment="Center" Margin="0,0,4,0" Opacity="0.7" />
                         <!-- The kind's own word on asset rows — automatic, from
@@ -2878,9 +2952,11 @@
         <controls:Docker x:Name="LayersDocker" PanelId="Layers" Title="Layers"
                          CloseCommand="{Binding ToggleLayersPanelCommand}">
               <controls:Docker.TitleBarExtra>
-                <Button Content="⇄" FontSize="11" Padding="6,2"
+                <Button Padding="6,2"
                         Command="{Binding SwitchSidebarSideCommand}"
-                        ToolTip.Tip="Move the sidebar to the other side" />
+                        ToolTip.Tip="Move the sidebar to the other side">
+                  <Path Classes="icon" Width="11" Height="11" Data="{StaticResource IconSwapHorizontal}" />
+                </Button>
               </controls:Docker.TitleBarExtra>
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
@@ -2909,12 +2985,18 @@
                          both kinds painted identical strokes, and Vector only meant
                          "this layer cannot hold imported pixels or a symbol". Q52. -->
                     <StackPanel Orientation="Horizontal" Spacing="4">
-                      <Button Content="＋" Command="{Binding AddPaintedLayerCommand}"
-                              ToolTip.Tip="Add a new layer" />
-                      <Button Content="📁" Command="{Binding CreateLayerFolderCommand}"
-                              ToolTip.Tip="New folder containing the active layer" />
-                      <Button Content="🗑" Command="{Binding DeleteActiveLayerCommand}"
-                              ToolTip.Tip="Delete the active layer (Delete inside this docker; Backspace blanks its content)" />
+                      <Button Classes="icon" Command="{Binding AddPaintedLayerCommand}"
+                              ToolTip.Tip="Add a new layer">
+                        <Path Classes="icon" Data="{StaticResource IconPlus}" />
+                      </Button>
+                      <Button Classes="icon" Command="{Binding CreateLayerFolderCommand}"
+                              ToolTip.Tip="New folder containing the active layer">
+                        <Path Classes="icon" Data="{StaticResource IconFolder}" />
+                      </Button>
+                      <Button Classes="icon" Command="{Binding DeleteActiveLayerCommand}"
+                              ToolTip.Tip="Delete the active layer (Delete inside this docker; Backspace blanks its content)">
+                        <Path Classes="icon" Data="{StaticResource IconTrash}" />
+                      </Button>
                     </StackPanel>
                   </DockPanel>
                 </Border>
@@ -2966,19 +3048,30 @@
                           </ContextMenu>
                         </Border.ContextMenu>
                         <DockPanel>
-                          <Button Classes="icon" DockPanel.Dock="Left" Content="{Binding CollapseGlyph}" FontSize="11"
+                          <Button Classes="icon" DockPanel.Dock="Left"
                                   Background="Transparent" Click="OnGroupCollapseClicked"
-                                  ToolTip.Tip="Collapse / expand the folder" />
+                                  ToolTip.Tip="Collapse / expand the folder">
+                            <Panel>
+                              <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconChevronDown}"
+                                    IsVisible="{Binding !Collapsed}" />
+                              <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconChevronRight}"
+                                    IsVisible="{Binding Collapsed}" />
+                            </Panel>
+                          </Button>
                           <ToggleButton Classes="icon glyph eye" DockPanel.Dock="Left" IsChecked="{Binding Visible}"
                                         ToolTip.Tip="Folder visibility (gates every layer inside)"><Path /></ToggleButton>
                           <ToggleButton Classes="icon glyph lock" DockPanel.Dock="Left" IsChecked="{Binding Locked}"
                                         ToolTip.Tip="Lock the folder — every layer inside refuses edits, but still renders"><Path /></ToggleButton>
-                          <Button Classes="icon" DockPanel.Dock="Right" Content="✕" FontSize="10" Background="Transparent"
+                          <Button Classes="icon" DockPanel.Dock="Right" Background="Transparent"
                                   Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).DissolveGroupCommand}"
-                                  CommandParameter="{Binding}" ToolTip.Tip="Dissolve the folder (layers stay)" />
-                          <Button Classes="icon" DockPanel.Dock="Right" Content="＋" FontSize="10" Background="Transparent"
+                                  CommandParameter="{Binding}" ToolTip.Tip="Dissolve the folder (layers stay)">
+                            <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconClose}" />
+                          </Button>
+                          <Button Classes="icon" DockPanel.Dock="Right" Background="Transparent"
                                   Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).AddActiveLayerToGroupCommand}"
-                                  CommandParameter="{Binding}" ToolTip.Tip="Put the active layer in this folder" />
+                                  CommandParameter="{Binding}" ToolTip.Tip="Put the active layer in this folder">
+                            <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconPlus}" />
+                          </Button>
                           <Panel Margin="4,0" MinHeight="24">
                             <TextBlock Text="{Binding Name}" IsVisible="{Binding !IsRenaming}" FontWeight="SemiBold"
                                        Background="Transparent" VerticalAlignment="Center"
@@ -3064,19 +3157,25 @@
                                   ToolTip.Tip="Layer content — Ctrl+click to select its visible pixels (Shift adds, Alt subtracts)">
                             <Image Source="{Binding Thumb}" Stretch="Uniform" />
                           </Border>
-                          <Button Classes="icon" DockPanel.Dock="Right" Content="⏏" FontSize="9" Background="Transparent"
+                          <Button Classes="icon" DockPanel.Dock="Right" Background="Transparent"
                                   IsVisible="{Binding IsGrouped}"
                                   Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).RemoveLayerFromGroupCommand}"
-                                  CommandParameter="{Binding}" ToolTip.Tip="Take this layer out of its folder" />
+                                  CommandParameter="{Binding}" ToolTip.Tip="Take this layer out of its folder">
+                            <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconEject}" />
+                          </Button>
                           <!-- Stacked reorder arrows: half-height each so the pair
                                fits one row without setting the row's height. -->
                           <StackPanel DockPanel.Dock="Right" Orientation="Vertical" Spacing="0" VerticalAlignment="Center">
-                            <Button Content="▲" FontSize="8" Padding="4,0" MinHeight="11" Height="11" Background="Transparent"
+                            <Button Padding="4,0" MinHeight="11" Height="11" Background="Transparent"
                                     Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).MoveLayerUpCommand}"
-                                    CommandParameter="{Binding}" ToolTip.Tip="Move layer up" />
-                            <Button Content="▼" FontSize="8" Padding="4,0" MinHeight="11" Height="11" Background="Transparent"
+                                    CommandParameter="{Binding}" ToolTip.Tip="Move layer up">
+                              <Path Classes="icon" Width="8" Height="8" Data="{StaticResource IconChevronUp}" />
+                            </Button>
+                            <Button Padding="4,0" MinHeight="11" Height="11" Background="Transparent"
                                     Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).MoveLayerDownCommand}"
-                                    CommandParameter="{Binding}" ToolTip.Tip="Move layer down" />
+                                    CommandParameter="{Binding}" ToolTip.Tip="Move layer down">
+                              <Path Classes="icon" Width="8" Height="8" Data="{StaticResource IconChevronDown}" />
+                            </Button>
                           </StackPanel>
                           <!-- An "R"/"V" badge sat here, and named a distinction that no
                                longer exists: every layer holds strokes and can hold
@@ -3172,9 +3271,11 @@
                     <Button Content="Update from library" Click="OnUpdateSymbolsFromLibrary"
                             IsVisible="{Binding HasLibraryUpdates}"
                             ToolTip.Tip="Take the newer version from your library. Nothing in your library can change a project on its own — this is the project asking." />
-                    <Button Classes="icon" Content="🗑" Click="OnDeleteSymbol"
+                    <Button Classes="icon" Click="OnDeleteSymbol"
                             IsEnabled="{Binding SymbolBrowser.Selected, Converter={x:Static ObjectConverters.IsNotNull}}"
-                            ToolTip.Tip="Delete the symbol from the project" />
+                            ToolTip.Tip="Delete the symbol from the project">
+                      <Path Classes="icon" Data="{StaticResource IconTrash}" />
+                    </Button>
                   </WrapPanel>
                 </Border>
                 </StackPanel>
@@ -3461,14 +3562,20 @@
                           <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="docs:ReferenceView">
                               <DockPanel>
-                                <Button Classes="icon" DockPanel.Dock="Right" Content="✎" FontSize="11"
-                                        Click="OnOpenReferenceView" ToolTip.Tip="Open this view in a tab" />
-                                <Button Classes="icon" DockPanel.Dock="Right" Content="🗔" FontSize="11"
+                                <Button Classes="icon" DockPanel.Dock="Right"
+                                        Click="OnOpenReferenceView" ToolTip.Tip="Open this view in a tab">
+                                  <Path Classes="icon" Width="11" Height="11" Data="{StaticResource IconPencil}" />
+                                </Button>
+                                <Button Classes="icon" DockPanel.Dock="Right"
                                         Click="OnOpenReferenceBoard"
-                                        ToolTip.Tip="Open the reference board — every sheet in scope on one wall, beside the art, arranged how you leave it. It follows the sheets as you edit; drawing on one still happens in its tab." />
-                                <Button Classes="icon" DockPanel.Dock="Right" Content="⧉" FontSize="11"
+                                        ToolTip.Tip="Open the reference board — every sheet in scope on one wall, beside the art, arranged how you leave it. It follows the sheets as you edit; drawing on one still happens in its tab.">
+                                  <Path Classes="icon" Width="11" Height="11" Data="{StaticResource IconWindow}" />
+                                </Button>
+                                <Button Classes="icon" DockPanel.Dock="Right"
                                         Click="OnToggleViewOnCanvas"
-                                        ToolTip.Tip="Tape this view onto the canvas — a see-through reference over the paper, under the drawing. Click again to take it down. Opacity is the reference opacity slider." />
+                                        ToolTip.Tip="Tape this view onto the canvas — a see-through reference over the paper, under the drawing. Click again to take it down. Opacity is the reference opacity slider.">
+                                  <Path Classes="icon" Width="11" Height="11" Data="{StaticResource IconDuplicate}" />
+                                </Button>
                                 <TextBox Text="{Binding Name}" BorderThickness="0" Background="Transparent"
                                          VerticalAlignment="Center" FontSize="12"
                                          GotFocus="OnReferenceNameFocused" LostFocus="OnReferenceRenamed" />
@@ -3489,16 +3596,22 @@
                 <Border Classes="dockerBar">
                   <StackPanel Spacing="4">
                     <DockPanel>
-                      <Button Classes="icon" DockPanel.Dock="Right" Content="✕" FontSize="10"
+                      <Button Classes="icon" DockPanel.Dock="Right"
                               Command="{Binding PaletteDocker.RemovePaletteCommand}"
                               IsEnabled="{Binding PaletteDocker.HasPalette}"
-                              ToolTip.Tip="Delete the selected palette or folder (art keeps the colours it was drawn in)" />
-                      <Button Classes="icon" DockPanel.Dock="Right" Content="🗀" FontSize="10"
+                              ToolTip.Tip="Delete the selected palette or folder (art keeps the colours it was drawn in)">
+                        <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconClose}" />
+                      </Button>
+                      <Button Classes="icon" DockPanel.Dock="Right"
                               Command="{Binding PaletteDocker.AddFolderCommand}"
-                              ToolTip.Tip="New folder, inside whatever is selected" />
-                      <Button Classes="icon" DockPanel.Dock="Right" Content="＋" FontSize="10"
+                              ToolTip.Tip="New folder, inside whatever is selected">
+                        <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconFolder}" />
+                      </Button>
+                      <Button Classes="icon" DockPanel.Dock="Right"
                               Command="{Binding PaletteDocker.AddPaletteCommand}"
-                              ToolTip.Tip="New palette, inside whatever is selected" />
+                              ToolTip.Tip="New palette, inside whatever is selected">
+                        <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconPlus}" />
+                      </Button>
                       <TextBlock Text="Palettes" FontSize="11" Opacity="0.6" VerticalAlignment="Center" />
                     </DockPanel>
                     <StackPanel Orientation="Horizontal" Spacing="4">
@@ -3506,10 +3619,12 @@
                               Command="{Binding PaletteDocker.AddSwatchCommand}"
                               IsEnabled="{Binding PaletteDocker.HasPalette}"
                               ToolTip.Tip="Add the current colour to this palette" />
-                      <Button Classes="icon" Content="－" FontSize="11"
+                      <Button Classes="icon"
                               Command="{Binding PaletteDocker.RemoveSwatchCommand}"
                               IsEnabled="{Binding PaletteDocker.HasSwatch}"
-                              ToolTip.Tip="Remove the selected swatch" />
+                              ToolTip.Tip="Remove the selected swatch">
+                        <Path Classes="icon" Width="11" Height="11" Data="{StaticResource IconMinus}" />
+                      </Button>
                       <!--
                         The deliberate way to get two of a colour. It is what
                         lets the colour wheel refuse duplicates: an accidental
@@ -3659,13 +3774,17 @@
                 <Border Classes="dockerBar">
                   <StackPanel Spacing="4">
                     <DockPanel>
-                      <Button Classes="icon" DockPanel.Dock="Right" Content="✕" FontSize="10"
+                      <Button Classes="icon" DockPanel.Dock="Right"
                               Command="{Binding GradientDocker.RemoveGradientCommand}"
                               IsEnabled="{Binding GradientDocker.HasGradient}"
-                              ToolTip.Tip="Delete this gradient" />
-                      <Button Classes="icon" DockPanel.Dock="Right" Content="＋" FontSize="10"
+                              ToolTip.Tip="Delete this gradient">
+                        <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconClose}" />
+                      </Button>
+                      <Button Classes="icon" DockPanel.Dock="Right"
                               Command="{Binding GradientDocker.AddGradientCommand}"
-                              ToolTip.Tip="New gradient" />
+                              ToolTip.Tip="New gradient">
+                        <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconPlus}" />
+                      </Button>
                       <ComboBox ItemsSource="{Binding GradientDocker.Gradients}"
                                 SelectedItem="{Binding GradientDocker.SelectedGradient}"
                                 HorizontalAlignment="Stretch" ToolTip.Tip="Gradient">
@@ -3809,13 +3928,17 @@
           <controls:Docker.TopBar>
             <Border Classes="dockerBar">
               <DockPanel>
-                <Button Classes="icon" DockPanel.Dock="Right" Content="🗑" FontSize="10"
+                <Button Classes="icon" DockPanel.Dock="Right"
                         Command="{Binding RemoveReferenceCommand}"
                         IsEnabled="{Binding HasReferences}"
-                        ToolTip.Tip="Remove this reference" />
-                <Button Classes="icon" DockPanel.Dock="Right" Content="＋" FontSize="10"
+                        ToolTip.Tip="Remove this reference">
+                  <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconTrash}" />
+                </Button>
+                <Button Classes="icon" DockPanel.Dock="Right"
                         Click="OnImportReferenceClicked"
-                        ToolTip.Tip="Import an image of an animation — or a video clip to draw against — and lay it against the timeline" />
+                        ToolTip.Tip="Import an image of an animation — or a video clip to draw against — and lay it against the timeline">
+                  <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconPlus}" />
+                </Button>
                 <ComboBox ItemsSource="{Binding References}"
                           SelectedIndex="{Binding ActiveReferenceIndex}"
                           HorizontalAlignment="Stretch" IsVisible="{Binding HasReferences}"
@@ -3938,8 +4061,10 @@
                   <NumericUpDown Value="{Binding AudioOffsetFrames}" Minimum="-9999" Maximum="9999" Increment="1"
                                  FormatString="0" Width="60" VerticalAlignment="Center"
                                  ToolTip.Tip="The frame the sound starts on — negative trims a lead-in" />
-                  <Button Content="✕" Command="{Binding RemoveAudioCommand}" VerticalAlignment="Center"
-                          ToolTip.Tip="Remove the audio track (the file itself is untouched)" />
+                  <Button Classes="icon" Command="{Binding RemoveAudioCommand}" VerticalAlignment="Center"
+                          ToolTip.Tip="Remove the audio track (the file itself is untouched)">
+                    <Path Classes="icon" Data="{StaticResource IconClose}" />
+                  </Button>
                 </StackPanel>
               </controls:OverflowBar>
             </Border>
@@ -3988,11 +4113,21 @@
         <controls:Docker.BottomBar>
           <Border Classes="dockerBar">
             <StackPanel Orientation="Horizontal" Spacing="4">
-              <Button Content="＋" Command="{Binding AddFrameCommand}" ToolTip.Tip="Add empty frame after current" />
-              <Button Content="⧉" Command="{Binding DuplicateFrameCommand}" ToolTip.Tip="Duplicate current frame" />
-              <Button Content="🗑" Command="{Binding DeleteFrameCommand}" ToolTip.Tip="Delete current frame" />
-              <Button Content="↶" Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)" />
-              <Button Content="↷" Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)" />
+              <Button Classes="icon" Command="{Binding AddFrameCommand}" ToolTip.Tip="Add empty frame after current">
+                <Path Classes="icon" Data="{StaticResource IconPlus}" />
+              </Button>
+              <Button Classes="icon" Command="{Binding DuplicateFrameCommand}" ToolTip.Tip="Duplicate current frame">
+                <Path Classes="icon" Data="{StaticResource IconDuplicate}" />
+              </Button>
+              <Button Classes="icon" Command="{Binding DeleteFrameCommand}" ToolTip.Tip="Delete current frame">
+                <Path Classes="icon" Data="{StaticResource IconTrash}" />
+              </Button>
+              <Button Classes="icon" Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)">
+                <Path Classes="icon" Data="{StaticResource IconUndo}" />
+              </Button>
+              <Button Classes="icon" Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)">
+                <Path Classes="icon" Data="{StaticResource IconRedo}" />
+              </Button>
               <TextBlock Text="{Binding FrameLabel}" VerticalAlignment="Center" Margin="8,0" />
               <NumericUpDown Value="{Binding TweenCount}" Minimum="1" Maximum="9" Increment="1"
                              FormatString="0" Width="72" VerticalAlignment="Center"
@@ -4011,7 +4146,8 @@
                         DisplayMemberBinding="{Binding Name}" />
               <Button Content="Re-time" Command="{Binding ApplySelectedTimingCommand}"
                       ToolTip.Tip="Re-space the selected range (or this cel) to the chosen pattern. The row grows or shrinks to fit the pattern — no drawing is lost." />
-              <Button Content="⚙" VerticalAlignment="Center" ToolTip.Tip="Save a timing pattern of your own">
+              <Button VerticalAlignment="Center" ToolTip.Tip="Save a timing pattern of your own">
+                <Path Classes="icon" Data="{StaticResource IconGear}" />
                 <Button.Flyout>
                   <Flyout Placement="Top">
                     <StackPanel Width="260" Spacing="8">
@@ -4040,8 +4176,10 @@
                       ToolTip.Tip="Add a shot camera — keyframed pan, zoom and roll, exported through the framing" />
               <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding HasCamera}">
                 <TextBlock Text="Camera" VerticalAlignment="Center" Margin="6,0,0,0" />
-                <Button Content="🔑" Command="{Binding SetCameraKeyCommand}"
-                        ToolTip.Tip="Key the current framing at the playhead" />
+                <Button Classes="icon" Command="{Binding SetCameraKeyCommand}"
+                        ToolTip.Tip="Key the current framing at the playhead">
+                  <Path Classes="icon" Data="{StaticResource IconKey}" />
+                </Button>
                 <Button Content="✕key" Command="{Binding ClearCameraKeyCommand}"
                         ToolTip.Tip="Remove the camera key at the playhead" />
                 <NumericUpDown Value="{Binding CameraZoom}" Minimum="0.05" Maximum="64" Increment="0.1"
@@ -4059,8 +4197,10 @@
                 <CheckBox Content="Through camera" IsChecked="{Binding ViewThroughCamera}"
                           VerticalAlignment="Center"
                           ToolTip.Tip="Show the canvas as the camera frames it (view only — you still draw in the world)" />
-                <Button Content="🗑" Command="{Binding RemoveCameraCommand}"
-                        ToolTip.Tip="Remove the camera and all its keys" />
+                <Button Classes="icon" Command="{Binding RemoveCameraCommand}"
+                        ToolTip.Tip="Remove the camera and all its keys">
+                  <Path Classes="icon" Data="{StaticResource IconTrash}" />
+                </Button>
               </StackPanel>
             </StackPanel>
           </Border>

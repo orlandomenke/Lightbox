@@ -207,7 +207,6 @@ public partial class MainViewModel
     public event Action? LazyBrushCleared;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(PlayPauseGlyph))]
     private bool _isPlaying;
 
     /// <summary>

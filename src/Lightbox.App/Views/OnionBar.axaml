@@ -52,7 +52,10 @@
     -->
     <CheckBox Content="Motion trail" IsChecked="{Binding MotionTrail}" VerticalAlignment="Center"
               ToolTip.Tip="A line through where the subject is on each drawing — its pivot anchor if placed, else the centre of its ink. The gaps between ticks are the spacing. Depths are behind the ⚙." />
-    <Button Content="⚙" VerticalAlignment="Center" ToolTip.Tip="Onion skin and motion trail settings">
+    <Button VerticalAlignment="Center" ToolTip.Tip="Onion skin and motion trail settings">
+      <Button.Content>
+        <Path Classes="icon" Data="{StaticResource IconGear}" />
+      </Button.Content>
       <Button.Flyout>
         <!-- Upwards: the timeline is the bottom strip, so a flyout placed
              below it opens off the edge of the window. -->
