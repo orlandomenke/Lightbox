@@ -120,6 +120,7 @@ public partial class MainViewModel
         ClampCurrentFrame(publishIfUnchanged: !_applyingEditScope);
         SyncLayerRows();
         OnPropertyChanged(nameof(FrameLabel));
+        OnPropertyChanged(nameof(PlayheadPastTheEnd));
         OnPropertyChanged(nameof(TimelineExtent));
         OnPropertyChanged(nameof(MaxScrubFrame));
         OnPropertyChanged(nameof(Fps));
@@ -151,7 +152,10 @@ public partial class MainViewModel
     /// </summary>
     private void ClampCurrentFrame(bool publishIfUnchanged = true)
     {
-        var max = Math.Max(0, Scene.FrameCount - 1);
+        // The sheet's extent rather than the scene's length (Q90): the playhead
+        // is allowed past the end, and shrinking the scene pulls it back only as
+        // far as the sheet still draws.
+        var max = Math.Max(0, TimelineExtent - 1);
         if (CurrentFrameIndex > max) CurrentFrameIndex = max;
         else if (publishIfUnchanged) PublishSnapshot();
     }

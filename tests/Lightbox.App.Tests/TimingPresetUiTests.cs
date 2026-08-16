@@ -120,7 +120,13 @@ public class TimingPresetUiTests : BrushStateIsolated
         vm.ApplyTimingAt(CellAt(vm, 0));
 
         Assert.True(vm.TimelineExtent > before, $"extent stayed at {vm.TimelineExtent}");
-        Assert.Equal(vm.Doc.Scene.FrameCount - 1, vm.MaxScrubFrame);
+        // The scrub limit is the sheet's extent rather than the scene's length
+        // since Q90 — the playhead may stand past the end. What this test is
+        // actually about is unchanged and still guarded: the derived properties
+        // refresh when a re-time changes the length, rather than showing the
+        // old one until something else happens to notify them.
+        Assert.Equal(vm.TimelineExtent - 1, vm.MaxScrubFrame);
+        Assert.True(vm.MaxScrubFrame > before - 1, "the scrub limit did not follow the new length");
     }
 
     [AvaloniaFact]

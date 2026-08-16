@@ -674,6 +674,13 @@ public partial class MainViewModel
     /// </summary>
     private Frame? PaintTargetOrKey()
     {
+        if (ActiveLayer is null) return null;
+        // Q90. The playhead may stand past the end of the scene, where scrubbing
+        // authored nothing; this is the edit that lands, so the scene grows to
+        // reach it. The cels the growth adds are holds, so a drawing made at
+        // frame twenty on a five-frame scene holds drawing five across the gap —
+        // which is what an artist dragging the playhead out and drawing means.
+        EnsureSceneReachesPlayhead();
         if (ActiveLayer is not { } layer || layer.Cels.Count == 0) return null;
         var here = Math.Clamp(CurrentFrameIndex, 0, layer.Cels.Count - 1);
         // A cel that holds an earlier drawing is not a drawing of its own. What
@@ -734,6 +741,25 @@ public partial class MainViewModel
         Strokes = held.Strokes.Select(s => s.Clone()).ToList(),
         Placements = held.Placements?.Select(p => p.Clone()).ToList(),
     };
+
+    /// <summary>
+    /// Make the playhead's frame a real one, growing the scene when it is past
+    /// the end. One undoable step of its own, like the keying it precedes.
+    /// </summary>
+    /// <remarks>
+    /// Called by the edits that land, never by navigation — scrubbing past the
+    /// end must author nothing, which is the same line B206 and B207 drew
+    /// between picking and editing.
+    /// </remarks>
+    private void EnsureSceneReachesPlayhead()
+    {
+        if (CurrentFrameIndex < Scene.FrameCount) return;
+        var to = CurrentFrameIndex;
+        if (_editor.GrowToInclude(to))
+        {
+            AiStatus = $"Scene extended to {to + 1} frames.";
+        }
+    }
 
     /// <summary>Get placements from the current frame for selection feedback.</summary>
     public IReadOnlyList<SymbolPlacement>? GetCurrentFramePlacements()

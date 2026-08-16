@@ -10,6 +10,67 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
+## Q90 · Should the playhead be allowed past the end of the scene? — **answered 2026-08-14: yes when scrubbing, no when playing**
+
+Raised by the owner: *"I am unable to drag the playhead passed the hatched
+cells. Thus always have to add a keyframe, or a hold before I can animate
+bones... Let's say I have one cell with an animation and I want to hold that
+frame for 10 frames. I want to be able to drag the play head there... Though
+then we should have 2 paths: while not playing, the playhead can be dragged to
+all cells. While playing, the playhead can only play up to the hatched or if
+specified start- -> end-time."*
+
+**The diagnosis behind the answer: the scene's length was a gate you had to open
+before working, when it should be a consequence of where you worked.** On paper
+you write on row forty and the sheet is forty long — you do not declare the
+length and then fill it. The gate was one line, `ClampCurrentFrame` pinning the
+playhead to `Scene.FrameCount - 1`.
+
+**Answered: the two paths as proposed**, and half of it already existed —
+playback runs to `EffectiveEndFrame`, which already clamps to the scene and to
+the playback range, so nothing there needed changing. Only the scrub side moves.
+
+**The refinement the owner's own wording already contained — "auto add a
+keyframe *on changes*" — and it is the load-bearing part.** Dragging the
+playhead must not lengthen the document:
+
+- scrubbing past the end authors nothing, and leaves no undo entry;
+- the first *edit* there grows the scene to that frame, in its own step.
+
+That is the same line B206 and B207 drew between picking and editing, and it is
+what stops a mis-drag to frame 500 from silently making a 500-frame document.
+The gap fills itself: an unkeyed cel already *means* hold, so a drawing made at
+frame twenty holds drawing five across the gap without anything filling
+anything in.
+
+**Two sub-questions, both answered as recommended.**
+
+*What the canvas shows out there:* **empty, with onion and the rig still
+showing**. `ExposureSheet.ExposedFrame` walks back from the last cel, so the
+honest-looking answer — asking it — would have shown the final drawing and made
+past-the-end look exactly like a hold, undoing the distinction Q89's hatching
+draws. The ghosts and the armature still resolve through the exposure, which is
+right: an armature is continuous, so posing the next frame needs to see the last
+pose. The alternative — showing the last drawing held — was rejected for costing
+the distinction; fully empty with onion off was rejected for making the region
+useless to work in.
+
+*How far:* **as far as the X-sheet draws** (`TimelineExtent`, the scene plus a
+24-cell tail). Self-limiting, needs no number of its own, and scrolling is what
+extends the reach. A fixed lookahead would be a number nobody can see; unbounded
+invites a mis-drag to frame 4000.
+
+**What the change opened, and had to close in the same breath.**
+`Anchors.SetAcross` and `CollisionShapes.SetAcross` *clamped* their index to the
+last cel. Unreachable while the playhead was pinned inside the scene — and the
+moment it could stand outside, posing a bone out there would have written the
+pose onto the **last drawing**, silently, on a frame the artist is not looking
+at. That is B206's exact shape, and it would have been introduced by this
+feature rather than found in it. They refuse now instead of clamping, so any
+path not explicitly grown fails safe rather than corrupting an earlier frame.
+
+---
+
 ## Q89 · Two kinds of empty cell look alike in the X-sheet — how are they told apart? — **answered 2026-08-14: hatch the past-the-end cells**
 
 **Renumbered from Q87 to Q89.** Two branches took Q87 while both were open —

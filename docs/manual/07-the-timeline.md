@@ -19,10 +19,30 @@ is highlighted. A **keyed** cell holds a drawing; a **hold** repeats the drawing
 before it, which is what animating on 2s and 3s is made of.
 
 **Two kinds of cell look empty, and they are not the same thing.** A plain empty
-cell is inside the scene: the playhead goes there, you can select it, and a mark
-on it keys a drawing. A **hatched** cell is past the end of the scene — there is
-no frame there at all, so it cannot be clicked into or drawn on, and the playhead
-never reaches it. Extend the scene and the hatching gives way to real cells.
+cell is inside the scene: it is a hold or a blanked drawing, and a mark on it
+keys a drawing. A **hatched** cell is past the end of the scene — there is no
+frame there yet.
+
+**You can still go there, and that is how a scene gets longer.** Drag the
+playhead onto a hatched cell, or click one, and the playhead stands on it; the
+canvas shows no drawing, because there is none, while onion skin and any
+armature still show so you have something to work against. Nothing has changed
+in your document yet — scrubbing out there costs nothing and leaves no undo
+step.
+
+**The scene grows when you edit, not when you arrive.** Make a mark, or pose a
+rig, on a hatched cell and the scene extends to reach it. The frames in between
+become **holds**, so the drawing that was last up stays up across the gap —
+which is how you hold one drawing for ten frames: drag the playhead ten frames
+out and draw. Extending is its own undo step, so one undo takes the mark back
+and another gives the length back.
+
+How far out you can go is however far the sheet is drawn — if you can see the
+cell, you can stand on it.
+
+**Playback is not affected.** Playing runs to the end of the scene, or to the
+start and end you set for the playback range, and never out into the hatching.
+Scrubbing is free; playing is bounded.
 
 ## The scratch track
 
