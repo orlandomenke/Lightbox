@@ -79,7 +79,7 @@ public sealed partial class CanvasControl : Control
         // second writer of Cursor is how the pointer ends up disagreeing with
         // what the tool will actually do.
         //
-        // B228: that sentence was already false when it was written. The guide
+        // B241: that sentence was already false when it was written. The guide
         // hover was a second writer, gated by a flag so the two would not fight,
         // and every affordance added after it would have needed another flag.
         // So the intent no longer sets the cursor directly — it re-asks the one
@@ -969,6 +969,21 @@ public sealed partial class CanvasControl : Control
     /// Shift: move the whole sheet rather than this one frame.
     /// </summary>
     public event Action<double, double, bool>? ReferenceDragged;
+
+    /// <summary>
+    /// A press in align mode, in document coordinates, before the drag — the
+    /// window picks the reference under it, so dragging moves the one you
+    /// grabbed rather than whichever was active last.
+    /// </summary>
+    public event Action<double, double>? ReferenceAlignPressed;
+
+    /// <summary>
+    /// Right-click over the art with no transform in flight: document x, y
+    /// and the view position. The window decides whether a taped-up
+    /// reference is under it and opens its stack menu — decided there, not
+    /// here, because the control does not know the document.
+    /// </summary>
+    public event Action<double, double, Point>? ReferenceMenuRequested;
 
     private bool _aligningReference;
 
@@ -2436,6 +2451,16 @@ public sealed partial class CanvasControl : Control
                 return;
             }
 
+            // Right-click anywhere else: offer a taped-up reference's stack
+            // menu, if one is under the pointer. The window decides — a
+            // right-click over bare canvas stays what it always was, nothing.
+            if (kind == PointerUpdateKind.RightButtonPressed && !_painting)
+            {
+                var (rx, ry) = ViewToDoc(pp.Position);
+                ReferenceMenuRequested?.Invoke(rx, ry, pp.Position);
+                return;
+            }
+
             if (kind != PointerUpdateKind.LeftButtonPressed && !pp.Properties.IsLeftButtonPressed) return;
 
             var (x, y) = ViewToDoc(pp.Position);
@@ -2446,6 +2471,10 @@ public sealed partial class CanvasControl : Control
             // then have to find and undo.
             if (ReferenceAlignMode)
             {
+                // Grab the reference under the pointer, not whichever was
+                // active last — the window answers by switching the selection
+                // before the first move arrives.
+                ReferenceAlignPressed?.Invoke(x, y);
                 _aligningReference = true;
                 _alignLast = new Point(x, y);
                 e.Pointer.Capture(this);
@@ -3063,7 +3092,7 @@ public sealed partial class CanvasControl : Control
 
             // The cursor is the whole affordance — the pointer changing shape
             // over a guide is what tells you it can be picked up, instead of a
-            // row of buttons floating over the drawing. B228: the same is now
+            // row of buttons floating over the drawing. B241: the same is now
             // true of the gizmo's six handles, the camera's three, a reference
             // box corner and the height scale's top, so the hover asks one
             // question for all of them rather than only about guides.

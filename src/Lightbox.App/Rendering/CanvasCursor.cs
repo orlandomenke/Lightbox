@@ -50,12 +50,12 @@ public enum CanvasCursorKind
     /// beside the kind — see <c>CanvasCursorChoice</c>.
     /// </summary>
     /// <remarks>
-    /// <b>B228: the one kind that is not self-contained.</b> Every other value
+    /// <b>B241: the one kind that is not self-contained.</b> Every other value
     /// here names a cursor outright; a resize names a family of them, because
     /// the gizmo rotates and the arrow has to lie along the handle's real
     /// direction on screen. The angle travels with it rather than being folded
     /// into eight enum members, which is what lets the cursor be drawn at 30°
-    /// for a box turned 30° (Q100).
+    /// for a box turned 30° (Q107).
     /// </remarks>
     Resize,
 
@@ -68,7 +68,7 @@ public enum CanvasCursorKind
 /// needs one.
 /// </summary>
 /// <remarks>
-/// <b>The decision, separated from the drawing (B228).</b> Rendering a cursor
+/// <b>The decision, separated from the drawing (B241).</b> Rendering a cursor
 /// needs a render surface, which a headless run has not got, so a test that
 /// asked for the <c>Cursor</c> object would be asserting against the
 /// catch-and-fall-back rather than against the choice. This is the choice: pure

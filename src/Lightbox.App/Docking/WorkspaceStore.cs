@@ -66,8 +66,9 @@ public sealed class WorkspaceStore
 
     /// <summary>
     /// Store a layout under a name, replacing a user workspace of that name.
-    /// A built-in is never overwritten — <see cref="DefaultFor"/> has to keep
-    /// meaning something for reset to work — so saving over one forks it.
+    /// A built-in is never overwritten <em>by this route</em> — "save as" is a
+    /// request for a new workspace — so saving over one forks it as
+    /// "Name (edited)". Overwriting in place is <see cref="Update"/>'s job.
     /// </summary>
     public Workspace Save(string name, DockLayout layout)
     {
@@ -85,6 +86,29 @@ public sealed class WorkspaceStore
         Current = saved.Name;
         return saved;
     }
+
+    /// <summary>
+    /// Overwrite the named workspace in place, built-ins included — what "save
+    /// current workspace" means. Reset still works on an overwritten built-in
+    /// because <see cref="ShippedLayout"/> answers from the code, not the file.
+    /// Null when there is no workspace of that name.
+    /// </summary>
+    public Workspace? Update(string name, DockLayout layout)
+    {
+        if (Find(name) is not { } existing) return null;
+        existing.Layout = layout.Clone();
+        Current = existing.Name;
+        return existing;
+    }
+
+    /// <summary>
+    /// The layout a built-in shipped with — what reset restores — or null for
+    /// a name that is not a built-in's. Always available whatever was saved
+    /// over the stored copy, because it is rebuilt from <see cref="Default"/>
+    /// rather than read from any file.
+    /// </summary>
+    public static DockLayout? ShippedLayout(string name) =>
+        Default().Find(name) is { BuiltIn: true } shipped ? shipped.Layout : null;
 
     private string Unique(string wanted)
     {

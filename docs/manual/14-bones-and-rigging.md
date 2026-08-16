@@ -14,11 +14,18 @@ in the way.
 
 Its panel in **Tool options** carries everything the tool can do, starting
 with one switch of three positions — **Bind**, **Pose**, **Weights**. That
-switch is how you get to weight painting; the three are exclusive, because
-weights are painted against the rest pose, so arming the brush leaves posing.
+switch is how you get to weight painting; the three are exclusive — a
+Weights drag paints influence, it never turns a bone.
 
-The panel also carries: which mode you are in,
-every bone in the rig, and the weight brush with its settings. The pointer
+Below the switch, the panel lists **every bone in the rig**, children indented
+under their parents. Picking one there selects it on the canvas — the same
+selection a click on the canvas makes — and the selected bone draws **white**
+where the others draw green, the same colour selection wears on every overlay.
+Every bone and handle sits on a dark rim, so the chrome reads on white paper
+and dark canvases alike.
+The rest of the panel is what you can do to the picked bone (rename, length,
+add child, delete, IK, spline, constraints), the weight brush while it is
+armed, and the binding actions. The pointer
 says what a press would do before you make it — a **move** cursor over a
 bone you can shift, a **turn** cursor where a drag would rotate it, and a
 **crosshair** on empty canvas where a drag would start a new bone.
@@ -42,8 +49,9 @@ because its first drag is what *creates* the rig.
   again, and it stays where you put it from then on. **Add child** in the
   options panel does the same without aiming, and **Length** sets a bone's
   size by number instead of by drag.
-- **Rename** a bone in the options bar — a pair ending `.l` and `.r` is what
-  X-symmetry reads. **Delete** removes it and re-parents its children to its
+- **Rename** a bone in the options panel — a pair ending `.l` and `.r` is what
+  X-symmetry reads. **Delete** (the button, or the **Delete** key while the
+  Bone tool is in hand) removes it and re-parents its children to its
   parent, leaving them exactly where they are; strokes bound to it lose that
   binding.
 
@@ -59,6 +67,13 @@ editing it. The pose is keyed **at the playhead automatically** — pose the arm
 on frame 8 and a pose key lands on frame 8, interpolating from and to the keys
 either side, with the frames between showing the blend. Scrub the timeline and
 bound drawings follow the pose live, in playback and in every export.
+
+**The skeleton has its own onion skin.** With onion skin on, posing also
+shows outline ghosts of the skeleton at the neighbouring **pose keys** — warm
+behind the playhead, cool ahead, the same colours the drawing's ghosts wear —
+so an inbetween pose is judged against where it came from and where it goes.
+The onion bar's switch and depths drive it, and a ghost is never grabbed: a
+press through one lands on the real skeleton or the canvas.
 
 **The drawing follows the drag, not just the bones.** Bound strokes re-render
 through the provisional pose as you drag, exactly — the same render the
@@ -165,6 +180,57 @@ curves to follow.
 A tail that whips is three handles keyed over four frames — the handles are
 ordinary bones, so they key, parent and drag like everything else in the rig.
 
+## Joint fixes — drawing the shape a bend should have
+
+Bend a joint far enough and the skinning goes wrong: the inside of the elbow
+collapses, the outside pinches. That is not a weights problem — the correct
+shape at 120° is not a blend of anything — so you **draw it**.
+
+Bend the joint to where it looks wrong. Select the bone, and in **Joint fixes**
+press **Draw a fix here**. The drawing changes to its posed self, and every
+tool works on it normally: move points, reshape lines, whatever fixes it. Then
+press **Keep the fix**.
+
+From then on, the fix **eases in** as that joint approaches that angle, and
+holds past it. At rest the drawing is exactly as you made it.
+
+- Bend further and draw again for a **second stop**; the shape ramps between
+  them. Drawing at an angle you have already used replaces that stop.
+- The second capture starts from the first fix already applied, so you are
+  always correcting what you can see.
+- **Discard** puts the drawing back and keeps nothing. Leaving Pose mode does
+  the same.
+- Your lines are never changed. A fix decides where marks are *drawn*, the
+  same way a pose does, so removing it returns the drawing untouched.
+- Add or delete lines during a capture and those lines are skipped — the fix
+  can only describe lines that were there when it started.
+
+A fix belongs to **the drawing**, so it works for the cutout way of animating,
+where a limb is one drawing you reuse across the whole sequence. It is not a
+tool for correcting two hundred hand-drawn frames.
+
+## Jiggle — secondary motion
+
+Some motion nobody should have to key: the tip of a tail arriving late, ears
+that carry on after the head stops, an antenna that will not sit still. Tick
+**Jiggle** on a bone and it follows the motion driving it through a spring —
+lagging behind, swinging past, settling.
+
+- **Catch up** is how hard the bone is pulled toward where the pose wants
+  it. Low is a whippy antenna; high follows almost immediately.
+- **Settle** is how quickly the swing dies. Low keeps it bouncing; high is a
+  heavy tail that lands at once.
+- The swing is computed **from the pose track, one step per frame** — never
+  from the clock — so the same document renders the same swing on every
+  machine, every export, forever. Scrubbing backwards replays it exactly.
+- Children ride the swing, so one jiggled bone at the base of a chain moves
+  everything after it. Jiggle belongs on bones you turn by hand — a bone
+  driven by IK, a spline or a constraint gets its swing overwritten by the
+  solver, the same way hand-posing one does nothing.
+- Keys never record the swing: what you author is the pose, and the jiggle
+  is how the frames between and after breathe. **Baking** writes what you
+  see, swing included.
+
 ## Binding drawings to bones
 
 A stroke follows the rig once it has **weights** — how much each bone moves
@@ -185,7 +251,10 @@ each part of it.
   hips, anywhere two bones share one drawing — is what the heat view and the
   weight brush are for.
 - The **heat view** shows the selected bone's influence over the current
-  drawing, blue (none) through red (owned), while the Bone tool is active.
+  drawing, blue (none) through red (owned), while the **weight brush is
+  armed** — in Bind and Pose the ink stays clean. The dots sit on the
+  drawing **as it is posed at the playhead**, so what you see is what you
+  would paint.
 
 - The **weight brush** (**Ctrl+Shift+K** while the Bone tool is active)
   paints influence for the selected bone directly on the canvas: pressure
@@ -193,10 +262,13 @@ each part of it.
   the others down, a locked bone holds), and a whole brush stroke is one
   undo step. With **X-symmetry** on, painting one side of a named pair
   (`hip.l` / `hip.r`) paints the other side too, mirrored across the pair's
-  own axis — the character's spine, wherever it sits on the paper. Painting
-  happens against the rest pose; scrub a pose to check, come back to
-  correct.
+  own axis — the character's spine, wherever it sits on the paper, and the
+  mirrored dab lands on the other limb **wherever its own pose put it**.
+  You can paint at any frame: the brush works on the drawing you are
+  looking at — pose the arm to where the armpit goes wrong, and fix the
+  weights right there. The weights themselves are still stored against the
+  rest drawing, so nothing about a pose changes what a weight means. The
+  drawing re-renders with the corrected weights when the brush lifts; the
+  heat dots follow live under it, dab by dab.
 
-*Planned:* painting weights under a live pose, angle-driven corrective
-shapes, secondary motion and rig export (`docs/DESIGN-bones.md` has the
-whole plan).
+*Planned:* rig export (`docs/DESIGN-bones.md` has the whole plan).

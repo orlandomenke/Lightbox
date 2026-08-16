@@ -10,7 +10,7 @@ namespace Lightbox.App.Tests;
 
 /// <summary>
 /// What the pointer says a press would do, over every grabbable thing on the
-/// canvas (B228).
+/// canvas (B241).
 /// </summary>
 /// <remarks>
 /// <para>

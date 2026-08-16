@@ -194,6 +194,17 @@ public partial class MainViewModel
     private void DeleteSelectionContents()
     {
         if (IsPlaying) return;
+        // The Bone tool first, ahead of both selections: with the armature in
+        // hand, the thing on screen with selection chrome is a bone, and
+        // Delete erasing the drawing underneath it instead would be the key
+        // acting on something the artist cannot currently see is selected.
+        // Same shape as B173 — the decision lives in the command, where the
+        // Configure window can rebind it, not in a branch in the key handler.
+        if (ArmatureEditMode && HasSelectedBone)
+        {
+            DeleteSelectedBone();
+            return;
+        }
         if (HasSelection)
         {
             if (!CanEdit(ActiveLayer, "erase on it")) return;

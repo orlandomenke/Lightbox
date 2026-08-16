@@ -69,12 +69,24 @@ round the whole character. Hold **Shift** as you start the drag to add to what
 you already have. The box is cyan and dashed rather than the marching ants of an
 area selection, because it is doing a different job.
 
-It picks what you can see. Where two lines cross you get the one on top, and an
-eraser stroke never steals a click from ink that is visible underneath it —
-though an eraser on its own is selectable, so a stray one can still be removed.
+It picks what you can see. Where two lines cross you get the one on top.
 Clicking inside a filled shape picks the fill; clicking in a hole in that shape
 does not, because the hole is not part of it. A gradient is picked by the line
 you dragged to make it, not by everywhere it reaches.
+
+**What you erased is not there to pick.** An eraser leaves a record of itself so
+that reloading a drawing rebuilds it exactly, but as far as every tool is
+concerned the rub and what it rubbed out have both gone: you cannot click an
+eraser stroke, a box dragged over one does not sweep it up, and clicking the gap
+an eraser left picks nothing rather than the line that used to run through it. A
+line erased along its whole length is out of reach entirely. **Undo is what
+brings an erasure back** — it is the only thing that does, so an eraser stroke
+you did not mean to make is undone rather than selected and deleted.
+
+Erasing lightly is a different act and is treated as one. An eraser below full
+opacity *fades* a line rather than removing it, and a faded line is still a line
+you can pick, move and recolour. The same goes for a line rubbed through the
+middle: the surviving ends are still yours, and only the gap is out of reach.
 
 **Guides and symbols win over lines** where they overlap. The drawing is the
 thing that is everywhere, so if it won, a guide crossing a line would be

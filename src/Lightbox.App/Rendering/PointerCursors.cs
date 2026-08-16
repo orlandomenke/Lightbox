@@ -81,7 +81,7 @@ public static class PointerCursors
     private static Cursor? _pick;
     private static Cursor? _fill;
 
-    // ---- the angled cursors (B228) ---------------------------------------------------
+    // ---- the angled cursors (B241) ---------------------------------------------------
 
     /// <summary>
     /// A double-headed arrow lying along <paramref name="degrees"/>, for a
@@ -90,7 +90,7 @@ public static class PointerCursors
     /// <remarks>
     /// <para>
     /// <b>Drawn at the real angle rather than snapped to one of the platform's
-    /// eight (Q100, the owner's call against the recommendation).</b> The stock
+    /// eight (Q107, the owner's call against the recommendation).</b> The stock
     /// set — <c>SizeWestEast</c>, <c>SizeNorthSouth</c> and the four corner
     /// cursors — covers 45° steps, which is exact for an unrotated box and wrong
     /// by up to 22.5° for any other. Drawing it means a box turned 30° gets a

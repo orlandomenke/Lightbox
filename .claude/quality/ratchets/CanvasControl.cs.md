@@ -1,6 +1,6 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 4952
+budget: 4981
 
 ## Why it has moved
 
@@ -56,7 +56,14 @@ other's reason and leaves a number nobody can account for.
   together. **Nothing was wrong with either change.** A remeasure that removes
   unearned slack can turn a parallel branch red on merge, and the honest
   response is this entry rather than leaving the slack in place to avoid it.
-- **→ 4,952** (2026-08-16, B228): +20 for the cursor becoming a single decision.
+- **→ 4,961** (2026-08-16, B231 and the board projection): +29 for the
+  reference stack becoming workable from the canvas — two events
+  (`ReferenceAlignPressed`, so a grab in align mode picks the strip under the
+  pointer, and `ReferenceMenuRequested`, the right-click stack menu) and the
+  press-handler branches that raise them. The branches cannot leave this file:
+  they are lines inside the one pointer-pressed decision chain, and the window
+  owns everything they mean.
+- **→ 4,952** (2026-08-16, B241): +20 for the cursor becoming a single decision.
   Everything that could be extracted was: the whole decision — twelve grabs, the
   angle arithmetic and the hit tests behind them — is a new partial,
   `CanvasControl.Cursors.cs`, and the two `OnPointerPressed`/`OnPointerReleased`
@@ -68,3 +75,8 @@ other's reason and leaves a number nobody can account for.
   initialises), and the two `Core` bodies the wrappers now call. Every one of
   them is a hook in the place the event arrives, and moving a hook means moving
   the handler rather than the feature — the same reason B217 and B223 record.
+- **→ 4,981** (2026-08-16, on merge): neither side's number. The two above
+  are +29 and +20 against the same base and landed together, so the merged
+  tree is both. Taking either would have banked the other's growth as
+  unearned slack, which is the failure the paragraph at the top of this
+  section describes — re-measured here rather than chosen.

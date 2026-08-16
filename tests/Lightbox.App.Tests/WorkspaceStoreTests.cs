@@ -264,6 +264,89 @@ public class WorkspaceStoreTests
         vm.SaveCurrent();
         Assert.DoesNotContain("*", vm.CurrentLabel);
     }
+
+    [Fact]
+    public void SaveCurrentOverwritesABuiltInInPlace()
+    {
+        // Pressing "save current workspace" while in Animation means "keep
+        // Animation like this" — it must not fork an "Animation (edited)"
+        // beside it and quietly switch to that.
+        var vm = Vm();
+        vm.Apply("Animation");
+        var count = vm.Store.Workspaces.Count;
+        vm.SetVisible(DockPanelId.Reference, true);
+
+        vm.SaveCurrent();
+
+        Assert.Equal("Animation", vm.SelectedName);
+        Assert.Equal(count, vm.Store.Workspaces.Count);
+        Assert.DoesNotContain(vm.Store.Workspaces, w => w.Name.Contains("(edited)"));
+        Assert.True(vm.Store.Find("Animation")!.Layout.IsVisible(DockPanelId.Reference));
+        Assert.False(vm.IsDirty);
+    }
+
+    [Fact]
+    public void ResetOnABuiltInRestoresHowItShipped()
+    {
+        // Even after the built-in's slot was saved over: "reset" on a
+        // workspace the app ships is a promise about the app, not the file.
+        var vm = Vm();
+        vm.Apply("Animation");
+        vm.SetVisible(DockPanelId.Reference, true);
+        vm.SaveCurrent();
+        Assert.True(vm.Store.Find("Animation")!.Layout.IsVisible(DockPanelId.Reference));
+
+        vm.Reset();
+
+        Assert.Equal("Animation", vm.SelectedName);
+        Assert.False(vm.Layout.IsVisible(DockPanelId.Reference));
+        Assert.False(vm.Store.Find("Animation")!.Layout.IsVisible(DockPanelId.Reference));
+        Assert.False(vm.IsDirty);
+    }
+
+    [Fact]
+    public void ResetOnAUserWorkspaceGoesBackToWhatWasSaved()
+    {
+        var vm = Vm();
+        vm.SetVisible(DockPanelId.Reference, true);
+        vm.SaveAs("Mine");
+        vm.SetVisible(DockPanelId.History, true);
+
+        vm.Reset();
+
+        Assert.Equal("Mine", vm.SelectedName);
+        Assert.True(vm.Layout.IsVisible(DockPanelId.Reference));
+        Assert.False(vm.Layout.IsVisible(DockPanelId.History));
+    }
+
+    [Fact]
+    public void SaveAsWithTheUnchangedNameMakesAnEditedCopy()
+    {
+        // "Save as new workspace" with the name left as it was is still a
+        // request for a new workspace — the original keeps its layout.
+        var vm = Vm();
+        vm.SaveAs("Mine");
+        vm.SetVisible(DockPanelId.Reference, true);
+
+        vm.SaveAs("Mine");
+
+        Assert.Equal("Mine (edited)", vm.SelectedName);
+        Assert.False(vm.Store.Find("Mine")!.Layout.IsVisible(DockPanelId.Reference));
+        Assert.True(vm.Store.Find("Mine (edited)")!.Layout.IsVisible(DockPanelId.Reference));
+    }
+
+    [Fact]
+    public void SaveAsOverABuiltInsNameStillForks()
+    {
+        var vm = Vm();
+        vm.Apply("Animation");
+        vm.SetVisible(DockPanelId.Reference, true);
+
+        vm.SaveAs("Animation");
+
+        Assert.Equal("Animation (edited)", vm.SelectedName);
+        Assert.False(vm.Store.Find("Animation")!.Layout.IsVisible(DockPanelId.Reference));
+    }
 }
 
 /// <summary>
