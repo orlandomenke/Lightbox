@@ -708,12 +708,12 @@ public class RulerAndGuideEditTests : BrushStateIsolated
     {
         var (_, vm) = Open();
         vm.Selection.AddGuideToSelection(vm.AddGuide(GuideKind.Line, 0, 100).Id);
-        var steps = vm.UndoDepth;
+        var steps = vm.RecordedStepCount;
 
         vm.BeginGuidesMove();
         vm.EndGuidesMove();
 
-        Assert.Equal(steps, vm.UndoDepth);
+        Assert.Equal(steps, vm.RecordedStepCount);
     }
 
     // ---- what the rulers show ------------------------------------------------------

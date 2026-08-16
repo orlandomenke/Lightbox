@@ -1,6 +1,6 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 4932
+budget: 4946
 
 ## Why it has moved
 
@@ -36,3 +36,10 @@ other's reason and leaves a number nobody can account for.
   `DrawOp`. Both are gesture and paint code in the places the gesture and the
   paint happen, so extracting them would mean moving the handler rather than the
   feature. The exact eighteen lines, recorded rather than rounded up.
+- **→ 4,946** (2026-08-16, B223): +14 for turning the line drag into a transform
+  session. The four events it needs went to `CanvasControl.Overlays.cs` with the
+  rest of the pushed-in surface; what is left is the press that opens the
+  session, the move that reports a position as well as repainting, and the
+  release that commits or discards — three edits inside the pointer handlers,
+  which is the one place they can be. The gesture is the thing that grew, and a
+  gesture cannot be extracted from the handler that receives it.

@@ -181,12 +181,12 @@ public class ReferenceGridEditTests : BrushStateIsolated
     {
         var (vm, _) = Imported();
         vm.Selection.AddRefBoxToSelection(0);
-        var steps = vm.UndoDepth;
+        var steps = vm.RecordedStepCount;
 
         vm.BeginRefBoxesMove();
         vm.EndRefBoxesMove();
 
-        Assert.Equal(steps, vm.UndoDepth);
+        Assert.Equal(steps, vm.RecordedStepCount);
     }
 
     // ---- moving, resizing, deleting ---------------------------------------------

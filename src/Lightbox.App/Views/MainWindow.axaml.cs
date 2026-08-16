@@ -33,11 +33,15 @@ public partial class MainWindow : Window
         Canvas.SetLinePicker(_vm.PickStrokeAt);
         _vm.SelectedLinesChanged += Canvas.SetSelectedLines;
         Canvas.LinesMarqueed += (rect, add) => _vm.PickStrokesIn(rect, add);
-        // The drag commits on release. The outline follows the pointer while the
-        // button is down (chrome only, see DrawSelectedLines) and the pixels move
-        // once, here — a per-move re-render would repaint the whole frame from its
-        // strokes, which is exactly what invariant 6 forbids.
-        Canvas.SelectedLinesDragged += (dx, dy) => _vm.MoveSelectedStrokes(dx, dy);
+        // B223: the drag is a transform session, the same one Ctrl+T and the
+        // Move tool open. The pixels follow the pointer through the session's
+        // composite preview rather than arriving on release, and the whole drag
+        // is one undo step — which is what MainViewModel.StrokeActions said it
+        // wanted and could not have while the filter had no line source.
+        Canvas.SelectedLinesMoveStarted += _vm.BeginLineMove;
+        Canvas.SelectedLinesMoved += (x, y, axisLock) => _vm.UpdateMove(x, y, axisLock);
+        Canvas.SelectedLinesMoveEnded += _vm.EndMove;
+        Canvas.SelectedLinesMoveCancelled += _vm.CancelMove;
         // Reshaping one line (vector phase 2). The canvas owns the gesture and
         // nothing else: every decision — what was grabbed, where it may go, when
         // it becomes an undo step — is the view model's, so all of it is

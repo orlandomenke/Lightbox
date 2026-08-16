@@ -508,7 +508,7 @@ public class SymbolPlacingTests : IDisposable
         vm.Selection.AddPlacementToSelection(second.Id);
         // The property rather than the local helper: that one counts by undoing
         // everything, which would take the two placements away before the drag.
-        var steps = vm.UndoDepth;
+        var steps = vm.RecordedStepCount;
 
         // Started away from either symbol, so this also pins that the modal
         // grab is what picked the group up.
@@ -516,7 +516,7 @@ public class SymbolPlacingTests : IDisposable
         Assert.True(vm.PlacementMoveActive);
         vm.EndMove();
 
-        Assert.Equal(steps, vm.UndoDepth);
+        Assert.Equal(steps, vm.RecordedStepCount);
     }
 
     [AvaloniaFact]
