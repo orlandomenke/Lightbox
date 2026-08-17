@@ -222,8 +222,7 @@ public sealed partial class MainViewModel
             if (!ArmatureEditMode || !WeightPainting || SelectedBoneId is not { } boneId) return [];
             if (ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex) is not { } frame) return [];
 
-            var pose = EffectivePoseHere();
-            var posed = PosedPointsFor(frame, pose);
+            var posed = WeightSessionPointsFor(frame);
             var points = new List<HeatPoint>();
             foreach (var stroke in frame.Strokes)
             {
@@ -262,6 +261,37 @@ public sealed partial class MainViewModel
     /// actually drawn — three answers from one arithmetic, which is the only
     /// number of implementations that cannot disagree.
     /// </remarks>
+    /// <summary>
+    /// The geometry a weight session works against, frozen while the brush is
+    /// armed: heat dots sit here, dabs hit here, and painting does not move it.
+    /// </summary>
+    /// <remarks>
+    /// <b>B247.</b> This used to be recomputed per dab, on the argument that
+    /// weights move the posed points and the next dab has to find them. The
+    /// owner's testing showed what that costs: painting influence toward a bone
+    /// <em>drags the drawing under the brush</em> — the artist is aiming at a
+    /// target their own gesture pushes away. So the session is the unit now:
+    /// the dots recolor and never move, and the deformation the new weights
+    /// describe appears when the brush is disarmed, through the same
+    /// invalidation every other rig edit runs. Dropped whenever the pose, the
+    /// playhead or the document moves; keyed by frame and playhead so a scrub
+    /// mid-session re-freezes at the new position.
+    /// </remarks>
+    private (string FrameId, int FrameIndex, Dictionary<string, List<StrokePoint>>? Points)? _weightSessionGeometry;
+
+    /// <inheritdoc cref="_weightSessionGeometry"/>
+    private Dictionary<string, List<StrokePoint>>? WeightSessionPointsFor(Frame frame)
+    {
+        if (_weightSessionGeometry is { } frozen
+            && frozen.FrameId == frame.Id && frozen.FrameIndex == CurrentFrameIndex)
+        {
+            return frozen.Points;
+        }
+        var points = PosedPointsFor(frame, EffectivePoseHere());
+        _weightSessionGeometry = (frame.Id, CurrentFrameIndex, points);
+        return points;
+    }
+
     private Dictionary<string, List<StrokePoint>>? PosedPointsFor(
         Frame frame, IReadOnlyDictionary<string, BonePose> pose)
     {
@@ -682,6 +712,12 @@ public sealed partial class MainViewModel
         // posing rather than sitting on top of it.
         if (value) PosingMode = false;
         OnPropertyChanged(nameof(IsBindMode));
+        // The frozen session geometry ends with the session (B247) — and
+        // disarming is where the weight strokes' deferred invalidation lands,
+        // so the ink takes up its new deformation the moment the brush is
+        // put down rather than mid-stroke.
+        _weightSessionGeometry = null;
+        if (!value) InvalidateRiggedFrames();
     }
 
     /// <summary>Grow a child of the usual length straight off the selected bone's tip.</summary>
@@ -886,15 +922,14 @@ public sealed partial class MainViewModel
         if (_weightGesture is not { } gesture) return;
         if (SelectedBoneId is not { } boneId || Doc.Armature is not { } armature) return;
 
-        // Recomputed per dab rather than per gesture, and that is the
-        // feedback loop working rather than waste: each dab changes weights,
-        // weights change where the posed points sit, and the next dab has to
-        // hit them where the just-refreshed heat shows them. Bounded by the
-        // drawing's own points (invariant 6), the same walk Apply makes.
-        var pose = EffectivePoseHere();
+        // The session's frozen geometry (B247): the dab hits the points where
+        // the heat shows them, and the heat does not move while painting. The
+        // per-dab recompute this replaces made each dab drag its own target —
+        // weights moved the posed points, so the artist chased the drawing
+        // their gesture was pushing away.
         var frame = ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex);
         var posed = frame is not null && frame.Id == _weightGestureFrameId
-            ? PosedPointsFor(frame, pose)
+            ? WeightSessionPointsFor(frame)
             : null;
 
         // Per-dab rate below 1 so a held brush builds rather than slams —
@@ -914,7 +949,7 @@ public sealed partial class MainViewModel
             // its pose put it — the rest-space mirror would paint thin air.
             var m = posed is null
                 ? WeightPaint.Mirror(armature, own, pair, x, y)
-                : WeightPaint.MirrorPosed(armature, own, pair, Skinning.Deltas(armature, pose), x, y);
+                : WeightPaint.MirrorPosed(armature, own, pair, Skinning.Deltas(armature, EffectivePoseHere()), x, y);
             if (m is { } mirrored)
             {
                 foreach (var (stroke, _) in gesture)
@@ -955,7 +990,13 @@ public sealed partial class MainViewModel
             },
             affectedFrameId: _weightGestureFrameId,
             label: "Paint weights");
-        InvalidateRiggedFrames();
+        // Deliberately NOT InvalidateRiggedFrames (B247): the record changed
+        // but the picture must not. A weight stroke recolors influence — it
+        // does not move ink — so the rigged-frame invalidation, and the rig
+        // index rebuild that would re-key a newly-bound stroke's frame, both
+        // wait for the brush to be disarmed (OnWeightPaintingChanged). The
+        // deformation the new weights describe shows up when the artist
+        // returns to posing, which is where influence belongs.
     }
 
     private static bool SameWeights(List<BoneBinding>? a, List<BoneBinding>? b)
@@ -1022,6 +1063,10 @@ public sealed partial class MainViewModel
     private void InvalidateRiggedFrames()
     {
         _ghostChromeCache = null;
+        // Anything that moves the world re-freezes the weight session's
+        // geometry: a pose, bone or corrective edit means the dots must stand
+        // somewhere new (B247).
+        _weightSessionGeometry = null;
         // The index first, and that ordering is load-bearing: it decides
         // whether a frame's cache key carries the playhead, so invalidating
         // against a stale one would clear entries under keys that are about to

@@ -191,6 +191,60 @@ public class LivePoseWeightTests
         Assert.Empty(vm.HeatPoints);
     }
 
+    /// <summary>
+    /// B247. Painting influence toward another bone used to move the posed
+    /// points it was painted on — the artist chased a target their own gesture
+    /// pushed away. The session's geometry is frozen now: the dots recolor and
+    /// stand still, and the new weights deform the drawing when the brush is
+    /// disarmed, not under it.
+    /// </summary>
+    [AvaloniaFact]
+    public void PaintingRecolorsTheHeatDotsWithoutMovingThem()
+    {
+        var vm = Rigged();
+        vm.CreateBoneFromDrag(100, 150, 160, 150);
+        var carrier = vm.SelectedBoneId!;
+        vm.SelectedBoneId = null;
+        vm.CreateBoneFromDrag(300, 60, 340, 60);
+        var painted = vm.SelectedBoneId!;
+
+        var stroke = AddStroke(vm, (110, 150), (150, 150));
+        vm.Selection.SelectStroke(stroke.Id);
+        vm.SelectedBoneId = carrier;
+        vm.AssignSelectedStrokesToBone();
+
+        vm.PosingMode = true;
+        vm.PoseBoneTo(carrier, 100, 250);          // points stand at (100,160), (100,200)
+        vm.WeightPainting = true;
+        vm.SelectedBoneId = painted;
+        vm.MirrorWeights = false;
+
+        var before = vm.HeatPoints.Select(p => (p.X, p.Y)).ToList();
+
+        // Paint the unposed bone up on the second point: its weight climbs,
+        // which used to pull the point toward that bone's rest transform.
+        vm.BeginWeightStroke(100, 200, 1);
+        vm.WeightDab(100, 200, 1);
+        vm.WeightDab(100, 200, 1);
+
+        var during = vm.HeatPoints;
+        Assert.True(during[1].Weight > 0.3,
+            $"the dab did not take: weight {during[1].Weight:F3}");
+        for (var i = 0; i < before.Count; i++)
+        {
+            Assert.Equal(before[i].X, during[i].X, 6);
+            Assert.Equal(before[i].Y, during[i].Y, 6);
+        }
+
+        vm.EndWeightStroke();
+        var committed = vm.HeatPoints;
+        for (var i = 0; i < before.Count; i++)
+        {
+            Assert.Equal(before[i].X, committed[i].X, 6);
+            Assert.Equal(before[i].Y, committed[i].Y, 6);
+        }
+    }
+
     [AvaloniaFact]
     public void ScrubbingMovesTheRigSurface()
     {
