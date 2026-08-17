@@ -267,9 +267,12 @@ each part of it.
   You can paint at any frame: the brush works on the drawing you are
   looking at — pose the arm to where the armpit goes wrong, and fix the
   weights right there. The weights themselves are still stored against the
-  rest drawing, so nothing about a pose changes what a weight means. The
-  drawing re-renders with the corrected weights when the brush lifts; the
-  heat dots follow live under it, dab by dab.
+  rest drawing, so nothing about a pose changes what a weight means.
+  **While the brush is armed, nothing moves**: the dots change colour dab
+  by dab, and the drawing holds still — painting edits how much a bone
+  influences a line, it never pushes the line around under your hand. The
+  drawing takes up its corrected deformation the moment you switch back to
+  Bind or Pose.
 
 **Exporting the rig**: the Godot export writes a `Skeleton2D` importer beside
 the sheet when the document is rigged, and the **Rig + DragonBones** format
