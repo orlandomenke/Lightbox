@@ -1,6 +1,6 @@
 # Q111 · Should a document remember its playhead?
 
-**Status: answered** (owner, 2026-08-17, via prompt)
+**answered 2026-08-17: remember the playhead** (owner, via prompt)
 
 ## The question
 
