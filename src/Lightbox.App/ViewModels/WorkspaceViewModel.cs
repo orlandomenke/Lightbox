@@ -106,6 +106,13 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         set => SetVisible(DockPanelId.Symbols, value);
     }
 
+    /// <summary>Whether the navigator is on screen (Q110).</summary>
+    public bool NavigatorVisible
+    {
+        get => _layout.IsVisible(DockPanelId.Navigator);
+        set => SetVisible(DockPanelId.Navigator, value);
+    }
+
     public bool HistoryPanelVisible
     {
         get => _layout.IsVisible(DockPanelId.History);

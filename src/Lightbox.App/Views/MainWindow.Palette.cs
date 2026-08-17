@@ -357,6 +357,13 @@ public partial class MainWindow
     /// constructor for the reason the decomposition note gives: the section that
     /// owns the state owns its wiring.
     /// </remarks>
+    /// <summary>
+    /// The navigator (Q110): it says where to look, the canvas goes there —
+    /// the same split every panel here follows. Everything else it needs is
+    /// bound.
+    /// </summary>
+    private void WireNavigator() => Navigator.CentreRequested += Canvas.CentreOn;
+
     private void WireReferenceSheetGestures()
     {
         Canvas.ReferenceSheetPicked += (x, y) => _vm.SelectReferenceOnCanvasAt(x, y);

@@ -283,11 +283,56 @@ public partial class MainWindow
     /// called* and *where does it go*, and the second should arrive already
     /// answering the first. Two correct prompts in sequence are one bad prompt.
     /// </remarks>
+    /// <summary>
+    /// A tab title as something a filesystem will accept.
+    /// </summary>
+    /// <remarks>
+    /// <b>B249.</b> A reference view is titled <c>Hero / front</c> — which reads
+    /// correctly on a tab and is a <em>path</em> to every operating system we
+    /// ship to. Handed to the save picker it produced a name that could not be
+    /// written, so the artist pressed Save, answered the dialog, and got the
+    /// same dialog again on the next Ctrl+S, for ever.
+    /// <para>
+    /// The separator becomes a hyphen rather than being dropped, so
+    /// <c>Hero / front</c> saves as <c>Hero-front</c> and still says which view
+    /// it is. Everything else illegal goes the same way, and a run of hyphens
+    /// collapses — a title of punctuation must not become a filename of dashes.
+    /// </para>
+    /// </remarks>
+    internal static string FileStem(string title)
+    {
+        var chars = title.Trim().Select(c => Illegal(c) ? '-' : c).ToArray();
+        var stem = new string(chars).Trim(' ', '-');
+        while (stem.Contains("--")) stem = stem.Replace("--", "-");
+        while (stem.Contains(" -") || stem.Contains("- "))
+        {
+            stem = stem.Replace(" -", "-").Replace("- ", "-");
+        }
+        return stem.Length == 0 ? "untitled" : stem;
+    }
+
+    /// <summary>
+    /// Whether a character has no place in a file name on <em>any</em> platform
+    /// Lightbox ships to.
+    /// </summary>
+    /// <remarks>
+    /// <b>Not <c>Path.GetInvalidFileNameChars()</c> alone</b>, which answers for
+    /// the machine it is running on: on Linux that is a list of two, so a title
+    /// carrying <c>\</c> or <c>:</c> sails through and produces a file the same
+    /// project cannot open on Windows. The fixed set is Windows', which is the
+    /// strictest of the three, unioned with whatever the host adds.
+    /// </remarks>
+    private static bool Illegal(char c) =>
+        c is '/' or '\\' or ':' or '*' or '?' or '"' or '<' or '>' or '|'
+        || char.IsControl(c)
+        || System.IO.Path.GetInvalidFileNameChars().Contains(c);
+
     private async Task SaveDocumentAsAsync(string? suggestedName = null)
     {
-        var stem = string.IsNullOrWhiteSpace(suggestedName)
-            ? _vm.ActiveTab?.Title ?? "untitled"
-            : suggestedName.Trim();
+        var stem = FileStem(
+            string.IsNullOrWhiteSpace(suggestedName)
+                ? _vm.SaveTargetTab?.Title ?? _vm.ActiveTab?.Title ?? "untitled"
+                : suggestedName);
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Save animation",

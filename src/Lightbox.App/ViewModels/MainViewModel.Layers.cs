@@ -1056,6 +1056,9 @@ public partial class MainViewModel
         }
         RefreshLayerThumbs();
         RefreshChannelThumbs();
+        // The navigator's picture is the same fact at another size, so it is
+        // refreshed on the same funnel and never on its own timer (Q110).
+        RefreshNavigatorThumb();
         _dirtyThumbIds.Clear();
         _allThumbsDirty = false;
     }

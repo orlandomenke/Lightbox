@@ -154,9 +154,12 @@ public sealed class DockLayout
     public static DockLayout Default()
     {
         var layout = new DockLayout();
-        layout.Dock(DockPanelId.Project, DockSide.Right, 0);
-        layout.Dock(DockPanelId.Layers, DockSide.Right, 1);
-        layout.Dock(DockPanelId.Color, DockSide.Right, 2);
+        // The navigator leads the strip (Q110): it is short, and it is what you
+        // glance at to know where you are before reaching for anything else.
+        layout.Dock(DockPanelId.Navigator, DockSide.Right, 0);
+        layout.Dock(DockPanelId.Project, DockSide.Right, 1);
+        layout.Dock(DockPanelId.Layers, DockSide.Right, 2);
+        layout.Dock(DockPanelId.Color, DockSide.Right, 3);
         // What the work is made of and what it is made with, in one slot
         // (Q109): the project tree, the reference for the subject, and the
         // options of the tool in hand — consulted one at a time and between

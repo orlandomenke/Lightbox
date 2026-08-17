@@ -383,6 +383,18 @@ public partial class MainViewModel
     private void ToggleSymbolsPanel() =>
         Workspace.SetVisible(Docking.DockPanelId.Symbols, !Workspace.SymbolsPanelVisible);
 
+    /// <remarks>
+    /// The navigator's picture is only composited while the panel is open
+    /// (Q110), so closing it has to refresh once — otherwise the last picture
+    /// is held for as long as the session lasts.
+    /// </remarks>
+    [RelayCommand]
+    private void ToggleNavigator()
+    {
+        Workspace.NavigatorVisible = !Workspace.NavigatorVisible;
+        RefreshNavigatorThumb();
+    }
+
     [RelayCommand]
     private void ToggleHistoryPanel() =>
         Workspace.SetVisible(Docking.DockPanelId.History, !Workspace.HistoryPanelVisible);

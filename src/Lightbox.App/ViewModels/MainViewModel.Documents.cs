@@ -326,7 +326,22 @@ public partial class MainViewModel
     /// </summary>
     public bool CanSaveInPlace =>
         ProjectDocker.HasProject && SaveTargetTab?.Source is not null
-        || SaveTargetTab?.FilePath is { Length: > 0 };
+        || SaveTargetTab?.FilePath is { Length: > 0 }
+        // A view onto a project sheet (B249). It has no file of its own — the
+        // project's save writes it, exactly as a symbol's — so Save must mean
+        // "save the project" rather than falling through to a picker that
+        // offers to write a document nothing would reference.
+        || IsProjectSheetView;
+
+    /// <summary>The active tab is a view onto a sheet the project owns.</summary>
+    /// <remarks>
+    /// Asked of <see cref="ActiveTab"/> rather than <c>SaveTargetTab</c>, which
+    /// is deliberately null here: a sheet view defers to no document, and that
+    /// is exactly why Save had nowhere to go.
+    /// </remarks>
+    public bool IsProjectSheetView =>
+        ProjectDocker.HasProject
+        && ActiveTab is { Kind: DocumentTabKind.Reference, SheetSource: not null };
 
     /// <summary>
     /// Save without a picker. Missing entirely until now — every save opened a
@@ -337,6 +352,15 @@ public partial class MainViewModel
         if (ProjectDocker.HasProject && SaveTargetTab?.Source is not null)
         {
             SaveProject();
+            return;
+        }
+        // B249: the sheet travels in the project file, so this is the same
+        // save — and the tab has to be told, or it keeps its dot and the
+        // close prompt still claims there is unsaved work.
+        if (IsProjectSheetView)
+        {
+            SaveProject();
+            ActiveTab?.MarkSaved();
             return;
         }
         if (SaveTargetTab is not { FilePath: { Length: > 0 } path } tab) return;
