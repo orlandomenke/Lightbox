@@ -209,6 +209,10 @@ public partial class MainWindow
                 _ = OpenProjectWindowAsync();
                 e.Handled = true;
                 break;
+            case "diagnostics.inputTrace":
+                ToggleInputTrace();
+                e.Handled = true;
+                break;
             case "image.resizeCanvas":
                 _ = ResizeAsync(ViewModels.ResizeMode.Canvas);
                 e.Handled = true;

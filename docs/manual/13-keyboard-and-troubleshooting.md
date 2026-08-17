@@ -244,6 +244,51 @@ reading it:
   tablet driver or the operating system adds before that is invisible to it, so
   a clean section with a lagging hand points outside the application.
 
+### If the pointer flickers or hover panels collapse, record an input trace
+
+On some tablets — Huion's are the ones reported so far — the brush ring and the
+system arrow flicker over one another while the pen hovers, and panels that open
+under the pointer are unresponsive to the pen or shut again the moment they
+appear. A mouse on the same machine behaves perfectly, and drawing itself is
+fine: it stops as soon as the pen touches down.
+
+Neither problem can be reproduced on a machine without that tablet, so Lightbox
+records what your pen actually delivers and works out which of three things is
+happening.
+
+**Press `F9` to start recording, then use the application for about a minute** —
+hover over the canvas without drawing, draw a stroke or two, and open a panel or
+flyout that misbehaves. **Press `F9` again to stop**, and the status strip names
+the file it wrote, in the same folder as everything else above. The pen readout
+beside the brush settings says `· recording an input trace` while it is running,
+so you can tell it is on.
+
+The key rather than a menu item is deliberate: what is being measured is what
+the pointer does while it sits over the canvas, so a trace you had to reach a
+menu to stop would record the trip to the menu as its last few seconds. `F9` is
+editable like every other shortcut, which matters if your tablet driver has
+already claimed it.
+
+The file opens with a plain-words verdict rather than the log, and it separates
+the three explanations that look identical from the outside:
+
+- **two pointer streams interleaving** — the driver is sending a mouse
+  alongside the pen, and each one undoes the other;
+- **the pen leaving and re-entering** the canvas while your hand holds still —
+  proximity flapping, which re-arms the system cursor and dismisses anything
+  hovering every time it happens;
+- **neither** — Lightbox held one cursor for the whole minute, so whatever is
+  flickering is happening below the application, and the trace is the evidence
+  that says so to the people who can fix it.
+
+A trace shorter than five seconds says so and concludes nothing, rather than
+turning a few stray events into a confident rate.
+
+**It is also how a fix gets confirmed.** The counters near the top — moves per
+second, stream alternations, canvas enter/exit, popups that collapsed — are the
+same numbers before and after, so one traced minute on each side settles whether
+a change helped, instead of leaving it to whether the flicker *feels* better.
+
 ### If playback or scrubbing stutters, read the tile section first
 
 **Play the scene, then write the report** — the section is about what happens

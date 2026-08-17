@@ -24,3 +24,25 @@ hypothesis confirmed), enter/leave transitions on the canvas and on any open
 popup (churn is the flyout hypothesis), what `RefreshCanvasCursor` decided and
 when, and timestamps throughout. It rides the existing diagnostics surface
 (the pen-pressure readout / diagnostics console), gated off by default.
+
+## Built, and two things the building changed
+
+`Services/InputTrace.cs`, armed and stopped with one key (`F9`, rebindable),
+report written beside the crash logs. The read-out protocol lives in **B126**'s
+entry so a later session inherits it rather than re-deriving it.
+
+**A key rather than a menu item, and the reason is the bug itself.** What is
+being measured is what the pointer does while it hovers the canvas — so a trace
+that has to be stopped from a menu records the trip to the menu as its final
+seconds, perturbing exactly the thing under measurement. This also settled where
+the UI could go: `MainWindow.axaml` is at its ratchet ceiling and *"a feature
+needed the room"* is explicitly not a reason to raise one, and the Configure
+window is modal, so a live readout there could never watch a canvas hover.
+
+**The instrument fell into the trap it exists to avoid, and now guards it.** The
+first sample report extrapolated twelve alternations in 0.6 s to *"1241/min"*
+and named a mechanism with confidence. Arithmetically correct, worthless, and
+precisely `docs/DESIGN-performance.md`'s lesson — *the number was real and the
+attribution was not*. Anything under five seconds now reports counts and refuses
+to conclude. It was caught by generating a report and reading it, which no
+assertion in the suite would have done.

@@ -377,6 +377,40 @@ public partial class MainWindow
         });
     }
 
+    /// <summary>
+    /// Start recording what the pointer delivers, or stop and write the report.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>One command for both halves</b>, because the ritual is one thing an
+    /// artist does: arm, hover for a minute doing the thing that misbehaves,
+    /// disarm. A pair of menu items would put a decision ("which one do I want
+    /// now?") in front of a person who is trying to reproduce a flicker.
+    /// </para>
+    /// <para>
+    /// The status line carries the outcome the way the render report's does. The
+    /// live half is <see cref="Services.InputTrace.Armed"/>, which the canvas's
+    /// own pen readout folds in — that readout sits where somebody chasing a pen
+    /// problem is already looking, and it is the one surface a modal Configure
+    /// window could not have been.
+    /// </para>
+    /// </remarks>
+    private void ToggleInputTrace()
+    {
+        if (!Services.InputTrace.Armed)
+        {
+            Services.InputTrace.Arm();
+            _vm.AiStatus =
+                "Recording pen input — hover, draw and open a flyout, then press the key again to write the report.";
+            return;
+        }
+
+        var path = Services.InputTrace.WriteReport();
+        _vm.AiStatus = path is null
+            ? "Could not write the input trace"
+            : $"Input trace written to {path}";
+    }
+
     /// <summary>Run a deliberate failure, after asking if there is anything to lose.</summary>
     /// <remarks>
     /// The warning is the scenario's own, not this method's: a survivable failure

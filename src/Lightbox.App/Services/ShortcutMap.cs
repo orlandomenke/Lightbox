@@ -421,6 +421,16 @@ public sealed class ShortcutMap
             // Save as had none at all. `Ctrl+P` is free — nothing prints.
             new("project.window", "Project window (structure, status, assets)", "File",
                 G(Key.P, KeyModifiers.Control)),
+
+            // B126/B254, and a key rather than a menu item on purpose: the thing
+            // being measured is what the pointer does while it hovers the canvas,
+            // so a trace you have to reach a menu to stop records the trip to the
+            // menu as its final seconds. A key leaves the pen where it is. F9 is
+            // free (F5 is the project refresh, and nothing else claims a function
+            // key), and it is rebindable like everything else here because a
+            // tablet's own driver may have taken it.
+            new("diagnostics.inputTrace", "Record an input trace (pen problems)", "Help",
+                G(Key.F9)),
         ];
     }
 

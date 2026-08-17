@@ -156,3 +156,13 @@ The neighbouring Huion work (B126/B254 input trace, Q115) shares phase 1's
 pointer-path familiarity but is **its own branch with its own objective**
 (`fix/canvas/B126-hover-input-trace`) — one objective per branch, and a trace
 the owner can run does not wait on a record migration.
+
+**That trace is now built, and phase 1 inherits two things from it.**
+`Services/InputTrace.cs` already reads `XTilt`/`YTilt` off every traced pointer
+event and reports, per device, whether tilt arrived at all — so the first
+question phase 1 would otherwise have to ask ("does this pen report tilt on this
+machine?") is answered by a diagnostic that already exists, before a line of the
+record migration is written. Its `moves/s` counter answers the second one: the
+rate the device actually delivers at, which is what the speed estimator's
+smoothing constant has to be chosen against. Read a trace from the target
+machine before tuning the constants this document leaves open.

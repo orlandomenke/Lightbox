@@ -2238,9 +2238,9 @@ public sealed partial class CanvasControl : Control
     private void ReportInputDiagnostic(PointerType type, float rawPressure)
     {
         if (InputDiagnostic is null) return;
-        var text = type == PointerType.Pen
+        var text = (type == PointerType.Pen
             ? $"Pen detected — pressure {rawPressure:0.00}"
-            : $"{type} input — no pressure axis (paints at 100%)";
+            : $"{type} input — no pressure axis (paints at 100%)") + TracingSuffix();
         if (text == _lastDiagnostic) return;
         _lastDiagnostic = text;
         InputDiagnostic.Invoke(text);
@@ -2877,6 +2877,7 @@ public sealed partial class CanvasControl : Control
     {
         base.OnPointerEntered(e);
         _enterCount++;
+        Services.InputTrace.Pointer(Services.InputTrace.Kind.Enter, e, this);
         ReportHoverChurn(e);
         _hoverPoint = e.GetPosition(this);
         InvalidateVisual();
@@ -2886,6 +2887,7 @@ public sealed partial class CanvasControl : Control
     {
         base.OnPointerExited(e);
         _exitCount++;
+        Services.InputTrace.Pointer(Services.InputTrace.Kind.Exit, e, this);
         ReportHoverChurn(e);
         _hoverPoint = null;
         // Nothing to re-ask about once the pointer is gone, so a later tool
@@ -2912,14 +2914,23 @@ public sealed partial class CanvasControl : Control
             $"{device} hover — entered {_enterCount}, exited {_exitCount}"
             + (_exitCount > 0 && _enterCount > 1
                 ? "  (climbing while still = the cursor is being re-evaluated, B126)"
-                : string.Empty));
+                : string.Empty)
+            + TracingSuffix());
     }
+
+    /// <summary>
+    /// " · recording" while a trace is armed, so the readout somebody chasing a
+    /// pen problem is already watching says whether it is being captured.
+    /// </summary>
+    private static string TracingSuffix() =>
+        Services.InputTrace.Armed ? "  · recording an input trace" : string.Empty;
 
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
         try
         {
+            Services.InputTrace.Pointer(Services.InputTrace.Kind.Move, e, this);
             _hoverPoint = e.GetPosition(this);
             // Only while nothing is being dragged: mid-gesture the question is
             // already answered, and asking it again would put a bitmap read in
@@ -3623,6 +3634,7 @@ public sealed partial class CanvasControl : Control
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
         base.OnPointerCaptureLost(e);
+        Services.InputTrace.CaptureLost(e.Pointer);
         CancelPointerGestures();
     }
 
