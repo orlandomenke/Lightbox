@@ -377,6 +377,73 @@ public partial class MainWindow
         });
     }
 
+    /// <summary>
+    /// Start recording what the pointer delivers, or stop and write the report.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>One command for both halves</b>, because the ritual is one thing an
+    /// artist does: arm, hover for a minute doing the thing that misbehaves,
+    /// disarm. A pair of menu items would put a decision ("which one do I want
+    /// now?") in front of a person who is trying to reproduce a flicker.
+    /// </para>
+    /// <para>
+    /// The status line carries the outcome the way the render report's does. The
+    /// live half is <see cref="Services.InputTrace.Armed"/>, which the canvas's
+    /// own pen readout folds in — that readout sits where somebody chasing a pen
+    /// problem is already looking, and it is the one surface a modal Configure
+    /// window could not have been.
+    /// </para>
+    /// </remarks>
+    private void ToggleInputTrace()
+    {
+        if (!Services.InputTrace.Armed)
+        {
+            Services.InputTrace.Arm();
+            Title = RecordingTitle;
+            Announce("Recording pen input — hover, draw and open a flyout, then press the key again to write the report.");
+            return;
+        }
+
+        var path = Services.InputTrace.WriteReport();
+        Title = IdleTitle;
+        Announce(path is null
+            ? "Could not write the input trace"
+            : $"Input trace written to {path}");
+    }
+
+    private const string IdleTitle = "Lightbox";
+
+    private const string RecordingTitle = "● Lightbox — recording an input trace (press the key again to stop)";
+
+    /// <summary>
+    /// Say something about the trace everywhere it could possibly be read.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Written because the first version said it into a hidden bar.</b> The
+    /// status line this used alone lives in the AI strip, which is
+    /// <c>IsVisible="{Binding AiEnabled}"</c> — so on a machine with AI
+    /// assistance switched off, pressing the key produced no visible change
+    /// whatsoever and the feature looked dead. Reported as exactly that, by the
+    /// one person who has the tablet this exists for.
+    /// </para>
+    /// <para>
+    /// The <b>window title</b> is the fix that cannot be hidden: nothing else
+    /// writes it, every window manager shows it, and it stays legible for the
+    /// whole minute the trace is running rather than only at the moment of the
+    /// press. The other two are kept because they are where somebody already
+    /// looking at a pen problem is looking — the pen readout especially, which
+    /// is otherwise only refreshed by a pointer event and so would say nothing
+    /// at all until the artist moved the pen.
+    /// </para>
+    /// </remarks>
+    private void Announce(string message)
+    {
+        _vm.AiStatus = message;
+        _vm.PenDiagnostic = message;
+    }
+
     /// <summary>Run a deliberate failure, after asking if there is anything to lose.</summary>
     /// <remarks>
     /// The warning is the scenario's own, not this method's: a survivable failure

@@ -54,7 +54,40 @@ public sealed partial class CanvasControl
     {
         _cursorAt = view;
         _cursorModifiers = modifiers;
-        Cursor = CursorFor(CanvasCursorNow(view, modifiers));
+        var choice = CanvasCursorNow(view, modifiers);
+        var cursor = CursorFor(choice);
+        if (Services.InputTrace.Armed) TraceCursor(choice, cursor);
+        Cursor = cursor;
+    }
+
+    /// <summary>
+    /// Record what this control decided and whether the platform cursor it
+    /// hands over actually changed — the line B126 turns on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The two are traced separately because they answer different
+    /// questions.</b> The <em>decision</em> is this control's mind, deduplicated
+    /// in the trace so a 240 Hz hover writes one entry per change rather than
+    /// per event. The <em>assignment</em> is what Avalonia was handed, compared
+    /// by reference against what it already had — <see cref="PointerCursors"/>
+    /// caches one instance per kind, so a differing reference is a genuinely
+    /// different cursor rather than a re-assignment of the same one.
+    /// </para>
+    /// <para>
+    /// <b>What makes this evidence rather than logging:</b> if the trace shows
+    /// one decision and one assignment across a minute in which the reporter
+    /// watched the arrow flicker over the ring, then Lightbox held the cursor
+    /// still the whole time and the alternation is below the application —
+    /// which is the finding that sends B126 upstream instead of round another
+    /// guess. Only called while the trace is armed, so the ordinary hover pays
+    /// one volatile read.
+    /// </para>
+    /// </remarks>
+    private void TraceCursor(CanvasCursorChoice choice, Cursor cursor)
+    {
+        Services.InputTrace.CursorDecided(choice.Kind.ToString());
+        if (!ReferenceEquals(cursor, Cursor)) Services.InputTrace.CursorAssigned(choice.Kind.ToString());
     }
 
     /// <summary>
@@ -326,6 +359,7 @@ public sealed partial class CanvasControl
     /// </remarks>
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
+        Services.InputTrace.Pointer(Services.InputTrace.Kind.Press, e, this);
         try { OnPointerPressedCore(e); }
         finally { RefreshCanvasCursor(e.GetPosition(this), e.KeyModifiers); }
     }
@@ -333,6 +367,7 @@ public sealed partial class CanvasControl
     /// <summary>The same, for the release that ends a gesture.</summary>
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
+        Services.InputTrace.Pointer(Services.InputTrace.Kind.Release, e, this);
         try { OnPointerReleasedCore(e); }
         finally { RefreshCanvasCursor(e.GetPosition(this), e.KeyModifiers); }
     }
