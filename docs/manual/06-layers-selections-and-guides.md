@@ -185,7 +185,14 @@ switch back and it is where you left it. A new document starts with nothing
 selected.
 
 **Ctrl+T** starts a transform. The gizmo gives move, scale, rotate and a
-draggable pivot; **Perspective** mode gives four free corners. The drawing
+draggable pivot; **Perspective** mode gives four free corners.
+
+**Scaling holds the side you did not touch.** Drag a corner and the opposite
+corner stays put; drag an edge and the opposite edge does — which is what every
+other tool does, and what your hand expects when it pulls one side of a box.
+Hold **Alt** to scale from the pivot instead, growing all sides at once, and you
+can press or release Alt in the middle of the drag. **Shift** keeps the
+proportions, as ever, and combines with Alt. The drawing
 moves *with* the gizmo — you see the result while you drag, not after you
 commit — and the selection's marching ants ride along with it, so the outline
 and the pixels never disagree about where the drawing is. The session's controls — scope, sampling, perspective, mirror,
