@@ -79,6 +79,17 @@ public partial class MainWindow
             return;
         }
 
+        // A reference picked up on the canvas lets go on Escape — the key
+        // everybody tries first, and the same bargain every other selection
+        // here makes (Q108). Above the shortcut switch so nothing else can
+        // claim it while a reference is in hand.
+        if (_vm.ReferenceSelectedOnCanvas && e.Key == Key.Escape)
+        {
+            _vm.ClearCanvasReferenceSelection();
+            e.Handled = true;
+            return;
+        }
+
         // An active transform session owns Enter/Escape outright.
         if (_vm.TransformActive)
         {
@@ -330,6 +341,9 @@ public partial class MainWindow
                 break;
             case "canvas.lockGuides":
                 _vm.Workspace.GuidesLocked = !_vm.Workspace.GuidesLocked;
+                break;
+            case "canvas.lockReferences":
+                _vm.Workspace.ReferencesLocked = !_vm.Workspace.ReferencesLocked;
                 break;
             case "tool.move":
                 _vm.SelectToolCommand.Execute(ToolId.Move);

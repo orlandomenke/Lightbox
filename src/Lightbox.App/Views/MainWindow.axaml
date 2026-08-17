@@ -1794,6 +1794,15 @@
               <ToggleButton IsChecked="{Binding Workspace.GuidesLocked}"
                             IsVisible="{Binding Workspace.RulersVisible}"
                             ToolTip.Tip="Lock guides (Ctrl+Alt+;) — pin them where they are"><Path Data="{StaticResource IconLockClosed}" /></ToggleButton>
+              <!-- The two locks, while a reference is picked up on the canvas
+                   (Q108): this one, and all of them. Locking is what you reach
+                   for the instant after a reference is where you want it. -->
+              <ToggleButton IsChecked="{Binding SelectedReferenceLocked, Mode=TwoWay}"
+                            IsVisible="{Binding ReferenceSelectedOnCanvas}"
+                            ToolTip.Tip="Lock this reference — it stays selectable and stops being draggable"><Path Data="{StaticResource IconLockClosed}" /></ToggleButton>
+              <ToggleButton IsChecked="{Binding Workspace.ReferencesLocked, Mode=TwoWay}"
+                            IsVisible="{Binding ReferenceSelectedOnCanvas}"
+                            ToolTip.Tip="Lock every reference (Ctrl+Alt+R) — pin them all where they are"><Path Data="{StaticResource IconAlphaLock}" /></ToggleButton>
               <ToggleButton IsChecked="{Binding ReferenceGridEditMode}"
                             IsVisible="{Binding HasReferences}"
                             ToolTip.Tip="Edit the reference grid — drag the boxes, drag a corner to resize, right-click for the pivot. Esc leaves."><Path Data="{StaticResource IconReferenceGrid}" /></ToggleButton>
@@ -3982,6 +3991,8 @@
                 <CheckBox Content="Show on canvas" IsChecked="{Binding ReferenceVisible}" />
                 <CheckBox Content="Follow timeline edits" IsChecked="{Binding ReferenceFollowsTimeline}"
                           ToolTip.Tip="Insert a frame and the references after it move along with the animation. Off pins the reference to absolute timing — matching a shot frame for frame." />
+                <CheckBox Content="Locked" IsChecked="{Binding SelectedReferenceLocked, Mode=TwoWay}"
+                          ToolTip.Tip="Pin this reference where it is. It can still be selected on the canvas with the Arrow; it stops being draggable, so it cannot be knocked out of register." />
 
                 <DockPanel ToolTip.Tip="One scale for every frame: a reference whose size varied frame to frame is the one thing a size reference exists to prevent.">
                   <TextBlock DockPanel.Dock="Left" Text="Scale" Width="52" VerticalAlignment="Center" FontSize="12" />

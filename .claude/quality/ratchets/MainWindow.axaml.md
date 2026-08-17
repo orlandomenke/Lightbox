@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4405
+budget: 4416
 
 ## Why it is here despite being XAML
 
@@ -79,3 +79,9 @@ leaves a number nobody can account for. So every reason above stays, and
   **Board…** button, which is B231's fix and has to be markup — and the
   workspace menu's tooltips saying what save, save-as and reset now actually
   do (B230).
+- **4,405 → 4,416** (2026-08-17, Q88): +11 for the two reference locks on the
+  canvas shortcut bar and the *Locked* checkbox in the Reference sheets docker.
+  The standing note above applies unchanged — a button has no partial to live in
+  — and the owner asked for these on the bar by name: locking is what an artist
+  reaches for the instant a reference is where they want it, and the pointer is
+  already on the canvas.

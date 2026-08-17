@@ -1,6 +1,6 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 5033
+budget: 4880
 
 ## Why it has moved
 
@@ -101,3 +101,12 @@ other's reason and leaves a number nobody can account for.
   the merged tree carries both — re-measured with `ratchets.py remeasure`
   rather than chosen, exactly as the 4,981 entry above records for the
   previous pair.
+- **5,033 → 4,880** (2026-08-17, Q88): the reference chrome left the file. The
+  `ReferenceBox` record, the `ReferenceBoxes` channel, the four grid events and
+  the grid gesture went to `CanvasControl.References.cs`; the grid painter went
+  to `ReferenceBoxPainter`, beside `GuidePainter` and `ArmatureOverlayPainter`
+  for the same reason. −187, then +34 for the press, move and release hooks that
+  let the Arrow pick a projected reference up.
+  **The extraction is what paid for the feature**, which is the arrangement this
+  file's budget is meant to force: a feature does not get to raise it, so the
+  work went beside the file first and the number came down on the way past.

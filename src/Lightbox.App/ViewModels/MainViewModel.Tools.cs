@@ -602,6 +602,11 @@ public partial class MainViewModel
         // which is why this is one line rather than a mode.
         if (value != ToolId.Arrow) ClearStrokeSelection();
 
+        // B147's rule again, applied to a reference picked up on the canvas
+        // (Q108): the box and its grips point at a gesture only the Arrow has,
+        // so leaving the Arrow has to take them off the screen.
+        if (value != ToolId.Arrow) ClearCanvasReferenceSelection();
+
         // B215: the same rule, applied to the category it had been leaving out.
         // Guides are picked by the Arrow and by the Move tool, so a selection
         // survives between those two — that is one capability handed between

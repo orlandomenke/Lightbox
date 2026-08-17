@@ -585,32 +585,6 @@ public sealed partial class CanvasControl : Control
         return CameraDrag.None;
     }
 
-    /// <summary>
-    /// One editable box on a reference sheet, in document coordinates.
-    /// </summary>
-    /// <remarks>
-    /// A snapshot, not a live view of the cell. The renderer runs on another
-    /// thread and must never read a document object that the UI thread may be
-    /// halfway through editing.
-    /// </remarks>
-    public readonly record struct ReferenceBox(
-        float X, float Y, float W, float H, float PivotX, float PivotY, bool Selected);
-
-    /// <summary>
-    /// The reference grid's gizmos, or null when the mode is off — in which
-    /// case nothing grid-related is drawn at all.
-    /// </summary>
-    public IReadOnlyList<ReferenceBox>? ReferenceBoxes
-    {
-        get => _referenceBoxes;
-        set
-        {
-            _referenceBoxes = value;
-            InvalidateVisual();
-        }
-    }
-
-    private IReadOnlyList<ReferenceBox>? _referenceBoxes;
 
     // The GuideLine snapshot, the Guides, DraftGuide, BalanceDots and
     // GuideDragEnabled properties and the rest of the guide chrome live in
@@ -987,88 +961,6 @@ public sealed partial class CanvasControl : Control
 
     private bool _aligningReference;
 
-    // ---- the reference grid gesture -------------------------------------------
-
-    /// <summary>What a press in grid-edit mode turned out to be.</summary>
-    private enum GridGesture
-    {
-        None,
-        Move,
-        Resize,
-        Draw,
-    }
-
-    private GridGesture _gridGesture;
-    private int _gridIndex = -1;
-    private bool _gridLeft, _gridTop;
-    private Point _gridLast;
-    private Point _gridStart;
-
-    /// <summary>A box was picked, or the selection was cleared with -1.</summary>
-    public event Action<int>? ReferenceBoxPicked;
-
-    /// <summary>Move box <c>index</c> by a document-space delta.</summary>
-    public event Action<int, double, double>? ReferenceBoxMoved;
-
-    /// <summary>Resize box <c>index</c> from the corner named by the two flags.</summary>
-    public event Action<int, bool, bool, double, double>? ReferenceBoxResized;
-
-    /// <summary>A box drawn by hand, in document coordinates.</summary>
-    public event Action<double, double, double, double>? ReferenceBoxDrawn;
-
-    /// <summary>
-    /// Decide what a press in grid-edit mode means: a corner grabs a resize,
-    /// the inside of a box grabs a move, and empty canvas draws a new one.
-    /// </summary>
-    /// <remarks>
-    /// Corners are tested before insides, and the selected box before the
-    /// rest. A corner sits inside its own box, so the other order makes the
-    /// handles unreachable — they would every one of them be a move.
-    /// </remarks>
-    private void BeginGridGesture(double x, double y)
-    {
-        _gridStart = new Point(x, y);
-        _gridLast = _gridStart;
-        var boxes = ReferenceBoxes ?? [];
-        var reach = 6 / Math.Max(0.01, _zoom * FitScale());
-
-        for (var i = boxes.Count - 1; i >= 0; i--)
-        {
-            if (!boxes[i].Selected) continue;
-            if (CornerOf(boxes[i], x, y, reach) is not { } corner) continue;
-            (_gridGesture, _gridIndex, _gridLeft, _gridTop) = (GridGesture.Resize, i, corner.Left, corner.Top);
-            return;
-        }
-
-        for (var i = boxes.Count - 1; i >= 0; i--)
-        {
-            var b = boxes[i];
-            if (x < b.X || x > b.X + b.W || y < b.Y || y > b.Y + b.H) continue;
-            _gridGesture = GridGesture.Move;
-            _gridIndex = i;
-            ReferenceBoxPicked?.Invoke(i);
-            return;
-        }
-
-        _gridGesture = GridGesture.Draw;
-        _gridIndex = -1;
-        ReferenceBoxPicked?.Invoke(-1);
-    }
-
-    private static (bool Left, bool Top)? CornerOf(ReferenceBox box, double x, double y, double reach)
-    {
-        foreach (var (cx, cy, left, top) in ((double, double, bool, bool)[])
-            [
-                (box.X, box.Y, true, true),
-                (box.X + box.W, box.Y, false, true),
-                (box.X, box.Y + box.H, true, false),
-                (box.X + box.W, box.Y + box.H, false, false),
-            ])
-        {
-            if (Math.Abs(x - cx) <= reach && Math.Abs(y - cy) <= reach) return (left, top);
-        }
-        return null;
-    }
     private Point _alignLast;
 
     /// <summary>Fill tool click at a document position.</summary>
@@ -2045,7 +1937,7 @@ public sealed partial class CanvasControl : Control
         context.Custom(new DrawOp(
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
-            ReferenceBoxes, _newBox, EmphasisedGuides(), _draftGuide, WithRigPreview(RigMarks), _balanceDots,
+            ReferenceBoxes, _newBox, ReferenceSheetBox, EmphasisedGuides(), _draftGuide, WithRigPreview(RigMarks), _balanceDots,
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
             _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing,
@@ -2860,6 +2752,15 @@ public sealed partial class CanvasControl : Control
                             return;
                         }
 
+                        // The grips of a reference already in hand come before
+                        // the artwork, and the box itself comes after it (Q108).
+                        if (TryBeginReferenceSheetGesture(x, y, cornersOnly: true))
+                        {
+                            e.Pointer.Capture(this);
+                            e.Handled = true;
+                            return;
+                        }
+
                         // Artwork last, and the order is the point: placements,
                         // guides, reference boxes, anchors and collision shapes
                         // are all chrome sitting *on top of* the drawing. A
@@ -2884,6 +2785,17 @@ public sealed partial class CanvasControl : Control
                         }
                         else
                         {
+                            // A reference is under the pointer where the art is
+                            // not: drag the one already selected, or select the
+                            // one clicked (Q108).
+                            if (TryBeginReferenceSheetGesture(x, y, cornersOnly: false)
+                                || PickReferenceSheetAt(x, y))
+                            {
+                                e.Pointer.Capture(this);
+                                e.Handled = true;
+                                return;
+                            }
+
                             // Nothing under the cursor, so the press is the
                             // start of a marquee rather than a click that
                             // missed. Illustrator's rule, and the reason the
@@ -3124,6 +3036,14 @@ public sealed partial class CanvasControl : Control
                 // measured from where the drag started, and a sum of clamped
                 // deltas drifts off the axis it is supposed to be holding.
                 ContentMoveUpdated?.Invoke(mx, my, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+                e.Handled = true;
+                return;
+            }
+
+            if (_sheetGesture != SheetGesture.None)
+            {
+                var (sx, sy) = ViewToDoc(e.GetPosition(this));
+                ContinueReferenceSheetGesture(sx, sy);
                 e.Handled = true;
                 return;
             }
@@ -3488,6 +3408,12 @@ public sealed partial class CanvasControl : Control
             e.Pointer.Capture(null);
             ClearRigPreview();
             RigDragged?.Invoke(dragged, _rigDragCorner, ux - _rigDragStart.X, uy - _rigDragStart.Y);
+            e.Handled = true;
+            return;
+        }
+        // One undo step lands on the release rather than per event (B192).
+        if (EndReferenceSheetGesture())
+        {
             e.Handled = true;
             return;
         }
@@ -3989,6 +3915,7 @@ public sealed partial class CanvasControl : Control
         (SKPoint From, SKPoint To)? gradientAxis = null,
         IReadOnlyList<ReferenceBox>? referenceBoxes = null,
         SKRect? newBox = null,
+        ReferenceBox? sheetBox = null,
         IReadOnlyList<GuideLine>? guides = null,
         GuideLine? draftGuide = null,
         IReadOnlyList<RigMark>? rigMarks = null,
@@ -4159,7 +4086,7 @@ public sealed partial class CanvasControl : Control
             DrawAnts(canvas);
             DrawLazyGizmo(canvas);
             DrawTransformGizmo(canvas);
-            DrawReferenceBoxes(canvas);
+            ReferenceBoxPainter.Paint(canvas, referenceBoxes, newBox, sheetBox, view.Scale);
             DrawObjectSelections(canvas);
             canvas.Restore();
 
@@ -4200,86 +4127,6 @@ public sealed partial class CanvasControl : Control
         private static GuidePainter.Line ToPainterLine(GuideLine g) =>
             new(g.Kind, g.X, g.Y, g.Spacing, g.Angles, g.Label, g.Divisions, g.Emphasis);
 
-        /// <summary>
-        /// The reference grid, while it is being edited.
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// View-only chrome, exactly like the camera frame and the transform
-        /// gizmo: it never reaches a pixel of the document. Absent unless the
-        /// mode is on, so an artist who never touches a reference sees none of
-        /// it.
-        /// </para>
-        /// <para>
-        /// Every line is divided by the zoom so the boxes stay one pixel wide
-        /// on screen. A gizmo that scaled with the view would be a hairline at
-        /// 25% and a slab at 800%, which is the opposite of what chrome is for.
-        /// </para>
-        /// </remarks>
-        private void DrawReferenceBoxes(SKCanvas canvas)
-        {
-            if (referenceBoxes is not { Count: > 0 } boxes && newBox is null) return;
-            var scale = Math.Max(0.01f, view.Scale);
-            var thin = 1f / scale;
-            var handle = 4f / scale;
-
-            using var edge = new SKPaint
-            {
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = thin,
-                Color = new SKColor(90, 170, 255, 200),
-                IsAntialias = true,
-            };
-            using var chosen = new SKPaint
-            {
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = thin * 2,
-                Color = new SKColor(255, 190, 60, 235),
-                IsAntialias = true,
-            };
-            using var pivot = new SKPaint
-            {
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = thin * 1.5f,
-                Color = new SKColor(255, 90, 90, 235),
-                IsAntialias = true,
-            };
-            using var grip = new SKPaint
-            {
-                Style = SKPaintStyle.Fill,
-                Color = new SKColor(255, 255, 255, 220),
-                IsAntialias = true,
-            };
-
-            foreach (var box in referenceBoxes ?? [])
-            {
-                var rect = SKRect.Create(box.X, box.Y, box.W, box.H);
-                canvas.DrawRect(rect, box.Selected ? chosen : edge);
-                if (box.Selected)
-                {
-                    // Corners only. Eight handles on a box this small is a row
-                    // of overlapping targets, and the corners are the two
-                    // gestures — origin and extent — that actually differ.
-                    foreach (var corner in (SKPoint[])
-                        [
-                            new(rect.Left, rect.Top), new(rect.Right, rect.Top),
-                            new(rect.Left, rect.Bottom), new(rect.Right, rect.Bottom),
-                        ])
-                    {
-                        canvas.DrawRect(
-                            SKRect.Create(corner.X - handle, corner.Y - handle, handle * 2, handle * 2),
-                            grip);
-                    }
-                }
-                // The registration mark, as a cross rather than a dot: a dot
-                // has no centre you can see once it is over a drawing.
-                var arm = 6f / scale;
-                canvas.DrawLine(box.PivotX - arm, box.PivotY, box.PivotX + arm, box.PivotY, pivot);
-                canvas.DrawLine(box.PivotX, box.PivotY - arm, box.PivotX, box.PivotY + arm, pivot);
-            }
-
-            if (newBox is { } drawing) canvas.DrawRect(drawing, chosen);
-        }
 
         /// <summary>
         /// Trace every selected line, so the artist can see which they picked.

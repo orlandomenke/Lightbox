@@ -231,6 +231,25 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         }
     }
 
+    /// <summary>Whether every reference on the canvas is pinned against dragging (Q108).</summary>
+    public bool ReferencesLocked
+    {
+        get => _layout.ReferencesLocked;
+        set
+        {
+            if (_layout.ReferencesLocked == value) return;
+            Mutate(l => l.ReferencesLocked = value);
+            OnPropertyChanged();
+            ReferenceLockChanged?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// The sweep lock moved. The canvas draws grips from it, and a workspace
+    /// property change alone would not reach the overlay.
+    /// </summary>
+    public event Action? ReferenceLockChanged;
+
     public void SetOverlayVisible(OverlayId id, bool visible)
     {
         if (_layout.Overlays.IsVisible(id) == visible) return;

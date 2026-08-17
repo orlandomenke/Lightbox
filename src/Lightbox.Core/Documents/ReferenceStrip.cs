@@ -235,6 +235,41 @@ public sealed class ReferenceStrip
 
     public double OffsetY { get; set; }
 
+    /// <summary>
+    /// Pinned where it is: it can still be selected on the canvas, and it
+    /// cannot be moved or scaled by a drag. Null until locked.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The guide lock applied to reference</b> (Q108), and wanted for the same
+    /// reason: once a plate is registered against the drawing, every later
+    /// gesture near it is a chance to knock it out of register — and a reference
+    /// that has silently moved is worse than one that will not move, because you
+    /// find out by drawing something wrong.
+    /// </para>
+    /// <para>
+    /// <b>Nullable, unlike <see cref="Guide.Locked"/>.</b> The guide's flag
+    /// predates the rule; a plain <c>bool</c> here would write
+    /// <c>"locked": false</c> onto every reference in every document that has
+    /// never locked one. Read it through <see cref="IsLocked"/>.
+    /// </para>
+    /// <para>
+    /// <b>Locked is not hidden and not "off".</b> It still draws, still exports
+    /// if it was going to, and still follows the timeline. The lock is about the
+    /// pointer and nothing else.
+    /// </para>
+    /// </remarks>
+    public bool? Locked { get; set; }
+
+    /// <summary>Whether this reference is pinned against dragging. Derived; never serialized.</summary>
+    /// <remarks>
+    /// <c>[JsonIgnore]</c> for the reason the nullable exists: a convenience
+    /// getter beside a nullable field is still a property, and without this it
+    /// would write the very key making <see cref="Locked"/> nullable removed.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsLocked => Locked == true;
+
     /// <summary>The cell shown at a timeline index, or null.</summary>
     public ReferenceCell? CellAt(int frame)
     {

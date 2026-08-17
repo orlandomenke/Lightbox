@@ -347,8 +347,52 @@ public partial class MainWindow
     /// The renderer runs on another thread and must never read a document
     /// object the UI thread may be halfway through editing.
     /// </remarks>
+    /// <summary>
+    /// Picking a projected reference up with the Arrow (Q108).
+    /// </summary>
+    /// <remarks>
+    /// The canvas owns the gesture — which box, which corner, how far — and the
+    /// view model owns what it means to the document, exactly as the grid
+    /// gizmos beneath already split it. Wired from here rather than from the
+    /// constructor for the reason the decomposition note gives: the section that
+    /// owns the state owns its wiring.
+    /// </remarks>
+    private void WireReferenceSheetGestures()
+    {
+        Canvas.ReferenceSheetPicked += (x, y) => _vm.SelectReferenceOnCanvasAt(x, y);
+        Canvas.ReferenceSheetGestureStarted += () => _vm.BeginReferenceGesture();
+        Canvas.ReferenceSheetMoved += _vm.DragReferenceBy;
+        Canvas.ReferenceSheetScaled += _vm.ScaleReferenceAbout;
+        Canvas.ReferenceSheetGestureEnded += _vm.EndReferenceGesture;
+        // The sweep lock is a workspace setting, so it moves without the
+        // document changing and nothing else would repaint the grips.
+        _vm.Workspace.ReferenceLockChanged += RefreshReferenceSheetBox;
+    }
+
+    /// <summary>
+    /// The box round the reference the Arrow has hold of, or none (Q108).
+    /// </summary>
+    /// <remarks>
+    /// Its own channel rather than an entry in <see cref="Rendering.CanvasControl.ReferenceBoxes"/>,
+    /// because that list is also the switch that says grid editing is on. A
+    /// locked reference still publishes its box — that is what makes the lock
+    /// legible — and the canvas draws it without grips.
+    /// </remarks>
+    private void RefreshReferenceSheetBox()
+    {
+        Canvas.ReferenceSheetLocked = _vm.CanvasReferenceLocked;
+        Canvas.ReferenceSheetBox = _vm.CanvasReferenceBounds is { } r
+            ? new Rendering.CanvasControl.ReferenceBox(
+                (float)r.X, (float)r.Y, (float)r.W, (float)r.H,
+                // No pivot: a sheet has no registration mark of its own, and the
+                // cross belongs to the cell that does.
+                float.NaN, float.NaN, Selected: !_vm.CanvasReferenceLocked)
+            : null;
+    }
+
     private void RefreshReferenceBoxes()
     {
+        RefreshReferenceSheetBox();
         if (!_vm.ReferenceGridEditMode || _vm.ActiveReference is not { } strip)
         {
             Canvas.ReferenceBoxes = null;

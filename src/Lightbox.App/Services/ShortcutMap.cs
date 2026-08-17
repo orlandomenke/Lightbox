@@ -295,6 +295,12 @@ public sealed class ShortcutMap
             new("canvas.showGuides", "Show guides", "Canvas", G(Key.OemSemicolon, KeyModifiers.Control)),
             new("canvas.lockGuides", "Lock guides", "Canvas",
                 G(Key.OemSemicolon, KeyModifiers.Control | KeyModifiers.Alt)),
+            // The guide lock's twin, on the same modifiers (Q108): both answer
+            // "pin the chrome I have arranged so I stop knocking it out of
+            // place", and an artist who knows one should be able to guess the
+            // other.
+            new("canvas.lockReferences", "Lock references", "Canvas",
+                G(Key.R, KeyModifiers.Control | KeyModifiers.Alt)),
             new("canvas.resetView", "Reset view", "Canvas", G(Key.D0)),
             // No default gesture, like lines.recolour and for its reason: the
             // sensible letters are taken (M mirrors, T transforms), the
@@ -354,7 +360,7 @@ public sealed class ShortcutMap
             new("canvas.pickColor", "Color picker tool", "Tools", G(Key.I),
                 momentaryTool: ViewModels.ToolId.Picker),
             new("timeline.insertKey", "Insert keyframe at playhead (timeline)", "Timeline", G(Key.I), ShortcutContext.Panel, DockPanelId.Timeline),
-            // Q88. The operation is as old as DocumentEditor.DeleteFrame and was
+            // Q108. The operation is as old as DocumentEditor.DeleteFrame and was
             // reachable only from one 🗑 button, so it could not be bound,
             // searched or found — which is why it read as missing. No default
             // gesture: Delete already means four context-dependent things (the

@@ -11,6 +11,8 @@ public partial class MainWindow
 {
     private void WireOverlayGestures()
     {
+        WireReferenceSheetGestures();
+
         // B58. The whole reason the rig was invisible: `RigMarks` existed and
         // nothing ever asked for it. Pushed rather than bound, following `Guides`
         // — the list is a flattened snapshot for the render thread, not a value

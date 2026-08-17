@@ -205,13 +205,38 @@ On the canvas itself:
 
 | To do this | Do that |
 | --- | --- |
-| Select a projected reference | Right-click it, or grab it in align mode (**Align on canvas** in the Reference panel) |
-| Move it | **Align on canvas**, then drag |
+| Select a projected reference | Click it with the **Arrow** (`A`). An amber box appears round it |
+| Move it | Drag it, once it is selected |
+| Scale it | Drag a corner. The opposite corner stays put and the shape is kept |
+| Let it go | `Esc`, or click where there is no reference |
+| Lock it | The **🔒** on the canvas shortcut bar, or **Locked** in the Reference panel |
+| Lock every reference | The second lock on the bar, or `Ctrl+Alt+R` |
+| Line up one frame against your drawing | **Align on canvas** in the Reference panel, then drag — see *Registering the frames* below |
 | Bring it forward or back | Right-click ▸ **Bring forward** / **Send backward** (or **to front** / **to back**) among the other references |
 | Take it down | Right-click ▸ **Take off the canvas**, or the board's menu |
 
 Forward and back move a reference among the *other references* — the whole
 stack stays beneath the drawing layers, which is what a reference is for.
+
+**The drawing always wins the click.** A reference is picked up where there is
+no art under the pointer — its corner grips are the exception, because they are
+small and deliberate. A plate covering the page would otherwise make every line
+under it unclickable.
+
+**Locking is about the pointer and nothing else.** A locked reference still
+draws, still follows the timeline, and can still be selected — the box appears
+without grips, which is how you can see why it will not move. It is what to
+reach for the moment a reference is registered against your drawing, so the next
+stray drag cannot knock it out. The lock on the reference travels with the
+document; **lock every reference** belongs to your workspace, the way the guide
+lock does.
+
+**One drag is one undo.** Moving or scaling a reference takes a single `Ctrl+Z`
+to put back, however far the pointer travelled.
+
+**Selecting and moving are two gestures, on purpose.** The first click takes
+hold, the drag after it moves — so a marquee started over a reference is still a
+marquee. Switching to another tool lets the reference go.
 
 **Projecting and laying onto the timeline are different acts.** A projection is
 one picture pinned over the paper on every frame. **Lay onto the timeline as

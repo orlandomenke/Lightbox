@@ -1579,4 +1579,231 @@ public partial class MainViewModel
         MarkDocumentEdited();
         ReferenceChanged?.Invoke();
     }
+
+    // ---- picking a reference up on the canvas (Q108) --------------------------------
+
+    /// <summary>
+    /// A reference is selected on the canvas: its box is drawn, and the Arrow
+    /// will move or scale it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Which</b> reference is <see cref="ActiveReferenceIndex"/> — the same
+    /// one the docker calls active, deliberately. Two notions of "the reference
+    /// I am working on" would disagree the first time somebody clicked one on
+    /// the canvas and looked at the panel. This flag is only whether the canvas
+    /// is showing its handles.
+    /// </para>
+    /// <para>
+    /// <b>Not a mode.</b> Nothing is switched on to make it happen and nothing
+    /// is switched off by it: the Arrow selects a reference the way it selects a
+    /// line, and the next thing the artist clicks decides what happens next.
+    /// That is the whole difference from <see cref="ReferenceAlignMode"/>, which
+    /// stays for the job it is actually good at — nudging one frame's cell into
+    /// register (Q108).
+    /// </para>
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SelectedCanvasReference))]
+    [NotifyPropertyChangedFor(nameof(CanvasReferenceLocked))]
+    private bool _referenceSelectedOnCanvas;
+
+    partial void OnReferenceSelectedOnCanvasChanged(bool value) => ReferenceChanged?.Invoke();
+
+    /// <summary>The reference the Arrow has hold of, or null.</summary>
+    public ReferenceStrip? SelectedCanvasReference =>
+        ReferenceSelectedOnCanvas ? ActiveReference : null;
+
+    /// <summary>
+    /// Select the reference under a document point, or drop the selection when
+    /// there is none there.
+    /// </summary>
+    /// <returns>Whether a reference was hit.</returns>
+    /// <remarks>
+    /// Locked references are still <em>selected</em> — that is what makes the
+    /// lock legible rather than mysterious, since the box appears with no grips
+    /// on it and the artist can see why the drag did nothing.
+    /// </remarks>
+    public bool SelectReferenceOnCanvasAt(double x, double y)
+    {
+        var hit = ReferenceStripAt(x, y);
+        if (hit < 0)
+        {
+            ClearCanvasReferenceSelection();
+            return false;
+        }
+        ActiveReferenceIndex = hit;
+        ReferenceSelectedOnCanvas = true;
+        return true;
+    }
+
+    public void ClearCanvasReferenceSelection()
+    {
+        if (!ReferenceSelectedOnCanvas) return;
+        ReferenceSelectedOnCanvas = false;
+    }
+
+    /// <summary>
+    /// The selected reference's rectangle at the playhead, in document space —
+    /// what the canvas draws its box and grips from.
+    /// </summary>
+    public (double X, double Y, double W, double H)? CanvasReferenceBounds
+    {
+        get
+        {
+            if (SelectedCanvasReference is not { } strip) return null;
+            if (strip.CellAt(CurrentFrameIndex) is not { } cell) return null;
+            return CellRect(strip, cell);
+        }
+    }
+
+    /// <summary>
+    /// Whether the selected reference refuses to be dragged — its own lock, or
+    /// the workspace's lock-them-all.
+    /// </summary>
+    /// <remarks>
+    /// Two switches, one answer, and the canvas asks only this: a caller that
+    /// checked one of them would work until somebody used the other.
+    /// </remarks>
+    public bool CanvasReferenceLocked =>
+        SelectedCanvasReference is { IsLocked: true } || Workspace.ReferencesLocked;
+
+    /// <summary>Pin a reference where it is, or let it go, undoably.</summary>
+    /// <remarks>The guide's lock, in the same shape — see <see cref="SetGuideLocked"/>.</remarks>
+    public void SetReferenceLocked(ReferenceStrip strip, bool locked)
+    {
+        var before = strip.Locked;
+        // Null rather than false when unlocking: the key goes away again, so a
+        // document that locked something and changed its mind is byte-identical
+        // to one that never did.
+        bool? after = locked ? true : null;
+        if (before == after) return;
+        _editor.PerformDelta(_ => strip.Locked = after, _ => strip.Locked = before);
+        AfterReferenceViewTweak();
+        OnPropertyChanged(nameof(CanvasReferenceLocked));
+        OnPropertyChanged(nameof(SelectedReferenceLocked));
+    }
+
+    /// <summary>The selected reference's own lock, for a toggle to bind to.</summary>
+    public bool SelectedReferenceLocked
+    {
+        get => SelectedCanvasReference?.IsLocked ?? ActiveReference?.IsLocked ?? false;
+        set
+        {
+            if ((SelectedCanvasReference ?? ActiveReference) is { } strip) SetReferenceLocked(strip, value);
+        }
+    }
+
+    // ---- moving and scaling it, as one undo step each (B192) -------------------------
+
+    /// <summary>What the sheet was before the gesture started — the undo half.</summary>
+    private (ReferenceStrip Strip, double OffsetX, double OffsetY, double Scale)? _referenceGesture;
+
+    /// <summary>
+    /// Take hold of the selected reference. Nothing is written yet.
+    /// </summary>
+    /// <returns>Whether there is something to drag — false when locked or nothing is selected.</returns>
+    /// <remarks>
+    /// <b>B192 is why the gesture has a beginning at all.</b> The align-mode drag
+    /// went through <c>PerformDelta</c> per pointer event, so a single drag left
+    /// dozens of undo steps to press back through and re-ran the whole
+    /// document-changed storm on each one. A gesture is one act, so it is one
+    /// step: the strip is mutated directly while the pointer is down, repainting
+    /// through B191's cheap path, and the step is registered on release.
+    /// </remarks>
+    public bool BeginReferenceGesture()
+    {
+        if (SelectedCanvasReference is not { } strip || CanvasReferenceLocked) return false;
+        _referenceGesture = (strip, strip.OffsetX, strip.OffsetY, strip.Scale);
+        return true;
+    }
+
+    /// <summary>Move the held reference by a document-space delta.</summary>
+    public void DragReferenceBy(double dx, double dy)
+    {
+        if (_referenceGesture is not { } held) return;
+        held.Strip.OffsetX += dx;
+        held.Strip.OffsetY += dy;
+        AfterReferenceViewTweak();
+    }
+
+    /// <summary>The smallest a reference can be dragged down to.</summary>
+    /// <remarks>
+    /// A sheet scaled to nothing is unrecoverable by pointer — there would be no
+    /// box left to grab a corner of — so the floor is a real guard rather than
+    /// arithmetic hygiene.
+    /// </remarks>
+    private const double MinReferenceScale = 0.02;
+
+    /// <summary>
+    /// Scale the held reference uniformly about a fixed point.
+    /// </summary>
+    /// <param name="factor">Multiplier against the scale the gesture started at.</param>
+    /// <param name="anchorX">Document-space point that must not move — the opposite corner.</param>
+    /// <param name="anchorY">See <paramref name="anchorX"/>.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Uniform, and from the corners only</b> (Q108). A sheet carries one scale
+    /// for every frame by design — per-frame scale would put the character at a
+    /// different size on each drawing — and the same argument refuses a
+    /// non-uniform one: an artist drawing from a reference stretched on one axis
+    /// is drawing the wrong proportions.
+    /// </para>
+    /// <para>
+    /// <b>Against the gesture's starting values, never the current ones.</b>
+    /// Compounding a factor per pointer event drifts, and the drift is
+    /// direction-dependent, so a corner dragged out and back would not come home.
+    /// </para>
+    /// </remarks>
+    public void ScaleReferenceAbout(double factor, double anchorX, double anchorY)
+    {
+        if (_referenceGesture is not { } held) return;
+        if (held.Strip.CellAt(CurrentFrameIndex) is not { } cell) return;
+
+        var scale = Math.Max(MinReferenceScale, held.Scale * factor);
+        var k = scale / Math.Max(0.0001, held.Scale);
+
+        // Where the cell's top-left was, and where it must land so the anchor
+        // stays under the artist's other hand.
+        var left = held.OffsetX + cell.Dx + cell.X * held.Scale;
+        var top = held.OffsetY + cell.Dy + cell.Y * held.Scale;
+
+        held.Strip.Scale = scale;
+        held.Strip.OffsetX = anchorX + (left - anchorX) * k - cell.Dx - cell.X * scale;
+        held.Strip.OffsetY = anchorY + (top - anchorY) * k - cell.Dy - cell.Y * scale;
+        AfterReferenceViewTweak();
+    }
+
+    /// <summary>
+    /// Let go: one undo step for the whole gesture, or none at all when nothing
+    /// actually moved.
+    /// </summary>
+    public void EndReferenceGesture()
+    {
+        if (_referenceGesture is not { } held) return;
+        _referenceGesture = null;
+
+        var strip = held.Strip;
+        var after = (strip.OffsetX, strip.OffsetY, strip.Scale);
+        var before = (held.OffsetX, held.OffsetY, held.Scale);
+        // A click that selected without moving is not an edit, and an undo step
+        // that changes nothing is one the artist has to press through.
+        if (after == before) return;
+
+        _editor.PerformDelta(
+            _ =>
+            {
+                strip.OffsetX = after.OffsetX;
+                strip.OffsetY = after.OffsetY;
+                strip.Scale = after.Scale;
+            },
+            _ =>
+            {
+                strip.OffsetX = before.OffsetX;
+                strip.OffsetY = before.OffsetY;
+                strip.Scale = before.Scale;
+                AfterReferenceViewTweak();
+            });
+        AfterReferenceViewTweak();
+    }
 }
