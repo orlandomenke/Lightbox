@@ -94,14 +94,33 @@ public sealed class TransformGizmoInputTests(ITestOutputHelper output) : BrushSt
     }
 
     /// <summary>Drag the bottom-right corner handle out by 60 view pixels.</summary>
-    private static void DragTheCorner(Window window, CanvasControl canvas)
+    private static void DragTheCorner(
+        Window window, CanvasControl canvas, KeyModifiers held = KeyModifiers.None)
     {
         var src = canvas.TransformQuadResult.Src;
         var (vx, vy) = canvas.DocToView(src[4], src[5]);
         var at = new Point(vx, vy);
         canvas.RaiseEvent(Press(window, canvas, at));
-        canvas.RaiseEvent(Move(window, canvas, at + new Point(60, 60)));
+        canvas.RaiseEvent(MoveHolding(window, canvas, at + new Point(60, 60), held));
         canvas.RaiseEvent(Release(window, canvas, at + new Point(60, 60)));
+    }
+
+    /// <summary>A pointer move with modifier keys down — B248 reads Alt per move.</summary>
+    private static PointerEventArgs MoveHolding(Window w, Control t, Point at, KeyModifiers held) =>
+        new(InputElement.PointerMovedEvent, t, Mouse, w, Root(w, t, at), 0,
+            new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.Other),
+            held);
+
+    /// <summary>Where the affine result puts a source-space point, mirroring the gizmo's own map.</summary>
+    private static (double X, double Y) Mapped(CanvasControl canvas, double x, double y)
+    {
+        var r = canvas.TransformAffineResult;
+        var dx = (x - r.PivotX) * r.ScaleX;
+        var dy = (y - r.PivotY) * r.ScaleY;
+        var cos = Math.Cos(r.Angle);
+        var sin = Math.Sin(r.Angle);
+        return (r.PivotX + dx * cos - dy * sin + r.Dx,
+                r.PivotY + dx * sin + dy * cos + r.Dy);
     }
 
     /// <summary><b>B208.</b> The whole gesture, from the keyboard, with the brush in hand.</summary>
@@ -221,6 +240,69 @@ public sealed class TransformGizmoInputTests(ITestOutputHelper output) : BrushSt
         Assert.True(vm.TransformActive);
         DragTheCorner(window, canvas);
         Assert.True(canvas.TransformAffineResult.ScaleX > 1.01);
+    }
+
+    // ---- B248: what a scale drag holds still ---------------------------------
+
+    /// <summary>
+    /// Dragging a corner leaves the opposite corner where it was — the side you
+    /// did not touch stays put, which is every other tool's default. Scaling
+    /// used to happen around the pivot whatever was dragged, so pulling one
+    /// side grew the drawing on all sides.
+    /// </summary>
+    [AvaloniaFact]
+    public void DraggingACornerLeavesTheOppositeCornerStill()
+    {
+        var (window, canvas, vm) = Open();
+        Paint(vm);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        PressCtrlT(window);
+        Assert.True(canvas.TransformSessionActive);
+
+        var src = canvas.TransformQuadResult.Src;
+        var before = Mapped(canvas, src[0], src[1]);   // opposite of the dragged (max,max)
+
+        DragTheCorner(window, canvas);
+
+        var r = canvas.TransformAffineResult;
+        var after = Mapped(canvas, src[0], src[1]);
+        output.WriteLine($"scale ({r.ScaleX:F3},{r.ScaleY:F3}), "
+                         + $"opposite corner ({before.X:F2},{before.Y:F2}) -> ({after.X:F2},{after.Y:F2})");
+        Assert.True(r.ScaleX > 1.01, "the drag did not scale at all");
+        Assert.Equal(before.X, after.X, 3);
+        Assert.Equal(before.Y, after.Y, 3);
+    }
+
+    /// <summary>
+    /// Alt is what asks for the old behaviour: scale from the pivot, all sides
+    /// at once. The pivot stays and the opposite corner moves.
+    /// </summary>
+    [AvaloniaFact]
+    public void AltScalesFromThePivotInstead()
+    {
+        var (window, canvas, vm) = Open();
+        Paint(vm);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        PressCtrlT(window);
+
+        var src = canvas.TransformQuadResult.Src;
+        var r0 = canvas.TransformAffineResult;
+        var pivotBefore = (X: r0.PivotX + r0.Dx, Y: r0.PivotY + r0.Dy);
+        var cornerBefore = Mapped(canvas, src[0], src[1]);
+
+        DragTheCorner(window, canvas, KeyModifiers.Alt);
+
+        var r = canvas.TransformAffineResult;
+        var pivotAfter = (X: r.PivotX + r.Dx, Y: r.PivotY + r.Dy);
+        var cornerAfter = Mapped(canvas, src[0], src[1]);
+        output.WriteLine($"scale ({r.ScaleX:F3},{r.ScaleY:F3}), pivot moved "
+                         + $"{Math.Abs(pivotAfter.X - pivotBefore.X):F4}, opposite corner moved "
+                         + $"{Math.Abs(cornerAfter.X - cornerBefore.X):F2}");
+        Assert.True(r.ScaleX > 1.01);
+        Assert.Equal(pivotBefore.X, pivotAfter.X, 3);
+        Assert.Equal(pivotBefore.Y, pivotAfter.Y, 3);
+        Assert.True(Math.Abs(cornerAfter.X - cornerBefore.X) > 1,
+            "with Alt the opposite corner must move — that is what scaling from the centre means");
     }
 
     /// <summary>

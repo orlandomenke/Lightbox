@@ -1,6 +1,6 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 5002
+budget: 5033
 
 ## Why it has moved
 
@@ -88,3 +88,16 @@ other's reason and leaves a number nobody can account for.
   tree is both. Taking either would have banked the other's growth as
   unearned slack, which is the failure the paragraph at the top of this
   section describes — re-measured here rather than chosen.
+- **→ 5012** (2026-08-16, B248): +31 for the scale drag holding the opposite
+  side rather than the pivot. The anchor *decision* went to a new partial,
+  `CanvasControl.TransformAnchor.cs`, following the cursor decision's
+  precedent; what is left is the scale case inside `TxDragTo` growing by the
+  anchor terms and the offset correction that keeps the anchor still. That
+  case is the gesture itself, inside the one switch that receives the drag —
+  the same boundary B217, B223 and B241 record above. The exact thirty-one
+  lines, recorded rather than rounded up.
+- **→ 5,033** (2026-08-16, on merge): neither side's number, again. B248's +31
+  and Q104's +21 were measured against the same base and landed together, so
+  the merged tree carries both — re-measured with `ratchets.py remeasure`
+  rather than chosen, exactly as the 4,981 entry above records for the
+  previous pair.

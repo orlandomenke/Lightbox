@@ -1609,7 +1609,7 @@ public sealed partial class CanvasControl : Control
         return (dx * cos - dy * sin, dx * sin + dy * cos);
     }
 
-    private void TxDragTo(double x, double y, bool uniform)
+    private void TxDragTo(double x, double y, bool uniform, bool fromCentre = false)
     {
         switch (_txDrag)
         {
@@ -1656,19 +1656,35 @@ public sealed partial class CanvasControl : Control
             case TxDrag.ScaleCorner:
             case TxDrag.ScaleEdge:
             {
+                // B248: the fixed point of a scale is the handle's opposite —
+                // corner or edge midpoint — and the pivot only with Alt held.
+                // One formula for both: with the anchor at the pivot, a is the
+                // origin and every line below reduces to the old behaviour.
+                var src = fromCentre ? (_txPivotX, _txPivotY) : TxAnchorSource();
+                var a = (X: _txStart.ScaleX * (src.Item1 - _txPivotX),
+                         Y: _txStart.ScaleY * (src.Item2 - _txPivotY));
+
                 var q0 = TxLocalAtStart();
-                var q = TxLocal(x, y);
+                var q = TxLocalAtStartFrame(x, y);
                 if (_txDrag == TxDrag.ScaleCorner && uniform)
                 {
-                    var d0 = Math.Max(1e-6, Math.Sqrt(q0.X * q0.X + q0.Y * q0.Y));
-                    var f = Math.Sqrt(q.X * q.X + q.Y * q.Y) / d0;
+                    var d0x = q0.X - a.X;
+                    var d0y = q0.Y - a.Y;
+                    var d0 = Math.Max(1e-6, Math.Sqrt(d0x * d0x + d0y * d0y));
+                    var dx1 = q.X - a.X;
+                    var dy1 = q.Y - a.Y;
+                    var f = Math.Sqrt(dx1 * dx1 + dy1 * dy1) / d0;
                     _txScaleX = _txStart.ScaleX * f;
                     _txScaleY = _txStart.ScaleY * f;
                 }
                 else
                 {
-                    var scaleX = Math.Abs(q0.X) < 1e-6 ? _txStart.ScaleX : _txStart.ScaleX * (q.X / q0.X);
-                    var scaleY = Math.Abs(q0.Y) < 1e-6 ? _txStart.ScaleY : _txStart.ScaleY * (q.Y / q0.Y);
+                    var scaleX = Math.Abs(q0.X - a.X) < 1e-6
+                        ? _txStart.ScaleX
+                        : _txStart.ScaleX * ((q.X - a.X) / (q0.X - a.X));
+                    var scaleY = Math.Abs(q0.Y - a.Y) < 1e-6
+                        ? _txStart.ScaleY
+                        : _txStart.ScaleY * ((q.Y - a.Y) / (q0.Y - a.Y));
                     if (_txDrag == TxDrag.ScaleCorner)
                     {
                         _txScaleX = scaleX;
@@ -1683,6 +1699,19 @@ public sealed partial class CanvasControl : Control
                         _txScaleX = scaleX; // left/right edges scale horizontally
                     }
                 }
+
+                // The anchor stays under its own point: the offset absorbs
+                // exactly what the scale change would have moved it by. With
+                // the anchor at the pivot both deltas are zero and the offset
+                // stays the start offset, which is the old behaviour verbatim.
+                var sax = src.Item1 - _txPivotX;
+                var say = src.Item2 - _txPivotY;
+                var movedX = (_txStart.ScaleX - _txScaleX) * sax;
+                var movedY = (_txStart.ScaleY - _txScaleY) * say;
+                var cosA = Math.Cos(_txStart.Angle);
+                var sinA = Math.Sin(_txStart.Angle);
+                _txDx = _txStart.Dx + movedX * cosA - movedY * sinA;
+                _txDy = _txStart.Dy + movedX * sinA + movedY * cosA;
                 break;
             }
             case TxDrag.Rotate:
@@ -3161,7 +3190,9 @@ public sealed partial class CanvasControl : Control
             if (_txActive && _txDrag != TxDrag.None)
             {
                 var (tx, ty) = ViewToDoc(e.GetPosition(this));
-                TxDragTo(tx, ty, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+                TxDragTo(tx, ty,
+                    e.KeyModifiers.HasFlag(KeyModifiers.Shift),
+                    e.KeyModifiers.HasFlag(KeyModifiers.Alt));
                 e.Handled = true;
                 return;
             }
