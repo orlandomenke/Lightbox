@@ -454,7 +454,7 @@ which is a weak test and still far better than none.
 
 ### project
 
-- [ ] **B252** `P3` `project` bugs.py freeid question issues ids already cited in source comments
+- [ ] **B252** `P3` `project` bugs.py freeid question issues ids already cited in source comments `evidence: FreeIdSeesIdsCitedOnlyInSource`
   - Found 2026-08-17: `freeid question` returned Q110 while `src/` already cites Q101–Q110 in comments — the questions *directory* tops out at Q99, and the scan reads it (plus refs) but not code citations, so every question decided in-conversation and cited in code without a file is invisible to it. The collision the issuer exists to prevent, one layer up. Q111 was taken by hand for the playhead decision after grepping the tree for the true ceiling.
   - Filed rather than fixed, and the reason is the moment: this branch's objective is the bone system, and changing the id-issuing script mid-branch while depending on it is how a renumber goes wrong. The fix is one grep over the tree in `freeid`'s scan — small, its own branch.
 
