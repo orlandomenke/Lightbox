@@ -95,6 +95,38 @@ public static class ArmatureOverlayPainter
             Color = RimColor,
         };
 
+        // The parent tethers, under everything: a dashed line from the
+        // parent's tip to a joint that stands apart from it, so hierarchy
+        // stays legible when bones separate. Dashes in screen pixels, like
+        // the rest of the furniture; rim first for the same reason the bones
+        // have one. Ghosts carry no links by construction.
+        using (var linkDash = SKPathEffect.CreateDash([4f * px, 4f * px], 0))
+        {
+            using var linkRim = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 3f * px,
+                Color = RimColor,
+                PathEffect = linkDash,
+            };
+            using var link = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1.2f * px,
+                PathEffect = linkDash,
+            };
+            foreach (var bone in bones)
+            {
+                if (bone is not { LinkX: { } lx, LinkY: { } ly, Ghost: BoneGhost.None }) continue;
+                link.Color = (bone.Selected ? SelectedColor : bone.IsHandle ? HandleColor : BoneColor)
+                    .WithAlpha(0xb4);
+                canvas.DrawLine((float)lx, (float)ly, (float)bone.X0, (float)bone.Y0, linkRim);
+                canvas.DrawLine((float)lx, (float)ly, (float)bone.X0, (float)bone.Y0, link);
+            }
+        }
+
         foreach (var ghostPass in new[] { true, false })
         foreach (var bone in bones)
         {

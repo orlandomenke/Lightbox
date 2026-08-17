@@ -7,6 +7,12 @@
 One drawing or one animation: layers, frames, and the strokes on them. Saved as
 a single `.lightbox.json` file. **File → New** makes one.
 
+A document **reopens where you left it**: the frame the playhead stood on at
+save is restored on open, so a scene put down mid-shot shows the same picture
+it showed — a posed rig stands in its pose instead of snapping back to the
+start of the timeline. A document saved at the first frame writes nothing
+extra to the file.
+
 The New dialog asks what the document is *for* — Illustration, Animation, Game
 art, Storyboard, Comic, Asset library, or **None**. **None is the default**, and
 it means exactly what it says: a single file, no project structure. The choice

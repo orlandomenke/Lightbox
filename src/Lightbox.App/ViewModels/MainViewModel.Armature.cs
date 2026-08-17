@@ -179,9 +179,25 @@ public sealed partial class MainViewModel
             {
                 var p = placements[bone.Id];
                 var (tx, ty) = p.Tip(bone.Length);
+                // The dashed tether to the parent's tip, for any joint that
+                // stands apart from it. Measured on the SOLVED placements, not
+                // the record's flags, so it answers what the artist is looking
+                // at: a connected joint sits exactly on the tip and shows
+                // nothing; an unglued child — or a glued one keyed apart by a
+                // pose translation — reads as tethered rather than orphaned.
+                double? linkX = null, linkY = null;
+                if (bone.ParentId is { } parentId
+                    && armature.BoneById(parentId) is { } parentBone
+                    && placements.TryGetValue(parentId, out var pp))
+                {
+                    var (ptx, pty) = pp.Tip(parentBone.Length);
+                    if (Math.Abs(ptx - p.X) > 1e-3 || Math.Abs(pty - p.Y) > 1e-3)
+                        (linkX, linkY) = (ptx, pty);
+                }
                 chrome.Add(new BoneChrome(
                     bone.Id, bone.Name, p.X, p.Y, tx, ty,
-                    bone.Id == SelectedBoneId, handles.Contains(bone.Id)));
+                    bone.Id == SelectedBoneId, handles.Contains(bone.Id),
+                    LinkX: linkX, LinkY: linkY));
             }
             return chrome;
         }

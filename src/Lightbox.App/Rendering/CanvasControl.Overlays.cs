@@ -215,7 +215,8 @@ public sealed partial class CanvasControl
         if (WeightPainting)
         {
             _weightStrokeActive = true;
-            WeightStrokeStarted?.Invoke(x, y, PressureOf(e.GetCurrentPoint(this).Properties.Pressure));
+            var pp = e.GetCurrentPoint(this);
+            WeightStrokeStarted?.Invoke(x, y, WeightPressure(pp.Pointer.Type, pp.Properties.Pressure));
         }
         else
         {
@@ -243,7 +244,8 @@ public sealed partial class CanvasControl
         if (_weightStrokeActive)
         {
             var (wx, wy) = ViewToDoc(e.GetPosition(this));
-            WeightDabbed?.Invoke(wx, wy, PressureOf(e.GetCurrentPoint(this).Properties.Pressure));
+            var moved = e.GetCurrentPoint(this);
+            WeightDabbed?.Invoke(wx, wy, WeightPressure(moved.Pointer.Type, moved.Properties.Pressure));
             e.Handled = true;
             return true;
         }
@@ -286,7 +288,22 @@ public sealed partial class CanvasControl
     }
 
     /// <summary>A mouse reports 0 or 0.5 depending on platform; either way a full-strength dab.</summary>
-    private static double PressureOf(float raw) => raw <= 0 ? 1.0 : raw;
+    /// <summary>
+    /// The weight brush's pressure: a pen's axis when it reports one, full
+    /// strength for everything else — the same rule the paint brush's
+    /// <see cref="CanvasControl.PressureOf(Avalonia.Input.PointerPoint)"/> has
+    /// always applied.
+    /// </summary>
+    /// <remarks>
+    /// <b>B250.</b> This used to pass the raw value through, and a mouse
+    /// reports ~0.5: every weight dab landed at half strength, so painting a
+    /// region to full influence took twice the passes it should — reported as
+    /// "I needed to paint many many times to turn it red".
+    /// </remarks>
+    internal static double WeightPressure(Avalonia.Input.PointerType type, float raw) =>
+        type != Avalonia.Input.PointerType.Pen || raw <= 0
+            ? 1.0
+            : Math.Clamp(raw, 0.0, 1.0);
 
     // ---- the whole-line hover, and the point snapper (B216, B217) ------------------
     //

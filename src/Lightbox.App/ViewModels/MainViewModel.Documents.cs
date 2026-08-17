@@ -71,7 +71,11 @@ public partial class MainViewModel
         // is loadable, `Clamp(0, 0, -1)` throws, and the frame clamp beside this one was written
         // defensively while the layer clamp was not.
         ActiveLayerIndex = Math.Clamp(value.State.LayerIndex, 0, Math.Max(0, Scene.Layers.Count - 1));
-        CurrentFrameIndex = Math.Clamp(value.State.FrameIndex, 0, Math.Max(0, Scene.FrameCount - 1));
+        // Negative-proofed rather than capped at FrameCount: past the end is a
+        // place the playhead is allowed to stand (PlayheadPastTheEnd), and the
+        // old cap silently snapped a parked tab — or a Q111 restore — onto its
+        // last drawing. B56's throw-guard survives in the Max.
+        CurrentFrameIndex = Math.Max(0, value.State.FrameIndex);
         // B67. Not clamped, because the index is already bounds-checked where it
         // is read and an out-of-range value means "this document has fewer
         // strips than that one did" rather than an error to repair.
@@ -370,6 +374,7 @@ public partial class MainViewModel
             // this exact path; writing over it mid-flight collides on the temp
             // file, and a stale snapshot landing late would undo this save.
             _autosave.FinishPendingWrite();
+            StampPlayhead(tab);
             DocJson.Save(tab.Doc, path);
             tab.MarkSaved();
             AiStatus = $"Saved {System.IO.Path.GetFileName(path)}.";
@@ -403,6 +408,11 @@ public partial class MainViewModel
         // strip said "locked", and nothing appeared. Reported as "unable to
         // draw on the last build".
         tab.State.LayerIndex = FirstPaintableLayer(doc);
+        // Q111: reopen where the artist was parked. Negative-proofed only —
+        // past the end is a place the playhead is allowed to stand
+        // (PlayheadPastTheEnd), so capping at FrameCount would snap a
+        // legitimately parked scene back onto its last drawing.
+        tab.State.FrameIndex = Math.Max(0, doc.PlayheadFrame ?? 0);
         // B99. Opened from disk means it *is* what is on disk — without this it
         // would inherit the never-saved default and badge a file nobody touched.
         if (filePath is not null) tab.MarkSaved();
@@ -1156,6 +1166,7 @@ public partial class MainViewModel
         {
             var opened = new DocumentTab(new DocumentEditor(doc), doc.Scene.Name);
             opened.State.LayerIndex = FirstPaintableLayer(doc);
+            opened.State.FrameIndex = Math.Max(0, doc.PlayheadFrame ?? 0);
             AddTab(opened);
             opened.MarkSaved();
             return;
@@ -1168,13 +1179,36 @@ public partial class MainViewModel
         // B136's other door: index 0 is the locked paper on any document that
         // has one, and a replace is how tests and the MCP surface open files.
         ActiveLayerIndex = FirstPaintableLayer(doc);
-        CurrentFrameIndex = 0;
+        // Q111: reopen where the artist was parked, not at the start.
+        // Negative-proofed only — past the end is legal (PlayheadPastTheEnd).
+        CurrentFrameIndex = Math.Max(0, doc.PlayheadFrame ?? 0);
         // A fresh editor sits at revision 0 and this document came from disk,
         // so that is its saved point.
         tab.MarkSaved();
         _switchingTabs = false;
     }
 
+    /// <summary>
+    /// The playhead crosses into the record only here, at the moment the
+    /// record is written (Q110): the frame the artist is parked on rides into
+    /// the file so the document reopens showing what it showed when it was put
+    /// down. Null at frame 0 — optional means absent.
+    /// </summary>
+    private void StampPlayhead(DocumentTab tab)
+    {
+        var frame = tab == ActiveTab ? CurrentFrameIndex : tab.State.FrameIndex;
+        tab.Doc.PlayheadFrame = frame > 0 ? frame : null;
+    }
+
     /// <summary>Serialize the save target (a reference tab serializes its owning document).</summary>
-    public string SerializeDocument() => DocJson.Serialize(SaveTargetTab?.Doc ?? Doc);
+    public string SerializeDocument()
+    {
+        if (SaveTargetTab is { } tab)
+        {
+            StampPlayhead(tab);
+            return DocJson.Serialize(tab.Doc);
+        }
+        Doc.PlayheadFrame = CurrentFrameIndex > 0 ? CurrentFrameIndex : null;
+        return DocJson.Serialize(Doc);
+    }
 }
