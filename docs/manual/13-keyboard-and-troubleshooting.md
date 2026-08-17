@@ -282,9 +282,16 @@ the three explanations that look identical from the outside:
 - **the pen leaving and re-entering** the canvas while your hand holds still —
   proximity flapping, which re-arms the system cursor and dismisses anything
   hovering every time it happens;
-- **neither** — Lightbox held one cursor for the whole minute, so whatever is
-  flickering is happening below the application, and the trace is the evidence
-  that says so to the people who can fix it.
+- **neither** — Lightbox held one cursor for the whole minute, so nothing in
+  the application is deliberately changing it, and what you are seeing is the
+  churn above handing the system arrow back in the gaps.
+
+It also separates the two things a **quiet stretch** can mean, which no amount
+of staring at a log will tell you apart: the application actually stopped
+answering, or the pointer was simply somewhere the trace does not watch — a
+menu, a panel, another window. Only the canvas is instrumented, so a minute
+spent in a menu looks like silence. A heartbeat runs while the trace does, and
+the report says which of the two a silence was.
 
 A trace shorter than five seconds says so and concludes nothing, rather than
 turning a few stray events into a confident rate.
