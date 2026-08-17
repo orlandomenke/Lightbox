@@ -146,7 +146,12 @@ public partial class MainViewModel
                 NothingUnderPointer:
                     alphaLocked && _hoverPoint is { } a && !PaintUnder(a.X, a.Y),
                 OutsideSelection:
-                    _hoverPoint is { } b && !InsideSelection(b.X, b.Y));
+                    _hoverPoint is { } b && !InsideSelection(b.X, b.Y),
+                // Q104: what makes Ctrl mean "take hold of this" rather than
+                // "fetch that colour". Not a place, so no hover point is
+                // needed — and false without a selection, which is the state
+                // that leaves the eyedropper exactly as it was.
+                SelectionToMove: HasSelection);
         }
     }
 

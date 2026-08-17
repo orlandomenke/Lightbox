@@ -34,6 +34,28 @@ public enum ShortcutContext
 
     /// <summary>One docker, named by <see cref="ShortcutDefinition.Panel"/>.</summary>
     Panel,
+
+    /// <summary>
+    /// The reference board, which is a window of its own rather than a docker.
+    /// </summary>
+    /// <remarks>
+    /// <b>Why this is not just another global binding</b> (B244). The board wants
+    /// <c>Delete</c> for "take this off the wall" and <c>Ctrl+V</c> for "paste a
+    /// picture", and both are already spoken for: <c>Delete</c> is deliberately
+    /// *not* a general binding (Q82 — a destructive key must not fire on the
+    /// canvas from somewhere that gives no hint the canvas is the target), and
+    /// <c>Ctrl+V</c> is the timeline's. Registering them globally made two
+    /// commands answer to one gesture with nothing to separate them, which is the
+    /// one case this map calls unresolvable.
+    /// <para>
+    /// A separate top-level window <em>is</em> the separation — a key pressed
+    /// there can reach nothing else — and saying so here is what lets the board's
+    /// keys stay in the map, and therefore stay findable and rebindable, instead
+    /// of being wired invisibly to its handler. Bindings in this scope are
+    /// returned only when the board asks; nothing else can resolve them.
+    /// </para>
+    /// </remarks>
+    Board,
 }
 
 /// <summary>
@@ -51,6 +73,9 @@ public readonly record struct ShortcutScope(ShortcutContext Context, DockPanelId
 
     /// <summary>Nowhere in particular — only general bindings apply.</summary>
     public static readonly ShortcutScope General = new(ShortcutContext.Global);
+
+    /// <summary>Inside the reference board window.</summary>
+    public static readonly ShortcutScope Board = new(ShortcutContext.Board);
 
     public static ShortcutScope In(DockPanelId panel) => new(ShortcutContext.Panel, panel);
 }
@@ -107,6 +132,7 @@ public sealed class ShortcutDefinition(
     {
         ShortcutContext.Canvas => "Canvas",
         ShortcutContext.Panel => Docking.DockPanels.TitleOf(Panel),
+        ShortcutContext.Board => "Reference board",
         _ => "Everywhere",
     };
 
@@ -285,24 +311,29 @@ public sealed class ShortcutMap
             new("timeline.cutCel", "Cut cel", "Timeline", G(Key.X, KeyModifiers.Control)),
             new("timeline.pasteCel", "Paste cel", "Timeline", G(Key.V, KeyModifiers.Control)),
 
-            // The reference board's own three (Q87). Registered here rather than
-            // wired straight to the window's key handler, because a command that
-            // is not in this map cannot be found, searched or rebound — which is
-            // the failure the whole map exists for. They are resolved only by the
-            // board window, so a gesture pressed over the art never reaches them;
-            // the gestures are still kept clear of the main window's, so an
-            // artist rebinding one is not surprised by the other.
-            // Resolved by the main window, unlike the three below: opening the
-            // board is asked for from the art, not from a window that does not
-            // exist yet.
+            // Everything the board window does (Q87), in its own scope. Here
+            // rather than wired straight to the window's key handler, because a
+            // command that is not in this map cannot be found, searched or
+            // rebound — which is the failure the whole map exists for. The scope
+            // is what lets them stay here (B244): Delete and Ctrl+V mean what
+            // they obviously mean on a board without becoming a second answer to
+            // a gesture the canvas or the timeline already owns.
+            new("reference.arrange", "Auto-arrange the board", "Reference",
+                G(Key.R, KeyModifiers.Control | KeyModifiers.Shift), ShortcutContext.Board),
+            new("reference.fit", "Fit everything on screen", "Reference",
+                G(Key.F, KeyModifiers.Control | KeyModifiers.Shift), ShortcutContext.Board),
+            new("reference.front", "Bring the picture forward", "Reference",
+                G(Key.Up, KeyModifiers.Control | KeyModifiers.Shift), ShortcutContext.Board),
+            new("reference.back", "Send the picture behind", "Reference",
+                G(Key.Down, KeyModifiers.Control | KeyModifiers.Shift), ShortcutContext.Board),
+            new("reference.remove", "Take the picture off the board", "Reference",
+                G(Key.Delete), ShortcutContext.Board),
+            new("reference.paste", "Paste a picture onto the board", "Reference",
+                G(Key.V, KeyModifiers.Control), ShortcutContext.Board),
+            // The one that is not board-scoped, because it is how the board is
+            // reached from the art in the first place.
             new("reference.board", "Open the reference board", "Reference",
                 G(Key.B, KeyModifiers.Control | KeyModifiers.Shift)),
-            new("reference.arrange", "Auto-arrange the reference board", "Reference",
-                G(Key.R, KeyModifiers.Control | KeyModifiers.Shift)),
-            new("reference.front", "Bring the reference forward", "Reference",
-                G(Key.Up, KeyModifiers.Control | KeyModifiers.Shift)),
-            new("reference.back", "Send the reference behind", "Reference",
-                G(Key.Down, KeyModifiers.Control | KeyModifiers.Shift)),
 
             new("docker.deleteLayer", "Delete layer", "Dockers", G(Key.Delete), ShortcutContext.Panel, DockPanelId.Layers),
             new("docker.clearLayer", "Blank layer content", "Dockers", G(Key.Back), ShortcutContext.Panel, DockPanelId.Layers),
@@ -416,6 +447,10 @@ public sealed class ShortcutMap
         {
             if (d.Current is not { } g || g.Key != e.Key || g.KeyModifiers != e.KeyModifiers) continue;
             if (d.Scope == scope) return d.Id;
+            // A board binding is reachable from the board and nowhere else: its
+            // window is the separation that lets it share a gesture at all
+            // (B244). Collecting it as a fallback would undo exactly that.
+            if (d.Context == ShortcutContext.Board) continue;
             if (d.Context == ShortcutContext.Canvas) canvas ??= d;
             else if (d.Context == ShortcutContext.Global) general ??= d;
         }

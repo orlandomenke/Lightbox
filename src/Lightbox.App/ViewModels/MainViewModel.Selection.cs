@@ -226,7 +226,16 @@ public partial class MainViewModel
         // The lines, through the same list the Arrow's own picking uses, so
         // "all" and "the one under the pointer" cannot disagree about what is
         // pickable — a hidden or locked layer's strokes are neither.
-        foreach (var stroke in PickableStrokes()) _selectionManager.AddStrokeToSelection(stroke.Id);
+        //
+        // And through the picker's own filter (B243): this took the raw list,
+        // so Ctrl+A selected the erasures and the wholly-erased lines that a
+        // click and a marquee had just been taught to refuse (B232) — and
+        // Delete then resurrected erased ink through the one door left open.
+        var strokes = PickableStrokes();
+        foreach (var position in Lightbox.Raster.StrokePicker.AllSelectable(strokes))
+        {
+            _selectionManager.AddStrokeToSelection(strokes[position].Id);
+        }
 
         if (PaintTargetOrKey() is Frame { Placements: { Count: > 0 } placements })
         {
