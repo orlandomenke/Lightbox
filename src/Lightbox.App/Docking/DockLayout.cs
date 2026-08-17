@@ -123,6 +123,19 @@ public sealed class DockLayout
     public bool GuidesLocked { get; set; }
 
     /// <summary>
+    /// Whether references can be picked up and moved on the canvas.
+    /// </summary>
+    /// <remarks>
+    /// The guide lock's argument applied to reference (Q108): grabbing a plate
+    /// and drawing over one are the same gesture in the same place, and this is
+    /// how an artist says which they meant. Per-reference locking is on the
+    /// reference itself and travels with the document; this is the sweep, and it
+    /// belongs to the workspace for the reason the guide lock does — it is how
+    /// your screen is set up, not a property of the art.
+    /// </remarks>
+    public bool ReferencesLocked { get; set; }
+
+    /// <summary>
     /// What the Quick options bar carries in this arrangement, as ids from
     /// <see cref="QuickBarCatalog"/>. Null means the layout never chose, and
     /// the bar shows <see cref="QuickBarCatalog.ToolDefaults"/> — nullable so
@@ -499,6 +512,7 @@ public sealed class DockLayout
         Rulers = Rulers,
         GuidesVisible = GuidesVisible,
         GuidesLocked = GuidesLocked,
+        ReferencesLocked = ReferencesLocked,
         QuickBar = QuickBar?.ToList(),
     };
 

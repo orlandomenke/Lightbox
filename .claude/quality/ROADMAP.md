@@ -1543,6 +1543,25 @@ Already built ✅:
 
 - A sheet view taped onto the canvas — flattened into a `ReferenceStrip`,
   pinned to every frame, live (Q69)
+- [x] **A projected reference is an object on the canvas: select it, move it, scale it, lock it** `evidence: ReferenceBoxPainter, SelectReferenceOnCanvasAt, BeginReferenceGesture, ScaleReferenceAbout, ReferenceCanvasSelectionTests, ClickingAProjectedReferenceSelectsIt, ACornerScalesUniformlyAboutTheOppositeCorner, ALockedReferenceStillSelectsAndRefusesToMove`
+  - **What it fixes: a reference on the canvas answered to a mode, not to the
+    pointer.** Moving one meant finding *Align on canvas* and switching it on
+    first; scaling one meant leaving the canvas for a slider in the docker; and
+    once a plate was registered against the drawing, nothing stopped the next
+    drag knocking it out. The Arrow now picks a projected reference up the way it
+    picks up a line, a guide or a symbol (Q108).
+  - **Uniform scaling from the corners, and that is a rule rather than a
+    shortcut.** A sheet carries one scale for every frame because a reference
+    whose size varied frame to frame is the one thing a size reference exists to
+    prevent — and the same argument refuses a non-uniform drag: an artist working
+    from a plate stretched on one axis is drawing the wrong proportions.
+  - **The lock is the guide lock, applied to reference**: per sheet and
+    undoable, plus a workspace-wide sweep on `Ctrl+Alt+R`. A locked reference
+    still selects and draws its box without grips, so the refusal is visible
+    rather than mysterious. Both locks are on the canvas shortcut bar while a
+    reference is selected, which is where the hand already is.
+  - Closes **B192** on the way: a drag is one undo step now, and repaints through
+    the cheap path B191 opened rather than the document-changed storm.
 - [x] **The reference board — a whiteboard of reference beside the art** `evidence: ReferenceBoard, BoardTile, BoardLayout, ProjectBoards, ReferenceBoardViewModel, ReferenceBoardWindow, ReferenceBoardTests, ReferenceBoardWindowTests`
   - **What it replaced, and why the replacement is not a superset.** Q69 shipped
     one live window per reference view, which was right about *live* and wrong

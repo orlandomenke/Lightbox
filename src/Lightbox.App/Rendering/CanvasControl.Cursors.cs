@@ -152,6 +152,24 @@ public sealed partial class CanvasControl
             return RefBoxResizeCursor(refCorner.Left, refCorner.Top);
         }
 
+        // The same promise for a projected reference the Arrow has hold of
+        // (Q108): a corner scales it, inside it moves. A locked one offers
+        // neither, and saying nothing is how the cursor tells the truth about
+        // that — B241's rule, that the pointer names the gesture it would get.
+        if (ReferenceSheetBox is { } sheet && !ReferenceSheetLocked)
+        {
+            var reach = 6 / Math.Max(0.01, _zoom * FitScale());
+            if (CornerOf(sheet, docX, docY, reach) is { } sheetCorner)
+            {
+                return RefBoxResizeCursor(sheetCorner.Left, sheetCorner.Top);
+            }
+            if (docX >= sheet.X && docX <= sheet.X + sheet.W
+                && docY >= sheet.Y && docY <= sheet.Y + sheet.H)
+            {
+                return CanvasCursorKind.Move;
+            }
+        }
+
         // ---- the tool's own intent ----------------------------------------------
         return PointerIntent;
     }

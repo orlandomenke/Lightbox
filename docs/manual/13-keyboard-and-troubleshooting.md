@@ -68,6 +68,7 @@ warns about.
 | 0 | Reset zoom, rotation, mirror and pan |
 | Shift + drag | Resize the brush |
 | Wheel / Shift+wheel | Zoom / rotate the view |
+| Ctrl+Alt+R | Lock every reference on the canvas |
 | Ctrl+Shift+B | Open the reference board |
 | Ctrl+Shift+R / Ctrl+Shift+F | On the board: auto-arrange / fit everything on screen |
 | Ctrl+Shift+↑ / ↓ | On the board: bring the last picture you touched forward / send it behind |
