@@ -157,7 +157,13 @@ public sealed class DockLayout
         layout.Dock(DockPanelId.Project, DockSide.Right, 0);
         layout.Dock(DockPanelId.Layers, DockSide.Right, 1);
         layout.Dock(DockPanelId.Color, DockSide.Right, 2);
-        layout.Dock(DockPanelId.Sheets, DockSide.Right, 3);
+        // What the work is made of and what it is made with, in one slot
+        // (Q109): the project tree, the reference for the subject, and the
+        // options of the tool in hand — consulted one at a time and between
+        // strokes, which is what these groups are for.
+        layout.JoinGroup(DockPanelId.Sheets, DockPanelId.Project);
+        layout.JoinGroup(DockPanelId.ToolOptions, DockPanelId.Project);
+        layout.Activate(DockPanelId.Project);
         layout.Dock(DockPanelId.Timeline, DockSide.Bottom, 0);
         // The timeline family shares the bottom slot as tabs, track view in
         // front — the reference's Timeline | Xsheet | Graph Editor strip.
@@ -176,8 +182,6 @@ public sealed class DockLayout
         layout.JoinGroup(DockPanelId.Channels, DockPanelId.Color);
         layout.Activate(DockPanelId.Color);
         layout.Place(DockPanelId.Reference).Side = DockSide.Hidden;
-        // Same rule: the gear opens it the first time it is wanted.
-        layout.Place(DockPanelId.ToolOptions).Side = DockSide.Hidden;
         // And again: the Window menu opens it the first time it is wanted.
         layout.Place(DockPanelId.History).Side = DockSide.Hidden;
         layout.AreaExtents[DockSide.Right] = 300;

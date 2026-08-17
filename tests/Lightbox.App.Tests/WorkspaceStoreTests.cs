@@ -37,19 +37,28 @@ public class WorkspaceStoreTests
 
         Assert.True(illustration.IsVisible(DockPanelId.Palette));
         Assert.True(illustration.IsVisible(DockPanelId.Gradient));
-        Assert.Equal(2, illustration.SlotsIn(DockSide.Right).Count);   // Layers, and colour
+        // The work group, Layers, and colour (Q109) — three slots carrying
+        // eight panels, which is the whole of what tabs buy.
+        Assert.Equal(3, illustration.SlotsIn(DockSide.Right).Count);
     }
 
     [Fact]
     public void NoArrangementTabsTwoPanelsAnArtistNeedsAtOnce()
     {
-        // The rule stated as a guard rather than a comment. Layers and the
-        // project tree are read while drawing, so tabbing either with anything
-        // trades a scroll for a click on every stroke. The timeline family is
-        // the deliberate exception (Q58): the track view, the X-sheet and the
-        // graph editor are three views over ONE set of records, used
-        // alternately by construction.
-        DockPanelId[] family = [DockPanelId.Timeline, DockPanelId.Xsheet, DockPanelId.GraphEditor];
+        // The rule stated as a guard rather than a comment: never tab what an
+        // artist uses at once. **Layers** is the one that matters — it is read
+        // and clicked *during* a stroke, so tabbing it with anything trades a
+        // scroll for a click on every mark.
+        //
+        // The project tree used to be named here beside it and is not any more
+        // (Q109). It is consulted between pieces of work rather than during
+        // one — which document am I on, which sheet am I drawing from, what is
+        // this tool set to — so it leads the group of exactly those three. Two
+        // groups are the deliberate exceptions of the same kind: the timeline
+        // family (Q58) is three views over one set of records, and the colour
+        // family is three answers to one question.
+        DockPanelId[] timeline = [DockPanelId.Timeline, DockPanelId.Xsheet, DockPanelId.GraphEditor];
+        DockPanelId[] work = [DockPanelId.Project, DockPanelId.Sheets, DockPanelId.ToolOptions];
         foreach (var workspace in WorkspaceStore.Default().Workspaces)
         {
             foreach (var side in new[] { DockSide.Right, DockSide.Bottom })
@@ -58,10 +67,15 @@ public class WorkspaceStoreTests
                 {
                     if (slot.Count == 1) continue;
                     Assert.DoesNotContain(DockPanelId.Layers, slot);
-                    Assert.DoesNotContain(DockPanelId.Project, slot);
                     if (slot.Contains(DockPanelId.Timeline))
                     {
-                        Assert.All(slot, p => Assert.Contains(p, family));
+                        Assert.All(slot, p => Assert.Contains(p, timeline));
+                    }
+                    // The project tree may share a slot, and only with the two
+                    // it was grouped with on purpose.
+                    if (slot.Contains(DockPanelId.Project))
+                    {
+                        Assert.All(slot, p => Assert.Contains(p, work));
                     }
                 }
             }

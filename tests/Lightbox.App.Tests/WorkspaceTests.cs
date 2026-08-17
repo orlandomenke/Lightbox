@@ -85,9 +85,11 @@ public sealed class WorkspaceTests : BrushStateIsolated
     {
         var (w, _) = Open();
 
+        // The work group leads the strip, and with no project open its Project
+        // tab is absent — so Reference sheets is the tab that shows (Q109).
         Assert.Equal(
-            [DockPanelId.Layers, DockPanelId.Color, DockPanelId.Sheets],
-            Shown(w, DockSide.Right));   // Project is absent: no project yet
+            [DockPanelId.Sheets, DockPanelId.Layers, DockPanelId.Color],
+            Shown(w, DockSide.Right));
         Assert.Equal([DockPanelId.Timeline], Shown(w, DockSide.Bottom));
         Assert.Empty(Shown(w, DockSide.Left));
     }
@@ -277,12 +279,12 @@ public sealed class WorkspaceTests : BrushStateIsolated
         // view even if just only one docker is present." Every panel wears the
         // one header treatment, and a slot of one shows exactly one tab, lit —
         // an unlit lone tab reads as a panel that is somehow not showing.
-        // Layers and Sheets are the default layout's lone dockers; the colour
-        // family is a real group and is asserted elsewhere.
+        // Layers is the default layout's lone docker — Sheets joined the work
+        // group under Q109 — and the two real groups are asserted elsewhere.
         var (w, _) = Open();
 
         var lone = Strip(w, DockSide.Right).Children.OfType<Docker>()
-            .Where(d => d.PanelId is DockPanelId.Layers or DockPanelId.Sheets)
+            .Where(d => d.PanelId is DockPanelId.Layers)
             .ToList();
         Assert.NotEmpty(lone);
         foreach (var docker in lone)

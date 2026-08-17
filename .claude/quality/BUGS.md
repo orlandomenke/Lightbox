@@ -546,12 +546,12 @@ which is a weak test and still far better than none.
 
 Entries move here when `sync` closes them; the evidence stays so a deleted
 test reopens the bug.
-
-### ai
-
   - **Sightings nineteen to twenty-one, 2026-08-16 to 2026-08-17, on two unrelated pull requests.** `PaletteHierarchyTests.TheHierarchyAndTheSwatchesReadAsTwoPanes` twice — once per PR — and then `ProjectSheetAppTests.ASecondDocumentInTheProjectSeesTheSameSheet` on the very next run. All three at **1 ms**, stack unchanged, on branches that reach neither palettes nor project sheets; all three passed all four suites locally beforehand.
   - **The interesting part is the correction.** The first two looked like the first repeat in twenty sightings — a favourite class at last — and that was written down here as the new fact. The next run moved to a fifteenth distinct class and refuted it inside twenty minutes. Recorded rather than quietly edited out, because it is this entry's own lesson arriving on schedule: **the victim is whichever test the harness happened to be seating**, and any pattern read from two samples of that is noise. The one thing that has never varied in twenty-one sightings is the stack.
   - **Three consecutive red runs on one branch is a worse rate than this bug's own history** (B93 records roughly eight of nine green after `DisableTestParallelization`). Not attributed: the branch touches the canvas control, the reference record and the shortcut map, and the failures are in cleanup of tests that reach none of them. If it happens on a fourth run the rate itself is the finding and belongs here as a measurement, not another re-run.
+
+### ai
+
 - [x] **B195** `P1` `ai` `render_frame` fails with "Invalid Base64 string" on every frame of every document, blank or not `evidence: TheRenderedFrameTravelsAsBase64TextNotAsRawPngBytes, ABlankFrameMakesTheSameTripAndIsStillAPng, TheReferenceViewImageGoesThroughTheSameConversion`
   - Reported from an agent session: an empty fresh document at 4K still failed. That is the useful half of the report, because it rules out the theory it arrived with — the payload being too big. A blank 4K PNG is tens of kilobytes and nowhere near any cap, so a failure that is both **content-independent and size-independent** is not about the image at all.
   - `ImageContentBlock.Data` in the MCP SDK is **the UTF-8 bytes of the base64 text**, and the decoded image is the separate `DecodedData`. Both image tools read that name the other way round and assigned `Convert.FromBase64String(b64)` — the decoded PNG. It compiles, because `Data` is a `ReadOnlyMemory<byte>` and a `byte[]` converts implicitly, and the SDK then writes those bytes into the JSON string verbatim. Measured on a twelve-byte PNG: `{"data":"�PNG\r\n\n �"}`. The client base64-decodes that and gets the reported exception.

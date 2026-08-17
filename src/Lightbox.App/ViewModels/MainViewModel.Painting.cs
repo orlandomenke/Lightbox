@@ -393,13 +393,36 @@ public partial class MainViewModel
 
     /// <summary>The toolbar's gear: always OPENS — a gear that closed the
     /// panel you were looking at would read as a broken button.</summary>
+    /// <remarks>
+    /// <b>Showing is not enough now that the panel ships docked</b> (Q109). It
+    /// arrives tabbed behind the project tree, so a panel that is already
+    /// <em>visible</em> but is the tab at the back needs bringing forward —
+    /// without the activate, the gear did nothing at all for anybody whose
+    /// workspace had it grouped, which is now everybody's.
+    /// </remarks>
     [RelayCommand]
-    private void OpenToolOptions() =>
+    private void OpenToolOptions()
+    {
         Workspace.SetVisible(Docking.DockPanelId.ToolOptions, true);
+        Workspace.Activate(Docking.DockPanelId.ToolOptions);
+    }
 
+    /// <remarks>
+    /// The toggle's "open" half goes through <see cref="OpenToolOptions"/> so
+    /// the two cannot disagree about what opening means — the bug above, one
+    /// button along.
+    /// </remarks>
     [RelayCommand]
-    private void ToggleToolOptionsDocker() =>
-        Workspace.SetVisible(Docking.DockPanelId.ToolOptions, !Workspace.ToolOptionsDockerVisible);
+    private void ToggleToolOptionsDocker()
+    {
+        if (Workspace.ToolOptionsDockerVisible
+            && Workspace.IsActiveInItsSlot(Docking.DockPanelId.ToolOptions))
+        {
+            Workspace.SetVisible(Docking.DockPanelId.ToolOptions, false);
+            return;
+        }
+        OpenToolOptions();
+    }
 
     [RelayCommand]
     private void ToggleXsheetDocker() =>

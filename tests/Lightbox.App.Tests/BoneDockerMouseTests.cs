@@ -34,7 +34,10 @@ public class BoneDockerMouseTests
         var vm = (MainViewModel)window.DataContext!;
         vm.NewDocument(new NewDocumentSettings("Rig", 400, 300, 12, 72, "#ffffff", false));
         vm.SelectToolCommand.Execute(ToolId.Bone);
-        vm.Workspace.SetVisible(DockPanelId.ToolOptions, true);
+        // The gear, which is what an artist presses: the panel ships
+        // docked now (Q109), so "make it visible" is a no-op and only
+        // bringing its tab forward puts the bar on screen.
+        vm.OpenToolOptionsCommand.Execute(null);
         Pump();
         vm.CreateBoneFromDrag(100, 150, 200, 150);
         Pump();

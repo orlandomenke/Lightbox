@@ -104,6 +104,12 @@ public static class DockPanels
     [
         [DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient, DockPanelId.Channels],
         [DockPanelId.Timeline, DockPanelId.Xsheet, DockPanelId.GraphEditor],
+        // What the work is made of and what it is made with (Q109): the tree of
+        // documents, the reference for the subject, and the settings of the tool
+        // in hand. Consulted one at a time and between strokes rather than
+        // during one — which is the rule these groups follow, and the reason
+        // Layers is not among them.
+        [DockPanelId.Project, DockPanelId.Sheets, DockPanelId.ToolOptions],
     ];
 
     /// <summary>The panel's family-mates, itself excluded; empty for a loner.</summary>

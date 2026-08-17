@@ -89,12 +89,27 @@ body, or on an edge, and it gets a slot of its own as before. Dragging the last
 tab out of a group leaves the remaining panel an ordinary panel again — a group
 is nothing more than the panels currently sharing a slot.
 
-Tabbing is how a workspace offers more than it has room for. Colour, palette,
-gradient and channels ship tabbed together in every built-in arrangement,
-Default included: they are ways of answering one question and you want one at
-a time, so they cost one slot between them instead of four. Things you use *at
-the same time* — the layers list, the project tree, the timeline — are never
-tabbed together, and dragging one there is the only way to make it so.
+Tabbing is how a workspace offers more than it has room for. Two groups ship
+tabbed in **every** built-in arrangement, Default included, because each is
+several answers to one question and you want one at a time:
+
+| Group | What is in it |
+| --- | --- |
+| **Colour** | Colour, palette, gradient, channels |
+| **Your work** | Project, reference sheets, tool options |
+
+Between them they cost two slots instead of seven. The work group is the one to
+know about: it is what you are working on and what you are working with — which
+document, which reference, and what the tool in your hand is set to — all
+questions you ask *between* strokes rather than during one. With no project
+open the Project tab is simply absent, so a loose drawing shows the other two.
+
+**Tool options lives there rather than waiting to be opened.** The gear on the
+toolbar brings its tab forward instead of revealing a hidden panel.
+
+The **layers list** is the panel that is never tabbed with anything: it is
+clicked in the middle of drawing, and a tab would trade a scroll for a click on
+every mark. Dragging it into a group is the only way to make it one.
 
 **A side holds at most four slots.** A drop that would open a fifth strip
 lands as a tab in the nearest slot instead — nothing is refused, and the panel
@@ -175,6 +190,20 @@ opening someone else's file must not rearrange your screen.
 
 Seven ship with the app: one per project type, plus **Default**. Switch with the
 picker at the top right of the Quick options bar.
+
+Every one of them opens the colour group and the work group described above.
+The ones whose deliverable **moves** — Animation, Game art, Storyboard, Asset
+library and Default — also open the **timeline group**: the track timeline in
+front, the X-sheet and the graph editor tabbed behind it. Illustration and Comic
+do not, and that is most of what makes those two feel like single-image work:
+the bottom strip is screen they give back.
+
+*An asset library gets a timeline for a reason worth stating: a sprite sheet is
+a character cycle, which is animation under another name.*
+
+**If you have used Lightbox before, these defaults do not move your panels.**
+Your arrangement is your own and stays as you left it; **Reset workspace** on a
+built-in is what brings the shipped one back.
 
 - **View → Workspace → Save current workspace** overwrites the selected one
   with the arrangement on screen — built-ins included. No copy is made.
