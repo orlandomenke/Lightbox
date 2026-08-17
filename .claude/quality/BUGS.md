@@ -2054,6 +2054,9 @@ test reopens the bug.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
 
+- [x] **B253** `P2` `ui` The armed weight brush shows the paint brush's ring, not its own radius `evidence: TheArmedWeightBrushRingIsItsOwnRadiusNotThePaintBrushs`
+  - Found wiring the owner's +/− cursor badge, and part of why weight painting felt finicky: the weight brush's platform cursor is hidden (`CanvasCursorKind.Paint`) so the ring IS the pointer — and `BrushCursorDiameter` read `CurrentToolSettings`, the ink brush. The artist aimed a 24px weight dab with a ring of whatever size, tip shape and angle the paint brush happened to have. Fixed by letting the armed weight brush own the ring: its own radius, round, unrotated, no tip outline.
+
 - [x] **B249** `P2` `ui` Ctrl+S on a reference view asks where to put a file every time, and suggests a name no filesystem can take `evidence: FileStem, IsProjectSheetView, ReferenceViewSaveTests, ATabTitleBecomesANameAFilesystemAccepts, SavingASheetViewWritesTheProjectInsteadOfAskingWhereToPutAFile`
   - Reported from a build: *"reference sheet opens per default with 'name / view #' but the '/' cannot be saved, which results in every save a save-as prompt."*
   - **Two faults, one symptom.** A view onto a **project** sheet has no file of its own — the project's save writes it, exactly as a symbol's does — and `SaveTargetTab` is deliberately null there to stop Save As offering a document nothing would reference. But `CanSaveInPlace` reads that same null as "nowhere to save", so Save fell through to the picker every time. And the name the picker was handed is the tab's title, `Hero / front`, which is a **path** rather than a filename: answer the dialog and the write fails or lands somewhere unintended, so the next Ctrl+S asks again.

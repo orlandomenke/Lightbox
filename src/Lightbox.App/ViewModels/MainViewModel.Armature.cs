@@ -889,16 +889,36 @@ public sealed partial class MainViewModel
     /// </remarks>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PointerIntent))]
+    [NotifyPropertyChangedFor(nameof(PointerBadge))]
     [NotifyPropertyChangedFor(nameof(BoneChromes))]
     [NotifyPropertyChangedFor(nameof(HeatPoints))]
+    [NotifyPropertyChangedFor(nameof(BrushCursorDiameter))]
+    [NotifyPropertyChangedFor(nameof(BrushCursorTipId))]
+    [NotifyPropertyChangedFor(nameof(BrushCursorRoundness))]
+    [NotifyPropertyChangedFor(nameof(BrushCursorAngle))]
     private bool _weightPainting;
 
     /// <summary>Brush radius in document pixels.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BrushCursorDiameter))]
     private double _weightBrushRadius = 24;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PointerBadge))]
     private WeightBrushMode _weightBrushMode = WeightBrushMode.Add;
+
+    /// <summary>
+    /// One press into a weight-paint mode from anywhere: the Bone tool if it
+    /// is not in hand, the brush armed, the mode set. What the mode shortcuts
+    /// (Shift+1/2/3) run, so "start subtracting" is a keystroke rather than a
+    /// tool change, a toggle and a dropdown.
+    /// </summary>
+    public void ArmWeightBrush(WeightBrushMode mode)
+    {
+        if (ActiveTool != ToolId.Bone) SelectToolCommand.Execute(ToolId.Bone);
+        WeightPainting = true;
+        WeightBrushMode = mode;
+    }
 
     /// <summary>
     /// Paint both sides of a name-paired bone at once (hip.l ↔ hip.r),

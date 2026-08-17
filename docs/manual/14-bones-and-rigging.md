@@ -270,7 +270,12 @@ each part of it.
   **Red means the selected bone owns those points** — it is not a warning
   colour. To *exclude* a region from moving, do the opposite of painting it
   red: select the bone that currently owns it and paint there with
-  **Subtract**. What no bone claims holds still at rest. Points painted
+  **Subtract**. What no bone claims holds still at rest.
+  The brush ring wears a **+** or **−** beside it saying which way the next
+  stroke will paint, and the modes have their own keys: **Shift+1** arms
+  Add, **Shift+2** Subtract, **Shift+3** Smooth — from any tool, in one
+  press. The ring is the weight brush's own radius, whatever the paint
+  brush is set to. Points painted
   part-way (purple, between blue and red) land between their rest and posed
   positions, which is also the answer to a line that seems to twist in
   depth as a bone turns: push its weights to fully red or fully blue and it

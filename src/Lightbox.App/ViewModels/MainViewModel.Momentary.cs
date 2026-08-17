@@ -71,6 +71,15 @@ public partial class MainViewModel
     /// </remarks>
     public void ApplyHeldModifiers(KeyModifiers held)
     {
+        // The badge's half of "a held key shows its own cursor": Shift or Alt
+        // going down (or up) over a still pointer must show the +/− without
+        // waiting for a pointer event to carry the modifiers in.
+        if (_hoverModifiers != held)
+        {
+            _hoverModifiers = held;
+            RefreshPointerIntent();
+        }
+
         if (_borrowedFrom is { } owner)
         {
             // Still the same borrow: nothing to do, and returning early keeps

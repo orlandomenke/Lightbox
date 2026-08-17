@@ -372,6 +372,15 @@ public partial class MainWindow
             case "armature.weightPaint":
                 _vm.WeightPainting = !_vm.WeightPainting;
                 break;
+            case "armature.weightAdd":
+                _vm.ArmWeightBrush(Lightbox.Core.Documents.WeightBrushMode.Add);
+                break;
+            case "armature.weightSubtract":
+                _vm.ArmWeightBrush(Lightbox.Core.Documents.WeightBrushMode.Subtract);
+                break;
+            case "armature.weightSmooth":
+                _vm.ArmWeightBrush(Lightbox.Core.Documents.WeightBrushMode.Smooth);
+                break;
             case "armature.deleteBone":
                 _vm.DeleteBoneCommand.Execute(null);
                 break;

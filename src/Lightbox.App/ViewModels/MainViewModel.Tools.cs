@@ -110,6 +110,22 @@ public partial class MainViewModel
             ? Rendering.CanvasCursor.ForBone(HoveredBoneGrab, PosingMode, WeightPainting)
             : Rendering.CanvasCursor.For(ActiveTool, CurrentTarget, _hoverModifiers);
 
+    /// <summary>
+    /// The +/− the pointer wears when a press would add or carve: the weight
+    /// brush's own mode while it is armed, the held Shift/Alt over a
+    /// combining tool otherwise. Refreshed with <see cref="PointerIntent"/> —
+    /// the two travel together everywhere.
+    /// </summary>
+    public Rendering.CursorBadge PointerBadge =>
+        ActiveTool == ToolId.Bone && WeightPainting
+            ? WeightBrushMode switch
+            {
+                Core.Documents.WeightBrushMode.Add => Rendering.CursorBadge.Add,
+                Core.Documents.WeightBrushMode.Subtract => Rendering.CursorBadge.Subtract,
+                _ => Rendering.CursorBadge.None,
+            }
+            : Rendering.CanvasCursor.CombineBadge(ActiveTool, _hoverModifiers);
+
     /// <summary>What the pointer is over, through the same hit-test the gesture uses.</summary>
     private Rendering.BoneGrab HoveredBoneGrab =>
         _hoverPoint is { } p
@@ -168,6 +184,7 @@ public partial class MainViewModel
     public void RefreshPointerIntent()
     {
         OnPropertyChanged(nameof(PointerIntent));
+        OnPropertyChanged(nameof(PointerBadge));
         OnPropertyChanged(nameof(PointerRefusal));
         OnPropertyChanged(nameof(HasPointerRefusal));
     }
