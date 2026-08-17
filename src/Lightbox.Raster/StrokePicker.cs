@@ -206,6 +206,32 @@ public static class StrokePicker
     }
 
     /// <summary>
+    /// Record positions of every stroke "select all" may take, ascending.
+    /// </summary>
+    /// <remarks>
+    /// B243. Rules two and three apply to "all" exactly as they apply to a
+    /// click and a marquee: an erasure is not an object, and a line erased
+    /// along its whole length is not on the canvas. Select-all was built in a
+    /// parallel branch (B221) against the pre-B232 picker and added every
+    /// record entry raw — so Ctrl+A quietly took the erasures, and Delete
+    /// resurrected erased ink through the third door after the first two were
+    /// closed. This method exists so the next caller that wants "the strokes"
+    /// gets the same answer the pointer does, from the same place.
+    /// </remarks>
+    public static IReadOnlyList<int> AllSelectable(IReadOnlyList<Stroke> strokes)
+    {
+        var erasures = ErasurePositions(strokes);
+        var selectable = new List<int>();
+        for (var i = 0; i < strokes.Count; i++)
+        {
+            if (!IsPickable(strokes[i])) continue;
+            if (!SurvivesAnywhere(strokes, erasures, i)) continue;
+            selectable.Add(i);
+        }
+        return selectable;
+    }
+
+    /// <summary>
     /// Is this stroke something an artist can take hold of?
     /// </summary>
     /// <remarks>
