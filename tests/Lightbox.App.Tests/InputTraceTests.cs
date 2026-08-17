@@ -135,19 +135,23 @@ public class InputTraceTests : IDisposable
     }
 
     [Fact]
-    public void ACursorLightboxNeverChangedIsBlamedBelowTheApp()
+    public void ACursorLightboxNeverChangedIsNotBlamedOnItsOwnCursorLogic()
     {
         InputTrace.Arm();
-        // The decisive case for B126: a minute of hovering in which Lightbox
-        // assigned the cursor once. If the arrow still flickered on screen, the
-        // alternation is not ours — which is the finding that sends the bug
-        // upstream instead of round another guess.
+        // The decisive case for B126, and the owner's first real trace is
+        // exactly this: 30 s of hovering, one decision, zero reassignments.
         InputTrace.CursorDecided("Paint");
         for (var i = 0; i < 50; i++) Hover(i, PointerType.Pen, 1, InputTrace.Kind.Move);
 
         var summary = InputTrace.Summarize();
         Assert.Equal(1, summary.CursorDecisionChanges);
-        Assert.Contains(summary.Verdicts, v => v.Contains("below the app"));
+        Assert.Contains(summary.Verdicts, v => v.Contains("nothing here is flipping it deliberately"));
+        // **This wording was wrong and the correction is the point of the
+        // test.** It used to conclude that the fix therefore belonged upstream.
+        // The cause is upstream — Windows Ink's echo stream — but the exits it
+        // produces are what hand the arrow back, and Lightbox decides how to
+        // react to those. Sending it upstream would have parked a fixable bug.
+        Assert.Contains(summary.Verdicts, v => v.Contains("the cure need not be"));
     }
 
     [Fact]
@@ -221,6 +225,43 @@ public class InputTraceTests : IDisposable
         Assert.Single(summary.Verdicts);
         Assert.Contains("too short to conclude", summary.Verdicts[0]);
         Assert.DoesNotContain(summary.Verdicts, v => v.Contains("/min"));
+    }
+
+    // ---- telling a freeze from a pointer that went elsewhere -------------------------
+
+    [Fact]
+    public void ALongSilenceWithNoStallIsThePointerBeingElsewhere()
+    {
+        InputTrace.Arm();
+        // The shape of the owner's first real trace: 16 seconds in which the
+        // canvas saw nothing, because the pointer was over a menu. Reported as
+        // a freeze, and this is the reading that says it was not one.
+        Hover(1, PointerType.Pen, 1, InputTrace.Kind.Exit);
+        Hover(17.5, PointerType.Pen, 1, InputTrace.Kind.Enter);
+        for (var i = 0; i < 10; i++) Hover(18 + i, PointerType.Pen, 1, InputTrace.Kind.Move);
+
+        var summary = InputTrace.Summarize();
+        Assert.Equal(0, summary.Stalls);
+        Assert.True(summary.LongestSilenceMs > 16000, $"silence {summary.LongestSilenceMs}");
+        Assert.Contains(summary.Verdicts, v => v.Contains("nothing was frozen"));
+        Assert.DoesNotContain(summary.Verdicts, v => v.Contains("really did stop answering"));
+    }
+
+    [Fact]
+    public void TheSameSilenceWithAStallInItIsAFreeze()
+    {
+        InputTrace.Arm();
+        Hover(1, PointerType.Pen, 1, InputTrace.Kind.Exit);
+        InputTrace.NoteStallForTests(9, blockedMs: 8000);
+        Hover(17.5, PointerType.Pen, 1, InputTrace.Kind.Enter);
+        for (var i = 0; i < 10; i++) Hover(18 + i, PointerType.Pen, 1, InputTrace.Kind.Move);
+
+        var summary = InputTrace.Summarize();
+        // Same silence, opposite conclusion — which is the entire point of
+        // measuring the dispatcher rather than inferring from the gap.
+        Assert.Equal(1, summary.Stalls);
+        Assert.Contains(summary.Verdicts, v => v.Contains("really did stop answering"));
+        Assert.DoesNotContain(summary.Verdicts, v => v.Contains("nothing was frozen"));
     }
 
     // ---- what the report has to carry for a comparison to be possible ----------------
@@ -397,6 +438,68 @@ public class InputTraceTests : IDisposable
         Pump();
         // And closing it gives the life the collapse test is about.
         Assert.NotNull(InputTrace.Summarize().ShortestPopupMs);
+    }
+
+    /// <summary>
+    /// A right-click context menu is seen.
+    /// </summary>
+    /// <remarks>
+    /// <b>The first real trace reported "popups opened 0" for a session that
+    /// opened two.</b> The owner right-clicked the Layers docker and opened a
+    /// fly-out from a menu item; the instrument watched
+    /// <c>FlyoutBase.IsOpen</c> and <c>ToolTip.IsOpen</c>, and a
+    /// <see cref="Avalonia.Controls.ContextMenu"/> has neither. A counter that
+    /// reads zero when the thing happened twice is worse than no counter, and
+    /// B254 is the bug it was zero about.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ARightClickContextMenuIsSeenByTheTrace()
+    {
+        var (window, _) = Open();
+        var target = new Avalonia.Controls.Border { Width = 40, Height = 40 };
+        var menu = new Avalonia.Controls.ContextMenu
+        {
+            ItemsSource = new[] { new Avalonia.Controls.MenuItem { Header = "Something" } },
+        };
+        target.ContextMenu = menu;
+        ((Avalonia.Controls.Panel)window.Content!).Children.Add(target);
+        Pump();
+
+        InputTrace.Arm();
+        menu.Open(target);
+        Pump();
+
+        Assert.True(InputTrace.Summarize().PopupsOpened > 0,
+            "the trace did not see a context menu open");
+    }
+
+    /// <summary>
+    /// A menu item's fly-out is seen — the other half of the same miss.
+    /// </summary>
+    /// <remarks>
+    /// A submenu is <see cref="Avalonia.Controls.MenuItem.IsSubMenuOpenProperty"/>,
+    /// which is neither a flyout nor a tooltip, and is exactly what the owner
+    /// described opening when the trace recorded nothing.
+    /// </remarks>
+    [AvaloniaFact]
+    public void AMenuItemSubmenuIsSeenByTheTrace()
+    {
+        var (window, _) = Open();
+        var item = new Avalonia.Controls.MenuItem
+        {
+            Header = "Layers",
+            ItemsSource = new[] { new Avalonia.Controls.MenuItem { Header = "Child" } },
+        };
+        ((Avalonia.Controls.Panel)window.Content!).Children.Add(
+            new Avalonia.Controls.Menu { ItemsSource = new[] { item } });
+        Pump();
+
+        InputTrace.Arm();
+        item.IsSubMenuOpen = true;
+        Pump();
+
+        Assert.True(InputTrace.Summarize().PopupsOpened > 0,
+            "the trace did not see a submenu open");
     }
 
     /// <summary>The same, for a tooltip — the other thing that opens on hover.</summary>

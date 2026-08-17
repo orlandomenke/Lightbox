@@ -62,6 +62,9 @@ internal static class InputTrace
         CursorAssigned,
         PopupOpened,
         PopupClosed,
+
+        /// <summary>The UI thread stopped answering for longer than <see cref="StallMs"/>.</summary>
+        Stall,
     }
 
     /// <summary>One traced event. Detail carries the non-positional kinds' payload.</summary>
@@ -115,9 +118,14 @@ internal static class InputTrace
             _armedAtTicks = Stopwatch.GetTimestamp();
             Volatile.Write(ref _armed, true);
         }
+        StartHeartbeat();
     }
 
-    public static void Disarm() => Volatile.Write(ref _armed, false);
+    public static void Disarm()
+    {
+        Volatile.Write(ref _armed, false);
+        StopHeartbeat();
+    }
 
     private static double Now() =>
         (Stopwatch.GetTimestamp() - _armedAtTicks) / (double)Stopwatch.Frequency;
@@ -216,31 +224,170 @@ internal static class InputTrace
         _count++;
     }
 
+    // ---- the stall watch --------------------------------------------------------
+
+    /// <summary>
+    /// A tick later than this means the UI thread was blocked, not idle.
+    /// </summary>
+    /// <remarks>
+    /// Generous on purpose: the timer asks for 100 ms, and an ordinary busy
+    /// frame can miss one. A quarter of a second is past anything the artist
+    /// would call responsive, so what this records is a freeze rather than a
+    /// hiccup.
+    /// </remarks>
+    internal const double StallMs = 250;
+
+    private const double HeartbeatMs = 100;
+
+    private static Avalonia.Threading.DispatcherTimer? _heartbeat;
+    private static double _lastBeat;
+    private static double _worstStall;
+    private static int _stalls;
+
+    /// <summary>
+    /// Watch for the UI thread going away, because silence in the event stream
+    /// has two completely different meanings.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The first real trace could not answer the question it most needed
+    /// to.</b> It contained 16.4 seconds in which no event of any kind reached
+    /// the canvas, and the reporter said the application had frozen around
+    /// then. Both readings fit the same silence exactly: a blocked UI thread
+    /// delivers nothing, and a pointer that is over a menu — outside the canvas
+    /// — also delivers nothing. The trace watches the canvas, so it cannot tell
+    /// those apart, and guessing between them is how B126 got its first wrong
+    /// cause.
+    /// </para>
+    /// <para>
+    /// A heartbeat can. It ticks on the dispatcher whether or not anything is
+    /// pointed at, so a late tick is the UI thread being blocked and nothing
+    /// else. The report then says which of the two a silence was, rather than
+    /// leaving the reporter's memory to arbitrate.
+    /// </para>
+    /// </remarks>
+    private static void StartHeartbeat()
+    {
+        try
+        {
+            _lastBeat = Now();
+            _worstStall = 0;
+            _stalls = 0;
+            _heartbeat ??= new Avalonia.Threading.DispatcherTimer(
+                TimeSpan.FromMilliseconds(HeartbeatMs),
+                Avalonia.Threading.DispatcherPriority.Background,
+                (_, _) => Beat());
+            _heartbeat.Start();
+        }
+        catch
+        {
+            // No dispatcher (a headless or non-UI caller): the pointer stream
+            // is still worth recording without the stall watch.
+        }
+    }
+
+    private static void Beat()
+    {
+        var now = Now();
+        var since = (now - _lastBeat) * 1000;
+        _lastBeat = now;
+        if (since < StallMs) return;
+        lock (Gate)
+        {
+            _stalls++;
+            _worstStall = Math.Max(_worstStall, since);
+            NoteLocked(new Entry(
+                now, Kind.Stall, PointerType.Mouse, -1, 0, 0, 0, 0, 0,
+                $"the UI thread was blocked for {since:F0} ms"));
+        }
+    }
+
+    private static void StopHeartbeat()
+    {
+        try { _heartbeat?.Stop(); }
+        catch { /* nothing to stop */ }
+    }
+
     // ---- wiring the popup layer ------------------------------------------------
 
     private static bool _popupsWired;
 
     /// <summary>
-    /// Observe every flyout and tooltip in the process, once. The property
-    /// observables outlive any window, which is exactly right for a
-    /// process-lifetime instrument; the handlers are a volatile read when the
-    /// trace is off.
+    /// Observe every popup in the process, once.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This watched the wrong two properties and reported "popups opened 0"
+    /// for a session that opened two.</b> The owner right-clicked the Layers
+    /// docker, opened the context menu's fly-out from a menu item, and the
+    /// trace recorded neither — while B254, the bug the popup half exists for,
+    /// is precisely about menus that collapse. A false zero is worse than no
+    /// counter: it reads as evidence of absence.
+    /// </para>
+    /// <para>
+    /// The cause is that neither of those is a <c>Flyout</c>.
+    /// <see cref="Avalonia.Controls.ContextMenu"/> derives from
+    /// <c>MenuBase</c> and has no <c>IsOpenProperty</c> of its own; a menu
+    /// item's fly-out is <see cref="Avalonia.Controls.MenuItem.IsSubMenuOpenProperty"/>.
+    /// <see cref="Avalonia.Controls.Primitives.Popup"/> is the primitive every
+    /// one of them is hosted in, so it is the hook that cannot miss a case,
+    /// and it is what should have been used first.
+    /// </para>
+    /// <para>
+    /// <b><see cref="Avalonia.Controls.Primitives.FlyoutBase"/> is deliberately
+    /// no longer watched.</b> A flyout's presenter lives in a <c>Popup</c>, so
+    /// watching both counted one flyout twice — and the count that would have
+    /// inflated is the collapsed-popup ratio, which is the number a fix for
+    /// B254 gets judged by. <see cref="Avalonia.Controls.ToolTip"/> stays,
+    /// because it can render into an overlay layer instead of a popup and is
+    /// the one case <c>Popup</c> does not cover.
+    /// </para>
+    /// </remarks>
     public static void WirePopups()
     {
         if (_popupsWired) return;
         _popupsWired = true;
         try
         {
-            Avalonia.Controls.Primitives.FlyoutBase.IsOpenProperty.Changed.AddClassHandler<
-                Avalonia.Controls.Primitives.FlyoutBase>(
-                (flyout, args) => Popup(flyout, flyout.GetType().Name, args.GetNewValue<bool>()));
-            Avalonia.Controls.ToolTip.IsOpenProperty.Changed.AddClassHandler<Avalonia.Controls.Control>(
-                (owner, args) => Popup(owner, $"ToolTip on {owner.GetType().Name}", args.GetNewValue<bool>()));
+            Avalonia.Controls.Primitives.Popup.IsOpenProperty.Changed
+                .AddClassHandler<Avalonia.Controls.Primitives.Popup>(
+                    (popup, args) => Popup(popup, DescribePopup(popup), args.GetNewValue<bool>()));
+            Avalonia.Controls.MenuItem.IsSubMenuOpenProperty.Changed
+                .AddClassHandler<Avalonia.Controls.MenuItem>(
+                    (item, args) => Popup(
+                        item, $"Submenu of “{item.Header}”", args.GetNewValue<bool>()));
+            Avalonia.Controls.ToolTip.IsOpenProperty.Changed
+                .AddClassHandler<Avalonia.Controls.Control>(
+                    (owner, args) => Popup(
+                        owner, $"ToolTip on {owner.GetType().Name}", args.GetNewValue<bool>()));
         }
         catch
         {
             // A trace that cannot see popups still sees the pointer stream.
+        }
+    }
+
+    /// <summary>
+    /// A popup named by what it is hosting, because "Popup" on its own does not
+    /// tell the reporter which thing collapsed.
+    /// </summary>
+    private static string DescribePopup(Avalonia.Controls.Primitives.Popup popup)
+    {
+        try
+        {
+            var child = popup.Child?.GetType().Name;
+            var host = popup.Parent?.GetType().Name ?? popup.TemplatedParent?.GetType().Name;
+            return (host, child) switch
+            {
+                (null, null) => "Popup",
+                (null, _) => $"Popup ({child})",
+                (_, null) => $"Popup in {host}",
+                _ => $"Popup in {host} ({child})",
+            };
+        }
+        catch
+        {
+            return "Popup";
         }
     }
 
@@ -264,6 +411,9 @@ internal static class InputTrace
         int PopupsOpened,
         int PopupsCollapsed,
         double? ShortestPopupMs,
+        int Stalls,
+        double WorstStallMs,
+        double LongestSilenceMs,
         IReadOnlyList<string> Verdicts);
 
     /// <summary>A popup that lived shorter than this collapsed rather than closed.</summary>
@@ -328,6 +478,17 @@ internal static class InputTrace
             var collapsed = PopupLives.Count(ms => ms < CollapsedPopupMs);
             var shortest = PopupLives.Count > 0 ? PopupLives.Min() : (double?)null;
 
+            // The longest run with nothing at all in it. Reported beside the
+            // stall count because the pair is what makes a silence readable:
+            // a long silence with no stall in it is the pointer having been
+            // somewhere else, and the same silence with a stall in it is a
+            // freeze.
+            double silence = 0;
+            for (var i = 1; i < entries.Length; i++)
+            {
+                silence = Math.Max(silence, (entries[i].Seconds - entries[i - 1].Seconds) * 1000);
+            }
+
             var deviceList = devices
                 .Select(kv => new DeviceSeen(kv.Key.Item1, kv.Key.Item2, kv.Value.Events, kv.Value.MaxP, kv.Value.Tilt))
                 .OrderByDescending(d => d.Events)
@@ -336,8 +497,10 @@ internal static class InputTrace
             return new Summary(
                 seconds, kept, _count > Capacity, deviceList,
                 alternations, moves, enters, exits, decided, assigned,
-                opened, collapsed, shortest,
-                Verdicts(seconds, deviceList, alternations, enters, exits, assigned, opened, collapsed));
+                opened, collapsed, shortest, _stalls, _worstStall, silence,
+                Verdicts(
+                    seconds, deviceList, alternations, enters, exits, assigned,
+                    opened, collapsed, _stalls, _worstStall, silence));
         }
     }
 
@@ -353,7 +516,10 @@ internal static class InputTrace
         int exits,
         int assigned,
         int opened,
-        int collapsed)
+        int collapsed,
+        int stalls,
+        double worstStall,
+        double silence)
     {
         var verdicts = new List<string>();
 
@@ -389,8 +555,28 @@ internal static class InputTrace
         {
             verdicts.Add(
                 $"Lightbox assigned the canvas cursor {assigned} time(s) in {seconds:F0} s and never "
-                + "changed its mind — if the arrow still flickered on screen, the alternation is below "
-                + "the app (driver or OS), and the fix is an upstream report carrying this trace.");
+                + "changed its mind, so nothing here is flipping it deliberately. If the arrow still "
+                + "flickered, it is the enter/exit churn above doing it: the canvas's hidden cursor "
+                + "only applies while the pointer is over the canvas, so every exit hands the window's "
+                + "arrow back for as long as the gap lasts. The cause is below the app; the cure need "
+                + "not be.");
+        }
+
+        // Said before the popup and churn lines, because a freeze changes what
+        // every other number in the report means.
+        if (stalls > 0)
+        {
+            verdicts.Add(
+                $"The UI thread was blocked {stalls} time(s), worst {worstStall / 1000:F1} s — the "
+                + "application really did stop answering, and any silence in the event list around "
+                + "that point is the freeze rather than the pointer being elsewhere.");
+        }
+        else if (silence > 2000)
+        {
+            verdicts.Add(
+                $"The longest silence was {silence / 1000:F1} s with no UI-thread stall in it — so "
+                + "nothing was frozen; the pointer was somewhere this trace does not watch (a menu, "
+                + "a docker, another window). Only the canvas is instrumented.");
         }
 
         if (opened > 0 && collapsed > 0)
@@ -450,6 +636,13 @@ internal static class InputTrace
             sb.AppendLine($"  popups opened         {summary.PopupsOpened}"
                 + (summary.ShortestPopupMs is { } s ? $", shortest life {s:F0} ms" : ""));
             sb.AppendLine($"  popups collapsed      {summary.PopupsCollapsed} (under {CollapsedPopupMs:F0} ms)");
+            sb.AppendLine($"  UI-thread stalls      {summary.Stalls}"
+                + (summary.Stalls > 0 ? $", worst {summary.WorstStallMs:F0} ms" : "")
+                + $" (over {StallMs:F0} ms)");
+            sb.AppendLine($"  longest silence       {summary.LongestSilenceMs:F0} ms"
+                + (summary.Stalls == 0 && summary.LongestSilenceMs > 2000
+                    ? " — no stall in it, so the pointer was off the canvas"
+                    : ""));
             sb.AppendLine();
 
             sb.AppendLine("verdicts");
@@ -536,6 +729,23 @@ internal static class InputTrace
             OpenPopups.Clear();
             _lastDecided = null;
             _lastAssigned = null;
+            _stalls = 0;
+            _worstStall = 0;
+        }
+        StopHeartbeat();
+    }
+
+    /// <summary>Record a stall without waiting for one — the tests own the clock.</summary>
+    internal static void NoteStallForTests(double seconds, double blockedMs)
+    {
+        if (!Volatile.Read(ref _armed)) return;
+        lock (Gate)
+        {
+            _stalls++;
+            _worstStall = Math.Max(_worstStall, blockedMs);
+            NoteLocked(new Entry(
+                seconds, Kind.Stall, PointerType.Mouse, -1, 0, 0, 0, 0, 0,
+                $"the UI thread was blocked for {blockedMs:F0} ms"));
         }
     }
 }
