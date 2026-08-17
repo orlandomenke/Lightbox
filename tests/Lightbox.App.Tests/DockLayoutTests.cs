@@ -20,11 +20,18 @@ public class DockLayoutTests
         // still absent until made — an empty palette stays empty.
         var layout = DockLayout.Default();
 
+        // Three slots, eight panels (Q109): the work group leads — project
+        // tree, reference sheets, tool options — then Layers on its own,
+        // then the colour family.
         Assert.Equal(
-            [DockPanelId.Project, DockPanelId.Layers,
-             DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient, DockPanelId.Channels,
-             DockPanelId.Sheets],
+            [DockPanelId.Project, DockPanelId.Sheets, DockPanelId.ToolOptions,
+             DockPanelId.Layers,
+             DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient, DockPanelId.Channels],
             layout.PanelsIn(DockSide.Right));
+        Assert.Equal(
+            [DockPanelId.Project, DockPanelId.Sheets, DockPanelId.ToolOptions],
+            layout.SlotOf(DockPanelId.Project));
+        Assert.Equal(DockPanelId.Project, layout.ActiveOf(layout.SlotOf(DockPanelId.Project)));
         Assert.Equal(
             [DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient, DockPanelId.Channels],
             layout.SlotOf(DockPanelId.Color));
@@ -43,15 +50,13 @@ public class DockLayoutTests
     public void DockingIntoAStripPutsThePanelAtTheAskedForPosition()
     {
         var layout = DockLayout.Default();
-        // Make room first: the default right side is already at the slot cap,
-        // and a full side is the cap's test, not this one's.
-        layout.Hide(DockPanelId.Sheets);
         layout.Dock(DockPanelId.Palette, DockSide.Right, 1);
 
         // Docking the palette to a slot of its own also takes it out of the
         // colour family's tabs, where the default layout keeps it.
         Assert.Equal(
-            [DockPanelId.Project, DockPanelId.Palette, DockPanelId.Layers,
+            [DockPanelId.Project, DockPanelId.Sheets, DockPanelId.ToolOptions,
+             DockPanelId.Palette, DockPanelId.Layers,
              DockPanelId.Color, DockPanelId.Gradient, DockPanelId.Channels],
             layout.PanelsIn(DockSide.Right));
         Assert.DoesNotContain(DockPanelId.Palette, layout.SlotOf(DockPanelId.Color));
@@ -118,7 +123,10 @@ public class DockLayoutTests
         // open a fifth strip lands as a tab in the nearest slot — nothing is
         // refused, and the panel is where the artist can see it.
         var layout = DockLayout.Default();
-        // Default right: Project, Layers, Colour family, Sheets — four slots.
+        // Default right is three slots since the work group landed (Q109):
+        // the group, Layers, and the colour family. Fill the fourth, which is
+        // this test's setup rather than its subject.
+        layout.Dock(DockPanelId.Symbols, DockSide.Right, 3);
         Assert.Equal(DockLayout.MaxSlotsPerSide, layout.SlotsIn(DockSide.Right).Count);
 
         layout.Dock(DockPanelId.Reference, DockSide.Right, 1);

@@ -25,12 +25,31 @@ public sealed class ToolOptionsDockerTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
-    public void AbsentUntilAskedFor()
+    public void ShipsDockedButBehindTheProjectTree()
     {
-        // The same rule the palette and the camera follow: a session that
-        // never opens it pays nothing for it.
+        // It used to be hidden until the gear asked, on the rule the palette
+        // and the camera follow. Q109 moved it: a tab costs a word in a header
+        // rather than a strip of sidebar, which is the same trade that put the
+        // palette and the gradient in front of people. So it is open — and it
+        // is not the tab you are looking at, which is how it costs nothing.
         var (_, vm) = Open();
-        Assert.False(vm.Workspace.ToolOptionsDockerVisible);
+
+        Assert.True(vm.Workspace.ToolOptionsDockerVisible);
+        Assert.False(vm.Workspace.IsActiveInItsSlot(DockPanelId.ToolOptions));
+        Assert.Contains(DockPanelId.Sheets, vm.Workspace.Layout.SlotOf(DockPanelId.ToolOptions));
+    }
+
+    [AvaloniaFact]
+    public void TheGearBringsItForwardRatherThanOnlyMarkingItVisible()
+    {
+        // The bug the docking change created and this pins: the panel is
+        // already visible, so a gear that only set visibility did nothing at
+        // all — for everybody, since every built-in now groups it.
+        var (_, vm) = Open();
+
+        vm.OpenToolOptionsCommand.Execute(null);
+
+        Assert.True(vm.Workspace.IsActiveInItsSlot(DockPanelId.ToolOptions));
     }
 
     [AvaloniaFact]

@@ -170,6 +170,30 @@ public sealed class WorkspaceStore
     /// and the graph editor tabbed behind it — three views over one set of
     /// records, as the reference's strip draws them.
     /// </summary>
+    /// <summary>
+    /// What the work is made of and what it is made with (Q109): the project
+    /// tree, the reference sheets for the subject, and the options of the tool
+    /// in hand.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Every built-in ships it</b>, Illustration included. The Project tab is
+    /// already absent until a document belongs to a project, so a single-image
+    /// arrangement shows reference and tool options and grows the third tab the
+    /// day work is filed — rather than the arrangement itself being different
+    /// for one workspace, which is the kind of rule nobody can recall later.
+    /// </para>
+    /// <para>
+    /// <b>Tool options is docked here rather than waiting for the gear.</b> It
+    /// was hidden by default on the argument that a panel should arrive when it
+    /// is first wanted; a tab costs a word in a header instead of a strip of
+    /// sidebar, which is the same trade that put the palette and the gradient in
+    /// front of people (Q109). The gear now brings the tab forward.
+    /// </para>
+    /// </remarks>
+    private static readonly DockPanelId[] ProjectFamily =
+        [DockPanelId.Project, DockPanelId.Sheets, DockPanelId.ToolOptions];
+
     private static readonly DockPanelId[] TimelineFamily =
         [DockPanelId.Timeline, DockPanelId.Xsheet, DockPanelId.GraphEditor];
 
@@ -183,44 +207,47 @@ public sealed class WorkspaceStore
             Layout = DockLayout.Default(),
         });
         store.Workspaces.Add(Built("Illustration", ProjectType.Illustration,
-            right: [[DockPanelId.Layers], Colour],
+            right: [ProjectFamily, [DockPanelId.Layers], Colour],
             bottom: [],
             quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
                     QuickBarCatalog.FillOptions, QuickBarCatalog.GradientOptions,
                     QuickBarCatalog.ShapeOptions, QuickBarCatalog.GuideOptions]));
         store.Workspaces.Add(Built("Animation", ProjectType.Animation,
-            right: [[DockPanelId.Project], [DockPanelId.Layers], Colour],
+            right: [ProjectFamily, [DockPanelId.Layers], Colour],
             bottom: [TimelineFamily],
             quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
                     QuickBarCatalog.Transport, QuickBarCatalog.AddFrame,
                     QuickBarCatalog.GuideOptions]));
         store.Workspaces.Add(Built("Game art", ProjectType.GameArt,
-            right: [[DockPanelId.Project], [DockPanelId.Layers],
-                    [DockPanelId.Palette, DockPanelId.Color, DockPanelId.Channels]],
+            // The colour family rather than a hand-picked three: Gradient was
+            // missing here and in Asset library for no reason anybody recorded,
+            // so those two workspaces could not reach it at all (Q109).
+            right: [ProjectFamily, [DockPanelId.Layers], Colour],
             bottom: [TimelineFamily],
             quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
                     QuickBarCatalog.FillOptions, QuickBarCatalog.Transport,
                     QuickBarCatalog.AddFrame, QuickBarCatalog.GuideOptions]));
         store.Workspaces.Add(Built("Storyboard", ProjectType.Storyboard,
-            right: [[DockPanelId.Project], [DockPanelId.Sheets]],
+            right: [ProjectFamily, Colour],
             bottom: [TimelineFamily],
             quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.Transport,
                     QuickBarCatalog.AddFrame]));
         store.Workspaces.Add(Built("Comic", ProjectType.Comic,
-            right: [[DockPanelId.Project], [DockPanelId.Layers], Colour, [DockPanelId.Sheets]],
+            right: [ProjectFamily, [DockPanelId.Layers], Colour],
             bottom: [],
             quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
                     QuickBarCatalog.FillOptions, QuickBarCatalog.ShapeOptions,
                     QuickBarCatalog.GuideOptions]));
         store.Workspaces.Add(Built("Asset library", ProjectType.AssetLibrary,
-            right: [[DockPanelId.Project],
-                    [DockPanelId.Palette, DockPanelId.Color, DockPanelId.Channels]],
-            bottom: [],
+            right: [ProjectFamily, Colour],
+            // A sprite sheet is a character cycle, which is animation by
+            // another name — so the timeline family opens here too (Q109).
+            bottom: [TimelineFamily],
             quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.SelectOptions]));
         store.Current = "Default";

@@ -44,15 +44,23 @@ public sealed class TabSwitchCrashTests : BrushStateIsolated
         return (window, (MainViewModel)window.DataContext!);
     }
 
-    private static ListBox Strip(MainWindow w) =>
+    /// <summary>
+    /// The tab strip of the docker holding <paramref name="id"/>.
+    /// </summary>
+    /// <remarks>
+    /// By the panel rather than "the first docker with tabs": the default
+    /// layout ships two groups on the right now (Q109), so first-with-tabs
+    /// finds the work group instead of the one these tests build.
+    /// </remarks>
+    private static ListBox Strip(MainWindow w, DockPanelId id) =>
         w.FindControl<DockStrip>("RightStrip")!.Children.OfType<Docker>()
-            .First(d => d.Tabs?.Count() > 1)
+            .First(d => d.Tabs?.Any(t => t.Id == id) == true)
             .GetVisualDescendants().OfType<ListBox>().First();
 
     /// <summary>Click a tab the way the pointer does: through the ListBox.</summary>
     private static void ClickTab(MainWindow w, DockPanelId id)
     {
-        var strip = Strip(w);
+        var strip = Strip(w, id);
         var item = strip.Items.OfType<DockPanelInfo>().First(t => t.Id == id);
         strip.SelectedItem = item;
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
@@ -119,8 +127,10 @@ public sealed class TabSwitchCrashTests : BrushStateIsolated
         {
             ClickTab(w, target);
 
+            // The docker holding the pair under test, not merely the first
+            // tabbed one: the default right side ships two groups now (Q109).
             var docker = w.FindControl<DockStrip>("RightStrip")!.Children.OfType<Docker>()
-                .First(d => d.Tabs?.Count() > 1);
+                .First(d => d.Tabs?.Any(t => t.Id == DockPanelId.Layers) == true);
             var strip = docker.GetVisualDescendants().OfType<ListBox>().First();
             Assert.Equal(target, docker.PanelId);
             var lit = Assert.IsType<DockPanelInfo>(strip.SelectedItem);

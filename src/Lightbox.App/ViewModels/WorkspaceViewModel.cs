@@ -432,6 +432,18 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     /// </remarks>
     public void Activate(DockPanelId id) => Mutate(l => l.Activate(id));
 
+    /// <summary>
+    /// Whether this panel is the tab showing in its slot — false when it is
+    /// docked but behind one of its group.
+    /// </summary>
+    /// <remarks>
+    /// Visible and showing stopped being the same question when the built-ins
+    /// started shipping groups (Q109): a panel can be open, on screen, and the
+    /// tab nobody can see.
+    /// </remarks>
+    public bool IsActiveInItsSlot(DockPanelId id) =>
+        _layout.IsVisible(id) && _layout.ActiveOf(_layout.SlotOf(id)) == id;
+
     // ---- named workspaces ----------------------------------------------------
 
     /// <summary>
