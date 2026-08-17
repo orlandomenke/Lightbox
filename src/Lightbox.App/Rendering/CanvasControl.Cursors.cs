@@ -90,6 +90,11 @@ public sealed partial class CanvasControl
         CanvasCursorKind.Resize => PointerCursors.ResizeAt(choice.Angle),
         CanvasCursorKind.Grab => PointerCursors.Grab,
         CanvasCursorKind.Rotate => PointerCursors.Turn,
+        // The crosshair with its +/−: the select family saying whether this
+        // press adds to or carves from the selection. Paint's badge rides the
+        // brush ring instead — its platform cursor is hidden.
+        CanvasCursorKind.Precise when choice.Badge is not CursorBadge.None =>
+            PointerCursors.PreciseBadged(choice.Badge),
         _ => PointerCursors.For(choice.Kind),
     };
 
@@ -171,7 +176,7 @@ public sealed partial class CanvasControl
         }
 
         // ---- the tool's own intent ----------------------------------------------
-        return PointerIntent;
+        return new CanvasCursorChoice(PointerIntent, Badge: PointerBadge);
     }
 
     /// <summary>The cursor for one part of the transform gizmo.</summary>

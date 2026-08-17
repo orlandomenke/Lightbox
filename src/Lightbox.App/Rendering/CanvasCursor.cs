@@ -79,7 +79,8 @@ public enum CanvasCursorKind
 /// Degrees clockwise from screen-right, for <see cref="CanvasCursorKind.Resize"/>.
 /// Meaningless and zero for every other kind.
 /// </param>
-public readonly record struct CanvasCursorChoice(CanvasCursorKind Kind, double Angle = 0)
+public readonly record struct CanvasCursorChoice(
+    CanvasCursorKind Kind, double Angle = 0, CursorBadge Badge = CursorBadge.None)
 {
     public static implicit operator CanvasCursorChoice(CanvasCursorKind kind) => new(kind);
 
@@ -89,6 +90,30 @@ public readonly record struct CanvasCursorChoice(CanvasCursorKind Kind, double A
         // are the same axis compare equal — a double arrow at 200° IS the one
         // at 20°, and a test should not have to know which the caller produced.
         new(CanvasCursorKind.Resize, ((degrees % 180) + 180) % 180);
+}
+
+/// <summary>
+/// The small +/− the pointer wears when a press would add to or carve from
+/// something that accumulates — a selection combined with Shift or Alt, the
+/// weight brush in Add or Subtract mode.
+/// </summary>
+/// <remarks>
+/// The owner's request, 2026-08-17: the same gesture means opposite things
+/// under a modifier or a mode, and nothing on the canvas said which was armed
+/// — a Subtract weight stroke looks exactly like an Add one until the heat
+/// moves the wrong way. The badge is the cursor saying which, before the
+/// press. It decorates the kind rather than replacing it, which is why it is
+/// a field on the choice and not four more enum members.
+/// </remarks>
+public enum CursorBadge
+{
+    None,
+
+    /// <summary>This press builds: adds to the selection, paints influence up.</summary>
+    Add,
+
+    /// <summary>This press carves: subtracts from the selection, paints influence away.</summary>
+    Subtract,
 }
 
 /// <summary>
@@ -289,6 +314,25 @@ public static class CanvasCursor
             BoneGrab.Tip => CanvasCursorKind.Rotate,
             _ => CanvasCursorKind.Move,
         };
+    }
+
+    /// <summary>
+    /// The +/− a held modifier gives the tools whose gesture combines — today
+    /// the select family, whose shapes and wand Shift-add and Alt-subtract.
+    /// </summary>
+    /// <remarks>
+    /// Pure and per-tool on purpose: the badge only appears where the canvas
+    /// actually branches on the modifier, because a + on a tool that ignores
+    /// Shift would be inventing behaviour — the same rule
+    /// <see cref="Effective"/> already keeps for kinds. Shift outranks Alt
+    /// when both are down, matching the combine itself.
+    /// </remarks>
+    public static CursorBadge CombineBadge(ToolId tool, KeyModifiers modifiers)
+    {
+        if (tool != ToolId.Select) return CursorBadge.None;
+        if (modifiers.HasFlag(KeyModifiers.Shift)) return CursorBadge.Add;
+        if (modifiers.HasFlag(KeyModifiers.Alt)) return CursorBadge.Subtract;
+        return CursorBadge.None;
     }
 
     /// <summary>

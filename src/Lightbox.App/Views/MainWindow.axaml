@@ -1660,7 +1660,7 @@
         <Panel x:Name="CanvasHost" Grid.Row="0">
           <render:CanvasControl x:Name="Canvas" BrushCursorSize="{Binding BrushCursorDiameter}" LazyRadius="{Binding LazyRadiusForCursor}"
                                 Solo="{Binding ChannelSolo}"
-                                PointerIntent="{Binding PointerIntent}"
+                                PointerIntent="{Binding PointerIntent}" PointerBadge="{Binding PointerBadge}"
                                 DocumentOrigin="{Binding DocumentOrigin}"
                                 BrushCursorTipId="{Binding BrushCursorTipId}"
                                 BrushCursorRoundness="{Binding BrushCursorRoundness}" BrushCursorAngle="{Binding BrushCursorAngle}"

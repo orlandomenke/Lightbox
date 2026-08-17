@@ -131,6 +131,23 @@ public sealed class Doc
     public bool HasArmature => Armature is { Bones.Count: > 0 };
 
     /// <summary>
+    /// The timeline frame the artist was parked on when the document was
+    /// saved, or null — and null is every document saved at frame 0, which is
+    /// most of them. Restored on open, so a scene reopens showing what it
+    /// showed when it was put down (Q111): a rig posed at frame 30 stands at
+    /// frame 30's pose again instead of snapping to rest at frame 0, which
+    /// read as "the bones load in a different spot".
+    /// </summary>
+    /// <remarks>
+    /// Nullable for <see cref="IsTemplate"/>'s serializer reason: optional
+    /// means absent, and frame 0 is the default nobody needs written down.
+    /// Stamped by the save funnel rather than tracked live — the playhead is
+    /// view state (invariant 5) and only crosses into the record at the
+    /// moment the record is written.
+    /// </remarks>
+    public int? PlayheadFrame { get; set; }
+
+    /// <summary>
     /// Marks this document as a template: a starting point other animations are
     /// copied from. Q12's answer, and deliberately the whole of it.
     /// </summary>

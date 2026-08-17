@@ -219,6 +219,17 @@ public sealed class ShortcutMap
             new("tool.bone", "Bone (rig, pose, weights)", "Tools", G(Key.K)),
             new("armature.weightPaint", "Toggle the weight brush (bone tool)", "Canvas", G(Key.K, KeyModifiers.Control | KeyModifiers.Shift)),
             new("armature.posingMode", "Toggle posing (bone tool: bind or pose)", "Canvas", G(Key.K, KeyModifiers.Shift)),
+            // One press into a weight-paint mode from anywhere — the answer to
+            // "start subtracting" costing a tool change, a toggle and a
+            // dropdown. Shift'ed digits because the bare ones flip pose keys
+            // (timeline.prevKey/nextKey), and 1/2/3 order matches the mode
+            // dropdown's.
+            new("armature.weightAdd", "Weight brush: paint influence (Add)", "Canvas",
+                G(Key.D1, KeyModifiers.Shift)),
+            new("armature.weightSubtract", "Weight brush: erase influence (Subtract)", "Canvas",
+                G(Key.D2, KeyModifiers.Shift)),
+            new("armature.weightSmooth", "Weight brush: smooth influence", "Canvas",
+                G(Key.D3, KeyModifiers.Shift)),
             // No default gesture, for `lines.recolour`'s reason: Delete already
             // reaches it — `select.clear` asks the armature first while the
             // Bone tool is in hand — and being here is what lets an artist give

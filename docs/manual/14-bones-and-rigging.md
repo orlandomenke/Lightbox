@@ -49,6 +49,12 @@ because its first drag is what *creates* the rig.
   again, and it stays where you put it from then on. **Add child** in the
   options panel does the same without aiming, and **Length** sets a bone's
   size by number instead of by drag.
+- **A dashed line tethers every separated joint to its parent's tip**, so
+  hierarchy stays visible when bones stand apart: a glued joint reads as
+  touching, a parented-but-offset one reads as tethered, and a bone with no
+  line to anywhere is a root. The tether follows live while you drag, and it
+  answers what you are looking at — a glued joint keyed apart by a pose
+  translation shows the tether too, because right now it *is* apart.
 - **Rename** a bone in the options panel — a pair ending `.l` and `.r` is what
   X-symmetry reads. **Delete** (the button, or the **Delete** key while the
   Bone tool is in hand) removes it and re-parents its children to its
@@ -258,9 +264,22 @@ each part of it.
 
 - The **weight brush** (**Ctrl+Shift+K** while the Bone tool is active)
   paints influence for the selected bone directly on the canvas: pressure
-  drives strength, weights normalise themselves (painting one bone up takes
-  the others down, a locked bone holds), and a whole brush stroke is one
-  undo step. With **X-symmetry** on, painting one side of a named pair
+  drives strength (a mouse paints at full strength, like every brush),
+  weights normalise themselves (painting one bone up takes the others down,
+  a locked bone holds), and a whole brush stroke is one undo step.
+  **Red means the selected bone owns those points** — it is not a warning
+  colour. To *exclude* a region from moving, do the opposite of painting it
+  red: select the bone that currently owns it and paint there with
+  **Subtract**. What no bone claims holds still at rest.
+  The brush ring wears a **+** or **−** beside it saying which way the next
+  stroke will paint, and the modes have their own keys: **Shift+1** arms
+  Add, **Shift+2** Subtract, **Shift+3** Smooth — from any tool, in one
+  press. The ring is the weight brush's own radius, whatever the paint
+  brush is set to. Points painted
+  part-way (purple, between blue and red) land between their rest and posed
+  positions, which is also the answer to a line that seems to twist in
+  depth as a bone turns: push its weights to fully red or fully blue and it
+  moves rigidly or not at all. With **X-symmetry** on, painting one side of a named pair
   (`hip.l` / `hip.r`) paints the other side too, mirrored across the pair's
   own axis — the character's spine, wherever it sits on the paper, and the
   mirrored dab lands on the other limb **wherever its own pose put it**.

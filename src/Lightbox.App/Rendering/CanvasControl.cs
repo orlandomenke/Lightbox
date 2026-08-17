@@ -68,6 +68,9 @@ public sealed partial class CanvasControl : Control
             BrushCursorTipIdProperty,
             BrushCursorRoundnessProperty,
             BrushCursorAngleProperty,
+            // The badge rides the brush ring, which is drawn by the render op
+            // — so a mode flip must repaint the same way a size change does.
+            PointerBadgeProperty,
             LazyRadiusProperty,
             SoloProperty,
             PickSampleHexProperty,
@@ -96,6 +99,11 @@ public sealed partial class CanvasControl : Control
                 }
                 control.Cursor = PointerCursors.For(e.NewValue.GetValueOrDefault());
             });
+
+        // The badge's platform-cursor half (the select family's crosshair);
+        // the ring's copy is covered by RepaintOnChange above.
+        PointerBadgeProperty.Changed.AddClassHandler<CanvasControl, CursorBadge>(
+            (control, _) => control.RefreshCanvasCursor());
     }
 
     /// <summary>Current tool size in document units — drives the brush-shape cursor.</summary>
@@ -1886,11 +1894,13 @@ public sealed partial class CanvasControl : Control
         if (_hoverPoint is { } p && PointerIntent != CanvasCursorKind.Pick)
         {
             var radius = (float)Math.Max(1.0, BrushCursorSize / 2 * FitScale() * _zoom);
+            // Paint hides the platform cursor, so the ring carries the badge.
             cursor = new BrushCursor(
                 (float)p.X, (float)p.Y, radius,
                 (float)Math.Clamp(BrushCursorRoundness, 0.05, 1.0),
                 (float)BrushCursorAngle,
-                TipOutlinePath(BrushCursorTipId));
+                TipOutlinePath(BrushCursorTipId),
+                PointerIntent == CanvasCursorKind.Paint ? PointerBadge : CursorBadge.None);
         }
         var pickRing = PickRingNow();
 
@@ -3907,7 +3917,7 @@ public sealed partial class CanvasControl : Control
             Avalonia.Threading.DispatcherPriority.Background);
     }
 
-    private sealed class DrawOp(
+    private sealed partial class DrawOp(
         Rect bounds, RenderSnapshot snapshot, ViewState view, BrushCursor? cursor,
         SKPath? ants, SKPath? antsOpen, float antsPhase, LazyGizmo? lazy = null,
         TxGizmoData? txGizmo = null, Action<long>? onRendered = null,
@@ -4817,64 +4827,7 @@ public sealed partial class CanvasControl : Control
         /// what makes the pair read as one edge instead of two.
         /// </para>
         /// </remarks>
-        private static void DrawBrushCursor(SKCanvas canvas, BrushCursor c)
-        {
-            using var dark = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1.2f,
-                Color = new SKColor(0, 0, 0, 200),
-            };
-            using var light = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1.2f,
-                Color = new SKColor(255, 255, 255, 200),
-            };
-
-            if (c.Outline is { } outline)
-            {
-                // Unit space to view space: the diameter is 2r, and the tip's own
-                // aspect is already in the traced contour — so roundness flattens
-                // it further rather than defining it, exactly as the engine
-                // multiplies roundness onto whatever tip it is stamping.
-                canvas.Save();
-                canvas.Translate(c.X, c.Y);
-                if (c.AngleDeg != 0) canvas.RotateDegrees(c.AngleDeg);
-                canvas.Scale(c.Radius * 2, c.Radius * 2 * c.Roundness);
-                // The stroke is scaled with the canvas, so undo it in the paint or
-                // a big brush gets a fat ring and a small one gets none.
-                dark.StrokeWidth = 1.2f / (c.Radius * 2);
-                light.StrokeWidth = 1.2f / (c.Radius * 2);
-                canvas.DrawPath(outline, dark);
-                canvas.Restore();
-
-                canvas.Save();
-                canvas.Translate(c.X, c.Y);
-                if (c.AngleDeg != 0) canvas.RotateDegrees(c.AngleDeg);
-                var inner = Math.Max(0.5f, c.Radius - 1.2f);
-                canvas.Scale(inner * 2, inner * 2 * c.Roundness);
-                canvas.DrawPath(outline, light);
-                canvas.Restore();
-                return;
-            }
-
-            if (c.Roundness < 0.999f || c.AngleDeg != 0)
-            {
-                canvas.Save();
-                canvas.Translate(c.X, c.Y);
-                if (c.AngleDeg != 0) canvas.RotateDegrees(c.AngleDeg);
-                canvas.DrawOval(new SKRect(-c.Radius, -c.Radius * c.Roundness, c.Radius, c.Radius * c.Roundness), dark);
-                var r = Math.Max(0.5f, c.Radius - 1.2f);
-                canvas.DrawOval(new SKRect(-r, -r * c.Roundness, r, r * c.Roundness), light);
-                canvas.Restore();
-                return;
-            }
-
-            canvas.DrawCircle(c.X, c.Y, c.Radius, dark);
-            canvas.DrawCircle(c.X, c.Y, Math.Max(0.5f, c.Radius - 1.2f), light);
-        }
+        // DrawBrushCursor lives in CanvasControl.Pointer.cs — the pointer
+        // gizmos' own file, and this one is on the ratchet.
     }
 }

@@ -49,10 +49,18 @@ public partial class MainViewModel
     {
         get
         {
+            // B253: the armed weight brush is the pointer (its platform cursor
+            // is hidden), so the ring must be ITS radius — it read the paint
+            // brush's size here, and the artist aimed a 24px dab with a ring
+            // of whatever the ink brush happened to be.
+            if (WeightBrushRingsThePointer) return Math.Max(1, WeightBrushRadius * 2);
             var pressure = CursorTracksPressure ? _cursorPressure : 1;
             return Math.Max(1, BrushEngine.RadiusAt(CurrentToolSettings, pressure) * 2);
         }
     }
+
+    /// <summary>The armed weight brush owns the ring: round, unrotated, its own radius.</summary>
+    private bool WeightBrushRingsThePointer => ActiveTool == ToolId.Bone && WeightPainting;
 
     /// <summary>
     /// The tip the ring should outline, or null for the round dab.
@@ -63,7 +71,8 @@ public partial class MainViewModel
     /// rather than being told a shape. Null on a brush with no tip, which is the
     /// honest answer and not a shrug — the round dab really is an ellipse.
     /// </remarks>
-    public string? BrushCursorTipId => CurrentToolSettings.TipId;
+    public string? BrushCursorTipId =>
+        WeightBrushRingsThePointer ? null : CurrentToolSettings.TipId;
 
     /// <summary>How flat the ring should be: 1 round, less an ellipse.</summary>
     /// <remarks>
@@ -73,7 +82,8 @@ public partial class MainViewModel
     /// moved and report the jitter rather than the brush — the same reason
     /// invariant 2 exists, seen from the UI side.
     /// </remarks>
-    public double BrushCursorRoundness => Math.Clamp(CurrentToolSettings.Roundness, 0.05, 1);
+    public double BrushCursorRoundness =>
+        WeightBrushRingsThePointer ? 1 : Math.Clamp(CurrentToolSettings.Roundness, 0.05, 1);
 
     /// <summary>
     /// The ring's angle in degrees, so a chisel is previewed at the angle it will
@@ -86,7 +96,8 @@ public partial class MainViewModel
     /// it in here would mean inventing one; <c>RotationJitter</c> is seeded from the
     /// dab's position and belongs to the mark rather than to the brush.
     /// </remarks>
-    public double BrushCursorAngle => CurrentToolSettings.TipRotationDeg;
+    public double BrushCursorAngle =>
+        WeightBrushRingsThePointer ? 0 : CurrentToolSettings.TipRotationDeg;
 
     /// <summary>Canvas reports what the pen is doing; the ring follows it.</summary>
     public void SetCursorPressure(double pressure, bool penDown)

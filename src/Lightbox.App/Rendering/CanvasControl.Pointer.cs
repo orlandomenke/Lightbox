@@ -110,7 +110,22 @@ public sealed partial class CanvasControl
         float X, float Y, float Radius,
         float Roundness = 1f,
         float AngleDeg = 0f,
-        SKPath? Outline = null);
+        SKPath? Outline = null,
+        CursorBadge Badge = CursorBadge.None);
+
+    /// <summary>
+    /// The +/− the pointer wears (<see cref="CursorBadge"/>): pushed from the
+    /// view model like <see cref="PointerIntent"/>, worn by the crosshair for
+    /// the select family and by the brush ring for the armed weight brush.
+    /// </summary>
+    public static readonly StyledProperty<CursorBadge> PointerBadgeProperty =
+        AvaloniaProperty.Register<CanvasControl, CursorBadge>(nameof(PointerBadge));
+
+    public CursorBadge PointerBadge
+    {
+        get => GetValue(PointerBadgeProperty);
+        set => SetValue(PointerBadgeProperty, value);
+    }
 
     /// <summary>
     /// The tip's outline as a unit-space path, built once per tip.
@@ -125,6 +140,78 @@ public sealed partial class CanvasControl
     /// </remarks>
     private string? _outlineTipId;
     private SKPath? _outlinePath;
+
+    private sealed partial class DrawOp
+    {
+        /// <summary>The brush ring — the pointer itself while paint hides the platform cursor.</summary>
+        private static void DrawBrushCursor(SKCanvas canvas, BrushCursor c)
+        {
+            using var dark = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1.2f,
+                Color = new SKColor(0, 0, 0, 200),
+            };
+            using var light = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1.2f,
+                Color = new SKColor(255, 255, 255, 200),
+            };
+
+            if (c.Outline is { } outline)
+            {
+                // Unit space to view space: the diameter is 2r, and the tip's own
+                // aspect is already in the traced contour — so roundness flattens
+                // it further rather than defining it, exactly as the engine
+                // multiplies roundness onto whatever tip it is stamping.
+                canvas.Save();
+                canvas.Translate(c.X, c.Y);
+                if (c.AngleDeg != 0) canvas.RotateDegrees(c.AngleDeg);
+                canvas.Scale(c.Radius * 2, c.Radius * 2 * c.Roundness);
+                // The stroke is scaled with the canvas, so undo it in the paint or
+                // a big brush gets a fat ring and a small one gets none.
+                dark.StrokeWidth = 1.2f / (c.Radius * 2);
+                light.StrokeWidth = 1.2f / (c.Radius * 2);
+                canvas.DrawPath(outline, dark);
+                canvas.Restore();
+
+                canvas.Save();
+                canvas.Translate(c.X, c.Y);
+                if (c.AngleDeg != 0) canvas.RotateDegrees(c.AngleDeg);
+                var inner = Math.Max(0.5f, c.Radius - 1.2f);
+                canvas.Scale(inner * 2, inner * 2 * c.Roundness);
+                canvas.DrawPath(outline, light);
+                canvas.Restore();
+                return;
+            }
+
+            if (c.Roundness < 0.999f || c.AngleDeg != 0)
+            {
+                canvas.Save();
+                canvas.Translate(c.X, c.Y);
+                if (c.AngleDeg != 0) canvas.RotateDegrees(c.AngleDeg);
+                canvas.DrawOval(new SKRect(-c.Radius, -c.Radius * c.Roundness, c.Radius, c.Radius * c.Roundness), dark);
+                var r = Math.Max(0.5f, c.Radius - 1.2f);
+                canvas.DrawOval(new SKRect(-r, -r * c.Roundness, r, r * c.Roundness), light);
+                canvas.Restore();
+                return;
+            }
+
+            canvas.DrawCircle(c.X, c.Y, c.Radius, dark);
+            canvas.DrawCircle(c.X, c.Y, Math.Max(0.5f, c.Radius - 1.2f), light);
+
+            // The +/− beside the ring, lower-right in screen pixels — the
+            // weight brush's mode visible where the artist is looking.
+            if (c.Badge is not CursorBadge.None)
+            {
+                var at = c.Radius * 0.7071f + 8f;
+                CursorBadgePainter.Draw(canvas, c.X + at, c.Y + at, c.Badge);
+            }
+        }
+    }
 
     private SKPath? TipOutlinePath(string? tipId)
     {

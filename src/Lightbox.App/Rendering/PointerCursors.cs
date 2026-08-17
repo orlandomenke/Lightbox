@@ -81,6 +81,60 @@ public static class PointerCursors
     private static Cursor? _pick;
     private static Cursor? _fill;
 
+    /// <summary>
+    /// The precision crosshair wearing its +/− (<see cref="CursorBadge"/>):
+    /// the select family saying whether this press adds or carves. Cached per
+    /// badge; falls back to the plain crosshair where nothing can render.
+    /// </summary>
+    public static Cursor PreciseBadged(CursorBadge badge) => badge switch
+    {
+        CursorBadge.Add => _preciseAdd ??= DrawBadgedCross(badge) ?? Precise,
+        CursorBadge.Subtract => _preciseSubtract ??= DrawBadgedCross(badge) ?? Precise,
+        _ => Precise,
+    };
+
+    private static Cursor? _preciseAdd;
+    private static Cursor? _preciseSubtract;
+
+    /// <summary>The crosshair with a small +/− beside it, lower-right.</summary>
+    /// <remarks>
+    /// The same construction as <see cref="Badged"/> — halo under dark, the
+    /// hotspot on the crosshair, catch-and-fall-back — with a drawn glyph in
+    /// place of a registered icon, because + and − are strokes rather than
+    /// tool identities.
+    /// </remarks>
+    private static Cursor? DrawBadgedCross(CursorBadge badge)
+    {
+        try
+        {
+            var bitmap = new RenderTargetBitmap(
+                new PixelSize(CursorSize, CursorSize), new Vector(96, 96));
+            using (var ctx = bitmap.CreateDrawingContext())
+            {
+                var halo = new Pen(new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)), 3);
+                var line = new Pen(Brushes.Black, 1.25);
+
+                foreach (var pen in new[] { halo, line })
+                {
+                    ctx.DrawLine(pen, new Point(HotspotX, 1), new Point(HotspotX, 15));
+                    ctx.DrawLine(pen, new Point(1, HotspotY), new Point(15, HotspotY));
+
+                    // The badge, clear of the crosshair: a plus is two strokes,
+                    // a minus is the horizontal one alone.
+                    const double cx = 22, cy = 22, reach = 4;
+                    ctx.DrawLine(pen, new Point(cx - reach, cy), new Point(cx + reach, cy));
+                    if (badge is CursorBadge.Add)
+                        ctx.DrawLine(pen, new Point(cx, cy - reach), new Point(cx, cy + reach));
+                }
+            }
+            return new Cursor(bitmap, new PixelPoint(HotspotX, HotspotY));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     // ---- the angled cursors (B241) ---------------------------------------------------
 
     /// <summary>

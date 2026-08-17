@@ -163,7 +163,9 @@ in the stack, that part of its look can shift.
 ## Selections and transforms
 
 Marquee, freehand, polygon, ellipse and magic wand, with **Shift** to add and
-**Alt** to subtract. Grow, shrink and feather. A selection clips painting, and
+**Alt** to subtract — the crosshair wears a small **+** or **−** while the
+modifier is down, so which way the press will combine is visible before you
+make it. Grow, shrink and feather. A selection clips painting, and
 the clip is part of the record, so a reload paints the same shape. The wand
 shows the region it would take as a faint, still dashed outline before you
 click — faint and still so it cannot be read as a selection you already made.

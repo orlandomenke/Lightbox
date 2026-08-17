@@ -220,4 +220,72 @@ public class BoneChromeVisualTests
         vm.WeightPainting = true;
         Assert.Single(vm.HeatPoints);
     }
+
+    // ---- the parent tether: hierarchy stays visible when bones separate -------------
+
+    [Fact]
+    public void ASeparatedChildIsTetheredToItsParentByADashedLine()
+    {
+        // A child whose origin (60,100) stands apart from the parent tip the
+        // link names (200,100): the painter must dash the span between them.
+        using var bmp = OnWhite(
+        [
+            new BoneChrome("a", "parent", 200, 100, 240, 100, false),
+            new BoneChrome("b", "child", 60, 100, 60, 140, false, LinkX: 200, LinkY: 100),
+        ]);
+
+        // Sampled away from the child's origin handle and the parent's kite:
+        // the tether must put ink on this span, and gaps in it — a dashed
+        // line has both, a solid line has no gaps, a missing line no ink.
+        int dark = 0, paper = 0;
+        for (var x = 75; x <= 180; x++)
+        {
+            var c = bmp.GetPixel(x, 100);
+            var lum = (c.Red * 299 + c.Green * 587 + c.Blue * 114) / 1000;
+            if (lum < 140) dark++;
+            else if (lum > 245) paper++;
+        }
+        Assert.True(dark > 10, $"no tether drawn between parent tip and child origin: {dark} dark pixels");
+        Assert.True(paper > 10, $"the tether is solid, not dashed: {paper} paper pixels in the span");
+    }
+
+    [Fact]
+    public void AJointSittingOnTheParentsTipShowsNoTether()
+    {
+        // No link on the chrome — the connected case. The span between the
+        // two bones' shafts is bare paper.
+        using var bmp = OnWhite(
+        [
+            new BoneChrome("a", "parent", 200, 100, 240, 100, false),
+            new BoneChrome("b", "child", 60, 100, 60, 140, false),
+        ]);
+        var darkest = MinLuminanceAcross(bmp, 75, 180, 100);
+        Assert.True(darkest > 245, $"something drawn where no tether belongs: darkest {darkest}");
+    }
+
+    /// <summary>
+    /// The view model's half of the tether: solved placements decide it, so a
+    /// connected child shows none, an offset child shows its parent's tip.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheChromeCarriesTheTetherForOffsetChildrenOnly()
+    {
+        var vm = new MainViewModel(artist: null);
+        vm.NewDocument(new NewDocumentSettings("Rig", 400, 300, 12, 72, "#ffffff", false));
+        vm.ArmatureEditMode = true;
+
+        vm.CreateBoneFromDrag(100, 150, 160, 150);      // root, tip at (160,150)
+        var root = vm.SelectedBoneId!;
+        vm.CreateBoneFromDrag(220, 200, 260, 220);      // offset child of the root
+        var offset = vm.SelectedBoneId!;
+        vm.SelectedBoneId = root;
+        vm.ExtrudeChildFrom(root, 200, 150);            // glued to the root's tip
+        var glued = vm.SelectedBoneId!;
+
+        var chrome = vm.BoneChromes.ToDictionary(c => c.Id);
+        Assert.Null(chrome[root].LinkX);                // a root answers to nobody
+        Assert.Null(chrome[glued].LinkX);               // touching reads as connected
+        Assert.Equal(160, chrome[offset].LinkX!.Value, 6);
+        Assert.Equal(150, chrome[offset].LinkY!.Value, 6);
+    }
 }

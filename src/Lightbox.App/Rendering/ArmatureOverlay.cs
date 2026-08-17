@@ -43,7 +43,16 @@ public readonly record struct BoneChrome(
     bool Selected,
     /// <summary>An IK handle or pole rather than a bone of the body — drawn apart, because it is dragged for a different reason.</summary>
     bool IsHandle = false,
-    BoneGhost Ghost = BoneGhost.None);
+    BoneGhost Ghost = BoneGhost.None,
+    /// <summary>
+    /// Where this bone's parent ends — its solved tip — when the bone stands
+    /// apart from it; null for a root or a joint sitting on the tip. The
+    /// painter hangs a dashed link off it, so hierarchy stays visible when
+    /// bones separate: what is connected reads as touching, what is merely
+    /// parented reads as tethered (owner's request, 2026-08-17).
+    /// </summary>
+    double? LinkX = null,
+    double? LinkY = null);
 
 /// <summary>Which part of a bone a press grabbed.</summary>
 public enum BoneGrab

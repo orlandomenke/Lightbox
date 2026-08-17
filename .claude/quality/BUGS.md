@@ -452,6 +452,12 @@ which is a weak test and still far better than none.
   - Distinct from **B10**, which was swatch *links* dying when a project was saved and reloaded and is fixed: this is the swatch itself never reaching the file. B10's guards (`ASavedProjectKeepsItsSwatchIds`) check that an id survives, which passes whether or not the palette entry behind it was written.
   - `AProjectThatNeverAsksForThisWritesNoBrushKey` is the pattern the fix should follow — a palette that was never touched must still write nothing. Cost: M
 
+### project
+
+- [ ] **B252** `P3` `project` bugs.py freeid question issues ids already cited in source comments `evidence: FreeIdSeesIdsCitedOnlyInSource`
+  - Found 2026-08-17: `freeid question` returned Q110 while `src/` already cites Q101–Q110 in comments — the questions *directory* tops out at Q99, and the scan reads it (plus refs) but not code citations, so every question decided in-conversation and cited in code without a file is invisible to it. The collision the issuer exists to prevent, one layer up. Q111 was taken by hand for the playhead decision after grepping the tree for the true ceiling.
+  - Filed rather than fixed, and the reason is the moment: this branch's objective is the bone system, and changing the id-issuing script mid-branch while depending on it is how a renumber goes wrong. The fix is one grep over the tree in `freeid`'s scan — small, its own branch.
+
 ### ui
 
 - [ ] **B180** `P3` `ui` `PaletteHierarchyTests.RenamingARowRenamesTheModel` fails about one full run in four - a sighting of B93, not a palette fault `evidence: manual`
@@ -645,6 +651,10 @@ test reopens the bug.
   - Fix: `SKBlendMode.Src`. A blur **replaces** its dab with the softened version; there was never a reason to composite a second copy over the first.
   - Measured: peak alpha on a wash of 60 stays **60** after a blur. It used to climb to opaque. Cost: S
   - **Smudge and blender have the same runaway and it is not fixed — that is B38.** Splitting them because the fixes are not the same size: blur replaces a region and `Src` says exactly that, while a smudge has to blend and there is no blend mode for it.
+
+- [x] **B250** `P2` `brush` The weight brush reads a mouse as half pressure, so influence builds at half strength `evidence: AMouseDabsAtFullStrength, APenKeepsItsPressureAxis`
+  - Owner's report, 2026-08-17: "I needed to paint many many times to turn it red." The weight path had its own pressure helper (`raw <= 0 ? 1.0 : raw`) that passed a mouse's ~0.5 straight into the dab, while the paint brush's `PressureOf(PointerPoint)` has always treated any non-pen pointer as full pressure. Half strength into the 0.35 per-dab rate roughly doubles the passes to saturate a region.
+  - Fixed by giving the weight brush the paint brush's rule, as a pure function (`CanvasControl.WeightPressure`) the tests can hold without synthesizing pointer events.
 
 - [x] **B226** `P2` `brush` A performance test divides by a three-microsecond measurement and fails on CI at random `evidence: FillCostFollowsTheRegionNotTheCanvas`
   - **Found by it failing a pull request that could not possibly have caused it.** `PaperFieldTests.FillCostFollowsTheRegionNotTheCanvas` went red on a branch that touches nothing in `Lightbox.Raster`, which is what made it worth root-causing rather than re-running.
@@ -1504,6 +1514,10 @@ test reopens the bug.
   - Fix: store project palettes as JSON, ids intact. `.gpl` stays what it is — an interop format for the docker's Import/Export, not a storage format.
   - Mine, from the previous commit. Found by the variant tests rather than by review. Cost: S
 
+- [x] **B251** `P2` `project` Bones seem to load in a different spot than they were saved in `evidence: TheRigStandsWhereItWasSavedAfterAReload, PlayheadPersistenceTests`
+  - Owner's report, 2026-08-17, "sometimes". The record was proven innocent first: `ArmatureRoundTripTests` builds a rig through the real gestures — offset child, glued child, re-aimed tip, moved joint, unglued shaft drag, springs, two pose keys — and solves it bit-identically (no tolerance) across `DocJson` serialize/parse, at bind and at keyed and between-key frames. The gestures all land editor steps, and `AttachEditor` ends in `OnDocumentChanged` → `RebuildRigIndex`, so the load path is clean too.
+  - The remaining suspect is the view: the app reopened every document at frame 0, so a rig posed elsewhere stood at rest somewhere else than the artist last saw it — and "sometimes" fits, because it only shows when a pose was in effect. The owner answered "not sure" on whether the sightings were posed, so this is the likeliest cause fixed rather than a confirmed one: Q111 (remember the playhead) removes it. **If bones move again with the playhead restored, this entry becomes a live repro hunt** — the roundtrip test then needs the owner's actual file.
+
 - [x] **B214** `P2` `project` bugs.py check raises a NameError on any merge-commit HEAD instead of checking for lost ids `evidence: CheckSurvivesComparingAgainstAMergeParent`
   - Found by running `check` on a clone of `main`, whose tip is a PR merge commit — which is most clones, most of the time, and every CI PR build (Actions checks out the merge ref). The lost-id loop added so that "a push to main is checked even when the hook was bypassed" was written against `LEDGERS`, a table that never existed; `ledgers()` is the real source. Nothing caught it because the loop only runs when `merge_parents()` is non-empty, and nobody's HEAD had been a merge commit under a `check` until now.
   - The failure inverted the guard's purpose: the one HEAD shape the loop exists to check is the one that crashed the whole report — every other check in `cmd_check` (drift, evidence, duplicates) died with it.
@@ -2039,6 +2053,9 @@ test reopens the bug.
   - Cause: `CanvasHost` was still on `Grid.Column="2"` after the docking rework renumbered the work area's columns to seven. Column 2 is the *left dock strip's* cell — `Auto`, and empty by default — so it sized itself to the zoom bar floating on top of the canvas and the canvas got no width. Column 4 (`*`, `MinWidth=240`) held the space open and empty, which is why it read as a dead renderer rather than a missing control.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
+
+- [x] **B253** `P2` `ui` The armed weight brush shows the paint brush's ring, not its own radius `evidence: TheArmedWeightBrushRingIsItsOwnRadiusNotThePaintBrushs`
+  - Found wiring the owner's +/− cursor badge, and part of why weight painting felt finicky: the weight brush's platform cursor is hidden (`CanvasCursorKind.Paint`) so the ring IS the pointer — and `BrushCursorDiameter` read `CurrentToolSettings`, the ink brush. The artist aimed a 24px weight dab with a ring of whatever size, tip shape and angle the paint brush happened to have. Fixed by letting the armed weight brush own the ring: its own radius, round, unrotated, no tip outline.
 
 - [x] **B249** `P2` `ui` Ctrl+S on a reference view asks where to put a file every time, and suggests a name no filesystem can take `evidence: FileStem, IsProjectSheetView, ReferenceViewSaveTests, ATabTitleBecomesANameAFilesystemAccepts, SavingASheetViewWritesTheProjectInsteadOfAskingWhereToPutAFile`
   - Reported from a build: *"reference sheet opens per default with 'name / view #' but the '/' cannot be saved, which results in every save a save-as prompt."*
