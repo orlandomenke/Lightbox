@@ -207,14 +207,14 @@ public sealed class WorkspaceStore
             Layout = DockLayout.Default(),
         });
         store.Workspaces.Add(Built("Illustration", ProjectType.Illustration,
-            right: [ProjectFamily, [DockPanelId.Layers], Colour],
+            right: [[DockPanelId.Navigator], ProjectFamily, [DockPanelId.Layers], Colour],
             bottom: [],
             quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
                     QuickBarCatalog.FillOptions, QuickBarCatalog.GradientOptions,
                     QuickBarCatalog.ShapeOptions, QuickBarCatalog.GuideOptions]));
         store.Workspaces.Add(Built("Animation", ProjectType.Animation,
-            right: [ProjectFamily, [DockPanelId.Layers], Colour],
+            right: [[DockPanelId.Navigator], ProjectFamily, [DockPanelId.Layers], Colour],
             bottom: [TimelineFamily],
             quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
@@ -224,27 +224,27 @@ public sealed class WorkspaceStore
             // The colour family rather than a hand-picked three: Gradient was
             // missing here and in Asset library for no reason anybody recorded,
             // so those two workspaces could not reach it at all (Q109).
-            right: [ProjectFamily, [DockPanelId.Layers], Colour],
+            right: [[DockPanelId.Navigator], ProjectFamily, [DockPanelId.Layers], Colour],
             bottom: [TimelineFamily],
             quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
                     QuickBarCatalog.FillOptions, QuickBarCatalog.Transport,
                     QuickBarCatalog.AddFrame, QuickBarCatalog.GuideOptions]));
         store.Workspaces.Add(Built("Storyboard", ProjectType.Storyboard,
-            right: [ProjectFamily, Colour],
+            right: [[DockPanelId.Navigator], ProjectFamily, Colour],
             bottom: [TimelineFamily],
             quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.Transport,
                     QuickBarCatalog.AddFrame]));
         store.Workspaces.Add(Built("Comic", ProjectType.Comic,
-            right: [ProjectFamily, [DockPanelId.Layers], Colour],
+            right: [[DockPanelId.Navigator], ProjectFamily, [DockPanelId.Layers], Colour],
             bottom: [],
             quick: [QuickBarCatalog.BrushOptions,
                     QuickBarCatalog.EraserOptions, QuickBarCatalog.SelectOptions,
                     QuickBarCatalog.FillOptions, QuickBarCatalog.ShapeOptions,
                     QuickBarCatalog.GuideOptions]));
         store.Workspaces.Add(Built("Asset library", ProjectType.AssetLibrary,
-            right: [ProjectFamily, Colour],
+            right: [[DockPanelId.Navigator], ProjectFamily, Colour],
             // A sprite sheet is a character cycle, which is animation by
             // another name — so the timeline family opens here too (Q109).
             bottom: [TimelineFamily],

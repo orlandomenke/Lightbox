@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4416
+budget: 4428
 
 ## Why it is here despite being XAML
 
@@ -85,3 +85,7 @@ leaves a number nobody can account for. So every reason above stays, and
   — and the owner asked for these on the bar by name: locking is what an artist
   reaches for the instant a reference is where they want it, and the pointer is
   already on the canvas.
+- **4,416 → 4,428** (2026-08-17, Q110): +12 for the Navigator docker and its
+  View-menu entry. The standing note applies — a panel's markup and a menu item
+  have no partial to live in — and the panel itself is nine lines because the
+  drawing is a control (`NavigatorView`) rather than markup.

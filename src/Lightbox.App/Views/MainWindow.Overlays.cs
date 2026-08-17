@@ -12,6 +12,7 @@ public partial class MainWindow
     private void WireOverlayGestures()
     {
         WireReferenceSheetGestures();
+        WireNavigator();
 
         // B58. The whole reason the rig was invisible: `RigMarks` existed and
         // nothing ever asked for it. Pushed rather than bound, following `Guides`

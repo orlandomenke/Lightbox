@@ -20,11 +20,12 @@ public class DockLayoutTests
         // still absent until made — an empty palette stays empty.
         var layout = DockLayout.Default();
 
-        // Three slots, eight panels (Q109): the work group leads — project
-        // tree, reference sheets, tool options — then Layers on its own,
-        // then the colour family.
+        // Four slots, nine panels: the navigator (Q110), then the work group
+        // — project tree, reference sheets, tool options (Q109) — then Layers
+        // on its own, then the colour family.
         Assert.Equal(
-            [DockPanelId.Project, DockPanelId.Sheets, DockPanelId.ToolOptions,
+            [DockPanelId.Navigator,
+             DockPanelId.Project, DockPanelId.Sheets, DockPanelId.ToolOptions,
              DockPanelId.Layers,
              DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient, DockPanelId.Channels],
             layout.PanelsIn(DockSide.Right));
@@ -50,6 +51,9 @@ public class DockLayoutTests
     public void DockingIntoAStripPutsThePanelAtTheAskedForPosition()
     {
         var layout = DockLayout.Default();
+        // The default right side is at the slot cap now (Q110), and a full side
+        // is the cap's test rather than this one's.
+        layout.Hide(DockPanelId.Navigator);
         layout.Dock(DockPanelId.Palette, DockSide.Right, 1);
 
         // Docking the palette to a slot of its own also takes it out of the
@@ -123,18 +127,17 @@ public class DockLayoutTests
         // open a fifth strip lands as a tab in the nearest slot — nothing is
         // refused, and the panel is where the artist can see it.
         var layout = DockLayout.Default();
-        // Default right is three slots since the work group landed (Q109):
-        // the group, Layers, and the colour family. Fill the fourth, which is
-        // this test's setup rather than its subject.
-        layout.Dock(DockPanelId.Symbols, DockSide.Right, 3);
+        // Default right is exactly at the cap: navigator, work group, Layers,
+        // colour family (Q109, Q110).
         Assert.Equal(DockLayout.MaxSlotsPerSide, layout.SlotsIn(DockSide.Right).Count);
 
+        // Slot 1 is the work group, so that is the nearest slot to this drop.
         layout.Dock(DockPanelId.Reference, DockSide.Right, 1);
 
         Assert.Equal(DockLayout.MaxSlotsPerSide, layout.SlotsIn(DockSide.Right).Count);
-        Assert.Contains(DockPanelId.Reference, layout.SlotOf(DockPanelId.Layers));
+        Assert.Contains(DockPanelId.Reference, layout.SlotOf(DockPanelId.Project));
         // And it is the tab showing, because the artist just dropped it there.
-        Assert.Equal(DockPanelId.Reference, layout.ActiveOf(layout.SlotOf(DockPanelId.Layers)));
+        Assert.Equal(DockPanelId.Reference, layout.ActiveOf(layout.SlotOf(DockPanelId.Project)));
     }
 
     [Fact]
@@ -142,11 +145,14 @@ public class DockLayoutTests
     {
         // The panel leaves its slot before the count is taken, so moving one
         // around a full side is not mistaken for adding a fifth.
+        // Layers, because it is the one panel on that side in a slot of its
+        // own — moving a panel out of a group is a different question, and the
+        // groups are what the default ships now (Q109, Q110).
         var layout = DockLayout.Default();
-        layout.Dock(DockPanelId.Project, DockSide.Right, 3);
+        layout.Dock(DockPanelId.Layers, DockSide.Right, 0);
 
         Assert.Equal(DockLayout.MaxSlotsPerSide, layout.SlotsIn(DockSide.Right).Count);
-        Assert.Single(layout.SlotOf(DockPanelId.Project));
+        Assert.Single(layout.SlotOf(DockPanelId.Layers));
     }
 
     [Fact]

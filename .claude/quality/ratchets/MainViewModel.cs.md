@@ -1,6 +1,6 @@
 # src/Lightbox.App/ViewModels/MainViewModel.cs
 
-budget: 636
+budget: 639
 
 ## Why it has moved
 
@@ -47,3 +47,7 @@ stops being readable, add it then, with the number that made it necessary.
 At 674 lines this file is readable, and what can still rot is whether the state
 left in it is genuinely shared. `SharedStateRatchetTests` measures that, and it
 is the one to read before adding a field.
+- **636 → 639** (2026-08-17, Q110): +3 where the viewport funnel tells the
+  navigator its rectangle moved. Irreducible here rather than extractable: this
+  is the one place the viewport is set, and the whole of the navigator's own
+  code is in `MainViewModel.Navigator.cs` beside it.

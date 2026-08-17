@@ -370,6 +370,9 @@ public sealed partial class MainViewModel : ObservableObject
         // and only publishing if the viewport actually changed.
         if (_publish.Viewport == viewport) return;
         _publish.Viewport = viewport;
+        // Only the rectangle the navigator draws — the picture under it did not
+        // change because the view moved (Q110).
+        RefreshNavigatorViewport();
         PublishSnapshot();
     }
 

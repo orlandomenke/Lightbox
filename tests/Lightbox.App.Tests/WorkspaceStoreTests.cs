@@ -37,9 +37,9 @@ public class WorkspaceStoreTests
 
         Assert.True(illustration.IsVisible(DockPanelId.Palette));
         Assert.True(illustration.IsVisible(DockPanelId.Gradient));
-        // The work group, Layers, and colour (Q109) — three slots carrying
-        // eight panels, which is the whole of what tabs buy.
-        Assert.Equal(3, illustration.SlotsIn(DockSide.Right).Count);
+        // The navigator (Q110), the work group, Layers, and colour (Q109) —
+        // four slots carrying nine panels, which is the whole of what tabs buy.
+        Assert.Equal(4, illustration.SlotsIn(DockSide.Right).Count);
     }
 
     [Fact]

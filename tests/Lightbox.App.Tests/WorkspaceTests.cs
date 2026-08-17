@@ -85,10 +85,11 @@ public sealed class WorkspaceTests : BrushStateIsolated
     {
         var (w, _) = Open();
 
-        // The work group leads the strip, and with no project open its Project
-        // tab is absent — so Reference sheets is the tab that shows (Q109).
+        // The navigator leads the strip (Q110), then the work group — whose
+        // Project tab is absent with no project open, so Reference sheets is
+        // the tab that shows (Q109) — then Layers, then colour.
         Assert.Equal(
-            [DockPanelId.Sheets, DockPanelId.Layers, DockPanelId.Color],
+            [DockPanelId.Navigator, DockPanelId.Sheets, DockPanelId.Layers, DockPanelId.Color],
             Shown(w, DockSide.Right));
         Assert.Equal([DockPanelId.Timeline], Shown(w, DockSide.Bottom));
         Assert.Empty(Shown(w, DockSide.Left));

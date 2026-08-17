@@ -298,6 +298,22 @@ public sealed partial class CanvasControl
         Math.Sqrt(
             ((from.X - anchor.X) * (from.X - anchor.X)) + ((from.Y - anchor.Y) * (from.Y - anchor.Y)));
 
+    /// <summary>
+    /// Put a document point in the middle of the view — what the navigator asks
+    /// for (Q110).
+    /// </summary>
+    /// <remarks>
+    /// Through the same reanchor a zoom uses, so panning from the navigator and
+    /// panning with the hand end in one place. Zoom, rotation and mirror are
+    /// untouched: the navigator says <em>where</em> to look, never how closely,
+    /// and it is view-only either way (invariant 5).
+    /// </remarks>
+    public void CentreOn(double docX, double docY)
+    {
+        if (Bounds.Width <= 0 || Bounds.Height <= 0) return;
+        ReanchorAt(new Point(Bounds.Width / 2, Bounds.Height / 2), new Point(docX, docY));
+    }
+
     /// <summary>Ask the window whether a reference is under this point, and select it.</summary>
     public bool PickReferenceSheetAt(double x, double y) =>
         ReferenceSheetPicked?.Invoke(x, y) ?? false;
