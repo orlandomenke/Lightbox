@@ -1973,7 +1973,7 @@ test reopens the bug.
 
 ### ui
 
-- [x] **B243** `P1` `ui` Every picture imported onto the reference board lands off the bottom of the window `evidence: ReferenceBoardPlacementTests, ADroppedPictureLandsWhereItWasDropped, APictureAddedFromThePickerLandsInView`
+- [x] **B245** `P1` `ui` Every picture imported onto the reference board lands off the bottom of the window `evidence: ReferenceBoardPlacementTests, ADroppedPictureLandsWhereItWasDropped, APictureAddedFromThePickerLandsInView`
   - Reported from a build, the day the board landed: *"I am only able to view reference sheets and cannot drag any other image into it."* The drop worked. The file was copied into the project, the tile was added, the board was saved — and nothing appeared on screen, which is indistinguishable from a drop handler that never fired.
   - Cause, and it is one line: every import placed its tile with `BoardLayout.NextFreeSpot`, which returns the point **below the bottom-most tile**. On a wall that has just been auto-arranged to fill the window — which is exactly what opening the board does — that point is below the visible area. The only way to see the picture was to pan down, and nothing suggested there was anywhere to pan to.
   - **Why no test caught it.** `AddImageFile` was tested at the view-model boundary, where a tile at y=640 is as correct as a tile at y=10. The assertion that was missing is not about the import at all; it is about *where an artist would look for what they just did*. Placement is now the caller's, so the drop passes the pointer and the picker passes the middle of the view.

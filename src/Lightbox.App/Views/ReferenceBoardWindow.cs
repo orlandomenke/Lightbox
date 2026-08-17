@@ -698,7 +698,7 @@ public sealed class ReferenceBoardWindow : Window
     {
         // Where the pointer let go, on the board — not below everything already
         // up, which is off the bottom of the window on any wall that has been
-        // arranged to fill it (B243).
+        // arranged to fill it (B245).
         var at = ToBoard(e.GetPosition(_surface.Parent as Visual ?? this));
 
         var files = DroppedFiles(e);

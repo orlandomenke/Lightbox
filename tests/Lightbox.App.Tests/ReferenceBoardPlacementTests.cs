@@ -6,7 +6,7 @@ using SkiaSharp;
 namespace Lightbox.App.Tests;
 
 /// <summary>
-/// Where a picture lands when it arrives on the board (B243), that the board can
+/// Where a picture lands when it arrives on the board (B245), that the board can
 /// be reached and used with no character sheet at all (B245), and that its keys
 /// stay inside its own window (B244).
 /// </summary>
@@ -77,7 +77,7 @@ public class ReferenceBoardPlacementTests : BrushStateIsolated
                 .Max(t => t.Y + t.Height);
             Assert.True(
                 tile.Y < bottomOfTheSheets,
-                $"landed at {tile.Y}, below the wall's bottom edge at {bottomOfTheSheets} — off screen (B243)");
+                $"landed at {tile.Y}, below the wall's bottom edge at {bottomOfTheSheets} — off screen (B245)");
         }
         finally
         {
