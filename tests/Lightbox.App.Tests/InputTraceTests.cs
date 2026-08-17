@@ -302,6 +302,119 @@ public class InputTraceTests : IDisposable
         Assert.True(summary.CursorDecisionChanges > 0, "no cursor decision was recorded");
     }
 
+    /// <summary>
+    /// Leaving the canvas is recorded, and it is the event both bugs turn on.
+    /// </summary>
+    /// <remarks>
+    /// <b>Written because deleting the Exit hook left every other test green.</b>
+    /// An adversarial pass removed each hook in turn and ran the suite; this one
+    /// went unnoticed, which made it the most dangerous hook in the file —
+    /// enter/exit churn is one of the three mechanisms the report claims to
+    /// discriminate, so an Exit that silently never fired would have produced a
+    /// confident "not churn" verdict from an instrument that could not have
+    /// seen churn.
+    /// </remarks>
+    [AvaloniaFact]
+    public void LeavingTheCanvasIsRecorded()
+    {
+        var (window, _) = Open();
+        var canvas = window.GetVisualDescendants().OfType<CanvasControl>().First();
+        var centre = canvas.TranslatePoint(
+            new Point(canvas.Bounds.Width / 2, canvas.Bounds.Height / 2), window)!.Value;
+
+        InputTrace.Arm();
+        window.MouseMove(centre);
+        Pump();
+        // Out of the canvas and into the chrome at the top of the window, which
+        // is a real boundary crossing rather than a synthetic Exit.
+        window.MouseMove(new Point(centre.X, 2));
+        Pump();
+
+        var summary = InputTrace.Summarize();
+        Assert.True(summary.Enters > 0, "no enter reached the trace");
+        Assert.True(summary.Exits > 0, "no exit reached the trace");
+    }
+
+    /// <summary>
+    /// A press and a release are recorded, so a trace can show where capture
+    /// was in force.
+    /// </summary>
+    /// <remarks>
+    /// B126's sharpest observation is that the flicker never happens *while
+    /// drawing* — which is exactly where <c>Pointer.Capture</c> is held. A
+    /// trace that could not show the press and the release could not show that
+    /// boundary, which is the one piece of timing the whole hypothesis rests on.
+    /// </remarks>
+    [AvaloniaFact]
+    public void APressAndAReleaseAreRecorded()
+    {
+        var (window, _) = Open();
+        var canvas = window.GetVisualDescendants().OfType<CanvasControl>().First();
+        var centre = canvas.TranslatePoint(
+            new Point(canvas.Bounds.Width / 2, canvas.Bounds.Height / 2), window)!.Value;
+
+        InputTrace.Arm();
+        window.MouseMove(centre);
+        window.MouseDown(centre, MouseButton.Left);
+        Pump();
+        window.MouseUp(centre, MouseButton.Left);
+        Pump();
+
+        var kinds = InputTrace.KindsForTests();
+        Assert.Contains(InputTrace.Kind.Press, kinds);
+        Assert.Contains(InputTrace.Kind.Release, kinds);
+    }
+
+    /// <summary>
+    /// The popup wiring observes real flyouts, rather than only the calls the
+    /// tests make themselves.
+    /// </summary>
+    /// <remarks>
+    /// <b>The gap this closes is the one that would have been invisible.</b> The
+    /// popup tests above call <see cref="InputTrace.Popup"/> directly, so they
+    /// pass whether or not <c>WirePopups</c> ever registers a handler — and B254
+    /// *is* the popup half of this pair. Opening a real
+    /// <see cref="Avalonia.Controls.Flyout"/> is what proves the class handler
+    /// is attached to the property the application's own flyouts use.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ARealFlyoutOpeningIsSeenByTheTrace()
+    {
+        var (window, _) = Open();
+        var flyout = new Avalonia.Controls.Flyout
+        {
+            Content = new Avalonia.Controls.TextBlock { Text = "hover" },
+        };
+
+        InputTrace.Arm();
+        flyout.ShowAt(window);
+        Pump();
+
+        var opened = InputTrace.Summarize().PopupsOpened;
+        Assert.True(opened > 0, "the trace did not see a real flyout open");
+
+        flyout.Hide();
+        Pump();
+        // And closing it gives the life the collapse test is about.
+        Assert.NotNull(InputTrace.Summarize().ShortestPopupMs);
+    }
+
+    /// <summary>The same, for a tooltip — the other thing that opens on hover.</summary>
+    [AvaloniaFact]
+    public void ARealToolTipOpeningIsSeenByTheTrace()
+    {
+        var (window, _) = Open();
+        var owner = new Avalonia.Controls.Border();
+        Avalonia.Controls.ToolTip.SetTip(owner, "a tip");
+
+        InputTrace.Arm();
+        Avalonia.Controls.ToolTip.SetIsOpen(owner, true);
+        Pump();
+
+        Assert.True(InputTrace.Summarize().PopupsOpened > 0,
+            "the trace did not see a real tooltip open");
+    }
+
     /// <summary>The same path, disarmed: the hooks must record nothing at all.</summary>
     [AvaloniaFact]
     public void ADisarmedTraceRecordsNothingFromTheRealCanvas()
@@ -345,11 +458,19 @@ public class InputTraceTests : IDisposable
             Pump();
             Assert.True(InputTrace.Armed, "the shortcut did not arm the trace");
             Assert.Contains("Recording", vm.AiStatus ?? "");
+            // The title, because the status line it used to rely on lives in a
+            // bar that is hidden whenever AI assistance is off — which is how
+            // this feature came to look completely dead to the person it was
+            // built for. Nothing else writes the title, so it cannot be hidden.
+            Assert.Contains("recording an input trace", window.Title ?? "");
+            Assert.Contains("Recording", vm.PenDiagnostic ?? "");
 
             window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key });
             Pump();
             Assert.False(InputTrace.Armed, "the shortcut did not stop the trace");
             Assert.Contains("Input trace written to", vm.AiStatus ?? "");
+            Assert.Contains("Input trace written to", vm.PenDiagnostic ?? "");
+            Assert.DoesNotContain("recording", window.Title ?? "");
         }
         finally
         {

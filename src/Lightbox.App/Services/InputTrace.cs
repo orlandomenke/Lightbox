@@ -503,6 +503,28 @@ internal static class InputTrace
         Note(new Entry(seconds, kind, device, deviceId, 0, 0, pressure, tiltX, tiltY, detail));
     }
 
+    /// <summary>
+    /// Which kinds of event the trace actually saw.
+    /// </summary>
+    /// <remarks>
+    /// The summary counts moves, enters and exits because the verdicts need
+    /// those; presses, releases and capture losses only ever appear in the
+    /// event list, and a test asserting on a hook has to be able to see that
+    /// the hook fired. Deleting one of those hooks was silent until this
+    /// existed.
+    /// </remarks>
+    internal static HashSet<Kind> KindsForTests()
+    {
+        lock (Gate)
+        {
+            var kept = (int)Math.Min(_count, Capacity);
+            var start = _count > Capacity ? _count % Capacity : 0;
+            var kinds = new HashSet<Kind>();
+            for (var i = 0; i < kept; i++) kinds.Add(Ring[(start + i) % Capacity].Kind);
+            return kinds;
+        }
+    }
+
     /// <summary>Back to cold: disarmed, empty, no remembered cursor.</summary>
     internal static void ResetForTests()
     {

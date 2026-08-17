@@ -258,10 +258,15 @@ happening.
 
 **Press `F9` to start recording, then use the application for about a minute** —
 hover over the canvas without drawing, draw a stroke or two, and open a panel or
-flyout that misbehaves. **Press `F9` again to stop**, and the status strip names
-the file it wrote, in the same folder as everything else above. The pen readout
-beside the brush settings says `· recording an input trace` while it is running,
-so you can tell it is on.
+flyout that misbehaves. **Press `F9` again to stop**, and the file is written to
+the same folder as everything else above.
+
+**The window title says `● Lightbox — recording an input trace` the whole time
+it is running**, and goes back to normal when you stop it. That is the one place
+worth looking to check the key worked: the title bar is always visible, whereas
+the status line beside the AI controls is hidden entirely when AI assistance is
+switched off. The pen readout and that status line both name the file when the
+report is written.
 
 The key rather than a menu item is deliberate: what is being measured is what
 the pointer does while it sits over the canvas, so a trace you had to reach a
