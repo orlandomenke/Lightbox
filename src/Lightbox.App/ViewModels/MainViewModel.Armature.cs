@@ -829,8 +829,16 @@ public sealed partial class MainViewModel
     /// <see cref="WeightPaint"/>; this owns the gesture and its single undo
     /// step.
     /// </summary>
+    /// <remarks>
+    /// <b>B246.</b> The chrome and heat notifications are what make the switch
+    /// visible: both getters gate on this flag, so arming the brush without
+    /// announcing them left the heat absent until the first dab happened to
+    /// refresh the overlay — and disarming left stale heat on screen.
+    /// </remarks>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PointerIntent))]
+    [NotifyPropertyChangedFor(nameof(BoneChromes))]
+    [NotifyPropertyChangedFor(nameof(HeatPoints))]
     private bool _weightPainting;
 
     /// <summary>Brush radius in document pixels.</summary>

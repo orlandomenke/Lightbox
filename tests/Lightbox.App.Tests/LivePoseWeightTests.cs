@@ -152,6 +152,45 @@ public class LivePoseWeightTests
         Assert.Equal(210, chrome.Y1, 6);
     }
 
+    /// <summary>
+    /// B246. The window repaints the heat and chrome overlays only when the
+    /// view model announces them, and arming the brush changes both — the heat
+    /// gates on the flag, the chrome moves from the bind pose to the playhead's.
+    /// Without the announcement the heat stayed absent until the first dab
+    /// happened to refresh the overlay.
+    /// </summary>
+    [AvaloniaFact]
+    public void ArmingTheWeightBrushAnnouncesTheOverlaysItChanges()
+    {
+        var vm = Rigged();
+        vm.CreateBoneFromDrag(100, 150, 160, 150);
+        AddStroke(vm, (110, 150), (150, 150));
+
+        var fired = new List<string?>();
+        vm.PropertyChanged += (_, e) => fired.Add(e.PropertyName);
+        vm.WeightPainting = true;
+
+        Assert.Contains(nameof(MainViewModel.HeatPoints), fired);
+        Assert.Contains(nameof(MainViewModel.BoneChromes), fired);
+    }
+
+    /// <summary>B246's other half: disarming must clear the heat, not strand it.</summary>
+    [AvaloniaFact]
+    public void DisarmingTheWeightBrushAnnouncesTheStaleHeat()
+    {
+        var vm = Rigged();
+        vm.CreateBoneFromDrag(100, 150, 160, 150);
+        AddStroke(vm, (110, 150), (150, 150));
+        vm.WeightPainting = true;
+
+        var fired = new List<string?>();
+        vm.PropertyChanged += (_, e) => fired.Add(e.PropertyName);
+        vm.IsBindMode = true;
+
+        Assert.Contains(nameof(MainViewModel.HeatPoints), fired);
+        Assert.Empty(vm.HeatPoints);
+    }
+
     [AvaloniaFact]
     public void ScrubbingMovesTheRigSurface()
     {
