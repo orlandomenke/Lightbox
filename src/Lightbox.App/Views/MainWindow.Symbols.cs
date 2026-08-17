@@ -88,9 +88,16 @@ public partial class MainWindow
     {
         if ((sender as Control)?.DataContext is UndoHistoryRow row) _vm.UndoHistory.Jump(row);
     }
+    /// <remarks>
+    /// Titled with the menu item's own words: this dialog also opened as
+    /// plain "Save workspace", which reads as save-current — and since an
+    /// unchanged name now deliberately forks "Name (edited)" (B230), a
+    /// dialog that looks like save-current would manufacture exactly the
+    /// surprise B230 removed.
+    /// </remarks>
     private async void OnSaveWorkspaceAs(object? sender, RoutedEventArgs e)
     {
-        if (await PromptForText("Save workspace", "Name", _vm.Workspace.SelectedName) is not { } name) return;
+        if (await PromptForText("Save as new workspace", "Name", _vm.Workspace.SelectedName) is not { } name) return;
         _vm.Workspace.SaveAs(name);
         _vm.AiStatus = $"Saved workspace “{_vm.Workspace.SelectedName}”.";
     }
