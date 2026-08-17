@@ -279,6 +279,14 @@ public sealed class ShortcutMap
 
             new("canvas.undo", "Undo", "Canvas", G(Key.Z, KeyModifiers.Control)),
             new("canvas.redo", "Redo", "Canvas", G(Key.Y, KeyModifiers.Control)),
+            // The same command on a second key, because both reflexes are real:
+            // Ctrl+Y is Photoshop's Windows default and Ctrl+Shift+Z is
+            // Photoshop's other binding, Krita's, and the muscle memory of
+            // everyone who learned redo as "shifted undo". A second definition
+            // rather than a special case in the key handler, so the Configure
+            // window can see it, rebind it, or clear it like any other.
+            new("canvas.redoAlt", "Redo (second key)", "Canvas",
+                G(Key.Z, KeyModifiers.Control | KeyModifiers.Shift)),
             new("canvas.transform", "Transform (move/scale/rotate/perspective)", "Tools", G(Key.T, KeyModifiers.Control)),
             new("canvas.mirror", "Mirror view", "Canvas", G(Key.M)),
             // Photoshop's three, on Photoshop's keys. Rulers are where a guide
