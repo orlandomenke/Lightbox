@@ -130,4 +130,30 @@ public partial class CanvasControl
         base.OnAttachedToVisualTree(e);
         StartAntsIfNeeded();
     }
+    // ---- Ctrl takes hold of what the marquee holds (Q104) ---------------------
+
+    /// <summary>
+    /// Ctrl was held on the artwork: take hold of the marquee's contents if
+    /// there are any. Returns whether a session opened.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A delegate that answers rather than an event that does not, for the
+    /// reason the line picker is one: the canvas has to know whether the press
+    /// became a move or is still on its way to the tool underneath it. Both
+    /// refusals — no selection, or the press outside it — are the view model's,
+    /// so they are reachable by a test with no window attached.
+    /// </para>
+    /// <para>
+    /// Here rather than beside the press that calls it, because this is the
+    /// file that owns what the selection <i>is</i> on this control — the
+    /// contours, the ants and the preview matrix that makes them follow a live
+    /// move are all above.
+    /// </para>
+    /// </remarks>
+    private Func<double, double, bool>? _beginSelectionMove;
+
+    public void SetSelectionMoveEntry(Func<double, double, bool>? begin) =>
+        _beginSelectionMove = begin;
+
 }

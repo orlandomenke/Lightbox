@@ -25,6 +25,27 @@ public class ShortcutMapTests
         }
     }
 
+    /// <summary>
+    /// Redo answers to both keys an artist may arrive with: Ctrl+Y and
+    /// Ctrl+Shift+Z. The second is its own definition rather than a special
+    /// case in the key handler, so the Configure window can see and rebind it —
+    /// which is the whole reason the registry exists.
+    /// </summary>
+    [Fact]
+    public void Redo_HasBothOfItsKeys()
+    {
+        var map = new ShortcutMap();
+
+        var main = map.Definitions.First(d => d.Id == "canvas.redo");
+        var alt = map.Definitions.First(d => d.Id == "canvas.redoAlt");
+
+        Assert.Equal(new KeyGesture(Key.Y, KeyModifiers.Control), main.Current);
+        Assert.Equal(new KeyGesture(Key.Z, KeyModifiers.Control | KeyModifiers.Shift), alt.Current);
+
+        // And the shifted undo is not read as a conflict with undo itself.
+        Assert.Null(map.ConflictWith("canvas.redoAlt", alt.Current!));
+    }
+
     [Fact]
     public void ConflictDetection_FindsTheOtherCommand()
     {

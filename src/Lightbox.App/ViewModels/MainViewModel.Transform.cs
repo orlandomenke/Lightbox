@@ -114,6 +114,42 @@ public partial class MainViewModel
         return true;
     }
 
+    /// <summary>
+    /// Take hold of what is inside the marquee, because Ctrl was held on it.
+    /// Returns whether a session opened.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The same three lines as <see cref="BeginLineMove"/>, and that is the
+    /// point (Q104).</b> A second way to drag artwork about would be a second
+    /// set of bugs — its own undo step, its own snapping, its own idea of what
+    /// Shift means. This opens the ordinary transform session with no gizmo and
+    /// lets <see cref="UpdateMove"/> and <c>EndMove</c> do the rest, so the
+    /// guides, the axis lock and the one undo entry all arrive for free.
+    /// </para>
+    /// <para>
+    /// <b>The filter is derived rather than passed.</b>
+    /// <c>DerivedTransformFilter</c> already answers "the strokes this marquee
+    /// contains" when there is a selection — it is what a gizmo transform uses
+    /// — so asking for it by name would be a second implementation of the
+    /// precedence that method exists to own.
+    /// </para>
+    /// <para>
+    /// Both refusals are here rather than in the canvas, so a test can put the
+    /// pointer outside the marquee with no window attached: the canvas asks and
+    /// acts on the answer, which is the division every other gesture on it uses.
+    /// </para>
+    /// </remarks>
+    public bool BeginSelectionMove(double x, double y)
+    {
+        if (!HasSelection || !InsideSelection(x, y)) return false;
+        if (!BeginTransform(gizmo: false)) return false;
+        _moveAnchor = (x, y);
+        _moveDelta = default;
+        AiStatus = $"Moving {TransformSubject}";
+        return true;
+    }
+
     /// <param name="axisLock">
     /// Shift: hold the move to one axis, whichever it has gone furthest along.
     /// The same thing Shift means on every other tool here.

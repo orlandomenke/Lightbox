@@ -295,6 +295,90 @@ public class BorrowedToolTests(ITestOutputHelper output) : BrushStateIsolated
         Assert.False(vm.IsHoldingMomentaryTool);
     }
 
+    // ---- the held eraser wears the brush's size ----------------------------------
+    // A held E is a correction to the mark just made, so it erases at that
+    // mark's size; a tapped E is a choice of the eraser, which keeps the size
+    // it was last deliberately given.
+
+    /// <summary>A vm with the eraser at one size and the brush at another, both set deliberately.</summary>
+    private static (MainViewModel Vm, Action<long> Advance) SizedBrushes(double eraser, double brush)
+    {
+        var (vm, advance) = Clocked();
+        vm.ActiveTool = ToolId.Eraser;
+        vm.BrushSize = eraser;
+        vm.ActiveTool = ToolId.Brush;
+        vm.BrushSize = brush;
+        return (vm, advance);
+    }
+
+    [AvaloniaFact]
+    public void AHeldEraserWearsTheBrushSizeAndGivesItBackOnRelease()
+    {
+        var (vm, advance) = SizedBrushes(eraser: 14, brush: 42);
+
+        vm.BeginMomentaryTool(ToolId.Eraser);
+        var during = vm.BrushSize;
+        advance(MainViewModel.MomentaryTapMilliseconds + 100);
+        vm.EndMomentaryTool(ToolId.Eraser);
+
+        vm.ActiveTool = ToolId.Eraser;
+        output.WriteLine($"during the hold {during:F0}, after release {vm.BrushSize:F0}");
+        Assert.Equal(42, during);
+        Assert.Equal(14, vm.BrushSize);
+    }
+
+    /// <summary>
+    /// A tap latches the eraser as its own tool, and a chosen eraser is the
+    /// eraser as last configured — the brush's size does not follow it.
+    /// </summary>
+    [AvaloniaFact]
+    public void ATappedEraserKeepsTheSizeItWasLastGiven()
+    {
+        var (vm, advance) = SizedBrushes(eraser: 14, brush: 42);
+
+        vm.BeginMomentaryTool(ToolId.Eraser);
+        advance(MainViewModel.MomentaryTapMilliseconds - 200);
+        vm.EndMomentaryTool(ToolId.Eraser);
+
+        output.WriteLine($"tapped -> {vm.ActiveTool}, size {vm.BrushSize:F0}");
+        Assert.Equal(ToolId.Eraser, vm.ActiveTool);
+        Assert.Equal(14, vm.BrushSize);
+    }
+
+    /// <summary>
+    /// A size scrubbed mid-hold is a decision about the eraser and survives the
+    /// release; only the mirrored brush size is undone.
+    /// </summary>
+    [AvaloniaFact]
+    public void AMidHoldScrubBecomesTheErasersNewSize()
+    {
+        var (vm, advance) = SizedBrushes(eraser: 14, brush: 42);
+
+        vm.BeginMomentaryTool(ToolId.Eraser);
+        vm.BrushSize = 30;
+        advance(MainViewModel.MomentaryTapMilliseconds + 100);
+        vm.EndMomentaryTool(ToolId.Eraser);
+
+        Assert.Equal(ToolId.Brush, vm.ActiveTool);
+        vm.ActiveTool = ToolId.Eraser;
+        output.WriteLine($"scrubbed to 30 mid-hold, eraser now {vm.BrushSize:F0}");
+        Assert.Equal(30, vm.BrushSize);
+    }
+
+    /// <summary>The lost key-up path takes the borrowed size off with the borrowed tool.</summary>
+    [AvaloniaFact]
+    public void CancellingMidHoldTakesTheBorrowedSizeOffToo()
+    {
+        var (vm, _) = SizedBrushes(eraser: 14, brush: 42);
+
+        vm.BeginMomentaryTool(ToolId.Eraser);
+        vm.CancelMomentaryTool();
+
+        Assert.Equal(ToolId.Brush, vm.ActiveTool);
+        vm.ActiveTool = ToolId.Eraser;
+        Assert.Equal(14, vm.BrushSize);
+    }
+
     // ---- B221: which keys are spring-loaded --------------------------------------------
 
     /// <summary>

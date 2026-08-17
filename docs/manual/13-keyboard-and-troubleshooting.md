@@ -56,6 +56,7 @@ warns about.
 | B, E, F, V, I (hold) | Tap to switch tools as always; **hold** one, use it, and let go to land back where you were |
 | I | Eyedropper — anywhere except the timeline, where it inserts a key |
 | Ctrl+Z / Ctrl+Y | Undo, redo |
+| Ctrl+Shift+Z | Redo, on its other key — both bindings work, and each can be remapped on its own |
 | Ctrl+T | Transform |
 | Ctrl+E | Merge the active layer into the one below |
 | Ctrl+A / Ctrl+D / Ctrl+Shift+I | Select all, deselect, invert |
@@ -67,8 +68,15 @@ warns about.
 | 0 | Reset zoom, rotation, mirror and pan |
 | Shift + drag | Resize the brush |
 | Wheel / Shift+wheel | Zoom / rotate the view |
-| Ctrl+Shift+R | Auto-arrange the reference board (in the board window) |
-| Ctrl+Shift+↑ / ↓ | Bring the last picture you touched forward / send it behind (in the board window) |
+| Ctrl+Shift+B | Open the reference board |
+| Ctrl+Shift+R / Ctrl+Shift+F | On the board: auto-arrange / fit everything on screen |
+| Ctrl+Shift+↑ / ↓ | On the board: bring the last picture you touched forward / send it behind |
+| Delete / Ctrl+V | On the board: take the picture off it / paste a picture onto it |
+
+**The board window has its own keys**, and that is why `Delete` and `Ctrl+V` can
+mean something there without disturbing what they mean over the art: it is a
+separate window, so a key pressed in it reaches nothing else. Configure lists
+them under **Reference board**.
 
 Zoom, rotation, mirror and pan are **view-only**. They never touch the document.
 

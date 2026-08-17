@@ -184,6 +184,15 @@ whatever lines the Arrow has picked.
 switch back and it is where you left it. A new document starts with nothing
 selected.
 
+**Hold Ctrl inside a selection and drag to move what is in it**, without
+reaching for a tool. The pointer becomes the four-way arrow as soon as you cross
+into the marching ants, so you can see that you have got it before you press —
+and it keeps that shape for the whole drag. Shift holds the move to one axis,
+guides catch it, and the whole thing is one undo step. Outside the ants, Ctrl is
+still the eyedropper it always was; the boundary is the selection edge and
+nothing else. It moves the *lines* the selection holds rather than cutting the
+pixels out, so a stroke crossing the edge travels whole.
+
 **Ctrl+T** starts a transform. The gizmo gives move, scale, rotate and a
 draggable pivot; **Perspective** mode gives four free corners.
 

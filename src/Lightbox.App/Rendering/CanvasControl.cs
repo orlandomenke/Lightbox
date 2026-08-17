@@ -1656,7 +1656,7 @@ public sealed partial class CanvasControl : Control
             case TxDrag.ScaleCorner:
             case TxDrag.ScaleEdge:
             {
-                // B244: the fixed point of a scale is the handle's opposite —
+                // B248: the fixed point of a scale is the handle's opposite —
                 // corner or edge midpoint — and the pivot only with Alt held.
                 // One formula for both: with the anchor at the pivot, a is the
                 // origin and every line below reduces to the old behaviour.
@@ -2611,6 +2611,27 @@ public sealed partial class CanvasControl : Control
                 _guideDrag = grabbed.Id;
                 _guideResizing = GrabsHeightScaleTop(grabbed, pp.Position);
                 _guideDragLast = (x, y);
+                return;
+            }
+
+            // Ctrl inside a marquee takes hold of what is in it (Q104), and it
+            // is asked before the eyedropper below because it is the narrower
+            // claim: the view model refuses unless there is a selection and the
+            // press landed inside it, so every other place on the canvas still
+            // fetches a colour. Whichever it turns out to be, the pointer has
+            // already said so — on hover, through CanvasCursor.Effective.
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Control)
+                && _beginSelectionMove?.Invoke(x, y) == true)
+            {
+                // The line drag's own channel, deliberately: the move, the
+                // release that commits it and the one that discards a press
+                // that went nowhere are the same three questions, and the ants
+                // already follow the session's preview matrix.
+                e.Pointer.Capture(this);
+                _lineDragFrom = (x, y);
+                _lineDragTo = (x, y);
+                _lineMoveLive = true;
+                e.Handled = true;
                 return;
             }
 

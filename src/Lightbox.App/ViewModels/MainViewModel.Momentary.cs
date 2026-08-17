@@ -101,6 +101,15 @@ public partial class MainViewModel
     /// <summary>When the hold began, from <see cref="MomentaryClock"/>.</summary>
     private long _momentaryHeldSince;
 
+    /// <summary>
+    /// The eraser's own size while a hold has it wearing the brush's, or null
+    /// when no borrow is dressing the eraser up.
+    /// </summary>
+    private double? _eraserSizeBeforeBorrow;
+
+    /// <summary>What the borrow set the eraser's size to, so a mid-hold scrub is tellable from it.</summary>
+    private double _eraserSizeWhileBorrowed;
+
     /// <summary>Whether a letter key is currently standing in for a tool.</summary>
     public bool IsHoldingMomentaryTool => _momentaryFrom is not null;
 
@@ -130,7 +139,48 @@ public partial class MainViewModel
 
         _momentaryFrom = ActiveTool;
         _momentaryHeldSince = MomentaryClock();
+        BorrowEraserSize(tool);
         SetToolWithoutSideEffects(tool);
+    }
+
+    /// <summary>
+    /// A held E rubs out at the size of the mark being corrected: the borrowed
+    /// eraser takes the brush's size, and the release puts the eraser's own
+    /// back. A tap is a choice of the eraser, so it keeps the size it was last
+    /// deliberately given — this is only for the borrow.
+    /// </summary>
+    /// <remarks>
+    /// Before the tool switch, so the notifications the switch fires read the
+    /// borrowed size — the cursor ring and the size slider must not show the
+    /// old number for a frame. The press cannot yet know whether it is a tap,
+    /// so the size is borrowed unconditionally and every way out of the hold
+    /// returns it; a tap lasting under <see cref="MomentaryTapMilliseconds"/>
+    /// leaves no time to draw at the wrong size.
+    /// </remarks>
+    private void BorrowEraserSize(ToolId tool)
+    {
+        if (tool != ToolId.Eraser) return;
+        _eraserSizeBeforeBorrow = _brushes.Eraser.Size;
+        _eraserSizeWhileBorrowed = _brushes.Brush.Size;
+        _brushes.Eraser.Size = _brushes.Brush.Size;
+    }
+
+    /// <summary>
+    /// Put the eraser's own size back when a borrow ends, however it ends.
+    /// </summary>
+    /// <remarks>
+    /// A size scrubbed mid-hold is a decision about the eraser and is kept as
+    /// its new size; only the mirrored brush size is undone. The persist keeps
+    /// <c>brushes.json</c> honest when a mid-hold stroke saved the borrowed
+    /// size as the eraser's last.
+    /// </remarks>
+    private void ReturnEraserSize()
+    {
+        if (_eraserSizeBeforeBorrow is not { } size) return;
+        _eraserSizeBeforeBorrow = null;
+        if (_brushes.Eraser.Size != _eraserSizeWhileBorrowed) return;
+        _brushes.Eraser.Size = size;
+        PersistBrushState();
     }
 
     /// <summary>
@@ -143,18 +193,25 @@ public partial class MainViewModel
         _momentaryFrom = null;
 
         // Something else moved the tool mid-hold (a click on the rail is a
-        // decision); the release has nothing left to restore.
-        if (ActiveTool != tool) return;
+        // decision); the release has no tool left to restore — but a size the
+        // borrow dressed the eraser in still comes off.
+        if (ActiveTool != tool) { ReturnEraserSize(); return; }
 
         if (MomentaryClock() - _momentaryHeldSince >= MomentaryTapMilliseconds)
         {
+            ReturnEraserSize();
             SetToolWithoutSideEffects(owner);
             return;
         }
 
         // A tap is the deliberate switch this key performed before it could be
         // held, so the switch's consequences happen now — they were suppressed
-        // at the press because a press cannot know yet which one it is.
+        // at the press because a press cannot know yet which one it is. The
+        // borrowed size comes off for the same reason: a chosen eraser is the
+        // eraser as last configured, and the tool stays put, so the bound
+        // sliders and the cursor ring have to be told by hand.
+        ReturnEraserSize();
+        NotifyBrushProperties();
         LeaveToolStateBehind(tool);
     }
 
@@ -170,6 +227,7 @@ public partial class MainViewModel
     {
         if (_momentaryFrom is not { } owner) return;
         _momentaryFrom = null;
+        ReturnEraserSize();
         SetToolWithoutSideEffects(owner);
     }
 

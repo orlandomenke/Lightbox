@@ -68,6 +68,8 @@ explain — two rules to remember where one will do.
 
 ## What this deliberately does not do
 
+**A stroke that was fully erased is still in the record — asked again and confirmed, 2026-08-16.** After B232/B236/B243 made erasures unreachable from every tool, the owner asked whether they should be stored at all ("shouldn't we only store strokes that were there and are not there anymore?"). Prompted with three options; **keep storing** was chosen, as recommended: a *partially* erased line cannot be rebuilt without its eraser, so reload, inbetweening and export would all change without it, and a fully-erased pair costs only file bytes now that nothing can see it. Compacting fully-erased pairs (drop ink + eraser when they cancel pixel-exactly, undo still carrying them) remains open as a possible future branch, not a decision.
+
 **A stroke that was fully erased is still in the record.** "Erased strokes do not
 exist as far as the application is concerned" is about reach and visibility — no
 tool can touch them (B232), no AI request describes them (B233) — not about

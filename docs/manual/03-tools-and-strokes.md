@@ -37,6 +37,13 @@ without thinking about it. The split is how long the key is down: a quick press
 is a choice, anything longer is a borrow, which is Photoshop's spring-loaded
 rule, so the reflex transfers.
 
+**A held E erases at the brush's size.** A hold is a correction to the mark you
+just made, so the borrowed eraser takes that mark's size rather than whatever
+the eraser was last set to — and letting go puts the eraser's own size back
+along with your brush. Tap E instead and the eraser is yours as you last
+configured it, size included. Resize the eraser *during* a hold and that is a
+decision: the new size sticks as the eraser's own.
+
 The other tool keys only latch. **S** is taken — pressing it again cycles the
 selection variants, so it cannot also mean "hold me". The pen, both arrows and
 the Width tool are left out for the reason Ctrl is: they have work in flight,
@@ -398,6 +405,20 @@ the colour you want is usually already on the canvas, and fetching a tool to get
 it breaks the stroke you were about to make. The pointer changes to say so. It
 also stops refusing while you hold it, because picking a colour off a locked
 layer was always allowed.
+
+**With a selection up, `Ctrl` inside it moves what is in it instead.** Hold
+`Ctrl`, and anywhere inside the marching ants the pointer becomes the four-way
+arrow: drag, and the artwork the selection holds comes with it. `Shift` while
+you drag holds it to one axis, the guides catch it like any other move, and the
+whole drag is one undo step. Let go outside the ants and `Ctrl` is the
+eyedropper again — same key, different place, and **the pointer always says
+which one you have got before you press**, including while you are still holding
+it with the mouse quite still.
+
+Two things worth knowing. It moves the **lines** the selection holds rather than
+cutting the pixels out, so a stroke that crosses the edge travels whole. And a
+`Ctrl`-click that goes nowhere leaves nothing behind — no move in the history
+for a press that was only a press.
 
 ### The eyedropper's ring
 

@@ -1,7 +1,7 @@
 namespace Lightbox.App.Rendering;
 
 /// <summary>
-/// What a scale drag holds still (B244) — the anchor decision, split out the
+/// What a scale drag holds still (B248) — the anchor decision, split out the
 /// way <c>CanvasControl.Cursors.cs</c> split the cursor decision.
 /// </summary>
 /// <remarks>
@@ -18,7 +18,7 @@ public partial class CanvasControl
     /// for a corner handle, the opposite edge's midpoint for an edge handle.
     /// </summary>
     /// <remarks>
-    /// B244. Scaling used to happen around the pivot whatever handle was
+    /// B248. Scaling used to happen around the pivot whatever handle was
     /// dragged, so pulling one side grew the box on all sides — Photoshop's
     /// <em>Alt</em> behaviour as the only behaviour. The default everywhere
     /// else, and the one a hand expects, is that the side you did not touch

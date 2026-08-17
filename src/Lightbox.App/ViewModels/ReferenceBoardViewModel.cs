@@ -138,11 +138,14 @@ public sealed class ReferenceBoardViewModel
         $"{sheet.Name} · {view.Name}";
 
     /// <summary>Pin one view up, wherever there is room. Null when it is already up.</summary>
-    public BoardTile? Pin(ReferenceSheet sheet, ReferenceView view)
+    /// <inheritdoc cref="AddImageFile(string, ValueTuple{double,double}?)" path="/param[@name='at']"/>
+    public BoardTile? Pin(ReferenceSheet sheet, ReferenceView view, (double X, double Y)? at = null)
     {
         if (Board.TileForView(view.Id) is not null) return null;
         var (width, height) = BoardLayout.StartingSize(view.Width, view.Height);
-        var (x, y) = BoardLayout.NextFreeSpot(Board.Tiles);
+        var (x, y) = at is { } spot
+            ? (spot.X - width / 2, spot.Y - height / 2)
+            : BoardLayout.NextFreeSpot(Board.Tiles);
         var tile = new BoardTile
         {
             Name = TileName(sheet, view),
@@ -171,7 +174,19 @@ public sealed class ReferenceBoardViewModel
     /// keep the original — a reference that breaks when a downloads folder is
     /// emptied breaks silently, and you find out while drawing against a blank.
     /// </remarks>
-    public BoardTile? AddImageFile(string path)
+    /// <param name="at">
+    /// Where on the board to put it, in board coordinates — where it was dropped,
+    /// or the middle of what the artist is looking at. Null falls back to below
+    /// everything already up.
+    /// </param>
+    /// <remarks>
+    /// <b>The placement is the caller's, and that is the whole of B245.</b> Every
+    /// import used to land under the bottom-most tile, which on a wall that had
+    /// been auto-arranged to fill the window is <em>below the visible area</em>:
+    /// the picture arrived, the file was copied, nothing appeared, and the only
+    /// way to find it was to pan down. A picture goes where you put it.
+    /// </remarks>
+    public BoardTile? AddImageFile(string path, (double X, double Y)? at = null)
     {
         SKBitmap? decoded;
         try
@@ -188,14 +203,14 @@ public sealed class ReferenceBoardViewModel
             var name = Path.GetFileNameWithoutExtension(path);
             if (Project is { } project && ProjectBoards.ImportImage(project, path) is { } relative)
             {
-                return AddTile(name, decoded.Width, decoded.Height, tile =>
+                return AddTile(name, decoded.Width, decoded.Height, at, tile =>
                 {
                     tile.Path = relative;
                     tile.Origin = path;
                 });
             }
             var png = Lightbox.Raster.PngCodec.Encode(decoded);
-            return AddTile(name, decoded.Width, decoded.Height, tile =>
+            return AddTile(name, decoded.Width, decoded.Height, at, tile =>
             {
                 tile.Png = png;
                 tile.Origin = path;
@@ -207,7 +222,8 @@ public sealed class ReferenceBoardViewModel
     /// Pin up bytes that came from somewhere with no file — a picture dragged out
     /// of a browser. Null when the bytes are not an image.
     /// </summary>
-    public BoardTile? AddImageBytes(string name, byte[] bytes)
+    /// <inheritdoc cref="AddImageFile(string, ValueTuple{double,double}?)" path="/param[@name='at']"/>
+    public BoardTile? AddImageBytes(string name, byte[] bytes, (double X, double Y)? at = null)
     {
         // Through a codec rather than Decode(byte[]), for the reason
         // ImportReferenceImageBytes gives: the byte[] overload throws on bytes no
@@ -222,15 +238,20 @@ public sealed class ReferenceBoardViewModel
         if (Project is { } project
             && ProjectBoards.ImportImage(project, Convert.FromBase64String(png), $"{name}.png") is { } relative)
         {
-            return AddTile(name, decoded.Width, decoded.Height, tile => tile.Path = relative);
+            return AddTile(name, decoded.Width, decoded.Height, at, tile => tile.Path = relative);
         }
-        return AddTile(name, decoded.Width, decoded.Height, tile => tile.Png = png);
+        return AddTile(name, decoded.Width, decoded.Height, at, tile => tile.Png = png);
     }
 
-    private BoardTile AddTile(string name, int pixelWidth, int pixelHeight, Action<BoardTile> source)
+    private BoardTile AddTile(
+        string name, int pixelWidth, int pixelHeight, (double X, double Y)? at, Action<BoardTile> source)
     {
         var (width, height) = BoardLayout.StartingSize(pixelWidth, pixelHeight);
-        var (x, y) = BoardLayout.NextFreeSpot(Board.Tiles);
+        // Centred on the point it was put at, the way anything dragged onto
+        // anything lands under the cursor rather than beside it.
+        var (x, y) = at is { } spot
+            ? (spot.X - width / 2, spot.Y - height / 2)
+            : BoardLayout.NextFreeSpot(Board.Tiles);
         var tile = new BoardTile
         {
             Name = string.IsNullOrWhiteSpace(name) ? "Reference" : name,

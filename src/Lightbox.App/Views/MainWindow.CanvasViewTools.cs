@@ -222,6 +222,7 @@ public partial class MainWindow
                 _vm.UndoCommand.Execute(null);
                 break;
             case "canvas.redo":
+            case "canvas.redoAlt":
                 _vm.RedoCommand.Execute(null);
                 break;
             case "timeline.prevFrame":

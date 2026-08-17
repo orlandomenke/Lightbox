@@ -105,7 +105,7 @@ public sealed class TransformGizmoInputTests(ITestOutputHelper output) : BrushSt
         canvas.RaiseEvent(Release(window, canvas, at + new Point(60, 60)));
     }
 
-    /// <summary>A pointer move with modifier keys down — B244 reads Alt per move.</summary>
+    /// <summary>A pointer move with modifier keys down — B248 reads Alt per move.</summary>
     private static PointerEventArgs MoveHolding(Window w, Control t, Point at, KeyModifiers held) =>
         new(InputElement.PointerMovedEvent, t, Mouse, w, Root(w, t, at), 0,
             new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.Other),
@@ -242,7 +242,7 @@ public sealed class TransformGizmoInputTests(ITestOutputHelper output) : BrushSt
         Assert.True(canvas.TransformAffineResult.ScaleX > 1.01);
     }
 
-    // ---- B244: what a scale drag holds still ---------------------------------
+    // ---- B248: what a scale drag holds still ---------------------------------
 
     /// <summary>
     /// Dragging a corner leaves the opposite corner where it was — the side you
