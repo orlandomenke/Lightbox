@@ -153,7 +153,58 @@ internal static class PenEchoFilter
         if (_typeProp is null) return "RawPointerEventArgs.Type";
         if (_handledProp is null || !_handledProp.CanWrite) return "RawPointerEventArgs.Handled";
         if (typeof(IInputManager).GetProperty("PreProcess") is null) return "IInputManager.PreProcess";
+        if (AvaloniaBase.GetType("Avalonia.AvaloniaLocator") is null) return "Avalonia.AvaloniaLocator";
         return null;
+    }
+
+    /// <summary>
+    /// The assembly the input types live in — <c>Avalonia.Base</c>, which is not
+    /// the one <c>Application</c> lives in.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is the line the first attempt got wrong, and the reason it is a
+    /// named member now.</b> The lookup was written as
+    /// <c>typeof(Application).Assembly.GetType("Avalonia.AvaloniaLocator")</c>
+    /// — but <c>Application</c> is in <c>Avalonia.Controls</c> and
+    /// <c>AvaloniaLocator</c> is in <c>Avalonia.Base</c>, so it resolved to null,
+    /// the filter stood down, and the reporter's next trace read
+    /// <c>echo events dropped 0</c> with every symptom intact. Anchoring on a
+    /// type that is definitionally in the right assembly removes the guess.
+    /// </remarks>
+    private static System.Reflection.Assembly AvaloniaBase => typeof(IInputManager).Assembly;
+
+    /// <summary>
+    /// Avalonia's input manager, or null with the reason recorded.
+    /// </summary>
+    /// <remarks>
+    /// <b>Lives here rather than at the call site, because the call site was
+    /// not tested and this is.</b> The bug above was in three lines of
+    /// reflection sitting in <c>App.axaml.cs</c>, which no test reaches — the
+    /// filter's own policy was covered in full while the thing that decides
+    /// whether the policy ever runs was not. <see cref="Resolve"/> now covers
+    /// it, so the same mistake fails the build.
+    /// </remarks>
+    internal static object? FindInputManager()
+    {
+        try
+        {
+            // The direct route first: a public static on an internal type.
+            if (AvaloniaBase.GetType("Avalonia.Input.InputManager")
+                    ?.GetProperty("Instance")?.GetValue(null) is { } instance)
+            {
+                return instance;
+            }
+
+            // The service locator, for a build where that moves.
+            var locator = AvaloniaBase.GetType("Avalonia.AvaloniaLocator");
+            var current = locator?.GetProperty("Current")?.GetValue(null);
+            var get = current?.GetType().GetMethod("GetService", [typeof(Type)]);
+            return get?.Invoke(current, [typeof(IInputManager)]);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     /// <summary>
@@ -161,7 +212,7 @@ internal static class PenEchoFilter
     /// the members cannot be reached — a missing filter must never stop the
     /// application starting.
     /// </summary>
-    public static void Install(object? manager)
+    public static void Install(object? manager = null)
     {
         if (_installed) return;
         _installed = true;
@@ -171,6 +222,8 @@ internal static class PenEchoFilter
             Unavailable = $"{missing} could not be resolved";
             return;
         }
+
+        manager ??= FindInputManager();
         if (manager is null)
         {
             Unavailable = "no input manager (headless)";

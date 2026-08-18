@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 using Avalonia.Input.Raw;
 using Lightbox.App.Services;
 
@@ -99,23 +100,41 @@ public class PenEchoFilterTests : IDisposable
         Assert.Null(PenEchoFilter.Resolve());
     }
 
-    [Fact]
-    public void WithNoInputManagerItStandsDownAndSaysWhy()
+    /// <summary>
+    /// The input manager is actually found.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is the test the first attempt did not have, and the reason it
+    /// shipped broken.</b> The lookup was three lines of reflection in
+    /// <c>App.axaml.cs</c> — outside anything a test reaches — and it asked
+    /// <c>typeof(Application).Assembly</c> for <c>Avalonia.AvaloniaLocator</c>.
+    /// <c>Application</c> is in <c>Avalonia.Controls</c> and the locator is in
+    /// <c>Avalonia.Base</c>, so it returned null, the filter stood down, and the
+    /// reporter's confirmation trace read <c>echo events dropped 0</c> with all
+    /// three symptoms untouched. The policy was covered in full; the thing that
+    /// decides whether the policy ever runs was not.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheInputManagerIsFound()
     {
-        PenEchoFilter.Install(null);
-
-        // Headless: no filtering, no throw, and a reason recorded rather than a
-        // silent no-op.
-        Assert.NotNull(PenEchoFilter.Unavailable);
-        Assert.Equal(0, PenEchoFilter.Dropped);
+        Assert.NotNull(PenEchoFilter.FindInputManager());
     }
 
-    [Fact]
+    [AvaloniaFact]
+    public void InstallingWithAnExplicitManagerSubscribes()
+    {
+        PenEchoFilter.Install(PenEchoFilter.FindInputManager());
+
+        // Nothing stopped it: no missing member, no missing manager.
+        Assert.Null(PenEchoFilter.Unavailable);
+    }
+
+    [AvaloniaFact]
     public void InstallingTwiceDoesNotStackASecondSubscription()
     {
-        PenEchoFilter.Install(null);
+        PenEchoFilter.Install();
         var first = PenEchoFilter.Unavailable;
-        PenEchoFilter.Install(null);
+        PenEchoFilter.Install();
 
         // Two subscriptions would drop each event twice and double the counter
         // the fix is judged by.

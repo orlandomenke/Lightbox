@@ -22,7 +22,7 @@ public sealed class App : Application
             // the enter/exit pair, and the pair is B126, B254 and B255 (the
             // 6-second freeze) all three. See PenEchoFilter for the measured
             // case; on a machine with no pen it can never engage.
-            PenEchoFilter.Install(InputManagerOrNull());
+            PenEchoFilter.Install();
 
             // Eight fixed shapes with no input, ~160 ms to bake on a background
             // thread of its own. Started here so the first artist to open the
@@ -41,31 +41,6 @@ public sealed class App : Application
                 () => _ = StartAsync(desktop, splash), DispatcherPriority.Background);
         }
         base.OnFrameworkInitializationCompleted();
-    }
-
-    /// <summary>
-    /// Avalonia's input manager, or null where it cannot be reached.
-    /// </summary>
-    /// <remarks>
-    /// <c>AvaloniaLocator</c> is another of the types the 12.1.1 reference
-    /// assembly hides from the compiler while the runtime exposes it, so the
-    /// service lookup goes the same way as the rest of
-    /// <see cref="PenEchoFilter"/>'s: by name, guarded, and worth nothing worse
-    /// than the filter not installing.
-    /// </remarks>
-    private static object? InputManagerOrNull()
-    {
-        try
-        {
-            var locator = typeof(Application).Assembly.GetType("Avalonia.AvaloniaLocator");
-            var current = locator?.GetProperty("Current")?.GetValue(null);
-            var get = current?.GetType().GetMethod("GetService", [typeof(Type)]);
-            return get?.Invoke(current, [typeof(Avalonia.Input.IInputManager)]);
-        }
-        catch
-        {
-            return null;
-        }
     }
 
     /// <summary>Build the window behind the splash, then trade the two over.</summary>
