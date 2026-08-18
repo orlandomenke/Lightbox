@@ -1,3 +1,4 @@
+using Lightbox.Core.Documents;
 using Lightbox.Raster.Media;
 using Xunit.Abstractions;
 
@@ -12,13 +13,18 @@ namespace Lightbox.Raster.Tests;
 [Collection("Performance")]
 public class FluidSolverTests(ITestOutputHelper output)
 {
-    private static readonly FluidParams2D Typical = new(
-        Buoyancy: 0.06f, Weight: 0.01f, Vorticity: 0.35f,
-        Turbulence: 0.5f, TurbulenceScale: 12f, TurbulenceDrift: 0.05f,
-        Dissipation: 0.004f, Cooling: 0.02f);
+    private static SimParams Typical => new()
+    {
+        Buoyancy = 0.06, Weight = 0.01, Vorticity = 0.35,
+        Turbulence = 0.5, TurbulenceScale = 12, TurbulenceDrift = 0.05,
+        Dissipation = 0.004, Cooling = 0.02,
+    };
 
-    private static readonly FluidParams2D Inert = new(
-        0f, 0f, 0f, 0f, 8f, 0f, 0f, 0f);
+    private static SimParams Inert => new()
+    {
+        Buoyancy = 0, Weight = 0, Vorticity = 0, Turbulence = 0,
+        TurbulenceScale = 8, TurbulenceDrift = 0, Dissipation = 0, Cooling = 0,
+    };
 
     /// <summary>A warm disc of smoke low in the frame — one puff about to rise.</summary>
     private static FluidSolver Puff(int w, int h, float density = 1f, float heat = 1f)
@@ -520,17 +526,19 @@ public class FluidSolverTests(ITestOutputHelper output)
     [Fact]
     public void Extreme_Parameters_Do_Not_Produce_NaN()
     {
-        float[] wild = [0f, 1f, 50f, 1000f, -20f, float.NaN, float.PositiveInfinity];
+        double[] wild = [0, 1, 50, 1000, -20, double.NaN, double.PositiveInfinity];
 
         foreach (var b in wild)
         {
             foreach (var t in wild)
             {
                 var s = Puff(24, 32, density: 5f, heat: 5f);
-                s.Run(12, new FluidParams2D(
-                    Buoyancy: b, Weight: b, Vorticity: t,
-                    Turbulence: t, TurbulenceScale: t, TurbulenceDrift: t,
-                    Dissipation: 0f, Cooling: 0f));
+                s.Run(12, new SimParams
+                {
+                    Buoyancy = b, Weight = b, Vorticity = t,
+                    Turbulence = t, TurbulenceScale = t, TurbulenceDrift = t,
+                    Dissipation = 0, Cooling = 0,
+                });
 
                 foreach (var d in Density(s))
                 {

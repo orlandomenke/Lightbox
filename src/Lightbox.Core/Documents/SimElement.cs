@@ -1,0 +1,240 @@
+namespace Lightbox.Core.Documents;
+
+/// <summary>
+/// What the solver does with the fluid, frame after frame.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>In the document rather than in the solver, for the reason
+/// <see cref="BrushSettings"/> is.</b> Core describes what a mark is and Raster
+/// carries it out; a solver that owned its own parameter type would make every
+/// tuning change a file-format change, and would leave two sets of the same
+/// numbers to drift apart. `FluidSolver` reads this directly, exactly as
+/// `BrushEngine` reads a brush.
+/// </para>
+/// <para>
+/// Every value is per <em>step</em>, not per frame or per second — a step is the
+/// solver's unit and substeps are how an element buys speed. Velocities are in
+/// cells per step, which is what makes the whole record independent of how
+/// finely the element is simulated.
+/// </para>
+/// </remarks>
+public sealed record SimParams
+{
+    /// <summary>How hard heat lifts. Up is −Y, the document's own convention.</summary>
+    public double Buoyancy { get; set; } = 0.06;
+
+    /// <summary>How hard density sinks — smoke is heavier than the air it rides.</summary>
+    public double Weight { get; set; } = 0.01;
+
+    /// <summary>How much of the curl advection eats is put back. What keeps a plume curling.</summary>
+    public double Vorticity { get; set; } = 0.35;
+
+    /// <summary>Amplitude of the seeded curl-noise force.</summary>
+    public double Turbulence { get; set; } = 0.5;
+
+    /// <summary>Cells per noise cell. Small is fine detail, large is slow billow.</summary>
+    public double TurbulenceScale { get; set; } = 12;
+
+    /// <summary>Noise-space units the field travels per step, so the turbulence evolves.</summary>
+    public double TurbulenceDrift { get; set; } = 0.05;
+
+    /// <summary>Fraction of density lost per step.</summary>
+    public double Dissipation { get; set; } = 0.004;
+
+    /// <summary>Fraction of temperature lost per step.</summary>
+    public double Cooling { get; set; } = 0.02;
+}
+
+/// <summary>Where an emitter puts fluid in.</summary>
+public enum EmitterShape
+{
+    Point,
+
+    /// <summary>A line from (X,Y) to (X2,Y2) — a burner, a trail, the lip of a waterfall.</summary>
+    Segment,
+
+    Disc,
+}
+
+/// <summary>
+/// One source feeding an element: where fluid enters, how much, and how hot.
+/// </summary>
+/// <remarks>
+/// <b>Positions are in cell units, element-local</b>, not document pixels. An
+/// element is a box that can be moved around the canvas, and an emitter has to
+/// travel with it; storing canvas coordinates would leave the flame behind when
+/// the box moved. Grid resolution is a property of the element and changing it
+/// is re-authoring rather than rescaling, so cell units are stable under
+/// everything that is not already a re-author.
+/// </remarks>
+public sealed class Emitter
+{
+    public string Id { get; set; } = Ids.NewId("em");
+
+    public EmitterShape Shape { get; set; } = EmitterShape.Disc;
+
+    public double X { get; set; }
+
+    public double Y { get; set; }
+
+    /// <summary>The far end, for <see cref="EmitterShape.Segment"/>.</summary>
+    public double X2 { get; set; }
+
+    public double Y2 { get; set; }
+
+    /// <summary>Cells, for <see cref="EmitterShape.Disc"/>.</summary>
+    public double Radius { get; set; } = 3;
+
+    /// <summary>Density added per frame at the centre.</summary>
+    public double Density { get; set; } = 1;
+
+    /// <summary>Heat added per frame at the centre. This is what makes fire rise.</summary>
+    public double Heat { get; set; } = 1;
+
+    /// <summary>An initial push, in cells per step.</summary>
+    public double VelocityX { get; set; }
+
+    public double VelocityY { get; set; }
+
+    public Emitter Clone() => (Emitter)MemberwiseClone();
+}
+
+/// <summary>
+/// The particle pass riding the same velocity field: embers, spray, sparks.
+/// </summary>
+/// <remarks>
+/// Absent unless used, like everything else optional here. Q116 put particles in
+/// the first slice rather than later, and fire is what makes that pay — a flame
+/// without embers reads as a flat shape.
+/// </remarks>
+public sealed class ParticleSpec
+{
+    /// <summary>How many are spawned per frame.</summary>
+    public int PerFrame { get; set; } = 12;
+
+    /// <summary>How many frames one survives.</summary>
+    public int Lifetime { get; set; } = 8;
+
+    /// <summary>Stroke width, in document pixels, before the brush's own dynamics.</summary>
+    public double Size { get; set; } = 2;
+
+    public string Color { get; set; } = "#ffcc66";
+
+    public string? BrushPresetId { get; set; }
+
+    public ParticleSpec Clone() => (ParticleSpec)MemberwiseClone();
+}
+
+/// <summary>
+/// One authored effects element: a deterministic simulation that writes
+/// drawings into a range of frames.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>This is the authoring record, not the output</b> (Q116). Baking writes
+/// ordinary <see cref="ToolKind.Fill"/> and <see cref="ToolKind.Brush"/> strokes
+/// into the frames, each carrying <see cref="Stroke.SimId"/> so a re-bake knows
+/// what to replace; the strokes are what the renderer, the picker, the
+/// transform, undo, export and the AI payload all see, and none of them needs to
+/// know an element exists. That is the same relationship
+/// <see cref="StrokePath"/> has with <c>Stroke.Points</c>: an authored
+/// description alongside, with the geometry staying the truth.
+/// </para>
+/// <para>
+/// <b><see cref="Kind"/> is a string id resolved through a registry</b>, not an
+/// enum, for the reason the brush tip registry already took: an element of a
+/// kind this build does not know — a document from a newer version — is
+/// preserved on save and skipped on bake, never dropped.
+/// </para>
+/// <para>
+/// <b>Absent until authored.</b> A document with no elements writes no
+/// <c>sims</c> key at all, and every optional part of an element that is not
+/// used writes no key either. <c>SimElementSerializationTests</c> is the cheap
+/// half of that promise and ships beside the record, because the medium block
+/// paid for the expensive half once already.
+/// </para>
+/// </remarks>
+public sealed class SimElement
+{
+    public string Id { get; set; } = Ids.NewId("sim");
+
+    /// <summary>What is being simulated: <c>fire</c>, <c>smoke</c>, <c>steam</c>.</summary>
+    public string Kind { get; set; } = "smoke";
+
+    /// <summary>An artist's name for this element, or null.</summary>
+    public string? Name { get; set; }
+
+    public int FirstFrame { get; set; }
+
+    public int FrameCount { get; set; } = 24;
+
+    /// <summary>
+    /// Bake one drawing every this many frames and hold it. Two is animating on
+    /// 2s, which halves the boil per-frame tracing produces (Q116) and is what an
+    /// animator would do anyway.
+    /// </summary>
+    public int ExposeOn { get; set; } = 1;
+
+    public int GridWidth { get; set; } = 192;
+
+    public int GridHeight { get; set; } = 108;
+
+    /// <summary>Where cell (0,0)'s corner sits in the document.</summary>
+    public double OriginX { get; set; }
+
+    public double OriginY { get; set; }
+
+    /// <summary>Document pixels per cell. The grid is deliberately coarser than the document.</summary>
+    public double Scale { get; set; } = 10;
+
+    /// <summary>Solver steps per frame. The way to buy speed without breaking the CFL bound.</summary>
+    public int Substeps { get; set; } = 8;
+
+    public SimParams Params { get; set; } = new();
+
+    public List<Emitter> Emitters { get; set; } = [];
+
+    /// <summary>
+    /// Which field the bands read. Fire bands from temperature — the ramp is the
+    /// drawing — and smoke from density.
+    /// </summary>
+    public bool BandsFromHeat { get; set; }
+
+    /// <summary>The field range the bands are spread through.</summary>
+    public double BandLow { get; set; }
+
+    public double BandHigh { get; set; } = 1;
+
+    /// <summary>A colour per band, outermost first. How <em>many</em> bands there are is style, and lives on the treatment.</summary>
+    public List<string> BandColors { get; set; } = [];
+
+    public string OutlineColor { get; set; } = "#1a1a1a";
+
+    /// <summary>The shared line treatment this element follows, or null for the defaults.</summary>
+    public string? TreatmentId { get; set; }
+
+    /// <summary>
+    /// Overrides on top of that treatment — the same record, because every field
+    /// is nullable and the defaults live in one place (Q118).
+    /// </summary>
+    public LineTreatment? Treatment { get; set; }
+
+    /// <summary>The ember pass, or null — and null is every element that does not want one.</summary>
+    public ParticleSpec? Particles { get; set; }
+
+    /// <summary>Frames this element covers, as a half-open range.</summary>
+    public bool Covers(int frame) => frame >= FirstFrame && frame < FirstFrame + FrameCount;
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public SimElement Clone()
+    {
+        var copy = (SimElement)MemberwiseClone();
+        copy.Params = Params with { };
+        copy.Emitters = Emitters.Select(e => e.Clone()).ToList();
+        copy.BandColors = [.. BandColors];
+        copy.Treatment = Treatment?.Clone();
+        copy.Particles = Particles?.Clone();
+        return copy;
+    }
+}

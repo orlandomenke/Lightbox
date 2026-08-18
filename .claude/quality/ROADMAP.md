@@ -647,6 +647,14 @@ every other AI feature and are only legible together.
     inference last, which needs a look to be judged against. Stays `[?]` until
     step 4 gives it evidence anchors to name: anchoring it earlier would make the
     box read `[x]` — *built* — for a feature no artist can reach.
+  - **Step 3 landed 2026-08-18**: the record. `Doc.Sims` and `Doc.LineTreatments`
+    are absent until authored, `Stroke.SimId` is absent on every hand-drawn
+    stroke, and an override that states nothing serializes as `{}` rather than as
+    sixteen nulls — the medium block's lesson paid up front rather than found in
+    the JSON later. `Doc.TreatmentFor` is the one place the cascade resolves.
+    `SimParams` moved into Core so the solver reads the document's own numbers,
+    the way `BrushEngine` reads a `BrushSettings`; the cost, stated rather than
+    hidden, is that a solver tuning change is now a file-format change.
   - **Step 2 landed 2026-08-18**: `MarchingSquares` and `FieldTracer` turn a
     field into filled bands and treated outlines, guarded by 43 tests on a static
     field so the tracer is judged without the solver in the reading. The
