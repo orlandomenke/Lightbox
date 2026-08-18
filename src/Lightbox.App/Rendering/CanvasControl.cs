@@ -2880,9 +2880,14 @@ public sealed partial class CanvasControl : Control
         Services.InputTrace.Pointer(Services.InputTrace.Kind.Enter, e, this);
         ReportHoverChurn(e);
         // An enter cancels a pending teardown: the pointer never really left.
-        CancelLeave();
-        _hoverPoint = e.GetPosition(this);
-        InvalidateVisual();
+        var wasAway = CancelLeave();
+        var at = e.GetPosition(this);
+        var moved = _hoverPoint != at;
+        _hoverPoint = at;
+        // Only repaint if this enter actually changed what is on screen. On a
+        // pen tablet this fires ~97 times a second without the ring moving at
+        // all (B255) — see RepaintOnHoverChange.
+        if (wasAway || moved) InvalidateVisual();
     }
 
     protected override void OnPointerExited(PointerEventArgs e)
@@ -2893,9 +2898,11 @@ public sealed partial class CanvasControl : Control
         ReportHoverChurn(e);
         // Deliberately *not* torn down here — see LeaveGraceMs. A departure
         // only counts once it has lasted, because on a pen tablet almost none
-        // of them do.
+        // of them do. And because nothing is torn down, nothing on screen has
+        // changed, so there is nothing to repaint: the invalidate that used to
+        // be here painted an identical canvas ~97 times a second
+        // (RepaintOnHoverChange). SettleHover repaints when the ring really goes.
         BeginLeave();
-        InvalidateVisual();
     }
 
     /// <summary>
