@@ -252,6 +252,8 @@
         </StackPanel>
         <Button Content="Bake pose" Command="{Binding BakePoseCommand}"
                 ToolTip.Tip="Write this frame's pose into the drawing. Bound lines become ordinary posed lines." />
+        <Button Content="Drawing from pose" Command="{Binding InsertPoseDrawingCommand}"
+                ToolTip.Tip="Break the hold here and keep this pose as a drawing of its own — bound lines baked into it, a bone guide copied through to draw over." />
       </StackPanel>
 
       <!-- Correctives (Q100). A bent joint that skinning collapses is fixed by

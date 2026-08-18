@@ -574,11 +574,45 @@ public partial class MainViewModel
     private void AddTab(DocumentTab tab)
     {
         var wasEmpty = Tabs.Count == 0;
+        // B257. Undo and redo swap the editor's document object, and the
+        // project holds its own reference to the one it loaded — the reference
+        // a project save writes to disk. Subscribed here rather than where the
+        // project opens a document, because the tab is the thing that owns an
+        // editor, and a tab that becomes a project document later (a new
+        // project adopting the open drawing) is then already wired.
+        tab.Editor.DocReplaced += _ => RepointProjectCache(tab);
         Tabs.Add(tab);
         ActiveTab = tab;
         // Coming back from empty is the transition the whole UI hangs off, and a
         // property that only ever falls is worse than no property at all.
         if (wasEmpty) OnPropertyChanged(nameof(HasDocument));
+    }
+
+    /// <summary>
+    /// Point the project's loaded-document cache at the object this tab's
+    /// editor now holds.
+    /// </summary>
+    /// <remarks>
+    /// <b>B257, and the reason it was invisible.</b> `project.Loaded[id]` is
+    /// what <c>ProjectIo.Save</c> writes, and it was set once when the document
+    /// was opened. An ordinary edit mutates the document in place, so the two
+    /// references agreed through any amount of drawing — and a single undo
+    /// swapped the editor onto the snapshot instance and left the project
+    /// holding the other one. Everything after that undo landed on a document
+    /// nothing would ever write, and the save reported success. Reopening
+    /// showed the file as it stood at the undo: work present up to that point,
+    /// everything after it gone.
+    /// <para>
+    /// Reads <see cref="DocumentTab.Source"/> at call time rather than
+    /// capturing it, so a tab that is adopted into a project after it was
+    /// opened is covered by the same subscription.
+    /// </para>
+    /// </remarks>
+    private void RepointProjectCache(DocumentTab tab)
+    {
+        if (ProjectDocker.Project is not { } project) return;
+        if ((tab.Owner ?? tab).Source is not { } source) return;
+        project.Loaded[source.Id] = tab.Doc;
     }
 
     private int _untitledCounter = 1;

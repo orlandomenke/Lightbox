@@ -454,7 +454,9 @@ says a thing under it can be taken hold of, and which way it will go.
   perspective warp — a warped corner goes wherever you put it, so there is no
   direction to point along.
 - **A curved arrow means this turns.** Outside the transform box, on the camera
-  frame's rotate handle, and on a bone you are posing.
+  frame's rotate handle, and on a bone's **tip** — the aiming handle, in both
+  bone modes. A bone's shaft and joint show the four-way arrow, because those
+  grabs carry the bone whether you are building the skeleton or posing it.
 - **A hand means you are holding the canvas itself** — a middle-button drag, or
   the pan tool.
 

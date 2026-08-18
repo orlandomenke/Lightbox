@@ -388,6 +388,9 @@ public partial class MainWindow
             case "armature.deleteBone":
                 _vm.DeleteBoneCommand.Execute(null);
                 break;
+            case "armature.insertPoseDrawing":
+                _vm.InsertPoseDrawingCommand.Execute(null);
+                break;
             case "lines.simplify":
                 _vm.SimplifyLineCommand.Execute(null);
                 break;
