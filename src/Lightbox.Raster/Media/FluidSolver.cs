@@ -1,24 +1,6 @@
-namespace Lightbox.Raster.Media;
+using Lightbox.Core.Documents;
 
-/// <summary>
-/// Tuning for one <see cref="FluidSolver"/> run.
-/// </summary>
-/// <param name="Buoyancy">How hard heat lifts. Up is −Y, the document's own convention.</param>
-/// <param name="Weight">How hard density sinks — smoke is heavier than the air it rides.</param>
-/// <param name="Vorticity">
-/// Strength of vorticity confinement: how much of the curl that advection eats
-/// is put back. This is what keeps a plume curling instead of smoothing into a
-/// cone.
-/// </param>
-/// <param name="Turbulence">Amplitude of the seeded curl-noise force.</param>
-/// <param name="TurbulenceScale">Cells per noise cell. Small is fine detail, large is slow billow.</param>
-/// <param name="TurbulenceDrift">Noise-space units the field travels per step, so the turbulence evolves.</param>
-/// <param name="Dissipation">Fraction of density lost per step.</param>
-/// <param name="Cooling">Fraction of temperature lost per step.</param>
-public readonly record struct FluidParams2D(
-    float Buoyancy, float Weight, float Vorticity,
-    float Turbulence, float TurbulenceScale, float TurbulenceDrift,
-    float Dissipation, float Cooling);
+namespace Lightbox.Raster.Media;
 
 /// <summary>
 /// An incompressible fluid on a staggered grid, carrying density and
@@ -324,20 +306,28 @@ public sealed class FluidSolver
     }
 
     /// <summary>Advance the simulation. Cost is O(width × height × steps).</summary>
-    public void Run(int steps, in FluidParams2D p)
+    /// <remarks>
+    /// Takes the document's own <see cref="SimParams"/> rather than a type of its
+    /// own, for the reason <c>BrushEngine</c> takes a <c>BrushSettings</c>: two
+    /// copies of the same numbers would drift, and a solver that owned its
+    /// parameters would make every tuning change a file-format change.
+    /// </remarks>
+    public void Run(int steps, SimParams p)
     {
+        ArgumentNullException.ThrowIfNull(p);
+
         // Exact no-op, not "a step that happens to change nothing": callers
         // derive step counts from settings, and 0 has to mean untouched.
         if (steps <= 0) return;
 
-        var buoyancy = Clamped(p.Buoyancy, 0f, 100f);
-        var weight = Clamped(p.Weight, 0f, 100f);
-        var vorticity = Clamped(p.Vorticity, 0f, 100f);
-        var turbulence = Clamped(p.Turbulence, 0f, 100f);
-        var scale = Clamped(p.TurbulenceScale, 1f, 4096f);
-        var drift = Clamped(p.TurbulenceDrift, -16f, 16f);
-        var dissipation = Clamped(p.Dissipation, 0f, 1f);
-        var cooling = Clamped(p.Cooling, 0f, 1f);
+        var buoyancy = Clamped((float)p.Buoyancy, 0f, 100f);
+        var weight = Clamped((float)p.Weight, 0f, 100f);
+        var vorticity = Clamped((float)p.Vorticity, 0f, 100f);
+        var turbulence = Clamped((float)p.Turbulence, 0f, 100f);
+        var scale = Clamped((float)p.TurbulenceScale, 1f, 4096f);
+        var drift = Clamped((float)p.TurbulenceDrift, -16f, 16f);
+        var dissipation = Clamped((float)p.Dissipation, 0f, 1f);
+        var cooling = Clamped((float)p.Cooling, 0f, 1f);
 
         // The order is Stam's advect-force-project and it is not a knob.
         // Confinement reads the field *after* advection because restoring the

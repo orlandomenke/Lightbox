@@ -368,19 +368,43 @@ document ships in the same commit as the record, not after it.
 
 ```csharp
 SimElement {
-  string Id;  string Kind;               // "fire" | "smoke" | "water", registry-resolved
-  int FirstFrame;  int FrameCount;  int ExposeOn;
-  int GridW, GridH;  double OriginX, OriginY, Scale;
+  string Id;  string Kind;                  // "fire" | "smoke" | "steam", registry-resolved
+  string? Name;                             // absent unless an artist named it
+  int FirstFrame, FrameCount, ExposeOn;     // ExposeOn 2 is animating on 2s
+  int GridWidth, GridHeight;
+  double OriginX, OriginY, Scale;
   int Substeps;
-  List<Emitter> Emitters;                // shape, strength, temperature, keyable
-  SimParams Params;                      // buoyancy, vorticity, dissipation, cooling
-  float Low, High;  List<string> Bands;   // the field range, and a colour per band
-                                         // (how MANY bands is style, and lives on the treatment)
-  string? TreatmentId;                   // the shared line treatment, if any
-  LineTreatment? Treatment;              // overrides on top of it — same record
-  ParticleSpec? Particles;               // absent unless used
+  SimParams Params;                         // buoyancy, vorticity, turbulence, dissipation, cooling
+  List<Emitter> Emitters;                   // shape, strength, temperature — cell units, element-local
+  bool BandsFromHeat;                       // fire bands from temperature, smoke from density
+  double BandLow, BandHigh;                 // the field range the bands span
+  List<string> BandColors;                  // a colour per band; how MANY is style, on the treatment
+  string OutlineColor;
+  string? TreatmentId;                      // the shared line treatment, if any
+  LineTreatment? Treatment;                 // overrides on top of it — the same record
+  ParticleSpec? Particles;                  // absent unless used
 }
 ```
+
+**`SimParams` lives in Core and the solver reads it directly**, which is the one
+place the built record departs from this sketch. `FluidSolver` briefly owned its
+own parameter struct, and keeping it would have meant two copies of the same
+eight numbers and a translation between them — with the document's copy free to
+drift out of step with the solver's. `BrushEngine` already settled this shape:
+Core says what a mark is, Raster carries it out. The consequence worth stating is
+that **a solver tuning change is now visibly a file-format change**, which is
+the honest position rather than a cost.
+
+**`Doc.LineTreatments` holds the shared looks, and `Doc.TreatmentFor(element)` is
+the only place the cascade is resolved** — so nothing else has to remember the
+order, and a treatment deleted out from under an element resolves to the
+defaults rather than throwing. A document that never authors an effect writes
+neither key.
+
+**The deep-copy is guarded by machinery that already existed.** `DocCloneTests`
+walks the whole `Doc` type graph by reflection and fails on any field a `Clone`
+forgets, so the new records were covered the moment they were reachable from
+`Doc` — no new test needed, and no way to add a field later and quietly share it.
 
 `Kind` is a string id resolved through a registry, not an enum, for the reason
 the brush tip registry already took: an unknown kind from a newer build is

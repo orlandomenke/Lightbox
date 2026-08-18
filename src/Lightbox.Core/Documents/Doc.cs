@@ -106,6 +106,58 @@ public sealed class Doc
     public bool HasSymbols => Symbols is { Count: > 0 };
 
     /// <summary>
+    /// The effects elements authored in this document, keyed by id, or null.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Absent until authored</b>, the camera's rule and the medium block's
+    /// lesson: a document that never makes an effect is byte-identical to one
+    /// from before the feature existed, and shows no effects UI.
+    /// </para>
+    /// <para>
+    /// These are <em>authoring parameters</em>, never the drawing. Baking writes
+    /// ordinary strokes into the frames, each tagged with
+    /// <see cref="Stroke.SimId"/>; deleting every element here changes no pixel,
+    /// because the strokes are ordinary strokes. That is what keeps invariant 1
+    /// intact and is why nothing downstream — renderer, picker, transform, undo,
+    /// export, the AI payload — needed to learn what an element is.
+    /// </para>
+    /// </remarks>
+    public Dictionary<string, SimElement>? Sims { get; set; }
+
+    /// <summary>Whether this document authors any effects elements. Derived; not serialized.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasSims => Sims is { Count: > 0 };
+
+    /// <summary>
+    /// Shared line treatments, keyed by id, or null — the show's looks, which an
+    /// element names and may override field by field (Q118).
+    /// </summary>
+    /// <remarks>
+    /// On the document for now, in the manner <see cref="Palettes"/> began: the
+    /// scoping that makes one look serve a whole production is the same step
+    /// palettes took, and is a separate change from having the record at all.
+    /// </remarks>
+    public Dictionary<string, LineTreatment>? LineTreatments { get; set; }
+
+    /// <summary>
+    /// The treatment an element follows, with its own overrides applied over it.
+    /// </summary>
+    /// <remarks>
+    /// The one place the cascade is resolved, so nothing else has to remember
+    /// the order. A missing id resolves to the defaults rather than throwing — a
+    /// treatment deleted out from under an element should leave a plain line,
+    /// not an unopenable document.
+    /// </remarks>
+    public ResolvedTreatment TreatmentFor(SimElement element)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        LineTreatment? shared = null;
+        if (element.TreatmentId is { } id) LineTreatments?.TryGetValue(id, out shared);
+        return LineTreatment.Resolve(shared, element.Treatment);
+    }
+
+    /// <summary>
     /// The document's bone hierarchy, or null — and null is the default and
     /// the common case, exactly as <see cref="Documents.Scene.Camera"/> is.
     /// </summary>
@@ -263,6 +315,8 @@ public sealed class Doc
         copy.PaletteFolders = PaletteFolders?.Select(f => f.Clone()).ToList();
         copy.Gradients = Gradients.ToDictionary(e => e.Key, e => e.Value.Clone());
         copy.Symbols = Symbols?.ToDictionary(e => e.Key, e => e.Value.Clone());
+        copy.Sims = Sims?.ToDictionary(e => e.Key, e => e.Value.Clone());
+        copy.LineTreatments = LineTreatments?.ToDictionary(e => e.Key, e => e.Value.Clone());
         copy.Armature = Armature?.Clone();
         copy.Features = Features is null ? null : new Dictionary<string, bool>(Features);
         return copy;
