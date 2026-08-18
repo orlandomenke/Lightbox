@@ -302,15 +302,18 @@ UI-thread stalls — are the same numbers before and after, so one traced minute
 on each side settles whether a change helped, instead of leaving it to whether
 the flicker *feels* better.
 
-**Lightbox already filters the phantom mouse.** Where a tablet driver sends a
-mouse alongside the pen — which is what makes the pointer flicker, hover panels
-collapse, and menus freeze the application for seconds at a time — those
-duplicate events are dropped before they reach anything. The report counts them
-as `echo events dropped`. On a machine with no pen the filter can never engage,
-so an ordinary mouse is untouched; and if you pick the mouse up after using the
-pen, it is yours again a fifth of a second later. If a trace taken while
-drawing shows `echo events dropped 0`, the filter is not running — which is
-itself worth reporting.
+**What Lightbox can and cannot do about it.** The duplicate mouse a tablet
+driver sends alongside the pen cannot be stopped from inside the application —
+that was tried and measured, and it does not work. What Lightbox does instead
+is stop reacting to it: the brush ring ignores the pointer "leaving" unless it
+stays away for a twentieth of a second, and menus are drawn inside the window
+rather than as separate windows, which is what stopped a hovered menu freezing
+the application. The counters line says `popups are in-window overlays` when
+that is in force.
+
+Expect `stream alternations` and `canvas enter/exit` to stay high even when
+this is working — those count the driver's behaviour, which is untouched. What
+should change is what you see: a steady ring and menus that stay usable.
 
 ### If playback or scrubbing stutters, read the tile section first
 

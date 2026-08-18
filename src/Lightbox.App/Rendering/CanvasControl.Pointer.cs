@@ -127,6 +127,99 @@ public sealed partial class CanvasControl
         set => SetValue(PointerBadgeProperty, value);
     }
 
+    // ---- the departure that is not one (B126) -----------------------------------
+
+    /// <summary>When the pointer last left, or null while it is here.</summary>
+    private DateTime? _leftAt;
+
+    private Avalonia.Threading.DispatcherTimer? _leaveTimer;
+
+    /// <summary>
+    /// A departure only counts once it has lasted this long.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The pointer leaves and comes back 39 times a second and never
+    /// actually goes anywhere.</b> Three traces from the reporter's Huion say
+    /// so precisely: every one of 663, then 2,763, then 1,448 exits was
+    /// followed immediately by a <em>different device</em> entering, none by
+    /// the same one, at a median gap of <b>0.5 ms</b>. It is Windows Ink's
+    /// phantom mouse trading the canvas with the pen. Tearing the hover state
+    /// down on each exit is what makes the brush ring strobe and hands the
+    /// window's arrow back in between.
+    /// </para>
+    /// <para>
+    /// <b>Sized against the measurement rather than picked.</b> The churn's p90
+    /// gap is 0.8 ms; the longest genuine departure in the same traces was 16
+    /// seconds. Fifty milliseconds sits far clear of the real thing while
+    /// swallowing all of the false. Nobody perceives the ring outstaying the
+    /// pointer by a twentieth of a second; everybody perceives it strobing.
+    /// </para>
+    /// <para>
+    /// <b>What this does not fix, said plainly.</b> Only the canvas's own hover
+    /// state is debounced. The submenu thrash that freezes the application
+    /// (B255) happens inside Avalonia's <c>MenuItem</c> code, which no handler
+    /// here is on the path of — that is what <c>OverlayPopups</c> is for. The
+    /// echo itself is Windows Ink's and cannot be suppressed from in here at
+    /// all; <c>PenEchoFilter</c> tried and is the reason that is now known.
+    /// </para>
+    /// </remarks>
+    private const double LeaveGraceMs = 50;
+
+    /// <summary>True once the pointer has been away long enough to mean it.</summary>
+    internal bool HoverIsStale =>
+        _leftAt is { } left && (DateTime.UtcNow - left).TotalMilliseconds >= LeaveGraceMs;
+
+    /// <summary>Note a departure and arm the settle.</summary>
+    /// <remarks>
+    /// One timer for the control's life, restarted per exit rather than one
+    /// timer per exit — at 39 departures a second the latter would be work
+    /// proportional to the churn, on the thread the churn is already starving.
+    /// </remarks>
+    private void BeginLeave()
+    {
+        _leftAt = DateTime.UtcNow;
+        try
+        {
+            _leaveTimer ??= new Avalonia.Threading.DispatcherTimer(
+                TimeSpan.FromMilliseconds(LeaveGraceMs),
+                Avalonia.Threading.DispatcherPriority.Background,
+                (_, _) => SettleHover());
+            _leaveTimer.Stop();
+            _leaveTimer.Start();
+        }
+        catch
+        {
+            // No dispatcher (a headless construction): SettleHover is still
+            // reached by the next pointer event, which is enough for a test.
+        }
+    }
+
+    /// <summary>The pointer is back, so the departure never happened.</summary>
+    private void CancelLeave()
+    {
+        _leftAt = null;
+        try { _leaveTimer?.Stop(); }
+        catch { /* nothing to stop */ }
+    }
+
+    /// <summary>
+    /// Drop the hover state if the departure has lasted. Returns whether it did.
+    /// </summary>
+    internal bool SettleHover()
+    {
+        if (!HoverIsStale) return false;
+
+        CancelLeave();
+        _hoverPoint = null;
+        // Nothing to re-ask about once the pointer is gone, so a later tool
+        // change falls back to the tool's own cursor rather than answering
+        // about wherever the pointer happened to leave.
+        _cursorAt = null;
+        InvalidateVisual();
+        return true;
+    }
+
     /// <summary>
     /// The tip's outline as a unit-space path, built once per tip.
     /// </summary>

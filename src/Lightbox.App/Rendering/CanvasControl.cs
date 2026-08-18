@@ -2879,6 +2879,8 @@ public sealed partial class CanvasControl : Control
         _enterCount++;
         Services.InputTrace.Pointer(Services.InputTrace.Kind.Enter, e, this);
         ReportHoverChurn(e);
+        // An enter cancels a pending teardown: the pointer never really left.
+        CancelLeave();
         _hoverPoint = e.GetPosition(this);
         InvalidateVisual();
     }
@@ -2889,11 +2891,10 @@ public sealed partial class CanvasControl : Control
         _exitCount++;
         Services.InputTrace.Pointer(Services.InputTrace.Kind.Exit, e, this);
         ReportHoverChurn(e);
-        _hoverPoint = null;
-        // Nothing to re-ask about once the pointer is gone, so a later tool
-        // change falls back to the tool's own cursor rather than answering
-        // about wherever the pointer happened to leave.
-        _cursorAt = null;
+        // Deliberately *not* torn down here — see LeaveGraceMs. A departure
+        // only counts once it has lasted, because on a pen tablet almost none
+        // of them do.
+        BeginLeave();
         InvalidateVisual();
     }
 

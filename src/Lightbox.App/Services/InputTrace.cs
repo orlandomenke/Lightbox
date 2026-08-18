@@ -670,14 +670,7 @@ internal static class InputTrace
             // The filter's own count, so a trace says whether it engaged rather
             // than leaving "the churn is gone" and "the pen was not used" to
             // look identical.
-            // The reason, not just the number. The first fixed build reported
-            // "echo events dropped 0" with every symptom intact, and the count
-            // alone could not say whether the filter had declined to engage or
-            // had never installed — it was the latter, from a reflection lookup
-            // in the wrong assembly. A counter that can read zero for two
-            // different reasons has to name which.
-            sb.AppendLine($"  echo events dropped   {PenEchoFilter.Dropped}"
-                + (PenEchoFilter.Unavailable is { } why ? $"  (filter not installed: {why})" : ""));
+            sb.AppendLine($"  popups are            {(PopupsAreOverlays ? "in-window overlays" : "native windows")}");
             sb.AppendLine($"  longest silence       {summary.LongestSilenceMs:F0} ms"
                 + (summary.Stalls == 0 && summary.LongestSilenceMs > 2000
                     ? " — no stall in it, so the pointer was off the canvas"
@@ -756,6 +749,19 @@ internal static class InputTrace
             return kinds;
         }
     }
+
+    /// <summary>
+    /// Whether popups are rendered inside the window rather than as native
+    /// windows — the setting B255's freeze turns on.
+    /// </summary>
+    /// <remarks>
+    /// In the report because it is the one fact that decides how to read the
+    /// stall count: the freeze tracked native popup creation at ~100/s, so a
+    /// trace still showing stalls with popups as overlays means the cause is
+    /// something else, and the same trace with them as native windows means the
+    /// setting did not take.
+    /// </remarks>
+    internal static bool PopupsAreOverlays { get; set; }
 
     /// <summary>Back to cold: disarmed, empty, no remembered cursor.</summary>
     internal static void ResetForTests()
