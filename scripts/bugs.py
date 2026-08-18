@@ -253,7 +253,8 @@ def duplicates_in(pairs: list[tuple[str, str]]) -> dict[str, list[str]]:
 def _git(*args: str) -> str | None:
     """Git, or None. Every caller here has a sensible answer for "no git"."""
     try:
-        done = subprocess.run(("git", *args), cwd=ROOT, capture_output=True, text=True)
+        done = subprocess.run(("git", *args), cwd=ROOT, capture_output=True,
+                              text=True, encoding="utf-8", errors="replace")
     except OSError:
         return None
     return done.stdout if done.returncode == 0 else None
@@ -486,7 +487,8 @@ def fetch_origin() -> str:
     """
     try:
         done = subprocess.run(("git", "fetch", "--quiet", "--no-tags", "origin"),
-                              cwd=ROOT, capture_output=True, text=True, timeout=45)
+                              cwd=ROOT, capture_output=True, text=True,
+                              encoding="utf-8", errors="replace", timeout=45)
     except (OSError, subprocess.TimeoutExpired):
         return "could not reach origin — allocating from the refs already fetched"
     if done.returncode != 0:

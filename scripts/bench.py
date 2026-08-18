@@ -54,7 +54,8 @@ TIME_FACTOR = 1.5
 
 def sh(*args: str) -> str:
     return subprocess.run(
-        args, cwd=ROOT, capture_output=True, text=True, check=False
+        args, cwd=ROOT, capture_output=True,
+        text=True, encoding="utf-8", errors="replace", check=False
     ).stdout.strip()
 
 
