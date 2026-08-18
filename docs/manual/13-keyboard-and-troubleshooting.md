@@ -297,9 +297,20 @@ A trace shorter than five seconds says so and concludes nothing, rather than
 turning a few stray events into a confident rate.
 
 **It is also how a fix gets confirmed.** The counters near the top — moves per
-second, stream alternations, canvas enter/exit, popups that collapsed — are the
-same numbers before and after, so one traced minute on each side settles whether
-a change helped, instead of leaving it to whether the flicker *feels* better.
+second, stream alternations, canvas enter/exit, popups that collapsed,
+UI-thread stalls — are the same numbers before and after, so one traced minute
+on each side settles whether a change helped, instead of leaving it to whether
+the flicker *feels* better.
+
+**Lightbox already filters the phantom mouse.** Where a tablet driver sends a
+mouse alongside the pen — which is what makes the pointer flicker, hover panels
+collapse, and menus freeze the application for seconds at a time — those
+duplicate events are dropped before they reach anything. The report counts them
+as `echo events dropped`. On a machine with no pen the filter can never engage,
+so an ordinary mouse is untouched; and if you pick the mouse up after using the
+pen, it is yours again a fifth of a second later. If a trace taken while
+drawing shows `echo events dropped 0`, the filter is not running — which is
+itself worth reporting.
 
 ### If playback or scrubbing stutters, read the tile section first
 
