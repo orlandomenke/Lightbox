@@ -783,6 +783,28 @@ public partial class MainViewModel
     /// canvas repaints immediately instead of on the next thing that happens to
     /// dirty it.
     /// </remarks>
+    /// <summary>
+    /// Whether a stroke records the pen's tilt and the hand's speed.
+    /// </summary>
+    /// <remarks>
+    /// <b>Saved the moment it changes</b>, like every other preference here, so
+    /// the answer survives the session that set it. Turning it off never
+    /// touches art already made — the axes are in the points of strokes that
+    /// recorded them and stay there (invariant 4); this decides what the next
+    /// stroke captures and nothing more.
+    /// </remarks>
+    public bool RecordPenAxes
+    {
+        get => Settings.RecordPenAxes;
+        set
+        {
+            if (Settings.RecordPenAxes == value) return;
+            Settings.RecordPenAxes = value;
+            Settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
     public bool GpuCompositing
     {
         get => Settings.GpuCompositing;

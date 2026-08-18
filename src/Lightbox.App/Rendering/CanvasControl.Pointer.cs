@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Input;
 using SkiaSharp;
 
 namespace Lightbox.App.Rendering;
@@ -125,6 +126,99 @@ public sealed partial class CanvasControl
     {
         get => GetValue(PointerBadgeProperty);
         set => SetValue(PointerBadgeProperty, value);
+    }
+
+    // ---- the pen's other axes (tilt and speed) ----------------------------------
+
+    /// <summary>The tilt reader and speed estimator for the stroke in flight.</summary>
+    private readonly PenAxes _penAxes = new();
+
+    /// <summary>Where the last sample was, for the speed estimate.</summary>
+    private (double X, double Y, ulong T)? _lastAxisSample;
+
+    /// <summary>
+    /// Whether the artist has asked for tilt and speed to be recorded.
+    /// </summary>
+    /// <remarks>
+    /// <b>Read per stroke rather than per event</b>, and off by default. A
+    /// document made by somebody who never asked for these must serialize
+    /// exactly as it did before they existed — *optional means absent, not
+    /// disabled* — and the cheapest guarantee of that is capturing nothing
+    /// until asked. See <c>AppSettings.RecordPenAxes</c> for why it is a
+    /// preference rather than a document option.
+    /// </remarks>
+    public static readonly StyledProperty<bool> RecordPenAxesProperty =
+        AvaloniaProperty.Register<CanvasControl, bool>(nameof(RecordPenAxes));
+
+    public bool RecordPenAxes
+    {
+        get => GetValue(RecordPenAxesProperty);
+        set => SetValue(RecordPenAxesProperty, value);
+    }
+
+    /// <summary>
+    /// The pen axes for a sample, or nulls when nothing asked for them.
+    /// </summary>
+    /// <remarks>
+    /// The timestamp is the <em>event's</em>, not the point's: coalesced
+    /// intermediate points share one, which is why <see cref="PenAxes.SpeedFor"/>
+    /// holds its estimate rather than dividing by zero when two samples arrive
+    /// together. Verified against the shipped Avalonia assembly rather than
+    /// assumed — per-point timestamps do not exist.
+    /// </remarks>
+    private (double? TiltX, double? TiltY, double? Speed) AxesOf(PointerPoint pp, ulong timestamp)
+    {
+        if (!RecordPenAxes) return (null, null, null);
+
+        var isPen = pp.Pointer.Type == PointerType.Pen;
+        var (tx, ty) = _penAxes.TiltFor(isPen, pp.Properties.XTilt, pp.Properties.YTilt);
+
+        double? speed = null;
+        var at = pp.Position;
+        if (_lastAxisSample is { } prev)
+        {
+            speed = _penAxes.SpeedFor(at.X - prev.X, at.Y - prev.Y, timestamp - (double)prev.T);
+        }
+        else
+        {
+            // The first sample of a stroke starts from rest rather than from a
+            // guess: inventing a speed here would put a mark on the paper the
+            // hand did not make.
+            speed = 0;
+        }
+        _lastAxisSample = (at.X, at.Y, timestamp);
+        return (tx, ty, speed);
+    }
+
+    private void ReportInputDiagnostic(PointerType type, float rawPressure) =>
+        ReportInputDiagnostic(type, rawPressure, null, null, null);
+
+    /// <summary>
+    /// The live readout beside the pen settings, with the axes when they are
+    /// being recorded.
+    /// </summary>
+    /// <remarks>
+    /// <b>Tilt is the one worth showing.</b> Whether a tablet reports it at all
+    /// is a fact about the driver that nothing else in the application can
+    /// answer, and "my pen has tilt" is exactly the belief an artist arrives
+    /// with and can be wrong about. Speed rides along because it is free once
+    /// the line exists, and because a speed pinned at 1.00 says the reference
+    /// needs tuning for that hand.
+    /// </remarks>
+    private void ReportInputDiagnostic(
+        PointerType type, float rawPressure, double? tiltX, double? tiltY, double? speed)
+    {
+        if (InputDiagnostic is null) return;
+        var axes = tiltX is { } tx && tiltY is { } ty
+            ? $" · tilt {tx:0}/{ty:0}"
+            : RecordPenAxes && type == PointerType.Pen ? " · no tilt reported" : "";
+        if (speed is { } sp) axes += $" · speed {sp:0.00}";
+        var text = (type == PointerType.Pen
+            ? $"Pen detected — pressure {rawPressure:0.00}{axes}"
+            : $"{type} input — no pressure axis (paints at 100%)") + TracingSuffix();
+        if (text == _lastDiagnostic) return;
+        _lastDiagnostic = text;
+        InputDiagnostic.Invoke(text);
     }
 
     // ---- the departure that is not one (B126) -----------------------------------

@@ -328,6 +328,16 @@
         </StackPanel>
 
         <StackPanel Spacing="6">
+          <TextBlock Text="What a stroke records from the pen" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="Pressure is always recorded. Tilt and speed are not, unless you ask for them here — they are only useful with a pen that reports tilt, and a drawing that never uses them stays exactly as small as it is today." />
+          <CheckBox x:Name="RecordPenAxesBox" Content="Also record tilt and speed"
+                    IsCheckedChanged="OnRecordPenAxesChanged" />
+          <TextBlock Text="Turning this off later leaves finished drawings alone — the strokes that recorded tilt keep it."
+                     FontSize="10" Opacity="0.65" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
           <TextBlock Text="Where the brush lives" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
                      Text="Whether the brush belongs to the tool or to the drawing. Come back to a comic or a set of game assets after a fortnight and the question is not which brush you like, but which brush the work is drawn with." />
