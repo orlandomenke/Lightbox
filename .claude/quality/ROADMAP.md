@@ -592,6 +592,36 @@ every other AI feature and are only legible together.
   - Sequence-scale cost is the review stance over all four: `BrushCostOf`
     badges are read against replay across a whole sequence, not one image.
 - [?] Draw once, reuse across animations
+- [?] Fluid effects elements — fire, smoke and water as drawn line and fill
+  - Designed in `docs/DESIGN-fluid-effects.md` (2026-08-18), answering "is a
+    performant 2D fluid simulation possible, with the outline in the artist's
+    line style and the shape filled with colour". It is Pillar 4 rather than an
+    entry under *Non-destructive filters* because it **authors drawings** rather
+    than transforming pixels: an effects element runs a deterministic solver
+    over a frame range and writes ordinary `ToolKind.Fill` bands plus a
+    `ToolKind.Brush` outline into each frame. So the outline is a real stroke
+    carrying a real brush, and playback, export and the per-pointer budget pay
+    nothing for a baked element.
+  - **Measured before it was designed.** The existing `FluidLattice` — a
+    watercolour solver doing considerably more than a plume needs — runs a
+    192×108 grid at 1.7 ms/step in Release, so 24 frames on 8 substeps is
+    ~330 ms; contour trace and Douglas-Peucker simplify is 0.64 ms and yields
+    37 points for an annulus. Fluid is low-frequency, so the sim runs coarse and
+    the *contour* is traced into document coordinates. The budget is a
+    cancellable bake, not a frame: ≤ 2 s for 48 frames of fire.
+  - **The risk is boil, not cost, and invariant 2 does not cover it.** A
+    bit-reproducible sim still yields contours whose point count and
+    parameterisation jump every frame. Q116 chose per-frame tracing anyway —
+    right for fire, and its costs (no dial-down, no `StrokeMatcher`
+    correspondence inside an element, N independent polylines) are written down
+    there against the day water arrives.
+  - **Q116 settles the four pivotal choices**: bake to strokes with the
+    parameters kept in a `Doc.Sims` registry absent until authored; bands *and*
+    particles from the first slice; per-frame tracing; fire first. Three went
+    against the recommendation and each records what it costs.
+  - Build order is six branches, one objective each — solver, field → strokes,
+    record, fire end to end, docker, then smoke and water. Stays `[?]` until
+    step 4 gives it evidence anchors to name.
 - [x] Motion path visualization `evidence: MotionTrail, MotionTrailPainter, MotionTrailTests, MotionTrailOverlayTests, TheTrailRunsInTimelineOrderWithTheCurrentDrawingMarked, TheViewModelHandsTheWindowTheTrailAndKeepsItCurrent, TheToggleIsRegisteredSoItCanBeFoundAndRebound`
   - **Landed 2026-08-16 with spacing visualization as one overlay — the motion
     trail (Q98)** — because they are one thing: a polyline through the
