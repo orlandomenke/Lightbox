@@ -294,7 +294,7 @@ public static class CanvasCursor
     /// the gesture read the same hit-test and cannot disagree.
     /// </para>
     /// </remarks>
-    /// <param name="posing">Posing rotates whatever it grabs; binding edits the skeleton.</param>
+    /// <param name="posing">Posing keys the drag; binding edits the skeleton. Only empty canvas reads it — see below.</param>
     /// <param name="weightPainting">The weight brush is armed, and it is a brush like any other.</param>
     public static CanvasCursorKind ForBone(BoneGrab grab, bool posing, bool weightPainting = false)
     {
@@ -308,9 +308,11 @@ public static class CanvasCursor
             // Nothing under the pointer: a drag here starts a new bone, which
             // is a placing gesture like the pen's.
             BoneGrab.None => posing ? CanvasCursorKind.PickRecords : CanvasCursorKind.Precise,
-            // Posing turns whatever it takes hold of.
-            _ when posing => CanvasCursorKind.Rotate,
-            // Binding: the shaft and the joint move the bone, the tip re-aims it.
+            // The tip aims in both modes, the shaft and the joint move in
+            // both. Two branches where there were three, and the collapse is
+            // the point rather than a tidy-up: once posing read a grab the way
+            // binding does (owner's decision, 2026-08-18), the cursor had
+            // nothing left to say about the mode.
             BoneGrab.Tip => CanvasCursorKind.Rotate,
             _ => CanvasCursorKind.Move,
         };

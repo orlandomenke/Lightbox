@@ -59,13 +59,13 @@ public enum BoneGrab
 {
     None,
 
-    /// <summary>The origin handle — moving it moves the bone's rest offset.</summary>
+    /// <summary>The origin handle — moving it moves the joint: the rest offset in bind mode, the pose key in pose mode.</summary>
     Origin,
 
-    /// <summary>The tip handle — dragging it rotates (pose mode) or re-lengths (bind mode).</summary>
+    /// <summary>The tip handle — dragging it aims the bone, and re-lengths it in bind mode.</summary>
     Tip,
 
-    /// <summary>The shaft — selects, and drags rotate in pose mode.</summary>
+    /// <summary>The shaft — selects, and drags carry the bone and its children.</summary>
     Body,
 }
 

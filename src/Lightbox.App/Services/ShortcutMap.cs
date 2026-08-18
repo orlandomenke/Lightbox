@@ -235,6 +235,11 @@ public sealed class ShortcutMap
             // Bone tool is in hand — and being here is what lets an artist give
             // it a dedicated key that works from any tool.
             new("armature.deleteBone", "Delete the selected bone", "Canvas", null),
+            // No default gesture for the same reason as the two above: the
+            // button in the bone options is the way in, and being registered
+            // is what lets an artist working a cycle put it under a key —
+            // which is the whole point of a command pressed once per drawing.
+            new("armature.insertPoseDrawing", "Keep this pose as a drawing", "Canvas", null),
             new("tool.width", "Width (make a line heavier or lighter)", "Tools", G(Key.W)),
             // No default gesture, like lines.recolour above and for the same
             // reason: the sensible letters are taken, the button in the arrow's

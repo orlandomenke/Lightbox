@@ -558,6 +558,9 @@ public sealed partial class MainViewModel
     [RelayCommand]
     private void BakePose() => BakePoseHere();
 
+    [RelayCommand]
+    private void InsertPoseDrawing() => InsertDrawingFromPose();
+
     /// <summary>
     /// Re-read the slice of the rig surface that depends on <em>where the
     /// playhead is</em>: the posed chrome, the heat dots on the posed drawing,
@@ -852,6 +855,97 @@ public sealed partial class MainViewModel
     }
 
     /// <summary>
+    /// Land a pose-mode drag under the grab that started it: the tip aims the
+    /// bone, the shaft and the joint carry it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Pose mode reads a grab exactly the way bind mode does</b>, and that
+    /// symmetry is the point (owner's decision, 2026-08-18): the grab decides
+    /// what KIND of edit a drag is, the mode decides whether it lands on the
+    /// rest pose or on the pose key. Before this, every pose drag aimed —
+    /// reported as "in pose mode I am unable to move the entire skeleton …
+    /// grabbing the first bone or any bone for that matter, just rotates".
+    /// There was no gesture that translated an ordinary bone at all, so a
+    /// character could be posed and never moved, and the Transform tool moves
+    /// the drawing rather than the rig.
+    /// </para>
+    /// <para>
+    /// Moving the root moves the whole skeleton, because children ride their
+    /// parent through FK — the translation is written on one bone and the
+    /// hierarchy carries it, which is why this needs no "move the armature"
+    /// command beside it.
+    /// </para>
+    /// <para>
+    /// Chain and spline bones keep their existing answer for every grab: they
+    /// are <em>placed</em> rather than aimed or nudged, and the bone the drag
+    /// moves is often not the bone under the pointer, so a delta would have
+    /// nothing to be a delta of.
+    /// </para>
+    /// </remarks>
+    public void PoseDrag(string id, BoneGrab grab, double x0, double y0, double x, double y)
+    {
+        if (Doc.Armature is not { } armature || armature.BoneById(id) is null) return;
+
+        if (ChainTouching(id) is { } chain)
+        {
+            PoseTranslateTo(chain.PoleBoneId == id || chain.TargetBoneId == id ? id : chain.TargetBoneId, x, y);
+            return;
+        }
+        if (SplineTouching(id) is { } spline)
+        {
+            PoseTranslateTo(spline.HandleBoneIds.Contains(id) ? id : NearestHandle(spline, x, y), x, y);
+            return;
+        }
+
+        switch (grab)
+        {
+            // The tip is the aiming handle in both modes — bind re-lengths as
+            // well, pose only turns, because a pose cannot hold a length.
+            case BoneGrab.Tip:
+                PoseBoneTo(id, x, y);
+                break;
+            // The joint handle is under the pointer already, so placing it
+            // there is the same gesture bind mode makes of the same grab.
+            case BoneGrab.Origin:
+                PoseTranslateTo(id, x, y);
+                break;
+            default:
+                PoseMoveBy(id, x - x0, y - y0);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Carry a bone — and everything parented to it — by a world-space delta,
+    /// keyed at the playhead. The pose-mode shaft drag.
+    /// </summary>
+    /// <remarks>
+    /// A delta rather than a destination, for <c>PoseMoveDelta</c>'s reason:
+    /// the shaft is grabbed anywhere along its length. The base is the pose
+    /// the drag started on, read back from the track each call rather than
+    /// accumulated, so the preview per pointer event and the one release that
+    /// commits arrive at the same place.
+    /// </remarks>
+    internal void PoseMoveBy(string id, double dx, double dy)
+    {
+        if (Doc.Armature is not { } armature || armature.BoneById(id) is not { } bone) return;
+
+        var frame = CurrentFrameIndex;
+        var pose = ArmatureOps.PoseAt(Doc.Scene.PoseTrack, frame);
+        var placements = ArmatureOps.Solve(armature, pose);
+        var (tx, ty) = ArmatureGesture.PoseMoveDelta(
+            placements, bone, pose.GetValueOrDefault(id), dx, dy);
+
+        KeyPose(frame, id, p =>
+        {
+            p.X = tx;
+            p.Y = ty;
+        });
+        InvalidateRiggedFrames();
+    }
+
+    /// <summary>
     /// Write one bone's departure from rest into the key at a frame, creating
     /// the key — and the track — if there is none.
     /// </summary>
@@ -1090,6 +1184,92 @@ public sealed partial class MainViewModel
             AiStatus = baked == 1 ? "Baked the pose into 1 line." : $"Baked the pose into {baked} lines.";
         }
         return baked;
+    }
+
+    /// <summary>
+    /// Turn the pose at the playhead into a drawing of its own: the hold
+    /// breaks, and the new drawing holds exactly what the rig was showing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The bridge between live posing and frame-by-frame</b>, and the
+    /// answer to the owner's report of 2026-08-18: bones were being posed
+    /// across a run cycle as a construction guide, and playback showed the two
+    /// drawings that existed rather than the fifteen poses that had been
+    /// authored. Posing writes a pose key and nothing else — deliberately, so
+    /// that scrubbing and trying a pose stay free of consequence — which left
+    /// no gesture that said "and this one is a drawing".
+    /// </para>
+    /// <para>
+    /// One command covers both ways the rig is used, because it commits what
+    /// is on screen rather than a category (owner's decision): bound strokes
+    /// arrive baked into their posed positions, ready to touch up; unbound
+    /// ones — a pure bone guide over hand-drawn art — arrive copied as they
+    /// are, to be redrawn over with the posed skeleton showing through. The
+    /// hold is kept intact when the cel already has a drawing of its own;
+    /// there the command is <see cref="BakePoseHere"/> and nothing more.
+    /// </para>
+    /// <para>
+    /// One undo step for both halves. Keying the cel and baking into it are
+    /// two edits to the record, and an artist who presses this once and undoes
+    /// once means both.
+    /// </para>
+    /// </remarks>
+    /// <returns>Whether a drawing was inserted — false when the cel already had one.</returns>
+    public bool InsertDrawingFromPose()
+    {
+        if (Doc.Armature is not { Bones.Count: > 0 }) return false;
+        if (ActiveLayer is null) return false;
+        // Q103's rule, the same one painting follows: this is an edit landing,
+        // so a playhead parked past the end grows the scene to reach it.
+        EnsureSceneReachesPlayhead();
+        if (ActiveLayer is not { } active || active.Cels.Count == 0) return false;
+
+        var index = Math.Clamp(CurrentFrameIndex, 0, active.Cels.Count - 1);
+        var layerId = active.Id;
+        var inserted = false;
+        var baked = 0;
+        _editor.Perform(doc =>
+        {
+            if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) return;
+            if (index >= layer.Cels.Count) return;
+            var target = layer.Cels[index].Frame;
+            if (target is null)
+            {
+                // The copy carries strokes, baseline pixels and placements, so
+                // the insert alone changes no pixel — every visible difference
+                // is the bake below. PaintTargetOrKey's copy, not its policy:
+                // `DrawingOnAHold` decides what a MARK on a hold means, and
+                // this command has already been told what it means.
+                target = KeyedCopyOf(ExposureSheet.ExposedFrame(layer, index));
+                layer.Cels[index].Frame = target;
+                inserted = true;
+            }
+            if (doc.Armature is { } armature)
+            {
+                baked = Skinning.BakeFrame(
+                    target, armature,
+                    ArmatureOps.EffectivePoseAt(armature, doc.Scene.PoseTrack, index),
+                    doc.Scene.RiggedBoneOf(layer));
+            }
+        });
+
+        // The index before the invalidation, for RebuildRigIndex's reason: a
+        // drawing that has just stopped being a hold is a frame the index has
+        // never seen, and a key built against the old one would be the wrong
+        // shape.
+        RebuildRigIndex();
+        InvalidateRiggedFrames();
+        AiStatus = (inserted, baked) switch
+        {
+            (true, 0) => $"Drawing inserted at frame {index + 1}, holding the pose.",
+            (true, _) => $"Drawing inserted at frame {index + 1}, {Lines(baked)} baked from the pose.",
+            (false, 0) => "This frame already has a drawing of its own — nothing to bake into it.",
+            _ => $"Baked the pose into {Lines(baked)} on this frame's own drawing.",
+        };
+        return inserted;
+
+        static string Lines(int n) => n == 1 ? "1 line" : $"{n} lines";
     }
 
     /// <summary>

@@ -47,10 +47,13 @@ public class BoneOptionsTests
         Assert.Equal(CanvasCursorKind.Move, CanvasCursor.ForBone(BoneGrab.Origin, posing: false));
         Assert.Equal(CanvasCursorKind.Rotate, CanvasCursor.ForBone(BoneGrab.Tip, posing: false));
 
-        // Posing turns whatever it takes hold of, including the shaft — which
-        // is the pair the report was actually about.
-        Assert.Equal(CanvasCursorKind.Rotate, CanvasCursor.ForBone(BoneGrab.Body, posing: true));
-        Assert.Equal(CanvasCursorKind.Rotate, CanvasCursor.ForBone(BoneGrab.Origin, posing: true));
+        // Posing reads the same grabs the same way (owner's decision,
+        // 2026-08-18): the shaft and the joint carry the bone, the tip aims
+        // it. The mode decides where the edit lands — the rest pose or the
+        // pose key — never what kind of edit a grab is.
+        Assert.Equal(CanvasCursorKind.Move, CanvasCursor.ForBone(BoneGrab.Body, posing: true));
+        Assert.Equal(CanvasCursorKind.Move, CanvasCursor.ForBone(BoneGrab.Origin, posing: true));
+        Assert.Equal(CanvasCursorKind.Rotate, CanvasCursor.ForBone(BoneGrab.Tip, posing: true));
 
         // Move and Rotate must never collapse to one cursor: telling them
         // apart is the entire feature.
@@ -99,9 +102,14 @@ public class BoneOptionsTests
         vm.UpdatePointerContext(200, 150, Avalonia.Input.KeyModifiers.None, scale: 1);
         Assert.Equal(CanvasCursorKind.Rotate, vm.PointerIntent);
 
-        // The same shaft, once posing.
+        // The same shaft, once posing: still a move, because posing carries a
+        // bone by its shaft just as binding does.
         vm.PosingMode = true;
         vm.UpdatePointerContext(150, 150, Avalonia.Input.KeyModifiers.None, scale: 1);
+        Assert.Equal(CanvasCursorKind.Move, vm.PointerIntent);
+
+        // And the tip is where a pose turns from.
+        vm.UpdatePointerContext(200, 150, Avalonia.Input.KeyModifiers.None, scale: 1);
         Assert.Equal(CanvasCursorKind.Rotate, vm.PointerIntent);
     }
 
