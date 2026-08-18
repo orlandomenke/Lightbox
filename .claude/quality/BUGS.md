@@ -180,28 +180,6 @@ which is a weak test and still far better than none.
 
 ### canvas
 
-- [ ] **B259** `P2` `canvas` Publish pacing fails intermittently under a full-solution test run
-  - **Evidence.** `PublishPacingTests.EventsWhileTheCanvasIsBehindComposeNothingUntilItCatchesUp`
-    failed once in a `dotnet test Lightbox.sln -c Release` run (3276 of 3277 App
-    tests passing) and passed on every targeted re-run — 7/7 alone, 3277/3277 for
-    the assembly by itself. It has now been seen twice, in runs on 2026-08-18
-    that touched only `Lightbox.Core` and `Lightbox.Raster`; `Lightbox.App.Tests`
-    references nothing that changed either time.
-  - **What it is not.** Not a regression from the effects work, and not a
-    weakness in the test's subject — the pacing logic behaves under every
-    deliberate measurement. The distinguishing condition is *contention*: a
-    full-solution run puts all four assemblies on the box at once, which
-    `Bench.cs` already documents as a hazard for timing-sensitive tests.
-  - **Why it was filed rather than fixed.** It is not this branch's objective —
-    canvas publish pacing has nothing to do with effects, and the one-objective
-    rule says the answer to finding something else is a new branch rather than an
-    "and". P2 rather than P3 because an intermittent red on a full run is the
-    kind of failure that teaches people to re-run instead of read.
-  - **The fix is probably a clock, not a sleep.** If the test asserts on elapsed
-    wall-clock time it will keep failing under load however long the tolerance
-    is; the durable answer is an injectable time source, which is a change to the
-    test's harness rather than to what it is testing.
-  - `evidence: PublishPacingTests, EventsWhileTheCanvasIsBehindComposeNothingUntilItCatchesUp`
 - [ ] **B256** `P1` `canvas` After the pen returns from proximity a stroke draws only a horizontal line `evidence: manual`
   - Reported 2026-08-18: *"if I draw with the pen after a moment of not near the screen, it only draws straight horizontal lines as long as my pen is touching. On release and drawing again solves it."* P1 rather than P2 because it corrupts the mark the artist actually made — the record is the document (invariant 1), so a stroke drawn as a line the hand did not make is lost work, not a cosmetic fault.
   - **The mechanism is certain; the trigger is not.** `CanvasControl`'s move handler constrains a stroke to one axis while Shift is held, and `AxisLocked` returns `(x, anchor.Y)` when horizontal travel dominates — **a perfectly horizontal line pinned to the Y where the pen came down**, which is precisely the reported shape. It is set per move from `e.KeyModifiers.HasFlag(KeyModifiers.Shift)`, so a stroke drawn without touching Shift can only look like this if Shift is being *reported* while the pen is down.
@@ -274,6 +252,33 @@ which is a weak test and still far better than none.
   - Cost: M to diagnose, unknown to fix. **Do not start by changing the present path** — that is what B164 already did, and the counters say it is working.
   - **The per-caller tally shipped (2026-08-15), and it is the counter the bullet above asked for — no publish-path behaviour changed.** `PublishSnapshot` takes a compiler-stamped `CallerMemberName`, so all 45 call sites report themselves without being edited and the name cannot lie about where the call came from; `PublishTally` counts them during playback only, so the table is the tick's surplus rather than thousands of legitimate pointer publishes; and the render report's *who publishes during playback* section prints the table busiest-first and judges the total against the ticks — one publish per advance is the playhead's own, everything above that line is the surplus, whoever made it. `PublishTallyTests` pins the gating, the caller attribution and the report's wording, and is deliberately not this entry's evidence — the same split `StrokeToScreenTests` holds for B189, because these prove the instrument rather than the fix.
   - **What closes the diagnosis step: play for half a minute on the owner's machine, then Help ▸ Write a render report.** The section names the caller supplying the ~1.2 publishes per tick beyond the playhead's own, which is where the 176 ms backlog is being fed from — and the next fix goes at that call site, not at the present path.
+
+- [ ] **B259** `P2` `canvas` Publish pacing fails intermittently under a full-solution test run `evidence: IPacingClock, PublishPacingIsDrivenByAnInjectableClock`
+  - **Evidence.** `PublishPacingTests.EventsWhileTheCanvasIsBehindComposeNothingUntilItCatchesUp`
+    failed once in a `dotnet test Lightbox.sln -c Release` run (3276 of 3277 App
+    tests passing) and passed on every targeted re-run — 7/7 alone, 3277/3277 for
+    the assembly by itself. It has now been seen twice, in runs on 2026-08-18
+    that touched only `Lightbox.Core` and `Lightbox.Raster`; `Lightbox.App.Tests`
+    references nothing that changed either time.
+  - **What it is not.** Not a regression from the effects work, and not a
+    weakness in the test's subject — the pacing logic behaves under every
+    deliberate measurement. The distinguishing condition is *contention*: a
+    full-solution run puts all four assemblies on the box at once, which
+    `Bench.cs` already documents as a hazard for timing-sensitive tests.
+  - **Why it was filed rather than fixed.** It is not this branch's objective —
+    canvas publish pacing has nothing to do with effects, and the one-objective
+    rule says the answer to finding something else is a new branch rather than an
+    "and". P2 rather than P3 because an intermittent red on a full run is the
+    kind of failure that teaches people to re-run instead of read.
+  - **The fix is probably a clock, not a sleep.** If the test asserts on elapsed
+    wall-clock time it will keep failing under load however long the tolerance
+    is; the durable answer is an injectable time source, which is a change to the
+    test's harness rather than to what it is testing.
+  - **Not `manual`, deliberately.** That marker means *no test can hold this*,
+    and this file's own note says it is dishonest for a fix nobody has written a
+    test for. A clock-driven pacing check is perfectly testable — it simply does
+    not exist yet — so the anchor names what would prove the fix and the box stays
+    open until it does.
 
 - [ ] **B170** `P2` `canvas` Lightbox sometimes dies while erasing `evidence: manual`
   - Reported alongside B169 — "sometimes crashing the application" — and filed separately on purpose: B169 has a mechanism and a headless test, this has neither, and folding them together would let a fix for the visible half close the half that takes the work with it.
