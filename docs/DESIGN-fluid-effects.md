@@ -452,6 +452,91 @@ previous frame's contour and re-projecting it onto the new iso-level changes how
 | 6 · bounded work | bounded by grid × steps × frames, all authored — and outside the per-event path entirely |
 | 7 · scale the surface, never the geometry | contour points are document coordinates; export scaling is unchanged |
 
+## What step 4 found by looking
+
+The build order put fire fourth so that the sweep count, the simplify default
+and the band vocabulary would finally be judged against a picture rather than a
+measurement. They were, and **the picture disagreed with every green test**.
+Momentum was conserved, the fluid was incompressible, the smoke was neither
+created nor destroyed, and it did not look like fire. Four separate faults, none
+of which any assertion could have raised:
+
+- **The turbulence was acting as wind.** A noise scale of twelve cells on a
+  seventy-cell element is a push the width of the plume, so the flame was blown
+  sideways rather than made wispy. Six reads as turbulence.
+- **The flame stalled.** Buoyancy is proportional to heat, so a plume that cools
+  slowly stops climbing while it is still visible. Hotter, cooling faster, gives
+  the short bright tongue a flame has.
+- **Nothing damped the flow.** A sustained plume in a box with four solid walls
+  accumulates circulation until the flame lies over — a lava lamp. `SimParams.Drag`
+  is the fix, and it was measured rather than assumed: worst sideways drift of
+  7.0 cells at drag 0, 3.6 at 0.05, 0.9 at 0.12. The default is 0.05, because a
+  flame that never wavers reads as fake.
+- **Almost nothing was drawn.** A plume's field is steeply peaked — only 4% of an
+  element's cells hold more than a hundredth of its peak — so bands spread over
+  the whole range all landed inside the brightest core. Band levels are now
+  fractions of the element's own measured peak, over a window from 2% to a third
+  of it.
+
+Two of those are now tests rather than tuning: `A_Flame_Stands_Over_Its_Emitter`
+and `The_Outer_Band_Reaches_The_Edge_Of_The_Plume` assert the properties the
+render revealed, so the next person to change a default finds out mechanically.
+
+**One defect the look exposed that nothing else would have.** `PeakBand` was
+measured over the frames an element *keeps*, so an element exposed on 2s sampled
+a different peak from the same element on 1s and every band level shifted with
+it. Holding a drawing must say nothing whatever about what is drawn. It is taken
+over every frame simulated now, and `Exposing_On_Twos_Halves_The_Drawings_And_Not_The_Motion`
+checks the peaks agree as well as the drawings.
+
+### Movement and wind — wind built, attachment next (Q122)
+
+The one thing an artist asked for that the record cannot yet express: an effect
+that belongs to a character who is running, turning or being rained on. Three
+different things, and conflating them is the trap — *ambient wind* moves smoke
+already in the air, *emitter motion* lays a trail behind a travelling source, and
+*attachment* moves the element's box so the effect stays with a character.
+
+**This is where the simulation earns its cost over a library of pre-made
+cycles.** When a character turns, the smoke in the air keeps going the old way
+while new smoke goes the new way, and the whip and lag come free from the
+solver having history. Baking "run right" and "run left" separately and cutting
+between them cannot produce it — each bake starts from still air, so the cut
+pops. Q122 settles the shape: a keyable wind vector on the element, elements
+bound to a drawing's anchor so they follow the animation without keying, a
+pre-roll so an element starts from an established plume, and the key vocabulary
+`DESIGN-effects.md` already specifies rather than a second one.
+
+**Wind landed 2026-08-18, and the measurement is the interesting part.** It is
+applied as a *relaxation toward the wind's speed, weighted by how much fluid is
+there* — not as a uniform push, which in a box with four solid walls is
+divergence the projection removes on the same step, and not as a constant force,
+which would accelerate smoke past the wind and keep going. Two consequences:
+still air stays still and only the plume is blown, which is what an artist means
+by wind and is cheaper besides.
+
+The inertia Q122 claimed is now a number rather than an argument. Two frames
+after a wind reversal, the risen smoke leans **−24.6 cells** — still travelling
+the old way — while the smoke leaving the emitter already leans **+4.0**. A
+28-cell bend, and no pair of separate bakes can produce it, because each would
+start from still air. The first measurement of it looked for that lag in the
+*whole field's* centre of mass and did not find it: the core at the emitter turns
+within a frame, so the test was measuring the one part of the plume that has no
+memory.
+
+**Calibration, found by rendering it.** Wind is in the same units as the flow, and
+a plume rises at roughly 0.15 cells per step — so a wind of that order bends a
+flame about half a right angle, and 0.5 lays it flat. The useful range for a
+figure in motion is far below what the number suggests, which belongs in the
+manual before anybody meets it.
+
+**Looping is a known gap, stated rather than hidden.** A pre-roll removes the
+thin start; it does not make a run cycle seamless. Blending the end into the
+beginning would mean blending two contour sets, and the strokes have no
+correspondence between frames — which is exactly what Q116 chose when it took
+per-frame tracing. If looping cycles become the priority, that is an argument for
+revisiting Q116, not for a blend.
+
 ## Reach and configuration
 
 Absent by default, reachable everywhere. A document with no element writes no
@@ -487,9 +572,29 @@ Each step is one branch with one objective.
 4. **Fire, end to end** — emitter, temperature field, heat ramp, embers, re-bake.
    The first thing an artist can use, and where the roadmap item earns its
    evidence anchors.
-5. **Docker, view model, landing checklist**, including the cascade's two
-   obligations: an overridden treatment field is marked as such and reverts to
-   the shared value in one action.
+5. **The effects window, its view model, and the landing checklist** (Q123). A
+   window rather than the docker this originally said, because thirty-odd fields
+   do not fit a column and tuning needs a preview and a scrubber — while
+   *placement* stays on the canvas, since typing coordinates for a flame is not
+   authoring. Includes the cascade's two obligations: an overridden treatment
+   field is marked as such and reverts to the shared value in one action. And
+   the *detach* rule's call sites: any path that changes a stroke's geometry,
+   colour or brush calls `SimBakeOps.Detach`, plus a re-attach command for
+   handing a stroke back.
+5b. **Wind and pre-roll** (Q122) — **landed 2026-08-18**, and the first user of
+   `DESIGN-effects.md`'s key vocabulary, which is built as `EffectParam` /
+   `EffectKey` in `src/Lightbox.Core/Effects/`. Wind is two keyed scalars rather
+   than an angle and a strength, because keying an angle wraps: a gust swinging
+   from 10° to 350° would interpolate the long way round through every direction
+   nobody asked for.
+5c. **Emission painted onto a layer, and drawn art as an obstacle** (Q124) — the
+   thing the owner's burning-cloak character needs and the record cannot yet
+   express. Emission becomes a *drawing*, alpha-locked to the layer it belongs to,
+   so it animates, holds and rig-binds like any other; the same rasterised ink
+   also blocks the fluid, which is the deferred *fluid flows around drawn art*
+   item arriving on a real use case. It puts solid boundaries inside the grid,
+   where the solver has only walls at the edge today.
+5d. **Anchor attachment** (Q122) — an element that follows a drawing's anchor.
 6. Smoke (same solver, density instead of temperature, embers off by default),
    then goo through the metaball source, then water.
 7. **Style inference** — a reference drawing in, a `LineTreatment` out, judged by

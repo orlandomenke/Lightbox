@@ -1,3 +1,5 @@
+using Lightbox.Core.Effects;
+
 namespace Lightbox.Core.Documents;
 
 /// <summary>
@@ -19,10 +21,30 @@ namespace Lightbox.Core.Documents;
 /// finely the element is simulated.
 /// </para>
 /// </remarks>
+/// <remarks>
+/// <para>
+/// <b>The defaults were tuned against a render, not taken from the solver's test
+/// fixture</b> — which is what they were at first, and it showed. Every test
+/// passed: momentum conserved, fluid incompressible, smoke neither created nor
+/// destroyed. It simply did not look like fire. Three separate things were
+/// wrong and only a picture could have said so:
+/// </para>
+/// <list type="bullet">
+/// <item><b>The turbulence was acting as wind.</b> A noise scale of twelve cells
+/// on a seventy-cell element is a push the width of the plume, so the flame was
+/// blown sideways rather than made wispy. Six reads as turbulence.</item>
+/// <item><b>The flame stalled.</b> Buoyancy is proportional to heat, so a plume
+/// that cools slowly is a plume that stops climbing while it is still visible.
+/// Hotter and cooling faster gives the short bright tongue a flame actually
+/// has.</item>
+/// <item><b>Nothing damped the flow</b>, so a sustained plume in a closed box
+/// accumulated circulation until the flame lay over. See <see cref="Drag"/>.</item>
+/// </list>
+/// </remarks>
 public sealed record SimParams
 {
     /// <summary>How hard heat lifts. Up is −Y, the document's own convention.</summary>
-    public double Buoyancy { get; set; } = 0.06;
+    public double Buoyancy { get; set; } = 0.35;
 
     /// <summary>How hard density sinks — smoke is heavier than the air it rides.</summary>
     public double Weight { get; set; } = 0.01;
@@ -30,11 +52,35 @@ public sealed record SimParams
     /// <summary>How much of the curl advection eats is put back. What keeps a plume curling.</summary>
     public double Vorticity { get; set; } = 0.35;
 
+    /// <summary>
+    /// Fraction of the flow's speed lost per step — the air's own viscosity, and
+    /// the thing that stops a closed element turning into a lava lamp.
+    /// </summary>
+    /// <remarks>
+    /// <b>Added at step 4 because the render demanded it, and measured rather
+    /// than assumed.</b> Worst sideways drift of the plume's centre of mass over
+    /// the second half of a forty-frame element:
+    ///
+    /// <code>
+    ///   drag 0.00    7.0 cells
+    ///   drag 0.05    3.6 cells
+    ///   drag 0.12    0.9 cells
+    /// </code>
+    ///
+    /// The default is 0.05 rather than 0.12 on purpose: the higher figure gives
+    /// a flame that stands dead still, and a flame that never wavers reads as
+    /// fake. Halving the drift while leaving it some life is the trade.
+    /// An open top — letting the plume leave rather than recirculate — is the
+    /// other half of this and stays deferred; drag is what a closed element
+    /// needs either way.
+    /// </remarks>
+    public double Drag { get; set; } = 0.05;
+
     /// <summary>Amplitude of the seeded curl-noise force.</summary>
-    public double Turbulence { get; set; } = 0.5;
+    public double Turbulence { get; set; } = 0.35;
 
     /// <summary>Cells per noise cell. Small is fine detail, large is slow billow.</summary>
-    public double TurbulenceScale { get; set; } = 12;
+    public double TurbulenceScale { get; set; } = 6;
 
     /// <summary>Noise-space units the field travels per step, so the turbulence evolves.</summary>
     public double TurbulenceDrift { get; set; } = 0.05;
@@ -43,7 +89,7 @@ public sealed record SimParams
     public double Dissipation { get; set; } = 0.004;
 
     /// <summary>Fraction of temperature lost per step.</summary>
-    public double Cooling { get; set; } = 0.02;
+    public double Cooling { get; set; } = 0.06;
 }
 
 /// <summary>Where an emitter puts fluid in.</summary>
@@ -191,6 +237,65 @@ public sealed class SimElement
     /// <summary>Solver steps per frame. The way to buy speed without breaking the CFL bound.</summary>
     public int Substeps { get; set; } = 8;
 
+    /// <summary>
+    /// Frames to simulate before the first drawn one, so an element opens on an
+    /// established plume rather than on still air.
+    /// </summary>
+    /// <remarks>
+    /// Q122. It fixes the commonest complaint before anybody reports it — the
+    /// first half-second of an effect looking thin — and it does <em>not</em>
+    /// make a cycle seamless, which is a separate and unsolved thing. Costs one
+    /// frame of solve each, and nothing at all when it is zero.
+    /// <para>
+    /// Nullable so an element that does not pre-roll writes no key. The
+    /// distinction is worth keeping: <see cref="Substeps"/> and
+    /// <see cref="GridWidth"/> describe every element and are always written,
+    /// while this is a feature somebody switches on — the same line
+    /// <see cref="Particles"/> sits on. Caught by its own test rather than
+    /// reasoned about, which is the point of writing that test first.
+    /// </para>
+    /// </remarks>
+    public int? PreRoll { get; set; }
+
+    /// <summary>
+    /// Ambient flow across the element, in cells per step, keyed over its frames.
+    /// Null on an element nobody has blown on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Two scalars rather than an angle and a strength</b>, and that is not a
+    /// convenience. Keying an angle wraps: a gust swinging from 10° to 350° is a
+    /// twenty-degree shift that interpolates the long way round, through every
+    /// direction the artist did not ask for. Components cannot do that. The UI
+    /// is free to present a dial and a length; the record stores what
+    /// interpolates correctly.
+    /// </para>
+    /// <para>
+    /// <b>Calibration, measured by rendering it.</b> Wind is in the same units as
+    /// the flow it acts on, and a plume rises at roughly 0.15 cells per step — so
+    /// a wind of that order bends a flame by about half a right angle, and 0.5
+    /// lays it flat and horizontal. The useful range for a figure in motion is
+    /// well under a tenth of what the field's own maximum speed suggests, which
+    /// is not what anybody would guess from the number.
+    /// </para>
+    /// <para>
+    /// <b>A character running right is wind blowing left.</b> That is a change of
+    /// reference frame rather than weather, and it is the one thing about this
+    /// field an artist will get backwards — a run cycle runs on the spot, so
+    /// nothing here can be derived from her motion. The manual has to say it.
+    /// </para>
+    /// </remarks>
+    public EffectParam? WindX { get; set; }
+
+    public EffectParam? WindY { get; set; }
+
+    /// <summary>Whether this element is blown on at all. Derived; never serialized.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasWind => WindX is not null || WindY is not null;
+
+    /// <summary>The ambient flow on a timeline frame, in cells per step.</summary>
+    public (double X, double Y) WindAt(int frame) => (WindX?.At(frame) ?? 0, WindY?.At(frame) ?? 0);
+
     public SimParams Params { get; set; } = new();
 
     public List<Emitter> Emitters { get; set; } = [];
@@ -201,10 +306,38 @@ public sealed class SimElement
     /// </summary>
     public bool BandsFromHeat { get; set; }
 
-    /// <summary>The field range the bands are spread through.</summary>
-    public double BandLow { get; set; }
+    /// <summary>
+    /// The range the bands are spread through, as a fraction of the highest
+    /// value this element's field reaches.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A fraction rather than an absolute level, and that was found by
+    /// looking.</b> Temperature is unbounded — a flame that burns longer is
+    /// simply hotter — so an absolute <c>BandHigh</c> of 1 against a field
+    /// peaking at 3 put every band inside the brightest core and drew none of
+    /// the plume. The artist would have had to discover the number by
+    /// experiment, and rediscover it after every change to the emitter.
+    /// </para>
+    /// <para>
+    /// Taken over the <em>whole element</em> (<c>SolvedElement.PeakBand</c>), never
+    /// per frame: a range following each frame's own peak would rescale the
+    /// bands every frame, and a band that moves because its scale moved is
+    /// flicker.
+    /// </para>
+    /// </remarks>
+    /// <remarks>
+    /// <b>The window sits low in the range, and that was measured.</b> A plume's
+    /// field is steeply peaked — at ordinary settings only 4% of an element's
+    /// cells hold more than a hundredth of its peak, and 0.3% more than a
+    /// quarter of it. Bands spread over the whole range therefore all land
+    /// inside the brightest core and draw scraps. From 2% to a third of peak
+    /// puts the outermost band around the visible edge of the plume, which is
+    /// where a silhouette belongs.
+    /// </remarks>
+    public double BandLow { get; set; } = 0.02;
 
-    public double BandHigh { get; set; } = 1;
+    public double BandHigh { get; set; } = 0.34;
 
     /// <summary>A colour per band, outermost first. How <em>many</em> bands there are is style, and lives on the treatment.</summary>
     public List<string> BandColors { get; set; } = [];
@@ -223,6 +356,12 @@ public sealed class SimElement
     /// <summary>The ember pass, or null — and null is every element that does not want one.</summary>
     public ParticleSpec? Particles { get; set; }
 
+    /// <summary>
+    /// How many bands this element draws — a style decision, so it comes from
+    /// the treatment rather than from here.
+    /// </summary>
+    public int Bands() => LineTreatment.Resolve(null, Treatment).Bands;
+
     /// <summary>Frames this element covers, as a half-open range.</summary>
     public bool Covers(int frame) => frame >= FirstFrame && frame < FirstFrame + FrameCount;
 
@@ -235,6 +374,8 @@ public sealed class SimElement
         copy.BandColors = [.. BandColors];
         copy.Treatment = Treatment?.Clone();
         copy.Particles = Particles?.Clone();
+        copy.WindX = WindX?.Clone();
+        copy.WindY = WindY?.Clone();
         return copy;
     }
 }

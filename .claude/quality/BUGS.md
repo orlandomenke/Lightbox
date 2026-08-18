@@ -253,6 +253,33 @@ which is a weak test and still far better than none.
   - **The per-caller tally shipped (2026-08-15), and it is the counter the bullet above asked for — no publish-path behaviour changed.** `PublishSnapshot` takes a compiler-stamped `CallerMemberName`, so all 45 call sites report themselves without being edited and the name cannot lie about where the call came from; `PublishTally` counts them during playback only, so the table is the tick's surplus rather than thousands of legitimate pointer publishes; and the render report's *who publishes during playback* section prints the table busiest-first and judges the total against the ticks — one publish per advance is the playhead's own, everything above that line is the surplus, whoever made it. `PublishTallyTests` pins the gating, the caller attribution and the report's wording, and is deliberately not this entry's evidence — the same split `StrokeToScreenTests` holds for B189, because these prove the instrument rather than the fix.
   - **What closes the diagnosis step: play for half a minute on the owner's machine, then Help ▸ Write a render report.** The section names the caller supplying the ~1.2 publishes per tick beyond the playhead's own, which is where the 176 ms backlog is being fed from — and the next fix goes at that call site, not at the present path.
 
+- [ ] **B259** `P2` `canvas` Publish pacing fails intermittently under a full-solution test run `evidence: IPacingClock, PublishPacingIsDrivenByAnInjectableClock`
+  - **Evidence.** `PublishPacingTests.EventsWhileTheCanvasIsBehindComposeNothingUntilItCatchesUp`
+    failed once in a `dotnet test Lightbox.sln -c Release` run (3276 of 3277 App
+    tests passing) and passed on every targeted re-run — 7/7 alone, 3277/3277 for
+    the assembly by itself. It has now been seen twice, in runs on 2026-08-18
+    that touched only `Lightbox.Core` and `Lightbox.Raster`; `Lightbox.App.Tests`
+    references nothing that changed either time.
+  - **What it is not.** Not a regression from the effects work, and not a
+    weakness in the test's subject — the pacing logic behaves under every
+    deliberate measurement. The distinguishing condition is *contention*: a
+    full-solution run puts all four assemblies on the box at once, which
+    `Bench.cs` already documents as a hazard for timing-sensitive tests.
+  - **Why it was filed rather than fixed.** It is not this branch's objective —
+    canvas publish pacing has nothing to do with effects, and the one-objective
+    rule says the answer to finding something else is a new branch rather than an
+    "and". P2 rather than P3 because an intermittent red on a full run is the
+    kind of failure that teaches people to re-run instead of read.
+  - **The fix is probably a clock, not a sleep.** If the test asserts on elapsed
+    wall-clock time it will keep failing under load however long the tolerance
+    is; the durable answer is an injectable time source, which is a change to the
+    test's harness rather than to what it is testing.
+  - **Not `manual`, deliberately.** That marker means *no test can hold this*,
+    and this file's own note says it is dishonest for a fix nobody has written a
+    test for. A clock-driven pacing check is perfectly testable — it simply does
+    not exist yet — so the anchor names what would prove the fix and the box stays
+    open until it does.
+
 - [ ] **B170** `P2` `canvas` Lightbox sometimes dies while erasing `evidence: manual`
   - Reported alongside B169 — "sometimes crashing the application" — and filed separately on purpose: B169 has a mechanism and a headless test, this has neither, and folding them together would let a fix for the visible half close the half that takes the work with it.
   - No repro yet. What is known: it is intermittent, it is during an erase rather than after, and B169 says the erase preview is already doing something to the shared composite surface that no other tool does. The compose paths are also where `B125`'s GPU residency lives, and a surface the driver refused falls back to CPU mid-stroke.
