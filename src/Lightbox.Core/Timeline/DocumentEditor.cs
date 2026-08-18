@@ -71,9 +71,43 @@ public sealed class DocumentEditor
     /// </summary>
     public int MaxUndo { get; set; } = 64;
 
-    public Doc Doc { get; private set; }
+    /// <summary>The document as it now stands. Undo and redo <b>replace</b> it.</summary>
+    /// <remarks>
+    /// <b>The instance is not stable, and anything that caches it must say so
+    /// by subscribing to <see cref="DocReplaced"/>.</b> A snapshot step holds
+    /// whichever document is not current and swaps on every undo and redo —
+    /// which is what makes redo exact and free (see <c>SnapshotStep</c>) — so
+    /// one undo leaves every other holder of the old object pointing at a
+    /// document that will never receive another edit. B257 is what that costs
+    /// when it is missed.
+    /// </remarks>
+    public Doc Doc
+    {
+        get;
+        private set
+        {
+            if (ReferenceEquals(field, value)) return;
+            field = value;
+            DocReplaced?.Invoke(value);
+        }
+    }
 
     public event Action? Changed;
+
+    /// <summary>
+    /// Raised when undo, redo or a discarded step swapped a different document
+    /// instance in. Never raised by an ordinary edit, which mutates in place.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Changed"/> on purpose: <c>Changed</c> says the
+    /// document is different, which is true after every edit and is what the
+    /// render and the dirty badge want. This says the <em>object</em> is
+    /// different, which is only ever interesting to something holding a
+    /// reference of its own — and there is exactly one such thing, the
+    /// project's loaded-document cache, whose entry is what a project save
+    /// writes to disk.
+    /// </remarks>
+    public event Action<Doc>? DocReplaced;
 
     public DocumentEditor(Doc doc)
     {
