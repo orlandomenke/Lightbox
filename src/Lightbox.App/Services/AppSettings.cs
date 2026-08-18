@@ -210,6 +210,37 @@ public sealed class AppSettings
     /// </remarks>
     public bool GpuCompositing { get; set; }
 
+    /// <summary>
+    /// Whether a stroke records the pen's tilt and the hand's speed alongside
+    /// pressure.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Off by default, and that is the point rather than caution.</b> These
+    /// axes reach pixels once a brush is set up to use them, so they are part
+    /// of the record and every point of every stroke would carry them. A
+    /// document made by somebody who never asked for tilt must serialize
+    /// exactly as it does today — *optional means absent, not disabled*
+    /// (<c>CLAUDE.md</c>) — and the cheapest way to guarantee that is to
+    /// capture nothing until asked.
+    /// </para>
+    /// <para>
+    /// <b>A preference rather than a document or project option</b>, for the
+    /// reason workspaces are: whether a pen reports tilt at all, and whether
+    /// its owner wants it in the record, is a property of the person and their
+    /// hardware, not of the artwork. Opening somebody else's file must not
+    /// start recording axes your tablet cannot supply, and moving a drawing
+    /// between machines must not change what the next stroke stores.
+    /// </para>
+    /// <para>
+    /// <b>Turning it off later never touches art already made.</b> Points that
+    /// recorded tilt keep it and keep rendering with it — invariant 4, which
+    /// exists so that changing a preference cannot repaint finished work. The
+    /// setting decides what the *next* stroke captures and nothing else.
+    /// </para>
+    /// </remarks>
+    public bool RecordPenAxes { get; set; }
+
     /// <summary>What a mark on a held cel does. See <c>HoldDrawing</c>.</summary>
     public string DrawingOnAHold { get; set; } = "StartANewDrawing";
 

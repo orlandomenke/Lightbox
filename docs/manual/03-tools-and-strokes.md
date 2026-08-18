@@ -230,6 +230,36 @@ given a taper this way.
 The whole drag is **one undo step**, and undoing it puts every original pressure
 back exactly.
 
+### What else a stroke can record from the pen
+
+Pressure is always recorded. **Tilt and speed are not, unless you ask for
+them** — in **Edit → Configure → Drawing**, under *what a stroke records from
+the pen*. The setting is remembered, and it is off to begin with.
+
+It is off by default because it only earns its place with a pen that reports
+tilt, and because a drawing that never uses it should not carry it: a stroke
+made without these is stored exactly as it was before they existed.
+
+While it is on, the readout beside the pen settings shows what your tablet is
+actually delivering — `tilt 34/-12 · speed 0.42` — which is the quickest way to
+find out whether your pen reports tilt at all. Plenty do not, and a driver that
+does not will say `no tilt reported` rather than quietly recording zeros.
+
+**Turning it off later leaves finished drawings alone.** Strokes that recorded
+tilt keep it and keep drawing with it; the setting only decides what the next
+stroke stores. That is the same promise every setting here makes — changing a
+preference never repaints work you have already done.
+
+Reshaping a line into a path is the one thing that drops these: once you are
+moving points by hand the pen is no longer the author, so the tilt it reported
+no longer describes the line. Pressure survives, because you can still edit it
+directly with the Width tool.
+
+*Planned.* Recording these is what ships first. Brushes that **use** tilt and
+speed — a nib that widens as you lean it, a line that thins as the hand
+accelerates — come next, and every brush that ignores them keeps drawing
+exactly as it does today.
+
 **Pulling the line is worth trying before anything else.** Most of the time what
 you want is *this bit of the line should be over there*, and reaching for that
 directly is quicker than working out which point governs it and which way its

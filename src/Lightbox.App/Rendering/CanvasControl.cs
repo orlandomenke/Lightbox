@@ -2235,17 +2235,6 @@ public sealed partial class CanvasControl : Control
 
     private string? _lastDiagnostic;
 
-    private void ReportInputDiagnostic(PointerType type, float rawPressure)
-    {
-        if (InputDiagnostic is null) return;
-        var text = (type == PointerType.Pen
-            ? $"Pen detected — pressure {rawPressure:0.00}"
-            : $"{type} input — no pressure axis (paints at 100%)") + TracingSuffix();
-        if (text == _lastDiagnostic) return;
-        _lastDiagnostic = text;
-        InputDiagnostic.Invoke(text);
-    }
-
     // ---- view tools -----------------------------------------------------------
 
     private void ViewUpdated()
@@ -2832,6 +2821,8 @@ public sealed partial class CanvasControl : Control
             _paintPointerId = e.Pointer.Id;
             _strokeWasPen = e.Pointer.Type == PointerType.Pen;
             _strokeSawRealPressure = false;
+            _penAxes.Begin();
+            _lastAxisSample = null;
             // Alt turns the brush in your hand into an eraser without
             // swapping tools, so it keeps its size, shape and dynamics. That
             // is different from E, which switches to the dedicated eraser and
@@ -3316,6 +3307,7 @@ public sealed partial class CanvasControl : Control
             // delivered as one batch per event.
             var points = e.GetIntermediatePoints(this);
             var samples = new List<ViewModels.MainViewModel.PointerSample>(points.Count);
+            (double? TiltX, double? TiltY, double? Speed) lastAxes = default;
             foreach (var pp in points)
             {
                 // Coalesced history can reach back past the press into hover
@@ -3325,12 +3317,19 @@ public sealed partial class CanvasControl : Control
                 if (!pp.Properties.IsLeftButtonPressed) continue;
                 var (x, y) = ViewToDoc(pp.Position);
                 if (_axisLockedStroke) (x, y) = AxisLocked(_paintAnchor, x, y);
-                samples.Add(new ViewModels.MainViewModel.PointerSample(x, y, PressureOf(pp)));
+                lastAxes = AxesOf(pp, e.Timestamp);
+                samples.Add(new ViewModels.MainViewModel.PointerSample(
+                    x, y, PressureOf(pp), lastAxes.TiltX, lastAxes.TiltY, lastAxes.Speed));
                 ReportCursorPressure(PressureOf(pp), penDown: true);
             }
             if (samples.Count > 0)
             {
-                ReportInputDiagnostic(e.Pointer.Type, points[^1].Properties.Pressure);
+                // The axes of the last sample, reused rather than recomputed:
+                // AxesOf advances the speed estimator, so asking it twice for
+                // one event would feed the average a phantom sample.
+                ReportInputDiagnostic(
+                    e.Pointer.Type, points[^1].Properties.Pressure,
+                    lastAxes.TiltX, lastAxes.TiltY, lastAxes.Speed);
                 PaintMoved?.Invoke(samples);
             }
             e.Handled = true;

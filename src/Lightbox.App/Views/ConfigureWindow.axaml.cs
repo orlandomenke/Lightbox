@@ -1038,9 +1038,16 @@ public partial class ConfigureWindow : Window
         SampleBox.SelectedItem = _vm.SmudgeSampleSource;
         BrushScopeBox.ItemsSource = _vm.BrushMemoryChoices;
         BrushScopeBox.SelectedItem = _vm.BrushMemoryChoice;
+        RecordPenAxesBox.IsChecked = _vm.RecordPenAxes;
         _loadingDrawing = false;
         RefreshSampleHint();
         RefreshBrushScopeHint();
+    }
+
+    private void OnRecordPenAxesChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_loadingDrawing || _vm is null) return;
+        _vm.RecordPenAxes = RecordPenAxesBox.IsChecked == true;
     }
 
     private void OnBrushScopeChanged(object? sender, SelectionChangedEventArgs e)
