@@ -81,6 +81,7 @@ internal static class InputTrace
         float Pressure,
         float TiltX,
         float TiltY,
+        KeyModifiers Modifiers,
         string? Detail);
 
     /// <summary>
@@ -144,7 +145,7 @@ internal static class InputTrace
                 Now(), kind, e.Pointer.Type, e.Pointer.Id,
                 (float)pp.Position.X, (float)pp.Position.Y,
                 pp.Properties.Pressure, pp.Properties.XTilt, pp.Properties.YTilt,
-                null));
+                e.KeyModifiers, null));
         }
         catch
         {
@@ -156,7 +157,7 @@ internal static class InputTrace
     public static void CaptureLost(IPointer pointer)
     {
         if (!Volatile.Read(ref _armed)) return;
-        Note(new Entry(Now(), Kind.CaptureLost, pointer.Type, pointer.Id, 0, 0, 0, 0, 0, null));
+        Note(new Entry(Now(), Kind.CaptureLost, pointer.Type, pointer.Id, 0, 0, 0, 0, 0, KeyModifiers.None, null));
     }
 
     /// <summary>
@@ -170,7 +171,7 @@ internal static class InputTrace
         {
             if (kind == _lastDecided) return;
             NoteLocked(new Entry(
-                Now(), Kind.CursorDecided, PointerType.Mouse, -1, 0, 0, 0, 0, 0,
+                Now(), Kind.CursorDecided, PointerType.Mouse, -1, 0, 0, 0, 0, 0, KeyModifiers.None,
                 $"{_lastDecided ?? "start"}→{kind}"));
             _lastDecided = kind;
         }
@@ -183,7 +184,7 @@ internal static class InputTrace
         lock (Gate)
         {
             NoteLocked(new Entry(
-                Now(), Kind.CursorAssigned, PointerType.Mouse, -1, 0, 0, 0, 0, 0,
+                Now(), Kind.CursorAssigned, PointerType.Mouse, -1, 0, 0, 0, 0, 0, KeyModifiers.None,
                 $"{_lastAssigned ?? "start"}→{kind}"));
             _lastAssigned = kind;
         }
@@ -202,7 +203,7 @@ internal static class InputTrace
             if (open)
             {
                 OpenPopups[key] = now;
-                NoteLocked(new Entry(now, Kind.PopupOpened, PointerType.Mouse, -1, 0, 0, 0, 0, 0, what));
+                NoteLocked(new Entry(now, Kind.PopupOpened, PointerType.Mouse, -1, 0, 0, 0, 0, 0, KeyModifiers.None, what));
                 return;
             }
             string detail = what;
@@ -212,7 +213,7 @@ internal static class InputTrace
                 PopupLives.Add(ms);
                 detail = $"{what} after {ms:F0} ms";
             }
-            NoteLocked(new Entry(now, Kind.PopupClosed, PointerType.Mouse, -1, 0, 0, 0, 0, 0, detail));
+            NoteLocked(new Entry(now, Kind.PopupClosed, PointerType.Mouse, -1, 0, 0, 0, 0, 0, KeyModifiers.None, detail));
         }
     }
 
@@ -235,7 +236,7 @@ internal static class InputTrace
         lock (Gate)
         {
             NoteLocked(new Entry(
-                Now(), Kind.Note, PointerType.Mouse, -1, 0, 0, 0, 0, 0, what));
+                Now(), Kind.Note, PointerType.Mouse, -1, 0, 0, 0, 0, 0, KeyModifiers.None, what));
         }
     }
 
@@ -318,7 +319,7 @@ internal static class InputTrace
             _stalls++;
             _worstStall = Math.Max(_worstStall, since);
             NoteLocked(new Entry(
-                now, Kind.Stall, PointerType.Mouse, -1, 0, 0, 0, 0, 0,
+                now, Kind.Stall, PointerType.Mouse, -1, 0, 0, 0, 0, 0, KeyModifiers.None,
                 $"the UI thread was blocked for {since:F0} ms"));
         }
     }
@@ -432,6 +433,7 @@ internal static class InputTrace
         IReadOnlyList<DeviceSeen> Devices,
         int Alternations,
         int Moves,
+        int ShiftReported,
         int Enters,
         int Exits,
         int CursorDecisionChanges,
@@ -476,7 +478,7 @@ internal static class InputTrace
             }
 
             var devices = new Dictionary<(PointerType, int), (int Events, float MaxP, bool Tilt)>();
-            int alternations = 0, moves = 0, enters = 0, exits = 0, decided = 0, assigned = 0, opened = 0;
+            int alternations = 0, moves = 0, enters = 0, exits = 0, decided = 0, assigned = 0, opened = 0, shifted = 0;
             var lastId = int.MinValue;
             double seconds = 0;
 
@@ -494,6 +496,7 @@ internal static class InputTrace
                         if (lastId != int.MinValue && e.DeviceId != lastId) alternations++;
                         lastId = e.DeviceId;
                         if (e.Kind == Kind.Move) moves++;
+                        if (e.Modifiers.HasFlag(KeyModifiers.Shift)) shifted++;
                         if (e.Kind == Kind.Enter) enters++;
                         if (e.Kind == Kind.Exit) exits++;
                         break;
@@ -524,7 +527,7 @@ internal static class InputTrace
 
             return new Summary(
                 seconds, kept, _count > Capacity, deviceList,
-                alternations, moves, enters, exits, decided, assigned,
+                alternations, moves, shifted, enters, exits, decided, assigned,
                 opened, collapsed, shortest, _stalls, _worstStall, silence,
                 Verdicts(
                     seconds, deviceList, alternations, enters, exits, assigned,
@@ -658,6 +661,13 @@ internal static class InputTrace
             sb.AppendLine($"  moves                 {summary.Moves}"
                 + (summary.Seconds > 0 ? $" ({summary.Moves / summary.Seconds:F0}/s)" : ""));
             sb.AppendLine($"  stream alternations   {summary.Alternations}");
+            // B256. A stroke is constrained to one axis while Shift is held, and
+            // "it only draws horizontal lines after the pen has been away" is
+            // exactly what that constraint looks like. Nothing recorded whether
+            // Shift was actually reported, so this says so rather than leaving it
+            // to be deduced from the shape of the mark.
+            sb.AppendLine($"  events claiming Shift {summary.ShiftReported}"
+                + (summary.ShiftReported > 0 ? "  <-- axis-lock would engage" : ""));
             sb.AppendLine($"  canvas enter/exit     {summary.Enters}/{summary.Exits}");
             sb.AppendLine($"  cursor decisions      {summary.CursorDecisionChanges} changes");
             sb.AppendLine($"  cursor assignments    {summary.CursorAssignments}");
@@ -715,6 +725,7 @@ internal static class InputTrace
                     sb.Append($"{e.Device} id {e.DeviceId}  ({e.X:F1}, {e.Y:F1})  p {e.Pressure:F2}");
                     if (e.TiltX != 0 || e.TiltY != 0) sb.Append($"  tilt {e.TiltX:F0}/{e.TiltY:F0}");
                 }
+                if (e.Modifiers != KeyModifiers.None) sb.Append($"  [{e.Modifiers}]");
                 if (e.Detail is { } detail) sb.Append($"  {detail}");
                 sb.AppendLine();
             }
@@ -729,7 +740,7 @@ internal static class InputTrace
         float pressure = 0, float tiltX = 0, float tiltY = 0, string? detail = null)
     {
         if (!Volatile.Read(ref _armed)) return;
-        Note(new Entry(seconds, kind, device, deviceId, 0, 0, pressure, tiltX, tiltY, detail));
+        Note(new Entry(seconds, kind, device, deviceId, 0, 0, pressure, tiltX, tiltY, KeyModifiers.None, detail));
     }
 
     /// <summary>
@@ -793,7 +804,7 @@ internal static class InputTrace
             _stalls++;
             _worstStall = Math.Max(_worstStall, blockedMs);
             NoteLocked(new Entry(
-                seconds, Kind.Stall, PointerType.Mouse, -1, 0, 0, 0, 0, 0,
+                seconds, Kind.Stall, PointerType.Mouse, -1, 0, 0, 0, 0, 0, KeyModifiers.None,
                 $"the UI thread was blocked for {blockedMs:F0} ms"));
         }
     }
