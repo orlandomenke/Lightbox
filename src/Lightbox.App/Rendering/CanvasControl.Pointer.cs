@@ -206,13 +206,49 @@ public sealed partial class CanvasControl
         }
     }
 
-    /// <summary>The pointer is back, so the departure never happened.</summary>
-    private void CancelLeave()
+    /// <summary>
+    /// The pointer is back, so the departure never happened. Returns whether
+    /// one was pending.
+    /// </summary>
+    private bool CancelLeave()
     {
+        var wasAway = _leftAt is not null;
         _leftAt = null;
         try { _leaveTimer?.Stop(); }
         catch { /* nothing to stop */ }
+        return wasAway;
     }
+
+    /// <summary>
+    /// Why enter and exit no longer repaint unconditionally.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Measured, on the machine this is for.</b> The sixth trace counts
+    /// <b>6,090 enters and 6,091 exits in 63 seconds — 97 a second</b>, none of
+    /// which is the artist's hand going anywhere. Each of those used to call
+    /// <c>InvalidateVisual</c>, and on a 4K document a full canvas invalidation
+    /// is not free.
+    /// </para>
+    /// <para>
+    /// <b>It became redundant when the leave grace landed, which is the point.</b>
+    /// Before it, an exit tore the hover state down and the ring genuinely had
+    /// to be repainted. Now an exit changes nothing at all until
+    /// <see cref="SettleHover"/> decides the departure was real — and that
+    /// repaints. So the invalidate on exit repainted an identical canvas, and
+    /// the one on enter repainted it back.
+    /// </para>
+    /// <para>
+    /// <b>Stated as waste removal rather than as a fix.</b> The same trace shows
+    /// 43 UI-thread stalls with <em>zero</em> popups, so whatever blocks the
+    /// thread is not the popup churn and may not be this either. Removing work
+    /// that provably changes no pixel is right on its own terms; whether it
+    /// moves the stall count is for the next trace to say, not for this comment
+    /// to claim.
+    /// </para>
+    /// </remarks>
+    internal const string RepaintOnHoverChange =
+        "enter/exit repaint only when the ring actually moves or returns";
 
     /// <summary>
     /// Drop the hover state if the departure has lasted. Returns whether it did.
