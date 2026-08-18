@@ -143,7 +143,58 @@ public sealed class Emitter
 
     public double VelocityY { get; set; }
 
-    public Emitter Clone() => (Emitter)MemberwiseClone();
+    /// <summary>
+    /// The layer whose ink says where this emitter emits, or null for one of the
+    /// plain shapes above.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The mask is the emission, whole</b> (Q125). It is not intersected with
+    /// anything at bake time, and in particular not with whatever the costume is
+    /// drawing this frame: alpha lock belongs to the <em>painter</em>, keeping a
+    /// brush on the garment while a mask is made, and it is optional even there.
+    /// An intersection at bake time would let a hem swinging away silently
+    /// extinguish the fire on it, with nothing in the record to say why.
+    /// </para>
+    /// <para>
+    /// Because a mask is an ordinary layer it has cels, so it can be redrawn on
+    /// the frames that need it, held on the ones that do not, carried by the
+    /// inbetweener and bound to a rig — none of which this emitter has to know
+    /// about. What the emitter supplies is <em>where the stamp sits</em>; the
+    /// layer supplies what shape it is.
+    /// </para>
+    /// </remarks>
+    public string? MaskLayerId { get; set; }
+
+    /// <summary>
+    /// Where this emitter travels, keyed, as an offset from <see cref="X"/> and
+    /// <see cref="Y"/> in cells. Null on an emitter that stays put.
+    /// </summary>
+    /// <remarks>
+    /// An offset rather than the position itself, so placing an emitter and
+    /// animating it stay separate acts: drag it where it belongs, then key the
+    /// travel relative to that, and moving the element later does not invalidate
+    /// the keys.
+    /// </remarks>
+    public EffectParam? MotionX { get; set; }
+
+    public EffectParam? MotionY { get; set; }
+
+    /// <summary>Whether this emitter travels at all. Derived; never serialized.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool Travels => MotionX is not null || MotionY is not null;
+
+    /// <summary>Where this emitter's origin sits on a timeline frame, in cells.</summary>
+    public (double X, double Y) OriginAt(int frame) =>
+        (X + (MotionX?.At(frame) ?? 0), Y + (MotionY?.At(frame) ?? 0));
+
+    public Emitter Clone()
+    {
+        var copy = (Emitter)MemberwiseClone();
+        copy.MotionX = MotionX?.Clone();
+        copy.MotionY = MotionY?.Clone();
+        return copy;
+    }
 }
 
 /// <summary>
@@ -343,6 +394,19 @@ public sealed class SimElement
     public List<string> BandColors { get; set; } = [];
 
     public string OutlineColor { get; set; } = "#1a1a1a";
+
+    /// <summary>
+    /// The layer whose ink blocks the fluid — the figure and her costume — or
+    /// null for an element nothing gets in the way of.
+    /// </summary>
+    /// <remarks>
+    /// Named separately from any emitter's mask on purpose (Q125). What blocks
+    /// and what emits are different questions: fire leaves a sleeve while the
+    /// whole torso still occludes it, and folding the two together would send
+    /// flames straight through the character — which is exactly what makes an
+    /// effect read as pasted on rather than attached.
+    /// </remarks>
+    public string? ObstacleLayerId { get; set; }
 
     /// <summary>The shared line treatment this element follows, or null for the defaults.</summary>
     public string? TreatmentId { get; set; }

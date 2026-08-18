@@ -108,6 +108,17 @@ public sealed class SimBaker
     /// </remarks>
     public SolvedElement Solve(
         SimElement element, IProgress<double>? progress = null, CancellationToken cancel = default)
+        => Solve(element, null, progress, cancel);
+
+    /// <param name="masks">
+    /// Where painted emitters emit, at grid resolution. Null leaves every masked
+    /// emitter silent — which is what an element whose mask layer has been
+    /// deleted should do, rather than throwing or falling back to a shape nobody
+    /// authored.
+    /// </param>
+    public SolvedElement Solve(
+        SimElement element, ISimMasks? masks,
+        IProgress<double>? progress = null, CancellationToken cancel = default)
     {
         ArgumentNullException.ThrowIfNull(element);
 
@@ -137,7 +148,7 @@ public sealed class SimBaker
 
             var wind = element.WindAt(element.FirstFrame + Math.Max(i, 0));
 
-            Emit(solver, element, i);
+            Emit(solver, element, i, masks);
             SpawnEmbers(embers, element, i);
 
             // Stepped one at a time so the embers can be carried between steps
@@ -246,18 +257,30 @@ public sealed class SimBaker
     /// Feed the element. Emitters are stamped in list order so the result does
     /// not depend on how the collection happened to be built.
     /// </summary>
-    private static void Emit(FluidSolver solver, SimElement element, int frame)
+    private static void Emit(FluidSolver solver, SimElement element, int frame, ISimMasks? masks)
     {
         foreach (var emitter in element.Emitters)
         {
+            var (ox, oy) = emitter.OriginAt(frame);
+
+            // A painted mask replaces the shape entirely — it *is* where this
+            // emitter emits (Q125), and it is never intersected with whatever the
+            // costume happens to be drawing. Alpha lock belongs to the painter.
+            if (emitter.MaskLayerId is not null)
+            {
+                var mask = masks?.For(emitter, frame);
+                if (mask is not null) StampMask(solver, emitter, mask, ox - emitter.X, oy - emitter.Y);
+                continue;
+            }
+
             switch (emitter.Shape)
             {
                 case EmitterShape.Point:
-                    Stamp(solver, emitter, emitter.X, emitter.Y, 1);
+                    Stamp(solver, emitter, ox, oy, 1);
                     break;
 
                 case EmitterShape.Disc:
-                    StampDisc(solver, emitter, emitter.X, emitter.Y);
+                    StampDisc(solver, emitter, ox, oy);
                     break;
 
                 case EmitterShape.Segment:
@@ -269,13 +292,53 @@ public sealed class SimBaker
                     for (var s = 0; s <= steps; s++)
                     {
                         var t = s / (double)steps;
-                        StampDisc(solver, emitter, emitter.X + dx * t, emitter.Y + dy * t);
+                        StampDisc(solver, emitter, ox + dx * t, oy + dy * t);
                     }
                     break;
             }
         }
+    }
 
-        _ = frame;   // emitters are constant for now; keying them is a later item
+    /// <summary>
+    /// Feed the fluid wherever the mask has ink, shifted by however far this
+    /// emitter has travelled from where it was placed.
+    /// </summary>
+    /// <remarks>
+    /// The shift is the whole of what an origin does to a mask (Q125): with no
+    /// motion keyed it is zero, and the mask emits exactly where it was painted.
+    /// Sampled bilinearly rather than nearest, because a keyed origin lands on
+    /// fractions of a cell and a nearest-neighbour shift would make a smoothly
+    /// travelling emitter jump a cell at a time.
+    /// </remarks>
+    private static void StampMask(
+        FluidSolver solver, Emitter emitter, float[] mask, double shiftX, double shiftY)
+    {
+        int w = solver.Width, h = solver.Height;
+        if (mask.Length < w * h) return;
+
+        for (var y = 0; y < h; y++)
+        {
+            for (var x = 0; x < w; x++)
+            {
+                var coverage = SampleMask(mask, w, h, x - shiftX, y - shiftY);
+                if (coverage > 0.001) Stamp(solver, emitter, x, y, coverage);
+            }
+        }
+    }
+
+    private static double SampleMask(float[] mask, int w, int h, double px, double py)
+    {
+        if (px <= -1 || py <= -1 || px >= w || py >= h) return 0;
+
+        var gx = Math.Clamp(px, 0, w - 1.0);
+        var gy = Math.Clamp(py, 0, h - 1.0);
+        int x0 = (int)gx, y0 = (int)gy;
+        int x1 = Math.Min(x0 + 1, w - 1), y1 = Math.Min(y0 + 1, h - 1);
+        double tx = gx - x0, ty = gy - y0;
+
+        var top = mask[y0 * w + x0] * (1 - tx) + mask[y0 * w + x1] * tx;
+        var bottom = mask[y1 * w + x0] * (1 - tx) + mask[y1 * w + x1] * tx;
+        return top * (1 - ty) + bottom * ty;
     }
 
     private static void StampDisc(FluidSolver solver, Emitter emitter, double cx, double cy)
@@ -350,6 +413,7 @@ public sealed class SimBaker
         for (var i = 0; i < spec.PerFrame; i++)
         {
             var emitter = element.Emitters[i % element.Emitters.Count];
+            var (ox, oy) = emitter.OriginAt(frame);
 
             // Two hashes of the same pair, differently salted: one places the
             // ember along the emitter, one across it. Seeded from the spawn
@@ -361,15 +425,15 @@ public sealed class SimBaker
             double x, y;
             if (emitter.Shape == EmitterShape.Segment)
             {
-                x = emitter.X + (emitter.X2 - emitter.X) * along;
-                y = emitter.Y + (emitter.Y2 - emitter.Y) * along;
+                x = ox + (emitter.X2 - emitter.X) * along;
+                y = oy + (emitter.Y2 - emitter.Y) * along;
             }
             else
             {
                 var angle = along * Math.PI * 2;
                 var radius = emitter.Radius * Math.Sqrt(across);
-                x = emitter.X + Math.Cos(angle) * radius;
-                y = emitter.Y + Math.Sin(angle) * radius;
+                x = ox + Math.Cos(angle) * radius;
+                y = oy + Math.Sin(angle) * radius;
             }
 
             embers.Add(new Ember { X = x, Y = y });

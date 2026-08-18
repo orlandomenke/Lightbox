@@ -164,6 +164,78 @@ public class EffectParamTests
         Assert.Equal(0, back.WindAt(10).Y);
     }
 
+    // ---- painted emission (Q125) ------------------------------------------------
+
+    [Fact]
+    public void A_Plain_Emitter_Writes_No_Mask_No_Motion_And_No_Obstacle()
+    {
+        var element = new SimElement();
+        element.Emitters.Add(new Emitter { Shape = EmitterShape.Disc, X = 4, Y = 4 });
+        var doc = new Doc { Sims = new Dictionary<string, SimElement> { ["s"] = element } };
+
+        var json = DocJson.Serialize(doc);
+
+        Assert.DoesNotContain("\"maskLayerId\"", json);
+        Assert.DoesNotContain("\"motionX\"", json);
+        Assert.DoesNotContain("\"motionY\"", json);
+        Assert.DoesNotContain("\"travels\"", json);
+        Assert.DoesNotContain("\"obstacleLayerId\"", json);
+        Assert.False(element.Emitters[0].Travels);
+    }
+
+    [Fact]
+    public void A_Painted_Emitter_Survives_A_Round_Trip()
+    {
+        var element = new SimElement { ObstacleLayerId = "costume" };
+        element.Emitters.Add(new Emitter
+        {
+            Id = "em",
+            MaskLayerId = "emission",
+            MotionX = new EffectParam { Keys = [new EffectKey { Frame = 0, Value = 0 }, new EffectKey { Frame = 10, Value = 12 }] },
+        });
+        var doc = new Doc { Sims = new Dictionary<string, SimElement> { ["s"] = element } };
+
+        var back = DocJson.Deserialize(DocJson.Serialize(doc)).Sims!["s"];
+
+        Assert.Equal("costume", back.ObstacleLayerId);
+        Assert.Equal("emission", back.Emitters[0].MaskLayerId);
+        Assert.True(back.Emitters[0].Travels);
+        Assert.Equal(6, back.Emitters[0].OriginAt(5).X, 6);
+    }
+
+    /// <summary>
+    /// An offset rather than the position itself, so placing an emitter and
+    /// animating it stay separate acts.
+    /// </summary>
+    [Fact]
+    public void Motion_Is_An_Offset_From_Where_The_Emitter_Was_Placed()
+    {
+        var emitter = new Emitter
+        {
+            X = 30,
+            Y = 8,
+            MotionX = new EffectParam { Keys = [new EffectKey { Frame = 0, Value = 0 }, new EffectKey { Frame = 10, Value = 10 }] },
+        };
+
+        Assert.Equal((30, 8), emitter.OriginAt(0));
+        Assert.Equal(40, emitter.OriginAt(10).X);
+        Assert.Equal(8, emitter.OriginAt(10).Y);
+    }
+
+    [Fact]
+    public void Cloning_An_Emitter_Copies_Its_Motion_Keys()
+    {
+        var emitter = new Emitter
+        {
+            MotionX = new EffectParam { Keys = [new EffectKey { Frame = 0, Value = 1 }] },
+        };
+
+        var copy = emitter.Clone();
+        copy.MotionX!.Keys![0].Value = 9;
+
+        Assert.Equal(1, emitter.MotionX!.Keys![0].Value);
+    }
+
     [Fact]
     public void Cloning_An_Element_Copies_Its_Wind_Keys()
     {

@@ -537,6 +537,47 @@ correspondence between frames — which is exactly what Q116 chose when it took
 per-frame tracing. If looping cycles become the priority, that is an argument for
 revisiting Q116, not for a blend.
 
+### Painted emission, and what the render said about it
+
+An emitter can name a **mask layer**, and where that layer has ink is where it
+emits. Three things about it are load-bearing:
+
+- **The mask is the emission, whole.** It is not intersected with the costume at
+  bake time. Q124 originally recorded the opposite and Q125 corrects it: alpha
+  lock belongs to the *painter*, keeping a brush on the garment while a mask is
+  made, and it is optional even there. An intersection at bake time would let a
+  hem swinging away silently extinguish the fire on it, with nothing in the
+  record to say why.
+- **The origin is the only thing that moves it.** `Emitter.MotionX`/`MotionY` are
+  keyed offsets from where the emitter was placed, so placing and animating stay
+  separate acts. With nothing keyed the mask emits exactly where it was painted.
+- **A mask is an ordinary layer**, so holds, the inbetweener, rig binding and
+  onion skin all work on it and none of them was rebuilt. `OmitFromExport` keeps
+  it out of renders. Where a rigid stamp slides — a billowing cloak deforms and a
+  stamp does not — the answer is to redraw the mask on the frames that need it,
+  which composes with the origin because neither mechanism knows about the other.
+
+The mask is downsampled by rendering the same strokes onto a smaller surface at
+an output scale of `1/Scale`, never by scaling their geometry: invariant 7, and
+the reason a coarse grid gives a coarser mask of the same drawing rather than a
+different drawing.
+
+> **What the render said, and it is a finding rather than a defect.** A mask that
+> emits over an *area*, every frame, produces a **glowing shape** — it refuels the
+> whole region continuously, so heat never leaves it and no tongue can detach. On
+> a painted hem that reads as a burning edge, which is useful and is not flames
+> rising off cloth. Lowering the fuel and raising the cooling made it ragged and
+> licking rather than a smooth wire; it did not make it flames.
+>
+> Flames need emission that is **sparse in space or in time**. In space that is
+> the artist's job and already works — paint a broken mask, get separate flames.
+> In time it would be a *flicker*: emission modulated per cell by `Hash01` over
+> position and frame, so the burning points wander along the hem the way they
+> really do. That is the sanctioned pattern for something that must vary by
+> frame, and it is the first thing to try if a continuous mask reads as too even.
+> It is deliberately not in this branch: it is a new parameter that reaches
+> pixels and varies by frame, which is a decision rather than a tweak.
+
 ## Reach and configuration
 
 Absent by default, reachable everywhere. A document with no element writes no
@@ -587,14 +628,18 @@ Each step is one branch with one objective.
    than an angle and a strength, because keying an angle wraps: a gust swinging
    from 10° to 350° would interpolate the long way round through every direction
    nobody asked for.
-5c. **Emission painted onto a layer, and drawn art as an obstacle** (Q124) — the
-   thing the owner's burning-cloak character needs and the record cannot yet
-   express. Emission becomes a *drawing*, alpha-locked to the layer it belongs to,
-   so it animates, holds and rig-binds like any other; the same rasterised ink
-   also blocks the fluid, which is the deferred *fluid flows around drawn art*
-   item arriving on a real use case. It puts solid boundaries inside the grid,
-   where the solver has only walls at the edge today.
-5d. **Anchor attachment** (Q122) — an element that follows a drawing's anchor.
+5c. **Emission painted onto a layer** (Q124, refined by Q125) — **landed
+   2026-08-18**. An emitter names a mask layer; the mask *is* the emission, never
+   intersected with anything at bake time, and the emitter's keyable origin is
+   the only thing that moves it. Alpha lock turned out to belong to the
+   *painter* rather than to the bake — see below.
+5d. **Drawn art as an obstacle** (Q125) — the other half, and its own branch,
+   because the cost is not the rasterisation but putting solid boundaries
+   *inside* the grid where `FluidSolver` has only walls at its edge: interior
+   Neumann boundaries in the pressure solve, flux transport that will not carry
+   mass into an obstacle cell, and conservation tests that learn mass may be held
+   against an obstacle.
+5e. **Anchor attachment** (Q122) — an element that follows a drawing's anchor.
 6. Smoke (same solver, density instead of temperature, embers off by default),
    then goo through the metaball source, then water.
 7. **Style inference** — a reference drawing in, a `LineTreatment` out, judged by

@@ -648,6 +648,18 @@ every other AI feature and are only legible together.
     inference last, which needs a look to be judged against. Stays `[?]` until
     step 4 gives it evidence anchors to name: anchoring it earlier would make the
     box read `[x]` — *built* — for a feature no artist can reach.
+  - **Painted emission landed 2026-08-18** (Q124, refined by Q125): an emitter
+    names a mask layer and emits where that layer has ink, with a keyable origin
+    as the only thing that moves it — so a travelling emitter lays a trail, which
+    is smoke behind flying debris as much as fire on a hem. **Q125 corrects
+    Q124**: alpha lock belongs to the painter, not the bake, because an
+    intersection at bake time would let a hem swinging away silently extinguish
+    the fire on it. The render then said something no test did — a mask that
+    emits over an area every frame refuels itself and reads as a *glowing shape*
+    rather than flames, because no tongue can detach. Flames need emission sparse
+    in space (paint a broken mask — already works) or in time (a flicker seeded
+    from position and frame, which is a decision rather than a tweak and is not
+    in this branch).
   - **Wind landed 2026-08-18** (Q122), with `EffectParam`/`EffectKey` — the key
     vocabulary `DESIGN-effects.md` specified — built as its first user rather
     than a second one invented. Wind is a *relaxation toward the wind's speed
