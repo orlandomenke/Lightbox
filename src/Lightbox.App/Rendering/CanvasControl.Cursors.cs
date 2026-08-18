@@ -58,55 +58,6 @@ public sealed partial class CanvasControl
         var cursor = CursorFor(choice);
         if (Services.InputTrace.Armed) TraceCursor(choice, cursor);
         Cursor = cursor;
-        MirrorCursorToWindow(cursor);
-    }
-
-    /// <summary>
-    /// Put the canvas's cursor on the window as well, so the flicker has
-    /// nothing to flicker to.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <b>This is the half of B126 the leave grace does not reach, and the
-    /// reason the flicker survived it.</b> The grace stops <em>this control</em>
-    /// tearing its hover state down 39 times a second, so the brush ring holds.
-    /// It cannot stop Avalonia recomputing pointer-over, and the moment the
-    /// pointer is considered outside the canvas the cursor applied is the
-    /// nearest ancestor's — the window's, which is the default arrow. That
-    /// swap, at the churn's rate, <em>is</em> the flicker: the canvas is
-    /// blameless and its cursor never changed, which is exactly what four
-    /// traces reported (`cursor assignments 0`, every time).
-    /// </para>
-    /// <para>
-    /// <b>So the fallback is made to agree with the canvas.</b> While the
-    /// pointer is over the canvas the window wears the same cursor, and the
-    /// hand-off between them becomes invisible because both sides are the same
-    /// picture. Nothing is hidden globally and no counter is involved — it is
-    /// the ordinary Avalonia cursor property on the window.
-    /// </para>
-    /// <para>
-    /// <b>Restored on a departure that lasts</b>, by <c>SettleHover</c>, using
-    /// the same 50 ms grace: during those 50 ms a pointer genuinely on its way
-    /// to a toolbar wears the canvas's cursor, which is far below noticing and
-    /// is the price of the swap being invisible the other 39 times a second.
-    /// </para>
-    /// </remarks>
-    private void MirrorCursorToWindow(Cursor cursor)
-    {
-        if (Avalonia.Controls.TopLevel.GetTopLevel(this) is not { } top) return;
-        _windowCursorBefore ??= top.Cursor;
-        top.Cursor = cursor;
-    }
-
-    /// <summary>What the window's cursor was before the canvas borrowed it.</summary>
-    private Cursor? _windowCursorBefore;
-
-    /// <summary>Give the window its own cursor back.</summary>
-    internal void RestoreWindowCursor()
-    {
-        if (Avalonia.Controls.TopLevel.GetTopLevel(this) is not { } top) return;
-        top.Cursor = _windowCursorBefore;
-        _windowCursorBefore = null;
     }
 
     /// <summary>

@@ -222,9 +222,6 @@ public sealed partial class CanvasControl
         if (!HoverIsStale) return false;
 
         CancelLeave();
-        // The window stops borrowing the canvas's cursor at the same moment the
-        // ring goes: both are "the pointer has really gone" (B126).
-        RestoreWindowCursor();
         _hoverPoint = null;
         InvalidateVisual();
         return true;
