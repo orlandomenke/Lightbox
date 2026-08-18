@@ -311,9 +311,15 @@ rather than as separate windows, which is what stopped a hovered menu freezing
 the application. The counters line says `popups are in-window overlays` when
 that is in force.
 
+A submenu is also held open for a quarter of a second once it opens, so the
+same duplicate events cannot make it flicker shut and open again sixty times a
+second. It still closes the moment you actually move away.
+
 Expect `stream alternations` and `canvas enter/exit` to stay high even when
 this is working — those count the driver's behaviour, which is untouched. What
-should change is what you see: a steady ring and menus that stay usable.
+should change is what you see: a steady ring and menus that stay usable. The
+counters line reports `submenu closes refused`, which is how you can tell the
+guard engaged rather than the problem simply not happening that session.
 
 ### If playback or scrubbing stutters, read the tile section first
 

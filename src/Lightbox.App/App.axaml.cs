@@ -16,6 +16,13 @@ public sealed class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            // B255. A pen tablet's phantom mouse makes Avalonia's menu code
+            // open and close submenus sixty times a second; this refuses the
+            // close that arrives within a quarter-second of the open, which is
+            // the half of that cycle nobody asked for. Before any menu exists,
+            // and a no-op on every machine where the churn does not happen.
+            SubmenuCloseGrace.Install();
+
             // Eight fixed shapes with no input, ~160 ms to bake on a background
             // thread of its own. Started here so the first artist to open the
             // tip library is not the one who waits for them.
