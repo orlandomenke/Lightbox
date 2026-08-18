@@ -65,6 +65,9 @@ internal static class InputTrace
 
         /// <summary>The UI thread stopped answering for longer than <see cref="StallMs"/>.</summary>
         Stall,
+
+        /// <summary>Named in the event list, counted by nothing.</summary>
+        Note,
     }
 
     /// <summary>One traced event. Detail carries the non-positional kinds' payload.</summary>
@@ -218,6 +221,24 @@ internal static class InputTrace
         lock (Gate) NoteLocked(entry);
     }
 
+    /// <summary>
+    /// Put something in the event list that no counter is derived from.
+    /// </summary>
+    /// <remarks>
+    /// For facts that name what happened without being one of the things being
+    /// counted — a submenu opening, which is already counted as the popup it
+    /// opens. Recording it twice was how "2300 popups" came to mean 1,150.
+    /// </remarks>
+    private static void Annotate(string what)
+    {
+        if (!Volatile.Read(ref _armed)) return;
+        lock (Gate)
+        {
+            NoteLocked(new Entry(
+                Now(), Kind.Note, PointerType.Mouse, -1, 0, 0, 0, 0, 0, what));
+        }
+    }
+
     private static void NoteLocked(Entry entry)
     {
         Ring[_count % Capacity] = entry;
@@ -352,10 +373,17 @@ internal static class InputTrace
             Avalonia.Controls.Primitives.Popup.IsOpenProperty.Changed
                 .AddClassHandler<Avalonia.Controls.Primitives.Popup>(
                     (popup, args) => Popup(popup, DescribePopup(popup), args.GetNewValue<bool>()));
+            // Named but not counted. A submenu opens a Popup, so the hook above
+            // already counts it — the reporter's second trace read "2300 popups"
+            // for about 1,150, because every submenu was tallied twice. The
+            // inflated number is the collapsed-popup ratio, which is exactly
+            // what a fix for B254 gets judged by, so the label is worth keeping
+            // and the second tally is not: "Submenu of “Follows the rig”" is
+            // what identified the menu that was thrashing.
             Avalonia.Controls.MenuItem.IsSubMenuOpenProperty.Changed
                 .AddClassHandler<Avalonia.Controls.MenuItem>(
-                    (item, args) => Popup(
-                        item, $"Submenu of “{item.Header}”", args.GetNewValue<bool>()));
+                    (item, args) => Annotate(
+                        $"Submenu of “{item.Header}” {(args.GetNewValue<bool>() ? "opened" : "closed")}"));
             Avalonia.Controls.ToolTip.IsOpenProperty.Changed
                 .AddClassHandler<Avalonia.Controls.Control>(
                     (owner, args) => Popup(
@@ -639,6 +667,10 @@ internal static class InputTrace
             sb.AppendLine($"  UI-thread stalls      {summary.Stalls}"
                 + (summary.Stalls > 0 ? $", worst {summary.WorstStallMs:F0} ms" : "")
                 + $" (over {StallMs:F0} ms)");
+            // The filter's own count, so a trace says whether it engaged rather
+            // than leaving "the churn is gone" and "the pen was not used" to
+            // look identical.
+            sb.AppendLine($"  echo events dropped   {PenEchoFilter.Dropped}");
             sb.AppendLine($"  longest silence       {summary.LongestSilenceMs:F0} ms"
                 + (summary.Stalls == 0 && summary.LongestSilenceMs > 2000
                     ? " — no stall in it, so the pointer was off the canvas"
