@@ -48,12 +48,25 @@ annulus — a drawable line, not a 600-point staircase.
 
 Two things to read off that table. It is the *watercolour* solver, carrying four
 premultiplied pigment channels, a chamfer distance field, capillary pull and
-deposition, none of which a plume needs — a dedicated solver should come in well
-under half. And **fluid is low-frequency**: you simulate at 192×108 and trace
+deposition, none of which a plume needs — so a dedicated solver should come in
+well under half. And **fluid is low-frequency**: you simulate at 192×108 and trace
 contours into full-resolution document coordinates, because the contour is the
 deliverable and the pixels never are. Simulating at document resolution would
 multiply the work by ~100 for information the edge interpolation already
 supplies.
+
+> **Measured 2026-08-18, and the halving was wrong.** `FluidSolver` costs
+> **3.74 ms/step** at 192×108 — more than *twice* `FluidLattice`, not half of
+> it. The prediction ignored the one thing an incompressible solver pays for
+> that a shallow-water one does not: a **pressure projection**, sixteen Jacobi
+> sweeps over every cell, which is the bulk of the step. Dropping the pigment
+> channels saved much less than the projection cost.
+>
+> The conclusion survives the arithmetic being wrong, which is the only reason
+> this is a correction rather than a redesign: a 48-frame bake at 8 substeps
+> measures **1437 ms**, inside the two-second target with room. It is worth
+> keeping the wrong number visible, because the same reasoning would say a
+> 512×288 element is affordable and it is not.
 
 **The budget is therefore a bake, not a frame.** The charter's numbers guard
 interactive paths — 20 ms per pointer event, 400 ms per commit — and none of
@@ -69,12 +82,27 @@ over a paper height field, held by a capillary entry pressure, exchanging
 pigment with the paper. It is right for a wash sitting on paper and wrong for a
 plume rising through air.
 
-What is needed is a standard Stam-style semi-Lagrangian incompressible solver in
+What is needed is a Stam-style incompressible solver in
 `src/Lightbox.Raster/Media/FluidSolver.cs`: `u`/`v` face velocities, a `density`
-field and a `temperature` field; per step add forces (buoyancy from temperature,
-vorticity confinement to put the curl back that advection eats), advect
-velocity, project to divergence-free, advect the scalars, then dissipate and
-cool.
+field and a `temperature` field; per step advect velocity, add forces (buoyancy
+from temperature, vorticity confinement to put back the curl advection eats,
+seeded curl noise for turbulence), hold the field inside its CFL bound, project
+to divergence-free, transport the scalars, then dissipate and cool.
+
+**Momentum is resampled and matter is moved, and that split was forced by
+measurement** (Q117). Velocity advects semi-Lagrangian, which is
+unconditionally stable and where conservation buys nothing. Density and
+temperature move as *face fluxes* — donor-cell upwinding, a flux subtracted from
+one cell and added to precisely one other — because the textbook choice of
+advecting them the same way is not conservative, and it does not merely drift:
+measured on a closed swirl over a hundred steps the density came out at
+**107% / 141% / 219% / 293%** of what went in as the peak speed rose through
+0.17 / 0.41 / 0.77 / 1.02 cells per step. Every cell was a plausible number and
+no assertion could have caught it after the fact. What flux transport costs is
+sharpness, and that is cheaper here than in a renderer that shows the field as
+pixels: the deliverable is a traced iso-contour, so a smoother field gives a
+smoother line — which, given Q116 chose per-frame tracing, is a benefit rather
+than a consolation.
 
 What transfers from `FluidLattice` is the expensive part — the parts that took
 the time rather than the parts in the textbook:
@@ -83,10 +111,18 @@ the time rather than the parts in the textbook:
   cannot represent flow leaving a local peak in all four directions at once, so
   a lone hot cell would sit there instead of blooming. Faces get that right and
   make transport exactly conservative.
-- **Fixed-sweep Gauss-Seidel projection**, iteration count a compile-time
-  constant rather than a convergence test, for the reason that file already
-  gives: a solver that runs to tolerance is a solver whose output depends on
-  floating-point luck.
+- **A fixed-sweep pressure solve**, iteration count a compile-time constant
+  rather than a convergence test, for the reason that file already gives: a
+  solver that runs to tolerance is a solver whose output depends on
+  floating-point luck. The iteration is **Jacobi rather than Gauss-Seidel**,
+  which is the one place this parts company with `FluidLattice`: Gauss-Seidel
+  reads its own partial results, so a row-major sweep biases the answer along
+  the sweep and a left–right symmetric setup comes out slightly asymmetric.
+  Jacobi is exactly symmetric, which turns "is there an index slip" from a
+  judgement about a picture into an assertion — and it caught one immediately,
+  in the test fixture rather than the solver. Sixteen sweeps, chosen off a
+  measured table of residual divergence against cost that lives beside the
+  constant.
 - **Allocate once, `Rent` the lattice.** Roughly two dozen floats per cell, all
   taken in the constructor.
 - **The determinism stance in full**: fixed iteration counts, fixed row-major

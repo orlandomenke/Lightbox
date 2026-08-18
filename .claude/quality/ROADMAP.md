@@ -621,7 +621,18 @@ every other AI feature and are only legible together.
     against the recommendation and each records what it costs.
   - Build order is six branches, one objective each — solver, field → strokes,
     record, fire end to end, docker, then smoke and water. Stays `[?]` until
-    step 4 gives it evidence anchors to name.
+    step 4 gives it evidence anchors to name: anchoring it earlier would make the
+    box read `[x]` — *built* — for a feature no artist can reach.
+  - **Step 1 landed 2026-08-18**: `FluidSolver`, an incompressible MAC-grid
+    solver with buoyancy, vorticity confinement and seeded curl-noise
+    turbulence, guarded by eighteen tests. Two findings worth carrying forward.
+    The measured cost is **3.74 ms/step at 192×108** — more than twice
+    `FluidLattice`, where the design predicted half, because an incompressible
+    solver pays for a pressure projection a shallow-water one does not; the
+    1437 ms bake still meets the two-second target, but the same wrong reasoning
+    would have called a 512×288 element affordable. And the textbook scalar
+    advection **invented up to 193% of its own density**, which Q117 settled by
+    moving density and temperature onto conservative face fluxes.
 - [x] Motion path visualization `evidence: MotionTrail, MotionTrailPainter, MotionTrailTests, MotionTrailOverlayTests, TheTrailRunsInTimelineOrderWithTheCurrentDrawingMarked, TheViewModelHandsTheWindowTheTrailAndKeepsItCurrent, TheToggleIsRegisteredSoItCanBeFoundAndRebound`
   - **Landed 2026-08-16 with spacing visualization as one overlay — the motion
     trail (Q98)** — because they are one thing: a polyline through the
