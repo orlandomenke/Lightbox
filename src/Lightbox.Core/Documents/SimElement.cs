@@ -19,10 +19,30 @@ namespace Lightbox.Core.Documents;
 /// finely the element is simulated.
 /// </para>
 /// </remarks>
+/// <remarks>
+/// <para>
+/// <b>The defaults were tuned against a render, not taken from the solver's test
+/// fixture</b> — which is what they were at first, and it showed. Every test
+/// passed: momentum conserved, fluid incompressible, smoke neither created nor
+/// destroyed. It simply did not look like fire. Three separate things were
+/// wrong and only a picture could have said so:
+/// </para>
+/// <list type="bullet">
+/// <item><b>The turbulence was acting as wind.</b> A noise scale of twelve cells
+/// on a seventy-cell element is a push the width of the plume, so the flame was
+/// blown sideways rather than made wispy. Six reads as turbulence.</item>
+/// <item><b>The flame stalled.</b> Buoyancy is proportional to heat, so a plume
+/// that cools slowly is a plume that stops climbing while it is still visible.
+/// Hotter and cooling faster gives the short bright tongue a flame actually
+/// has.</item>
+/// <item><b>Nothing damped the flow</b>, so a sustained plume in a closed box
+/// accumulated circulation until the flame lay over. See <see cref="Drag"/>.</item>
+/// </list>
+/// </remarks>
 public sealed record SimParams
 {
     /// <summary>How hard heat lifts. Up is −Y, the document's own convention.</summary>
-    public double Buoyancy { get; set; } = 0.06;
+    public double Buoyancy { get; set; } = 0.35;
 
     /// <summary>How hard density sinks — smoke is heavier than the air it rides.</summary>
     public double Weight { get; set; } = 0.01;
@@ -30,11 +50,35 @@ public sealed record SimParams
     /// <summary>How much of the curl advection eats is put back. What keeps a plume curling.</summary>
     public double Vorticity { get; set; } = 0.35;
 
+    /// <summary>
+    /// Fraction of the flow's speed lost per step — the air's own viscosity, and
+    /// the thing that stops a closed element turning into a lava lamp.
+    /// </summary>
+    /// <remarks>
+    /// <b>Added at step 4 because the render demanded it, and measured rather
+    /// than assumed.</b> Worst sideways drift of the plume's centre of mass over
+    /// the second half of a forty-frame element:
+    ///
+    /// <code>
+    ///   drag 0.00    7.0 cells
+    ///   drag 0.05    3.6 cells
+    ///   drag 0.12    0.9 cells
+    /// </code>
+    ///
+    /// The default is 0.05 rather than 0.12 on purpose: the higher figure gives
+    /// a flame that stands dead still, and a flame that never wavers reads as
+    /// fake. Halving the drift while leaving it some life is the trade.
+    /// An open top — letting the plume leave rather than recirculate — is the
+    /// other half of this and stays deferred; drag is what a closed element
+    /// needs either way.
+    /// </remarks>
+    public double Drag { get; set; } = 0.05;
+
     /// <summary>Amplitude of the seeded curl-noise force.</summary>
-    public double Turbulence { get; set; } = 0.5;
+    public double Turbulence { get; set; } = 0.35;
 
     /// <summary>Cells per noise cell. Small is fine detail, large is slow billow.</summary>
-    public double TurbulenceScale { get; set; } = 12;
+    public double TurbulenceScale { get; set; } = 6;
 
     /// <summary>Noise-space units the field travels per step, so the turbulence evolves.</summary>
     public double TurbulenceDrift { get; set; } = 0.05;
@@ -43,7 +87,7 @@ public sealed record SimParams
     public double Dissipation { get; set; } = 0.004;
 
     /// <summary>Fraction of temperature lost per step.</summary>
-    public double Cooling { get; set; } = 0.02;
+    public double Cooling { get; set; } = 0.06;
 }
 
 /// <summary>Where an emitter puts fluid in.</summary>
@@ -201,10 +245,38 @@ public sealed class SimElement
     /// </summary>
     public bool BandsFromHeat { get; set; }
 
-    /// <summary>The field range the bands are spread through.</summary>
-    public double BandLow { get; set; }
+    /// <summary>
+    /// The range the bands are spread through, as a fraction of the highest
+    /// value this element's field reaches.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A fraction rather than an absolute level, and that was found by
+    /// looking.</b> Temperature is unbounded — a flame that burns longer is
+    /// simply hotter — so an absolute <c>BandHigh</c> of 1 against a field
+    /// peaking at 3 put every band inside the brightest core and drew none of
+    /// the plume. The artist would have had to discover the number by
+    /// experiment, and rediscover it after every change to the emitter.
+    /// </para>
+    /// <para>
+    /// Taken over the <em>whole element</em> (<c>SolvedElement.PeakBand</c>), never
+    /// per frame: a range following each frame's own peak would rescale the
+    /// bands every frame, and a band that moves because its scale moved is
+    /// flicker.
+    /// </para>
+    /// </remarks>
+    /// <remarks>
+    /// <b>The window sits low in the range, and that was measured.</b> A plume's
+    /// field is steeply peaked — at ordinary settings only 4% of an element's
+    /// cells hold more than a hundredth of its peak, and 0.3% more than a
+    /// quarter of it. Bands spread over the whole range therefore all land
+    /// inside the brightest core and draw scraps. From 2% to a third of peak
+    /// puts the outermost band around the visible edge of the plume, which is
+    /// where a silhouette belongs.
+    /// </remarks>
+    public double BandLow { get; set; } = 0.02;
 
-    public double BandHigh { get; set; } = 1;
+    public double BandHigh { get; set; } = 0.34;
 
     /// <summary>A colour per band, outermost first. How <em>many</em> bands there are is style, and lives on the treatment.</summary>
     public List<string> BandColors { get; set; } = [];
@@ -222,6 +294,12 @@ public sealed class SimElement
 
     /// <summary>The ember pass, or null — and null is every element that does not want one.</summary>
     public ParticleSpec? Particles { get; set; }
+
+    /// <summary>
+    /// How many bands this element draws — a style decision, so it comes from
+    /// the treatment rather than from here.
+    /// </summary>
+    public int Bands() => LineTreatment.Resolve(null, Treatment).Bands;
 
     /// <summary>Frames this element covers, as a half-open range.</summary>
     public bool Covers(int frame) => frame >= FirstFrame && frame < FirstFrame + FrameCount;

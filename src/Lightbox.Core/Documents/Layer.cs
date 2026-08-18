@@ -245,6 +245,27 @@ public sealed class Layer
     [JsonIgnore] public bool FollowsWholeSkeleton => BoneId is { Length: 0 };
 
     /// <summary>One entry per timeline frame; a null Frame is a hold.</summary>
+    /// <summary>
+    /// The effects element that owns this layer, or null for every layer an
+    /// artist made.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Q123: an element bakes into a layer of its own, so it can be hidden,
+    /// blended and re-baked as a clean replace without touching anything else.
+    /// Held here rather than matched by name, because renaming a layer is an
+    /// ordinary thing to do and should not orphan the element — which would show
+    /// up as the next bake quietly making a second layer.
+    /// </para>
+    /// <para>
+    /// Provenance, never behaviour: the layer renders, exports and composites
+    /// exactly as any other, and clearing this leaves an ordinary layer full of
+    /// ordinary strokes. Absent from the file on every layer of every document
+    /// that has never made an effect.
+    /// </para>
+    /// </remarks>
+    public string? SimId { get; set; }
+
     public List<Cel> Cels { get; set; } = [];
 
     /// <summary>A copy holding no reference in common with this one.</summary>

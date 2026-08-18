@@ -180,6 +180,28 @@ which is a weak test and still far better than none.
 
 ### canvas
 
+- [ ] **B259** `P2` `canvas` Publish pacing fails intermittently under a full-solution test run
+  - **Evidence.** `PublishPacingTests.EventsWhileTheCanvasIsBehindComposeNothingUntilItCatchesUp`
+    failed once in a `dotnet test Lightbox.sln -c Release` run (3276 of 3277 App
+    tests passing) and passed on every targeted re-run — 7/7 alone, 3277/3277 for
+    the assembly by itself. It has now been seen twice, in runs on 2026-08-18
+    that touched only `Lightbox.Core` and `Lightbox.Raster`; `Lightbox.App.Tests`
+    references nothing that changed either time.
+  - **What it is not.** Not a regression from the effects work, and not a
+    weakness in the test's subject — the pacing logic behaves under every
+    deliberate measurement. The distinguishing condition is *contention*: a
+    full-solution run puts all four assemblies on the box at once, which
+    `Bench.cs` already documents as a hazard for timing-sensitive tests.
+  - **Why it was filed rather than fixed.** It is not this branch's objective —
+    canvas publish pacing has nothing to do with effects, and the one-objective
+    rule says the answer to finding something else is a new branch rather than an
+    "and". P2 rather than P3 because an intermittent red on a full run is the
+    kind of failure that teaches people to re-run instead of read.
+  - **The fix is probably a clock, not a sleep.** If the test asserts on elapsed
+    wall-clock time it will keep failing under load however long the tolerance
+    is; the durable answer is an injectable time source, which is a change to the
+    test's harness rather than to what it is testing.
+  - `evidence: PublishPacingTests, EventsWhileTheCanvasIsBehindComposeNothingUntilItCatchesUp`
 - [ ] **B256** `P1` `canvas` After the pen returns from proximity a stroke draws only a horizontal line `evidence: manual`
   - Reported 2026-08-18: *"if I draw with the pen after a moment of not near the screen, it only draws straight horizontal lines as long as my pen is touching. On release and drawing again solves it."* P1 rather than P2 because it corrupts the mark the artist actually made — the record is the document (invariant 1), so a stroke drawn as a line the hand did not make is lost work, not a cosmetic fault.
   - **The mechanism is certain; the trigger is not.** `CanvasControl`'s move handler constrains a stroke to one axis while Shift is held, and `AxisLocked` returns `(x, anchor.Y)` when horizontal travel dominates — **a perfectly horizontal line pinned to the Y where the pen came down**, which is precisely the reported shape. It is set per move from `e.KeyModifiers.HasFlag(KeyModifiers.Shift)`, so a stroke drawn without touching Shift can only look like this if Shift is being *reported* while the pen is down.

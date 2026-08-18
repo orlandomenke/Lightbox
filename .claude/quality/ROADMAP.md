@@ -647,6 +647,18 @@ every other AI feature and are only legible together.
     inference last, which needs a look to be judged against. Stays `[?]` until
     step 4 gives it evidence anchors to name: anchoring it earlier would make the
     box read `[x]` — *built* — for a feature no artist can reach.
+  - **Step 4 landed 2026-08-18**: fire end to end — emitters, the temperature
+    field, the heat ramp, embers, and a re-bake that replaces only what the
+    element still owns. `SimBaker` splits solving from drawing, measured **40×
+    apart** (1756 ms against 43 ms for 48 frames), which is what makes Q123's
+    live preview affordable. **The picture disagreed with every green test**:
+    turbulence acting as wind, a plume that stalled, nothing damping the flow, and
+    bands landing entirely inside the core because a plume's field is steeply
+    peaked. `SimParams.Drag` was added and measured (7.0 → 3.6 → 0.9 cells of
+    drift at 0 / 0.05 / 0.12), band levels became fractions of the element's own
+    peak, and two of the findings are now tests. Looking also caught a defect
+    nothing else would: `PeakBand` sampled only the frames an element kept, so
+    exposing on 2s shifted every band level.
   - **Step 3 landed 2026-08-18**: the record. `Doc.Sims` and `Doc.LineTreatments`
     are absent until authored, `Stroke.SimId` is absent on every hand-drawn
     stroke, and an override that states nothing serializes as `{}` rather than as

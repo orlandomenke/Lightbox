@@ -17,13 +17,14 @@ public class FluidSolverTests(ITestOutputHelper output)
     {
         Buoyancy = 0.06, Weight = 0.01, Vorticity = 0.35,
         Turbulence = 0.5, TurbulenceScale = 12, TurbulenceDrift = 0.05,
-        Dissipation = 0.004, Cooling = 0.02,
+        Dissipation = 0.004, Cooling = 0.02, Drag = 0,
     };
 
     private static SimParams Inert => new()
     {
         Buoyancy = 0, Weight = 0, Vorticity = 0, Turbulence = 0,
         TurbulenceScale = 8, TurbulenceDrift = 0, Dissipation = 0, Cooling = 0,
+        Drag = 0,   // inert means inert: the record's default damps the flow
     };
 
     /// <summary>A warm disc of smoke low in the frame — one puff about to rise.</summary>

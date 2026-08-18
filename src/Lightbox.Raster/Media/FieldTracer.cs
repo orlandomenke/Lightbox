@@ -153,7 +153,7 @@ public sealed class FieldTracer
     /// nothing and a band at <c>Low</c> encloses everything, so neither is worth
     /// spending one of a small number of bands on.
     /// </summary>
-    internal static float LevelOf(int band, int bands, float low, float high, BandSpacing spacing)
+    public static float LevelOf(int band, int bands, float low, float high, BandSpacing spacing)
     {
         var t = (band + 1) / (double)(bands + 1);
         if (spacing == BandSpacing.CoreBiased) t = Math.Sqrt(t);

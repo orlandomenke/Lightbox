@@ -328,6 +328,7 @@ public sealed class FluidSolver
         var drift = Clamped((float)p.TurbulenceDrift, -16f, 16f);
         var dissipation = Clamped((float)p.Dissipation, 0f, 1f);
         var cooling = Clamped((float)p.Cooling, 0f, 1f);
+        var drag = Clamped((float)p.Drag, 0f, 1f);
 
         // The order is Stam's advect-force-project and it is not a knob.
         // Confinement reads the field *after* advection because restoring the
@@ -340,6 +341,7 @@ public sealed class FluidSolver
             AdvectVelocity();
             ApplyBuoyancy(buoyancy, weight);
             if (vorticity > 0 || turbulence > 0) ApplyBodyForces(vorticity, turbulence, scale, drift);
+            if (drag > 0) Damp(drag);
             LimitSpeed();
             Project();
             TransportScalars();
@@ -349,6 +351,24 @@ public sealed class FluidSolver
     }
 
     // ---- steps --------------------------------------------------------------
+
+    /// <summary>
+    /// Bleed a fraction of the flow away each step: the air's own viscosity.
+    /// </summary>
+    /// <remarks>
+    /// Before the projection, so what it leaves behind is still divergence-free.
+    /// Uniform scaling cannot introduce divergence on its own, but the clamp
+    /// beside it can, and one solve tidies up after both.
+    /// </remarks>
+    private void Damp(float drag)
+    {
+        var keep = 1f - drag;
+        var uFaces = _uw * _h;
+        for (var i = 0; i < uFaces; i++) _u[i] *= keep;
+
+        var vFaces = _w * (_h + 1);
+        for (var i = 0; i < vFaces; i++) _v[i] *= keep;
+    }
 
     /// <summary>
     /// Hold every face inside the one-cell-per-step bound the advection is only
@@ -974,6 +994,20 @@ public sealed class FluidSolver
         var n = _w * _h;
         for (var i = 0; i < n; i++) total += _density[i];
         return total;
+    }
+
+    /// <summary>The highest density anywhere on the grid.</summary>
+    public float PeakDensity() => Peak(_density);
+
+    /// <summary>The highest temperature anywhere on the grid.</summary>
+    public float PeakTemperature() => Peak(_heat);
+
+    private float Peak(float[] field)
+    {
+        var n = _w * _h;
+        var peak = 0f;
+        for (var i = 0; i < n; i++) if (field[i] > peak) peak = field[i];
+        return peak;
     }
 
     /// <summary>
