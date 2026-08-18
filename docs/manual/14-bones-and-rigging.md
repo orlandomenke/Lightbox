@@ -118,10 +118,16 @@ free — but on a long exposure it means the frames you posed still show the one
 drawing the cel is holding, and playback shows the drawings you made rather
 than the poses you authored.
 
-**Drawing from pose** (in the bone options, and bindable to a key of your own
-under *Keep this pose as a drawing*) is the other half. Park on a held frame,
-pose the rig, and press it: the hold breaks at the playhead and that frame
-becomes a drawing of its own, holding what you were looking at.
+**Drawing from pose** is the other half. Park on a held frame, pose the rig,
+and use it: the hold breaks and that frame becomes a drawing of its own,
+holding what you were looking at. Three ways to reach it, all the same command:
+
+- the **bone options**, which acts on the frame you are standing on;
+- **right-click a cel in the X-sheet**, which acts on the cel you clicked and
+  then takes you to it — the way to work along a row without moving the
+  playhead first. It only appears once the document has an armature;
+- a key of your own, bound under *Keep this pose as a drawing* — worth doing
+  for a cycle, where you press it once per drawing.
 
 - **Bound art** arrives baked into its posed position, ready to touch up.
 - **A bone guide over hand-drawn art** — nothing bound — arrives as a copy of

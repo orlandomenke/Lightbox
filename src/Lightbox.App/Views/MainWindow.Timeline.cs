@@ -44,6 +44,16 @@ public partial class MainWindow
         if (CellOf(sender) is { } cell) _vm.InsertFrameAt(cell, FrameRole.Inbetween);
     }
 
+    /// <summary>
+    /// The X-sheet's way into the bone system's one timeline command. Aimed at
+    /// the cel that was right-clicked, not at the playhead — see
+    /// <c>MainViewModel.InsertDrawingFromPoseAt</c>.
+    /// </summary>
+    private void OnInsertDrawingFromPose(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.InsertDrawingFromPoseAt(cell);
+    }
+
     private void OnSetStartFrame(object? sender, RoutedEventArgs e)
     {
         if (CellOf(sender) is { } cell) _vm.SetPlaybackStart(cell);

@@ -1216,16 +1216,41 @@ public sealed partial class MainViewModel
     /// </para>
     /// </remarks>
     /// <returns>Whether a drawing was inserted — false when the cel already had one.</returns>
-    public bool InsertDrawingFromPose()
+    public bool InsertDrawingFromPose() =>
+        InsertDrawingFromPoseAt(ActiveLayerIndex, CurrentFrameIndex);
+
+    /// <summary>
+    /// The same command aimed at a cel the artist picked rather than at the
+    /// playhead — the X-sheet's right-click.
+    /// </summary>
+    /// <remarks>
+    /// A cel-targeted overload rather than "move the playhead, then run the
+    /// other one", for the reason every item in that menu is written this way:
+    /// the pose baked in must be the pose at the frame that was <em>clicked</em>,
+    /// and driving it through the playhead would make that a side effect of
+    /// navigation instead of the point. The playhead does follow afterwards, as
+    /// it does for <see cref="InsertFrameAt"/> — the artist is about to draw on
+    /// what they just made.
+    /// </remarks>
+    public bool InsertDrawingFromPoseAt(FrameCell cell) =>
+        InsertDrawingFromPoseAt(cell.LayerIndex, cell.Index);
+
+    private bool InsertDrawingFromPoseAt(int layerIndex, int frameIndex)
     {
         if (Doc.Armature is not { Bones.Count: > 0 }) return false;
-        if (ActiveLayer is null) return false;
+        if (layerIndex < 0 || layerIndex >= Scene.Layers.Count) return false;
+        if (frameIndex < 0) return false;
         // Q103's rule, the same one painting follows: this is an edit landing,
-        // so a playhead parked past the end grows the scene to reach it.
-        EnsureSceneReachesPlayhead();
-        if (ActiveLayer is not { } active || active.Cels.Count == 0) return false;
+        // so a cel picked past the end of the scene grows it to reach. The
+        // X-sheet draws those cells, so the right-click can genuinely land on
+        // one.
+        if (frameIndex >= Scene.FrameCount && _editor.GrowToInclude(frameIndex))
+        {
+            AiStatus = $"Scene extended to {frameIndex + 1} frames.";
+        }
+        if (Scene.Layers[layerIndex] is not { Cels.Count: > 0 } active) return false;
 
-        var index = Math.Clamp(CurrentFrameIndex, 0, active.Cels.Count - 1);
+        var index = Math.Clamp(frameIndex, 0, active.Cels.Count - 1);
         var layerId = active.Id;
         var inserted = false;
         var baked = 0;
@@ -1260,6 +1285,15 @@ public sealed partial class MainViewModel
         // shape.
         RebuildRigIndex();
         InvalidateRiggedFrames();
+        // Where the drawing is, is where the artist should be standing —
+        // InsertFrameAt's ending, for InsertFrameAt's reason. Only on an
+        // insert: a click that turned out to bake into an existing drawing has
+        // moved nobody's work anywhere.
+        if (inserted)
+        {
+            ActiveLayerIndex = layerIndex;
+            CurrentFrameIndex = Math.Min(index, Scene.FrameCount - 1);
+        }
         AiStatus = (inserted, baked) switch
         {
             (true, 0) => $"Drawing inserted at frame {index + 1}, holding the pose.",

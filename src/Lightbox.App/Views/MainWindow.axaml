@@ -4322,6 +4322,12 @@
                                     <MenuItem Header="Insert breakdown frame" Click="OnInsertBreakdown" />
                                     <MenuItem Header="Insert inbetween frame" Click="OnInsertInbetweenFrame" />
                                   </MenuItem>
+                                  <!-- Absent rather than disabled when there is no rig, the
+                                       camera's rule: a document that never made an armature
+                                       is not offered a bone command it cannot use. -->
+                                  <MenuItem Header="Drawing from pose" Click="OnInsertDrawingFromPose"
+                                            IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).HasArmature}"
+                                            ToolTip.Tip="Break the hold on this cel and keep the rig's pose at it as a drawing of its own — bound lines baked in, a bone guide copied through to draw over" />
                                   <Separator />
                                   <MenuItem Header="Extend exposure (+1 hold)" Click="OnExtendExposure" />
                                   <MenuItem Header="Reduce exposure (−1 hold)" Click="OnReduceExposure" />
