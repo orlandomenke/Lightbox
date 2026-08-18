@@ -1,4 +1,6 @@
+using System.Text.RegularExpressions;
 using Avalonia.Headless.XUnit;
+using Lightbox.App.Services;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Timeline;
@@ -166,6 +168,76 @@ public class PoseToDrawingTests
         // pose key that was there before it is still there.
         Assert.Null(Anim(vm).Cels[3].Frame);
         Assert.NotNull(ArmatureOps.KeyAt(vm.Doc.Scene.PoseTrack, 3));
+    }
+
+    [AvaloniaFact]
+    public void TheSheetsRightClickAimsAtTheCelThatWasClicked()
+    {
+        // Not "move the playhead and run the other one": the pose baked in has
+        // to be the pose at the frame under the cursor. The playhead is parked
+        // somewhere else entirely to prove it.
+        var vm = Rigged();
+        var stroke = AddStroke(vm, (110, 150), (150, 150));
+        var bone = OneBone(vm);
+        vm.PosingMode = false;
+        vm.Selection.SelectStroke(stroke.Id);
+        vm.AssignSelectedStrokesToBone();
+        vm.PosingMode = true;
+        HoldEverythingAfterTheFirst(vm);
+
+        vm.CurrentFrameIndex = 4;
+        vm.PoseBoneTo(bone, 100, 250);       // straight down on frame 4
+        vm.CurrentFrameIndex = 0;            // and the artist walks away from it
+
+        var layerIndex = vm.Doc.Scene.Layers.IndexOf(Anim(vm));
+        Assert.True(vm.InsertDrawingFromPoseAt(new FrameCell(4) { LayerIndex = layerIndex }));
+
+        var made = Anim(vm).Cels[4].Frame!.Strokes.Single();
+        Assert.Equal(100, made.Points[0].X, 4);
+        Assert.Equal(160, made.Points[0].Y, 4);
+        // Frame 0's own drawing is untouched — the click did not act here.
+        Assert.Equal(110, Anim(vm).Cels[0].Frame!.Strokes.Single().Points[0].X, 4);
+        // And the playhead follows the work, as every other insert on that menu does.
+        Assert.Equal(4, vm.CurrentFrameIndex);
+        Assert.Equal(layerIndex, vm.ActiveLayerIndex);
+    }
+
+    private static string RepoRoot()
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is { Length: > 0 } && !File.Exists(Path.Combine(dir, "Lightbox.sln")))
+        {
+            dir = Path.GetDirectoryName(dir)!;
+        }
+        return dir;
+    }
+
+    [AvaloniaFact]
+    public void TheXsheetMenuOffersIt_AndOnlyWhenThereIsARig()
+    {
+        // The owner asked for it on the sheet because that is where an artist
+        // working a cycle is looking. Absent rather than disabled without a
+        // rig, the camera's rule — so the binding is part of what is guarded.
+        var xaml = File.ReadAllText(
+            Path.Combine(RepoRoot(), "src/Lightbox.App/Views/MainWindow.axaml"));
+        var item = Regex.Match(
+            xaml,
+            @"<MenuItem Header=""Drawing from pose"" Click=""OnInsertDrawingFromPose""(.*?)/>",
+            RegexOptions.Singleline);
+        Assert.True(item.Success, "the X-sheet menu has no Drawing from pose entry");
+        Assert.Contains("HasArmature", item.Groups[1].Value);
+    }
+
+    [AvaloniaFact]
+    public void ItIsInTheShortcutRegistry_SoItCanBeBoundAndFound()
+    {
+        // A command reachable only from a button and a menu cannot be searched
+        // or rebound, which is the failure the registry exists for — and this
+        // is a command pressed once per drawing across a cycle.
+        var entry = new ShortcutMap().Definitions
+            .SingleOrDefault(d => d.Id == "armature.insertPoseDrawing");
+        Assert.NotNull(entry);
+        Assert.Equal("Canvas", entry!.Category);
     }
 
     [AvaloniaFact]

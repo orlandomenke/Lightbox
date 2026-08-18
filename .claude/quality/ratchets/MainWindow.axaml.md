@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4428
+budget: 4434
 
 ## Why it is here despite being XAML
 
@@ -89,3 +89,9 @@ leaves a number nobody can account for. So every reason above stays, and
   View-menu entry. The standing note applies — a panel's markup and a menu item
   have no partial to live in — and the panel itself is nine lines because the
   drawing is a control (`NavigatorView`) rather than markup.
+- **4428 → 4434** (2026-08-18), the X-sheet's *Drawing from pose* item. Six
+  lines: the item, its visibility binding, a tooltip and the two-line comment
+  saying why it is absent rather than disabled without a rig. The command
+  already existed in the bone options; this is the second surface, and the
+  owner asked for it on the sheet because that is where an artist working a
+  cycle is looking. There is nowhere else for a menu item to live.
