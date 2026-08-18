@@ -2548,17 +2548,14 @@ public static class BrushEngine
         (float)Math.Clamp(
             Math.Clamp(brush.Hardness, 0, 1) * PressureResponse.Factor(brush, BrushDynamic.Hardness, pressure), 0, 1);
 
-    /// <summary>Deterministic 0..1 hash of a dab position (never an RNG).</summary>
-    private static double Hash01(float x, float y, uint salt)
-    {
-        var h = 2166136261u ^ (salt * 0x9E3779B9u);
-        h = (h ^ (uint)BitConverter.SingleToInt32Bits(x)) * 16777619u;
-        h = (h ^ (uint)BitConverter.SingleToInt32Bits(y)) * 16777619u;
-        h ^= h >> 15;
-        h *= 2246822519u;
-        h ^= h >> 13;
-        return (h & 0xFFFFFF) / (double)0x1000000;
-    }
+    /// <summary>
+    /// Deterministic 0..1 hash of a dab position (never an RNG). The
+    /// implementation moved to <see cref="DeterministicHash"/> when the fluid
+    /// solver needed the same primitive; this stays as the name every dab
+    /// dynamic here already calls, and forwards unchanged.
+    /// </summary>
+    private static double Hash01(float x, float y, uint salt) =>
+        DeterministicHash.Unit(x, y, salt);
 
     /// <summary>
     /// Dab centers and pressures along the stroke, spaced by
