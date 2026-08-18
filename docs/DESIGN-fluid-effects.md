@@ -276,6 +276,7 @@ LineTreatment {                  // every field nullable — see the cascade bel
   double? Offset;                // stroke-widths, + outward
   Coverage? Covers;              // Full | Facing | Leading
   double? CoverageAngleDeg, CoverageSpreadDeg;
+  double? LightAngleDeg;         // for the LightDirection driver; not the same as coverage
   double? BreakLength, BreakGap; // stroke-widths; absent = continuous
 
   double? BaseWeight;            // the pressure floor
@@ -335,6 +336,29 @@ consequences:
   ai-engineer and art-director pair review them, with art-director holding the
   veto on whether an inferred style actually reads.
 
+> **Built 2026-08-18 (step 2), and four things are worth carrying forward.**
+>
+> - **The tracer takes `(field, width, height)` and a treatment.** No solver
+>   anywhere in `FieldTraceRequest`, so the particle and free-surface sources
+>   plug in without touching it.
+> - **Levels sit *interior* to the range**, at `(k+1)/(bands+1)` of it. A band at
+>   `High` encloses almost nothing and one at `Low` encloses everything; neither
+>   is worth spending one of three bands on.
+> - **A level at or below the field's `outside` value encloses the whole plane**,
+>   because the padding is then inside too. That is what it means rather than a
+>   defect — and it caught four test fixtures on their first run, since tracing a
+>   signed-distance field at zero against a default `outside` of zero is the
+>   obvious thing to write.
+> - **Winding is the classifier.** Marching keeps the inside on the left, so in
+>   the document's y-down space an outer contour signs negative and a hole signs
+>   positive. `FieldTracer` groups holes into regions on that, and
+>   `MarchingSquaresTests.An_Annulus_…` is what holds the convention still.
+>
+> Measured: **0.92 ms a frame**, so re-tracing a whole 48-frame element is
+> **44 ms** against ~1437 ms to re-simulate. The ~30 ms the section above
+> estimated was close enough to keep the conclusion — restyling is live, baking
+> is not.
+
 ## The record
 
 `Doc.Sims`, a `Dictionary<string, SimElement>?` **absent until an element is
@@ -350,7 +374,8 @@ SimElement {
   int Substeps;
   List<Emitter> Emitters;                // shape, strength, temperature, keyable
   SimParams Params;                      // buoyancy, vorticity, dissipation, cooling
-  BandSpec Bands;                        // levels, swatches, which band carries the outline
+  float Low, High;  List<string> Bands;   // the field range, and a colour per band
+                                         // (how MANY bands is style, and lives on the treatment)
   string? TreatmentId;                   // the shared line treatment, if any
   LineTreatment? Treatment;              // overrides on top of it — same record
   ParticleSpec? Particles;               // absent unless used

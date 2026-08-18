@@ -647,6 +647,15 @@ every other AI feature and are only legible together.
     inference last, which needs a look to be judged against. Stays `[?]` until
     step 4 gives it evidence anchors to name: anchoring it earlier would make the
     box read `[x]` — *built* — for a feature no artist can reach.
+  - **Step 2 landed 2026-08-18**: `MarchingSquares` and `FieldTracer` turn a
+    field into filled bands and treated outlines, guarded by 43 tests on a static
+    field so the tracer is judged without the solver in the reading. The
+    interpolated crossing lands within 2e-7 of a cell where the field really
+    crosses, against the half-cell a mask tracer would give — ten document pixels
+    of staircase at a coarse grid. Re-tracing a 48-frame element measures
+    **44 ms** against ~1437 ms to re-simulate, which is what makes tuning a style
+    live. `LineTreatment`'s cascade resolves `override ?? shared ?? default` out
+    of one record rather than two.
   - **Step 1 landed 2026-08-18**: `FluidSolver`, an incompressible MAC-grid
     solver with buoyancy, vorticity confinement and seeded curl-noise
     turbulence, guarded by eighteen tests. Two findings worth carrying forward.
