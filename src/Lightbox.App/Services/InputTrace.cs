@@ -671,6 +671,10 @@ internal static class InputTrace
             // than leaving "the churn is gone" and "the pen was not used" to
             // look identical.
             sb.AppendLine($"  popups are            {(PopupsAreOverlays ? "in-window overlays" : "native windows")}");
+            // The grace's own count, so a trace says whether it engaged rather
+            // than leaving a fallen popup rate and an idle guard looking alike.
+            sb.AppendLine($"  submenu closes refused {SubmenuCloseGrace.Refused}"
+                + (SubmenuCloseGrace.Installed ? "" : "  (grace not installed)"));
             sb.AppendLine($"  longest silence       {summary.LongestSilenceMs:F0} ms"
                 + (summary.Stalls == 0 && summary.LongestSilenceMs > 2000
                     ? " — no stall in it, so the pointer was off the canvas"
