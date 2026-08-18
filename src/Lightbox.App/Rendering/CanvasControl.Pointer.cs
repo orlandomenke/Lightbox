@@ -179,6 +179,17 @@ public sealed partial class CanvasControl
     private void BeginLeave()
     {
         _leftAt = DateTime.UtcNow;
+
+        // Cleared at once, unlike the hover point, because the two answer
+        // different questions and only one of them strobes. This is what a
+        // *tool change* re-asks about, and B241's rule is that with the pointer
+        // gone there is nothing to re-ask — the tool's own cursor stands. Held
+        // through the grace, picking up the eyedropper while the pointer was
+        // off the canvas would show whatever the pointer had last been over,
+        // which `WithThePointerOffTheCanvasThereIsNothingToReAskAbout` exists
+        // to forbid. The ring is the thing the echo strobes, and the ring is
+        // the only thing debounced.
+        _cursorAt = null;
         try
         {
             _leaveTimer ??= new Avalonia.Threading.DispatcherTimer(
@@ -212,10 +223,6 @@ public sealed partial class CanvasControl
 
         CancelLeave();
         _hoverPoint = null;
-        // Nothing to re-ask about once the pointer is gone, so a later tool
-        // change falls back to the tool's own cursor rather than answering
-        // about wherever the pointer happened to leave.
-        _cursorAt = null;
         InvalidateVisual();
         return true;
     }
