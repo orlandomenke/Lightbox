@@ -116,6 +116,13 @@ public sealed class FluidSolver
     private const float CurlEps = 1e-6f;
 
     /// <summary>
+    /// How fast fluid is dragged toward the wind's speed, per step, where the
+    /// wind has full grip. A rate rather than a force: wind does not accelerate
+    /// smoke forever, it carries it at the wind's own speed.
+    /// </summary>
+    private const float WindRate = 0.35f;
+
+    /// <summary>
     /// A cell may never send away more than this fraction of what it holds in
     /// one step. Keeping a tenth back is what makes the scalar transport
     /// unconditionally non-negative, so no quantity can ring negative and then
@@ -312,7 +319,11 @@ public sealed class FluidSolver
     /// copies of the same numbers would drift, and a solver that owned its
     /// parameters would make every tuning change a file-format change.
     /// </remarks>
-    public void Run(int steps, SimParams p)
+    /// <param name="windX">Ambient flow, in cells per step. Per call rather than part of
+    /// <see cref="SimParams"/>, because an element's wind is keyed over its frames and the
+    /// caller is the one that knows which frame this is.</param>
+    /// <param name="windY">The other half of it.</param>
+    public void Run(int steps, SimParams p, double windX = 0, double windY = 0)
     {
         ArgumentNullException.ThrowIfNull(p);
 
@@ -329,6 +340,9 @@ public sealed class FluidSolver
         var dissipation = Clamped((float)p.Dissipation, 0f, 1f);
         var cooling = Clamped((float)p.Cooling, 0f, 1f);
         var drag = Clamped((float)p.Drag, 0f, 1f);
+        var wx = Clamped((float)windX, -MaxSpeed, MaxSpeed);
+        var wy = Clamped((float)windY, -MaxSpeed, MaxSpeed);
+        var windy = wx != 0f || wy != 0f;
 
         // The order is Stam's advect-force-project and it is not a knob.
         // Confinement reads the field *after* advection because restoring the
@@ -340,7 +354,10 @@ public sealed class FluidSolver
         {
             AdvectVelocity();
             ApplyBuoyancy(buoyancy, weight);
-            if (vorticity > 0 || turbulence > 0) ApplyBodyForces(vorticity, turbulence, scale, drift);
+            if (vorticity > 0 || turbulence > 0 || windy)
+            {
+                ApplyBodyForces(vorticity, turbulence, scale, drift, windy, wx, wy);
+            }
             if (drag > 0) Damp(drag);
             LimitSpeed();
             Project();
@@ -465,7 +482,8 @@ public sealed class FluidSolver
     /// then handed to the faces in one pass. Both are body forces and neither
     /// needs its own traversal.
     /// </summary>
-    private void ApplyBodyForces(float vorticity, float turbulence, float scale, float drift)
+    private void ApplyBodyForces(
+        float vorticity, float turbulence, float scale, float drift, bool windy, float wx, float wy)
     {
         var n = _w * _h;
         _fx.AsSpan(0, n).Clear();
@@ -473,6 +491,7 @@ public sealed class FluidSolver
 
         if (vorticity > 0) AccumulateConfinement(vorticity);
         if (turbulence > 0) AccumulateTurbulence(turbulence, scale, drift);
+        if (windy) AccumulateWind(wx, wy);
 
         for (var y = 1; y < _h; y++)
         {
@@ -487,6 +506,43 @@ public sealed class FluidSolver
             for (var x = 1; x < _w; x++)
             {
                 _u[y * _uw + x] += 0.5f * (_fx[y * _w + x - 1] + _fx[y * _w + x]);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Drag the fluid toward the wind's own speed, in proportion to how much
+    /// fluid is there.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Only where there is something to blow.</b> An element's box is mostly
+    /// air nobody is simulating, and a uniform push through a box with four
+    /// solid walls is divergence the projection removes on the same step — the
+    /// smoke would not move and the solver would look broken. Weighting by the
+    /// local density and heat blows the plume and leaves the empty air alone,
+    /// which is both cheaper and what an artist means by wind.
+    /// </para>
+    /// <para>
+    /// <b>Relaxation toward the wind, not a constant force.</b> A force would
+    /// accelerate smoke past the wind and keep going; wind carries things at the
+    /// wind's speed. So the term is <c>(wind − here) × rate × how much fluid</c>,
+    /// which settles rather than runs away.
+    /// </para>
+    /// </remarks>
+    private void AccumulateWind(float wx, float wy)
+    {
+        for (var y = 0; y < _h; y++)
+        {
+            for (var x = 0; x < _w; x++)
+            {
+                var i = y * _w + x;
+                var grip = _density[i] + _heat[i];
+                if (grip <= 0f) continue;
+                if (grip > 1f) grip = 1f;
+
+                _fx[i] += (wx - CellU(x, y)) * WindRate * grip;
+                _fy[i] += (wy - CellV(x, y)) * WindRate * grip;
             }
         }
     }

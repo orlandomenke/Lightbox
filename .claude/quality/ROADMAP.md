@@ -647,6 +647,16 @@ every other AI feature and are only legible together.
     inference last, which needs a look to be judged against. Stays `[?]` until
     step 4 gives it evidence anchors to name: anchoring it earlier would make the
     box read `[x]` — *built* — for a feature no artist can reach.
+  - **Wind landed 2026-08-18** (Q122), with `EffectParam`/`EffectKey` — the key
+    vocabulary `DESIGN-effects.md` specified — built as its first user rather
+    than a second one invented. Wind is a *relaxation toward the wind's speed
+    weighted by how much fluid is there*, so still air stays still and only the
+    plume is blown; a uniform push in a closed box is divergence the projection
+    removes on the same step. The inertia that makes a simulation beat several
+    bakes is measured: two frames after a reversal the risen smoke leans −24.6
+    cells while fresh smoke leans +4.0. Also a pre-roll, so an element opens on
+    an established plume rather than on still air (16.0 → 40.9 on the first
+    frame).
   - **Step 4 landed 2026-08-18**: fire end to end — emitters, the temperature
     field, the heat ramp, embers, and a re-bake that replaces only what the
     element still owns. `SimBaker` splits solving from drawing, measured **40×

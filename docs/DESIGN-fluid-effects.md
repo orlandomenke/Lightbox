@@ -489,7 +489,7 @@ it. Holding a drawing must say nothing whatever about what is drawn. It is taken
 over every frame simulated now, and `Exposing_On_Twos_Halves_The_Drawings_And_Not_The_Motion`
 checks the peaks agree as well as the drawings.
 
-### Movement, wind and attachment — designed, not built (Q122)
+### Movement and wind — wind built, attachment next (Q122)
 
 The one thing an artist asked for that the record cannot yet express: an effect
 that belongs to a character who is running, turning or being rained on. Three
@@ -506,6 +506,29 @@ pops. Q122 settles the shape: a keyable wind vector on the element, elements
 bound to a drawing's anchor so they follow the animation without keying, a
 pre-roll so an element starts from an established plume, and the key vocabulary
 `DESIGN-effects.md` already specifies rather than a second one.
+
+**Wind landed 2026-08-18, and the measurement is the interesting part.** It is
+applied as a *relaxation toward the wind's speed, weighted by how much fluid is
+there* — not as a uniform push, which in a box with four solid walls is
+divergence the projection removes on the same step, and not as a constant force,
+which would accelerate smoke past the wind and keep going. Two consequences:
+still air stays still and only the plume is blown, which is what an artist means
+by wind and is cheaper besides.
+
+The inertia Q122 claimed is now a number rather than an argument. Two frames
+after a wind reversal, the risen smoke leans **−24.6 cells** — still travelling
+the old way — while the smoke leaving the emitter already leans **+4.0**. A
+28-cell bend, and no pair of separate bakes can produce it, because each would
+start from still air. The first measurement of it looked for that lag in the
+*whole field's* centre of mass and did not find it: the core at the emitter turns
+within a frame, so the test was measuring the one part of the plume that has no
+memory.
+
+**Calibration, found by rendering it.** Wind is in the same units as the flow, and
+a plume rises at roughly 0.15 cells per step — so a wind of that order bends a
+flame about half a right angle, and 0.5 lays it flat. The useful range for a
+figure in motion is far below what the number suggests, which belongs in the
+manual before anybody meets it.
 
 **Looping is a known gap, stated rather than hidden.** A pre-roll removes the
 thin start; it does not make a run cycle seamless. Blending the end into the
@@ -558,8 +581,20 @@ Each step is one branch with one objective.
    the *detach* rule's call sites: any path that changes a stroke's geometry,
    colour or brush calls `SimBakeOps.Detach`, plus a re-attach command for
    handing a stroke back.
-5b. **Wind, attachment and pre-roll** (Q122) — its own branch, and the first user
-   of `DESIGN-effects.md`'s key vocabulary.
+5b. **Wind and pre-roll** (Q122) — **landed 2026-08-18**, and the first user of
+   `DESIGN-effects.md`'s key vocabulary, which is built as `EffectParam` /
+   `EffectKey` in `src/Lightbox.Core/Effects/`. Wind is two keyed scalars rather
+   than an angle and a strength, because keying an angle wraps: a gust swinging
+   from 10° to 350° would interpolate the long way round through every direction
+   nobody asked for.
+5c. **Emission painted onto a layer, and drawn art as an obstacle** (Q124) — the
+   thing the owner's burning-cloak character needs and the record cannot yet
+   express. Emission becomes a *drawing*, alpha-locked to the layer it belongs to,
+   so it animates, holds and rig-binds like any other; the same rasterised ink
+   also blocks the fluid, which is the deferred *fluid flows around drawn art*
+   item arriving on a real use case. It puts solid boundaries inside the grid,
+   where the solver has only walls at the edge today.
+5d. **Anchor attachment** (Q122) — an element that follows a drawing's anchor.
 6. Smoke (same solver, density instead of temperature, embers off by default),
    then goo through the metaball source, then water.
 7. **Style inference** — a reference drawing in, a `LineTreatment` out, judged by

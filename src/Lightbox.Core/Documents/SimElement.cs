@@ -1,3 +1,5 @@
+using Lightbox.Core.Effects;
+
 namespace Lightbox.Core.Documents;
 
 /// <summary>
@@ -235,6 +237,65 @@ public sealed class SimElement
     /// <summary>Solver steps per frame. The way to buy speed without breaking the CFL bound.</summary>
     public int Substeps { get; set; } = 8;
 
+    /// <summary>
+    /// Frames to simulate before the first drawn one, so an element opens on an
+    /// established plume rather than on still air.
+    /// </summary>
+    /// <remarks>
+    /// Q122. It fixes the commonest complaint before anybody reports it — the
+    /// first half-second of an effect looking thin — and it does <em>not</em>
+    /// make a cycle seamless, which is a separate and unsolved thing. Costs one
+    /// frame of solve each, and nothing at all when it is zero.
+    /// <para>
+    /// Nullable so an element that does not pre-roll writes no key. The
+    /// distinction is worth keeping: <see cref="Substeps"/> and
+    /// <see cref="GridWidth"/> describe every element and are always written,
+    /// while this is a feature somebody switches on — the same line
+    /// <see cref="Particles"/> sits on. Caught by its own test rather than
+    /// reasoned about, which is the point of writing that test first.
+    /// </para>
+    /// </remarks>
+    public int? PreRoll { get; set; }
+
+    /// <summary>
+    /// Ambient flow across the element, in cells per step, keyed over its frames.
+    /// Null on an element nobody has blown on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Two scalars rather than an angle and a strength</b>, and that is not a
+    /// convenience. Keying an angle wraps: a gust swinging from 10° to 350° is a
+    /// twenty-degree shift that interpolates the long way round, through every
+    /// direction the artist did not ask for. Components cannot do that. The UI
+    /// is free to present a dial and a length; the record stores what
+    /// interpolates correctly.
+    /// </para>
+    /// <para>
+    /// <b>Calibration, measured by rendering it.</b> Wind is in the same units as
+    /// the flow it acts on, and a plume rises at roughly 0.15 cells per step — so
+    /// a wind of that order bends a flame by about half a right angle, and 0.5
+    /// lays it flat and horizontal. The useful range for a figure in motion is
+    /// well under a tenth of what the field's own maximum speed suggests, which
+    /// is not what anybody would guess from the number.
+    /// </para>
+    /// <para>
+    /// <b>A character running right is wind blowing left.</b> That is a change of
+    /// reference frame rather than weather, and it is the one thing about this
+    /// field an artist will get backwards — a run cycle runs on the spot, so
+    /// nothing here can be derived from her motion. The manual has to say it.
+    /// </para>
+    /// </remarks>
+    public EffectParam? WindX { get; set; }
+
+    public EffectParam? WindY { get; set; }
+
+    /// <summary>Whether this element is blown on at all. Derived; never serialized.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasWind => WindX is not null || WindY is not null;
+
+    /// <summary>The ambient flow on a timeline frame, in cells per step.</summary>
+    public (double X, double Y) WindAt(int frame) => (WindX?.At(frame) ?? 0, WindY?.At(frame) ?? 0);
+
     public SimParams Params { get; set; } = new();
 
     public List<Emitter> Emitters { get; set; } = [];
@@ -313,6 +374,8 @@ public sealed class SimElement
         copy.BandColors = [.. BandColors];
         copy.Treatment = Treatment?.Clone();
         copy.Particles = Particles?.Clone();
+        copy.WindX = WindX?.Clone();
+        copy.WindY = WindY?.Clone();
         return copy;
     }
 }

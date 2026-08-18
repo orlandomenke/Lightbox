@@ -116,6 +116,7 @@ public sealed class SimBaker
         var expose = Math.Max(1, element.ExposeOn);
         var frames = Math.Max(0, element.FrameCount);
         var substeps = Math.Max(0, element.Substeps);
+        var preRoll = Math.Max(0, element.PreRoll ?? 0);
 
         var solver = FluidSolver.Rent(w, h);
         var embers = new List<Ember>();
@@ -127,9 +128,14 @@ public sealed class SimBaker
         // and holding a drawing must say nothing at all about what is drawn.
         var peak = 0f;
 
-        for (var i = 0; i < frames; i++)
+        // Pre-roll runs the same frame the recorded ones do — emitters, embers,
+        // wind and all — and simply keeps nothing. Anything cheaper would open
+        // the element on a different fluid from the one the rest of it sees.
+        for (var i = -preRoll; i < frames; i++)
         {
             cancel.ThrowIfCancellationRequested();
+
+            var wind = element.WindAt(element.FirstFrame + Math.Max(i, 0));
 
             Emit(solver, element, i);
             SpawnEmbers(embers, element, i);
@@ -142,11 +148,17 @@ public sealed class SimBaker
             foreach (var ember in embers) ember.Begin();
             for (var step = 0; step < substeps; step++)
             {
-                solver.Run(1, element.Params);
+                solver.Run(1, element.Params, wind.X, wind.Y);
                 foreach (var ember in embers) ember.Carry(solver);
             }
 
             var trails = RetireEmbers(embers, solver, element);
+
+            if (i < 0)
+            {
+                progress?.Report(0);
+                continue;
+            }
 
             var framePeak = element.BandsFromHeat ? solver.PeakTemperature() : solver.PeakDensity();
             if (framePeak > peak) peak = framePeak;

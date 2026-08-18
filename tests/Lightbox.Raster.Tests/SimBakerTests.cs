@@ -1,4 +1,6 @@
 using Lightbox.Core.Documents;
+using Lightbox.Core.Effects;
+using Lightbox.Core.Inbetween;
 using Lightbox.Raster.Media;
 using Xunit.Abstractions;
 
@@ -300,6 +302,150 @@ public class SimBakerTests(ITestOutputHelper output)
                          $"({inside * 100.0 / Math.Max(lit, 1):F0}% of it)");
         Assert.True(lit > 100, "test would be vacuous: there was barely a plume");
         Assert.True(inside > lit * 0.2, $"the outermost band caught only {inside} of {lit} lit cells");
+    }
+
+    // ---- wind and pre-roll (Q122) ---------------------------------------------------
+
+    /// <summary>Where the plume's centre of mass sits, sideways, on the last frame.</summary>
+    private static double FinalLean(SolvedElement solved, double centre)
+    {
+        var frame = solved.Frames[^1];
+        double mx = 0, m = 0;
+        for (var y = 0; y < solved.Height; y++)
+        {
+            for (var x = 0; x < solved.Width; x++)
+            {
+                var v = frame.Band[y * solved.Width + x];
+                mx += v * x;
+                m += v;
+            }
+        }
+        return m > 0 ? mx / m - centre : 0;
+    }
+
+    [Fact]
+    public void Wind_Blows_The_Plume_The_Way_It_Points()
+    {
+        static double Lean(double windX)
+        {
+            var element = Fire(frames: 30);
+            element.WindX = new EffectParam(windX);
+            return FinalLean(new SimBaker().Solve(element), element.Emitters[0].X);
+        }
+
+        var left = Lean(-0.5);
+        var still = Lean(0);
+        var right = Lean(0.5);
+
+        output.WriteLine($"final lean — wind left {left:F1}, no wind {still:F1}, wind right {right:F1}");
+        Assert.True(left < still - 2, $"a leftward wind did not push the plume left: {left:F1} against {still:F1}");
+        Assert.True(right > still + 2, $"a rightward wind did not push the plume right: {right:F1} against {still:F1}");
+    }
+
+    /// <summary>
+    /// The case Q122 says a simulation wins, and the measurement has to match
+    /// the claim. Just after a turn, the smoke <em>high up</em> is still
+    /// travelling the old way on its own momentum while the smoke leaving the
+    /// emitter already goes the new way — so the plume is bent, top against
+    /// bottom. Measuring the whole field's centre of mass instead says nothing:
+    /// it is dominated by the dense core at the emitter, which turns within a
+    /// frame.
+    ///
+    /// Baking a "run right" element and a "run left" element and cutting between
+    /// them cannot produce this at all, because each starts from still air.
+    /// </summary>
+    [Fact]
+    public void Just_After_A_Turn_The_Old_Smoke_Is_Still_Going_The_Old_Way()
+    {
+        var element = Fire(frames: 34);
+        element.PreRoll = 10;
+        element.WindX = new EffectParam
+        {
+            Keys =
+            [
+                new EffectKey { Frame = 0, Value = -0.6, Ease = Easing.Linear },
+                new EffectKey { Frame = 16, Value = -0.6, Ease = Easing.Linear },
+                new EffectKey { Frame = 18, Value = 0.6, Ease = Easing.Linear },
+            ],
+        };
+
+        var solved = new SimBaker().Solve(element);
+        var centre = element.Emitters[0].X;
+
+        // Sideways centre of mass of the top half against the bottom half, two
+        // frames after the wind reversed.
+        static double LeanOf(SolvedFrame f, int width, int fromRow, int toRow, double centre)
+        {
+            double mx = 0, m = 0;
+            for (var y = fromRow; y < toRow; y++)
+            {
+                for (var x = 0; x < width; x++)
+                {
+                    var v = f.Band[y * width + x];
+                    mx += v * x;
+                    m += v;
+                }
+            }
+            return m > 0 ? mx / m - centre : 0;
+        }
+
+        var frame = solved.Frames.Single(f => f.Frame == 20);
+        var risen = LeanOf(frame, solved.Width, 0, solved.Height / 2, centre);
+        var fresh = LeanOf(frame, solved.Width, solved.Height / 2, solved.Height, centre);
+
+        output.WriteLine($"two frames after the turn — risen smoke leans {risen:F1}, fresh smoke {fresh:F1}");
+        Assert.True(fresh > risen + 1,
+            $"the plume should be bent, with fresh smoke ahead of the old: {fresh:F1} against {risen:F1}");
+    }
+
+    [Fact]
+    public void Wind_Is_Absent_Rather_Than_Zero_When_Nobody_Asked_For_It()
+    {
+        var element = Fire(frames: 12);
+        Assert.False(element.HasWind);
+
+        var withWind = Fire(frames: 12);
+        withWind.WindX = new EffectParam(0);
+
+        // A wind of zero must draw exactly what no wind at all draws, or the
+        // key's presence is changing the picture.
+        var plain = Bake(element);
+        var zeroed = Bake(withWind);
+        for (var i = 0; i < plain.Count; i++)
+        {
+            Assert.Equal(plain[i].Strokes.Count, zeroed[i].Strokes.Count);
+        }
+    }
+
+    /// <summary>
+    /// An element opens on an established plume rather than on still air, which
+    /// is the commonest complaint about a fresh effect — the first half-second
+    /// looking thin.
+    /// </summary>
+    [Fact]
+    public void A_Pre_Roll_Means_The_First_Frame_Is_Already_Burning()
+    {
+        var cold = Fire(frames: 12);
+        var warmed = Fire(frames: 12);
+        warmed.PreRoll = 12;
+
+        var coldStart = new SimBaker().Solve(cold).Frames[0].Band.Sum();
+        var warmStart = new SimBaker().Solve(warmed).Frames[0].Band.Sum();
+
+        output.WriteLine($"first frame carries {coldStart:F1} cold, {warmStart:F1} after a pre-roll");
+        Assert.True(warmStart > coldStart * 2, $"the pre-roll barely helped: {warmStart:F1} against {coldStart:F1}");
+    }
+
+    [Fact]
+    public void A_Pre_Roll_Of_Nothing_Changes_Nothing()
+    {
+        var element = Fire(frames: 10);
+        var explicitZero = Fire(frames: 10);
+        explicitZero.PreRoll = 0;
+
+        Assert.Equal(
+            new SimBaker().Solve(element).Frames[0].Band,
+            new SimBaker().Solve(explicitZero).Frames[0].Band);
     }
 
     // ---- determinism ------------------------------------------------------------------
