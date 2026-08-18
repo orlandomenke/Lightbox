@@ -140,6 +140,47 @@ Turbulence and emitter variation seed from `Hash01` over cell position and step
 index, the way brushes seed from dab position. Never an RNG. This is the "visual
 variation is wanted, logical randomness is forbidden" rule at solver scale.
 
+## One pipeline, three sources of field
+
+The stage that turns physics into drawing is **`field → iso-contour → strokes`**,
+and it does not care where the field came from. That is worth stating plainly,
+because it is what decides how far this system reaches and it answers the
+question the effect list keeps raising — *is water just smoke with different
+numbers?*
+
+| Source | What it serves | State |
+| --- | --- | --- |
+| **Solved grid** — density and temperature on the incompressible solver | smoke, fire, steam, dust, ash, ink in water | built (step 1) |
+| **Splatted particles** — a metaball field summed from particle positions | goo, slime, thick splashes, blobs that merge and separate | not built; cheapest of the three |
+| **Free surface** — a tracked interface rather than a threshold | water | not built; the hard one |
+
+**The gaseous family really is one engine with different numbers.** Smoke, fire,
+steam, dust and ink differ by buoyancy, weight, dissipation, cooling, vorticity
+and turbulence — plus which field the bands read, since fire bands from
+*temperature* and smoke from density. Those are presets, and the landing
+checklist's "presets as project files" is where they live.
+
+**Water is not, and no parameter reaches it.** In smoke the contour is a
+threshold you chose through a soft field, and choosing a different one gives a
+different but still plausible plume. In water the contour *is* the simulation:
+pick a different threshold and you do not get a different-looking splash, you get
+a wrong one. Surface tension, droplets separating and merging, and a flat resting
+level do not exist in this model at any setting.
+
+**Goo sits between them, and is the case where the particle half becomes the
+source rather than the decoration.** Blobs that merge and separate are natural as
+particles and miserable on a grid, and summing particles into a scalar field —
+metaballs — hands the existing tracer exactly what it wants. Everything
+downstream is unchanged: same iso-contour, same bands, same strokes, same line
+treatment. Only the field's origin differs, which is why it is the cheap one of
+the two unbuilt sources and why it is worth naming now, before step 2 fixes the
+tracer's interface around a single producer.
+
+**The consequence for step 2**: the tracer takes *a field*, not *a solver*. Given
+`(float[] field, int w, int h)` and a band spec it must produce strokes, with no
+reference to how the numbers were made. That costs nothing today and is what
+keeps sources 2 and 3 from being rewrites.
+
 ## From field to drawing
 
 ### 1. Bands
@@ -190,6 +231,110 @@ that pay: a flame without embers reads as a flat shape. Bands are still built
 and judged first — the ordering inside the slice is the mitigation for having
 two things to tune at once.
 
+## Line treatment — following an art style
+
+An effect has to read as *this show's* effect. Q118 settles how, and the useful
+half of the answer is that most of it already exists.
+
+**The mark is free.** The outline is a `ToolKind.Brush` stroke carrying a full
+`BrushSettings`, so size, hardness, tip, roundness, angle-follows-direction,
+texture and grain all apply, including from a brush imported out of Photoshop or
+Krita. Nothing to build, and nothing to invent: **a brush preset says what the
+mark looks like, and a treatment says how a contour becomes a stroke for that
+brush to draw.** Anything a brush already expresses must not be duplicated here.
+
+**The weight along the line is the part that reads as drawn**, and the tracer is
+uniquely placed to supply it, because at every contour point it knows the
+physics. It writes a *pressure* per point, and pressure is already what the brush
+turns into size, flow and hardness — so this needs no new rendering at all, and
+`PressureProfile` already carries pressure by arc length so the weight survives
+curve-fitting and reshaping.
+
+| Driver | Heavier where | Reads as |
+| --- | --- | --- |
+| curvature | the contour bends | classic animation line |
+| flow speed | the fluid is slow | motion, a whipped tongue |
+| field gradient | the falloff is sharp | graphic edge vs wispy one |
+| light direction | the contour faces away | inked solidity |
+| band depth | the outermost band | depth without shading |
+| arc taper | away from the ends | a brush-drawn stroke |
+
+Drivers blend rather than compete: each contributes an amount, and every weight
+defaulting to zero except one keeps a simple treatment simple.
+
+**The outline may leave the contour** (Q118). It can be offset in or out, cover
+only part of the silhouette, and break into several strokes with gaps — anime
+fire commonly outlines only its upper edge, and a broken line reads as drawn
+where a closed one reads as traced. The consequence for step 2 is concrete: **one
+band may emit several strokes**, so nothing in the tracer may assume
+one-contour-one-stroke.
+
+```csharp
+LineTreatment {                  // every field nullable — see the cascade below
+  string? BrushPresetId;         // what the mark looks like; nothing here repeats it
+
+  double? Offset;                // stroke-widths, + outward
+  Coverage? Covers;              // Full | Facing | Leading
+  double? CoverageAngleDeg, CoverageSpreadDeg;
+  double? BreakLength, BreakGap; // stroke-widths; absent = continuous
+
+  double? BaseWeight;            // the pressure floor
+  List<WeightDriver>? Weights;   // (source, amount), blended
+
+  double? Simplify;              // stroke-widths
+  double? Smoothing;             // 0 raw polyline … 1 fitted cubics
+  double? CornerAngleDeg;        // sharper than this stays a corner
+
+  int? Bands;  BandSpacing? Spacing;  Outlined? OutlinedBands;
+}
+```
+
+**Units are ratios, angles and stroke-widths — never pixels, never
+coefficients.** Two reasons, and they agree. Invariant 7's argument: a treatment
+in pixels means something different at another element or output scale, while
+stroke-widths is scale-free. And Q118 chose to design for style inference now,
+which requires every field to be **observable in a drawing** — nobody can see
+`PressureSizeGamma = 1.4`, and anybody can see that a line is three times heavier
+on bends than on straights. That constraint makes the record better for the
+artist and better for the model at the same time, which is the only reason it is
+worth taking on before a look has been tuned by hand.
+
+**The cascade costs one type, not two.** An element names a treatment by id and
+may override fields on top of it. Because every field above is nullable and the
+defaults live in exactly one place, a shared treatment and an override are the
+*same record*, and resolution is `override.X ?? shared.X ?? default.X`. The
+obvious shape — a parallel mirror record of nullable fields — is the one thing
+that would have to be kept in step forever, and it is not needed. It also lands
+*optional means absent* for free: an untouched treatment writes no keys.
+
+The part of the cascade that is not free has to be paid deliberately: **an
+overridden field is marked as overridden and has a per-field revert to the shared
+value.** Without both, "two places to look" is a support burden and reads to an
+artist as the app being inconsistent rather than as a cascade.
+
+**Restyling re-traces, it does not re-solve.** Every field above applies at trace
+time, so changing a look costs ~30 ms across 48 frames against ~1437 ms to
+re-simulate. The baked fields are therefore held in memory for the life of the
+session (Q118) — nothing new in the file, style tuning live, one re-solve after
+reopening before the first restyle.
+
+### Style inference, and why the vocabulary is fixed for it now
+
+Q118 chose to design for "point at a drawing and match it" from the start,
+without building it yet — inference needs a look to compare its answer against,
+so it lands after step 4. What is fixed now is the vocabulary, plus three
+consequences:
+
+- The record is schema-constrained in the manner of `StrokeSchemas`, small enough
+  that a model reasons about named properties rather than emitting opaque floats.
+- The payload is the cheap direction for once. `docs/DESIGN-ai-payload.md`
+  measures images at ~87% of a request's bytes and ~5% of its tokens; this sends
+  one image and receives a small object, which is the inverse of the
+  inbetweener's problem and needs none of its stroke-count levers.
+- **Gate G12 now applies** to the treatment record and its schema: the
+  ai-engineer and art-director pair review them, with art-director holding the
+  veto on whether an inferred style actually reads.
+
 ## The record
 
 `Doc.Sims`, a `Dictionary<string, SimElement>?` **absent until an element is
@@ -206,7 +351,8 @@ SimElement {
   List<Emitter> Emitters;                // shape, strength, temperature, keyable
   SimParams Params;                      // buoyancy, vorticity, dissipation, cooling
   BandSpec Bands;                        // levels, swatches, which band carries the outline
-  string? OutlineBrushPresetId;
+  string? TreatmentId;                   // the shared line treatment, if any
+  LineTreatment? Treatment;              // overrides on top of it — same record
   ParticleSpec? Particles;               // absent unless used
 }
 ```
@@ -292,9 +438,14 @@ Each step is one branch with one objective.
 4. **Fire, end to end** — emitter, temperature field, heat ramp, embers, re-bake.
    The first thing an artist can use, and where the roadmap item earns its
    evidence anchors.
-5. **Docker, view model, landing checklist.**
+5. **Docker, view model, landing checklist**, including the cascade's two
+   obligations: an overridden treatment field is marked as such and reverts to
+   the shared value in one action.
 6. Smoke (same solver, density instead of temperature, embers off by default),
-   then water.
+   then goo through the metaball source, then water.
+7. **Style inference** — a reference drawing in, a `LineTreatment` out, judged by
+   baking it beside the reference. After step 4 because it needs a look to be
+   judged against, and under gate G12 from the first line.
 
 Steps 1–3 are deliberately separable so that a bad first result is diagnosable:
 Q116 chose fire, which puts a new field, a colour ramp and a particle pass in
@@ -303,10 +454,15 @@ debuggable.
 
 ## Not decided here
 
-- **Water.** In the roadmap item and it needs its own note: a free surface means
-  the contour *is* the simulation rather than a threshold of it, plus splash and
-  droplet separation — and it is the effect that most wants the coherent-contour
-  upgrade Q116 declined.
+- **Water, in detail.** Named as a field source above, but the mechanism needs
+  its own note: a free surface means the contour *is* the simulation rather than
+  a threshold of it, plus splash and droplet separation — and it is the effect
+  that most wants the coherent-contour upgrade Q116 declined.
+- **Goo, in detail.** Likewise named above and likewise unspecified: particle
+  count and lifetime, how the metaball kernel is chosen so blobs merge at a
+  believable distance, and whether the particles are the same ones the ember pass
+  uses or a second system. The point of naming it now is the tracer's interface,
+  not its own design.
 - **GPU.** `DESIGN-gpu-compositing.md` records why compositing is on the CPU. A
   bake at these grid sizes does not need the lever, and reaching for it would
   tie an authoring feature to a rendering decision nobody has made.

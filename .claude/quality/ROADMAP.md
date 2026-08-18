@@ -615,12 +615,36 @@ every other AI feature and are only legible together.
     right for fire, and its costs (no dial-down, no `StrokeMatcher`
     correspondence inside an element, N independent polylines) are written down
     there against the day water arrives.
+  - **One pipeline, three sources of field.** `field → iso-contour → strokes` is
+    the stage that makes a drawing, and it does not care where the field came
+    from — which is what decides how far the feature reaches. A *solved grid*
+    gives the gaseous family (smoke, fire, steam, dust, ash, ink), and those
+    genuinely are one engine with different numbers. *Splatted particles* —
+    metaballs — give goo and blobs that merge, and are the cheap unbuilt source.
+    A *free surface* gives water and is the hard one: there the contour **is**
+    the simulation rather than a threshold of it, so no parameter reaches it from
+    smoke. Step 2's tracer therefore takes a field, not a solver.
   - **Q116 settles the four pivotal choices**: bake to strokes with the
     parameters kept in a `Doc.Sims` registry absent until authored; bands *and*
     particles from the first slice; per-frame tracing; fire first. Three went
     against the recommendation and each records what it costs.
+  - **Following an art style is mostly free, and Q118 settles the rest.** Because
+    the outline is a real `ToolKind.Brush` stroke, every brush the artist owns —
+    imported `.abr`/`.kpp` included — already draws it. What a brush cannot say is
+    how the contour becomes a stroke, so a **line treatment** carries that: where
+    the line sits relative to the band (offset, partial, broken), what varies its
+    weight along the way (curvature, flow speed, field gradient, light direction,
+    band depth, taper — blended, written as per-point pressure so no new
+    rendering is needed), and how smooth or jagged it is. Named by id with
+    per-field overrides, in ratios, angles and **stroke-widths rather than
+    pixels** — invariant 7's argument, and the same property that makes each field
+    observable in a drawing, which is what Q118's choice to design for style
+    inference now requires. It applies at *trace* time, so restyling costs ~30 ms
+    against ~1437 ms to re-simulate; the fields are cached for the session so
+    tuning a look is live. Gate G12 applies from the record onward.
   - Build order is six branches, one objective each — solver, field → strokes,
-    record, fire end to end, docker, then smoke and water. Stays `[?]` until
+    record, fire end to end, docker, then smoke, goo and water — plus style
+    inference last, which needs a look to be judged against. Stays `[?]` until
     step 4 gives it evidence anchors to name: anchoring it earlier would make the
     box read `[x]` — *built* — for a feature no artist can reach.
   - **Step 1 landed 2026-08-18**: `FluidSolver`, an incompressible MAC-grid
