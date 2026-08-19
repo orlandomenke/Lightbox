@@ -589,9 +589,19 @@ capability exists.
 
 Resolved in advance, per the *land the places it shows up* table:
 
-- `ShortcutMap`: **done** — `effects.window` on `Ctrl+Shift+E`. Generating and
-  re-baking an element are buttons in the window and are not yet bindable; they
-  belong here the moment either becomes something an artist repeats.
+- `ShortcutMap`: **done** — `effects.window` on `Ctrl+Shift+E`, filed under an
+  `Effects` category and named word for word as the menu names it, because the
+  editor is searched and an entry under a second name for the same command is
+  the same failure as no entry, one step later. Generating and re-baking an
+  element are buttons in the window and are not yet bindable; they belong here
+  the moment either becomes something an artist repeats.
+- **A menu item, at `Effects ▸ Fluid effects…`.** A top level of its own rather
+  than a line under View: View is where you say what you want to *look* at, and
+  everything that will land here changes what is *in* the document. It is also
+  the shelf the rest of this note needs — goo, water and style inference each
+  arrive as a window, and without it each one is another orphan among the
+  dockers. A shortcut is not a way in on its own: nobody discovers
+  `Ctrl+Shift+E`, they open menus.
 - **Own view model and window.** **Done.** `FluidEffectsViewModel` in its own
   files; `MainViewModel` gains one mutation seam (`MainViewModel.Effects.cs`,
   which exists so `InvalidateFrameRender` can stay private) and `MainWindow`

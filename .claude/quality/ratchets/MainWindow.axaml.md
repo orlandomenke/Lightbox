@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4440
+budget: 4450
 
 ## Why it is here despite being XAML
 
@@ -102,3 +102,12 @@ leaves a number nobody can account for. So every reason above stays, and
   item, a shortcut case and one field. A budget that refused this would be
   refusing the registration rather than the code, which is the opposite of what
   it is for.
+- **4440 → 4450** (2026-08-19), the effects menu. Ten lines and a net +4 over the
+  entry it replaces: the owner asked for `Effects ▸ Fluid effects…` rather than
+  a line under View, so the item moved into a top level of its own with the
+  eight-line comment saying why. It is a top level rather than a View entry
+  because View is where you say what you want to *look* at and everything here
+  changes what is *in* the document — and because more of these are coming
+  (goo, water, style inference), each of which would otherwise be another orphan
+  among the dockers. A menu has nowhere else to live; the standing note above
+  applies unchanged.

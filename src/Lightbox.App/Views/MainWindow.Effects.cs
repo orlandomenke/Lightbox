@@ -6,11 +6,15 @@ namespace Lightbox.App.Views;
 /// The effects window's one attachment point on the main window.
 /// </summary>
 /// <remarks>
+/// Reached from <c>Effects ▸ Fluid effects…</c> and from the registered
+/// <c>effects.window</c> shortcut.
+/// <para>
 /// <b>Deliberately this small.</b> <c>MainWindow.axaml</c> and
 /// <c>MainViewModel</c> are the two hottest files in <c>HOTSPOTS.md</c>, so a
 /// feature this size arriving as a menu item, a shortcut case and one field is
 /// the point rather than an accident — everything else lives in
 /// <see cref="FluidEffectsWindow"/> and its view model.
+/// </para>
 /// </remarks>
 public partial class MainWindow
 {

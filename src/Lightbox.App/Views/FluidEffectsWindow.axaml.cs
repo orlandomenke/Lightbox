@@ -7,7 +7,7 @@ using SkiaSharp;
 namespace Lightbox.App.Views;
 
 /// <summary>
-/// <c>Window ▸ Effects…</c> — where fire, smoke and water are authored.
+/// <c>Effects ▸ Fluid effects…</c> — where fire, smoke and water are authored.
 /// </summary>
 /// <remarks>
 /// <para>

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media.Imaging;
@@ -307,6 +308,11 @@ public class FluidEffectsWindowTests(Xunit.ITestOutputHelper output)
     /// effects window is opened by a registered command, so an artist can find
     /// it, search for it and rebind it.
     /// </summary>
+    /// <remarks>
+    /// The name has to match the menu word for word, and that is the half worth
+    /// a test: the editor is searched, so an entry filed under a second name for
+    /// the same command is the same failure as no entry at all, one step later.
+    /// </remarks>
     [AvaloniaFact]
     public void Opening_The_Window_Is_A_Registered_Command()
     {
@@ -315,6 +321,42 @@ public class FluidEffectsWindowTests(Xunit.ITestOutputHelper output)
         var effects = Assert.Single(map.Definitions, s => s.Id == "effects.window");
 
         Assert.NotNull(effects.Default);
-        Assert.Contains("Effects", effects.Name);
+        Assert.Contains("Fluid effects", effects.Name);
+        Assert.Equal("Effects", effects.Category);
+    }
+
+    /// <summary>
+    /// Reachable from the menu bar, at <c>Effects ▸ Fluid effects…</c>.
+    /// </summary>
+    /// <remarks>
+    /// <b>A shortcut is not a way in on its own.</b> Nobody discovers
+    /// <c>Ctrl+Shift+E</c> — they find a feature by opening menus, and a window
+    /// with no menu item is a window that does not exist for everybody who has
+    /// not read the manual. Read out of the XAML because the menu is markup and
+    /// has nowhere else to live; the click handler's name is asserted too, so a
+    /// renamed handler fails here rather than at the moment somebody clicks it.
+    /// </remarks>
+    [AvaloniaFact]
+    public void It_Is_On_The_Menu_Bar_Under_Effects()
+    {
+        var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "src/Lightbox.App/Views/MainWindow.axaml"));
+
+        var menu = Regex.Match(
+            xaml, @"<MenuItem Header=""Effe_cts"" Classes=""top"">(.*?)</MenuItem>", RegexOptions.Singleline);
+        Assert.True(menu.Success, "there is no top-level Effects menu");
+        Assert.Contains(@"Header=""_Fluid effects…""", menu.Groups[1].Value);
+        Assert.Contains(@"Click=""OnOpenEffects""", menu.Groups[1].Value);
+
+        // No gesture written onto the item: a hard-coded label lies the moment
+        // somebody remaps the command, which is what ShortcutMap is for.
+        Assert.DoesNotContain("InputGesture", menu.Groups[1].Value);
+    }
+
+    private static string RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "src"))) dir = dir.Parent;
+        Assert.NotNull(dir);
+        return dir!.FullName;
     }
 }

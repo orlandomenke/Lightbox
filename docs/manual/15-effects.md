@@ -14,7 +14,7 @@ effects controls.
 
 ## Opening the window
 
-**Window ▸ Effects…**, or `Ctrl+Shift+E`. It is a window rather than a panel
+**Effects ▸ Fluid effects…**, or `Ctrl+Shift+E`. It is a window rather than a panel
 because tuning an effect is a look-and-adjust loop, and the preview has to be
 big enough to judge a silhouette in.
 
