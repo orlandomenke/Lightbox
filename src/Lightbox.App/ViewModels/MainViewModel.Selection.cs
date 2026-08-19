@@ -28,7 +28,19 @@ public partial class MainViewModel
     // ---- selection --------------------------------------------------------------
 
 
-    /// <summary>Current selection outlines (document space) for the canvas overlay.</summary>
+    /// <summary>
+    /// Current selection outlines for the canvas overlay, in <b>surface</b>
+    /// coordinates — indexed from the paper's own corner, not from the document
+    /// origin.
+    /// </summary>
+    /// <remarks>
+    /// This said "document space" and was wrong, which is worse than saying
+    /// nothing: the selection is a surface mask (see
+    /// <c>PrepareClipForSelection</c>, which adds the origin back at the one
+    /// boundary it crosses into the record), and a reader who believed the
+    /// label would "fix" <see cref="SelectAll"/> — the one part of this that was
+    /// always right.
+    /// </remarks>
     public IReadOnlyList<List<StrokePoint>> SelectionContours => _selectionContours;
 
     public bool HasSelection => _selectionContours.Count > 0;
@@ -61,7 +73,42 @@ public partial class MainViewModel
     {
         if (contour.Count < 3) return;
         int w = Scene.Width, h = Scene.Height;
-        ApplySelectionMask(MaskFromContours([contour], w, h), add, subtract);
+        ApplySelectionMask(MaskFromContours([ToSurface(contour)], w, h), add, subtract);
+    }
+
+    /// <summary>
+    /// A contour the canvas reported, in surface coordinates.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The canvas reports a marquee in document coordinates</b> — its
+    /// <c>_dragShape</c> is built from <c>ViewToDoc</c> — and the selection is a
+    /// surface mask, a <c>w × h</c> array of booleans whose contours are indexed
+    /// from the bitmap's own corner. This is the boundary between those two
+    /// facts, and it was missing: the contour went straight into
+    /// <see cref="MaskFromContours"/>, which rasterizes into a surface-sized
+    /// bitmap, so on a page whose origin is not zero every hand-drawn selection
+    /// landed one origin away from the hand that drew it.
+    /// </para>
+    /// <para>
+    /// <b>Measured before the fix</b>, on a page cropped to (100, 60): a marquee
+    /// drawn at document x 200–400 was recorded as a clip at x 300–500. Paint
+    /// was therefore stopped a hundred pixels from the marching ants — and
+    /// because the clip is part of the record (invariant 3), the mistake was
+    /// saved with the document rather than merely displayed.
+    /// </para>
+    /// <para>
+    /// <b><see cref="SelectAll"/> does not come through here and must not.</b>
+    /// It writes the surface rectangle directly, which is already correct;
+    /// that asymmetry is why this survived, since the command every test
+    /// reaches for first is the one that was never wrong.
+    /// </para>
+    /// </remarks>
+    private List<StrokePoint> ToSurface(IReadOnlyList<StrokePoint> contour)
+    {
+        int dx = Scene.Left, dy = Scene.Top;
+        if (dx == 0 && dy == 0) return [.. contour];
+        return [.. contour.Select(p => p with { X = p.X - dx, Y = p.Y - dy })];
     }
 
     /// <summary>Combine any shape mask into the selection with the standard modifiers.</summary>
@@ -130,17 +177,35 @@ public partial class MainViewModel
     /// </remarks>
     public void AddPolygonVertex(double x, double y)
     {
+        // Snapped first, in document coordinates, because that is where the
+        // guides are — then converted, because that is where the mask is. The
+        // two cannot swap: snapping a surface coordinate to a document guide
+        // would pull the vertex by the origin.
         (x, y) = SnappedPoint(x, y);
-        _polygonPoints.Add(new StrokePoint(x, y, 1));
+        _polygonPoints.Add(new StrokePoint(x - Scene.Left, y - Scene.Top, 1));
         SelectionChanged?.Invoke();
     }
 
+    /// <summary>
+    /// Close the polygon and combine it in.
+    /// </summary>
+    /// <remarks>
+    /// <b>Deliberately not through <see cref="ApplySelectionShape"/>.</b> That
+    /// one converts a document-space contour the canvas reported;
+    /// <see cref="_polygonPoints"/> has already been converted, vertex by
+    /// vertex, because the in-progress rubber band is drawn from the same list
+    /// and the overlay is surface-space. Routing this through the converter
+    /// again subtracts the origin twice — which is exactly what it did, and the
+    /// polygon landed at surface x 2 instead of 100.
+    /// </remarks>
     public void CompletePolygon(bool add, bool subtract)
     {
         var contour = new List<StrokePoint>(_polygonPoints);
         _polygonPoints.Clear();
         SelectionChanged?.Invoke();
-        ApplySelectionShape(contour, add, subtract);
+        if (contour.Count < 3) return;
+        int w = Scene.Width, h = Scene.Height;
+        ApplySelectionMask(MaskFromContours([contour], w, h), add, subtract);
     }
 
     public void CancelPolygon() => CancelPolygonInProgress();
