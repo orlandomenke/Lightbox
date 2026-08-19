@@ -217,6 +217,47 @@ public class FluidEffectsWindowTests
     }
 
     /// <summary>
+    /// Tuning an effect edits the document without going through the editor, so
+    /// something has to say the document changed — or an artist tunes a flame
+    /// for an hour, closes, and is never asked to save it.
+    /// </summary>
+    /// <remarks>
+    /// The other half matters just as much and is the easier one to get wrong:
+    /// <em>selecting</em> an element is not editing it. Marking a document dirty
+    /// for a click on a list asks somebody to save a document they only looked
+    /// at, which teaches them to ignore the prompt.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Tuning_Says_The_Document_Changed_And_Looking_Does_Not()
+    {
+        var vm = new MainViewModel(null);
+        var edits = 0;
+        vm.DocumentEdited += () => edits++;
+
+        // Opening the window and building every field row is looking, not editing.
+        var window = new FluidEffectsWindow(vm);
+        Assert.Equal(0, edits);
+
+        window.Model.NewElement("fire");
+        Assert.True(edits > 0, "adding an element is an edit");
+
+        var second = window.Model.NewElement("smoke");
+        var after = edits;
+        window.Model.Selected = window.Model.Elements.First();
+        window.Model.Selected = second;
+        Assert.Equal(after, edits);
+
+        window.Model.PhysicsFields.Single(f => f.Name == "Buoyancy").Value = 0.8;
+        Assert.True(edits > after, "moving a slider is an edit");
+
+        var beforeStyle = edits;
+        window.Model.TreatmentFields.Single(f => f.Name == "Bands").Value = 4;
+        Assert.True(edits > beforeStyle, "a style change is an edit too, cheap or not");
+
+        window.Close();
+    }
+
+    /// <summary>
     /// A command wired straight to a handler works perfectly and is invisible to
     /// the whole configuration system — which is the trap Ctrl+S fell into. The
     /// effects window is opened by a registered command, so an artist can find

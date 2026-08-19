@@ -51,6 +51,29 @@ public sealed partial class MainViewModel
     /// </remarks>
     internal BrushSettings CurrentBrushCopy() => CurrentToolSettings.Clone();
 
+    /// <summary>
+    /// Say an effects element's own record changed — a slider, an emitter, a
+    /// colour — so the document is dirty and autosave knows.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The window edits the record without going through the editor, and this
+    /// is what keeps that honest.</b> Tuning is a loop of a hundred small moves;
+    /// one undo step per slider tick would bury the history the artist actually
+    /// wants, and the bake — which is the moment the change reaches the drawing —
+    /// <em>is</em> one step. What must not happen is the other half: an hour of
+    /// tuning with the title bar still saying the document is unchanged.
+    /// </para>
+    /// <para>
+    /// The cost, stated rather than hidden: an undo taken after tuning and before
+    /// baking restores the parameters along with the document, because undo swaps
+    /// a whole <see cref="Doc"/>. That is a real wart and the fix is a coalescing
+    /// step per gesture, which the field rows have no notion of yet — see
+    /// <c>docs/DESIGN-fluid-effects.md</c>.
+    /// </para>
+    /// </remarks>
+    internal void NoteEffectEdited() => MarkDocumentEdited();
+
     /// <summary>Drop this element's drawings, as one undoable step.</summary>
     internal void ClearSimBake(SimElement element)
     {

@@ -683,6 +683,19 @@ Each step is one branch with one objective.
    screen — a lying control, and worse than a missing one because the stored
    value would look authored.
 5e. **Anchor attachment** (Q122) — an element that follows a drawing's anchor.
+5g. **Undo granularity while tuning** — *needs a decision, and the wart is
+   written down rather than guessed at.* The window edits the element record
+   directly and does not push an undo step per slider tick: one step per tick
+   would bury the history an artist actually wants, and the bake — the moment the
+   change reaches the drawing — already is one step. `NoteEffectEdited` keeps the
+   document marked dirty so nothing is lost silently. The cost is real: undo
+   taken *after* tuning and *before* baking restores the parameters along with
+   the document, because undo swaps a whole `Doc`. The three ways out are a
+   coalescing step per gesture (needs a gesture notion the field rows do not
+   have), keeping the sims dictionary out of the undo snapshot entirely (cheap,
+   and makes deleting an element unrecoverable), or leaving it as it is and
+   saying so in the manual. Not decided.
+
 5f. **The detach rule's call sites** — split out of step 5 rather than dropped.
    `SimBakeOps.Detach` exists and is tested; what does not exist is the wiring
    that calls it from every path that changes a baked stroke's geometry, colour

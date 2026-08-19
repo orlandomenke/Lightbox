@@ -198,6 +198,12 @@ in the document. **Default pen** takes it back off.
 **Bake** writes the drawings into a layer of the element's own, as one undoable
 step. They are ordinary strokes from that point on.
 
+> **One thing to know about undo here.** Moving a slider in this window is not
+> its own undo step — a hundred of them while tuning would bury the history you
+> actually want. The document is still marked as changed, so nothing is lost
+> silently. But an undo taken *after* tuning and *before* baking puts the
+> parameters back along with everything else. Bake when you like what you see.
+
 Re-baking replaces what the element drew last time and leaves everything else
 alone. **A stroke you have edited by hand stops belonging to the element**, so a
 re-bake will not take your work back out — but it also will not update it.

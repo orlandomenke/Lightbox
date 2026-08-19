@@ -145,6 +145,7 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
         var row = new SimElementRow(element.Id, Find);
         Elements.Add(row);
         Selected = row;
+        _vm.NoteEffectEdited();
         return row;
     }
 
@@ -177,6 +178,7 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
         element.OutlineBrush = _vm.CurrentBrushCopy();
         OnPropertyChanged(nameof(PenSummary));
         RefreshPreview();
+        _vm.NoteEffectEdited();
     }
 
     /// <summary>Put the element back on the default pen.</summary>
@@ -186,6 +188,7 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
         element.OutlineBrush = null;
         OnPropertyChanged(nameof(PenSummary));
         RefreshPreview();
+        _vm.NoteEffectEdited();
     }
 
     /// <summary>What pen this element draws with, for the button beside it to say.</summary>

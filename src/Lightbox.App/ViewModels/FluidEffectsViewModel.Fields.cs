@@ -61,6 +61,7 @@ public sealed partial class FluidEffectsViewModel
             element.Name = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
             OnPropertyChanged();
             Selected?.Relabel();
+            _vm.NoteEffectEdited();
         }
     }
 
@@ -82,6 +83,7 @@ public sealed partial class FluidEffectsViewModel
                 .ToList();
             OnPropertyChanged();
             RefreshPreview();
+            _vm.NoteEffectEdited();
         }
     }
 
@@ -94,6 +96,7 @@ public sealed partial class FluidEffectsViewModel
             element.OutlineColor = value.Trim();
             OnPropertyChanged();
             RefreshPreview();
+            _vm.NoteEffectEdited();
         }
     }
 
@@ -228,16 +231,30 @@ public sealed partial class FluidEffectsViewModel
             OnPropertyChanged(name);
         }
 
-        MarkStale();
+        SetStale();
     }
 
     /// <summary>
     /// Say the picture no longer describes the element, without paying for a
     /// solve. The artist presses Simulate when they are ready.
     /// </summary>
+    /// <remarks>
+    /// <b>Separate from <see cref="SetStale"/> because selecting is not
+    /// editing.</b> Opening the window and clicking down the element list also
+    /// leaves the preview describing nothing, and marking the document dirty for
+    /// that would ask an artist to save a document they only looked at — which
+    /// teaches them to ignore the prompt, which is the failure that matters.
+    /// </remarks>
     private void MarkStale()
     {
         if (_building) return;
+        SetStale();
+        _vm.NoteEffectEdited();
+    }
+
+    /// <summary>The preview is out of date. Says nothing about the document.</summary>
+    private void SetStale()
+    {
         Stale = true;
         Status = "Simulate to see this.";
     }
@@ -251,7 +268,7 @@ public sealed partial class FluidEffectsViewModel
         if (_building) return;
         Selected?.Relabel();
         if (row.Resolves) MarkStale();
-        else RefreshPreview();
+        else { RefreshPreview(); _vm.NoteEffectEdited(); }
     }
 
     private void BuildPlacementFields()
@@ -479,5 +496,6 @@ public sealed partial class FluidEffectsViewModel
         element.Treatment = null;
         foreach (var field in TreatmentFields) field.Refresh();
         RefreshPreview();
+        _vm.NoteEffectEdited();
     }
 }
