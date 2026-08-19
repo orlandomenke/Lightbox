@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml.cs
 
-budget: 438
+budget: 439
 
 ## Why it has moved
 
@@ -43,3 +43,10 @@ other's reason and leaves a number nobody can account for.
   that hands a subsystem its one call is what this file is *for*, and a budget
   that refused it would be pushing the wiring somewhere it does not belong to
   save a line in the place that documents it.
+- **438 → 439** (2026-08-18), one line: the timeline track view's
+  `KeyMenuRequested` subscription, beside the `KeyDragged` one it belongs with.
+  The handler itself lives in `MainWindow.Transform.cs` with the other track
+  handlers; only the wiring has to be here, because this is where the control
+  is in scope. Both this and the crop wiring above landed as "437 → 438" on
+  their own branches and neither was wrong; the merged file carries both lines,
+  which is why the number is measured here rather than taken from either side.

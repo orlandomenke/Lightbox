@@ -126,9 +126,16 @@ public partial class MainWindow
 
     /// <summary>
     /// A dot on the track timeline was dragged to a new frame. Track 0 is the
-    /// camera when one exists (the projection puts it on top); everything
-    /// after maps onto LayerRows in the same order.
+    /// camera when one exists (the projection puts it on top), the armature
+    /// and its bones come next, and everything after maps onto LayerRows in
+    /// the same order.
     /// </summary>
+    /// <remarks>
+    /// The row arithmetic lives in the view model (<c>TracksAboveLayers</c>,
+    /// <c>IsPoseTrack</c>, <c>BoneOfTrack</c>) rather than here, because the
+    /// same three questions are asked again by the key menu below and a second
+    /// count that disagreed would retime the wrong track.
+    /// </remarks>
     private void OnTrackKeyDragged(int trackIndex, int fromFrame, int toFrame)
     {
         var hasCamera = _vm.HasCamera;
@@ -137,13 +144,41 @@ public partial class MainWindow
             _vm.MoveCameraKey(fromFrame, toFrame);
             return;
         }
-        var rowIndex = trackIndex - (hasCamera ? 1 : 0);
+        if (_vm.IsPoseTrack(trackIndex))
+        {
+            _vm.MovePoseKey(_vm.BoneOfTrack(trackIndex), fromFrame, toFrame);
+            return;
+        }
+        var rowIndex = trackIndex - _vm.TracksAboveLayers;
         if (rowIndex < 0 || rowIndex >= _vm.LayerRows.Count) return;
         var row = _vm.LayerRows[rowIndex];
         var from = row.Cells.FirstOrDefault(c => c.Index == fromFrame);
         var to = row.Cells.FirstOrDefault(c => c.Index == toFrame);
         if (from is null || to is null) return;
         _vm.MoveCel(from, to, copy: false);
+    }
+
+    /// <summary>
+    /// A right-click on a dot. Only the armature's rows answer it today: the
+    /// pose track is the one whose keys an artist asked to delete by hand
+    /// (2026-08-18), and a menu on a cel dot would duplicate the X-sheet's,
+    /// which already has one and more room for it.
+    /// </summary>
+    private void OnTrackKeyMenu(int trackIndex, int frame, Avalonia.Point at)
+    {
+        if (!_vm.IsPoseTrack(trackIndex)) return;
+        var bone = _vm.BoneOfTrack(trackIndex);
+        var flyout = new MenuFlyout { Placement = PlacementMode.Pointer };
+        var delete = new MenuItem
+        {
+            Header = bone is null ? "Delete this pose key" : "Unkey this bone here",
+        };
+        delete.Click += (_, _) => _vm.DeletePoseKey(bone, frame);
+        flyout.Items.Add(delete);
+        var goThere = new MenuItem { Header = $"Go to frame {frame + 1}" };
+        goThere.Click += (_, _) => _vm.CurrentFrameIndex = frame;
+        flyout.Items.Add(goThere);
+        flyout.ShowAt(TimelineTrackView, showAtPointer: true);
     }
 
     /// <summary>

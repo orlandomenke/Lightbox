@@ -18,13 +18,42 @@ namespace Lightbox.App.Controls;
 /// exposed — the bar the reference draws behind the dot.
 /// </param>
 /// <param name="Breakdowns">Which of <paramref name="Keys"/> are breakdowns (hollow dots).</param>
-/// <param name="IsCamera">The camera track wears the fixed camera colour.</param>
+/// <param name="Kind">What this row stands for — see <see cref="TrackKind"/>.</param>
 public sealed record TrackRow(
     string Name,
     IReadOnlyList<int> Keys,
     IReadOnlyList<int> HoldEnds,
     IReadOnlyList<bool> Breakdowns,
-    bool IsCamera);
+    TrackKind Kind = TrackKind.Layer)
+{
+    /// <summary>The camera track wears the fixed camera colour.</summary>
+    public bool IsCamera => Kind is TrackKind.Camera;
+
+    /// <summary>A pose track: the armature's own keys, or one bone's.</summary>
+    public bool IsArmature => Kind is TrackKind.Armature or TrackKind.Bone;
+}
+
+/// <summary>What a track row stands for.</summary>
+/// <remarks>
+/// An enum rather than the two booleans this would otherwise have grown, for
+/// Q90's reason one type along: three states of one question read better than
+/// a pair of flags whose illegal combination nothing forbids. Only the painter
+/// and the host's routing branch on it.
+/// </remarks>
+public enum TrackKind
+{
+    /// <summary>A drawing layer's exposure.</summary>
+    Layer,
+
+    /// <summary>The camera's keys.</summary>
+    Camera,
+
+    /// <summary>The armature summary: every frame where any bone is keyed.</summary>
+    Armature,
+
+    /// <summary>One bone's keys, shown when the armature row is expanded.</summary>
+    Bone,
+}
 
 /// <summary>
 /// One clip's span on the timeline (Q57): footage or sound as a bar the hand
@@ -92,6 +121,13 @@ public class TrackView : Control
     /// (index into <see cref="Tracks"/>). The host retimes the document.
     /// </summary>
     public event Action<int, int, int>? KeyDragged;
+
+    /// <summary>
+    /// A right-click landed on a key: the row, the frame, and where to put the
+    /// menu. The host decides whether that row has a menu at all — the control
+    /// knows where the dots are and nothing about what they mean.
+    /// </summary>
+    public event Action<int, int, Point>? KeyMenuRequested;
 
     /// <summary>
     /// The scratch track's waveform, one min/max pair per frame, or null for
@@ -222,8 +258,27 @@ public class TrackView : Control
 
     private static readonly Color CameraColour = Color.Parse("#FF9F45");
 
+    /// <summary>The rig's fixed colour — the bone chrome's, so the two read as one system.</summary>
+    private static readonly Color ArmatureColour = Color.Parse("#7EC8E3");
+
     internal static Color ColourOf(int row, bool isCamera) =>
         isCamera ? CameraColour : TrackColours[row % TrackColours.Length];
+
+    /// <summary>
+    /// The colour a track's dots wear: the camera's and the armature's are
+    /// fixed, a layer's rotates through the palette by position.
+    /// </summary>
+    /// <remarks>
+    /// The armature has one colour for the same reason the camera does — it is
+    /// one thing wherever it appears, and a rig whose row changed colour when a
+    /// layer was added above it would read as a different track.
+    /// </remarks>
+    internal static Color ColourOf(int row, TrackKind kind) => kind switch
+    {
+        TrackKind.Camera => CameraColour,
+        TrackKind.Armature or TrackKind.Bone => ArmatureColour,
+        _ => TrackColours[row % TrackColours.Length],
+    };
 
     // ---- layout ---------------------------------------------------------------
 
@@ -284,7 +339,7 @@ public class TrackView : Control
         for (var r = 0; r < tracks.Count; r++)
         {
             var track = tracks[r];
-            var colour = ColourOf(r, track.IsCamera);
+            var colour = ColourOf(r, track.Kind);
             var y = YAtRow(r);
 
             var name = new FormattedText(
@@ -413,7 +468,7 @@ public class TrackView : Control
         // A dragged dot's ghost, so the hand sees where the drawing will land.
         if (_drag is { } d)
         {
-            var colour = ColourOf(d.Row, tracks[d.Row].IsCamera);
+            var colour = ColourOf(d.Row, tracks[d.Row].Kind);
             context.DrawEllipse(
                 new SolidColorBrush(Color.FromArgb(0x88, colour.R, colour.G, colour.B)), null,
                 new Point(XAtFrame(d.ToFrame, FrameWidth), YAtRow(d.Row)), DotRadius, DotRadius);
@@ -566,6 +621,16 @@ public class TrackView : Control
             if (Math.Abs(p.Y - YAtRow(row)) <= RowPitch / 2 &&
                 KeyHit(tracks[row], 0, p.X, FrameWidth) is { } grabbed)
             {
+                // Right-click asks for the menu instead of starting a drag.
+                // Offered on every row; the host answers on the ones that have
+                // something to put in it, which keeps this control ignorant of
+                // what a key means.
+                if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed)
+                {
+                    KeyMenuRequested?.Invoke(row, grabbed, p);
+                    e.Handled = true;
+                    return;
+                }
                 _drag = (row, grabbed, grabbed);
                 e.Pointer.Capture(this);
                 e.Handled = true;

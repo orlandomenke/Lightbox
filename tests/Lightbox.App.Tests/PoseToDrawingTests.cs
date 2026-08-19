@@ -67,11 +67,17 @@ public class PoseToDrawingTests
         Assert.True(vm.InsertDrawingFromPose());
 
         var made = Anim(vm).Cels[3].Frame;
+        var original = Anim(vm).Cels[0].Frame!;
         Assert.NotNull(made);
-        Assert.NotEqual(Anim(vm).Cels[0].Frame!.Id, made!.Id);
-        // The neighbours are untouched — one cel becomes a drawing, not the run.
+        Assert.NotEqual(original.Id, made!.Id);
+        // One frame becomes a drawing, not the run — stated as what is SHOWN
+        // rather than as which cels are holds, which is the distinction B259
+        // turned on. The cel before is still a hold of the original; the cel
+        // after re-exposes it, so the picture on every later frame is the one
+        // that was there before.
         Assert.Null(Anim(vm).Cels[2].Frame);
-        Assert.Null(Anim(vm).Cels[4].Frame);
+        Assert.Same(original, ExposureSheet.ExposedFrame(Anim(vm), 2));
+        Assert.Same(original, ExposureSheet.ExposedFrame(Anim(vm), 4));
     }
 
     [AvaloniaFact]
@@ -238,6 +244,38 @@ public class PoseToDrawingTests
             .SingleOrDefault(d => d.Id == "armature.insertPoseDrawing");
         Assert.NotNull(entry);
         Assert.Equal("Canvas", entry!.Category);
+    }
+
+    [AvaloniaFact]
+    public void TheFramesAfterItGoOnHoldingWhatTheyHeld()
+    {
+        // Reported 2026-08-18: posed over four frames, kept the pose on frame
+        // two, and frames three and four stopped following the skeleton. The
+        // exposure sheet is why — a hold shows the nearest drawing BEFORE it,
+        // so inserting one at frame two silently re-pointed three and four at
+        // the new drawing, which is baked and therefore answers to no rig.
+        var vm = Rigged();
+        var stroke = AddStroke(vm, (110, 150), (150, 150));
+        var bone = OneBone(vm);
+        vm.PosingMode = false;
+        vm.Selection.SelectStroke(stroke.Id);
+        vm.AssignSelectedStrokesToBone();
+        vm.PosingMode = true;
+        HoldEverythingAfterTheFirst(vm);
+
+        var original = Anim(vm).Cels[0].Frame!;
+        vm.CurrentFrameIndex = 1;
+        vm.PoseBoneTo(bone, 100, 250);
+        vm.InsertDrawingFromPose();
+
+        // Frames 2 and 3 must still show the drawing they were showing, which
+        // is the one that still follows the rig.
+        for (var i = 2; i < 5; i++)
+        {
+            Assert.Same(original, ExposureSheet.ExposedFrame(Anim(vm), i));
+        }
+        // And they are still posed by the rig rather than frozen.
+        Assert.True(original.HasBoundStrokes);
     }
 
     [AvaloniaFact]

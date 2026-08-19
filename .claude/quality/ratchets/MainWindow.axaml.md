@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4570
+budget: 4576
 
 ## Why it is here despite being XAML
 
@@ -147,3 +147,13 @@ leaves a number nobody can account for. So every reason above stays, and
   reason above stays — deleting one leaves a number nobody can account for —
   and `ratchets.py remeasure` supplies the figure, which is the one moment that
   script exists for.
+- **4434 → 4440** (2026-08-18), the timeline's *Bones* toggle. Six lines: the
+  checkbox, its visibility binding, a tooltip and the three-line comment saying
+  why per-bone rows are off by default. The armature's summary row costs no
+  XAML at all — it is a `TrackRow` the view model projects — so this is the
+  whole UI cost of the pose track.
+- **→ remeasured again on the merged tree** (2026-08-19). Same situation one
+  merge later: the *Bones* toggle above was raised to 4,440 on its own branch
+  from the same 4,434, so it is a third claim on that number and its six lines
+  are additional to everything the remeasure before it counted. Its reason
+  stays, the figure comes from `ratchets.py remeasure`.
