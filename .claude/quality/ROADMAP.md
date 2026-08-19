@@ -593,7 +593,7 @@ every other AI feature and are only legible together.
   - Sequence-scale cost is the review stance over all four: `BrushCostOf`
     badges are read against replay across a whole sequence, not one image.
 - [?] Draw once, reuse across animations
-- [~] Fluid effects elements — fire, smoke and water as drawn line and fill `evidence: FluidSolver, MarchingSquares, FieldTracer, SimBaker, SimBakeOps, SimElement, LineTreatment, EffectParam, FluidEffectsViewModel, FluidEffectsWindow, EffectFieldRow, FluidSolverTests, MarchingSquaresTests, FieldTracerTests, SimBakerTests, SimElementTests, FluidEffectsViewModelTests, FluidEffectsWindowTests, A_New_Element_Arrives_Already_Burning, Every_Solver_Parameter_Has_A_Row, A_Style_Edit_Previews_And_A_Fluid_Edit_Waits, The_Fingerprint_Notices_Physics_And_Ignores_Style, Opening_The_Window_Is_A_Registered_Command, FreeSurfaceSource, MetaballSource, ObstacleBoundaryTests`
+- [~] Fluid effects elements — fire, smoke and water as drawn line and fill `evidence: FluidSolver, MarchingSquares, FieldTracer, SimBaker, SimBakeOps, SimElement, LineTreatment, EffectParam, FluidEffectsViewModel, FluidEffectsWindow, EffectFieldRow, FluidSolverTests, MarchingSquaresTests, FieldTracerTests, SimBakerTests, SimElementTests, FluidEffectsViewModelTests, FluidEffectsWindowTests, A_New_Element_Arrives_Already_Burning, Every_Solver_Parameter_Has_A_Row, A_Style_Edit_Previews_And_A_Fluid_Edit_Waits, The_Fingerprint_Notices_Physics_And_Ignores_Style, Opening_The_Window_Is_A_Registered_Command, Smoke_Rises, Smoke_Arrives_Lit_And_Fire_Does_Not, Shading_Slides_The_Inner_Bands_Toward_The_Light_And_Leaves_The_Silhouette, A_Highlight_Cannot_Be_Lit_Out_Of_Its_Own_Volume, FreeSurfaceSource, MetaballSource, ObstacleBoundaryTests`
   - Designed in `docs/DESIGN-fluid-effects.md` (2026-08-18), answering "is a
     performant 2D fluid simulation possible, with the outline in the artist's
     line style and the shape filled with colour". It is Pillar 4 rather than an
@@ -697,6 +697,21 @@ every other AI feature and are only legible together.
     peak, and two of the findings are now tests. Looking also caught a defect
     nothing else would: `PeakBand` sampled only the frames an element kept, so
     exposing on 2s shifted every band level.
+  - **Step 6 landed 2026-08-19**: smoke, and two things that only a render
+    said. **A smoke emitter has to be warm** — buoyancy reads temperature and
+    `Weight` reads density, so an emitter at zero heat is pushed down by its own
+    mass and spreads on the floor as a pancake, which is what the first smoke
+    render was: four identical frames of a flat blob. Measured, 0 heat reaches
+    7.2 cells above the emitter and 0.4 reaches 26.6. And **bands are concentric
+    by construction, which a lit volume is not** — they are iso-contours, so
+    unshaded smoke is an onion however it is coloured. `LineTreatment.ShadeOffset`
+    slides band *b* by *b*/(bands−1) of itself toward `LightAngleDeg`, leaving
+    band 0 where it is because that one is the silhouette. It lives on the
+    treatment rather than on the element because it is a style decision, and it
+    shares its angle with the line-weight driver so one light serves both halves
+    of lighting. Clamped to the silhouette's box, which was also found by
+    rendering: at the slider's end the highlight otherwise pokes out past the
+    outline and reads as a second paler shape sitting on top.
   - **Step 5 landed 2026-08-19**: the effects window (`Ctrl+Shift+E`), and with
     it the first version an artist can actually use — make a flame, tune it,
     watch it, bake it. The window holds no effects logic: it is bindings over

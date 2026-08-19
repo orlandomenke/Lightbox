@@ -55,9 +55,22 @@ start from. It arrives torch-sized, about 192 × 176 document pixels, and alread
 alight rather than starting from cold. Anything wanting a bonfire raises the
 grid, which is one slider.
 
-The difference between the two buttons is only what the bands read from and what
-colours they start with. Everything else is the same machinery, and you can turn
-one into the other with the **Bands read** control.
+The difference between them is what the bands read from, what colours they start
+with, and two things worth knowing about because they are the difference between
+smoke that works and smoke that does not:
+
+- **A smoke emitter is warm.** Smoke rises because it is hot, and the solver
+  means that literally — buoyancy reads heat while weight reads density, so an
+  emitter at zero heat gets pushed *down* by its own mass and spreads on the
+  floor as a pancake. Smoke's emitter starts at a third of fire's.
+- **Smoke arrives lit and fire does not.** A flame is the light source, so
+  nothing lights it: its bands stay concentric and the ramp from dull red to
+  white *is* the drawing. Smoke is lit from outside, and unshaded it reads as an
+  onion — three rings round one centre, which is a cross-section rather than a
+  volume. See **Shading** below.
+
+Everything else is the same machinery, and you can turn one into the other with
+the **Bands read** control.
 
 ## Placement and timing
 
@@ -179,8 +192,19 @@ a simulation. All of it is cheap, and all of it previews live.
   more deliberate lines.
 - **Smoothing** — how much the corners are rounded off.
 - **Break length / gap** — a broken, sketched line instead of a continuous one.
-- **Light angle** — where the light is, for treatments that thicken the line on
-  the shadow side.
+- **Light angle** — where the light is, in degrees clockwise from straight up.
+  One light serves both halves of lighting: the shading below, and the line
+  weight if a driver reads it.
+- **Shading** — slide the inner bands toward the light, in stroke widths, so a
+  volume reads as lit instead of as an onion of concentric rings. The
+  silhouette never moves — it is the silhouette — and the bands inside it move
+  further the deeper they are, which puts the highlight on the lit side and
+  crowds the rest into a crescent opposite. **A flame wants none of this**;
+  smoke, steam and dust want most of it.
+
+  It is clamped so a highlight can never leave the silhouette, so past a point
+  the slider stops doing anything. That is the shape telling you it has run out
+  of room, not the control breaking.
 
 A treatment can be shared between elements. When an element states a field of
 its own, that row shows a **↺** button: the value is this element's override,
@@ -222,6 +246,9 @@ re-bake will not take your work back out — but it also will not update it.
 - **Attaching an element to a drawing's anchor**, so it follows a rigged figure
   without keying Travel by hand.
 - **Presets**, so a flame is tuned once and reused.
+- **Explosions.** An emitter fires continuously today. A burst needs emission
+  that stops after a frame or two, and velocity that points outward from the
+  emitter rather than in one direction.
 - **Water and goo.** The solver is the same; a free surface and a metaball
   source are not built.
 - **Style inference** — a reference drawing in, a line treatment out.

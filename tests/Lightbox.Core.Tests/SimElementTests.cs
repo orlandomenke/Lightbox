@@ -107,6 +107,26 @@ public class SimElementTests
     }
 
     /// <summary>
+    /// Shading is the newest treatment field and the one most likely to be
+    /// forgotten in the three places a nullable field has to appear: absent
+    /// unless stated, carried by the cascade, and copied by a clone.
+    /// </summary>
+    [Fact]
+    public void Shading_Is_Absent_Until_Stated_And_Survives_The_Cascade()
+    {
+        Assert.DoesNotContain("\"shadeOffset\"", Json(new SimElement { Treatment = new LineTreatment { Bands = 2 } }));
+        Assert.Contains("\"shadeOffset\"", Json(new SimElement { Treatment = new LineTreatment { ShadeOffset = 3 } }));
+
+        Assert.Equal(0, LineTreatment.Defaults.ShadeOffset);
+        Assert.Equal(3, LineTreatment.Resolve(new LineTreatment { ShadeOffset = 3 }).ShadeOffset);
+        Assert.Equal(5, LineTreatment.Resolve(
+            new LineTreatment { ShadeOffset = 3 }, new LineTreatment { ShadeOffset = 5 }).ShadeOffset);
+
+        Assert.Contains(nameof(LineTreatment.ShadeOffset), new LineTreatment { ShadeOffset = 1 }.StatedFields());
+        Assert.Equal(1, new LineTreatment { ShadeOffset = 1 }.Clone().ShadeOffset);
+    }
+
+    /// <summary>
     /// Cloning has to copy the pen rather than share it, or an undo snapshot and
     /// the live document edit the same brush — which is the bug where changing an
     /// element's line silently rewrites history.

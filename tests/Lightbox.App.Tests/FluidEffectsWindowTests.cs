@@ -95,6 +95,68 @@ public class FluidEffectsWindowTests(Xunit.ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Smoke rises, and it is worth a test because it did not.
+    /// </summary>
+    /// <remarks>
+    /// <b>A smoke emitter with no heat is a pancake.</b> Buoyancy reads
+    /// temperature and <c>Weight</c> reads density, so an emitter at zero heat
+    /// gets pushed *down* by its own mass and spreads on the floor of its grid —
+    /// which is exactly what the first smoke render showed, four identical
+    /// frames of a flat blob. Smoke rises because it is hot; the preset says so
+    /// now, and this measures the consequence rather than the setting, because
+    /// the setting is what could be changed by somebody who has not looked.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Smoke_Rises()
+    {
+        var vm = new MainViewModel(null);
+        var window = new FluidEffectsWindow(vm);
+        window.Model.NewElement("smoke");
+        var element = window.Model.Element!;
+
+        var drawn = window.Model.Preview(element.FirstFrame + element.FrameCount - 1);
+        Assert.NotEmpty(drawn);
+
+        // How far above its own emitter the plume reaches, in cells. Not "the
+        // top moves between two frames": the preset pre-rolls, so by the first
+        // drawn frame the plume is already at its height and a climb test would
+        // measure nothing. A pancake fails this and a plume passes it.
+        var emitter = element.Emitters[0];
+        var emitterY = element.OriginY + emitter.Y * element.Scale;
+        var top = drawn.SelectMany(s => s.Points).Min(p => p.Y);
+        var cellsAbove = (emitterY - top) / element.Scale;
+
+        output.WriteLine($"the smoke reaches {cellsAbove:F1} cells above its emitter");
+        Assert.True(cellsAbove > 10, $"the smoke only reached {cellsAbove:F1} cells above its emitter");
+    }
+
+    /// <summary>
+    /// Smoke arrives lit and fire does not, and the asymmetry is the point.
+    /// </summary>
+    /// <remarks>
+    /// A flame is the light source, so nothing lights it: its bands stay
+    /// concentric and the ramp from dull red to white <em>is</em> the drawing.
+    /// Smoke is lit from outside, and unshaded it is an onion — three rings
+    /// round one centre, which is a cross-section rather than a volume.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Smoke_Arrives_Lit_And_Fire_Does_Not()
+    {
+        var vm = new MainViewModel(null);
+        var window = new FluidEffectsWindow(vm);
+
+        var smoke = window.Model.NewElement("smoke").Element!;
+        Assert.True(smoke.Treatment?.ShadeOffset > 0, "a new smoke element is not shaded");
+        Assert.True(window.Model.TreatmentFields.Single(f => f.Name == "Shading").IsOverridden);
+
+        var fire = window.Model.NewElement("fire").Element!;
+        Assert.Null(fire.Treatment?.ShadeOffset);
+        Assert.Equal(0, window.Model.TreatmentFields.Single(f => f.Name == "Shading").Value);
+
+        window.Close();
+    }
+
+    /// <summary>
     /// Every number the solver and the tracer read has to have a control. This is
     /// the check that catches a parameter added to the record and never surfaced
     /// — which is the failure the "land the places it shows up" rule is about,
