@@ -75,6 +75,103 @@ public partial class MainViewModel
         }
     }
 
+    // ---- the crop tool's frame -----------------------------------------------------
+
+    /// <summary>
+    /// The rectangle the Crop tool is dragging, or null when the tool is not in
+    /// hand.
+    /// </summary>
+    /// <remarks>
+    /// Null rather than an idle session, so the canvas can ask one question —
+    /// <em>is there a frame to draw</em> — instead of asking the tool and the
+    /// session and hoping the two agree.
+    /// </remarks>
+    public CropSession? CropFrame { get; private set; }
+
+    /// <summary>Raised when the frame appears, moves or goes away.</summary>
+    public event Action? CropFrameChanged;
+
+    /// <summary>Whether a crop frame is live and would change something.</summary>
+    public bool CanApplyCropFrame => CropFrame is { WouldChangeAnything: true };
+
+    /// <summary>
+    /// The frame's size, for the tool options bar — or what to do when there is
+    /// nothing to apply yet.
+    /// </summary>
+    public string CropFrameLabel => CropFrame is not { } frame
+        ? string.Empty
+        : frame.WouldChangeAnything
+            ? $"{frame.RoundedWidth} × {frame.RoundedHeight}"
+            : "Drag a frame";
+
+    /// <summary>Open a frame on the whole page. Picking the tool does this.</summary>
+    public void BeginCropFrame()
+    {
+        CropFrame ??= new CropSession();
+        CropFrame.Begin(Scene.Left, Scene.Top, Scene.Width, Scene.Height);
+        NotifyCropFrame();
+    }
+
+    /// <summary>Drop the frame. Leaving the tool does this, and so does applying.</summary>
+    public void EndCropFrame()
+    {
+        if (CropFrame is null) return;
+        CropFrame = null;
+        NotifyCropFrame();
+    }
+
+    /// <summary>
+    /// The frame changed under the pointer — the canvas calls this after a
+    /// press, a drag or a release.
+    /// </summary>
+    public void NotifyCropFrame()
+    {
+        OnPropertyChanged(nameof(CanApplyCropFrame));
+        OnPropertyChanged(nameof(CropFrameLabel));
+        CropFrameChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Take the paper down to the frame. Enter, or the Apply button.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Through <see cref="ApplyCrop"/>, which is the same route both menu
+    /// commands take, so there is one answer to what a crop does to the
+    /// document and the tool cannot drift from it (Q126).
+    /// </para>
+    /// <para>
+    /// The frame is re-opened on the new page rather than dropped, because the
+    /// tool is still in hand: an artist who crops and then wants a little more
+    /// off should find handles there, not an empty canvas. Re-opened even when
+    /// the crop was refused, since a stale frame describing the old page is the
+    /// one thing that must not stay on screen.
+    /// </para>
+    /// </remarks>
+    public bool ApplyCropFrame()
+    {
+        if (CropFrame is not { } frame) return false;
+        if (!frame.WouldChangeAnything)
+        {
+            AiStatus = "Drag the frame in first — it is still the whole page.";
+            return false;
+        }
+
+        var applied = ApplyCrop(
+            (frame.RoundedLeft, frame.RoundedTop, frame.RoundedWidth, frame.RoundedHeight),
+            "the frame");
+        BeginCropFrame();
+        return applied;
+    }
+
+    /// <summary>Escape, or the Cancel button: back to the whole page.</summary>
+    public void CancelCropFrame()
+    {
+        if (CropFrame is not { } frame) return;
+        frame.Reset();
+        NotifyCropFrame();
+    }
+
     /// <summary>
     /// Re-read <see cref="HasAnyContent"/>. Called from the edit funnel and
     /// from the document swap, for the reason <c>RefreshUndoRedo</c> beside it

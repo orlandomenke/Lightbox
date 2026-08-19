@@ -874,6 +874,9 @@ public sealed partial class CanvasControl : Control
         Move,
         Select,
 
+        /// <summary>The crop frame: drag it out, push its handles, Enter applies.</summary>
+        Crop,
+
         /// <summary>
         /// The Bone tool: presses select bones, drags create or move them, and
         /// in posing mode a drag rotates and keys at the playhead. Always in
@@ -1952,7 +1955,8 @@ public sealed partial class CanvasControl : Control
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
             _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing,
             BoneChromes, HeatPoints, _hoveredLines,
-            FillPreviewForFrame(), _fillPreviewWand, _fillPreviewColor, TrailPoints));
+            FillPreviewForFrame(), _fillPreviewWand, _fillPreviewColor, TrailPoints,
+            CropSurfaceRect()));
     }
 
     // The tip outline cache and TipOutlinePath moved to CanvasControl.Pointer.cs,
@@ -2593,6 +2597,9 @@ public sealed partial class CanvasControl : Control
                     _dragShape.Clear();
                     e.Handled = true;
                     return;
+                case CanvasToolMode.Crop:
+                    CropPress(e, x, y);
+                    return;
                 case CanvasToolMode.Gradient:
                     e.Pointer.Capture(this);
                     _gradientDragging = true;
@@ -2946,6 +2953,7 @@ public sealed partial class CanvasControl : Control
             InputPulse.OnCanvas();
             InvalidateVisual();
 
+            if (_cropDragging) { CropMove(e); return; }
             if (_movingGuides)
             {
                 var (mx, my) = ViewToDoc(e.GetPosition(this));
@@ -3343,6 +3351,7 @@ public sealed partial class CanvasControl : Control
     private void OnPointerReleasedCore(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_cropDragging) { CropRelease(e); return; }
         if (_movingGuides)
         {
             _movingGuides = false;
@@ -3968,7 +3977,8 @@ public sealed partial class CanvasControl : Control
         SKPath? fillPreview = null,
         bool fillPreviewWand = false,
         SKColor fillPreviewColor = default,
-        IReadOnlyList<Core.Timeline.TrailPoint>? trail = null) : ICustomDrawOperation
+        IReadOnlyList<Core.Timeline.TrailPoint>? trail = null,
+        SKRect? cropFrame = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -4117,6 +4127,11 @@ public sealed partial class CanvasControl : Control
             DrawTransformGizmo(canvas);
             ReferenceBoxPainter.Paint(canvas, referenceBoxes, newBox, sheetBox, view.Scale);
             DrawObjectSelections(canvas);
+            // Last of the overlays: the dim is a judgement about everything
+            // underneath it, so anything drawn after would float outside the
+            // crop and read as being kept.
+            CropOverlayPainter.Paint(
+                canvas, cropFrame, new SKRect(0, 0, view.DocW, view.DocH), view.Scale);
             canvas.Restore();
 
             if (cursor is { } c) DrawBrushCursor(canvas, c);

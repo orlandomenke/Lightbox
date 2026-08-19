@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4540
+budget: 4554
 
 ## Why it is here despite being XAML
 
@@ -115,3 +115,12 @@ leaves a number nobody can account for. So every reason above stays, and
   identical pair — the third copy of a two-line style is the point at which it
   should become a class in `Density.axaml`, and the next panel that needs it
   should do that rather than paste it again.
+- **4540 → 4554** (2026-08-19, Q126): +14 for the Crop tool's rail button and
+  the one line that hosts its options bar. The button is the tool's only
+  permanent surface and a `ToggleButton` has no partial to live in; the bar
+  itself is `CropOptionsBar.axaml`, the trade `BoneOptionsBar`,
+  `GuideOptionsBar` and `LineOptionsBar` each made, so a bar with a readout and
+  two buttons costs one line here instead of fifteen. The overlay went to
+  `CropOverlayPainter`, the drag math to `CropSession`, and the pointer wiring
+  to `CanvasControl.Crop.cs` — what is left in this file is registration, which
+  is the one thing a budget must not refuse.

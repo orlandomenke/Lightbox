@@ -201,6 +201,12 @@ public sealed class ShortcutMap
             new("tool.fill", "Fill", "Tools", G(Key.F),
                 momentaryTool: ViewModels.ToolId.Fill),
             new("tool.gradient", "Gradient", "Tools", G(Key.G)),
+            // C, which is Photoshop's key for it and was free here. Not
+            // spring-loaded like B, E, F, V and I: the crop carries modal state
+            // — a frame that has been dragged — so a hold-and-release would
+            // strand it, which is exactly the reason S and the pen are excluded
+            // from that list too.
+            new("tool.crop", "Crop (frame the page)", "Tools", G(Key.C)),
             new("tool.select", "Select / next variant", "Tools", G(Key.S)),
             new("tool.move", "Move (drawing and guides)", "Tools", G(Key.V),
                 momentaryTool: ViewModels.ToolId.Move),

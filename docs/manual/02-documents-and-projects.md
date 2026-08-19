@@ -95,6 +95,13 @@ Both are one undo step, both refit the view afterwards, and both are on
 **Image**. Neither has a key by default; both are in **Configure ▸ Shortcuts**
 under *Image* if you want to give them one.
 
+**To frame a crop by eye instead**, use the **Crop** tool (C) — it puts a
+draggable frame on the canvas and dims what falls outside it. Same crop, same
+guarantees; see [Tools and strokes](03-tools-and-strokes.md). The three answer
+different questions: the tool is *put the edge here*, Crop to selection is
+*here, where I have already marked it*, and Trim to drawing is *wherever the ink
+happens to end*.
+
 ### A project
 
 A project is a body of work: **every 2D asset in a game, an animated feature,

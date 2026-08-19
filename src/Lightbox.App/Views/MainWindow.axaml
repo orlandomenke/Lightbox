@@ -1354,6 +1354,7 @@
         <!-- The Move tool's options: the guide it has picked up. -->
         <views:GuideOptionsBar />
         <views:LineOptionsBar />
+        <views:CropOptionsBar />
 
         <!--
           The workspace's own quick options, after the tool's: not tool-gated,
@@ -1635,6 +1636,19 @@
                 <StackPanel Orientation="Horizontal" Spacing="6">
                   <Path Data="{StaticResource IconMove}" />
                   <TextBlock Text="Move" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
+              <!-- Crop, beside Move because the two are the same kind of verb:
+                   one moves what is drawn, the other moves the paper it is
+                   drawn on. Its frame appears when the tool is picked and goes
+                   when another tool is, the way the rig belongs to the Bone
+                   tool below (Q81). -->
+              <ToggleButton Classes="tool" IsChecked="{Binding IsCropTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Crop}"
+                            ToolTip.Tip="Crop (C) — drag a frame, push its handles, Shift holds the ratio. Enter crops the paper to it, Escape puts the frame back round the page. Nothing drawn moves, and ink outside the frame is kept.">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Path Data="{StaticResource IconCrop}" />
+                  <TextBlock Text="Crop" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
               <!-- The rig's one door (Q81): always here, even on an unrigged

@@ -107,6 +107,28 @@ public partial class MainWindow
             }
         }
 
+        // The crop frame owns them next, and for the transform's reason: while a
+        // frame is up, Enter and Escape are what an artist reaches for to take
+        // it or drop it. Escape resets the frame to the whole page rather than
+        // putting the tool away — leaving the tool is picking another one, and
+        // a key that did both would make "undo my drag" and "I am finished
+        // cropping" the same gesture.
+        if (_vm.CropFrame is not null)
+        {
+            if (e.Key == Key.Enter)
+            {
+                ApplyCropFrame();
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.Escape)
+            {
+                _vm.CancelCropFrame();
+                e.Handled = true;
+                return;
+            }
+        }
+
         // Isolation owns Escape and Enter for the same reason, and above the
         // shortcut switch for the same reason: a mode you cannot leave with the
         // key everybody tries first is a mode you are stuck in. Both keys mean
@@ -275,6 +297,9 @@ public partial class MainWindow
                 break;
             case "tool.gradient":
                 _vm.ActiveTool = ToolId.Gradient;
+                break;
+            case "tool.crop":
+                _vm.ActiveTool = ToolId.Crop;
                 break;
             case "tool.select":
                 _vm.SelectToolCommand.Execute(ToolId.Select); // again = next variant

@@ -4,7 +4,7 @@
 ## Tools
 
 Down the left: **Brush** (B), **Eraser** (E), **Fill**, **Picker**,
-**Gradient**, **Arrow** (A), **Points** (N), **Pen** (P), **Width** (W), **Shape** (U), **Select** (S). Press Select again to cycle its
+**Gradient**, **Crop** (C), **Arrow** (A), **Points** (N), **Pen** (P), **Width** (W), **Shape** (U), **Select** (S). Press Select again to cycle its
 variants, or hold it for the list: Freehand, Polygon, Box, Circle, Magic wand.
 
 **The rail arranges itself, and takes only the width it is using.** One centred
@@ -45,10 +45,35 @@ configured it, size included. Resize the eraser *during* a hold and that is a
 decision: the new size sticks as the eraser's own.
 
 The other tool keys only latch. **S** is taken — pressing it again cycles the
-selection variants, so it cannot also mean "hold me". The pen, both arrows and
-the Width tool are left out for the reason Ctrl is: they have work in flight,
-and letting go of a key is not a good way to finish a path you were in the
-middle of placing.
+selection variants, so it cannot also mean "hold me". The pen, both arrows, the
+Width tool and Crop are left out for the reason Ctrl is: they have work in
+flight, and letting go of a key is not a good way to finish a path you were in
+the middle of placing, or a frame you were in the middle of judging.
+
+### Cropping by eye
+
+**Crop** (C) puts a frame round the page and dims everything outside it, so you
+are looking at the crop rather than imagining it. Drag anywhere to pull a fresh
+frame out; drag its handles to adjust; drag inside it to slide the whole frame
+around once it is smaller than the page. **Shift** on a corner holds the ratio
+it has, the way Shift constrains every other tool here. Faint thirds are drawn
+inside the frame to judge against.
+
+**Enter crops the paper to the frame; Escape puts the frame back round the whole
+page.** Escape does not put the tool away — leaving the tool is picking another
+one, and one key meaning both "undo my drag" and "I am finished" would be a key
+you cannot use confidently. The bar above the canvas shows what the paper would
+become and carries the same two as buttons.
+
+After a crop the frame reopens on the *new* page, because you still have the
+tool: taking a little more off is another drag, not another trip to the toolbar.
+
+**Nothing drawn moves, and nothing is deleted** — this is the same crop the
+Image menu performs, so ink outside the new edge stays in the file and comes
+back if you grow the canvas again. See *Cropping* under
+[Documents and projects](02-documents-and-projects.md) for the two menu
+commands, which answer the question the other way round: *crop to my selection*,
+and *trim to the ink*.
 
 ### Arrow and Select are not the same tool
 

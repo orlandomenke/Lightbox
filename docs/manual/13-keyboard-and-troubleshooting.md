@@ -47,6 +47,7 @@ warns about.
 | P | Pen — draw a line by placing its points |
 | W | Width — make a line heavier or lighter |
 | U | Shape — line, rectangle, ellipse, polygon |
+| C | Crop — frame the page by eye; Enter crops to the frame, Esc puts it back |
 | Double-click | Go inside a line to reshape it; Esc to come back out |
 | Backspace | Take the last point back off, while drawing with the pen |
 | Enter / Esc | Finish the pen line (neither discards it — Ctrl+Z does) |
