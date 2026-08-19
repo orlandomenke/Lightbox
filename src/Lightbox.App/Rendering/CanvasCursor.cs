@@ -268,7 +268,11 @@ public static class CanvasCursor
         ToolId.Picker => CanvasCursorKind.Pick,
         ToolId.Fill or ToolId.Gradient => CanvasCursorKind.Fill,
         ToolId.Move => CanvasCursorKind.Move,
-        ToolId.Pen or ToolId.Shape or ToolId.Select or ToolId.Width => CanvasCursorKind.Precise,
+        // Crop joins them because a frame is dragged out corner to corner, the
+        // way a marquee is: the pointer has to say where the edge will land,
+        // and a fat arrow hides the pixel you are aiming at.
+        ToolId.Pen or ToolId.Shape or ToolId.Select or ToolId.Width
+            or ToolId.Crop => CanvasCursorKind.Precise,
         // Bones are records picked and dragged, the arrows' kind of act.
         ToolId.Arrow or ToolId.DirectSelect or ToolId.Bone => CanvasCursorKind.PickRecords,
         _ => CanvasCursorKind.Default,
