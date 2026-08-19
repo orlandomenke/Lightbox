@@ -594,7 +594,7 @@ every other AI feature and are only legible together.
   - Sequence-scale cost is the review stance over all four: `BrushCostOf`
     badges are read against replay across a whole sequence, not one image.
 - [?] Draw once, reuse across animations
-- [~] Fluid effects elements — fire, smoke and water as drawn line and fill `evidence: FluidSolver, MarchingSquares, FieldTracer, SimBaker, SimBakeOps, SimElement, LineTreatment, EffectParam, FluidEffectsViewModel, FluidEffectsWindow, EffectFieldRow, FluidSolverTests, MarchingSquaresTests, FieldTracerTests, SimBakerTests, SimElementTests, FluidEffectsViewModelTests, FluidEffectsWindowTests, A_New_Element_Arrives_Already_Burning, Every_Solver_Parameter_Has_A_Row, A_Style_Edit_Previews_And_A_Fluid_Edit_Waits, The_Fingerprint_Notices_Physics_And_Ignores_Style, Opening_The_Window_Is_A_Registered_Command, Smoke_Rises, Smoke_Arrives_Lit_And_Fire_Does_Not, AddExpansion, Expansion_Grows_A_Blob_And_Thins_It, Expansion_Makes_No_Matter, A_Radial_Push_Hollows_The_Middle_Where_Expansion_Keeps_It, A_Burst_Expands_The_Front, A_Timed_Emitter_Stops_Feeding, SimGroup, SimGroupOps, SimGroupTests, FluidEffectsGroupTests, Retiming_Shifts_Everything_And_Keeps_The_Internal_Timing, Folding_Puts_The_Baked_Layers_In_One_Folder_In_Order, A_Group_Stores_No_Geometry_Of_Its_Own, EmitterScatter, EmitterScatterTests, Scatter_Breaks_A_Burning_Edge_Into_Separate_Flames, Scattered_Flames_Differ_In_Height_Without_Being_Told_To, A_Longer_Surface_Gets_More_Flames_From_The_Same_Settings, Shading_Slides_The_Inner_Bands_Toward_The_Light_And_Leaves_The_Silhouette, A_Highlight_Cannot_Be_Lit_Out_Of_Its_Own_Volume, FreeSurfaceSource, MetaballSource, ObstacleBoundaryTests`
+- [~] Fluid effects elements — fire, smoke and water as drawn line and fill `evidence: FluidSolver, MarchingSquares, FieldTracer, SimBaker, SimBakeOps, SimElement, LineTreatment, EffectParam, FluidEffectsViewModel, FluidEffectsWindow, EffectFieldRow, FluidSolverTests, MarchingSquaresTests, FieldTracerTests, SimBakerTests, SimElementTests, FluidEffectsViewModelTests, FluidEffectsWindowTests, A_New_Element_Arrives_Already_Burning, Every_Solver_Parameter_Has_A_Row, A_Style_Edit_Previews_And_A_Fluid_Edit_Waits, The_Fingerprint_Notices_Physics_And_Ignores_Style, Opening_The_Window_Is_A_Registered_Command, Smoke_Rises, Smoke_Arrives_Lit_And_Fire_Does_Not, AddExpansion, Expansion_Grows_A_Blob_And_Thins_It, Expansion_Makes_No_Matter, A_Radial_Push_Hollows_The_Middle_Where_Expansion_Keeps_It, A_Burst_Expands_The_Front, A_Timed_Emitter_Stops_Feeding, SimGroup, SimGroupOps, SimGroupTests, FluidEffectsGroupTests, Retiming_Shifts_Everything_And_Keeps_The_Internal_Timing, Folding_Puts_The_Baked_Layers_In_One_Folder_In_Order, A_Group_Stores_No_Geometry_Of_Its_Own, EmitterScatter, EmitterScatterTests, Scatter_Breaks_A_Burning_Edge_Into_Separate_Flames, Scattered_Flames_Differ_In_Height_Without_Being_Told_To, A_Longer_Surface_Gets_More_Flames_From_The_Same_Settings, EffectPreset, EffectPresets, EffectPresetStore, EffectPresetTests, FluidEffectsPresetTests, An_Effect_Made_From_A_Preset_Draws_Exactly_What_The_Original_Drew, Layers_Reconnect_By_Name_And_What_Cannot_Is_Reported, Shading_Slides_The_Inner_Bands_Toward_The_Light_And_Leaves_The_Silhouette, A_Highlight_Cannot_Be_Lit_Out_Of_Its_Own_Volume, FreeSurfaceSource, MetaballSource, ObstacleBoundaryTests`
   - Designed in `docs/DESIGN-fluid-effects.md` (2026-08-18), answering "is a
     performant 2D fluid simulation possible, with the outline in the artist's
     line style and the shape filled with colour". It is Pillar 4 rather than an
@@ -698,6 +698,18 @@ every other AI feature and are only legible together.
     peak, and two of the findings are now tests. Looking also caught a defect
     nothing else would: `PeakBand` sampled only the frames an element kept, so
     exposing on 2s shifted every band level.
+  - **Step 6g landed 2026-08-19**: presets — an effect tuned once and used
+    again. `EffectPreset` keeps a group's *parameters* where a symbol would keep
+    its frames (Q129): using one re-simulates, and in exchange gives a real
+    effect that can then be retuned. Verified by rendering rather than asserted:
+    an effect made from a preset draws **exactly** what the original drew,
+    translated — compared relative to each element's origin, because a preset is
+    stored relative and an absolute comparison reports a difference that is the
+    feature working. **Layer references travel by name**, which is the one real
+    decision: an id names a layer in *this* document and nothing anywhere else,
+    and an emitter pointed at a missing layer emits nothing at all — so capture
+    keeps the name, instantiate matches it, and `MissingLayers` reports what
+    could not be reconnected *before* it happens rather than after.
   - **Step 6f landed 2026-08-19**: scatter — an emitter feeds every cell it
     covers, so nothing can detach from an area and a painted hem reads as one
     continuous burning edge. `Emitter.Scatter` picks discrete sites instead:

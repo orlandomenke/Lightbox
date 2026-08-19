@@ -93,6 +93,10 @@ public partial class FluidEffectsWindow : Window
 
     private void OnBakeGroup(object? sender, RoutedEventArgs e) => _model.BakeGroup();
 
+    private void OnSavePreset(object? sender, RoutedEventArgs e) => _model.SavePreset();
+
+    private void OnUsePreset(object? sender, RoutedEventArgs e) => _model.UsePreset();
+
     private void OnNewEmitter(object? sender, RoutedEventArgs e) => _model.NewEmitter();
 
     private void OnDeleteEmitter(object? sender, RoutedEventArgs e) => _model.DeleteEmitter();

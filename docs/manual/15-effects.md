@@ -317,6 +317,35 @@ choice: a band range that followed each frame's own peak would rescale the bands
 every frame, and a band that moves because its scale moved is flicker. Steady
 plumes get the better end of that trade and blasts get the worse one.
 
+## Keeping an effect — the library
+
+**Keep** puts the selected effect in your library under its name; the box beside
+**Effects** lists what is on the shelf, and **Use** makes the chosen one again
+here. It arrives at the current effect's place and frame, so using one beside
+something you are already working on does not drop it at the corner of the
+canvas.
+
+**A preset stores the parameters, not the drawings.** Using one re-simulates —
+which costs a moment, and in exchange the new one is a real effect you can then
+retune: forty frames instead of twenty-four, twice the size, blowing left. It
+draws exactly what the original drew, moved to wherever you put it.
+
+Two consequences worth knowing:
+
+- **The library is somewhere to choose from, not something your document depends
+  on.** Using a preset copies it in, so the document keeps working with the
+  library gone, and editing the preset afterwards does not reach back into
+  effects already made from it.
+- **Layer references travel by name.** An effect that emits from a painted layer
+  cannot carry that layer's identity into another document — nothing there would
+  match it, and an emitter pointed at a layer that is not present emits nothing
+  at all. So the preset remembers the layer's *name* and reconnects to a layer
+  called the same thing. If there is none, the reference is dropped and you are
+  told which name was missing, rather than finding out when you bake.
+
+*(Planned: a project-scoped shelf, so a show can carry its own fire alongside
+each artist's own library.)*
+
 ## Baking, editing, and re-baking
 
 **Bake** writes the drawings into a layer of the element's own, as one undoable
@@ -348,9 +377,8 @@ re-bake will not take your work back out — but it also will not update it.
 - **Saving an effect as a symbol**, so a baked explosion can be dropped in
   three times at different frames, one of them mirrored — symbols already carry
   animation frames and per-placement time offset, so most of this exists.
-- **Presets**, so a flame is tuned once and reused. Different from a symbol: a
-  symbol gives you *those exact frames* for free, a preset gives you *those
-  parameters* and re-simulates.
+- **A project-scoped effects shelf**, so a show carries its own fire beside each
+  artist's own library.
 - **Water and goo.** The solver is the same; a free surface and a metaball
   source are not built.
 - **Style inference** — a reference drawing in, a line treatment out.
