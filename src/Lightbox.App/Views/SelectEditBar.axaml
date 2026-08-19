@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             x:Class="Lightbox.App.Views.SelectEditBar"
+             x:DataType="vm:MainViewModel">
+  <!-- What you do to the edge of a selection you already have (B260). -->
+  <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+    <StackPanel.IsVisible>
+      <MultiBinding Converter="{x:Static BoolConverters.And}">
+        <Binding Path="IsSelectTool" />
+        <Binding Path="Workspace.QuickSelectOptions" />
+      </MultiBinding>
+    </StackPanel.IsVisible>
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+      <TextBlock Text="Feather" VerticalAlignment="Center" />
+      <NumericUpDown Value="{Binding SelectionFeather}" Minimum="0" Maximum="100" Increment="1"
+                     FormatString="0" Classes="value" VerticalAlignment="Center"
+                     ToolTip.Tip="Soften the selection edge by this many pixels" />
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+      <NumericUpDown Value="{Binding SelectionAdjustPx}" Minimum="1" Maximum="64" Increment="1"
+                     FormatString="0" Classes="value" VerticalAlignment="Center"
+                     ToolTip.Tip="Pixels for Grow/Shrink" />
+      <Button Content="Grow" Command="{Binding GrowSelectionCommand}"
+              ToolTip.Tip="Enlarge the selection" />
+      <Button Content="Shrink" Command="{Binding ShrinkSelectionCommand}"
+              ToolTip.Tip="Shrink the selection" />
+    </StackPanel>
+  </StackPanel>
+</UserControl>

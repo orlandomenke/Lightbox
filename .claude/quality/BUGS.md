@@ -2185,6 +2185,22 @@ test reopens the bug.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
 
+- [x] **B260** `P2` `ui` The workspace tab strip starves the quick options bar, squeezing pinned Size and Opacity to zero `evidence: QuickBarRoomTests`
+  - Repro: open any window narrower than about 1600px and look at the bar above the canvas. Measured at three widths, laying out the real window headless:
+
+    | window | workspace picker | **Size/Opacity** (pinned) | quick options bar | select group wants |
+    | --- | --- | --- | --- | --- |
+    | 1280 | 872 px | **0 px** | **0 px** | 1130 px |
+    | 1920 | 872 px | 453 px | 173 px | 1130 px |
+    | 2560 | 872 px | 453 px | 813 px | 1130 px |
+
+  - **Two independent causes, and neither is the thing that looks wrong.** What an artist sees is a bar that is empty except for a `More tool options ▾` button on the right, which reads as the button being the bug. It is a symptom twice over.
+  - **Cause one: the workspace picker was a flush tab strip holding all six workspaces, and wanted 872px of the row.** `DockPanel` gives docked children what they ask for, so at 1280 it took 872 of 1264 and left nothing. That is not merely cramped — it squeezed **Size and Opacity to zero width**, and those are pinned by Q70's second rule, the owner's one hard rule for this bar: the two things a hand reaches for mid-stroke must never fold away. A rule enforced by markup that layout could silently overrule.
+  - **Cause two: `SelectOptionsBar` was a single `UserControl`, so the whole Select group was one atomic child of the `OverflowBar`** — it fits whole or goes to the menu whole. At 1130px it never fitted at any window width, so the entire selection toolset lived permanently behind the ▾. `OnionBarOverflowTests` had already written this failure mode down in its own remarks — *"the group being one control rather than four children makes it atomic to the split"* — as the thing to reconsider first. It was, for a different bar.
+  - Fix: the picker becomes a `ComboBox` (132px, returning ~740px to the row), the Select group splits into four collaborators that overflow independently, and the bar's ▾ loses its long label — at 273px of bar, a 150px button was itself over half the room.
+  - After, measured the same way: Size/Opacity **0 → 453px** at 1280; the quick bar **0 → 273px** at 1280 and **173 → 913px** at 1920; the marquee shapes are **on the bar at 1280**, marquee and feather at 1920, and the whole group at 2560.
+  - P2 rather than P1 because nothing is unreachable — the Tool options panel always has the full vocabulary, and the ▾ held what the bar could not. What it cost was the bar's whole purpose: Q70 chose the quick strip over a mirror of the docker so an artist could reach a control without leaving the canvas, and a strip that is empty at 1280 and holds one group at 1920 is the mirror nobody wanted, reached through one more click than the docker needs.
+
 - [x] **B261** `P2` `ui` The gear opens the Tool options panel across the window, where the change is easy to miss `evidence: ToolOptionsFlyoutTests`
   - Repro: draw, then click the ⚙ beside the brush preset picker. The Tool options panel opens or comes forward on the far side of the window. Reported as *"kindof confusing as it might happen in the corner of the eye thus missing it"* — the click works, and an artist watching the canvas sees nothing happen.
   - **This reverses a decision rather than fixing an oversight**, and the markup said so: *"Tool options: the gear flyout grown into a panel, per the owner"*. The panel was the right call and stays — what was wrong was making the gear the way into it. A button on the tool bar should act where it is.
