@@ -92,7 +92,7 @@ public static class DockPanels
         new(DockPanelId.Channels, "Channels", MaxExtent: 320, DefaultExtent: 260, MinExtent: 140),
         // A list of labels: capped like the other list-of-rows loners that are
         // not as long as the work itself.
-        new(DockPanelId.History, "History", MaxExtent: 320, DefaultExtent: 240, MinExtent: 140),
+        new(DockPanelId.History, "Undo history", MaxExtent: 320, DefaultExtent: 240, MinExtent: 140),
         // A picture of the whole drawing with the view drawn on it. Capped and
         // short: it is glanced at and clicked, never read, and height spent on
         // it is height the layer stack wanted.

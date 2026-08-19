@@ -47,6 +47,7 @@ warns about.
 | P | Pen — draw a line by placing its points |
 | W | Width — make a line heavier or lighter |
 | U | Shape — line, rectangle, ellipse, polygon |
+| C | Crop — frame the page by eye; Enter crops to the frame, Esc puts it back |
 | Double-click | Go inside a line to reshape it; Esc to come back out |
 | Backspace | Take the last point back off, while drawing with the pen |
 | Enter / Esc | Finish the pen line (neither discards it — Ctrl+Z does) |
@@ -55,7 +56,7 @@ warns about.
 | Ctrl (hold) | Borrow the eyedropper; let go and your tool comes back |
 | B, E, F, V, I (hold) | Tap to switch tools as always; **hold** one, use it, and let go to land back where you were |
 | I | Eyedropper — anywhere except the timeline, where it inserts a key |
-| Ctrl+Z / Ctrl+Y | Undo, redo |
+| Ctrl+Z / Ctrl+Y | Undo, redo — also **Edit ▸ Undo / Redo**, where the entry names the step it would take back |
 | Ctrl+Shift+Z | Redo, on its other key — both bindings work, and each can be remapped on its own |
 | Ctrl+T | Transform |
 | Ctrl+E | Merge the active layer into the one below |

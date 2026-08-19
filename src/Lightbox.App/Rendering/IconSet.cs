@@ -48,6 +48,7 @@ public static class IconSet
     public const string Picker = "IconPicker";
     public const string Gradient = "IconGradient";
     public const string Move = "IconMove";
+    public const string Crop = "IconCrop";
     public const string Bone = "IconBone";
     public const string Pen = "IconPen";
     public const string Width = "IconWidth";
@@ -192,6 +193,7 @@ public static class IconSet
         ViewModels.ToolId.Picker => Picker,
         ViewModels.ToolId.Gradient => Gradient,
         ViewModels.ToolId.Move => Move,
+        ViewModels.ToolId.Crop => Crop,
         ViewModels.ToolId.Pen => Pen,
         ViewModels.ToolId.Width => Width,
         ViewModels.ToolId.Arrow => Arrow,

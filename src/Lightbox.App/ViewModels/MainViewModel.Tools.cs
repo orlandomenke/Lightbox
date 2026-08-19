@@ -40,6 +40,7 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(IsPickerTool))]
     [NotifyPropertyChangedFor(nameof(IsGradientTool))]
     [NotifyPropertyChangedFor(nameof(IsMoveTool))]
+    [NotifyPropertyChangedFor(nameof(IsCropTool))]
     [NotifyPropertyChangedFor(nameof(ReachesGuides))]
     // Missing, and it cost the whole shape options group: nothing ever told
     // the bar the tool had changed, so IsVisible stayed false and there was no
@@ -380,6 +381,9 @@ public partial class MainViewModel
 
     public bool IsMoveTool => ActiveTool == ToolId.Move;
 
+    /// <summary>The crop frame — drag a rectangle, Enter takes the paper down to it.</summary>
+    public bool IsCropTool => ActiveTool == ToolId.Crop;
+
     /// <summary>
     /// Whether the tool in hand reaches for guides — picks them, moves them,
     /// and shows their numbers.
@@ -435,6 +439,7 @@ public partial class MainViewModel
         // name is in here; the one that agreed by accident was the one nobody
         // noticed was missing.
         ToolId.Bone => "Bone",
+        ToolId.Crop => "Crop",
         _ => ActiveTool.ToString(),
     };
 
@@ -661,6 +666,13 @@ public partial class MainViewModel
         // would not select. Choosing a tool that cannot work the session is
         // leaving it.
         if (value is not (ToolId.DirectSelect or ToolId.Width)) EndPathEdit();
+
+        // The crop frame is the tool, the way the rig is the Bone tool (Q81):
+        // picking Crop opens a frame on the whole page, and leaving the tool
+        // drops it. An unapplied frame surviving the switch would be a
+        // rectangle drawn over the artwork that nothing can act on any more —
+        // the same one-line rule as the four above.
+        if (value == ToolId.Crop) BeginCropFrame(); else EndCropFrame();
     }
 
     [RelayCommand]

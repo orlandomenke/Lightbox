@@ -164,6 +164,11 @@ public partial class MainViewModel
         // The History docker follows the active document the way everything
         // else here does — through this funnel, not by watching tabs.
         UndoHistory.Attach(editor);
+        // And the Edit menu's two entries, which read the same stack. A tab
+        // switch brings a different one, and nothing raises Changed on the way
+        // in — so without this the menu describes the document you just left.
+        RefreshUndoRedo();
+        RefreshCropAvailability();
         // B171. A selection describes *this* document's canvas, in that
         // document's coordinates, so it cannot follow the editor being swapped
         // out. Cleared here rather than in each caller because this is the
