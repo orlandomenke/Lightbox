@@ -51,7 +51,9 @@ you can keep tuning without a stack of undos.
 **Fire** and **Smoke** on the left both make a new element with one emitter
 already in it, burning or smoking on the floor of its own grid — an element with
 no emitter simulates still air and draws nothing, which is not a useful place to
-start from.
+start from. It arrives torch-sized, about 192 × 176 document pixels, and already
+alight rather than starting from cold. Anything wanting a bonfire raises the
+grid, which is one slider.
 
 The difference between the two buttons is only what the bands read from and what
 colours they start with. Everything else is the same machinery, and you can turn

@@ -121,6 +121,20 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
             Kind = kind,
             FirstFrame = 0,
             FrameCount = Math.Max(1, _vm.Doc.Scene.FrameCount),
+            // 48x44 cells at 4 document pixels each — a torch-sized element,
+            // measured rather than guessed. `SimElement`'s own 192x108 at scale
+            // 10 describes a *canvas*, and a plume in it is a speck: at the
+            // tuned parameters a flame reaches about 28 cells above its emitter
+            // and stops, because Cooling is what gives it its length. So the
+            // grid is sized to the flame, and the flame fills about two thirds
+            // of it. Anything wanting a bonfire raises the grid, which is one
+            // slider and now visible.
+            GridWidth = 48,
+            GridHeight = 44,
+            Scale = 4,
+            // Opens on an established plume rather than on still air, which is
+            // the commonest complaint about the first half-second of an effect.
+            PreRoll = 16,
             BandsFromHeat = fire,
             BandColors = fire
                 ? ["#3a1200", "#d95f18", "#ffe9a8"]
@@ -135,8 +149,8 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
         {
             Shape = EmitterShape.Disc,
             X = element.GridWidth / 2.0,
-            Y = element.GridHeight - 6,
-            Radius = 5,
+            Y = element.GridHeight - 4,
+            Radius = 4,
             Density = 1,
             Heat = fire ? 1 : 0,
         });

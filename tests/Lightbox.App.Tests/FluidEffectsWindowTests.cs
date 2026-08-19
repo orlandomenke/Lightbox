@@ -20,7 +20,7 @@ namespace Lightbox.App.Tests;
 /// nothing passes every test the layers below it have.
 /// </para>
 /// </remarks>
-public class FluidEffectsWindowTests
+public class FluidEffectsWindowTests(Xunit.ITestOutputHelper output)
 {
     private static FluidEffectsWindow Opened(out MainViewModel vm)
     {
@@ -45,6 +45,50 @@ public class FluidEffectsWindowTests
         Assert.True(emitter.Heat > 0, "a fire element's emitter has to be hot or nothing rises");
         Assert.True(emitter.Radius > 0);
         Assert.NotEmpty(window.Model.Preview(element.FrameCount - 1));
+
+        window.Close();
+    }
+
+    /// <summary>
+    /// The new element's grid has to be sized to the flame it makes, and this is
+    /// the test that was missing when it was not.
+    /// </summary>
+    /// <remarks>
+    /// <b>Found by rendering it, invisible to everything else.</b> The first
+    /// version took <c>SimElement</c>'s own defaults — 192×108 cells at ten
+    /// document pixels each — which describe a *canvas*. Every test passed: the
+    /// solver conserved mass, the tracer closed its contours, the bake wrote
+    /// strokes. What it drew was a speck in the corner of a 1920×1080 element,
+    /// because at the tuned parameters a flame reaches about 28 cells above its
+    /// emitter and stops — Cooling is what gives it its length, not the room it
+    /// is given. So the assertion is about *proportion*, which is the thing that
+    /// was wrong, rather than about any particular number.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_New_Element_Fills_Its_Own_Grid()
+    {
+        var window = Opened(out var vm);
+        var element = vm.Doc.Sims!.Values.Single();
+
+        var points = window.Model.Preview(element.FrameCount - 1)
+            .SelectMany(s => s.Points).ToList();
+        Assert.NotEmpty(points);
+
+        var width = element.GridWidth * element.Scale;
+        var height = element.GridHeight * element.Scale;
+        var drawnWidth = points.Max(p => p.X) - points.Min(p => p.X);
+        var drawnHeight = points.Max(p => p.Y) - points.Min(p => p.Y);
+
+        output.WriteLine(
+            $"element {width:F0}×{height:F0} document px, drawing {drawnWidth:F0}×{drawnHeight:F0} " +
+            $"({drawnWidth / width:P0} × {drawnHeight / height:P0})");
+
+        Assert.True(drawnHeight > height * 0.4, $"the flame fills {drawnHeight / height:P0} of its grid's height");
+        Assert.True(drawnWidth > width * 0.2, $"the flame fills {drawnWidth / width:P0} of its grid's width");
+        // And is not clipped by it, which is the other way to fill a grid.
+        Assert.True(points.Min(p => p.X) > element.OriginX, "the flame is clipped at the left edge");
+        Assert.True(points.Max(p => p.X) < element.OriginX + width, "the flame is clipped at the right edge");
+        Assert.True(points.Min(p => p.Y) > element.OriginY, "the flame is clipped at the top");
 
         window.Close();
     }
