@@ -89,6 +89,18 @@ body, or on an edge, and it gets a slot of its own as before. Dragging the last
 tab out of a group leaves the remaining panel an ordinary panel again — a group
 is nothing more than the panels currently sharing a slot.
 
+**Tabs rearrange by dragging along the header.** Pick a tab up and slide it past
+its neighbours: a bright **caret** marks the gap it will drop into, and letting
+go puts it there. It is the same drag that moves a panel — pull the tab out of
+the header and it tears out as it always did; keep it on the strip and it only
+changes places. **Where you aim on another panel's header is where the tab
+lands**, so a group can be built in the order you want rather than in the order
+you happened to drop things. Rearranging never changes which tab is in front:
+the panel you were looking at is still the panel you are looking at.
+
+The order is part of the arrangement, so it is saved with the workspace and
+comes back with it.
+
 Tabbing is how a workspace offers more than it has room for. Two groups ship
 tabbed in **every** built-in arrangement, Default included, because each is
 several answers to one question and you want one at a time:
@@ -129,7 +141,10 @@ where it would land:
 - Near an **edge with nothing on it**, the highlight grows to the size of the
   area that would open.
 - Over an **existing panel** — header or body — the highlight is the whole
-  panel: let go and the two become tabs.
+  panel: let go and the two become tabs. On the **header** a caret also appears
+  between two tabs, marking the position the panel would take in that strip.
+- Over the **tabs of the panel you are already in**, only the header lights up,
+  with the caret: nothing is moving except the tab's place in the strip.
 - At a panel's **very top or bottom edge**, a slim band shows where the panel
   would slot in between its neighbours instead.
 - Let go **over the canvas** and the panel floats in a window of its own. Drag

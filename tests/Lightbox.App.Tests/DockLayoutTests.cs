@@ -449,6 +449,189 @@ public class DockLayoutTests
         Assert.Equal(333, layout.Place(DockPanelId.Palette).Extent);
     }
 
+    // ---- rearranging the tabs in a slot -------------------------------------
+
+    [Fact]
+    public void ATabMovesToThePositionItWasDroppedAt()
+    {
+        // The gesture this whole thing exists for: pick a tab up, put it down
+        // further along the same header.
+        var layout = DockLayout.Default();
+        Assert.Equal(
+            [DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient, DockPanelId.Channels],
+            layout.SlotOf(DockPanelId.Color));
+
+        layout.MoveTabTo(DockPanelId.Channels, 0);
+
+        Assert.Equal(
+            [DockPanelId.Channels, DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient],
+            layout.SlotOf(DockPanelId.Color));
+        // Rearranging a strip says nothing about which tab is in front.
+        Assert.Equal(DockPanelId.Color, layout.ActiveOf(layout.SlotOf(DockPanelId.Color)));
+    }
+
+    [Fact]
+    public void ATabPutBackWhereItWasChangesNothing()
+    {
+        var layout = DockLayout.Default();
+        var before = layout.SlotOf(DockPanelId.Color);
+
+        layout.MoveTabTo(DockPanelId.Gradient, before.IndexOf(DockPanelId.Gradient));
+
+        Assert.Equal(before, layout.SlotOf(DockPanelId.Color));
+    }
+
+    [Fact]
+    public void MovingATabPastTheEndPutsItLastRatherThanRefusing()
+    {
+        // int.MaxValue is how the callers spell "last", so the clamp is load
+        // bearing rather than defensive.
+        var layout = DockLayout.Default();
+
+        layout.MoveTabTo(DockPanelId.Color, int.MaxValue);
+
+        Assert.Equal(
+            [DockPanelId.Palette, DockPanelId.Gradient, DockPanelId.Channels, DockPanelId.Color],
+            layout.SlotOf(DockPanelId.Palette));
+    }
+
+    [Fact]
+    public void APanelIsMovedWithinItsOwnSlotByJoiningItself()
+    {
+        // The view resolves one drop and makes one call, so "join this group at
+        // this position" has to cover the group the panel is already in.
+        var layout = DockLayout.Default();
+
+        layout.JoinGroup(DockPanelId.GraphEditor, DockPanelId.GraphEditor, 0);
+
+        Assert.Equal(
+            [DockPanelId.GraphEditor, DockPanelId.Timeline, DockPanelId.Xsheet],
+            layout.SlotOf(DockPanelId.Timeline));
+    }
+
+    [Fact]
+    public void JoiningWithNoPositionStillMeansNothingWhenItIsTheSamePanel()
+    {
+        // A drop on a panel's own BODY resolves to no target at all, but the
+        // guard is in the model too: the id pair alone must never be read as a
+        // move, or a stray call would put a tab last for no reason.
+        var layout = DockLayout.Default();
+        var before = layout.SlotOf(DockPanelId.Timeline);
+
+        layout.JoinGroup(DockPanelId.Xsheet, DockPanelId.Xsheet);
+
+        Assert.Equal(before, layout.SlotOf(DockPanelId.Timeline));
+    }
+
+    [Fact]
+    public void APanelJoiningAGroupLandsWhereItWasDropped()
+    {
+        var layout = DockLayout.Default();
+
+        layout.JoinGroup(DockPanelId.Layers, DockPanelId.Color, 1);
+
+        Assert.Equal(
+            [DockPanelId.Color, DockPanelId.Layers, DockPanelId.Palette,
+             DockPanelId.Gradient, DockPanelId.Channels],
+            layout.SlotOf(DockPanelId.Color));
+        Assert.Equal(DockPanelId.Layers, layout.ActiveOf(layout.SlotOf(DockPanelId.Color)));
+    }
+
+    [Fact]
+    public void APanelJoiningWithNoPositionLandsLast()
+    {
+        // What a drop on the body means, and what every join meant before a
+        // position could be named: the group, not a place in it.
+        var layout = DockLayout.Default();
+
+        layout.JoinGroup(DockPanelId.Layers, DockPanelId.Color);
+
+        Assert.Equal(DockPanelId.Layers, layout.SlotOf(DockPanelId.Color)[^1]);
+    }
+
+    [Fact]
+    public void LeavingAGroupForAnotherOnTheSameSideClosesTheSlotUpBehindIt()
+    {
+        // Orders are 0..n-1 with no gaps — the one bookkeeping rule everything
+        // else relies on. Joining a group used to renumber only when the panel
+        // changed SIDE, so a slot vacated on the same side left a hole.
+        var layout = DockLayout.Default();
+        layout.Hide(DockPanelId.Navigator);
+        layout.Hide(DockPanelId.Sheets);
+        layout.Hide(DockPanelId.ToolOptions);
+        // Project now has a slot of its own, above Layers and the colour group.
+        Assert.Equal([DockPanelId.Project], layout.SlotOf(DockPanelId.Project));
+
+        layout.JoinGroup(DockPanelId.Project, DockPanelId.Color);
+
+        var slots = layout.SlotsIn(DockSide.Right);
+        Assert.Equal(2, slots.Count);
+        Assert.Equal([0, 1], [.. slots.Select(s => layout.Place(s[0]).Order)]);
+    }
+
+    [Fact]
+    public void ATabLeavingClosesTheGapItLeftInTheStrip()
+    {
+        var layout = DockLayout.Default();
+        layout.Hide(DockPanelId.Palette);
+
+        var slot = layout.SlotOf(DockPanelId.Color);
+        Assert.Equal([DockPanelId.Color, DockPanelId.Gradient, DockPanelId.Channels], slot);
+        Assert.Equal([0, 1, 2], [.. slot.Select(id => layout.Place(id).TabOrder)]);
+    }
+
+    [Fact]
+    public void ATabRearrangementSurvivesASaveAndReload()
+    {
+        var layout = DockLayout.Default();
+        layout.MoveTabTo(DockPanelId.GraphEditor, 0);
+
+        var reloaded = DockLayout.Deserialize(layout.Serialize());
+
+        Assert.Equal(
+            [DockPanelId.GraphEditor, DockPanelId.Timeline, DockPanelId.Xsheet],
+            reloaded.SlotOf(DockPanelId.Timeline));
+    }
+
+    [Fact]
+    public void ALayoutSavedBeforeTabsCouldBeRearrangedKeepsItsOrder()
+    {
+        // The compatibility claim for the new field, against real old JSON:
+        // every placement arrives with no TabOrder at all, so they are all zero
+        // and the tie-break by panel id has to reproduce exactly the order that
+        // build rendered — which was the panel id order and nothing else.
+        const string before = """
+        {
+          "Placements": {
+            "Color":    { "Side": "Right", "HomeSide": "Right", "Order": 0, "Extent": 300,
+                          "TabActive": true },
+            "Palette":  { "Side": "Right", "HomeSide": "Right", "Order": 0, "Extent": 300,
+                          "TabActive": false },
+            "Gradient": { "Side": "Right", "HomeSide": "Right", "Order": 0, "Extent": 300,
+                          "TabActive": false }
+          },
+          "AreaExtents": { "Right": 300 }
+        }
+        """;
+
+        var layout = DockLayout.Deserialize(before);
+
+        Assert.Equal(
+            [DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient],
+            layout.SlotOf(DockPanelId.Color));
+    }
+
+    [Fact]
+    public void ARearrangedStripSurvivesTheCloneEveryWorkspaceSwitchGoesThrough()
+    {
+        var layout = DockLayout.Default();
+        layout.MoveTabTo(DockPanelId.Channels, 0);
+
+        Assert.Equal(
+            [DockPanelId.Channels, DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient],
+            layout.Clone().SlotOf(DockPanelId.Color));
+    }
+
     [Fact]
     public void AStripIsSizedByTheTabsShowingNotTheOnesHidden()
     {

@@ -317,6 +317,34 @@ public class Docker : ContentControl
     /// </remarks>
     public double HeaderHeight => _header?.Bounds.Height ?? 0;
 
+    /// <summary>
+    /// Where each tab is drawn, left to right, in this docker's coordinates.
+    /// </summary>
+    /// <remarks>
+    /// Measured from the realised strip for the reason <see cref="HeaderHeight"/>
+    /// is: a tab is as wide as its title, so there is no arithmetic that gets
+    /// this right from a count. Empty before the template has applied or while
+    /// the containers are unrealised, which the drop arithmetic reads as "this
+    /// header cannot say where in itself anything goes" and falls back to the
+    /// plain join.
+    /// </remarks>
+    public IReadOnlyList<PanelTab> TabRects()
+    {
+        if (_tabs is null || Tabs is null) return [];
+        var tabs = new List<PanelTab>();
+        var items = Tabs.ToList();
+        for (var i = 0; i < items.Count; i++)
+        {
+            if (_tabs.ContainerFromIndex(i) is not { } container) continue;
+            Visual visual = container;
+            if (visual.TranslatePoint(default, this) is not { } at) continue;
+            tabs.Add(new PanelTab(
+                items[i].Id,
+                new DockRect(at.X, at.Y, container.Bounds.Width, container.Bounds.Height)));
+        }
+        return tabs;
+    }
+
     private Point? _pressed;
 
     /// <summary>

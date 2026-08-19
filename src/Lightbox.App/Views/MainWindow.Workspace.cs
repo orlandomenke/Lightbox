@@ -575,7 +575,10 @@ public partial class MainWindow
         if (target is { } drop)
         {
             // Onto a header: tab into that slot. Onto a body: a slot of its own.
-            if (drop.IntoGroupOf is { } host) _vm.Workspace.JoinGroup(panel.PanelId, host);
+            // Onto a header: tab into that slot, at the position aimed at —
+            // which for a tab dropped back in its own header is the whole of
+            // the operation, so the group named can be the panel itself.
+            if (drop.IntoGroupOf is { } host) _vm.Workspace.JoinGroup(panel.PanelId, host, drop.TabIndex);
             else _vm.Workspace.Dock(panel.PanelId, drop.Side, drop.Index);
             return;
         }
@@ -660,7 +663,12 @@ public partial class MainWindow
                 // Measured rather than assumed a constant: the header carries a
                 // tab strip now, and a band that does not match what is on
                 // screen is a drop target you cannot see to aim at.
-                panel.HeaderHeight));
+                panel.HeaderHeight,
+                // The same measure-don't-assume, one level down: where each tab
+                // is, so a drop can name a position in the strip rather than
+                // only the group. Lifted from the docker's coordinates into the
+                // window's, which is the space every other rectangle here is in.
+                [.. panel.TabRects().Select(t => t with { Bounds = t.Bounds.Offset(origin.X, origin.Y) })]));
         }
         return slots;
     }
