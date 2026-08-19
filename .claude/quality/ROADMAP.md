@@ -593,7 +593,7 @@ every other AI feature and are only legible together.
   - Sequence-scale cost is the review stance over all four: `BrushCostOf`
     badges are read against replay across a whole sequence, not one image.
 - [?] Draw once, reuse across animations
-- [?] Fluid effects elements — fire, smoke and water as drawn line and fill
+- [~] Fluid effects elements — fire, smoke and water as drawn line and fill `evidence: FluidSolver, MarchingSquares, FieldTracer, SimBaker, SimBakeOps, SimElement, LineTreatment, EffectParam, FluidEffectsViewModel, FluidEffectsWindow, EffectFieldRow, FluidSolverTests, MarchingSquaresTests, FieldTracerTests, SimBakerTests, SimElementTests, FluidEffectsViewModelTests, FluidEffectsWindowTests, A_New_Element_Arrives_Already_Burning, Every_Solver_Parameter_Has_A_Row, A_Style_Edit_Previews_And_A_Fluid_Edit_Waits, The_Fingerprint_Notices_Physics_And_Ignores_Style, Opening_The_Window_Is_A_Registered_Command, FreeSurfaceSource, MetaballSource, ObstacleBoundaryTests`
   - Designed in `docs/DESIGN-fluid-effects.md` (2026-08-18), answering "is a
     performant 2D fluid simulation possible, with the outline in the artist's
     line style and the shape filled with colour". It is Pillar 4 rather than an
@@ -697,6 +697,27 @@ every other AI feature and are only legible together.
     peak, and two of the findings are now tests. Looking also caught a defect
     nothing else would: `PeakBand` sampled only the frames an element kept, so
     exposing on 2s shifted every band level.
+  - **Step 5 landed 2026-08-19**: the effects window (`Ctrl+Shift+E`), and with
+    it the first version an artist can actually use — make a flame, tune it,
+    watch it, bake it. The window holds no effects logic: it is bindings over
+    `FluidEffectsViewModel`, and `MainViewModel` gains one mutation seam
+    (`MainViewModel.Effects.cs`, which exists so `InvalidateFrameRender` can stay
+    private) while `MainWindow` gains a menu item, a shortcut case and one field.
+    Three things it settled that the design had not.
+    **Simulate and Bake are separate buttons**, because the two costs differ by
+    about forty times: a style edit redraws from the solve in hand and previews
+    as the slider moves, a fluid edit marks the picture stale and waits to be
+    asked. Hiding that would make every edit feel like the slow one, and would
+    make an artist afraid to touch the cheap half. **The outline pen belongs to
+    the element** rather than being read from the toolbar at bake time — the
+    obvious wiring makes a bake unreproducible, so the same element re-baked
+    after picking up a marker comes back inked with a marker. And **rows hold ids
+    rather than elements**, because undo swaps a whole `Doc` back in: a row
+    holding the object would go on editing a document nobody is looking at, with
+    every slider still appearing to work. The tunables are *data* rather than
+    controls, so `Every_Solver_Parameter_Has_A_Row` can walk `SimParams` by
+    reflection and fail when a parameter is added to the record and never
+    surfaced.
   - **Step 3 landed 2026-08-18**: the record. `Doc.Sims` and `Doc.LineTreatments`
     are absent until authored, `Stroke.SimId` is absent on every hand-drawn
     stroke, and an override that states nothing serializes as `{}` rather than as

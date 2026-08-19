@@ -8,133 +8,6 @@ using SkiaSharp;
 
 namespace Lightbox.App.ViewModels;
 
-/// <summary>One effects element in the list.</summary>
-/// <remarks>
-/// <b>It holds an id, not the element.</b> Undo does not edit the document in
-/// place — it swaps a whole <see cref="Doc"/> back in — so a row that held the
-/// object would go on editing a document nobody is looking at, silently, with
-/// every slider still moving. Resolving by id each time costs a dictionary
-/// lookup and cannot do that.
-/// </remarks>
-public sealed partial class SimElementRow : ObservableObject
-{
-    private readonly Func<string, SimElement?> _resolve;
-
-    internal SimElementRow(string id, Func<string, SimElement?> resolve)
-    {
-        Id = id;
-        _resolve = resolve;
-    }
-
-    public string Id { get; }
-
-    /// <summary>The element this row stands for, or null once it has been deleted.</summary>
-    public SimElement? Element => _resolve(Id);
-
-    public string Label
-    {
-        get
-        {
-            if (Element is not { } e) return "(missing)";
-            return string.IsNullOrWhiteSpace(e.Name)
-                ? $"{e.Kind} · {e.FirstFrame}–{e.FirstFrame + e.FrameCount - 1}"
-                : e.Name!;
-        }
-    }
-
-    /// <summary>Nudge the list when something the label reads has changed.</summary>
-    public void Relabel() => OnPropertyChanged(nameof(Label));
-}
-
-/// <summary>How a treatment field is edited.</summary>
-public enum TreatmentFieldKind
-{
-    Number,
-    Choice,
-}
-
-/// <summary>
-/// One line-treatment field, and whether this element states it or inherits it.
-/// </summary>
-/// <remarks>
-/// <b>The cascade's one unavoidable cost, paid</b> (Q118, Q123). An overridden
-/// field has to be visible as overridden and revertible in one action, or "two
-/// places to look" reads to an artist as the application being inconsistent
-/// rather than as a cascade. That is the whole reason this is a row with an
-/// <see cref="IsOverridden"/> flag rather than sixteen plain properties.
-/// </remarks>
-public sealed partial class TreatmentFieldRow : ObservableObject
-{
-    private readonly Func<double> _effective;
-    private readonly Func<bool> _stated;
-    private readonly Action<double?> _write;
-    private readonly Action _changed;
-    private bool _quiet;
-
-    internal TreatmentFieldRow(
-        string name, TreatmentFieldKind kind,
-        Func<double> effective, Func<bool> stated, Action<double?> write, Action changed,
-        double min = 0, double max = 1, double step = 0.05,
-        IReadOnlyList<string>? choices = null)
-    {
-        Name = name;
-        Kind = kind;
-        Minimum = min;
-        Maximum = max;
-        Step = step;
-        Choices = choices;
-        _effective = effective;
-        _stated = stated;
-        _write = write;
-        _changed = changed;
-        _value = effective();
-    }
-
-    public string Name { get; }
-
-    public TreatmentFieldKind Kind { get; }
-
-    public double Minimum { get; }
-
-    public double Maximum { get; }
-
-    public double Step { get; }
-
-    /// <summary>Options for a <see cref="TreatmentFieldKind.Choice"/>; the value is the index.</summary>
-    public IReadOnlyList<string>? Choices { get; }
-
-    [ObservableProperty]
-    private double _value;
-
-    /// <summary>Whether this element states this field rather than inheriting it.</summary>
-    public bool IsOverridden => _stated();
-
-    /// <summary>Put the field back to whatever the shared treatment or the default says.</summary>
-    public void Revert()
-    {
-        _write(null);
-        Refresh();
-        _changed();
-    }
-
-    /// <summary>Re-read from the record — after a revert, or after the element changed.</summary>
-    public void Refresh()
-    {
-        _quiet = true;
-        Value = _effective();
-        _quiet = false;
-        OnPropertyChanged(nameof(IsOverridden));
-    }
-
-    partial void OnValueChanged(double value)
-    {
-        if (_quiet) return;
-        _write(value);
-        OnPropertyChanged(nameof(IsOverridden));
-        _changed();
-    }
-}
-
 /// <summary>
 /// The effects window's brain: what elements the document has, what they are
 /// tuned to, and what the preview shows.
@@ -153,10 +26,10 @@ public sealed partial class TreatmentFieldRow : ObservableObject
 /// <b>Solving and drawing are kept apart, and that is the whole point of the
 /// window</b> (Q123). Changing a line treatment re-draws from a cached solve in
 /// tens of milliseconds; changing a simulation parameter re-solves and costs a
-/// second or more. <see cref="SolveFingerprint"/> is what decides which, so the
-/// distinction is mechanical rather than a matter of remembering — and
-/// <see cref="LastBakeResolved"/> reports which one happened, because a UI that
-/// hid the difference would make every edit feel like the slow one.
+/// second or more. So a style edit previews live, and a physics edit marks the
+/// preview <see cref="Stale"/> and waits for the artist to ask — which makes
+/// the cost legible instead of making every edit feel like the slow one.
+/// <see cref="SolveFingerprint"/> is the mechanical half of the same line.
 /// </para>
 /// </remarks>
 public sealed partial class FluidEffectsViewModel : ObservableObject
@@ -164,6 +37,7 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
     private readonly MainViewModel _vm;
     private readonly SimBaker _baker = new();
     private readonly Dictionary<string, (string Fingerprint, SolvedElement Solved)> _cache = [];
+    private bool _building;
 
     public FluidEffectsViewModel(MainViewModel vm)
     {
@@ -173,8 +47,6 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
 
     public ObservableCollection<SimElementRow> Elements { get; } = [];
 
-    public ObservableCollection<TreatmentFieldRow> TreatmentFields { get; } = [];
-
     [ObservableProperty]
     private SimElementRow? _selected;
 
@@ -182,14 +54,36 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
     [ObservableProperty]
     private int _previewFrame;
 
-    /// <summary>How far through a bake, 0..1.</summary>
+    /// <summary>How far through a solve, 0..1.</summary>
     [ObservableProperty]
     private double _progress;
 
-    /// <summary>Whether the last bake had to re-simulate, or only re-drew.</summary>
+    /// <summary>
+    /// Whether the picture on screen was drawn from a solve that no longer
+    /// describes the element.
+    /// </summary>
+    /// <remarks>
+    /// Set rather than computed on demand so the button that clears it can be
+    /// the thing an artist presses when they are ready to pay for a solve —
+    /// which is the whole reason a physics edit does not preview live.
+    /// </remarks>
+    [ObservableProperty]
+    private bool _stale;
+
+    /// <summary>What the last bake or preview cost, in the artist's words.</summary>
+    [ObservableProperty]
+    private string _status = string.Empty;
+
+    /// <summary>Whether the last draw had to re-simulate, or only re-drew.</summary>
     public bool LastBakeResolved { get; private set; }
 
     public SimElement? Element => Selected?.Element;
+
+    /// <summary>The strokes the preview last produced, so a view can paint them.</summary>
+    public IReadOnlyList<Stroke> PreviewStrokes { get; private set; } = [];
+
+    /// <summary>Raised when the preview's content changed and a view should repaint.</summary>
+    public event Action? PreviewChanged;
 
     // ---- the document's elements ---------------------------------------------
 
@@ -204,14 +98,15 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
         Elements.Clear();
         if (_vm.Doc.Sims is { } sims)
         {
-            foreach (var element in sims.Values.OrderBy(e => e.FirstFrame).ThenBy(e => e.Id, StringComparer.Ordinal))
+            foreach (var element in sims.Values
+                         .OrderBy(e => e.FirstFrame).ThenBy(e => e.Id, StringComparer.Ordinal))
             {
                 Elements.Add(new SimElementRow(element.Id, Find));
             }
         }
 
         Selected = Elements.FirstOrDefault(r => r.Id == wasSelected) ?? Elements.FirstOrDefault();
-        BuildTreatmentFields();
+        BuildFields();
     }
 
     private SimElement? Find(string id) =>
@@ -220,16 +115,31 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
     /// <summary>Add an element that draws nothing until it is given an emitter.</summary>
     public SimElementRow NewElement(string kind = "fire")
     {
+        var fire = kind == "fire";
         var element = new SimElement
         {
             Kind = kind,
             FirstFrame = 0,
             FrameCount = Math.Max(1, _vm.Doc.Scene.FrameCount),
-            BandsFromHeat = kind == "fire",
-            BandColors = kind == "fire"
+            BandsFromHeat = fire,
+            BandColors = fire
                 ? ["#3a1200", "#d95f18", "#ffe9a8"]
                 : ["#2a2a30", "#5a5a66", "#9a9aa8"],
         };
+
+        // An element with no emitter simulates still air and draws nothing, which
+        // reads as the window being broken rather than as an element waiting to be
+        // told where the fire is. So a new one arrives already burning, centred on
+        // the floor of its own grid.
+        element.Emitters.Add(new Emitter
+        {
+            Shape = EmitterShape.Disc,
+            X = element.GridWidth / 2.0,
+            Y = element.GridHeight - 6,
+            Radius = 5,
+            Density = 1,
+            Heat = fire ? 1 : 0,
+        });
 
         (_vm.Doc.Sims ??= [])[element.Id] = element;
         var row = new SimElementRow(element.Id, Find);
@@ -265,6 +175,8 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
     {
         if (Element is not { } element) return;
         element.OutlineBrush = _vm.CurrentBrushCopy();
+        OnPropertyChanged(nameof(PenSummary));
+        RefreshPreview();
     }
 
     /// <summary>Put the element back on the default pen.</summary>
@@ -272,9 +184,27 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
     {
         if (Element is not { } element) return;
         element.OutlineBrush = null;
+        OnPropertyChanged(nameof(PenSummary));
+        RefreshPreview();
     }
 
-    // ---- baking ----------------------------------------------------------------
+    /// <summary>What pen this element draws with, for the button beside it to say.</summary>
+    public string PenSummary => Element?.OutlineBrush is { } brush
+        ? $"{brush.Size:F0} px, hardness {brush.Hardness:F2}"
+        : "the default pen";
+
+    // ---- solving, drawing and baking ---------------------------------------------
+
+    /// <summary>
+    /// Simulate the element, whatever the cache holds. The button an artist
+    /// presses when the preview has gone <see cref="Stale"/>.
+    /// </summary>
+    public void Resolve(IProgress<double>? progress = null, CancellationToken cancel = default)
+    {
+        if (Element is not { } element) return;
+        _cache.Remove(element.Id);
+        RefreshPreview(progress, cancel);
+    }
 
     /// <summary>
     /// Bring this element's drawings up to date, re-simulating only if something
@@ -287,32 +217,66 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
         var baked = DrawFrames(element, progress, cancel);
         _vm.ApplySimBake(element, baked.Select(b => (b.Frame, b.Strokes)));
         Progress = 1;
+        Stale = false;
+        Status = $"Baked {baked.Count} drawing{(baked.Count == 1 ? string.Empty : "s")}, " +
+                 $"{baked.Sum(b => b.Strokes.Count)} strokes.";
+    }
+
+    /// <summary>Drop this element's drawings without deleting the element.</summary>
+    public void ClearBake()
+    {
+        if (Element is not { } element) return;
+        _vm.ClearSimBake(element);
+        Status = "Cleared.";
+    }
+
+    /// <summary>
+    /// Redraw the preview from whatever the cache holds, solving only if it holds
+    /// nothing usable.
+    /// </summary>
+    public void RefreshPreview(IProgress<double>? progress = null, CancellationToken cancel = default)
+    {
+        if (_building) return;
+        if (Element is not { } element)
+        {
+            PreviewStrokes = [];
+            PreviewChanged?.Invoke();
+            return;
+        }
+
+        PreviewStrokes = Preview(PreviewFrame, progress, cancel);
+        Stale = false;
+        Status = LastBakeResolved
+            ? $"Simulated {element.FrameCount} frames."
+            : $"{PreviewStrokes.Count} strokes on frame {PreviewFrame}.";
+        PreviewChanged?.Invoke();
     }
 
     /// <summary>
     /// The strokes this element would draw on a frame, without touching the
     /// document — what the preview shows while a treatment is being tuned.
     /// </summary>
-    public IReadOnlyList<Stroke> Preview(int frame)
+    public IReadOnlyList<Stroke> Preview(
+        int frame, IProgress<double>? progress = null, CancellationToken cancel = default)
     {
         if (Element is not { } element) return [];
 
-        // The nearest drawing at or before the frame, so scrubbing across a hold
-        // shows the drawing that is actually exposed there rather than nothing.
-        BakedFrame? found = null;
-        foreach (var candidate in DrawFrames(element, null, default))
-        {
-            if (candidate.Frame <= frame && (found is null || candidate.Frame > found.Frame)) found = candidate;
-        }
-        return found?.Strokes ?? [];
+        // One frame, not all of them. Re-tracing a 48-frame element is 44 ms,
+        // which is fine once per bake and is three frames of lag per tick of a
+        // slider drag. `DrawAt` also answers "the nearest drawing at or before",
+        // so scrubbing across a hold shows what is exposed there rather than
+        // nothing.
+        var solved = SolveIfNeeded(element, progress, cancel);
+        var treatment = _vm.Doc.TreatmentFor(element);
+        return _baker.DrawAt(solved, element, treatment, element.OutlineBrush, frame)?.Strokes ?? [];
     }
 
-    /// <summary>The preview as a picture, at the element's own size.</summary>
+    /// <summary>The preview as a picture, fitted to a box.</summary>
     public SKBitmap? RenderPreview(int frame, int width, int height)
     {
         if (Element is not { } element) return null;
 
-        var strokes = Preview(frame);
+        var strokes = frame == PreviewFrame && PreviewStrokes.Count > 0 ? PreviewStrokes : Preview(frame);
         if (strokes.Count == 0) return null;
 
         // Rendered through the element's own placement so the preview frames the
@@ -399,92 +363,14 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
                   string.Join(",", param.Keys?.Select(k => $"{k.Frame}:{k.Value:R}:{k.Ease}") ?? []);
     }
 
-    // ---- the treatment cascade ---------------------------------------------------
-
-    partial void OnSelectedChanged(SimElementRow? value) => BuildTreatmentFields();
-
     /// <summary>
-    /// Rebuild the field rows for the selected element. Each row reads the
-    /// resolved value, writes to the element's own overrides, and knows whether
-    /// this element is the one stating it.
+    /// Scrubbing redraws — unless the picture is already out of date, in which
+    /// case it would <em>solve</em>, and a solve on a slider drag is seconds per
+    /// tick. The artist has already been told to press Simulate.
     /// </summary>
-    private void BuildTreatmentFields()
+    partial void OnPreviewFrameChanged(int value)
     {
-        TreatmentFields.Clear();
-        if (Selected is not { } row || row.Element is null) return;
-
-        Add("Bands", TreatmentFieldKind.Number,
-            () => Resolved().Bands,
-            t => t.Bands is not null,
-            (t, v) => t.Bands = v is null ? null : (int)Math.Round(v.Value),
-            1, 6, 1);
-
-        Add("Outlined", TreatmentFieldKind.Choice,
-            () => (double)Resolved().Outlined,
-            t => t.Outlined is not null,
-            (t, v) => t.Outlined = v is null ? null : (OutlinedBands)(int)Math.Round(v.Value),
-            0, 2, 1, [nameof(OutlinedBands.None), nameof(OutlinedBands.Silhouette), nameof(OutlinedBands.Every)]);
-
-        Add("Band spacing", TreatmentFieldKind.Choice,
-            () => (double)Resolved().Spacing,
-            t => t.Spacing is not null,
-            (t, v) => t.Spacing = v is null ? null : (BandSpacing)(int)Math.Round(v.Value),
-            0, 1, 1, [nameof(BandSpacing.Even), nameof(BandSpacing.CoreBiased)]);
-
-        Add("Line weight", TreatmentFieldKind.Number,
-            () => Resolved().BaseWeight, t => t.BaseWeight is not null, (t, v) => t.BaseWeight = v, 0.02, 1, 0.05);
-
-        Add("Offset", TreatmentFieldKind.Number,
-            () => Resolved().Offset, t => t.Offset is not null, (t, v) => t.Offset = v, -4, 4, 0.25);
-
-        Add("Simplify", TreatmentFieldKind.Number,
-            () => Resolved().Simplify, t => t.Simplify is not null, (t, v) => t.Simplify = v, 0, 2, 0.05);
-
-        Add("Smoothing", TreatmentFieldKind.Number,
-            () => Resolved().Smoothing, t => t.Smoothing is not null, (t, v) => t.Smoothing = v, 0, 1, 0.1);
-
-        Add("Break length", TreatmentFieldKind.Number,
-            () => Resolved().BreakLength, t => t.BreakLength is not null, (t, v) => t.BreakLength = v, 0, 12, 0.5);
-
-        Add("Break gap", TreatmentFieldKind.Number,
-            () => Resolved().BreakGap, t => t.BreakGap is not null, (t, v) => t.BreakGap = v, 0, 12, 0.5);
-
-        Add("Light angle", TreatmentFieldKind.Number,
-            () => Resolved().LightAngleDeg, t => t.LightAngleDeg is not null,
-            (t, v) => t.LightAngleDeg = v, -180, 180, 15);
-
-        ResolvedTreatment Resolved() =>
-            row.Element is { } e ? _vm.Doc.TreatmentFor(e) : LineTreatment.Defaults;
-
-        void Add(
-            string name, TreatmentFieldKind kind,
-            Func<double> effective, Func<LineTreatment, bool> stated, Action<LineTreatment, double?> write,
-            double min, double max, double step, IReadOnlyList<string>? choices = null)
-        {
-            TreatmentFields.Add(new TreatmentFieldRow(
-                name, kind, effective,
-                () => row.Element is { Treatment: { } t } && stated(t),
-                v =>
-                {
-                    if (row.Element is not { } e) return;
-                    if (v is null && e.Treatment is null) return;
-                    write(e.Treatment ??= new LineTreatment(), v);
-
-                    // An override set that states nothing must not linger: it
-                    // would write "treatment": {} into every document that had
-                    // ever touched a slider and put it back.
-                    if (!e.Treatment.StatedFields().Any()) e.Treatment = null;
-                },
-                () => { },
-                min, max, step, choices));
-        }
-    }
-
-    /// <summary>Put every field back to what the shared treatment says.</summary>
-    public void RevertTreatment()
-    {
-        if (Element is not { } element) return;
-        element.Treatment = null;
-        foreach (var field in TreatmentFields) field.Refresh();
+        if (Stale) return;
+        RefreshPreview();
     }
 }

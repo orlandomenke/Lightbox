@@ -589,15 +589,23 @@ capability exists.
 
 Resolved in advance, per the *land the places it shows up* table:
 
-- `ShortcutMap`: generate element, re-bake element.
-- **Own view model and docker.** `FluidEffectsViewModel` in its own files;
-  `MainViewModel` gains a registration line and nothing else. `HOTSPOTS.md` is
-  the reason, and it is the same structural constraint `DESIGN-effects.md` took.
+- `ShortcutMap`: **done** — `effects.window` on `Ctrl+Shift+E`. Generating and
+  re-baking an element are buttons in the window and are not yet bindable; they
+  belong here the moment either becomes something an artist repeats.
+- **Own view model and window.** **Done.** `FluidEffectsViewModel` in its own
+  files; `MainViewModel` gains one mutation seam (`MainViewModel.Effects.cs`,
+  which exists so `InvalidateFrameRender` can stay private) and `MainWindow`
+  gains a menu item, a shortcut case and one field. `HOTSPOTS.md` is the reason,
+  and it is the same structural constraint `DESIGN-effects.md` took.
 - Presets as project files, beside effect presets — a fire is tuned once.
-- The docker registers in workspace defaults.
+  **Outstanding**, and the next thing the window will want: everything it edits
+  is per-element, so tuning a good flame twice is currently two tunings.
+- ~~The docker registers in workspace defaults.~~ Not applicable — it is a
+  window, and a window is not in the workspace layout.
 - MCP `sim.create` / `sim.bake` / `sim.params`: an agent that can paint should
-  be able to author a flame.
-- A manual section, marked *Planned* until step 4 lands.
+  be able to author a flame. **Outstanding.**
+- A manual section, marked *Planned* until step 4 lands. **Done** —
+  `docs/manual/15-effects.md`.
 
 ## Build order
 
@@ -613,15 +621,36 @@ Each step is one branch with one objective.
 4. **Fire, end to end** — emitter, temperature field, heat ramp, embers, re-bake.
    The first thing an artist can use, and where the roadmap item earns its
    evidence anchors.
-5. **The effects window, its view model, and the landing checklist** (Q123). A
+5. **The effects window and its view model** (Q123) — **landed 2026-08-19**. A
    window rather than the docker this originally said, because thirty-odd fields
    do not fit a column and tuning needs a preview and a scrubber — while
    *placement* stays on the canvas, since typing coordinates for a flame is not
    authoring. Includes the cascade's two obligations: an overridden treatment
-   field is marked as such and reverts to the shared value in one action. And
-   the *detach* rule's call sites: any path that changes a stroke's geometry,
-   colour or brush calls `SimBakeOps.Detach`, plus a re-attach command for
-   handing a stroke back.
+   field is marked as such and reverts to the shared value in one action.
+
+   Three things it settled that the plan had not:
+
+   - **Simulate and Bake are separate buttons**, because the two costs differ by
+     a factor of forty. A style edit redraws from the solve already in hand and
+     previews as the slider moves; a fluid edit marks the picture stale and waits
+     to be asked. Hiding that would make every edit feel like the slow one — and
+     worse, would make an artist afraid to touch the cheap half. `SolveFingerprint`
+     is the mechanical half of the same line, and it is asserted from *both*
+     sides: eleven changes that must force a re-solve, seven that must not.
+   - **The outline pen belongs to the element** (`SimElement.OutlineBrush`,
+     nullable so an element on the default pen writes no key). The obvious thing
+     was to hand the tracer whatever the toolbar was holding, which makes a bake
+     unreproducible: the same element re-baked after picking up a marker comes
+     back inked with a marker, and an artist has no way to say what an element's
+     line *is*. That is invariant 4's reasoning one level up.
+   - **Rows hold ids, not elements.** Undo swaps a whole `Doc` back in rather
+     than editing in place, so a row holding the object would go on editing a
+     document nobody is looking at, with every slider still appearing to work.
+
+   The fields are *data* (`FluidEffectsViewModel.Fields.cs`), not controls, so
+   adding a solver parameter is a line there and a line in `SolveFingerprint` and
+   nothing in XAML — and `Every_Solver_Parameter_Has_A_Row` walks `SimParams` by
+   reflection so forgetting the first line fails rather than shipping invisible.
 5b. **Wind and pre-roll** (Q122) — **landed 2026-08-18**, and the first user of
    `DESIGN-effects.md`'s key vocabulary, which is built as `EffectParam` /
    `EffectKey` in `src/Lightbox.Core/Effects/`. Wind is two keyed scalars rather
@@ -648,8 +677,19 @@ Each step is one branch with one objective.
    *inside* the grid where `FluidSolver` has only walls at its edge: interior
    Neumann boundaries in the pressure solve, flux transport that will not carry
    mass into an obstacle cell, and conservation tests that learn mass may be held
-   against an obstacle.
+   against an obstacle. **The window deliberately ships no Obstacle picker**
+   until this lands: `SimElement.ObstacleLayerId` and `LayerMasks.Obstacle` both
+   exist, so a control would bind and store perfectly and change nothing on
+   screen — a lying control, and worse than a missing one because the stored
+   value would look authored.
 5e. **Anchor attachment** (Q122) — an element that follows a drawing's anchor.
+5f. **The detach rule's call sites** — split out of step 5 rather than dropped.
+   `SimBakeOps.Detach` exists and is tested; what does not exist is the wiring
+   that calls it from every path that changes a baked stroke's geometry, colour
+   or brush, plus a re-attach command for handing a stroke back. It is its own
+   branch because it is an edit to `MainViewModel`'s stroke paths — the hottest
+   file in `HOTSPOTS.md` — and has nothing in common with a window: one
+   objective, one branch, and an "and" in the sentence means two.
 6. Smoke (same solver, density instead of temperature, embers off by default),
    then goo through the metaball source, then water.
 7. **Style inference** — a reference drawing in, a `LineTreatment` out, judged by

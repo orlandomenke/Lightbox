@@ -222,33 +222,64 @@ public sealed class SimBaker
 
         var baked = new List<BakedFrame>(solved.Frames.Count);
 
-        foreach (var frame in solved.Frames)
-        {
-            var strokes = _tracer.Trace(new FieldTraceRequest
-            {
-                Field = frame.Band,
-                VelocityX = frame.VelocityX,
-                VelocityY = frame.VelocityY,
-                Width = solved.Width,
-                Height = solved.Height,
-                OriginX = element.OriginX,
-                OriginY = element.OriginY,
-                Scale = element.Scale,
-                Treatment = treatment,
-                Colors = element.BandColors,
-                Low = (float)(element.BandLow * solved.PeakBand),
-                High = (float)(element.BandHigh * solved.PeakBand),
-                OutlineBrush = outlineBrush,
-                OutlineColor = element.OutlineColor,
-            });
-
-            if (element.Particles is { } spec) strokes.AddRange(DrawEmbers(frame.Embers, element, spec));
-
-            foreach (var stroke in strokes) stroke.SimId = element.Id;
-            baked.Add(new BakedFrame(frame.Frame, strokes));
-        }
+        foreach (var frame in solved.Frames) baked.Add(DrawOne(solved, element, treatment, outlineBrush, frame));
 
         return baked;
+    }
+
+    /// <summary>
+    /// Draw the one drawing exposed on a timeline frame — the nearest at or
+    /// before it — or null if the element draws nothing there.
+    /// </summary>
+    /// <remarks>
+    /// <b>For the preview, and it is a performance fix rather than a
+    /// convenience.</b> Re-tracing a 48-frame element costs about 44 ms, which is
+    /// what makes tuning a style live *for a bake*; paid per pointer event while
+    /// somebody drags a slider it is three frames of lag on every tick. Scrubbing
+    /// and restyling both need exactly one frame, so they ask for one.
+    /// </remarks>
+    public BakedFrame? DrawAt(
+        SolvedElement solved, SimElement element, ResolvedTreatment treatment,
+        BrushSettings? outlineBrush, int frame)
+    {
+        ArgumentNullException.ThrowIfNull(solved);
+        ArgumentNullException.ThrowIfNull(element);
+
+        SolvedFrame? found = null;
+        foreach (var candidate in solved.Frames)
+        {
+            if (candidate.Frame <= frame && (found is null || candidate.Frame > found.Frame)) found = candidate;
+        }
+
+        return found is null ? null : DrawOne(solved, element, treatment, outlineBrush, found);
+    }
+
+    private BakedFrame DrawOne(
+        SolvedElement solved, SimElement element, ResolvedTreatment treatment,
+        BrushSettings? outlineBrush, SolvedFrame frame)
+    {
+        var strokes = _tracer.Trace(new FieldTraceRequest
+        {
+            Field = frame.Band,
+            VelocityX = frame.VelocityX,
+            VelocityY = frame.VelocityY,
+            Width = solved.Width,
+            Height = solved.Height,
+            OriginX = element.OriginX,
+            OriginY = element.OriginY,
+            Scale = element.Scale,
+            Treatment = treatment,
+            Colors = element.BandColors,
+            Low = (float)(element.BandLow * solved.PeakBand),
+            High = (float)(element.BandHigh * solved.PeakBand),
+            OutlineBrush = outlineBrush,
+            OutlineColor = element.OutlineColor,
+        });
+
+        if (element.Particles is { } spec) strokes.AddRange(DrawEmbers(frame.Embers, element, spec));
+
+        foreach (var stroke in strokes) stroke.SimId = element.Id;
+        return new BakedFrame(frame.Frame, strokes);
     }
 
     // ---- emitters ---------------------------------------------------------------

@@ -493,6 +493,12 @@
              would make a hard-coded label lie. -->
         <MenuItem Header="Reference _board…" Click="OnOpenReferenceBoard"
                   ToolTip.Tip="A wall for reference of any kind — character sheets, images from disk, pictures dragged from the web — arranged how you leave it" />
+        <!-- A window rather than a docker for the same reason as the board, and
+             one more: tuning an effect is judged against a preview large enough
+             to read a silhouette in, which is the room a docker does not have.
+             No InputGesture — the command lives in ShortcutMap. -->
+        <MenuItem Header="_Effects…" Click="OnOpenEffects"
+                  ToolTip.Tip="Fire, smoke and water, drawn as bands and outlines rather than as pixels — tuned here and baked into the document as ordinary strokes" />
         <Separator />
         <!-- The bars that sit on the canvas. Separate from the panels above
              because they are a different trade: a panel takes room away from
