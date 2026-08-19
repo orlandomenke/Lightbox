@@ -39,9 +39,14 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
     private readonly Dictionary<string, (string Fingerprint, SolvedElement Solved)> _cache = [];
     private bool _building;
 
-    public FluidEffectsViewModel(MainViewModel vm)
+    /// <param name="libraryPath">
+    /// Where the effects library lives. Null is the artist's own file; a test
+    /// passes a temporary one so a run never reads or writes the real library.
+    /// </param>
+    public FluidEffectsViewModel(MainViewModel vm, string? libraryPath = null)
     {
         _vm = vm ?? throw new ArgumentNullException(nameof(vm));
+        LibraryPath = libraryPath;
         Reload();
     }
 
@@ -121,6 +126,7 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
 
         Selected = Elements.FirstOrDefault(r => r.Id == wasSelected) ?? Elements.FirstOrDefault();
         ReloadGroups();
+        if (!_libraryLoaded) { _libraryLoaded = true; ReloadPresets(); }
         BuildFields();
     }
 

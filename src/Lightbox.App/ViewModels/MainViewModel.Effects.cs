@@ -66,6 +66,26 @@ public sealed partial class MainViewModel
         _editor.Perform(doc => SimGroupOps.Fold(doc, group), label: "Fold effect layers");
     }
 
+    /// <summary>
+    /// Make an effect from a preset, as one undoable step.
+    /// </summary>
+    /// <remarks>
+    /// Nothing to invalidate before it: a preset brings parameters, and nothing
+    /// is drawn until somebody bakes. The <c>Changed</c> refresh is all this
+    /// needs.
+    /// </remarks>
+    internal SimGroup? MakeEffectFromPreset(
+        EffectPreset preset, double originX, double originY, int firstFrame)
+    {
+        ArgumentNullException.ThrowIfNull(preset);
+
+        SimGroup? made = null;
+        _editor.Perform(
+            doc => made = EffectPresets.Instantiate(doc, preset, originX, originY, firstFrame),
+            label: "Use effect preset");
+        return made;
+    }
+
     /// <summary>Delete a group and every element in it, as one undoable step.</summary>
     internal void DeleteSimGroup(SimGroup group)
     {

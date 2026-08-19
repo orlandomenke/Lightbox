@@ -608,8 +608,9 @@ Resolved in advance, per the *land the places it shows up* table:
   gains a menu item, a shortcut case and one field. `HOTSPOTS.md` is the reason,
   and it is the same structural constraint `DESIGN-effects.md` took.
 - Presets as project files, beside effect presets — a fire is tuned once.
-  **Outstanding**, and the next thing the window will want: everything it edits
-  is per-element, so tuning a good flame twice is currently two tunings.
+  **The global half is done** (step 6g): `EffectPresetStore` is the artist's own
+  shelf, `effects.json` beside `brushes.json`. The *project* shelf is
+  outstanding, and is what "as project files" was asking for.
 - ~~The docker registers in workspace defaults.~~ Not applicable — it is a
   window, and a window is not in the workspace layout.
 - MCP `sim.create` / `sim.bake` / `sim.params`: an agent that can paint should
@@ -868,6 +869,44 @@ Each step is one branch with one objective.
    cannot be two sites that met — meant what it said. That is
    `docs/DESIGN-performance.md`'s rule for the fourth time in this feature: the
    number was real and the attribution was not.
+
+6g. **Presets — an effect tuned once, used again** — **landed 2026-08-19**.
+   `EffectPreset` keeps a group's *parameters*; `EffectPresets.Capture` and
+   `Instantiate` are the two halves, and `EffectPresetStore` is the artist's own
+   shelf beside their brushes. Verified by rendering: an effect made from a
+   preset draws **exactly** what the original drew, translated — compared
+   relative to each element's origin, because a preset is stored relative and an
+   absolute comparison reports a difference that is the feature working.
+
+   **Relative on purpose.** Capture subtracts the group's own corner and first
+   frame, so what is kept is the shape of the effect rather than where it
+   happened to be. The offsets *between* members are untouched, since those are
+   the effect.
+
+   **A library is a source to choose from, not a live dependency** — the
+   decision `SymbolScopes` already took, and easier here: using a preset copies
+   its parameters in, and nothing renders from the shelf at all. So a document
+   keeps working with the library gone, and editing a preset does not reach back
+   into effects already made from it.
+
+   **Layer references travel by name, and that is the one real decision.**
+   `Emitter.MaskLayerId` and `SimElement.ObstacleLayerId` name layers in *this*
+   document; carried into another they name nothing, and an emitter pointed at a
+   missing layer emits nothing at all — a preset that looks fine until somebody
+   bakes. So capture keeps the layer's *name* and instantiate matches it. A
+   production calling the cloak layer "cloak" in every scene gets it
+   reconnected; anything else gets the reference dropped and is told which name
+   was missing. `MissingLayers` answers that *before* instantiating, so a window
+   can warn rather than report. Two alternatives were rejected: dropping the
+   reference outright makes a burning-hem preset emit from a dot with no
+   explanation, and prompting for a layer puts a dialog in the way of the common
+   case where the name matches.
+
+   **Global only, and that is a smaller claim than it looks.** Symbols have a
+   project scope because a project must re-render on another machine with no
+   library installed. A preset has no such duty, because nothing renders from
+   it. A project shelf is worth having so a show can carry its own fire, and it
+   is a separate change with nothing here to undo.
 
 6e. **An effect as an `Fx` symbol** (Q129) — the next branch, and most of it
    exists already: `Symbol.Frames` is a `List<Frame>`, `SymbolKind.Fx` is in the
