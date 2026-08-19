@@ -81,6 +81,78 @@ public class SelectionAntsTests(ITestOutputHelper output)
         // An open trail: last verb is a line, not a close.
         Assert.Equal(3, open!.PointCount);
     }
+
+    // ---- hidden under a gizmo -------------------------------------------------
+
+    /// <summary>
+    /// While a transform gizmo is up, the committed outline is not drawn.
+    /// </summary>
+    /// <remarks>
+    /// Two sets of chrome describing one operation, and they do not agree in
+    /// shape: the gizmo boxes the ink it is moving, the ants trace the region
+    /// that was selected, and a lasso round a character is nothing like the box
+    /// round it. Reported as looking like two tools fighting rather than one
+    /// tool working.
+    /// </remarks>
+    [Fact]
+    public void UnderAGizmoTheCommittedOutlineIsNotDrawn()
+    {
+        using var basePath = SelectionAnts.BasePath([Square(10, 10, 20)]);
+
+        using var shown = SelectionAnts.FramePath(basePath, null, [], gizmoUp: false);
+        var hidden = SelectionAnts.FramePath(basePath, null, [], gizmoUp: true);
+
+        output.WriteLine($"gizmo down: {shown?.Bounds.ToString() ?? "(none)"}; "
+            + $"gizmo up: {hidden?.Bounds.ToString() ?? "(none)"}");
+        Assert.NotNull(shown);
+        Assert.Null(hidden);
+    }
+
+    /// <summary>
+    /// The Move tool's session has no gizmo, and there the ants must still ride.
+    /// </summary>
+    /// <remarks>
+    /// <b>The distinction the whole change rests on.</b> <c>BeginTransform(gizmo:
+    /// false)</c> is what the Move tool opens, and there the outline is the only
+    /// feedback a drag has — hiding it would leave nothing on screen saying
+    /// where the pixels are going, which is the regression this class was
+    /// written to catch in the first place. Hiding on "a session is active"
+    /// rather than "a gizmo is up" would pass every other test here and break
+    /// exactly this one.
+    /// </remarks>
+    [Fact]
+    public void WithNoGizmoTheAntsStillRideTheDrag()
+    {
+        using var basePath = SelectionAnts.BasePath([Square(10, 10, 20)]);
+        var preview = SKMatrix.CreateTranslation(100, 50);
+
+        using var frame = SelectionAnts.FramePath(basePath, preview, [], gizmoUp: false);
+
+        Assert.NotNull(frame);
+        output.WriteLine($"moved outline at {frame!.Bounds}");
+        Assert.Equal(110, frame.Bounds.Left, 1);
+    }
+
+    /// <summary>
+    /// A marquee being dragged is still drawn, gizmo or not.
+    /// </summary>
+    /// <remarks>
+    /// Only the committed outline hides. The two cannot both be live in
+    /// practice — a transform owns the canvas, so no marquee can be drawn under
+    /// one — and suppressing the drag shape as well would be a second decision
+    /// smuggled in beside the asked-for one.
+    /// </remarks>
+    [Fact]
+    public void OnlyTheCommittedOutlineHidesNotTheDragShape()
+    {
+        using var basePath = SelectionAnts.BasePath([Square(10, 10, 20)]);
+
+        using var frame = SelectionAnts.FramePath(basePath, null, Square(500, 500, 8), gizmoUp: true);
+
+        Assert.NotNull(frame);
+        output.WriteLine($"only the drag remains, at {frame!.Bounds}");
+        Assert.Equal(500, frame.Bounds.Left, 1);
+    }
 }
 
 /// <summary>
