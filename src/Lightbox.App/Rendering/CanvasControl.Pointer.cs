@@ -137,39 +137,29 @@ public sealed partial class CanvasControl
     private (double X, double Y, ulong T)? _lastAxisSample;
 
     /// <summary>
-    /// Whether the artist has asked for tilt and speed to be recorded.
+    /// The pen axes for a sample — always measured, never filtered here.
     /// </summary>
     /// <remarks>
-    /// <b>Read per stroke rather than per event</b>, and off by default. A
-    /// document made by somebody who never asked for these must serialize
-    /// exactly as it did before they existed — *optional means absent, not
-    /// disabled* — and the cheapest guarantee of that is capturing nothing
-    /// until asked. See <c>AppSettings.RecordPenAxes</c> for why it is a
-    /// preference rather than a document option.
-    /// </remarks>
-    public static readonly StyledProperty<bool> RecordPenAxesProperty =
-        AvaloniaProperty.Register<CanvasControl, bool>(nameof(RecordPenAxes));
-
-    public bool RecordPenAxes
-    {
-        get => GetValue(RecordPenAxesProperty);
-        set => SetValue(RecordPenAxesProperty, value);
-    }
-
-    /// <summary>
-    /// The pen axes for a sample, or nulls when nothing asked for them.
-    /// </summary>
-    /// <remarks>
+    /// <para>
+    /// <b>Reading them is free; storing them is not.</b> Two properties off a
+    /// pointer point and a running average cost nothing at 200 Hz, while
+    /// writing them into every point of every document costs 113 bytes a point
+    /// and 1.70× the saved file. So this reports what the pen said and
+    /// <c>StrokeBuilder</c> — which holds the stroke's own brush — decides what
+    /// is kept. Measuring unconditionally also means the diagnostics readout
+    /// can answer "does my tablet report tilt at all" whatever brush is in
+    /// hand, which is the question an artist actually arrives with.
+    /// </para>
+    /// <para>
     /// The timestamp is the <em>event's</em>, not the point's: coalesced
     /// intermediate points share one, which is why <see cref="PenAxes.SpeedFor"/>
     /// holds its estimate rather than dividing by zero when two samples arrive
     /// together. Verified against the shipped Avalonia assembly rather than
     /// assumed — per-point timestamps do not exist.
+    /// </para>
     /// </remarks>
     private (double? TiltX, double? TiltY, double? Speed) AxesOf(PointerPoint pp, ulong timestamp)
     {
-        if (!RecordPenAxes) return (null, null, null);
-
         var isPen = pp.Pointer.Type == PointerType.Pen;
         var (tx, ty) = _penAxes.TiltFor(isPen, pp.Properties.XTilt, pp.Properties.YTilt);
 
@@ -211,7 +201,7 @@ public sealed partial class CanvasControl
         if (InputDiagnostic is null) return;
         var axes = tiltX is { } tx && tiltY is { } ty
             ? $" · tilt {tx:0}/{ty:0}"
-            : RecordPenAxes && type == PointerType.Pen ? " · no tilt reported" : "";
+            : type == PointerType.Pen ? " · no tilt reported" : "";
         if (speed is { } sp) axes += $" · speed {sp:0.00}";
         var text = (type == PointerType.Pen
             ? $"Pen detected — pressure {rawPressure:0.00}{axes}"
