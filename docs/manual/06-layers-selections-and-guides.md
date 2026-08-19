@@ -219,8 +219,16 @@ Hold **Alt** to scale from the pivot instead, growing all sides at once, and you
 can press or release Alt in the middle of the drag. **Shift** keeps the
 proportions, as ever, and combines with Alt. The drawing
 moves *with* the gizmo — you see the result while you drag, not after you
-commit — and the selection's marching ants ride along with it, so the outline
-and the pixels never disagree about where the drawing is. The session's controls — scope, sampling, perspective, mirror,
+commit. **The marching ants step aside while the gizmo is up**, and come back
+around the drawing in its new position when you apply — the gizmo boxes the ink
+it is moving, the ants trace the region you selected, and those two are rarely
+the same shape, so showing both at once reads as two tools arguing rather than
+one tool working. Your selection is not lost while it is out of sight: it moves
+with the drawing, so a second transform straight afterwards lines up with the
+first. Cancelling brings it back where it was.
+
+Dragging with the **Move** tool keeps its ants, because there is no gizmo there
+and the outline is the only thing showing you where the pixels are going. The session's controls — scope, sampling, perspective, mirror,
 Reset, **Apply** and **Cancel** — live on their own page of the **Tool
 options** docker, which opens by itself when the session starts, so they are
 never off screen while a transform is live. Enter applies, Esc cancels,

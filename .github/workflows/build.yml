@@ -159,6 +159,12 @@ jobs:
       # `chore/ledger-by-domain`. Costs a second.
       - name: Branch-name rules
         run: python3 scripts/branchstate.py selftest
+      # B264. The ledger repair builds two clashing branches in a throwaway
+      # repository and proves it stands down mid-merge. Here rather than in a C#
+      # suite for branchstate's reason — the rules have none to live in — and it
+      # costs about a second.
+      - name: Ledger id repair
+        run: python3 scripts/bugs.py selftest
 
   # The derived documentation checks.
   #

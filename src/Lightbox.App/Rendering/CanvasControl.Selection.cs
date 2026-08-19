@@ -71,7 +71,7 @@ public partial class CanvasControl
 
     /// <summary>The overlay paths one frame draws; the op owns and disposes them.</summary>
     private (SKPath? Ants, SKPath? Open) AntsPathsForFrame()
-        => (SelectionAnts.FramePath(_antsBase, _selectionPreview, _dragShape),
+        => (SelectionAnts.FramePath(_antsBase, _selectionPreview, _dragShape, _txActive),
             SelectionAnts.OpenPath(_polygonInProgress));
 
     // ---- fill / wand hover preview -----------------------------------------
@@ -110,12 +110,34 @@ public partial class CanvasControl
         top.RequestAnimationFrame(OnAntsFrame);
     }
 
+    /// <summary>
+    /// One tick of the ants. Advances the phase and repaints, then asks for the
+    /// next frame.
+    /// </summary>
+    /// <remarks>
+    /// <b>Under a gizmo the loop keeps running and stops repainting</b>, which
+    /// is deliberately not the same as stopping the loop. The outline is hidden
+    /// there (<c>SelectionAnts.FramePath</c>), so advancing a phase nobody can
+    /// see and invalidating the whole canvas for it is work for nothing — but
+    /// bailing out entirely would end the animation, and then the ants would
+    /// come back <em>drawn and frozen</em> when the session ended, which reads
+    /// as a dead selection. A cancel never touches the selection, so nothing
+    /// else would restart them.
+    /// <para>
+    /// Keeping the loop alive costs one empty callback per frame and resumes
+    /// marching by itself the moment the gizmo goes — no restart to wire, and
+    /// nothing in <c>EndTransformGizmo</c> that has to remember this exists.
+    /// </para>
+    /// </remarks>
     private void OnAntsFrame(TimeSpan _)
     {
         _antsAnimating = false;
         if (_selectionContours.Count == 0 && _polygonInProgress.Count == 0) return;
-        _antsPhase = (_antsPhase + 0.35f) % 8f;
-        InvalidateVisual();
+        if (!_txActive)
+        {
+            _antsPhase = (_antsPhase + 0.35f) % 8f;
+            InvalidateVisual();
+        }
         StartAntsIfNeeded();
     }
 
