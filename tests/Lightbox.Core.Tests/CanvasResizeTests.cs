@@ -173,4 +173,96 @@ public class CanvasResizeTests
         Assert.False(CanvasResize.Apply(scene, 960, -1, ResizeAnchor.Center));
         Assert.Equal(960, scene.Width);
     }
+
+    // ---- CropTo: the paper put at a rectangle somebody else worked out ----------
+
+    [Fact]
+    public void CroppingToARectangleMovesTheOriginToIt()
+    {
+        var scene = Scene960();
+
+        Assert.True(CanvasResize.CropTo(scene, 100, 60, 400, 300));
+
+        Assert.Equal(400, scene.Width);
+        Assert.Equal(300, scene.Height);
+        Assert.Equal(100, scene.Left);
+        Assert.Equal(60, scene.Top);
+        Assert.Equal(500, scene.Right);
+    }
+
+    [Fact]
+    public void CroppingBackToTheCornerDropsTheOriginKeyRatherThanWritingZero()
+    {
+        var scene = Scene960();
+        Assert.True(CanvasResize.CropTo(scene, 100, 60, 400, 300));
+
+        Assert.True(CanvasResize.CropTo(scene, 0, 0, 200, 200));
+
+        // Absent, not zero: a document sitting at the corner has no reason to
+        // carry the key, and a serialized "originX": 0 on every cropped-back
+        // document is exactly what Scene.OriginX is nullable to avoid.
+        Assert.Null(scene.OriginX);
+        Assert.Null(scene.OriginY);
+    }
+
+    [Fact]
+    public void CroppingToTheRectangleItAlreadyHasChangesNothingAndSaysSo()
+    {
+        var scene = Scene960();
+        Assert.True(CanvasResize.CropTo(scene, 100, 60, 400, 300));
+
+        // The whole rectangle, not just the size: a scene 400x300 at (100, 60)
+        // asked for 400x300 at (100, 60) is a no-op, and the caller needs to
+        // hear so rather than push an undo step nobody can tell did anything.
+        Assert.False(CanvasResize.CropTo(scene, 100, 60, 400, 300));
+        // Same size somewhere else is a real move, and must not read as a no-op.
+        Assert.True(CanvasResize.CropTo(scene, 101, 60, 400, 300));
+    }
+
+    [Fact]
+    public void ACropWithNoAreaIsRefused()
+    {
+        var scene = Scene960();
+
+        Assert.False(CanvasResize.CropTo(scene, 10, 10, 0, 300));
+        Assert.False(CanvasResize.CropTo(scene, 10, 10, 400, -5));
+
+        // Untouched — a refused crop leaves the scene exactly as it was.
+        Assert.Equal(960, scene.Width);
+        Assert.Equal(540, scene.Height);
+        Assert.Null(scene.OriginX);
+    }
+
+    [Fact]
+    public void CroppingLeavesEveryMarkWhereItWasDrawn()
+    {
+        // Q126: this is the whole design. A crop moves the paper and nothing
+        // else, so ink outside the new edge stays in the record — which is what
+        // makes cropping and growing back exact inverses. A destructive crop
+        // could not be, because Hash01 seeds every dab dynamic from the bits of
+        // its position: a mark deleted and drawn again is a different mark.
+        var doc = DocumentFactory.CreateDoc(960, 540, 1);
+        var frame = (Frame)doc.Scene.Layers[0].Cels[0].Frame!;
+        frame.Strokes.Add(new Stroke
+        {
+            Tool = ToolKind.Brush,
+            Color = "#2050b0",
+            Points = [new StrokePoint(20, 30, 1), new StrokePoint(900, 500, 1)],
+            Brush = new BrushSettings { Size = 8, Opacity = 1, Flow = 1 },
+        });
+        string Ink() => System.Text.Json.JsonSerializer.Serialize(
+            doc.Scene.Layers[0].Cels[0].Frame!, DocJson.Compact);
+        var before = Ink();
+
+        // A crop that leaves both ends of that stroke outside the new paper.
+        Assert.True(CanvasResize.CropTo(doc.Scene, 300, 200, 100, 100));
+
+        Assert.Equal(before, Ink());
+
+        // And growing back returns the document to exactly where it started.
+        Assert.True(CanvasResize.CropTo(doc.Scene, 0, 0, 960, 540));
+        Assert.Equal(960, doc.Scene.Width);
+        Assert.Equal(0, doc.Scene.Left);
+        Assert.Equal(before, Ink());
+    }
 }

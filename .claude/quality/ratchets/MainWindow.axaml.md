@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4434
+budget: 4540
 
 ## Why it is here despite being XAML
 
@@ -95,3 +95,23 @@ leaves a number nobody can account for. So every reason above stays, and
   already existed in the bone options; this is the second surface, and the
   owner asked for it on the sheet because that is where an artist working a
   cycle is looking. There is nowhere else for a menu item to live.
+- **4434 → 4514** (2026-08-19, Q126): +80 for three menu surfaces, none of
+  which has anywhere else to live. Undo and redo at the top of **Edit** (6
+  lines plus the note on why the gesture text is literal); the two crops on
+  **Image** (11); and a new top-level **Select** menu (44) gathering the seven
+  marquee commands that until now existed only on keys — All, Deselect,
+  Invert, Grow, Shrink, Delete contents, Fill with background. The commands
+  themselves already existed in the view model and the crop's own logic went
+  to `MainViewModel.Crop.cs`; what lands here is registration, which is the
+  one thing a budget must not refuse. The comments are the larger half of the
+  raise and are the part that says which entries are deliberately *not*
+  disabled and why — a reader who deletes that reasoning re-derives B168 and
+  B173 the hard way.
+- **4514 → 4540** (2026-08-19): +26 for the undo-history docker's row density,
+  asked for alongside the menu above. Two setters and the comment saying why
+  they have to exist: a `ListBoxItem` takes the Fluent theme's own padding
+  unless something overrides it, which made these rows half again as tall as a
+  layer row for no reason anybody chose. The Project docker already carries the
+  identical pair — the third copy of a two-line style is the point at which it
+  should become a class in `Density.axaml`, and the next panel that needs it
+  should do that rather than paste it again.

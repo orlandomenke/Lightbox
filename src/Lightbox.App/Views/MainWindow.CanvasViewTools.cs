@@ -221,6 +221,18 @@ public partial class MainWindow
                 _ = ResizeAsync(ViewModels.ResizeMode.Image);
                 e.Handled = true;
                 break;
+            // Both go through the window rather than straight to the view model
+            // for ResizeAsync's reason: the paper is a different size than the
+            // zoom and pan were chosen for, and a cropped canvas left half
+            // off-screen reads as the crop having gone wrong.
+            case "image.cropToSelection":
+                CropToSelection();
+                e.Handled = true;
+                break;
+            case "image.trimToDrawing":
+                TrimToDrawing();
+                e.Handled = true;
+                break;
             case "timeline.insertKey":
                 _vm.InsertKeyframeAtPlayhead();
                 break;
@@ -472,6 +484,31 @@ public partial class MainWindow
 
     private async void OnProjectWindowClicked(object? sender, RoutedEventArgs e) =>
         await OpenProjectWindowAsync();
+
+    private void OnCropToSelectionClicked(object? sender, RoutedEventArgs e) => CropToSelection();
+
+    private void OnTrimToDrawingClicked(object? sender, RoutedEventArgs e) => TrimToDrawing();
+
+    /// <summary>
+    /// Crop the paper to the marquee, then refit the view.
+    /// </summary>
+    /// <remarks>
+    /// The refit is <see cref="ResizeAsync"/>'s, for its reason: the view was
+    /// framed for paper that is now a different size. Only on a crop that
+    /// actually changed something — resetting the view after a refused crop
+    /// would throw away the artist's zoom to report that nothing happened.
+    /// </remarks>
+    private void CropToSelection()
+    {
+        if (_vm.CropToSelection()) Canvas.ResetView();
+    }
+
+    /// <summary>Crop the paper to the ink, then refit the view.</summary>
+    /// <inheritdoc cref="CropToSelection" path="/remarks"/>
+    private void TrimToDrawing()
+    {
+        if (_vm.TrimToDrawing()) Canvas.ResetView();
+    }
 
     private async void OnResizeCanvasClicked(object? sender, RoutedEventArgs e) =>
         await ResizeAsync(ViewModels.ResizeMode.Canvas);
