@@ -593,7 +593,7 @@ every other AI feature and are only legible together.
   - Sequence-scale cost is the review stance over all four: `BrushCostOf`
     badges are read against replay across a whole sequence, not one image.
 - [?] Draw once, reuse across animations
-- [~] Fluid effects elements — fire, smoke and water as drawn line and fill `evidence: FluidSolver, MarchingSquares, FieldTracer, SimBaker, SimBakeOps, SimElement, LineTreatment, EffectParam, FluidEffectsViewModel, FluidEffectsWindow, EffectFieldRow, FluidSolverTests, MarchingSquaresTests, FieldTracerTests, SimBakerTests, SimElementTests, FluidEffectsViewModelTests, FluidEffectsWindowTests, A_New_Element_Arrives_Already_Burning, Every_Solver_Parameter_Has_A_Row, A_Style_Edit_Previews_And_A_Fluid_Edit_Waits, The_Fingerprint_Notices_Physics_And_Ignores_Style, Opening_The_Window_Is_A_Registered_Command, Smoke_Rises, Smoke_Arrives_Lit_And_Fire_Does_Not, Shading_Slides_The_Inner_Bands_Toward_The_Light_And_Leaves_The_Silhouette, A_Highlight_Cannot_Be_Lit_Out_Of_Its_Own_Volume, FreeSurfaceSource, MetaballSource, ObstacleBoundaryTests`
+- [~] Fluid effects elements — fire, smoke and water as drawn line and fill `evidence: FluidSolver, MarchingSquares, FieldTracer, SimBaker, SimBakeOps, SimElement, LineTreatment, EffectParam, FluidEffectsViewModel, FluidEffectsWindow, EffectFieldRow, FluidSolverTests, MarchingSquaresTests, FieldTracerTests, SimBakerTests, SimElementTests, FluidEffectsViewModelTests, FluidEffectsWindowTests, A_New_Element_Arrives_Already_Burning, Every_Solver_Parameter_Has_A_Row, A_Style_Edit_Previews_And_A_Fluid_Edit_Waits, The_Fingerprint_Notices_Physics_And_Ignores_Style, Opening_The_Window_Is_A_Registered_Command, Smoke_Rises, Smoke_Arrives_Lit_And_Fire_Does_Not, AddExpansion, Expansion_Grows_A_Blob_And_Thins_It, Expansion_Makes_No_Matter, A_Radial_Push_Hollows_The_Middle_Where_Expansion_Keeps_It, A_Burst_Expands_The_Front, A_Timed_Emitter_Stops_Feeding, Shading_Slides_The_Inner_Bands_Toward_The_Light_And_Leaves_The_Silhouette, A_Highlight_Cannot_Be_Lit_Out_Of_Its_Own_Volume, FreeSurfaceSource, MetaballSource, ObstacleBoundaryTests`
   - Designed in `docs/DESIGN-fluid-effects.md` (2026-08-18), answering "is a
     performant 2D fluid simulation possible, with the outline in the artist's
     line style and the shape filled with colour". It is Pillar 4 rather than an
@@ -697,6 +697,28 @@ every other AI feature and are only legible together.
     peak, and two of the findings are now tests. Looking also caught a defect
     nothing else would: `PeakBand` sampled only the frames an element kept, so
     exposing on 2s shifted every band level.
+  - **Step 6b landed 2026-08-19**: explosions — `Emitter.EmitFrom`/`EmitUntil`
+    bound emission to a frame or two, and `Emitter.Burst` expands the front as a
+    volume source in the pressure solve (`FluidSolver.AddExpansion`), not as an
+    outward velocity. **The reasoning behind that choice was too strong and the
+    test caught it**: the claim written first was that a radial push achieves
+    nothing because the projection removes divergence, and the test written to
+    pin it failed. A push moves the front perfectly well; what the projection
+    forbids is the fluid occupying more *room*, so a push is served by
+    displacement and evacuates the middle where an expansion keeps it filled —
+    0.45 against 0.50 at matched reach, a fireball with a hole in it versus one
+    that fills out. Real, visible across a sequence, and far less than the
+    argument promised. The first evidence for the overclaim was itself
+    confounded — a burst measured against a plume whose buoyancy swamped it — so
+    "it did nothing" was read off a test where nothing could have shown.
+  - **A one-frame element, found the same day and shipped three days earlier.**
+    `NewElement` sized an element to `Doc.Scene.FrameCount`, and a fresh
+    document has **one frame** — so pressing Fire made a one-frame effect whose
+    preview showed the same drawing whatever the scrubber said. It was mistaken
+    for the plume reaching a steady state *twice*, in two separate renders,
+    before a direct measurement of the solver caught it. Every earlier claim in
+    this feature about how frames evolve was made against that. New elements are
+    24 frames now, and baking grows the timeline to hold them.
   - **Step 6 landed 2026-08-19**: smoke, and two things that only a render
     said. **A smoke emitter has to be warm** — buoyancy reads temperature and
     `Weight` reads density, so an emitter at zero heat is pushed down by its own

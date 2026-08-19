@@ -570,6 +570,105 @@ public class SimBakerTests(ITestOutputHelper output)
         Assert.NotNull(baker.DrawAt(solved, element, Plain, null, 20));
     }
 
+    // ---- bursts and timed emission -----------------------------------------------------------
+
+    private static SimElement Blast(double burst, int? until = 2)
+    {
+        var element = new SimElement
+        {
+            Id = "blast", Kind = "smoke", FirstFrame = 0, FrameCount = 12,
+            GridWidth = 64, GridHeight = 64, Scale = 4, Substeps = 8,
+            BandColors = ["#222", "#666", "#aaa"],
+            // Buoyancy off: a plume that rockets upward swamps the thing being
+            // measured, which is exactly the confound that made the first
+            // reading of this feature say it did nothing.
+            Params = new SimParams { Buoyancy = 0, Weight = 0, Vorticity = 0, Turbulence = 0, Drag = 0 },
+        };
+        element.Emitters.Add(new Emitter
+        {
+            Id = "em1", Shape = EmitterShape.Disc, X = 32, Y = 32, Radius = 5,
+            Density = 2, Heat = 0, Burst = burst, EmitUntil = until,
+        });
+        return element;
+    }
+
+    private static double Width(BakedFrame f) =>
+        f.Strokes.Count == 0 ? 0
+            : f.Strokes.SelectMany(s => s.Points).Max(p => p.X)
+              - f.Strokes.SelectMany(s => s.Points).Min(p => p.X);
+
+    /// <summary>
+    /// A burst expands the front, and it is the emitter that carries it through.
+    /// </summary>
+    [Fact]
+    public void A_Burst_Expands_The_Front()
+    {
+        var still = Bake(Blast(0));
+        var blown = Bake(Blast(0.9));
+
+        var a = Width(still[^1]);
+        var b = Width(blown[^1]);
+        output.WriteLine($"last frame: no burst {a:F0} px wide, burst {b:F0} px");
+        Assert.True(b > a * 1.2, $"the burst widened the front from {a:F0} to only {b:F0}");
+    }
+
+    /// <summary>
+    /// Emission stops when it is told to, and that is what makes a blast a blast.
+    /// </summary>
+    /// <remarks>
+    /// An emitter that keeps feeding refuels its own fireball every frame, so it
+    /// never cools into smoke and never disperses — the same failure a painted
+    /// area mask has (Q125), arriving through a different door. Measured on the
+    /// field's total rather than on the drawing, because a contour can move for
+    /// several reasons and the mass can only move for one.
+    /// </remarks>
+    [Fact]
+    public void A_Timed_Emitter_Stops_Feeding()
+    {
+        var timed = new SimBaker().Solve(Blast(0, until: 2));
+        var forever = new SimBaker().Solve(Blast(0, until: null));
+
+        output.WriteLine($"peak band: two frames of emission {timed.PeakBand:F2}, " +
+                         $"the whole element {forever.PeakBand:F2}");
+        Assert.True(forever.PeakBand > timed.PeakBand * 1.5,
+            "an emitter told to stop went on feeding");
+    }
+
+    /// <summary>
+    /// And it starts when it is told to: nothing is drawn before the emitter's
+    /// first frame, so a blast can go off in the middle of a shot.
+    /// </summary>
+    [Fact]
+    public void A_Timed_Emitter_Starts_When_It_Is_Told_To()
+    {
+        var element = Blast(0.5, until: 8);
+        element.Emitters[0].EmitFrom = 5;
+
+        var baked = Bake(element);
+
+        Assert.All(baked.Take(5), f => Assert.Empty(f.Strokes));
+        Assert.NotEmpty(baked[7].Strokes);
+        output.WriteLine($"first drawing on frame {baked.First(f => f.Strokes.Count > 0).Frame}");
+    }
+
+    /// <summary>An emitter nobody bounded emits throughout, which is the default everything else relies on.</summary>
+    [Fact]
+    public void An_Unbounded_Emitter_Emits_On_Every_Frame()
+    {
+        var e = new Emitter();
+        Assert.False(e.IsTimed);
+        Assert.True(e.EmitsOn(0));
+        Assert.True(e.EmitsOn(1000));
+        Assert.True(e.EmitsOn(-5));
+
+        var timed = new Emitter { EmitFrom = 4, EmitUntil = 6 };
+        Assert.True(timed.IsTimed);
+        Assert.False(timed.EmitsOn(3));
+        Assert.True(timed.EmitsOn(4));
+        Assert.True(timed.EmitsOn(5));
+        Assert.False(timed.EmitsOn(6));
+    }
+
     // ---- progress and cancellation ---------------------------------------------------------
 
     [Fact]

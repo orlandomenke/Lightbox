@@ -107,6 +107,36 @@ public class SimElementTests
     }
 
     /// <summary>
+    /// A blast's three settings are absent on every emitter that is not one.
+    /// </summary>
+    /// <remarks>
+    /// Three keys on every emitter of every document, for a feature nobody
+    /// switched on, is the medium block's mistake at a smaller scale — and the
+    /// smaller scale is exactly why it would not be noticed.
+    /// </remarks>
+    [Fact]
+    public void A_Burst_Writes_No_Keys_Until_There_Is_One()
+    {
+        var plain = new SimElement();
+        plain.Emitters.Add(new Emitter());
+        var json = Json(plain);
+
+        Assert.DoesNotContain("\"burst\"", json);
+        Assert.DoesNotContain("\"emitFrom\"", json);
+        Assert.DoesNotContain("\"emitUntil\"", json);
+        // The derived companion must not reach the file under its own name —
+        // which is the trap `BlendOrNormal` fell into.
+        Assert.DoesNotContain("\"isTimed\"", json);
+
+        var blast = new SimElement();
+        blast.Emitters.Add(new Emitter { Burst = 0.8, EmitFrom = 3, EmitUntil = 5 });
+        var loud = Json(blast);
+        Assert.Contains("\"burst\"", loud);
+        Assert.Contains("\"emitFrom\"", loud);
+        Assert.Contains("\"emitUntil\"", loud);
+    }
+
+    /// <summary>
     /// Shading is the newest treatment field and the one most likely to be
     /// forgotten in the three places a nullable field has to appear: absent
     /// unless stated, carried by the cascade, and copied by a clone.

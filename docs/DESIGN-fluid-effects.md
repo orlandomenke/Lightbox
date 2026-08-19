@@ -746,12 +746,41 @@ Each step is one branch with one objective.
    Bounded by boxes rather than by contours because that is the containment
    somebody can actually see, and it costs a pass over points rather than a
    polygon clip. The cost, stated: past the clamp the slider does nothing.
-6b. **Explosions** — the other half of the smoke ask, and its own branch. An
-   emitter fires continuously and pushes in one direction; a burst needs
-   emission that stops after a frame or two (`EmitFrom`/`EmitUntil`, absent by
-   default) and velocity that points *outward* from the emitter rather than
-   along an axis (`Burst`). Debris trails need nothing new — a travelling
-   emitter already lays a trail the fluid does not follow.
+6b. **Explosions** — **landed 2026-08-19**. `Emitter.EmitFrom`/`EmitUntil` bound
+   emission to a frame or two, and `Emitter.Burst` expands the front. Debris
+   trails needed nothing new: a travelling emitter already lays a trail the
+   fluid does not follow.
+
+   **A burst is a volume source in the pressure solve, not an outward
+   velocity** — `FluidSolver.AddExpansion`, consumed by one projection and
+   cleared. The projection solves ∇²p = ∇·u and drives ∇·u to zero; give it
+   ∇²p = ∇·u − s and it leaves exactly *s* worth of outward flow, which is how a
+   combustion front is modelled and what an explosion briefly is.
+
+   **The reasoning that motivated it was too strong, and the test caught it.**
+   The claim written first was that a radial velocity achieves *nothing*,
+   because the projection removes divergence. The test written to pin that
+   failed: a push moves the front perfectly well. What the projection forbids is
+   the fluid occupying more room, so a push is served by *displacement* instead
+   — the fluid rolls outward and the middle is evacuated behind it, where an
+   expansion keeps it filled. At matched reach the centre holds 0.45 against
+   0.50: real, visible across a sequence as a fireball with a hole in it versus
+   one that fills out, and far less than the argument promised.
+   `A_Radial_Push_Hollows_The_Middle_Where_Expansion_Keeps_It` is the
+   measurement, kept so the overclaim cannot come back.
+
+   The first evidence for the overclaim was itself confounded, and that is the
+   lesson worth more than the feature: a burst was measured against a plume
+   whose buoyancy swamped it, so "it did nothing" was read off a test where
+   nothing could have shown. `docs/DESIGN-performance.md`'s rule again — *the
+   number was real and the attribution was not.*
+
+   **A known consequence, not a defect.** `BandLow`/`BandHigh` are fractions of
+   the peak the element reaches *anywhere*, and a blast peaks on frame one — so
+   the dispersing smoke is measured against a value it will never approach again
+   and leaves the bands early. Per-frame peaks would fix it and reintroduce
+   flicker for every steady plume, which is the trade the whole-element peak was
+   chosen for. The manual says to lower **Band low** for a blast.
 6c. Goo through the metaball source, then water.
 7. **Style inference** — a reference drawing in, a `LineTreatment` out, judged by
    baking it beside the reference. After step 4 because it needs a look to be
