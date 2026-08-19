@@ -471,6 +471,27 @@ public sealed partial class FluidEffectsViewModel
             1, Math.Max(1, E.FrameCount), 1, resolves: true,
             hint: "How many frames it keeps feeding for. A blast is one or two: an emitter that keeps feeding refuels its own fireball every frame, so it never cools into smoke and never disperses. At the full length this writes no key.");
 
+        // Scatter: one emitter becomes many small ones over the same area. The
+        // toggle authors the block; the numbers below only exist while it does,
+        // which is the camera's rule — absent rather than disabled.
+        Toggle(EmitterFields, "Scatter", () => Em.Scatter is not null,
+            on => Em.Scatter = on ? new EmitterScatter() : null, resolves: true,
+            hint: "Break this emitter into separate flames spread over the same area, instead of feeding all of it at once. A painted hem burns in places rather than along its whole length.");
+
+        if (Em.Scatter is not null)
+        {
+            Number(EmitterFields, "· coverage", () => S.Coverage, v => S.Coverage = v, 0, 1, 0.05, resolves: true,
+                hint: "What fraction of the surface burns. A fraction rather than a count, so painting a longer hem gives proportionally more flames without changing anything here.");
+            Number(EmitterFields, "· spacing", () => S.Spacing, v => S.Spacing = v, 1, 40, 1, resolves: true,
+                hint: "How far apart the flames stand, in cells — and how big they are, since each is half a spacing across. One number, because that is how you would describe a row of flames.");
+            Number(EmitterFields, "· size varies", () => S.SizeVariation, v => S.SizeVariation = v, 0, 1, 0.05, resolves: true,
+                hint: "How much the flames differ in width at the base.");
+            Number(EmitterFields, "· heat varies", () => S.HeatVariation, v => S.HeatVariation = v, 0, 1, 0.05, resolves: true,
+                hint: "How much they differ in fierceness — which colour bands each one reaches. Not height: the flames already come out at different heights because the fluid makes them, and this barely moves that.");
+            Number(EmitterFields, "· lean", () => S.Drift, v => S.Drift = v, 0, 0.3, 0.01, resolves: true,
+                hint: "A sideways push that differs per flame, so they stop swaying in step with each other.");
+        }
+
         Number(EmitterFields, "Travel X", () => Em.MotionX?.Value ?? 0,
             v => Em.MotionX = v == 0 && Em.MotionX?.IsAnimated != true ? null : Param(Em.MotionX, v),
             -512, 512, 1, resolves: true,
@@ -487,6 +508,9 @@ public sealed partial class FluidEffectsViewModel
 
     /// <summary>The selected emitter, likewise.</summary>
     private Emitter Em => SelectedEmitter!.Emitter!;
+
+    /// <summary>Its scatter block. Only read from rows that exist while it does.</summary>
+    private EmitterScatter S => Em.Scatter!;
 
     /// <summary>
     /// Write a value into a keyable parameter without losing the keys it already
@@ -507,6 +531,15 @@ public sealed partial class FluidEffectsViewModel
             name, EffectFieldKind.Number, read, null,
             v => { if (v is { } value) write(Math.Clamp(value, min, max)); },
             OnFieldChanged, min, max, step, null, resolves, hint));
+
+    private void Toggle(
+        ObservableCollection<EffectFieldRow> into, string name,
+        Func<bool> read, Action<bool> write, bool resolves = false, string? hint = null) =>
+        into.Add(new EffectFieldRow(
+            name, EffectFieldKind.Toggle, () => read() ? 1 : 0, null,
+            v => { if (v is { } value) write(value >= 0.5); },
+            row => { OnFieldChanged(row); BuildEmitterFields(); },
+            0, 1, 1, null, resolves, hint));
 
     private void Choice(
         ObservableCollection<EffectFieldRow> into, string name,

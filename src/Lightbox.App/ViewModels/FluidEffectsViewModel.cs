@@ -406,10 +406,15 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
             parts.Add($"{e.Shape}|{e.X:R}|{e.Y:R}|{e.X2:R}|{e.Y2:R}|{e.Radius:R}" +
                       $"|{e.Density:R}|{e.Heat:R}|{e.VelocityX:R}|{e.VelocityY:R}|{e.Burst}" +
                       $"|{e.EmitFrom}|{e.EmitUntil}" +
-                      $"|{e.MaskLayerId}|{Keys(e.MotionX)}|{Keys(e.MotionY)}");
+                      $"|{e.MaskLayerId}|{Keys(e.MotionX)}|{Keys(e.MotionY)}" +
+                      $"|{Scatter(e.Scatter)}");
         }
 
         return string.Join(";", parts);
+
+        static string Scatter(EmitterScatter? s) =>
+            s is null ? "-"
+                : $"{s.Coverage:R}/{s.Spacing:R}/{s.SizeVariation:R}/{s.HeatVariation:R}/{s.Drift:R}";
 
         static string Keys(EffectParam? param) =>
             param is null ? "-"
