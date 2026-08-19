@@ -104,8 +104,11 @@ document, which reference, and what the tool in your hand is set to — all
 questions you ask *between* strokes rather than during one. With no project
 open the Project tab is simply absent, so a loose drawing shows the other two.
 
-**Tool options lives there rather than waiting to be opened.** The gear on the
-toolbar brings its tab forward instead of revealing a hidden panel.
+**Tool options lives there rather than waiting to be opened.** The **⚙** on the
+toolbar opens the same page as a flyout, right at the button, so you get to it
+without looking away from the canvas — and if the panel is already on screen,
+the gear brings its tab forward instead. It is the same page either way, not a
+copy, so whatever you change in one is what the other shows.
 
 The **layers list** is the panel that is never tabbed with anything: it is
 clicked in the middle of drawing, and a tab would trade a scroll for a click on

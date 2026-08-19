@@ -905,12 +905,12 @@
             </Flyout>
           </Button.Flyout>
         </Button>
-        <!-- Full brush parameters (brush + eraser): now a docker, per the
-             owner — "a tool options docker instead of keeping it in the
-             rail". The gear stays as the way in, and always OPENS. -->
-        <Button VerticalAlignment="Center"
-                ToolTip.Tip="All brush parameters (opens the Tool options panel)"
-                Command="{Binding OpenToolOptionsCommand}">
+        <!-- Full brush parameters, in a flyout AT the gear (B261): a panel
+             opening across the window is a change you miss with your eye on the
+             canvas. The flyout borrows the panel's content — see OnToolOptionsGear. -->
+        <Button x:Name="ToolOptionsGear" VerticalAlignment="Center"
+                ToolTip.Tip="All brush parameters (Tool options)"
+                Click="OnToolOptionsGear">
           <Path Classes="icon" Data="{StaticResource IconGear}" />
         </Button>
         <!-- Same rule the colour group ends with: a pinned | tool-gated boundary -->
