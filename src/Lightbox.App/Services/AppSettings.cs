@@ -210,6 +210,44 @@ public sealed class AppSettings
     /// </remarks>
     public bool GpuCompositing { get; set; }
 
+    /// <summary>
+    /// Record the pen's tilt and the hand's speed <em>even when the brush in
+    /// hand reads neither</em>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is an override, not the switch.</b> Ordinarily the brush decides
+    /// — a brush with tilt curves records tilt, one without records none — and
+    /// that needs no preference at all, because response was always the brush's
+    /// business (<c>PenAxisUse</c>). Recording axes nobody reads is measurably
+    /// expensive: 113 bytes a point, 1.70× the saved document, on an
+    /// application whose unit of work is two hundred drawings.
+    /// </para>
+    /// <para>
+    /// <b>What it buys is the ability to change your mind.</b> Brush settings
+    /// stay editable forever — a stroke carries its own snapshot and can be
+    /// retuned months later — while the hand's motion happened once. Without
+    /// this, adding a tilt curve to a stroke drawn with a plain brush does
+    /// nothing at all, silently, because absent axes contribute the neutral
+    /// value by design. On, the numbers are there when the artist wants them.
+    /// </para>
+    /// <para>
+    /// <b>A preference rather than a document or project option</b>, for the
+    /// reason workspaces are: whether a pen reports tilt at all, and whether
+    /// its owner wants it in the record, is a property of the person and their
+    /// hardware, not of the artwork. Opening somebody else's file must not
+    /// start recording axes your tablet cannot supply, and moving a drawing
+    /// between machines must not change what the next stroke stores.
+    /// </para>
+    /// <para>
+    /// <b>Turning it off later never touches art already made.</b> Points that
+    /// recorded tilt keep it and keep rendering with it — invariant 4, which
+    /// exists so that changing a preference cannot repaint finished work. The
+    /// setting decides what the *next* stroke captures and nothing else.
+    /// </para>
+    /// </remarks>
+    public bool AlwaysRecordPenAxes { get; set; }
+
     /// <summary>What a mark on a held cel does. See <c>HoldDrawing</c>.</summary>
     public string DrawingOnAHold { get; set; } = "StartANewDrawing";
 

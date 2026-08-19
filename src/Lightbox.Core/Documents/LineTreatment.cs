@@ -116,6 +116,37 @@ public sealed class LineTreatment
     /// <summary>Where the light comes from for <see cref="WeightSource.LightDirection"/>, degrees clockwise from up.</summary>
     public double? LightAngleDeg { get; set; }
 
+    /// <summary>
+    /// Stroke-widths to slide the inner bands toward
+    /// <see cref="LightAngleDeg"/>, so a volume reads as lit.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Without it a puff of smoke is an onion.</b> Bands are iso-contours, so
+    /// they are concentric by construction — every one of them centred on the
+    /// same core, which is what a cross-section looks like and not what a lit
+    /// volume looks like. Sliding band <c>b</c> by <c>b/(bands-1)</c> of this
+    /// puts the highlight on the side the light is on and crowds the bands into
+    /// a crescent on the other, which is how the shape gets drawn by hand.
+    /// </para>
+    /// <para>
+    /// <b>A translation of the contour, not a second field.</b> Tracing a level
+    /// from a field sampled at <c>p - L·s</c> gives exactly the original contour
+    /// moved by <c>+L·s</c>, so the cheap version and the accurate one are the
+    /// same picture and the cheap one costs a loop over points rather than a
+    /// resample of every cell. The one place they differ is the line weight,
+    /// which samples the field at the moved point — a cell off, on a field that
+    /// is smooth, and invisible.
+    /// </para>
+    /// <para>
+    /// Zero is off and writes no key. It is on the treatment rather than on the
+    /// element because it is a <em>style</em> decision — how this production
+    /// draws a lit volume — and it shares an angle with the line-weight driver
+    /// so a single light serves both.
+    /// </para>
+    /// </remarks>
+    public double? ShadeOffset { get; set; }
+
     /// <summary>Stroke-widths of drawn line between gaps. Absent or zero means an unbroken line.</summary>
     public double? BreakLength { get; set; }
 
@@ -158,6 +189,7 @@ public sealed class LineTreatment
         CoverageAngleDeg: 0,
         CoverageSpreadDeg: 180,
         LightAngleDeg: -45,
+        ShadeOffset: 0,
         BreakLength: 0,
         BreakGap: 0,
         BaseWeight: 0.55,
@@ -183,6 +215,7 @@ public sealed class LineTreatment
             over?.CoverageAngleDeg ?? shared?.CoverageAngleDeg ?? d.CoverageAngleDeg,
             over?.CoverageSpreadDeg ?? shared?.CoverageSpreadDeg ?? d.CoverageSpreadDeg,
             over?.LightAngleDeg ?? shared?.LightAngleDeg ?? d.LightAngleDeg,
+            over?.ShadeOffset ?? shared?.ShadeOffset ?? d.ShadeOffset,
             over?.BreakLength ?? shared?.BreakLength ?? d.BreakLength,
             over?.BreakGap ?? shared?.BreakGap ?? d.BreakGap,
             over?.BaseWeight ?? shared?.BaseWeight ?? d.BaseWeight,
@@ -209,6 +242,7 @@ public sealed class LineTreatment
         if (CoverageAngleDeg is not null) yield return nameof(CoverageAngleDeg);
         if (CoverageSpreadDeg is not null) yield return nameof(CoverageSpreadDeg);
         if (LightAngleDeg is not null) yield return nameof(LightAngleDeg);
+        if (ShadeOffset is not null) yield return nameof(ShadeOffset);
         if (BreakLength is not null) yield return nameof(BreakLength);
         if (BreakGap is not null) yield return nameof(BreakGap);
         if (BaseWeight is not null) yield return nameof(BaseWeight);
@@ -225,7 +259,8 @@ public sealed class LineTreatment
     {
         BrushPresetId = BrushPresetId, Offset = Offset, Covers = Covers,
         CoverageAngleDeg = CoverageAngleDeg, CoverageSpreadDeg = CoverageSpreadDeg,
-        LightAngleDeg = LightAngleDeg, BreakLength = BreakLength, BreakGap = BreakGap,
+        LightAngleDeg = LightAngleDeg, ShadeOffset = ShadeOffset,
+        BreakLength = BreakLength, BreakGap = BreakGap,
         BaseWeight = BaseWeight, Weights = Weights is null ? null : [.. Weights],
         Simplify = Simplify, Smoothing = Smoothing, CornerAngleDeg = CornerAngleDeg,
         Bands = Bands, Spacing = Spacing, Outlined = Outlined,
@@ -244,6 +279,7 @@ public readonly record struct ResolvedTreatment(
     double CoverageAngleDeg,
     double CoverageSpreadDeg,
     double LightAngleDeg,
+    double ShadeOffset,
     double BreakLength,
     double BreakGap,
     double BaseWeight,

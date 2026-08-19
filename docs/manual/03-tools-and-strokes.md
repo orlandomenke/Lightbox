@@ -4,7 +4,7 @@
 ## Tools
 
 Down the left: **Brush** (B), **Eraser** (E), **Fill**, **Picker**,
-**Gradient**, **Arrow** (A), **Points** (N), **Pen** (P), **Width** (W), **Shape** (U), **Select** (S). Press Select again to cycle its
+**Gradient**, **Crop** (C), **Arrow** (A), **Points** (N), **Pen** (P), **Width** (W), **Shape** (U), **Select** (S). Press Select again to cycle its
 variants, or hold it for the list: Freehand, Polygon, Box, Circle, Magic wand.
 
 **The rail arranges itself, and takes only the width it is using.** One centred
@@ -45,10 +45,35 @@ configured it, size included. Resize the eraser *during* a hold and that is a
 decision: the new size sticks as the eraser's own.
 
 The other tool keys only latch. **S** is taken — pressing it again cycles the
-selection variants, so it cannot also mean "hold me". The pen, both arrows and
-the Width tool are left out for the reason Ctrl is: they have work in flight,
-and letting go of a key is not a good way to finish a path you were in the
-middle of placing.
+selection variants, so it cannot also mean "hold me". The pen, both arrows, the
+Width tool and Crop are left out for the reason Ctrl is: they have work in
+flight, and letting go of a key is not a good way to finish a path you were in
+the middle of placing, or a frame you were in the middle of judging.
+
+### Cropping by eye
+
+**Crop** (C) puts a frame round the page and dims everything outside it, so you
+are looking at the crop rather than imagining it. Drag anywhere to pull a fresh
+frame out; drag its handles to adjust; drag inside it to slide the whole frame
+around once it is smaller than the page. **Shift** on a corner holds the ratio
+it has, the way Shift constrains every other tool here. Faint thirds are drawn
+inside the frame to judge against.
+
+**Enter crops the paper to the frame; Escape puts the frame back round the whole
+page.** Escape does not put the tool away — leaving the tool is picking another
+one, and one key meaning both "undo my drag" and "I am finished" would be a key
+you cannot use confidently. The bar above the canvas shows what the paper would
+become and carries the same two as buttons.
+
+After a crop the frame reopens on the *new* page, because you still have the
+tool: taking a little more off is another drag, not another trip to the toolbar.
+
+**Nothing drawn moves, and nothing is deleted** — this is the same crop the
+Image menu performs, so ink outside the new edge stays in the file and comes
+back if you grow the canvas again. See *Cropping* under
+[Documents and projects](02-documents-and-projects.md) for the two menu
+commands, which answer the question the other way round: *crop to my selection*,
+and *trim to the ink*.
 
 ### Arrow and Select are not the same tool
 
@@ -229,6 +254,52 @@ given a taper this way.
 
 The whole drag is **one undo step**, and undoing it puts every original pressure
 back exactly.
+
+### What else a stroke can record from the pen
+
+Pressure is always recorded. **Tilt and speed are recorded when the brush you
+are drawing with uses them**, and left out when it does not. You do not have to
+switch anything on: give a brush a tilt curve and its strokes start storing
+tilt; a plain round brush stores neither and its drawings stay exactly the size
+they were before any of this existed.
+
+It works per axis, so nothing is stored for the sake of it — a brush that only
+reads speed records speed and no tilt.
+
+The readout beside the pen settings shows what your tablet is actually
+delivering — `tilt 34/-12 · speed 0.42` — whatever brush you have in hand. It is
+the quickest way to find out whether your pen reports tilt at all. Plenty do
+not, and a driver that does not will say `no tilt reported` rather than quietly
+recording zeros.
+
+#### Keeping the numbers for later
+
+There is one thing worth knowing before you need it. If you draw with a brush
+that ignores tilt and *later* decide those strokes should respond to it, adding
+the curve will do nothing — the pen's tilt was never stored, and it cannot be
+recovered. The drawing is not broken; there is simply nothing there to drive
+the mark.
+
+If you would rather keep your options open, switch on **Always record tilt and
+speed, even when the brush ignores them** in **Edit → Configure → Drawing**. It
+is remembered between sessions, off to begin with, and it **roughly doubles the
+size of a drawing** — which is why it is not the default on an application built
+for two hundred frames at a time.
+
+**Turning it off later leaves finished drawings alone.** Strokes that recorded
+tilt keep it and keep drawing with it; the setting only decides what the next
+stroke stores. That is the same promise every setting here makes — changing a
+preference never repaints work you have already done.
+
+Reshaping a line into a path is the one thing that drops these: once you are
+moving points by hand the pen is no longer the author, so the tilt it reported
+no longer describes the line. Pressure survives, because you can still edit it
+directly with the Width tool.
+
+*Planned.* Recording these is what ships first. Brushes that **use** tilt and
+speed — a nib that widens as you lean it, a line that thins as the hand
+accelerates — come next, and every brush that ignores them keeps drawing
+exactly as it does today.
 
 **Pulling the line is worth trying before anything else.** Most of the time what
 you want is *this bit of the line should be over there*, and reaching for that

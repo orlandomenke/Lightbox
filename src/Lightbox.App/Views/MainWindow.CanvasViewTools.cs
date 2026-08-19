@@ -107,6 +107,28 @@ public partial class MainWindow
             }
         }
 
+        // The crop frame owns them next, and for the transform's reason: while a
+        // frame is up, Enter and Escape are what an artist reaches for to take
+        // it or drop it. Escape resets the frame to the whole page rather than
+        // putting the tool away — leaving the tool is picking another one, and
+        // a key that did both would make "undo my drag" and "I am finished
+        // cropping" the same gesture.
+        if (_vm.CropFrame is not null)
+        {
+            if (e.Key == Key.Enter)
+            {
+                ApplyCropFrame();
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.Escape)
+            {
+                _vm.CancelCropFrame();
+                e.Handled = true;
+                return;
+            }
+        }
+
         // Isolation owns Escape and Enter for the same reason, and above the
         // shortcut switch for the same reason: a mode you cannot leave with the
         // key everybody tries first is a mode you are stuck in. Both keys mean
@@ -202,6 +224,10 @@ public partial class MainWindow
                 OnOpenReferenceBoard(this, e);
                 e.Handled = true;
                 break;
+            case "effects.window":
+                OnOpenEffects(this, e);
+                e.Handled = true;
+                break;
             case "project.window":
                 // Harmless with no project, for the same reason as above: the
                 // method guards on it rather than the key handler holding a
@@ -219,6 +245,18 @@ public partial class MainWindow
                 break;
             case "image.resizeImage":
                 _ = ResizeAsync(ViewModels.ResizeMode.Image);
+                e.Handled = true;
+                break;
+            // Both go through the window rather than straight to the view model
+            // for ResizeAsync's reason: the paper is a different size than the
+            // zoom and pan were chosen for, and a cropped canvas left half
+            // off-screen reads as the crop having gone wrong.
+            case "image.cropToSelection":
+                CropToSelection();
+                e.Handled = true;
+                break;
+            case "image.trimToDrawing":
+                TrimToDrawing();
                 e.Handled = true;
                 break;
             case "timeline.insertKey":
@@ -263,6 +301,9 @@ public partial class MainWindow
                 break;
             case "tool.gradient":
                 _vm.ActiveTool = ToolId.Gradient;
+                break;
+            case "tool.crop":
+                _vm.ActiveTool = ToolId.Crop;
                 break;
             case "tool.select":
                 _vm.SelectToolCommand.Execute(ToolId.Select); // again = next variant
@@ -472,6 +513,31 @@ public partial class MainWindow
 
     private async void OnProjectWindowClicked(object? sender, RoutedEventArgs e) =>
         await OpenProjectWindowAsync();
+
+    private void OnCropToSelectionClicked(object? sender, RoutedEventArgs e) => CropToSelection();
+
+    private void OnTrimToDrawingClicked(object? sender, RoutedEventArgs e) => TrimToDrawing();
+
+    /// <summary>
+    /// Crop the paper to the marquee, then refit the view.
+    /// </summary>
+    /// <remarks>
+    /// The refit is <see cref="ResizeAsync"/>'s, for its reason: the view was
+    /// framed for paper that is now a different size. Only on a crop that
+    /// actually changed something — resetting the view after a refused crop
+    /// would throw away the artist's zoom to report that nothing happened.
+    /// </remarks>
+    private void CropToSelection()
+    {
+        if (_vm.CropToSelection()) Canvas.ResetView();
+    }
+
+    /// <summary>Crop the paper to the ink, then refit the view.</summary>
+    /// <inheritdoc cref="CropToSelection" path="/remarks"/>
+    private void TrimToDrawing()
+    {
+        if (_vm.TrimToDrawing()) Canvas.ResetView();
+    }
 
     private async void OnResizeCanvasClicked(object? sender, RoutedEventArgs e) =>
         await ResizeAsync(ViewModels.ResizeMode.Canvas);

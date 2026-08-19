@@ -46,7 +46,7 @@ From the top:
 | Strip | What it is |
 | --- | --- |
 | Title bar | The Lightbox mark, the menu, and the window's own minimise / maximise / close. Drag the empty part to move the window; double-click it to maximise. |
-| Menu | File, Edit, View — lives in the title bar |
+| Menu | File, Edit, Image, Select, View — lives in the title bar |
 | Tool options | Controls for the tool you have selected. Changes with the tool; never changes height, and never scrolls — anything that does not fit goes into the **▾** at the end. On the right, the workspace picker. |
 | AI bar | AI Inbetween, and what the model is doing |
 | Tabs | One per open document |
@@ -57,11 +57,11 @@ From the top:
 
 The panels — **Project**, **Layers**, **Color**, **Palette**, **Gradient**,
 **Channels**, **Reference sheets**, **Reference**, **Symbols**,
-**Tool options**, **History**, **Timeline**, **X-sheet** and **Graph editor** —
-open and close from **View ▸ Dockers**, where every panel toggle lives in one
-submenu.
+**Tool options**, **Undo history**, **Timeline**, **X-sheet** and
+**Graph editor** — open and close from **View ▸ Dockers**, where every panel
+toggle lives in one submenu.
 
-**History** is the undo record with names on it: every step of the open
+**Undo history** is the undo record with names on it: every step of the open
 document — *Stroke*, *Add layer*, *Resize canvas* — listed oldest first, with
 the current state marked. **Double-click a row to stand the drawing at that
 state**, however many steps away it is; rows below the current one are dimmed
@@ -104,8 +104,11 @@ document, which reference, and what the tool in your hand is set to — all
 questions you ask *between* strokes rather than during one. With no project
 open the Project tab is simply absent, so a loose drawing shows the other two.
 
-**Tool options lives there rather than waiting to be opened.** The gear on the
-toolbar brings its tab forward instead of revealing a hidden panel.
+**Tool options lives there rather than waiting to be opened.** The **⚙** on the
+toolbar opens the same page as a flyout, right at the button, so you get to it
+without looking away from the canvas — and if the panel is already on screen,
+the gear brings its tab forward instead. It is the same page either way, not a
+copy, so whatever you change in one is what the other shows.
 
 The **layers list** is the panel that is never tabbed with anything: it is
 clicked in the middle of drawing, and a tab would trade a scroll for a click on
@@ -230,6 +233,12 @@ workspace says: the colour pair, the **brush preset** button with its **⚙**,
 and **Size** and **Opacity** are pinned. Picking a preset puts its tool in
 your hand, so the brush button is also the way back to painting from any
 tool.
+
+The workspace itself is the **dropdown** at the right-hand end. Whatever does
+not fit on the bar goes into the **▾** beside it, nearest first — so on a
+narrow window you keep the controls that matter and lose the ones you can
+reach elsewhere, rather than losing the row. Widen the window and they come
+back on their own.
 
 The **⋮** button beside the workspace picker chooses the contents — tick and
 untick what this workspace offers. The choice behaves like any other

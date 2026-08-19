@@ -817,6 +817,55 @@ public partial class MainViewModel
     /// canvas repaints immediately instead of on the next thing that happens to
     /// dirty it.
     /// </remarks>
+    /// <summary>
+    /// Record the pen's tilt and the hand's speed <em>even when the brush
+    /// ignores them</em>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>An override, not the switch.</b> Ordinarily the brush decides — a
+    /// brush with tilt curves records tilt, one without does not
+    /// (<see cref="PenAxisUse"/>) — which costs nothing and needs no
+    /// configuration. This is for the artist who wants the numbers kept anyway,
+    /// so a stroke can be given a tilt curve months later and actually respond
+    /// to it. The trade is size: recording all three roughly doubles the
+    /// record, measured.
+    /// </para>
+    /// <para>
+    /// <b>Saved the moment it changes</b>, like every other preference here, so
+    /// the answer survives the session that set it. Turning it off never
+    /// touches art already made — the axes are in the points of strokes that
+    /// recorded them and stay there (invariant 4); this decides what the next
+    /// stroke captures and nothing more.
+    /// </para>
+    /// </remarks>
+    public bool AlwaysRecordPenAxes
+    {
+        get => Settings.AlwaysRecordPenAxes;
+        set
+        {
+            if (Settings.AlwaysRecordPenAxes == value) return;
+            Settings.AlwaysRecordPenAxes = value;
+            Settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Whether the next stroke would capture tilt: the brush asks, or the artist did.</summary>
+    /// <remarks>
+    /// <b>Nothing binds to these — they are read at <c>BeginStroke</c>.</b>
+    /// That is deliberate: a bound property would need a change notification
+    /// from every place the active brush or one of its curves moves, and a
+    /// missed one records a stroke under the previous brush's answer. Asking at
+    /// the moment the stroke starts cannot go stale.
+    /// </remarks>
+    internal bool WouldRecordTilt =>
+        AlwaysRecordPenAxes || PenAxisUse.NeedsTilt(CurrentToolSettings);
+
+    /// <summary>Whether the next stroke would capture speed: the brush asks, or the artist did.</summary>
+    internal bool WouldRecordSpeed =>
+        AlwaysRecordPenAxes || PenAxisUse.NeedsSpeed(CurrentToolSettings);
+
     public bool GpuCompositing
     {
         get => Settings.GpuCompositing;

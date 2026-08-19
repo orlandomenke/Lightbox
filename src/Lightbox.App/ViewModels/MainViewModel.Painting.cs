@@ -1002,7 +1002,23 @@ public partial class MainViewModel
     }
 
     /// <summary>One pointer sample in document space.</summary>
-    public readonly record struct PointerSample(double X, double Y, double Pressure);
+    /// <summary>
+    /// One pointer sample on its way from the control to the stroke: position,
+    /// pressure, and the pen axes when they were recorded.
+    /// </summary>
+    /// <remarks>
+    /// The three optional axes ride here rather than being fetched later
+    /// because they exist only at capture time — tilt is on the pointer event
+    /// and speed is measured between two of them, so nothing downstream could
+    /// reconstruct either.
+    /// </remarks>
+    public readonly record struct PointerSample(
+        double X,
+        double Y,
+        double Pressure,
+        double? TiltX = null,
+        double? TiltY = null,
+        double? Speed = null);
 
     /// <summary>
     /// Live report of what the OS delivers while drawing, shown on the
@@ -1135,7 +1151,8 @@ public partial class MainViewModel
             ColorHex,
             CurrentToolSettings.Clone(),
             startX, startY, pressure,
-            ActiveSwatchId);
+            ActiveSwatchId,
+            AlwaysRecordPenAxes);
         if (join is not null)
         {
             // Straight to the click, past the stabiliser: a segment the artist
@@ -1416,7 +1433,7 @@ public partial class MainViewModel
         {
             var (fx, fy) = _stabilizer.FilterLive(s.X, s.Y);
             var (x, y) = Guided(fx, fy);
-            _strokeBuilder.Add(x, y, s.Pressure);
+            _strokeBuilder.Add(x, y, s.Pressure, s.TiltX, s.TiltY, s.Speed);
         }
         if (_stabilizer.BrushPosition is { } anchor) LazyBrushMoved?.Invoke(anchor.X, anchor.Y);
         FlushLivePreview();

@@ -220,4 +220,65 @@ public sealed class UndoHistoryPanelTests(ITestOutputHelper output) : BrushState
         Assert.Single(fresh);
         Assert.Equal("As opened", fresh[0].Label);
     }
+
+    /// <summary>
+    /// The Edit menu's two entries name the step they would act on, and are
+    /// dead at the ends of the stack.
+    /// </summary>
+    /// <remarks>
+    /// The record has carried a label per step since this docker landed; the
+    /// menu reads the top of it. Guarded because the failure is quiet — a
+    /// header that stopped following the stack would still render, still say
+    /// "Undo", and simply describe the wrong step, which is worse than saying
+    /// nothing.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheEditMenuEntriesNameTheStepAndDieAtTheEndsOfTheStack()
+    {
+        var vm = Vm();
+        output.WriteLine($"fresh: {vm.UndoMenuHeader} / {vm.RedoMenuHeader}");
+        Assert.False(vm.CanUndo);
+        Assert.False(vm.CanRedo);
+        // Nothing to name, so neither entry pretends to name something.
+        Assert.Equal("_Undo", vm.UndoMenuHeader);
+        Assert.Equal("_Redo", vm.RedoMenuHeader);
+
+        Paint(vm);
+        output.WriteLine($"after a stroke: {vm.UndoMenuHeader} / {vm.RedoMenuHeader}");
+        Assert.True(vm.CanUndo);
+        Assert.Equal("_Undo Stroke", vm.UndoMenuHeader);
+        Assert.False(vm.CanRedo);
+
+        vm.UndoCommand.Execute(null);
+        output.WriteLine($"after undo: {vm.UndoMenuHeader} / {vm.RedoMenuHeader}");
+        // The step moves across: nothing left to undo, and it is what redo
+        // would now put back.
+        Assert.False(vm.CanUndo);
+        Assert.True(vm.CanRedo);
+        Assert.Equal("_Redo Stroke", vm.RedoMenuHeader);
+    }
+
+    /// <summary>
+    /// The headers follow a tab switch, which no edit announces.
+    /// </summary>
+    /// <remarks>
+    /// A tab switch swaps the whole editor, and nothing raises <c>Changed</c>
+    /// on the way in — so a menu that only listened to the edit funnel would
+    /// keep describing the document you just left. The failure is invisible
+    /// until somebody presses the entry.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheHeadersFollowATabSwitch()
+    {
+        var vm = Vm();
+        Paint(vm);
+        Assert.Equal("_Undo Stroke", vm.UndoMenuHeader);
+
+        vm.NewDocument(new Lightbox.App.ViewModels.NewDocumentSettings(
+            "Second", 400, 300, 12, 72, Lightbox.Core.Documents.Scene.DefaultBackgroundColor, false));
+
+        output.WriteLine($"on the new tab: {vm.UndoMenuHeader}, canUndo={vm.CanUndo}");
+        Assert.False(vm.CanUndo);
+        Assert.Equal("_Undo", vm.UndoMenuHeader);
+    }
 }

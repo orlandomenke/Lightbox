@@ -1,5 +1,16 @@
 # Making the AI trustworthy
 
+> **"Model" in this document always means the AI engine** — Claude, GPT, a local
+> Ollama install — and never a character's design. The animation sense is always
+> written **on-model** or **model sheet**.
+>
+> The collision is unavoidable in a drawing application, and it is stated here
+> rather than left to context because it has genuinely misled a reader: "grade
+> the model" reads naturally as "check the drawing is on-model", which is the
+> opposite of what this document's grading does. The one-line separation, if the
+> two ever blur again: **a golden pair's answer is deliberately hidden from the
+> AI; a model sheet is deliberately sent to it on every request.**
+
 Status: **Phase 0 built** (2026-08-12) — `InbetweenVerifier` in
 `Lightbox.Core/Inbetween`, the per-frame refusal path in `AiInbetweenAsync`,
 and `AiProvenance` on the frame, each with the tests the *Verification*
@@ -285,6 +296,27 @@ degenerate case — and the golden set will — wants the same treatment.
 known-good answers, scored by the verifier, produces a **capability profile**
 per provider: schema adherence, betweenness, arc-following, and how many strokes
 before it degrades — the number that matters most and that nobody measures.
+
+**A golden pair is an exam question, not reference material**, and the two are
+easy to fuse because an artist-supplied pair would depict the artist's own
+character. What separates them is *function*, not appearance:
+
+| | Golden pair | Character sheet / taxonomy |
+| --- | --- | --- |
+| Answers | can this **engine** inbetween at all | what does this **character** look like |
+| What the AI sees | its two keys, as the question — **never** its `KnownGood` answer, because showing that measures nothing | the sheet itself, on every request |
+| Goes stale when | the provider or model changes | the character's design changes |
+| Lives in | the shipped set — and, once Q127's artist-supplied pairs are built, a project | `ReferenceImages` and `SubjectTaxonomy` |
+
+The staleness row is the one that settles an argument fastest. Switch from
+Claude to a local model and every pair must be re-run while the sheets are
+untouched; redesign the armour and the sheets must be redrawn while the pairs
+are untouched. Two things that never go stale together are not one thing.
+
+`KnownGood` is therefore the mark scheme for a **single question** — at this
+`t`, between these two keys, here is what a person drew — and never a standard
+the AI is asked to draw toward. What keeps a drawing on-model is the sheet and
+the taxonomy, which is a different mechanism in a different part of the request.
 
 ### The harness is built, and two of its categories were vacuous first
 

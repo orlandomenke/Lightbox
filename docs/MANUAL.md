@@ -36,6 +36,7 @@ documentation to read about layers.
 12. [AI assistance](manual/12-ai-assistance.md)
 13. [Keyboard, performance and what is planned](manual/13-keyboard-and-troubleshooting.md)
 14. [Bones and rigging](manual/14-bones-and-rigging.md)
+15. [Effects — fire, smoke and water](manual/15-effects.md)
 
 <!-- contents:end -->
 

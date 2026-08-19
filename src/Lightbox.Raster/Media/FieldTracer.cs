@@ -105,11 +105,19 @@ public sealed class FieldTracer
         var fills = new List<Stroke>();
         var outlines = new List<Stroke>();
 
+        // The silhouette's extent, kept so an inner band cannot be lit out of
+        // the volume it belongs to. Band 0 is traced first, so it is always in
+        // hand before anything is moved.
+        Extent? silhouette = null;
+
         for (var band = 0; band < bands; band++)
         {
             var level = LevelOf(band, bands, r.Low, r.High, t.Spacing);
             var loops = _marching.Trace(r.Field, r.Width, r.Height, level, r.Outside);
             if (loops.Count == 0) continue;
+
+            if (band == 0) silhouette = Extent.Of(loops);
+            else Light(loops, t, band, bands, widthInCells, silhouette);
 
             var shaped = new List<List<StrokePoint>>(loops.Count);
             foreach (var loop in loops)
@@ -153,11 +161,103 @@ public sealed class FieldTracer
     /// nothing and a band at <c>Low</c> encloses everything, so neither is worth
     /// spending one of a small number of bands on.
     /// </summary>
-    internal static float LevelOf(int band, int bands, float low, float high, BandSpacing spacing)
+    public static float LevelOf(int band, int bands, float low, float high, BandSpacing spacing)
     {
         var t = (band + 1) / (double)(bands + 1);
         if (spacing == BandSpacing.CoreBiased) t = Math.Sqrt(t);
         return (float)(low + (high - low) * t);
+    }
+
+    /// <summary>
+    /// Slide an inner band toward the light, in place.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The band silhouette is what makes a volume read as lit</b>, not the
+    /// colours in it. Iso-contours are concentric by construction — every band
+    /// centred on the same core, which is a cross-section rather than a lit
+    /// shape — so an unshaded puff of smoke is an onion however it is coloured.
+    /// Moving band <c>b</c> by <c>b/(bands-1)</c> of the offset puts the
+    /// highlight on the lit side and crowds the rest into a crescent opposite,
+    /// which is how a hand draws it.
+    /// </para>
+    /// <para>
+    /// <b>Band 0 never moves</b>, and that is the rule rather than an
+    /// optimisation: it is the silhouette, and a silhouette that slid off its
+    /// own volume would not be one.
+    /// </para>
+    /// <para>
+    /// A translation rather than a second field, because they are the same
+    /// picture: tracing a level from the field sampled at <c>p - L·s</c> yields
+    /// exactly this contour, and this costs a loop over points instead of a
+    /// resample of every cell.
+    /// </para>
+    /// </remarks>
+    private static void Light(
+        List<List<StrokePoint>> loops, ResolvedTreatment t, int band, int bands, double widthInCells,
+        Extent? silhouette)
+    {
+        if (t.ShadeOffset == 0 || band == 0 || bands <= 1) return;
+
+        var slide = t.ShadeOffset * widthInCells * band / (bands - 1);
+        var (lx, ly) = Direction(t.LightAngleDeg);
+
+        // Never out of the volume. A highlight that has slid past the
+        // silhouette stops reading as a highlight and starts reading as a
+        // second, paler shape sitting on top — which is what a slider taken to
+        // its end would otherwise do, and an artist takes a slider to its end
+        // to find out what it does. Bounded by the boxes rather than by the
+        // contours: it is the containment somebody can actually see, and it
+        // costs a pass over points rather than a polygon clip.
+        if (silhouette is { } outer) slide = Math.Min(slide, outer.RoomFor(Extent.Of(loops), lx, ly));
+        if (slide <= 0) return;
+
+        var dx = lx * slide;
+        var dy = ly * slide;
+
+        foreach (var loop in loops)
+        {
+            for (var i = 0; i < loop.Count; i++)
+            {
+                loop[i] = new StrokePoint(loop[i].X + dx, loop[i].Y + dy, loop[i].Pressure);
+            }
+        }
+    }
+
+    /// <summary>A bounding box in cell units, for keeping a lit band inside its silhouette.</summary>
+    private readonly record struct Extent(double MinX, double MinY, double MaxX, double MaxY)
+    {
+        public static Extent Of(List<List<StrokePoint>> loops)
+        {
+            double minX = double.MaxValue, minY = double.MaxValue;
+            double maxX = double.MinValue, maxY = double.MinValue;
+            foreach (var loop in loops)
+            {
+                foreach (var p in loop)
+                {
+                    if (p.X < minX) minX = p.X;
+                    if (p.X > maxX) maxX = p.X;
+                    if (p.Y < minY) minY = p.Y;
+                    if (p.Y > maxY) maxY = p.Y;
+                }
+            }
+            return new Extent(minX, minY, maxX, maxY);
+        }
+
+        /// <summary>
+        /// How far <paramref name="inner"/> can travel along a unit direction
+        /// before it leaves this box. Never negative — a band already outside
+        /// (which a hole or a second blob can be) simply does not move.
+        /// </summary>
+        public double RoomFor(Extent inner, double dx, double dy)
+        {
+            var room = double.MaxValue;
+            if (dx > 1e-9) room = Math.Min(room, (MaxX - inner.MaxX) / dx);
+            else if (dx < -1e-9) room = Math.Min(room, (inner.MinX - MinX) / -dx);
+            if (dy > 1e-9) room = Math.Min(room, (MaxY - inner.MaxY) / dy);
+            else if (dy < -1e-9) room = Math.Min(room, (inner.MinY - MinY) / -dy);
+            return Math.Max(0, room);
+        }
     }
 
     private static bool IsOutlined(OutlinedBands which, int band) => which switch

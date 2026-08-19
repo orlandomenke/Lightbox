@@ -65,6 +65,13 @@ jobs:
   # is cheaper than the four minutes it saves on a documentation-only change.
   test:
     runs-on: ubuntu-latest
+    # A ceiling well above the real cost (~15 min) and far below GitHub's
+    # default of six hours. The step below has its own five-minute guard for
+    # the hang that prompted this; this is the general form of it, because the
+    # next hang will be somewhere else. Six hours of a cancelled-by-hand job
+    # tells nobody anything and holds a runner the whole time — PR #358 sat
+    # like that for over half an hour before anyone noticed.
+    timeout-minutes: 45
     needs: changes
     # Nothing in the suite reads docs/ or .claude/ — checked, not assumed: the
     # only repo files any test opens are .github/workflows/build.yml and
@@ -111,8 +118,41 @@ jobs:
           # A partial hit still saves most of the download: the restore only
           # fetches what changed rather than the whole graph.
           restore-keys: nuget-${{ runner.os }}-
+      # SkiaSharp's native library links against libfontconfig, so the suite
+      # cannot render a glyph without it.
+      #
+      # **Bounded, and skipped when it is already there.** This was
+      # `apt-get update && apt-get install -y libfontconfig1`, unbounded, and on
+      # 2026-08-19 it hung for twelve minutes and took the job down with it: the
+      # Azure mirror the runner prefers went unreachable, every index line came
+      # back `Ign:`, and apt retried without a deadline until the whole run was
+      # cancelled. Nothing was wrong with the build — CI simply stopped
+      # answering, which is worse than failing, because a cancelled job tells
+      # you nothing about the code.
+      #
+      # Three things stop that recurring, in order of who catches it first:
+      # the presence check (the runner image usually ships this package, so the
+      # common path touches the network not at all), the retry and timeout
+      # options (a dead mirror becomes a fast move to the next one rather than
+      # an open-ended wait), and `timeout-minutes` as the backstop that turns
+      # any remaining hang into a red job in five minutes instead of a
+      # cancellation in thirty.
+      #
+      # `apt-get update` is allowed to fail. Its job is to freshen indexes that
+      # are usually fresh already; the install below is what actually has to
+      # work, and it is what reports if it cannot.
       - name: SkiaSharp native dependency
-        run: sudo apt-get update && sudo apt-get install -y libfontconfig1
+        timeout-minutes: 5
+        run: |
+          if ldconfig -p | grep -q 'libfontconfig\.so\.1'; then
+            echo "libfontconfig1 already present in the runner image — nothing to do"
+            exit 0
+          fi
+          sudo apt-get update \
+            -o Acquire::Retries=2 \
+            -o Acquire::http::Timeout=15 \
+            -o Acquire::https::Timeout=15 || echo "apt-get update did not complete; installing from the indexes we have"
+          sudo apt-get install -y --no-install-recommends libfontconfig1
       - run: dotnet test Lightbox.sln -c Release
       # The branch-name rules in branchstate.py have no C# suite to live in, and
       # a heuristic with no test is how the first version came to fire on
@@ -139,6 +179,7 @@ jobs:
   # on drafts is the fix.
   docs:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v5
@@ -195,6 +236,7 @@ jobs:
   # and the ledger ids need checking.
   changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     # A draft builds nothing, and this is where that has to be said as well as on
     # the jobs that need it: `test` and `publish-win-x64` read
     # `needs.changes.outputs.code`, so a skipped `changes` would leave them

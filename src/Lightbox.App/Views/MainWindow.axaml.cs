@@ -153,6 +153,7 @@ public partial class MainWindow : Window
 
         WireTransformSession(); // window side lives in MainWindow.Transform.cs
         WireGradientRamp();
+        WireCropTool(); // window side lives in MainWindow.Crop.cs
         SyncCanvasToolMode();
 
         // The camera frame is view-only chrome, so it crosses to the canvas the

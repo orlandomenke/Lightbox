@@ -874,6 +874,9 @@ public sealed partial class CanvasControl : Control
         Move,
         Select,
 
+        /// <summary>The crop frame: drag it out, push its handles, Enter applies.</summary>
+        Crop,
+
         /// <summary>
         /// The Bone tool: presses select bones, drags create or move them, and
         /// in posing mode a drag rotates and keys at the playhead. Always in
@@ -1952,7 +1955,8 @@ public sealed partial class CanvasControl : Control
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
             _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing,
             BoneChromes, HeatPoints, _hoveredLines,
-            FillPreviewForFrame(), _fillPreviewWand, _fillPreviewColor, TrailPoints));
+            FillPreviewForFrame(), _fillPreviewWand, _fillPreviewColor, TrailPoints,
+            CropSurfaceRect()));
     }
 
     // The tip outline cache and TipOutlinePath moved to CanvasControl.Pointer.cs,
@@ -2234,17 +2238,6 @@ public sealed partial class CanvasControl : Control
     public event Action<string>? InputDiagnostic;
 
     private string? _lastDiagnostic;
-
-    private void ReportInputDiagnostic(PointerType type, float rawPressure)
-    {
-        if (InputDiagnostic is null) return;
-        var text = (type == PointerType.Pen
-            ? $"Pen detected — pressure {rawPressure:0.00}"
-            : $"{type} input — no pressure axis (paints at 100%)") + TracingSuffix();
-        if (text == _lastDiagnostic) return;
-        _lastDiagnostic = text;
-        InputDiagnostic.Invoke(text);
-    }
 
     // ---- view tools -----------------------------------------------------------
 
@@ -2604,6 +2597,9 @@ public sealed partial class CanvasControl : Control
                     _dragShape.Clear();
                     e.Handled = true;
                     return;
+                case CanvasToolMode.Crop:
+                    CropPress(e, x, y);
+                    return;
                 case CanvasToolMode.Gradient:
                     e.Pointer.Capture(this);
                     _gradientDragging = true;
@@ -2832,6 +2828,8 @@ public sealed partial class CanvasControl : Control
             _paintPointerId = e.Pointer.Id;
             _strokeWasPen = e.Pointer.Type == PointerType.Pen;
             _strokeSawRealPressure = false;
+            _penAxes.Begin();
+            _lastAxisSample = null;
             // Alt turns the brush in your hand into an eraser without
             // swapping tools, so it keeps its size, shape and dynamics. That
             // is different from E, which switches to the dedicated eraser and
@@ -2955,6 +2953,7 @@ public sealed partial class CanvasControl : Control
             InputPulse.OnCanvas();
             InvalidateVisual();
 
+            if (_cropDragging) { CropMove(e); return; }
             if (_movingGuides)
             {
                 var (mx, my) = ViewToDoc(e.GetPosition(this));
@@ -3316,6 +3315,7 @@ public sealed partial class CanvasControl : Control
             // delivered as one batch per event.
             var points = e.GetIntermediatePoints(this);
             var samples = new List<ViewModels.MainViewModel.PointerSample>(points.Count);
+            (double? TiltX, double? TiltY, double? Speed) lastAxes = default;
             foreach (var pp in points)
             {
                 // Coalesced history can reach back past the press into hover
@@ -3325,12 +3325,19 @@ public sealed partial class CanvasControl : Control
                 if (!pp.Properties.IsLeftButtonPressed) continue;
                 var (x, y) = ViewToDoc(pp.Position);
                 if (_axisLockedStroke) (x, y) = AxisLocked(_paintAnchor, x, y);
-                samples.Add(new ViewModels.MainViewModel.PointerSample(x, y, PressureOf(pp)));
+                lastAxes = AxesOf(pp, e.Timestamp);
+                samples.Add(new ViewModels.MainViewModel.PointerSample(
+                    x, y, PressureOf(pp), lastAxes.TiltX, lastAxes.TiltY, lastAxes.Speed));
                 ReportCursorPressure(PressureOf(pp), penDown: true);
             }
             if (samples.Count > 0)
             {
-                ReportInputDiagnostic(e.Pointer.Type, points[^1].Properties.Pressure);
+                // The axes of the last sample, reused rather than recomputed:
+                // AxesOf advances the speed estimator, so asking it twice for
+                // one event would feed the average a phantom sample.
+                ReportInputDiagnostic(
+                    e.Pointer.Type, points[^1].Properties.Pressure,
+                    lastAxes.TiltX, lastAxes.TiltY, lastAxes.Speed);
                 PaintMoved?.Invoke(samples);
             }
             e.Handled = true;
@@ -3344,6 +3351,7 @@ public sealed partial class CanvasControl : Control
     private void OnPointerReleasedCore(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_cropDragging) { CropRelease(e); return; }
         if (_movingGuides)
         {
             _movingGuides = false;
@@ -3969,7 +3977,8 @@ public sealed partial class CanvasControl : Control
         SKPath? fillPreview = null,
         bool fillPreviewWand = false,
         SKColor fillPreviewColor = default,
-        IReadOnlyList<Core.Timeline.TrailPoint>? trail = null) : ICustomDrawOperation
+        IReadOnlyList<Core.Timeline.TrailPoint>? trail = null,
+        SKRect? cropFrame = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -4118,6 +4127,11 @@ public sealed partial class CanvasControl : Control
             DrawTransformGizmo(canvas);
             ReferenceBoxPainter.Paint(canvas, referenceBoxes, newBox, sheetBox, view.Scale);
             DrawObjectSelections(canvas);
+            // Last of the overlays: the dim is a judgement about everything
+            // underneath it, so anything drawn after would float outside the
+            // crop and read as being kept.
+            CropOverlayPainter.Paint(
+                canvas, cropFrame, new SKRect(0, 0, view.DocW, view.DocH), view.Scale);
             canvas.Restore();
 
             if (cursor is { } c) DrawBrushCursor(canvas, c);

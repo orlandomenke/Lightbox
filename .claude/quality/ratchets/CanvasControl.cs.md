@@ -1,6 +1,6 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 4880
+budget: 4867
 
 ## Why it has moved
 

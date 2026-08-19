@@ -452,6 +452,132 @@ previous frame's contour and re-projecting it onto the new iso-level changes how
 | 6 · bounded work | bounded by grid × steps × frames, all authored — and outside the per-event path entirely |
 | 7 · scale the surface, never the geometry | contour points are document coordinates; export scaling is unchanged |
 
+## What step 4 found by looking
+
+The build order put fire fourth so that the sweep count, the simplify default
+and the band vocabulary would finally be judged against a picture rather than a
+measurement. They were, and **the picture disagreed with every green test**.
+Momentum was conserved, the fluid was incompressible, the smoke was neither
+created nor destroyed, and it did not look like fire. Four separate faults, none
+of which any assertion could have raised:
+
+- **The turbulence was acting as wind.** A noise scale of twelve cells on a
+  seventy-cell element is a push the width of the plume, so the flame was blown
+  sideways rather than made wispy. Six reads as turbulence.
+- **The flame stalled.** Buoyancy is proportional to heat, so a plume that cools
+  slowly stops climbing while it is still visible. Hotter, cooling faster, gives
+  the short bright tongue a flame has.
+- **Nothing damped the flow.** A sustained plume in a box with four solid walls
+  accumulates circulation until the flame lies over — a lava lamp. `SimParams.Drag`
+  is the fix, and it was measured rather than assumed: worst sideways drift of
+  7.0 cells at drag 0, 3.6 at 0.05, 0.9 at 0.12. The default is 0.05, because a
+  flame that never wavers reads as fake.
+- **Almost nothing was drawn.** A plume's field is steeply peaked — only 4% of an
+  element's cells hold more than a hundredth of its peak — so bands spread over
+  the whole range all landed inside the brightest core. Band levels are now
+  fractions of the element's own measured peak, over a window from 2% to a third
+  of it.
+
+Two of those are now tests rather than tuning: `A_Flame_Stands_Over_Its_Emitter`
+and `The_Outer_Band_Reaches_The_Edge_Of_The_Plume` assert the properties the
+render revealed, so the next person to change a default finds out mechanically.
+
+**One defect the look exposed that nothing else would have.** `PeakBand` was
+measured over the frames an element *keeps*, so an element exposed on 2s sampled
+a different peak from the same element on 1s and every band level shifted with
+it. Holding a drawing must say nothing whatever about what is drawn. It is taken
+over every frame simulated now, and `Exposing_On_Twos_Halves_The_Drawings_And_Not_The_Motion`
+checks the peaks agree as well as the drawings.
+
+### Movement and wind — wind built, attachment next (Q122)
+
+The one thing an artist asked for that the record cannot yet express: an effect
+that belongs to a character who is running, turning or being rained on. Three
+different things, and conflating them is the trap — *ambient wind* moves smoke
+already in the air, *emitter motion* lays a trail behind a travelling source, and
+*attachment* moves the element's box so the effect stays with a character.
+
+**This is where the simulation earns its cost over a library of pre-made
+cycles.** When a character turns, the smoke in the air keeps going the old way
+while new smoke goes the new way, and the whip and lag come free from the
+solver having history. Baking "run right" and "run left" separately and cutting
+between them cannot produce it — each bake starts from still air, so the cut
+pops. Q122 settles the shape: a keyable wind vector on the element, elements
+bound to a drawing's anchor so they follow the animation without keying, a
+pre-roll so an element starts from an established plume, and the key vocabulary
+`DESIGN-effects.md` already specifies rather than a second one.
+
+**Wind landed 2026-08-18, and the measurement is the interesting part.** It is
+applied as a *relaxation toward the wind's speed, weighted by how much fluid is
+there* — not as a uniform push, which in a box with four solid walls is
+divergence the projection removes on the same step, and not as a constant force,
+which would accelerate smoke past the wind and keep going. Two consequences:
+still air stays still and only the plume is blown, which is what an artist means
+by wind and is cheaper besides.
+
+The inertia Q122 claimed is now a number rather than an argument. Two frames
+after a wind reversal, the risen smoke leans **−24.6 cells** — still travelling
+the old way — while the smoke leaving the emitter already leans **+4.0**. A
+28-cell bend, and no pair of separate bakes can produce it, because each would
+start from still air. The first measurement of it looked for that lag in the
+*whole field's* centre of mass and did not find it: the core at the emitter turns
+within a frame, so the test was measuring the one part of the plume that has no
+memory.
+
+**Calibration, found by rendering it.** Wind is in the same units as the flow, and
+a plume rises at roughly 0.15 cells per step — so a wind of that order bends a
+flame about half a right angle, and 0.5 lays it flat. The useful range for a
+figure in motion is far below what the number suggests, which belongs in the
+manual before anybody meets it.
+
+**Looping is a known gap, stated rather than hidden.** A pre-roll removes the
+thin start; it does not make a run cycle seamless. Blending the end into the
+beginning would mean blending two contour sets, and the strokes have no
+correspondence between frames — which is exactly what Q116 chose when it took
+per-frame tracing. If looping cycles become the priority, that is an argument for
+revisiting Q116, not for a blend.
+
+### Painted emission, and what the render said about it
+
+An emitter can name a **mask layer**, and where that layer has ink is where it
+emits. Three things about it are load-bearing:
+
+- **The mask is the emission, whole.** It is not intersected with the costume at
+  bake time. Q124 originally recorded the opposite and Q125 corrects it: alpha
+  lock belongs to the *painter*, keeping a brush on the garment while a mask is
+  made, and it is optional even there. An intersection at bake time would let a
+  hem swinging away silently extinguish the fire on it, with nothing in the
+  record to say why.
+- **The origin is the only thing that moves it.** `Emitter.MotionX`/`MotionY` are
+  keyed offsets from where the emitter was placed, so placing and animating stay
+  separate acts. With nothing keyed the mask emits exactly where it was painted.
+- **A mask is an ordinary layer**, so holds, the inbetweener, rig binding and
+  onion skin all work on it and none of them was rebuilt. `OmitFromExport` keeps
+  it out of renders. Where a rigid stamp slides — a billowing cloak deforms and a
+  stamp does not — the answer is to redraw the mask on the frames that need it,
+  which composes with the origin because neither mechanism knows about the other.
+
+The mask is downsampled by rendering the same strokes onto a smaller surface at
+an output scale of `1/Scale`, never by scaling their geometry: invariant 7, and
+the reason a coarse grid gives a coarser mask of the same drawing rather than a
+different drawing.
+
+> **What the render said, and it is a finding rather than a defect.** A mask that
+> emits over an *area*, every frame, produces a **glowing shape** — it refuels the
+> whole region continuously, so heat never leaves it and no tongue can detach. On
+> a painted hem that reads as a burning edge, which is useful and is not flames
+> rising off cloth. Lowering the fuel and raising the cooling made it ragged and
+> licking rather than a smooth wire; it did not make it flames.
+>
+> Flames need emission that is **sparse in space or in time**. In space that is
+> the artist's job and already works — paint a broken mask, get separate flames.
+> In time it would be a *flicker*: emission modulated per cell by `Hash01` over
+> position and frame, so the burning points wander along the hem the way they
+> really do. That is the sanctioned pattern for something that must vary by
+> frame, and it is the first thing to try if a continuous mask reads as too even.
+> It is deliberately not in this branch: it is a new parameter that reaches
+> pixels and varies by frame, which is a decision rather than a tweak.
+
 ## Reach and configuration
 
 Absent by default, reachable everywhere. A document with no element writes no
@@ -463,15 +589,33 @@ capability exists.
 
 Resolved in advance, per the *land the places it shows up* table:
 
-- `ShortcutMap`: generate element, re-bake element.
-- **Own view model and docker.** `FluidEffectsViewModel` in its own files;
-  `MainViewModel` gains a registration line and nothing else. `HOTSPOTS.md` is
-  the reason, and it is the same structural constraint `DESIGN-effects.md` took.
+- `ShortcutMap`: **done** — `effects.window` on `Ctrl+Shift+E`, filed under an
+  `Effects` category and named word for word as the menu names it, because the
+  editor is searched and an entry under a second name for the same command is
+  the same failure as no entry, one step later. Generating and re-baking an
+  element are buttons in the window and are not yet bindable; they belong here
+  the moment either becomes something an artist repeats.
+- **A menu item, at `Effects ▸ Fluid effects…`.** A top level of its own rather
+  than a line under View: View is where you say what you want to *look* at, and
+  everything that will land here changes what is *in* the document. It is also
+  the shelf the rest of this note needs — goo, water and style inference each
+  arrive as a window, and without it each one is another orphan among the
+  dockers. A shortcut is not a way in on its own: nobody discovers
+  `Ctrl+Shift+E`, they open menus.
+- **Own view model and window.** **Done.** `FluidEffectsViewModel` in its own
+  files; `MainViewModel` gains one mutation seam (`MainViewModel.Effects.cs`,
+  which exists so `InvalidateFrameRender` can stay private) and `MainWindow`
+  gains a menu item, a shortcut case and one field. `HOTSPOTS.md` is the reason,
+  and it is the same structural constraint `DESIGN-effects.md` took.
 - Presets as project files, beside effect presets — a fire is tuned once.
-- The docker registers in workspace defaults.
+  **Outstanding**, and the next thing the window will want: everything it edits
+  is per-element, so tuning a good flame twice is currently two tunings.
+- ~~The docker registers in workspace defaults.~~ Not applicable — it is a
+  window, and a window is not in the workspace layout.
 - MCP `sim.create` / `sim.bake` / `sim.params`: an agent that can paint should
-  be able to author a flame.
-- A manual section, marked *Planned* until step 4 lands.
+  be able to author a flame. **Outstanding.**
+- A manual section, marked *Planned* until step 4 lands. **Done** —
+  `docs/manual/15-effects.md`.
 
 ## Build order
 
@@ -487,11 +631,128 @@ Each step is one branch with one objective.
 4. **Fire, end to end** — emitter, temperature field, heat ramp, embers, re-bake.
    The first thing an artist can use, and where the roadmap item earns its
    evidence anchors.
-5. **Docker, view model, landing checklist**, including the cascade's two
-   obligations: an overridden treatment field is marked as such and reverts to
-   the shared value in one action.
-6. Smoke (same solver, density instead of temperature, embers off by default),
-   then goo through the metaball source, then water.
+5. **The effects window and its view model** (Q123) — **landed 2026-08-19**. A
+   window rather than the docker this originally said, because thirty-odd fields
+   do not fit a column and tuning needs a preview and a scrubber — while
+   *placement* stays on the canvas, since typing coordinates for a flame is not
+   authoring. Includes the cascade's two obligations: an overridden treatment
+   field is marked as such and reverts to the shared value in one action.
+
+   Three things it settled that the plan had not:
+
+   - **Simulate and Bake are separate buttons**, because the two costs differ by
+     a factor of forty. A style edit redraws from the solve already in hand and
+     previews as the slider moves; a fluid edit marks the picture stale and waits
+     to be asked. Hiding that would make every edit feel like the slow one — and
+     worse, would make an artist afraid to touch the cheap half. `SolveFingerprint`
+     is the mechanical half of the same line, and it is asserted from *both*
+     sides: eleven changes that must force a re-solve, seven that must not.
+   - **The outline pen belongs to the element** (`SimElement.OutlineBrush`,
+     nullable so an element on the default pen writes no key). The obvious thing
+     was to hand the tracer whatever the toolbar was holding, which makes a bake
+     unreproducible: the same element re-baked after picking up a marker comes
+     back inked with a marker, and an artist has no way to say what an element's
+     line *is*. That is invariant 4's reasoning one level up.
+   - **Rows hold ids, not elements.** Undo swaps a whole `Doc` back in rather
+     than editing in place, so a row holding the object would go on editing a
+     document nobody is looking at, with every slider still appearing to work.
+
+   The fields are *data* (`FluidEffectsViewModel.Fields.cs`), not controls, so
+   adding a solver parameter is a line there and a line in `SolveFingerprint` and
+   nothing in XAML — and `Every_Solver_Parameter_Has_A_Row` walks `SimParams` by
+   reflection so forgetting the first line fails rather than shipping invisible.
+5b. **Wind and pre-roll** (Q122) — **landed 2026-08-18**, and the first user of
+   `DESIGN-effects.md`'s key vocabulary, which is built as `EffectParam` /
+   `EffectKey` in `src/Lightbox.Core/Effects/`. Wind is two keyed scalars rather
+   than an angle and a strength, because keying an angle wraps: a gust swinging
+   from 10° to 350° would interpolate the long way round through every direction
+   nobody asked for.
+5c. **Emission painted onto a layer** (Q124, refined by Q125) — **landed
+   2026-08-18**. An emitter names a mask layer; the mask *is* the emission, never
+   intersected with anything at bake time, and the emitter's keyable origin is
+   the only thing that moves it. Alpha lock turned out to belong to the
+   *painter* rather than to the bake — see below.
+5c-i. **Emission flicker** — the one thing the burning-cloak render asked for and
+   did not get. A mask that emits over an area every frame refuels itself, so no
+   tongue can detach and it reads as a burning *edge* rather than as flames.
+   Emission modulated per cell by `Hash01` over position **and frame** makes the
+   burning points wander along a hem the way they really do. Small, and a
+   *decision* rather than a tweak: it is the first effect parameter whose seed
+   varies by frame, which is the ground Q80 covers for brushes — the seeding
+   story grows a frame dimension and needs its own re-render and hold tests.
+   Sparse emission in *space* already works and needs nothing: paint a broken
+   mask.
+5d. **Drawn art as an obstacle** (Q125) — the other half, and its own branch,
+   because the cost is not the rasterisation but putting solid boundaries
+   *inside* the grid where `FluidSolver` has only walls at its edge: interior
+   Neumann boundaries in the pressure solve, flux transport that will not carry
+   mass into an obstacle cell, and conservation tests that learn mass may be held
+   against an obstacle. **The window deliberately ships no Obstacle picker**
+   until this lands: `SimElement.ObstacleLayerId` and `LayerMasks.Obstacle` both
+   exist, so a control would bind and store perfectly and change nothing on
+   screen — a lying control, and worse than a missing one because the stored
+   value would look authored.
+5e. **Anchor attachment** (Q122) — an element that follows a drawing's anchor.
+5g. **Undo granularity while tuning** — *needs a decision, and the wart is
+   written down rather than guessed at.* The window edits the element record
+   directly and does not push an undo step per slider tick: one step per tick
+   would bury the history an artist actually wants, and the bake — the moment the
+   change reaches the drawing — already is one step. `NoteEffectEdited` keeps the
+   document marked dirty so nothing is lost silently. The cost is real: undo
+   taken *after* tuning and *before* baking restores the parameters along with
+   the document, because undo swaps a whole `Doc`. The three ways out are a
+   coalescing step per gesture (needs a gesture notion the field rows do not
+   have), keeping the sims dictionary out of the undo snapshot entirely (cheap,
+   and makes deleting an element unrecoverable), or leaving it as it is and
+   saying so in the manual. Not decided.
+
+5f. **The detach rule's call sites** — split out of step 5 rather than dropped.
+   `SimBakeOps.Detach` exists and is tested; what does not exist is the wiring
+   that calls it from every path that changes a baked stroke's geometry, colour
+   or brush, plus a re-attach command for handing a stroke back. It is its own
+   branch because it is an edit to `MainViewModel`'s stroke paths — the hottest
+   file in `HOTSPOTS.md` — and has nothing in common with a window: one
+   objective, one branch, and an "and" in the sentence means two.
+6. **Smoke** (same solver, density instead of temperature, embers off by
+   default) — **landed 2026-08-19**, and it took two things the plan had not
+   named because neither is visible until it is rendered.
+
+   - **A smoke emitter has to be warm.** Buoyancy reads temperature and `Weight`
+     reads density, so an emitter at zero heat is pushed *down* by its own mass
+     and spreads on the floor as a pancake — four identical frames of a flat
+     blob, which is what the first smoke render was. Smoke rises because it is
+     hot, and the preset now says so. Measured: 0 heat reaches 7.2 cells above
+     the emitter, 0.4 reaches 26.6.
+   - **Bands are concentric by construction, and a lit volume is not.** They are
+     iso-contours, so every one is centred on the same core; unshaded smoke is
+     an onion however it is coloured. `LineTreatment.ShadeOffset` slides band
+     `b` by `b/(bands-1)` of itself toward `LightAngleDeg`, which puts the
+     highlight on the lit side and crowds the rest into a crescent opposite.
+     Band 0 never moves — it is the silhouette, and a silhouette that slid off
+     its own volume would not be one.
+
+   It is on the **treatment** rather than on the element because it is a style
+   decision — how this production draws a lit volume — and it shares its angle
+   with the line-weight driver so one light serves both halves of lighting.
+   A translation of the contour rather than a second field: tracing a level from
+   the field sampled at `p - L·s` gives exactly this contour, so the cheap
+   version and the accurate one are the same picture and the cheap one costs a
+   loop over points instead of a resample of every cell.
+
+   **Clamped to the silhouette's box**, and that was found by rendering the
+   slider at its end: past a certain offset the pale band pokes out beyond the
+   dark outline and stops reading as a highlight, becoming a second paler shape
+   sitting on top. An artist takes a slider to its end to find out what it does.
+   Bounded by boxes rather than by contours because that is the containment
+   somebody can actually see, and it costs a pass over points rather than a
+   polygon clip. The cost, stated: past the clamp the slider does nothing.
+6b. **Explosions** — the other half of the smoke ask, and its own branch. An
+   emitter fires continuously and pushes in one direction; a burst needs
+   emission that stops after a frame or two (`EmitFrom`/`EmitUntil`, absent by
+   default) and velocity that points *outward* from the emitter rather than
+   along an axis (`Burst`). Debris trails need nothing new — a travelling
+   emitter already lays a trail the fluid does not follow.
+6c. Goo through the metaball source, then water.
 7. **Style inference** — a reference drawing in, a `LineTreatment` out, judged by
    baking it beside the reference. After step 4 because it needs a look to be
    judged against, and under gate G12 from the first line.
