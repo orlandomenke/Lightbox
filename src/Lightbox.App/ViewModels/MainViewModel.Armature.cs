@@ -1266,9 +1266,28 @@ public sealed partial class MainViewModel
                 // is the bake below. PaintTargetOrKey's copy, not its policy:
                 // `DrawingOnAHold` decides what a MARK on a hold means, and
                 // this command has already been told what it means.
-                target = KeyedCopyOf(ExposureSheet.ExposedFrame(layer, index));
+                var held = ExposureSheet.ExposedFrame(layer, index);
+                target = KeyedCopyOf(held);
                 layer.Cels[index].Frame = target;
                 inserted = true;
+                // B259, and the promise this command makes: **only the frame
+                // you are on becomes a drawing.** A hold shows the nearest
+                // drawing BEFORE it, so dropping one in re-points every hold
+                // after it at the new drawing — which is baked, and a baked
+                // drawing answers to no rig. Posing four frames and keeping the
+                // second froze the third and fourth at the second's pose.
+                //
+                // Re-exposing the held drawing on the next cel puts the row
+                // back exactly as it read: the same drawing on the same frames,
+                // still the object every later hold resolves to, so an edit to
+                // it still reaches all of them the way it did when they were
+                // one long hold.
+                if (held is not null
+                    && index + 1 < layer.Cels.Count
+                    && layer.Cels[index + 1].Frame is null)
+                {
+                    layer.Cels[index + 1].Frame = held;
+                }
             }
             if (doc.Armature is { } armature)
             {
@@ -1305,6 +1324,89 @@ public sealed partial class MainViewModel
 
         static string Lines(int n) => n == 1 ? "1 line" : $"{n} lines";
     }
+
+    /// <summary>
+    /// Retime a pose key by dragging its dot on the timeline's armature track:
+    /// the whole key on the summary row, one bone's entry on a bone row.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="boneId"/> null means the summary row — the key and
+    /// every bone on it. The record ops are <c>ArmatureOps</c>' and are shared
+    /// with nothing else yet; they live in Core because retiming a key is a
+    /// pure edit of the track and wants testing without a window.
+    /// </remarks>
+    public bool MovePoseKey(string? boneId, int from, int to)
+    {
+        if (from == to || to < 0) return false;
+        var moved = false;
+        // Remembered before the step, so a drag that turns out to move nothing
+        // can take its own step back — B236's admission, through the editor's
+        // own door for it. An Undo would leave a redo behind, which is the one
+        // thing a step nobody authored must not do.
+        var revision = _editor.NextRevision;
+        _editor.Perform(doc =>
+        {
+            moved = boneId is null
+                ? ArmatureOps.MoveKey(doc.Scene.PoseTrack, from, to)
+                : ArmatureOps.MoveBoneKey(doc.Scene.PoseTrack, boneId, from, to);
+        });
+        if (!moved)
+        {
+            _editor.DiscardStep(revision);
+            return false;
+        }
+        AfterPoseTrackEdit();
+        AiStatus = boneId is null
+            ? $"Pose key moved to frame {to + 1}."
+            : $"{NameOfBone(boneId)} key moved to frame {to + 1}.";
+        return true;
+    }
+
+    /// <summary>
+    /// Delete a pose key from the timeline: the whole key on the summary row,
+    /// one bone's entry on a bone row.
+    /// </summary>
+    public bool DeletePoseKey(string? boneId, int frame)
+    {
+        var removed = false;
+        var revision = _editor.NextRevision;
+        _editor.Perform(doc =>
+        {
+            removed = boneId is null
+                ? ArmatureOps.RemoveKey(doc.Scene.PoseTrack, frame)
+                : ArmatureOps.RemoveBoneKey(doc.Scene.PoseTrack, boneId, frame);
+        });
+        if (!removed)
+        {
+            _editor.DiscardStep(revision);
+            return false;
+        }
+        AfterPoseTrackEdit();
+        AiStatus = boneId is null
+            ? $"Pose key at frame {frame + 1} removed."
+            : $"{NameOfBone(boneId)} unkeyed at frame {frame + 1}.";
+        return true;
+    }
+
+    /// <summary>
+    /// What every pose-track edit has to refresh: the pixels the track drives,
+    /// and the rows that draw it.
+    /// </summary>
+    /// <remarks>
+    /// Retiming a key changes what every frame between the neighbouring keys
+    /// interpolates to, so this is not a one-frame invalidation — which is why
+    /// it goes through <see cref="InvalidateRiggedFrames"/> rather than
+    /// naming a frame.
+    /// </remarks>
+    private void AfterPoseTrackEdit()
+    {
+        InvalidateRiggedFrames();
+        RefreshArmatureAtPlayhead();
+        OnPropertyChanged(nameof(TimelineTracks));
+    }
+
+    private string NameOfBone(string boneId) =>
+        Doc.Armature?.BoneById(boneId)?.Name ?? "Bone";
 
     /// <summary>
     /// A pose or weight edit changes pixels the frame cache cannot key on, so

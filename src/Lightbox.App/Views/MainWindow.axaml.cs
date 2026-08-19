@@ -83,6 +83,7 @@ public partial class MainWindow : Window
             _vm.DragWidth,
             () => _vm.EndWidthDrag());
         TimelineTrackView.KeyDragged += OnTrackKeyDragged;
+        TimelineTrackView.KeyMenuRequested += OnTrackKeyMenu;
         // The clip bars (Q57): body slides, edges trim, right-click splits;
         // the view model owns what that does to the record. An audio bar's
         // StripIndex is its section index; a video bar is named by its strip

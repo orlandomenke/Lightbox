@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4434
+budget: 4440
 
 ## Why it is here despite being XAML
 
@@ -95,3 +95,8 @@ leaves a number nobody can account for. So every reason above stays, and
   already existed in the bone options; this is the second surface, and the
   owner asked for it on the sheet because that is where an artist working a
   cycle is looking. There is nowhere else for a menu item to live.
+- **4434 → 4440** (2026-08-18), the timeline's *Bones* toggle. Six lines: the
+  checkbox, its visibility binding, a tooltip and the three-line comment saying
+  why per-bone rows are off by default. The armature's summary row costs no
+  XAML at all — it is a `TrackRow` the view model projects — so this is the
+  whole UI cost of the pose track.

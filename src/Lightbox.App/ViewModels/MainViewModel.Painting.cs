@@ -680,8 +680,10 @@ public partial class MainViewModel
             {
                 var frames = CameraKeyFrames;
                 tracks.Add(new Lightbox.App.Controls.TrackRow(
-                    "Camera", frames, frames, frames.Select(_ => false).ToList(), IsCamera: true));
+                    "Camera", frames, frames, frames.Select(_ => false).ToList(),
+                    Lightbox.App.Controls.TrackKind.Camera));
             }
+            tracks.AddRange(PoseTracks());
             foreach (var row in LayerRows)
             {
                 var keys = new List<int>();
@@ -702,10 +704,104 @@ public partial class MainViewModel
                     }
                     holdEnds.Add(end);
                 }
-                tracks.Add(new Lightbox.App.Controls.TrackRow(row.Name, keys, holdEnds, breakdowns, IsCamera: false));
+                tracks.Add(new Lightbox.App.Controls.TrackRow(row.Name, keys, holdEnds, breakdowns));
             }
             return tracks;
         }
+    }
+
+    /// <summary>
+    /// Whether the armature row is showing its bones. False by default: a
+    /// twenty-bone character would otherwise add twenty rows to a timeline
+    /// that already carries the layers, and most of them are empty most of the
+    /// time (owner's decision, 2026-08-18).
+    /// </summary>
+    [ObservableProperty]
+    private bool _poseRowsExpanded;
+
+    partial void OnPoseRowsExpandedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(TimelineTracks));
+    }
+
+    /// <summary>
+    /// The armature's rows: a summary marking every frame any bone is keyed
+    /// on, and — while expanded — one row per bone beneath it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why this exists at all.</b> Poses have keyed themselves at the
+    /// playhead since the Bone tool landed, and nothing on screen ever said
+    /// so. A key that failed to survive a reload was therefore invisible until
+    /// somebody scrubbed onto its frame and noticed the rig standing at rest —
+    /// which is exactly how it was reported (2026-08-18). A track that shows
+    /// the keys makes a missing one obvious the moment the file opens.
+    /// </para>
+    /// <para>
+    /// Bone rows are named with a leading indent rather than carrying a depth
+    /// the painter would have to understand — the bone picker's device (Q81),
+    /// for its reason: a flat list of names still shows structure, and the
+    /// gutter stays one text draw.
+    /// </para>
+    /// <para>
+    /// Absent, not empty, when there is no rig: a document that never made an
+    /// armature shows no armature row, the camera's rule.
+    /// </para>
+    /// </remarks>
+    private List<Lightbox.App.Controls.TrackRow> PoseTracks()
+    {
+        var rows = new List<Lightbox.App.Controls.TrackRow>();
+        if (Doc.Armature is not { Bones.Count: > 0 } armature) return rows;
+
+        var keys = ArmatureOps.Ordered(Doc.Scene.PoseTrack);
+        var all = keys.Select(k => k.Frame).ToList();
+        rows.Add(new Lightbox.App.Controls.TrackRow(
+            "Armature", all, all, all.Select(_ => false).ToList(),
+            Lightbox.App.Controls.TrackKind.Armature));
+        if (!PoseRowsExpanded) return rows;
+
+        foreach (var bone in armature.Bones)
+        {
+            var mine = keys.Where(k => k.Bones.ContainsKey(bone.Id)).Select(k => k.Frame).ToList();
+            rows.Add(new Lightbox.App.Controls.TrackRow(
+                "    " + bone.Name, mine, mine, mine.Select(_ => false).ToList(),
+                Lightbox.App.Controls.TrackKind.Bone));
+        }
+        return rows;
+    }
+
+    /// <summary>
+    /// How many track rows sit above the layers — the camera's, and the
+    /// armature's with its bones.
+    /// </summary>
+    /// <remarks>
+    /// One place computes it, because the host routes a drag by comparing a
+    /// row index against it, and a second count that disagreed would retime
+    /// the wrong thing. Its shape is the reason: the rows above the layers are
+    /// optional and independent of each other.
+    /// </remarks>
+    public int TracksAboveLayers =>
+        (Scene.Camera is not null ? 1 : 0) + PoseTracks().Count;
+
+    /// <summary>
+    /// The bone a track row stands for, or null when it is the summary row or
+    /// not an armature row at all.
+    /// </summary>
+    public string? BoneOfTrack(int trackIndex)
+    {
+        if (Doc.Armature is not { Bones.Count: > 0 } armature) return null;
+        var first = (Scene.Camera is not null ? 1 : 0);
+        var offset = trackIndex - first - 1; // -1 for the summary row itself
+        if (!PoseRowsExpanded || offset < 0 || offset >= armature.Bones.Count) return null;
+        return armature.Bones[offset].Id;
+    }
+
+    /// <summary>Whether this track index is the armature summary or one of its bones.</summary>
+    public bool IsPoseTrack(int trackIndex)
+    {
+        if (Doc.Armature is not { Bones.Count: > 0 }) return false;
+        var first = (Scene.Camera is not null ? 1 : 0);
+        return trackIndex >= first && trackIndex < first + PoseTracks().Count;
     }
 
     // ---- painting -----------------------------------------------------------

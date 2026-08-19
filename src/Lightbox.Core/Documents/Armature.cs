@@ -463,6 +463,79 @@ public static class ArmatureOps
         track?.Keys.FirstOrDefault(k => k.Frame == frame);
 
     /// <summary>
+    /// Move a whole pose key to another frame. Returns whether anything moved.
+    /// </summary>
+    /// <remarks>
+    /// <b>The moved key wins outright</b> when the destination already holds
+    /// one — the dragged thing lands where it was dropped, which is what every
+    /// timeline drag means and what the cel drag already does. Merging the two
+    /// was the alternative and it is not representable: two keys can hold
+    /// different values for the same bone, so a merge has to pick, and a pick
+    /// nobody can see is worse than a replace they watched happen.
+    /// </remarks>
+    public static bool MoveKey(PoseTrack? track, int from, int to)
+    {
+        if (track is null || from == to) return false;
+        if (KeyAt(track, from) is not { } key) return false;
+        track.Keys.RemoveAll(k => k.Frame == to);
+        key.Frame = to;
+        return true;
+    }
+
+    /// <summary>
+    /// Move one bone's entry from the key at one frame to the key at another,
+    /// leaving every other bone where it was. Returns whether anything moved.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A key that gains the bone is <b>seeded from the interpolated pose
+    /// first</b> when it has to be created, for the reason <c>KeyPose</c> does
+    /// the same: a bone absent from a key is at rest on it, so a key holding
+    /// one bone would snap every other bone to rest at that frame. Seeding
+    /// makes the new key say what the artist was already looking at.
+    /// </para>
+    /// <para>
+    /// A key left holding nothing is removed rather than kept as an empty
+    /// marker — an empty key is indistinguishable from no key in every reader,
+    /// and leaving one would put a dot on the timeline that means nothing.
+    /// </para>
+    /// </remarks>
+    public static bool MoveBoneKey(PoseTrack? track, string boneId, int from, int to)
+    {
+        if (track is null || from == to) return false;
+        if (KeyAt(track, from) is not { } source) return false;
+        if (!source.Bones.TryGetValue(boneId, out var pose)) return false;
+
+        var target = KeyAt(track, to);
+        if (target is null)
+        {
+            target = new PoseKey { Frame = to, Ease = source.Ease };
+            foreach (var (id, p) in PoseAt(track, to)) target.Bones[id] = p;
+            track.Keys.Add(target);
+        }
+        source.Bones.Remove(boneId);
+        target.Bones[boneId] = pose;
+        if (source.Bones.Count == 0) track.Keys.Remove(source);
+        return true;
+    }
+
+    /// <summary>Remove the whole key at a frame. Returns whether there was one.</summary>
+    public static bool RemoveKey(PoseTrack? track, int frame) =>
+        track is not null && track.Keys.RemoveAll(k => k.Frame == frame) > 0;
+
+    /// <summary>
+    /// Remove one bone from the key at a frame, taking the key with it if that
+    /// was the last bone on it. Returns whether anything was removed.
+    /// </summary>
+    public static bool RemoveBoneKey(PoseTrack? track, string boneId, int frame)
+    {
+        if (track is null || KeyAt(track, frame) is not { } key) return false;
+        if (!key.Bones.Remove(boneId)) return false;
+        if (key.Bones.Count == 0) track.Keys.Remove(key);
+        return true;
+    }
+
+    /// <summary>
     /// The interpolated pose at a frame: bone id → departure from rest.
     /// Bones at rest are absent from the result, as they are from a key.
     /// </summary>

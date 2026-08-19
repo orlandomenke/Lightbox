@@ -85,7 +85,25 @@ the joint, a turn cursor on the tip.
 
 The pose is keyed **at the playhead automatically** — pose the arm
 on frame 8 and a pose key lands on frame 8, interpolating from and to the keys
-either side, with the frames between showing the blend. Scrub the timeline and
+either side, with the frames between showing the blend.
+
+**You can see those keys, on the timeline.** Once a document has an armature,
+the track timeline grows an **Armature** row marking every frame any bone is
+keyed on — the camera's row, one track down. Tick **Bones** on the timeline bar
+to open it into one row per bone; it is closed by default, because a
+twenty-bone character would otherwise cost twenty rows.
+
+The keys are editable where they are drawn:
+
+- **Drag a key** to retime it. On the Armature row that moves the whole pose;
+  on a bone's row it moves only that bone, leaving its neighbours where they
+  are. A key dropped on top of another replaces it.
+- **Right-click a key** to remove it, or to jump the playhead to it. On a
+  bone's row, removing takes that bone off the key and leaves the rest of the
+  pose alone; when the last bone comes off a key, the key goes with it.
+
+A bone that gains a key where there was none is seeded from the pose you were
+already looking at, so keying one bone never snaps its neighbours back to rest. Scrub the timeline and
 bound drawings follow the pose live, in playback and in every export.
 
 **The skeleton has its own onion skin.** With onion skin on, posing also
@@ -135,8 +153,10 @@ holding what you were looking at. Three ways to reach it, all the same command:
   to redraw over. This is the frame-by-frame way to use bones: block the
   action out with the skeleton, then commit one drawing per frame you want.
 
-Only the frame you are on becomes a drawing; the cels either side keep
-holding what they held. Press it on a frame that already has a drawing of its
+Only the frame you are on becomes a drawing. The frames after it go on
+showing the drawing they were showing — the cel after the new one re-exposes
+it, so a long hold you commit one frame out of keeps running exactly as it
+read, and the frames that were following the rig go on following it. Press it on a frame that already has a drawing of its
 own and nothing is inserted — it bakes the pose into that drawing instead,
 which is what **Bake pose** does.
 

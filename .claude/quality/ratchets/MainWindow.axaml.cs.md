@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml.cs
 
-budget: 437
+budget: 438
 
 ## Why it has moved
 
@@ -37,3 +37,8 @@ other's reason and leaves a number nobody can account for.
   constructor — the align-mode pick and the reference stack menu — beside the
   reference-drag wiring they extend. Delegated decisions are hooked up here by
   construction, the same pricing as B216/B217's entry above.
+- **437 → 438** (2026-08-18), one line: the timeline track view's
+  `KeyMenuRequested` subscription, beside the `KeyDragged` one it belongs with.
+  The handler itself lives in `MainWindow.Transform.cs` with the other track
+  handlers; only the wiring has to be here, because this is where the control
+  is in scope.

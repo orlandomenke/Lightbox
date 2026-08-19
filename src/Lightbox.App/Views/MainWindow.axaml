@@ -4103,6 +4103,12 @@
                     <Path Classes="icon" Data="{StaticResource IconClose}" />
                   </Button>
                 </StackPanel>
+                <!-- The rig's own row is always there once an armature exists;
+                     this opens it into one row per bone. Off by default — a
+                     twenty-bone character would otherwise cost twenty rows. -->
+                <CheckBox Content="Bones" IsChecked="{Binding PoseRowsExpanded, Mode=TwoWay}"
+                          IsVisible="{Binding HasArmature}" VerticalAlignment="Center"
+                          ToolTip.Tip="Open the Armature row into one row per bone. Drag a key to retime it, right-click one to remove it." />
               </controls:OverflowBar>
             </Border>
           </controls:Docker.TopBar>
