@@ -599,23 +599,20 @@
              directly beside this one and without a divider the pair reads as
              one group belonging to the workspace. -->
         <Border DockPanel.Dock="Right" Width="1" Margin="10,3" Background="{StaticResource BorderBrush}" />
-        <!-- Flush text with a bottom highlight — the section-tab treatment,
-             because switching workspace changes what the whole window is for.
-             Deleting a saved workspace moved to the right-click menu on its
-             name; the built-ins never offered it. -->
-        <ListBox x:Name="WorkspacePicker" DockPanel.Dock="Right" Classes="sectiontabs"
-                 ItemsSource="{Binding Workspace.WorkspaceChoices}"
-                 SelectedValue="{Binding Workspace.SelectedName, Mode=OneWay}"
-                 SelectedValueBinding="{Binding Name, DataType=vm:WorkspaceRow}"
-                 SelectionChanged="OnWorkspacePicked"
-                 VerticalAlignment="Center"
-                 ToolTip.Tip="Switch workspace — panel arrangements, saved globally">
-          <ListBox.ItemsPanel>
-            <ItemsPanelTemplate>
-              <StackPanel Orientation="Horizontal" Spacing="0" />
-            </ItemsPanelTemplate>
-          </ListBox.ItemsPanel>
-          <ListBox.ItemTemplate>
+        <!-- A dropdown rather than a tab strip, for a measured reason: the six
+             workspaces as flush tabs wanted 872px of this bar, leaving the quick
+             options ZERO width at 1280 and squeezing Size/Opacity — pinned by
+             Q70's second rule — to nothing with them. Switching workspace is
+             rare; it was paying for six always-visible targets out of the row
+             an artist aims at. Delete stays on right-click. See B260. -->
+        <ComboBox x:Name="WorkspacePicker" DockPanel.Dock="Right" MinWidth="132"
+                  ItemsSource="{Binding Workspace.WorkspaceChoices}"
+                  SelectedValue="{Binding Workspace.SelectedName, Mode=OneWay}"
+                  SelectedValueBinding="{Binding Name, DataType=vm:WorkspaceRow}"
+                  SelectionChanged="OnWorkspacePicked"
+                  VerticalAlignment="Center"
+                  ToolTip.Tip="Switch workspace — panel arrangements, saved globally">
+          <ComboBox.ItemTemplate>
             <DataTemplate x:DataType="vm:WorkspaceRow">
               <TextBlock Text="{Binding Name}" VerticalAlignment="Center">
                 <TextBlock.ContextMenu>
@@ -626,8 +623,8 @@
                 </TextBlock.ContextMenu>
               </TextBlock>
             </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
         <!--
           What this workspace's bar carries. Beside the workspace picker
           rather than at the bar's far end, because the choice belongs to the
@@ -925,7 +922,7 @@
                        ToolTip.Tip="Opacity of the mark the tool in hand makes, in percent" />
       </StackPanel>
       <controls:OverflowBar x:Name="QuickToolOptions" Spacing="14" VerticalAlignment="Center"
-                            MoreLabel="More tool options  &#x25BE;">
+                            MoreLabel="&#x25BE;">
 
         <!-- The preset picker and its ⚙ are pinned beside the colour pair
              now, so the OverflowBar starts with the tool in hand's options. -->
@@ -1262,7 +1259,10 @@
         </StackPanel>
 
         <!-- The Select tool's options. -->
-        <views:SelectOptionsBar />
+        <views:SelectShapeBar />
+        <views:SelectWandBar />
+        <views:SelectEditBar />
+        <views:SelectActionsBar />
 
         <!-- The Move tool's options: the guide it has picked up. -->
         <views:GuideOptionsBar />

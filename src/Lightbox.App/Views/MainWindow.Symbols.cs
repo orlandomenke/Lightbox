@@ -110,8 +110,11 @@ public partial class MainWindow
 
     private void OnWorkspacePicked(object? sender, SelectionChangedEventArgs e)
     {
-        if (sender is not ListBox picker || picker.SelectedItem is not WorkspaceRow row) return;
-        // The tabs SHOW the current workspace now, so selection is state rather
+        // SelectingItemsControl rather than ListBox: the picker became a
+        // ComboBox when its tab strip was found to be eating 872px of the quick
+        // bar, and a handler typed to the old control silently stops firing.
+        if (sender is not SelectingItemsControl picker || picker.SelectedItem is not WorkspaceRow row) return;
+        // The picker SHOWS the current workspace, so selection is state rather
         // than a verb — and the guard is what stops the loop: applying raises
         // SelectedName, which re-selects the row, which fires this again.
         if (row.Name == _vm.Workspace.SelectedName) return;

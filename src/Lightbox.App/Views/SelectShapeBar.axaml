@@ -1,0 +1,46 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             x:Class="Lightbox.App.Views.SelectShapeBar"
+             x:DataType="vm:MainViewModel">
+  <!--
+    Which marquee, and nothing else. First of the four the Select tool's group
+    was split into (B260): as one 1130px control it was atomic to the
+    OverflowBar's split, so it fitted whole or went to the ▾ whole — and it
+    never fitted, at any window width. Four children degrade instead, and this
+    is the one that must survive, because choosing the marquee is the tool.
+  -->
+  <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+    <StackPanel.IsVisible>
+      <MultiBinding Converter="{x:Static BoolConverters.And}">
+        <Binding Path="IsSelectTool" />
+        <Binding Path="Workspace.QuickSelectOptions" />
+      </MultiBinding>
+    </StackPanel.IsVisible>
+    <RadioButton GroupName="selvar" IsChecked="{Binding IsFreehandVariant, Mode=OneWay}"
+                 Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Freehand}"
+                 ToolTip.Tip="Freehand selection">
+      <Path Classes="icon" Data="{StaticResource IconSelectLasso}" />
+    </RadioButton>
+    <RadioButton GroupName="selvar" IsChecked="{Binding IsPolygonVariant, Mode=OneWay}"
+                 Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Polygon}"
+                 ToolTip.Tip="Polygon selection (click vertices, double-click to close, Esc cancels)">
+      <Path Classes="icon" Data="{StaticResource IconSelectPolygon}" />
+    </RadioButton>
+    <RadioButton GroupName="selvar" IsChecked="{Binding IsBoxVariant, Mode=OneWay}"
+                 Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Box}"
+                 ToolTip.Tip="Box selection">
+      <Path Classes="icon" Data="{StaticResource IconSelectBox}" />
+    </RadioButton>
+    <RadioButton GroupName="selvar" IsChecked="{Binding IsEllipseVariant, Mode=OneWay}"
+                 Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Ellipse}"
+                 ToolTip.Tip="Circle/ellipse selection">
+      <Path Classes="icon" Data="{StaticResource IconSelectEllipse}" />
+    </RadioButton>
+    <RadioButton GroupName="selvar" IsChecked="{Binding IsWandVariant, Mode=OneWay}"
+                 Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Wand}"
+                 ToolTip.Tip="Magic wand — click to select a connected color region">
+      <Path Classes="icon" Data="{StaticResource IconSelectWand}" />
+    </RadioButton>
+  </StackPanel>
+</UserControl>
