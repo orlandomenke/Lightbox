@@ -1,6 +1,4 @@
-# Q129 · Does an effect baked to a symbol keep the group that made it?
-
-**Answered 2026-08-19: the symbol keeps the group record.**
+# Q129 · Does an effect baked to a symbol keep the group that made it? — **answered 2026-08-19: it keeps the group record**
 
 Raised by: the owner, asking whether effects could be combined and layered the
 way Unity's particle systems are, and observing that presets "could also tie in
