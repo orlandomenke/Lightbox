@@ -594,7 +594,7 @@ every other AI feature and are only legible together.
   - Sequence-scale cost is the review stance over all four: `BrushCostOf`
     badges are read against replay across a whole sequence, not one image.
 - [?] Draw once, reuse across animations
-- [~] Fluid effects elements — fire, smoke and water as drawn line and fill `evidence: FluidSolver, MarchingSquares, FieldTracer, SimBaker, SimBakeOps, SimElement, LineTreatment, EffectParam, FluidEffectsViewModel, FluidEffectsWindow, EffectFieldRow, FluidSolverTests, MarchingSquaresTests, FieldTracerTests, SimBakerTests, SimElementTests, FluidEffectsViewModelTests, FluidEffectsWindowTests, A_New_Element_Arrives_Already_Burning, Every_Solver_Parameter_Has_A_Row, A_Style_Edit_Previews_And_A_Fluid_Edit_Waits, The_Fingerprint_Notices_Physics_And_Ignores_Style, Opening_The_Window_Is_A_Registered_Command, Smoke_Rises, Smoke_Arrives_Lit_And_Fire_Does_Not, AddExpansion, Expansion_Grows_A_Blob_And_Thins_It, Expansion_Makes_No_Matter, A_Radial_Push_Hollows_The_Middle_Where_Expansion_Keeps_It, A_Burst_Expands_The_Front, A_Timed_Emitter_Stops_Feeding, SimGroup, SimGroupOps, SimGroupTests, FluidEffectsGroupTests, Retiming_Shifts_Everything_And_Keeps_The_Internal_Timing, Folding_Puts_The_Baked_Layers_In_One_Folder_In_Order, A_Group_Stores_No_Geometry_Of_Its_Own, Shading_Slides_The_Inner_Bands_Toward_The_Light_And_Leaves_The_Silhouette, A_Highlight_Cannot_Be_Lit_Out_Of_Its_Own_Volume, FreeSurfaceSource, MetaballSource, ObstacleBoundaryTests`
+- [~] Fluid effects elements — fire, smoke and water as drawn line and fill `evidence: FluidSolver, MarchingSquares, FieldTracer, SimBaker, SimBakeOps, SimElement, LineTreatment, EffectParam, FluidEffectsViewModel, FluidEffectsWindow, EffectFieldRow, FluidSolverTests, MarchingSquaresTests, FieldTracerTests, SimBakerTests, SimElementTests, FluidEffectsViewModelTests, FluidEffectsWindowTests, A_New_Element_Arrives_Already_Burning, Every_Solver_Parameter_Has_A_Row, A_Style_Edit_Previews_And_A_Fluid_Edit_Waits, The_Fingerprint_Notices_Physics_And_Ignores_Style, Opening_The_Window_Is_A_Registered_Command, Smoke_Rises, Smoke_Arrives_Lit_And_Fire_Does_Not, AddExpansion, Expansion_Grows_A_Blob_And_Thins_It, Expansion_Makes_No_Matter, A_Radial_Push_Hollows_The_Middle_Where_Expansion_Keeps_It, A_Burst_Expands_The_Front, A_Timed_Emitter_Stops_Feeding, SimGroup, SimGroupOps, SimGroupTests, FluidEffectsGroupTests, Retiming_Shifts_Everything_And_Keeps_The_Internal_Timing, Folding_Puts_The_Baked_Layers_In_One_Folder_In_Order, A_Group_Stores_No_Geometry_Of_Its_Own, EmitterScatter, EmitterScatterTests, Scatter_Breaks_A_Burning_Edge_Into_Separate_Flames, Scattered_Flames_Differ_In_Height_Without_Being_Told_To, A_Longer_Surface_Gets_More_Flames_From_The_Same_Settings, Shading_Slides_The_Inner_Bands_Toward_The_Light_And_Leaves_The_Silhouette, A_Highlight_Cannot_Be_Lit_Out_Of_Its_Own_Volume, FreeSurfaceSource, MetaballSource, ObstacleBoundaryTests`
   - Designed in `docs/DESIGN-fluid-effects.md` (2026-08-18), answering "is a
     performant 2D fluid simulation possible, with the outline in the artist's
     line style and the shape filled with colour". It is Pillar 4 rather than an
@@ -698,6 +698,23 @@ every other AI feature and are only legible together.
     peak, and two of the findings are now tests. Looking also caught a defect
     nothing else would: `PeakBand` sampled only the frames an element kept, so
     exposing on 2s shifted every band level.
+  - **Step 6f landed 2026-08-19**: scatter — an emitter feeds every cell it
+    covers, so nothing can detach from an area and a painted hem reads as one
+    continuous burning edge. `Emitter.Scatter` picks discrete sites instead:
+    measured, a continuous hem is 99% alight in one run and the same hem
+    scattered is 46% alight in eight flames. **It supersedes 5c-i (emission
+    flicker) as the answer to that problem** — flicker was temporal, scatter is
+    spatial and stable, so the gaps are in the same place every frame and what
+    rises off a flame actually leaves. **Two corrections the measurements
+    forced.** The design said `HeatVariation` would give tall flames beside
+    short ones; it does not, because height is roughly logarithmic in heat and
+    the spread is already there at zero (10, 16, 24, 30, 38, 42, 44 cells) —
+    the fluid makes it, since a site with neighbours is fed by their rising
+    column. Heat varies *fierceness* instead, which for fire is which colour
+    bands each flame reaches. And a site is half a *spacing* across rather than
+    the emitter's radius: for a disc that radius is the extent of the shape the
+    sites scatter over, so deriving from it made every site as big as the disc
+    and a scattered disc came out as one blob.
   - **Step 6d landed 2026-08-19**: effects — several elements that are one
     thing, answering "like Unity's particle system, could we combine and layer
     these?" Layering already worked (an element bakes to a layer each, so they

@@ -672,7 +672,14 @@ Each step is one branch with one objective.
    intersected with anything at bake time, and the emitter's keyable origin is
    the only thing that moves it. Alpha lock turned out to belong to the
    *painter* rather than to the bake — see below.
-5c-i. **Emission flicker** — the one thing the burning-cloak render asked for and
+5c-i. **Emission flicker** — **superseded as the fix for the burning edge; still
+   wanted for shimmer.** Step 6f (scatter) is the answer to "a painted area reads
+   as a burning edge", and a better one: its gaps are spatial and stable rather
+   than temporal, so what rises off a flame actually leaves. What flicker still
+   buys is shimmer within a flame, and it remains the first effect parameter
+   whose seed varies by frame — Q80's ground for brushes — so it keeps its own
+   re-render and hold tests. The original entry follows.
+   The one thing the burning-cloak render asked for and
    did not get. A mask that emits over an area every frame refuels itself, so no
    tongue can detach and it reads as a burning *edge* rather than as flames.
    Emission modulated per cell by `Hash01` over position **and frame** makes the
@@ -813,6 +820,54 @@ Each step is one branch with one objective.
    would allow a blast to shove its own smoke and would cost every member the
    finest resolution any of them needed. Matching wind or burst is the answer
    for now, and it is in the manual.
+
+6f. **Scatter — flames on a surface rather than a surface on fire** —
+   **landed 2026-08-19**. An emitter feeds every cell it covers, so nothing can
+   detach from an area: whatever rises is replaced from below the same frame,
+   and a painted hem reads as one continuous burning edge (Q125's finding).
+   `Emitter.Scatter` picks discrete sites over the same area instead. Measured:
+   a continuous hem is 99% alight in one unbroken run, the same hem scattered is
+   46% alight in eight separate flames.
+
+   **This supersedes 5c-i as the answer to that problem.** Flicker was the plan
+   — emission modulated in *time* — and scatter is better because it is spatial
+   and *stable*: the gaps are in the same place every frame, so what leaves a
+   site actually leaves. Flicker is still wanted for shimmer and stays on the
+   list as its own want.
+
+   **Buckets, not a lattice**, and that was a bug fix rather than a preference.
+   The first version walked lattice points and kept the ones that landed on ink,
+   which fails exactly where the feature is aimed: a hem six cells thick against
+   a spacing of eight means most lattice rows miss it, so the number of flames
+   depended on where the garment sat relative to a grid anchored at the origin
+   — moving it two cells could halve the fire. Now every bucket the shape
+   touches contributes one site, picked by highest hash among the inked cells in
+   it, ordered before use because a dictionary's order is not part of its
+   contract.
+
+   **A site is half a spacing across, not the emitter's radius.** For a disc or
+   a segment the emitter's radius is the extent of the *shape* the sites are
+   scattered over, so deriving a site from it made every site as big as the disc
+   containing them — a scattered disc came out as one solid blob and the feature
+   silently did nothing on two of the three shapes.
+
+   **Two corrections the measurements forced, both worth more than the
+   feature.** The design said `HeatVariation` would give tall flames beside
+   short ones, reasoning that a flame is as tall as its heat survives `Cooling`.
+   It does not: height is roughly logarithmic in heat, so ±60% barely shows —
+   and the spread is *already there* with every variation at zero (heights of
+   10, 16, 24, 30, 38, 42, 44), because the fluid makes it. A site with
+   neighbours either side is fed by their rising column and runs tall; one on
+   the end of a run does not. So scatter gives height variation free, and
+   `HeatVariation` does something else: it varies *fierceness*, which for fire
+   is which colour bands each flame reaches.
+
+   And **both controls only read cleanly at the stamp.** Downstream the plumes
+   lean into each other and blend: three separate metrics for size variation
+   moved the wrong way or not at all before one — the narrowest run, which
+   cannot be two sites that met — meant what it said. That is
+   `docs/DESIGN-performance.md`'s rule for the fourth time in this feature: the
+   number was real and the attribution was not.
 
 6e. **An effect as an `Fx` symbol** (Q129) — the next branch, and most of it
    exists already: `Symbol.Frames` is a `List<Frame>`, `SymbolKind.Fx` is in the

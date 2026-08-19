@@ -198,11 +198,37 @@ cloak on its own layer, point an emitter at it, and the fire is on the hem.
 The mask **is** the emission — it is not intersected with anything at bake time,
 and only the emitter's own origin (and its Travel keys) moves it.
 
-> **Known limit.** A mask that emits over a wide *area* refuels itself every
-> frame, so heat never leaves it and no tongue detaches. That reads as a burning
-> *edge* rather than as flames. The fix is emission that flickers along the mask
-> and is not built yet; in the meantime, **paint a broken mask** — sparse
-> emission in space already works exactly as you would want.
+### Scatter — flames on a surface, rather than a surface on fire
+
+An emitter feeds **every** cell it covers, every frame. Over a wide area that
+means nothing can ever detach: whatever rises is replaced from below the same
+frame, so a painted hem reads as one continuous burning edge.
+
+**Scatter** breaks it into separate flames standing over the same area.
+
+- **Coverage** — what fraction of the surface burns. A fraction rather than a
+  count, so painting a longer hem gives proportionally more flames with nothing
+  else to change.
+- **Spacing** — how far apart they stand, in cells, *and how big they are*: each
+  flame is half a spacing across, so they just touch at full coverage. One
+  number, because that is how you would describe a row of flames.
+- **Size varies** — how much they differ in width at the base.
+- **Heat varies** — how much they differ in **fierceness**, which for fire means
+  which colour bands each one reaches: some running up into the pale core,
+  others staying dull red.
+- **Lean** — a sideways push that differs per flame, so they stop swaying in
+  step with each other.
+
+> **The flames come out at different heights on their own.** You do not need to
+> ask for it, and turning *heat varies* up will not give you more of it. What
+> makes it is the fluid: a flame with neighbours either side is fed by their
+> rising column and runs tall, one on the end of a run is not and stays short.
+> Measured with every variation at zero, a scattered hem burns at heights of 10,
+> 16, 24, 30, 38, 42 and 44 cells.
+
+Scatter belongs to the emitter, not to fire and not to masks — a plain disc
+scatters into a handful of small flames inside its own outline, and smoke or
+steam off a surface scatters the same way.
 
 ## Bands and colour
 
@@ -308,8 +334,10 @@ re-bake will not take your work back out — but it also will not update it.
 
 ## What is planned
 
-- **Emission flicker**, so an area mask reads as flames rather than as a burning
-  edge.
+- **Emission flicker**, for shimmer. It used to be the planned answer to "a
+  painted area reads as a burning edge" — **Scatter** is that answer now, and a
+  better one, because its gaps are in the same place every frame so what rises
+  off a flame actually leaves.
 - **Obstacles** — pointing an element at a layer whose ink the fluid cannot pass
   through, so smoke goes around a figure rather than through her. There is no
   control for it yet, on purpose: the solver has walls only at the edge of its

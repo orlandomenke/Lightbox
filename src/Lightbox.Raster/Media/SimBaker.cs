@@ -310,6 +310,16 @@ public sealed class SimBaker
                 continue;
             }
 
+            // Scatter is a property of the stamp rather than of a shape, so a
+            // disc becomes a handful of small flames inside its own outline the
+            // same way a garment does. A point has no area to scatter over and
+            // is left alone.
+            if (emitter.Scatter is { } scatter && emitter.Shape != EmitterShape.Point)
+            {
+                StampScattered(solver, emitter, scatter, ox, oy);
+                continue;
+            }
+
             switch (emitter.Shape)
             {
                 case EmitterShape.Point:
@@ -359,12 +369,181 @@ public sealed class SimBaker
         var cx = emitter.X + shiftX;
         var cy = emitter.Y + shiftY;
 
+        // Scattered, the mask says *where flames may stand* rather than being
+        // the emission itself — which is what lets a hem carry separate flames
+        // instead of burning along its whole length at once (Q125's finding).
+        if (emitter.Scatter is { } scatter)
+        {
+            foreach (var site in Sites(
+                         emitter, scatter, 0, 0, w - 1, h - 1,
+                         (px, py) => SampleMask(mask, w, h, px - shiftX, py - shiftY)))
+            {
+                StampSite(solver, emitter, site, cx, cy);
+            }
+            return;
+        }
+
         for (var y = 0; y < h; y++)
         {
             for (var x = 0; x < w; x++)
             {
                 var coverage = SampleMask(mask, w, h, x - shiftX, y - shiftY);
                 if (coverage > 0.001) Stamp(solver, emitter, x, y, coverage, cx, cy);
+            }
+        }
+    }
+
+    /// <summary>Scatter a disc or a segment into separate flames over its own area.</summary>
+    private static void StampScattered(
+        FluidSolver solver, Emitter emitter, EmitterScatter scatter, double ox, double oy)
+    {
+        var r = Math.Max(emitter.Radius, 0.5);
+
+        if (emitter.Shape == EmitterShape.Segment)
+        {
+            double x2 = ox + (emitter.X2 - emitter.X), y2 = oy + (emitter.Y2 - emitter.Y);
+            foreach (var site in Sites(
+                         emitter, scatter,
+                         (int)Math.Floor(Math.Min(ox, x2) - r), (int)Math.Floor(Math.Min(oy, y2) - r),
+                         (int)Math.Ceiling(Math.Max(ox, x2) + r), (int)Math.Ceiling(Math.Max(oy, y2) + r),
+                         (px, py) => 1 - Math.Min(1, DistanceToSegment(px, py, ox, oy, x2, y2) / r)))
+            {
+                StampSite(solver, emitter, site, ox, oy);
+            }
+            return;
+        }
+
+        foreach (var site in Sites(
+                     emitter, scatter,
+                     (int)Math.Floor(ox - r), (int)Math.Floor(oy - r),
+                     (int)Math.Ceiling(ox + r), (int)Math.Ceiling(oy + r),
+                     (px, py) => 1 - Math.Min(1, Math.Sqrt((px - ox) * (px - ox) + (py - oy) * (py - oy)) / r)))
+        {
+            StampSite(solver, emitter, site, ox, oy);
+        }
+    }
+
+    private static double DistanceToSegment(double px, double py, double ax, double ay, double bx, double by)
+    {
+        double dx = bx - ax, dy = by - ay;
+        var len = dx * dx + dy * dy;
+        if (len < 1e-12) return Math.Sqrt((px - ax) * (px - ax) + (py - ay) * (py - ay));
+
+        var t = Math.Clamp(((px - ax) * dx + (py - ay) * dy) / len, 0, 1);
+        double qx = ax + dx * t, qy = ay + dy * t;
+        return Math.Sqrt((px - qx) * (px - qx) + (py - qy) * (py - qy));
+    }
+
+    /// <summary>One scattered flame: where it is, how wide, how hot, and which way it leans.</summary>
+    private readonly record struct Site(double X, double Y, double Radius, double Heat, double Drift);
+
+    /// <summary>
+    /// Divide a region into buckets and pick one site in each, where the shape
+    /// allows.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Buckets rather than a lattice, and that was a bug fix rather than a
+    /// preference.</b> The first version walked lattice points and kept the ones
+    /// that landed on ink, which fails exactly where this feature is aimed: a
+    /// hem six cells thick against a spacing of eight means most lattice rows
+    /// miss it entirely, so the number of flames depended on where the garment
+    /// happened to sit relative to a grid anchored at the origin. Moving the hem
+    /// two cells could halve the fire. Picking one cell from among those that
+    /// <em>are</em> inked gives every bucket the shape touches exactly one site,
+    /// wherever inside the bucket the shape runs.
+    /// </para>
+    /// <para>
+    /// <b>Which cell wins is a hash, not the first one seen.</b> Taking the
+    /// first would put every site at the top-left of its bucket and turn a
+    /// scattered hem into a dotted line; the highest hash is an unbiased pick
+    /// that is stable under any traversal order. Results are ordered by bucket
+    /// before they are used, because a dictionary's order is not part of its
+    /// contract and invariant 2 is not a thing to leave to an implementation
+    /// detail.
+    /// </para>
+    /// <para>
+    /// <b>Seeded from the bucket's own coordinates, never from a counter.</b>
+    /// Keep, size, heat and lean all hash <c>(bx, by)</c> with different salts,
+    /// so the same document scatters identically on every machine and every
+    /// re-bake — invariant 2, exactly as a brush keeps it.
+    /// </para>
+    /// </remarks>
+    /// <param name="covers">
+    /// How much of the shape is at a point, 0 to 1 — the mask's ink, or a disc's
+    /// falloff. A bucket with nothing under it produces no site.
+    /// </param>
+    private static List<Site> Sites(
+        Emitter emitter, EmitterScatter scatter,
+        int minX, int minY, int maxX, int maxY,
+        Func<double, double, double> covers)
+    {
+        var sites = new List<Site>();
+        var coverage = Math.Clamp(scatter.Coverage, 0, 1);
+        if (coverage <= 0) return sites;
+
+        var step = Math.Max(1, scatter.Spacing);
+        var best = new Dictionary<(int X, int Y), (double Hash, double X, double Y, double Cover)>();
+
+        for (var y = minY; y <= maxY; y++)
+        {
+            for (var x = minX; x <= maxX; x++)
+            {
+                var cover = covers(x + 0.5, y + 0.5);
+                if (cover <= 0.001) continue;
+
+                var key = ((int)Math.Floor(x / step), (int)Math.Floor(y / step));
+                var pick = DeterministicHash.Unit(x, y, 0x9E10CA11u);
+                if (!best.TryGetValue(key, out var held) || pick > held.Hash)
+                {
+                    best[key] = (pick, x + 0.5, y + 0.5, cover);
+                }
+            }
+        }
+
+        foreach (var (key, cell) in best.OrderBy(b => b.Key.Y).ThenBy(b => b.Key.X))
+        {
+            var bx = key.X;
+            var by = key.Y;
+            if (DeterministicHash.Unit(bx, by, 0x5CA77E20u) >= coverage) continue;
+
+            sites.Add(new Site(
+                cell.X, cell.Y,
+                // Half a spacing across, so flames just touch at full coverage —
+                // NOT the emitter's own radius, which for a disc or a segment is
+                // the extent of the *shape*. Deriving a site from that made every
+                // site as big as the disc containing them, so a scattered disc
+                // came out as one solid blob. Weighted by how much shape is under
+                // it, so a site on a ragged edge is a small flame rather than a
+                // full-sized one hanging off the garment.
+                Math.Max(0.5, step * 0.5 * Vary(bx, by, 0x512E0001u, scatter.SizeVariation) * cell.Cover),
+                emitter.Heat * Vary(bx, by, 0x4EA70002u, scatter.HeatVariation),
+                scatter.Drift * (DeterministicHash.Unit(bx, by, 0xD21F7003u) * 2 - 1)));
+        }
+
+        return sites;
+
+        static double Vary(float x, float y, uint salt, double amount) =>
+            Math.Max(0, 1 + Math.Clamp(amount, 0, 1) * (DeterministicHash.Unit(x, y, salt) * 2 - 1));
+    }
+
+    /// <summary>Stamp one scattered flame, with its own width, heat and lean.</summary>
+    private static void StampSite(FluidSolver solver, Emitter emitter, Site site, double originX, double originY)
+    {
+        var r = site.Radius;
+        var lo = (int)Math.Floor(-r);
+        var hi = (int)Math.Ceiling(r);
+
+        for (var oy = lo; oy <= hi; oy++)
+        {
+            for (var ox = lo; ox <= hi; ox++)
+            {
+                var x = (int)Math.Floor(site.X) + ox;
+                var y = (int)Math.Floor(site.Y) + oy;
+                var d = Math.Sqrt(Math.Pow(x + 0.5 - site.X, 2) + Math.Pow(y + 0.5 - site.Y, 2));
+                if (d > r) continue;
+
+                Stamp(solver, emitter, x, y, 1 - d / r, originX, originY, site.Heat, site.Drift);
             }
         }
     }
@@ -416,14 +595,16 @@ public sealed class SimBaker
     /// </param>
     private static void Stamp(
         FluidSolver solver, Emitter emitter, double x, double y, double weight,
-        double originX, double originY)
+        double originX, double originY, double heat = double.NaN, double driftX = 0)
     {
         var cx = (int)Math.Floor(x);
         var cy = (int)Math.Floor(y);
         solver.AddDensity(cx, cy, (float)(emitter.Density * weight));
-        solver.AddHeat(cx, cy, (float)(emitter.Heat * weight));
+        // NaN rather than a nullable, so the ordinary path stays a plain read
+        // and only a scattered site pays for the branch.
+        solver.AddHeat(cx, cy, (float)((double.IsNaN(heat) ? emitter.Heat : heat) * weight));
 
-        var px = emitter.VelocityX;
+        var px = emitter.VelocityX + driftX;
         var py = emitter.VelocityY;
 
         // Expansion rather than an outward velocity: the projection forbids the

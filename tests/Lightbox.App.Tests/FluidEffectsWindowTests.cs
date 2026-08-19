@@ -157,6 +157,39 @@ public class FluidEffectsWindowTests(Xunit.ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Scatter's controls are absent until it is switched on, and appear when it
+    /// is — the camera's rule, and the one that keeps a panel from teaching an
+    /// artist that its controls lie.
+    /// </summary>
+    [AvaloniaFact]
+    public void The_Scatter_Controls_Appear_Only_When_It_Is_On()
+    {
+        var window = Opened(out var vm);
+        var model = window.Model;
+        var emitter = vm.Doc.Sims!.Values.Single().Emitters[0];
+
+        Assert.Null(emitter.Scatter);
+        Assert.DoesNotContain(model.EmitterFields, f => f.Name.StartsWith("· "));
+
+        model.EmitterFields.Single(f => f.Name == "Scatter").IsOn = true;
+
+        Assert.NotNull(emitter.Scatter);
+        foreach (var name in new[] { "· coverage", "· spacing", "· size varies", "· heat varies", "· lean" })
+        {
+            Assert.Contains(model.EmitterFields, f => f.Name == name);
+        }
+
+        model.EmitterFields.Single(f => f.Name == "· coverage").Value = 0.25;
+        Assert.Equal(0.25, emitter.Scatter!.Coverage, 3);
+
+        model.EmitterFields.Single(f => f.Name == "Scatter").IsOn = false;
+        Assert.Null(emitter.Scatter);
+        Assert.DoesNotContain(model.EmitterFields, f => f.Name.StartsWith("· "));
+
+        window.Close();
+    }
+
+    /// <summary>
     /// Every number the solver and the tracer read has to have a control. This is
     /// the check that catches a parameter added to the record and never surfaced
     /// — which is the failure the "land the places it shows up" rule is about,

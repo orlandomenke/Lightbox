@@ -114,6 +114,117 @@ public enum EmitterShape
 /// is re-authoring rather than rescaling, so cell units are stable under
 /// everything that is not already a re-author.
 /// </remarks>
+/// <summary>
+/// Turns one emitter into many small ones scattered over the same area —
+/// flames along a hem rather than a hem that is on fire.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>The problem it solves is that an area emitter has no gaps.</b> A masked
+/// emitter feeds every inked cell every frame, so a garment reads as one
+/// continuous burning edge: nothing can detach, because whatever leaves is
+/// immediately replaced from below. Q125 found this by rendering it, and the
+/// first answer proposed was emission that flickered *in time*. Scatter is the
+/// better answer to the same problem because it is <em>spatial and stable</em>:
+/// the gaps are in the same places every frame, so what rises off a site
+/// actually leaves. Flicker is still wanted, for shimmer, and it is now a
+/// separate want rather than the fix for this.
+/// </para>
+/// <para>
+/// <b>Coverage rather than a count.</b> A site count would have to be
+/// re-chosen every time the garment was redrawn bigger; a fraction does not,
+/// which is the whole point — paint a longer hem and you get proportionally
+/// more flames with the same numbers.
+/// </para>
+/// <para>
+/// <b>Height varies on its own, and that was measured rather than designed.</b>
+/// The plan was that <see cref="HeatVariation"/> would put a tall flame beside
+/// a short one, on the reasoning that a flame is as tall as its heat survives
+/// <c>Cooling</c>. It does not: with <em>both</em> variations at zero, a
+/// scattered hem already burns at heights of 10, 16, 24, 30, 38, 42 and 44
+/// cells, and turning either variation up moves the spread by less than the
+/// noise. The fluid is what makes them differ — a site with neighbours either
+/// side is fed by their rising column and runs tall, one on the end of a run
+/// does not and stays short. So scatter gives height variation for free, and
+/// the two controls below do something else.
+/// </para>
+/// <para>
+/// Every draw is <see cref="DeterministicHash"/> over the site's own position,
+/// never an index and never a clock, so invariant 2 holds exactly as it does
+/// for a brush: the same document scatters the same way on every machine, and a
+/// re-bake is identical.
+/// </para>
+/// </remarks>
+public sealed class EmitterScatter
+{
+    /// <summary>
+    /// What fraction of the candidate sites actually burn, 0..1.
+    /// </summary>
+    /// <remarks>
+    /// At 1 every lattice point is a site and the effect is an even field of
+    /// flames; low values leave most of the surface alone, which is what a
+    /// garment catching light looks like before it is properly alight.
+    /// </remarks>
+    public double Coverage { get; set; } = 0.5;
+
+    /// <summary>
+    /// Cells between candidate sites, before jitter.
+    /// </summary>
+    /// <remarks>
+    /// <b>A lattice rather than a per-cell roll</b>, because a per-cell roll
+    /// clumps: neighbouring cells are independent, so sites land in twos and
+    /// threes with bald patches between them, which reads as noise rather than
+    /// as flames. A jittered lattice gives an even spread and a natural-looking
+    /// irregularity for the same cost. Below the emitter's own radius the sites
+    /// overlap into a continuous sheet, which is the old behaviour and is
+    /// sometimes what is wanted.
+    /// </remarks>
+    public double Spacing { get; set; } = 6;
+
+    /// <summary>
+    /// How far a site's own size may stray, as a fraction — the <em>width</em>
+    /// of each flame's base.
+    /// </summary>
+    /// <remarks>
+    /// A fraction of <see cref="Spacing"/> rather than of the emitter's radius;
+    /// see there for why. It reads at the base and not up the flame: measured
+    /// with the sites far enough apart not to touch, 0.6 gives bases of 7 to 21
+    /// cells against a flat 15, and once they overlap the merged runs hide it
+    /// again.
+    /// </remarks>
+    public double SizeVariation { get; set; } = 0.4;
+
+    /// <summary>
+    /// How far a site's own heat may stray, as a fraction — how <em>fiercely</em>
+    /// each flame burns.
+    /// </summary>
+    /// <remarks>
+    /// <b>Intensity, not height</b>, and the difference was found by measuring
+    /// rather than by reasoning — see the remark on the class. It widens the
+    /// spread of peak temperature across flames by about a third (0.177 to
+    /// 0.238 at 0.6), and because fire bands <em>from</em> temperature that is
+    /// exactly which colours each flame reaches: some running up into the pale
+    /// core, others staying in the dull red. On a smoke element, where the
+    /// bands read density, it changes how hard each site lifts instead.
+    /// </remarks>
+    public double HeatVariation { get; set; } = 0.4;
+
+    /// <summary>
+    /// A sideways push given to each site, in cells per step, varying per site.
+    /// </summary>
+    /// <remarks>
+    /// Without it every flame rides the same turbulence field and they sway in
+    /// lockstep, which reads as a printed pattern moving rather than as a row
+    /// of separate flames. A per-site lean is the cheapest thing that
+    /// decorrelates them, and being seeded from the site's position it is
+    /// steady: a given flame leans the same way for as long as it burns.
+    /// </remarks>
+    public double Drift { get; set; }
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public EmitterScatter Clone() => (EmitterScatter)MemberwiseClone();
+}
+
 public sealed class Emitter
 {
     public string Id { get; set; } = Ids.NewId("em");
@@ -245,6 +356,16 @@ public sealed class Emitter
 
     public EffectParam? MotionY { get; set; }
 
+    /// <summary>
+    /// Scatter this emitter into many small ones over the same area, or null to
+    /// feed the whole of it as one source.
+    /// </summary>
+    /// <remarks>
+    /// Absent by default: a torch is one flame and should write no keys about
+    /// not being several.
+    /// </remarks>
+    public EmitterScatter? Scatter { get; set; }
+
     /// <summary>Whether this emitter travels at all. Derived; never serialized.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool Travels => MotionX is not null || MotionY is not null;
@@ -258,6 +379,7 @@ public sealed class Emitter
         var copy = (Emitter)MemberwiseClone();
         copy.MotionX = MotionX?.Clone();
         copy.MotionY = MotionY?.Clone();
+        copy.Scatter = Scatter?.Clone();
         return copy;
     }
 }

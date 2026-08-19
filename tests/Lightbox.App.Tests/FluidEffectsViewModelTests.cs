@@ -165,6 +165,8 @@ public class FluidEffectsViewModelTests(ITestOutputHelper output)
                 ("emitter position", e => e.Emitters[0].X += 1),
                 ("emitter travel", e => e.Emitters[0].MotionX = new Lightbox.Core.Effects.EffectParam { Value = 3 }),
                 ("a burst", e => e.Emitters[0].Burst = 0.5),
+                ("scattering it", e => e.Emitters[0].Scatter = new EmitterScatter()),
+                ("how much of it burns", e => e.Emitters[0].Scatter = new EmitterScatter { Coverage = 0.2 }),
                 ("when emission starts", e => e.Emitters[0].EmitFrom = 4),
                 ("when emission stops", e => e.Emitters[0].EmitUntil = 6),
                 ("wind", e => e.WindX = new Lightbox.Core.Effects.EffectParam { Value = 0.2 }),

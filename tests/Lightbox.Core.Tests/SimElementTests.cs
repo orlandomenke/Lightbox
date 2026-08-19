@@ -137,6 +137,38 @@ public class SimElementTests
     }
 
     /// <summary>
+    /// An emitter nobody scattered writes nothing about not being scattered.
+    /// </summary>
+    [Fact]
+    public void Scatter_Is_Absent_Until_It_Is_Switched_On()
+    {
+        var plain = new SimElement();
+        plain.Emitters.Add(new Emitter());
+        Assert.DoesNotContain("\"scatter\"", Json(plain));
+
+        var scattered = new SimElement();
+        scattered.Emitters.Add(new Emitter { Scatter = new EmitterScatter { Coverage = 0.3 } });
+        var json = Json(scattered);
+        Assert.Contains("\"scatter\"", json);
+        Assert.Contains("\"coverage\"", json);
+    }
+
+    /// <summary>
+    /// Cloning copies the scatter block rather than sharing it — an undo
+    /// snapshot and the live document must not tune the same flames.
+    /// </summary>
+    [Fact]
+    public void Cloning_An_Emitter_Copies_Its_Scatter()
+    {
+        var emitter = new Emitter { Scatter = new EmitterScatter { Coverage = 0.3, Spacing = 9 } };
+
+        var copy = emitter.Clone();
+        copy.Scatter!.Coverage = 0.9;
+
+        Assert.Equal(0.3, emitter.Scatter!.Coverage);
+    }
+
+    /// <summary>
     /// Shading is the newest treatment field and the one most likely to be
     /// forgotten in the three places a nullable field has to appear: absent
     /// unless stated, carried by the cascade, and copied by a clone.
