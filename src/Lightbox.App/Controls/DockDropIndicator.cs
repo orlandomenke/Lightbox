@@ -34,10 +34,11 @@ public class DockDropIndicator : Control
     public void Show(DropTarget? target)
     {
         var wasOpen = _target.HasValue;
-        var same = _target.HasValue && target.HasValue
-                   && _target.Value.Side == target.Value.Side
-                   && _target.Value.Index == target.Value.Index
-                   && _target.Value.Preview.Equals(target.Value.Preview);
+        // Every field, because every field is drawn: the caret moves between
+        // two tab positions whose side, index and preview are all identical,
+        // and a comparison that named its fields by hand would have to be
+        // remembered again the next time one is added.
+        var same = _target.HasValue && target.HasValue && _target.Value.Equals(target.Value);
         if (same) return;
 
         _target = target;
@@ -93,9 +94,24 @@ public class DockDropIndicator : Control
     private static readonly IPen Edge =
         new Pen(new SolidColorBrush(Color.FromArgb(0xd0, 0x6a, 0xb4, 0xff)), 2);
 
+    /// <summary>
+    /// The insertion mark, solid where the wash is a tint: it has to be legible
+    /// over a tab's own ground, and it is the only part of the feedback that
+    /// says which side of a neighbour the tab lands on.
+    /// </summary>
+    private static readonly IBrush CaretFill = new SolidColorBrush(Color.FromArgb(0xff, 0x6a, 0xb4, 0xff));
+
     public override void Render(DrawingContext context)
     {
-        if (_target is null || _drawn.Width <= 0 && _drawn.Height <= 0) return;
-        context.DrawRectangle(Fill, Edge, _drawn, 3, 3);
+        if (_target is not { } target) return;
+        if (_drawn.Width > 0 || _drawn.Height > 0) context.DrawRectangle(Fill, Edge, _drawn, 3, 3);
+        // Drawn unanimated: a mark that slid between tab positions would read
+        // as the tab already having moved, which is the one thing it must not
+        // claim while the pointer is still down.
+        if (target.Caret is { } caret)
+        {
+            context.DrawRectangle(
+                CaretFill, null, new Rect(caret.X, caret.Y, caret.Width, caret.Height), 1.5, 1.5);
+        }
     }
 }

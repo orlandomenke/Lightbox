@@ -18,6 +18,17 @@ public sealed class DockPlacement
     /// <summary>Position within its strip, top to bottom or left to right.</summary>
     public int Order { get; set; }
 
+    /// <summary>
+    /// Position within its slot's tab strip, left to right.
+    /// </summary>
+    /// <remarks>
+    /// Only means anything when a slot holds more than one panel. Ties break on
+    /// the panel id, which is what makes a layout written before tab order
+    /// existed — every placement at zero — load in exactly the order it used to
+    /// render in, rather than in whatever order the dictionary happens to be in.
+    /// </remarks>
+    public int TabOrder { get; set; }
+
     /// <summary>Along the strip: height in a side strip, width in a top or bottom one.</summary>
     public double Extent { get; set; }
 
@@ -210,13 +221,14 @@ public sealed class DockLayout
     public bool IsVisible(DockPanelId id) => Place(id).Side != DockSide.Hidden;
 
     /// <summary>The panels in one strip, in the order they are drawn.</summary>
+    /// <remarks>
+    /// Flattened from the slots rather than sorted again, so it cannot disagree
+    /// with them about what "the order they are drawn" means — which it would
+    /// the moment a tab is dragged along its header, because that order is a
+    /// choice now rather than the panel ids.
+    /// </remarks>
     public List<DockPanelId> PanelsIn(DockSide side) =>
-        Placements
-            .Where(p => p.Value.Side == side)
-            .OrderBy(p => p.Value.Order)
-            .ThenBy(p => (int)p.Key)
-            .Select(p => p.Key)
-            .ToList();
+        [.. SlotsIn(side).SelectMany(slot => slot)];
 
     /// <summary>
     /// The strip's slots, each holding the panels tabbed together in it.
@@ -226,13 +238,24 @@ public sealed class DockLayout
     /// that happen to share an <see cref="DockPlacement.Order"/> are tabbed
     /// together, and a slot of one is an ordinary docker. Drag the last member
     /// out and the group stops existing, with nothing to clean up.
+    ///
+    /// Within a slot the members come back in <see cref="DockPlacement.TabOrder"/>,
+    /// which is the order the header draws them in and the order the artist can
+    /// rearrange.
     /// </remarks>
     public List<List<DockPanelId>> SlotsIn(DockSide side) =>
         Placements
             .Where(p => p.Value.Side == side)
             .GroupBy(p => p.Value.Order)
             .OrderBy(g => g.Key)
-            .Select(g => g.OrderBy(p => (int)p.Key).Select(p => p.Key).ToList())
+            .Select(g => g
+                // Tab order first, panel id only to break a tie — which is the
+                // whole of what makes a layout saved before tabs could be
+                // rearranged (every TabOrder at zero) render exactly as it did.
+                .OrderBy(p => p.Value.TabOrder)
+                .ThenBy(p => (int)p.Key)
+                .Select(p => p.Key)
+                .ToList())
             .ToList();
 
     /// <summary>The panel showing in each slot — one per slot, in strip order.</summary>
@@ -278,29 +301,69 @@ public sealed class DockLayout
     }
 
     /// <summary>
-    /// Tab a panel together with another, taking the target's slot.
+    /// Tab a panel together with another, taking the target's slot — at
+    /// <paramref name="tabIndex"/> in that slot's strip, or last.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The joiner becomes the one showing, because the artist just dragged it
     /// there — landing it behind the panel it was dropped on would look like
     /// the drop had failed. It also takes the slot's extent, so the group does
     /// not resize when the tab changes.
+    /// </para>
+    /// <para>
+    /// <b><paramref name="target"/> may be the panel itself</b>, and with a
+    /// <paramref name="tabIndex"/> that is not a no-op: it is the drag that
+    /// moves a tab along the header it is already in. One method rather than
+    /// two because the gesture is one gesture — the artist picks a tab up and
+    /// puts it down somewhere, and whether that somewhere is the same header
+    /// is an accident of where they let go. The caller would otherwise have to
+    /// ask the layout which slot it was over before it could pick a method,
+    /// which is the layout's own question.
+    /// </para>
     /// </remarks>
-    public void JoinGroup(DockPanelId id, DockPanelId target)
+    public void JoinGroup(DockPanelId id, DockPanelId target, int? tabIndex = null)
     {
-        if (id == target) return;
+        if (id == target && tabIndex is null) return;
         var into = Place(target);
         if (into.Side is DockSide.Hidden or DockSide.Floating) return;
         if (!DockPanels.Of(id).Movable) return;
 
         var placement = Place(id);
         var from = placement.Side;
+        var fromOrder = placement.Order;
         placement.Side = into.Side;
         placement.HomeSide = into.Side;
         placement.Order = into.Order;
         placement.Extent = into.Extent;
+        // Last when nobody said where, which is what a drop on a panel's body
+        // means: joining a group is about the group, not about a position in it.
+        MoveTabTo(id, tabIndex ?? int.MaxValue);
         Activate(id);
+        // The slot it came from, whichever side that was on. Leaving a group
+        // on the SAME side used to skip this, and the vacated slot left a hole
+        // in the strip's numbering — harmless to draw and a lie to every piece
+        // of arithmetic that assumes 0..n-1.
         if (from != into.Side) Renumber(SlotsIn(from));
+        else if (fromOrder != into.Order) Renumber(SlotsIn(into.Side));
+    }
+
+    /// <summary>
+    /// Move a panel to <paramref name="index"/> in its slot's tab strip.
+    /// </summary>
+    /// <remarks>
+    /// Rebuilt from the members rather than nudged, because the numbers are a
+    /// sequence and not a value anybody reads: what the artist chose is
+    /// "third", and an increment that happened to collide with a neighbour
+    /// would put it fourth or first depending on the panel ids. Clamped rather
+    /// than refused — <c>int.MaxValue</c> is how the callers spell "last".
+    /// </remarks>
+    public void MoveTabTo(DockPanelId id, int index)
+    {
+        var order = SlotOf(id).Where(m => m != id).ToList();
+        index = Math.Clamp(index, 0, order.Count);
+        order.Insert(index, id);
+        for (var i = 0; i < order.Count; i++) Place(order[i]).TabOrder = i;
     }
 
     /// <summary>
@@ -354,6 +417,10 @@ public sealed class DockLayout
             placement.HomeSide = side;
             placement.Order = target.Order;
             placement.Extent = target.Extent;
+            // Last in the strip, as JoinGroup's default is. Without it the
+            // panel keeps whatever position it held in the slot it left and
+            // arrives in the middle of a group it has never been in.
+            MoveTabTo(id, int.MaxValue);
             Activate(id);
             Renumber(SlotsIn(side));
             if (from != side && from is not (DockSide.Floating or DockSide.Hidden)) Renumber(SlotsIn(from));
@@ -494,7 +561,16 @@ public sealed class DockLayout
             // Exactly one showing per slot, always. Two actives renders the
             // wrong one; none renders nothing at all.
             var active = ActiveOf(slot);
-            foreach (var id in slot) Place(id).TabActive = id == active;
+            for (var i = 0; i < slot.Count; i++)
+            {
+                Place(slot[i]).TabActive = slot[i] == active;
+                // The strip's order, closed up. A slot arrives here already in
+                // it (SlotsIn sorts by it), so this only removes the gaps a
+                // departed tab left — and gaps are what let a layout from disk
+                // hold two panels at the same number, where the tie-break by
+                // id decides an order the artist did not choose.
+                Place(slot[i]).TabOrder = i;
+            }
         }
     }
 

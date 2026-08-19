@@ -426,8 +426,16 @@ public sealed partial class WorkspaceViewModel : ObservableObject
 
     public void Redock(DockPanelId id) => Mutate(l => l.Redock(id));
 
-    /// <summary>Tab a panel together with another.</summary>
-    public void JoinGroup(DockPanelId id, DockPanelId target) => Mutate(l => l.JoinGroup(id, target));
+    /// <summary>
+    /// Tab a panel together with another, at a position in that slot's strip.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="target"/> may be the panel itself, which is a tab being
+    /// moved along the header it is already in — see <see cref="DockLayout.JoinGroup"/>
+    /// for why that is one operation rather than two.
+    /// </remarks>
+    public void JoinGroup(DockPanelId id, DockPanelId target, int? tabIndex = null) =>
+        Mutate(l => l.JoinGroup(id, target, tabIndex));
 
     /// <summary>Show a tab, and stop showing its siblings.</summary>
     /// <remarks>

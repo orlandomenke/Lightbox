@@ -197,6 +197,212 @@ public class DockZoneTests
         Assert.Null(drop?.IntoGroupOf);
     }
 
+    // ---- aiming at a position in a tab strip --------------------------------
+
+    private static readonly DockRect Big = new(0, 0, 1000, 800);
+
+    /// <summary>
+    /// A slot whose header carries three 60px tabs, measured as the window
+    /// would measure them: Layers at x=700, Color at 760, Palette at 820.
+    /// </summary>
+    private static PanelSlot Tabbed(DockPanelId active, int order = 0, double top = 0) =>
+        new(active, DockSide.Right, order, new DockRect(700, top, 300, 400), 22,
+            [
+                new PanelTab(DockPanelId.Layers, new DockRect(700, top + 4, 60, 18)),
+                new PanelTab(DockPanelId.Color, new DockRect(760, top + 4, 60, 18)),
+                new PanelTab(DockPanelId.Palette, new DockRect(820, top + 4, 60, 18)),
+            ]);
+
+    private static DropTarget? OnHeader(double x, DockPanelId dragged, params PanelSlot[] slots) =>
+        DockZones.Resolve(x, 8, Big, slots, dragged, DockLayout.Default());
+
+    [Theory]
+    // Before the first tab's midpoint, and after it: the gap the pointer is
+    // nearest, not the tab it is over.
+    [InlineData(705, 0)]
+    [InlineData(735, 1)]
+    [InlineData(795, 2)]
+    [InlineData(855, 3)]
+    // Past the last tab, in the empty part of the header.
+    [InlineData(950, 3)]
+    public void AHeaderDropChoosesThePositionBetweenTwoTabs(double x, int expected)
+    {
+        var drop = OnHeader(x, DockPanelId.Gradient, Tabbed(DockPanelId.Layers));
+
+        Assert.Equal(DockPanelId.Layers, drop!.Value.IntoGroupOf);
+        Assert.Equal(expected, drop.Value.TabIndex);
+    }
+
+    [Fact]
+    public void ATabDroppedInItsOwnHeaderMovesToThatPosition()
+    {
+        // The gesture the whole thing exists for. Everywhere else a panel over
+        // its own slot is no target at all — over its own tabs it means
+        // something ordinary and different: put this one down further along.
+        var drop = OnHeader(855, DockPanelId.Layers, Tabbed(DockPanelId.Layers));
+
+        Assert.NotNull(drop);
+        Assert.Equal(DockPanelId.Layers, drop!.Value.IntoGroupOf);
+        // Two, not three: the strip it is landing in is the strip with this tab
+        // already lifted out of it.
+        Assert.Equal(2, drop.Value.TabIndex);
+    }
+
+    [Fact]
+    public void ATabDroppedWhereItAlreadyIsStaysWhereItIs()
+    {
+        // And it must still be a TARGET. Resolving to null here would mean the
+        // release found nothing under the pointer, and a drag that let go over
+        // its own name would float the panel.
+        var drop = OnHeader(715, DockPanelId.Layers, Tabbed(DockPanelId.Layers));
+
+        Assert.NotNull(drop);
+        Assert.Equal(0, drop!.Value.TabIndex);
+    }
+
+    [Fact]
+    public void TheCaretMarksTheGapUnderThePointerRatherThanTheCorrectedIndex()
+    {
+        // Two indices that are not the same number: the caret is drawn between
+        // the tabs as they stand, the index describes the strip with the
+        // dragged tab lifted out. Drawing the corrected one would put the mark
+        // a whole tab away from where the artist is aiming.
+        var drop = OnHeader(855, DockPanelId.Layers, Tabbed(DockPanelId.Layers));
+
+        Assert.Equal(2, drop!.Value.TabIndex);
+        var caret = drop.Value.Caret;
+        Assert.NotNull(caret);
+        // Past the last tab, so the mark sits on its right edge — 880, not 820.
+        Assert.Equal(880, caret!.Value.X + DockZones.CaretWidth / 2, 3);
+        Assert.Equal(18, caret.Value.Height);
+    }
+
+    [Fact]
+    public void TheCaretSitsOnTheBoundaryItNames()
+    {
+        var drop = OnHeader(795, DockPanelId.Gradient, Tabbed(DockPanelId.Layers));
+
+        // Between Color and Palette: the left edge of Palette's tab.
+        Assert.Equal(820, drop!.Value.Caret!.Value.X + DockZones.CaretWidth / 2, 3);
+    }
+
+    [Fact]
+    public void RearrangingIsOfferedEvenWhenTheSlotIsTheOnlyOneOnItsSide()
+    {
+        // The bottom edge is one slot holding the whole timeline family, so the
+        // "nowhere to go" shortcut would take the X-sheet's tab out of reach of
+        // the only rearrangement it has.
+        var only = new PanelSlot(
+            DockPanelId.Xsheet, DockSide.Bottom, 0, new DockRect(0, 600, 1000, 200), 22,
+            [
+                new PanelTab(DockPanelId.Timeline, new DockRect(0, 604, 60, 18)),
+                new PanelTab(DockPanelId.Xsheet, new DockRect(60, 604, 60, 18)),
+            ]);
+
+        var drop = DockZones.Resolve(10, 608, Big, [only], DockPanelId.Xsheet, DockLayout.Default());
+
+        Assert.Equal(DockPanelId.Xsheet, drop!.Value.IntoGroupOf);
+        Assert.Equal(0, drop.Value.TabIndex);
+    }
+
+    [Fact]
+    public void TheBottomEdgeOfATabIsStillTheTabStrip()
+    {
+        // Measured, not supposed: a realised tab is 24px tall from y=4 under a
+        // header that measures 27, so its last row of pixels is outside the
+        // band. Letting go there meant "join, last" instead of the position
+        // under the pointer, on the row an artist aims at when they aim at the
+        // bottom of a word.
+        var overhanging = new PanelSlot(
+            DockPanelId.Layers, DockSide.Right, 0, new DockRect(700, 0, 300, 400), 27,
+            [
+                new PanelTab(DockPanelId.Layers, new DockRect(700, 4, 60, 24)),
+                new PanelTab(DockPanelId.Color, new DockRect(760, 4, 60, 24)),
+            ]);
+
+        var drop = DockZones.Resolve(
+            765, 27.5, Big, [overhanging], DockPanelId.Gradient, DockLayout.Default());
+
+        Assert.Equal(DockPanelId.Layers, drop!.Value.IntoGroupOf);
+        Assert.Equal(1, drop.Value.TabIndex);
+    }
+
+    [Fact]
+    public void ATabBehindAnotherIsStillRearrangedRatherThanRejoined()
+    {
+        // A press selects the tab it lands on and the layout hears about it a
+        // dispatcher turn later, so a quick pull can resolve against a slot
+        // whose active panel is still the previous one. What decides is whether
+        // the dragged panel is IN this group, not whether it is its face.
+        var drop = OnHeader(715, DockPanelId.Palette, Tabbed(DockPanelId.Layers));
+
+        Assert.NotNull(drop);
+        // The header alone: nothing about where the panel sits is changing.
+        Assert.Equal(new DockRect(700, 0, 300, 22), drop!.Value.Preview);
+        Assert.Equal(0, drop.Value.TabIndex);
+    }
+
+    [Fact]
+    public void ALoneTabOverItsOwnHeaderIsStillNoTarget()
+    {
+        // Nothing to sit beside, so the drop means what it always meant: let go
+        // over nothing and the panel floats.
+        var lone = new PanelSlot(
+            DockPanelId.Layers, DockSide.Right, 0, new DockRect(700, 0, 300, 400), 22,
+            [new PanelTab(DockPanelId.Layers, new DockRect(700, 4, 60, 18))]);
+
+        Assert.Null(DockZones.Resolve(730, 8, Big, [lone], DockPanelId.Layers, DockLayout.Default()));
+    }
+
+    [Fact]
+    public void ADropOnTheBodyNamesNoPositionAtAll()
+    {
+        // A gesture that never went near the strip cannot mean a place in it,
+        // and last is the only honest reading.
+        var drop = DockZones.Resolve(
+            820, 300, Big, [Tabbed(DockPanelId.Layers)], DockPanelId.Gradient, DockLayout.Default());
+
+        Assert.Equal(DockPanelId.Layers, drop!.Value.IntoGroupOf);
+        Assert.Null(drop.Value.TabIndex);
+        Assert.Null(drop.Value.Caret);
+    }
+
+    [Fact]
+    public void AnUnmeasuredHeaderStillJoinsTheGroupItAlwaysDid()
+    {
+        // No tab rectangles — the containers were not realised — so the header
+        // cannot say where in itself anything goes. It must not stop meaning
+        // "join this group", which is what it meant before positions existed.
+        var slot = new PanelSlot(DockPanelId.Layers, DockSide.Right, 0, new DockRect(700, 0, 300, 400), 22);
+
+        var drop = DockZones.Resolve(820, 8, Big, [slot], DockPanelId.Gradient, DockLayout.Default());
+
+        Assert.Equal(DockPanelId.Layers, drop!.Value.IntoGroupOf);
+        Assert.Null(drop.Value.TabIndex);
+    }
+
+    [Fact]
+    public void AHeaderDropOnAnotherSlotStillWashesTheWholePanel()
+    {
+        // The position is new; what the highlight says is not. The wash names
+        // the panel being joined and the caret names the place in its strip —
+        // one drop, two facts, and neither replaces the other.
+        var drop = OnHeader(795, DockPanelId.Gradient, Tabbed(DockPanelId.Layers));
+
+        Assert.Equal(new DockRect(700, 0, 300, 400), drop!.Value.Preview);
+        Assert.NotNull(drop.Value.Caret);
+    }
+
+    [Fact]
+    public void RearrangingInsideOneHeaderWashesOnlyTheHeader()
+    {
+        // Nothing about where the panel sits is changing, and a wash over the
+        // whole body would say it was.
+        var drop = OnHeader(855, DockPanelId.Layers, Tabbed(DockPanelId.Layers));
+
+        Assert.Equal(new DockRect(700, 0, 300, 22), drop!.Value.Preview);
+    }
+
     [Fact]
     public void AHeaderlessSlotOffersNoTabTarget()
     {
