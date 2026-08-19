@@ -150,14 +150,23 @@ two cels across four layers. Ctrl+click a picked cel again to drop it. Shift
 still ranges from the last cel you clicked, and re-ranges rather than adding a
 second run, so it is the way to correct an overshoot.
 
-**Clear** and **delete** cover every cel you picked, on every layer, and the
-cels you left out are left alone — a delete works from the end of the row
-backwards, so the gaps it makes never shift the cels you picked next. **Copy**,
-**cut** and **paste** work on one row, because a cel clipboard is a sequence of
-drawings on one layer; copying a picked-out set takes the cels you chose in
-order and pastes them consecutively, holes closed up. If the selection reached
-other layers, the status line says which were not copied rather than pretending
-otherwise.
+**Everything on the cel's right-click menu covers the selection** — insert a
+key, breakdown or inbetween, extend and reduce exposure, clear, delete, and the
+three re-timing commands. The cels you left out are left alone, and an action
+aimed at a cel that is *not* in the selection takes that cel alone, so
+right-clicking somewhere else is never a trap.
+
+The ones that change the length of a row — extend, reduce, delete — work from
+the **end of the row backwards**, so the frames they add or remove never shift
+the cels you picked further along. The re-timing commands treat a picked-out
+selection as **runs** rather than as one span: select cels 1, 2 and 5 and you
+re-time a pair and a single, not everything from 1 to 5.
+
+**Copy**, **cut** and **paste** work on one row, because a cel clipboard is a
+sequence of drawings on one layer; copying a picked-out set takes the cels you
+chose in order and pastes them consecutively, holes closed up. If the selection
+reached other layers, the status line says which were not copied rather than
+pretending otherwise.
 
 ## Timing presets
 
