@@ -412,7 +412,11 @@ public partial class MainViewModel
     public void InsertFrameAt(FrameCell cell, FrameRole role)
     {
         if (cell.LayerIndex < 0 || cell.LayerIndex >= Scene.Layers.Count) return;
-        _editor.SetKeyAt(Scene.Layers[cell.LayerIndex].Id, cell.Index, role);
+        // Every selected cel, so marking a run as breakdowns is one gesture
+        // rather than one click per drawing. With nothing selected this is the
+        // clicked cel alone, which is what every programmatic caller passes.
+        ForEachSelectedCel(cell, "insert a drawing on it",
+            (layer, index) => _editor.SetKeyAt(layer.Id, index, role));
         ActiveLayerIndex = cell.LayerIndex;
         CurrentFrameIndex = Math.Min(cell.Index, Scene.FrameCount - 1);
     }
@@ -424,17 +428,13 @@ public partial class MainViewModel
 
     private Layer? LayerOfCell(FrameCell cell) => LayerAt(cell.LayerIndex);
 
-    public void ExtendExposureAt(FrameCell cell)
-    {
-        if (LayerOfCell(cell) is not { } layer) return;
-        _editor.ExtendExposure(layer.Id, cell.Index);
-    }
+    public void ExtendExposureAt(FrameCell cell) =>
+        ForEachSelectedCel(cell, "extend an exposure on it",
+            (layer, index) => _editor.ExtendExposure(layer.Id, index));
 
-    public void ReduceExposureAt(FrameCell cell)
-    {
-        if (LayerOfCell(cell) is not { } layer) return;
-        _editor.ReduceExposure(layer.Id, cell.Index);
-    }
+    public void ReduceExposureAt(FrameCell cell) =>
+        ForEachSelectedCel(cell, "reduce an exposure on it",
+            (layer, index) => _editor.ReduceExposure(layer.Id, index));
 
     /// <summary>Frames each drawing is held for by the two re-timing commands.</summary>
     [ObservableProperty]
@@ -453,10 +453,12 @@ public partial class MainViewModel
     public void StretchExposureAt(FrameCell cell)
     {
         if (LayerOfCell(cell) is not { } layer) return;
-        if (!CanEdit(layer, "re-time it")) return;
-        var (start, end) = OpRangeFor(cell);
-        var grew = _editor.StretchExposure(layer.Id, start, end, ExposureStep);
-        AfterRetime(layer);
+        var grew = 0;
+        ForEachSelectedRun(cell, "re-time it", (target, start, end) =>
+        {
+            grew += _editor.StretchExposure(target.Id, start, end, ExposureStep);
+            AfterRetime(target);
+        });
         AiStatus = grew > 0
             ? $"Stretched to {ExposureStep}s — the range grew by {grew} frame{(grew == 1 ? "" : "s")}."
             : "Nothing to stretch in that range.";
@@ -470,10 +472,12 @@ public partial class MainViewModel
     public void ReduceToStepAt(FrameCell cell)
     {
         if (LayerOfCell(cell) is not { } layer) return;
-        if (!CanEdit(layer, "re-time it")) return;
-        var (start, end) = OpRangeFor(cell);
-        var dropped = _editor.ReduceToStep(layer.Id, start, end, Math.Max(2, ExposureStep));
-        AfterRetime(layer);
+        var dropped = 0;
+        ForEachSelectedRun(cell, "re-time it", (target, start, end) =>
+        {
+            dropped += _editor.ReduceToStep(target.Id, start, end, Math.Max(2, ExposureStep));
+            AfterRetime(target);
+        });
         AiStatus = dropped > 0
             ? $"Reduced to {Math.Max(2, ExposureStep)}s — discarded {dropped} drawing{(dropped == 1 ? "" : "s")}."
             : "Nothing to reduce in that range.";
@@ -534,17 +538,21 @@ public partial class MainViewModel
     {
         if (LayerOfCell(cell) is not { } layer) return;
         if (SelectedTimingPreset is not { } preset) return;
-        if (!CanEdit(layer, "re-time it")) return;
 
-        var (start, end) = OpRangeFor(cell);
-        var change = _editor.ApplyTiming(layer.Id, start, end, preset);
+        var change = (Drawings: 0, Frames: 0, Grew: 0);
+        ForEachSelectedRun(cell, "re-time it", (target, start, end) =>
+        {
+            var run = _editor.ApplyTiming(target.Id, start, end, preset);
+            if (run.Drawings == 0) return;
+            change = (change.Drawings + run.Drawings, change.Frames + run.Frames, change.Grew + run.Grew);
+            AfterRetime(target);
+        });
         if (change.Drawings == 0)
         {
             AiStatus = "Nothing to re-time there — that range holds no drawing of its own.";
             return;
         }
 
-        AfterRetime(layer);
         var length = change.Grew switch
         {
             > 0 => $", {change.Grew} frame{(change.Grew == 1 ? "" : "s")} longer",
@@ -960,6 +968,49 @@ public partial class MainViewModel
     }
 
     /// <summary>
+    /// Run a per-cel operation over every cel the operation reaches — the
+    /// selection when the cell is inside it, else just that cell — skipping any
+    /// layer that refuses edits and saying which.
+    /// </summary>
+    /// <remarks>
+    /// <b>Descending, and that is the whole reason this is a helper rather than
+    /// a loop at each call site.</b> Extending an exposure pushes the rest of
+    /// the row down; reducing pulls it up. Applied up the row, the second cel an
+    /// artist picked no longer means the cel they picked, because the first
+    /// operation moved it. Worked from the end, every index still means what it
+    /// meant when it was clicked.
+    /// </remarks>
+    private void ForEachSelectedCel(FrameCell cell, string verb, Action<Layer, int> apply)
+    {
+        foreach (var layerIndex in OpLayersFor(cell))
+        {
+            if (LayerAt(layerIndex) is not { } layer) continue;
+            if (!CanEdit(layer, verb)) continue;
+            foreach (var index in OpCelsOn(cell, layerIndex).OrderDescending()) apply(layer, index);
+        }
+    }
+
+    /// <summary>
+    /// The same, for the operations that take a <em>run</em> rather than a cel:
+    /// each contiguous run of selected cels, latest first.
+    /// </summary>
+    /// <remarks>
+    /// Re-timing a range is not the same as re-timing each of its cels, so these
+    /// cannot use <see cref="ForEachSelectedCel"/> — a preset applied cel by cel
+    /// would lay its whole pattern on every one. A Ctrl+click selection with a
+    /// hole in it is two runs, and two runs is what they get.
+    /// </remarks>
+    private void ForEachSelectedRun(FrameCell cell, string verb, Action<Layer, int, int> apply)
+    {
+        foreach (var layerIndex in OpLayersFor(cell))
+        {
+            if (LayerAt(layerIndex) is not { } layer) continue;
+            if (!CanEdit(layer, verb)) continue;
+            foreach (var (start, end) in RunsOf(OpCelsOn(cell, layerIndex))) apply(layer, start, end);
+        }
+    }
+
+    /// <summary>
     /// Every layer an operation started at <paramref name="cell"/> reaches:
     /// each layer holding a selected cel when the cell is inside the selection,
     /// else just the cell's own layer.
@@ -988,13 +1039,6 @@ public partial class MainViewModel
         }
         runs.Reverse();
         return runs;
-    }
-
-    /// <summary>The range the operation on this cell should cover, for the callers that want one.</summary>
-    private (int Start, int End) OpRangeFor(FrameCell cell)
-    {
-        var cels = OpCelsOn(cell, cell.LayerIndex);
-        return cels.Count == 0 ? (cell.Index, cell.Index) : (cels[0], cels[^1]);
     }
 
     /// <summary>Drop of a dragged cel: move (or Ctrl-copy) the drawing along its row.</summary>
