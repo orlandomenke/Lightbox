@@ -65,6 +65,13 @@ jobs:
   # is cheaper than the four minutes it saves on a documentation-only change.
   test:
     runs-on: ubuntu-latest
+    # A ceiling well above the real cost (~15 min) and far below GitHub's
+    # default of six hours. The step below has its own five-minute guard for
+    # the hang that prompted this; this is the general form of it, because the
+    # next hang will be somewhere else. Six hours of a cancelled-by-hand job
+    # tells nobody anything and holds a runner the whole time — PR #358 sat
+    # like that for over half an hour before anyone noticed.
+    timeout-minutes: 45
     needs: changes
     # Nothing in the suite reads docs/ or .claude/ — checked, not assumed: the
     # only repo files any test opens are .github/workflows/build.yml and
@@ -172,6 +179,7 @@ jobs:
   # on drafts is the fix.
   docs:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v5
@@ -228,6 +236,7 @@ jobs:
   # and the ledger ids need checking.
   changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     # A draft builds nothing, and this is where that has to be said as well as on
     # the jobs that need it: `test` and `publish-win-x64` read
     # `needs.changes.outputs.code`, so a skipped `changes` would leave them
