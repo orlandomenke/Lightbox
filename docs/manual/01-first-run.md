@@ -231,6 +231,12 @@ and **Size** and **Opacity** are pinned. Picking a preset puts its tool in
 your hand, so the brush button is also the way back to painting from any
 tool.
 
+The workspace itself is the **dropdown** at the right-hand end. Whatever does
+not fit on the bar goes into the **▾** beside it, nearest first — so on a
+narrow window you keep the controls that matter and lose the ones you can
+reach elsewhere, rather than losing the row. Widen the window and they come
+back on their own.
+
 The **⋮** button beside the workspace picker chooses the contents — tick and
 untick what this workspace offers. The choice behaves like any other
 workspace edit: the picker marks it with `*` until you save, *reset* undoes
