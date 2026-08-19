@@ -163,11 +163,13 @@ public sealed partial class EffectFieldRow : ObservableObject
 public sealed partial class SimElementRow : ObservableObject
 {
     private readonly Func<string, SimElement?> _resolve;
+    private readonly Func<string, string?>? _groupName;
 
-    internal SimElementRow(string id, Func<string, SimElement?> resolve)
+    internal SimElementRow(string id, Func<string, SimElement?> resolve, Func<string, string?>? groupName = null)
     {
         Id = id;
         _resolve = resolve;
+        _groupName = groupName;
     }
 
     public string Id { get; }
@@ -186,8 +188,46 @@ public sealed partial class SimElementRow : ObservableObject
         }
     }
 
+    /// <summary>The effect this element is part of, or null. Shown beside the row.</summary>
+    public string? GroupName => _groupName?.Invoke(Id);
+
     /// <summary>Nudge the list when something the label reads has changed.</summary>
-    public void Relabel() => OnPropertyChanged(nameof(Label));
+    public void Relabel()
+    {
+        OnPropertyChanged(nameof(Label));
+        OnPropertyChanged(nameof(GroupName));
+    }
+}
+
+/// <summary>
+/// One effect group in the list — several elements that are one effect.
+/// </summary>
+public sealed partial class SimGroupRow : ObservableObject
+{
+    private readonly Func<string, SimGroup?> _resolve;
+    private readonly Func<SimGroup, string> _describe;
+
+    internal SimGroupRow(string id, Func<string, SimGroup?> resolve, Func<SimGroup, string> describe)
+    {
+        Id = id;
+        _resolve = resolve;
+        _describe = describe;
+    }
+
+    public string Id { get; }
+
+    public SimGroup? Group => _resolve(Id);
+
+    public string Label => Group is { } g ? g.Name : "(missing)";
+
+    /// <summary>"3 elements · 10–64", so the list says what it holds without being opened.</summary>
+    public string Detail => Group is { } g ? _describe(g) : string.Empty;
+
+    public void Relabel()
+    {
+        OnPropertyChanged(nameof(Label));
+        OnPropertyChanged(nameof(Detail));
+    }
 }
 
 /// <summary>One emitter in the selected element, by id for the same reason.</summary>

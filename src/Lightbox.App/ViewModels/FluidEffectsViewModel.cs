@@ -82,6 +82,20 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
     /// <summary>The strokes the preview last produced, so a view can paint them.</summary>
     public IReadOnlyList<Stroke> PreviewStrokes { get; private set; } = [];
 
+    /// <summary>
+    /// Which frame <see cref="PreviewStrokes"/> describes, so a repaint can tell
+    /// "nothing to draw here" from "not drawn yet".
+    /// </summary>
+    /// <remarks>
+    /// <b>An empty list is an answer, not a miss.</b> Without this the repaint
+    /// re-traced every time the preview sat on a frame the element does not
+    /// cover — wasted work, and it silently overwrote
+    /// <see cref="LastBakeResolved"/> with the result of that second call, so
+    /// the flag reported the repaint rather than the operation the artist asked
+    /// for.
+    /// </remarks>
+    private int _previewedFrame = int.MinValue;
+
     /// <summary>Raised when the preview's content changed and a view should repaint.</summary>
     public event Action? PreviewChanged;
 
@@ -101,11 +115,12 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
             foreach (var element in sims.Values
                          .OrderBy(e => e.FirstFrame).ThenBy(e => e.Id, StringComparer.Ordinal))
             {
-                Elements.Add(new SimElementRow(element.Id, Find));
+                Elements.Add(new SimElementRow(element.Id, Find, GroupNameOf));
             }
         }
 
         Selected = Elements.FirstOrDefault(r => r.Id == wasSelected) ?? Elements.FirstOrDefault();
+        ReloadGroups();
         BuildFields();
     }
 
@@ -175,7 +190,7 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
         });
 
         (_vm.Doc.Sims ??= [])[element.Id] = element;
-        var row = new SimElementRow(element.Id, Find);
+        var row = new SimElementRow(element.Id, Find, GroupNameOf);
         Elements.Add(row);
         Selected = row;
         _vm.NoteEffectEdited();
@@ -276,11 +291,13 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
         if (Element is not { } element)
         {
             PreviewStrokes = [];
+            _previewedFrame = int.MinValue;
             PreviewChanged?.Invoke();
             return;
         }
 
         PreviewStrokes = Preview(PreviewFrame, progress, cancel);
+        _previewedFrame = PreviewFrame;
         Stale = false;
         Status = LastBakeResolved
             ? $"Simulated {element.FrameCount} frames."
@@ -312,7 +329,7 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
     {
         if (Element is not { } element) return null;
 
-        var strokes = frame == PreviewFrame && PreviewStrokes.Count > 0 ? PreviewStrokes : Preview(frame);
+        var strokes = frame == _previewedFrame ? PreviewStrokes : Preview(frame);
         if (strokes.Count == 0) return null;
 
         // Rendered through the element's own placement so the preview frames the

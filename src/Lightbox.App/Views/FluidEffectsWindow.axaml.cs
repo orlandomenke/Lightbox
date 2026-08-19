@@ -75,6 +75,24 @@ public partial class FluidEffectsWindow : Window
         RepaintPreview();
     }
 
+    private void OnNewGroup(object? sender, RoutedEventArgs e) => _model.NewGroup();
+
+    private void OnAddToGroup(object? sender, RoutedEventArgs e) => _model.AddToGroup();
+
+    private void OnRemoveFromGroup(object? sender, RoutedEventArgs e) => _model.RemoveFromGroup();
+
+    private void OnDuplicateGroup(object? sender, RoutedEventArgs e) => _model.DuplicateGroup();
+
+    private void OnUngroup(object? sender, RoutedEventArgs e) => _model.Ungroup();
+
+    private void OnDeleteGroup(object? sender, RoutedEventArgs e)
+    {
+        _model.DeleteGroup();
+        RepaintPreview();
+    }
+
+    private void OnBakeGroup(object? sender, RoutedEventArgs e) => _model.BakeGroup();
+
     private void OnNewEmitter(object? sender, RoutedEventArgs e) => _model.NewEmitter();
 
     private void OnDeleteEmitter(object? sender, RoutedEventArgs e) => _model.DeleteEmitter();
