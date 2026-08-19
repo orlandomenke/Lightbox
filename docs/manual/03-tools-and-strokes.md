@@ -257,18 +257,34 @@ back exactly.
 
 ### What else a stroke can record from the pen
 
-Pressure is always recorded. **Tilt and speed are not, unless you ask for
-them** — in **Edit → Configure → Drawing**, under *what a stroke records from
-the pen*. The setting is remembered, and it is off to begin with.
+Pressure is always recorded. **Tilt and speed are recorded when the brush you
+are drawing with uses them**, and left out when it does not. You do not have to
+switch anything on: give a brush a tilt curve and its strokes start storing
+tilt; a plain round brush stores neither and its drawings stay exactly the size
+they were before any of this existed.
 
-It is off by default because it only earns its place with a pen that reports
-tilt, and because a drawing that never uses it should not carry it: a stroke
-made without these is stored exactly as it was before they existed.
+It works per axis, so nothing is stored for the sake of it — a brush that only
+reads speed records speed and no tilt.
 
-While it is on, the readout beside the pen settings shows what your tablet is
-actually delivering — `tilt 34/-12 · speed 0.42` — which is the quickest way to
-find out whether your pen reports tilt at all. Plenty do not, and a driver that
-does not will say `no tilt reported` rather than quietly recording zeros.
+The readout beside the pen settings shows what your tablet is actually
+delivering — `tilt 34/-12 · speed 0.42` — whatever brush you have in hand. It is
+the quickest way to find out whether your pen reports tilt at all. Plenty do
+not, and a driver that does not will say `no tilt reported` rather than quietly
+recording zeros.
+
+#### Keeping the numbers for later
+
+There is one thing worth knowing before you need it. If you draw with a brush
+that ignores tilt and *later* decide those strokes should respond to it, adding
+the curve will do nothing — the pen's tilt was never stored, and it cannot be
+recovered. The drawing is not broken; there is simply nothing there to drive
+the mark.
+
+If you would rather keep your options open, switch on **Always record tilt and
+speed, even when the brush ignores them** in **Edit → Configure → Drawing**. It
+is remembered between sessions, off to begin with, and it **roughly doubles the
+size of a drawing** — which is why it is not the default on an application built
+for two hundred frames at a time.
 
 **Turning it off later leaves finished drawings alone.** Strokes that recorded
 tilt keep it and keep drawing with it; the setting only decides what the next

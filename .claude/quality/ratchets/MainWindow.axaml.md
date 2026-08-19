@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4554
+budget: 4570
 
 ## Why it is here despite being XAML
 
@@ -95,7 +95,23 @@ leaves a number nobody can account for. So every reason above stays, and
   already existed in the bone options; this is the second surface, and the
   owner asked for it on the sheet because that is where an artist working a
   cycle is looking. There is nowhere else for a menu item to live.
-- **4434 → 4514** (2026-08-19, Q126): +80 for three menu surfaces, none of
+- **4434 → 4440** (2026-08-19), the effects window's menu item. Six lines: the
+  item, its tooltip and the four-line comment saying why it is a window rather
+  than a docker. It is the *whole* markup cost of the feature — the window is a
+  file of its own, the view model is two more, and `MainWindow` gains a menu
+  item, a shortcut case and one field. A budget that refused this would be
+  refusing the registration rather than the code, which is the opposite of what
+  it is for.
+- **4440 → 4450** (2026-08-19), the effects menu. Ten lines and a net +4 over the
+  entry it replaces: the owner asked for `Effects ▸ Fluid effects…` rather than
+  a line under View, so the item moved into a top level of its own with the
+  eight-line comment saying why. It is a top level rather than a View entry
+  because View is where you say what you want to *look* at and everything here
+  changes what is *in* the document — and because more of these are coming
+  (goo, water, style inference), each of which would otherwise be another orphan
+  among the dockers. A menu has nowhere else to live; the standing note above
+  applies unchanged.
+- **4434 → 4514** (2026-08-19, Q128): +80 for three menu surfaces, none of
   which has anywhere else to live. Undo and redo at the top of **Edit** (6
   lines plus the note on why the gesture text is literal); the two crops on
   **Image** (11); and a new top-level **Select** menu (44) gathering the seven
@@ -115,7 +131,7 @@ leaves a number nobody can account for. So every reason above stays, and
   identical pair — the third copy of a two-line style is the point at which it
   should become a class in `Density.axaml`, and the next panel that needs it
   should do that rather than paste it again.
-- **4540 → 4554** (2026-08-19, Q126): +14 for the Crop tool's rail button and
+- **4540 → 4554** (2026-08-19, Q128): +14 for the Crop tool's rail button and
   the one line that hosts its options bar. The button is the tool's only
   permanent surface and a `ToggleButton` has no partial to live in; the bar
   itself is `CropOptionsBar.axaml`, the trade `BoneOptionsBar`,
@@ -124,3 +140,10 @@ leaves a number nobody can account for. So every reason above stays, and
   `CropOverlayPainter`, the drag math to `CropSession`, and the pointer wiring
   to `CanvasControl.Crop.cs` — what is left in this file is registration, which
   is the one thing a budget must not refuse.
+- **→ 4,570, remeasured on the merged tree** (2026-08-19). Two branches raised this
+  number from 4,434 at once and neither figure is right for the tree they now
+  share: the effects menu wanted 4,450, the crop and menu work wanted 4,554, and
+  taking either would bank the other's growth as headroom nobody earned. Every
+  reason above stays — deleting one leaves a number nobody can account for —
+  and `ratchets.py remeasure` supplies the figure, which is the one moment that
+  script exists for.

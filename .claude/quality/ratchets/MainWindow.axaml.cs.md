@@ -37,7 +37,7 @@ other's reason and leaves a number nobody can account for.
   constructor — the align-mode pick and the reference stack menu — beside the
   reference-drag wiring they extend. Delegated decisions are hooked up here by
   construction, the same pricing as B216/B217's entry above.
-- **437 → 438** (2026-08-19, Q126): one line — `WireCropTool();`, beside
+- **437 → 438** (2026-08-19, Q128): one line — `WireCropTool();`, beside
   `WireTransformSession()` and `WireGradientRamp()`, which are the same line for
   the same reason. Everything it wires is in `MainWindow.Crop.cs`. A constructor
   that hands a subsystem its one call is what this file is *for*, and a budget

@@ -125,7 +125,7 @@ public enum ToolId
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>A tool rather than a third menu item, and Q126 says why.</b> The two
+    /// <b>A tool rather than a third menu item, and Q128 says why.</b> The two
     /// Image-menu commands answer the arithmetic — <em>crop to this selection</em>,
     /// <em>trim to the ink</em> — and framing is not arithmetic. Deciding where an
     /// edge goes is a judgement made by eye, so it wants a rectangle you can push

@@ -145,7 +145,7 @@ public static class CanvasResize
     /// <remarks>
     /// <para>
     /// <b>The same three fields <see cref="Apply"/> writes, and no others</b>
-    /// (Q126). Not one stroke coordinate, clip contour, guide, camera key or
+    /// (Q128). Not one stroke coordinate, clip contour, guide, camera key or
     /// symbol placement is rewritten, so a crop is exactly as lossless as the
     /// resize it is a special case of: marks that fall outside the new edge
     /// stay in the record and come back unchanged if the paper grows again.

@@ -390,7 +390,7 @@
                   ToolTip.Tip="Scale the artwork itself. The marks change with it." />
         <Separator />
         <!--
-          The two crops the comment above predicted (Q126). Both move the paper
+          The two crops the comment above predicted (Q128). Both move the paper
           and neither touches a mark: ink outside the new edge stays in the
           record and comes back if the canvas is grown again, which is what
           makes a crop exactly as lossless as the resize above it.
@@ -602,6 +602,22 @@
           <MenuItem Header="Reset workspace" Click="OnResetWorkspace"
                     ToolTip.Tip="Discard the changes — a built-in goes back to how it shipped" />
         </MenuItem>
+      </MenuItem>
+
+      <!--
+        Effects: things that author drawings from a description rather than from
+        the pen. It is a top level of its own rather than a line under View,
+        because View is where you say what you want to *look* at and every item
+        here changes what is *in* the document — and because there is more than
+        one of these coming (goo, water, style inference), each of which would
+        otherwise be another orphan among the dockers.
+
+        No InputGesture on the item: the command lives in ShortcutMap, and a
+        hard-coded label would lie the moment somebody remapped it.
+      -->
+      <MenuItem Header="Effe_cts" Classes="top">
+        <MenuItem Header="_Fluid effects…" Click="OnOpenEffects"
+                  ToolTip.Tip="Fire, smoke and water, drawn as bands and outlines rather than as pixels — tuned in a window of its own and baked into the document as ordinary strokes" />
       </MenuItem>
 
       <!--
@@ -1760,7 +1776,7 @@
 
         <Panel x:Name="CanvasHost" Grid.Row="0">
           <render:CanvasControl x:Name="Canvas" BrushCursorSize="{Binding BrushCursorDiameter}" LazyRadius="{Binding LazyRadiusForCursor}"
-                                Solo="{Binding ChannelSolo}" RecordPenAxes="{Binding RecordPenAxes}"
+                                Solo="{Binding ChannelSolo}"
                                 PointerIntent="{Binding PointerIntent}" PointerBadge="{Binding PointerBadge}"
                                 DocumentOrigin="{Binding DocumentOrigin}"
                                 BrushCursorTipId="{Binding BrushCursorTipId}"

@@ -15,7 +15,7 @@ namespace Lightbox.App.ViewModels;
 /// three fields on the scene, and nothing that is drawn.
 /// </para>
 /// <para>
-/// <b>Q126.</b> Marks outside the new edge stay in the record. That is not
+/// <b>Q128.</b> Marks outside the new edge stay in the record. That is not
 /// leniency, it is invariant 1 and <c>Hash01</c>: a stroke deleted and drawn
 /// again is a different mark, so a destructive crop could not be undone by
 /// growing the paper back. What it costs is written down in the question.
@@ -138,7 +138,7 @@ public partial class MainViewModel
     /// <para>
     /// Through <see cref="ApplyCrop"/>, which is the same route both menu
     /// commands take, so there is one answer to what a crop does to the
-    /// document and the tool cannot drift from it (Q126).
+    /// document and the tool cannot drift from it (Q128).
     /// </para>
     /// <para>
     /// The frame is re-opened on the new page rather than dropped, because the

@@ -224,6 +224,10 @@ public partial class MainWindow
                 OnOpenReferenceBoard(this, e);
                 e.Handled = true;
                 break;
+            case "effects.window":
+                OnOpenEffects(this, e);
+                e.Handled = true;
+                break;
             case "project.window":
                 // Harmless with no project, for the same reason as above: the
                 // method guards on it rather than the key handler holding a

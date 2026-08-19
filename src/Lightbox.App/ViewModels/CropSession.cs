@@ -39,7 +39,7 @@ public enum CropHandle
 /// <para>
 /// <b>It never touches the document.</b> Applying a crop is
 /// <c>CanvasResize.CropTo</c> through the view model, exactly as the two menu
-/// commands do (Q126) — this only decides the rectangle. That is what keeps the
+/// commands do (Q128) — this only decides the rectangle. That is what keeps the
 /// tool a third caller rather than a second implementation, and it is why the
 /// menu commands did not have to be dug out of a tool when the tool arrived.
 /// </para>

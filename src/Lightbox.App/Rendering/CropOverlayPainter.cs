@@ -22,7 +22,7 @@ namespace Lightbox.App.Rendering;
 /// <para>
 /// View-only chrome, like the camera frame and the transform gizmo: it never
 /// reaches a pixel of the document, and applying it goes through
-/// <c>CanvasResize.CropTo</c> like every other crop (Q126).
+/// <c>CanvasResize.CropTo</c> like every other crop (Q128).
 /// </para>
 /// </remarks>
 public static class CropOverlayPainter

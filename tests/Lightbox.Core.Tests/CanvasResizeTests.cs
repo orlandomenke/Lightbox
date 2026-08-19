@@ -236,7 +236,7 @@ public class CanvasResizeTests
     [Fact]
     public void CroppingLeavesEveryMarkWhereItWasDrawn()
     {
-        // Q126: this is the whole design. A crop moves the paper and nothing
+        // Q128: this is the whole design. A crop moves the paper and nothing
         // else, so ink outside the new edge stays in the record — which is what
         // makes cropping and growing back exact inverses. A destructive crop
         // could not be, because Hash01 seeds every dab dynamic from the bits of

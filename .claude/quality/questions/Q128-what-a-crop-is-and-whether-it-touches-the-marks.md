@@ -1,4 +1,4 @@
-# Q126 · What a crop is, and whether it touches the marks outside it — **answered 2026-08-19: paper only; menu commands first, interactive tool second**
+# Q128 · What a crop is, and whether it touches the marks outside it — **answered 2026-08-19: paper only; menu commands first, interactive tool second**
 
 Asked before building the crop the `_Image` menu's own comment has anticipated
 since it was written ("*a menu of its own … because the pair will grow (crop to

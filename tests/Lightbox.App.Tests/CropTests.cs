@@ -9,7 +9,7 @@ namespace Lightbox.App.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Q126 is what most of this file is guarding</b>, and it is the half that
+/// <b>Q128 is what most of this file is guarding</b>, and it is the half that
 /// would ship green if it were wrong. A crop that also deleted the marks
 /// outside the new edge would look correct in every screenshot: the canvas is
 /// the right size, the drawing is where it was, nothing is red. The loss only
@@ -137,7 +137,7 @@ public sealed class CropTests(ITestOutputHelper output) : BrushStateIsolated
     // ---- what a crop must not touch -------------------------------------------------
 
     /// <summary>
-    /// Q126: the marks outside the new edge stay exactly where they were drawn.
+    /// Q128: the marks outside the new edge stay exactly where they were drawn.
     /// </summary>
     [AvaloniaFact]
     public void MarksOutsideTheNewEdgeAreKeptWhereTheyWere()

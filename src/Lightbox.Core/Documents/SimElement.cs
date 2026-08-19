@@ -396,6 +396,30 @@ public sealed class SimElement
     public string OutlineColor { get; set; } = "#1a1a1a";
 
     /// <summary>
+    /// The pen the outlines are drawn with, or null for the default brush.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>On the element rather than read from the toolbar at bake time.</b> A
+    /// bake that took whatever brush happened to be selected would draw a
+    /// different line every time it ran — the same picture re-baked after
+    /// picking up a marker would come back inked with a marker, and an artist
+    /// would have no way to say what an element's line <em>is</em>. That is
+    /// invariant 4's reasoning one level up: a setting that reaches pixels
+    /// belongs to the record that produced them.
+    /// </para>
+    /// <para>
+    /// Null is the ordinary case and writes no key. The window's "use the
+    /// current brush" button copies the toolbar's settings in here, which makes
+    /// taking the brush an action with a result rather than an invisible
+    /// dependency. The brush's <see cref="BrushSettings.Size"/> is also the
+    /// stroke width every treatment distance is measured in, so it is not only
+    /// decoration.
+    /// </para>
+    /// </remarks>
+    public BrushSettings? OutlineBrush { get; set; }
+
+    /// <summary>
     /// The layer whose ink blocks the fluid — the figure and her costume — or
     /// null for an element nothing gets in the way of.
     /// </summary>
@@ -440,6 +464,7 @@ public sealed class SimElement
         copy.Particles = Particles?.Clone();
         copy.WindX = WindX?.Clone();
         copy.WindY = WindY?.Clone();
+        copy.OutlineBrush = OutlineBrush?.Clone();
         return copy;
     }
 }

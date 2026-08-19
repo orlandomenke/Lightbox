@@ -54,7 +54,7 @@ public class MainMenuShapeTests(ITestOutputHelper output)
         Assert.Equal("_Configure…", items[^1].Header as string);
     }
 
-    // ---- the three surfaces that arrived with the crop (Q126) ------------------
+    // ---- the three surfaces that arrived with the crop (Q128) ------------------
 
     private static MenuItem TopLevel(MainWindow window, string header) =>
         window.GetLogicalDescendants().OfType<Menu>().First()
