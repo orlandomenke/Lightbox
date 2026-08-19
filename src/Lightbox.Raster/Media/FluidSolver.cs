@@ -168,6 +168,7 @@ public sealed class FluidSolver
     private readonly float[] _fx;    // per-cell body force, X
     private readonly float[] _fy;    // per-cell body force, Y
     private readonly float[] _outflow;  // per-cell transport limiter
+    private readonly float[] _expand;   // per-cell volume source, consumed by one projection
 
     public FluidSolver(int width, int height) : this(width, height, width * height) { }
 
@@ -197,6 +198,7 @@ public sealed class FluidSolver
         _p = new float[n];
         _pB = new float[n];
         _div = new float[n];
+        _expand = new float[n];
         _curl = new float[n];
         _psi = new float[n];
         _fx = new float[n];
@@ -310,6 +312,47 @@ public sealed class FluidSolver
         _u[y * _uw + x + 1] += vx;
         _v[y * _w + x] += vy;
         _v[(y + 1) * _w + x] += vy;
+    }
+
+    /// <summary>
+    /// Ask a cell to gain volume: the fluid there pushes outward in every
+    /// direction at once, and neighbouring cells make room.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>It enters where divergence is decided, not where velocity is.</b> The
+    /// projection solves ∇²p = ∇·u and drives ∇·u to zero; give it
+    /// ∇²p = ∇·u − s and it drives ∇·u to <em>s</em> instead, leaving exactly
+    /// the outward flow that was asked for. This is how a combustion front is
+    /// modelled — hot gas occupying more room than the fuel it came from — and
+    /// an explosion is that, briefly and violently.
+    /// </para>
+    /// <para>
+    /// <b>A radial velocity is not the same thing, and the difference is
+    /// smaller than it sounds.</b> The tempting claim is that pushing outward
+    /// achieves nothing because the projection removes divergence; that claim
+    /// was written here, and the test written to pin it <em>failed</em>. A push
+    /// moves the front perfectly well. What the projection forbids is the fluid
+    /// occupying more room, so the push is served by displacement instead — the
+    /// fluid rolls outward and the middle is evacuated behind it, where an
+    /// expansion keeps it filled. At matched reach the centre holds 0.45 against
+    /// 0.50, which is a fireball with a hole in it against one that fills out:
+    /// real, visible across a sequence, and far less than the original reasoning
+    /// promised. <c>A_Radial_Push_Hollows_The_Middle_Where_Expansion_Keeps_It</c>
+    /// is that measurement, kept so the overclaim cannot come back.
+    /// </para>
+    /// <para>
+    /// Consumed by the next projection and cleared, so it is an impulse rather
+    /// than a standing source. That keeps it in step with
+    /// <see cref="AddVelocity"/>, which is also stamped once and then lives in
+    /// the field, and it keeps the solver's state a function of what it was
+    /// handed rather than of when it was handed it.
+    /// </para>
+    /// </remarks>
+    public void AddExpansion(int x, int y, float amount)
+    {
+        if ((uint)x >= (uint)_w || (uint)y >= (uint)_h) return;
+        _expand[y * _w + x] += amount;
     }
 
     /// <summary>Advance the simulation. Cost is O(width × height × steps).</summary>
@@ -683,10 +726,19 @@ public sealed class FluidSolver
             for (var x = 0; x < _w; x++)
             {
                 var i = y * _w + x;
+                // Minus the volume source: the sweeps below drive the residual
+                // to zero, so what is left in the velocity field afterwards is
+                // exactly `_expand` worth of outward flow rather than none.
                 _div[i] = _u[y * _uw + x + 1] - _u[y * _uw + x]
-                        + _v[(y + 1) * _w + x] - _v[y * _w + x];
+                        + _v[(y + 1) * _w + x] - _v[y * _w + x]
+                        - _expand[i];
             }
         }
+
+        // One projection consumes it. An impulse, like every other thing an
+        // emitter stamps — a source that persisted would keep inflating a
+        // fireball that should be spending its energy.
+        _expand.AsSpan(0, n).Clear();
 
         // Zeroed each step rather than warm-started from the last one. Pressure
         // under all-Neumann boundaries is only defined up to a constant, so a

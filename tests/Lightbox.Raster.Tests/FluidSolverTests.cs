@@ -613,4 +613,215 @@ public class FluidSolverTests(ITestOutputHelper output)
                          $"({ms / (frames * substeps):F2} ms/step)");
         Assert.True(ms < 5500, $"a 48-frame bake took {ms:F0} ms");
     }
+
+    // ---- expansion ----------------------------------------------------------------
+
+    /// <summary>How far density has spread from a point, in cells.</summary>
+    private static double Reach(FluidSolver s, int cx, int cy, float floor = 0.02f)
+    {
+        double max = 0;
+        for (var y = 0; y < s.Height; y++)
+        {
+            for (var x = 0; x < s.Width; x++)
+            {
+                if (s.DensityAt(x, y) <= floor) continue;
+                var r = Math.Sqrt(Math.Pow(x - cx, 2) + Math.Pow(y - cy, 2));
+                if (r > max) max = r;
+            }
+        }
+        return max;
+    }
+
+    private static FluidSolver WithABlock(int size = 10)
+    {
+        var s = new FluidSolver(64, 64);
+        var lo = 32 - size / 2;
+        for (var y = lo; y < lo + size; y++)
+        {
+            for (var x = lo; x < lo + size; x++) s.AddDensity(x, y, 1f);
+        }
+        return s;
+    }
+
+    /// <summary>
+    /// <b>Why expansion is not a radial push, measured rather than asserted.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The first version of this test claimed a radial push does *nothing*,
+    /// because the projection removes divergence. It failed: pushing outward
+    /// moves the front perfectly well. What the projection actually does is
+    /// forbid the fluid from occupying more room, so the push is served by
+    /// <em>displacement</em> instead — the fluid rolls outward and the middle is
+    /// evacuated behind it. An expansion source has no such constraint to route
+    /// around, so the blob grows while staying a blob.
+    /// </para>
+    /// <para>
+    /// Both look like "it got bigger" in a single number, which is why the
+    /// distinction is measured at the centre. Written down because the wrong
+    /// version of this reasoning was believed for an hour on the strength of a
+    /// confounded measurement — a burst tested against a plume whose buoyancy
+    /// swamped it.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_Radial_Push_Hollows_The_Middle_Where_Expansion_Keeps_It()
+    {
+        var pushed = WithABlock();
+        for (var y = 27; y < 37; y++)
+        {
+            for (var x = 27; x < 37; x++)
+            {
+                var ax = x + 0.5 - 32;
+                var ay = y + 0.5 - 32;
+                var len = Math.Sqrt(ax * ax + ay * ay);
+                if (len > 1e-9) pushed.AddVelocity(x, y, (float)(0.9 * ax / len), (float)(0.9 * ay / len));
+            }
+        }
+        pushed.Run(8, Inert);
+
+        var expanded = WithABlock();
+        for (var y = 27; y < 37; y++)
+        {
+            for (var x = 27; x < 37; x++) expanded.AddExpansion(x, y, 0.9f);
+        }
+        expanded.Run(8, Inert);
+
+        var still = WithABlock();
+        still.Run(8, Inert);
+
+        double Middle(FluidSolver s)
+        {
+            double sum = 0;
+            for (var y = 30; y < 34; y++)
+            {
+                for (var x = 30; x < 34; x++) sum += s.DensityAt(x, y);
+            }
+            return sum / 16;
+        }
+
+        output.WriteLine(
+            $"still:    reach {Reach(still, 32, 32):F1}, middle {Middle(still):F3}\n" +
+            $"pushed:   reach {Reach(pushed, 32, 32):F1}, middle {Middle(pushed):F3}\n" +
+            $"expanded: reach {Reach(expanded, 32, 32):F1}, middle {Middle(expanded):F3}");
+
+        // Both spread it — that is the part a single number cannot tell apart.
+        Assert.True(Reach(pushed, 32, 32) > Reach(still, 32, 32));
+        Assert.True(Reach(expanded, 32, 32) > Reach(still, 32, 32));
+
+        // The middle is where they differ, and it is what an artist sees: a
+        // fireball with a hole in it against one that fills out.
+        Assert.True(Middle(pushed) < Middle(expanded),
+            "a radial push should evacuate the middle more than an expansion does");
+    }
+
+    /// <summary>
+    /// Expansion enters where divergence is decided, and there it works: the
+    /// blob grows and thins.
+    /// </summary>
+    /// <remarks>
+    /// Thinning is the half that says it is really expansion rather than a push
+    /// — the same stuff occupying more room. A blob that grew without thinning
+    /// would be one that had gained mass.
+    /// </remarks>
+    [Fact]
+    public void Expansion_Grows_A_Blob_And_Thins_It()
+    {
+        var reaches = new List<double>();
+        var peaks = new List<double>();
+
+        foreach (var burst in new[] { 0f, 0.1f, 0.3f, 1f })
+        {
+            var s = WithABlock();
+            if (burst > 0)
+            {
+                for (var y = 27; y < 37; y++)
+                {
+                    for (var x = 27; x < 37; x++) s.AddExpansion(x, y, burst);
+                }
+            }
+            s.Run(8, Inert);
+
+            reaches.Add(Reach(s, 32, 32));
+            peaks.Add(s.PeakDensity());
+            output.WriteLine($"burst {burst}: reach {reaches[^1]:F1} cells, peak {peaks[^1]:F3}, " +
+                             $"total {s.TotalDensity():F1}");
+        }
+
+        for (var i = 1; i < reaches.Count; i++)
+        {
+            Assert.True(reaches[i] > reaches[i - 1], "more expansion has to reach further");
+            Assert.True(peaks[i] < peaks[i - 1], "more expansion has to thin it more");
+        }
+    }
+
+    /// <summary>
+    /// Expansion moves matter about; it does not make any. The conservation the
+    /// flux transport promises has to survive a source in the pressure solve.
+    /// </summary>
+    [Fact]
+    public void Expansion_Makes_No_Matter()
+    {
+        var s = WithABlock();
+        var before = s.TotalDensity();
+        for (var y = 27; y < 37; y++)
+        {
+            for (var x = 27; x < 37; x++) s.AddExpansion(x, y, 1f);
+        }
+        s.Run(12, Inert);
+
+        output.WriteLine($"total density {before:F4} → {s.TotalDensity():F4}");
+        Assert.Equal(before, s.TotalDensity(), 3);
+    }
+
+    /// <summary>
+    /// An impulse, not a standing source: one projection consumes it, so a
+    /// second run with nothing added expands no further.
+    /// </summary>
+    /// <remarks>
+    /// The failure this prevents is a fireball that keeps inflating for the rest
+    /// of the shot, which is what a source left in the field would do.
+    /// </remarks>
+    [Fact]
+    public void Expansion_Is_Spent_By_The_Step_That_Uses_It()
+    {
+        var s = WithABlock();
+        for (var y = 27; y < 37; y++)
+        {
+            for (var x = 27; x < 37; x++) s.AddExpansion(x, y, 1f);
+        }
+        s.Run(1, Inert);
+        var afterTheImpulse = s.MeanAbsDivergence();
+
+        s.Run(1, Inert);
+        var afterTheNextStep = s.MeanAbsDivergence();
+
+        output.WriteLine($"divergence {afterTheImpulse:E2} → {afterTheNextStep:E2}");
+        Assert.True(afterTheNextStep < afterTheImpulse * 0.5,
+            "the source outlived the projection that was meant to consume it");
+    }
+
+    /// <summary>Expansion is deterministic like everything else here.</summary>
+    [Fact]
+    public void Two_Expanding_Runs_Are_Bit_Identical()
+    {
+        static float[] Once()
+        {
+            var s = WithABlock();
+            for (var y = 27; y < 37; y++)
+            {
+                for (var x = 27; x < 37; x++) s.AddExpansion(x, y, 0.6f);
+            }
+            s.Run(10, Typical);
+
+            var f = new float[s.Width * s.Height];
+            for (var y = 0; y < s.Height; y++)
+            {
+                for (var x = 0; x < s.Width; x++) f[y * s.Width + x] = s.DensityAt(x, y);
+            }
+            return f;
+        }
+
+        Assert.Equal(Once(), Once());
+    }
 }

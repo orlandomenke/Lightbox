@@ -292,6 +292,12 @@ public sealed class SimBaker
     {
         foreach (var emitter in element.Emitters)
         {
+            // A blast is a frame or two of emission and then a lot of
+            // consequences. An emitter that keeps feeding refuels its own
+            // fireball every frame, so it never cools into smoke and never
+            // disperses — Q125's finding arriving through a different door.
+            if (!emitter.EmitsOn(frame)) continue;
+
             var (ox, oy) = emitter.OriginAt(frame);
 
             // A painted mask replaces the shape entirely — it *is* where this
@@ -307,7 +313,7 @@ public sealed class SimBaker
             switch (emitter.Shape)
             {
                 case EmitterShape.Point:
-                    Stamp(solver, emitter, ox, oy, 1);
+                    Stamp(solver, emitter, ox, oy, 1, ox, oy);
                     break;
 
                 case EmitterShape.Disc:
@@ -347,12 +353,18 @@ public sealed class SimBaker
         int w = solver.Width, h = solver.Height;
         if (mask.Length < w * h) return;
 
+        // A painted mask has no centre of its own, so a burst on one radiates
+        // from where the emitter was placed — which is the point the artist
+        // dragged and the only one the record knows about.
+        var cx = emitter.X + shiftX;
+        var cy = emitter.Y + shiftY;
+
         for (var y = 0; y < h; y++)
         {
             for (var x = 0; x < w; x++)
             {
                 var coverage = SampleMask(mask, w, h, x - shiftX, y - shiftY);
-                if (coverage > 0.001) Stamp(solver, emitter, x, y, coverage);
+                if (coverage > 0.001) Stamp(solver, emitter, x, y, coverage, cx, cy);
             }
         }
     }
@@ -390,20 +402,41 @@ public sealed class SimBaker
                 // Linear falloff rather than a hard disc: a step edge in the
                 // source field puts a step edge in the contour, which reads as a
                 // flame with a machined base.
-                Stamp(solver, emitter, x, y, 1 - d / r);
+                Stamp(solver, emitter, x, y, 1 - d / r, cx, cy);
             }
         }
     }
 
-    private static void Stamp(FluidSolver solver, Emitter emitter, double x, double y, double weight)
+    /// <summary>
+    /// Put one cell's worth of stuff in, and whatever push goes with it.
+    /// </summary>
+    /// <param name="originX">
+    /// The emitter's centre this frame, which <see cref="Emitter.Burst"/>
+    /// radiates from. Only read when there is a burst.
+    /// </param>
+    private static void Stamp(
+        FluidSolver solver, Emitter emitter, double x, double y, double weight,
+        double originX, double originY)
     {
         var cx = (int)Math.Floor(x);
         var cy = (int)Math.Floor(y);
         solver.AddDensity(cx, cy, (float)(emitter.Density * weight));
         solver.AddHeat(cx, cy, (float)(emitter.Heat * weight));
-        if (emitter.VelocityX != 0 || emitter.VelocityY != 0)
+
+        var px = emitter.VelocityX;
+        var py = emitter.VelocityY;
+
+        // Expansion rather than an outward velocity: the projection forbids the
+        // fluid occupying more room, so a radial push is served by displacement
+        // and evacuates the middle, where this genuinely grows. Weighted by
+        // coverage, so the emitter's own falloff shapes the front. See
+        // `FluidSolver.AddExpansion` for the measurement, including the part
+        // where the obvious reasoning about this turned out to be too strong.
+        if (emitter.Burst is { } burst && burst != 0) solver.AddExpansion(cx, cy, (float)(burst * weight));
+
+        if (px != 0 || py != 0)
         {
-            solver.AddVelocity(cx, cy, (float)(emitter.VelocityX * weight), (float)(emitter.VelocityY * weight));
+            solver.AddVelocity(cx, cy, (float)(px * weight), (float)(py * weight));
         }
     }
 

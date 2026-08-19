@@ -136,6 +136,15 @@ An emitter is where the stuff comes from. An element can have several.
   rather than sit**. A smoke emitter usually has none.
 - **Velocity X / Y** — a push given to the fluid at the emitter, for a jet or a
   vent.
+- **Burst** — push outward from the emitter's own centre rather than in one
+  direction. **This is the difference between an explosion and a plume**: the
+  velocities above move the whole stamp one way, as a lump, while a burst pushes
+  every part of it a different way, so the front expands as a ring. The two
+  combine — a burst that also travels is a muzzle flash.
+- **Emit from / Emit for** — when the emitter feeds, and for how long. Normally
+  it runs the whole element and these write nothing. **A blast is one or two
+  frames**: an emitter that keeps feeding refuels its own fireball every frame,
+  so it never cools into smoke and never disperses.
 - **Travel X / Y** — where the emitter's origin goes. This is how an effect is
   carried along with something: **the emitter moves, and the fluid it has
   already laid down does not**, which is what makes a trail behave like a trail
@@ -219,6 +228,30 @@ copied on the press, not read when you bake — so a re-bake always draws the sa
 line, and changing your brush afterwards does not silently restyle every effect
 in the document. **Default pen** takes it back off.
 
+## Making an explosion
+
+Everything it needs is above; what is not obvious is which handful to reach for.
+
+1. **Emit for 1 or 2 frames.** Everything else follows from the blast being over
+   before the smoke starts.
+2. **Burst around 0.5–1.** Enough that the front rolls outward rather than
+   drifting.
+3. **Density high, heat modest.** Heat is what makes it rise, and a blast that
+   rises too fast reads as a plume with a bang at the bottom. Add heat back once
+   the shape is right.
+4. **Vorticity up.** This is what turns an expanding disc into something with
+   rolls and tongues in it.
+5. **Band low down.** The band range is measured against the highest value the
+   element reaches *anywhere*, and for a blast that is frame one — so everything
+   after it is being compared to a peak it will never see again, and the effect
+   thins out of the bands sooner than you expect. Lowering **Band low** brings
+   the dispersing smoke back.
+
+Point 5 is the one that surprises people, and it is the cost of a deliberate
+choice: a band range that followed each frame's own peak would rescale the bands
+every frame, and a band that moves because its scale moved is flicker. Steady
+plumes get the better end of that trade and blasts get the worse one.
+
 ## Baking, editing, and re-baking
 
 **Bake** writes the drawings into a layer of the element's own, as one undoable
@@ -246,9 +279,6 @@ re-bake will not take your work back out — but it also will not update it.
 - **Attaching an element to a drawing's anchor**, so it follows a rigged figure
   without keying Travel by hand.
 - **Presets**, so a flame is tuned once and reused.
-- **Explosions.** An emitter fires continuously today. A burst needs emission
-  that stops after a frame or two, and velocity that points outward from the
-  emitter rather than in one direction.
 - **Water and goo.** The solver is the same; a free surface and a metaball
   source are not built.
 - **Style inference** — a reference drawing in, a line treatment out.

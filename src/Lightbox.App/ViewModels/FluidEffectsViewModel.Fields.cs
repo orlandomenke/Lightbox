@@ -448,6 +448,28 @@ public sealed partial class FluidEffectsViewModel
             hint: "How hot. Buoyancy reads this, so it is what makes a flame rise rather than sit.");
         Number(EmitterFields, "Velocity X", () => Em.VelocityX, v => Em.VelocityX = v, -2, 2, 0.05, resolves: true);
         Number(EmitterFields, "Velocity Y", () => Em.VelocityY, v => Em.VelocityY = v, -2, 2, 0.05, resolves: true);
+        Number(EmitterFields, "Burst", () => Em.Burst ?? 0, v => Em.Burst = v == 0 ? null : v,
+            0, 4, 0.05, resolves: true,
+            hint: "Push outward from the emitter's own centre rather than in one direction — every part of the stamp a different way, which is what makes a front expand as a ring instead of moving as a lump. This is the difference between an explosion and a plume. Combines with the velocities above: a burst that also travels is a muzzle flash.");
+
+        // Frames rather than a start and an end, because "it emits for two
+        // frames" is the sentence an artist says about a blast. The record
+        // keeps a half-open range and stays absent when nobody bounded it.
+        var first = E.FirstFrame;
+        var last = E.FirstFrame + Math.Max(1, E.FrameCount);
+        Number(EmitterFields, "Emit from", () => Em.EmitFrom ?? first,
+            v => Em.EmitFrom = (int)v <= first ? null : (int)v, first, last - 1, 1, resolves: true,
+            hint: "The frame emission starts on. Back at the element's own first frame this writes no key.");
+        Number(EmitterFields, "Emit for",
+            () => (Em.EmitUntil ?? last) - (Em.EmitFrom ?? first),
+            v =>
+            {
+                var from = Em.EmitFrom ?? first;
+                var frames = Math.Max(1, (int)v);
+                Em.EmitUntil = from + frames >= last ? null : from + frames;
+            },
+            1, Math.Max(1, E.FrameCount), 1, resolves: true,
+            hint: "How many frames it keeps feeding for. A blast is one or two: an emitter that keeps feeding refuels its own fireball every frame, so it never cools into smoke and never disperses. At the full length this writes no key.");
 
         Number(EmitterFields, "Travel X", () => Em.MotionX?.Value ?? 0,
             v => Em.MotionX = v == 0 && Em.MotionX?.IsAnimated != true ? null : Param(Em.MotionX, v),

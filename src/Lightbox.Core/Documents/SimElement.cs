@@ -144,6 +144,71 @@ public sealed class Emitter
     public double VelocityY { get; set; }
 
     /// <summary>
+    /// An initial push <em>outward from this emitter's own centre</em>, in cells
+    /// per step. Zero on everything that is not a blast.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is the difference between an explosion and a plume</b>, and it is
+    /// not a special case of <see cref="VelocityX"/>. Those two are one vector
+    /// for the whole emitter, so a disc pushed by them moves sideways as a lump;
+    /// an explosion pushes every part of itself in a <em>different</em>
+    /// direction, which is what makes the front expand as a ring rather than
+    /// translate. There is no pair of numbers that does that, so it is its own
+    /// one.
+    /// </para>
+    /// <para>
+    /// The two compose, and usefully: a burst plus a directional push is a
+    /// muzzle flash or a vent — expanding, and going somewhere.
+    /// </para>
+    /// <para>
+    /// It is carried as a <em>volume source</em> in the pressure solve rather
+    /// than as an outward velocity — see <c>FluidSolver.AddExpansion</c>, which
+    /// also records the measurement, and the part of it that refuted the
+    /// obvious reasoning. Either way it is one number per emitter rather than a
+    /// vector, because "outward" is not a direction: it is a different direction
+    /// at every point of the stamp, which is exactly what no pair of numbers can
+    /// say.
+    /// </para>
+    /// </remarks>
+    /// <remarks>
+    /// Nullable so an emitter that is not a blast writes no key, on
+    /// <see cref="SimElement.PreRoll"/>'s precedent: <see cref="VelocityX"/> and
+    /// <see cref="X2"/> describe every emitter and are always written, while
+    /// this is a feature somebody switches on.
+    /// </remarks>
+    public double? Burst { get; set; }
+
+    /// <summary>
+    /// The first frame this emitter feeds the fluid on, or null for "from the
+    /// element's own first frame".
+    /// </summary>
+    /// <remarks>
+    /// <b>Absent by default because most emitters run for the whole element</b> —
+    /// a fire burns, a chimney smokes. What needs these is the thing that
+    /// happens *once*: a blast is a frame or two of emission and then a lot of
+    /// consequences, and an emitter that keeps feeding it refuels the fireball
+    /// every frame so it never becomes smoke and never disperses. That is the
+    /// same failure a painted area mask has (Q125's finding), arriving through a
+    /// different door.
+    /// </remarks>
+    public int? EmitFrom { get; set; }
+
+    /// <summary>
+    /// The frame this emitter stops on, exclusive, or null for "to the end of
+    /// the element".
+    /// </summary>
+    public int? EmitUntil { get; set; }
+
+    /// <summary>Whether this emitter feeds the fluid on a timeline frame.</summary>
+    public bool EmitsOn(int frame) =>
+        (EmitFrom is not { } from || frame >= from) && (EmitUntil is not { } until || frame < until);
+
+    /// <summary>Whether emission is bounded at all. Derived; never serialized.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsTimed => EmitFrom is not null || EmitUntil is not null;
+
+    /// <summary>
     /// The layer whose ink says where this emitter emits, or null for one of the
     /// plain shapes above.
     /// </summary>

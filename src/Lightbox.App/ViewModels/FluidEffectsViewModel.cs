@@ -120,7 +120,15 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
         {
             Kind = kind,
             FirstFrame = 0,
-            FrameCount = Math.Max(1, _vm.Doc.Scene.FrameCount),
+            // An effect is an animation, so a new one is a second of it —
+            // never the document's own length, which on a fresh document is
+            // **one frame**. That produced a one-frame element whose preview
+            // showed the same drawing whatever the scrubber said, and it was
+            // mistaken for the plume reaching a steady state twice before a
+            // direct measurement of the solver caught it. Baking grows the
+            // timeline to hold the element (`SimBakeOps.Apply` → `Grow`), so
+            // asking for 24 frames on a 1-frame document is not a conflict.
+            FrameCount = Math.Max(24, _vm.Doc.Scene.FrameCount),
             // 48x44 cells at 4 document pixels each — a torch-sized element,
             // measured rather than guessed. `SimElement`'s own 192x108 at scale
             // 10 describes a *canvas*, and a plume in it is a speck: at the
@@ -379,7 +387,8 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
         foreach (var e in element.Emitters)
         {
             parts.Add($"{e.Shape}|{e.X:R}|{e.Y:R}|{e.X2:R}|{e.Y2:R}|{e.Radius:R}" +
-                      $"|{e.Density:R}|{e.Heat:R}|{e.VelocityX:R}|{e.VelocityY:R}" +
+                      $"|{e.Density:R}|{e.Heat:R}|{e.VelocityX:R}|{e.VelocityY:R}|{e.Burst}" +
+                      $"|{e.EmitFrom}|{e.EmitUntil}" +
                       $"|{e.MaskLayerId}|{Keys(e.MotionX)}|{Keys(e.MotionY)}");
         }
 
