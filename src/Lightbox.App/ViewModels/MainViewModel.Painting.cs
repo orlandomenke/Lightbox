@@ -1055,7 +1055,8 @@ public partial class MainViewModel
             ColorHex,
             CurrentToolSettings.Clone(),
             startX, startY, pressure,
-            ActiveSwatchId);
+            ActiveSwatchId,
+            AlwaysRecordPenAxes);
         if (join is not null)
         {
             // Straight to the click, past the stabiliser: a segment the artist

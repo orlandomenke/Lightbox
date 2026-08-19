@@ -1038,7 +1038,7 @@ public partial class ConfigureWindow : Window
         SampleBox.SelectedItem = _vm.SmudgeSampleSource;
         BrushScopeBox.ItemsSource = _vm.BrushMemoryChoices;
         BrushScopeBox.SelectedItem = _vm.BrushMemoryChoice;
-        RecordPenAxesBox.IsChecked = _vm.RecordPenAxes;
+        RecordPenAxesBox.IsChecked = _vm.AlwaysRecordPenAxes;
         _loadingDrawing = false;
         RefreshSampleHint();
         RefreshBrushScopeHint();
@@ -1047,7 +1047,7 @@ public partial class ConfigureWindow : Window
     private void OnRecordPenAxesChanged(object? sender, RoutedEventArgs e)
     {
         if (_loadingDrawing || _vm is null) return;
-        _vm.RecordPenAxes = RecordPenAxesBox.IsChecked == true;
+        _vm.AlwaysRecordPenAxes = RecordPenAxesBox.IsChecked == true;
     }
 
     private void OnBrushScopeChanged(object? sender, SelectionChangedEventArgs e)
