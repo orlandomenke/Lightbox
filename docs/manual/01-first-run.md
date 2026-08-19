@@ -46,7 +46,7 @@ From the top:
 | Strip | What it is |
 | --- | --- |
 | Title bar | The Lightbox mark, the menu, and the window's own minimise / maximise / close. Drag the empty part to move the window; double-click it to maximise. |
-| Menu | File, Edit, View — lives in the title bar |
+| Menu | File, Edit, Image, Select, View — lives in the title bar |
 | Tool options | Controls for the tool you have selected. Changes with the tool; never changes height, and never scrolls — anything that does not fit goes into the **▾** at the end. On the right, the workspace picker. |
 | AI bar | AI Inbetween, and what the model is doing |
 | Tabs | One per open document |
@@ -57,11 +57,11 @@ From the top:
 
 The panels — **Project**, **Layers**, **Color**, **Palette**, **Gradient**,
 **Channels**, **Reference sheets**, **Reference**, **Symbols**,
-**Tool options**, **History**, **Timeline**, **X-sheet** and **Graph editor** —
-open and close from **View ▸ Dockers**, where every panel toggle lives in one
-submenu.
+**Tool options**, **Undo history**, **Timeline**, **X-sheet** and
+**Graph editor** — open and close from **View ▸ Dockers**, where every panel
+toggle lives in one submenu.
 
-**History** is the undo record with names on it: every step of the open
+**Undo history** is the undo record with names on it: every step of the open
 document — *Stroke*, *Add layer*, *Resize canvas* — listed oldest first, with
 the current state marked. **Double-click a row to stand the drawing at that
 state**, however many steps away it is; rows below the current one are dimmed

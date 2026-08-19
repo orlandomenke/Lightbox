@@ -95,6 +95,10 @@ public partial class MainViewModel
 
     private void OnDocumentChanged()
     {
+        // First, and above the scoped-edit return below: a stroke commit takes
+        // that fast path and is exactly the edit the Edit menu must not miss.
+        RefreshUndoRedo();
+        RefreshCropAvailability();
         // B151: the swatch's frame list describes a tree that just moved. An undo
         // or a structural edit can add, remove or replace the frames it names, and
         // a stale list would repaint the wrong ones — or, worse, none of them.

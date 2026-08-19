@@ -136,4 +136,50 @@ public static class CanvasResize
         scene.OriginY = top == 0 ? null : top;
         return true;
     }
+
+    /// <summary>
+    /// Put the paper at an explicit document rectangle — what a crop does.
+    /// Returns false and changes nothing if the rectangle is not a size, or if
+    /// it asks for exactly the rectangle the scene already has.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The same three fields <see cref="Apply"/> writes, and no others</b>
+    /// (Q128). Not one stroke coordinate, clip contour, guide, camera key or
+    /// symbol placement is rewritten, so a crop is exactly as lossless as the
+    /// resize it is a special case of: marks that fall outside the new edge
+    /// stay in the record and come back unchanged if the paper grows again.
+    /// A destructive crop would not be the mirror of that — <c>Hash01</c> seeds
+    /// every dab dynamic from the bits of its position, so a mark deleted and
+    /// drawn again is a <em>different</em> mark.
+    /// </para>
+    /// <para>
+    /// <b>Anchored by rectangle rather than by <see cref="ResizeAnchor"/>,</b>
+    /// because a crop knows where it wants the paper: the caller has a
+    /// selection or a bounding box, not a corner to keep. <see cref="Apply"/>
+    /// stays the route for "make it this many pixels" and this one for "put it
+    /// here" — expressing either through the other loses the information the
+    /// caller actually has.
+    /// </para>
+    /// <para>
+    /// The no-op case returns false for <see cref="Apply"/>'s reason, B98's:
+    /// a path that cannot tell whether it changed anything raises the dirty
+    /// badge forever.
+    /// </para>
+    /// </remarks>
+    public static bool CropTo(Scene scene, int left, int top, int width, int height)
+    {
+        if (width < 1 || height < 1) return false;
+        if (left == scene.Left && top == scene.Top
+            && width == scene.Width && height == scene.Height) return false;
+
+        scene.Width = width;
+        scene.Height = height;
+        // Null rather than zero for the reason Scene.OriginX documents: an
+        // untouched origin writes no key, so an ordinary document serializes
+        // exactly as it did before cropping existed.
+        scene.OriginX = left == 0 ? null : left;
+        scene.OriginY = top == 0 ? null : top;
+        return true;
+    }
 }

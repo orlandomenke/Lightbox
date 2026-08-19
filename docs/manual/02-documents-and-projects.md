@@ -62,6 +62,46 @@ press the button — including whether the marks will change. Both are a single
 undo step, however much they touched, and the view refits to the new paper
 afterwards.
 
+### Cropping
+
+Two more on the same menu, for the times you already know where the paper
+should stop and do not want to work out the numbers.
+
+**Crop to selection** takes the paper down to the bounding box of whatever is
+selected. Any selection will do — marquee, lasso, polygon, wand — because paper
+is a rectangle and the *box* around the selection is what it can be. Draw the
+marquee where you want the edge, then crop. A selection dragged past the edge
+of the page is clamped to the page: crop never makes the canvas bigger, which
+is what *Resize canvas* is for.
+
+**Trim to drawing** finds the smallest rectangle that still holds every mark,
+and puts the paper there. It measures **every frame of every layer**, not the
+drawing in front of you — trimming to the current cel would quietly cut the ink
+off the other two hundred. Hidden and locked layers count too, since both still
+render and still export. The background layer does not: it is paper rather than
+artwork, and counting it would mean the trim always found the page exactly as
+large as the page.
+
+**Neither one deletes anything.** Like *Resize canvas*, a crop moves three
+numbers on the document and leaves every mark exactly where it was drawn — so
+ink outside the new edge is still there, and growing the canvas back brings it
+back unchanged. That is worth knowing in both directions: you can crop
+experimentally and lose nothing, and you cannot use a crop to throw work away.
+The reason is the same one that keeps *Resize canvas* honest — a mark's texture
+is decided by where the mark is, so a deleted stroke redrawn later would not be
+the same stroke.
+
+Both are one undo step, both refit the view afterwards, and both are on
+**Image**. Neither has a key by default; both are in **Configure ▸ Shortcuts**
+under *Image* if you want to give them one.
+
+**To frame a crop by eye instead**, use the **Crop** tool (C) — it puts a
+draggable frame on the canvas and dims what falls outside it. Same crop, same
+guarantees; see [Tools and strokes](03-tools-and-strokes.md). The three answer
+different questions: the tool is *put the edge here*, Crop to selection is
+*here, where I have already marked it*, and Trim to drawing is *wherever the ink
+happens to end*.
+
 ### A project
 
 A project is a body of work: **every 2D asset in a game, an animated feature,

@@ -593,7 +593,7 @@ every other AI feature and are only legible together.
   - Sequence-scale cost is the review stance over all four: `BrushCostOf`
     badges are read against replay across a whole sequence, not one image.
 - [?] Draw once, reuse across animations
-- [?] Fluid effects elements — fire, smoke and water as drawn line and fill
+- [~] Fluid effects elements — fire, smoke and water as drawn line and fill `evidence: FluidSolver, MarchingSquares, FieldTracer, SimBaker, SimBakeOps, SimElement, LineTreatment, EffectParam, FluidEffectsViewModel, FluidEffectsWindow, EffectFieldRow, FluidSolverTests, MarchingSquaresTests, FieldTracerTests, SimBakerTests, SimElementTests, FluidEffectsViewModelTests, FluidEffectsWindowTests, A_New_Element_Arrives_Already_Burning, Every_Solver_Parameter_Has_A_Row, A_Style_Edit_Previews_And_A_Fluid_Edit_Waits, The_Fingerprint_Notices_Physics_And_Ignores_Style, Opening_The_Window_Is_A_Registered_Command, FreeSurfaceSource, MetaballSource, ObstacleBoundaryTests`
   - Designed in `docs/DESIGN-fluid-effects.md` (2026-08-18), answering "is a
     performant 2D fluid simulation possible, with the outline in the artist's
     line style and the shape filled with colour". It is Pillar 4 rather than an
@@ -648,6 +648,21 @@ every other AI feature and are only legible together.
     inference last, which needs a look to be judged against. Stays `[?]` until
     step 4 gives it evidence anchors to name: anchoring it earlier would make the
     box read `[x]` — *built* — for a feature no artist can reach.
+  - **Three pieces are specified and waiting, in this order** (2026-08-18). Each
+    is one branch and none blocks the others:
+    **(1) Emission flicker** — an area mask refuels itself every frame, so it
+    reads as a burning edge rather than flames; modulating emission per cell by
+    `Hash01` over position *and frame* makes burning points wander. It is the
+    first effect parameter whose seed varies by frame, which is Q80's ground for
+    brushes, so it needs its own re-render and hold tests.
+    **(2) Drawn art as an obstacle** (Q125) — the real solver work: interior
+    Neumann boundaries in the pressure solve, flux transport that will not carry
+    mass into an obstacle cell, and conservation tests that learn mass may be
+    held against an obstacle and not only against a wall. `SimElement.ObstacleLayerId`
+    and the `ISimMasks` seam are already in place for it.
+    **(3) Anchor attachment** (Q122) — an element bound to a drawing's anchor, so
+    it follows a character with no keying. The coupling it introduces is that a
+    bake starts depending on another layer's drawings.
   - **Painted emission landed 2026-08-18** (Q124, refined by Q125): an emitter
     names a mask layer and emits where that layer has ink, with a keyable origin
     as the only thing that moves it — so a travelling emitter lays a trail, which
@@ -682,6 +697,27 @@ every other AI feature and are only legible together.
     peak, and two of the findings are now tests. Looking also caught a defect
     nothing else would: `PeakBand` sampled only the frames an element kept, so
     exposing on 2s shifted every band level.
+  - **Step 5 landed 2026-08-19**: the effects window (`Ctrl+Shift+E`), and with
+    it the first version an artist can actually use — make a flame, tune it,
+    watch it, bake it. The window holds no effects logic: it is bindings over
+    `FluidEffectsViewModel`, and `MainViewModel` gains one mutation seam
+    (`MainViewModel.Effects.cs`, which exists so `InvalidateFrameRender` can stay
+    private) while `MainWindow` gains a menu item, a shortcut case and one field.
+    Three things it settled that the design had not.
+    **Simulate and Bake are separate buttons**, because the two costs differ by
+    about forty times: a style edit redraws from the solve in hand and previews
+    as the slider moves, a fluid edit marks the picture stale and waits to be
+    asked. Hiding that would make every edit feel like the slow one, and would
+    make an artist afraid to touch the cheap half. **The outline pen belongs to
+    the element** rather than being read from the toolbar at bake time — the
+    obvious wiring makes a bake unreproducible, so the same element re-baked
+    after picking up a marker comes back inked with a marker. And **rows hold ids
+    rather than elements**, because undo swaps a whole `Doc` back in: a row
+    holding the object would go on editing a document nobody is looking at, with
+    every slider still appearing to work. The tunables are *data* rather than
+    controls, so `Every_Solver_Parameter_Has_A_Row` can walk `SimParams` by
+    reflection and fail when a parameter is added to the record and never
+    surfaced.
   - **Step 3 landed 2026-08-18**: the record. `Doc.Sims` and `Doc.LineTreatments`
     are absent until authored, `Stroke.SimId` is absent on every hand-drawn
     stroke, and an override that states nothing serializes as `{}` rather than as
@@ -1229,6 +1265,7 @@ Four rules govern everything below, and they are not negotiable per feature:
 
 - [x] Grade the model you brought, before you depend on it `evidence: GoldenSet, CapabilityProfile, CapabilityProfiler, FreeEngineArtist, GoldenSetTests, TheFreeEngineClearsEveryConstructedPair, TheLadderFindsWhereAModelStopsCoping, TheOrganicCategoryReportsItselfUnmeasuredRatherThanVanishing, TheArcRowTellsAnArcApartFromAChord, AiCapabilityPageTests, TheCostOfARunIsShownBeforeItIsSpent, AReadingTakenOnAnotherModelSaysSoRatherThanPassingAsThisOne, AnUnprofiledConnectionWritesNoProfileKey`
   - Phase 2 of `docs/DESIGN-ai-correctness.md`, and Q34's answer: the golden set **ships**, because grading an artist's own model is the bring-your-own-model story rather than a development convenience. A committed set of keyframe pairs, scored by the same `InbetweenVerifier` the pipeline uses, produces a profile per model: schema adherence, label retention (Q18's unmeasured claim, now measured), betweenness per category, and **where the model stops coping with stroke count** — the number the design calls the most valuable and nobody measures.
+  - **"Model" here is the AI engine, never the character.** Grading asks whether Claude, or the local install somebody brought, can inbetween at all. Staying *on-model* is the character sheet and `SubjectTaxonomy` — a different mechanism, in a different part of the request, going stale for different reasons. The two senses have genuinely misled a reader of this section, so `docs/DESIGN-ai-correctness.md` now opens by separating them: a golden pair's answer is hidden from the AI, a model sheet is sent to it on every request.
   - **Numbers and a per-category headline, no overall pass or fail** (Q83's sibling decision). A model weak on arcs is still worth using where the free engine is weak, and one that degrades past twelve strokes is fine if it is sent ten. The output is a plan for phase 4's request shaping, and a boolean cannot carry it. This phase measures only: nothing here changes what is sent.
   - **Two rules the set has to keep, both learned by breaking them.** A category with no pairs *reports itself unmeasured* rather than vanishing — `Organic` ships empty, because its answers must be drawn rather than computed, and a silently missing row would read as a passed one. And a category has to be able to *fail*: the `Arc` pair passed everything until it carried departure from the free engine's answer, because a chord interpolation is exactly between the keys and betweenness cannot tell the two apart.
   - `FreeEngineArtist` is what keeps the set honest — the deterministic engine as a subject, costing no tokens and running in CI, so a constructed pair it cannot clear is a bug in the pair. It is never wired into the factory; Q32 stands.

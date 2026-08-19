@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml.cs
 
-budget: 437
+budget: 438
 
 ## Why it has moved
 
@@ -37,3 +37,9 @@ other's reason and leaves a number nobody can account for.
   constructor — the align-mode pick and the reference stack menu — beside the
   reference-drag wiring they extend. Delegated decisions are hooked up here by
   construction, the same pricing as B216/B217's entry above.
+- **437 → 438** (2026-08-19, Q128): one line — `WireCropTool();`, beside
+  `WireTransformSession()` and `WireGradientRamp()`, which are the same line for
+  the same reason. Everything it wires is in `MainWindow.Crop.cs`. A constructor
+  that hands a subsystem its one call is what this file is *for*, and a budget
+  that refused it would be pushing the wiring somewhere it does not belong to
+  save a line in the place that documents it.

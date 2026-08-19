@@ -61,7 +61,21 @@ reshaping is authoring, and the pen is no longer the author), the deterministic
 inbetweener (interpolates them like pressure), and `Stroke.Clone`
 (`MemberwiseClone` + list copy — free).
 
-## Capture (Q113)
+## Capture (Q113, gated by Q126)
+
+**What decides whether any of this is stored: the brush, per axis** (Q126). A
+brush with `TiltCurves` or `AngleFollowsTilt` records tilt; one with
+`SpeedCurves` records speed; a plain brush records neither and its documents
+are byte-identical to what they would have been. `PenAxisUse` answers that in
+one place, `StrokeBuilder.Begin` asks it once per stroke, and the
+`AlwaysRecordPenAxes` preference overrides it for the artist who wants the
+numbers kept against a later change of mind. Measured stakes: all three axes
+cost 113 bytes a point and take a saved document to 1.70× its size.
+
+Note the split this implies — **the control measures unconditionally and the
+builder filters**. Reading `XTilt`/`YTilt` and running an EMA is free at 200 Hz;
+writing them into every point is the 113 bytes. It also keeps the diagnostics
+readout honest whatever brush is in hand.
 
 In `CanvasControl`'s pointer path, beside `PressureOf`:
 
@@ -90,8 +104,17 @@ plus one rotation mode:
 ```csharp
 public Dictionary<BrushDynamic, ResponseCurve>? SpeedCurves { get; set; }
 public Dictionary<BrushDynamic, ResponseCurve>? TiltCurves { get; set; }  // input: altitude, 0=flat 1=vertical... inverted to taste in the curve
-public bool AngleFollowsTilt { get; set; }                                 // azimuth steers the dab
+public bool? AngleFollowsTilt { get; set; }                                // azimuth steers the dab
 ```
+
+**These three landed in phase 1, unused by the renderer**, because Q126 made
+them the capture gate: a brush cannot be asked what it needs until it can say
+so. Phase 2 wires them to the dab walk and nothing about their shape changes.
+
+`AngleFollowsTilt` is `bool?` rather than `bool`, unlike its neighbour
+`AngleFollowsDirection`: the serializer omits nulls and nothing else, so a plain
+flag writes `"angleFollowsTilt": false` into the brush block of every stroke of
+every document. That neighbour predates the rule and is the reason for it.
 
 - **Tilt is two things and only one is a curve.** Altitude (lean magnitude,
   0..1) drives targets through `TiltCurves` exactly as pressure does — lay a

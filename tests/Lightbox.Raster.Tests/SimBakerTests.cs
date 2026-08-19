@@ -499,6 +499,77 @@ public class SimBakerTests(ITestOutputHelper output)
         output.WriteLine($"loose {a.Sum(f => f.Strokes.Count)} strokes, tight {b.Sum(f => f.Strokes.Count)}");
     }
 
+    // ---- drawing one frame ------------------------------------------------------------------
+
+    /// <summary>
+    /// The preview draws one frame rather than all of them, and it has to be
+    /// <em>the same</em> drawing — a preview that quietly differs from the bake
+    /// is worse than no preview, because tuning against it is wasted work.
+    /// </summary>
+    [Fact]
+    public void Drawing_One_Frame_Gives_Exactly_What_The_Whole_Bake_Would()
+    {
+        var element = Fire(frames: 10);
+        var baker = new SimBaker();
+        var solved = baker.Solve(element);
+
+        var whole = baker.Draw(solved, element, Plain);
+
+        foreach (var expected in whole)
+        {
+            var one = baker.DrawAt(solved, element, Plain, null, expected.Frame);
+
+            Assert.NotNull(one);
+            Assert.Equal(expected.Frame, one!.Frame);
+            Assert.Equal(Shape(expected), Shape(one));
+        }
+
+        output.WriteLine($"{whole.Count} frames, each matching stroke for stroke");
+
+        static string Shape(BakedFrame frame) =>
+            string.Join(";", frame.Strokes.Select(s =>
+                $"{s.Tool}:{s.Color}:{s.Points.Count}:{s.Points[0].X:R},{s.Points[0].Y:R}"));
+    }
+
+    /// <summary>
+    /// On 2s there is no drawing on the odd frames, and answering "nothing"
+    /// would make the preview blink on every other frame of an element that is
+    /// perfectly fine. The nearest drawing at or before the frame is what the
+    /// timeline actually exposes there.
+    /// </summary>
+    [Fact]
+    public void Drawing_Across_A_Hold_Answers_The_Drawing_That_Is_Exposed()
+    {
+        var element = Fire(frames: 10, exposeOn: 2);
+        var baker = new SimBaker();
+        var solved = baker.Solve(element);
+
+        var onTheDrawing = baker.DrawAt(solved, element, Plain, null, 4);
+        var acrossTheHold = baker.DrawAt(solved, element, Plain, null, 5);
+        var earlier = baker.DrawAt(solved, element, Plain, null, 2);
+
+        Assert.NotNull(onTheDrawing);
+        Assert.NotEmpty(onTheDrawing!.Strokes);
+        Assert.Equal(4, acrossTheHold!.Frame);
+        Assert.Equal(2, earlier!.Frame);
+    }
+
+    /// <summary>
+    /// Before the element starts there is nothing to show, and drawing frame
+    /// zero's plume there would put fire on the screen a second early.
+    /// </summary>
+    [Fact]
+    public void Drawing_Before_The_Element_Starts_Answers_Nothing()
+    {
+        var element = Fire(frames: 6);
+        element.FirstFrame = 20;
+        var baker = new SimBaker();
+        var solved = baker.Solve(element);
+
+        Assert.Null(baker.DrawAt(solved, element, Plain, null, 19));
+        Assert.NotNull(baker.DrawAt(solved, element, Plain, null, 20));
+    }
+
     // ---- progress and cancellation ---------------------------------------------------------
 
     [Fact]

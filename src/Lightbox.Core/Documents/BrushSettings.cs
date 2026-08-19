@@ -290,6 +290,39 @@ public sealed class BrushSettings
     public Dictionary<BrushDynamic, ResponseCurve>? Curves { get; set; }
 
     /// <summary>
+    /// Artist-drawn <em>tilt</em> curves, by what they drive. Input is the tilt
+    /// altitude: 0 for a pen laid flat, 1 for one held upright.
+    /// </summary>
+    /// <remarks>
+    /// Same shape as <see cref="Curves"/> for the same reason, and absent unless
+    /// used. <b>These also decide what gets recorded</b>: a stroke captures tilt
+    /// when its brush asks for it, which is what <see cref="PenAxisUse"/> reads.
+    /// </remarks>
+    public Dictionary<BrushDynamic, ResponseCurve>? TiltCurves { get; set; }
+
+    /// <summary>
+    /// Artist-drawn <em>speed</em> curves, by what they drive. Input is the
+    /// hand's normalized speed, 0 at rest and 1 at the reference pace.
+    /// </summary>
+    public Dictionary<BrushDynamic, ResponseCurve>? SpeedCurves { get; set; }
+
+    /// <summary>
+    /// Whether the pen's lean direction steers the dab, the way
+    /// <see cref="AngleFollowsDirection"/> steers it from the stroke's heading.
+    /// Null — the default — is off.
+    /// </summary>
+    /// <remarks>
+    /// <b>Nullable rather than a plain <c>bool</c>, unlike its neighbour.</b>
+    /// The serializer only omits nulls, so a non-nullable flag writes
+    /// <c>"angleFollowsTilt": false</c> into the brush block of every stroke of
+    /// every document — the medium block's mistake, which
+    /// <c>CLAUDE.md</c> records once already.
+    /// <see cref="AngleFollowsDirection"/> predates that rule and is the reason
+    /// it exists rather than a licence to repeat it.
+    /// </remarks>
+    public bool? AngleFollowsTilt { get; set; }
+
+    /// <summary>
     /// How the finished stroke lands on the layer. Null is Normal, and null is
     /// the default — see <see cref="BlendOrNormal"/>.
     /// </summary>
@@ -414,6 +447,9 @@ public sealed class BrushSettings
         // have its mark change when the brush was next edited, which is
         // invariant 4 with an extra step.
         Curves = Curves?.ToDictionary(e => e.Key, e => e.Value.Clone()),
+        TiltCurves = TiltCurves?.ToDictionary(e => e.Key, e => e.Value.Clone()),
+        SpeedCurves = SpeedCurves?.ToDictionary(e => e.Key, e => e.Value.Clone()),
+        AngleFollowsTilt = AngleFollowsTilt,
         Blend = Blend,
         Stabilisation = Stabilisation?.Clone(),
         Medium = Medium.Clone(),

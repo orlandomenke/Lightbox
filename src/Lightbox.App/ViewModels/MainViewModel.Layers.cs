@@ -370,6 +370,50 @@ public partial class MainViewModel
         CurrentFrameIndex = Math.Min(CurrentFrameIndex, Scene.FrameCount - 1);
     }
 
+    /// <summary>Whether there is a step to take back — the Edit menu greys out on it.</summary>
+    public bool CanUndo => _editor.CanUndo;
+
+    /// <summary>Whether there is a step to put back.</summary>
+    public bool CanRedo => _editor.CanRedo;
+
+    /// <summary>
+    /// The Edit menu's Undo entry, naming the step it would take back —
+    /// <em>Undo Draw stroke</em> rather than <em>Undo</em>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Naming it is the difference between pressing the entry and guessing, and
+    /// the name is already there: every step carries a label, which is what the
+    /// History docker has been showing all along. This is the same record read
+    /// one row at a time.
+    /// </para>
+    /// <para>
+    /// The mnemonic is in the string because Avalonia takes it from the header
+    /// whether that header is literal or bound, and a menu whose first item
+    /// loses its access key when it gains a name would be a strange trade.
+    /// </para>
+    /// </remarks>
+    public string UndoMenuHeader => _editor.UndoLabel is { } step ? $"_Undo {step}" : "_Undo";
+
+    /// <summary>The Edit menu's Redo entry, naming the step it would put back.</summary>
+    /// <inheritdoc cref="UndoMenuHeader" path="/remarks"/>
+    public string RedoMenuHeader => _editor.RedoLabel is { } step ? $"_Redo {step}" : "_Redo";
+
+    /// <summary>
+    /// Re-read the four properties above. Called from the edit funnel rather
+    /// than raised by each command, because undo state moves under commands
+    /// that never touch it — an autosave-triggered edit, a jump in the History
+    /// docker, a step trimmed by <c>MaxUndo</c>, a tab switch bringing a
+    /// different stack.
+    /// </summary>
+    private void RefreshUndoRedo()
+    {
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+        OnPropertyChanged(nameof(UndoMenuHeader));
+        OnPropertyChanged(nameof(RedoMenuHeader));
+    }
+
     [RelayCommand]
     private void Undo()
     {

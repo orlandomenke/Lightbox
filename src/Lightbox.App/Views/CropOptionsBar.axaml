@@ -1,0 +1,34 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             x:Class="Lightbox.App.Views.CropOptionsBar"
+             x:DataType="vm:MainViewModel">
+  <!--
+    The crop frame's bar: what the frame currently measures, and the two ways
+    out of it.
+
+    A collaborator rather than more of MainWindow.axaml, which is on the
+    monolith ratchet — the trade BoneOptionsBar, GuideOptionsBar and
+    LineOptionsBar all made, for the same reason. The DataContext is inherited.
+
+    Gated on the frame rather than on the tool, which are the same thing today
+    and will not be if a crop is ever opened from somewhere else: the bar is
+    about the frame that is up, and asking about the frame is asking the
+    question it actually answers.
+
+    Apply is disabled until the frame is smaller than the page, because a crop
+    to the whole page is a press that does nothing — the readout says "Drag a
+    frame" in that state rather than a size, so the bar explains the disabled
+    button instead of leaving it a mystery.
+  -->
+  <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+              IsVisible="{Binding CropFrame, Converter={x:Static ObjectConverters.IsNotNull}}">
+    <TextBlock Text="{Binding CropFrameLabel}" VerticalAlignment="Center"
+               ToolTip.Tip="The size the paper would become. Nothing drawn moves, and ink outside the frame is kept — grow the canvas back and it returns." />
+    <Button Content="Apply" Click="OnCropApplyClicked"
+            IsEnabled="{Binding CanApplyCropFrame}"
+            ToolTip.Tip="Crop the paper to the frame (Enter). One undo step." />
+    <Button Content="Reset" Click="OnCropResetClicked"
+            ToolTip.Tip="Put the frame back around the whole page (Escape). This does not put the tool away." />
+  </StackPanel>
+</UserControl>
