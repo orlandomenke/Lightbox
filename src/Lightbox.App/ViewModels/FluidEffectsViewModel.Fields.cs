@@ -394,7 +394,13 @@ public sealed partial class FluidEffectsViewModel
 
         Treatment("Light angle", EffectFieldKind.Number,
             () => Resolved().LightAngleDeg, t => t.LightAngleDeg is not null,
-            (t, v) => t.LightAngleDeg = v, -180, 180, 15);
+            (t, v) => t.LightAngleDeg = v, -180, 180, 15,
+            hint: "Where the light is, degrees clockwise from straight up. One light serves both halves of lighting — the shading below, and the line weight if a driver reads it.");
+
+        Treatment("Shading", EffectFieldKind.Number,
+            () => Resolved().ShadeOffset, t => t.ShadeOffset is not null,
+            (t, v) => t.ShadeOffset = v, 0, 8, 0.5,
+            hint: "Slide the inner bands toward the light, in stroke widths, so a volume reads as lit instead of as an onion of rings. Clamped so a highlight can never leave the silhouette — past that point this stops having an effect, which is the shape telling you it has run out of room. A flame wants none of it: fire is the light source.");
 
         ResolvedTreatment Resolved() =>
             row.Element is { } e ? _vm.Doc.TreatmentFor(e) : LineTreatment.Defaults;
@@ -402,7 +408,7 @@ public sealed partial class FluidEffectsViewModel
         void Treatment(
             string name, EffectFieldKind kind,
             Func<double> effective, Func<LineTreatment, bool> stated, Action<LineTreatment, double?> write,
-            double min, double max, double step, IReadOnlyList<string>? choices = null)
+            double min, double max, double step, IReadOnlyList<string>? choices = null, string? hint = null)
         {
             TreatmentFields.Add(new EffectFieldRow(
                 name, kind, effective,
@@ -418,7 +424,7 @@ public sealed partial class FluidEffectsViewModel
                     // ever touched a slider and put it back.
                     if (!e.Treatment.StatedFields().Any()) e.Treatment = null;
                 },
-                OnFieldChanged, min, max, step, choices));
+                OnFieldChanged, min, max, step, choices, hint: hint));
         }
     }
 

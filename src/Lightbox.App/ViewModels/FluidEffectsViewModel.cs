@@ -139,6 +139,12 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
             BandColors = fire
                 ? ["#3a1200", "#d95f18", "#ffe9a8"]
                 : ["#2a2a30", "#5a5a66", "#9a9aa8"],
+            // A flame is the light source, so nothing lights it and its bands
+            // stay concentric — the ramp from dull red to white *is* the
+            // drawing. Smoke is lit from outside, and without that it is an
+            // onion: three rings round one centre, which is a cross-section
+            // rather than a volume. So smoke arrives shaded and fire does not.
+            Treatment = fire ? null : new LineTreatment { ShadeOffset = 2 },
         };
 
         // An element with no emitter simulates still air and draws nothing, which
@@ -152,7 +158,12 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
             Y = element.GridHeight - 4,
             Radius = 4,
             Density = 1,
-            Heat = fire ? 1 : 0,
+            // Smoke rises because it is hot, and a smoke emitter with no heat
+            // at all does not rise — `Weight` pulls it down and it spreads on
+            // the floor of its own grid as a pancake. Measured by rendering
+            // it: 0.4 gives a billow that climbs and still keeps its mass,
+            // where fire's 1 would send it up like a flame.
+            Heat = fire ? 1 : 0.4,
         });
 
         (_vm.Doc.Sims ??= [])[element.Id] = element;

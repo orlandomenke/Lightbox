@@ -713,8 +713,46 @@ Each step is one branch with one objective.
    branch because it is an edit to `MainViewModel`'s stroke paths — the hottest
    file in `HOTSPOTS.md` — and has nothing in common with a window: one
    objective, one branch, and an "and" in the sentence means two.
-6. Smoke (same solver, density instead of temperature, embers off by default),
-   then goo through the metaball source, then water.
+6. **Smoke** (same solver, density instead of temperature, embers off by
+   default) — **landed 2026-08-19**, and it took two things the plan had not
+   named because neither is visible until it is rendered.
+
+   - **A smoke emitter has to be warm.** Buoyancy reads temperature and `Weight`
+     reads density, so an emitter at zero heat is pushed *down* by its own mass
+     and spreads on the floor as a pancake — four identical frames of a flat
+     blob, which is what the first smoke render was. Smoke rises because it is
+     hot, and the preset now says so. Measured: 0 heat reaches 7.2 cells above
+     the emitter, 0.4 reaches 26.6.
+   - **Bands are concentric by construction, and a lit volume is not.** They are
+     iso-contours, so every one is centred on the same core; unshaded smoke is
+     an onion however it is coloured. `LineTreatment.ShadeOffset` slides band
+     `b` by `b/(bands-1)` of itself toward `LightAngleDeg`, which puts the
+     highlight on the lit side and crowds the rest into a crescent opposite.
+     Band 0 never moves — it is the silhouette, and a silhouette that slid off
+     its own volume would not be one.
+
+   It is on the **treatment** rather than on the element because it is a style
+   decision — how this production draws a lit volume — and it shares its angle
+   with the line-weight driver so one light serves both halves of lighting.
+   A translation of the contour rather than a second field: tracing a level from
+   the field sampled at `p - L·s` gives exactly this contour, so the cheap
+   version and the accurate one are the same picture and the cheap one costs a
+   loop over points instead of a resample of every cell.
+
+   **Clamped to the silhouette's box**, and that was found by rendering the
+   slider at its end: past a certain offset the pale band pokes out beyond the
+   dark outline and stops reading as a highlight, becoming a second paler shape
+   sitting on top. An artist takes a slider to its end to find out what it does.
+   Bounded by boxes rather than by contours because that is the containment
+   somebody can actually see, and it costs a pass over points rather than a
+   polygon clip. The cost, stated: past the clamp the slider does nothing.
+6b. **Explosions** — the other half of the smoke ask, and its own branch. An
+   emitter fires continuously and pushes in one direction; a burst needs
+   emission that stops after a frame or two (`EmitFrom`/`EmitUntil`, absent by
+   default) and velocity that points *outward* from the emitter rather than
+   along an axis (`Burst`). Debris trails need nothing new — a travelling
+   emitter already lays a trail the fluid does not follow.
+6c. Goo through the metaball source, then water.
 7. **Style inference** — a reference drawing in, a `LineTreatment` out, judged by
    baking it beside the reference. After step 4 because it needs a look to be
    judged against, and under gate G12 from the first line.

@@ -57,6 +57,126 @@ public class FieldTracerTests(ITestOutputHelper output)
 
     // ---- bands ---------------------------------------------------------------
 
+    /// <summary>Where a fill's points sit, on average.</summary>
+    private static (double X, double Y) Centre(Stroke s) =>
+        (s.Points.Average(p => p.X), s.Points.Average(p => p.Y));
+
+    /// <summary>
+    /// Unshaded, the bands are concentric — which is the problem, not a feature.
+    /// A cross-section of a volume rather than a lit one.
+    /// </summary>
+    [Fact]
+    public void Without_Shading_Every_Band_Shares_One_Centre()
+    {
+        var strokes = new FieldTracer().Trace(Request(Blob(64, 64, 32f, 32f, 24f), 64, 64));
+
+        var centres = Fills(strokes).Select(Centre).ToList();
+        output.WriteLine(string.Join("  ", centres.Select(c => $"({c.X:F2},{c.Y:F2})")));
+
+        // Half a cell, not exact: a simplified contour's mean point is not its
+        // geometric centroid, and the claim is "these share a centre" against a
+        // shift measured in whole cells rather than "these are at 32.00".
+        Assert.All(centres, c =>
+        {
+            Assert.InRange(c.X, 31.5, 32.5);
+            Assert.InRange(c.Y, 31.5, 32.5);
+        });
+    }
+
+    /// <summary>
+    /// Shaded, the inner bands move toward the light and the outer one does not.
+    /// </summary>
+    /// <remarks>
+    /// Band 0 staying put is half the claim and the more important half: it is
+    /// the silhouette, and a silhouette that slid off its own volume would not
+    /// be one. Light at 0° is straight up, so "toward the light" is a smaller Y.
+    /// </remarks>
+    [Fact]
+    public void Shading_Slides_The_Inner_Bands_Toward_The_Light_And_Leaves_The_Silhouette()
+    {
+        var lit = new LineTreatment { ShadeOffset = 2, LightAngleDeg = 0 };
+        var plain = new FieldTracer().Trace(Request(Blob(64, 64, 32f, 32f, 24f), 64, 64));
+        var shaded = new FieldTracer().Trace(Request(Blob(64, 64, 32f, 32f, 24f), 64, 64, lit));
+
+        var before = Fills(plain).Select(Centre).ToList();
+        var after = Fills(shaded).Select(Centre).ToList();
+        Assert.Equal(3, after.Count);
+
+        output.WriteLine($"silhouette {before[0].Y:F2} → {after[0].Y:F2}, " +
+                         $"mid {before[1].Y:F2} → {after[1].Y:F2}, core {before[2].Y:F2} → {after[2].Y:F2}");
+
+        Assert.Equal(before[0].Y, after[0].Y, 2);
+        Assert.True(after[1].Y < before[1].Y - 0.2, "the middle band did not move toward the light");
+        Assert.True(after[2].Y < after[1].Y, "the innermost band must move furthest");
+        // Sideways is the light's other axis and it is zero here, so nothing
+        // should have drifted in X — which is what says the direction is read
+        // rather than a constant offset being applied.
+        for (var i = 0; i < after.Count; i++) Assert.Equal(before[i].X, after[i].X, 6);
+    }
+
+    /// <summary>
+    /// The light's angle is obeyed, not just its presence.
+    /// </summary>
+    [Fact]
+    public void Shading_Follows_The_Light_Angle()
+    {
+        (double X, double Y) Core(double angle)
+        {
+            var t = new LineTreatment { ShadeOffset = 2, LightAngleDeg = angle };
+            return Centre(Fills(new FieldTracer().Trace(Request(Blob(64, 64, 32f, 32f, 24f), 64, 64, t)))[^1]);
+        }
+
+        var up = Core(0);
+        var right = Core(90);
+        var down = Core(180);
+
+        output.WriteLine($"up {up}, right {right}, down {down}");
+        Assert.True(up.Y < 32, "light from above must lift the core");
+        Assert.True(right.X > 32, "light from the right must push the core right");
+        Assert.True(down.Y > 32, "light from below must drop the core");
+    }
+
+    /// <summary>
+    /// A highlight can never leave the silhouette, however far the slider goes.
+    /// </summary>
+    /// <remarks>
+    /// <b>The failure this prevents is visible and was seen before it was
+    /// fixed</b>: past a certain offset the pale band pokes out beyond the dark
+    /// outline and stops reading as a highlight, becoming a second paler shape
+    /// sitting on top. An artist takes a slider to its end to find out what it
+    /// does, so the end has to be somewhere sensible.
+    /// </remarks>
+    [Fact]
+    public void A_Highlight_Cannot_Be_Lit_Out_Of_Its_Own_Volume()
+    {
+        var silhouette = Fills(new FieldTracer().Trace(Request(Blob(64, 64, 32f, 32f, 24f), 64, 64)))[0];
+        var top = silhouette.Points.Min(p => p.Y);
+        var bottom = silhouette.Points.Max(p => p.Y);
+
+        foreach (var offset in new double[] { 4, 20, 200 })
+        {
+            var t = new LineTreatment { ShadeOffset = offset, LightAngleDeg = 0 };
+            var fills = Fills(new FieldTracer().Trace(Request(Blob(64, 64, 32f, 32f, 24f), 64, 64, t)));
+
+            var highest = fills.Skip(1).Min(f => f.Points.Min(p => p.Y));
+            output.WriteLine($"offset {offset}: inner bands reach {highest:F2}, silhouette spans {top:F2}..{bottom:F2}");
+            Assert.True(highest >= top - 1e-6, $"offset {offset} lit a band out of the silhouette");
+        }
+    }
+
+    /// <summary>Nothing moves when nobody asked for it.</summary>
+    [Fact]
+    public void Shading_Is_Off_Unless_Asked_For()
+    {
+        Assert.Equal(0, LineTreatment.Defaults.ShadeOffset);
+
+        var plain = Fills(new FieldTracer().Trace(Request(Blob(64, 64, 32f, 32f, 24f), 64, 64)));
+        var zero = Fills(new FieldTracer().Trace(
+            Request(Blob(64, 64, 32f, 32f, 24f), 64, 64, new LineTreatment { ShadeOffset = 0 })));
+
+        Assert.Equal(plain.Select(Centre), zero.Select(Centre));
+    }
+
     [Fact]
     public void Bands_Nest_And_Are_Painted_Back_To_Front()
     {

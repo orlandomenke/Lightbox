@@ -180,6 +180,8 @@ public class FluidEffectsViewModelTests(ITestOutputHelper output)
             new (string What, Action<SimElement> Change)[]
             {
                 ("band count", e => e.Treatment = new LineTreatment { Bands = 5 }),
+                ("shading", e => e.Treatment = new LineTreatment { ShadeOffset = 3 }),
+                ("the light's angle", e => e.Treatment = new LineTreatment { LightAngleDeg = 90 }),
                 ("band colours", e => e.BandColors = ["#000000"]),
                 ("band window", e => { e.BandLow = 0.1; e.BandHigh = 0.9; }),
                 ("outline colour", e => e.OutlineColor = "#ff0000"),
