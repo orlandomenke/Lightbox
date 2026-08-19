@@ -518,6 +518,22 @@
       </MenuItem>
 
       <!--
+        Effects: things that author drawings from a description rather than from
+        the pen. It is a top level of its own rather than a line under View,
+        because View is where you say what you want to *look* at and every item
+        here changes what is *in* the document — and because there is more than
+        one of these coming (goo, water, style inference), each of which would
+        otherwise be another orphan among the dockers.
+
+        No InputGesture on the item: the command lives in ShortcutMap, and a
+        hard-coded label would lie the moment somebody remapped it.
+      -->
+      <MenuItem Header="Effe_cts" Classes="top">
+        <MenuItem Header="_Fluid effects…" Click="OnOpenEffects"
+                  ToolTip.Tip="Fire, smoke and water, drawn as bands and outlines rather than as pixels — tuned in a window of its own and baked into the document as ordinary strokes" />
+      </MenuItem>
+
+      <!--
         Help, and the first thing under it is not documentation.
 
         The app writes a crash report and a survivable-failure log to disk, and

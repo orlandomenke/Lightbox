@@ -90,6 +90,40 @@ public class SimElementTests
     }
 
     /// <summary>
+    /// The pen is on the element so a re-bake draws the same line — but an
+    /// element on the default pen must still write no key. This is the shape
+    /// <c>BlendOrNormal</c> got wrong: an optional block whose "unset" value
+    /// reaches the file under some name is not optional, it is a default with
+    /// extra bytes.
+    /// </summary>
+    [Fact]
+    public void An_Element_On_The_Default_Pen_Writes_No_Brush()
+    {
+        Assert.DoesNotContain("\"outlineBrush\"", Json(new SimElement()));
+
+        var pen = Fire();
+        pen.OutlineBrush = new BrushSettings { Size = 3 };
+        Assert.Contains("\"outlineBrush\"", Json(pen));
+    }
+
+    /// <summary>
+    /// Cloning has to copy the pen rather than share it, or an undo snapshot and
+    /// the live document edit the same brush — which is the bug where changing an
+    /// element's line silently rewrites history.
+    /// </summary>
+    [Fact]
+    public void Cloning_An_Element_Copies_Its_Pen()
+    {
+        var element = Fire();
+        element.OutlineBrush = new BrushSettings { Size = 3 };
+
+        var copy = element.Clone();
+        copy.OutlineBrush!.Size = 9;
+
+        Assert.Equal(3, element.OutlineBrush.Size);
+    }
+
+    /// <summary>
     /// A treatment override that states nothing has to write nothing —
     /// <c>{}</c>, not sixteen nulls and not sixteen defaults. That is what makes
     /// the cascade cost one record rather than two (Q118), and it is exactly

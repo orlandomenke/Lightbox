@@ -427,6 +427,19 @@ public sealed class ShortcutMap
             new("project.window", "Project window (structure, status, assets)", "File",
                 G(Key.P, KeyModifiers.Control)),
 
+            // The fluid effects window, on the same footing as the project window
+            // and the board: a window of its own, opened by a registered command
+            // rather than by a gesture written onto a menu item. Ctrl+E alone is
+            // Merge down; Ctrl+Shift+E is free, and reading the two as a pair is
+            // no worse than any other letter.
+            //
+            // Named to match the menu word for word. The editor is searched, and
+            // an artist who saw "Fluid effects" on the menu and types it has to
+            // find this — a registry entry under a second name for the same
+            // command is the same failure as no entry at all, one step later.
+            new("effects.window", "Fluid effects window (fire, smoke, water)", "Effects",
+                G(Key.E, KeyModifiers.Control | KeyModifiers.Shift)),
+
             // B126/B254, and a key rather than a menu item on purpose: the thing
             // being measured is what the pointer does while it hovers the canvas,
             // so a trace you have to reach a menu to stop records the trip to the
