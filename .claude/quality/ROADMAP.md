@@ -648,6 +648,21 @@ every other AI feature and are only legible together.
     inference last, which needs a look to be judged against. Stays `[?]` until
     step 4 gives it evidence anchors to name: anchoring it earlier would make the
     box read `[x]` — *built* — for a feature no artist can reach.
+  - **Three pieces are specified and waiting, in this order** (2026-08-18). Each
+    is one branch and none blocks the others:
+    **(1) Emission flicker** — an area mask refuels itself every frame, so it
+    reads as a burning edge rather than flames; modulating emission per cell by
+    `Hash01` over position *and frame* makes burning points wander. It is the
+    first effect parameter whose seed varies by frame, which is Q80's ground for
+    brushes, so it needs its own re-render and hold tests.
+    **(2) Drawn art as an obstacle** (Q125) — the real solver work: interior
+    Neumann boundaries in the pressure solve, flux transport that will not carry
+    mass into an obstacle cell, and conservation tests that learn mass may be
+    held against an obstacle and not only against a wall. `SimElement.ObstacleLayerId`
+    and the `ISimMasks` seam are already in place for it.
+    **(3) Anchor attachment** (Q122) — an element bound to a drawing's anchor, so
+    it follows a character with no keying. The coupling it introduces is that a
+    bake starts depending on another layer's drawings.
   - **Painted emission landed 2026-08-18** (Q124, refined by Q125): an emitter
     names a mask layer and emits where that layer has ink, with a keyable origin
     as the only thing that moves it — so a travelling emitter lays a trail, which

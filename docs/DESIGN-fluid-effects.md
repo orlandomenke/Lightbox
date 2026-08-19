@@ -633,6 +633,16 @@ Each step is one branch with one objective.
    intersected with anything at bake time, and the emitter's keyable origin is
    the only thing that moves it. Alpha lock turned out to belong to the
    *painter* rather than to the bake — see below.
+5c-i. **Emission flicker** — the one thing the burning-cloak render asked for and
+   did not get. A mask that emits over an area every frame refuels itself, so no
+   tongue can detach and it reads as a burning *edge* rather than as flames.
+   Emission modulated per cell by `Hash01` over position **and frame** makes the
+   burning points wander along a hem the way they really do. Small, and a
+   *decision* rather than a tweak: it is the first effect parameter whose seed
+   varies by frame, which is the ground Q80 covers for brushes — the seeding
+   story grows a frame dimension and needs its own re-render and hold tests.
+   Sparse emission in *space* already works and needs nothing: paint a broken
+   mask.
 5d. **Drawn art as an obstacle** (Q125) — the other half, and its own branch,
    because the cost is not the rasterisation but putting solid boundaries
    *inside* the grid where `FluidSolver` has only walls at its edge: interior
