@@ -182,9 +182,23 @@ usually do with an emptied region is put something else in it, and both are
 ordinary undo steps. With no selection up, Delete falls back to deleting
 whatever lines the Arrow has picked.
 
+**Every one of those is on the Select menu too**, next to Image in the menu
+bar: *All*, *Deselect*, *Invert*, *Grow*, *Shrink*, *Delete contents* and
+*Fill with background*. The keys are faster once you know them; the menu is
+where you find out they exist, and where you check what a key does without
+pressing it. Entries that need a region to work on — Grow, Shrink and Fill with
+background — grey out until there is one. *Deselect* and *Invert* never do:
+Deselect also clears lines and symbols picked with the Arrow, and inverting
+nothing is how you select everything.
+
 **A selection belongs to its document.** Switch tabs and it stays behind;
 switch back and it is where you left it. A new document starts with nothing
 selected.
+
+**To crop the paper to a selection**, see *Cropping* under
+[Documents and projects](02-documents-and-projects.md) — it is on the **Image**
+menu, with the two resizes, because it changes the page rather than the
+selection.
 
 **Hold Ctrl inside a selection and drag to move what is in it**, without
 reaching for a tool. The pointer becomes the four-way arrow as soon as you cross

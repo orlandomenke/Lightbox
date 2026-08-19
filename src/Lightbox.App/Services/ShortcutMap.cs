@@ -172,6 +172,14 @@ public sealed class ShortcutMap
                 G(Key.C, KeyModifiers.Control | KeyModifiers.Alt)),
             new("image.resizeImage", "Resize image", "Image",
                 G(Key.I, KeyModifiers.Control | KeyModifiers.Alt)),
+            // The two crops (Q128), and no default gesture on either — which is
+            // allowed, for lines.recolour's stated reason: Photoshop binds
+            // neither of these itself, so there is no reflex to honour, and the
+            // menu is the way in. Registered anyway, because a command that is
+            // not in this map cannot be found, searched or rebound — which is
+            // the whole failure this map exists for.
+            new("image.cropToSelection", "Crop to selection", "Image", null),
+            new("image.trimToDrawing", "Trim to drawing", "Image", null),
             // B221: B, F and V join E and I as spring-loaded. The machinery has
             // been tool-agnostic since B176 and two of thirteen keys used it,
             // which made the tap-or-hold rule read as a quirk of the eraser
@@ -193,6 +201,12 @@ public sealed class ShortcutMap
             new("tool.fill", "Fill", "Tools", G(Key.F),
                 momentaryTool: ViewModels.ToolId.Fill),
             new("tool.gradient", "Gradient", "Tools", G(Key.G)),
+            // C, which is Photoshop's key for it and was free here. Not
+            // spring-loaded like B, E, F, V and I: the crop carries modal state
+            // — a frame that has been dragged — so a hold-and-release would
+            // strand it, which is exactly the reason S and the pen are excluded
+            // from that list too.
+            new("tool.crop", "Crop (frame the page)", "Tools", G(Key.C)),
             new("tool.select", "Select / next variant", "Tools", G(Key.S)),
             new("tool.move", "Move (drawing and guides)", "Tools", G(Key.V),
                 momentaryTool: ViewModels.ToolId.Move),

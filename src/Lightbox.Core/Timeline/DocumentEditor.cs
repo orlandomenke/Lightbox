@@ -129,6 +129,23 @@ public sealed class DocumentEditor
     public bool CanUndo => _undo.Count > 0;
     public bool CanRedo => _redo.Count > 0;
 
+    /// <summary>
+    /// What the next undo would take back, named — null when there is nothing
+    /// to undo.
+    /// </summary>
+    /// <remarks>
+    /// For the Edit menu, which says <em>Undo Draw stroke</em> rather than
+    /// <c>Undo</c>: a menu entry that names the step is the difference between
+    /// pressing it and guessing. Peeking rather than reading
+    /// <see cref="History"/> because that allocates a list of every row to
+    /// answer a question about one, and this is read on every document change.
+    /// </remarks>
+    public string? UndoLabel => _undo.Count > 0 ? _undo.Peek().Label : null;
+
+    /// <summary>What the next redo would put back — null when there is nothing to redo.</summary>
+    /// <inheritdoc cref="UndoLabel" path="/remarks"/>
+    public string? RedoLabel => _redo.Count > 0 ? _redo.Peek().Label : null;
+
     /// <summary>Run a mutation as one undoable step (whole-document snapshot).</summary>
     /// <remarks>
     /// <b>The snapshot is a direct deep copy, not a serialize-and-parse (B142).</b>
