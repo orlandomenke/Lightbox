@@ -781,6 +781,50 @@ Each step is one branch with one objective.
    and leaves the bands early. Per-frame peaks would fix it and reintroduce
    flicker for every steady plume, which is the trade the whole-element peak was
    chosen for. The manual says to lower **Band low** for a blast.
+6d. **Effects — several elements that are one thing** — **landed 2026-08-19**,
+   answering "like Unity's particle system, could we combine and layer these?"
+   Layering already worked, because elements have always baked to a layer each;
+   what did not exist was any way to say three of them belong together.
+
+   **A named set and batch operations, not a transform applied at bake time.**
+   The obvious design is a group origin and frame offset added to each member
+   when it renders, the way a scene graph works. It was rejected after counting
+   the call sites: placement is read in the solve, in the trace, in the mask
+   rasteriser, in the bake and in the preview's frame range, and an offset
+   missed at any one of them is a bake that lands somewhere other than where the
+   preview showed it. So `SimGroupOps.Move` and `Retime` write the members' own
+   records, every element's origin stays honestly its origin, the bake path
+   never learns groups exist, and ungrouping is lossless by construction.
+
+   **The additive form is already provided one level up**, which is what settles
+   it: `SymbolPlacement` has `X`, `Y` and `FrameOffset`, so once a group bakes
+   to a symbol, placing it twice at different times is placement work. An offset
+   on the group as well would be two mechanisms for one job, and the one on the
+   placement can be used many times over.
+
+   **Retiming shifts, never aligns.** The smoke starting four frames after the
+   flash is what makes it read as one event, so every member moves by the same
+   delta and the earliest one clamps at frame zero rather than a member being
+   pushed negative and silently stopping being drawn.
+
+   **Elements do not interact**, and that is the trade that buys the per-element
+   grid: a small hot fireball at 4 document pixels per cell beside a slow smoke
+   at 10, each paying only for its own resolution. One shared grid for the group
+   would allow a blast to shove its own smoke and would cost every member the
+   finest resolution any of them needed. Matching wind or burst is the answer
+   for now, and it is in the manual.
+
+6e. **An effect as an `Fx` symbol** (Q129) — the next branch, and most of it
+   exists already: `Symbol.Frames` is a `List<Frame>`, `SymbolKind.Fx` is in the
+   enum with nothing producing it, and `SymbolPlacement` carries `FrameOffset`,
+   scale, angle, opacity and a swatch override. A baked group placed as a symbol
+   therefore gets instancing, per-placement timing, flip and recolour for free.
+   Q129 decided the symbol **keeps the group record**, so *edit this effect*
+   reopens the window and every placement updates — with the two costs that
+   choice carries written down there: the group is serialized twice and can
+   drift, and a re-bake that changes the frame count moves existing placements'
+   timing under them.
+
 6c. Goo through the metaball source, then water.
 7. **Style inference** — a reference drawing in, a `LineTreatment` out, judged by
    baking it beside the reference. After step 4 because it needs a look to be

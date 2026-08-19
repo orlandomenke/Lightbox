@@ -25,6 +25,45 @@ The window has three columns:
 - **Right** — the preview, a frame scrubber, and the two buttons that cost
   something.
 
+## Effects: several elements that are one thing
+
+A real explosion is not one simulation. It is a flash, a fireball, a roll of
+smoke and some sparks, each with its own timing, its own grid and its own line
+treatment — and each baking to its own layer, so they composite, blend and
+z-order like any drawing.
+
+An **effect** is the name for that set. Select an element and press **Group** to
+start one; select another and press **Add** to put it in. **Out** takes an
+element back out and leaves it exactly where it is.
+
+Once elements are in an effect you get three numbers that act on all of them:
+
+- **Place X / Y** — where the effect's left and top edges sit. Moving it moves
+  every member by the same amount.
+- **Starts on** — the frame the effect begins. Shifting it shifts every member
+  equally, so **the smoke stays four frames behind the flash**. That spacing is
+  the effect's timing, and lining members up on a common frame would destroy it.
+
+There is no group transform hiding anywhere — those numbers read the members and
+write the difference back. An element's origin is always honestly its origin,
+and **Ungroup** is lossless because there is nothing to un-apply.
+
+- **Copy** duplicates the whole effect, elements and all, so the copy can be
+  retuned without touching the original.
+- **Delete** removes the effect and everything in it, drawings included.
+- **Bake the whole effect** bakes every member and puts their layers in one
+  folder named after the effect.
+
+Because each element keeps its own grid, layering is cheaper here than in a
+system with one shared simulation: a small hot fireball can run at four document
+pixels per cell beside a slow smoke at ten, and each pays only for its own
+resolution.
+
+> **Elements do not interact.** Each runs its own solver on its own grid, so a
+> fireball does not push its own smoke. If you want the blast to shove the
+> smoke, give the smoke element matching wind or burst — that is a deliberate
+> trade, and it is what buys the per-element grid sizes above.
+
 ## The one thing to understand: Simulate and Bake
 
 They are separate buttons because they cost different things, by about a factor
@@ -278,7 +317,12 @@ re-bake will not take your work back out — but it also will not update it.
   broken.
 - **Attaching an element to a drawing's anchor**, so it follows a rigged figure
   without keying Travel by hand.
-- **Presets**, so a flame is tuned once and reused.
+- **Saving an effect as a symbol**, so a baked explosion can be dropped in
+  three times at different frames, one of them mirrored — symbols already carry
+  animation frames and per-placement time offset, so most of this exists.
+- **Presets**, so a flame is tuned once and reused. Different from a symbol: a
+  symbol gives you *those exact frames* for free, a preset gives you *those
+  parameters* and re-simulates.
 - **Water and goo.** The solver is the same; a free surface and a metaball
   source are not built.
 - **Style inference** — a reference drawing in, a line treatment out.

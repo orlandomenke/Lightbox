@@ -52,6 +52,38 @@ public sealed partial class MainViewModel
     internal BrushSettings CurrentBrushCopy() => CurrentToolSettings.Clone();
 
     /// <summary>
+    /// Put a group's baked layers in one folder, as one undoable step.
+    /// </summary>
+    /// <remarks>
+    /// A document-wide edit rather than a frame one: folding reorders the layer
+    /// stack so the members are contiguous, which is what a layer folder
+    /// requires. Nothing about the frames changes, so the caches keyed by frame
+    /// are left alone and the <c>Changed</c> refresh does the rest.
+    /// </remarks>
+    internal void FoldSimGroup(SimGroup group)
+    {
+        ArgumentNullException.ThrowIfNull(group);
+        _editor.Perform(doc => SimGroupOps.Fold(doc, group), label: "Fold effect layers");
+    }
+
+    /// <summary>Delete a group and every element in it, as one undoable step.</summary>
+    internal void DeleteSimGroup(SimGroup group)
+    {
+        ArgumentNullException.ThrowIfNull(group);
+
+        foreach (var element in SimGroupOps.Members(Doc, group))
+        {
+            foreach (var id in SimFrameIds(element))
+            {
+                InvalidateFrameRender(id);
+                _dirtyThumbIds.Add(id);
+            }
+        }
+
+        _editor.Perform(doc => SimGroupOps.Delete(doc, group), label: "Delete effect");
+    }
+
+    /// <summary>
     /// Say an effects element's own record changed — a slider, an emitter, a
     /// colour — so the document is dirty and autosave knows.
     /// </summary>

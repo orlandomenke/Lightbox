@@ -130,6 +130,31 @@ public sealed class Doc
     public bool HasSims => Sims is { Count: > 0 };
 
     /// <summary>
+    /// Elements that are one effect, keyed by id, or null on a document where
+    /// nobody has grouped any.
+    /// </summary>
+    /// <remarks>
+    /// Absent until authored, like <see cref="Sims"/> itself: a document with
+    /// three ungrouped elements writes no <c>simGroups</c> key. Membership lives
+    /// here rather than as a field on the element for the reason layer folders
+    /// took the same shape — an element in no group is the ordinary case and
+    /// should carry nothing saying so.
+    /// </remarks>
+    public Dictionary<string, SimGroup>? SimGroups { get; set; }
+
+    /// <summary>The group an element belongs to, or null. Linear; there are never many.</summary>
+    public SimGroup? GroupOf(SimElement element)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        if (SimGroups is null) return null;
+        foreach (var group in SimGroups.Values)
+        {
+            if (group.ElementIds.Contains(element.Id)) return group;
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Shared line treatments, keyed by id, or null — the show's looks, which an
     /// element names and may override field by field (Q118).
     /// </summary>
@@ -316,6 +341,7 @@ public sealed class Doc
         copy.Gradients = Gradients.ToDictionary(e => e.Key, e => e.Value.Clone());
         copy.Symbols = Symbols?.ToDictionary(e => e.Key, e => e.Value.Clone());
         copy.Sims = Sims?.ToDictionary(e => e.Key, e => e.Value.Clone());
+        copy.SimGroups = SimGroups?.ToDictionary(g => g.Key, g => g.Value.Clone());
         copy.LineTreatments = LineTreatments?.ToDictionary(e => e.Key, e => e.Value.Clone());
         copy.Armature = Armature?.Clone();
         copy.Features = Features is null ? null : new Dictionary<string, bool>(Features);

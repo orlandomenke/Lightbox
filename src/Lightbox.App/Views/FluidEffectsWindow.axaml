@@ -54,17 +54,55 @@
   <Grid ColumnDefinitions="188,*,336" Margin="8" ColumnSpacing="8">
 
     <!-- ── the elements, and the emitters inside the selected one ───────── -->
-    <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto,Auto,*,Auto" RowSpacing="4">
-      <TextBlock Grid.Row="0" Text="Elements" FontSize="11" Opacity="0.6" />
-      <ListBox Grid.Row="1" ItemsSource="{Binding Elements}"
-               SelectedItem="{Binding Selected, Mode=TwoWay}">
+    <Grid Grid.Column="0" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto,*,Auto" RowSpacing="4">
+      <!-- Effects: several elements that are one thing. A group carries no
+           position of its own — the numbers below read the members and write
+           the difference back — so there is nothing here that can disagree
+           with the elements it names. -->
+      <TextBlock Grid.Row="0" Text="Effects" FontSize="11" Opacity="0.6" />
+      <ListBox Grid.Row="1" MaxHeight="96" ItemsSource="{Binding Groups}"
+               SelectedItem="{Binding SelectedGroup, Mode=TwoWay}">
         <ListBox.ItemTemplate>
-          <DataTemplate x:DataType="vm:SimElementRow">
-            <TextBlock Text="{Binding Label}" FontSize="11" />
+          <DataTemplate x:DataType="vm:SimGroupRow">
+            <StackPanel>
+              <TextBlock Text="{Binding Label}" FontSize="11" />
+              <TextBlock Text="{Binding Detail}" FontSize="10" Opacity="0.55" />
+            </StackPanel>
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>
       <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4">
+        <Button Classes="text" Content="Group" Click="OnNewGroup"
+                ToolTip.Tip="Start an effect from the selected element; add the others to it" />
+        <Button Classes="text" Content="Add" Click="OnAddToGroup"
+                ToolTip.Tip="Put the selected element into the selected effect" />
+        <Button Classes="text" Content="Out" Click="OnRemoveFromGroup"
+                ToolTip.Tip="Take the selected element out of its effect. It stays exactly where it is." />
+      </StackPanel>
+      <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="4"
+                  IsVisible="{Binding SelectedGroup, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <Button Classes="text" Content="Copy" Click="OnDuplicateGroup"
+                ToolTip.Tip="Copy the whole effect, elements and all, so the copy can be retuned on its own" />
+        <Button Classes="text" Content="Ungroup" Click="OnUngroup" />
+        <Button Classes="text" Content="Delete" Click="OnDeleteGroup"
+                ToolTip.Tip="Delete the effect and every element in it, drawings included" />
+      </StackPanel>
+
+      <TextBlock Grid.Row="4" Text="Elements" FontSize="11" Opacity="0.6" Margin="0,6,0,0"
+                 VerticalAlignment="Top" />
+      <ListBox Grid.Row="4" Margin="0,18,0,0" ItemsSource="{Binding Elements}"
+               SelectedItem="{Binding Selected, Mode=TwoWay}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:SimElementRow">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+              <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" />
+              <TextBlock Grid.Column="1" Text="{Binding GroupName}" FontSize="10" Opacity="0.5"
+                         VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="64" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <StackPanel Grid.Row="5" Orientation="Horizontal" Spacing="4">
         <Button Classes="text" Content="Fire" Click="OnNewFire"
                 ToolTip.Tip="A new element banding from temperature — the heat ramp is the drawing" />
         <Button Classes="text" Content="Smoke" Click="OnNewSmoke"
@@ -72,8 +110,8 @@
         <Button Classes="text" Content="Delete" Click="OnDeleteElement" />
       </StackPanel>
 
-      <TextBlock Grid.Row="3" Text="Emitters" FontSize="11" Opacity="0.6" Margin="0,6,0,0" />
-      <ListBox Grid.Row="4" ItemsSource="{Binding Emitters}"
+      <TextBlock Grid.Row="6" Text="Emitters" FontSize="11" Opacity="0.6" Margin="0,6,0,0" />
+      <ListBox Grid.Row="7" ItemsSource="{Binding Emitters}"
                SelectedItem="{Binding SelectedEmitter, Mode=TwoWay}">
         <ListBox.ItemTemplate>
           <DataTemplate x:DataType="vm:EmitterRow">
@@ -81,7 +119,7 @@
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>
-      <StackPanel Grid.Row="5" Orientation="Horizontal" Spacing="4">
+      <StackPanel Grid.Row="8" Orientation="Horizontal" Spacing="4">
         <Button Classes="text" Content="Add" Click="OnNewEmitter" />
         <Button Classes="text" Content="Delete" Click="OnDeleteEmitter" />
       </StackPanel>
@@ -91,6 +129,31 @@
     <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Disabled">
       <StackPanel Spacing="10" Margin="0,0,8,0"
                   IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
+
+        <StackPanel Spacing="2"
+                    IsVisible="{Binding SelectedGroup, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <TextBlock Text="The effect" FontSize="11" Opacity="0.6"
+                     ToolTip.Tip="These move every member at once and keep the spacing between them — the smoke staying four frames behind the flash is what makes it read as one event" />
+          <Grid ColumnDefinitions="112,*" ColumnSpacing="6" Margin="0,1">
+            <TextBlock Grid.Column="0" Text="Name" FontSize="11" VerticalAlignment="Center" Opacity="0.75" />
+            <TextBox Grid.Column="1" Text="{Binding GroupName, Mode=TwoWay}"
+                     PlaceholderText="e.g. explosion" />
+          </Grid>
+          <Grid ColumnDefinitions="112,*,*,*" ColumnSpacing="6" Margin="0,1">
+            <TextBlock Grid.Column="0" Text="Place" FontSize="11" VerticalAlignment="Center" Opacity="0.75" />
+            <NumericUpDown Grid.Column="1" FormatString="0" Increment="8"
+                           Value="{Binding GroupOriginX, Mode=TwoWay}"
+                           ToolTip.Tip="Where the effect's left edge sits, in document pixels. Moves every member." />
+            <NumericUpDown Grid.Column="2" FormatString="0" Increment="8"
+                           Value="{Binding GroupOriginY, Mode=TwoWay}" />
+            <NumericUpDown Grid.Column="3" FormatString="0" Increment="1" Minimum="0"
+                           Value="{Binding GroupFirstFrame, Mode=TwoWay}"
+                           ToolTip.Tip="The frame the effect starts on. Shifts every member by the same amount, so the internal timing survives." />
+          </Grid>
+          <Button Classes="text" HorizontalAlignment="Left" Content="Bake the whole effect"
+                  Click="OnBakeGroup"
+                  ToolTip.Tip="Bake every element and put their layers in one folder" />
+        </StackPanel>
 
         <Grid ColumnDefinitions="112,*" ColumnSpacing="6">
           <TextBlock Grid.Column="0" Text="Name" FontSize="11" VerticalAlignment="Center" Opacity="0.75" />
