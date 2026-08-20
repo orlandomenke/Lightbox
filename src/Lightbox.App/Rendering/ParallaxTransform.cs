@@ -60,6 +60,32 @@ public static class ParallaxTransform
     }
 
     /// <summary>
+    /// A document-space dirty rect widened to also cover its image on a
+    /// plane — the union, rounded outward.
+    /// </summary>
+    /// <remarks>
+    /// The dirty-region machinery maps rects through the camera matrix alone,
+    /// and a stroke on a layer with depth lands its pixels somewhere else on
+    /// screen (this matrix, applied inside the camera's). Because the parallax
+    /// matrix is document-space, the correction is document-space too: widen
+    /// the rect before anything maps it, and every downstream clip — the ring,
+    /// the culled route, the compose — is right without learning about planes.
+    /// Union rather than replace, because the un-parallaxed rect still names
+    /// real repaint work: the other layers' pixels under the old clip.
+    /// Found by adversarial review; <c>ParallaxDirtyRegionTests</c> holds it.
+    /// </remarks>
+    public static SKRectI CoverPlane(SKRectI rect, SKMatrix parallax)
+    {
+        var doc = new SKRect(rect.Left, rect.Top, rect.Right, rect.Bottom);
+        var union = SKRect.Union(doc, parallax.MapRect(doc));
+        // Outward to whole pixels — an inward-rounded clip is the two-stale-
+        // pixels lesson DeviceBounds already records.
+        return new SKRectI(
+            (int)Math.Floor(union.Left), (int)Math.Floor(union.Top),
+            (int)Math.Ceiling(union.Right), (int)Math.Ceiling(union.Bottom));
+    }
+
+    /// <summary>
     /// The shared half of the arithmetic, or null when the framing's matrix
     /// is degenerate. <paramref name="outputWidth"/>/<paramref name="outputHeight"/>
     /// must be the output size the enclosing camera matrix is built with, or

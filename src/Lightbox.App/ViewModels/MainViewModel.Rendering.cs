@@ -680,6 +680,26 @@ public partial class MainViewModel
         // taking depends entirely on this, per B121 in ComposePlan.
         var dirty = _publish.TakeDirty();
 
+        // A dirty rect is document-space on the layer being painted, and a
+        // layer with a depth lands its pixels somewhere else on screen while
+        // the view is through the camera. Widened here — the one funnel every
+        // MarkDirty drains through — so the ring's and the cull's clips cover
+        // the plane without either learning about parallax. The whole check
+        // costs a null test on documents that never author a depth.
+        if (dirty is { } dirtyRect && ViewThroughCamera
+            && scene.Camera is { } dirtyCam
+            && scene.Layers.Count > 0 && ActiveLayer.HasDepth)
+        {
+            var parallaxFrame = Rendering.ParallaxTransform.Prepare(
+                CameraOps.At(dirtyCam, CurrentFrameIndex, scene.Width, scene.Height),
+                CameraFraming.Centred(scene.Width, scene.Height),
+                dirtyCam.OutputWidth, dirtyCam.OutputHeight);
+            if (parallaxFrame?.MatrixFor(ActiveLayer.Depth) is { } planeMatrix)
+            {
+                dirty = Rendering.ParallaxTransform.CoverPlane(dirtyRect, planeMatrix);
+            }
+        }
+
         // Which compositor, on what surface, covering what (B166). Arithmetic on
         // six numbers, and the three conditions in it were each learned by
         // breaking them — so it lives where it can be asserted on directly
