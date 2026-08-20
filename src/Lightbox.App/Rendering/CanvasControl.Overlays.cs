@@ -28,6 +28,28 @@ public sealed partial class CanvasControl
 
     private IReadOnlyList<BoneChrome>? _boneChromes;
 
+    /// <summary>
+    /// Whether those bones are standing at a pose rather than at rest, which
+    /// decides their colour.
+    /// </summary>
+    /// <remarks>
+    /// Pushed beside the chrome rather than carried on each bone: every bone in
+    /// one overlay is standing at the same thing, so a per-bone flag would be
+    /// the same answer repeated and a chance for them to disagree.
+    /// </remarks>
+    public bool BonesArePosed
+    {
+        get => _bonesArePosed;
+        set
+        {
+            if (_bonesArePosed == value) return;
+            _bonesArePosed = value;
+            InvalidateVisual();
+        }
+    }
+
+    private bool _bonesArePosed;
+
     /// <summary>The weight heat view under the bones, or null.</summary>
     public IReadOnlyList<HeatPoint>? HeatPoints
     {
