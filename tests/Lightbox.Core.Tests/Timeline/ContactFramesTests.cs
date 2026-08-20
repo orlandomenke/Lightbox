@@ -42,7 +42,7 @@ public class ContactFramesTests
     [Fact]
     public void AFootfallStartsWhereAPlantedDrawingFollowsAnAirborneOne()
     {
-        var reading = ContactFrames.Detect(Row(100, 92, 90, 100, 100, 92, 90, 100));
+        var reading = ContactFrames.Detect(new Scene(), Row(100, 92, 90, 100, 100, 92, 90, 100));
 
         Assert.NotNull(reading);
         Assert.Equal([0, 3, 7], reading.Starts);
@@ -54,7 +54,7 @@ public class ContactFramesTests
     {
         // Planted at both ends: a cycle would read them as one footfall
         // across the seam; a shot reads two — the landing is not the takeoff.
-        var reading = ContactFrames.Detect(Row(100, 90, 88, 90, 100));
+        var reading = ContactFrames.Detect(new Scene(), Row(100, 90, 88, 90, 100));
 
         Assert.NotNull(reading);
         Assert.Equal([0, 4], reading.Starts);
@@ -65,7 +65,7 @@ public class ContactFramesTests
     {
         // 1.5 px above the ground on a 50 px figure is planted (band is 4%
         // of ink height = 2 px); 4 px above is airborne.
-        var reading = ContactFrames.Detect(Row(100, 98.5, 96, 100));
+        var reading = ContactFrames.Detect(new Scene(), Row(100, 98.5, 96, 100));
 
         Assert.NotNull(reading);
         Assert.Equal([0, 3], reading.Starts);
@@ -76,7 +76,7 @@ public class ContactFramesTests
     [Fact]
     public void TooFewDrawingsIsNotAReading()
     {
-        Assert.Null(ContactFrames.Detect(Row(100, 92, 100)));
+        Assert.Null(ContactFrames.Detect(new Scene(), Row(100, 92, 100)));
     }
 
     [Fact]

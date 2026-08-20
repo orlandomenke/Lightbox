@@ -56,7 +56,7 @@ public class WalkCycleAnalyserTests
     {
         var (scene, layer) = Cycle(CleanBottoms, CleanBodyYs);
 
-        var report = WalkCycleAnalyser.Analyse(scene, layer);
+        var report = WalkCycleAnalyser.Analyse(scene, layer, 0);
 
         Assert.NotNull(report);
         Assert.Equal(8, report.Drawings);
@@ -73,7 +73,7 @@ public class WalkCycleAnalyserTests
         bodyYs[^1] = 66;
         var (scene, layer) = Cycle(CleanBottoms, bodyYs);
 
-        var report = WalkCycleAnalyser.Analyse(scene, layer);
+        var report = WalkCycleAnalyser.Analyse(scene, layer, 0);
 
         Assert.NotNull(report);
         var finding = Assert.Single(report.Findings, f => f.Check == WalkCheck.Loop);
@@ -88,7 +88,7 @@ public class WalkCycleAnalyserTests
         double[] bottoms = [100, 92, 90, 100, 92, 90, 88, 90];
         var (scene, layer) = Cycle(bottoms, CleanBodyYs);
 
-        var report = WalkCycleAnalyser.Analyse(scene, layer);
+        var report = WalkCycleAnalyser.Analyse(scene, layer, 0);
 
         Assert.NotNull(report);
         Assert.Equal([0, 3], report.ContactFrames);
@@ -104,7 +104,7 @@ public class WalkCycleAnalyserTests
         double[] bodyYs = [50, 46, 44, 46, 50, 50, 50, 50];
         var (scene, layer) = Cycle(CleanBottoms, bodyYs);
 
-        var report = WalkCycleAnalyser.Analyse(scene, layer);
+        var report = WalkCycleAnalyser.Analyse(scene, layer, 0);
 
         Assert.NotNull(report);
         var finding = Assert.Single(report.Findings, f => f.Check == WalkCheck.Bob);
@@ -120,7 +120,7 @@ public class WalkCycleAnalyserTests
         double[] flat = [50, 50, 50, 50, 50, 50, 50, 50];
         var (scene, layer) = Cycle(CleanBottoms, flat);
 
-        var report = WalkCycleAnalyser.Analyse(scene, layer);
+        var report = WalkCycleAnalyser.Analyse(scene, layer, 0);
 
         Assert.NotNull(report);
         var finding = Assert.Single(report.Findings, f => f.Check == WalkCheck.Bob);
@@ -132,7 +132,7 @@ public class WalkCycleAnalyserTests
     {
         var (scene, layer) = Cycle([100, 92, 90], [50, 46, 44]);
 
-        Assert.Null(WalkCycleAnalyser.Analyse(scene, layer));
+        Assert.Null(WalkCycleAnalyser.Analyse(scene, layer, 0));
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public class WalkCycleAnalyserTests
         var (scene, layer) = Cycle(CleanBottoms, CleanBodyYs);
         layer.Cels.Add(new Cel { Frame = new Frame() });
 
-        var report = WalkCycleAnalyser.Analyse(scene, layer);
+        var report = WalkCycleAnalyser.Analyse(scene, layer, 0);
 
         Assert.NotNull(report);
         Assert.Equal(8, report.Drawings);

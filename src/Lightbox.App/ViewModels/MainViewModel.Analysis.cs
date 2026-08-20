@@ -41,7 +41,7 @@ public partial class MainViewModel
         }
     }
 
-    /// <summary>The walk cycle read as prose — loop, contacts, bob.</summary>
+    /// <summary>The walk cycle read as prose — loop, contacts, bob, slide.</summary>
     public bool WalkReport
     {
         get => Settings.Trail.WalkReport;
@@ -49,6 +49,19 @@ public partial class MainViewModel
         {
             if (Settings.Trail.WalkReport == value) return;
             Settings.Trail.WalkReport = value;
+            OnPropertyChanged();
+            AfterTrailChange();
+        }
+    }
+
+    /// <summary>Judge spacing and the jump arc as the camera sees them (Q137).</summary>
+    public bool AnalyseThroughCamera
+    {
+        get => Settings.Trail.ThroughCamera;
+        set
+        {
+            if (Settings.Trail.ThroughCamera == value) return;
+            Settings.Trail.ThroughCamera = value;
             OnPropertyChanged();
             AfterTrailChange();
         }
@@ -75,14 +88,18 @@ public partial class MainViewModel
     /// </summary>
     internal void RecomputeAnalysis(Layer? layer)
     {
+        // Through the camera only where it means something (Q137): spacing
+        // and the jump arc ask how the motion READS, which a camera changes;
+        // the walk checks are physical facts a pan cannot alter.
+        var through = Settings.Trail.ThroughCamera && HasCamera;
         _spacingTargets = layer is not null && Settings.Trail.SpacingGhosts
-            ? SpacingAssistant.TargetsForRun(Doc.Scene, layer, CurrentFrameIndex, TweenEasing)
+            ? SpacingAssistant.TargetsForRun(Doc.Scene, layer, CurrentFrameIndex, TweenEasing, through)
             : null;
         _jumpFit = layer is not null && Settings.Trail.JumpArc
-            ? JumpArcAnalyser.FitRun(Doc.Scene, layer, CurrentFrameIndex)
+            ? JumpArcAnalyser.FitRun(Doc.Scene, layer, CurrentFrameIndex, through)
             : null;
         _walkReport = layer is not null && Settings.Trail.WalkReport
-            ? WalkCycleAnalyser.Analyse(Doc.Scene, layer)
+            ? WalkCycleAnalyser.Analyse(Doc.Scene, layer, CurrentFrameIndex)
             : null;
         _walkTooFew = layer is not null && Settings.Trail.WalkReport && _walkReport is null;
     }
@@ -124,9 +141,18 @@ public partial class MainViewModel
 
             if (_jumpFit is { } jump)
             {
-                if (!jump.Ballistic)
+                // Q137: through the camera the verdict is about the read, not
+                // the world — correct gravity can fail to read as an arc under
+                // a camera move, and that is information rather than an error.
+                var seen = jump.ThroughCamera ? " as the camera sees it" : "";
+                if (jump.DepthMotion)
                 {
-                    lines.Add("Jump arc: this run does not read as ballistic — no apex to fall from.");
+                    lines.Add("Jump arc: the subject changes size across this run — " +
+                              "reading it as depth motion, the flat fit does not apply.");
+                }
+                else if (!jump.Ballistic)
+                {
+                    lines.Add($"Jump arc: this run does not read as ballistic{seen} — no apex to fall from.");
                 }
                 else
                 {
@@ -135,7 +161,7 @@ public partial class MainViewModel
                     {
                         var frames = string.Join(", ", off.Select(d => d.Index + 1));
                         lines.Add($"Jump arc: frame{(off.Count == 1 ? "" : "s")} {frames} " +
-                                  $"sit{(off.Count == 1 ? "s" : "")} off the arc (past {jump.Tolerance:0.#} px).");
+                                  $"sit{(off.Count == 1 ? "s" : "")} off the arc{seen} (past {jump.Tolerance:0.#} px).");
                     }
                 }
             }
@@ -146,14 +172,17 @@ public partial class MainViewModel
             }
             else if (_walkReport is { } report)
             {
+                // The tag's name in front when a tag scoped the read, so
+                // "walk" and "settle" on one layer cannot be confused.
+                var scope = report.RangeName is { } tagged ? $" “{tagged}”" : "";
                 if (report.Findings.Count == 0)
                 {
-                    lines.Add($"Walk: {report.Drawings} drawings, contacts at " +
+                    lines.Add($"Walk{scope}: {report.Drawings} drawings, contacts at " +
                               $"{string.Join(", ", report.ContactFrames.Select(f => f + 1))} — nothing to flag.");
                 }
                 else
                 {
-                    lines.AddRange(report.Findings.Select(f => $"Walk: {f.Message}"));
+                    lines.AddRange(report.Findings.Select(f => $"Walk{scope}: {f.Message}"));
                 }
             }
 
@@ -259,7 +288,7 @@ public partial class MainViewModel
             AiStatus = "No layer to read contacts from.";
             return;
         }
-        if (ContactFrames.Detect(layer) is not { } reading || reading.Starts.Count == 0)
+        if (ContactFrames.Detect(Doc.Scene, layer) is not { } reading || reading.Starts.Count == 0)
         {
             AiStatus = $"No contacts read — the lowest ink never settles, or fewer than " +
                        $"{ContactFrames.MinDrawings} drawings have ink.";

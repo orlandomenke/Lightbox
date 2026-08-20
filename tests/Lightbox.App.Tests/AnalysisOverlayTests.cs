@@ -326,6 +326,7 @@ public sealed class AnalysisOverlayTests(ITestOutputHelper output) : BrushStateI
         Assert.Contains(map.Definitions, d => d.Id == "canvas.jumpArc");
         Assert.Contains(map.Definitions, d => d.Id == "canvas.walkReport");
         Assert.Contains(map.Definitions, d => d.Id == "timeline.nudgeToSpacing");
+        Assert.Contains(map.Definitions, d => d.Id == "canvas.analyseThroughCamera");
         Assert.Contains(map.Definitions, d => d.Id == "timeline.detectContacts");
     }
 }

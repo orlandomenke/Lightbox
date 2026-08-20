@@ -57,18 +57,40 @@ public static class SpacingAssistant
     /// there is no run, the run has fewer than three located drawings, or the
     /// run does not move.
     /// </summary>
+    /// <param name="throughCamera">
+    /// Judge the spacing where the audience looks (Q137): positions are
+    /// projected by each frame's camera framing before the arclength walk, so
+    /// "even" means even ON SCREEN under a moving camera — and each target is
+    /// mapped back through its own frame's inverse framing, so the ghost tick
+    /// still sits on the world canvas and the nudge still moves world
+    /// geometry, to the place whose projection is evenly spaced. Ignored when
+    /// the document has no camera.
+    /// </param>
     public static IReadOnlyList<SpacingTarget> TargetsForRun(
-        Scene scene, Layer layer, int index, Easing easing)
+        Scene scene, Layer layer, int index, Easing easing, bool throughCamera = false)
     {
         var run = ExposureSheet.RunAt(layer, index);
         if (run.Count < 3) return [];
 
         var located = new List<(int Index, string Id, double X, double Y)>(run.Count);
+        var world = new List<(double X, double Y)>(run.Count);
+        var framings = new List<CameraFraming?>(run.Count);
         foreach (var cel in run)
         {
             if (ExposureSheet.FrameAtExactIndex(layer, cel) is not { } frame) continue;
             if (MotionTrail.Locate(scene, frame) is not { } at) continue;
-            located.Add((cel, frame.Id, at.X, at.Y));
+            var framing = throughCamera ? CameraView.FramingAt(scene, cel) : null;
+            if (framing is { } f)
+            {
+                var (vx, vy) = CameraView.Project(f, at.X, at.Y);
+                located.Add((cel, frame.Id, vx, vy));
+            }
+            else
+            {
+                located.Add((cel, frame.Id, at.X, at.Y));
+            }
+            world.Add((at.X, at.Y));
+            framings.Add(framing);
         }
         if (located.Count < 3) return [];
 
@@ -102,10 +124,15 @@ public static class SpacingAssistant
             var (tx, ty) = PointAtArclength(located, cum, share * travel);
             var dx = located[j].X - tx;
             var dy = located[j].Y - ty;
+            // Deviation and flag live in the space the walk ran in — screen
+            // pixels through the camera, world pixels without one. The
+            // positions handed out are always world, so the ghost tick, the
+            // tether and the nudge stay on the canvas the artist draws on.
             var deviation = Math.Sqrt(dx * dx + dy * dy);
+            if (framings[j] is { } f) (tx, ty) = CameraView.Unproject(f, tx, ty);
             targets.Add(new SpacingTarget(
                 located[j].Index, located[j].Id,
-                located[j].X, located[j].Y, tx, ty,
+                world[j].X, world[j].Y, tx, ty,
                 deviation, deviation > flagAt));
         }
         return targets;

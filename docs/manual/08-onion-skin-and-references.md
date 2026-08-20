@@ -107,13 +107,33 @@ jump with extremes — and where the run carries **"contact" markers** (yours, o
 **Detect contacts**'), the fit trims itself to the airborne stretch between
 them, so a crouched takeoff or landing never drags the arc.
 
-**Walk cycle report** reads the whole layer as one repeating cycle and reports
-three things in prose: whether the loop closes (the step from the last drawing
-back to the first should read like any other step), whether the contacts land
-evenly (footfalls are read from the lowest ink touching the cycle's ground
-line), and whether the bob matches between steps. It is advisory — a deliberate
-shuffle is allowed to trip it — and it needs at least four drawings with ink
-before it says anything.
+**Walk cycle report** reads the walk under the playhead — the **tag's range**
+if one covers it (so "frames 30–70 are the walk" is a tag, the same object an
+engine clip is), else the whole layer — and reports in prose: whether the loop
+closes, whether the contacts land evenly, whether the bob matches between
+steps, and whether the **planted foot holds its place** — still on the ground
+in a travelling walk, treading at a constant rate in place. The loop checks
+only run when the range is meant to repeat: the tag's own *Loop* flag decides,
+and without a tag, standing in place does. It is advisory — a deliberate
+shuffle is allowed to trip it — and it needs at least four drawings with ink.
+
+**The ground doesn't have to be flat.** Name a line guide **"ground"** (View →
+Guides, then name it in its options) and every foot, bob and gravity reading
+measures against that line at whatever angle it lies — slopes and tilted
+layouts read correctly. Without one, the ground is the lowest ink the sequence
+reaches, horizontal, as a sprite cycle expects. And when the drawing **changes
+size** across the range — a character walking toward camera — the analysers say
+so and stand down rather than flagging staging you meant: a flat reading of
+depth motion would only cry wolf.
+
+**Through the camera** (needs a camera) re-judges spacing and the jump arc on
+each drawing's **projected** position — what the audience sees, not what the
+world does. Spacing that is even in the world can bunch up on screen under a
+zooming camera; the ghost targets still land in the world, at the place whose
+projection is even, so the nudge works exactly as before. The jump verdict is
+then about the read — correct gravity can legitimately fail to read as an arc
+under a camera move, which is worth knowing and not an error — and the walk
+checks stay in the world either way: a camera move cannot make a foot slide.
 ### The arc, and the predicted position
 
 Two more switches live behind the **⚙**, under the trail's depths, and both

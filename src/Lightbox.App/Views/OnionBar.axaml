@@ -128,7 +128,10 @@
               <CheckBox Content="Jump arc" IsChecked="{Binding JumpArcOverlay}"
                         ToolTip.Tip="A gravity arc fitted to the run the playhead is in — constant speed across, constant fall down. Drawings off the arc are ringed." />
               <CheckBox Content="Walk cycle report" IsChecked="{Binding WalkReport}"
-                        ToolTip.Tip="Reads the layer as one cycle: does the loop close, do the contacts land evenly, does the bob match between steps. Advisory — a deliberate shuffle is allowed to trip it." />
+                        ToolTip.Tip="Reads the walk under the playhead — the tag's range if one covers it, else the whole layer: does the loop close (when it is meant to loop), do the contacts land evenly, does the bob match between steps, does the planted foot hold its place. Advisory — a deliberate shuffle is allowed to trip it." />
+              <CheckBox Content="Through the camera" IsChecked="{Binding AnalyseThroughCamera}"
+                        IsEnabled="{Binding HasCamera}"
+                        ToolTip.Tip="Judge spacing and the jump arc where the audience looks: each drawing projected by that frame's camera framing. Needs a camera. The walk checks stay in the world either way — a camera move cannot make a foot slide." />
               <Button Content="Nudge to spacing" Command="{Binding NudgeToSpacingCommand}"
                       ToolTip.Tip="Move the playhead's drawing along its own path to where the intended spacing wants it. One undo step." />
               <Button Content="Detect contacts" Command="{Binding DetectContactsCommand}"

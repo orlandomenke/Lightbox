@@ -48,4 +48,12 @@ public sealed class MotionTrailSettings
     /// without the whole judgement, or judged without being told.
     /// </summary>
     public bool Predict { get; set; }
+
+    /// <summary>
+    /// Judge spacing and the jump arc where the audience looks (Q137): each
+    /// drawing's subject projected by that frame's camera framing. Meaningful
+    /// only when the document has a camera; the walk checks stay world-space
+    /// regardless — a camera move cannot make a foot slide.
+    /// </summary>
+    public bool ThroughCamera { get; set; }
 }

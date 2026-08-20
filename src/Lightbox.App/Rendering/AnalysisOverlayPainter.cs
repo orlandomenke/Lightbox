@@ -118,18 +118,21 @@ public static class AnalysisOverlayPainter
 
     private static void PaintJump(SKCanvas canvas, JumpArcFit jump, float px)
     {
-        if (jump.Curve.Count < 2) return;
-
-        using var arc = new SKPaint
+        // Through the camera the fit has no curve to draw (a between-frames
+        // sample has no framing of its own) and in depth motion nothing is
+        // flagged — the rings below still mark what there is to mark.
+        if (jump.Curve.Count >= 2)
         {
-            IsAntialias = true,
-            Style = SKPaintStyle.Stroke,
-            StrokeWidth = 1.5f * px,
-            Color = IntentColor.WithAlpha(jump.Ballistic ? (byte)220 : (byte)110),
-        };
-        arc.PathEffect = _arcDash;
-
-        canvas.DrawPath(ArcPathFor(jump), arc);
+            using var arc = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1.5f * px,
+                Color = IntentColor.WithAlpha(jump.Ballistic ? (byte)220 : (byte)110),
+            };
+            arc.PathEffect = _arcDash;
+            canvas.DrawPath(ArcPathFor(jump), arc);
+        }
 
         using var ring = new SKPaint
         {

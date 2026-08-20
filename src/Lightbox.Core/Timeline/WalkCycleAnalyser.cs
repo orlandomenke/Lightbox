@@ -2,12 +2,18 @@ using Lightbox.Core.Documents;
 
 namespace Lightbox.Core.Timeline;
 
-/// <summary>Which of the analyser's three checks a finding came from.</summary>
+/// <summary>Which of the analyser's checks a finding came from.</summary>
 public enum WalkCheck
 {
     Loop,
     Contacts,
     Bob,
+
+    /// <summary>The planted foot moved when it should have held (Q137).</summary>
+    Slide,
+
+    /// <summary>The range reads as depth motion, which the flat checks cannot judge (Q137).</summary>
+    Depth,
 }
 
 /// <summary>
@@ -21,30 +27,42 @@ public readonly record struct WalkFinding(WalkCheck Check, int Frame, string Mes
 /// What the analyser read: how many drawings it saw, where it read contacts,
 /// and everything it would tell an animator. No findings is the good news.
 /// </summary>
+/// <param name="RangeName">The tag the range came from, or null for the whole layer.</param>
 public sealed record WalkCycleReport(
     int Drawings,
     IReadOnlyList<int> ContactFrames,
-    IReadOnlyList<WalkFinding> Findings);
+    IReadOnlyList<WalkFinding> Findings,
+    string? RangeName = null);
 
 /// <summary>
-/// Reads the active layer's sheet as one walk cycle and reports the three
-/// things that make a cycle hitch (Q134): a loop that does not close, contacts
-/// that land unevenly, and a bob that differs between the steps.
+/// Reads a walk back to the artist: loop closure, contact evenness, bob
+/// symmetry (Q134) — and, since Q137, on shot terms as well as asset terms.
+/// The range is the tag under the playhead when one covers it (else the whole
+/// sheet); the ground is the artist's own "ground" line guide at any angle
+/// (else the canvas-horizontal lowest ink); the cycle checks run only when
+/// the range is meant to repeat — the tag's own <c>Loop</c> flag, else
+/// standing in place; and a travelling walk gains the check that matters
+/// there instead: the planted foot must hold its place along the ground.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Everything is read off the record — the subject through
 /// <see cref="MotionTrail.Locate"/> (authored pivot, else ink-bounds centre)
-/// and the feet as the lowest ink, <see cref="MotionTrail.InkBounds"/>'s
-/// bottom edge. Tolerances are fractions of the drawings' mean ink height, so
-/// the same walk reads the same at any canvas size, with named constants
-/// rather than magic below.
+/// and the feet as the ink nearest the ground. Tolerances are fractions of
+/// the drawings' mean ink height, so the same walk reads the same at any
+/// canvas size, with named constants rather than magic below.
 /// </para>
 /// <para>
 /// The checks are advisory prose and deliberately so: the bob check assumes a
 /// gait that rises between contacts, and a deliberate shuffle will trip it.
 /// That cost was accepted in Q134 — a readout can be ignored, and the walks
 /// that wobble by accident vastly outnumber the shuffles drawn on purpose.
+/// </para>
+/// <para>
+/// <b>Always world-space, camera or no camera (Q137).</b> Whether a foot
+/// slides, whether contacts land evenly and whether a cycle closes are
+/// physical facts a camera move cannot change; judging them through a pan
+/// would flag correct animation.
 /// </para>
 /// </remarks>
 public static class WalkCycleAnalyser
@@ -75,35 +93,63 @@ public static class WalkCycleAnalyser
     /// <summary>Below this share of ink height, the cycle does not bob at all — it floats.</summary>
     public const double BobFloor = 0.01;
 
-    /// <summary>
-    /// Read the layer as one cycle. Null when fewer than
-    /// <see cref="MinDrawings"/> drawings have ink — there is no cycle to judge.
-    /// </summary>
-    public static WalkCycleReport? Analyse(Scene scene, Layer layer)
-    {
-        var drawings = new List<(int Index, double X, double Y, double Bottom, double W, double H)>();
-        for (var i = 0; i < layer.Cels.Count; i++)
-        {
-            if (ExposureSheet.FrameAtExactIndex(layer, i) is not { } frame) continue;
-            if (MotionTrail.InkBounds(frame) is not { } b) continue;
-            // The subject may be an authored pivot; the feet are always ink.
-            // The bounds just walked feed the locate, so every point is read
-            // once per drawing rather than twice.
-            var subject = MotionTrail.Locate(scene, frame, b)!.Value;
-            drawings.Add((i, subject.X, subject.Y, b.MaxY, b.MaxX - b.MinX, b.MaxY - b.MinY));
-        }
-        if (drawings.Count < MinDrawings) return null;
+    /// <summary>How far a planted foot may drift along the ground, as a share of ink height.</summary>
+    public const double SlideBand = 0.06;
 
-        var scale = drawings.Average(d => d.H);
-        if (scale <= 0) scale = drawings.Average(d => d.W);
+    /// <summary>A range whose subject travels less than this share of ink height stands in place.</summary>
+    public const double InPlaceBand = 0.5;
+
+    /// <summary>Past this ratio between the biggest and smallest drawing, the range reads as depth motion.</summary>
+    public const double DepthBand = 1.25;
+
+    /// <summary>
+    /// Read the walk under the playhead. Null when fewer than
+    /// <see cref="MinDrawings"/> drawings in range have ink — there is no
+    /// cycle to judge.
+    /// </summary>
+    public static WalkCycleReport? Analyse(Scene scene, Layer layer, int index)
+    {
+        // The tag under the playhead is the range (Q137) — the same object an
+        // engine clip is, and in a shot the way to say "frames 30–70 are the
+        // walk". Whole sheet when nothing covers the playhead, as always.
+        var tag = scene.Tags?.FirstOrDefault(t => index >= t.Start && index <= t.End);
+        var first = Math.Max(0, tag?.Start ?? 0);
+        var last = Math.Min(layer.Cels.Count - 1, tag?.End ?? layer.Cels.Count - 1);
+
+        var ground = Ground.Resolve(scene);
+        var d = ContactFrames.ReadFeet(scene, layer, ground, first, last);
+        if (d.Count < MinDrawings) return null;
+
+        var scale = d.Average(f => f.H);
+        if (scale <= 0) scale = d.Average(f => f.W);
         if (scale <= 0) return null;
 
         var findings = new List<WalkFinding>();
-        CheckLoop(drawings, scale, findings);
-        var contacts = ReadContacts(drawings, scale, layer.Cels.Count, findings);
-        CheckBob(drawings, contacts, scale, findings);
 
-        return new WalkCycleReport(drawings.Count, contacts, findings);
+        // Depth first, and alone: a character moving toward or away from
+        // camera changes size, and every flat check below would misread that
+        // as error. Saying "I cannot judge this" is the honest report (Q137).
+        var sizes = d.Select(f => Math.Sqrt(f.W * f.W + f.H * f.H)).ToList();
+        if (sizes.Min() > 0 && sizes.Max() / sizes.Min() > DepthBand)
+        {
+            findings.Add(new WalkFinding(WalkCheck.Depth, d[0].Index,
+                $"The drawing changes size across this range ({sizes.Min():0.#} px to {sizes.Max():0.#} px) — " +
+                "this reads as depth motion, which the flat checks cannot judge."));
+            return new WalkCycleReport(d.Count, [], findings, tag?.Name);
+        }
+
+        // In place, or travelling? The tag's own Loop flag answers when a tag
+        // is present — authored beats derived — else standing still does.
+        var travel = d.Max(f => f.SubjAlong) - d.Min(f => f.SubjAlong);
+        var inPlace = travel < InPlaceBand * scale;
+        var loops = tag?.Loop ?? inPlace;
+
+        if (loops) CheckLoop(d, scale, inPlace, findings);
+        var contacts = ReadContacts(d, scale, loops, last - first + 1, findings);
+        CheckBob(d, contacts, scale, findings);
+        CheckSlide(d, scale, inPlace, findings);
+
+        return new WalkCycleReport(d.Count, contacts, findings, tag?.Name);
     }
 
     /// <summary>
@@ -111,25 +157,23 @@ public static class WalkCycleAnalyser
     /// must read like any other step — the seam must not be the jump.
     /// </summary>
     private static void CheckLoop(
-        List<(int Index, double X, double Y, double Bottom, double W, double H)> d,
-        double scale, List<WalkFinding> findings)
+        List<ContactFrames.FootRead> d, double scale, bool inPlace, List<WalkFinding> findings)
     {
         var floor = LoopSlack * scale;
         var last = d[^1];
 
-        Judge(p => p.Y, "vertically", "the loop will pop");
-        Judge(p => p.H, "in height", "the drawing breathes across the loop");
-        Judge(p => p.W, "in width", "the drawing breathes across the loop");
+        Judge(f => f.SubjElev, "vertically", "the loop will pop");
+        Judge(f => f.H, "in height", "the drawing breathes across the loop");
+        Judge(f => f.W, "in width", "the drawing breathes across the loop");
 
         // Horizontal closure only means something on an in-place cycle; a walk
         // that crosses the canvas is supposed to end somewhere else.
-        if (d.Max(p => p.X) - d.Min(p => p.X) < 0.5 * scale)
+        if (inPlace)
         {
-            Judge(p => p.X, "sideways", "an in-place walk ends somewhere it never was");
+            Judge(f => f.SubjAlong, "along the ground", "an in-place walk ends somewhere it never was");
         }
 
-        void Judge(Func<(int Index, double X, double Y, double Bottom, double W, double H), double> read,
-            string axis, string cost)
+        void Judge(Func<ContactFrames.FootRead, double> read, string axis, string cost)
         {
             // The seam is judged against the steps AWAY from it — a wrong
             // endpoint drawing corrupts the internal step beside it too, so
@@ -149,30 +193,27 @@ public static class WalkCycleAnalyser
     }
 
     /// <summary>
-    /// Contacts read as runs of drawings whose lowest ink sits on the cycle's
-    /// ground line; each run is one footfall, and the footfalls should land as
-    /// evenly as the walk is timed.
+    /// Contacts read as runs of drawings whose feet sit on the ground line;
+    /// each run is one footfall, and the footfalls should land as evenly as
+    /// the walk is timed.
     /// </summary>
     private static IReadOnlyList<int> ReadContacts(
-        List<(int Index, double X, double Y, double Bottom, double W, double H)> d,
-        double scale, int period, List<WalkFinding> findings)
+        List<ContactFrames.FootRead> d, double scale, bool loops, int period,
+        List<WalkFinding> findings)
     {
-        // The band rule is shared with detection (ContactFrames.Planted), so
-        // "standing on the ground" is one answer wherever it is asked.
-        var planted = ContactFrames.Planted(d.Select(p => p.Bottom).ToList(), scale);
+        var planted = ContactFrames.Planted(d.Select(f => f.FootElev).ToList(), scale);
 
         // A footfall starts where a planted drawing follows an airborne one.
-        // The cycle wraps: a contact spanning the loop's seam is one footfall,
-        // which is why "before the first drawing" means the last one.
+        // A looping range wraps — a contact spanning the seam is one footfall —
+        // and a shot does not: its first planted drawing IS a footfall.
         var starts = new List<int>();
         for (var j = 0; j < d.Count; j++)
         {
-            var prev = planted[(j + d.Count - 1) % d.Count];
-            if (planted[j] && !prev) starts.Add(j);
+            if (!planted[j]) continue;
+            var prev = j > 0 ? planted[j - 1] : (loops && planted[^1]);
+            if (!prev) starts.Add(j);
         }
 
-        // Every drawing planted (starts empty but planted everywhere) is a
-        // pose sheet, not a walk; no contact reading either way.
         if (starts.Count < 2)
         {
             findings.Add(new WalkFinding(WalkCheck.Contacts, d[0].Index,
@@ -180,16 +221,21 @@ public static class WalkCycleAnalyser
             return starts.Select(j => d[j].Index).ToList();
         }
 
-        // Intervals between footfalls, in frames, wrapping through the
-        // cycle's period so the last stride is judged like the others.
+        // Intervals between footfalls, in frames — wrapping through the
+        // range's period only when the range loops.
         var intervals = new List<double>(starts.Count);
         for (var k = 0; k < starts.Count; k++)
         {
-            var here = d[starts[k]].Index;
-            var next = k + 1 < starts.Count ? d[starts[k + 1]].Index : d[starts[0]].Index + period;
-            intervals.Add(next - here);
+            if (k + 1 < starts.Count)
+            {
+                intervals.Add(d[starts[k + 1]].Index - d[starts[k]].Index);
+            }
+            else if (loops)
+            {
+                intervals.Add(d[starts[0]].Index + period - d[starts[k]].Index);
+            }
         }
-        if (intervals.Max() - intervals.Min() > StrideSlack)
+        if (intervals.Count >= 2 && intervals.Max() - intervals.Min() > StrideSlack)
         {
             var frames = string.Join(", ", starts.Select(j => d[j].Index + 1));
             findings.Add(new WalkFinding(WalkCheck.Contacts, d[starts[0]].Index,
@@ -205,10 +251,10 @@ public static class WalkCycleAnalyser
     /// match the others, or the walk limps.
     /// </summary>
     private static void CheckBob(
-        List<(int Index, double X, double Y, double Bottom, double W, double H)> d,
-        IReadOnlyList<int> contactFrames, double scale, List<WalkFinding> findings)
+        List<ContactFrames.FootRead> d, IReadOnlyList<int> contactFrames, double scale,
+        List<WalkFinding> findings)
     {
-        var wholeAmplitude = d.Max(p => p.Y) - d.Min(p => p.Y);
+        var wholeAmplitude = d.Max(f => f.SubjElev) - d.Min(f => f.SubjElev);
         if (wholeAmplitude < BobFloor * scale)
         {
             findings.Add(new WalkFinding(WalkCheck.Bob, d[0].Index,
@@ -227,9 +273,9 @@ public static class WalkCycleAnalyser
             double min = double.MaxValue, max = double.MinValue;
             for (var j = from; j <= to; j++)
             {
-                var y = d[j % d.Count].Y;
-                min = Math.Min(min, y);
-                max = Math.Max(max, y);
+                var e = d[j % d.Count].SubjElev;
+                min = Math.Min(min, e);
+                max = Math.Max(max, e);
             }
             amplitudes.Add((d[from].Index, max - min));
         }
@@ -241,6 +287,68 @@ public static class WalkCycleAnalyser
             findings.Add(new WalkFinding(WalkCheck.Bob, smallest.Frame,
                 $"The bob is uneven between steps: the stride at frame {biggest.Frame + 1} rises " +
                 $"{biggest.Amp:0.#} px against {smallest.Amp:0.#} px at frame {smallest.Frame + 1} — the walk will limp."));
+        }
+    }
+
+    /// <summary>
+    /// The planted foot's law (Q137): in a travelling walk it holds still in
+    /// the world; in an in-place cycle the tread carries it back at a constant
+    /// rate. Either way, the drawing where it breaks is the slide every
+    /// audience notices and no asset-lens check could see.
+    /// </summary>
+    private static void CheckSlide(
+        List<ContactFrames.FootRead> d, double scale, bool inPlace, List<WalkFinding> findings)
+    {
+        var planted = ContactFrames.Planted(d.Select(f => f.FootElev).ToList(), scale);
+        var band = SlideBand * scale;
+
+        var j = 0;
+        while (j < d.Count)
+        {
+            if (!planted[j]) { j++; continue; }
+            var from = j;
+            while (j < d.Count && planted[j]) j++;
+            var group = d[from..j];
+            if (group.Count < 2) continue;
+
+            if (!inPlace)
+            {
+                // Travelling: the foot is nailed to the world for the whole
+                // contact. Judged against the group's first placement.
+                var anchor = group[0].FootAlong;
+                var worst = group.MaxBy(f => Math.Abs(f.FootAlong - anchor));
+                var slid = Math.Abs(worst.FootAlong - anchor);
+                if (slid > band)
+                {
+                    findings.Add(new WalkFinding(WalkCheck.Slide, worst.Index,
+                        $"The planted foot slides {slid:0.#} px along the ground during the contact at " +
+                        $"frame {group[0].Index + 1} — worst at frame {worst.Index + 1}."));
+                }
+            }
+            else if (group.Count >= 3)
+            {
+                // In place: the tread carries the foot at a constant rate, so
+                // the contact's positions must sit on a line in time. Two
+                // drawings fit any line; the first honest judgement needs three.
+                double n = group.Count, st = 0, sa = 0, sta = 0, stt = 0;
+                foreach (var f in group)
+                {
+                    st += f.Index; sa += f.FootAlong;
+                    sta += (double)f.Index * f.FootAlong; stt += (double)f.Index * f.Index;
+                }
+                var det = n * stt - st * st;
+                if (Math.Abs(det) < 1e-9) continue;
+                var rate = (n * sta - st * sa) / det;
+                var b = (sa - rate * st) / n;
+                var worst = group.MaxBy(f => Math.Abs(f.FootAlong - (rate * f.Index + b)));
+                var off = Math.Abs(worst.FootAlong - (rate * worst.Index + b));
+                if (off > band)
+                {
+                    findings.Add(new WalkFinding(WalkCheck.Slide, worst.Index,
+                        $"The tread is uneven under the planted foot: frame {worst.Index + 1} sits " +
+                        $"{off:0.#} px off the contact's own constant rate."));
+                }
+            }
         }
     }
 }

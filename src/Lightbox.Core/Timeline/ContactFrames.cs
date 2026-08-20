@@ -12,9 +12,10 @@ public sealed record ContactReading(
 
 /// <summary>
 /// Reads contact frames off a layer's ink (Q135): the ground line is the
-/// lowest ink the sequence ever reaches, a drawing whose lowest ink sits
-/// within the walk analyser's band of it is planted, and a footfall starts
-/// where a planted drawing follows an airborne one.
+/// artist's own "ground" guide when one is placed (any angle — Q137), else
+/// the lowest ink the sequence ever reaches; a drawing whose feet sit within
+/// the band of it is planted, and a footfall starts where a planted drawing
+/// follows an airborne one.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -40,47 +41,95 @@ public static class ContactFrames
     public const int MinDrawings = WalkCycleAnalyser.MinDrawings;
 
     /// <summary>
-    /// Read the layer. Null when fewer than <see cref="MinDrawings"/> drawings
-    /// have ink — a ground line needs a sequence to be read from.
+    /// One drawing read against the ground: where its feet are (the ink
+    /// nearest the ground — elevation up-positive, so feet live near the
+    /// minimum), where that foot sits along the ground, where the subject is,
+    /// and how big the drawing is. The shape the walk analyser and detection
+    /// share, so they can never disagree about what a drawing says.
     /// </summary>
-    public static ContactReading? Detect(Layer layer)
+    public readonly record struct FootRead(
+        int Index,
+        double FootElev, double FootAlong,
+        double SubjElev, double SubjAlong,
+        double W, double H);
+
+    /// <summary>Every drawing with ink in [first..last], read against the ground.</summary>
+    public static List<FootRead> ReadFeet(
+        Scene scene, Layer layer, GroundFrame ground, int first, int last)
     {
-        var drawings = new List<(int Index, double Bottom, double W, double H)>();
-        for (var i = 0; i < layer.Cels.Count; i++)
+        var reads = new List<FootRead>();
+        for (var i = first; i <= last && i < layer.Cels.Count; i++)
         {
             if (ExposureSheet.FrameAtExactIndex(layer, i) is not { } frame) continue;
             if (MotionTrail.InkBounds(frame) is not { } b) continue;
-            drawings.Add((i, b.MaxY, b.MaxX - b.MinX, b.MaxY - b.MinY));
-        }
-        if (drawings.Count < MinDrawings) return null;
 
-        var scale = drawings.Average(d => d.H);
-        if (scale <= 0) scale = drawings.Average(d => d.W);
+            // The foot is the ink nearest the ground, wherever the ground
+            // slopes — a per-point walk, because a bounds corner is only the
+            // right answer when the ground is axis-aligned.
+            var footElev = double.MaxValue;
+            var footAlong = 0.0;
+            foreach (var stroke in frame.Strokes)
+            {
+                if (stroke.Tool is ToolKind.Eraser or ToolKind.ClearRegion) continue;
+                foreach (var p in stroke.Points)
+                {
+                    var e = ground.Elevation(p.X, p.Y);
+                    if (e < footElev)
+                    {
+                        footElev = e;
+                        footAlong = ground.Along(p.X, p.Y);
+                    }
+                }
+            }
+            if (footElev == double.MaxValue) continue;
+
+            var subject = MotionTrail.Locate(scene, frame, b)!.Value;
+            reads.Add(new FootRead(
+                i, footElev, footAlong,
+                ground.Elevation(subject.X, subject.Y), ground.Along(subject.X, subject.Y),
+                b.MaxX - b.MinX, b.MaxY - b.MinY));
+        }
+        return reads;
+    }
+
+    /// <summary>
+    /// Read the layer. Null when fewer than <see cref="MinDrawings"/> drawings
+    /// have ink — a ground line needs a sequence to be read from.
+    /// </summary>
+    public static ContactReading? Detect(Scene scene, Layer layer)
+    {
+        var ground = Ground.Resolve(scene);
+        var reads = ReadFeet(scene, layer, ground, 0, layer.Cels.Count - 1);
+        if (reads.Count < MinDrawings) return null;
+
+        var scale = reads.Average(d => d.H);
+        if (scale <= 0) scale = reads.Average(d => d.W);
         if (scale <= 0) return null;
 
-        var planted = Planted(drawings.Select(d => d.Bottom).ToList(), scale);
+        var planted = Planted(reads.Select(d => d.FootElev).ToList(), scale);
         var starts = new List<int>();
         var plantedFrames = new List<int>();
-        for (var j = 0; j < drawings.Count; j++)
+        for (var j = 0; j < reads.Count; j++)
         {
             if (!planted[j]) continue;
-            plantedFrames.Add(drawings[j].Index);
-            if (j == 0 || !planted[j - 1]) starts.Add(drawings[j].Index);
+            plantedFrames.Add(reads[j].Index);
+            if (j == 0 || !planted[j - 1]) starts.Add(reads[j].Index);
         }
         return new ContactReading(starts, plantedFrames);
     }
 
     /// <summary>
     /// Which drawings stand on the ground line — the one band rule, shared
-    /// with the walk analyser.
+    /// with the walk analyser. Elevations are up-positive, so the ground is
+    /// the minimum the feet ever reach.
     /// </summary>
-    public static bool[] Planted(IReadOnlyList<double> bottoms, double scale)
+    public static bool[] Planted(IReadOnlyList<double> footElevations, double scale)
     {
-        var ground = bottoms.Max();
-        var planted = new bool[bottoms.Count];
-        for (var j = 0; j < bottoms.Count; j++)
+        var ground = footElevations.Min();
+        var planted = new bool[footElevations.Count];
+        for (var j = 0; j < footElevations.Count; j++)
         {
-            planted[j] = bottoms[j] >= ground - WalkCycleAnalyser.ContactBand * scale;
+            planted[j] = footElevations[j] <= ground + WalkCycleAnalyser.ContactBand * scale;
         }
         return planted;
     }

@@ -396,6 +396,9 @@ public partial class MainWindow
             case "timeline.detectContacts":
                 _vm.DetectContacts();
                 break;
+            case "canvas.analyseThroughCamera":
+                _vm.AnalyseThroughCamera = !_vm.AnalyseThroughCamera;
+                break;
             case "canvas.motionArc":
                 _vm.MotionArcs = !_vm.MotionArcs;
                 break;

@@ -2,13 +2,14 @@ using Lightbox.Core.Documents;
 
 namespace Lightbox.Core.Timeline;
 
-/// <summary>One sample of the fitted arc, for the overlay to draw through.</summary>
+/// <summary>One sample of the fitted arc, in world coordinates, for the overlay to draw through.</summary>
 public readonly record struct ArcPoint(double X, double Y);
 
 /// <summary>
-/// One drawing judged against the fitted arc: where its subject is, where the
-/// fit says a ballistic subject would be at that frame, and how far apart the
-/// two are.
+/// One drawing judged against the fitted arc: where its subject is (world
+/// coordinates, so the overlay can ring it), where the fit says a ballistic
+/// subject would be at that frame, and how far apart the two are — measured
+/// in the space the fit ran in.
 /// </summary>
 public readonly record struct ArcDeviation(
     int Index, string FrameId,
@@ -21,32 +22,50 @@ public readonly record struct ArcDeviation(
 /// it, and whether the run reads as ballistic at all.
 /// </summary>
 /// <param name="Ballistic">
-/// True when the fitted vertical acceleration points down (positive, in
-/// screen coordinates) — the parabola has an apex. A run that fits best with
-/// gravity pulling up is not a jump, and its deviations are judged against a
-/// curve that means nothing.
+/// True when the fitted vertical acceleration points at the ground — the
+/// parabola has an apex. A run that fits best with gravity pulling up is not
+/// a jump, and its deviations are judged against a curve that means nothing.
 /// </param>
 /// <param name="Tolerance">The distance past which a drawing was flagged, for a readout that wants to say so.</param>
+/// <param name="DepthMotion">
+/// The subject changes size across the run past the depth band (Q137): the
+/// flat fit does not apply, so nothing is flagged and the readout hedges.
+/// </param>
+/// <param name="ThroughCamera">
+/// The fit ran on camera-projected positions — "as the camera sees it"
+/// (Q137). The curve is empty in this mode (a between-frames sample has no
+/// framing of its own), and the verdict is information about the read, not
+/// about the world: correct gravity can legitimately fail to read as an arc
+/// under a camera move.
+/// </param>
 public sealed record JumpArcFit(
     IReadOnlyList<ArcPoint> Curve,
     IReadOnlyList<ArcDeviation> Deviations,
     bool Ballistic,
-    double Tolerance);
+    double Tolerance,
+    bool DepthMotion = false,
+    bool ThroughCamera = false);
 
 /// <summary>
-/// Fits a gravity arc to the run the playhead is in (Q134): horizontal
-/// position linear in time, vertical position quadratic — constant velocity
+/// Fits a gravity arc to the run the playhead is in (Q134): position along
+/// the ground linear in time, height above it quadratic — constant velocity
 /// and constant acceleration, which is all a thrown thing does. The drawings
 /// that sit off the fit are the ones that will read as a bump at speed.
 /// </summary>
 /// <remarks>
 /// <para>
+/// Since Q137 the axes are the ground's, not the canvas's: the artist's
+/// "ground" line guide at any angle decides which way gravity pulls, with the
+/// canvas-horizontal as the fallback — so a jump on a slope or a tilted
+/// layout fits the parabola it actually describes. Through the camera, the
+/// axes are the camera's instead, per frame: does the motion read as an arc
+/// where the audience is looking.
+/// </para>
+/// <para>
 /// Time is the cel index, so a run on 2s is fitted with its real timing —
 /// two frames of fall between drawings, not one. The run is
-/// <see cref="ExposureSheet.RunAt"/>'s, extreme to extreme; picking the
-/// airborne stretch automatically is the separate contact-detection item,
-/// and until it lands the artist frames the jump the way they already frame
-/// everything else: with extremes.
+/// <see cref="ExposureSheet.RunAt"/>'s, extreme to extreme, trimmed to the
+/// airborne stretch between contact markers when the run carries them (Q135).
 /// </para>
 /// <para>
 /// The fit is closed-form least squares, run twice: once over everything,
@@ -75,20 +94,23 @@ public static class JumpArcAnalyser
     /// <summary>…with the same floor the spacing assistant keeps, for the same noise.</summary>
     public const double FlagFloorPx = 1.0;
 
+    /// <summary>Past this ratio between the biggest and smallest drawing, the run reads as depth motion (Q137).</summary>
+    public const double DepthBand = WalkCycleAnalyser.DepthBand;
+
     /// <summary>How many curve samples per frame of run — smooth at any zoom without being data.</summary>
     private const int SamplesPerFrame = 4;
 
     private readonly record struct Coefficients(double P, double Q, double A, double B, double C)
     {
-        public double X(double t) => P + Q * t;
+        public double U(double t) => P + Q * t;
 
-        public double Y(double t) => (A * t + B) * t + C;
+        public double V(double t) => (A * t + B) * t + C;
 
-        public double DistanceTo(double t, double x, double y)
+        public double DistanceTo(double t, double u, double v)
         {
-            var dx = x - X(t);
-            var dy = y - Y(t);
-            return Math.Sqrt(dx * dx + dy * dy);
+            var du = u - U(t);
+            var dv = v - V(t);
+            return Math.Sqrt(du * du + dv * dv);
         }
     }
 
@@ -96,65 +118,124 @@ public static class JumpArcAnalyser
     /// Fit the run containing <paramref name="index"/>. Null when the run has
     /// too few located drawings or no spread in time to fit against.
     /// </summary>
-    public static JumpArcFit? FitRun(Scene scene, Layer layer, int index)
+    public static JumpArcFit? FitRun(Scene scene, Layer layer, int index, bool throughCamera = false)
     {
         var run = ExposureSheet.RunAt(layer, index);
-        var located = new List<(int Index, string Id, double X, double Y)>(run.Count);
+        var located = new List<(int Index, string Id, double X, double Y, double Size)>(run.Count);
         foreach (var cel in run)
         {
             if (ExposureSheet.FrameAtExactIndex(layer, cel) is not { } frame) continue;
-            if (MotionTrail.Locate(scene, frame) is not { } at) continue;
-            located.Add((cel, frame.Id, at.X, at.Y));
+            var b = MotionTrail.InkBounds(frame);
+            if (MotionTrail.Locate(scene, frame, b) is not { } at) continue;
+            // An anchored drawing with no ink still has a subject; its size is
+            // simply unknown (0), which the depth guard treats as "cannot say".
+            var size = b is { } bb
+                ? Math.Sqrt((bb.MaxX - bb.MinX) * (bb.MaxX - bb.MinX) + (bb.MaxY - bb.MinY) * (bb.MaxY - bb.MinY))
+                : 0;
+            located.Add((cel, frame.Id, at.X, at.Y, size));
         }
         located = Airborne(scene, located, index);
         if (located.Count < MinDrawings) return null;
 
-        // Time relative to the run's first drawing keeps the normal-equation
-        // sums small; the fit is the same parabola either way.
-        var t0 = located[0].Index;
+        var ground = Ground.Resolve(scene);
 
-        if (Fit(located, t0, skip: -1) is not { } first) return null;
+        // Every drawing's position in the fit's axes: (along, up) of the
+        // ground in the world, or the camera's view per frame — up-positive
+        // either way, so an apex is always a maximum and gravity always A < 0.
+        var samples = new List<(double T, double U, double V, double Size)>(located.Count);
+        var t0 = located[0].Index;
+        var camera = false;
+        foreach (var p in located)
+        {
+            double u, v;
+            var size = p.Size;
+            if (throughCamera && CameraView.FramingAt(scene, p.Index) is { } f)
+            {
+                var (vx, vy) = CameraView.Project(f, p.X, p.Y);
+                u = vx;
+                v = -vy;
+                size *= f.Zoom;   // apparent size is what depth means on screen
+                camera = true;
+            }
+            else
+            {
+                u = ground.Along(p.X, p.Y);
+                v = ground.Elevation(p.X, p.Y);
+            }
+            samples.Add((p.Index - t0, u, v, size));
+        }
+
+        // Depth first (Q137): a subject changing size is moving toward or
+        // away from camera, and a flat parabola does not apply — nothing is
+        // flagged against a fit that cannot mean anything.
+        var sizes = samples.Select(s => s.Size).ToList();
+        var depth = sizes.Min() > 0 && sizes.Max() / sizes.Min() > DepthBand;
+
+        if (Fit(samples, skip: -1) is not { } first) return null;
 
         // The worst drawing sits out and the rest re-vote on where the arc is.
         var worst = 0;
         double worstDistance = -1;
-        for (var j = 0; j < located.Count; j++)
+        for (var j = 0; j < samples.Count; j++)
         {
-            var d = first.DistanceTo(located[j].Index - t0, located[j].X, located[j].Y);
+            var d = first.DistanceTo(samples[j].T, samples[j].U, samples[j].V);
             if (d > worstDistance) { worstDistance = d; worst = j; }
         }
-        var fit = Fit(located, t0, skip: worst) ?? first;
+        var fit = Fit(samples, skip: worst) ?? first;
 
         // Extent-relative tolerance: a hand's width off a screen-wide leap and
         // a pixel off a hop should read the same.
-        double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
-        foreach (var pt in located)
+        double minU = double.MaxValue, minV = double.MaxValue, maxU = double.MinValue, maxV = double.MinValue;
+        foreach (var s in samples)
         {
-            minX = Math.Min(minX, pt.X); maxX = Math.Max(maxX, pt.X);
-            minY = Math.Min(minY, pt.Y); maxY = Math.Max(maxY, pt.Y);
+            minU = Math.Min(minU, s.U); maxU = Math.Max(maxU, s.U);
+            minV = Math.Min(minV, s.V); maxV = Math.Max(maxV, s.V);
         }
-        var extent = Math.Sqrt((maxX - minX) * (maxX - minX) + (maxY - minY) * (maxY - minY));
+        var extent = Math.Sqrt((maxU - minU) * (maxU - minU) + (maxV - minV) * (maxV - minV));
         var tolerance = Math.Max(FlagShare * extent, FlagFloorPx);
 
         var deviations = new List<ArcDeviation>(located.Count);
-        foreach (var pt in located)
+        for (var j = 0; j < located.Count; j++)
         {
-            double t = pt.Index - t0;
-            var d = fit.DistanceTo(t, pt.X, pt.Y);
+            var s = samples[j];
+            var d = fit.DistanceTo(s.T, s.U, s.V);
+            var (fx, fy) = FitPointInWorld(scene, ground, located[j].Index, fit, s.T, camera);
             deviations.Add(new ArcDeviation(
-                pt.Index, pt.Id, pt.X, pt.Y, fit.X(t), fit.Y(t), d, d > tolerance));
+                located[j].Index, located[j].Id, located[j].X, located[j].Y,
+                fx, fy, d, !depth && d > tolerance));
         }
 
-        var span = located[^1].Index - t0;
-        var curve = new List<ArcPoint>(span * SamplesPerFrame + 1);
-        for (var k = 0; k <= span * SamplesPerFrame; k++)
+        // The curve maps back to world through the ground frame — exact, the
+        // axes are orthonormal. Through the camera there is nothing to map a
+        // between-frames sample with, so the verdict travels without a curve.
+        var curve = new List<ArcPoint>();
+        if (!camera)
         {
-            var t = (double)k / SamplesPerFrame;
-            curve.Add(new ArcPoint(fit.X(t), fit.Y(t)));
+            var span = located[^1].Index - t0;
+            for (var k = 0; k <= span * SamplesPerFrame; k++)
+            {
+                var t = (double)k / SamplesPerFrame;
+                var (x, y) = FromGround(ground, fit.U(t), fit.V(t));
+                curve.Add(new ArcPoint(x, y));
+            }
         }
 
-        // Screen Y grows downward, so gravity is a positive quadratic term.
-        return new JumpArcFit(curve, deviations, Ballistic: fit.A > 0, tolerance);
+        // Up-positive axes both ways, so gravity is a negative quadratic term.
+        return new JumpArcFit(
+            curve, deviations, Ballistic: fit.A < 0, tolerance,
+            DepthMotion: depth, ThroughCamera: camera);
+    }
+
+    private static (double X, double Y) FromGround(in GroundFrame g, double u, double v) =>
+        (g.OriginX + u * g.AlongX + v * g.UpX, g.OriginY + u * g.AlongY + v * g.UpY);
+
+    private static (double X, double Y) FitPointInWorld(
+        Scene scene, in GroundFrame ground, int frame, in Coefficients fit, double t, bool camera)
+    {
+        if (!camera) return FromGround(ground, fit.U(t), fit.V(t));
+        // A drawing's own frame has a framing to map back through.
+        var f = CameraView.FramingAt(scene, frame)!.Value;
+        return CameraView.Unproject(f, fit.U(t), -fit.V(t));
     }
 
     /// <summary>
@@ -167,16 +248,16 @@ public static class JumpArcAnalyser
     /// rather than arguing with a heuristic. With no contact markers in the
     /// run, the whole run fits as before.
     /// </summary>
-    private static List<(int Index, string Id, double X, double Y)> Airborne(
-        Scene scene, List<(int Index, string Id, double X, double Y)> located, int index)
+    private static List<(int Index, string Id, double X, double Y, double Size)> Airborne(
+        Scene scene, List<(int Index, string Id, double X, double Y, double Size)> located, int index)
     {
         if (located.Count == 0) return located;
         var marked = ContactFrames.MarkedIn(scene, located[0].Index, located[^1].Index);
         if (marked.Count == 0) return located;
 
         var contacts = marked.ToHashSet();
-        var segments = new List<List<(int Index, string Id, double X, double Y)>>();
-        var current = new List<(int Index, string Id, double X, double Y)>();
+        var segments = new List<List<(int Index, string Id, double X, double Y, double Size)>>();
+        var current = new List<(int Index, string Id, double X, double Y, double Size)>();
         foreach (var p in located)
         {
             if (contacts.Contains(p.Index))
@@ -203,36 +284,36 @@ public static class JumpArcAnalyser
     }
 
     /// <summary>
-    /// Ordinary least squares for x = p + q·t and y = a·t² + b·t + c, with one
+    /// Ordinary least squares for u = p + q·t and v = a·t² + b·t + c, with one
     /// drawing optionally sat out. Null when the times are too degenerate to
     /// invert — which a run of distinct cel indices never is.
     /// </summary>
     private static Coefficients? Fit(
-        List<(int Index, string Id, double X, double Y)> located, int t0, int skip)
+        List<(double T, double U, double V, double Size)> samples, int skip)
     {
         var n = 0;
-        double s1 = 0, s2 = 0, s3 = 0, s4 = 0, sx = 0, stx = 0, sy = 0, sty = 0, st2y = 0;
-        for (var j = 0; j < located.Count; j++)
+        double s1 = 0, s2 = 0, s3 = 0, s4 = 0, su = 0, stu = 0, sv = 0, stv = 0, st2v = 0;
+        for (var j = 0; j < samples.Count; j++)
         {
             if (j == skip) continue;
-            double t = located[j].Index - t0;
+            var t = samples[j].T;
             var tt = t * t;
             n++;
             s1 += t; s2 += tt; s3 += tt * t; s4 += tt * tt;
-            sx += located[j].X; stx += t * located[j].X;
-            sy += located[j].Y; sty += t * located[j].Y; st2y += tt * located[j].Y;
+            su += samples[j].U; stu += t * samples[j].U;
+            sv += samples[j].V; stv += t * samples[j].V; st2v += tt * samples[j].V;
         }
 
-        var xDet = n * s2 - s1 * s1;
-        if (Math.Abs(xDet) < 1e-9) return null;
-        var q = (n * stx - s1 * sx) / xDet;
-        var p = (sx - q * s1) / n;
+        var uDet = n * s2 - s1 * s1;
+        if (Math.Abs(uDet) < 1e-9) return null;
+        var q = (n * stu - s1 * su) / uDet;
+        var p = (su - q * s1) / n;
 
         var det = Det3(s4, s3, s2, s3, s2, s1, s2, s1, n);
         if (Math.Abs(det) < 1e-9) return null;
-        var a = Det3(st2y, s3, s2, sty, s2, s1, sy, s1, n) / det;
-        var b = Det3(s4, st2y, s2, s3, sty, s1, s2, sy, n) / det;
-        var c = Det3(s4, s3, st2y, s3, s2, sty, s2, s1, sy) / det;
+        var a = Det3(st2v, s3, s2, stv, s2, s1, sv, s1, n) / det;
+        var b = Det3(s4, st2v, s2, s3, stv, s1, s2, sv, n) / det;
+        var c = Det3(s4, s3, st2v, s3, s2, stv, s2, s1, sv) / det;
         return new Coefficients(p, q, a, b, c);
     }
 
