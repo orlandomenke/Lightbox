@@ -242,6 +242,37 @@ public class TrackView : Control
     internal const double RowPitch = 22;
     private const double DotRadius = 4.5;
 
+    /// <summary>The narrowest a pair of ruler numbers may sit, in pixels.</summary>
+    private const double MinLabelGap = 40;
+
+    /// <summary>
+    /// How many frames apart the ruler's numbers are, given how wide a frame is.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>It used to be twelve, always.</b> That reads well at the narrowest
+    /// frame width and falls apart at the widest, where twelve frames is over
+    /// eight hundred pixels — a ruler with one number on it. The playhead
+    /// carries its own number, so the practical effect was that the only frame
+    /// you could read was the one you were standing on, which is precisely what
+    /// a ruler is for avoiding.
+    /// </para>
+    /// <para>
+    /// <b>Every step divides or multiplies twelve</b>, so frame 1, 13, 25 are
+    /// numbered at every zoom. The reference's cadence is the second, and a
+    /// ladder of, say, fives would put the numbers somewhere an animator does
+    /// not count from.
+    /// </para>
+    /// </remarks>
+    internal static int LabelStep(double frameWidth)
+    {
+        foreach (var step in (int[])[1, 2, 3, 4, 6, 12, 24, 48, 96])
+        {
+            if (step * frameWidth >= MinLabelGap) return step;
+        }
+        return 192;
+    }
+
     static TrackView()
     {
         AffectsMeasure<TrackView>(
@@ -351,12 +382,25 @@ public class TrackView : Control
                 new Point(Gutter, gy), new Point(Gutter + FrameCount * FrameWidth, gy));
         }
 
-        // Ruler: a number at 1 and every dozen frames after, the reference's
-        // cadence; a faint vertical at each numbered frame.
+        // The structure lines stay on the second's cadence whatever the
+        // numbers do: they are the rhythm an animator counts against, and
+        // drawing one per frame at a wide zoom would be a grid rather than a
+        // ruler.
         for (var f = 0; f < FrameCount; f += 12)
         {
             var x = XAtFrame(f, FrameWidth);
             context.DrawLine(faint, new Point(x, RulerHeight), new Point(x, Bounds.Height));
+        }
+
+        // The numbers, as close together as they will legibly go.
+        var playhead = XAtFrame(CurrentFrame, FrameWidth);
+        for (var f = 0; f < FrameCount; f += LabelStep(FrameWidth))
+        {
+            var x = XAtFrame(f, FrameWidth);
+            // The playhead's chip is drawn last, over everything, and carries
+            // its own number. A ruler number underneath it is not hidden so
+            // much as half-visible around the edges, which reads as a smudge.
+            if (Math.Abs(x - playhead) < 11) continue;
             var label = new FormattedText(
                 (f + 1).ToString(), System.Globalization.CultureInfo.InvariantCulture,
                 FlowDirection.LeftToRight, typeface, 10, text);
