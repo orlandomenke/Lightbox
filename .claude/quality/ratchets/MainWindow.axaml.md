@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4576
+budget: 4586
 
 ## Why it is here despite being XAML
 
@@ -157,3 +157,7 @@ leaves a number nobody can account for. So every reason above stays, and
   from the same 4,434, so it is a third claim on that number and its six lines
   are additional to everything the remeasure before it counted. Its reason
   stays, the figure comes from `ratchets.py remeasure`.
+- **4,576 → 4,586** (2026-08-20, Q84): +10 for the Scene panel's two entry
+  points — its Docker host (the panel itself is `ScenePanel.axaml`, the
+  `BoneOptionsBar` trade again) and its View ▸ Dockers checkbox. Registration,
+  which is the one thing a budget must not refuse.

@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             xmlns:controls="using:Lightbox.App.Controls"
+             x:Class="Lightbox.App.Views.ScenePanel"
+             x:DataType="vm:MainViewModel">
+  <!--
+    The Scene panel (Q84): the layer stack with its depths, and the camera's
+    path — the authoring surface of multiplane parallax (stage 1 of
+    docs/DESIGN-3d-space.md). A depth row is a schematic, not a preview: the
+    marker says how far behind the picture plane a layer sits, the label says
+    what that costs a camera move, and the number is the record itself.
+
+    The panel never hides its rows without a camera — depth is document data
+    an artist may author ahead of the shot — but it says plainly that nothing
+    will move until a camera exists, because "the slider does nothing" must
+    read as a fact about cameras rather than as a bug.
+  -->
+  <DockPanel Margin="6,4">
+    <TextBlock DockPanel.Dock="Top" FontSize="11" Opacity="0.65" TextWrapping="Wrap"
+               Margin="0,0,0,6" IsVisible="{Binding !HasCamera}"
+               Text="Parallax needs a camera. Depths are kept, but nothing moves until the document has one — add it from the X-sheet's 🎥 button." />
+    <!--
+      The path under the rows rather than over: the rows are edited, the path
+      is read, and the thing you act on belongs where the pointer arrives first.
+    -->
+    <controls:CameraPathPlot DockPanel.Dock="Bottom" Height="96" Margin="0,6,0,0"
+                             IsVisible="{Binding HasCamera}"
+                             DocumentSize="{Binding ScenePlotSize}"
+                             PathPoints="{Binding CameraPathPoints}"
+                             KeyPoints="{Binding CameraKeyPoints}"
+                             ToolTip.Tip="The camera's move across the page — the eased path, a dot per key" />
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+      <ItemsControl ItemsSource="{Binding DepthRows}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:LayerDepthRow">
+            <Grid ColumnDefinitions="*,58,90" Margin="0,1" MinHeight="26"
+                  ToolTip.Tip="{Binding FactorLabel}">
+              <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis" />
+              <!-- The stack seen from the side: the picture plane at the left
+                   edge, the horizon at the right, this layer's plane where the
+                   marker stands. -->
+              <Canvas Grid.Column="1" Width="54" Height="10" VerticalAlignment="Center"
+                      Margin="2,0">
+                <Border Canvas.Left="0" Canvas.Top="4" Width="54" Height="2"
+                        Background="#40ffffff" CornerRadius="1" />
+                <Border Canvas.Left="{Binding MarkerX}" Canvas.Top="0" Width="4" Height="10"
+                        Background="#e6ffbe3c" CornerRadius="1" />
+              </Canvas>
+              <NumericUpDown Grid.Column="2" Value="{Binding Depth}" Increment="100"
+                             Minimum="-750" Maximum="1000000" FormatString="0"
+                             FontSize="11" VerticalAlignment="Center"
+                             ToolTip.Tip="Distance behind the picture plane, in canvas units. 0 sits on the canvas; 1000 shows half of a camera move; negative floats in front." />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>
