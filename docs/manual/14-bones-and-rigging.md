@@ -19,10 +19,17 @@ Weights drag paints influence, it never turns a bone.
 
 Below the switch, the panel lists **every bone in the rig**, children indented
 under their parents. Picking one there selects it on the canvas — the same
-selection a click on the canvas makes — and the selected bone draws **white**
-where the others draw green, the same colour selection wears on every overlay.
+selection a click on the canvas makes — and the selected bone draws **white**,
+the same colour selection wears on every overlay.
 Every bone and handle sits on a dark rim, so the chrome reads on white paper
 and dark canvases alike.
+
+**The rest of the skeleton tells you which of the two things you are looking
+at.** In **Bind** it is **green** — that is the rig itself, and a drag there
+rebinds the drawing. In **Pose** and **Weights** it is **violet** — that is
+the rig *standing at the playhead*, and a drag there keys a pose. The two
+gestures look identical and mean opposite things, so the colour is what
+separates them without reading the switch.
 The rest of the panel is what you can do to the picked bone (rename, length,
 add child, delete, IK, spline, constraints), the weight brush while it is
 armed, and the binding actions. The pointer
@@ -112,6 +119,23 @@ behind the playhead, cool ahead, the same colours the drawing's ghosts wear —
 so an inbetween pose is judged against where it came from and where it goes.
 The onion bar's switch and depths drive it, and a ghost is never grabbed: a
 press through one lands on the real skeleton or the canvas.
+
+**Press play and the bones get out of the way.** Watching a cycle is watching
+the drawings, and a skeleton drawn over them is chrome you did not ask for —
+so the rig hides for the length of playback and comes back when you stop.
+Nothing about the pose changes; only whether it is drawn.
+
+If you would rather watch the rig move, tick **Show the bones while the
+animation plays** in *Configure ▸ Timeline*. It is off by default because the
+common case — flipping a cycle to judge the timing — wants the drawings and
+nothing over them. With it on, the bones re-solve at each frame and move with
+the drawings; with it off there is nothing on screen to go stale. What there is
+no longer is the third thing, which is what this fixed: the rig frozen at the
+last pose you touched while everything under it animated.
+
+The rig's **onion ghosts stand down for playback either way**, the same as the
+drawing's do — they exist to show where a pose came from and where it goes,
+which is what you are watching.
 
 **The drawing follows the drag, not just the bones.** Bound strokes re-render
 through the provisional pose as you drag, exactly — the same render the

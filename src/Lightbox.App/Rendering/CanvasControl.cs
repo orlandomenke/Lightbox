@@ -1954,7 +1954,7 @@ public sealed partial class CanvasControl : Control
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
             _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing,
-            BoneChromes, HeatPoints, _hoveredLines,
+            BoneChromes, BonesArePosed, HeatPoints, _hoveredLines,
             FillPreviewForFrame(), _fillPreviewWand, _fillPreviewColor, TrailPoints,
             CropSurfaceRect()));
     }
@@ -3971,7 +3971,7 @@ public sealed partial class CanvasControl : Control
         LayerTextureCache? textures = null,
         ChannelSolo solo = ChannelSolo.None,
         PickRing? pickRing = null,
-        IReadOnlyList<BoneChrome>? bones = null,
+        IReadOnlyList<BoneChrome>? bones = null, bool bonesArePosed = false,
         IReadOnlyList<HeatPoint>? heat = null,
         IReadOnlyList<SelectedLine>? hoveredLines = null,
         SKPath? fillPreview = null,
@@ -4119,7 +4119,7 @@ public sealed partial class CanvasControl : Control
             // aimed with the same hand, and the heat is what a weight brush
             // corrects against.
             ArmatureOverlayPainter.PaintHeat(canvas, heat, view.Scale);
-            ArmatureOverlayPainter.Paint(canvas, bones, view.Scale);
+            ArmatureOverlayPainter.Paint(canvas, bones, view.Scale, bonesArePosed);
             // Under the ants: a committed selection outranks a would-be one.
             FillPreviewPainter.Draw(canvas, fillPreview, fillPreviewWand, fillPreviewColor, view.Scale);
             DrawAnts(canvas);

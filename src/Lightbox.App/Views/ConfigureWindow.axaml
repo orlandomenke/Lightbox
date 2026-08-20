@@ -473,6 +473,15 @@
         </StackPanel>
 
         <StackPanel Spacing="6">
+          <TextBlock Text="The rig during playback" FontWeight="SemiBold" />
+          <CheckBox x:Name="AnimateRigBox" Content="Show the bones while the animation plays"
+                    IsCheckedChanged="OnAnimateRigChanged"
+                    ToolTip.Tip="Off, the bones are hidden while playing; on, they follow the playhead with everything else" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="Playback is for watching the animation, so the rig gets out of the way by default. Turn it on when what you are checking is the rig itself — whether a limb reads through the movement." />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
           <TextBlock Text="Frame width" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
                      Text="How wide one frame is on the timeline. Also on the timeline's own bar, where it is quicker to reach." />
