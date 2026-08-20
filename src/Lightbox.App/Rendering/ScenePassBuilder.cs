@@ -142,6 +142,13 @@ internal static class ScenePassBuilder
     /// but they agree on the thing tiles care about: the sequence is moving, so
     /// a cel costs its ink rather than its paper.
     /// </param>
+    /// <param name="ThroughCamera">
+    /// The composite will be drawn under the camera's matrix (view-through-camera,
+    /// or an export). This is when a layer's depth means anything: parallax is
+    /// the depth-dependent response to camera moves, so a world view — where
+    /// there is no camera matrix to respond to — shows every plane head-on,
+    /// exactly as the design's rule 2 says it must.
+    /// </param>
     internal readonly record struct State(
         int FrameIndex,
         string? ActiveLayerId,
@@ -149,7 +156,8 @@ internal static class ScenePassBuilder
         bool IsLightTable,
         bool HaveViewport,
         OnionSettings Onion,
-        bool IsScrubbing = false);
+        bool IsScrubbing = false,
+        bool ThroughCamera = false);
 
     /// <summary>
     /// The moving and staying halves of a frame under a live transform, as the
@@ -284,11 +292,27 @@ internal static class ScenePassBuilder
         var activeStart = -1;
         var activeEnd = -1;
 
+        // Multiplane: only a composite drawn under the camera's matrix has a
+        // camera move for depth to respond to. Computed once — the framing is
+        // per-publish, the factor per-layer.
+        var framing = state.ThroughCamera && scene.Camera is { } cam
+            ? CameraOps.At(cam, state.FrameIndex, scene.Width, scene.Height)
+            : (CameraFraming?)null;
+        var home = CameraFraming.Centred(scene.Width, scene.Height);
+
         var referencesQueued = false;
         foreach (var layer in scene.Layers)
         {
             if (!scene.IsLayerVisible(layer)) continue;
             var isActive = layer.Id == state.ActiveLayerId;
+
+            // The layer's parallax matrix, or null on the picture plane — the
+            // null arm is the path that existed before depth did, and every
+            // depthless layer must keep taking it.
+            var parallax = framing is { } f && scene.Camera is { } pcam
+                ? ParallaxTransform.PassMatrix(
+                    layer.Depth, f, home, pcam.OutputWidth, pcam.OutputHeight)
+                : null;
 
             // An imported reference goes over the paper and under every
             // drawing — the same place as the photograph you would tape to the
@@ -312,7 +336,9 @@ internal static class ScenePassBuilder
             // paper, the paper painted over every ghost. Interleaving is also
             // what makes multi-layer onion read correctly — a layer's ghosts
             // sit under it, exactly as its own earlier frames would.
-            var ghosts = GhostSpecsFor(layer, scene, state);
+            // Ghosts ride their layer's plane — a ghost is the same drawing at
+            // another time, so it parallaxes exactly as the drawing does.
+            var ghosts = WithParallax(GhostSpecsFor(layer, scene, state), parallax);
             if (!state.Onion.DrawOver) passes.AddRange(ghosts);
 
             // Past the end of the scene the canvas shows no drawing (Q103).
@@ -395,11 +421,15 @@ internal static class ScenePassBuilder
                 {
                     passes.Add(new PassSpec(
                         null, state.FrameIndex, stay, null, layer.Opacity,
-                        SceneRenderer.ToSkia(layer.BlendMode)));
+                        SceneRenderer.ToSkia(layer.BlendMode), Matrix: parallax));
                 }
+                // The drag nests inside the layer's plane: the moved strokes
+                // still live on this layer, so the preview matrix applies in
+                // plane-local document space and the parallax wraps it.
                 passes.Add(new PassSpec(
                     null, state.FrameIndex, parts.Moving, null, layer.Opacity,
-                    SceneRenderer.ToSkia(layer.BlendMode), overlay, preview));
+                    SceneRenderer.ToSkia(layer.BlendMode), overlay,
+                    parallax is { } pm ? SKMatrix.Concat(pm, preview) : preview));
                 if (state.Onion.DrawOver) passes.AddRange(ghosts);
                 if (isActive) activeEnd = passes.Count;
                 continue;
@@ -418,7 +448,7 @@ internal static class ScenePassBuilder
                 : layer.Opacity;
             passes.Add(new PassSpec(
                 celFrame, state.FrameIndex, bmp, null, opacity,
-                SceneRenderer.ToSkia(layer.BlendMode), overlay,
+                SceneRenderer.ToSkia(layer.BlendMode), overlay, parallax,
                 SourceFrame: tileFrame));
 
             // Draw-over puts them above instead. Under is how a lightbox works
@@ -601,6 +631,20 @@ internal static class ScenePassBuilder
                 OnionSkin.OpacityAt(ghost.Steps, onion.Opacity, onion.Falloff)));
         }
         return passes;
+    }
+
+    /// <summary>
+    /// The specs re-addressed onto their layer's plane, or the list untouched
+    /// when the layer has none — the untouched arm allocates nothing, because
+    /// this runs per visible layer per publish.
+    /// </summary>
+    private static IReadOnlyList<PassSpec> WithParallax(
+        IReadOnlyList<PassSpec> specs, SKMatrix? parallax)
+    {
+        if (parallax is not { } pm || specs.Count == 0) return specs;
+        var wrapped = new List<PassSpec>(specs.Count);
+        foreach (var spec in specs) wrapped.Add(spec with { Matrix = pm });
+        return wrapped;
     }
 
     private static IReadOnlyList<int> PinnedGhostIndices(Scene scene) =>

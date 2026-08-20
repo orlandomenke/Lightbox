@@ -602,7 +602,10 @@ public partial class MainViewModel
             IsPlaying, IsLightTable,
             HaveViewport: _publish.Viewport is { Width: > 0, Height: > 0 },
             Onion,
-            IsScrubbing);
+            IsScrubbing,
+            // Depth answers to a camera move, so it applies exactly when the
+            // composite is about to be drawn under the camera's matrix.
+            ThroughCamera: ViewThroughCamera);
         var live = new ScenePassBuilder.LiveEdit(
             _live.Composite, _live.Scratch, _live.PostScratch, _live.PostStampedCount,
             _liveShape, _liveGradient, _strokeBuilder.Current,

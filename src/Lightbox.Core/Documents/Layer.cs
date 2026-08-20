@@ -199,6 +199,37 @@ public sealed class Layer
     /// <summary>Whether the artist pinned this layer *into* exports.</summary>
     [JsonIgnore] public bool IsKeptInExport => OmitFromExport == false;
 
+    /// <summary>
+    /// Distance behind the picture plane, in document units — the multiplane
+    /// depth of `docs/DESIGN-3d-space.md` stage 1. Null, and absent, on a
+    /// layer that lives on the plane, which is every layer ever saved before
+    /// this existed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Depth without a camera does nothing.</b> Parallax is the
+    /// depth-dependent response to camera moves (<see cref="LayerDepth"/>), so
+    /// an asset document — which never has a camera — is untouched by
+    /// construction, and no feature conflict is needed anywhere.
+    /// </para>
+    /// <para>
+    /// Nullable rather than a <c>double</c> defaulting to zero, for
+    /// <see cref="OmitFromExport"/>'s stated reason: a plain double would put
+    /// <c>"depth": 0</c> on every layer of every document ever saved. Zero and
+    /// null mean the same plane; authoring writes null for zero so the
+    /// distinction can never leak into a file.
+    /// </para>
+    /// <para>
+    /// Positive is away from the viewer (a far hill moves less); a small
+    /// negative depth floats a layer in front of the plane and moves it more.
+    /// <see cref="LayerDepth.Factor"/> clamps the useful range.
+    /// </para>
+    /// </remarks>
+    public double? Depth { get; set; }
+
+    /// <summary>Whether this layer sits off the picture plane. Derived; never serialized.</summary>
+    [JsonIgnore] public bool HasDepth => Depth is not null && Depth.Value != 0;
+
     /// <summary>Whether this layer participates in onion-skin ghosting.</summary>
     public bool OnionEnabled { get; set; } = true;
 
