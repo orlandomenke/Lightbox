@@ -157,6 +157,27 @@ public partial class MainViewModel
     [RelayCommand]
     private void MoveLayerDown(LayerRow row) => MoveLayer(row, -1);
 
+    /// <summary>The Layer menu's targets: the docker rows take a row, the menu takes whatever is active.</summary>
+    private LayerRow? ActiveLayerRow() => LayerRows.FirstOrDefault(r => r.SceneIndex == ActiveLayerIndex);
+
+    [RelayCommand]
+    private void MoveActiveLayerUp()
+    {
+        if (ActiveLayerRow() is { } row) MoveLayer(row, +1);
+    }
+
+    [RelayCommand]
+    private void MoveActiveLayerDown()
+    {
+        if (ActiveLayerRow() is { } row) MoveLayer(row, -1);
+    }
+
+    [RelayCommand]
+    private void SelectActiveLayerContents()
+    {
+        if (ActiveLayerRow() is { } row) SelectLayerAlpha(row, add: false, subtract: false);
+    }
+
     /// <summary>
     /// Drop a dragged layer beside another row — visually above it (toward the
     /// viewer) or below. The layer adopts the target's folder, so dragging into
@@ -556,6 +577,7 @@ public partial class MainViewModel
             foreach (var target in targets) target.Visible = visible;
         }, label: targets.Count == 1 ? "Set layer visible" : "Set layers visible",
             frameContentUnchanged: true);
+        NotifyLayerGating();
     }
 
     /// <summary>
@@ -612,13 +634,51 @@ public partial class MainViewModel
     {
         OnPropertyChanged(nameof(ActiveLayerBlocked));
         OnPropertyChanged(nameof(ActiveLayerAlphaLocked));
+        OnPropertyChanged(nameof(ActiveLayerVisible));
+        OnPropertyChanged(nameof(ActiveLayerLocked));
     }
 
     /// <summary>A row needs this to dim itself without reaching into the scene.</summary>
     internal bool IsLayerLockedByFolder(Layer layer) => Scene.GroupOf(layer) is { Locked: true };
 
     /// <summary>Shown in the tool options so the restriction is never invisible.</summary>
-    public bool ActiveLayerAlphaLocked => ActiveLayer is { AlphaLocked: true };
+    /// <remarks>
+    /// The setter exists for the Layer menu's checkbox: a two-way binding wants
+    /// a property, and routing it through <see cref="SetLayerAlphaLocked"/>
+    /// keeps the menu, the docker padlock and the shortcut on one undo path.
+    /// The same reasoning gives the two below their setters.
+    /// </remarks>
+    public bool ActiveLayerAlphaLocked
+    {
+        get => ActiveLayer is { AlphaLocked: true };
+        set
+        {
+            if (ActiveLayer is { } layer && layer.AlphaLocked != value)
+                SetLayerAlphaLocked(layer, value, alone: true);
+        }
+    }
+
+    /// <summary>The Layer menu's eye: the active layer's visibility, undoable like the docker's.</summary>
+    public bool ActiveLayerVisible
+    {
+        get => ActiveLayer is { Visible: true };
+        set
+        {
+            if (ActiveLayer is { } layer && layer.Visible != value)
+                SetLayerVisible(layer, value, alone: true);
+        }
+    }
+
+    /// <summary>The Layer menu's padlock: the active layer's lock, undoable like the docker's.</summary>
+    public bool ActiveLayerLocked
+    {
+        get => ActiveLayer is { Locked: true };
+        set
+        {
+            if (ActiveLayer is { } layer && layer.Locked != value)
+                SetLayerLocked(layer, value, alone: true);
+        }
+    }
 
     /// <summary>
     /// Per-layer onion-skin participation. A display preference, so it is
@@ -1026,7 +1086,10 @@ public partial class MainViewModel
     [RelayCommand]
     private void ToggleActiveLayerVisible()
     {
-        _editor.Perform(_ => ActiveLayer.Visible = !ActiveLayer.Visible, frameContentUnchanged: true);
+        // Through SetLayerVisible rather than a direct Perform, so the Layer
+        // menu's checkbox (ActiveLayerVisible) hears about it via the same
+        // notification the docker's eye uses.
+        if (ActiveLayer is { } layer) SetLayerVisible(layer, !layer.Visible, alone: true);
         RefreshPointerIntent();
     }
 

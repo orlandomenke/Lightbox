@@ -191,6 +191,9 @@ public partial class MainWindow
         if (LayerRowOf(sender) is { } row) RequestMergeDown(row.Layer);
     }
 
+    /// <summary>Layer menu: merge the active layer down, through the same Q52 ask as Ctrl+E.</summary>
+    private void OnMenuMergeDown(object? sender, RoutedEventArgs e) => RequestMergeDown(null);
+
     /// <summary>
     /// Merge a layer into the one below, asking first when the merge would
     /// turn drawings into pixels — the Q52 warning, shown only when AI is

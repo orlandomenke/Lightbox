@@ -19,6 +19,13 @@ just an ordinary unlocked layer.
 
 **Ctrl+click** a layer thumbnail to select its opaque pixels.
 
+**The everyday layer verbs are on the Layer menu too**, addressed to the layer
+you are on: new layer, new folder, move up and down, merge down, the three
+checkboxes (visible, locked, lock transparency), select contents, blank
+content and delete. The docker keeps the things a menu is wrong for — the
+blend mode and opacity controls, drag-reordering, and the right-click menu's
+row-targeted extras (linking, exports, the rig).
+
 ### Working on several layers at once
 
 Click a row to make that layer active. **Ctrl+click** another row to add it to
@@ -210,7 +217,10 @@ nothing else. It moves the *lines* the selection holds rather than cutting the
 pixels out, so a stroke crossing the edge travels whole.
 
 **Ctrl+T** starts a transform. The gizmo gives move, scale, rotate and a
-draggable pivot; **Perspective** mode gives four free corners.
+draggable pivot; **Perspective** mode gives four free corners. The whole
+session is also under **Edit ▸ Transform** — start it there, and apply,
+cancel, mirror either way, switch perspective on or reset without leaving the
+menu; the same verbs are on a right-click over the gizmo.
 
 **Scaling holds the side you did not touch.** Drag a corner and the opposite
 corner stays put; drag an edge and the opposite edge does — which is what every

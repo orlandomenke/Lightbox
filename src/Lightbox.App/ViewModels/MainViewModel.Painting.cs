@@ -515,6 +515,7 @@ public partial class MainViewModel
         // A different layer can refuse the tool the last one accepted.
         RefreshPointerIntent();
         NotifyActiveLayerCompositing();
+        NotifyLayerGating();    // the Layer menu's checkboxes describe the new layer
         RefreshMotionTrail();   // the trail follows the layer being drawn on
         PublishSnapshot();
     }

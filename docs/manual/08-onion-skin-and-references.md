@@ -13,7 +13,10 @@ playback — the one thing playback has to show is the animation.
 **The same controls are on both the Timeline and the X-sheet bars**, because
 onion skin belongs to you rather than to whichever view of the animation you
 have up. They used to be on the X-sheet's bar alone, which made the Timeline tab
-look as though one drawing each way was all it could do.
+look as though one drawing each way was all it could do. The on/off switch —
+along with **Keyed drawings only** and the motion trail — is also on the
+**Animation** menu, so it can be reached with the timeline hidden; the dials
+stay on the bar, where a slider belongs.
 
 Everything else is behind the **⚙** next to those fields:
 

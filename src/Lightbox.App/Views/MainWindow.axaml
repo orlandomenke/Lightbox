@@ -339,6 +339,33 @@
         <MenuItem Header="{Binding RedoMenuHeader}" Command="{Binding RedoCommand}"
                   IsEnabled="{Binding CanRedo}" InputGesture="Ctrl+Y" />
         <Separator />
+        <!--
+          The transform session, which until now existed only on Ctrl+T and a
+          right-click over the gizmo — a whole feature with no menu address.
+          Under Edit because that is where Photoshop keeps Free Transform, which
+          is the reflex an artist arrives with. The session verbs grey out
+          rather than hide while no transform is running: an entry that
+          vanishes reads as the feature being gone.
+        -->
+        <MenuItem Header="Transfor_m">
+          <MenuItem Header="_Transform (move, scale, rotate)" Click="OnMenuBeginTransform"
+                    InputGesture="Ctrl+T" IsEnabled="{Binding !TransformActive}"
+                    ToolTip.Tip="Put a frame around the selection — or the whole drawing — and drag its handles" />
+          <Separator />
+          <MenuItem Header="_Apply" Click="OnTransformApply" IsEnabled="{Binding TransformActive}"
+                    ToolTip.Tip="Keep the transformed drawing (Enter)" />
+          <MenuItem Header="_Cancel" Click="OnTransformCancel" IsEnabled="{Binding TransformActive}"
+                    ToolTip.Tip="Put everything back (Esc)" />
+          <Separator />
+          <MenuItem Header="Mirror _horizontally" Click="OnTransformMirrorH" IsEnabled="{Binding TransformActive}" />
+          <MenuItem Header="Mirror _vertically" Click="OnTransformMirrorV" IsEnabled="{Binding TransformActive}" />
+          <MenuItem Header="_Perspective (free corners)" Click="OnMenuTransformPerspective"
+                    IsEnabled="{Binding TransformActive}"
+                    ToolTip.Tip="Each corner moves on its own; press again for the box that scales and rotates" />
+          <MenuItem Header="_Reset" Click="OnTransformReset" IsEnabled="{Binding TransformActive}"
+                    ToolTip.Tip="Back to the untransformed frame, without leaving the session" />
+        </MenuItem>
+        <Separator />
         <MenuItem Header="Brush _library…" Click="OnBrushLibraryClicked" />
         <MenuItem Header="Brush _tips…" Click="OnBrushTipsClicked" />
         <Separator />
@@ -403,6 +430,47 @@
                   ToolTip.Tip="Shrink the paper to the smallest rectangle that still holds every mark, in every frame of every layer — not just the one on screen." />
       </MenuItem>
       <!--
+        Layer: the docker's verbs, addressed to the active layer. Between Image
+        and Select because that is Photoshop's and Krita's order, and both mirror
+        their whole layers panel here — a docker button is learnable only by
+        hovering, while the menu is the browsable catalogue of what the app can
+        do, with the shortcut printed beside the entry. The docker's context
+        menu keeps the row-targeted forms and the rarer submenus (linking,
+        exports, the rig); what lands here is the everyday set.
+
+        Blend mode and opacity stay in the docker on purpose: continuous
+        properties want a slider, not a menu — the convention every reference
+        application also follows.
+      -->
+      <MenuItem Header="La_yer" Classes="top">
+        <MenuItem Header="_New layer" Command="{Binding AddPaintedLayerCommand}"
+                  ToolTip.Tip="A fresh drawing layer above the active one" />
+        <MenuItem Header="New _folder with this layer" Command="{Binding CreateLayerFolderCommand}"
+                  ToolTip.Tip="Wrap the active layer in a folder, ready for company" />
+        <Separator />
+        <MenuItem Header="Move _up" Command="{Binding MoveActiveLayerUpCommand}"
+                  ToolTip.Tip="Toward the viewer — or the whole selection, when this layer is in it" />
+        <MenuItem Header="Move _down" Command="{Binding MoveActiveLayerDownCommand}" />
+        <MenuItem Header="Merge do_wn" Click="OnMenuMergeDown" InputGesture="Ctrl+E"
+                  ToolTip.Tip="Fold the active layer into the one below it" />
+        <Separator />
+        <MenuItem Header="_Visible" ToggleType="CheckBox"
+                  IsChecked="{Binding ActiveLayerVisible, Mode=TwoWay}"
+                  ToolTip.Tip="The docker's eye — undoable, because hiding a layer is a document decision" />
+        <MenuItem Header="_Locked" ToggleType="CheckBox"
+                  IsChecked="{Binding ActiveLayerLocked, Mode=TwoWay}"
+                  ToolTip.Tip="Nothing on the layer can change until it is unlocked" />
+        <MenuItem Header="Lock _transparency" ToggleType="CheckBox"
+                  IsChecked="{Binding ActiveLayerAlphaLocked, Mode=TwoWay}"
+                  ToolTip.Tip="Paint lands only where paint already is — for shading what is drawn" />
+        <Separator />
+        <MenuItem Header="_Select layer contents" Command="{Binding SelectActiveLayerContentsCommand}"
+                  ToolTip.Tip="A selection around everything drawn on the active layer" />
+        <MenuItem Header="_Blank layer content" Command="{Binding ClearActiveLayerCommand}"
+                  ToolTip.Tip="Every drawing on the layer loses its content; the timing stays" />
+        <MenuItem Header="Delete la_yer" Command="{Binding DeleteActiveLayerCommand}" />
+      </MenuItem>
+      <!--
         Select: the marquee commands, which until now existed only on keys.
         Between Image and View because that is where Photoshop, Krita and GIMP
         all put it, and because the pointer travels left to right through the
@@ -455,7 +523,75 @@
                   InputGesture="Back"
                   ToolTip.Tip="Flood the region with the background colour — the same key's counterpart to Delete, differing in what it leaves behind" />
       </MenuItem>
+      <!--
+        Animation: the X-sheet's verbs, aimed at the playhead. Krita is the
+        cautionary tale here — its animation commands live only in the timeline
+        docker's context menu, and that is one of its most-cited papercuts. An
+        animation-first application keeps its frame verbs where they can be
+        browsed, searched and learned.
+
+        Every entry acts on the active layer's cel at the current frame — the
+        same answer the timeline shortcuts give — because a menu item has no
+        cel under a pointer. The cel context menu keeps the row-targeted forms
+        plus the dialogs (re-time, timing chart, markers), which need a cel to
+        aim at. The ghost counts, falloff and the rest of the onion dials stay
+        on the onion bar: sliders, not verbs.
+      -->
+      <MenuItem Header="_Animation" Classes="top">
+        <MenuItem Header="_Play / pause" Command="{Binding TogglePlaybackCommand}" InputGesture="Space" />
+        <MenuItem Header="P_revious key drawing" Command="{Binding PreviousKeyframeCommand}"
+                  ToolTip.Tip="Flip back to the previous key (1)" />
+        <MenuItem Header="_Next key drawing" Command="{Binding NextKeyframeCommand}"
+                  ToolTip.Tip="Flip forward to the next key (2)" />
+        <Separator />
+        <MenuItem Header="Insert _keyframe" Click="OnMenuInsertKeyframe"
+                  ToolTip.Tip="Mark the frame at the playhead as a key drawing" />
+        <MenuItem Header="Insert _breakdown" Click="OnMenuInsertBreakdown" />
+        <MenuItem Header="Insert _inbetween frame" Click="OnMenuInsertInbetween" />
+        <Separator />
+        <MenuItem Header="_Extend exposure (+1 hold)" Click="OnMenuExtendExposure"
+                  ToolTip.Tip="Hold the drawing under the playhead one frame longer" />
+        <MenuItem Header="Re_duce exposure (−1 hold)" Click="OnMenuReduceExposure" />
+        <Separator />
+        <MenuItem Header="_Copy cel" Click="OnMenuCopyCel" InputGesture="Ctrl+C" />
+        <MenuItem Header="Cu_t cel" Click="OnMenuCutCel" InputGesture="Ctrl+X" />
+        <MenuItem Header="Pa_ste cel" Click="OnMenuPasteCel" InputGesture="Ctrl+V" />
+        <MenuItem Header="C_lear cel" Click="OnMenuClearCel"
+                  ToolTip.Tip="The drawing under the playhead loses its content; the timing stays" />
+        <MenuItem Header="Delete cel" Click="OnMenuDeleteCel" />
+        <MenuItem Header="Delete column (this frame, every layer)" Click="OnMenuDeleteColumn" />
+        <Separator />
+        <MenuItem Header="_Onion skin" ToggleType="CheckBox"
+                  IsChecked="{Binding OnionSkin, Mode=TwoWay}"
+                  ToolTip.Tip="Neighbouring drawings ghosted under the one in hand — counts and falloff are on the timeline's onion bar" />
+        <MenuItem Header="Keyed dra_wings only" ToggleType="CheckBox"
+                  IsChecked="{Binding OnionKeysOnly, Mode=TwoWay}"
+                  ToolTip.Tip="Ghost only the drawings, not every frame of a hold — how flipping works on 2s" />
+        <MenuItem Header="_Motion trail" ToggleType="CheckBox"
+                  IsChecked="{Binding MotionTrail, Mode=TwoWay}"
+                  ToolTip.Tip="The path and spacing of the drawing across neighbouring frames" />
+        <Separator />
+        <MenuItem Header="Set start frame" Click="OnMenuSetStartFrame"
+                  ToolTip.Tip="Playback loops from here" />
+        <MenuItem Header="Set end frame" Click="OnMenuSetEndFrame" />
+        <MenuItem Header="Clear playback range" Click="OnClearPlaybackRange" />
+      </MenuItem>
       <MenuItem Header="_View" Classes="top">
+        <!--
+          The view transform first: the View bar's six buttons, which were the
+          only way to reach them by pointer. All view-only (invariant 5) — the
+          artwork is untouched by every one of these.
+        -->
+        <MenuItem Header="Zoom _in" Click="OnZoomIn" ToolTip.Tip="Mouse wheel does this too" />
+        <MenuItem Header="Zoom _out" Click="OnZoomOut" />
+        <MenuItem Header="Rotate view 15° counter-clockwise" Click="OnRotateCcw"
+                  ToolTip.Tip="Turn the paper, not the drawing (Shift+wheel)" />
+        <MenuItem Header="Rotate view 15° clockwise" Click="OnRotateCw" />
+        <MenuItem Header="_Mirror view" Click="OnToggleMirror" InputGesture="M"
+                  ToolTip.Tip="Flip the view to check the drawing with fresh eyes — the artwork is untouched" />
+        <MenuItem Header="_Reset view" Click="OnResetView"
+                  ToolTip.Tip="Zoom, rotation, mirror and pan, all back to home (0)" />
+        <Separator />
         <!--
           Guides are document data, like the camera, so they live under View
           next to the other things you turn on rather than in a panel that
