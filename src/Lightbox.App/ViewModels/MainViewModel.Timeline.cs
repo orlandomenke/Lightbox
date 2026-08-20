@@ -870,6 +870,40 @@ public partial class MainViewModel
         if (CurrentCell() is { } cell) PasteCel(cell);
     }
 
+    // ---- Animation menu: the cel context menu's verbs, aimed at the playhead ----
+    // A menu item has no cel under a pointer, so these are the same twins the
+    // shortcuts above use: the active layer's cel at the current frame.
+
+    /// <summary>Mark the playhead's cel as a drawing of the given role (Animation menu).</summary>
+    public void InsertFrameAtPlayhead(FrameRole role) =>
+        _editor.SetKeyAt(ActiveLayer.Id, CurrentFrameIndex, role);
+
+    public void ExtendExposureAtPlayhead()
+    {
+        if (CurrentCell() is { } cell) ExtendExposureAt(cell);
+    }
+
+    public void ReduceExposureAtPlayhead()
+    {
+        if (CurrentCell() is { } cell) ReduceExposureAt(cell);
+    }
+
+    public void ClearCelAtPlayhead()
+    {
+        if (CurrentCell() is { } cell) ClearCelAt(cell);
+    }
+
+    public void DeleteCelAtPlayhead()
+    {
+        if (CurrentCell() is { } cell) DeleteCelAt(cell);
+    }
+
+    public void SetPlaybackStartAtPlayhead() =>
+        PlaybackStartFrame = Math.Min(CurrentFrameIndex, Scene.FrameCount - 1);
+
+    public void SetPlaybackEndAtPlayhead() =>
+        PlaybackEndFrame = Math.Min(CurrentFrameIndex, Scene.FrameCount - 1);
+
     // ---- multi-cel selection ------------------------------------------------------
 
     /// <summary>

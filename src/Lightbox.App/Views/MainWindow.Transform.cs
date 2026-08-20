@@ -86,6 +86,22 @@ public partial class MainWindow
 
     private void OnTransformCancel(object? sender, RoutedEventArgs e) => _vm.CancelTransform();
 
+    /// <summary>Edit ▸ Transform: the same session Ctrl+T begins.</summary>
+    private void OnMenuBeginTransform(object? sender, RoutedEventArgs e)
+    {
+        if (!_vm.TransformActive) _vm.BeginTransform();
+    }
+
+    /// <summary>
+    /// Edit ▸ Transform ▸ Perspective: the gizmo context menu's toggle, kept in
+    /// step with the tool-options ToggleButton the same way that menu is.
+    /// </summary>
+    private void OnMenuTransformPerspective(object? sender, RoutedEventArgs e)
+    {
+        Canvas.TransformPerspective = !Canvas.TransformPerspective;
+        TransformPerspectiveToggle.IsChecked = Canvas.TransformPerspective;
+    }
+
     /// <summary>Right-click on the canvas during a transform: the options menu.</summary>
     private void ShowTransformMenu(Avalonia.Point viewPos)
     {

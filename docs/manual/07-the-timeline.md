@@ -3,6 +3,14 @@
 
 ## The timeline family
 
+**The everyday frame verbs are also on the Animation menu**, each aimed at the
+drawing under the playhead on the layer you are on: play/pause and flipping to
+the neighbouring keys, inserting a keyframe, breakdown or inbetween, extending
+and reducing an exposure, the cel clipboard, clear and delete, onion skin and
+motion trail, and the playback range. The cel's right-click menu stays the way
+to aim any of them at a *particular* cel — and keeps the dialogs (re-time,
+timing chart, markers), which need one to aim at.
+
 Three views over the same animation share the bottom panel as tabs, and
 nothing you do in one is invisible in another:
 
@@ -353,7 +361,8 @@ the same place, so the grips win where they are and clicking anywhere else on
 the bar still scrubs.
 
 The **Set playback start / end** items on a cel's context menu still work and
-do the same thing; the grips are the version you can aim.
+do the same thing; the grips are the version you can aim. The **Animation**
+menu carries the same pair, taking the playhead's frame as the bound.
 
 ## Looping
 

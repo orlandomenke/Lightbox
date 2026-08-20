@@ -105,8 +105,13 @@ public class MainMenuShapeTests(ITestOutputHelper output)
             .Items.OfType<MenuItem>().Select(m => m.Header as string).ToList();
 
         output.WriteLine(string.Join(" | ", top));
-        Assert.Equal(top.IndexOf("_Image") + 1, top.IndexOf("_Select"));
-        Assert.Equal(top.IndexOf("_Select") + 1, top.IndexOf("_View"));
+        // The full order, because position is the promise: Layer sits between
+        // Image and Select (Photoshop's and Krita's order), and Animation
+        // between Select and View — the pointer travels left to right through
+        // the bar in roughly the order a drawing is worked.
+        Assert.Equal(
+            ["_File", "_Edit", "_Image", "La_yer", "_Select", "_Animation", "_View", "Effe_cts", "_Help"],
+            top);
 
         var items = TopLevel(window, "_Select").Items.OfType<MenuItem>().ToList();
         Assert.Equal(7, items.Count);
@@ -123,6 +128,56 @@ public class MainMenuShapeTests(ITestOutputHelper output)
         Assert.True(items.Single(i => (string)i.Header! == "_Invert").IsEnabled);
         // Grow needs a region to grow.
         Assert.False(items.Single(i => (string)i.Header! == "_Grow").IsEnabled);
+    }
+
+    /// <summary>
+    /// The Layer and Animation menus mirror the dockers' verbs, and every
+    /// entry that binds a command actually reaches one.
+    /// </summary>
+    /// <remarks>
+    /// The Click-wired entries are compile-checked (a missing handler fails the
+    /// XAML build), so what this guards is the binding half — a mistyped
+    /// command path renders, greys out and does nothing — plus the shape: an
+    /// entry silently dropped from either menu would put the app back where it
+    /// was, with the feature reachable only by knowing which docker hides it.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheLayerAndAnimationMenusAreWired()
+    {
+        var window = new MainWindow();
+
+        var layer = TopLevel(window, "La_yer").Items.OfType<MenuItem>().ToList();
+        output.WriteLine(string.Join(" | ", layer.Select(i => i.Header)));
+        Assert.Equal(
+            ["_New layer", "New _folder with this layer", "Move _up", "Move _down", "Merge do_wn",
+             "_Visible", "_Locked", "Lock _transparency",
+             "_Select layer contents", "_Blank layer content", "Delete la_yer"],
+            layer.Select(i => i.Header as string).ToList());
+        foreach (var item in layer.Where(i => i.ToggleType == MenuItemToggleType.None
+                                              && (string)i.Header! != "Merge do_wn")) // Click-wired: the Q52 ask
+        {
+            Assert.True(item.Command is not null, $"{item.Header} reaches no command");
+        }
+        // The three checkboxes carry state, so they are toggles, not verbs.
+        Assert.Equal(3, layer.Count(i => i.ToggleType == MenuItemToggleType.CheckBox));
+
+        var animation = TopLevel(window, "_Animation").Items.OfType<MenuItem>().ToList();
+        output.WriteLine(string.Join(" | ", animation.Select(i => i.Header)));
+        Assert.Equal(
+            ["_Play / pause", "P_revious key drawing", "_Next key drawing",
+             "Insert _keyframe", "Insert _breakdown", "Insert _inbetween frame",
+             "_Extend exposure (+1 hold)", "Re_duce exposure (−1 hold)",
+             "_Copy cel", "Cu_t cel", "Pa_ste cel", "C_lear cel", "Delete cel",
+             "Delete column (this frame, every layer)",
+             "_Onion skin", "Keyed dra_wings only", "_Motion trail",
+             "Set start frame", "Set end frame", "Clear playback range"],
+            animation.Select(i => i.Header as string).ToList());
+        foreach (var header in new[] { "_Play / pause", "P_revious key drawing", "_Next key drawing" })
+        {
+            Assert.True(animation.Single(i => (string)i.Header! == header).Command is not null,
+                $"{header} reaches no command");
+        }
+        Assert.Equal(3, animation.Count(i => i.ToggleType == MenuItemToggleType.CheckBox));
     }
 
     /// <summary>Both crops are on the Image menu, beneath the two resizes.</summary>
