@@ -140,7 +140,7 @@ public sealed partial class CanvasControl
     private IReadOnlyList<RigMark>? _rigMarks;
 
     /// <summary>
-    /// The motion trail's ticks and the analysis riding them (Q133), or null
+    /// The motion trail's ticks and the analysis riding them (Q134), or null
     /// for none — absent when the trail is off, following
     /// <see cref="RigMarks"/>: a flattened snapshot pushed from the window
     /// when the view model says it changed, not bound.
@@ -160,6 +160,25 @@ public sealed partial class CanvasControl
     }
 
     private TrailOverlay? _trailPoints;
+
+    /// <summary>
+    /// The motion arc overlay — the fitted arc, its off-arc ticks and the
+    /// predicted positions — or null for none, following
+    /// <see cref="TrailPoints"/> in every way including the null guard: while
+    /// the arc is off, a refresh must not invalidate the canvas.
+    /// </summary>
+    public Core.Timeline.MotionArcOverlay? MotionArc
+    {
+        get => _motionArc;
+        set
+        {
+            if (ReferenceEquals(_motionArc, value)) return;
+            _motionArc = value;
+            InvalidateVisual();
+        }
+    }
+
+    private Core.Timeline.MotionArcOverlay? _motionArc;
 
     /// <summary>
     /// Whether a press should edit the rig instead of drawing.

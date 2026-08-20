@@ -1,4 +1,4 @@
-# Q133 · The three Pillar 4 analysers: shape, scope and surface — **answered 2026-08-20**
+# Q134 · The three Pillar 4 analysers: shape, scope and surface — **answered 2026-08-20**
 
 The spacing assistant, walk cycle analyzer and jump arc analyzer were the last
 `[?]` reading-family items Q98's motion trail was built to carry. All three are

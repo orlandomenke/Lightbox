@@ -27,12 +27,26 @@ namespace Lightbox.Core.Documents;
 /// (the nudge does) round the offset to whole pixels when the frame carries a
 /// bake; <see cref="HasBakedRaster"/> is how they ask.
 /// </para>
+/// <para>
+/// <b>A stroke's clip region does not travel</b>, and cannot from here: a
+/// <see cref="Stroke.ClipId"/> names a content-hashed entry in
+/// <c>Doc.ClipRegions</c>, shareable between strokes and frames, and this
+/// method only has the frame. A caller moving a drawing that contains a
+/// clip-limited stroke must refuse (the nudge does, via
+/// <see cref="HasClippedStrokes"/>) or re-author the clip itself — silently
+/// moving the ink out from under its mask is the failure this note exists to
+/// prevent.
+/// </para>
 /// </remarks>
 public static class FrameTranslate
 {
     /// <summary>Whether any stroke carries a baked raster, so a caller can round the offset to whole pixels first.</summary>
     public static bool HasBakedRaster(Frame frame) =>
         frame.Strokes.Any(s => s.Baked is { PngBase64.Length: > 0 });
+
+    /// <summary>Whether any stroke is clip-limited, so a caller can refuse rather than move ink out from under its mask.</summary>
+    public static bool HasClippedStrokes(Frame frame) =>
+        frame.Strokes.Any(s => s.ClipId is not null);
 
     /// <summary>
     /// Translate the drawing in place. False when the frame has a pixel

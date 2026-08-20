@@ -5,7 +5,7 @@ namespace Lightbox.App.Rendering;
 
 /// <summary>
 /// Everything the motion trail's layer of the overlay sandwich shows: the
-/// trail's own ticks, and the analysers riding it (Q133) — the spacing
+/// trail's own ticks, and the analysers riding it (Q134) — the spacing
 /// assistant's ghost targets and the fitted jump arc. One snapshot, pushed
 /// from the view model the way the trail always was, so the canvas gains
 /// analyser chrome without gaining a second channel.

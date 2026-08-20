@@ -5,7 +5,7 @@ using Xunit;
 namespace Lightbox.Core.Tests.Timeline;
 
 /// <summary>
-/// The gravity fit (Q133): points on a parabola fit with no offenders, the
+/// The gravity fit (Q134): points on a parabola fit with no offenders, the
 /// drawing off the arc is named with both positions, an arc that never comes
 /// down is called not ballistic, and the fit is scoped to the playhead's run.
 /// </summary>

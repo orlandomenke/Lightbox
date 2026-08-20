@@ -337,13 +337,17 @@ public sealed class ShortcutMap
             // checkbox on the timeline bar is the way in, and being here is
             // what lets an artist bind it to whatever they have free.
             new("canvas.motionTrail", "Show motion trail (path and spacing)", "Canvas", null),
-            // The trail's analysers (Q133), gestureless for the trail's own
+            // The trail's analysers, gestureless for the trail's own
             // reason: the flyout checkbox is the way in, and being here is
             // what makes them findable and bindable.
             new("canvas.spacingGhosts", "Show spacing targets on the trail", "Canvas", null),
             new("canvas.jumpArc", "Show fitted jump arc on the trail", "Canvas", null),
             new("canvas.walkReport", "Show walk cycle readout", "Canvas", null),
             new("timeline.nudgeToSpacing", "Nudge drawing to its spacing target", "Timeline", null),
+            // No default gestures either, for motionTrail's reason — and both
+            // switch the trail on with them, so neither ever toggles nothing.
+            new("canvas.motionArc", "Show motion arc (fitted arc and off-arc drawings)", "Canvas", null),
+            new("canvas.arcPrediction", "Show arc prediction (where the next drawing goes)", "Canvas", null),
 
             new("timeline.playPause", "Play / pause", "Timeline", G(Key.Space)),
             new("timeline.prevFrame", "Previous frame (scrub)", "Timeline", G(Key.Left), ShortcutContext.Panel, DockPanelId.Timeline),

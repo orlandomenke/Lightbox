@@ -872,24 +872,53 @@ every other AI feature and are only legible together.
     where it was drawn, not where the pose moved it — the manual marks posed
     trails *Planned*, and it belongs to the arcs/analyzer follow-ups this
     substrate exists for.
-- [?] Motion arcs
-- [?] Arc prediction
+- [x] Motion arcs `evidence: MotionArc, MotionArcOverlay, MotionArcPainter, MotionArcTests, MotionArcOverlayTests, TheFitRecoversTheCircleTheTicksSitOn, CollinearTicksFitALineNotANonsenseCircle, AnOffArcTickIsFlaggedWithItsFootOnTheArc, TheArcTogglesAreRegisteredSoTheyCanBeFoundAndRebound`
+  - **Landed 2026-08-20 with arc prediction as one overlay** — the first of
+    Q98's follow-ups on the trail substrate. A least-squares circle degrading
+    to a line (Q133: the other models are wanted *eventually* — the parabola
+    with the jump arc analyzer, a model picker when a second model exists),
+    drawn in gold under the trail's ticks: one added colour for one added
+    concept, the arc's opinion against the ticks' facts.
+  - **Off-arc is a leave-worst-out judgement, not a raw residual.** A
+    least-squares fit pulls toward an outlier and spreads the blame — one
+    drawing 14 px off put every tick past tolerance in the first version, and
+    the largest deviator was an innocent edge tick. The tick whose *absence*
+    most improves the fit leaves until the rest agree, then everything is
+    judged against that arc; the flagged tick carries its **foot**, so the
+    overlay says "move it about here" rather than just "wrong". Tolerance is
+    read off the ticks' own polyline — a tolerance that moved with the curve
+    would judge a drawing by how much it dragged the judge.
+- [x] Arc prediction `evidence: ThePredictedNextContinuesTheSpacingTrend, AnEmptyCurrentCelGetsAPredictionBetweenItsNeighbours, AStalledSubjectPredictsNothing, ARealNextDrawingSuppressesThePrediction, TheArcPaintsAndThePredictionsAreDashed`
+  - The overlay's other half: a dashed tick where the drawing after the last
+    one should land — spacing carried on from the artist's own, an ease kept
+    easing, clamped so a spike does not launch it off canvas — and a dashed
+    tick on an empty cel between drawings, the inbetweening moment. Dashed
+    everywhere because a suggestion drawn like a fact gets treated as one.
+  - **The refusals are the design**: no prediction on top of a real drawing
+    (the view model probes one drawing past the window, and the probe tick is
+    never displayed), none for a stalled subject (a hold's exit is a timing
+    decision, not geometry), none from two ticks (a chord agrees with every
+    arc through its ends). Timeline-proportional spacing for the empty cel is
+    deliberate for this slice — obeying an authored timing chart belongs to
+    the spacing assistant below.
 - [x] Spacing visualization `evidence: TheTrailPaintsTicksAndTheLineBetweenThem, AHoldIsOneTickNotTwo, AnAuthoredPivotBeatsTheDerivedCentre, ErasingSaysNothingAboutWhereTheSubjectIs`
   - The motion trail's other half — see the item above; one overlay, two
     promises. The hold rule is the load-bearing one for spacing: a tick per
     cel would pile invisible coincident dots on every hold and make tick
     counting lie about drawing counts, so ticks count drawings and a hold on
     2s is one tick standing still.
-- [x] Spacing assistant `evidence: SpacingAssistant, TargetsForRun, FrameTranslate, AnalysisOverlayPainter, SpacingAssistantTests, FrameTranslateTests, ABunchedDrawingIsFlaggedAndItsTargetSitsOnTheMeasuredPath, TheExtremesOwnChartBeatsTheGlobalEasing, TheNudgeMovesTheDrawingAndUndoRestoresTheExactBits, ANudgeRefusesADrawingWithAPixelBaseline`
-  - **The acting half of the spacing chart (Q133)**: ghost ticks on the trail
+- [x] Spacing assistant `evidence: SpacingAssistant, TargetsForRun, FrameTranslate, AnalysisOverlayPainter, SpacingAssistantTests, FrameTranslateTests, ABunchedDrawingIsFlaggedAndItsTargetSitsOnTheMeasuredPath, TheExtremesOwnChartBeatsTheGlobalEasing, TheNudgeMovesTheDrawingAndUndoRestoresTheExactBits, ANudgeRefusesADrawingWithAPixelBaseline, ANudgeRefusesAClipLimitedStroke`
+  - **The acting half of the spacing chart (Q134)**: ghost ticks on the trail
     where the intended spacing (the extreme's chart, else the easing) wants
     each inbetween, and a one-click nudge that slides the playhead's drawing
     along the measured path onto its target — a whole-frame translate
     (`FrameTranslate`, everything `ImageResize` visits), one undo step, exact
     on undo. Targets use the trail's subject (`MotionTrail.Locate`), not the
     graph's centroid, so the ghost and the real tick cannot disagree.
-  - Extremes are never targets; a drawing with a pixel baseline is refused
-    whole rather than torn from its pixels.
+  - Extremes are never targets; a drawing with a pixel baseline or a
+    selection-clipped stroke is refused whole rather than torn from its
+    pixels or its mask (the clip lives on the document, content-hashed and
+    shareable, so it cannot travel with one drawing).
 - [x] Timing charts `evidence: TimingChart, TimingChartView, TimingChartTests, TimingChartVmTests, TheChartPlacesTheInbetweensExactlyOnItsRungs, TheInbetweenerObeysTheChartOverTheBar`
   - The ladder on the extreme (Q58): `Frame.Chart` holds the rungs, the cel
     menu's editor writes them, and both inbetweeners and the intended-spacing
@@ -898,7 +927,7 @@ every other AI feature and are only legible together.
 - [?] Perspective consistency checker
 - [?] Silhouette readability preview
 - [x] Walk cycle analyzer `evidence: WalkCycleAnalyser, WalkCycleReport, WalkFinding, WalkCycleAnalyserTests, ACleanCycleReportsNoFindings, ASeamThatJumpsNamesTheLoop, UnevenContactsNameTheStride, ALopsidedBobNamesBothSteps`
-  - Reads the active layer's sheet as one cycle (Q133): loop closure, contact
+  - Reads the active layer's sheet as one cycle (Q134): loop closure, contact
     evenness, bob symmetry — all off the record, feet as the lowest ink,
     tolerances as fractions of ink height. Prose in the trail's flyout
     readout, advisory by design: a deliberate shuffle is allowed to trip it.
@@ -907,7 +936,7 @@ every other AI feature and are only legible together.
     judged against the steps *away* from it (a wrong endpoint corrupts the
     step beside it too, and must not set its own yardstick).
 - [x] Jump arc analyzer `evidence: JumpArcAnalyser, JumpArcFit, FitRun, JumpArcAnalyserTests, PointsOnAParabolaFitWithNoOffenders, ADrawingOffTheArcIsNamed, AnArcThatNeverComesDownIsNotBallistic, TheFitIsTheRunAtThePlayheadNotTheWholeLayer`
-  - Fits x-linear/y-quadratic to the playhead's run (Q133) — cel-index time,
+  - Fits x-linear/y-quadratic to the playhead's run (Q134) — cel-index time,
     so 2s carry their real timing — draws the arc dashed on the trail and
     rings the drawings off it. Closed-form least squares run twice: once over
     everything, once without the single worst drawing, because a plain fit is

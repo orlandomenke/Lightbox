@@ -33,15 +33,16 @@ public static class MotionTrailPainter
     public const float TickScreenRadius = 3.5f;
 
     /// <summary>
-    /// Paint the trail and whatever analysis rides it — the one entry point
-    /// the draw op calls, so the analysers cost the budgeted canvas file no
-    /// second call site.
+    /// Paint the trail and everything riding it — the fitted arc under the
+    /// ticks (the judgement below the facts), the analysers over them — as
+    /// the one entry point the draw op calls, so neither costs the budgeted
+    /// canvas file a second call site.
     /// </summary>
-    public static void Paint(SKCanvas canvas, TrailOverlay? overlay, float scale)
+    public static void Paint(
+        SKCanvas canvas, TrailOverlay? overlay, float scale, MotionArcOverlay? arc = null)
     {
-        if (overlay is null) return;
-        Paint(canvas, overlay.Points, scale);
-        AnalysisOverlayPainter.Paint(canvas, overlay, scale);
+        Paint(canvas, overlay?.Points, scale, arc);
+        if (overlay is not null) AnalysisOverlayPainter.Paint(canvas, overlay, scale);
     }
 
     /// <summary>
@@ -51,8 +52,14 @@ public static class MotionTrailPainter
     /// <param name="scale">
     /// View scale, so ticks and line widths stay screen-sized at any zoom.
     /// </param>
-    public static void Paint(SKCanvas canvas, IReadOnlyList<TrailPoint>? points, float scale)
+    /// <param name="arc">
+    /// The arc overlay, painted first so it sits under the ticks — the arc is
+    /// the judgement, the ticks are the facts.
+    /// </param>
+    public static void Paint(
+        SKCanvas canvas, IReadOnlyList<TrailPoint>? points, float scale, MotionArcOverlay? arc = null)
     {
+        MotionArcPainter.Paint(canvas, arc, scale);
         if (points is not { Count: > 1 }) return;
 
         var px = 1f / Math.Max(0.01f, scale);

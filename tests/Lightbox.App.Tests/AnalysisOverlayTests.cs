@@ -9,7 +9,7 @@ using Xunit;
 namespace Lightbox.App.Tests;
 
 /// <summary>
-/// The trail's analysers end to end (Q133): the painter puts ghost targets and
+/// The trail's analysers end to end (Q134): the painter puts ghost targets and
 /// the fitted arc where the arithmetic says, the readout speaks in the flyout,
 /// the nudge moves the drawing and undoes exactly, and every switch is
 /// registered where the Configure window can see it — B58's three assertions,
@@ -187,6 +187,40 @@ public sealed class AnalysisOverlayTests(ITestOutputHelper output) : BrushStateI
 
         Assert.Equal(before, layer.Cels[1].Frame!.Strokes[0].Points[0].X);
         Assert.Contains("baseline", vm.AiStatus);
+    }
+
+    [AvaloniaFact]
+    public void ANudgeRefusesAClipLimitedStroke()
+    {
+        // The adversary's find: a ClipId names a content-hashed, shareable
+        // entry in Doc.ClipRegions, so it cannot travel with one drawing —
+        // moving the ink and leaving the mask desyncs the two silently.
+        var vm = new MainViewModel(artist: null) { SmoothStrokes = false };
+        vm.NewDocument(new NewDocumentSettings("Nudge", W, H, 12, 72, "#ffffff", false));
+        vm.ColorHex = "#000000";
+        vm.BeginStroke(10, 40, 1);
+        vm.MoveStroke(30, 60, 1);
+        vm.EndStroke();
+        vm.AddFrameCommand.Execute(null);
+        vm.BeginStroke(40, 40, 1);
+        vm.MoveStroke(60, 60, 1);
+        vm.EndStroke();
+        vm.AddFrameCommand.Execute(null);
+        vm.BeginStroke(110, 40, 1);
+        vm.MoveStroke(130, 60, 1);
+        vm.EndStroke();
+
+        var layer = vm.Doc.Scene.Layers[vm.ActiveLayerIndex];
+        layer.Cels[1].Frame!.Role = FrameRole.Inbetween;
+        layer.Cels[1].Frame!.Strokes[0].ClipId = "clip-1";
+        var before = layer.Cels[1].Frame!.Strokes[0].Points[0].X;
+
+        vm.CurrentFrameIndex = 1;
+        vm.NudgeToSpacing();
+        output.WriteLine(vm.AiStatus);
+
+        Assert.Equal(before, layer.Cels[1].Frame!.Strokes[0].Points[0].X);
+        Assert.Contains("clip", vm.AiStatus);
     }
 
     [AvaloniaFact]

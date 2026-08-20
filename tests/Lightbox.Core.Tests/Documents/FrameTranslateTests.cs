@@ -4,7 +4,7 @@ using Xunit;
 namespace Lightbox.Core.Tests.Documents;
 
 /// <summary>
-/// The whole-drawing move the spacing nudge rides (Q133). The interesting
+/// The whole-drawing move the spacing nudge rides (Q134). The interesting
 /// promises are the coordinate walk's completeness — holes, seeds, path
 /// nodes, anchors, placements and shapes all travel, or a nudge tears the
 /// drawing — and the refusal: a pixel baseline cannot move, so nothing does.

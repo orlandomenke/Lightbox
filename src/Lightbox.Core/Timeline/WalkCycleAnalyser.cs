@@ -28,7 +28,7 @@ public sealed record WalkCycleReport(
 
 /// <summary>
 /// Reads the active layer's sheet as one walk cycle and reports the three
-/// things that make a cycle hitch (Q133): a loop that does not close, contacts
+/// things that make a cycle hitch (Q134): a loop that does not close, contacts
 /// that land unevenly, and a bob that differs between the steps.
 /// </summary>
 /// <remarks>
@@ -43,7 +43,7 @@ public sealed record WalkCycleReport(
 /// <para>
 /// The checks are advisory prose and deliberately so: the bob check assumes a
 /// gait that rises between contacts, and a deliberate shuffle will trip it.
-/// That cost was accepted in Q133 — a readout can be ignored, and the walks
+/// That cost was accepted in Q134 — a readout can be ignored, and the walks
 /// that wobble by accident vastly outnumber the shuffles drawn on purpose.
 /// </para>
 /// </remarks>

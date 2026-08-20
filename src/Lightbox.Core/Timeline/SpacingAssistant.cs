@@ -21,7 +21,7 @@ public readonly record struct SpacingTarget(
     double Deviation, bool Misses);
 
 /// <summary>
-/// The acting half of the spacing chart (Q133): where each inbetween's subject
+/// The acting half of the spacing chart (Q134): where each inbetween's subject
 /// SHOULD sit for the run's intended spacing, so the miss can be shown as a
 /// ghost tick on the motion trail and closed with one nudge.
 /// </summary>
@@ -40,7 +40,7 @@ public readonly record struct SpacingTarget(
 /// The subject is <see cref="MotionTrail.Locate"/>'s — authored pivot, else
 /// ink-bounds centre — not <see cref="SpacingChart"/>'s centroid, because the
 /// ghost is painted beside the trail's real tick and the two must not
-/// disagree about where a drawing is (Q133). Extremes are never targets: they
+/// disagree about where a drawing is (Q134). Extremes are never targets: they
 /// are the artist's statements the spacing is measured between.
 /// </para>
 /// </remarks>

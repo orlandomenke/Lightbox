@@ -6,7 +6,7 @@ using Xunit;
 namespace Lightbox.Core.Tests.Timeline;
 
 /// <summary>
-/// The acting half of the spacing chart (Q133): targets sit on the measured
+/// The acting half of the spacing chart (Q134): targets sit on the measured
 /// path at the intended fractions, extremes are never moved, and the flag
 /// threshold separates a drawing that pops from arithmetic noise.
 /// </summary>

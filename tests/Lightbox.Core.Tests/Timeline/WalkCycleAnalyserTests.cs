@@ -5,7 +5,7 @@ using Xunit;
 namespace Lightbox.Core.Tests.Timeline;
 
 /// <summary>
-/// The walk reader (Q133): a clean cycle reports nothing, a seam that jumps
+/// The walk reader (Q134): a clean cycle reports nothing, a seam that jumps
 /// names the loop, footfalls landing unevenly name the stride, and a lopsided
 /// bob names both steps. The interesting property throughout is that a
 /// CORRECT cycle's last drawing differs from its first — by one step — so

@@ -6,7 +6,7 @@ using Lightbox.Core.Timeline;
 namespace Lightbox.App.ViewModels;
 
 /// <summary>
-/// The analysers riding the motion trail (Q133): the spacing assistant's
+/// The analysers riding the motion trail (Q134): the spacing assistant's
 /// ghost targets and one-click nudge, the jump arc fit, and the walk cycle
 /// readout. The geometry goes to the canvas inside the trail's own snapshot;
 /// the words go to <see cref="AnalysisReadout"/> in the onion bar's flyout.
@@ -165,7 +165,7 @@ public partial class MainViewModel
 
     /// <summary>
     /// Move the playhead's drawing to where the intended spacing wants it —
-    /// the assistant's one click (Q133). A whole-drawing translate through
+    /// the assistant's one click (Q134). A whole-drawing translate through
     /// <see cref="FrameTranslate"/>, one undo step, exact on undo because the
     /// revert restores the snapshotted coordinates rather than subtracting.
     /// </summary>
@@ -190,6 +190,15 @@ public partial class MainViewModel
         if (frame.HasBaseline)
         {
             AiStatus = "This drawing has a pixel baseline, which cannot be moved — nudge refused rather than tearing it.";
+            return;
+        }
+        // A clip region lives on the document, content-hashed and shareable
+        // between strokes, so it cannot travel with one drawing — moving the
+        // ink and leaving the mask desyncs the two silently. Refused whole,
+        // the baseline's rule.
+        if (FrameTranslate.HasClippedStrokes(frame))
+        {
+            AiStatus = "This drawing has selection-clipped strokes whose clip cannot move with them — nudge refused rather than desyncing the mask.";
             return;
         }
 

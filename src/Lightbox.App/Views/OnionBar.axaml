@@ -106,10 +106,18 @@
               <NumericUpDown Grid.Column="4" Value="{Binding MotionTrailAfter}" Minimum="0" Maximum="30"
                              Increment="1" FormatString="0" MinWidth="44" HorizontalAlignment="Left" />
             </Grid>
+            <!-- Behind the ⚙ with the depths, not out on the bar, for the
+                 overflow reason the depths moved here — and switching either
+                 on switches the trail on, so neither can silently show
+                 nothing. -->
+            <CheckBox Content="Arc" IsChecked="{Binding MotionArcs}"
+                      ToolTip.Tip="Fit a smooth arc through the ticks and mark the drawings that sit off it, each with a line to where it would land on the arc. Gold is the arc's opinion; the ticks are the facts." />
+            <CheckBox Content="Predict the next position" IsChecked="{Binding ArcPrediction}"
+                      ToolTip.Tip="A dashed tick where the drawing after the last one should go, spacing continued from your own — and, when the playhead stands on an empty cel between drawings, where that drawing's subject belongs. Suggestions are dashed so they cannot be misread as drawings." />
 
             <TextBlock Text="Analysis" FontWeight="SemiBold" FontSize="12" Margin="0,4,0,0" />
             <!--
-              The analysers ride the trail (Q133): geometry on the canvas
+              The analysers ride the trail (Q134): geometry on the canvas
               beside the trail's own ticks, words here. They only speak while
               the trail is on — marks with no ticks to sit beside would be
               chrome nobody asked to learn — so the checkboxes disable with it.

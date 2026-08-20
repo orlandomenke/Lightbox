@@ -34,7 +34,7 @@ public sealed record JumpArcFit(
     double Tolerance);
 
 /// <summary>
-/// Fits a gravity arc to the run the playhead is in (Q133): horizontal
+/// Fits a gravity arc to the run the playhead is in (Q134): horizontal
 /// position linear in time, vertical position quadratic — constant velocity
 /// and constant acceleration, which is all a thrown thing does. The drawings
 /// that sit off the fit are the ones that will read as a bump at speed.

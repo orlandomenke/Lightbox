@@ -45,6 +45,7 @@ public partial class MainWindow
         // list. Refreshed once here so a trail left on last session shows
         // without waiting for the playhead to move.
         _vm.MotionTrailChanged += overlay => Canvas.TrailPoints = overlay;
+        _vm.MotionArcChanged += arc => Canvas.MotionArc = arc;
         _vm.RefreshMotionTrail();
 
         // The armature overlay follows the rig's pattern exactly: pushed

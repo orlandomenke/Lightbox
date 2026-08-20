@@ -393,6 +393,12 @@ public partial class MainWindow
             case "timeline.nudgeToSpacing":
                 _vm.NudgeToSpacing();
                 break;
+            case "canvas.motionArc":
+                _vm.MotionArcs = !_vm.MotionArcs;
+                break;
+            case "canvas.arcPrediction":
+                _vm.ArcPrediction = !_vm.ArcPrediction;
+                break;
             case "canvas.showGuides":
                 _vm.Workspace.GuidesVisible = !_vm.Workspace.GuidesVisible;
                 break;

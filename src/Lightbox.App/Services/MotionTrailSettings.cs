@@ -25,7 +25,7 @@ public sealed class MotionTrailSettings
     public int After { get; set; } = 4;
 
     /// <summary>
-    /// The analysers riding the trail (Q133), each off by default for the
+    /// The analysers riding the trail, each off by default for the
     /// trail's own reason: they are reached for while judging a sequence,
     /// not left on while drawing. All three only speak while the trail is on.
     /// </summary>
@@ -34,4 +34,18 @@ public sealed class MotionTrailSettings
     public bool JumpArc { get; set; }
 
     public bool WalkReport { get; set; }
+
+    /// <summary>
+    /// The fitted arc and its off-arc judgement, riding the trail's ticks.
+    /// Off by default like the trail itself — a judgement you ask for.
+    /// </summary>
+    public bool Arc { get; set; }
+
+    /// <summary>
+    /// The predicted positions — the drawing after the last tick, and the
+    /// playhead's own drawing when it is empty between ticks. Separate from
+    /// <see cref="Arc"/> so an artist can be told where the next drawing goes
+    /// without the whole judgement, or judged without being told.
+    /// </summary>
+    public bool Predict { get; set; }
 }
