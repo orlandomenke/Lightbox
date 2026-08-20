@@ -248,6 +248,18 @@ public sealed class AppSettings
     /// </remarks>
     public bool AlwaysRecordPenAxes { get; set; }
 
+    /// <summary>
+    /// Whether the bone overlay follows the playhead while the animation
+    /// plays, rather than being hidden.
+    /// </summary>
+    /// <remarks>
+    /// Off by default, and B152 is the precedent: per-tick overlay work in this
+    /// application has already turned out to cost several times what it looked
+    /// like. Playback is for watching the animation; somebody checking that a
+    /// rigged limb reads through a movement can ask for the rig back.
+    /// </remarks>
+    public bool AnimateRigDuringPlayback { get; set; }
+
     /// <summary>What a mark on a held cel does. See <c>HoldDrawing</c>.</summary>
     public string DrawingOnAHold { get; set; } = "StartANewDrawing";
 

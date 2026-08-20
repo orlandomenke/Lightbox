@@ -160,6 +160,15 @@ public partial class MainViewModel
                 RefreshLayerThumbs();
             }
         }
+        // The rig stands at the playhead whenever it is showing a pose, so
+        // moving the playhead moves it. Nothing asked BoneChromes again on a
+        // frame change, so the overlay sat at whatever pose it last computed —
+        // on a scrub as much as during playback, which is where it was noticed.
+        // Gated on actually showing a pose: in bind mode the chrome is the rest
+        // skeleton and does not move with the playhead, so notifying there
+        // would repaint the overlay for nothing on every frame.
+        if (ArmatureEditMode && BonesShowAPose) OnPropertyChanged(nameof(BoneChromes));
+
         using (Profile(profiling, Services.TickProfile.Phase.Bookkeeping))
         {
             RefreshCamera();
