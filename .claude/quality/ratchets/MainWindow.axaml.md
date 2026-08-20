@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4576
+budget: 4521
 
 ## Why it is here despite being XAML
 
@@ -157,3 +157,8 @@ leaves a number nobody can account for. So every reason above stays, and
   from the same 4,434, so it is a third claim on that number and its six lines
   are additional to everything the remeasure before it counted. Its reason
   stays, the figure comes from `ratchets.py remeasure`.
+- **→ 4,521** (2026-08-20, silhouette view): the Channels docker's tiles
+  moved to `Views/ChannelsPanel.axaml`, where the fifth (Silhouette) tile
+  joined them — the tile alone would have grown this file by 13, and the
+  extraction takes the whole docker's 71 lines out instead. The budget
+  forcing the arrangement it exists to force.

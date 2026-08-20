@@ -4034,77 +4034,9 @@
              and it never reaches an exported pixel. -->
         <!-- Channels: what the canvas shows, one channel at a time. Solo is
              view-only — the record never hears about it (invariant 5). -->
-        <controls:Docker x:Name="ChannelsPanel" PanelId="Channels" Title="Channels"
+        <controls:Docker x:Name="ChannelsDock" PanelId="Channels" Title="Channels"
                          CloseCommand="{Binding ToggleChannelsDockerCommand}">
-          <StackPanel Spacing="4" Margin="2">
-            <ToggleButton IsChecked="{Binding IsRedSolo, Mode=OneWay}" HorizontalAlignment="Stretch"
-                          HorizontalContentAlignment="Left" Padding="4"
-                          Command="{Binding ToggleChannelSoloCommand}"
-                          CommandParameter="{x:Static render:ChannelSolo.Red}"
-                          ToolTip.Tip="View the red channel alone — click again for all channels">
-              <DockPanel>
-                <Border DockPanel.Dock="Left" Width="64" Height="36" CornerRadius="3"
-                        ClipToBounds="True" Margin="0,0,8,0">
-                  <Image Source="{Binding ChannelThumbRed}" Stretch="Uniform" />
-                </Border>
-                <TextBlock Text="Red" VerticalAlignment="Center" FontSize="12" />
-              </DockPanel>
-            </ToggleButton>
-            <ToggleButton IsChecked="{Binding IsGreenSolo, Mode=OneWay}" HorizontalAlignment="Stretch"
-                          HorizontalContentAlignment="Left" Padding="4"
-                          Command="{Binding ToggleChannelSoloCommand}"
-                          CommandParameter="{x:Static render:ChannelSolo.Green}"
-                          ToolTip.Tip="View the green channel alone — click again for all channels">
-              <DockPanel>
-                <Border DockPanel.Dock="Left" Width="64" Height="36" CornerRadius="3"
-                        ClipToBounds="True" Margin="0,0,8,0">
-                  <Image Source="{Binding ChannelThumbGreen}" Stretch="Uniform" />
-                </Border>
-                <TextBlock Text="Green" VerticalAlignment="Center" FontSize="12" />
-              </DockPanel>
-            </ToggleButton>
-            <ToggleButton IsChecked="{Binding IsBlueSolo, Mode=OneWay}" HorizontalAlignment="Stretch"
-                          HorizontalContentAlignment="Left" Padding="4"
-                          Command="{Binding ToggleChannelSoloCommand}"
-                          CommandParameter="{x:Static render:ChannelSolo.Blue}"
-                          ToolTip.Tip="View the blue channel alone — click again for all channels">
-              <DockPanel>
-                <Border DockPanel.Dock="Left" Width="64" Height="36" CornerRadius="3"
-                        ClipToBounds="True" Margin="0,0,8,0">
-                  <Image Source="{Binding ChannelThumbBlue}" Stretch="Uniform" />
-                </Border>
-                <TextBlock Text="Blue" VerticalAlignment="Center" FontSize="12" />
-              </DockPanel>
-            </ToggleButton>
-            <ToggleButton IsChecked="{Binding IsAlphaSolo, Mode=OneWay}" HorizontalAlignment="Stretch"
-                          HorizontalContentAlignment="Left" Padding="4"
-                          Command="{Binding ToggleChannelSoloCommand}"
-                          CommandParameter="{x:Static render:ChannelSolo.Alpha}"
-                          ToolTip.Tip="View coverage alone — transparent is black, solid is white. Click again for all channels">
-              <DockPanel>
-                <Border DockPanel.Dock="Left" Width="64" Height="36" CornerRadius="3"
-                        ClipToBounds="True" Margin="0,0,8,0">
-                  <Image Source="{Binding ChannelThumbAlpha}" Stretch="Uniform" />
-                </Border>
-                <TextBlock Text="Alpha" VerticalAlignment="Center" FontSize="12" />
-              </DockPanel>
-            </ToggleButton>
-            <ToggleButton IsChecked="{Binding IsSilhouette, Mode=OneWay}" HorizontalAlignment="Stretch"
-                          HorizontalContentAlignment="Left" Padding="4"
-                          Command="{Binding ToggleChannelSoloCommand}"
-                          CommandParameter="{x:Static render:ChannelSolo.Silhouette}"
-                          ToolTip.Tip="View the ink as solid black on white — does the pose read from the shape alone? Paper, references and ghosts are left out. Click again for the normal view">
-              <DockPanel>
-                <Border DockPanel.Dock="Left" Width="64" Height="36" CornerRadius="3"
-                        ClipToBounds="True" Margin="0,0,8,0">
-                  <Image Source="{Binding ChannelThumbSilhouette}" Stretch="Uniform" />
-                </Border>
-                <TextBlock Text="Silhouette" VerticalAlignment="Center" FontSize="12" />
-              </DockPanel>
-            </ToggleButton>
-            <TextBlock Text="Viewing only — the drawing is untouched." FontSize="11" Opacity="0.55"
-                       TextWrapping="Wrap" />
-          </StackPanel>
+          <views:ChannelsPanel />
         </controls:Docker>
 
         <controls:Docker x:Name="ReferencePanel" PanelId="Reference" Title="Reference"
