@@ -578,6 +578,82 @@ different drawing.
 > It is deliberately not in this branch: it is a new parameter that reaches
 > pixels and varies by frame, which is a decision rather than a tweak.
 
+### Burning, and the one number that was doing two jobs
+
+The observation came from watching a render: real flames shed their tips, and
+ours did not. **The measurement refuted the obvious reading of that.** The
+shedding was already there — the field breaks into separate pieces on 22 of 40
+frames, and the tracer draws every one of them (21 of 22; there is no
+minimum-area filter). What was missing was *survival*: counting only pieces of
+five cells or more, the window's own fire shed six over forty frames and **every
+one lasted exactly one frame.** The median detached piece was a single cell.
+That is sparkle, and it is why nobody saw a flame tip.
+
+The cause is structural rather than a mis-set number. **Heat is stamped at an
+emitter and from then on only decays.** A piece inside the column is refuelled
+from below every frame; a piece that has detached has nothing, so at
+`Cooling = 0.06` per step over eight substeps — 39% of its heat per frame — it
+falls under the outermost band level inside one frame. Real flame tips detach
+*and keep burning*, because they carry fuel with them.
+
+Slowing the cooling does work, and measuring it is what found the real problem:
+
+```
+                          flame height   sheds
+  Cooling 0.06 (tuned)     21 cells      6, every one 1 frame
+  Cooling 0.03             19 cells      10, 1-2 frames
+  Cooling 0.01             43 cells      2, lasting 12 and 26 frames
+  Cooling 0               84 cells       everything merges into one mass
+```
+
+The row that gives the behaviour is the row that doubles the flame. **`Cooling`
+sets a flame's length and its tip's survival with one number**, and the defaults
+were tuned for length — so the flame we shipped could not have shed a tip at any
+setting without becoming a different flame. Note also that zero is worse than
+0.01: with nothing cooling, the whole grid stays lit and there is no *separate*
+piece to see. It is a window, not a direction.
+
+**`Combustion` is that second job moved somewhere it can be set on its own.**
+Density is the fuel — an emitter already stamps it beside heat and the flow
+already carries it, so a detached parcel is already carrying a supply and only
+needed permission to spend it. Where fuel sits above an ignition point, a
+fraction of it burns per step and becomes heat.
+
+Three things about the shape are load-bearing:
+
+- **It is self-limiting**, and that is what makes it a flame rather than a
+  runaway. Burning consumes the fuel, so heat production falls away while
+  `Cooling` keeps taking a constant fraction; what is left is cool density,
+  which is smoke. `Emitter.Burst` gets *fireball becomes smoke* out of this for
+  free rather than needing a second mechanism.
+- **Ignition is absolute, not a fraction of the element's peak.** `BandLow` is a
+  fraction because it reads a field that has already been computed. An ignition
+  point *decides what the field becomes*, so scaling it by the peak would make
+  the threshold depend on the burning it is gating. Bands may follow the result;
+  this has to stand outside it.
+- **It is a value type.** `SimParams` is a record and `SimElement.Clone` copies
+  it with `with { }`, which copies a reference rather than what it points at — a
+  class here would leave a duplicated effect editing the original.
+  `EmitterScatter` can be a class because its owner clones it by hand; this
+  cannot, and `Editing_A_Copys_Combustion_Leaves_The_Original_Alone` is what
+  turns that from a comment into a test.
+
+**Burning makes a fire hotter and a hotter fire climbs**, so on a grid with room
+overhead this lengthens the flame and `Vorticity` is what takes the rise back by
+spending it on curl. That interaction is grid-dependent, which is the part that
+was nearly assumed rather than measured — on the 44-cell grid a new element gets,
+the flame has no room to use the extra heat:
+
+```
+                                  height of grid   longest piece
+  burning off (before)               50%             1 frame
+  burning on, vorticity .35 (ships)  47%             4 frames
+  burning on, vorticity .7           43%             7 frames
+```
+
+So the default changes one thing. New **fire** elements arrive burning; smoke and
+steam do not and write no keys about it.
+
 ## Reach and configuration
 
 Absent by default, reachable everywhere. A document with no element writes no
