@@ -561,6 +561,29 @@ which is a weak test and still far better than none.
 
 ### project
 
+- [ ] **B269** `P2` `project` A full-solution test run sometimes executes hundreds fewer App tests than exist and still reports green `evidence: FullSuiteExecutionCountIsAsserted`
+  - **Evidence.** Two `dotnet test` runs from the repository root on 2026-08-20,
+    same container, trees differing only by additions: the first reported
+    `Lightbox.App.Tests` as **3489 passed / 3489 total**, the second — after a
+    merge that only *added* tests — **2889 / 2889**, exit 0, `Failed: 0,
+    Skipped: 0`. Discovery on the same tree (`dotnet test --list-tests`) finds
+    **3498**, and an immediate re-run of the assembly alone executed all
+    **3498 / 3498**. So a full-solution run silently dropped ~600 tests and
+    called the suite green.
+  - **Why it matters more than a flaky failure.** A red flake wastes a re-run;
+    this reports *success while proving less than it claims* — a regression in
+    any of the missing 600 would ride a green suite to `main`. It is B259's
+    condition (full-solution contention, four assemblies on the box at once)
+    with the opposite symptom: there a test ran and failed, here tests never
+    ran and nothing said so.
+  - **Filed rather than fixed** because it does not reproduce on demand — the
+    very next solution run executed everything — and the fix is an
+    investigation into how xunit v3 under VSTest loses cases under parallel
+    assembly runs, not an afternoon. What *can* be built without that answer
+    is the guard the anchor names: assert the executed count against the
+    discovered count (in CI or a wrapper), so an under-run turns red instead
+    of green. Until then, treat a full-solution total that disagrees with the
+    per-assembly counts as a failed run.
 - [ ] **B264** `P2` `project` `ids --fix` renumbers both sides of a clash and rewrites the other branch's citations when run mid-merge `evidence: merge_in_progress, cmd_selftest`
   - **Mid-merge, HEAD is still this branch's last commit**, so the merge base predates both sides — and every file the *other* side is bringing in reads as "added since the base", exactly like this branch's own. Both entries are marked ours, the repair moves both to one new id, a fresh duplicate appears, and the other branch's citations are rewritten in files this branch never touched.
   - **Observed 2026-08-19**, resolving `main` into the crop branch: it renamed both sides of a Q126 clash to Q130 and rewrote `docs/DESIGN-pen-dynamics.md`, which belonged to the pen-tilt question entirely. Repaired by hand — main's entry restored byte-identical, this branch's moved to Q128 with fourteen citations — but the tool would have done it to the next person.
