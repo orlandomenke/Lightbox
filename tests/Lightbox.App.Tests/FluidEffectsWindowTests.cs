@@ -157,6 +157,63 @@ public class FluidEffectsWindowTests(Xunit.ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Fire arrives able to shed its tip, and smoke says nothing about burning.
+    /// </summary>
+    /// <remarks>
+    /// Until <c>Combustion</c> existed heat was only ever stamped at an emitter
+    /// and then decayed, so a piece of flame that detached went out inside one
+    /// frame — measured, six sheds over forty frames and every one of them gone
+    /// by the next drawing. That is the thing a person notices in a render and
+    /// nothing else in the suite could see.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Fire_Arrives_Burning_And_Smoke_Does_Not()
+    {
+        var vm = new MainViewModel(null);
+        var window = new FluidEffectsWindow(vm);
+
+        // Until burning existed a piece of flame that detached went out inside
+        // one frame, which is the one thing a person watching a render notices.
+        var fire = window.Model.NewElement("fire").Element!;
+        Assert.NotNull(fire.Params.Burning);
+
+        // Smoke does not burn, and should write no keys saying so.
+        var smoke = window.Model.NewElement("smoke").Element!;
+        Assert.Null(smoke.Params.Burning);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void The_Burning_Controls_Appear_Only_When_It_Is_On()
+    {
+        var vm = new MainViewModel(null);
+        var window = new FluidEffectsWindow(vm);
+        var smoke = window.Model.NewElement("smoke").Element!;
+        var model = window.Model;
+
+        Assert.Null(smoke.Params.Burning);
+        Assert.DoesNotContain(model.PhysicsFields, f => f.Name.StartsWith("· "));
+
+        model.PhysicsFields.Single(f => f.Name == "Burning").IsOn = true;
+
+        Assert.NotNull(smoke.Params.Burning);
+        foreach (var name in new[] { "· burn rate", "· ignition", "· yield" })
+        {
+            Assert.Contains(model.PhysicsFields, f => f.Name == name);
+        }
+
+        model.PhysicsFields.Single(f => f.Name == "· ignition").Value = 0.75;
+        Assert.Equal(0.75, smoke.Params.Burning!.Value.Ignition, 3);
+
+        model.PhysicsFields.Single(f => f.Name == "Burning").IsOn = false;
+        Assert.Null(smoke.Params.Burning);
+        Assert.DoesNotContain(model.PhysicsFields, f => f.Name.StartsWith("· "));
+
+        window.Close();
+    }
+
+    /// <summary>
     /// Scatter's controls are absent until it is switched on, and appear when it
     /// is — the camera's rule, and the one that keeps a panel from teaching an
     /// artist that its controls lie.

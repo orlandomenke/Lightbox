@@ -174,6 +174,27 @@ public sealed partial class FluidEffectsViewModel : ObservableObject
             // onion: three rings round one centre, which is a cross-section
             // rather than a volume. So smoke arrives shaded and fire does not.
             Treatment = fire ? null : new LineTreatment { ShadeOffset = 2 },
+            // A flame that cannot shed its tip is the thing a person watching a
+            // render notices straight away, and until `Burning` existed there was
+            // nothing to shed with: heat was stamped at the emitter and only
+            // decayed, so a piece that detached went out inside one frame. Fire
+            // therefore arrives burning.
+            //
+            // Nothing else moves with it, and that was measured rather than
+            // assumed. Burning makes a fire hotter and a hotter fire climbs, so
+            // the expectation was that `Vorticity` would have to come up to spend
+            // the extra rise on curl — which is true on a tall grid and is not
+            // true on this one, because 44 cells does not give the flame the room
+            // to use it. On the grid a new element actually gets:
+            //
+            //   today                  50% of the grid's height, sheds lasting 1 frame
+            //   burning, vorticity .35  47%,                     sheds lasting 4
+            //   burning, vorticity .7   43%,                     sheds lasting 7
+            //
+            // So the default changes one thing. An artist who wants the pieces to
+            // last longer raises `Vorticity` and pays for it in height, which the
+            // manual says. Smoke does not burn and writes no keys about it.
+            Params = fire ? new SimParams { Burning = new Combustion() } : new SimParams(),
         };
 
         // An element with no emitter simulates still air and draws nothing, which

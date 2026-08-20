@@ -599,7 +599,7 @@ every other AI feature and are only legible together.
   - Sequence-scale cost is the review stance over all four: `BrushCostOf`
     badges are read against replay across a whole sequence, not one image.
 - [?] Draw once, reuse across animations
-- [~] Fluid effects elements — fire, smoke and water as drawn line and fill `evidence: FluidSolver, MarchingSquares, FieldTracer, SimBaker, SimBakeOps, SimElement, LineTreatment, EffectParam, FluidEffectsViewModel, FluidEffectsWindow, EffectFieldRow, FluidSolverTests, MarchingSquaresTests, FieldTracerTests, SimBakerTests, SimElementTests, FluidEffectsViewModelTests, FluidEffectsWindowTests, A_New_Element_Arrives_Already_Burning, Every_Solver_Parameter_Has_A_Row, A_Style_Edit_Previews_And_A_Fluid_Edit_Waits, The_Fingerprint_Notices_Physics_And_Ignores_Style, Opening_The_Window_Is_A_Registered_Command, Smoke_Rises, Smoke_Arrives_Lit_And_Fire_Does_Not, AddExpansion, Expansion_Grows_A_Blob_And_Thins_It, Expansion_Makes_No_Matter, A_Radial_Push_Hollows_The_Middle_Where_Expansion_Keeps_It, A_Burst_Expands_The_Front, A_Timed_Emitter_Stops_Feeding, SimGroup, SimGroupOps, SimGroupTests, FluidEffectsGroupTests, Retiming_Shifts_Everything_And_Keeps_The_Internal_Timing, Folding_Puts_The_Baked_Layers_In_One_Folder_In_Order, A_Group_Stores_No_Geometry_Of_Its_Own, EmitterScatter, EmitterScatterTests, Scatter_Breaks_A_Burning_Edge_Into_Separate_Flames, Scattered_Flames_Differ_In_Height_Without_Being_Told_To, A_Longer_Surface_Gets_More_Flames_From_The_Same_Settings, EffectPreset, EffectPresets, EffectPresetStore, EffectPresetTests, FluidEffectsPresetTests, An_Effect_Made_From_A_Preset_Draws_Exactly_What_The_Original_Drew, Layers_Reconnect_By_Name_And_What_Cannot_Is_Reported, Shading_Slides_The_Inner_Bands_Toward_The_Light_And_Leaves_The_Silhouette, A_Highlight_Cannot_Be_Lit_Out_Of_Its_Own_Volume, FreeSurfaceSource, MetaballSource, ObstacleBoundaryTests`
+- [~] Fluid effects elements — fire, smoke and water as drawn line and fill `evidence: FluidSolver, MarchingSquares, FieldTracer, SimBaker, SimBakeOps, SimElement, LineTreatment, EffectParam, FluidEffectsViewModel, FluidEffectsWindow, EffectFieldRow, FluidSolverTests, MarchingSquaresTests, FieldTracerTests, SimBakerTests, SimElementTests, FluidEffectsViewModelTests, FluidEffectsWindowTests, A_New_Element_Arrives_Already_Burning, Every_Solver_Parameter_Has_A_Row, A_Style_Edit_Previews_And_A_Fluid_Edit_Waits, The_Fingerprint_Notices_Physics_And_Ignores_Style, Opening_The_Window_Is_A_Registered_Command, Smoke_Rises, Smoke_Arrives_Lit_And_Fire_Does_Not, AddExpansion, Expansion_Grows_A_Blob_And_Thins_It, Expansion_Makes_No_Matter, A_Radial_Push_Hollows_The_Middle_Where_Expansion_Keeps_It, A_Burst_Expands_The_Front, A_Timed_Emitter_Stops_Feeding, SimGroup, SimGroupOps, SimGroupTests, FluidEffectsGroupTests, Retiming_Shifts_Everything_And_Keeps_The_Internal_Timing, Folding_Puts_The_Baked_Layers_In_One_Folder_In_Order, A_Group_Stores_No_Geometry_Of_Its_Own, EmitterScatter, EmitterScatterTests, Scatter_Breaks_A_Burning_Edge_Into_Separate_Flames, Scattered_Flames_Differ_In_Height_Without_Being_Told_To, A_Longer_Surface_Gets_More_Flames_From_The_Same_Settings, EffectPreset, EffectPresets, EffectPresetStore, EffectPresetTests, FluidEffectsPresetTests, An_Effect_Made_From_A_Preset_Draws_Exactly_What_The_Original_Drew, Layers_Reconnect_By_Name_And_What_Cannot_Is_Reported, Shading_Slides_The_Inner_Bands_Toward_The_Light_And_Leaves_The_Silhouette, A_Highlight_Cannot_Be_Lit_Out_Of_Its_Own_Volume, FreeSurfaceSource, MetaballSource, ObstacleBoundaryTests, Combustion, CombustionTests, A_Detached_Piece_Of_Flame_Survives_More_Frames_When_It_Can_Burn, A_Parcel_That_Is_Burning_Stays_Hot_Far_Longer_Than_One_That_Is_Only_Cooling, Burning_Spends_Its_Fuel_So_It_Puts_Itself_Out, Fuel_Below_The_Ignition_Point_Does_Not_Burn, Fire_Arrives_Burning_And_Smoke_Does_Not, The_Burning_Controls_Appear_Only_When_It_Is_On`
   - Designed in `docs/DESIGN-fluid-effects.md` (2026-08-18), answering "is a
     performant 2D fluid simulation possible, with the outline in the artist's
     line style and the shape filled with colour". It is Pillar 4 rather than an
@@ -768,6 +768,25 @@ every other AI feature and are only legible together.
     before a direct measurement of the solver caught it. Every earlier claim in
     this feature about how frames evolve was made against that. New elements are
     24 frames now, and baking grows the timeline to hold them.
+  - **Combustion landed 2026-08-20 (Q132), and the measurement corrected the
+    complaint before it corrected the code.** The owner noticed real flames shed
+    their tips and ours did not; the reading that suggests — *the fluid never
+    breaks up* — is false. It breaks up on 22 of 40 frames and the tracer draws
+    every piece. What was missing was **survival**: six sheds of five cells or
+    more over forty frames, **every one lasting exactly one frame**, median piece
+    one cell. Heat was only ever stamped at an emitter and then decayed, so a
+    detached parcel had nothing to live on. Slowing `Cooling` does keep one alive
+    — 12 and 26 frames at 0.01 against one at 0.06 — and doubles the flame's
+    height doing it, because **one number was setting both a flame's length and
+    its tip's survival**. `SimParams.Burning` is that second job moved somewhere
+    it can be set alone: density is the fuel, a fraction burns per step above an
+    ignition point, and the reaction is self-limiting because burning spends the
+    fuel — which is also how `Burst` gets *fireball becomes smoke* for free. A
+    value type, because `SimParams` is a record cloned with `with { }` and a class
+    would leave a duplicated effect editing the original. The longest-lived piece
+    goes 2 → 8 frames on the flame that prompted it, and 1 → 4 on a new element
+    with nothing else touched — the expected `Vorticity` compensation turned out
+    to be grid-dependent and unnecessary at the size a new element starts.
   - **Step 6 landed 2026-08-19**: smoke, and two things that only a render
     said. **A smoke emitter has to be warm** — buoyancy reads temperature and
     `Weight` reads density, so an emitter at zero heat is pushed down by its own
