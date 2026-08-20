@@ -29,6 +29,26 @@ public static class ArmatureOverlayPainter
     /// <summary>Bones: green, because the rig chrome must not blur into the blue anchors or orange shapes.</summary>
     private static readonly SKColor BoneColor = new(0x6f, 0xd6, 0x6f);
 
+    /// <summary>
+    /// The skeleton while it is standing at a pose rather than at rest.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The colour tracks what the skeleton is standing at, not what the mode
+    /// is called.</b> Bind edits the rest pose; posing and weight painting both
+    /// show the skeleton solved at the playhead, which is why they share this.
+    /// An artist reading the canvas needs to know whether the bones in front of
+    /// them are the rig or a pose of it — moving one in bind mode rebinds the
+    /// drawing, and the two gestures look identical.
+    /// </para>
+    /// <para>
+    /// Violet because everything else is taken: amber is the IK handles, white
+    /// is selection, and the note on <see cref="BoneColor"/> already rules out
+    /// blurring into the blue anchors or the orange shapes.
+    /// </para>
+    /// </remarks>
+    private static readonly SKColor PosedBoneColor = new(0xb4, 0x9c, 0xff);
+
     /// <summary>Selection: white, the same rule every overlay follows.</summary>
     private static readonly SKColor SelectedColor = new(0xff, 0xff, 0xff);
 
@@ -72,9 +92,17 @@ public static class ArmatureOverlayPainter
     /// ghosts deliberately have none, and are outlines without handles: they
     /// should recede, and a handle on a pose nobody can grab is a lie.
     /// </remarks>
-    public static void Paint(SKCanvas canvas, IReadOnlyList<BoneChrome>? bones, float scale)
+    /// <param name="posed">
+    /// The skeleton is standing at a pose rather than at its rest position, so
+    /// it takes <see cref="PosedBoneColor"/>. A whole-overlay state rather than
+    /// a flag on every bone: they are all standing at the same thing.
+    /// </param>
+    public static void Paint(
+        SKCanvas canvas, IReadOnlyList<BoneChrome>? bones, float scale, bool posed = false)
     {
         if (bones is not { Count: > 0 }) return;
+
+        var boneColour = posed ? PosedBoneColor : BoneColor;
 
         var px = 1f / Math.Max(0.01f, scale);
         var half = BoneBaseScreen * px;
@@ -120,7 +148,7 @@ public static class ArmatureOverlayPainter
             foreach (var bone in bones)
             {
                 if (bone is not { LinkX: { } lx, LinkY: { } ly, Ghost: BoneGhost.None }) continue;
-                link.Color = (bone.Selected ? SelectedColor : bone.IsHandle ? HandleColor : BoneColor)
+                link.Color = (bone.Selected ? SelectedColor : bone.IsHandle ? HandleColor : boneColour)
                     .WithAlpha(0xb4);
                 canvas.DrawLine((float)lx, (float)ly, (float)bone.X0, (float)bone.Y0, linkRim);
                 canvas.DrawLine((float)lx, (float)ly, (float)bone.X0, (float)bone.Y0, link);
@@ -135,7 +163,7 @@ public static class ArmatureOverlayPainter
 
             var colour = isGhost
                 ? (bone.Ghost is BoneGhost.Before ? SceneRenderer.OnionPrevTint : SceneRenderer.OnionNextTint)
-                : bone.Selected ? SelectedColor : bone.IsHandle ? HandleColor : BoneColor;
+                : bone.Selected ? SelectedColor : bone.IsHandle ? HandleColor : boneColour;
 
             // The classic bone silhouette: a kite from a wide base at the
             // origin to a point at the tip, so direction reads at a glance.
