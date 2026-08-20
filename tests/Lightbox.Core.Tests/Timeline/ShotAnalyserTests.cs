@@ -212,6 +212,26 @@ public class ShotAnalyserTests
         Assert.Contains("tread", finding.Message);
     }
 
+    [Fact]
+    public void ATravellingWalksLastFootfallOpensNoStrideToJudge()
+    {
+        // The adversary's find: with three footfalls and a perfectly even bob,
+        // the bob check used to wrap the last footfall's stride back to frame
+        // 0 — a stride nobody drew — and flag a clean travelling walk as
+        // limping. A shot's last contact ends the walk; it opens nothing.
+        var scene = new Scene();
+        double[] alongs = [0, 15, 30, 45, 60, 75, 90, 105, 120];
+        double[] feet = [0, 8, 10, 8, 0, 8, 10, 8, 0];
+        double[] body = [50, 54, 56, 54, 50, 54, 56, 54, 50];
+        var (s, layer) = Walk(scene, alongs, feet, body);
+
+        var report = WalkCycleAnalyser.Analyse(s, layer, 0);
+
+        Assert.NotNull(report);
+        Assert.Equal([0, 4, 8], report.ContactFrames);
+        Assert.DoesNotContain(report.Findings, f => f.Check == WalkCheck.Bob);
+    }
+
     // ---- the depth hedge ------------------------------------------------------
 
     [Fact]

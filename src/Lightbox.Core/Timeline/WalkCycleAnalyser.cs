@@ -146,7 +146,7 @@ public static class WalkCycleAnalyser
 
         if (loops) CheckLoop(d, scale, inPlace, findings);
         var contacts = ReadContacts(d, scale, loops, last - first + 1, findings);
-        CheckBob(d, contacts, scale, findings);
+        CheckBob(d, contacts, scale, loops, findings);
         CheckSlide(d, scale, inPlace, findings);
 
         return new WalkCycleReport(d.Count, contacts, findings, tag?.Name);
@@ -252,7 +252,7 @@ public static class WalkCycleAnalyser
     /// </summary>
     private static void CheckBob(
         List<ContactFrames.FootRead> d, IReadOnlyList<int> contactFrames, double scale,
-        List<WalkFinding> findings)
+        bool loops, List<WalkFinding> findings)
     {
         var wholeAmplitude = d.Max(f => f.SubjElev) - d.Min(f => f.SubjElev);
         if (wholeAmplitude < BobFloor * scale)
@@ -263,13 +263,20 @@ public static class WalkCycleAnalyser
         }
         if (contactFrames.Count < 2) return;
 
-        // One stride's drawings: from a footfall up to the next, wrapping.
+        // One stride's drawings: from a footfall up to the next — wrapping
+        // through the seam ONLY when the range loops. A shot's last footfall
+        // opens no stride, and folding it back to frame 0 was the adversary's
+        // find: a clean travelling walk read as limping against a stride
+        // nobody drew.
         var starts = contactFrames.Select(f => d.FindIndex(p => p.Index == f)).ToList();
         var amplitudes = new List<(int Frame, double Amp)>(starts.Count);
         for (var k = 0; k < starts.Count; k++)
         {
             var from = starts[k];
-            var to = k + 1 < starts.Count ? starts[k + 1] : starts[0] + d.Count;
+            int to;
+            if (k + 1 < starts.Count) to = starts[k + 1];
+            else if (loops) to = starts[0] + d.Count;
+            else break;
             double min = double.MaxValue, max = double.MinValue;
             for (var j = from; j <= to; j++)
             {
@@ -279,6 +286,7 @@ public static class WalkCycleAnalyser
             }
             amplitudes.Add((d[from].Index, max - min));
         }
+        if (amplitudes.Count < 2) return;
 
         var biggest = amplitudes.MaxBy(a => a.Amp);
         var smallest = amplitudes.MinBy(a => a.Amp);
