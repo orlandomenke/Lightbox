@@ -337,6 +337,10 @@ public sealed class ShortcutMap
             // checkbox on the timeline bar is the way in, and being here is
             // what lets an artist bind it to whatever they have free.
             new("canvas.motionTrail", "Show motion trail (path and spacing)", "Canvas", null),
+            // No default gestures either, for motionTrail's reason — and both
+            // switch the trail on with them, so neither ever toggles nothing.
+            new("canvas.motionArc", "Show motion arc (fitted arc and off-arc drawings)", "Canvas", null),
+            new("canvas.arcPrediction", "Show arc prediction (where the next drawing goes)", "Canvas", null),
 
             new("timeline.playPause", "Play / pause", "Timeline", G(Key.Space)),
             new("timeline.prevFrame", "Previous frame (scrub)", "Timeline", G(Key.Left), ShortcutContext.Panel, DockPanelId.Timeline),
