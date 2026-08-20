@@ -4258,6 +4258,7 @@
                                 VideoClips="{Binding TimelineVideoClips}"
                                 FrameCount="{Binding TimelineFrameCount}"
                                 FrameWidth="{Binding TimelineFrameWidth}"
+                                SelectedDots="{Binding TimelineSelectedDots}"
                                 CurrentFrame="{Binding CurrentFrameIndex, Mode=TwoWay}" />
           </ScrollViewer>
         </controls:Docker>

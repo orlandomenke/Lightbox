@@ -690,9 +690,9 @@ public partial class MainViewModel
                 // last: a Ctrl+click selection has holes in it on purpose, and
                 // transforming what an artist deselected is the one reading of
                 // this scope they cannot undo by deselecting harder.
-                if (_celSelection.Count > 0)
+                if (CelSelection.Count > 0)
                 {
-                    foreach (var (layerIndex, index) in _celSelection)
+                    foreach (var (layerIndex, index) in CelSelection)
                     {
                         if (layerIndex < 0 || layerIndex >= Scene.Layers.Count) continue;
                         Add(ExposureSheet.ExposedFrame(Scene.Layers[layerIndex], index));
@@ -959,7 +959,7 @@ public partial class MainViewModel
     private string? HeldCelNeedingKey()
     {
         if (TransformScope is not (TransformScope.ActiveCel or TransformScope.CelRange)) return null;
-        if (TransformScope is TransformScope.CelRange && _celSelection.Count > 0) return null;
+        if (TransformScope is TransformScope.CelRange && CelSelection.Count > 0) return null;
         if (DrawingOnAHold == HoldDrawing.EditTheHeldDrawing) return null;
         if (ActiveLayer is not { } layer || layer.Cels.Count == 0) return null;
         var here = Math.Clamp(CurrentFrameIndex, 0, layer.Cels.Count - 1);

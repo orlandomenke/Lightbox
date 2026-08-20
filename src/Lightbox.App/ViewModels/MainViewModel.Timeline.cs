@@ -875,10 +875,22 @@ public partial class MainViewModel
     /// holes in them by construction. <see cref="CelRange"/> still answers the
     /// old question for the callers that only ever asked it.
     /// </remarks>
-    private readonly HashSet<(int Layer, int Index)> _celSelection = [];
+    private readonly HashSet<TimelineKey> _keySelection = [];
+
+    /// <summary>
+    /// The cels in the selection, which is all the X-sheet and the cel
+    /// operations can act on. Camera and pose keys are in the same set and are
+    /// simply not cels; see <see cref="TimelineKey"/> for why one set holds all
+    /// three.
+    /// </summary>
+    private IEnumerable<(int Layer, int Index)> _celSelection =>
+        _keySelection.Where(k => k.IsCel).Select(k => (k.LayerIndex, k.Frame));
 
     /// <summary>The selected cels, as (scene layer index, frame index) pairs.</summary>
-    public IReadOnlySet<(int Layer, int Index)> CelSelection => _celSelection;
+    public IReadOnlySet<TimelineKey> KeySelection => _keySelection;
+
+    /// <summary>The cel half of the selection, as (scene layer index, frame) pairs.</summary>
+    public IReadOnlySet<(int Layer, int Index)> CelSelection => _celSelection.ToHashSet();
 
     /// <summary>
     /// The selection read as one contiguous run on one row, or null when it is
@@ -892,12 +904,13 @@ public partial class MainViewModel
     {
         get
         {
-            if (_celSelection.Count == 0) return null;
-            var layer = _celSelection.First().Layer;
-            if (_celSelection.Any(c => c.Layer != layer)) return null;
-            var start = _celSelection.Min(c => c.Index);
-            var end = _celSelection.Max(c => c.Index);
-            return end - start + 1 == _celSelection.Count ? (layer, start, end) : null;
+            var cels = _celSelection.ToList();
+            if (cels.Count == 0) return null;
+            var layer = cels[0].Layer;
+            if (cels.Any(c => c.Layer != layer)) return null;
+            var start = cels.Min(c => c.Index);
+            var end = cels.Max(c => c.Index);
+            return end - start + 1 == cels.Count ? (layer, start, end) : null;
         }
     }
 
@@ -913,10 +926,10 @@ public partial class MainViewModel
     {
         if (cell.IsVirtual) return;
         var anchor = _celAnchor.Layer == cell.LayerIndex ? _celAnchor : (cell.LayerIndex, cell.Index);
-        _celSelection.Clear();
+        _keySelection.Clear();
         for (var i = Math.Min(anchor.Index, cell.Index); i <= Math.Max(anchor.Index, cell.Index); i++)
         {
-            _celSelection.Add((cell.LayerIndex, i));
+            _keySelection.Add(TimelineKey.Cel(cell.LayerIndex, i));
         }
         RefreshCelSelectionHighlights();
     }
@@ -932,16 +945,16 @@ public partial class MainViewModel
     public void ToggleCelSelection(FrameCell cell)
     {
         if (cell.IsVirtual) return;
-        var key = (cell.LayerIndex, cell.Index);
-        if (!_celSelection.Add(key)) _celSelection.Remove(key);
-        _celAnchor = key;
+        var key = TimelineKey.Cel(cell.LayerIndex, cell.Index);
+        if (!_keySelection.Add(key)) _keySelection.Remove(key);
+        _celAnchor = (cell.LayerIndex, cell.Index);
         RefreshCelSelectionHighlights();
     }
 
     public void ClearCelRange()
     {
-        if (_celSelection.Count == 0) return;
-        _celSelection.Clear();
+        if (_keySelection.Count == 0) return;
+        _keySelection.Clear();
         RefreshCelSelectionHighlights();
     }
 
@@ -949,7 +962,10 @@ public partial class MainViewModel
     {
         foreach (var row in LayerRows)
         {
-            foreach (var c in row.Cells) c.IsSelected = _celSelection.Contains((c.LayerIndex, c.Index));
+            foreach (var c in row.Cells)
+            {
+                c.IsSelected = _keySelection.Contains(TimelineKey.Cel(c.LayerIndex, c.Index));
+            }
         }
     }
 
@@ -960,7 +976,7 @@ public partial class MainViewModel
     /// </summary>
     private List<int> OpCelsOn(FrameCell cell, int layerIndex)
     {
-        if (!_celSelection.Contains((cell.LayerIndex, cell.Index)))
+        if (!_keySelection.Contains(TimelineKey.Cel(cell.LayerIndex, cell.Index)))
         {
             return cell.LayerIndex == layerIndex ? [cell.Index] : [];
         }
@@ -1016,7 +1032,7 @@ public partial class MainViewModel
     /// else just the cell's own layer.
     /// </summary>
     private List<int> OpLayersFor(FrameCell cell) =>
-        _celSelection.Contains((cell.LayerIndex, cell.Index))
+        _keySelection.Contains(TimelineKey.Cel(cell.LayerIndex, cell.Index))
             ? _celSelection.Select(c => c.Layer).Distinct().Order().ToList()
             : [cell.LayerIndex];
 

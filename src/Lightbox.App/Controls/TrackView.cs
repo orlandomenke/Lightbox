@@ -87,6 +87,25 @@ public class TrackView : Control
         set => SetValue(TracksProperty, value);
     }
 
+    /// <summary>
+    /// The dots that are selected, as (row, frame) pairs.
+    /// </summary>
+    /// <remarks>
+    /// Rows and frames rather than anything richer, because this control is
+    /// deliberately ignorant of what a key <em>means</em> — the same reason its
+    /// menu event hands the host a row index and lets it decide. The host knows
+    /// which row is the camera and which is a bone; all this needs to know is
+    /// which dots to light.
+    /// </remarks>
+    public static readonly StyledProperty<IReadOnlySet<(int Row, int Frame)>?> SelectedDotsProperty =
+        AvaloniaProperty.Register<TrackView, IReadOnlySet<(int Row, int Frame)>?>(nameof(SelectedDots));
+
+    public IReadOnlySet<(int Row, int Frame)>? SelectedDots
+    {
+        get => GetValue(SelectedDotsProperty);
+        set => SetValue(SelectedDotsProperty, value);
+    }
+
     /// <summary>Pixels per frame; bound to the same slider the X-sheet uses.</summary>
     public static readonly StyledProperty<double> FrameWidthProperty =
         AvaloniaProperty.Register<TrackView, double>(nameof(FrameWidth), 14);
@@ -128,6 +147,13 @@ public class TrackView : Control
     /// knows where the dots are and nothing about what they mean.
     /// </summary>
     public event Action<int, int, Point>? KeyMenuRequested;
+
+    /// <summary>
+    /// A key was clicked with a modifier: (row, frame, toggle, range) — Ctrl
+    /// and Shift respectively. The host owns what a key is and therefore what
+    /// selecting one means.
+    /// </summary>
+    public event Action<int, int, bool, bool>? KeySelectRequested;
 
     /// <summary>
     /// The scratch track's waveform, one min/max pair per frame, or null for
@@ -223,7 +249,8 @@ public class TrackView : Control
             VideoClipsProperty, VolumeBarsProperty);
         AffectsRender<TrackView>(
             TracksProperty, FrameWidthProperty, CurrentFrameProperty, FrameCountProperty,
-            AudioPeaksProperty, VideoClipsProperty, AudioClipsProperty, VolumeBarsProperty);
+            AudioPeaksProperty, VideoClipsProperty, AudioClipsProperty, VolumeBarsProperty,
+            SelectedDotsProperty);
     }
 
     // ---- geometry, static so the tests can hold it still ---------------------
@@ -374,6 +401,16 @@ public class TrackView : Control
                 else
                 {
                     context.DrawEllipse(new SolidColorBrush(colour), null, at, DotRadius, DotRadius);
+                }
+
+                // A ring around the dot rather than a different fill: a key
+                // already says three things by colour and fill — which track it
+                // is, and whether it is a breakdown — and a fourth would have to
+                // take one of them away. The ring sits outside all of it.
+                if (SelectedDots?.Contains((r, key)) == true)
+                {
+                    context.DrawEllipse(null, new Pen(new SolidColorBrush(Colors.White), 1.5),
+                        at, DotRadius + 2.5, DotRadius + 2.5);
                 }
             }
         }
@@ -631,6 +668,25 @@ public class TrackView : Control
                     e.Handled = true;
                     return;
                 }
+
+                // Ctrl and Shift pick rather than drag. A modified click that
+                // also armed a drag would retime the key the artist was only
+                // adding to a selection, and a stray two-pixel wobble is all
+                // that would take.
+                var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+                var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+                if (ctrl || shift)
+                {
+                    KeySelectRequested?.Invoke(row, grabbed, ctrl, shift);
+                    e.Handled = true;
+                    return;
+                }
+
+                // A plain press on a key outside the selection makes it the
+                // selection, so a drag that follows moves what is highlighted
+                // rather than something else. On a key already in it, the
+                // selection stands and the drag takes the lot.
+                KeySelectRequested?.Invoke(row, grabbed, false, false);
                 _drag = (row, grabbed, grabbed);
                 e.Pointer.Capture(this);
                 e.Handled = true;
