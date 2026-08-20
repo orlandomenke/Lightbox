@@ -1955,7 +1955,7 @@ public sealed partial class CanvasControl : Control
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
             _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing,
             BoneChromes, HeatPoints, _hoveredLines,
-            FillPreviewForFrame(), _fillPreviewWand, _fillPreviewColor, TrailPoints,
+            FillPreviewForFrame(), _fillPreviewWand, _fillPreviewColor, TrailPoints, MotionArc,
             CropSurfaceRect()));
     }
 
@@ -3977,7 +3977,7 @@ public sealed partial class CanvasControl : Control
         SKPath? fillPreview = null,
         bool fillPreviewWand = false,
         SKColor fillPreviewColor = default,
-        IReadOnlyList<Core.Timeline.TrailPoint>? trail = null,
+        IReadOnlyList<Core.Timeline.TrailPoint>? trail = null, Core.Timeline.MotionArcOverlay? motionArc = null,
         SKRect? cropFrame = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
@@ -4114,7 +4114,7 @@ public sealed partial class CanvasControl : Control
             BalanceOverlayPainter.Paint(canvas, balanceDots, view.Scale);
             // The trail is judged against too, and sits under the armature so
             // the bones stay aimable over it.
-            MotionTrailPainter.Paint(canvas, trail, view.Scale);
+            MotionTrailPainter.Paint(canvas, trail, view.Scale, motionArc);
             // Heat under the bones, both over the rig marks: the armature is
             // aimed with the same hand, and the heat is what a weight brush
             // corrects against.

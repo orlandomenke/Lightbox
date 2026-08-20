@@ -39,8 +39,14 @@ public static class MotionTrailPainter
     /// <param name="scale">
     /// View scale, so ticks and line widths stay screen-sized at any zoom.
     /// </param>
-    public static void Paint(SKCanvas canvas, IReadOnlyList<TrailPoint>? points, float scale)
+    /// <param name="arc">
+    /// The arc overlay, painted first so it sits under the ticks — the arc is
+    /// the judgement, the ticks are the facts.
+    /// </param>
+    public static void Paint(
+        SKCanvas canvas, IReadOnlyList<TrailPoint>? points, float scale, MotionArcOverlay? arc = null)
     {
+        MotionArcPainter.Paint(canvas, arc, scale);
         if (points is not { Count: > 1 }) return;
 
         var px = 1f / Math.Max(0.01f, scale);

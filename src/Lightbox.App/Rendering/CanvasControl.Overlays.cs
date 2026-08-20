@@ -139,6 +139,25 @@ public sealed partial class CanvasControl
     private IReadOnlyList<Core.Timeline.TrailPoint>? _trailPoints;
 
     /// <summary>
+    /// The motion arc overlay — the fitted arc, its off-arc ticks and the
+    /// predicted positions — or null for none, following
+    /// <see cref="TrailPoints"/> in every way including the null guard: while
+    /// the arc is off, a refresh must not invalidate the canvas.
+    /// </summary>
+    public Core.Timeline.MotionArcOverlay? MotionArc
+    {
+        get => _motionArc;
+        set
+        {
+            if (ReferenceEquals(_motionArc, value)) return;
+            _motionArc = value;
+            InvalidateVisual();
+        }
+    }
+
+    private Core.Timeline.MotionArcOverlay? _motionArc;
+
+    /// <summary>
     /// Whether a press should edit the rig instead of drawing.
     /// </summary>
     /// <remarks>
