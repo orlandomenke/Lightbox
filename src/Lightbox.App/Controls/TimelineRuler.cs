@@ -146,7 +146,7 @@ public sealed class TimelineRuler : Control
 
     // The Timeline's own track colours, so a mark here and the track it stands
     // for are recognisably the same thing.
-    private static readonly IBrush CameraKeyBrush = new SolidColorBrush(Color.Parse("#FF9F45"));
+    private static readonly IBrush CameraKeyBrush = new SolidColorBrush(TrackView.CameraColour);
     private static readonly IBrush PoseKeyBrush = new SolidColorBrush(Color.Parse("#7EC8E3"));
 
     /// <summary>How wide a mark is, and how far in from the cell's edge it sits.</summary>

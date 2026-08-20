@@ -365,7 +365,13 @@ public class TrackView : Control
         Color.Parse("#E8C55F"), // gold
     ];
 
-    private static readonly Color CameraColour = Color.Parse("#FF9F45");
+    /// <summary>
+    /// The camera's one hue, wherever it shows — the timeline track, the
+    /// ruler's key dots, the graph editor's X curve, the Scene panel's path.
+    /// Internal so the code-side consumers share this definition; the XAML
+    /// side reads its twin, <c>CameraTrack</c> in <c>Palette.axaml</c>.
+    /// </summary>
+    internal static readonly Color CameraColour = Color.Parse("#FF9F45");
 
     /// <summary>The rig's fixed colour — the bone chrome's, so the two read as one system.</summary>
     private static readonly Color ArmatureColour = Color.Parse("#7EC8E3");

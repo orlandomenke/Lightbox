@@ -82,9 +82,9 @@ public sealed class CameraPathPlot : Control
             page.X + p.X / doc.Width * page.Width,
             page.Y + p.Y / doc.Height * page.Height);
 
-        // The path in the camera's own orange, the colour its timeline track
-        // already wears — one hue for one concept, wherever it shows.
-        var orange = Color.FromArgb(235, 255, 190, 60);
+        // The path in the camera's own orange — TrackView.CameraColour, the
+        // one definition every code-side camera surface reads.
+        var orange = TrackView.CameraColour;
         if (PathPoints is { Count: > 1 } path)
         {
             var geometry = new StreamGeometry();

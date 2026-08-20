@@ -42,11 +42,15 @@ public static class SequenceExporter
         // The framing is per-frame; a layer's parallax response to it is
         // per-layer, below. Null without a camera, which is also what makes
         // depth do nothing on an asset document — there is no framing for it
-        // to respond to.
+        // to respond to. The shared half of the parallax arithmetic is
+        // prepared once per frame, only when some layer has a depth.
         var framing = camera is null
             ? (CameraFraming?)null
             : CameraOps.At(camera, frameIndex, scene.Width, scene.Height);
-        var home = CameraFraming.Centred(scene.Width, scene.Height);
+        var parallaxFrame = framing is { } pf && scene.Layers.Exists(l => l.HasDepth)
+            ? ParallaxTransform.Prepare(
+                pf, CameraFraming.Centred(scene.Width, scene.Height), outWidth, outHeight)
+            : null;
 
         var passes = new List<RenderPass>();
         var footageQueued = false;
@@ -66,9 +70,7 @@ public static class SequenceExporter
             // Multiplane: a layer with a depth exports through its plane's
             // matrix — the same pass slot the canvas preview uses, so the
             // deliverable is what the artist was looking at.
-            var parallax = framing is { } f
-                ? ParallaxTransform.PassMatrix(layer.Depth, f, home, outWidth, outHeight)
-                : null;
+            var parallax = parallaxFrame?.MatrixFor(layer.Depth);
             passes.Add(new RenderPass(
                 cache.Get(frame, scene.Width, scene.Height, celIndex: frameIndex),
                 null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),

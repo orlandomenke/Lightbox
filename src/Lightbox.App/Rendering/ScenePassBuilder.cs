@@ -293,12 +293,20 @@ internal static class ScenePassBuilder
         var activeEnd = -1;
 
         // Multiplane: only a composite drawn under the camera's matrix has a
-        // camera move for depth to respond to. Computed once — the framing is
-        // per-publish, the factor per-layer.
-        var framing = state.ThroughCamera && scene.Camera is { } cam
-            ? CameraOps.At(cam, state.FrameIndex, scene.Width, scene.Height)
-            : (CameraFraming?)null;
-        var home = CameraFraming.Centred(scene.Width, scene.Height);
+        // camera move for depth to respond to. The shared half — the framing
+        // and its inverted matrix — is prepared once per publish, and only
+        // when some layer actually has a depth: this loop runs per pointer
+        // event while drawing, and a depthless document must pay a boolean
+        // scan here and nothing more.
+        ParallaxTransform.Frame? parallaxFrame = null;
+        if (state.ThroughCamera && scene.Camera is { } cam
+            && scene.Layers.Exists(l => l.HasDepth))
+        {
+            parallaxFrame = ParallaxTransform.Prepare(
+                CameraOps.At(cam, state.FrameIndex, scene.Width, scene.Height),
+                CameraFraming.Centred(scene.Width, scene.Height),
+                cam.OutputWidth, cam.OutputHeight);
+        }
 
         var referencesQueued = false;
         foreach (var layer in scene.Layers)
@@ -309,10 +317,7 @@ internal static class ScenePassBuilder
             // The layer's parallax matrix, or null on the picture plane — the
             // null arm is the path that existed before depth did, and every
             // depthless layer must keep taking it.
-            var parallax = framing is { } f && scene.Camera is { } pcam
-                ? ParallaxTransform.PassMatrix(
-                    layer.Depth, f, home, pcam.OutputWidth, pcam.OutputHeight)
-                : null;
+            var parallax = parallaxFrame?.MatrixFor(layer.Depth);
 
             // An imported reference goes over the paper and under every
             // drawing — the same place as the photograph you would tape to the
@@ -338,7 +343,7 @@ internal static class ScenePassBuilder
             // sit under it, exactly as its own earlier frames would.
             // Ghosts ride their layer's plane — a ghost is the same drawing at
             // another time, so it parallaxes exactly as the drawing does.
-            var ghosts = WithParallax(GhostSpecsFor(layer, scene, state), parallax);
+            var ghosts = GhostSpecsFor(layer, scene, state, parallax);
             if (!state.Onion.DrawOver) passes.AddRange(ghosts);
 
             // Past the end of the scene the canvas shows no drawing (Q103).
@@ -579,7 +584,7 @@ internal static class ScenePassBuilder
     /// that mode ghosts other layers rather than other frames.
     /// </summary>
     internal static IReadOnlyList<PassSpec> GhostSpecsFor(
-        Layer layer, Scene scene, State state)
+        Layer layer, Scene scene, State state, SKMatrix? parallax = null)
     {
         var onion = state.Onion;
         // Ghosts are a drawing aid. During playback they are noise, and the
@@ -614,7 +619,7 @@ internal static class ScenePassBuilder
             passes.Add(new PassSpec(
                 pinned, index, null,
                 index < state.FrameIndex ? previous : next,
-                onion.Opacity));
+                onion.Opacity, Matrix: parallax));
         }
 
         // Furthest first so the nearest ghost ends up on top of the others,
@@ -628,23 +633,10 @@ internal static class ScenePassBuilder
                 // ghost must show the pose it holds where it lives.
                 ghost.Frame, ghost.Index, null,
                 ghost.Before ? previous : next,
-                OnionSkin.OpacityAt(ghost.Steps, onion.Opacity, onion.Falloff)));
+                OnionSkin.OpacityAt(ghost.Steps, onion.Opacity, onion.Falloff),
+                Matrix: parallax));
         }
         return passes;
-    }
-
-    /// <summary>
-    /// The specs re-addressed onto their layer's plane, or the list untouched
-    /// when the layer has none — the untouched arm allocates nothing, because
-    /// this runs per visible layer per publish.
-    /// </summary>
-    private static IReadOnlyList<PassSpec> WithParallax(
-        IReadOnlyList<PassSpec> specs, SKMatrix? parallax)
-    {
-        if (parallax is not { } pm || specs.Count == 0) return specs;
-        var wrapped = new List<PassSpec>(specs.Count);
-        foreach (var spec in specs) wrapped.Add(spec with { Matrix = pm });
-        return wrapped;
     }
 
     private static IReadOnlyList<int> PinnedGhostIndices(Scene scene) =>
