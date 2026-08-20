@@ -1,3 +1,5 @@
+using Avalonia.Headless.XUnit;
+using Avalonia.Media;
 using Lightbox.App.Controls;
 using Xunit;
 
@@ -64,5 +66,51 @@ public class TimelineRulerTests(ITestOutputHelper output)
             var step = TrackView.LabelStep(width);
             Assert.True(12 % step == 0 || step % 12 == 0, $"step {step} at width {width}");
         }
+    }
+
+    /// <summary>
+    /// Numbering more frames must not cost more to paint: a number is built
+    /// once and kept.
+    /// </summary>
+    /// <remarks>
+    /// The adaptive step multiplies how many numbers a long scene draws — up to
+    /// twelvefold at the widest zoom — and the strip repaints every time the
+    /// playhead moves. Measured before the cache went in: the
+    /// <c>FormattedText</c> for 2000 labels took 78 ms against a 12 fps budget
+    /// of 83, where 42 labels took 1.07 ms. The step is only affordable because
+    /// the numbers are kept.
+    /// <para>
+    /// <b>Asserted as identity rather than as elapsed time</b>, and the first
+    /// draft of this test is why: a ten-fold ratio passed at 11.6 ms cold and
+    /// failed at 5.0 ms cold, because the cold pass carries JIT warm-up that
+    /// varies per run. The claim is "the same object comes back", which is
+    /// exactly what a cache means and does not depend on the machine.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void ARulerNumberIsBuiltOnceAndKept()
+    {
+        var view = new TrackView { FrameCount = 2000, FrameWidth = Widest };
+        var face = new Typeface(FontFamily.Default);
+
+        var first = view.LabelForTests(7, face, 10, Brushes.White);
+        var again = view.LabelForTests(7, face, 10, Brushes.White);
+
+        Assert.Same(first, again);
+    }
+
+    [AvaloniaFact]
+    public void AChangeOfStyleThrowsTheKeptNumbersAway()
+    {
+        var view = new TrackView { FrameCount = 100, FrameWidth = Widest };
+        var face = new Typeface(FontFamily.Default);
+        var first = view.LabelForTests(7, face, 10, Brushes.White);
+
+        var recoloured = view.LabelForTests(7, face, 10, Brushes.Red);
+
+        // A FormattedText holds its brush, so a cache that survived a theme
+        // change would paint the ruler in the old colour for as long as the
+        // control lived.
+        Assert.NotSame(first, recoloured);
     }
 }
