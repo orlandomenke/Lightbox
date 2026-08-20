@@ -120,6 +120,26 @@ public class MainMenuSurfaceTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
+    public void UndoNotifiesTheMenuCheckboxes()
+    {
+        // The getters read the active layer live, so the *value* is right after
+        // an undo with no help — which is exactly how a missing notification
+        // hides: the binding never re-reads, and the checkbox keeps the
+        // pre-undo state. Assert the notification, not the value.
+        var vm = VmLayers.BareVm();
+        vm.ActiveLayerVisible = false;
+
+        var heard = new List<string?>();
+        vm.PropertyChanged += (_, e) => heard.Add(e.PropertyName);
+        vm.UndoCommand.Execute(null);
+
+        Assert.True(vm.ActiveLayerVisible);
+        Assert.Contains(nameof(MainViewModel.ActiveLayerVisible), heard);
+        Assert.Contains(nameof(MainViewModel.ActiveLayerLocked), heard);
+        Assert.Contains(nameof(MainViewModel.ActiveLayerAlphaLocked), heard);
+    }
+
+    [AvaloniaFact]
     public void SwitchingLayersRefreshesTheMenuCheckboxes()
     {
         var vm = VmLayers.BareVm();
