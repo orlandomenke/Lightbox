@@ -584,6 +584,7 @@ which is a weak test and still far better than none.
     discovered count (in CI or a wrapper), so an under-run turns red instead
     of green. Until then, treat a full-solution total that disagrees with the
     per-assembly counts as a failed run.
+
 - [ ] **B264** `P2` `project` `ids --fix` renumbers both sides of a clash and rewrites the other branch's citations when run mid-merge `evidence: merge_in_progress, cmd_selftest`
   - **Mid-merge, HEAD is still this branch's last commit**, so the merge base predates both sides — and every file the *other* side is bringing in reads as "added since the base", exactly like this branch's own. Both entries are marked ours, the repair moves both to one new id, a fresh duplicate appears, and the other branch's citations are rewritten in files this branch never touched.
   - **Observed 2026-08-19**, resolving `main` into the crop branch: it renamed both sides of a Q126 clash to Q130 and rewrote `docs/DESIGN-pen-dynamics.md`, which belonged to the pen-tilt question entirely. Repaired by hand — main's entry restored byte-identical, this branch's moved to Q128 with fourteen citations — but the tool would have done it to the next person.
