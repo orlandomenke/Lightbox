@@ -864,16 +864,30 @@ public sealed class DocumentEditor
         var layer = FindLayer(layerId);
         if (layer is null || fromIndex == toIndex || fromIndex < 0 || toIndex < 0) return;
         if (fromIndex >= layer.Cels.Count || layer.Cels[fromIndex].Frame is null) return;
-        Perform(doc =>
-        {
-            var scene = doc.Scene;
-            if (toIndex >= scene.FrameCount) scene.FrameCount = toIndex + 1;
-            foreach (var l in scene.Layers) PadCels(l, scene.FrameCount);
-            var target = scene.Layers.First(l => l.Id == layerId);
-            var frame = target.Cels[fromIndex].Frame!;
-            target.Cels[toIndex].Frame = copy ? CloneFrame(frame) : frame;
-            if (!copy) target.Cels[fromIndex].Frame = null;
-        });
+        Perform(doc => MoveCelIn(doc, layerId, fromIndex, toIndex, copy));
+    }
+
+    /// <summary>
+    /// The move itself, against a document, with no undo step of its own.
+    /// </summary>
+    /// <remarks>
+    /// Extracted from <see cref="MoveCel"/> so a caller retiming several things
+    /// at once can put them all inside one <see cref="Perform"/>. A drag that
+    /// moves four keys is one edit to an artist and must be one to Ctrl+Z;
+    /// calling <see cref="MoveCel"/> in a loop would leave four.
+    /// </remarks>
+    public static bool MoveCelIn(Doc doc, string layerId, int fromIndex, int toIndex, bool copy = false)
+    {
+        var scene = doc.Scene;
+        var target = scene.Layers.FirstOrDefault(l => l.Id == layerId);
+        if (target is null || fromIndex == toIndex || fromIndex < 0 || toIndex < 0) return false;
+        if (fromIndex >= target.Cels.Count || target.Cels[fromIndex].Frame is null) return false;
+        if (toIndex >= scene.FrameCount) scene.FrameCount = toIndex + 1;
+        foreach (var l in scene.Layers) PadCels(l, scene.FrameCount);
+        var frame = target.Cels[fromIndex].Frame!;
+        target.Cels[toIndex].Frame = copy ? CloneFrame(frame) : frame;
+        if (!copy) target.Cels[fromIndex].Frame = null;
+        return true;
     }
 
     /// <summary>Clear every drawing in [from, to] on a layer (cels become holds). One undo step.</summary>

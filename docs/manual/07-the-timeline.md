@@ -8,7 +8,7 @@ nothing you do in one is invisible in another:
 
 | | |
 | --- | --- |
-| **Timeline** | One coloured track per layer: drawings are dots, holds are the bars behind them, the camera is its own orange track on top, and the scratch track's waveform is its own band underneath. **Drag a dot** to retime that drawing; click anywhere else to scrub. |
+| **Timeline** | One coloured track per layer: drawings are dots, holds are the bars behind them, the camera is its own orange track on top, and the scratch track's waveform is its own band underneath. **Drag a dot** to retime that drawing; click anywhere else to scrub. **Ctrl+click** picks dots and **Shift+click** ranges over the keys on that track, across the camera, the bones and the drawings alike — see *Picking keys on the Timeline* below. |
 | **X-sheet** | The exposure sheet — the grid described below, where cels are edited, exposed, re-timed and annotated. |
 | **Graph editor** | Value over time for the things that interpolate: the camera's position, zoom and rotation (drag a key dot — up and down for value, sideways to retime; a chip shows the value as you drag), and the **measured spacing** of your drawings — how far the ink actually moves between poses, the spacing chart read off the art itself. Even spacing is constant speed; widening is an ease; a spike is the drawing that pops. **Double-click** the plot to key the camera's framing at that frame (it keys what is already there, so nothing jumps — then drag it). **Right-click a key** for its easing into the next key, and to remove it. The **legend** on the bar toggles each curve, and its swatch says which colour is whose; the dashed **Spacing (intended)** curve is the same travel redistributed by the easing picked on the X-sheet bar — where the hollow dots and the filled ones disagree is the drawing that misses the ease. Spacing curves read the active layer. With one curve showing, the axis carries its numbers. |
 
@@ -43,6 +43,39 @@ cell, you can stand on it.
 **Playback is not affected.** Playing runs to the end of the scene, or to the
 start and end you set for the playback range, and never out into the hatching.
 Scrubbing is free; playing is bounded.
+
+## Picking keys on the Timeline
+
+The X-sheet's cells are one way to pick things; the Timeline's dots are the
+other, and **they are the same selection**. Cels you pick on one show up on the
+other — the two are views over one animation. Camera and bone keys simply have
+no X-sheet cell to appear in.
+
+**Ctrl+click** a dot to add it or drop it. **Shift+click** takes the keys
+between the last dot you picked and this one, *on that track* — the keys, not
+every frame between them, because an empty frame has nothing to retime. A
+selected dot wears a white ring.
+
+A plain click on a dot that is **not** selected makes it the selection, so the
+drag that follows moves what you can see is picked. A plain click on one that
+**is** already selected leaves the selection alone — otherwise the press that
+starts a drag would throw away the five keys you were about to move. To narrow a
+selection back down, click a dot outside it.
+
+**Dragging retimes everything selected, by the same number of frames, as one
+undo step.** This is the point of picking across kinds: a camera move, two bone
+keys and a drawing shift together, which is what "push this beat two frames
+later" means. Drag a dot that is not in the selection and only it moves.
+
+If any part of the selection would land before frame 1, the whole drag is
+refused rather than moving some of it and clamping the rest — a partial shift
+closes the gaps you were keeping.
+
+**Retiming is the only thing that crosses kinds**, because it is the only thing
+the three have in common. Deleting is not one verb with three names: removing a
+camera key, unkeying a bone and clearing a drawing leave different things
+behind. So the pose row's right-click **Delete** covers the pose keys in the
+selection and leaves a camera key or a drawing beside them alone.
 
 ## The scratch track
 
