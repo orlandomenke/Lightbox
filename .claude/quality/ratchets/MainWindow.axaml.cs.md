@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml.cs
 
-budget: 439
+budget: 440
 
 ## Why it has moved
 
@@ -50,3 +50,11 @@ other's reason and leaves a number nobody can account for.
   is in scope. Both this and the crop wiring above landed as "437 → 438" on
   their own branches and neither was wrong; the merged file carries both lines,
   which is why the number is measured here rather than taken from either side.
+- **439 → 440** (2026-08-20, B266), one line: the track view's
+  `KeySelectRequested` subscription, the third of the trio beside `KeyDragged`
+  and `KeyMenuRequested` and priced exactly as that one was. A key on the
+  timeline could be dragged and could be right-clicked, and now it can be
+  picked; the handler is in `MainWindow.Transform.cs` with the other two, and
+  only the wiring is here because that is where the control is in scope. The
+  alternative was folding two statements onto one line to satisfy a counter,
+  which makes worse code to keep a number still.

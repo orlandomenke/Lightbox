@@ -136,26 +136,28 @@ public partial class MainWindow
     /// same three questions are asked again by the key menu below and a second
     /// count that disagreed would retime the wrong track.
     /// </remarks>
+    /// <summary>
+    /// A key was dragged along its row. Retimes the whole selection when the
+    /// grabbed key is in it, and that key alone when it is not.
+    /// </summary>
+    /// <remarks>
+    /// The three kinds no longer route to three methods here. Retiming is the
+    /// one verb camera keys, pose keys and cels share, so it is one call — and
+    /// it has to be, because a mixed selection cannot be moved by a branch that
+    /// picks a single kind from the row it started on. See
+    /// <c>MainViewModel.RetimeSelection</c>.
+    /// </remarks>
     private void OnTrackKeyDragged(int trackIndex, int fromFrame, int toFrame)
     {
-        var hasCamera = _vm.HasCamera;
-        if (hasCamera && trackIndex == 0)
-        {
-            _vm.MoveCameraKey(fromFrame, toFrame);
-            return;
-        }
-        if (_vm.IsPoseTrack(trackIndex))
-        {
-            _vm.MovePoseKey(_vm.BoneOfTrack(trackIndex), fromFrame, toFrame);
-            return;
-        }
-        var rowIndex = trackIndex - _vm.TracksAboveLayers;
-        if (rowIndex < 0 || rowIndex >= _vm.LayerRows.Count) return;
-        var row = _vm.LayerRows[rowIndex];
-        var from = row.Cells.FirstOrDefault(c => c.Index == fromFrame);
-        var to = row.Cells.FirstOrDefault(c => c.Index == toFrame);
-        if (from is null || to is null) return;
-        _vm.MoveCel(from, to, copy: false);
+        if (_vm.TrackKeyAt(trackIndex, fromFrame) is not { } grabbed) return;
+        _vm.RetimeSelection(grabbed, toFrame - fromFrame);
+    }
+
+    /// <summary>A modified click on a key: Ctrl adds or drops, Shift ranges.</summary>
+    private void OnTrackKeySelect(int trackIndex, int frame, bool toggle, bool range)
+    {
+        if (_vm.TrackKeyAt(trackIndex, frame) is not { } key) return;
+        _vm.SelectTrackKey(key, toggle, range);
     }
 
     /// <summary>
@@ -168,12 +170,23 @@ public partial class MainWindow
     {
         if (!_vm.IsPoseTrack(trackIndex)) return;
         var bone = _vm.BoneOfTrack(trackIndex);
+        var clicked = _vm.TrackKeyAt(trackIndex, frame);
+        // Per kind, not across the selection: deleting is not the verb the
+        // three kinds share. The pose keys in the selection go; a camera key or
+        // a cel sitting beside them in the same selection does not, because
+        // "delete" means something different to each of them.
+        var pose = clicked is { } key ? _vm.SelectedPoseKeys(key) : [];
         var flyout = new MenuFlyout { Placement = PlacementMode.Pointer };
         var delete = new MenuItem
         {
-            Header = bone is null ? "Delete this pose key" : "Unkey this bone here",
+            Header = pose.Count > 1
+                ? $"Delete {pose.Count} pose keys"
+                : bone is null ? "Delete this pose key" : "Unkey this bone here",
         };
-        delete.Click += (_, _) => _vm.DeletePoseKey(bone, frame);
+        delete.Click += (_, _) =>
+        {
+            foreach (var k in pose.OrderByDescending(k => k.Frame)) _vm.DeletePoseKey(k.BoneId, k.Frame);
+        };
         flyout.Items.Add(delete);
         var goThere = new MenuItem { Header = $"Go to frame {frame + 1}" };
         goThere.Click += (_, _) => _vm.CurrentFrameIndex = frame;
