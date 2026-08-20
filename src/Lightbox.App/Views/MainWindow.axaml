@@ -4392,12 +4392,12 @@
                                     LeadingInset="152"
                                     CellWidth="{Binding TimelineRulerCellWidth}"
                                     Extent="{Binding TimelineExtent}"
-                                    MaxFrame="{Binding MaxScrubFrame}"
+                                    MaxFrame="{Binding MaxScrubFrame}" CameraKeyed="{Binding CameraKeyedFrames}"
                                     CurrentFrame="{Binding CurrentFrameIndex, Mode=TwoWay}"
                                     IsScrubbing="{Binding IsScrubbing, Mode=TwoWay}"
                                     RangeStart="{Binding PlaybackStartFrame, Mode=TwoWay}"
                                     RangeEnd="{Binding PlaybackEndFrame, Mode=TwoWay}"
-                                    Markers="{Binding MarkersView}" />
+                                    Markers="{Binding MarkersView}" PoseKeyed="{Binding PoseKeyedFrames}" />
             <ItemsControl ItemsSource="{Binding LayerRows}">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>

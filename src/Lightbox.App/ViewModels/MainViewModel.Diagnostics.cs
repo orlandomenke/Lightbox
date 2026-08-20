@@ -156,6 +156,7 @@ public partial class MainViewModel
         NotifyArmatureSurface();
         NotifyActiveLayerCompositing();
         MarkersView = Scene.Markers.ToList();
+        NotifyOffSheetKeys();
         RefreshCelSelectionHighlights();
         ScheduleVolumeCheck();
         // Undo/redo publishes from ApplyEditScope instead, once the stale

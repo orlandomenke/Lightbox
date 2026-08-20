@@ -249,6 +249,20 @@ public sealed class AppSettings
     public bool AlwaysRecordPenAxes { get; set; }
 
     /// <summary>
+    /// Mark the X-sheet's frame numbers where the camera or the armature is
+    /// keyed.
+    /// </summary>
+    /// <remarks>
+    /// <b>Off, and the default is the decision.</b> The X-sheet is the exposure
+    /// sheet — ink, and what is exposed when — which is exactly why camera moves
+    /// and bone poses are not in it. A mark that appeared by default would put
+    /// non-drawing tracks back into the grid by the back door, on every document
+    /// including the ones that have neither. Somebody who wants to know that
+    /// frame 9 carries a pose while they read the sheet can ask for it.
+    /// </remarks>
+    public bool MarkOffSheetKeys { get; set; }
+
+    /// <summary>
     /// Whether the bone overlay follows the playhead while the animation
     /// plays, rather than being hidden.
     /// </summary>

@@ -473,6 +473,15 @@
         </StackPanel>
 
         <StackPanel Spacing="6">
+          <TextBlock Text="The X-sheet and the Timeline" FontWeight="SemiBold" />
+          <CheckBox x:Name="OffSheetKeyBox" Content="Mark frames where the camera or a bone is keyed"
+                    IsCheckedChanged="OnMarkOffSheetKeysChanged"
+                    ToolTip.Tip="A small orange or blue square under the X-sheet's frame number, in the Timeline's own track colours" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="The X-sheet is the exposure sheet: it shows ink and when it is exposed, which is why camera moves and bone poses live on the Timeline instead. Off by default — turn it on when you want the sheet to tell you that something happens on a frame it cannot draw." />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
           <TextBlock Text="The rig during playback" FontWeight="SemiBold" />
           <CheckBox x:Name="AnimateRigBox" Content="Show the bones while the animation plays"
                     IsCheckedChanged="OnAnimateRigChanged"
