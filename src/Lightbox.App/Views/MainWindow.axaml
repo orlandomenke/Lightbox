@@ -4397,6 +4397,8 @@
                                     IsScrubbing="{Binding IsScrubbing, Mode=TwoWay}"
                                     RangeStart="{Binding PlaybackStartFrame, Mode=TwoWay}"
                                     RangeEnd="{Binding PlaybackEndFrame, Mode=TwoWay}"
+                                    CameraKeyed="{Binding CameraKeyedFrames}"
+                                    PoseKeyed="{Binding PoseKeyedFrames}"
                                     Markers="{Binding MarkersView}" />
             <ItemsControl ItemsSource="{Binding LayerRows}">
               <ItemsControl.ItemsPanel>

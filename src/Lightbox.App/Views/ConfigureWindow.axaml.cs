@@ -695,6 +695,7 @@ public partial class ConfigureWindow : Window
         HoldBox.ItemsSource = _vm.HoldDrawingChoices;
         HoldBox.SelectedItem = _vm.DrawingOnAHold;
         LoopBox.IsChecked = _vm.LoopPlayback;
+        OffSheetKeyBox.IsChecked = _vm.MarkOffSheetKeys;
         FrameWidthBox.Value = (decimal)_vm.TimelineFrameWidth;
         VolumeToleranceBox.Value = (decimal)Math.Round(_vm.Settings.VolumeTolerance * 100);
         _loadingTimeline = false;
@@ -828,6 +829,12 @@ public partial class ConfigureWindow : Window
     {
         if (_loadingTimeline || _vm is null || LoopBox.IsChecked is not { } on) return;
         _vm.LoopPlayback = on;
+    }
+
+    private void OnMarkOffSheetKeysChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_loadingTimeline || _vm is null || OffSheetKeyBox.IsChecked is not { } on) return;
+        _vm.MarkOffSheetKeys = on;
     }
 
     private void OnFrameWidthChanged(object? sender, NumericUpDownValueChangedEventArgs e)

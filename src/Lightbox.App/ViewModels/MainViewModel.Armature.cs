@@ -1400,6 +1400,7 @@ public sealed partial class MainViewModel
     /// </remarks>
     private void AfterPoseTrackEdit()
     {
+        NotifyOffSheetKeys();
         InvalidateRiggedFrames();
         RefreshArmatureAtPlayhead();
         OnPropertyChanged(nameof(TimelineTracks));

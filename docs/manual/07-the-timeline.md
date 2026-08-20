@@ -44,6 +44,29 @@ cell, you can stand on it.
 start and end you set for the playback range, and never out into the hatching.
 Scrubbing is free; playing is bounded.
 
+## When the sheet cannot show what is happening
+
+The X-sheet is the **exposure sheet**: ink, and when it is exposed. The camera
+and the armature are animated too, but they are not part of the exposure, so
+they live on the Timeline and have no cell here. That division is deliberate —
+a camera key belongs to no layer, and a row for it in the drawing grid would
+change what the grid means.
+
+What it costs is knowing that something happens at all. Four drawings on the
+sheet and a pose on frame 9, and nothing in front of you says frame 9 is
+different.
+
+**Configure ▸ Timeline ▸ Mark frames where the camera or a bone is keyed** turns
+on a small square under the X-sheet's frame number: orange for a camera key,
+blue for a pose key, in the Timeline's own track colours, and two side by side
+on a frame carrying both. It marks only the frames that actually hold a key —
+not the frames a camera moves across, which are interpolated and are not
+decisions you made.
+
+**It is off by default**, and off means absent: a document with no camera and no
+rig shows nothing and costs nothing, and the sheet stays a sheet unless you ask
+it to say more.
+
 ## Picking keys on the Timeline
 
 The X-sheet's cells are one way to pick things; the Timeline's dots are the

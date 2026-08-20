@@ -290,6 +290,7 @@ public partial class MainViewModel
 
     private void NotifyCameraSurface()
     {
+        NotifyOffSheetKeys();
         OnPropertyChanged(nameof(TimelineTracks));
         OnPropertyChanged(nameof(GraphSeriesList));
         OnPropertyChanged(nameof(HasCamera));
