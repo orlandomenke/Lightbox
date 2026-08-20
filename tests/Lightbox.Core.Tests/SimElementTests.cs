@@ -74,6 +74,55 @@ public class SimElementTests
     }
 
     [Fact]
+    public void A_Fluid_That_Does_Not_Burn_Writes_No_Combustion_Keys()
+    {
+        var doc = new Doc { Sims = new Dictionary<string, SimElement> { ["sim1"] = Fire() } };
+
+        // Steam does not burn, and a document full of smoke should not carry
+        // three keys saying so. The cheap half of "optional means absent" — the
+        // medium block paid for the expensive half once already.
+        var json = DocJson.Serialize(doc);
+        Assert.DoesNotContain("\"burning\"", json);
+        Assert.DoesNotContain("\"ignition\"", json);
+        Assert.DoesNotContain("\"yield\"", json);
+    }
+
+    [Fact]
+    public void A_Burning_Fluid_Round_Trips_Its_Combustion_Block()
+    {
+        var element = Fire();
+        element.Params = element.Params with
+        {
+            Burning = new Combustion { Rate = 0.04, Ignition = 0.25, Yield = 2.5 },
+        };
+        var doc = new Doc { Sims = new Dictionary<string, SimElement> { ["sim1"] = element } };
+
+        var back = DocJson.Deserialize(DocJson.Serialize(doc)).Sims!["sim1"].Params.Burning;
+
+        Assert.NotNull(back);
+        Assert.Equal(0.04, back!.Value.Rate, 6);
+        Assert.Equal(0.25, back.Value.Ignition, 6);
+        Assert.Equal(2.5, back.Value.Yield, 6);
+    }
+
+    [Fact]
+    public void Editing_A_Copys_Combustion_Leaves_The_Original_Alone()
+    {
+        // `SimParams` is a record and `Clone` copies it with `with { }`, which
+        // copies a reference rather than what it points at. A value type is what
+        // keeps a duplicated effect from editing the one it was copied from, and
+        // this is the assertion that would fail if it ever became a class.
+        var element = Fire();
+        element.Params = element.Params with { Burning = new Combustion { Rate = 0.04 } };
+
+        var copy = element.Clone();
+        copy.Params = copy.Params with { Burning = copy.Params.Burning!.Value with { Rate = 0.2 } };
+
+        Assert.Equal(0.04, element.Params.Burning!.Value.Rate, 6);
+        Assert.Equal(0.2, copy.Params.Burning!.Value.Rate, 6);
+    }
+
+    [Fact]
     public void An_Element_With_No_Embers_And_No_Overrides_Writes_Neither_Key()
     {
         var doc = new Doc { Sims = new Dictionary<string, SimElement> { ["sim1"] = Fire() } };

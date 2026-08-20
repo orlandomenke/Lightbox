@@ -330,6 +330,28 @@ public sealed partial class FluidEffectsViewModel
         Number(PhysicsFields, "Cooling", () => E.Params.Cooling, v => E.Params = E.Params with { Cooling = v },
             0, 0.5, 0.01, resolves: true, hint: "How fast heat leaves. This is what gives a flame its length.");
 
+        // Burning: the block authors itself on the toggle and its numbers only
+        // exist while it does — the camera's rule, absent rather than disabled.
+        Toggle(PhysicsFields, "Burning", () => E.Params.Burning is not null,
+            on => E.Params = E.Params with { Burning = on ? new Combustion() : null }, resolves: true,
+            hint: "Let the fluid's own density burn as fuel. Without it heat only ever leaves, so a piece of flame that detaches goes out inside one frame; with it the piece carries fuel and keeps burning as it rises. Burning also makes the fire hotter, and a hotter fire climbs — raise Vorticity to spend that on curl instead of on height.");
+
+        if (E.Params.Burning is { } burn)
+        {
+            Number(PhysicsFields, "· burn rate", () => burn.Rate,
+                v => E.Params = E.Params with { Burning = burn with { Rate = v } },
+                0, 0.3, 0.005, resolves: true,
+                hint: "What fraction of the fuel present is spent per step. Low is a piece that stays lit for half a second; high is a flash that is over before it has risen.");
+            Number(PhysicsFields, "· ignition", () => burn.Ignition,
+                v => E.Params = E.Params with { Burning = burn with { Ignition = v } },
+                0, 2, 0.05, resolves: true,
+                hint: "How hot fuel must be to burn at all, in the emitter's own heat units — its centre is 1 by default. Raising it keeps the cool tail from burning, which shortens the flame without shortening the pieces that come off it. Above the emitter's heat nothing ignites, which is how warm smoke stays smoke.");
+            Number(PhysicsFields, "· yield", () => burn.Yield,
+                v => E.Params = E.Params with { Burning = burn with { Yield = v } },
+                0, 8, 0.25, resolves: true,
+                hint: "Heat released per unit of fuel — how fiercely a piece burns while it lasts, as against how long it lasts.");
+        }
+
         Number(PhysicsFields, "Wind X", () => E.WindX?.Value ?? 0,
             v => E.WindX = v == 0 && E.WindX?.IsAnimated != true ? null : Param(E.WindX, v),
             -1, 1, 0.01, resolves: true,
@@ -532,14 +554,37 @@ public sealed partial class FluidEffectsViewModel
             v => { if (v is { } value) write(Math.Clamp(value, min, max)); },
             OnFieldChanged, min, max, step, null, resolves, hint));
 
+    /// <summary>
+    /// A row that authors a whole block, and so has to rebuild the panel it
+    /// lives in — the sub-rows below it exist only while the block does.
+    /// </summary>
+    /// <remarks>
+    /// <b>The panel is the one the row was added to, not always the emitter's.</b>
+    /// This rebuilt <see cref="EmitterFields"/> unconditionally while Scatter was
+    /// the only toggle, which is correct for exactly one caller and silently
+    /// wrong for the next: the Burning toggle set its block and no sub-rows
+    /// appeared, because the panel holding it was never rebuilt. Deriving it from
+    /// <paramref name="into"/> is what stops that being rediscovered a third
+    /// time.
+    /// </remarks>
     private void Toggle(
         ObservableCollection<EffectFieldRow> into, string name,
         Func<bool> read, Action<bool> write, bool resolves = false, string? hint = null) =>
         into.Add(new EffectFieldRow(
             name, EffectFieldKind.Toggle, () => read() ? 1 : 0, null,
             v => { if (v is { } value) write(value >= 0.5); },
-            row => { OnFieldChanged(row); BuildEmitterFields(); },
+            row => { OnFieldChanged(row); Rebuild(into); },
             0, 1, 1, null, resolves, hint));
+
+    /// <summary>Rebuild whichever panel this is.</summary>
+    private void Rebuild(ObservableCollection<EffectFieldRow> which)
+    {
+        if (ReferenceEquals(which, EmitterFields)) BuildEmitterFields();
+        else if (ReferenceEquals(which, PhysicsFields)) BuildPhysicsFields();
+        else if (ReferenceEquals(which, PlacementFields)) BuildPlacementFields();
+        else if (ReferenceEquals(which, BandFields)) BuildBandFields();
+        else if (ReferenceEquals(which, TreatmentFields)) BuildTreatmentFields();
+    }
 
     private void Choice(
         ObservableCollection<EffectFieldRow> into, string name,

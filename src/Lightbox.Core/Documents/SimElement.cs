@@ -3,6 +3,104 @@ using Lightbox.Core.Effects;
 namespace Lightbox.Core.Documents;
 
 /// <summary>
+/// Fuel turning into heat: what lets a piece of flame that has left the column
+/// go on burning instead of going out.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Why it exists.</b> Without it heat is only ever stamped at an emitter and
+/// then decays, so a parcel that detaches has nothing sustaining it and fades
+/// below the outermost band inside one frame. Measured on the window's own
+/// fire: six real sheds over forty frames, <em>every one of them lasting a
+/// single frame</em>. Real flame tips detach and keep burning, because they
+/// carry their fuel with them.
+/// </para>
+/// <para>
+/// <b>Density is the fuel</b>, which is why this needs no field of its own. An
+/// emitter already stamps density beside heat, advection already carries it,
+/// and a detached parcel therefore already holds a fuel supply — the only thing
+/// missing was permission to spend it.
+/// </para>
+/// <para>
+/// <b>It is self-limiting, and that is the part worth keeping.</b> Burning
+/// consumes the fuel, so heat production falls away as the parcel spends
+/// itself while <c>Cooling</c> goes on taking its cut at a constant rate.
+/// Burning holds a parcel up while it has fuel, the fuel runs out, and cooling
+/// has it again — what is left is cool density, which is to say smoke. That is
+/// the same arc a fireball has, so <see cref="Emitter.Burst"/> gets it for free
+/// rather than needing a second mechanism.
+/// </para>
+/// <para>
+/// <b>Which is the reason it is not simply a lower <c>Cooling</c>.</b> Cooling
+/// slowly does keep a detached parcel alive — measured, a flame at
+/// <c>Cooling = 0.01</c> sheds pieces that last 12 and 26 frames instead of one
+/// — but it is the same number that gives a flame its length, so the flame goes
+/// from 21 cells tall to 43 on the way. One knob was doing two jobs; this is
+/// the second job moved somewhere it can be set on its own.
+/// </para>
+/// <para>
+/// <b>A value type, deliberately.</b> <see cref="SimParams"/> is a record and
+/// <c>SimElement.Clone</c> copies it with <c>with { }</c>, which copies a
+/// reference rather than what it points at — so a class here would leave two
+/// elements sharing one block, and editing a duplicated effect would edit the
+/// original. <see cref="EmitterScatter"/> can be a class because its owner
+/// clones it by hand; this cannot.
+/// </para>
+/// </remarks>
+/// <remarks>
+/// <b>The defaults were measured, not chosen.</b> A torch on a 48x88 grid, forty
+/// frames, counting only sheds of five cells or more:
+///
+/// <code>
+///   off                          21 cells tall | 6 sheds, every one 1 frame
+///   0.02 / 0.3 / 3, vorticity .35  29 cells   | 10 sheds, up to 4 frames
+///   0.02 / 0.3 / 3, vorticity .7   26 cells   |  7 sheds, up to 8 frames
+///   0.02 / 0.3 / 3, vorticity 1.0  23 cells   | 11 sheds, up to 4 frames
+/// </code>
+///
+/// <b>Burning makes a fire hotter, and a hotter fire climbs</b> — so on a grid
+/// with room overhead this lengthens the flame, and <c>Vorticity</c> is what
+/// takes the rise back by spending the buoyancy on curl instead. That trade is
+/// the recipe rather than a defect and the manual states it. It is also
+/// <em>grid-dependent</em>, which is the part worth not assuming: on the 44-cell
+/// grid a new element gets, the flame has no room to use the extra heat and the
+/// same block costs 3% of the height with vorticity left alone.
+/// </remarks>
+public readonly record struct Combustion
+{
+    public Combustion() { }
+
+    /// <summary>
+    /// Fraction of the fuel present that burns per step, where it is hot enough
+    /// to burn at all.
+    /// </summary>
+    public double Rate { get; init; } = 0.02;
+
+    /// <summary>
+    /// How hot fuel has to be before it burns, in the same units as
+    /// <see cref="Emitter.Heat"/> — which is 1 at an emitter's centre by
+    /// default, so the useful range is a fraction of that.
+    /// </summary>
+    /// <remarks>
+    /// <b>Absolute rather than a fraction of the element's peak</b>, which
+    /// <see cref="SimElement.BandLow"/> is and which would be wrong here. A band
+    /// level reads a field that has already been computed; an ignition point
+    /// decides what the field becomes, so scaling it by the peak would make the
+    /// threshold depend on the burning it is gating. Bands may follow the
+    /// result. This has to stand outside it.
+    /// </remarks>
+    public double Ignition { get; init; } = 0.3;
+
+    /// <summary>Heat released per unit of fuel burned.</summary>
+    /// <remarks>
+    /// Separate from <see cref="Rate"/> because the two say different things:
+    /// rate is how long the parcel lasts, yield is how fiercely it burns while
+    /// it does. Fast and dim is a flash; slow and bright is an ember.
+    /// </remarks>
+    public double Yield { get; init; } = 3;
+}
+
+/// <summary>
 /// What the solver does with the fluid, frame after frame.
 /// </summary>
 /// <remarks>
@@ -90,6 +188,17 @@ public sealed record SimParams
 
     /// <summary>Fraction of temperature lost per step.</summary>
     public double Cooling { get; set; } = 0.06;
+
+    /// <summary>
+    /// Fuel burning into heat, or null for a fluid that only ever cools.
+    /// </summary>
+    /// <remarks>
+    /// Absent by default, on <see cref="SimElement.PreRoll"/>'s precedent: every
+    /// field above describes any fluid and is always written, while this is a
+    /// feature somebody switches on for fire. Steam does not burn, and a
+    /// document full of smoke should not carry three keys saying so.
+    /// </remarks>
+    public Combustion? Burning { get; set; }
 }
 
 /// <summary>Where an emitter puts fluid in.</summary>

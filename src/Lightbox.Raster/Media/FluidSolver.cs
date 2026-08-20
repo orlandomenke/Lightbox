@@ -383,6 +383,13 @@ public sealed class FluidSolver
         var dissipation = Clamped((float)p.Dissipation, 0f, 1f);
         var cooling = Clamped((float)p.Cooling, 0f, 1f);
         var drag = Clamped((float)p.Drag, 0f, 1f);
+        float burnRate = 0f, ignition = 0f, heatYield = 0f;
+        if (p.Burning is { } burning)
+        {
+            burnRate = Clamped((float)burning.Rate, 0f, 1f);
+            ignition = Clamped((float)burning.Ignition, 0f, 1e6f);
+            heatYield = Clamped((float)burning.Yield, 0f, 1e3f);
+        }
         var wx = Clamped((float)windX, -MaxSpeed, MaxSpeed);
         var wy = Clamped((float)windY, -MaxSpeed, MaxSpeed);
         var windy = wx != 0f || wy != 0f;
@@ -405,6 +412,12 @@ public sealed class FluidSolver
             LimitSpeed();
             Project();
             TransportScalars();
+            // After transport, so fuel burns where the flow has just put it, and
+            // before cooling, so what a parcel makes this step is what cooling
+            // then takes its cut of. Reversing those two would let a parcel be
+            // cooled below the ignition point by the same step that was meant to
+            // keep it alight.
+            if (burnRate > 0 && heatYield > 0) Burn(burnRate, ignition, heatYield);
             if (dissipation > 0 || cooling > 0) Dissipate(dissipation, cooling);
             _step++;
         }
@@ -941,6 +954,38 @@ public sealed class FluidSolver
         var h = _heat[donor] * share;
         _heatB[donor] -= h;
         _heatB[receiver] += h;
+    }
+
+    /// <summary>
+    /// Spend fuel where it is hot enough, and turn what was spent into heat.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Density is the fuel</b> — see <see cref="Combustion"/> for why that is
+    /// not a shortcut. Burning consumes it, so the reaction puts itself out: as
+    /// the fuel goes the heat production goes with it, <c>Cooling</c> keeps
+    /// taking a constant fraction, and what is left is cool density. A fireball
+    /// becoming smoke is that arc rather than a second mechanism.
+    /// </para>
+    /// <para>
+    /// <b>Deterministic like everything else here</b>: one pass in fixed
+    /// row-major order, per-cell arithmetic only, no neighbour reads, so it
+    /// cannot depend on traversal and is bit-identical on every machine.
+    /// </para>
+    /// </remarks>
+    private void Burn(float rate, float ignition, float heatYield)
+    {
+        var n = _w * _h;
+        for (var i = 0; i < n; i++)
+        {
+            if (_heat[i] <= ignition) continue;
+
+            var burned = _density[i] * rate;
+            if (burned <= 0f) continue;
+
+            _density[i] -= burned;
+            _heat[i] += burned * heatYield;
+        }
     }
 
     private void Dissipate(float dissipation, float cooling)

@@ -147,7 +147,57 @@ These are what the simulation does, and every one of them means a re-simulate.
 - **Dissipation** — how fast the stuff thins out. Smoke wants a little, steam a
   lot.
 - **Cooling** — how fast heat leaves. **This is what gives a flame its length.**
+- **Burning** — lets the fluid's own density burn as fuel. See below; it is on
+  for a new fire element and off for everything else.
 - **Wind X / Y** — ambient flow across the element, in cells per step.
+
+### Burning — why a flame can shed its tip
+
+Watch a real flame and pieces come off the top and rise on their own for a
+moment before they go. Without **Burning** ours could not do that, and the
+reason was structural rather than a setting being wrong: heat is put in at the
+emitter and from then on only *leaves*. A piece still inside the column is
+refilled from below every frame; a piece that has detached has nothing, so it
+drops out of the outermost band within one frame. Measured on a plain torch —
+six pieces came off over forty frames and **every one of them lasted a single
+frame**, which reads as sparkle rather than as fire.
+
+Burning gives a detached piece something to live on. The fluid's **density is
+the fuel**: an emitter already puts density in beside heat, the flow already
+carries it, so a piece that breaks away is already carrying a fuel supply — it
+only needed permission to spend it.
+
+- **Burn rate** — what fraction of the fuel present is spent per step. Low is a
+  piece that stays lit for half a second; high is a flash that is over before it
+  has risen.
+- **Ignition** — how hot fuel has to be before it burns at all, in the emitter's
+  own heat units (its centre is **1** by default). Raising it stops the cool
+  tail burning, which shortens the flame without shortening the pieces that come
+  off it. **Set it above the emitter's heat and nothing ignites**, which is how
+  warm smoke stays smoke.
+- **Yield** — heat released per unit of fuel: how *fiercely* a piece burns, as
+  against how long it lasts.
+
+> **It puts itself out, and that is deliberate.** Burning consumes the fuel, so
+> the heat stops coming while cooling goes on taking its cut, and what is left
+> is cool density — which is to say smoke. A fireball that burns and then
+> becomes smoke is that arc rather than anything you have to author, so an
+> explosion gets it for free.
+
+**Burning makes a fire hotter, and a hotter fire climbs.** On a grid with room
+overhead, switching it on lengthens the flame; **Vorticity** is what takes that
+back, by spending the rise on curl instead of on height. On the small grid a new
+element starts with there is no room to climb and it barely shows. Measured, a
+new fire element:
+
+| | flame height | longest-lived piece |
+| --- | --- | --- |
+| burning off | 50% of the grid | 1 frame |
+| as it ships | 47% | 4 frames |
+| Vorticity raised to 0.7 | 43% | 7 frames |
+
+So if you want the pieces to hang in the air longer, raise **Vorticity** and
+expect to pay for it in height.
 
 ### Wind, and the number that surprises everybody
 
