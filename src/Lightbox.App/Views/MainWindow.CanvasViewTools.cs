@@ -381,6 +381,9 @@ public partial class MainWindow
             case "canvas.motionTrail":
                 _vm.MotionTrail = !_vm.MotionTrail;
                 break;
+            case "canvas.checkPerspective":
+                _vm.CheckPerspective();
+                break;
             case "canvas.showGuides":
                 _vm.Workspace.GuidesVisible = !_vm.Workspace.GuidesVisible;
                 break;

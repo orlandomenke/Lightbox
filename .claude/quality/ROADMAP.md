@@ -886,7 +886,23 @@ every other AI feature and are only legible together.
     menu's editor writes them, and both inbetweeners and the intended-spacing
     curve read the same list — one authored object, every consumer.
 - [?] Automatic contact frame detection
-- [?] Perspective consistency checker
+- [x] Perspective consistency checker `evidence: PerspectiveChecker, PerspectiveReport, PerspectiveCheckerTests, PerspectiveCheckTests, ALineAimedNearButNotAtThePointIsTheFinding, WithNoDeclaredPointTheCheckerInfersOneAndSaysSo, TheArtistsOwnPointSilencesInference, TheMissesAreSelectedAndTheStatusSaysHowFarOff, AnInferredJudgementCarriesItsHedge`
+  - **The labelling problem the guides entry named is the two bands** (Q135):
+    a line claims to be a perspective line by nearly aiming at a vanishing
+    point (inside the alignment band); it is a finding only when it also
+    misses (outside the convergence band). A line well clear of every point
+    is about something else and is left alone — no per-stroke labels needed.
+  - **The artist's own vanishing points always win.** Inference — clustering
+    the lines' pairwise intersections — runs only where none are declared,
+    and every reading of it says so: an inferred horizon is a guess judging
+    the artist, so its findings are suggestions, never errors (Q135's
+    accepted cost, chosen by the owner to cover unguided drawings too).
+  - The misses land in the existing line selection, highlighted with chrome
+    the artist already reads and actionable with the tools that already act
+    on selections; the verdict, with its degrees, is the status line. On
+    demand (Guides menu / rebindable command) — the ruler's snapping covers
+    the live case, and a warning per stroke is the nagging that gets a
+    feature switched off.
 - [?] Silhouette readability preview
 - [?] Walk cycle analyzer
 - [?] Jump arc analyzer
@@ -1217,7 +1233,7 @@ not re-derive it.
   - The segmentation problem resolved as the note proposed, one notch simpler: v1 measures the **active layer** — the strongest selection statement the UI has today — rather than a multi-select it doesn't. Holds are measured once by `Frame.Id`, the measuring render is capped at 512 px on its long side (drift ratios are scale-free), and the recompute is posted at background priority off the commit hook, so it never adds to pen-lift latency. Tolerance is a preference (`Configure ▸ Timeline`), default 10%.
 - [x] Center of mass visualization — the 1st moment of the same pass: a dot per frame with its arc, onion-skin style, the current frame's dot emphasised, flagged frames warm `evidence: BalanceOverlayPainter, BalanceOverlayPainterTests, TheCentroidLandsOnTheMark, TheCentroidFollowsTheMassNotTheCanvas, EveryFrameGetsADotAndTheArcConnectsThem, TheCurrentFrameIsTheEmphaticOne, TheReadingsReachBothSurfaces`
   - The uniform-density caveat lives in the menu item's tooltip and the manual, as the design note said it should — not in a density model.
-- [?] Perspective consistency guide — checking strokes against the VP rig means deciding which strokes *claim* to be perspective lines, which is a labelling problem before it is geometry.
+- [x] Perspective consistency guide — the checker under Pillar 4 (same anchors): the labelling problem this entry named resolved as the alignment band — a stroke claims to be a perspective line by nearly aiming at a vanishing point, and only a near-miss is a finding `evidence: PerspectiveChecker, PerspectiveCheckerTests`
 - [?] Limb length guide — an animation checker, not a guide: per-frame distances between named points, compared across the sheet, flagging segments that drift. **Waits for the bone system, deliberately** (owner, 2026-08-13): `docs/DESIGN-bones.md` has anchors riding bones, which makes the per-frame annotation labour — the real cost this entry always named — free once a character is rigged. Measuring hand-placed `Anchor` pairs today would build a surface the bones work immediately obsoletes.
 
 ### Project plumbing

@@ -477,6 +477,8 @@
           <MenuItem Header="Add horizon" Click="OnAddHorizonLine" />
           <MenuItem Header="Add vanishing point" Click="OnAddVanishingPoint"
                     ToolTip.Tip="One is one-point perspective, two is two-point, three is three" />
+          <MenuItem Header="Check perspective" Command="{Binding CheckPerspectiveCommand}"
+                    ToolTip.Tip="Select the straight lines that nearly converge on a vanishing point and miss — your own points if any are placed, else points read off the ink" />
           <Separator />
           <!--
             Guide sets: the guides you placed, named and kept in the project so

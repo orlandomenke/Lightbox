@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4576
+budget: 4579
 
 ## Why it is here despite being XAML
 
@@ -157,3 +157,8 @@ leaves a number nobody can account for. So every reason above stays, and
   from the same 4,434, so it is a third claim on that number and its six lines
   are additional to everything the remeasure before it counted. Its reason
   stays, the figure comes from `ratchets.py remeasure`.
+- **4,576 → 4,579** (2026-08-20, perspective checker): +3 for the "Check
+  perspective" MenuItem in the Guides menu, beside the vanishing point it
+  checks against — the one place the command belongs, and a menu subtree is
+  not extractable the way a docker's body is. The exact three lines, recorded
+  rather than rounded up (B217's precedent).

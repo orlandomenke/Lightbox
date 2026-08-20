@@ -337,6 +337,8 @@ public sealed class ShortcutMap
             // checkbox on the timeline bar is the way in, and being here is
             // what lets an artist bind it to whatever they have free.
             new("canvas.motionTrail", "Show motion trail (path and spacing)", "Canvas", null),
+            // Gestureless like the trail: the Guides menu is the way in.
+            new("canvas.checkPerspective", "Check perspective (select lines that miss a vanishing point)", "Canvas", null),
 
             new("timeline.playPause", "Play / pause", "Timeline", G(Key.Space)),
             new("timeline.prevFrame", "Previous frame (scrub)", "Timeline", G(Key.Left), ShortcutContext.Panel, DockPanelId.Timeline),

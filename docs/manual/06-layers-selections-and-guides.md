@@ -312,6 +312,17 @@ Previews tell the truth about this. The pen's rubber band runs to the place the
 node will actually land rather than to the pointer, so what you see before the
 click is what the click does.
 
+**Check perspective** (View → Guides) reads the drawing back: it measures your
+near-straight lines against the vanishing points and **selects the ones that
+nearly converge and miss** — highlighted like any picked lines, ready to move
+or delete — with the worst miss named in degrees on the status line. A line
+well clear of every point is left alone; it is about something else. With no
+vanishing point placed, the checker reads candidate points off the ink itself
+and says so — that judgement is a suggestion, and placing your own point (the
+statement only you can make) is what turns it into a check. It runs when you
+ask, on the active layer's drawing; while drawing, the ruler's snapping is the
+live half of the same promise.
+
 **Holding Shift beats a guide where the two disagree.** Shift asks for an angle
 — a level gradient, a square marquee — and a guide asks for a place; if a guide
 pulled the end back off the angle you had just asked for, one of the two would
