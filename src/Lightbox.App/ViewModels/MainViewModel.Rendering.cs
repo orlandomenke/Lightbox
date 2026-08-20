@@ -602,7 +602,8 @@ public partial class MainViewModel
             IsPlaying, IsLightTable,
             HaveViewport: _publish.Viewport is { Width: > 0, Height: > 0 },
             Onion,
-            IsScrubbing);
+            IsScrubbing,
+            Silhouette: ChannelSolo == Rendering.ChannelSolo.Silhouette);
         var live = new ScenePassBuilder.LiveEdit(
             _live.Composite, _live.Scratch, _live.PostScratch, _live.PostStampedCount,
             _liveShape, _liveGradient, _strokeBuilder.Current,

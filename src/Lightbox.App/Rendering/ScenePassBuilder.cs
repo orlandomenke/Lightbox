@@ -142,6 +142,12 @@ internal static class ScenePassBuilder
     /// but they agree on the thing tiles care about: the sequence is moving, so
     /// a cel costs its ink rather than its paper.
     /// </param>
+    /// <param name="Silhouette">
+    /// The pose-reading view (Q135): compose the ink without the paper, the
+    /// references or the ghosts, so the draw can flatten it to black on white.
+    /// A compose-time flag rather than a colour filter because the paper is
+    /// baked into the composite — no filter can take it back out.
+    /// </param>
     internal readonly record struct State(
         int FrameIndex,
         string? ActiveLayerId,
@@ -149,7 +155,8 @@ internal static class ScenePassBuilder
         bool IsLightTable,
         bool HaveViewport,
         OnionSettings Onion,
-        bool IsScrubbing = false);
+        bool IsScrubbing = false,
+        bool Silhouette = false);
 
     /// <summary>
     /// The moving and staying halves of a frame under a live transform, as the
@@ -288,6 +295,9 @@ internal static class ScenePassBuilder
         foreach (var layer in scene.Layers)
         {
             if (!scene.IsLayerVisible(layer)) continue;
+            // The silhouette is the ink alone: the paper would flatten to a
+            // black page, and a reference is a photograph, not the pose.
+            if (state.Silhouette && layer.IsBackground) continue;
             var isActive = layer.Id == state.ActiveLayerId;
 
             // An imported reference goes over the paper and under every
@@ -295,7 +305,7 @@ internal static class ScenePassBuilder
             // lightbox. Over the paper because the paper is opaque and would
             // hide it; under the drawings because it is what you are drawing
             // against, not something you are drawing on top of.
-            if (!referencesQueued && !layer.IsBackground)
+            if (!referencesQueued && !layer.IsBackground && !state.Silhouette)
             {
                 passes.AddRange(ReferenceSpecs(scene, state));
                 referencesQueued = true;
@@ -559,7 +569,9 @@ internal static class ScenePassBuilder
         // list: this is asked once per visible layer per publish, and a publish
         // happens per pointer event during a stroke, so an unused List per
         // layer per event is a real allocation on the drawing path.
-        if (!onion.Enabled || state.IsPlaying || !layer.OnionEnabled) return [];
+        // In silhouette everything flattens to one black mass, so a ghost
+        // under the drawing would weld itself to the pose it exists to check.
+        if (!onion.Enabled || state.IsPlaying || state.Silhouette || !layer.OnionEnabled) return [];
 
         var previous = SceneRenderer.ParseTint(onion.PreviousTint, SceneRenderer.OnionPrevTint);
         var next = SceneRenderer.ParseTint(onion.NextTint, SceneRenderer.OnionNextTint);

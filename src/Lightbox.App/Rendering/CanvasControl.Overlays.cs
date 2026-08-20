@@ -433,4 +433,56 @@ public sealed partial class CanvasControl
 
     /// <summary>The press turned out to be a click; throw the session away.</summary>
     public event Action? SelectedLinesMoveCancelled;
+
+    /// <summary>
+    /// What sits under the artwork: white paper in silhouette view (Q135) —
+    /// the composite left the real paper out, and a checkerboard under a
+    /// black mass reads as texture — else the transparency checkerboard.
+    /// </summary>
+    private static void DrawUnderArtwork(SKCanvas canvas, ViewState view, ChannelSolo solo)
+    {
+        if (solo == ChannelSolo.Silhouette)
+        {
+            using var paper = new SKPaint { Color = SKColors.White };
+            canvas.DrawRect(new SKRect(0, 0, view.DocW, view.DocH), paper);
+            return;
+        }
+        DrawTransparencyCheckerboard(canvas, view);
+    }
+
+    /// <summary>
+    /// The transparency checkerboard, behind the page. Drawn here rather
+    /// than composited into the document, because it is a way of *seeing*
+    /// the artwork, not part of it — the same reason zoom and rotation
+    /// live on this side. It sits under everything, so it shows through
+    /// wherever the composite has alpha, with or without a background
+    /// layer.
+    ///
+    /// The squares are a fixed size on screen, so they stay legible as
+    /// checkerboard at any zoom instead of turning into a grey haze when
+    /// you zoom out or into giant tiles when you zoom in.
+    /// </summary>
+    private static void DrawTransparencyCheckerboard(SKCanvas canvas, ViewState view)
+    {
+        const float squareOnScreen = 8f;
+        var square = squareOnScreen / Math.Max(0.01f, view.Scale);
+        using var light = new SKPaint { Color = new SKColor(0x9a, 0x9a, 0x9a) };
+        using var dark = new SKPaint { Color = new SKColor(0x77, 0x77, 0x77) };
+
+        canvas.Save();
+        canvas.ClipRect(new SKRect(0, 0, view.DocW, view.DocH));
+        canvas.DrawRect(new SKRect(0, 0, view.DocW, view.DocH), light);
+        var columns = (int)Math.Ceiling(view.DocW / square);
+        var rows = (int)Math.Ceiling(view.DocH / square);
+        for (var row = 0; row < rows; row++)
+        {
+            for (var col = row % 2; col < columns; col += 2)
+            {
+                canvas.DrawRect(
+                    new SKRect(col * square, row * square, (col + 1) * square, (row + 1) * square),
+                    dark);
+            }
+        }
+        canvas.Restore();
+    }
 }

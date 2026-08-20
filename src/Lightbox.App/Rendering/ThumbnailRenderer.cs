@@ -30,7 +30,9 @@ public static class ThumbnailRenderer
         using var surface = SKSurface.Create(info)
             ?? throw new InvalidOperationException("Could not create thumbnail surface.");
         var canvas = surface.Canvas;
-        canvas.Clear(SKColors.Black);
+        // In a channel view black IS "nothing here"; the silhouette reads the
+        // other way round — black ink on white paper, like the canvas shows.
+        canvas.Clear(channel == ChannelSolo.Silhouette ? SKColors.White : SKColors.Black);
         var scale = Math.Min((float)width / frame.Width, (float)height / frame.Height);
         var w = frame.Width * scale;
         var h = frame.Height * scale;

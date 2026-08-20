@@ -337,6 +337,9 @@ public sealed class ShortcutMap
             // checkbox on the timeline bar is the way in, and being here is
             // what lets an artist bind it to whatever they have free.
             new("canvas.motionTrail", "Show motion trail (path and spacing)", "Canvas", null),
+            // Gestureless like the trail and for its reason: the Channels
+            // docker is the way in, and being here is what makes it findable.
+            new("canvas.silhouette", "Silhouette view (ink as black on white)", "Canvas", null),
 
             new("timeline.playPause", "Play / pause", "Timeline", G(Key.Space)),
             new("timeline.prevFrame", "Previous frame (scrub)", "Timeline", G(Key.Left), ShortcutContext.Panel, DockPanelId.Timeline),

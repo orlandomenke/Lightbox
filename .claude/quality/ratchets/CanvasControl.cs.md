@@ -1,6 +1,6 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 4867
+budget: 4831
 
 ## Why it has moved
 
@@ -110,3 +110,9 @@ other's reason and leaves a number nobody can account for.
   **The extraction is what paid for the feature**, which is the arrangement this
   file's budget is meant to force: a feature does not get to raise it, so the
   work went beside the file first and the number came down on the way past.
+- **→ 4,831** (2026-08-20, silhouette view): the transparency checkerboard
+  moved to `CanvasControl.Overlays.cs`, where the silhouette's white-paper
+  under-fill needed to live beside it — the nested `DrawOp` reaches both as
+  outer statics. −36, and the feature itself cost the budgeted file one
+  edited callback line and nothing added. The extraction paying for the
+  feature, again.

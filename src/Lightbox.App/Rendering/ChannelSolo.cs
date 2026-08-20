@@ -14,6 +14,15 @@ public enum ChannelSolo
     Green,
     Blue,
     Alpha,
+
+    /// <summary>
+    /// The pose-reading view (Q135): the ink as solid black on white paper —
+    /// the classic silhouette check. Unlike the channels above it also changes
+    /// what gets COMPOSITED (no paper, no references, no ghosts — see
+    /// <c>ScenePassBuilder.State.Silhouette</c>), because the paper is baked
+    /// into the composite and no colour matrix can take it back out.
+    /// </summary>
+    Silhouette,
 }
 
 /// <summary>The colour matrices that isolate one channel as grayscale.</summary>
@@ -37,12 +46,25 @@ public static class ChannelSoloFilters
         0, 0, 0, 0, 1,
     ]);
 
+    /// <summary>
+    /// Every colour to black, coverage kept — what flattens ink to a
+    /// silhouette while the paper (composited out) stays white underneath.
+    /// </summary>
+    private static readonly SKColorFilter SilhouetteInk = SKColorFilter.CreateColorMatrix(
+    [
+        0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0,
+        0, 0, 0, 1, 0,
+    ]);
+
     public static SKColorFilter? For(ChannelSolo solo) => solo switch
     {
         ChannelSolo.Red => Red,
         ChannelSolo.Green => Green,
         ChannelSolo.Blue => Blue,
         ChannelSolo.Alpha => Alpha,
+        ChannelSolo.Silhouette => SilhouetteInk,
         _ => null,
     };
 

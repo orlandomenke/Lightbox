@@ -4089,6 +4089,19 @@
                 <TextBlock Text="Alpha" VerticalAlignment="Center" FontSize="12" />
               </DockPanel>
             </ToggleButton>
+            <ToggleButton IsChecked="{Binding IsSilhouette, Mode=OneWay}" HorizontalAlignment="Stretch"
+                          HorizontalContentAlignment="Left" Padding="4"
+                          Command="{Binding ToggleChannelSoloCommand}"
+                          CommandParameter="{x:Static render:ChannelSolo.Silhouette}"
+                          ToolTip.Tip="View the ink as solid black on white — does the pose read from the shape alone? Paper, references and ghosts are left out. Click again for the normal view">
+              <DockPanel>
+                <Border DockPanel.Dock="Left" Width="64" Height="36" CornerRadius="3"
+                        ClipToBounds="True" Margin="0,0,8,0">
+                  <Image Source="{Binding ChannelThumbSilhouette}" Stretch="Uniform" />
+                </Border>
+                <TextBlock Text="Silhouette" VerticalAlignment="Center" FontSize="12" />
+              </DockPanel>
+            </ToggleButton>
             <TextBlock Text="Viewing only — the drawing is untouched." FontSize="11" Opacity="0.55"
                        TextWrapping="Wrap" />
           </StackPanel>

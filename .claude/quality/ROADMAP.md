@@ -887,7 +887,19 @@ every other AI feature and are only legible together.
     curve read the same list — one authored object, every consumer.
 - [?] Automatic contact frame detection
 - [?] Perspective consistency checker
-- [?] Silhouette readability preview
+- [x] Silhouette readability preview `evidence: SilhouetteViewTests, SilhouetteInkIsBlackWhateverTheColour, TheSilhouetteComposesWithoutThePaperOrTheGhosts, TogglingSilhouetteRecompositesThePaperAwayAndBack, CoverageSurvivesTheFlattening`
+  - **A fifth Channels tile, not a metric** (Q135): the ink as solid black on
+    white — paper, references and ghosts left out — riding the channel-solo
+    machinery, view-only like it. No readability score on purpose: a number
+    for "does the pose read" is a guess wearing one, and it invites trusting
+    the number over the eye.
+  - **The composite is the load-bearing half.** The paper is baked into the
+    published composite, so no colour matrix could recover ink-on-white from
+    it; `ScenePassBuilder.State.Silhouette` leaves the background layers out
+    at compose time, and crossing the mode boundary is a recomposite (the
+    onion toggle's path), where the plain channel solos stay repaint-only.
+    The white paper is the canvas's, painted at draw time where the
+    checkerboard would go.
 - [?] Walk cycle analyzer
 - [?] Jump arc analyzer
 - [?] Timing diagnostics

@@ -36,6 +36,7 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(IsGreenSolo))]
     [NotifyPropertyChangedFor(nameof(IsBlueSolo))]
     [NotifyPropertyChangedFor(nameof(IsAlphaSolo))]
+    [NotifyPropertyChangedFor(nameof(IsSilhouette))]
     private ChannelSolo _channelSolo = ChannelSolo.None;
 
     public bool IsRedSolo => ChannelSolo == ChannelSolo.Red;
@@ -45,6 +46,21 @@ public partial class MainViewModel
     public bool IsBlueSolo => ChannelSolo == ChannelSolo.Blue;
 
     public bool IsAlphaSolo => ChannelSolo == ChannelSolo.Alpha;
+
+    public bool IsSilhouette => ChannelSolo == ChannelSolo.Silhouette;
+
+    /// <summary>
+    /// The channel solos are pure draw-time filters, but the silhouette also
+    /// changes what gets composited (no paper, no references, no ghosts), so
+    /// crossing its boundary in either direction is a recomposite — the onion
+    /// toggle's path, not the solo repaint.
+    /// </summary>
+    partial void OnChannelSoloChanged(ChannelSolo oldValue, ChannelSolo newValue)
+    {
+        if (oldValue != ChannelSolo.Silhouette && newValue != ChannelSolo.Silhouette) return;
+        _publish.InvalidateWholeCanvas();
+        PublishSnapshot();
+    }
 
     /// <summary>Solo this channel, or un-solo it if it already is — one click in, one click out.</summary>
     [RelayCommand]
@@ -62,6 +78,9 @@ public partial class MainViewModel
 
     [ObservableProperty]
     private Avalonia.Media.Imaging.Bitmap? _channelThumbAlpha;
+
+    [ObservableProperty]
+    private Avalonia.Media.Imaging.Bitmap? _channelThumbSilhouette;
 
     /// <summary>
     /// True when the Channels panel is the tab actually showing — not merely
@@ -92,6 +111,10 @@ public partial class MainViewModel
         ChannelThumbGreen = ThumbnailRenderer.RenderChannel(composite, ChannelSolo.Green);
         ChannelThumbBlue = ThumbnailRenderer.RenderChannel(composite, ChannelSolo.Blue);
         ChannelThumbAlpha = ThumbnailRenderer.RenderChannel(composite, ChannelSolo.Alpha);
+        // Its own composite: the silhouette is the ink without the paper,
+        // which no filter over the full composite can recover (Q135).
+        using var inkOnly = CompositeVisibleLayers(excludeBackground: true);
+        ChannelThumbSilhouette = ThumbnailRenderer.RenderChannel(inkOnly, ChannelSolo.Silhouette);
     }
 
     // ---- layer reordering -------------------------------------------------------

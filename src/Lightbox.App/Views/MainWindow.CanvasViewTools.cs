@@ -381,6 +381,11 @@ public partial class MainWindow
             case "canvas.motionTrail":
                 _vm.MotionTrail = !_vm.MotionTrail;
                 break;
+            case "canvas.silhouette":
+                _vm.ChannelSolo = _vm.ChannelSolo == Rendering.ChannelSolo.Silhouette
+                    ? Rendering.ChannelSolo.None
+                    : Rendering.ChannelSolo.Silhouette;
+                break;
             case "canvas.showGuides":
                 _vm.Workspace.GuidesVisible = !_vm.Workspace.GuidesVisible;
                 break;

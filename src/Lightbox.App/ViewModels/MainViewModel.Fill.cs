@@ -391,11 +391,11 @@ public partial class MainViewModel
     /// Every visible layer composited over transparency at the playhead —
     /// "what the eye sees minus the paper". Caller owns the returned bitmap.
     /// </summary>
-    private SKBitmap CompositeVisibleLayers()
+    private SKBitmap CompositeVisibleLayers(bool excludeBackground = false)
     {
         var scene = Scene;
         using var image = SceneRenderer.Compose(
-            scene.Width, scene.Height, VisiblePasses(), SkiaSharp.SKColors.Transparent);
+            scene.Width, scene.Height, VisiblePasses(excludeBackground), SkiaSharp.SKColors.Transparent);
         return SKBitmap.FromImage(image);
     }
 
@@ -409,13 +409,15 @@ public partial class MainViewModel
     /// preview drifting from the click it predicts is precisely the failure that
     /// makes a preview worse than none.
     /// </remarks>
-    private List<RenderPass> VisiblePasses()
+    private List<RenderPass> VisiblePasses(bool excludeBackground = false)
     {
         var scene = Scene;
         var passes = new List<RenderPass>();
         foreach (var layer in scene.Layers)
         {
             if (!scene.IsLayerVisible(layer)) continue;
+            // The silhouette thumbnail's ask: the ink without the paper.
+            if (excludeBackground && layer.IsBackground) continue;
             var frame = ExposureSheet.ExposedFrame(layer, CurrentFrameIndex);
             if (frame is null) continue;
             passes.Add(new RenderPass(

@@ -190,4 +190,13 @@ doubles as a running answer to "where is my ink actually going" — line work
 that should be pure black shows up identically in all three colour channels,
 and a stray tint shows up as a difference between them.
 
+The fifth tile is **Silhouette** — the classic pose-reading check: your ink as
+solid black on white, with the paper, the references and the onion ghosts left
+out. If the pose still reads from the shape alone, it will read at speed; if
+two arms merge into one mass here, they will merge on screen too. It works
+while flipping and during playback, and like the channel solos it is viewing
+only. No key out of the box; **Configure → Shortcuts → "Silhouette view"**
+binds one. There is deliberately no score attached — the judge is your eye,
+and a number for "does this read" would be a guess wearing one.
+
 ---
