@@ -74,15 +74,18 @@ public partial class MainViewModel
     /// </summary>
     public void RefreshMotionTrail()
     {
-        // The readout reads the same record the ticks do, so it moves on the
-        // same hooks — cheap when the analysers are off: three booleans.
-        OnPropertyChanged(nameof(AnalysisReadout));
-        OnPropertyChanged(nameof(HasAnalysisReadout));
-        if (MotionTrailChanged is null) return;
         // Off during playback, like onion ghosts and for their reason — and
         // that guard is also what keeps the bounds walk off the tick path
         // (B152's lesson): OnIsPlayingChanged catches up when playback stops.
-        if (!Settings.Trail.Enabled || IsPlaying || ActiveLayer is not { } layer)
+        var active = !Settings.Trail.Enabled || IsPlaying ? null : ActiveLayer;
+        // Once per refresh, for the overlay AND the readout — the readout
+        // re-running the analysers its overlay had just run was a doubled
+        // record walk per playhead move.
+        RecomputeAnalysis(active);
+        OnPropertyChanged(nameof(AnalysisReadout));
+        OnPropertyChanged(nameof(HasAnalysisReadout));
+        if (MotionTrailChanged is null) return;
+        if (active is not { } layer)
         {
             MotionTrailChanged.Invoke(null);
             return;
@@ -92,6 +95,6 @@ public partial class MainViewModel
         // One tick is not a motion, and the analysers may still have something
         // to draw; null when nobody does keeps the canvas's "absent, not
         // merely invisible" rule.
-        MotionTrailChanged.Invoke(BuildTrailOverlay(layer, points));
+        MotionTrailChanged.Invoke(BuildTrailOverlay(points));
     }
 }

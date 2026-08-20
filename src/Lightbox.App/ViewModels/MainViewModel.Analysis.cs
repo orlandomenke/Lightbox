@@ -55,40 +55,64 @@ public partial class MainViewModel
     }
 
     /// <summary>
+    /// The analysers' latest results, computed ONCE per trail refresh and read
+    /// by both consumers — the overlay snapshot and the readout. The readout
+    /// getter used to re-run every analyser the overlay had just run, which
+    /// doubled a whole-record walk on every playhead move (leak-hunter,
+    /// 2026-08-20); a refresh now computes here and everything else reads.
+    /// </summary>
+    private IReadOnlyList<SpacingTarget>? _spacingTargets;
+
+    private JumpArcFit? _jumpFit;
+
+    private WalkCycleReport? _walkReport;
+
+    private bool _walkTooFew;
+
+    /// <summary>
+    /// Run the switched-on analysers against the record, or clear everything
+    /// when <paramref name="layer"/> is null (trail off, playing, no layer).
+    /// </summary>
+    internal void RecomputeAnalysis(Layer? layer)
+    {
+        _spacingTargets = layer is not null && Settings.Trail.SpacingGhosts
+            ? SpacingAssistant.TargetsForRun(Doc.Scene, layer, CurrentFrameIndex, TweenEasing)
+            : null;
+        _jumpFit = layer is not null && Settings.Trail.JumpArc
+            ? JumpArcAnalyser.FitRun(Doc.Scene, layer, CurrentFrameIndex)
+            : null;
+        _walkReport = layer is not null && Settings.Trail.WalkReport
+            ? WalkCycleAnalyser.Analyse(Doc.Scene, layer)
+            : null;
+        _walkTooFew = layer is not null && Settings.Trail.WalkReport && _walkReport is null;
+    }
+
+    /// <summary>
     /// The trail's ticks plus whatever analysis is switched on, or null when
     /// nothing would draw. The analysers only speak while the trail is on —
     /// they annotate its ticks, and marks with no ticks to sit beside would
     /// be chrome nobody asked to learn.
     /// </summary>
-    internal TrailOverlay? BuildTrailOverlay(Layer layer, IReadOnlyList<TrailPoint> points)
+    internal TrailOverlay? BuildTrailOverlay(IReadOnlyList<TrailPoint> points)
     {
-        var targets = Settings.Trail.SpacingGhosts
-            ? SpacingAssistant.TargetsForRun(Doc.Scene, layer, CurrentFrameIndex, TweenEasing)
-            : null;
-        var jump = Settings.Trail.JumpArc
-            ? JumpArcAnalyser.FitRun(Doc.Scene, layer, CurrentFrameIndex)
-            : null;
         var ticks = points.Count > 1 ? points : null;
-        if (ticks is null && targets is not { Count: > 0 } && jump is null) return null;
-        return new TrailOverlay(ticks, targets, jump);
+        if (ticks is null && _spacingTargets is not { Count: > 0 } && _jumpFit is null) return null;
+        return new TrailOverlay(ticks, _spacingTargets, _jumpFit);
     }
 
     /// <summary>
     /// What the switched-on analysers have to say, one line each, empty when
-    /// they are off or content. Recomputed with the trail, so it follows the
-    /// playhead and every edit.
+    /// they are off or content. Composed from the results the last refresh
+    /// computed, so it follows the playhead and every edit at no second walk.
     /// </summary>
     public string AnalysisReadout
     {
         get
         {
-            if (!Settings.Trail.Enabled || ActiveLayer is not { } layer) return "";
             var lines = new List<string>();
 
-            if (Settings.Trail.SpacingGhosts)
+            if (_spacingTargets is { } targets)
             {
-                var targets = SpacingAssistant.TargetsForRun(
-                    Doc.Scene, layer, CurrentFrameIndex, TweenEasing);
                 var misses = targets.Where(t => t.Misses).ToList();
                 if (misses.Count > 0)
                 {
@@ -98,34 +122,31 @@ public partial class MainViewModel
                 }
             }
 
-            if (Settings.Trail.JumpArc)
+            if (_jumpFit is { } jump)
             {
-                if (JumpArcAnalyser.FitRun(Doc.Scene, layer, CurrentFrameIndex) is { } jump)
+                if (!jump.Ballistic)
                 {
-                    if (!jump.Ballistic)
+                    lines.Add("Jump arc: this run does not read as ballistic — no apex to fall from.");
+                }
+                else
+                {
+                    var off = jump.Deviations.Where(d => d.OffArc).ToList();
+                    if (off.Count > 0)
                     {
-                        lines.Add("Jump arc: this run does not read as ballistic — no apex to fall from.");
-                    }
-                    else
-                    {
-                        var off = jump.Deviations.Where(d => d.OffArc).ToList();
-                        if (off.Count > 0)
-                        {
-                            var frames = string.Join(", ", off.Select(d => d.Index + 1));
-                            lines.Add($"Jump arc: frame{(off.Count == 1 ? "" : "s")} {frames} " +
-                                      $"sit{(off.Count == 1 ? "s" : "")} off the arc (past {jump.Tolerance:0.#} px).");
-                        }
+                        var frames = string.Join(", ", off.Select(d => d.Index + 1));
+                        lines.Add($"Jump arc: frame{(off.Count == 1 ? "" : "s")} {frames} " +
+                                  $"sit{(off.Count == 1 ? "s" : "")} off the arc (past {jump.Tolerance:0.#} px).");
                     }
                 }
             }
 
-            if (Settings.Trail.WalkReport)
+            if (_walkTooFew)
             {
-                if (WalkCycleAnalyser.Analyse(Doc.Scene, layer) is not { } report)
-                {
-                    lines.Add($"Walk: fewer than {WalkCycleAnalyser.MinDrawings} drawings with ink — nothing to read yet.");
-                }
-                else if (report.Findings.Count == 0)
+                lines.Add($"Walk: fewer than {WalkCycleAnalyser.MinDrawings} drawings with ink — nothing to read yet.");
+            }
+            else if (_walkReport is { } report)
+            {
+                if (report.Findings.Count == 0)
                 {
                     lines.Add($"Walk: {report.Drawings} drawings, contacts at " +
                               $"{string.Join(", ", report.ContactFrames.Select(f => f + 1))} — nothing to flag.");

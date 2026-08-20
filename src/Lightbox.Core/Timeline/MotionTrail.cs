@@ -83,7 +83,16 @@ public static class MotionTrail
     /// The subject's position on one drawing: its placed pivot anchor, else
     /// the centre of its ink bounds, else nothing.
     /// </summary>
-    public static (double X, double Y, bool Anchored)? Locate(Scene scene, Frame frame)
+    public static (double X, double Y, bool Anchored)? Locate(Scene scene, Frame frame) =>
+        Locate(scene, frame, InkBounds(frame));
+
+    /// <summary>
+    /// <see cref="Locate(Scene, Frame)"/> for a caller that already walked the
+    /// ink — the walk analyser needs the bounds anyway, and locating through
+    /// the plain overload would walk every point a second time.
+    /// </summary>
+    public static (double X, double Y, bool Anchored)? Locate(
+        Scene scene, Frame frame, (double MinX, double MinY, double MaxX, double MaxY)? bounds)
     {
         if (scene.Anchors is { } declared && frame.Anchors is { } placed)
         {
@@ -94,7 +103,7 @@ public static class MotionTrail
             }
         }
 
-        return InkBounds(frame) is { } b ? ((b.MinX + b.MaxX) / 2, (b.MinY + b.MaxY) / 2, false) : null;
+        return bounds is { } b ? ((b.MinX + b.MaxX) / 2, (b.MinY + b.MaxY) / 2, false) : null;
     }
 
     /// <summary>

@@ -36,10 +36,52 @@ public static class AnalysisOverlayPainter
     /// <summary>The offender ring — the same amber, full strength, doubled width.</summary>
     private static readonly SKColor MissColor = new(0xff, 0xb0, 0x40);
 
+    /// <summary>
+    /// One-entry caches, keyed by what actually changes: the dash effects by
+    /// the zoom (their intervals are screen-sized, so document-space lengths
+    /// move with it) and the arc path by the fit it traces (a new fit only
+    /// arrives with a trail refresh). Allocating these per paint was a leak —
+    /// paint runs every frame the overlay is visible (leak-hunter,
+    /// 2026-08-20). Safe as statics because the draw op runs on one thread.
+    /// </summary>
+    private static float _dashPx;
+
+    private static SKPathEffect? _ghostDash;
+
+    private static SKPathEffect? _arcDash;
+
+    private static JumpArcFit? _pathFor;
+
+    private static SKPath? _arcPath;
+
+    private static void RefreshDashes(float px)
+    {
+        if (px == _dashPx && _ghostDash is not null) return;
+        _ghostDash?.Dispose();
+        _arcDash?.Dispose();
+        _ghostDash = SKPathEffect.CreateDash([3f * px, 2f * px], 0);
+        _arcDash = SKPathEffect.CreateDash([5f * px, 3f * px], 0);
+        _dashPx = px;
+    }
+
+    private static SKPath ArcPathFor(JumpArcFit jump)
+    {
+        if (ReferenceEquals(_pathFor, jump) && _arcPath is not null) return _arcPath;
+        _arcPath?.Dispose();
+        var path = new SKPath();
+        path.MoveTo((float)jump.Curve[0].X, (float)jump.Curve[0].Y);
+        for (var i = 1; i < jump.Curve.Count; i++)
+            path.LineTo((float)jump.Curve[i].X, (float)jump.Curve[i].Y);
+        _arcPath = path;
+        _pathFor = jump;
+        return path;
+    }
+
     public static void Paint(SKCanvas canvas, TrailOverlay? overlay, float scale)
     {
         if (overlay is null) return;
         var px = 1f / Math.Max(0.01f, scale);
+        RefreshDashes(px);
 
         if (overlay.Jump is { } jump) PaintJump(canvas, jump, px);
         if (overlay.SpacingTargets is { Count: > 0 } targets) PaintTargets(canvas, targets, px);
@@ -55,7 +97,7 @@ public static class AnalysisOverlayPainter
             StrokeWidth = 1.5f * px,
             Color = IntentColor.WithAlpha(220),
         };
-        ghost.PathEffect = SKPathEffect.CreateDash([3f * px, 2f * px], 0);
+        ghost.PathEffect = _ghostDash;
         using var tether = new SKPaint
         {
             IsAntialias = true,
@@ -85,13 +127,9 @@ public static class AnalysisOverlayPainter
             StrokeWidth = 1.5f * px,
             Color = IntentColor.WithAlpha(jump.Ballistic ? (byte)220 : (byte)110),
         };
-        arc.PathEffect = SKPathEffect.CreateDash([5f * px, 3f * px], 0);
+        arc.PathEffect = _arcDash;
 
-        using var path = new SKPath();
-        path.MoveTo((float)jump.Curve[0].X, (float)jump.Curve[0].Y);
-        for (var i = 1; i < jump.Curve.Count; i++)
-            path.LineTo((float)jump.Curve[i].X, (float)jump.Curve[i].Y);
-        canvas.DrawPath(path, arc);
+        canvas.DrawPath(ArcPathFor(jump), arc);
 
         using var ring = new SKPaint
         {

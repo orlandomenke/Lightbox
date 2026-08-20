@@ -87,7 +87,9 @@ public static class WalkCycleAnalyser
             if (ExposureSheet.FrameAtExactIndex(layer, i) is not { } frame) continue;
             if (MotionTrail.InkBounds(frame) is not { } b) continue;
             // The subject may be an authored pivot; the feet are always ink.
-            var subject = MotionTrail.Locate(scene, frame)!.Value;
+            // The bounds just walked feed the locate, so every point is read
+            // once per drawing rather than twice.
+            var subject = MotionTrail.Locate(scene, frame, b)!.Value;
             drawings.Add((i, subject.X, subject.Y, b.MaxY, b.MaxX - b.MinX, b.MaxY - b.MinY));
         }
         if (drawings.Count < MinDrawings) return null;
