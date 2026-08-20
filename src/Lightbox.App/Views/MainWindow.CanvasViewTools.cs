@@ -381,6 +381,12 @@ public partial class MainWindow
             case "canvas.motionTrail":
                 _vm.MotionTrail = !_vm.MotionTrail;
                 break;
+            case "canvas.motionArc":
+                _vm.MotionArcs = !_vm.MotionArcs;
+                break;
+            case "canvas.arcPrediction":
+                _vm.ArcPrediction = !_vm.ArcPrediction;
+                break;
             case "canvas.showGuides":
                 _vm.Workspace.GuidesVisible = !_vm.Workspace.GuidesVisible;
                 break;

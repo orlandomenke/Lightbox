@@ -79,6 +79,36 @@ skin's. It has no key out of the box; **Configure → Shortcuts → “Show moti
 trail”** binds one. A drawing with strokes bound to bones is trailed where it
 was drawn, not where the pose moved it — trailing the posed motion is *Planned*.
 
+### The arc, and the predicted position
+
+Two more switches live behind the **⚙**, under the trail's depths, and both
+draw in **gold** — one added colour for one added concept: what the fitted arc
+has to say. Switching either on switches the trail on with it, since both are
+read off its ticks.
+
+**Arc** fits a smooth arc — a circle, or a straight line where the motion is
+straight — through the ticks, and draws it under them. A drawing that sits off
+the arc gets a gold ring and a **pull-line** to where it would land on it: not
+just *this drawing breaks the arc*, but *move it about here*. The fit is
+forgiving of one stray drawing — it finds the arc the rest agree on and blames
+only the stray — and "off" is judged against the size of the motion, so a
+three-pixel wobble matters on a settle and not on a screen-wide throw. It
+takes at least three ticks; two positions agree with every arc through them.
+
+**Predict the next position** marks where the drawing *after your last one*
+should go: a dashed tick on the arc's dashed continuation, spaced by carrying
+on your own spacing — an ease keeps easing. It appears only past the end of
+your drawings; a suggestion is never drawn on top of a drawing that exists.
+And when the playhead stands on an **empty cel between drawings**, a dashed
+tick marks where that drawing's subject belongs on the arc — the inbetweening
+moment. Everything dashed is a suggestion: the trail never touches the
+document, and drawing the mark is still yours to do. A stopped subject gets no
+prediction — where it goes after a hold is a timing decision, not geometry.
+
+Both have unbound shortcuts — **“Show motion arc”** and **“Show arc
+prediction”** in Configure → Shortcuts. If the arc looks wrong on hollow
+ticks, the fix is the same as the trail's: anchor the drawings first.
+
 ## Animation references
 
 **View → Reference** opens a panel for importing an image of an animation — a

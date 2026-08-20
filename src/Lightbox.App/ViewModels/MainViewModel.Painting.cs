@@ -269,6 +269,13 @@ public partial class MainViewModel
 
     partial void OnIsPlayingChanged(bool value)
     {
+        // The rig goes away when playback starts and comes back when it stops
+        // (unless it was asked to animate, in which case both are no-ops for
+        // it). Without this the overlay would keep whatever it had when the
+        // clock started — which is the frozen skeleton this gating exists to
+        // remove.
+        if (ArmatureEditMode) OnPropertyChanged(nameof(BoneChromes));
+
         // The playback quality takes effect on this flag, so when one is set
         // the flip is the same event as a zoom step: every cached frame is at
         // the other resolution, and the timings were measured there too. Both

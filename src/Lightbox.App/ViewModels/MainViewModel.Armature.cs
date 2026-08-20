@@ -99,6 +99,43 @@ public sealed partial class MainViewModel
         }
     }
 
+    /// <summary>
+    /// Whether the skeleton on the canvas is standing at a pose rather than at
+    /// its rest position — which is what decides its colour.
+    /// </summary>
+    /// <remarks>
+    /// Posing and weight painting both solve the rig at the playhead (the
+    /// latter since painting went live-pose), and bind mode shows the rest
+    /// pose. So this is the same condition <see cref="BoneChromes"/> uses to
+    /// decide whether to solve a pose at all, named once rather than spelled
+    /// out in both places — the two must never disagree, or the bones would be
+    /// coloured for a state they are not in.
+    /// </remarks>
+    public bool BonesShowAPose => PosingMode || WeightPainting;
+
+    /// <summary>
+    /// Show the rig while the animation plays, following the playhead, instead
+    /// of hiding it.
+    /// </summary>
+    /// <remarks>
+    /// Off, because playback is for watching the animation and a skeleton over
+    /// it is furniture. On, because checking that a rigged limb reads through a
+    /// movement is a real thing to want — and it is the artist who knows which
+    /// of those they are doing.
+    /// </remarks>
+    public bool AnimateRigDuringPlayback
+    {
+        get => Settings.AnimateRigDuringPlayback;
+        set
+        {
+            if (Settings.AnimateRigDuringPlayback == value) return;
+            Settings.AnimateRigDuringPlayback = value;
+            Settings.Save();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(BoneChromes));
+        }
+    }
+
     /// <summary>Whether this document has a rig at all.</summary>
     public bool HasArmature => Doc.HasArmature;
 
@@ -113,6 +150,13 @@ public sealed partial class MainViewModel
         get
         {
             if (!ArmatureEditMode) return [];
+            // Playback shows the animation. A rig frozen at the last pose over
+            // a moving drawing is worse than no rig — it reads as the drawing
+            // having come off its skeleton — and following the playhead costs a
+            // solve per tick, which is the cost B152 found nobody had priced
+            // when thumbnails did it. So: absent while playing unless asked
+            // for. Scrubbing is unaffected; it is not on a clock.
+            if (IsPlaying && !AnimateRigDuringPlayback) return [];
             // Mid-gesture the chrome comes from the preview — a scratch clone
             // in bind mode, a provisional pose in posing mode — computed by
             // ArmatureGesture, the same construction the release lands.
@@ -123,7 +167,7 @@ public sealed partial class MainViewModel
             // brush works on the drawing as it stands at the playhead, so the
             // skeleton has to stand there too or clicking a bone would mean
             // aiming at where it is not.
-            var pose = PosingMode || WeightPainting
+            var pose = BonesShowAPose
                 ? _bonePreviewPose ?? ArmatureOps.EffectivePoseAt(armature, Doc.Scene.PoseTrack, CurrentFrameIndex)
                 : null;
             var placements = ArmatureOps.Solve(armature, pose);
@@ -146,7 +190,17 @@ public sealed partial class MainViewModel
             // pose keys are where poses are authored, and a ghost one frame
             // away on an interpolated track is a near-copy that says nothing.
             // First in the list so the live skeleton draws over them.
-            if (PosingMode && Onion.Enabled && Doc.Scene.PoseTrack is { Keys.Count: > 0 } track)
+            // Not while playing, for the reason ScenePassBuilder already
+            // suppresses the drawing's onion skin there: ghosts answer "where
+            // did this come from and where does it go", and playback answers
+            // that by showing it. Measured rather than reasoned — the memo below
+            // is keyed on the playhead, so playback misses it on every single
+            // tick, and a twenty-bone rig cost **19 ms a tick** with the ghosts
+            // in and a fraction of a millisecond without. That is half a 24 fps
+            // frame spent drawing context nobody can read at twelve frames a
+            // second, and it is exactly the shape B152 found in thumbnails.
+            if (PosingMode && Onion.Enabled && !IsPlaying
+                && Doc.Scene.PoseTrack is { Keys.Count: > 0 } track)
             {
                 // Memoised per playhead position: BoneChromes is re-read on
                 // every pointer move of a pose drag, and the ghosts — several

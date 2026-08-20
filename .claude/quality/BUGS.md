@@ -561,6 +561,30 @@ which is a weak test and still far better than none.
 
 ### project
 
+- [ ] **B269** `P2` `project` A full-solution test run sometimes executes hundreds fewer App tests than exist and still reports green `evidence: FullSuiteExecutionCountIsAsserted`
+  - **Evidence.** Two `dotnet test` runs from the repository root on 2026-08-20,
+    same container, trees differing only by additions: the first reported
+    `Lightbox.App.Tests` as **3489 passed / 3489 total**, the second — after a
+    merge that only *added* tests — **2889 / 2889**, exit 0, `Failed: 0,
+    Skipped: 0`. Discovery on the same tree (`dotnet test --list-tests`) finds
+    **3498**, and an immediate re-run of the assembly alone executed all
+    **3498 / 3498**. So a full-solution run silently dropped ~600 tests and
+    called the suite green.
+  - **Why it matters more than a flaky failure.** A red flake wastes a re-run;
+    this reports *success while proving less than it claims* — a regression in
+    any of the missing 600 would ride a green suite to `main`. It is B259's
+    condition (full-solution contention, four assemblies on the box at once)
+    with the opposite symptom: there a test ran and failed, here tests never
+    ran and nothing said so.
+  - **Filed rather than fixed** because it does not reproduce on demand — the
+    very next solution run executed everything — and the fix is an
+    investigation into how xunit v3 under VSTest loses cases under parallel
+    assembly runs, not an afternoon. What *can* be built without that answer
+    is the guard the anchor names: assert the executed count against the
+    discovered count (in CI or a wrapper), so an under-run turns red instead
+    of green. Until then, treat a full-solution total that disagrees with the
+    per-assembly counts as a failed run.
+
 - [ ] **B264** `P2` `project` `ids --fix` renumbers both sides of a clash and rewrites the other branch's citations when run mid-merge `evidence: merge_in_progress, cmd_selftest`
   - **Mid-merge, HEAD is still this branch's last commit**, so the merge base predates both sides — and every file the *other* side is bringing in reads as "added since the base", exactly like this branch's own. Both entries are marked ours, the repair moves both to one new id, a fresh duplicate appears, and the other branch's citations are rewritten in files this branch never touched.
   - **Observed 2026-08-19**, resolving `main` into the crop branch: it renamed both sides of a Q126 clash to Q130 and rewrote `docs/DESIGN-pen-dynamics.md`, which belonged to the pen-tilt question entirely. Repaired by hand — main's entry restored byte-identical, this branch's moved to Q128 with fourteen citations — but the tool would have done it to the next person.
@@ -1246,6 +1270,14 @@ test reopens the bug.
   - The comment above `BeginMove` had already written down why not to do this — *"Re-implementing translation next to it would be a second way for the drawing to move, and the two would drift"* — and `_placementDrag`'s own remark says a placement move is an edit to two numbers. Both were describing the path that already worked.
   - Fix: `_placementDrag` carries a set instead of one id, so a group is the same operation on more of them — same anchor, same axis lock, one `PerformDelta` step for the whole drag. A selection makes the grab modal inside `BeginPlacementMove`, which is the side that knows what is selected, so `CanvasControl` went back to reporting absolute document coordinates like every other move. The parallel path is deleted. Cost: S
   - P1 because the feature did not work and the damage it did could not be taken back.
+
+- [x] **B268** `P2` `canvas` Bones stay frozen at the last pose during playback, and bind and pose look identical `evidence: BoneOverlayModeTests, PosingMode_TheRigStandsWhereThePlayheadIs, TheOverlaySaysWhetherItIsShowingAPose, PlaybackHidesTheRigByDefault, AskedFor_TheRigAnimatesWithPlaybackInstead`
+  - Reported 2026-08-20 as two faults and they turned out to share a cause and a fix respectively. *"During playback and bone tool selected we see the bones… the last pose stays visible while the rest on canvas animates"*, and *"change the color so that bind and pose mode are visually distinct on canvas"*.
+  - **The staleness was wider than reported.** `BoneChromes` was already frame-correct — it solves through `EffectivePoseAt(…, CurrentFrameIndex)` — but nothing ever raised `PropertyChanged` for it when the frame moved, so the overlay held whatever pose was current when it was last invalidated. That is playback, and it is equally **scrub**: dragging the playhead left the skeleton behind too, which nobody had reported because a stale rig under a moving drawing reads as lag rather than as a bug.
+  - **The fix is a notification and a default, not a solve.** `OnCurrentFrameIndexChanged` notifies `BoneChromes` when the rig is on screen; playback then hides the rig unless `AnimateRigDuringPlayback` is ticked, which is off by default for B152's reason — per-tick overlay work costs several times what it looks like, and flipping a cycle to judge timing does not want the skeleton drawn at all. Opting in is the third state, and the one thing that is now unreachable is the frozen rig.
+  - **Measuring the opt-in found a third thing, and it was the expensive one.** `TheOptInPathIsPricedRatherThanAssumed` first read **19 ms per tick** on a twenty-bone rig — half a 24 fps frame. None of it was the pose solve, which is **0.05 ms**: it was the armature's onion ghosts, whose memo is keyed on the playhead and therefore misses on every single tick of playback. `ScenePassBuilder` has suppressed the *drawing's* onion skin during playback all along, for the reason that makes the rig's case identical — ghosts answer "where did this come from and where does it go", and playback answers that by showing it. Suppressing them took the number to 0.05 ms and the budget is 2 ms, forty times the measurement rather than at it.
+  - **The first number was mis-attributed and the correction is the point.** Timing the loop with the playhead advance inside it read 4.7 ms, and every millisecond of that is view-model work playback pays whether or not a document has a rig. What this feature adds per tick is the notification and one `BoneChromes` evaluation, so that is what the test times — *what else is in this measurement* before *what is wrong with the code*.
+  - **The colour tracks what the skeleton is standing at rather than what the mode is named**: bind keeps green, posing *and* weight painting take violet, because both show the rig solved at the playhead. The two gestures are identical drags meaning opposite things — moving a bone in bind rebinds the drawing — so the colour is what tells them apart without reading the switch. Violet because amber is the IK handles, white is selection, and green already exists not to blur into the blue anchors or orange shapes.
 
 - [x] **B263** `P2` `canvas` A hand-drawn marquee lands one origin away from the hand on a cropped or grown page `evidence: SelectionOriginTests, ADrawnMarqueeIsStoredInSurfaceCoordinates, AStrokeIsClippedWhereTheMarqueeWasDrawn, APolygonSelectionLandsWhereItsVerticesWereClicked`
   - **Two coordinate spaces meeting with no conversion between them.** The selection is a *surface* mask — a `w × h` array of booleans, contours indexed from the paper's own corner — which is what `DocumentOriginInViewTests.ASelectionBecomesAClipRegionInStrokeCoordinates` already pins, and why `PrepareClipForSelection` adds the origin back at the one boundary it crosses into the record. But the canvas reports a drawn marquee in *document* coordinates: `_dragShape` is built from `ViewToDoc`, and `AddPolygonVertex` is handed the same. Those went straight into `MaskFromContours`, which rasterizes into a surface-sized bitmap.

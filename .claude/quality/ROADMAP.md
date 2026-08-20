@@ -872,8 +872,35 @@ every other AI feature and are only legible together.
     where it was drawn, not where the pose moved it — the manual marks posed
     trails *Planned*, and it belongs to the arcs/analyzer follow-ups this
     substrate exists for.
-- [?] Motion arcs
-- [?] Arc prediction
+- [x] Motion arcs `evidence: MotionArc, MotionArcOverlay, MotionArcPainter, MotionArcTests, MotionArcOverlayTests, TheFitRecoversTheCircleTheTicksSitOn, CollinearTicksFitALineNotANonsenseCircle, AnOffArcTickIsFlaggedWithItsFootOnTheArc, TheArcTogglesAreRegisteredSoTheyCanBeFoundAndRebound`
+  - **Landed 2026-08-20 with arc prediction as one overlay** — the first of
+    Q98's follow-ups on the trail substrate. A least-squares circle degrading
+    to a line (Q133: the other models are wanted *eventually* — the parabola
+    with the jump arc analyzer, a model picker when a second model exists),
+    drawn in gold under the trail's ticks: one added colour for one added
+    concept, the arc's opinion against the ticks' facts.
+  - **Off-arc is a leave-worst-out judgement, not a raw residual.** A
+    least-squares fit pulls toward an outlier and spreads the blame — one
+    drawing 14 px off put every tick past tolerance in the first version, and
+    the largest deviator was an innocent edge tick. The tick whose *absence*
+    most improves the fit leaves until the rest agree, then everything is
+    judged against that arc; the flagged tick carries its **foot**, so the
+    overlay says "move it about here" rather than just "wrong". Tolerance is
+    read off the ticks' own polyline — a tolerance that moved with the curve
+    would judge a drawing by how much it dragged the judge.
+- [x] Arc prediction `evidence: ThePredictedNextContinuesTheSpacingTrend, AnEmptyCurrentCelGetsAPredictionBetweenItsNeighbours, AStalledSubjectPredictsNothing, ARealNextDrawingSuppressesThePrediction, TheArcPaintsAndThePredictionsAreDashed`
+  - The overlay's other half: a dashed tick where the drawing after the last
+    one should land — spacing carried on from the artist's own, an ease kept
+    easing, clamped so a spike does not launch it off canvas — and a dashed
+    tick on an empty cel between drawings, the inbetweening moment. Dashed
+    everywhere because a suggestion drawn like a fact gets treated as one.
+  - **The refusals are the design**: no prediction on top of a real drawing
+    (the view model probes one drawing past the window, and the probe tick is
+    never displayed), none for a stalled subject (a hold's exit is a timing
+    decision, not geometry), none from two ticks (a chord agrees with every
+    arc through its ends). Timeline-proportional spacing for the empty cel is
+    deliberate for this slice — obeying an authored timing chart belongs to
+    the spacing assistant below.
 - [x] Spacing visualization `evidence: TheTrailPaintsTicksAndTheLineBetweenThem, AHoldIsOneTickNotTwo, AnAuthoredPivotBeatsTheDerivedCentre, ErasingSaysNothingAboutWhereTheSubjectIs`
   - The motion trail's other half — see the item above; one overlay, two
     promises. The hold rule is the load-bearing one for spacing: a tick per
