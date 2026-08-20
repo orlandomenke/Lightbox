@@ -381,6 +381,18 @@ public partial class MainWindow
             case "canvas.motionTrail":
                 _vm.MotionTrail = !_vm.MotionTrail;
                 break;
+            case "canvas.spacingGhosts":
+                _vm.SpacingGhosts = !_vm.SpacingGhosts;
+                break;
+            case "canvas.jumpArc":
+                _vm.JumpArcOverlay = !_vm.JumpArcOverlay;
+                break;
+            case "canvas.walkReport":
+                _vm.WalkReport = !_vm.WalkReport;
+                break;
+            case "timeline.nudgeToSpacing":
+                _vm.NudgeToSpacing();
+                break;
             case "canvas.showGuides":
                 _vm.Workspace.GuidesVisible = !_vm.Workspace.GuidesVisible;
                 break;

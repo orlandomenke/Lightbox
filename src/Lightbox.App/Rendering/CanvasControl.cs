@@ -3977,7 +3977,7 @@ public sealed partial class CanvasControl : Control
         SKPath? fillPreview = null,
         bool fillPreviewWand = false,
         SKColor fillPreviewColor = default,
-        IReadOnlyList<Core.Timeline.TrailPoint>? trail = null,
+        TrailOverlay? trail = null,
         SKRect? cropFrame = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;

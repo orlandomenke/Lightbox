@@ -33,6 +33,18 @@ public static class MotionTrailPainter
     public const float TickScreenRadius = 3.5f;
 
     /// <summary>
+    /// Paint the trail and whatever analysis rides it — the one entry point
+    /// the draw op calls, so the analysers cost the budgeted canvas file no
+    /// second call site.
+    /// </summary>
+    public static void Paint(SKCanvas canvas, TrailOverlay? overlay, float scale)
+    {
+        if (overlay is null) return;
+        Paint(canvas, overlay.Points, scale);
+        AnalysisOverlayPainter.Paint(canvas, overlay, scale);
+    }
+
+    /// <summary>
     /// Paint the trail. Expects the canvas already in document space; a null
     /// or single-point list draws nothing — one position is not a motion.
     /// </summary>

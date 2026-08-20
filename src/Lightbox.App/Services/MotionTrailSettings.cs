@@ -23,4 +23,15 @@ public sealed class MotionTrailSettings
     public int Before { get; set; } = 4;
 
     public int After { get; set; } = 4;
+
+    /// <summary>
+    /// The analysers riding the trail (Q133), each off by default for the
+    /// trail's own reason: they are reached for while judging a sequence,
+    /// not left on while drawing. All three only speak while the trail is on.
+    /// </summary>
+    public bool SpacingGhosts { get; set; }
+
+    public bool JumpArc { get; set; }
+
+    public bool WalkReport { get; set; }
 }

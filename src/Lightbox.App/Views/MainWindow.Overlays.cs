@@ -44,7 +44,7 @@ public partial class MainWindow
         // every hook that can move a tick, so the window only ferries the
         // list. Refreshed once here so a trail left on last session shows
         // without waiting for the playhead to move.
-        _vm.MotionTrailChanged += points => Canvas.TrailPoints = points;
+        _vm.MotionTrailChanged += overlay => Canvas.TrailPoints = overlay;
         _vm.RefreshMotionTrail();
 
         // The armature overlay follows the rig's pattern exactly: pushed

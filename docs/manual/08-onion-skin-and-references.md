@@ -79,6 +79,40 @@ skin's. It has no key out of the box; **Configure → Shortcuts → “Show moti
 trail”** binds one. A drawing with strokes bound to bones is trailed where it
 was drawn, not where the pose moved it — trailing the posed motion is *Planned*.
 
+### Reading the trail: the analysers
+
+Behind the same **⚙**, under **Analysis**, three readers ride the trail. They
+only speak while the trail is on — they annotate its ticks — and each is a
+shortcut you can rebind (**Configure → Shortcuts**, gestureless out of the box).
+Whatever they have to say appears as text under the checkboxes, following the
+playhead.
+
+**Spacing targets** puts a dashed amber tick where the intended spacing wants
+each inbetween — the extreme's timing chart if it has one, else the easing
+picked on the X-sheet bar — with a tether from any drawing that misses its
+mark. The targets sit on the path you drew: the assistant re-times your motion,
+it never straightens it. **Nudge to spacing** then moves the playhead's drawing
+along that path onto its target — the whole drawing, anchors and all, as one
+undo step. Extremes are never nudged; they are the statements the spacing is
+measured between. A drawing with a pixel baseline is refused whole rather than
+having its strokes moved out from under its pixels.
+
+**Jump arc** fits a gravity arc to the run the playhead is in — extreme to
+extreme, constant speed across, constant fall down — draws it dashed, and rings
+any drawing sitting off it. Four drawings with a subject are the minimum: three
+fit any parabola, so the first honest verdict needs a fourth. A run whose best
+fit accelerates upward is called out as not reading ballistic at all. Frame the
+jump with extremes; picking the airborne stretch automatically is *Planned*
+(contact frame detection).
+
+**Walk cycle report** reads the whole layer as one repeating cycle and reports
+three things in prose: whether the loop closes (the step from the last drawing
+back to the first should read like any other step), whether the contacts land
+evenly (footfalls are read from the lowest ink touching the cycle's ground
+line), and whether the bob matches between steps. It is advisory — a deliberate
+shuffle is allowed to trip it — and it needs at least four drawings with ink
+before it says anything.
+
 ## Animation references
 
 **View → Reference** opens a panel for importing an image of an animation — a

@@ -10,10 +10,11 @@ namespace Lightbox.App.ViewModels;
 public partial class MainViewModel
 {
     /// <summary>
-    /// The trail's ticks changed: the window pushes them to the canvas. Null
-    /// means no trail — off, or nothing in range has a locatable subject.
+    /// The trail's ticks — or the analysis riding them (Q133) — changed: the
+    /// window pushes the snapshot to the canvas. Null means nothing to draw —
+    /// off, or nothing in range has a locatable subject.
     /// </summary>
-    public event Action<IReadOnlyList<TrailPoint>?>? MotionTrailChanged;
+    public event Action<Rendering.TrailOverlay?>? MotionTrailChanged;
 
     /// <summary>Settings forwarded the way <see cref="OnionSkin"/>'s are.</summary>
     public bool MotionTrail
@@ -73,6 +74,10 @@ public partial class MainViewModel
     /// </summary>
     public void RefreshMotionTrail()
     {
+        // The readout reads the same record the ticks do, so it moves on the
+        // same hooks — cheap when the analysers are off: three booleans.
+        OnPropertyChanged(nameof(AnalysisReadout));
+        OnPropertyChanged(nameof(HasAnalysisReadout));
         if (MotionTrailChanged is null) return;
         // Off during playback, like onion ghosts and for their reason — and
         // that guard is also what keeps the bounds walk off the tick path
@@ -84,8 +89,9 @@ public partial class MainViewModel
         }
         var points = Core.Timeline.MotionTrail.PointsAround(
             Doc.Scene, layer, CurrentFrameIndex, Settings.Trail.Before, Settings.Trail.After);
-        // One tick is not a motion; the painter agrees, and null keeps the
-        // canvas's "absent, not merely invisible" rule.
-        MotionTrailChanged.Invoke(points.Count > 1 ? points : null);
+        // One tick is not a motion, and the analysers may still have something
+        // to draw; null when nobody does keeps the canvas's "absent, not
+        // merely invisible" rule.
+        MotionTrailChanged.Invoke(BuildTrailOverlay(layer, points));
     }
 }

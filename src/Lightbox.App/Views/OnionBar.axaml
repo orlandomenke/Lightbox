@@ -107,6 +107,26 @@
                              Increment="1" FormatString="0" MinWidth="44" HorizontalAlignment="Left" />
             </Grid>
 
+            <TextBlock Text="Analysis" FontWeight="SemiBold" FontSize="12" Margin="0,4,0,0" />
+            <!--
+              The analysers ride the trail (Q133): geometry on the canvas
+              beside the trail's own ticks, words here. They only speak while
+              the trail is on — marks with no ticks to sit beside would be
+              chrome nobody asked to learn — so the checkboxes disable with it.
+            -->
+            <StackPanel Spacing="4" IsEnabled="{Binding MotionTrail}">
+              <CheckBox Content="Spacing targets" IsChecked="{Binding SpacingGhosts}"
+                        ToolTip.Tip="A dashed ghost tick where the intended spacing (the extreme's timing chart, else the easing) wants each inbetween, with a tether from the drawing that misses it." />
+              <CheckBox Content="Jump arc" IsChecked="{Binding JumpArcOverlay}"
+                        ToolTip.Tip="A gravity arc fitted to the run the playhead is in — constant speed across, constant fall down. Drawings off the arc are ringed." />
+              <CheckBox Content="Walk cycle report" IsChecked="{Binding WalkReport}"
+                        ToolTip.Tip="Reads the layer as one cycle: does the loop close, do the contacts land evenly, does the bob match between steps. Advisory — a deliberate shuffle is allowed to trip it." />
+              <Button Content="Nudge to spacing" Command="{Binding NudgeToSpacingCommand}"
+                      ToolTip.Tip="Move the playhead's drawing along its own path to where the intended spacing wants it. One undo step." />
+            </StackPanel>
+            <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.8"
+                       Text="{Binding AnalysisReadout}" IsVisible="{Binding HasAnalysisReadout}" />
+
             <TextBlock Text="Ghost poses" FontWeight="SemiBold" FontSize="12" Margin="0,4,0,0" />
             <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.6"
                        Text="A pinned frame stays ghosted from every other frame — the extreme you are animating towards, however far away it is." />

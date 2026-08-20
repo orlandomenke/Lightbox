@@ -94,6 +94,16 @@ public static class MotionTrail
             }
         }
 
+        return InkBounds(frame) is { } b ? ((b.MinX + b.MaxX) / 2, (b.MinY + b.MaxY) / 2, false) : null;
+    }
+
+    /// <summary>
+    /// The bounds of a drawing's ink, or null when there is none. Shared with
+    /// the analysers so "where the feet are" and "where the subject is" read
+    /// the same strokes by the same rule.
+    /// </summary>
+    public static (double MinX, double MinY, double MaxX, double MaxY)? InkBounds(Frame frame)
+    {
         var minX = double.MaxValue;
         var minY = double.MaxValue;
         var maxX = double.MinValue;
@@ -113,6 +123,6 @@ public static class MotionTrail
                 if (point.Y > maxY) maxY = point.Y;
             }
         }
-        return any ? ((minX + maxX) / 2, (minY + maxY) / 2, false) : null;
+        return any ? (minX, minY, maxX, maxY) : null;
     }
 }

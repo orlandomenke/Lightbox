@@ -880,7 +880,16 @@ every other AI feature and are only legible together.
     cel would pile invisible coincident dots on every hold and make tick
     counting lie about drawing counts, so ticks count drawings and a hold on
     2s is one tick standing still.
-- [?] Spacing assistant
+- [x] Spacing assistant `evidence: SpacingAssistant, TargetsForRun, FrameTranslate, AnalysisOverlayPainter, SpacingAssistantTests, FrameTranslateTests, ABunchedDrawingIsFlaggedAndItsTargetSitsOnTheMeasuredPath, TheExtremesOwnChartBeatsTheGlobalEasing, TheNudgeMovesTheDrawingAndUndoRestoresTheExactBits, ANudgeRefusesADrawingWithAPixelBaseline`
+  - **The acting half of the spacing chart (Q133)**: ghost ticks on the trail
+    where the intended spacing (the extreme's chart, else the easing) wants
+    each inbetween, and a one-click nudge that slides the playhead's drawing
+    along the measured path onto its target — a whole-frame translate
+    (`FrameTranslate`, everything `ImageResize` visits), one undo step, exact
+    on undo. Targets use the trail's subject (`MotionTrail.Locate`), not the
+    graph's centroid, so the ghost and the real tick cannot disagree.
+  - Extremes are never targets; a drawing with a pixel baseline is refused
+    whole rather than torn from its pixels.
 - [x] Timing charts `evidence: TimingChart, TimingChartView, TimingChartTests, TimingChartVmTests, TheChartPlacesTheInbetweensExactlyOnItsRungs, TheInbetweenerObeysTheChartOverTheBar`
   - The ladder on the extreme (Q58): `Frame.Chart` holds the rungs, the cel
     menu's editor writes them, and both inbetweeners and the intended-spacing
@@ -888,8 +897,25 @@ every other AI feature and are only legible together.
 - [?] Automatic contact frame detection
 - [?] Perspective consistency checker
 - [?] Silhouette readability preview
-- [?] Walk cycle analyzer
-- [?] Jump arc analyzer
+- [x] Walk cycle analyzer `evidence: WalkCycleAnalyser, WalkCycleReport, WalkFinding, WalkCycleAnalyserTests, ACleanCycleReportsNoFindings, ASeamThatJumpsNamesTheLoop, UnevenContactsNameTheStride, ALopsidedBobNamesBothSteps`
+  - Reads the active layer's sheet as one cycle (Q133): loop closure, contact
+    evenness, bob symmetry — all off the record, feet as the lowest ink,
+    tolerances as fractions of ink height. Prose in the trail's flyout
+    readout, advisory by design: a deliberate shuffle is allowed to trip it.
+  - **The loop check is a seam check, not an equality check** — a correct
+    cycle's last drawing differs from its first by one step, so the seam is
+    judged against the steps *away* from it (a wrong endpoint corrupts the
+    step beside it too, and must not set its own yardstick).
+- [x] Jump arc analyzer `evidence: JumpArcAnalyser, JumpArcFit, FitRun, JumpArcAnalyserTests, PointsOnAParabolaFitWithNoOffenders, ADrawingOffTheArcIsNamed, AnArcThatNeverComesDownIsNotBallistic, TheFitIsTheRunAtThePlayheadNotTheWholeLayer`
+  - Fits x-linear/y-quadratic to the playhead's run (Q133) — cel-index time,
+    so 2s carry their real timing — draws the arc dashed on the trail and
+    rings the drawings off it. Closed-form least squares run twice: once over
+    everything, once without the single worst drawing, because a plain fit is
+    dragged toward the bump and smears blame onto its neighbours (measured:
+    one 40 px bump flagged four of six drawings before the trim, one after).
+  - Under four located drawings it returns nothing: three points fit any
+    parabola. Auto-detecting the airborne stretch stays with contact frame
+    detection below.
 - [?] Timing diagnostics
 
 ## Pillar 5 — One-click export to game engines
