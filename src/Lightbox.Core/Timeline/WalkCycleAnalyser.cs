@@ -157,8 +157,9 @@ public static class WalkCycleAnalyser
         List<(int Index, double X, double Y, double Bottom, double W, double H)> d,
         double scale, int period, List<WalkFinding> findings)
     {
-        var ground = d.Max(p => p.Bottom);
-        var planted = d.Select(p => p.Bottom >= ground - ContactBand * scale).ToArray();
+        // The band rule is shared with detection (ContactFrames.Planted), so
+        // "standing on the ground" is one answer wherever it is asked.
+        var planted = ContactFrames.Planted(d.Select(p => p.Bottom).ToList(), scale);
 
         // A footfall starts where a planted drawing follows an airborne one.
         // The cycle wraps: a contact spanning the loop's seam is one footfall,

@@ -243,4 +243,48 @@ public partial class MainViewModel
         RefreshMotionTrail();
         AiStatus = $"Nudged frame {target.Index + 1} by {dx:0.#}, {dy:0.#} onto its spacing.";
     }
+
+    /// <summary>
+    /// Read the layer's footfalls and mark them (Q135): named "contact"
+    /// markers at every detected footfall start, one undo step, on request
+    /// only. Frames that already carry a marker are left alone — a marker is
+    /// the artist's, whatever it says, and detection must not overwrite it.
+    /// The jump arc analyser trims its fit at these markers from then on.
+    /// </summary>
+    [RelayCommand]
+    public void DetectContacts()
+    {
+        if (ActiveLayer is not { } layer)
+        {
+            AiStatus = "No layer to read contacts from.";
+            return;
+        }
+        if (ContactFrames.Detect(layer) is not { } reading || reading.Starts.Count == 0)
+        {
+            AiStatus = $"No contacts read — the lowest ink never settles, or fewer than " +
+                       $"{ContactFrames.MinDrawings} drawings have ink.";
+            return;
+        }
+
+        var unmarked = reading.Starts.Where(f => MarkerAt(f) is null).ToList();
+        var frames = string.Join(", ", reading.Starts.Select(f => f + 1));
+        if (unmarked.Count == 0)
+        {
+            AiStatus = $"Contacts read at frame{(reading.Starts.Count == 1 ? "" : "s")} {frames} — all already marked.";
+            return;
+        }
+
+        _editor.Perform(doc =>
+        {
+            foreach (var frame in unmarked)
+            {
+                doc.Scene.Markers.Add(new FrameMarker { Frame = frame, Label = ContactFrames.MarkerLabel });
+            }
+            doc.Scene.Markers.Sort((a, b) => a.Frame.CompareTo(b.Frame));
+        }, label: "Detect contacts");
+
+        RefreshMotionTrail();   // the jump arc reads the markers just written
+        AiStatus = $"Marked {unmarked.Count} contact{(unmarked.Count == 1 ? "" : "s")} " +
+                   $"(footfalls at frame{(reading.Starts.Count == 1 ? "" : "s")} {frames}).";
+    }
 }

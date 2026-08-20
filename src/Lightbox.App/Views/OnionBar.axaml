@@ -131,6 +131,8 @@
                         ToolTip.Tip="Reads the layer as one cycle: does the loop close, do the contacts land evenly, does the bob match between steps. Advisory — a deliberate shuffle is allowed to trip it." />
               <Button Content="Nudge to spacing" Command="{Binding NudgeToSpacingCommand}"
                       ToolTip.Tip="Move the playhead's drawing along its own path to where the intended spacing wants it. One undo step." />
+              <Button Content="Detect contacts" Command="{Binding DetectContactsCommand}"
+                      ToolTip.Tip="Read the layer's footfalls from the lowest ink and mark them as named &quot;contact&quot; markers — one undo step, and frames you already marked are left alone. The jump arc fits between them from then on." />
             </StackPanel>
             <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.8"
                        Text="{Binding AnalysisReadout}" IsVisible="{Binding HasAnalysisReadout}" />

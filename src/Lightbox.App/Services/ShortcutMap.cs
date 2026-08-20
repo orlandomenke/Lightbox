@@ -344,6 +344,7 @@ public sealed class ShortcutMap
             new("canvas.jumpArc", "Show fitted jump arc on the trail", "Canvas", null),
             new("canvas.walkReport", "Show walk cycle readout", "Canvas", null),
             new("timeline.nudgeToSpacing", "Nudge drawing to its spacing target", "Timeline", null),
+            new("timeline.detectContacts", "Detect contacts and mark them", "Timeline", null),
             // No default gestures either, for motionTrail's reason — and both
             // switch the trail on with them, so neither ever toggles nothing.
             new("canvas.motionArc", "Show motion arc (fitted arc and off-arc drawings)", "Canvas", null),

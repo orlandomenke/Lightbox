@@ -223,6 +223,57 @@ public sealed class AnalysisOverlayTests(ITestOutputHelper output) : BrushStateI
         Assert.Contains("clip", vm.AiStatus);
     }
 
+    /// <summary>Four drawings whose lowest ink is at the given bottoms.</summary>
+    private static MainViewModel Sequence(params double[] bottoms)
+    {
+        var vm = new MainViewModel(artist: null) { SmoothStrokes = false };
+        vm.NewDocument(new NewDocumentSettings("Contacts", W, H, 12, 72, "#ffffff", false));
+        vm.ColorHex = "#000000";
+        for (var i = 0; i < bottoms.Length; i++)
+        {
+            if (i > 0) vm.AddFrameCommand.Execute(null);
+            vm.BeginStroke(30, 40, 1);
+            vm.MoveStroke(50, bottoms[i], 1);
+            vm.EndStroke();
+        }
+        return vm;
+    }
+
+    [AvaloniaFact]
+    public void DetectContactsMarksTheFootfallsOnceAndUndoes()
+    {
+        var vm = Sequence(100, 92, 90, 100);
+
+        vm.DetectContacts();
+        output.WriteLine(vm.AiStatus);
+
+        Assert.Equal("contact", vm.MarkerAt(0)!.Label);
+        Assert.Equal("contact", vm.MarkerAt(3)!.Label);
+        Assert.Null(vm.MarkerAt(1));
+
+        // Asking again writes nothing new — detection reads, it does not nag.
+        vm.DetectContacts();
+        Assert.Contains("already marked", vm.AiStatus);
+        Assert.Equal(2, vm.Doc.Scene.Markers.Count);
+
+        // One undo step takes both markers back out.
+        vm.UndoCommand.Execute(null);
+        Assert.Empty(vm.Doc.Scene.Markers);
+    }
+
+    [AvaloniaFact]
+    public void DetectContactsLeavesTheArtistsOwnMarkerAlone()
+    {
+        var vm = Sequence(100, 92, 90, 100);
+        vm.SetMarkerAt(3, "landing", "#40a0e0");
+
+        vm.DetectContacts();
+        output.WriteLine(vm.AiStatus);
+
+        Assert.Equal("contact", vm.MarkerAt(0)!.Label);
+        Assert.Equal("landing", vm.MarkerAt(3)!.Label);
+    }
+
     [AvaloniaFact]
     public void TheReadoutSpeaksWhenAnAnalyserIsOnAndTheTrailCarriesTheGhosts()
     {
@@ -275,5 +326,6 @@ public sealed class AnalysisOverlayTests(ITestOutputHelper output) : BrushStateI
         Assert.Contains(map.Definitions, d => d.Id == "canvas.jumpArc");
         Assert.Contains(map.Definitions, d => d.Id == "canvas.walkReport");
         Assert.Contains(map.Definitions, d => d.Id == "timeline.nudgeToSpacing");
+        Assert.Contains(map.Definitions, d => d.Id == "timeline.detectContacts");
     }
 }

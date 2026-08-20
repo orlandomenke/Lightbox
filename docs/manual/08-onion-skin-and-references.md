@@ -103,8 +103,9 @@ extreme, constant speed across, constant fall down — draws it dashed, and ring
 any drawing sitting off it. Four drawings with a subject are the minimum: three
 fit any parabola, so the first honest verdict needs a fourth. A run whose best
 fit accelerates upward is called out as not reading ballistic at all. Frame the
-jump with extremes; picking the airborne stretch automatically is *Planned*
-(contact frame detection).
+jump with extremes — and where the run carries **"contact" markers** (yours, or
+**Detect contacts**'), the fit trims itself to the airborne stretch between
+them, so a crouched takeoff or landing never drags the arc.
 
 **Walk cycle report** reads the whole layer as one repeating cycle and reports
 three things in prose: whether the loop closes (the step from the last drawing

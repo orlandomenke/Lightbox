@@ -106,6 +106,7 @@ public static class JumpArcAnalyser
             if (MotionTrail.Locate(scene, frame) is not { } at) continue;
             located.Add((cel, frame.Id, at.X, at.Y));
         }
+        located = Airborne(scene, located, index);
         if (located.Count < MinDrawings) return null;
 
         // Time relative to the run's first drawing keeps the normal-equation
@@ -154,6 +155,51 @@ public static class JumpArcAnalyser
 
         // Screen Y grows downward, so gravity is a positive quadratic term.
         return new JumpArcFit(curve, deviations, Ballistic: fit.A > 0, tolerance);
+    }
+
+    /// <summary>
+    /// The airborne stretch (Q135): where the run carries contact markers, a
+    /// planted drawing is not ballistic and must not vote on the arc, so the
+    /// run splits at the marked frames and the stretch the playhead stands in
+    /// is what gets fitted. Authored markers, not re-detection — the artist's
+    /// statement (or the detect command's, once accepted into the record) is
+    /// what the fit obeys, and correcting a wrong split is editing a marker
+    /// rather than arguing with a heuristic. With no contact markers in the
+    /// run, the whole run fits as before.
+    /// </summary>
+    private static List<(int Index, string Id, double X, double Y)> Airborne(
+        Scene scene, List<(int Index, string Id, double X, double Y)> located, int index)
+    {
+        if (located.Count == 0) return located;
+        var marked = ContactFrames.MarkedIn(scene, located[0].Index, located[^1].Index);
+        if (marked.Count == 0) return located;
+
+        var contacts = marked.ToHashSet();
+        var segments = new List<List<(int Index, string Id, double X, double Y)>>();
+        var current = new List<(int Index, string Id, double X, double Y)>();
+        foreach (var p in located)
+        {
+            if (contacts.Contains(p.Index))
+            {
+                if (current.Count > 0) segments.Add(current);
+                current = [];
+                continue;
+            }
+            current.Add(p);
+        }
+        if (current.Count > 0) segments.Add(current);
+        if (segments.Count == 0) return [];
+
+        // The stretch the playhead is in; standing on a contact frame itself,
+        // the nearest stretch — earlier on a tie, reading order's answer.
+        foreach (var segment in segments)
+        {
+            if (index >= segment[0].Index && index <= segment[^1].Index) return segment;
+        }
+        return segments
+            .OrderBy(s => Math.Min(Math.Abs(index - s[0].Index), Math.Abs(index - s[^1].Index)))
+            .ThenBy(s => s[0].Index)
+            .First();
     }
 
     /// <summary>

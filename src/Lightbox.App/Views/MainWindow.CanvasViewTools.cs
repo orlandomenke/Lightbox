@@ -393,6 +393,9 @@ public partial class MainWindow
             case "timeline.nudgeToSpacing":
                 _vm.NudgeToSpacing();
                 break;
+            case "timeline.detectContacts":
+                _vm.DetectContacts();
+                break;
             case "canvas.motionArc":
                 _vm.MotionArcs = !_vm.MotionArcs;
                 break;

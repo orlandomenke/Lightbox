@@ -107,6 +107,36 @@ public class JumpArcAnalyserTests
     }
 
     [Fact]
+    public void ContactMarkersTrimTheFitToTheAirborneStretch()
+    {
+        // Takeoff and landing drawings crouch on the ground — nothing like
+        // the parabola between them. Unmarked, they drag the fit; marked as
+        // contacts (Q135), the airborne stretch fits exactly and the planted
+        // drawings are not judged at all.
+        var points = new (double X, double Y)[8];
+        points[0] = (0, 300);
+        for (var t = 1; t <= 6; t++) points[t] = (20.0 * t, Ballistic(t - 1));
+        points[7] = (140, 300);
+        var layer = Run(points);
+
+        var scene = new Scene();
+        scene.Markers.Add(new FrameMarker { Frame = 0, Label = "contact" });
+        scene.Markers.Add(new FrameMarker { Frame = 7, Label = "contact" });
+
+        var fit = JumpArcAnalyser.FitRun(scene, layer, 3);
+
+        Assert.NotNull(fit);
+        Assert.Equal(6, fit.Deviations.Count);
+        Assert.DoesNotContain(fit.Deviations, d => d.Index is 0 or 7);
+        Assert.All(fit.Deviations, d => Assert.False(d.OffArc, $"frame {d.Index}: {d.Distance}"));
+
+        // The same layer with no markers is dragged by the crouches.
+        var untrimmed = JumpArcAnalyser.FitRun(new Scene(), layer, 3);
+        Assert.NotNull(untrimmed);
+        Assert.Equal(8, untrimmed.Deviations.Count);
+    }
+
+    [Fact]
     public void TheCurveRunsTheWholeSpanForThePainter()
     {
         var layer = Run(Enumerable.Range(0, 5)

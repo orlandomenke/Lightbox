@@ -923,7 +923,17 @@ every other AI feature and are only legible together.
   - The ladder on the extreme (Q58): `Frame.Chart` holds the rungs, the cel
     menu's editor writes them, and both inbetweeners and the intended-spacing
     curve read the same list — one authored object, every consumer.
-- [?] Automatic contact frame detection
+- [x] Automatic contact frame detection `evidence: ContactFrames, ContactReading, ContactFramesTests, AFootfallStartsWhereAPlantedDrawingFollowsAnAirborneOne, AShotIsNotACycleSoNothingWraps, DetectContactsMarksTheFootfallsOnceAndUndoes, DetectContactsLeavesTheArtistsOwnMarkerAlone, ContactMarkersTrimTheFitToTheAirborneStretch`
+  - **Detection reads; the marker is the artist's** (Q135): "Detect contacts"
+    reads footfalls off the lowest ink — the walk analyser's ground-band rule,
+    shared through `ContactFrames.Planted` so the two can never disagree —
+    and writes named "contact" markers as one undo step, on request only.
+    Frames already marked are left alone, whatever they say.
+  - Linear where the walk analyser wraps: a shot is not a cycle, so frame 0
+    planted IS a footfall and the landing is not the takeoff.
+  - The jump arc analyser trims its fit to the airborne stretch between
+    contact markers — authored record, not re-detection, so correcting a
+    wrong split is editing a marker rather than arguing with a heuristic.
 - [?] Perspective consistency checker
 - [?] Silhouette readability preview
 - [x] Walk cycle analyzer `evidence: WalkCycleAnalyser, WalkCycleReport, WalkFinding, WalkCycleAnalyserTests, ACleanCycleReportsNoFindings, ASeamThatJumpsNamesTheLoop, UnevenContactsNameTheStride, ALopsidedBobNamesBothSteps`
