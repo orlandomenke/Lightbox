@@ -99,6 +99,12 @@ public partial class MainViewModel
         // that fast path and is exactly the edit the Edit menu must not miss.
         RefreshUndoRedo();
         RefreshCropAvailability();
+        // The Layer menu's checkboxes read the active layer live, so the value
+        // is always right — but a binding only re-reads on a notification, and
+        // an undo restores visibility/locks without one. Here rather than in
+        // the undo path alone, because redo and a loaded document move the
+        // same state the same way.
+        NotifyLayerGating();
         // B151: the swatch's frame list describes a tree that just moved. An undo
         // or a structural edit can add, remove or replace the frames it names, and
         // a stale list would repaint the wrong ones — or, worse, none of them.

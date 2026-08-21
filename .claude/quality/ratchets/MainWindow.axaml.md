@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4586
+budget: 4722
 
 ## Why it is here despite being XAML
 
@@ -157,7 +157,23 @@ leaves a number nobody can account for. So every reason above stays, and
   from the same 4,434, so it is a third claim on that number and its six lines
   are additional to everything the remeasure before it counted. Its reason
   stays, the figure comes from `ratchets.py remeasure`.
+- **4,576 → 4,712** (2026-08-20): +136 for menu mirroring — the Layer and
+  Animation top-level menus, Edit ▸ Transform, and the View menu's six view
+  transform entries. Every command already existed in a docker, a bar or a
+  context menu; what lands here is registration, which is the one thing a
+  budget must not refuse (Q128's precedent). Photoshop and Krita both mirror
+  their panels' verbs in the menu bar, and Krita's one exception — animation
+  ops living only in the timeline docker — is its most-cited papercut; an
+  animation-first application should not repeat it. The comments carry the
+  which-half-stays-in-the-docker reasoning and are the larger part of the
+  raise.
 - **4,576 → 4,586** (2026-08-20, Q84): +10 for the Scene panel's two entry
   points — its Docker host (the panel itself is `ScenePanel.axaml`, the
   `BoneOptionsBar` trade again) and its View ▸ Dockers checkbox. Registration,
   which is the one thing a budget must not refuse.
+- **→ 4,722, remeasured on the merged tree** (2026-08-20). The two raises
+  above left the same 4,576 on parallel branches — the menu mirroring wanted
+  4,712, the Scene panel wanted 4,586 — and taking either would bank the
+  other's growth as headroom nobody earned. Both reasons stay, and
+  `ratchets.py remeasure` supplies the figure, which is the one moment that
+  script exists for.

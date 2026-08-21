@@ -46,7 +46,7 @@ From the top:
 | Strip | What it is |
 | --- | --- |
 | Title bar | The Lightbox mark, the menu, and the window's own minimise / maximise / close. Drag the empty part to move the window; double-click it to maximise. |
-| Menu | File, Edit, Image, Select, View — lives in the title bar |
+| Menu | File, Edit, Image, Layer, Select, Animation, View, Effects, Help — lives in the title bar |
 | Tool options | Controls for the tool you have selected. Changes with the tool; never changes height, and never scrolls — anything that does not fit goes into the **▾** at the end. On the right, the workspace picker. |
 | AI bar | AI Inbetween, and what the model is doing |
 | Tabs | One per open document |
@@ -174,7 +174,9 @@ stretching them just adds whitespace. The **Layers**, **Project** and
 
 Two small bars float on the canvas itself rather than taking a strip:
 
-- **View bar** — zoom, rotate, mirror, reset.
+- **View bar** — zoom, rotate, mirror, reset. The same six live at the top of
+  the **View** menu, so they can be reached — and given keys in Configure's
+  shortcut editor — with the bar hidden.
 - **Shortcut bar** — onion skin on the layer you are drawing on, view-through-camera
   if the document has a camera, and one play/pause button.
 
