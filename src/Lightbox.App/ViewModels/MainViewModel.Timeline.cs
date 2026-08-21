@@ -407,6 +407,13 @@ public partial class MainViewModel
     public void SetPlaybackEnd(FrameCell cell) =>
         PlaybackEndFrame = Math.Min(cell.Index, Scene.FrameCount - 1);
 
+    // The track timeline's twins: no cell under a pointer there, just a frame.
+    public void SetPlaybackStartAt(int frame) =>
+        PlaybackStartFrame = Math.Clamp(frame, 0, Scene.FrameCount - 1);
+
+    public void SetPlaybackEndAt(int frame) =>
+        PlaybackEndFrame = Math.Clamp(frame, 0, Scene.FrameCount - 1);
+
     public void ClearPlaybackRange()
     {
         PlaybackStartFrame = -1;
@@ -974,7 +981,7 @@ public partial class MainViewModel
         {
             _keySelection.Add(TimelineKey.Cel(cell.LayerIndex, i));
         }
-        RefreshCelSelectionHighlights();
+        RefreshTimelineSelection();
     }
 
     /// <summary>
@@ -991,14 +998,14 @@ public partial class MainViewModel
         var key = TimelineKey.Cel(cell.LayerIndex, cell.Index);
         if (!_keySelection.Add(key)) _keySelection.Remove(key);
         _celAnchor = (cell.LayerIndex, cell.Index);
-        RefreshCelSelectionHighlights();
+        RefreshTimelineSelection();
     }
 
     public void ClearCelRange()
     {
         if (_keySelection.Count == 0) return;
         _keySelection.Clear();
-        RefreshCelSelectionHighlights();
+        RefreshTimelineSelection();
     }
 
     private void RefreshCelSelectionHighlights()

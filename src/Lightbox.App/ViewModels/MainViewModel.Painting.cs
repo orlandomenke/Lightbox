@@ -759,23 +759,84 @@ public partial class MainViewModel
     private List<Lightbox.App.Controls.TrackRow> PoseTracks()
     {
         var rows = new List<Lightbox.App.Controls.TrackRow>();
-        if (Doc.Armature is not { Bones.Count: > 0 } armature) return rows;
+        if (Doc.Armature is not { Bones.Count: > 0 }) return rows;
 
         var keys = ArmatureOps.Ordered(Doc.Scene.PoseTrack);
         var all = keys.Select(k => k.Frame).ToList();
         rows.Add(new Lightbox.App.Controls.TrackRow(
             "Armature", all, all, all.Select(_ => false).ToList(),
-            Lightbox.App.Controls.TrackKind.Armature));
+            Lightbox.App.Controls.TrackKind.Armature,
+            HasChildren: true, Folded: !PoseRowsExpanded));
         if (!PoseRowsExpanded) return rows;
 
-        foreach (var bone in armature.Bones)
+        foreach (var (bone, depth, hasChildren) in VisiblePoseBones())
         {
             var mine = keys.Where(k => k.Bones.ContainsKey(bone.Id)).Select(k => k.Frame).ToList();
             rows.Add(new Lightbox.App.Controls.TrackRow(
-                "    " + bone.Name, mine, mine, mine.Select(_ => false).ToList(),
-                Lightbox.App.Controls.TrackKind.Bone));
+                new string(' ', 4 * (depth + 1)) + bone.Name,
+                mine, mine, mine.Select(_ => false).ToList(),
+                Lightbox.App.Controls.TrackKind.Bone,
+                HasChildren: hasChildren, Folded: _foldedBones.Contains(bone.Id)));
         }
         return rows;
+    }
+
+    /// <summary>
+    /// Bones whose fold chevron is closed — their subtrees fold away exactly
+    /// as <see cref="PoseRowsExpanded"/> folds the lot. Selection-like state:
+    /// a view's memory, never the document's.
+    /// </summary>
+    private readonly HashSet<string> _foldedBones = [];
+
+    /// <summary>
+    /// The bones the timeline shows, in tree order: depth-first from the
+    /// roots, siblings in authoring order, folded subtrees skipped.
+    /// </summary>
+    /// <remarks>
+    /// One walk feeds <see cref="PoseTracks"/>, <see cref="BoneOfTrack"/> and
+    /// the selection's row lookup, because a second ordering that disagreed
+    /// would put a key's ring on a different bone than a drag retimes — the
+    /// <see cref="TracksAboveLayers"/> argument, one level down.
+    /// </remarks>
+    internal List<(Bone Bone, int Depth, bool HasChildren)> VisiblePoseBones()
+    {
+        var result = new List<(Bone, int, bool)>();
+        if (Doc.Armature is not { Bones.Count: > 0 } armature) return result;
+        // A parent id pointing at no bone is a root in practice — an orphan
+        // hidden by a dangling reference would be a row an artist cannot reach.
+        string? ParentOf(Bone b) =>
+            b.ParentId is { } p && armature.BoneById(p) is not null ? p : null;
+        var byParent = armature.Bones.ToLookup(ParentOf);
+        void Walk(string? parentId, int depth)
+        {
+            foreach (var bone in byParent[parentId])
+            {
+                var hasChildren = byParent[bone.Id].Any();
+                result.Add((bone, depth, hasChildren));
+                if (hasChildren && !_foldedBones.Contains(bone.Id)) Walk(bone.Id, depth + 1);
+            }
+        }
+        Walk(null, 0);
+        return result;
+    }
+
+    /// <summary>
+    /// The gutter chevron's click: fold or open the row's subtree. On the
+    /// armature summary it is the Bones toggle wearing its tree face.
+    /// </summary>
+    public void ToggleTrackFold(int trackIndex)
+    {
+        if (!IsPoseTrack(trackIndex)) return;
+        if (BoneOfTrack(trackIndex) is { } boneId)
+        {
+            if (!_foldedBones.Remove(boneId)) _foldedBones.Add(boneId);
+            OnPropertyChanged(nameof(TimelineTracks));
+            RefreshTimelineSelection();
+        }
+        else
+        {
+            PoseRowsExpanded = !PoseRowsExpanded;
+        }
     }
 
     /// <summary>
@@ -797,11 +858,12 @@ public partial class MainViewModel
     /// </summary>
     public string? BoneOfTrack(int trackIndex)
     {
-        if (Doc.Armature is not { Bones.Count: > 0 } armature) return null;
+        if (Doc.Armature is not { Bones.Count: > 0 }) return null;
         var first = (Scene.Camera is not null ? 1 : 0);
         var offset = trackIndex - first - 1; // -1 for the summary row itself
-        if (!PoseRowsExpanded || offset < 0 || offset >= armature.Bones.Count) return null;
-        return armature.Bones[offset].Id;
+        if (!PoseRowsExpanded || offset < 0) return null;
+        var visible = VisiblePoseBones();
+        return offset < visible.Count ? visible[offset].Bone.Id : null;
     }
 
     /// <summary>Whether this track index is the armature summary or one of its bones.</summary>

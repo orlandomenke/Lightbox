@@ -890,6 +890,23 @@ public sealed class DocumentEditor
         return true;
     }
 
+    /// <summary>
+    /// Set one cel's drawing at an index, extending the scene to reach it.
+    /// No undo step of its own — <see cref="MoveCelIn"/>'s reason: a paste
+    /// that lands several keys is one edit to an artist and must be one to
+    /// Ctrl+Z, so the caller owns the <see cref="Perform"/>.
+    /// </summary>
+    public static bool SetCelIn(Doc doc, string layerId, int index, Frame? frame)
+    {
+        var scene = doc.Scene;
+        var target = scene.Layers.FirstOrDefault(l => l.Id == layerId);
+        if (target is null || index < 0 || frame is null) return false;
+        if (index >= scene.FrameCount) scene.FrameCount = index + 1;
+        foreach (var l in scene.Layers) PadCels(l, scene.FrameCount);
+        target.Cels[index].Frame = frame;
+        return true;
+    }
+
     /// <summary>Clear every drawing in [from, to] on a layer (cels become holds). One undo step.</summary>
     public void ClearCels(string layerId, int from, int to)
     {

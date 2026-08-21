@@ -268,6 +268,14 @@ public partial class MainWindow
                 _vm.DeleteColumnAt(_vm.CurrentFrameIndex);
                 e.Handled = true;
                 break;
+            case "timeline.copyKeys":
+                _vm.CopySelectedTimelineKeys();
+                e.Handled = true;
+                break;
+            case "timeline.pasteKeys":
+                _vm.PasteTimelineKeysAtPlayhead();
+                e.Handled = true;
+                break;
             case "timeline.playPause":
                 _vm.TogglePlaybackCommand.Execute(null);
                 break;

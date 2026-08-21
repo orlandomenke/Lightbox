@@ -102,11 +102,73 @@ If any part of the selection would land before frame 1, the whole drag is
 refused rather than moving some of it and clamping the rest — a partial shift
 closes the gaps you were keeping.
 
-**Retiming is the only thing that crosses kinds**, because it is the only thing
-the three have in common. Deleting is not one verb with three names: removing a
-camera key, unkeying a bone and clearing a drawing leave different things
-behind. So the pose row's right-click **Delete** covers the pose keys in the
-selection and leaves a camera key or a drawing beside them alone.
+**Retiming and the key clipboard cross kinds; deleting does not.** Moving and
+copying are the two things a camera key, a pose key and a drawing genuinely
+have in common — "this beat, two frames later" and "this beat, there too" are
+one gesture each. Deleting is not one verb with three names: removing a camera
+key, unkeying a bone and clearing a drawing leave different things behind. So
+each row's right-click offers its own delete — the pose row's **Delete**
+covers the pose keys in the selection and leaves a camera key or a drawing
+beside them alone.
+
+## The timeline's right-click menu
+
+**Right-click a key dot** for its menu, on every kind of row:
+
+- **Copy / Cut** — the whole selection when the dot is in it, the dot alone
+  when it is not. See *Copying keys* below; cut removes exactly what it
+  copied, as one undo step.
+- The row's own verbs: a camera key offers **Ease into next** (the graph
+  editor's easing menu, where the key actually is) and **Remove camera key**;
+  a pose key offers **Delete this pose key** or **Unkey this bone here**; a
+  drawing offers **Clear drawing**, which keeps the timing the way the
+  X-sheet's clear does.
+- **Go to frame** — jump the playhead to the key.
+
+**Right-click an empty stretch of a track** for the verbs that need a frame
+rather than a key: **Paste keys at this frame**, **Key the camera here** (on
+the camera's row) or **Key the pose here** (on the armature's rows) — both key
+what is already interpolated there, so nothing jumps — and the playback
+range's start and end.
+
+## Copying keys
+
+**Copy** takes whatever the dot selection holds — camera keys, pose keys,
+single bones' entries, drawings — and **Paste** lands the lot with the
+earliest key on the frame you aim at, every distance between them kept. That
+is the clipboard's face of the mixed retime: a camera move, two bone keys and
+a drawing copied as one beat and pasted as one beat, one undo step.
+
+What landing means is each kind's own replace: a camera key or a whole pose
+key on the destination gives way; a single bone's entry joins the pose key
+already there (seeding a new key from the interpolated pose first, so pasting
+one bone never snaps its neighbours to rest); a drawing replaces the cel on
+its frame, extending the scene if it must. A key whose home is gone — the
+camera removed since the copy, a bone deleted, a layer locked — is skipped and
+the status line says so.
+
+This clipboard is deliberately separate from the **cel clipboard** (above):
+that one is a sequence of drawings on one row, pasted consecutively with the
+holes closed; this one is a set of keys at their distances. Copying cels for
+re-timing wants the first; copying a beat wants this.
+
+**Copy selected keys** and **Paste keys at playhead** are in **Edit →
+Configure → Shortcuts** under Timeline, unbound by default — Ctrl+C already
+means the cel clipboard, and a second silent reading of it would be a trap.
+
+## The key inspector
+
+**Select exactly one key and its numbers appear** on a strip under the
+tracks: a camera key's X, Y, zoom and rotation; a bone key's X, Y and
+rotation (its departure from rest — zero means the bind pose); a drawing's
+layer **depth**, the Scene panel's number editable where the key is. Type or
+spin, and the change lands in the key itself — the same values the graph
+editor drags, as digits.
+
+The strip is absent when nothing is selected, and absent when several keys
+are — it shows one key's truth rather than an average. The armature summary
+row's key is a whole pose, so it offers the hint to open **Bones** and pick
+one bone's key instead of pretending a pose is three numbers.
 
 ## The scratch track
 
