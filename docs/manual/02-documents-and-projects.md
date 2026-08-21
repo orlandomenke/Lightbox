@@ -883,11 +883,38 @@ the rest still shared.
 ### The character library
 
 A project whose type is **Asset library** offers its characters to other
-projects. Importing one copies it — animations, variants and the palettes they
-depend on — keeping swatch ids so the imported art still paints correctly.
+projects — and a library is an ordinary project, so it can be opened, drawn in
+and versioned like any other. What makes it a library is that its folders show
+up on the shelf everywhere else.
 
-Import copies rather than links. A linked character that edits in place is a
-real feature and it is *Planned*; copying is honest about what this does and
-does not quietly create a link that later breaks.
+**Where libraries live** is set once, per machine: point Lightbox at a library
+project, or at a folder holding several. Add folders from the library window
+below; nothing is scanned until a library surface is opened, so a slow network
+drive costs nothing at startup.
+
+**Two ways in, one shelf.** The **⤓** button on the project browser's bar is
+the fast path: a menu of every character the library folders offer — pick one
+and it is imported into the open project. **Browse library…** at the bottom of
+that menu opens the **library window**, the browsing home, which is also where
+the library folders are added and removed. The window has no key out of the
+box; **Configure → Shortcuts → “Character library”** binds one.
+
+**Importing copies** — animations, variants and the palettes they depend on,
+keeping swatch ids so the imported art still paints correctly. The copy is
+yours: recolour it, retime it, redraw it, and the library does not change.
+
+**Importing the same character again updates instead of duplicating.** Each
+copy remembers where it came from, so a re-import replaces the animations that
+came from the library, adds any the library has gained, and never touches work
+you made yourself — an animation you added to the imported character's folder
+is not the library's to overwrite. The one exception asks first: a copy **you
+have edited since importing** is named in a dialog, and *keep my versions* is
+the default. A folder that merely shares the character's name is merged into
+rather than stood beside — the library's animations arrive next to yours, and
+nothing is replaced.
+
+A linked character that edits in place everywhere is a real feature and it is
+*Planned*; copying is honest about what this does and does not quietly create
+a link that later breaks.
 
 ---

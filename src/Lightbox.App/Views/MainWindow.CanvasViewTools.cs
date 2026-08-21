@@ -235,6 +235,10 @@ public partial class MainWindow
                 _ = OpenProjectWindowAsync();
                 e.Handled = true;
                 break;
+            case "project.libraryWindow":
+                OpenLibraryWindow();
+                e.Handled = true;
+                break;
             case "diagnostics.inputTrace":
                 ToggleInputTrace();
                 e.Handled = true;
