@@ -387,7 +387,26 @@ palette can live* and *one of the places a palette can live*.
 - [x] Project types at creation (Illustration / Animation / Game Art / Storyboard / Comic / Asset Library / Empty) `evidence: NewProjectDialog, NewProjectSettings, NewDocumentSettings`
 - [x] Project as a container above the document `evidence: ProjectManifest, ProjectIo, Project, ProjectTests, AProjectRoundTripsThroughTheFolder`
 - [x] Character workspace — animations, assets, references, palette in one place `evidence: ReferenceSheet, ReferenceSheetModelTests, ReferenceTabTests`
-- [~] Character library `evidence: CharacterLibrary, LibraryEntry, ImportingASubjectBringsItsDocumentsAndPalette, AnImportedSubjectStillPaintsFromItsPalette, AnImportSurvivesSavingAndReopeningTheProject, ImportProvenance, ReImportReplacesByProvenanceAndNeverTouchesLocalWork, TheImportCommandIsRegisteredSoItCanBeFoundAndRebound`
+- [~] Character library `evidence: CharacterLibrary, LibraryEntry, ImportingASubjectBringsItsDocumentsAndPalette, AnImportedSubjectStillPaintsFromItsPalette, AnImportSurvivesSavingAndReopeningTheProject, ImportOrigin, ImportResult, LibraryViewModel, LibraryWindow, ReImportReplacesByProvenanceAndNeverTouchesLocalWork, AnEditedCopyIsKeptAndNamedBeforeItIsReplaced, ImportLandsInTheOpenProjectTheDockerAndTheDisk, TheImportCommandIsRegisteredSoItCanBeFoundAndRebound`
+  - **Slice 2 landed 2026-08-20: the way in, and the merge.** `ImportOrigin`
+    stamps every copied folder and document with its library source — ids,
+    never paths, so the stamp survives the library moving and is the edge a
+    future dependency graph reads — plus a content hash, which is what makes
+    "edited since import" answerable without the library present. Re-import
+    merges (Q138): it replaces exactly the provenance-matched copies, adds
+    what the library gained, never touches local work, and the one
+    destructive act — replacing an edited copy — asks first with the names,
+    Q35-style, keeping as the default. `ImportingTwiceGivesTwoDistinctFolders`
+    was rewritten to `ImportingTwiceMergesIntoOneFolder`: the old behaviour
+    was the declined numbered-beside option, recorded before Q138 decided.
+  - **One view model, two surfaces**: the picker on the project panel (a
+    flyout; four lines in the ratcheted axaml because the flyout is built in
+    a partial) and `LibraryWindow`, the browsing home with the roots editor —
+    both read the same `LibraryViewModel`, so they cannot drift. Roots are
+    app-level settings, empty by default, scanned when a surface opens and
+    never at startup. Palettes and variants arrive with a first import; a
+    library's later recolour does not propagate into a folder that already
+    has its own — that is Pillar 3's job, and it starts from these stamps.
   - **The engine is proven (Q138 slice 1, 2026-08-20), and most of it already
     was** — the two anchors this item carried for weeks named tests that
     existed under other names: B114's subject rename moved

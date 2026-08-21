@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4722
+budget: 4726
 
 ## Why it is here despite being XAML
 
@@ -177,3 +177,8 @@ leaves a number nobody can account for. So every reason above stays, and
   other's growth as headroom nobody earned. Both reasons stay, and
   `ratchets.py remeasure` supplies the figure, which is the one moment that
   script exists for.
+- **→ 4,726** (2026-08-20): the character library's picker button on the
+  project panel (Q138). One button, four lines — the flyout it opens is built
+  in `MainWindow.ProjectFiling.cs` where it can live in a partial, which is
+  why the entry point costs four lines and not forty. Registration again: an
+  import nobody can reach is not a feature.

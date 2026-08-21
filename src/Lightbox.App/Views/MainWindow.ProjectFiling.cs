@@ -25,6 +25,55 @@ namespace Lightbox.App.Views;
 /// </remarks>
 public partial class MainWindow
 {
+    // ---- the character library's picker (Q138) ----------------------------------
+
+    /// <summary>
+    /// The fast path: a flyout of everything the library folders offer, one
+    /// click from the project browser. The window is the browsing home; both
+    /// read the same <see cref="LibraryViewModel"/>, so neither can drift.
+    /// </summary>
+    private void OnProjectImportFromLibrary(object? sender, RoutedEventArgs e)
+    {
+        var vm = _vm.Characters;
+        vm.ConfirmReplaceEdited ??= names => LibraryWindow.ConfirmReplaceEditedAsync(this, names);
+        vm.Rescan();
+
+        var flyout = new MenuFlyout();
+        // A dozen at most: the picker is for the shelf you know, and past that
+        // the window's list is the legible surface.
+        const int shown = 12;
+        foreach (var row in vm.Entries.Take(shown))
+        {
+            var item = new MenuItem { Header = $"{row.Name}  ·  {row.LibraryName}, {row.Summary}" };
+            item.Click += async (_, _) => await vm.Import(row);
+            flyout.Items.Add(item);
+        }
+        if (vm.Entries.Count > shown)
+        {
+            flyout.Items.Add(new MenuItem
+            {
+                Header = $"… and {vm.Entries.Count - shown} more in the library window",
+                IsEnabled = false,
+            });
+        }
+        if (vm.Entries.Count == 0)
+        {
+            // Two different kinds of nothing, said apart: not set up, and empty.
+            flyout.Items.Add(new MenuItem
+            {
+                Header = vm.HasRoots
+                    ? "The library folders offer no characters"
+                    : "No library folders set up yet",
+                IsEnabled = false,
+            });
+        }
+        flyout.Items.Add(new Separator());
+        var browse = new MenuItem { Header = "Browse library…" };
+        browse.Click += (_, _) => new LibraryWindow(vm).Show(this);
+        flyout.Items.Add(browse);
+        flyout.ShowAt((Control)sender!);
+    }
+
     // ---- re-filing a document by dragging it -----------------------------------
 
     private static readonly DataFormat<string> ProjectRowFormat =

@@ -797,6 +797,32 @@ public partial class MainViewModel
     public ProjectViewModel ProjectDocker { get; }
 
     /// <summary>
+    /// The character library — see <see cref="LibraryViewModel"/>. Lazy so a
+    /// session that never opens the library builds nothing for it; both the
+    /// picker and the library window read this one instance (Q138).
+    /// </summary>
+    public LibraryViewModel Characters => _library ??= new LibraryViewModel(
+        Settings,
+        () => ProjectDocker.Project,
+        result =>
+        {
+            // The import mutated the manifest and loaded documents in memory;
+            // the docker must show it and the disk must hold it — an import
+            // that vanishes with the session is slice 1's round-trip lesson.
+            ProjectDocker.Refresh();
+            SaveProject(everything: true);
+            var summary = string.Join(", ", new[]
+            {
+                result.Added.Count > 0 ? $"{result.Added.Count} added" : null,
+                result.Replaced.Count > 0 ? $"{result.Replaced.Count} updated" : null,
+                result.KeptEdited.Count > 0 ? $"{result.KeptEdited.Count} kept (edited here)" : null,
+            }.Where(part => part is not null));
+            AiStatus = $"Imported “{result.Folder.Name}”{(summary.Length > 0 ? $": {summary}" : "")}.";
+        });
+
+    private LibraryViewModel? _library;
+
+    /// <summary>
     /// Which panels are open, where, and how big — the whole workspace.
     /// </summary>
     /// <remarks>
