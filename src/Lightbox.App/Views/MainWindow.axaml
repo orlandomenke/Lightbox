@@ -3037,6 +3037,19 @@
                             <Separator />
                             <MenuItem Header="Duplicate" Click="OnProjectDuplicate"
                                       ToolTip.Tip="Copy this animation, art and all — a walk into a limp" />
+                            <!--
+                              Q143. The variant's escape hatch for a difference
+                              colour cannot express. A Duplicate with one extra
+                              fact — which drawing the copy stands in for — so
+                              it sits beside Duplicate. Absent unless a variant
+                              is being viewed and the drawing is still shared.
+                            -->
+                            <MenuItem Header="{Binding GiveVariantHeader}" IsVisible="{Binding CanGiveVariant}"
+                                      Command="{Binding Owner.GiveVariantOwnVersionCommand}"
+                                      ToolTip.Tip="Copy this drawing for the variant being viewed. The variant shows its copy; every other variant keeps sharing the original." />
+                            <MenuItem Header="Use the shared drawing again" IsVisible="{Binding IsVariantOverride}"
+                                      Command="{Binding Owner.ReturnToSharedCommand}"
+                                      ToolTip.Tip="Stop this drawing standing in for the shared one. It stays in the folder as its own drawing." />
                             <MenuItem Header="Rename…" Click="OnProjectRowRename" />
                             <MenuItem Header="Version history…" Click="OnProjectRowHistory"
                                       ToolTip.Tip="Kept versions of this file — view and revert" />
@@ -3065,6 +3078,28 @@
                             </MenuItem>
                             <MenuItem Header="Glyph — something else…" Click="OnProjectChooseGlyph"
                                       ToolTip.Tip="Type any character. The grid is a starting point, not a vocabulary." />
+                            <!--
+                              Q143. Which version of the subject the panel and
+                              canvas show — view state, like the playhead, so
+                              switching never dirties a document. The Glyph
+                              menu's entry pattern, because a flyout item's
+                              only reliable DataContext is the entry itself.
+                            -->
+                            <MenuItem Header="Variant" IsVisible="{Binding HasVariants}"
+                                      ItemsSource="{Binding VariantMenu}"
+                                      ToolTip.Tip="Which version of this subject you are looking at. Its palette repaints the shared drawings; drawings given to it outright stand in for the shared ones.">
+                              <MenuItem.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ScopeMenuEntry">
+                                  <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                              </MenuItem.ItemTemplate>
+                              <MenuItem.Styles>
+                                <Style Selector="MenuItem > MenuItem" x:DataType="vm:ScopeMenuEntry">
+                                  <Setter Property="Command" Value="{Binding Command}" />
+                                  <Setter Property="CommandParameter" Value="{Binding Parameter}" />
+                                </Style>
+                              </MenuItem.Styles>
+                            </MenuItem>
                             <!--
                               Q30. The plan was describable and not runnable:
                               PlanExport, DescribeExportPlan and RecordExport all
@@ -3203,6 +3238,16 @@
                                    FontSize="10" Foreground="{StaticResource AccentCoralBrush}" FontWeight="SemiBold"
                                    Margin="6,0,2,0" VerticalAlignment="Center"
                                    ToolTip.Tip="This is in your project and its file cannot be found. Removing it from the project stays your decision." />
+                        <!-- Q143. The variant this folder is showing, worn on
+                             the row: without it the only sign the knight is
+                             Winter Armour would be colours the artist has to
+                             recognise. Innermost of the right column, beside
+                             the name it qualifies. -->
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding VariantBadge}"
+                                   IsVisible="{Binding HasVariantBadge}"
+                                   FontSize="10" Opacity="0.7" FontStyle="Italic"
+                                   Margin="6,0,2,0" VerticalAlignment="Center"
+                                   ToolTip.Tip="The variant this subject is showing. Right-click ▸ Variant to switch." />
                         <Panel MinHeight="20">
                           <!-- Dimmed while it has no file, whichever reason. The
                                word beside it says which; the dimming is what

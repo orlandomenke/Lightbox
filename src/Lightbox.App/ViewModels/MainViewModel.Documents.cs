@@ -1138,7 +1138,10 @@ public partial class MainViewModel
                 if (visibleGradients is null || visibleGradients.Contains(id)) gradients[id] = gradient;
             }
         }
-        var resolved = palettes.ToList();
+        // Active variants swap their copies in for the base palettes here, at
+        // the one funnel every palette passes through on its way to rendering
+        // — see MainViewModel.Variants.cs for why it must be a stand-in.
+        var resolved = ApplyVariantStandIns(palettes.ToList());
         PaletteRegistry.Reset(resolved, gradients);
         // Symbols are project-scoped while a project is open, which is the
         // point of them: the sword lives above the animations that hold it. A

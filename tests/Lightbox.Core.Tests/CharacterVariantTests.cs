@@ -149,6 +149,42 @@ public sealed class CharacterVariantTests : IDisposable
     }
 
     [Fact]
+    public void TheStandInMapAnswersForTheBasePalettesId()
+    {
+        // Strokes name the palette they were painted from, and the registry
+        // never answers a named palette from another that shares the swatch id
+        // (Q30). So the variant's copy repaints nothing by existing — the
+        // renderer has to be told which id it stands in for, and this is the
+        // one place that says so.
+        var project = Knight(out var knight, out _, out var walk);
+        var winter = ProjectIo.AddVariant(project, knight, "Winter");
+
+        Assert.Empty(project.PaletteStandInsFor(walk));
+
+        project.ActiveVariant[knight.Id] = winter.Id;
+        var standIn = Assert.Single(project.PaletteStandInsFor(walk));
+        Assert.Equal(project.Palettes[0].Id, standIn.Key);
+        Assert.Equal(winter.PaletteId, standIn.Value.Id);
+    }
+
+    [Fact]
+    public void AVariantWithNoPaletteOfItsOwnStandsInForNothing()
+    {
+        // PaletteId null means "whatever the subject paints with" — the folder
+        // shares no palette, so there is nothing to substitute and nothing to
+        // hide from the flat lookup either.
+        var project = ProjectIo.Create("Plain", _root);
+        var scratch = ProjectFolders.Add(project.Manifest, "Scratch");
+        var bare = ProjectIo.AddVariant(project, scratch, "Alt");
+        var doc = ProjectIo.AddDocument(project, "Loop", Drawing(), scratch);
+
+        Assert.Null(bare.PaletteId);
+        project.ActiveVariant[scratch.Id] = bare.Id;
+        Assert.Empty(project.PaletteStandInsFor(doc));
+        Assert.Empty(project.VariantPaletteIds());
+    }
+
+    [Fact]
     public void AVariantInheritsEveryDocumentItDoesNotOverride()
     {
         // "Inherits animations" means exactly this: a walk cycle drawn once is

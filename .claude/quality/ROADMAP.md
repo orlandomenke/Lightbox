@@ -425,7 +425,34 @@ palette can live* and *one of the places a palette can live*.
     replaces exactly what came from the library, adds what it gained, and
     never touches work the artist made locally, warning Q35-style before
     replacing an edited copy.
-- [ ] Character variants that inherit animations (Default / Winter Armor / Damaged) `evidence: CharacterVariant, AnimationsFor, AVariantInheritsEveryAnimationItDoesNotOverride, AnOverriddenAnimationReplacesOnlyItself`
+- [x] Character variants that inherit animations (Default / Winter Armor / Damaged) `evidence: SubjectVariant, DocumentsFor, PaletteStandInsFor, AVariantInheritsEveryDocumentItDoesNotOverride, AnOverriddenDocumentReplacesOnlyItself, VariantViewingTests, SwitchingTheVariantRepaintsTheSharedDrawing, GivingTheVariantItsOwnVersionIsADuplicateThatStandsIn, RecolouringTheVariantThroughThePanelLeavesTheBaseAlone`
+  - **The same under-reporting the character library had, fixed the same day
+    it was noticed**: the anchors named `CharacterVariant` and
+    `AnimationsFor`, which B114's subject rename had made `SubjectVariant`
+    and `DocumentsFor` — the engine was proven all along and the box could
+    not say so.
+  - **What actually landed with the rename of the anchors (Q143's
+    prerequisite, 2026-08-21) is the way in.** The model shipped whole and
+    unreachable: `ActiveVariant` was written by nothing, `OverrideDocument`
+    had no caller, and a variant made in the project window could never be
+    *looked at*. Now the docker's folder rows carry the picker (right-click ▸
+    Variant), the viewed variant's name on the row, and the two override
+    gestures; `PaletteStandInsFor` is what makes the swap live — strokes name
+    the base palette, and the registry never answers a named palette from a
+    different one (Q30), so the variant's copy must be registered *as* the
+    base id rather than merely existing.
+  - Viewing is view state, like the playhead: never serialized, never dirties
+    a document, and a switch is one deliberate gesture so the full repaint it
+    triggers is bounded by that gesture, not by pointer events.
+- [ ] Variant attachments — armor drawn once, riding an anchor through every animation (Q143) `evidence: VariantAttachment, AnAttachmentFollowsTheAnchorThroughEveryAnimation, APerFrameNudgeMovesTheAttachmentOnOneDrawingOnly, AFullDocumentOverrideSilencesTheAttachmentForThatAnimation`
+  - The assembly Q143 chose: anchors supply the animated position (and, once
+    Q144 lands, the direction), a symbol supplies the drawn-once add-on with
+    its own pivot, and the variant owns the attachment record — nullable,
+    absent until used. Overridable at every level, most specific wins:
+    default transform, per-document, per-frame, and a wholesale document
+    override as the escape hatch for what an attachment cannot carry.
+  - Export must flatten it — invariant 1 holds at the boundary, the way
+    `ProjectIo.Flatten` already inlines symbols.
 - [~] Scene management `evidence: ProjectScene, AddScene, AddShot, SceneDuration, AFilmSurvivesASaveAndReload, AShotIsADocumentLikeAnyOther, ShotsAreIndentedUnderTheirScene`
 - [x] Project conversion (Illustration → Animation → Game) with no artwork recreated `evidence: Convert, ConversionReport, ConvertingRecreatesNoArtwork, ConvertingAwayFromAnimationKeepsTheCameraAndTheScenes, ConvertingDoesNotRearrangeTheScreenByItself`
 - [x] Workspace layouts, decoupled from project type `evidence: WorkspaceStore, WorkspaceViewModel, EveryProjectTypeHasABuiltInWorkspace, TakingAProjectTypesDefaultsSwitchesWorkspace`
@@ -1000,6 +1027,13 @@ exists; the half that does not is what makes it *one* click.
   - **The declaration and the positions live in different places, and that is the load-bearing choice.** `Scene.Anchors` holds the names, because a name is a property of the rig and renaming "left hand" must not touch a drawing. `Frame.Anchors` holds where the point *is*, because a hold, a re-time, a cel drag and a timing preset all move drawings around the sheet — an index-keyed table would silently point at the wrong drawing after any of them, and it would look like an animation bug. On the frame the anchor travels with its drawing for free, and a test re-times a range to prove it.
   - Exported per frame, keyed by **name** rather than id, measured **inside the cell** like the pivot so trimming cannot move where a weapon attaches. Positions are stored in document pixels; normalising them into the record would bake the trim in and make a re-export at a different trim wrong.
   - Exported and nothing more: parenting a GameObject to a socket is the engine's job. Lightbox owes the position.
+- [ ] An anchor carries a direction — a nullable angle per placement (Q144) `evidence: AnchorAngle, AnAnchorWithNoAngleWritesNoAngleKey, TheAngleTravelsWithTheDrawingThroughARetime, TheSidecarCarriesTheSocketsAngle`
+  - What Q143's attachments need to turn the sword with the hand, and what an
+    engine wants from a socket anyway. Per frame like the position and on the
+    drawing for the same reason; null means no direction, so a document whose
+    anchors never turn serializes exactly as today. A rotation stalk in the
+    rig overlay, push-across copying it with the position, and the sidecar's
+    word for it decided against the export doc's conventions.
   - **`FrameConverter` names every property it writes, so a field added to `Frame` is silently dropped.** Cost one round-trip test to find. `WriteShared` now exists so the next base-class field is added in one place rather than two, with the hazard written down where somebody will hit it.
   - **The canvas overlay's decisions are built; the overlay itself is not** — the gesture set is designed to place anchors and shapes together, and is recorded on the hitbox/hurtbox editor item below, since it is one piece of work serving both. Nothing paints a socket or reaches the mode yet (**B58**), so an anchor is authored through the API and the file rather than on the canvas.
 - [x] Collision shapes `evidence: CollisionShape, ShapeRole, ShapeBox, CollisionShapes, CollisionShapeTests, AShapeRoundTripsThroughTheFile, ADocumentWithNoShapesCarriesNoShapeKeys, AHitboxIsActiveOnlyWhereItIsPlaced`
