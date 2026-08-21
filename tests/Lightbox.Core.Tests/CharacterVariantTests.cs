@@ -373,6 +373,48 @@ public sealed class CharacterVariantTests : IDisposable
     }
 
     [Fact]
+    public void AnImportSurvivesSavingAndReopeningTheProject()
+    {
+        // End to end, through the disk: everything Import assembles in memory
+        // — the documents, the palette declaration, the variant and its
+        // override, the reading — must come back from a cold load, or the
+        // library works exactly until the artist quits. Nothing below this
+        // line holds a reference to the import; only the folder proves it.
+        var source = Knight(out var knight, out var swatch, out var walk, _library);
+        source.Manifest.Type = ProjectType.AssetLibrary;
+        var winter = ProjectIo.AddVariant(source, knight, "Winter");
+        source.Palettes.Single(p => p.Id == winter.PaletteId).Swatches[0].Color = "#e8f0ff";
+        ProjectIo.OverrideDocument(source, knight, winter, walk, Drawing());
+        ProjectIo.Save(source);
+
+        var target = ProjectIo.Create("Game", _root);
+        CharacterLibrary.Import(CharacterLibrary.Scan([_library]).Single(), target);
+        ProjectIo.Save(target);
+
+        var reloaded = ProjectIo.Load(_root);
+        var imported = reloaded.WithReading.Single();
+        Assert.Equal("biped", imported.Taxonomy!.Kind);
+
+        // The animation loads from this project's own file…
+        var animations = ProjectFolders.DocumentsIn(reloaded.Manifest, imported);
+        var doc = ProjectIo.LoadDocument(reloaded, Assert.Single(animations));
+        Assert.NotNull(doc);
+        // …and still paints from the palette that travelled with it.
+        var painted = ((Frame)doc!.Scene.Layers[0].Cels[0].Frame!).Strokes[0].SwatchId;
+        Assert.Equal(swatch.Id, painted);
+        Assert.Equal(
+            "#8090a0",
+            reloaded.PaletteFor(imported)!.Swatches.Single(s => s.Id == painted).Color);
+
+        // The variant came back attached, recolour and override included.
+        var restored = Assert.Single(imported.Variants!);
+        reloaded.ActiveVariant[imported.Id] = restored.Id;
+        Assert.Equal("#e8f0ff", reloaded.PaletteFor(imported)!.Swatches[0].Color);
+        var over = Assert.Single(restored.Overrides);
+        Assert.NotNull(ProjectIo.LoadDocument(reloaded, reloaded.FindRef(over.Value)!));
+    }
+
+    [Fact]
     public void ImportingTwiceGivesTwoDistinctFolders()
     {
         var source = Knight(out _, out _, out _, _library);

@@ -387,7 +387,25 @@ palette can live* and *one of the places a palette can live*.
 - [x] Project types at creation (Illustration / Animation / Game Art / Storyboard / Comic / Asset Library / Empty) `evidence: NewProjectDialog, NewProjectSettings, NewDocumentSettings`
 - [x] Project as a container above the document `evidence: ProjectManifest, ProjectIo, Project, ProjectTests, AProjectRoundTripsThroughTheFolder`
 - [x] Character workspace — animations, assets, references, palette in one place `evidence: ReferenceSheet, ReferenceSheetModelTests, ReferenceTabTests`
-- [~] Character library `evidence: CharacterLibrary, LibraryEntry, ImportingACharacterBringsItsAnimationsAndPalette, AnImportedCharacterStillPaintsFromItsPalette`
+- [~] Character library `evidence: CharacterLibrary, LibraryEntry, ImportingASubjectBringsItsDocumentsAndPalette, AnImportedSubjectStillPaintsFromItsPalette, AnImportSurvivesSavingAndReopeningTheProject, ImportProvenance, ReImportReplacesByProvenanceAndNeverTouchesLocalWork, TheImportCommandIsRegisteredSoItCanBeFoundAndRebound`
+  - **The engine is proven (Q138 slice 1, 2026-08-20), and most of it already
+    was** — the two anchors this item carried for weeks named tests that
+    existed under other names: B114's subject rename moved
+    `…Character…Animations…` to `…Subject…Documents…` in
+    `CharacterVariantTests` and the ledger kept pointing at the old words, so
+    the item under-reported itself. The anchors now name the real tests, plus
+    the one proof that was genuinely missing and landed with them:
+    **an import survives saving and reopening the project** — documents from
+    their own files, the palette declaration, the variant with its recolour
+    and rebased override, the reading. Everything before it proved the import
+    in memory; a library that works until the artist quits is not a library.
+  - **What keeps this `[~]`** are Q138's remaining slices, named as anchors so
+    the box cannot lie: the way in (picker + window over one view model,
+    roots in Configure, the registered import command) and the provenance
+    merge — `Import` stamps each copy with its library source id so re-import
+    replaces exactly what came from the library, adds what it gained, and
+    never touches work the artist made locally, warning Q35-style before
+    replacing an edited copy.
 - [ ] Character variants that inherit animations (Default / Winter Armor / Damaged) `evidence: CharacterVariant, AnimationsFor, AVariantInheritsEveryAnimationItDoesNotOverride, AnOverriddenAnimationReplacesOnlyItself`
 - [~] Scene management `evidence: ProjectScene, AddScene, AddShot, SceneDuration, AFilmSurvivesASaveAndReload, AShotIsADocumentLikeAnyOther, ShotsAreIndentedUnderTheirScene`
 - [x] Project conversion (Illustration → Animation → Game) with no artwork recreated `evidence: Convert, ConversionReport, ConvertingRecreatesNoArtwork, ConvertingAwayFromAnimationKeepsTheCameraAndTheScenes, ConvertingDoesNotRearrangeTheScreenByItself`
