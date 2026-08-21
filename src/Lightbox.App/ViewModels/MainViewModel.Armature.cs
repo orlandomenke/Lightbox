@@ -1443,6 +1443,27 @@ public sealed partial class MainViewModel
     }
 
     /// <summary>
+    /// Author a pose key at a frame with the pose already interpolated there —
+    /// <c>AddCameraKeyAt</c>'s rule, applied to the rig: keying what is
+    /// already true changes nothing visually, which is what makes it safe to
+    /// then drag or edit.
+    /// </summary>
+    public void AddPoseKeyAt(int frame)
+    {
+        if (Doc.Armature is not { Bones.Count: > 0 } || frame < 0) return;
+        if (ArmatureOps.KeyAt(Scene.PoseTrack, frame) is not null) return;
+        _editor.Perform(doc =>
+        {
+            var track = doc.Scene.PoseTrack ??= new PoseTrack();
+            var key = new PoseKey { Frame = frame };
+            foreach (var (id, p) in ArmatureOps.PoseAt(track, frame)) key.Bones[id] = p;
+            track.Keys.Add(key);
+        }, label: "Key pose");
+        AfterPoseTrackEdit();
+        AiStatus = $"Pose keyed at frame {frame + 1}.";
+    }
+
+    /// <summary>
     /// What every pose-track edit has to refresh: the pixels the track drives,
     /// and the rows that draw it.
     /// </summary>

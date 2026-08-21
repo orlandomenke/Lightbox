@@ -60,10 +60,10 @@ public partial class MainViewModel
             case TimelineKeyKind.Pose:
             {
                 var first = Scene.Camera is not null ? 1 : 0;
-                if (Doc.Armature is not { Bones.Count: > 0 } armature) return -1;
+                if (Doc.Armature is not { Bones.Count: > 0 }) return -1;
                 if (key.BoneId is null) return first;
                 if (!PoseRowsExpanded) return -1; // folded away; the summary row stands for it
-                var offset = armature.Bones.ToList().FindIndex(b => b.Id == key.BoneId);
+                var offset = VisiblePoseBones().FindIndex(v => v.Bone.Id == key.BoneId);
                 return offset < 0 ? -1 : first + 1 + offset;
             }
             default:
@@ -163,11 +163,12 @@ public partial class MainViewModel
 
     public bool IsTrackKeySelected(TimelineKey key) => _keySelection.Contains(key);
 
-    /// <summary>Push the selection at both surfaces that draw it.</summary>
+    /// <summary>Push the selection at every surface that draws it — the dots, the cel highlights, and the key inspector.</summary>
     private void RefreshTimelineSelection()
     {
         RefreshCelSelectionHighlights();
         OnPropertyChanged(nameof(TimelineSelectedDots));
+        NotifyTimelineInspector();
     }
 
     /// <summary>

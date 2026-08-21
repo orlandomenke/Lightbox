@@ -97,17 +97,28 @@ either side, with the frames between showing the blend.
 **You can see those keys, on the timeline.** Once a document has an armature,
 the track timeline grows an **Armature** row marking every frame any bone is
 keyed on — the camera's row, one track down. Tick **Bones** on the timeline bar
-to open it into one row per bone; it is closed by default, because a
-twenty-bone character would otherwise cost twenty rows.
+(or click the row's **chevron**) to open it into one row per bone; it is closed
+by default, because a twenty-bone character would otherwise cost twenty rows.
+
+**The bone rows are the hierarchy, and they fold.** Children indent under
+their parents, and a bone with children carries its own chevron in the gutter
+— click it and the subtree folds away, so a twenty-bone character can show
+the one limb you are timing rather than twenty rows or none. Folding is a
+view's memory, never the document's: a folded bone's keys still play, still
+export, and still move with the summary row.
 
 The keys are editable where they are drawn:
 
 - **Drag a key** to retime it. On the Armature row that moves the whole pose;
   on a bone's row it moves only that bone, leaving its neighbours where they
   are. A key dropped on top of another replaces it.
-- **Right-click a key** to remove it, or to jump the playhead to it. On a
-  bone's row, removing takes that bone off the key and leaves the rest of the
-  pose alone; when the last bone comes off a key, the key goes with it.
+- **Right-click a key** to remove it, copy or cut it (the key clipboard —
+  see *Copying keys* in the timeline chapter), or jump the playhead to it. On
+  a bone's row, removing takes that bone off the key and leaves the rest of
+  the pose alone; when the last bone comes off a key, the key goes with it.
+- **Select a bone's key** and its X, Y and rotation appear as numbers on the
+  strip under the tracks — the departure from rest the key holds, typed
+  instead of dragged.
 
 A bone that gains a key where there was none is seeded from the pose you were
 already looking at, so keying one bone never snaps its neighbours back to rest. Scrub the timeline and

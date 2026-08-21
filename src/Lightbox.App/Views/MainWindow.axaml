@@ -4398,18 +4398,18 @@
               </controls:OverflowBar>
             </Border>
           </controls:Docker.TopBar>
-          <!-- Its own horizontal scroll: the docker's content scroller is
-               vertical-only, and a long scene is wider than any window. -->
-          <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-            <controls:TrackView x:Name="TimelineTrackView"
-                                Tracks="{Binding TimelineTracks}"
-                                AudioPeaks="{Binding TimelineAudioPeaks}"
-                                AudioClips="{Binding TimelineAudioClips}"
-                                VideoClips="{Binding TimelineVideoClips}"
-                                FrameCount="{Binding TimelineFrameCount}"
-                                FrameWidth="{Binding TimelineFrameWidth}" SelectedDots="{Binding TimelineSelectedDots}"
-                                CurrentFrame="{Binding CurrentFrameIndex, Mode=TwoWay}" />
-          </ScrollViewer>
+          <DockPanel>
+            <!-- The key inspector (Q142): one selected key's values — see TimelineInspector.axaml. -->
+            <views:TimelineInspector DockPanel.Dock="Bottom" />
+            <!-- Its own horizontal scroll: the docker's content scroller is
+                 vertical-only, and a long scene is wider than any window. -->
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+              <controls:TrackView x:Name="TimelineTrackView" Tracks="{Binding TimelineTracks}"
+                                  AudioPeaks="{Binding TimelineAudioPeaks}" AudioClips="{Binding TimelineAudioClips}"
+                                  VideoClips="{Binding TimelineVideoClips}" FrameCount="{Binding TimelineFrameCount}"
+                                  FrameWidth="{Binding TimelineFrameWidth}" SelectedDots="{Binding TimelineSelectedDots}" CurrentFrame="{Binding CurrentFrameIndex, Mode=TwoWay}" />
+            </ScrollViewer>
+          </DockPanel>
         </controls:Docker>
 
         <!-- The X-sheet: the exposure grid this application has always had,

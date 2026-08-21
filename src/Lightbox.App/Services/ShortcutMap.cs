@@ -402,6 +402,12 @@ public sealed class ShortcutMap
             // would be guessing at what an artist wants there. Bindable is what
             // was actually missing.
             new("timeline.deleteColumn", "Delete column (this frame, every layer)", "Timeline", null, ShortcutContext.Panel, DockPanelId.Timeline),
+            // The key clipboard crosses kinds — camera keys, pose keys, cels —
+            // where Ctrl+C is the cel clipboard's. No default gesture for the
+            // deleteColumn reason: taking a second reading of copy inside the
+            // timeline would be guessing; bindable is the requirement.
+            new("timeline.copyKeys", "Copy selected keys (camera, pose, cels)", "Timeline", null, ShortcutContext.Panel, DockPanelId.Timeline),
+            new("timeline.pasteKeys", "Paste keys at playhead", "Timeline", null, ShortcutContext.Panel, DockPanelId.Timeline),
             new("canvas.nudgeLeft", "Nudge selection left", "Canvas", G(Key.Left), ShortcutContext.Canvas),
             new("canvas.nudgeRight", "Nudge selection right", "Canvas", G(Key.Right), ShortcutContext.Canvas),
             new("canvas.nudgeUp", "Nudge selection up", "Canvas", G(Key.Up), ShortcutContext.Canvas),
