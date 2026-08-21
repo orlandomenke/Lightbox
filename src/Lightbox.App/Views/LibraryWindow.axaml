@@ -26,7 +26,7 @@
 
     <!-- Import bar. -->
     <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
-      <Button DockPanel.Dock="Right" Content="Import" Click="OnImport" IsDefault="True"
+      <Button DockPanel.Dock="Right" Content="Import" Click="OnImport" IsDefault="True" Classes="primary"
               ToolTip.Tip="Copy the character into the open project — animations, palette and variants. Importing again later updates the copies you have not edited and never touches your own work." />
       <TextBlock x:Name="Status" VerticalAlignment="Center" FontSize="11" Opacity="0.7"
                  TextWrapping="Wrap" />
