@@ -570,8 +570,8 @@
                      Text="Where shared characters live on this machine. A library is an ordinary project whose type is Asset library — point this at one, or at a folder holding several. The import button on the project panel and the library window read from these folders; nothing is scanned until one of them opens." />
           <ListBox x:Name="LibraryRootsList" MaxHeight="160" FontSize="11" />
           <StackPanel Orientation="Horizontal" Spacing="6">
-            <Button Content="Add folder…" Click="OnLibraryAddRoot" />
-            <Button Content="Remove" Click="OnLibraryRemoveRoot" />
+            <Button Classes="text" Content="Add folder…" Click="OnLibraryAddRoot" />
+            <Button Classes="text" Content="Remove" Click="OnLibraryRemoveRoot" />
           </StackPanel>
           <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.6"
                      Text="The same list the library window edits — a setting of the machine, kept across sessions and shared by every project." />

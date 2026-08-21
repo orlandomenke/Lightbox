@@ -892,7 +892,7 @@ project, or at a folder holding several. Add folders from the library window
 below; nothing is scanned until a library surface is opened, so a slow network
 drive costs nothing at startup.
 
-**Two ways in, one shelf.** The **⤓** button on the project browser's bar is
+**Two ways in, one shelf.** The **import button** on the project browser's bar is
 the fast path: a menu of every character the library folders offer — pick one
 and it is imported into the open project. **Browse library…** at the bottom of
 that menu opens the **library window**, the browsing home, which is also where

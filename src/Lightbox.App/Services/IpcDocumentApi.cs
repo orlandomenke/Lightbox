@@ -137,21 +137,41 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                 + "\"library\", or have the artist add one under the library window.");
         }
         var entries = Core.Projects.CharacterLibrary.Scan(roots);
-        var entry = entries.FirstOrDefault(e => e.Name == p.Character);
-        if (entry is null)
+        // An empty shelf is a path problem, not a name problem — saying "no
+        // character named X" here sends an agent retrying name variations
+        // against a folder that was never a library.
+        if (entries.Count == 0)
         {
-            // Named rather than counted, the ConfirmDiscard rule for agents:
-            // the shelf's contents are what makes the retry a decision.
-            var offered = entries.Count == 0
-                ? "the folders offer nothing"
-                : $"offered: {string.Join(", ", entries.Select(e => e.Name))}";
-            return IpcProtocol.Response.Fail($"No character named \"{p.Character}\" — {offered}.");
+            return IpcProtocol.Response.Fail(
+                $"Nothing is offered under {string.Join(", ", roots)}. A library is a project "
+                + "whose type is Asset library — check the path points at one, or at a folder "
+                + "holding several.");
         }
-        var result = Core.Projects.CharacterLibrary.Import(entry, project, p.ReplaceEdited);
+        // Named rather than counted, the ConfirmDiscard rule for agents: the
+        // shelf's contents are what makes the retry a decision. And a name two
+        // libraries offer refuses rather than silently taking whichever the
+        // scan met first — the UI path never guesses (the artist clicked one
+        // specific entry), so the agent path must not either.
+        var matches = entries.Where(e => e.Name == p.Character).ToList();
+        if (matches.Count == 0)
+        {
+            return IpcProtocol.Response.Fail(
+                $"No character named \"{p.Character}\" — offered: "
+                + $"{string.Join(", ", entries.Select(e => e.Name))}.");
+        }
+        if (matches.Count > 1)
+        {
+            return IpcProtocol.Response.Fail(
+                $"\"{p.Character}\" is offered by more than one library "
+                + $"({string.Join(", ", matches.Select(e => e.LibraryName))}) — pass the one "
+                + "you mean as \"library\".");
+        }
+        var result = Core.Projects.CharacterLibrary.Import(matches[0], project, p.ReplaceEdited);
         vm.AfterLibraryImport(result);
         return IpcProtocol.Response.Success(new
         {
             Folder = result.Folder.Name,
+            Library = matches[0].LibraryName,
             result.Added,
             result.Replaced,
             result.KeptEdited,
