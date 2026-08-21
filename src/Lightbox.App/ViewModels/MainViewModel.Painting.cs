@@ -567,7 +567,7 @@ public partial class MainViewModel
                     rot[f] = framing.RotationDeg;
                 }
                 var keys = CameraKeyFrames;
-                list.Add(new("Camera X", Avalonia.Media.Color.Parse("#FF9F45"), x, keys, Editable: true));
+                list.Add(new("Camera X", Controls.TrackView.CameraColour, x, keys, Editable: true));
                 list.Add(new("Camera Y", Avalonia.Media.Color.Parse("#E8C55F"), y, keys, Editable: true));
                 list.Add(new("Zoom", Avalonia.Media.Color.Parse("#4FA3FF"), zoom, keys, Editable: true));
                 list.Add(new("Rotation", Avalonia.Media.Color.Parse("#E85FBE"), rot, keys, Editable: true));

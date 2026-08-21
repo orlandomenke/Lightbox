@@ -25,6 +25,7 @@ public enum DockPanelId
     Channels,
     History,
     Navigator,
+    Scene,
 }
 
 /// <summary>Where a panel lives.</summary>
@@ -97,6 +98,10 @@ public static class DockPanels
         // short: it is glanced at and clicked, never read, and height spent on
         // it is height the layer stack wanted.
         new(DockPanelId.Navigator, "Navigator", MaxExtent: 320, DefaultExtent: 170, MinExtent: 110),
+        // The multiplane authoring surface (Q84): depth rows and the camera's
+        // path. In no default layout — shot machinery is absent until asked
+        // for — so it exists only where an artist opened it.
+        new(DockPanelId.Scene, "Scene", MaxExtent: 360, DefaultExtent: 240, MinExtent: 150),
     ];
 
     /// <summary>

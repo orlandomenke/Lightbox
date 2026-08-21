@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4712
+budget: 4722
 
 ## Why it is here despite being XAML
 
@@ -167,3 +167,13 @@ leaves a number nobody can account for. So every reason above stays, and
   animation-first application should not repeat it. The comments carry the
   which-half-stays-in-the-docker reasoning and are the larger part of the
   raise.
+- **4,576 → 4,586** (2026-08-20, Q84): +10 for the Scene panel's two entry
+  points — its Docker host (the panel itself is `ScenePanel.axaml`, the
+  `BoneOptionsBar` trade again) and its View ▸ Dockers checkbox. Registration,
+  which is the one thing a budget must not refuse.
+- **→ 4,722, remeasured on the merged tree** (2026-08-20). The two raises
+  above left the same 4,576 on parallel branches — the menu mirroring wanted
+  4,712, the Scene panel wanted 4,586 — and taking either would bank the
+  other's growth as headroom nobody earned. Both reasons stay, and
+  `ratchets.py remeasure` supplies the figure, which is the one moment that
+  script exists for.

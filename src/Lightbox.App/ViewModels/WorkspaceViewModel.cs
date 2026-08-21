@@ -113,6 +113,13 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         set => SetVisible(DockPanelId.Navigator, value);
     }
 
+    /// <summary>Whether the Scene panel — depths and the camera path — is on screen (Q84).</summary>
+    public bool SceneDockerVisible
+    {
+        get => _layout.IsVisible(DockPanelId.Scene);
+        set => SetVisible(DockPanelId.Scene, value);
+    }
+
     public bool HistoryPanelVisible
     {
         get => _layout.IsVisible(DockPanelId.History);
@@ -308,6 +315,11 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         DockPanelId.ToolOptions => nameof(ToolOptionsDockerVisible),
         DockPanelId.Xsheet => nameof(XsheetDockerVisible),
         DockPanelId.GraphEditor => nameof(GraphEditorDockerVisible),
+        // Navigator's case was missing — it fell to the default and raised
+        // TimelineVisible, so its menu checkbox went stale on workspace
+        // switches. Found adding Scene's case beside it.
+        DockPanelId.Navigator => nameof(NavigatorVisible),
+        DockPanelId.Scene => nameof(SceneDockerVisible),
         _ => nameof(TimelineVisible),
     };
 

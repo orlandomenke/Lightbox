@@ -403,4 +403,34 @@ The camera is the one transform that is not view-only: it is authored, saved and
 exported. It still never touches a stroke — it only decides what part of the
 record a render shows.
 
+### Multiplane parallax — layer depth
+
+**Give a layer a depth and a camera move separates the planes by itself** —
+classic Disney multiplane, without a rostrum. A pan slides a far hill less than
+the trees in front of it; a push grows the foreground faster than the sky. The
+depths live in the **Scene** panel (**View ▸ Dockers ▸ Scene**): one row per
+layer with its depth in canvas units, a marker showing where the plane sits,
+and the camera's path drawn across the page underneath.
+
+**Depth 0 is the picture plane** — the canvas as it always was. **1000 shows
+half of a camera move**, larger is further, and a small negative depth floats a
+layer in front of the plane so it moves *more*. Setting a depth back to 0
+removes it from the file entirely.
+
+Three rules keep it honest:
+
+- **Depth does nothing without a camera.** No camera, no parallax — the world
+  view, an asset export and every document you have ever saved are untouched.
+  The Scene panel says so when the document has no camera.
+- **You see it where the camera sees it.** Parallax shows in *Through camera*
+  preview, playback through the camera, and every export — never in the plain
+  working view, which shows the planes head-on so drawing stays simple.
+- **The drawing never changes.** Depth is compositing, like the camera itself:
+  strokes keep their coordinates, and clearing a depth puts the layer back
+  exactly where it was.
+
+Each depth edit is one undo step. Zoom responds too, geometrically — a distant
+plane grows less under a push, which is what makes a truck-in read as depth
+rather than as a scale.
+
 ---

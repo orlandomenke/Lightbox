@@ -57,7 +57,7 @@ From the top:
 
 The panels — **Project**, **Layers**, **Color**, **Palette**, **Gradient**,
 **Channels**, **Reference sheets**, **Reference**, **Symbols**,
-**Tool options**, **Undo history**, **Timeline**, **X-sheet** and
+**Tool options**, **Undo history**, **Scene**, **Timeline**, **X-sheet** and
 **Graph editor** — open and close from **View ▸ Dockers**, where every panel
 toggle lives in one submenu.
 

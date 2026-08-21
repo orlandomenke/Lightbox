@@ -39,6 +39,19 @@ public static class SequenceExporter
         var camera = scene.Camera;
         var (outWidth, outHeight) = OutputSize(scene);
 
+        // The framing is per-frame; a layer's parallax response to it is
+        // per-layer, below. Null without a camera, which is also what makes
+        // depth do nothing on an asset document — there is no framing for it
+        // to respond to. The shared half of the parallax arithmetic is
+        // prepared once per frame, only when some layer has a depth.
+        var framing = camera is null
+            ? (CameraFraming?)null
+            : CameraOps.At(camera, frameIndex, scene.Width, scene.Height);
+        var parallaxFrame = framing is { } pf && scene.Layers.Exists(l => l.HasDepth)
+            ? ParallaxTransform.Prepare(
+                pf, CameraFraming.Centred(scene.Width, scene.Height), outWidth, outHeight)
+            : null;
+
         var passes = new List<RenderPass>();
         var footageQueued = false;
         foreach (var layer in scene.Layers)
@@ -54,16 +67,20 @@ public static class SequenceExporter
             }
             var frame = ExposureSheet.ExposedFrame(layer, frameIndex);
             if (frame is null) continue;
+            // Multiplane: a layer with a depth exports through its plane's
+            // matrix — the same pass slot the canvas preview uses, so the
+            // deliverable is what the artist was looking at.
+            var parallax = parallaxFrame?.MatrixFor(layer.Depth);
             passes.Add(new RenderPass(
                 cache.Get(frame, scene.Width, scene.Height, celIndex: frameIndex),
-                null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
+                null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
+                Matrix: parallax));
         }
         if (!footageQueued) passes.AddRange(ProductionPasses(scene, frameIndex));
 
         SKMatrix? transform = camera is null
             ? null
-            : CameraTransform.Matrix(
-                CameraOps.At(camera, frameIndex, scene.Width, scene.Height), outWidth, outHeight, scale);
+            : CameraTransform.Matrix(framing!.Value, outWidth, outHeight, scale);
 
         // Scale 1 with no explicit size takes exactly the arithmetic it always
         // did — a document exported at its own size must be byte-for-byte what
