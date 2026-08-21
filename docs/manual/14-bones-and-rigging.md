@@ -385,6 +385,11 @@ each part of it.
   looking at — pose the arm to where the armpit goes wrong, and fix the
   weights right there. The weights themselves are still stored against the
   rest drawing, so nothing about a pose changes what a weight means.
+  On a layer that **follows the rig**, the first dab starts from the
+  binding the layer was already giving that line — the whole stroke keeps
+  following, and the brush *corrects* it where you paint. The heat view
+  reads the same way: ink that follows the bone through its layer shows
+  red under that bone, not blue.
   **While the brush is armed, nothing moves**: the dots change colour dab
   by dab, and the drawing holds still — painting edits how much a bone
   influences a line, it never pushes the line around under your hand. The

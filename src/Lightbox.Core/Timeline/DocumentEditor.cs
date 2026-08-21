@@ -1033,17 +1033,41 @@ public sealed class DocumentEditor
 
     /// <summary>Deep-clone a frame with a fresh id (ids key the render cache).</summary>
     /// <remarks>
+    /// <para>
     /// <b>Placements are deliberately not cloned</b>, and that predates the frame
     /// merge: this used to have two arms and only the raster one carried
     /// placements, which it also did not copy. Duplicating a cel therefore
     /// duplicates the drawing and not the symbols placed over it. Recorded rather
     /// than changed, because changing it is a behaviour decision and this is a
     /// refactor.
+    /// </para>
+    /// <para>
+    /// <b>Correctives travel with the drawing.</b> They are part of how it
+    /// renders under the rig — a duplicate without them comes out a different
+    /// picture at any bent pose. They name strokes by id and the clones just
+    /// got fresh ones, so the ids are remapped as they are carried.
+    /// </para>
     /// </remarks>
-    public static Frame? CloneFrame(Frame? src) => src is null ? null : new Frame
+    public static Frame? CloneFrame(Frame? src)
     {
-        Role = src.Role,
-        PngBase64 = src.PngBase64,
-        Strokes = src.Strokes.Select(s => s.Clone()).ToList(),
-    };
+        if (src is null) return null;
+        var copy = new Frame { Role = src.Role, PngBase64 = src.PngBase64 };
+        var ids = new Dictionary<string, string>(src.Strokes.Count);
+        foreach (var stroke in src.Strokes)
+        {
+            var clone = stroke.Clone();
+            ids[stroke.Id] = clone.Id;
+            copy.Strokes.Add(clone);
+        }
+        copy.Correctives = src.Correctives?.Select(c =>
+        {
+            var fix = c.Clone();
+            foreach (var stop in fix.Stops)
+                foreach (var correction in stop.Strokes)
+                    if (ids.TryGetValue(correction.StrokeId, out var to))
+                        correction.StrokeId = to;
+            return fix;
+        }).ToList();
+        return copy;
+    }
 }

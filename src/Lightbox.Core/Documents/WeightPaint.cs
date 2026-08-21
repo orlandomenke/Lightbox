@@ -51,14 +51,31 @@ public static class WeightPaint
     /// positions. The <em>weights</em> land on the same indices either way:
     /// the record never changes shape, only where the brush finds it.
     /// </param>
+    /// <param name="fallback">
+    /// What binds this stroke while it carries no weights of its own — the
+    /// layer's binding, exactly as the render resolves it. The first dab
+    /// materialises it into the record before applying, so painting is a
+    /// <em>correction</em> of the motion the artist was looking at. Without
+    /// this the stroke's own weights started from zero everywhere, which
+    /// dropped every unpainted point from "following the layer's bone" to
+    /// "held at rest" — the holes that strand parts of the ink at the origin.
+    /// </param>
     public static bool Apply(
         Stroke stroke, string boneId, double cx, double cy, double radius,
         double strength, WeightBrushMode mode, IReadOnlySet<string>? lockedBones = null,
-        IReadOnlyList<StrokePoint>? hitPoints = null)
+        IReadOnlyList<StrokePoint>? hitPoints = null,
+        IReadOnlyList<BoneBinding>? fallback = null)
     {
         if (radius <= 0 || strength <= 0 || stroke.Points.Count == 0) return false;
         if (lockedBones?.Contains(boneId) == true) return false;
         if (hitPoints is not null && hitPoints.Count != stroke.Points.Count) hitPoints = null;
+
+        var seeded = false;
+        if (stroke.Weights is not { Count: > 0 } && fallback is { Count: > 0 })
+        {
+            stroke.Weights = fallback.Select(b => b.Clone()).ToList();
+            seeded = true;
+        }
 
         var changed = false;
         for (var i = 0; i < stroke.Points.Count; i++)
@@ -79,6 +96,9 @@ public static class WeightPaint
         }
 
         if (changed) Prune(stroke);
+        // A dab that hit nothing must leave no trace: the seed only becomes
+        // the record when the gesture actually painted this stroke.
+        else if (seeded) stroke.Weights = null;
         return changed;
     }
 

@@ -245,6 +245,79 @@ public class LivePoseWeightTests
         }
     }
 
+    /// <summary>
+    /// The hole bug, at the gesture level: a stroke that followed the rig
+    /// through its LAYER's binding used to get a from-zero local binding at
+    /// the first dab — every unpainted point dropped out of the rig, and the
+    /// ink strung dotted trails between its rest and posed positions.
+    /// </summary>
+    [AvaloniaFact]
+    public void ADabOnALayerBoundStrokeKeepsTheRestOfTheStrokeFollowing()
+    {
+        var vm = Rigged();
+        vm.CreateBoneFromDrag(100, 150, 160, 150);
+        var bone = vm.SelectedBoneId!;
+        var stroke = AddStroke(vm, (110, 150), (150, 150));
+        vm.SetLayerBone(bone);                      // the layer follows, not the stroke
+
+        vm.PosingMode = true;
+        vm.PoseBoneTo(bone, 100, 250);              // points stand at (100,160), (100,200)
+        vm.WeightPainting = true;
+        vm.MirrorWeights = false;
+        vm.WeightBrushMode = WeightBrushMode.Subtract;
+
+        // Subtract at the second point's POSED position.
+        vm.BeginWeightStroke(100, 200, 1);
+        vm.EndWeightStroke();
+
+        var binding = stroke.Weights!.Single(b => b.BoneId == bone);
+        Assert.True(binding.WeightAt(1) < 1,
+            $"the dab missed: {binding.WeightAt(1):F3}");
+        // The unpainted point still carries the layer's full binding — it was
+        // following before the dab and must go on following after it.
+        Assert.Equal(1.0, binding.WeightAt(0), 6);
+    }
+
+    /// <summary>
+    /// On a whole-skeleton layer the render auto-binds every unweighted
+    /// stroke, so the heat and the brush must stand on that same posed ink —
+    /// they used to hit-test it at rest, which made dabs on the drawing the
+    /// artist could see land on nothing.
+    /// </summary>
+    [AvaloniaFact]
+    public void AWholeSkeletonLayersInkIsHitWhereItIsDrawn()
+    {
+        var vm = Rigged();
+        vm.CreateBoneFromDrag(100, 150, 160, 150);
+        var bone = vm.SelectedBoneId!;
+        var stroke = AddStroke(vm, (110, 150), (150, 150));
+        vm.SetLayerBone("");                        // the whole skeleton
+
+        vm.PosingMode = true;
+        vm.PoseBoneTo(bone, 100, 250);
+        vm.WeightPainting = true;
+        vm.MirrorWeights = false;
+
+        // The heat stands on the posed ink and reads the auto-bind's weight,
+        // not zero over a drawing that visibly follows the bone.
+        var heat = vm.HeatPoints;
+        Assert.Equal(100, heat[1].X, 4);
+        Assert.Equal(200, heat[1].Y, 4);
+        Assert.True(heat[1].Weight > 0.9,
+            $"the heat reads {heat[1].Weight:F3} over ink that follows the bone");
+
+        // And a dab at the posed position takes.
+        vm.WeightBrushMode = WeightBrushMode.Subtract;
+        vm.BeginWeightStroke(100, 200, 1);
+        vm.EndWeightStroke();
+
+        var binding = stroke.Weights!.Single(b => b.BoneId == bone);
+        Assert.True(binding.WeightAt(1) < 1,
+            $"the dab missed the posed ink: {binding.WeightAt(1):F3}");
+        Assert.True(binding.WeightAt(0) > 0.9,
+            $"the unpainted point lost the auto-bind it was following: {binding.WeightAt(0):F3}");
+    }
+
     [AvaloniaFact]
     public void ScrubbingMovesTheRigSurface()
     {

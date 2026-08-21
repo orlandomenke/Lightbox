@@ -293,10 +293,16 @@ public sealed partial class MainViewModel
             if (ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex) is not { } frame) return [];
 
             var posed = WeightSessionPointsFor(frame);
+            var fallbacks = WeightSessionFallbacksFor(frame);
             var points = new List<HeatPoint>();
             foreach (var stroke in frame.Strokes)
             {
-                var binding = stroke.Weights?.FirstOrDefault(b => b.BoneId == boneId);
+                // The layer's binding is what moves a stroke with no weights
+                // of its own, so the heat must read it too — dots showing zero
+                // over ink that follows the bone told the artist the binding
+                // was broken when it was only being displayed wrong.
+                var binding = stroke.Weights?.FirstOrDefault(b => b.BoneId == boneId)
+                    ?? fallbacks?.GetValueOrDefault(stroke.Id)?.FirstOrDefault(b => b.BoneId == boneId);
                 var at = posed?.GetValueOrDefault(stroke.Id);
                 for (var i = 0; i < stroke.Points.Count; i++)
                 {
@@ -347,38 +353,79 @@ public sealed partial class MainViewModel
     /// playhead or the document moves; keyed by frame and playhead so a scrub
     /// mid-session re-freezes at the new position.
     /// </remarks>
-    private (string FrameId, int FrameIndex, Dictionary<string, List<StrokePoint>>? Points)? _weightSessionGeometry;
+    private (string FrameId, int FrameIndex,
+        Dictionary<string, List<StrokePoint>>? Points,
+        Dictionary<string, IReadOnlyList<BoneBinding>>? Fallbacks)? _weightSessionGeometry;
 
     /// <inheritdoc cref="_weightSessionGeometry"/>
-    private Dictionary<string, List<StrokePoint>>? WeightSessionPointsFor(Frame frame)
+    private Dictionary<string, List<StrokePoint>>? WeightSessionPointsFor(Frame frame) =>
+        WeightSessionFor(frame).Points;
+
+    /// <summary>
+    /// The layer binding each unweighted stroke follows, per stroke id — the
+    /// render's own resolution (a named bone coarse, the whole skeleton
+    /// auto-bound), frozen with the session's geometry. What the dab seeds
+    /// from and the heat reads, so both agree with the pixels.
+    /// </summary>
+    private Dictionary<string, IReadOnlyList<BoneBinding>>? WeightSessionFallbacksFor(Frame frame) =>
+        WeightSessionFor(frame).Fallbacks;
+
+    private (Dictionary<string, List<StrokePoint>>? Points,
+        Dictionary<string, IReadOnlyList<BoneBinding>>? Fallbacks) WeightSessionFor(Frame frame)
     {
         if (_weightSessionGeometry is { } frozen
             && frozen.FrameId == frame.Id && frozen.FrameIndex == CurrentFrameIndex)
         {
-            return frozen.Points;
+            return (frozen.Points, frozen.Fallbacks);
         }
-        var points = PosedPointsFor(frame, EffectivePoseHere());
-        _weightSessionGeometry = (frame.Id, CurrentFrameIndex, points);
-        return points;
+        var fallbacks = LayerFallbacksFor(frame);
+        var points = PosedPointsFor(frame, EffectivePoseHere(), fallbacks);
+        _weightSessionGeometry = (frame.Id, CurrentFrameIndex, points, fallbacks);
+        return (points, fallbacks);
+    }
+
+    /// <summary>
+    /// What the layer's binding makes of each stroke that carries no weights
+    /// of its own, resolved the way the render resolves it. Null when the
+    /// layer is not rigged or nothing on the frame needs it.
+    /// </summary>
+    private Dictionary<string, IReadOnlyList<BoneBinding>>? LayerFallbacksFor(Frame frame)
+    {
+        if (Doc.Armature is not { Bones.Count: > 0 } armature) return null;
+        if (Doc.Scene.RiggedBoneOf(ActiveLayer) is not { } layerBone) return null;
+        var named = layerBone is { Length: > 0 }
+            ? new List<BoneBinding> { new() { BoneId = layerBone } }
+            : null;
+
+        var map = new Dictionary<string, IReadOnlyList<BoneBinding>>(frame.Strokes.Count);
+        foreach (var stroke in frame.Strokes)
+        {
+            if (stroke.Weights is { Count: > 0 }) continue;
+            var fallback = named ?? Skinning.AutoBoundFor(stroke, armature);
+            if (fallback is { Count: > 0 }) map[stroke.Id] = fallback;
+        }
+        return map.Count > 0 ? map : null;
     }
 
     private Dictionary<string, List<StrokePoint>>? PosedPointsFor(
-        Frame frame, IReadOnlyDictionary<string, BonePose> pose)
+        Frame frame, IReadOnlyDictionary<string, BonePose> pose,
+        Dictionary<string, IReadOnlyList<BoneBinding>>? fallbacks)
     {
         if (Doc.Armature is not { Bones.Count: > 0 } armature) return null;
         var corrections = CorrectiveOps.Resolve(frame.Correctives, pose);
         if (pose.Count == 0 && corrections.Count == 0) return null;
 
-        var layerBone = Doc.Scene.RiggedBoneOf(ActiveLayer);
-        var named = layerBone is { Length: > 0 }
-            ? new List<BoneBinding> { new() { BoneId = layerBone } }
-            : null;
-
         var posed = new Dictionary<string, List<StrokePoint>>(frame.Strokes.Count);
         foreach (var stroke in frame.Strokes)
         {
+            // The per-stroke fallback rather than the named binding alone: on
+            // a whole-skeleton layer the render auto-binds every unweighted
+            // stroke, and hit-testing those at rest made the brush miss the
+            // ink the artist was aiming at.
             posed[stroke.Id] = Skinning.PoseControlPoints(
-                stroke, armature, pose, named, corrections.GetValueOrDefault(stroke.Id));
+                stroke, armature, pose,
+                fallbacks?.GetValueOrDefault(stroke.Id),
+                corrections.GetValueOrDefault(stroke.Id));
         }
         return posed;
     }
@@ -1112,9 +1159,13 @@ public sealed partial class MainViewModel
         // weights moved the posed points, so the artist chased the drawing
         // their gesture was pushing away.
         var frame = ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex);
-        var posed = frame is not null && frame.Id == _weightGestureFrameId
-            ? WeightSessionPointsFor(frame)
-            : null;
+        var onSessionFrame = frame is not null && frame.Id == _weightGestureFrameId;
+        var posed = onSessionFrame ? WeightSessionPointsFor(frame!) : null;
+        // The layer's binding, so a first touch corrects the motion the
+        // artist is looking at instead of replacing it with rest — without
+        // the seed, every unpainted point of a layer-bound stroke fell out
+        // of the rig at the first dab (the "holes").
+        var fallbacks = onSessionFrame ? WeightSessionFallbacksFor(frame!) : null;
 
         // Per-dab rate below 1 so a held brush builds rather than slams —
         // the same reason flow exists on a paint brush.
@@ -1123,7 +1174,8 @@ public sealed partial class MainViewModel
         foreach (var (stroke, _) in gesture)
             changed |= WeightPaint.Apply(
                 stroke, boneId, x, y, WeightBrushRadius, strength, WeightBrushMode,
-                hitPoints: posed?.GetValueOrDefault(stroke.Id));
+                hitPoints: posed?.GetValueOrDefault(stroke.Id),
+                fallback: fallbacks?.GetValueOrDefault(stroke.Id));
 
         if (MirrorWeights
             && WeightPaint.MirroredBone(armature, boneId) is { } pair
@@ -1139,7 +1191,8 @@ public sealed partial class MainViewModel
                 foreach (var (stroke, _) in gesture)
                     changed |= WeightPaint.Apply(
                         stroke, pair.Id, mirrored.X, mirrored.Y, WeightBrushRadius, strength, WeightBrushMode,
-                        hitPoints: posed?.GetValueOrDefault(stroke.Id));
+                        hitPoints: posed?.GetValueOrDefault(stroke.Id),
+                        fallback: fallbacks?.GetValueOrDefault(stroke.Id));
             }
         }
 

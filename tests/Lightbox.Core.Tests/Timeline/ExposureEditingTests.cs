@@ -111,6 +111,46 @@ public class ExposureEditingTests
         Assert.Equal(4, clone.Strokes[0].Points[0].Y);
     }
 
+    /// <summary>
+    /// A corrective is part of how the drawing renders under the rig, so a
+    /// duplicated cel must carry it — and it names strokes by id, so the fresh
+    /// stroke ids the clone gets have to be written back into the carried fix.
+    /// </summary>
+    [Fact]
+    public void CloneFrame_CarriesCorrectives_RemappedToTheFreshStrokeIds()
+    {
+        var stroke = new Stroke { Points = [new(3, 4, 1)] };
+        var src = new Frame
+        {
+            Strokes = [stroke],
+            Correctives =
+            [
+                new Corrective
+                {
+                    DriverBoneId = "elbow",
+                    Stops =
+                    [
+                        new CorrectiveStop
+                        {
+                            AngleDeg = 90,
+                            Strokes = [new StrokeCorrection { StrokeId = stroke.Id, Offsets = [new(1, 2)] }],
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var clone = (Frame)DocumentEditor.CloneFrame(src)!;
+
+        var fix = Assert.Single(clone.Correctives!);
+        var correction = Assert.Single(fix.Stops[0].Strokes);
+        Assert.Equal(clone.Strokes[0].Id, correction.StrokeId);
+        Assert.NotEqual(stroke.Id, correction.StrokeId);
+        // And the source still names its own stroke — the remap wrote into
+        // the copy, not through it.
+        Assert.Equal(stroke.Id, src.Correctives![0].Stops[0].Strokes[0].StrokeId);
+    }
+
     [Fact]
     public void LayerBlendMode_SurvivesSerialization()
     {

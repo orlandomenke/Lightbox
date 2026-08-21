@@ -385,7 +385,13 @@ public static class Skinning
     }
 
     /// <summary>Weights for a stroke that follows the whole skeleton, without touching it.</summary>
-    private static IReadOnlyList<BoneBinding>? AutoBoundFor(Stroke stroke, Armature armature)
+    /// <remarks>
+    /// Public because it is the render's answer to "what binds this stroke on
+    /// a whole-skeleton layer", and the weight brush and its heat display must
+    /// give the <em>same</em> answer — a dab hit-tested or seeded against any
+    /// other binding paints a stroke that is not the one on screen.
+    /// </remarks>
+    public static IReadOnlyList<BoneBinding>? AutoBoundFor(Stroke stroke, Armature armature)
     {
         var scratch = stroke.Clone(newId: false);
         AutoBind(scratch, armature);

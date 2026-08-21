@@ -132,6 +132,84 @@ public class WeightPaintTests
         Assert.Equal(1.0, a.WeightAt(2), 9);
     }
 
+    // ---- painting a stroke the layer's binding moves -------------------------------
+
+    /// <summary>
+    /// The hole bug: a stroke that followed the rig through its layer's
+    /// binding used to get a from-zero local binding at the first dab, which
+    /// dropped every unpainted point from "following" to "held at rest" —
+    /// the ink strung dotted trails between the origin and the bone.
+    /// </summary>
+    [Fact]
+    public void AFirstDabSeedsTheLayersBindingSoUnpaintedPointsKeepFollowing()
+    {
+        var stroke = Line();
+        // The layer's binding, as the render resolves it: wholly bone "a".
+        var layer = new List<BoneBinding> { new() { BoneId = "a" } };
+
+        WeightPaint.Apply(
+            stroke, "a", cx: 20, cy: 0, radius: 12, strength: 0.5, WeightBrushMode.Subtract,
+            fallback: layer);
+
+        var a = Assert.Single(stroke.Weights!);
+        // The touched point took the correction; every other point still
+        // carries the binding the layer was giving it.
+        Assert.Equal(0.5, a.WeightAt(2), 9);
+        Assert.Equal(1.0, a.WeightAt(0), 9);
+        Assert.Equal(1.0, a.WeightAt(4), 9);
+    }
+
+    [Fact]
+    public void PaintingASecondBoneUpTradesAgainstTheSeededBinding()
+    {
+        var stroke = Line();
+        var layer = new List<BoneBinding> { new() { BoneId = "a" } };
+
+        WeightPaint.Apply(
+            stroke, "b", cx: 20, cy: 0, radius: 12, strength: 0.4, WeightBrushMode.Add,
+            fallback: layer);
+
+        var a = stroke.Weights!.First(x => x.BoneId == "a");
+        var b = stroke.Weights!.First(x => x.BoneId == "b");
+        // Blender's model against the seeded weight, not against zero.
+        Assert.Equal(0.4, b.WeightAt(2), 9);
+        Assert.Equal(0.6, a.WeightAt(2), 9);
+        Assert.Equal(1.0, a.WeightAt(0), 9);
+    }
+
+    [Fact]
+    public void ADabThatHitsNothingLeavesAFallbackStrokeUnbound()
+    {
+        var stroke = Line();
+        var layer = new List<BoneBinding> { new() { BoneId = "a" } };
+
+        var changed = WeightPaint.Apply(
+            stroke, "a", cx: 500, cy: 500, radius: 12, strength: 1, WeightBrushMode.Subtract,
+            fallback: layer);
+
+        // Optional means absent: a miss must not turn a layer-bound stroke
+        // into a locally-bound one.
+        Assert.False(changed);
+        Assert.Null(stroke.Weights);
+    }
+
+    [Fact]
+    public void TheSeedIsACloneTheDabCannotReachBackThrough()
+    {
+        var stroke = Line();
+        var shared = new BoneBinding { BoneId = "a" };
+        var layer = new List<BoneBinding> { shared };
+
+        WeightPaint.Apply(
+            stroke, "a", cx: 20, cy: 0, radius: 12, strength: 0.5, WeightBrushMode.Subtract,
+            fallback: layer);
+
+        // The caller's list is the layer's answer for every stroke; painting
+        // one of them must not edit it.
+        Assert.Null(shared.PointWeights);
+        Assert.NotSame(shared, stroke.Weights![0]);
+    }
+
     [Fact]
     public void MirroredBonePairsByNameSuffix()
     {
