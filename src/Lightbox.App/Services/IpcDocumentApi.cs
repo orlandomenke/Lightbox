@@ -27,6 +27,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                 "draw_strokes" => DrawStrokes(request),
                 "list_reference_views" => ListReferenceViews(),
                 "render_reference_view" => RenderReferenceView(request),
+                "import_character" => ImportCharacter(request),
                 _ => IpcProtocol.Response.Fail($"Unknown op \"{request.Op}\"."),
             };
         }
@@ -105,6 +106,56 @@ public sealed class IpcDocumentApi(MainViewModel vm)
     {
         public int FrameIndex { get; set; }
         public string? LayerId { get; set; }
+    }
+
+    private sealed class ImportCharacterRef
+    {
+        public string? Library { get; set; }
+        public string Character { get; set; } = "";
+        public bool ReplaceEdited { get; set; }
+    }
+
+    /// <summary>
+    /// The character library's agent surface: the same scan, the same merge,
+    /// the same after-path the two UI surfaces use — and the edited-copy gate
+    /// reshaped for a caller that has no dialog: with <c>replaceEdited</c>
+    /// unset the edited copies are kept and reported, exactly the UI default,
+    /// so nothing is destroyed by an agent that did not say so.
+    /// </summary>
+    private IpcProtocol.Response ImportCharacter(IpcProtocol.Request request)
+    {
+        var p = Payload<ImportCharacterRef>(request);
+        if (vm.ProjectDocker.Project is not { } project)
+            return IpcProtocol.Response.Fail("No project is open — an import needs somewhere to land.");
+        var roots = p.Library is { Length: > 0 } one
+            ? [one]
+            : (IReadOnlyList<string>)vm.Settings.Library.Roots;
+        if (roots.Count == 0)
+        {
+            return IpcProtocol.Response.Fail(
+                "No library given, and no library folders are configured. Pass a path in "
+                + "\"library\", or have the artist add one under the library window.");
+        }
+        var entries = Core.Projects.CharacterLibrary.Scan(roots);
+        var entry = entries.FirstOrDefault(e => e.Name == p.Character);
+        if (entry is null)
+        {
+            // Named rather than counted, the ConfirmDiscard rule for agents:
+            // the shelf's contents are what makes the retry a decision.
+            var offered = entries.Count == 0
+                ? "the folders offer nothing"
+                : $"offered: {string.Join(", ", entries.Select(e => e.Name))}";
+            return IpcProtocol.Response.Fail($"No character named \"{p.Character}\" — {offered}.");
+        }
+        var result = Core.Projects.CharacterLibrary.Import(entry, project, p.ReplaceEdited);
+        vm.AfterLibraryImport(result);
+        return IpcProtocol.Response.Success(new
+        {
+            Folder = result.Folder.Name,
+            result.Added,
+            result.Replaced,
+            result.KeptEdited,
+        });
     }
 
     private IpcProtocol.Response GetFrameStrokes(IpcProtocol.Request request)

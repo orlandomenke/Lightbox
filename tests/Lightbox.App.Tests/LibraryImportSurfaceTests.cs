@@ -1,3 +1,4 @@
+using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Lightbox.App.Services;
 using Lightbox.App.ViewModels;
@@ -133,6 +134,70 @@ public sealed class LibraryImportSurfaceTests(ITestOutputHelper output) : Projec
         Assert.False(vm.Characters.HasRoots);
         Assert.Empty(vm.Characters.Entries);
         Assert.DoesNotContain(_library, File.ReadAllText(AppSettings.Path));
+    }
+
+    [AvaloniaFact]
+    public void TheImportCommandIsRegisteredSoItCanBeFoundAndRebound()
+    {
+        // B58's third assertion, asked of the library: a window reachable only
+        // from a button is invisible to Configure and cannot be given a key.
+        var map = new ShortcutMap { StorePathOverride = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(), $"library-shortcuts-{Guid.NewGuid():N}.json") };
+        Assert.Contains(map.Definitions, d => d.Id == "project.libraryWindow");
+    }
+
+    [AvaloniaFact]
+    public void TheConfigurePageEditsTheSameRootsTheWindowReads()
+    {
+        var vm = Open();
+        var map = new ShortcutMap { StorePathOverride = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(), $"library-cfg-{Guid.NewGuid():N}.json") };
+        var window = new ConfigureWindow(map, vm);
+        window.FindControl<Avalonia.Controls.ListBox>("CategoryList")!.SelectedIndex = 8;
+
+        Assert.True(window.FindControl<Avalonia.Controls.ScrollViewer>("LibraryPage")!.IsVisible);
+        Assert.False(window.FindControl<Avalonia.Controls.ScrollViewer>("AiPage")!.IsVisible);
+        // The page's list IS the view model's collection — one owner (the
+        // LibraryViewModel), so Configure, the window and the picker cannot
+        // come to hold three different answers about where libraries live.
+        var list = window.FindControl<Avalonia.Controls.ListBox>("LibraryRootsList")!;
+        Assert.Same(vm.Characters.Roots, list.ItemsSource);
+
+        vm.Characters.AddRoot(_library);
+        Assert.Contains(_library, vm.Characters.Roots);
+        Assert.Contains(_library, File.ReadAllText(AppSettings.Path));
+    }
+
+    [AvaloniaFact]
+    public void AnAgentImportsThroughTheSameMergeAndAfterPath()
+    {
+        Shelf();
+        var vm = Open();
+        var api = new IpcDocumentApi(vm);
+        static IpcProtocol.Request Req(string op, object payload) => new()
+        {
+            Op = op,
+            Payload = System.Text.Json.JsonSerializer.SerializeToElement(payload, IpcProtocol.Json),
+        };
+
+        // No roots configured and no path passed: told what to do, not a crash.
+        var unconfigured = api.Handle(Req("import_character", new { character = "Knight" }));
+        Assert.False(unconfigured.Ok);
+        Assert.Contains("library", unconfigured.Error!, StringComparison.OrdinalIgnoreCase);
+
+        // A wrong name gets the shelf's contents, so the retry is a decision.
+        var wrong = api.Handle(Req("import_character", new { library = _library, character = "Dragon" }));
+        Assert.False(wrong.Ok);
+        Assert.Contains("Knight", wrong.Error!);
+
+        // The import lands through the same after-path the UI uses: the
+        // docker shows it and the project is saved, not merely mutated.
+        var resp = api.Handle(Req("import_character", new { library = _library, character = "Knight" }));
+        Assert.True(resp.Ok, resp.Error);
+        Assert.Equal("Knight", resp.Payload!.Value.GetProperty("folder").GetString());
+        Assert.Equal(1, resp.Payload.Value.GetProperty("added").GetArrayLength());
+        Assert.Contains(vm.ProjectDocker.Rows, r => r.Name == "Knight");
+        Assert.Contains("Knight", File.ReadAllText(Path.Combine(Root, "project.json")));
     }
 
     [AvaloniaFact]

@@ -387,7 +387,7 @@ palette can live* and *one of the places a palette can live*.
 - [x] Project types at creation (Illustration / Animation / Game Art / Storyboard / Comic / Asset Library / Empty) `evidence: NewProjectDialog, NewProjectSettings, NewDocumentSettings`
 - [x] Project as a container above the document `evidence: ProjectManifest, ProjectIo, Project, ProjectTests, AProjectRoundTripsThroughTheFolder`
 - [x] Character workspace — animations, assets, references, palette in one place `evidence: ReferenceSheet, ReferenceSheetModelTests, ReferenceTabTests`
-- [~] Character library `evidence: CharacterLibrary, LibraryEntry, ImportingASubjectBringsItsDocumentsAndPalette, AnImportedSubjectStillPaintsFromItsPalette, AnImportSurvivesSavingAndReopeningTheProject, ImportOrigin, ImportResult, LibraryViewModel, LibraryWindow, ReImportReplacesByProvenanceAndNeverTouchesLocalWork, AnEditedCopyIsKeptAndNamedBeforeItIsReplaced, ImportLandsInTheOpenProjectTheDockerAndTheDisk, TheImportCommandIsRegisteredSoItCanBeFoundAndRebound`
+- [x] Character library `evidence: CharacterLibrary, LibraryEntry, ImportingASubjectBringsItsDocumentsAndPalette, AnImportedSubjectStillPaintsFromItsPalette, AnImportSurvivesSavingAndReopeningTheProject, ImportOrigin, ImportResult, LibraryViewModel, LibraryWindow, ReImportReplacesByProvenanceAndNeverTouchesLocalWork, AnEditedCopyIsKeptAndNamedBeforeItIsReplaced, ImportLandsInTheOpenProjectTheDockerAndTheDisk, TheImportCommandIsRegisteredSoItCanBeFoundAndRebound`
   - **Slice 2 landed 2026-08-20: the way in, and the merge.** `ImportOrigin`
     stamps every copied folder and document with its library source — ids,
     never paths, so the stamp survives the library moving and is the edge a
@@ -407,6 +407,18 @@ palette can live* and *one of the places a palette can live*.
     never at startup. Palettes and variants arrive with a first import; a
     library's later recolour does not propagate into a folder that already
     has its own — that is Pillar 3's job, and it starts from these stamps.
+  - **Slice 3 landed 2026-08-21: the registries**, which is what closes the
+    item — the walk through "land the places it shows up", each surface to
+    its registry. `project.libraryWindow` in `ShortcutMap` (searched,
+    rebindable, no default key; the picker's Browse item and the command
+    share one opener). A **Library page in Configure** whose roots list *is*
+    the `LibraryViewModel`'s collection — one owner, so Configure, the window
+    and the picker cannot hold three answers about where libraries live. The
+    **MCP op `import_character`** rides the same scan, merge and after-path
+    the UI uses, with the edited-copy gate reshaped for a caller with no
+    dialog: edited copies are kept and reported unless `replaceEdited` says
+    otherwise, so an agent destroys nothing it did not name. And the manual's
+    character-library section says what ships rather than what was planned.
   - **The engine is proven (Q138 slice 1, 2026-08-20), and most of it already
     was** — the two anchors this item carried for weeks named tests that
     existed under other names: B114's subject rename moved
@@ -1594,7 +1606,7 @@ need it in a short.
 
 ### The container and the types
 
-- [~] `Project` container above `Doc` (scenes, characters, assets) `evidence: ProjectManifest, Character, DocumentRef, ProjectTests`
+- [x] `Project` container above `Doc` (scenes, characters, assets) `evidence: ProjectManifest, Character, DocumentRef, ProjectTests`
 - [x] Project type recorded on the document, absent by default `evidence: ProjectType, AProjectWithNoTypeWritesNoTypeKey`
 - [?] Named workspaces, persisted
 - [?] Storyboard organization (scenes → shots)
