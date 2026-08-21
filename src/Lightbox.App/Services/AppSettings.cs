@@ -50,6 +50,9 @@ public sealed class AppSettings
     /// </summary>
     public RecentItems Recent { get; set; } = new();
 
+    /// <summary>Where character libraries live — see <see cref="LibrarySettings"/>.</summary>
+    public LibrarySettings Library { get; set; } = new();
+
     /// <summary>
     /// How far a frame's ink area may drift from the shot's median before the
     /// volume checker flags it, as a fraction (0.10 = ten percent).

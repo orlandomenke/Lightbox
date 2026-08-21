@@ -2916,6 +2916,10 @@
                           </MenuFlyout>
                         </Button.Flyout>
                       </Button>
+                      <Button Classes="icon" Click="OnProjectImportFromLibrary"
+                              ToolTip.Tip="Import a character from a library — animations, palette and variants copy in. Importing again updates the copies you have not edited and never touches your own work.">
+                        <Path Classes="icon" Data="{StaticResource IconArrowDownToBar}" />
+                      </Button>
                       <Button Classes="icon"
                               Command="{Binding ProjectDocker.RemoveSelectedCommand}"
                               IsEnabled="{Binding ProjectDocker.HasSelection}"

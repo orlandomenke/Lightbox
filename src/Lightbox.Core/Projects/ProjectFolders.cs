@@ -125,6 +125,13 @@ public sealed class ProjectFolder
     public string? Notes { get; set; }
 
     /// <summary>
+    /// Where this folder was imported from, or null for one made here — see
+    /// <see cref="ImportOrigin"/>. No content hash on a folder: the documents
+    /// carry their own, and a folder's "content" is them.
+    /// </summary>
+    public ImportOrigin? Origin { get; set; }
+
+    /// <summary>
     /// Whether anything has read this folder.
     /// </summary>
     /// <remarks>
