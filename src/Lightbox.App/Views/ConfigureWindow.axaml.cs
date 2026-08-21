@@ -1175,8 +1175,11 @@ public partial class ConfigureWindow : Window
         TimelinePage.IsVisible = page == 4;
         DrawingPage.IsVisible = page == 5;
         ExportPage.IsVisible = page == 6;
-        AiPage.IsVisible = page == 7;
-        LibraryPage.IsVisible = page == 8;
+        // Library sits before AI: the AI page stays the last category,
+        // which TheAiPageIsTheLastCategoryAndHiddenUntilChosen asserts on
+        // purpose — appending here is how that test earns its keep.
+        LibraryPage.IsVisible = page == 7;
+        AiPage.IsVisible = page == 8;
         if (page == 1) RefreshMeasured();
         if (page == 2) RefreshFeatures();
         // Rebuilt on the way in: a grid may have been placed since the window

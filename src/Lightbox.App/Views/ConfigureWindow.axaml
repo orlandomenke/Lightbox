@@ -19,8 +19,8 @@
       <ListBoxItem Content="Timeline" />
       <ListBoxItem Content="Drawing" />
       <ListBoxItem Content="Export" />
-      <ListBoxItem Content="AI" />
       <ListBoxItem Content="Library" />
+      <ListBoxItem Content="AI" />
     </ListBox>
 
     <Border Grid.Column="1" Background="{StaticResource BackgroundPrimaryBrush}" />

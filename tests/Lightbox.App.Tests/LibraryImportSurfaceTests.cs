@@ -153,7 +153,7 @@ public sealed class LibraryImportSurfaceTests(ITestOutputHelper output) : Projec
         var map = new ShortcutMap { StorePathOverride = System.IO.Path.Combine(
             System.IO.Path.GetTempPath(), $"library-cfg-{Guid.NewGuid():N}.json") };
         var window = new ConfigureWindow(map, vm);
-        window.FindControl<Avalonia.Controls.ListBox>("CategoryList")!.SelectedIndex = 8;
+        window.FindControl<Avalonia.Controls.ListBox>("CategoryList")!.SelectedIndex = 7;
 
         Assert.True(window.FindControl<Avalonia.Controls.ScrollViewer>("LibraryPage")!.IsVisible);
         Assert.False(window.FindControl<Avalonia.Controls.ScrollViewer>("AiPage")!.IsVisible);
