@@ -113,6 +113,59 @@ public sealed class Project
         (folder.Variants ?? []).FirstOrDefault(
             v => v.Id == ActiveVariant.GetValueOrDefault(folder.Id));
 
+    /// <summary>
+    /// The palette substitutions the active variants imply for a document:
+    /// which base palette id each variant palette stands in for.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This mapping is what makes the palette swap live.</b> A stroke
+    /// records the palette it was painted from, and
+    /// <c>PaletteRegistry.ResolveSwatch</c> deliberately never answers from a
+    /// different palette that happens to share the swatch id (Q30). So a
+    /// variant's copy — same swatch ids, its own palette id — repaints nothing
+    /// by merely existing; it has to be registered <em>as</em> the base
+    /// palette while the variant is being viewed, and this says which id that
+    /// is: the palette the folder's scope resolves to, the one
+    /// <see cref="ProjectIo.AddVariant"/> copied.
+    /// </para>
+    /// <para>
+    /// The whole ancestry is walked rather than one folder, because each
+    /// folder with an active variant substitutes its own scoped palette —
+    /// nearest wins where two folders somehow scope the same one, matching
+    /// <see cref="ResourceScopes.Resolve"/>.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyDictionary<string, Palette> PaletteStandInsFor(DocumentRef? reference)
+    {
+        var standIns = new Dictionary<string, Palette>();
+        if (ProjectFolders.ById(Manifest, reference?.FolderId) is not { } folder) return standIns;
+        foreach (var above in ProjectFolders.AncestryOf(Manifest, folder))
+        {
+            if (VariantOf(above)?.PaletteId is not { } paletteId) continue;
+            var baseId = ResourceScopes.NearestAt(Manifest, above, PaletteScopes.Kind)?.Id;
+            if (baseId is null || baseId == paletteId) continue;
+            if (Palettes.FirstOrDefault(p => p.Id == paletteId) is not { } standIn) continue;
+            standIns[baseId] = standIn;
+        }
+        return standIns;
+    }
+
+    /// <summary>
+    /// Every palette id some variant owns, active or not.
+    /// </summary>
+    /// <remarks>
+    /// A variant's copy is reachable only <em>through</em> its variant: it
+    /// carries the base palette's swatch ids on purpose, so registering it
+    /// under its own id beside the base would leave the flat lookup answering
+    /// from whichever happened to register last.
+    /// </remarks>
+    public IEnumerable<string> VariantPaletteIds() =>
+        ProjectFolders.All(Manifest)
+            .SelectMany(f => f.Variants ?? Enumerable.Empty<SubjectVariant>())
+            .Select(v => v.PaletteId)
+            .OfType<string>();
+
     /// <summary>The palette a folder's work paints with right now, variant included.</summary>
     public Palette? PaletteFor(ProjectFolder folder)
     {

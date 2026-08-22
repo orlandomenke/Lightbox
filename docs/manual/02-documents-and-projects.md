@@ -880,6 +880,31 @@ Shape differences colour cannot express (a helmet the base character does not
 have) are what animation overrides are for: one animation replaced wholesale,
 the rest still shared.
 
+**Creating one** happens in the project window: select the character's folder,
+and the details panel's variant list takes a name — it arrives with its own
+copy of the folder's palette, ready to recolour in the Palette panel.
+Recolouring the copy never touches the base character's colours.
+
+**Viewing one** happens in the Project panel: right-click the folder ▸
+**Variant**, and pick from the base and every variant, with the one on screen
+marked. The canvas repaints the shared drawings in the variant's colours, the
+folder's rows swap in any drawings the variant owns outright, and the folder
+row wears the variant's name so you always know which version you are looking
+at. Which variant you are viewing is **view state, like the playhead** — it is
+not saved in the project, does not mark anything unsaved, and a document opens
+the same for everyone regardless of who closed it last.
+
+**Giving a variant its own drawing**: while viewing the variant, right-click
+the animation ▸ **Give "(variant)" its own "(name)"**. That copies the drawing
+for this variant only — it stands in for the shared one in this variant's
+running order, and every other variant (and the base) keeps the original. It
+is a Duplicate with one extra fact recorded: which drawing the copy replaces.
+
+**Undoing that**: right-click the variant's own drawing ▸ **Use the shared
+drawing again**. The variant goes back to the shared animation, and the
+drawing it had stays in the folder as an ordinary document — dissolving an
+arrangement is never the fastest way to delete the art made for it.
+
 ### The character library
 
 A project whose type is **Asset library** offers its characters to other

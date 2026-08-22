@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4726
+budget: 4771
 
 ## Why it is here despite being XAML
 
@@ -182,3 +182,11 @@ leaves a number nobody can account for. So every reason above stays, and
   in `MainWindow.ProjectFiling.cs` where it can live in a partial, which is
   why the entry point costs four lines and not forty. Registration again: an
   import nobody can reach is not a feature.
+- **4,726 → 4,771** (2026-08-21, Q143): +45 for the variant surfaces on the
+  project docker's row — the Variant submenu (the Glyph menu's entry pattern,
+  which needs its template and style inline), the two override gestures
+  beside Duplicate, and the viewed-variant badge in the row's right column.
+  All of it is the row template's own flyout and markup, which has no partial
+  to live in, and the comments carry the why (view state, the Duplicate
+  parallel, the badge's reason to exist). Registration: a variant nobody
+  could view was the whole defect this lands to fix.

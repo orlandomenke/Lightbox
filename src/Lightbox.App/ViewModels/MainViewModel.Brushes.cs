@@ -238,7 +238,8 @@ public partial class MainViewModel
         PaletteDocker.ProjectSource = () => ProjectDocker?.Project;
         PaletteDocker.ProjectEdited = OnProjectChanged;
         GradientDocker = new GradientDockerViewModel(OnGradientEdited, PerformGradientEdit);
-        ProjectDocker = new ProjectViewModel(NewAnimationDoc, OpenProjectDocument, OnProjectChanged);
+        ProjectDocker = new ProjectViewModel(
+            NewAnimationDoc, OpenProjectDocument, OnProjectChanged, OnVariantSwitched);
         ProjectDocker.OpenSheet = OpenProjectSheet;
         // HasProject is a forwarding property, so it has no notification of its
         // own. Without this relay the project panel stays hidden after New or
