@@ -93,4 +93,80 @@ public class MediumPresetTests
             b.AngleFollowsDirection || b.SizeJitter > 0 || b.RoundnessJitter > 0,
             $"{name} has no dab variation at all, so its flanks show the dab interval");
     }
+
+    /// <summary>
+    /// An opaque preset's faint edge stays paint-coloured instead of running up
+    /// to the paper.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The regression B273's fix nearly shipped. `Pigment.Over` has to pick a
+    /// backing where the layer beneath is transparent, and a low pigment mass
+    /// means one of two opposite things: a thin transparent film, lit from
+    /// behind by the sheet, or a partly covered pixel at the edge of an opaque
+    /// stroke, where the compositor's own alpha already lets the paper through.
+    /// Backing the second with paper white counts the paper twice, and a dark
+    /// gouache band's edge pixels came out `(249,247,243)` — paper — where they
+    /// had been `(70,73,100)`. The mark reads narrower, which is how it was
+    /// spotted.
+    /// </para>
+    /// <para>
+    /// <b>It has to be measured here, against the shipped preset.</b> Two
+    /// cheaper versions of this test did not work. Averaging over the whole
+    /// stroke misses it — the interior does not move at all. Measuring a lone
+    /// stroke's soft edge in `Lightbox.Raster` misses it too, because a medium
+    /// stroke's antialiased edge comes from the bilinear upscale off the
+    /// lattice, which carries the interior's colour at a lower alpha; the effect
+    /// needs a real preset's coverage profile — its tip, spacing and flow — to
+    /// put genuinely thin deposits at the rim.
+    /// </para>
+    /// <para>
+    /// Measured mean luminance by alpha band, backed white → weighted:
+    /// 12..60 <b>83.9 → 61.3</b>, 60..120 59.7 → 58.3, 120..200 58.1 → 58.1,
+    /// 200+ 59.1 → 59.1. So the faintest band is the whole signal, and the
+    /// threshold below sits between 24.8 and 2.2 above the interior.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void AnOpaquePresetsFaintEdgeIsStillPaintNotPaper()
+    {
+        var brush = Preset("Gouache");
+        var pts = new List<StrokePoint>();
+        for (var i = 0; i < 48; i++)
+        {
+            var t = i / 47.0;
+            pts.Add(new StrokePoint(50 + t * 320, 80 + Math.Sin(t * Math.PI) * 6, 0.9));
+        }
+
+        using var art = FrameRasterizer.Rasterize(
+            [new Stroke { Tool = ToolKind.Brush, Color = "#2c3050", Points = pts, Brush = brush }],
+            420, 160);
+
+        // A dark paint, so "washed toward the paper" is a rise in luminance.
+        (double Mean, int Count) Band(int lo, int hi)
+        {
+            double sum = 0;
+            var n = 0;
+            for (var y = 0; y < 160; y++)
+            for (var x = 0; x < 420; x++)
+            {
+                var c = art.GetPixel(x, y);
+                if (c.Alpha < lo || c.Alpha >= hi) continue;
+                sum += (c.Red + c.Green + c.Blue) / 3.0;
+                n++;
+            }
+            return (n == 0 ? 0 : sum / n, n);
+        }
+
+        var (faint, faintCount) = Band(12, 60);
+        var (solid, solidCount) = Band(200, 256);
+
+        Assert.True(faintCount > 100 && solidCount > 100,
+            $"nothing to measure: {faintCount} faint px, {solidCount} solid px");
+        Assert.True(
+            faint - solid < 12,
+            $"the faint edge of a dark gouache stroke averages {faint:F1} luminance against {solid:F1} "
+            + $"in its interior ({faintCount} and {solidCount} px) — it is washing out toward the paper, "
+            + "so the mark has lost its edge");
+    }
 }

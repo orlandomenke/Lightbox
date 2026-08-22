@@ -265,6 +265,15 @@ approaches saturation, exactly as adding more pigment to the same water does.
 Gouache and oil use the same model and are simply strong enough to cover in one
 pass.
 
+**Hiding** is what makes them strong enough — how much the paint covers what is
+beneath it, as opposed to how dark it is. Near zero it is a glaze: the paper
+lights it from behind and the colour reads as stained light, which is why a
+watercolour looks luminous rather than merely pale. Near one it is body colour,
+and a thin passage is thin *paint* rather than a window onto the sheet. It is
+worth knowing which end you are at, because it decides what a faint passage
+means: at the glaze end the paper is doing the work, and at the body end the
+paint is.
+
 **Body** and **relief** give thick paint its height. Body is how much the paint
 stands up off the paper; relief is how hard the light rakes across it. Together
 they are impasto — a raised edge on a gouache or oil stroke catches the light

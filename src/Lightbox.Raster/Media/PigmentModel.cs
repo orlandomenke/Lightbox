@@ -82,13 +82,26 @@ public readonly struct Pigment
     // Kubelka-Munk "b" term that stays finite as S goes to zero.
     private readonly double _bR, _bG, _bB;
 
-    private Pigment(double kR, double kG, double kB, double sR, double sG, double sB)
+    /// <summary>
+    /// The hiding dial this pigment was built from, kept for one job: deciding
+    /// what a transparent backdrop means. See <see cref="Over"/>.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to 1 for <see cref="FromCoefficients"/> and <see cref="Mix"/>,
+    /// which have no dial — a caller holding measured K and S has said nothing
+    /// about coverage, and 1 is the reading that leaves the backing out of it,
+    /// which is exactly what those two did before this field existed.
+    /// </remarks>
+    private readonly double _hiding;
+
+    private Pigment(double kR, double kG, double kB, double sR, double sG, double sB, double hiding = 1.0)
     {
         _kR = kR; _kG = kG; _kB = kB;
         _sR = sR; _sG = sG; _sB = sB;
         _bR = Beta(kR, sR);
         _bG = Beta(kG, sG);
         _bB = Beta(kB, sB);
+        _hiding = hiding;
     }
 
     /// <summary>
@@ -134,7 +147,7 @@ public readonly struct Pigment
             KOverS(ToLinear(color.Red)) * scale,
             KOverS(ToLinear(color.Green)) * scale,
             KOverS(ToLinear(color.Blue)) * scale,
-            s, s, s);
+            s, s, s, Math.Clamp(hiding, 0.0, 1.0));
     }
 
     /// <summary>
@@ -178,23 +191,58 @@ public readonly struct Pigment
 
         // Kubelka-Munk answers "what colour is this film over that backing",
         // which presumes there is a backing. Where the layer is transparent
-        // the backing is the paper the compositor will show through it, and
-        // paper is white — a glaze is a film that is *lit from behind* by the
-        // sheet. Backing it with its own mass tone here (as this used to)
-        // turned every low-hiding medium grey: a transparent glaze is nearly
-        // all absorption, so its mass tone is close to black, and watercolour
-        // and ink painted onto blank canvas lost their hue entirely (B273).
-        // Opacity is a separate question and is unchanged: the pigment adds
-        // alpha in proportion to how much it hides.
-        var backing = Blend(SKColors.White, backdrop, backdrop.Alpha / 255.0);
+        // there is none, and the honest answer turns on *why* there is little
+        // paint here — the one thing the thickness cannot say:
+        //
+        //   A thin transparent film is lit from behind by the paper, so its
+        //   backing is white. Backing it with its own mass tone instead (as
+        //   this used to) is what made every low-hiding medium grey: a glaze is
+        //   nearly all absorption, so its mass tone is close to black —
+        //   ultramarine at hiding 0.05 sits near rgb(6,10,29) — and watercolour
+        //   and ink on blank canvas lost their hue at the first touch (B273).
+        //
+        //   A partly covered pixel at the edge of an OPAQUE stroke is not a
+        //   thin film at all: it is full-strength paint over part of the pixel,
+        //   and the compositor's own alpha is already what lets the paper
+        //   through. Back that one with white and the paper is counted twice —
+        //   a pale gouache stroke's edge dissolves and the mark reads thin.
+        //
+        // `Hiding` is precisely the artist's statement about which of those a
+        // low mass means, so it is the weight between the two readings. Chroma
+        // measured on one #3a5a8c stroke of each shipped preset, mass tone ->
+        // weighted: watercolour 3.1 -> 48.1, ink 29.8 -> 57.7, gouache
+        // 59.76 -> 59.79, oil unmoved. Fixing the transparent media without
+        // disturbing the opaque ones is the whole point of the weight.
+        //
+        // Opacity is a separate question and is unchanged.
         var alpha = backdrop.Alpha / 255.0;
         var laid = alpha + (1.0 - alpha) * Coverage(x);
 
         return new SKColor(
-            FromLinear(Layer(_kR, _sR, _bR, x, ToLinear(backing.Red))),
-            FromLinear(Layer(_kG, _sG, _bG, x, ToLinear(backing.Green))),
-            FromLinear(Layer(_kB, _sB, _bB, x, ToLinear(backing.Blue))),
+            FromLinear(Layer(_kR, _sR, _bR, x, Backing(_kR, _sR, _bR, backdrop.Red, alpha))),
+            FromLinear(Layer(_kG, _sG, _bG, x, Backing(_kG, _sG, _bG, backdrop.Green, alpha))),
+            FromLinear(Layer(_kB, _sB, _bB, x, Backing(_kB, _sB, _bB, backdrop.Blue, alpha))),
             (byte)Math.Round(Math.Clamp(laid, 0.0, 1.0) * 255));
+    }
+
+    /// <summary>
+    /// One channel's backing reflectance for a not-fully-opaque backdrop: the
+    /// sheet showing through where the backdrop is transparent, the backdrop
+    /// itself where it is not.
+    /// </summary>
+    /// <remarks>
+    /// In linear light and per channel rather than by blending two
+    /// <see cref="SKColor"/>s, because a <c>Pigment</c> is built per pixel by
+    /// <c>MediumSimulator.WriteBack</c> — the deposit's colour varies per cell —
+    /// so a byte round-trip would spend three <c>Pow</c> calls per pixel
+    /// producing a value that is converted straight back. It also drops a
+    /// quantisation to bytes in the middle of the calculation, and is cheaper
+    /// than the single blend it replaced rather than merely no worse.
+    /// </remarks>
+    private double Backing(double k, double s, double beta, byte backdrop, double alpha)
+    {
+        var sheet = 1.0 - _hiding + Infinite(k, s, beta) * _hiding;
+        return sheet + (ToLinear(backdrop) - sheet) * alpha;
     }
 
     /// <summary>Linear-light interpolation, t=0 giving <paramref name="a"/>.</summary>

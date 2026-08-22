@@ -1,10 +1,11 @@
 using Lightbox.Raster.Media;
 using SkiaSharp;
+using Xunit.Abstractions;
 
 namespace Lightbox.Raster.Tests;
 
 [Collection("Performance")]
-public class PigmentModelTests
+public class PigmentModelTests(ITestOutputHelper output)
 {
     // A real ultramarine and a real cerulean, not the RGB primary. This matters and
     // is not a dodge: (0,0,255) means "reflects no green light whatsoever", and no
@@ -95,8 +96,8 @@ public class PigmentModelTests
         // B273. A transparent glaze is nearly all absorption, so its mass tone
         // is close to black — and the transparent-backdrop path used to back
         // the film with exactly that, turning every watercolour and ink stroke
-        // on blank canvas grey. Blank canvas is backed by the paper: the same
-        // glaze must come out the colour it comes out over white.
+        // on blank canvas grey. A thin transparent film is lit from behind by
+        // the paper, so it must come out near the colour it has over white.
         var glaze = Pigment.FromColor(Ultramarine, 0.05);
 
         var onNothing = glaze.Over(new SKColor(0, 0, 0, 0), 0.6);
@@ -106,13 +107,73 @@ public class PigmentModelTests
         Assert.True(onNothing.Blue > onNothing.Red + 60,
             $"ultramarine glaze on blank canvas gave ({onNothing.Red},{onNothing.Green},{onNothing.Blue}) — grey, not blue");
 
-        // And it is the over-paper colour, channel for channel.
+        // And it is close to the over-paper colour. Not equal: the backing is
+        // weighted by hiding, so a glaze at 0.05 keeps a twentieth of its own
+        // mass tone. What must not come back is the near-black it used to be —
+        // the mass tone's blue channel is around 29 of 255.
         Assert.True(
-            Math.Abs(onNothing.Red - onPaper.Red) <= 2
-            && Math.Abs(onNothing.Green - onPaper.Green) <= 2
-            && Math.Abs(onNothing.Blue - onPaper.Blue) <= 2,
+            Math.Abs(onNothing.Blue - onPaper.Blue) <= 12
+            && Math.Abs(onNothing.Red - onPaper.Red) <= 12,
             $"blank canvas gave ({onNothing.Red},{onNothing.Green},{onNothing.Blue}), "
             + $"paper gave ({onPaper.Red},{onPaper.Green},{onPaper.Blue})");
+    }
+
+    [Fact]
+    public void Over_AnOpaquePaintsEdgeIsNotBackedByThePaper()
+    {
+        // The regression the B273 fix nearly shipped, and the reason the
+        // backing is weighted by `Hiding` rather than simply being white. A low
+        // thickness means one of two different things: a thin transparent film,
+        // or a partly covered pixel at the edge of an opaque stroke. For the
+        // second, the compositor's own alpha is already what lets the paper
+        // through, so backing it white counts the paper twice and the edge
+        // dissolves — measured on the presets, a pale yellow gouache band went
+        // visibly thin and lost its shape.
+        //
+        // The thin end is where the two answers separate, so that is where this
+        // measures. A pale yellow at hiding 0.9, thickness 0.05: backed white it
+        // comes out (254,247,163), which against paper is nothing at all; backed
+        // by weight it comes out (233,199,109), which is the paint. Distance to
+        // its own mass tone is 62 against 8 — so the threshold below has a wide
+        // margin and still fails loudly on the naive version.
+        var pale = new SKColor(232, 196, 106);
+        var body = Pigment.FromColor(pale, 0.9);
+        var blank = new SKColor(0, 0, 0, 0);
+        var mass = body.MassTone;
+
+        foreach (var thickness in new[] { 0.05, 0.15, 0.3, 0.6, 1.0 })
+        {
+            var got = body.Over(blank, thickness);
+            var away = Distance(got, mass);
+            output.WriteLine($"t={thickness}: {Show(got)} vs mass tone {Show(mass)} — {away} away");
+
+            Assert.True(away <= 20,
+                $"an opaque paint at thickness {thickness} read {Show(got)} on blank canvas, "
+                + $"{away} from its own colour {Show(mass)} — its edge will dissolve into the paper");
+        }
+    }
+
+    [Fact]
+    public void Over_TheBackingIsIrrelevantOnceAPaintIsFullyHiding()
+    {
+        // Why the weight is safe to add at all: at hiding 1 the backing term
+        // cancels, so `FromCoefficients` and `Mix` — which carry no dial and
+        // default to 1 — behave exactly as they did before the field existed.
+        var opaque = Pigment.FromColor(Ultramarine, 1.0);
+        var onBlank = opaque.Over(new SKColor(0, 0, 0, 0), 1.0);
+        var onWhite = opaque.Over(SKColors.White, 1.0);
+        var onBlack = opaque.Over(SKColors.Black, 1.0);
+
+        Assert.Equal(onWhite.Red, onBlank.Red);
+        Assert.Equal(onWhite.Green, onBlank.Green);
+        Assert.Equal(onWhite.Blue, onBlank.Blue);
+        Assert.Equal(onBlack.Red, onBlank.Red);
+
+        // And a mixed pigment, which is the path that has no dial to read.
+        var mixed = Pigment.Mix(Pigment.FromColor(Yellow, 1.0), opaque, 0.5);
+        var mixedBlank = mixed.Over(new SKColor(0, 0, 0, 0), 1.0);
+        Assert.True(Distance(mixedBlank, mixed.MassTone) <= 2,
+            $"a mixed pigment on blank canvas gave {Show(mixedBlank)} against its mass tone {Show(mixed.MassTone)}");
     }
 
     [Fact]

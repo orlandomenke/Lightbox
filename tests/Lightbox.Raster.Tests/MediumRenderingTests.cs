@@ -266,6 +266,40 @@ public class MediumRenderingTests(ITestOutputHelper output)
             $"a red watercolour stroke came out red {r:0.0} vs blue {b:0.0} — the hue is washing out to grey");
     }
 
+    /// <summary>Alpha-weighted (blue − red) over the inked pixels: how much hue the mark puts on the page.</summary>
+    private static (double Chroma, double Ink, double MeanAlpha) Hue(SKBitmap bmp)
+    {
+        double chroma = 0, ink = 0, alpha = 0;
+        for (var y = 0; y < H; y++)
+        for (var x = 0; x < W; x++)
+        {
+            var c = bmp.GetPixel(x, y);
+            if (c.Alpha <= 4) continue;
+            ink++;
+            alpha += c.Alpha;
+            chroma += (c.Blue - c.Red) * (c.Alpha / 255.0);
+        }
+        return (ink == 0 ? 0 : chroma / ink, ink, ink == 0 ? 0 : alpha / ink);
+    }
+
+    [Fact]
+    public void ATransparentMediumOnBlankCanvasKeepsItsHue()
+    {
+        // B273. Painting onto an empty layer is the first thing every stroke
+        // does, and the transparent-backdrop path used to back the film with
+        // the pigment's near-black mass tone — so watercolour and ink lost
+        // their hue at the first touch. Measured as alpha-weighted chroma on a
+        // blue stroke: watercolour read 3.1 before the fix and 48.1 after.
+        var wet = Watercolour();
+        using var bmp = Render(Stroke(wet, colour: "#3a5a8c"));
+        var (chroma, ink, mean) = Hue(bmp);
+
+        output.WriteLine($"chroma {chroma:F1} over {ink:F0} px, mean alpha {mean:F1}");
+        Assert.True(ink > 0, "the stroke rendered nothing at all");
+        Assert.True(chroma > 25,
+            $"a blue watercolour stroke put only {chroma:F1} of chroma on the page — it is washing out to grey");
+    }
+
     [Fact]
     public void EveryMediumReRendersIdentically()
     {
