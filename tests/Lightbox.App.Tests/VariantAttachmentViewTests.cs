@@ -187,6 +187,39 @@ public class VariantAttachmentViewTests(ITestOutputHelper output) : BrushStateIs
     }
 
     [AvaloniaFact]
+    public void EditingTheNumbersRepaintsTheCanvasBehindTheWindow()
+    {
+        // The adversarial pass's refutation: the editor's status line said
+        // "the canvas shows it" and nothing asked the canvas to repaint, so
+        // a nudged offset showed stale armor until an unrelated publish.
+        using var scratch = new Scratch();
+        var (vm, project, knight, winter) = DressedKnight(scratch);
+        RenderSnapshot? latest = null;
+        vm.SnapshotChanged += s => latest = s;
+        vm.ProjectDocker.SwitchVariantCommand.Execute(new VariantChoice(knight, winter.Id));
+        // The window reports edits the way the real one does: into the
+        // docker's manifest-changed funnel.
+        var window = new ProjectWindowViewModel(project, vm.ProjectDocker.MarkManifestChanged);
+        window.SetSelection(window.Rows.Where(r => r.IsFolder));
+        var row = Assert.Single(Assert.Single(window.FolderVariantRows).Attachments);
+
+        row.OffsetX = 20;
+        row.OffsetY = 25;
+
+        var oldSpot = GreenAt(latest!, 40, 30);
+        var newSpot = GreenAt(latest!, 60, 55);
+        output.WriteLine($"old green {oldSpot}, new green {newSpot}");
+        Assert.Equal(255, oldSpot);
+        Assert.True(newSpot < 128, $"the canvas kept the stale offset: green {newSpot}");
+
+        // And undressing entirely repaints too — the resolver is null by the
+        // time the repaint decision is made, which is the branch that hid.
+        var fresh = Assert.Single(window.FolderVariantRows);
+        fresh.RemoveAttachmentCommand.Execute(Assert.Single(fresh.Attachments));
+        Assert.Equal(255, GreenAt(latest!, 60, 55));
+    }
+
+    [AvaloniaFact]
     public void TheEditorDressesAndUndressesAVariant()
     {
         using var scratch = new Scratch();

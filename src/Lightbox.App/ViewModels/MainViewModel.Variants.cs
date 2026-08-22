@@ -176,9 +176,15 @@ public partial class MainViewModel
     /// its symbol reaches; it runs once per released gesture, never per
     /// pointer event, so invariant 6 is not in play.
     /// </remarks>
-    internal void AttachmentsMayHaveMoved()
+    /// <param name="evenIfBare">
+    /// Repaint even with no resolver active: the one caller that needs this
+    /// is a project change that just <em>undressed</em> the variant —
+    /// removing the last attachment nulls the resolver, and skipping the
+    /// repaint would leave the armor on screen after the record lost it.
+    /// </param>
+    internal void AttachmentsMayHaveMoved(bool evenIfBare = false)
     {
-        if (AttachmentOverlay.Resolver is null) return;
+        if (!evenIfBare && AttachmentOverlay.Resolver is null) return;
         // No cache work here: the entries are keyed by editor revision, and
         // the edit that made this call has already moved it — the publish
         // below re-renders what it needs.

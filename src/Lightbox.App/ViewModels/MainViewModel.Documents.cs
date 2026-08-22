@@ -1046,7 +1046,17 @@ public partial class MainViewModel
     private void OnProjectChanged()
     {
         OnPropertyChanged(nameof(HasProject));
+        // Read before RegisterResources re-derives it: a change that removed
+        // the variant's last attachment nulls the resolver in there, and the
+        // repaint below must still happen or the armor outlives its record.
+        var dressedBefore = Rendering.AttachmentOverlay.Resolver is not null;
         RegisterResources();
+        // An attachment edited in the project window is a pixel change on the
+        // canvas behind it (Q143) — found by an adversarial pass asserting
+        // the repaint this line is: the editor's status line promised "the
+        // canvas shows it" and nothing asked the canvas to. A no-op for every
+        // project that wears nothing, before and after.
+        AttachmentsMayHaveMoved(evenIfBare: dressedBefore);
         MarkDocumentEdited();
     }
 
