@@ -202,6 +202,8 @@ public partial class BrushTipsWindow : Window
         Crossed = CrossedBox.IsChecked == true,
         Count = (int)Math.Round(CountSlider.Value),
         Sharpness = SharpnessSlider.Value,
+        Fade = FadeSlider.Value,
+        FadeProfile = (TipFalloff)Math.Max(0, FalloffBox.SelectedIndex),
     };
 
     /// <summary>
@@ -222,6 +224,8 @@ public partial class BrushTipsWindow : Window
         CrossedBox.IsChecked = recipe.Crossed;
         CountSlider.Value = Math.Clamp(recipe.Count, CountSlider.Minimum, CountSlider.Maximum);
         SharpnessSlider.Value = Math.Clamp(recipe.Sharpness, SharpnessSlider.Minimum, SharpnessSlider.Maximum);
+        FadeSlider.Value = Math.Clamp(recipe.Fade, FadeSlider.Minimum, FadeSlider.Maximum);
+        FalloffBox.SelectedIndex = (int)recipe.FadeProfile;
         OnRecipeChanged();
     }
 
@@ -267,15 +271,17 @@ public partial class BrushTipsWindow : Window
         RoundnessRow.IsVisible = shape is TipShape.Chisel or TipShape.Superellipse;
         HatchRows.IsVisible = shape == TipShape.Hatch;
 
-        // Count and Sharpness are one control each and four meanings each, so
-        // they are relabelled rather than duplicated. A slider called
+        // Count and Sharpness are one control each and several meanings each,
+        // so they are relabelled rather than duplicated. A slider called
         // "Sharpness" that actually sets grain coverage is the same lie as a
         // slider that does nothing.
-        CountRow.IsVisible = shape is TipShape.Bristle or TipShape.Polygon or TipShape.Spatter;
+        CountRow.IsVisible = shape is TipShape.Bristle or TipShape.Polygon
+            or TipShape.Spatter or TipShape.Blot;
         CountLabel.Text = shape switch
         {
             TipShape.Bristle => "Bristles",
             TipShape.Polygon => "Sides",
+            TipShape.Blot => "Lobes",
             // Cells across, not grain size: more cells is *smaller* grains, and
             // a label that reads the other way round makes the slider feel
             // broken to the one person who bothers to check.
@@ -283,23 +289,37 @@ public partial class BrushTipsWindow : Window
         };
 
         SharpnessRow.IsVisible = shape is TipShape.Bristle or TipShape.Superellipse
-            or TipShape.Polygon or TipShape.Spatter or TipShape.Halo;
+            or TipShape.Polygon or TipShape.Spatter or TipShape.Halo
+            or TipShape.Drop or TipShape.Crescent or TipShape.Blot;
         SharpnessLabel.Text = shape switch
         {
             TipShape.Bristle => "Channel depth",
             TipShape.Superellipse => "Squareness",
             TipShape.Polygon => "Corner sharpness",
             TipShape.Spatter => "Coverage",
+            TipShape.Drop => "Point",
+            TipShape.Crescent => "Bite",
+            TipShape.Blot => "Irregularity",
             _ => "Rim strength",
         };
 
-        // Sides top out at 12 and bristles want more than a polygon does.
+        // The alpha gradient. Not for the circles — Hardness already is that
+        // dial there — and not for the halo, which is its own gradient.
+        FadeRow.IsVisible = shape is not (TipShape.HardCircle or TipShape.SoftCircle or TipShape.Halo);
+        // The falloff curve applies wherever a band exists to shape: the soft
+        // circle's hardness band, or any shape's fade band.
+        FalloffRow.IsVisible = shape is not (TipShape.HardCircle or TipShape.Halo);
+
+        // Sides top out at 12, a blot stops being organic past nine lobes,
+        // and bristles want more than a polygon does.
         CountSlider.Maximum = shape switch
         {
             TipShape.Polygon => 12,
+            TipShape.Blot => 9,
             TipShape.Spatter => 24,
             _ => 32,
         };
+        CountSlider.Minimum = shape == TipShape.Blot ? 2 : 3;
     }
 
     private void RefreshGeneratePreview()

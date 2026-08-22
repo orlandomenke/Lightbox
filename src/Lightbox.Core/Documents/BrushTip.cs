@@ -54,6 +54,47 @@ public enum TipShape
     /// A single stamp of a wet edge, for a brush that is not simulating one.
     /// </summary>
     Halo,
+
+    /// <summary>
+    /// A teardrop — a round belly tapering to a point. The footprint of a
+    /// pointed round; the shape that makes
+    /// <see cref="BrushSettings.AngleFollowsDirection"/> read as a loaded
+    /// brush being pulled.
+    /// </summary>
+    Drop,
+
+    /// <summary>
+    /// One disc bitten out of another. A curved nib for arced dry-brush
+    /// marks, or a smile of a stamp at full bite.
+    /// </summary>
+    Crescent,
+
+    /// <summary>
+    /// An organic, unevenly lobed disc — a hand-made footprint for washes
+    /// and stamped textures, so a mark's boundary does not read as geometry.
+    /// The wobble is hashed from the lobe count, never rolled, so the same
+    /// recipe is the same blot on every machine.
+    /// </summary>
+    Blot,
+}
+
+/// <summary>
+/// The curve an alpha gradient follows across a tip's fade band — how a soft
+/// edge gets from solid to nothing.
+/// </summary>
+public enum TipFalloff
+{
+    /// <summary>Smoothstep. The default, and what every soft tip did before this existed.</summary>
+    Smooth,
+
+    /// <summary>A straight ramp. Reads slightly firmer than smooth at the same width.</summary>
+    Linear,
+
+    /// <summary>A Gaussian shoulder with a long faint tail — the airbrush profile.</summary>
+    Airbrush,
+
+    /// <summary>A quarter-circle shoulder: full almost to the edge, then quickly gone.</summary>
+    Dome,
 }
 
 /// <summary>
@@ -107,9 +148,26 @@ public sealed class TipRecipe
     /// The shape's own exponent or sharpness, 0..1 mapped per shape: Lamé's
     /// <c>n</c> for a <see cref="TipShape.Superellipse"/>, corner radius for a
     /// <see cref="TipShape.Polygon"/>, grain coverage for
-    /// <see cref="TipShape.Spatter"/>, rim height for <see cref="TipShape.Halo"/>.
+    /// <see cref="TipShape.Spatter"/>, rim height for <see cref="TipShape.Halo"/>,
+    /// how pointed a <see cref="TipShape.Drop"/> is, bite depth on a
+    /// <see cref="TipShape.Crescent"/>, wobble depth on a <see cref="TipShape.Blot"/>.
     /// </summary>
     public double Sharpness { get; set; } = 0.5;
+
+    /// <summary>
+    /// 0..1: how far the alpha gradient reaches in from the boundary. 0 is the
+    /// crisp one-pixel edge every shape bakes by default; 1 fades from the
+    /// shape's own core — each shape normalises the band by its inradius, so a
+    /// thin chisel fades fully across its own thickness rather than being
+    /// swallowed by a band measured against the tip's radius. Read by every
+    /// shape except the two circles (whose
+    /// <see cref="Hardness"/> already is this dial) and the
+    /// <see cref="TipShape.Halo"/>, which is its own gradient.
+    /// </summary>
+    public double Fade { get; set; }
+
+    /// <summary>The curve the fade follows — and the soft circle's <see cref="Hardness"/> band follows it too.</summary>
+    public TipFalloff FadeProfile { get; set; } = TipFalloff.Smooth;
 
     public TipRecipe Clone() => (TipRecipe)MemberwiseClone();
 }

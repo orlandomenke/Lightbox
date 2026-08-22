@@ -211,6 +211,65 @@ public class BrushTipsWindowTests : BrushStateIsolated
         window.ShapeBox.SelectedIndex = (int)TipShape.Ring;
         Assert.True(window.InnerRow.IsVisible);
         Assert.False(window.RoundnessRow.IsVisible);
+
+        // The fade rows: everywhere except the circles (Hardness already is
+        // that dial there) and the halo (which is its own gradient) — and the
+        // falloff curve wherever any band exists, the soft circle included.
+        window.ShapeBox.SelectedIndex = (int)TipShape.HardCircle;
+        Assert.False(window.FadeRow.IsVisible);
+        Assert.False(window.FalloffRow.IsVisible);
+
+        window.ShapeBox.SelectedIndex = (int)TipShape.SoftCircle;
+        Assert.False(window.FadeRow.IsVisible);
+        Assert.True(window.FalloffRow.IsVisible);
+
+        window.ShapeBox.SelectedIndex = (int)TipShape.Halo;
+        Assert.False(window.FadeRow.IsVisible);
+
+        window.ShapeBox.SelectedIndex = (int)TipShape.Drop;
+        Assert.True(window.FadeRow.IsVisible);
+        Assert.True(window.FalloffRow.IsVisible);
+        Assert.True(window.SharpnessRow.IsVisible);
+        Assert.Equal("Point", window.SharpnessLabel.Text);
+        Assert.False(window.CountRow.IsVisible);
+
+        window.ShapeBox.SelectedIndex = (int)TipShape.Crescent;
+        Assert.Equal("Bite", window.SharpnessLabel.Text);
+
+        window.ShapeBox.SelectedIndex = (int)TipShape.Blot;
+        Assert.True(window.CountRow.IsVisible);
+        Assert.Equal("Lobes", window.CountLabel.Text);
+        Assert.Equal("Irregularity", window.SharpnessLabel.Text);
+    }
+
+    [AvaloniaFact]
+    public void AFadedRecipeSurvivesTheRoundTripThroughTheWindow()
+    {
+        // The generate page writes Fade and its curve into the recipe, and
+        // reopening the tip puts them back on the controls — the same promise
+        // every other recipe field already keeps.
+        var window = new BrushTipsWindow(new ViewModels.MainViewModel(null), _store);
+        window.CategoryList.SelectedIndex = 1;
+        window.ShapeBox.SelectedIndex = (int)TipShape.Blot;
+        window.FadeSlider.Value = 0.6;
+        window.FalloffBox.SelectedIndex = (int)TipFalloff.Airbrush;
+        window.GenerateName.Text = "Soft blot";
+
+        window.OnGenerateForTest();
+
+        var saved = Assert.Single(TipStore.Load(_store).Tips);
+        Assert.Equal(0.6, saved.Recipe!.Fade, 3);
+        Assert.Equal(TipFalloff.Airbrush, saved.Recipe.FadeProfile);
+
+        // And back onto the controls.
+        window.FadeSlider.Value = 0;
+        window.FalloffBox.SelectedIndex = 0;
+        window.CategoryList.SelectedIndex = 0;
+        window.TipList.SelectedItem = window.TipList.ItemsSource!.Cast<TipRow>().Single(r => r.Name == "Soft blot");
+        window.EditCopyForTest();
+
+        Assert.Equal(0.6, window.FadeSlider.Value, 3);
+        Assert.Equal((int)TipFalloff.Airbrush, window.FalloffBox.SelectedIndex);
     }
 
     [AvaloniaFact]

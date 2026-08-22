@@ -86,6 +86,9 @@
             <ComboBoxItem Content="Polygon" />
             <ComboBoxItem Content="Spatter" />
             <ComboBoxItem Content="Halo" />
+            <ComboBoxItem Content="Drop" />
+            <ComboBoxItem Content="Crescent" />
+            <ComboBoxItem Content="Blot" />
           </ComboBox>
 
           <TextBlock Text="Baked size" Opacity="0.7" Margin="0,6,0,0" />
@@ -136,6 +139,23 @@
             <TextBlock x:Name="SharpnessLabel" Text="Sharpness" Opacity="0.7" />
             <Slider x:Name="SharpnessSlider" Minimum="0" Maximum="1" Value="0.5"
                     ValueChanged="OnRecipeChanged" />
+          </StackPanel>
+
+          <StackPanel x:Name="FadeRow" Spacing="2" IsVisible="False">
+            <TextBlock Text="Soft edge" Opacity="0.7" />
+            <Slider x:Name="FadeSlider" Minimum="0" Maximum="1" Value="0"
+                    ValueChanged="OnRecipeChanged" />
+          </StackPanel>
+
+          <StackPanel x:Name="FalloffRow" Spacing="2" IsVisible="False">
+            <TextBlock Text="Falloff" Opacity="0.7" />
+            <ComboBox x:Name="FalloffBox" SelectedIndex="0" HorizontalAlignment="Stretch"
+                      SelectionChanged="OnRecipeChanged">
+              <ComboBoxItem Content="Smooth" />
+              <ComboBoxItem Content="Linear" />
+              <ComboBoxItem Content="Airbrush" />
+              <ComboBoxItem Content="Dome" />
+            </ComboBox>
           </StackPanel>
 
           <TextBlock Text="Angle" Opacity="0.7" Margin="0,6,0,0" />

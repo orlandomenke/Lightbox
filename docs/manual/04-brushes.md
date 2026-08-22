@@ -334,11 +334,27 @@ change it and bake your own.
 #### Shapes the generator can bake
 
 Hard circle, soft circle, ring, chisel, hatch, bristle, superellipse, polygon,
-spatter and halo. Three controls do different jobs depending on the shape and
-are relabelled to say which: *Count* is bristles, polygon sides or grains
-across; *Sharpness* is channel depth, squareness, corner sharpness, coverage or
-rim strength; *Flatness* squashes a chisel or a superellipse across its short
-axis.
+spatter, halo, drop, crescent and blot. The **drop** is a pointed round — a
+belly tapering to a point, and at zero point it is simply a circle; the
+**crescent** is one disc bitten out of another, from a shallow dent to a thin
+sliver; the **blot** is an unevenly lobed disc for washes and stamped textures,
+so a mark's edge stops reading as geometry. Three controls do different jobs
+depending on the shape and are relabelled to say which: *Count* is bristles,
+polygon sides, grains across or a blot's lobes; *Sharpness* is channel depth,
+squareness, corner sharpness, coverage, rim strength, how pointed the drop is,
+the crescent's bite or the blot's irregularity; *Flatness* squashes a chisel or
+a superellipse across its short axis.
+
+**Every shape can wear an alpha gradient.** *Soft edge* pulls the alpha in from
+the boundary — 0 is the crisp edge every shape starts with, 1 fades from the
+shape's own core, so a thin chisel fades fully across its own thickness.
+*Falloff* picks the curve it follows: **Smooth** is the familiar soft-brush
+shoulder, **Linear** reads slightly firmer, **Airbrush** is a long faint tail,
+**Dome** stays full almost to the edge and then drops quickly. The falloff also
+applies to the soft circle's hardness band, which is the same dial under
+another name. The two circles and the halo have no *Soft edge* slider —
+hardness already is that control on a circle, and the halo is its own
+gradient.
 
 Two things worth knowing:
 

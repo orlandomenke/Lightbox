@@ -545,6 +545,187 @@ public class TipGeneratorTests(ITestOutputHelper output)
         return peaks;
     }
 
+    // ---- the drop, the crescent and the blot ---------------------------------
+
+    [Fact]
+    public void ADropIsACircleAtZeroAndPointedAtOne()
+    {
+        // Sharpness 0 must be exactly the disc — the degenerate case where the
+        // belly and the point coincide — so the slider starts from a shape the
+        // artist already knows.
+        const int Size = 128;
+        var zero = Bake(TipShape.Drop, Size, r => r.Sharpness = 0);
+        var disc = Bake(TipShape.HardCircle, Size);
+        for (var i = 0; i < zero.Length; i++)
+        {
+            Assert.Equal(BitConverter.SingleToInt32Bits(disc[i]), BitConverter.SingleToInt32Bits(zero[i]));
+        }
+
+        // At 1 the top quarter is a taper and the bottom quarter is a belly.
+        var pointed = Bake(TipShape.Drop, Size, r => r.Sharpness = 1);
+        int Width(int y) => Enumerable.Range(0, Size).Count(x => At(pointed, Size, x, y) > 0.5f);
+        int neck = Width(Size / 4), belly = Width(Size * 3 / 4);
+        output.WriteLine($"width at the neck {neck}px, at the belly {belly}px");
+
+        Assert.True(neck > 0, "the point is missing entirely");
+        Assert.True(belly > neck * 2, $"no taper: neck {neck}px vs belly {belly}px");
+    }
+
+    [Fact]
+    public void ACrescentBitesDeeperAsSharpnessRises()
+    {
+        const int Size = 128;
+        var c = Size / 2;
+        var shallow = Bake(TipShape.Crescent, Size, r => r.Sharpness = 0.2);
+        var deep = Bake(TipShape.Crescent, Size, r => r.Sharpness = 1);
+
+        output.WriteLine($"area shallow {shallow.Sum():F0}, deep {deep.Sum():F0}");
+        Assert.True(deep.Sum() < shallow.Sum() * 0.6f, "the bite slider did nothing");
+
+        // At full bite the middle is gone and the horn side is still solid.
+        Assert.True(At(deep, Size, c, c) < 0.05f, "the deep crescent still has a middle");
+        Assert.True(At(deep, Size, (int)(Size * 0.14f), c) > 0.9f, "the crescent body is missing");
+    }
+
+    [Fact]
+    public void ABlotIsLobedRatherThanRound()
+    {
+        // The whole reason the shape exists: a boundary that does not read as
+        // geometry. Measured as the spread of the boundary radius by angle —
+        // a circle's is zero.
+        const int Size = 192;
+        var a = Bake(TipShape.Blot, Size, r => { r.Count = 5; r.Sharpness = 0.8; });
+        var c = Size * 0.5f;
+
+        var radii = new List<float>();
+        for (var step = 0; step < 16; step++)
+        {
+            var t = step * 2f * MathF.PI / 16;
+            float r = 0;
+            for (var d = 0f; d < c; d += 0.5f)
+            {
+                var x = (int)(c + d * MathF.Cos(t));
+                var y = (int)(c + d * MathF.Sin(t));
+                if (At(a, Size, x, y) > 0.5f) r = d;
+            }
+            radii.Add(r);
+        }
+
+        output.WriteLine($"boundary radius {radii.Min():F0}..{radii.Max():F0}px");
+        Assert.True(radii.Max() - radii.Min() > Size * 0.04f,
+            $"the blot is a circle: radii {radii.Min():F0}..{radii.Max():F0}");
+
+        // And the lobe count is a real control, not a label.
+        var other = Bake(TipShape.Blot, Size, r => { r.Count = 8; r.Sharpness = 0.8; });
+        Assert.False(a.SequenceEqual(other), "changing the lobe count changed nothing");
+    }
+
+    // ---- alpha gradients ------------------------------------------------------
+
+    [Fact]
+    public void FadePullsTheGradientInFromTheBoundary()
+    {
+        // Fade 0 is the crisp edge every recipe baked before the control
+        // existed; above it the alpha climbs from the boundary to a solid core.
+        const int Size = 128;
+        var c = Size / 2;
+        var crisp = Bake(TipShape.Chisel, Size, r => r.Roundness = 0.4);
+        var faded = Bake(TipShape.Chisel, Size, r => { r.Roundness = 0.4; r.Fade = 0.7; });
+
+        var minor = Size / 2 * 0.4f;
+        var midBand = (int)(minor * 0.7f);
+        float crispMid = At(crisp, Size, c, c + midBand), fadedMid = At(faded, Size, c, c + midBand);
+        output.WriteLine($"mid-band alpha: crisp {crispMid:F2}, faded {fadedMid:F2}");
+
+        Assert.Equal(1f, At(crisp, Size, c, c + midBand), 1e-3f);
+        Assert.InRange(fadedMid, 0.05f, 0.95f);
+        Assert.Equal(1f, At(faded, Size, c, c), 1e-3f); // the core is still solid
+
+        // The gradient descends monotonically across the band.
+        var run = new[] { 0, midBand, (int)(minor - 2) }.Select(y => At(faded, Size, c, c + y)).ToList();
+        Assert.True(run[0] > run[1] && run[1] > run[2],
+            $"the fade is not a gradient: {run[0]:F2}, {run[1]:F2}, {run[2]:F2}");
+    }
+
+    [Fact]
+    public void AFadedChiselFadesEvenlyAroundItsBoundaryNotIntoABone()
+    {
+        // The ray-scaled distance the crisp edge uses over-reports on the
+        // flanks, and a fade band built on it pinches the solid core into a
+        // bone — two dark lobes and a waist. The band uses the gradient
+        // distance instead, so at the same fraction of the local thickness the
+        // alpha is the same wherever you are along the shape.
+        const int Size = 256;
+        var a = Bake(TipShape.Chisel, Size, r => { r.Roundness = 0.4; r.Fade = 0.8; });
+        var c = Size / 2;
+        var radius = Size / 2f;
+        var minor = radius * 0.4f;
+
+        float AtFraction(int xOff)
+        {
+            // 60% of the way across the local half-thickness.
+            var local = minor * MathF.Sqrt(1f - xOff * xOff / (radius * radius));
+            return At(a, Size, c + xOff, c + (int)(local * 0.6f));
+        }
+
+        float middle = AtFraction(0), flank = AtFraction(Size / 4);
+        output.WriteLine($"at 60% of local thickness: middle {middle:F2}, flank {flank:F2}");
+        Assert.True(MathF.Abs(middle - flank) < 0.15f,
+            $"the fade pinches: {middle:F2} at the middle vs {flank:F2} on the flank");
+    }
+
+    [Fact]
+    public void TheFourFalloffCurvesBakeFourDifferentEdges()
+    {
+        // Probed a quarter of the way up the band, where the four curves are
+        // furthest apart: the airbrush's tail is faintest, the dome fullest.
+        const int Size = 128;
+        var c = Size / 2;
+        var minor = Size / 2 * 0.4f;
+        var band = 0.8f * minor;
+        var probe = c + (int)(minor - band * 0.25f);
+
+        float Probe(TipFalloff curve)
+        {
+            var a = Bake(TipShape.Chisel, Size, r =>
+            {
+                r.Roundness = 0.4;
+                r.Fade = 0.8;
+                r.FadeProfile = curve;
+            });
+            return At(a, Size, c, probe);
+        }
+
+        float smooth = Probe(TipFalloff.Smooth), linear = Probe(TipFalloff.Linear);
+        float airbrush = Probe(TipFalloff.Airbrush), dome = Probe(TipFalloff.Dome);
+        output.WriteLine($"airbrush {airbrush:F2} < smooth {smooth:F2} < linear {linear:F2} < dome {dome:F2}");
+
+        Assert.True(airbrush < smooth && smooth < linear && linear < dome,
+            $"the curves are not distinct: airbrush {airbrush:F2}, smooth {smooth:F2}, "
+            + $"linear {linear:F2}, dome {dome:F2}");
+    }
+
+    [Fact]
+    public void TheSoftCircleFollowsTheChosenFalloffToo()
+    {
+        // The falloff choice applies wherever a band exists — the soft
+        // circle's hardness band included, or the same control would mean
+        // different things on different shapes.
+        const int Size = 128;
+        var c = Size / 2;
+        var smooth = Bake(TipShape.SoftCircle, Size, r => r.Hardness = 0.2);
+        var dome = Bake(TipShape.SoftCircle, Size, r =>
+        {
+            r.Hardness = 0.2;
+            r.FadeProfile = TipFalloff.Dome;
+        });
+
+        var probe = c + Size / 4;
+        output.WriteLine($"mid-band: smooth {At(smooth, Size, probe, c):F2}, dome {At(dome, Size, probe, c):F2}");
+        Assert.True(MathF.Abs(At(smooth, Size, probe, c) - At(dome, Size, probe, c)) > 0.05f,
+            "the falloff choice does nothing on a soft circle");
+    }
+
     [Fact]
     public void AnAbsurdSizeIsClampedRatherThanAllocated()
     {

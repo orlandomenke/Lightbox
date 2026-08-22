@@ -70,6 +70,13 @@ public static class TipGenerator
         var cos = MathF.Cos(theta);
         var sin = MathF.Sin(theta);
 
+        // The alpha gradient every shape can wear. Fade is normalised per
+        // shape — each scales it by its own inradius, so 1 always means
+        // "fades from the shape's core" rather than "fades by half the tip",
+        // which on a thin chisel would be a band no interior point escapes.
+        var fade = (float)Math.Clamp(recipe.Fade, 0, 1);
+        var curve = recipe.FadeProfile;
+
         for (var y = 0; y < size; y++)
         {
             var py = y + 0.5f - centre;
@@ -85,15 +92,18 @@ public static class TipGenerator
                 a[y * size + x] = recipe.Shape switch
                 {
                     TipShape.HardCircle => Disc(MathF.Sqrt(rx * rx + ry * ry), radius),
-                    TipShape.SoftCircle => Soft(MathF.Sqrt(rx * rx + ry * ry), radius, (float)recipe.Hardness),
-                    TipShape.Ring => Ring(MathF.Sqrt(rx * rx + ry * ry), radius, (float)recipe.InnerRadius),
-                    TipShape.Chisel => Chisel(rx, ry, radius, (float)recipe.Roundness),
-                    TipShape.Hatch => Hatch(rx, ry, radius, recipe),
-                    TipShape.Bristle => Bristle(rx, ry, radius, recipe),
-                    TipShape.Superellipse => Superellipse(rx, ry, radius, recipe),
-                    TipShape.Polygon => Polygon(rx, ry, radius, recipe),
-                    TipShape.Spatter => Spatter(rx, ry, radius, recipe),
+                    TipShape.SoftCircle => Soft(MathF.Sqrt(rx * rx + ry * ry), radius, (float)recipe.Hardness, curve),
+                    TipShape.Ring => Ring(MathF.Sqrt(rx * rx + ry * ry), radius, (float)recipe.InnerRadius, fade, curve),
+                    TipShape.Chisel => Chisel(rx, ry, radius, (float)recipe.Roundness, fade, curve),
+                    TipShape.Hatch => Hatch(rx, ry, radius, recipe, fade, curve),
+                    TipShape.Bristle => Bristle(rx, ry, radius, recipe, curve),
+                    TipShape.Superellipse => Superellipse(rx, ry, radius, recipe, fade, curve),
+                    TipShape.Polygon => Polygon(rx, ry, radius, recipe, fade, curve),
+                    TipShape.Spatter => Spatter(rx, ry, radius, recipe, curve),
                     TipShape.Halo => Halo(MathF.Sqrt(rx * rx + ry * ry), radius, recipe),
+                    TipShape.Drop => Drop(rx, ry, radius, (float)recipe.Sharpness, fade, curve),
+                    TipShape.Crescent => Crescent(rx, ry, radius, (float)recipe.Sharpness, fade, curve),
+                    TipShape.Blot => Blot(rx, ry, radius, recipe, fade, curve),
                     _ => 0f,
                 };
             }
@@ -108,14 +118,16 @@ public static class TipGenerator
     private static float Disc(float d, float radius) => Step(radius - d);
 
     /// <summary>
-    /// Full inside the hard core, then a smooth shoulder out to the radius.
+    /// Full inside the hard core, then a shaped shoulder out to the radius.
     /// </summary>
     /// <remarks>
-    /// Smoothstep rather than a straight ramp, because the linear one leaves a
-    /// visible crease where the core meets the fade and an artist reads that
-    /// crease as a second, smaller brush inside the first.
+    /// Smoothstep by default rather than a straight ramp, because the linear
+    /// one leaves a visible crease where the core meets the fade and an artist
+    /// reads that crease as a second, smaller brush inside the first — which is
+    /// also why Linear is offered as a choice rather than imposed: on a tip an
+    /// artist picked it for, the crease is the look.
     /// </remarks>
-    private static float Soft(float d, float radius, float hardness)
+    private static float Soft(float d, float radius, float hardness, TipFalloff curve)
     {
         var core = radius * Math.Clamp(hardness, 0f, 1f);
         if (d <= core) return 1f;
@@ -124,28 +136,57 @@ public static class TipGenerator
         // answer there rather than a divide by zero.
         if (radius - core < 1e-4f) return Step(radius - d);
         var t = (d - core) / (radius - core);
-        return 1f - Smooth(t);
+        // The Smooth arm keeps the exact expression this always was, so a
+        // re-baked old recipe cannot move by even a rounding step. The other
+        // curves take the same min against Step that Edge does, because the
+        // airbrush's tail never quite reaches zero and would otherwise end in
+        // a faint hard rim.
+        return curve == TipFalloff.Smooth
+            ? 1f - Smooth(t)
+            : MathF.Min(Shaped(1f - t, curve), Step(radius - d));
     }
 
-    private static float Ring(float d, float radius, float inner)
+    private static float Ring(float d, float radius, float inner, float fade, TipFalloff curve)
     {
         var r0 = radius * Math.Clamp(inner, 0f, 0.99f);
-        return MathF.Min(Step(radius - d), Step(d - r0));
+        // Both edges fade, or a soft ring would read as a disc with a hard
+        // hole punched in it. The band is against the ring's own half-width:
+        // fade 1 leaves full alpha only along the ring's centreline.
+        return Edge(MathF.Min(radius - d, d - r0), fade * (radius - r0) * 0.5f, curve);
     }
 
     /// <summary>An ellipse squashed across its own axis.</summary>
-    private static float Chisel(float x, float y, float radius, float roundness)
+    private static float Chisel(float x, float y, float radius, float roundness, float fade, TipFalloff curve)
     {
         var minor = radius * Math.Clamp(roundness, 0.02f, 1f);
+        var band = fade * minor;
         // Distance to the ellipse boundary, scaled back into pixels so the
         // feather is one pixel wide on the page rather than one unit wide in
         // a normalised space where it would be far too soft on the short axis.
         var nx = x / radius;
         var ny = y / minor;
         var n = MathF.Sqrt(nx * nx + ny * ny);
-        if (n <= 0) return 1f;
+        // The exact centre is `minor` from the nearest boundary — returned
+        // through the same fade as its neighbours, or a faded chisel wears a
+        // single dark pixel like a knot.
+        if (n <= 0) return Edge(minor, band, curve);
+
+        // A crisp edge only needs the distance to be right *across* the
+        // boundary, and the ray-scaled form is. A fade band needs it to be
+        // even *around* the boundary too — the ray form over-reports on the
+        // flanks and the solid core pinches into a bone — so the band uses
+        // the first-order distance from the implicit's own gradient. The ray
+        // form stays for fade 0, so old recipes re-bake to the same pixels.
+        if (band > 1e-3f)
+        {
+            var g = MathF.Sqrt(
+                x * x / (radius * radius * radius * radius)
+                + y * y / (minor * minor * minor * minor));
+            return Edge(g <= 1e-9f ? minor : n * (1f - n) / g, band, curve);
+        }
+
         var scale = MathF.Sqrt(x * x + y * y) / n;
-        return Step((1f - n) * scale);
+        return Edge((1f - n) * scale, band, curve);
     }
 
     /// <summary>
@@ -159,16 +200,19 @@ public static class TipGenerator
     /// this: locked to the document rather than to the dab, so it does not swim
     /// as the stroke turns. That is a pattern fill, not a tip.
     /// </remarks>
-    private static float Hatch(float x, float y, float radius, TipRecipe recipe)
+    private static float Hatch(float x, float y, float radius, TipRecipe recipe, float fade, TipFalloff curve)
     {
+        var band = fade * radius;
         var spacing = MathF.Max(2f, (float)recipe.Spacing);
         var half = MathF.Max(0.5f, (float)recipe.LineWidth * 0.5f);
 
         var rule = Line(x, spacing, half);
         if (recipe.Crossed) rule = MathF.Max(rule, Line(y, spacing, half));
 
-        // Clipped to the round footprint, or the tip stamps its square.
-        return MathF.Min(rule, Step(radius - MathF.Sqrt(x * x + y * y)));
+        // Clipped to the round footprint, or the tip stamps its square. The
+        // fade softens the footprint only — the rules stay crisp, because a
+        // faded rule is just a thinner rule and the width slider owns that.
+        return MathF.Min(rule, Edge(radius - MathF.Sqrt(x * x + y * y), band, curve));
     }
 
     private static float Line(float v, float spacing, float half)
@@ -204,10 +248,12 @@ public static class TipGenerator
     /// fully combed by four fifths puts the streaks over most of the mark,
     /// which is what the eye actually reads as hair.
     /// </remarks>
-    private static float Bristle(float x, float y, float radius, TipRecipe recipe)
+    private static float Bristle(float x, float y, float radius, TipRecipe recipe, TipFalloff curve)
     {
         var d = MathF.Sqrt(x * x + y * y);
-        var body = Soft(d, radius, 0.5f);
+        // The body already fades — that is part of what reads as hair — so
+        // Fade widens that falloff rather than adding a second one on top.
+        var body = Soft(d, radius, 0.5f * (1f - (float)Math.Clamp(recipe.Fade, 0, 1)), curve);
         if (body <= 0) return 0f;
 
         var n = Math.Max(2, recipe.Count);
@@ -235,22 +281,37 @@ public static class TipGenerator
     /// axis than the short one — the same correction <see cref="Chisel"/>
     /// makes.
     /// </remarks>
-    private static float Superellipse(float x, float y, float radius, TipRecipe recipe)
+    private static float Superellipse(float x, float y, float radius, TipRecipe recipe, float fade, TipFalloff curve)
     {
         var minor = radius * Math.Clamp((float)recipe.Roundness, 0.05f, 1f);
+        var band = fade * minor;
         // 0.4 → a pointed almond, 0.5 → an ellipse, 1 → a squarish nib.
         var n = 0.5f + 7.5f * (float)Math.Clamp(recipe.Sharpness, 0, 1);
 
         var nx = MathF.Abs(x) / radius;
         var ny = MathF.Abs(y) / minor;
         var f = MathF.Pow(nx, n) + MathF.Pow(ny, n);
-        if (f <= 0) return 1f;
+        // The centre through the same fade as its neighbours — see Chisel.
+        if (f <= 0) return Edge(minor, band, curve);
 
         // f = 1 on the boundary; f^(1/n) is the radial fraction, which scales
         // back to pixels the same way the chisel's does.
         var frac = MathF.Pow(f, 1f / n);
+
+        // The fade band wants the gradient-normalised distance for the same
+        // reason the chisel's does. Only above n = 1 — below it the gradient's
+        // |x|^(n-1) terms blow up on the axes — and that is the last 7% of the
+        // sharpness slider, where the ray form's unevenness is mild anyway.
+        if (band > 1e-3f && n >= 1f)
+        {
+            var gx = MathF.Pow(MathF.Abs(x), n - 1f) / MathF.Pow(radius, n);
+            var gy = MathF.Pow(MathF.Abs(y), n - 1f) / MathF.Pow(minor, n);
+            var g = MathF.Pow(frac, 1f - n) * MathF.Sqrt(gx * gx + gy * gy);
+            return Edge(g <= 1e-9f ? minor : (1f - frac) / g, band, curve);
+        }
+
         var scale = MathF.Sqrt(x * x + y * y) / MathF.Max(frac, 1e-4f);
-        return Step((1f - frac) * MathF.Max(scale, 1f));
+        return Edge((1f - frac) * MathF.Max(scale, 1f), band, curve);
     }
 
     /// <summary>
@@ -268,22 +329,24 @@ public static class TipGenerator
     /// <c>flat → 1</c>) grows the tip as the slider moves, and an artist reads
     /// a size that changes with a shape control as a bug in the size slider.
     /// </remarks>
-    private static float Polygon(float x, float y, float radius, TipRecipe recipe)
+    private static float Polygon(float x, float y, float radius, TipRecipe recipe, float fade, TipFalloff curve)
     {
         var n = Math.Clamp(recipe.Count, 3, 12);
+        var inscribed = MathF.Cos(MathF.PI / n);
+        var band = fade * radius * inscribed;
+
         var d = MathF.Sqrt(x * x + y * y);
-        if (d <= 0) return 1f;
+        if (d <= 0) return Edge(radius * inscribed, band, curve);
 
         var seg = 2f * MathF.PI / n;
         var theta = MathF.Atan2(y, x);
         var phase = theta - MathF.Floor(theta / seg) * seg;
-        var inscribed = MathF.Cos(MathF.PI / n);
         var flat = inscribed / MathF.Cos(phase - MathF.PI / n);
 
         // Sharpness 1 is the polygon, 0 the circle its own flats sit on.
         var round = 1f - (float)Math.Clamp(recipe.Sharpness, 0, 1);
         var boundary = radius * (flat + (inscribed - flat) * round);
-        return Step(boundary - d);
+        return Edge(boundary - d, band, curve);
     }
 
     /// <summary>
@@ -307,9 +370,11 @@ public static class TipGenerator
     /// defect one level up.
     /// </para>
     /// </remarks>
-    private static float Spatter(float x, float y, float radius, TipRecipe recipe)
+    private static float Spatter(float x, float y, float radius, TipRecipe recipe, TipFalloff curve)
     {
-        var body = Soft(MathF.Sqrt(x * x + y * y), radius, 0.6f);
+        // Fade widens the built-in falloff, the same trade Bristle makes.
+        var body = Soft(MathF.Sqrt(x * x + y * y), radius,
+            0.6f * (1f - (float)Math.Clamp(recipe.Fade, 0, 1)), curve);
         if (body <= 0) return 0f;
 
         var cells = Math.Clamp(recipe.Count, 2, 64);
@@ -370,6 +435,100 @@ public static class TipGenerator
     }
 
     /// <summary>
+    /// A teardrop: a round belly joined to a smaller circle by its tangent
+    /// lines — the classic uneven-capsule signed distance, which is exact, so
+    /// the fade band is the same width along the belly and along the taper.
+    /// </summary>
+    /// <remarks>
+    /// Sharpness 0 is a plain disc — the degenerate case where both circles
+    /// coincide — and rising sharpness both narrows the point and stretches
+    /// the join, so one slider walks from a round to a fine liner's footprint.
+    /// The point is up in tip space; <see cref="TipRecipe.Angle"/> and
+    /// <see cref="BrushSettings.AngleFollowsDirection"/> aim it.
+    /// </remarks>
+    private static float Drop(float x, float y, float radius, float sharpness, float fade, TipFalloff curve)
+    {
+        var s = (float)Math.Clamp(sharpness, 0f, 1f);
+        var r1 = radius * (1f - 0.35f * s);
+        var r2 = r1 * (1f - 0.9f * s);
+        var band = fade * r1;
+        var h = 2f * radius - r1 - r2;
+        if (h <= 1e-3f) return Edge(radius - MathF.Sqrt(x * x + y * y), band, curve);
+
+        // Belly centre sits so the belly touches the bottom of the tip, the
+        // point circle so it touches the top; px/py are measured from the
+        // belly with the point along +py.
+        var px = MathF.Abs(x);
+        var py = (radius - r1) - y;
+
+        var b = (r1 - r2) / h;
+        var a = MathF.Sqrt(MathF.Max(1f - b * b, 1e-6f));
+        var k = a * py - b * px;
+
+        var sd = k < 0f ? r1 - MathF.Sqrt(px * px + py * py)
+            : k > a * h ? r2 - MathF.Sqrt(px * px + (py - h) * (py - h))
+            : r1 - (a * px + b * py);
+        return Edge(sd, band, curve);
+    }
+
+    /// <summary>One disc bitten out of another, the bite widening with sharpness.</summary>
+    /// <remarks>
+    /// The distance is the intersection of the outer disc with the bite's
+    /// complement — a max of two exact distances, which under-reports only in
+    /// the corner where the two arcs meet, where a one-pixel feather cannot
+    /// show the difference. Sharpness 0 leaves a barely dented disc rather
+    /// than a full one, so the slider does something everywhere on its travel.
+    /// </remarks>
+    private static float Crescent(float x, float y, float radius, float sharpness, float fade, TipFalloff curve)
+    {
+        var s = (float)Math.Clamp(sharpness, 0f, 1f);
+        var bite = radius * 0.95f;
+        var cx = radius * (1.9f - 1.55f * s);
+        // The deepest interior point sits on the -x axis where the two arcs'
+        // distances agree — the crescent's own half-thickness, which is what
+        // the fade normalises against so a thin sliver can still fade fully.
+        var band = fade * MathF.Max((radius + cx - bite) * 0.5f, radius * 0.02f);
+
+        var d = MathF.Sqrt(x * x + y * y);
+        var dx = x - cx;
+        var din = MathF.Sqrt(dx * dx + y * y);
+        return Edge(MathF.Min(radius - d, din - bite), band, curve);
+    }
+
+    /// <summary>
+    /// An organic blob: a disc whose boundary wobbles through a few adjacent
+    /// harmonics, phases hashed from the harmonic index.
+    /// </summary>
+    /// <remarks>
+    /// Adjacent harmonics rather than one, because a single sinusoid reads as
+    /// a gear — perfectly periodic lobes are geometry again, which is the one
+    /// thing this shape exists to avoid. Count sets the dominant lobe count,
+    /// sharpness the depth. The wobble only ever moves the boundary inward
+    /// from the tip's radius, so a size control never lies about the mark.
+    /// </remarks>
+    private static float Blot(float x, float y, float radius, TipRecipe recipe, float fade, TipFalloff curve)
+    {
+        var lobes = Math.Clamp(recipe.Count, 2, 12);
+        var depth = 0.45f * (float)Math.Clamp(recipe.Sharpness, 0, 1);
+        var band = fade * radius * (1f - depth);
+        var theta = MathF.Atan2(y, x);
+
+        float wobble = 0f, norm = 0f;
+        for (var h = 0; h < 3; h++)
+        {
+            var n = lobes + h;
+            var amp = 1f / (1f + h);
+            var phase = Hash01(n * 12.9898f, 78.233f, 11 + h) * 2f * MathF.PI;
+            wobble += amp * MathF.Sin(n * theta + phase);
+            norm += amp;
+        }
+        wobble /= norm;
+
+        var boundary = radius * (1f - depth * (0.5f + 0.5f * wobble));
+        return Edge(boundary - MathF.Sqrt(x * x + y * y), band, curve);
+    }
+
+    /// <summary>
     /// The same position hash the brush engine seeds its dab dynamics from,
     /// so a generated tip and a painted mark agree about what "random-looking
     /// but fixed" means.
@@ -395,6 +554,34 @@ public static class TipGenerator
         signedDistance <= -0.5f ? 0f
         : signedDistance >= 0.5f ? 1f
         : Smooth(signedDistance + 0.5f);
+
+    /// <summary>
+    /// <see cref="Step"/> with an alpha gradient behind it: full at
+    /// <paramref name="band"/> pixels inside the boundary, shaped by
+    /// <paramref name="curve"/> on the way there.
+    /// </summary>
+    /// <remarks>
+    /// A zero band is <see cref="Step"/> exactly — not nearly — so every
+    /// recipe baked before <see cref="TipRecipe.Fade"/> existed re-bakes to
+    /// the same pixels. The min against Step keeps the one-pixel feather at
+    /// the cut even under a curve that never quite reaches zero, such as the
+    /// airbrush's tail.
+    /// </remarks>
+    private static float Edge(float signedDistance, float band, TipFalloff curve)
+    {
+        if (band <= 1e-3f) return Step(signedDistance);
+        var t = Math.Clamp(signedDistance / band, 0f, 1f);
+        return MathF.Min(Shaped(t, curve), Step(signedDistance));
+    }
+
+    /// <summary>The falloff curves, over t = 0 at the boundary to 1 at the core.</summary>
+    private static float Shaped(float t, TipFalloff curve) => curve switch
+    {
+        TipFalloff.Linear => t,
+        TipFalloff.Airbrush => MathF.Exp(-4.5f * (1f - t) * (1f - t)),
+        TipFalloff.Dome => MathF.Sqrt(MathF.Max(0f, 1f - (1f - t) * (1f - t))),
+        _ => Smooth(t),
+    };
 
     private static float Smooth(float t) => t * t * (3f - 2f * t);
 
