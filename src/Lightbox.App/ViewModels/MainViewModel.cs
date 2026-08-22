@@ -86,6 +86,19 @@ public sealed partial class MainViewModel : ObservableObject
     /// </remarks>
     private readonly TileFlattenCache _tileFlats = new();
 
+    /// <summary>
+    /// What was under the wet run being painted, so committing its next stroke
+    /// can re-simulate the wash instead of stacking another dried mark on it.
+    /// </summary>
+    /// <remarks>
+    /// On the invalidation funnel with the caches above, and for the same
+    /// reason: it holds pixels that describe a particular render of a
+    /// particular frame, so throwing that render away has to throw this away
+    /// too. Empty — and free — for every brush that does not ask to stay wet,
+    /// which is all of them by default.
+    /// </remarks>
+    private readonly WetRunCommit _wetRun = new();
+
     /// <summary>Diagnostics for tests and the render report.</summary>
     internal TileFrameCache TileFrames => _tileFrames;
 

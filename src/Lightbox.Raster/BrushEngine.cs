@@ -537,10 +537,80 @@ public static class BrushEngine
 
     // ---- paint (the default pipeline) ----------------------------------------
 
+    /// <summary>
+    /// Stamp a run of strokes the record says were wet together, as one wash.
+    /// </summary>
+    /// <remarks>
+    /// A run of one is identical to <see cref="StampStroke"/>. Callers get runs
+    /// from <see cref="WetRun.Split"/> rather than deciding for themselves, so
+    /// every render path groups the same way and a reload cannot disagree with
+    /// the painting that produced it.
+    /// </remarks>
+    public static void StampWetRun(
+        SKCanvas target, IReadOnlyList<Stroke> run, SKImageInfo info, SKBitmap? targetPixels = null,
+        double outputScale = 1.0, SKPointI origin = default, SKBitmap? backdrop = null)
+    {
+        if (run.Count == 0) return;
+        if (run.Count == 1)
+        {
+            StampStroke(
+                target, run[0], info, targetPixels, outputScale: outputScale, origin: origin,
+                backdrop: backdrop);
+            return;
+        }
+
+        // No backdrop below: only smudge and blur sample one, and
+        // `WetRun.StaysWet` refuses both — a run is always the paint pipeline.
+        StampPaintRun(target, run, info, targetPixels, outputScale, origin);
+    }
+
+    /// <summary>The smallest rect covering both. Rects here are always sane, so no empty case.</summary>
+    private static SKRectI Union(SKRectI a, SKRectI b) => new(
+        Math.Min(a.Left, b.Left), Math.Min(a.Top, b.Top),
+        Math.Max(a.Right, b.Right), Math.Max(a.Bottom, b.Bottom));
+
     private static void StampPaint(
         SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels, double outputScale,
-        SKPointI origin)
+        SKPointI origin) =>
+        StampPaintRun(target, [stroke], info, targetPixels, outputScale, origin);
+
+    /// <summary>
+    /// The paint pipeline over a run of strokes that share one wet region.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A run of one is the ordinary case and behaves exactly as it always did.
+    /// A longer run is strokes the record says were still wet together
+    /// (<see cref="BrushSettings.WetStrokes"/>): their dabs go into one scratch
+    /// over the union of what they can reach, the medium runs <em>once</em> over
+    /// all of it, and the result composites once.
+    /// </para>
+    /// <para>
+    /// That is the whole of the fix for a wash reading as ribbons. Simulating
+    /// each stroke separately gives each one its own boundary and its own
+    /// drying, and overlapping those does not make a wash — measured at 11.1%
+    /// mottle against 2.2% for the same dabs sharing a region.
+    /// </para>
+    /// <para>
+    /// <b>Every stroke keeps its own dab walk.</b> They are stamped one after
+    /// another rather than concatenated into a single stroke, because a walk
+    /// carries spacing phase, travel and heading: joining them would let paint
+    /// load deplete across a pen-lift and would hand
+    /// <see cref="BrushSettings.AngleFollowsDirection"/> a jump between the end
+    /// of one mark and the start of the next.
+    /// </para>
+    /// <para>
+    /// The run's shared settings come from the first stroke, which is sound
+    /// because <see cref="WetRun.CanFuse"/> only groups strokes whose brush,
+    /// colour, blend mode, clip and alpha lock all match — the composite at the
+    /// bottom happens once and can only carry one of each.
+    /// </para>
+    /// </remarks>
+    private static void StampPaintRun(
+        SKCanvas target, IReadOnlyList<Stroke> run, SKImageInfo info, SKBitmap? targetPixels,
+        double outputScale, SKPointI origin)
     {
+        var stroke = run[0];
         // The scratch covers only what the stroke can reach — dabs, effects
         // and feathered clips all happen inside it. This is what keeps a
         // stroke commit independent of the canvas size (a full-canvas
@@ -549,7 +619,13 @@ public static class BrushEngine
         var margin = DabReach(brush);
         var region = stroke.ClipId is null ? null : ClipRegionRegistry.Resolve(stroke.ClipId);
         if (region is { Feather: > 0 }) margin += (float)(region.Feather * 2);
-        if (SegmentBounds(stroke, info, margin, origin) is not { } rect) return;
+        SKRectI? union = null;
+        foreach (var member in run)
+        {
+            if (SegmentBounds(member, info, margin, origin) is not { } bounds) continue;
+            union = union is { } so_far ? Union(so_far, bounds) : bounds;
+        }
+        if (union is not { } rect) return;
 
         // Bigger surface, same geometry. The scratch is allocated at output
         // resolution but the dabs are stamped in unchanged document
@@ -572,7 +648,7 @@ public static class BrushEngine
         // dev.Left/dev.Top; the passes that need document coordinates say so.
         InDocumentSpace(canvas, dev, outputScale, origin, () =>
         {
-            StampDabs(canvas, stroke);
+            foreach (var member in run) StampDabs(canvas, member);
 
             // The medium replaces the flat texture effects: wet edge and
             // granulation are the cheap stand-ins for what the simulation

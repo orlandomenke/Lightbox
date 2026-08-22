@@ -900,7 +900,7 @@ public partial class MainViewModel
                     using var baseline = Lightbox.Raster.PngCodec.Decode(painted.PngBase64);
                     canvas.DrawBitmap(baseline, 0, 0);
                 }
-                foreach (var s in rest) FrameRasterizer.Append(stay, s);
+                FrameRasterizer.AppendAll(stay, rest);
             }
             else
             {

@@ -383,6 +383,11 @@ public partial class MainViewModel
     /// </remarks>
     private void InvalidateFrameRender(string frameId)
     {
+        // Before the caches, because it is the one holding pixels that no
+        // longer exist anywhere: a baseline is a copy of what was under an open
+        // wet run, and throwing the frame's render away is what makes it a
+        // description of nothing.
+        _wetRun.ForgetFrame(frameId);
         _cache.Invalidate(frameId);
         _tileFrames.Invalidate(frameId);
         _thumbs.Invalidate(frameId);
@@ -404,6 +409,7 @@ public partial class MainViewModel
         _thumbs.Clear();
         _stackBake.Reset();
         _prewarm.Flush();
+        _wetRun.Reset();
     }
 
     /// <summary>
@@ -426,7 +432,25 @@ public partial class MainViewModel
         // free here: warms are only ever requested while playing.
         _prewarm.Flush();
         _tileFrames.Append(target, stroke, Scene.Width, Scene.Height);
-        FrameRasterizer.Append(_cache.Get(target, Scene.Width, Scene.Height), stroke);
+
+        // A stroke that was still wet with the ones before it is not one more
+        // mark on top: the wash has to be re-simulated with it in, and the
+        // separately dried pixels of the strokes it joins have to come back off
+        // first. `WetRunCommit` holds what was under the run for exactly that,
+        // and says so when it cannot — see its own remarks for why the
+        // fallback is a frame re-render rather than a guess.
+        var layer = _cache.Get(target, Scene.Width, Scene.Height);
+        switch (_wetRun.Commit(layer, target.Id, target.Strokes, stroke))
+        {
+            case WetRunCommit.Outcome.Append:
+                FrameRasterizer.Append(layer, stroke);
+                break;
+            case WetRunCommit.Outcome.Done:
+                break;
+            case WetRunCommit.Outcome.Rerender:
+                InvalidateFrameRender(target.Id);
+                break;
+        }
         // Almost always a no-op — the active layer's own segment is never
         // baked — but the same Frame can be exposed on another layer too, and
         // a bake covering that layer would otherwise keep the pre-stroke

@@ -1,3 +1,4 @@
+using Lightbox.Core.Documents;
 using Lightbox.Raster;
 using SkiaSharp;
 
@@ -125,6 +126,18 @@ sealed class LivePaintSession
     internal SKBitmap? TailBackup { get; set; }
 
     internal SKRectI? TailRegion { get; set; }
+
+    /// <summary>
+    /// The strokes already on the record that this one is sharing a wet wash
+    /// with, once it reaches them — their dabs are in the scratch too, and the
+    /// layer underneath has had them taken back off.
+    /// </summary>
+    /// <remarks>
+    /// Null for every brush that does not stay wet, which is all of them by
+    /// default. It is set at most once per stroke: a mark's reach only grows,
+    /// so once it is touching the paint before it, it stays touching.
+    /// </remarks>
+    internal IReadOnlyList<Stroke>? WetRun { get; set; }
 
     /// <summary>Dabs in the scratch whose position is settled, so never taken back.</summary>
     internal int StableDabs { get; set; }
@@ -285,6 +298,7 @@ sealed class LivePaintSession
         // read, so keeping it saves an allocation per stroke without any state surviving.
         SmudgeCarry = default;
         SmudgeRegion = null;
+        WetRun = null;
         ResetPostProcess();
     }
 

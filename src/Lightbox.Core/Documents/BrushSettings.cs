@@ -155,6 +155,46 @@ public sealed class BrushSettings
     /// <summary>0..1: paper-grain noise multiplied into the stroke (watercolor/gouache).</summary>
     public double Granulation { get; set; }
 
+    /// <summary>
+    /// How many following strokes this paint stays wet for. Null or 0 means it
+    /// is dry the moment the pen lifts, which is what every brush did before
+    /// this existed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Q10's answer, and the reason a wash can be even. A simulated medium
+    /// gives each stroke its own wet region, its own boundary and its own
+    /// drying, so an area filled with several strokes comes out as ribbons with
+    /// pale seams along every join — measured at 11.1% mottle against 2.2% for
+    /// the same dab coverage sharing one wet region. Strokes inside one window
+    /// are simulated together, so the wash has one boundary instead of six.
+    /// </para>
+    /// <para>
+    /// <b>Nullable so it stays out of the file.</b> A plain <c>int</c> at 0
+    /// would write a key on every stroke of every document for a feature nobody
+    /// switched on — the same defect the medium block itself had.
+    /// </para>
+    /// <para>
+    /// The window is bounded, which is what keeps invariant 1 intact: the wet
+    /// state at stroke <c>k</c> is a pure function of strokes <c>k−N…k−1</c>,
+    /// and those are already in the record. Nothing new is saved and a reload
+    /// reproduces the painting by replaying strokes in order, as it always did.
+    /// </para>
+    /// </remarks>
+    public int? WetStrokes { get; set; }
+
+    /// <summary>The window as a number, 0 when the paint dries on pen-lift.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int WetStrokeWindow => Math.Clamp(WetStrokes ?? 0, 0, MaxWetStrokes);
+
+    /// <summary>
+    /// Ceiling on the window. Strokes inside one are re-simulated together, so
+    /// the work per commit grows with it — and the argument for a low cap in
+    /// `DESIGN-fluid-media.md` is that a wash is laid in a few passes, not
+    /// twenty.
+    /// </summary>
+    public const int MaxWetStrokes = 6;
+
     /// <summary>Key into <see cref="Doc.BrushTips"/> for a custom tip shape; null = round.</summary>
     public string? TipId { get; set; }
 
@@ -420,6 +460,7 @@ public sealed class BrushSettings
         ColorRate = ColorRate,
         WetEdge = WetEdge,
         Granulation = Granulation,
+        WetStrokes = WetStrokes,
         TipId = TipId,
         TipRotationDeg = TipRotationDeg,
         RotationJitter = RotationJitter,

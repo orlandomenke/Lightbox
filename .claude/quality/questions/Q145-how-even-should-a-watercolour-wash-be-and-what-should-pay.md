@@ -1,6 +1,4 @@
-# Q145 · How even should a watercolour wash be, and what should pay for it
-
-**Answered 2026-08-22: neither preset lever — fix the stroke seams first.**
+# Q145 · How even should a watercolour wash be, and what should pay for it — **answered 2026-08-22: neither preset lever, fix the stroke seams first**
 
 Raised by: the owner, on seeing splotched strokes — *"With watercolor the paper
 in part will influence the look, where dimples will pool water and ink. But even
@@ -32,3 +30,11 @@ So: leave the presets alone, and spend the effort on the cross-stroke wet window
 (roadmap, Pillar 0 → Brush engine). B279 stays open behind it, because how even
 a *stroke* should be is a fair question again once a *wash* is even — and the
 answer may be that it needs nothing.
+
+**Carried out, 2026-08-22.** The wet window landed: `BrushSettings.WetStrokes`,
+`WetRun.Split` and one shared scratch per run, with `WetRunCommit` keeping the
+interactive path and the preview agreeing with it. Six bands through the app go
+from **16.2% to 1.8%** row-to-row unevenness. The presets were left alone as this
+answer said, except for the window itself (Watercolor 3, Ink wash 2) — and B279
+is now the whole of what is left, which is what makes it worth re-measuring
+rather than fixing.

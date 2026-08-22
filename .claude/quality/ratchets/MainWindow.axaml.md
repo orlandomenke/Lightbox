@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4774
+budget: 4781
 
 ## Why it is here despite being XAML
 
@@ -194,3 +194,8 @@ leaves a number nobody can account for. So every reason above stays, and
   Three lines — item, handler wiring and tooltip — and it is the way back to
   null for an anchor's direction: absent-until-used only holds if unused is
   reachable again. A menu item has nowhere else to live.
+- **4,774 → 4,781** (2026-08-22): +7 for the medium panel's *Stays wet for* row
+  — a slider, its spinner and the tooltip that has to explain the trade, because
+  the setting both removes the seams from a wash and stops colour building up
+  inside its window. A row on an options panel has nowhere else to live, and a
+  control an artist cannot find is the failure the registration rule names.

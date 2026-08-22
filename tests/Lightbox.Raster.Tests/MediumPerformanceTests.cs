@@ -96,6 +96,48 @@ public class MediumPerformanceTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void CommittingTheLastStrokeOfAWashCostsOnePassRatherThanOnePerStroke()
+    {
+        // G7's budget for the wet window. A run is re-simulated when its next
+        // stroke arrives, which reads like paying for the whole wash again —
+        // and does not, because the expensive part is the medium pass and a run
+        // shares one. What this refuses is the shape where it stops being true:
+        // a per-stroke lattice, or a region that grows with the record rather
+        // than with the run.
+        var info = new SKImageInfo(900, 500, SKColorType.Rgba8888, SKAlphaType.Premul);
+        var wash = new List<Stroke>();
+        for (var i = 0; i < 6; i++)
+        {
+            var band = Mark(Watercolour(), 40, 12, 14);
+            band.Brush.WetStrokes = 6;
+            band.Points = [.. band.Points.Select(p => new StrokePoint(p.X, 120 + i * 14, p.Pressure))];
+            wash.Add(band);
+        }
+
+        var lone = FastestMs(Mark(Watercolour(), 40, 12, 14), 900, 500);
+        Commit(wash, info);
+        var run = Bench.FastestMs(5, () => Commit(wash, info));
+        output.WriteLine($"one stroke {lone:F1} ms, a six-stroke run {run:F1} ms ({run / lone:F1}x)");
+
+        // The run covers about five times the paper of one band, so a few times
+        // the cost is the honest answer and a factor of six-plus would mean the
+        // pass is running per stroke after all.
+        Assert.True(
+            run < lone * 6 + 20,
+            $"a six-stroke run cost {run:F0} ms against {lone:F0} ms for one stroke — "
+            + "the medium is running per stroke rather than per run");
+
+        static void Commit(List<Stroke> strokes, SKImageInfo info)
+        {
+            using var layer = new SKBitmap(info);
+            using var canvas = new SKCanvas(layer);
+            canvas.Clear(SKColors.Transparent);
+            BrushEngine.StampWetRun(canvas, strokes, info, layer);
+            canvas.Flush();
+        }
+    }
+
+    [Fact]
     public void AMediumStrokeDoesNotAllocateALatticeEachTime()
     {
         // The lattice is about twenty floats a cell and every one of its

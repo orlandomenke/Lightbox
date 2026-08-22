@@ -2489,6 +2489,13 @@
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumRewetting}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
+                          <DockPanel ToolTip.Tip="How many following strokes this paint stays wet for. Above zero, a wash laid in several passes is simulated as one wash instead of a stack of separately dried ribbons — which is what leaves a pale seam along every join. It also means the colour stops building up inside the window, the way it does when you paint into standing water.">
+                            <TextBlock Text="Stays wet for" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumWetStrokes}" Minimum="0" Maximum="6"
+                                           Increment="1" FormatString="0" MinWidth="44" />
+                            <Slider Value="{Binding MediumWetStrokes}" Minimum="0" Maximum="6" TickFrequency="1"
+                                    IsSnapToTickEnabled="True" Margin="4,0" />
+                          </DockPanel>
 
                           <StackPanel Spacing="6" IsVisible="{Binding MediumHasBody}">
                             <TextBlock Text="Body" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />

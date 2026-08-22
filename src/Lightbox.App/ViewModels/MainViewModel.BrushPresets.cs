@@ -158,6 +158,7 @@ public partial class MainViewModel
         StopAudio();
         _strokeBuilder.Cancel();
         _live.ClearEffectState();
+        AbandonWetRunPreview();
         _editor.Changed -= OnDocumentChanged;
         _editor = editor;
         _editor.Changed += OnDocumentChanged;

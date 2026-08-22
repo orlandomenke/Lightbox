@@ -357,6 +357,42 @@ that moves paint rather than adding it belongs in that class, and routing it
 there is what makes preview and commit agree by construction. That is the
 integration to cost, not the simulation.
 
+### What landed, and where the estimate above was wrong
+
+`BrushSettings.WetStrokes` names the window; `WetRun.Split` groups a record into
+the runs that must be simulated together; `BrushEngine.StampWetRun` puts a run's
+dabs into one scratch and runs the medium once over the union. Through the app,
+six overlapping bands take row-to-row unevenness from **16.2% to 1.8%**.
+
+Two things the paragraph above got wrong, both worth keeping because both were
+reasoned rather than measured:
+
+- **Fusing costs about one medium pass, not one per stroke.** The expensive part
+  is the simulation and it already ran once per commit; re-stamping the run's
+  earlier dabs into the shared scratch is cheap by comparison. So committing the
+  sixth stroke of a wash is not six times the work of committing the first — it
+  is one pass over a larger region.
+- **The copy-based class was not needed.** What the preview needs is not a
+  private copy of the layer but the *open run taken off it*: `WetRunCommit` holds
+  a copy of what was under the run — bounded to what the run reaches, not the
+  canvas — and both the commit and the preview restore from it. The preview then
+  draws the whole wash through the existing overlay and the two agree by
+  construction: **0.00/255 mean, 1 peak**, against 4.2/255 and **123** at worst
+  with the run left on the layer.
+
+The window is a **partition rather than a sliding window**, which is the one
+design choice here that an artist can feel. Strokes 1–4 of a window-3 brush fuse;
+stroke 5 starts a fresh wet region rather than re-fusing with 2–4. A sliding
+window would mean re-rendering already-committed strokes on every stroke
+forever, and the partition costs one seam every N+1 strokes instead of one per
+stroke — which is the 6× the table above is worth.
+
+It also means **colour stops building up inside a window**: the shared scratch
+saturates at one coat, so six pale bands sit at 102/255 fused against 153 dried
+one at a time. That is what painting into standing water does rather than a
+defect, and it is why the presets take small windows (Watercolor 3, Ink wash 2):
+deepening a value by going over it again has to still work above the window.
+
 ## Where to start
 
 Not with the channels, despite (1) being what the other four depend on.
@@ -387,9 +423,13 @@ answered and a spike behind it.
 
 Whether this is a new medium alongside the existing ones or a replacement for
 them; the buffer format; whether (4) belongs in the brush engine or the
-compositor; and how to hold the moisture channel for the incremental append —
-buffer beside the cache, or replay the last `N`. There is also a cap on `N` to
-choose, and the argument for a low one is above rather than measured.
+compositor; and — **answered above** — how to hold the moisture channel
+for the incremental append: neither a buffer beside the cache nor a replay of
+the last `N`, but a copy of what was under the open run, restored and
+re-simulated. The cap on `N` is `BrushSettings.MaxWetStrokes` = 6, and the
+argument for a low one is now measured rather than asserted: the window is also
+where colour stops building up, so a large one buys evenness by taking away
+glazing.
 
 All of it wants a spike against the charter's budgets before anything is
 promised. **G7 in particular**: three of the five pieces add per-dab or

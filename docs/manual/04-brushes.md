@@ -310,6 +310,25 @@ enough that there is no room for a rim to gather at its border, so what edge
 pull mostly does there is thin the middle — which reads as a pale line down the
 stroke rather than as a wet edge. It is a control for washes.
 
+**Stays wet for** is how many following strokes this paint is still wet for,
+and it is the control that makes a wash a wash. Left at zero — the default, and
+what every brush did before it existed — each stroke dries the instant the pen
+lifts, so an area filled with six strokes is six separately dried marks with a
+pale seam along every join. Turn it up and the strokes inside its window are
+simulated as one wash: one wet region, one boundary, one drying. On a six-stroke
+sweep that takes the row-to-row unevenness from 16% to 2%.
+
+It costs something, and the cost is honest rather than hidden: **colour stops
+building up inside the window.** Going over paint that is still standing
+displaces it rather than deepening it, which is what real paint does and is why
+a watercolourist waits before glazing. So the window wants to cover a wash, not
+a session — the *Watercolor* preset uses three, and *Ink wash* two, because
+building a value by going over it again is the whole technique there. Above the
+window, the next stroke lands on dry paint and deepens it as before.
+
+The shape and gradient tools do not join a wash — they stamp a geometry rather
+than lay a pass of a brush, and what you see while dragging one is what commits.
+
 **Flow steps** decide how far the paint travels, not how much of it there is.
 Turn them down for a mark that stays where you put it, up for one that spreads
 and pools; the stroke carries the same pigment either way, and at zero it is

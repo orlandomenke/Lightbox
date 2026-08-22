@@ -1264,6 +1264,7 @@ public partial class MainViewModel
             _live.ClearScratch();
         }
         _live.ResetPostProcess();
+        _live.WetRun = null;
         _live.StampedCount = 0;
         _live.DabCount = 0;
         _live.StableDabs = 0;
@@ -1348,6 +1349,14 @@ public partial class MainViewModel
             AlphaLocked = ActiveLayer.AlphaLocked,
             Label = ActiveShape.ToString().ToLowerInvariant(),
         };
+        // A shape does not join a wet run, and it is recorded that way rather
+        // than filtered at render time — so a reload groups exactly as the
+        // drag did. The reason is the preview: a shape's is re-rendered whole
+        // on every pointer move through the ordinary stamping path, which
+        // simulates the shape alone, and a commit that fused it with the wash
+        // underneath would change the mark on release. Fusing a hand-laid pass
+        // of a brush is the case the window is for; a geometric stamp is not.
+        _liveShape.Brush.WetStrokes = null;
         if (PrepareClipForSelection() is { } clip) _liveShape.ClipId = clip.Id;
 
         _live.EnsureScratch(Scene.Width, Scene.Height);
@@ -1724,6 +1733,10 @@ public partial class MainViewModel
     {
         if (_live.ScratchCanvas is null) return;
 
+        // Before anything is stamped this event, in case this is the event on
+        // which the mark reaches the wet paint before it.
+        JoinWetRun(live, info);
+
         // One walk, then every question answered from its result.
         // The walk reuses the densified prefix rather than rebuilding it, which is B46: the whole
         // stroke has to be walked every pointer event (BR1) and re-densifying it was 0.84 ms of a
@@ -1796,6 +1809,107 @@ public partial class MainViewModel
             _live.ScratchCanvas.Flush();
         }
         _live.DabCount = dabs.Count;
+    }
+
+    /// <summary>
+    /// The region the live medium pass has to cover: this stroke, plus the
+    /// strokes it is sharing a wash with.
+    /// </summary>
+    private SKRectI? WholeWashBounds(Stroke live, SKImageInfo info)
+    {
+        var rect = BrushEngine.PostProcessBounds(live, info);
+        if (_live.WetRun is not { } run) return rect;
+        foreach (var member in run)
+        {
+            if (BrushEngine.PostProcessBounds(member, info) is not { } bounds) continue;
+            rect = rect is { } so_far ? LivePaintSession.UnionRect(so_far, bounds) : bounds;
+        }
+        return rect;
+    }
+
+    /// <summary>
+    /// If this stroke has reached paint that is still wet, take that paint off
+    /// the layer and put its dabs in the scratch, so the preview shows the one
+    /// wash the commit is going to make of them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Asked every event rather than once at pen-down, because whether the mark
+    /// touches the paint before it is not known until it does. Everything in
+    /// front of the geometric test is a field read or two, and the common
+    /// answer is "this brush does not stay wet" — so a stroke that will never
+    /// join pays nothing measurable. A wet one with a run open pays the brush
+    /// comparison per event until it joins, which is two serializations of a
+    /// record of fixed size, and stops the moment the answer is yes.
+    /// </para>
+    /// <para>
+    /// <b>The scratch is rebuilt rather than added to.</b> Dabs have to reach
+    /// it in record order — colour jitter makes overlapping dabs of different
+    /// colours, and those do not composite the same way in either order — so
+    /// the earlier strokes cannot simply be laid on top of the live dabs that
+    /// are already there. Clearing and letting the next stamp walk from zero
+    /// costs one stroke's worth of dabs, once.
+    /// </para>
+    /// </remarks>
+    private void JoinWetRun(Stroke live, SKImageInfo info)
+    {
+        if (_live.WetRun is not null) return;
+        if (!Lightbox.Raster.WetRun.StaysWet(live)) return;
+        if (PaintTarget() is not { } target) return;
+
+        var layer = _cache.Get(target, Scene.Width, Scene.Height);
+        if (_wetRun.LiftOpenRun(layer, target.Id, live) is not { } run) return;
+
+        _live.WetRun = run;
+        _live.ClearScratch();
+        _live.StableDabs = 0;
+        _live.DabCount = 0;
+        _live.Dabs = null;
+        _live.TailRegion = null;
+        _live.ResetPostProcess();
+
+        foreach (var member in run)
+        {
+            var walk = BrushEngine.WalkDabs(member);
+            BrushEngine.StampDabRange(_live.ScratchCanvas!, member, walk, 0, walk.Count);
+            NoteScratchUsed(member, info);
+        }
+
+        // The live mark's own region as well, and this one is not optional
+        // bookkeeping: `ClearScratch` wipes exactly what `ScratchUsed` names, so
+        // dropping what this stroke had already stamped would leave those dabs
+        // in the shared scratch for the next stroke to composite a second time
+        // — B39's shape of failure, arrived at from the other direction. It is
+        // re-stamped from zero on the walk below, so its region is live again.
+        NoteScratchUsed(live, info);
+        _live.ScratchCanvas!.Flush();
+
+        // The layer lost pixels and the overlay gained them, both outside the
+        // segment this event would otherwise have marked dirty.
+        _publish.InvalidateWholeCanvas();
+    }
+
+    /// <summary>Widen the scratch's used region to cover what this stroke reaches.</summary>
+    private void NoteScratchUsed(Stroke stroke, SKImageInfo info)
+    {
+        if (BrushEngine.PostProcessBounds(stroke, info) is not { } used) return;
+        _live.ScratchUsed = _live.ScratchUsed is { } prior
+            ? LivePaintSession.UnionRect(prior, used)
+            : used;
+    }
+
+    /// <summary>
+    /// Put back a wet run the preview lifted off the layer, for a stroke that
+    /// is not going to be committed after all.
+    /// </summary>
+    /// <remarks>
+    /// Rebuilding the frame from the record rather than re-stamping the run: an
+    /// abandoned stroke is rare, correctness here is not, and the record is the
+    /// only thing that certainly still knows what the wash looked like.
+    /// </remarks>
+    private void AbandonWetRunPreview()
+    {
+        if (_wetRun.LiftedFrameId is { } frameId) InvalidateFrameRender(frameId);
     }
 
     /// <summary>
@@ -1884,7 +1998,11 @@ public partial class MainViewModel
         };
         var count = whole.Points.Count;
 
-        if (BrushEngine.PostProcessBounds(whole, info) is not { } rect
+        // Over the whole wash when this stroke has joined one: the medium reads
+        // the dab field rather than the stroke path, so a rect covering only
+        // the live mark would simulate a slice of the wash and leave a boundary
+        // down the middle of it — the very seam the run exists to remove.
+        if (WholeWashBounds(whole, info) is not { } rect
             || CopyRegion(dabs, rect) is not { } dabsCrop)
         {
             _live.PostQueued = false;
@@ -2182,9 +2300,17 @@ public partial class MainViewModel
     {
         var stroke = _strokeBuilder.End();
         _live.ClearEffectState();
-        if (stroke is null) return;
+        if (stroke is null)
+        {
+            AbandonWetRunPreview();
+            return;
+        }
         var target = PaintTarget();
-        if (target is null) return;
+        if (target is null)
+        {
+            AbandonWetRunPreview();
+            return;
+        }
 
         _stabilizer.End();
         LazyBrushCleared?.Invoke();

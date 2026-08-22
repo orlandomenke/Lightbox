@@ -809,6 +809,25 @@ public partial class MainViewModel
         set => SetBrush(s => s.Medium.Rewetting = Math.Clamp(value, 0, 1));
     }
 
+    /// <summary>
+    /// How many following strokes this paint stays wet for, so a wash laid in
+    /// several passes is one wash rather than a stack of dried ribbons.
+    /// </summary>
+    /// <remarks>
+    /// Zero is the default and the historical behaviour. It is written as a
+    /// null on the record when it is zero, so a brush nobody asked to stay wet
+    /// leaves no trace in the file.
+    /// </remarks>
+    public int MediumWetStrokes
+    {
+        get => (int)GetBrush(s => s.WetStrokeWindow);
+        set => SetBrush(s =>
+        {
+            var window = Math.Clamp(value, 0, BrushSettings.MaxWetStrokes);
+            s.WetStrokes = window == 0 ? null : window;
+        });
+    }
+
     public double BrushRotationJitter
     {
         get => GetBrush(s => s.RotationJitter);
@@ -1064,6 +1083,7 @@ public partial class MainViewModel
         nameof(MediumPaper), nameof(MediumPaperScale), nameof(MediumPaperInfluence),
         nameof(MediumBody), nameof(MediumRelief), nameof(MediumPaintLoad),
         nameof(MediumPressureWater), nameof(MediumPressureMix), nameof(MediumRewetting),
+        nameof(MediumWetStrokes),
     ];
 
     private void NotifyBrushProperties()

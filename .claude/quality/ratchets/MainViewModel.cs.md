@@ -1,6 +1,6 @@
 # src/Lightbox.App/ViewModels/MainViewModel.cs
 
-budget: 639
+budget: 652
 
 ## Why it has moved
 
@@ -51,3 +51,9 @@ is the one to read before adding a field.
   navigator its rectangle moved. Irreducible here rather than extractable: this
   is the one place the viewport is set, and the whole of the navigator's own
   code is in `MainViewModel.Navigator.cs` beside it.
+- **639 → 652** (2026-08-22): +13 for `_wetRun`, the pre-run copy that lets a
+  wash be re-simulated when its next stroke arrives, and the paragraph saying why
+  it sits on the invalidation funnel beside the frame caches. Genuinely shared
+  state in the sense `SharedStateRatchetTests` cares about: the commit path
+  writes it, the painting path lifts from it, and the invalidation funnel has to
+  be able to forget it — three partials, so it belongs here.

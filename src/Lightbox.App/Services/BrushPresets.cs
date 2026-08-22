@@ -262,6 +262,15 @@ public static class BuiltInPresets
                     // A light touch is mostly water: paler, and it blooms.
                     PressureWater = 0.8, Rewetting = 0.6,
                 },
+                // A wash is laid in a few passes and has to come out as one
+                // wash. Simulated per stroke it comes out as ribbons with a
+                // pale seam along every join — 13.5% row-to-row unevenness
+                // against 4.9% for the same dabs sharing one wet region. Three
+                // rather than the ceiling of six because the window is also
+                // where colour stops building up (paint into standing water
+                // displaces, it does not deepen), so it should cover a wash and
+                // not a session.
+                WetStrokes = 3,
             },
         },
         new()
@@ -350,6 +359,11 @@ public static class BuiltInPresets
                     Paper = PaperKind.Smooth, PaperScale = 6, PaperInfluence = 0.25,
                     PressureWater = 0.5, Rewetting = 0.4,
                 },
+                // Lower than watercolour's on purpose. Building a value by
+                // going over it again is the whole technique of an ink wash,
+                // and no colour builds up inside the window — so it covers a
+                // pass and gets out of the way.
+                WetStrokes = 2,
             },
         },
         new()

@@ -35,10 +35,14 @@ public static class FrameRasterizer
         var bitmap = new SKBitmap(Scaled(info, outputScale));
         using var canvas = new SKCanvas(bitmap);
         canvas.Clear(SKColors.Transparent);
-        foreach (var stroke in strokes)
+        // Grouped rather than one at a time: strokes the record says were still
+        // wet together share a wet region, and simulating them separately is
+        // what makes a wash read as ribbons. A run of one is the ordinary case
+        // and is unchanged.
+        foreach (var run in WetRun.Split(strokes))
         {
-            BrushEngine.StampStroke(
-                canvas, stroke, info, bitmap, outputScale: outputScale, origin: origin);
+            BrushEngine.StampWetRun(
+                canvas, run, info, bitmap, outputScale: outputScale, origin: origin);
         }
         canvas.Flush();
         return bitmap;
@@ -62,6 +66,28 @@ public static class FrameRasterizer
         // The mutator announces itself: this bitmap is (deliberately) the one
         // the frame cache holds, and any cache keyed on its identity — a tile
         // split, a baked layer stack — must see the content move.
+        BitmapVersion.Bump(layer);
+    }
+
+    /// <summary>
+    /// Stamp a whole stroke list onto an existing layer bitmap in place, with
+    /// the wet runs grouped as <see cref="Rasterize"/> groups them.
+    /// </summary>
+    /// <remarks>
+    /// For the callers that have pixels to draw over — a baseline image, a
+    /// partial render — and so cannot start from a fresh bitmap. Appending one
+    /// stroke at a time would put a seam back into every wash, and the result
+    /// would then differ from the same strokes reloaded.
+    /// </remarks>
+    public static void AppendAll(SKBitmap layer, IReadOnlyList<Stroke> strokes)
+    {
+        var info = new SKImageInfo(layer.Width, layer.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var canvas = new SKCanvas(layer);
+        foreach (var run in WetRun.Split(strokes))
+        {
+            BrushEngine.StampWetRun(canvas, run, info, layer);
+        }
+        canvas.Flush();
         BitmapVersion.Bump(layer);
     }
 
@@ -133,9 +159,13 @@ public static class FrameRasterizer
                 new SKRect(0, 0, scaled.Width, scaled.Height),
                 new SKSamplingOptions(SKFilterMode.Linear));
         }
-        foreach (var stroke in frame.Strokes)
+        // Grouped for the same reason `Rasterize` groups — and it has to be the
+        // same grouping, because this is the path the frame cache renders
+        // through and that one is what a test compares against.
+        foreach (var run in WetRun.Split(frame.Strokes))
         {
-            BrushEngine.StampStroke(canvas, stroke, info, bitmap, outputScale: outputScale, backdrop: backdrop);
+            BrushEngine.StampWetRun(
+                canvas, run, info, bitmap, outputScale: outputScale, backdrop: backdrop);
         }
         // Placements last, over the strokes. A placement is a drawing put on
         // top of this cel, not one mixed into it — and the ordering has to be

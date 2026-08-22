@@ -70,6 +70,14 @@ public static class TiledRasterizer
         foreach (var stroke in strokes)
         {
             if (stroke.Brush.Kind is BrushKind.Smudge or BrushKind.Blur) return false;
+
+            // A wet run is simulated as one wash over the union of what its
+            // strokes reach, so it is not a per-stroke — let alone a per-tile —
+            // piece of work. Tiling it would give each tile its own lattice and
+            // its own boundary, which is the very seam the run exists to
+            // remove, and the tiled render would stop being bit-identical to
+            // the untiled one.
+            if (WetRun.StaysWet(stroke)) return false;
         }
         return true;
     }

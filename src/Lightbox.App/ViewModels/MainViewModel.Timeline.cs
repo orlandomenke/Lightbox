@@ -279,6 +279,7 @@ public partial class MainViewModel
         if (IsPlaying) return;
         _strokeBuilder.Cancel();
         _live.ClearEffectState();
+        AbandonWetRunPreview();
         IsPlaying = true;
         _clock.Start(Scene.Fps, PlaybackSpeedPercent);
         TickAudio();

@@ -120,6 +120,46 @@ public class MediumSettingsTests
     }
 
     [Fact]
+    public void AWetWindow_SurvivesARoundTrip()
+    {
+        var doc = DocumentFactory.CreateDoc(64, 64, 12);
+        var frame = (Frame)doc.Scene.Layers[0].Cels[0].Frame!;
+        frame.Strokes.Add(new Stroke
+        {
+            Tool = ToolKind.Brush,
+            Color = "#204080",
+            Points = [new StrokePoint(4, 4, 1)],
+            Brush = new BrushSettings
+            {
+                Size = 12,
+                Medium = new MediumSettings { Kind = MediumKind.Watercolour },
+                WetStrokes = 3,
+            },
+        });
+
+        var reloaded = DocJson.Deserialize(DocJson.Serialize(doc));
+        var back = ((Frame)reloaded.Scene.Layers[0].Cels[0].Frame!).Strokes[0].Brush;
+        Assert.Equal(3, back.WetStrokes);
+        Assert.Equal(3, back.WetStrokeWindow);
+    }
+
+    [Fact]
+    public void ABrushThatDoesNotStayWet_WritesNoWetWindowKey()
+    {
+        // Optional means absent, not inert at its default. A plain int at zero
+        // would put a key on every stroke of every document for a feature
+        // nobody switched on — which is the exact defect the medium block
+        // itself had, twenty-one keys' worth.
+        var json = DocJson.Serialize(DocWithMedium(new MediumSettings { Kind = MediumKind.Watercolour }));
+        Assert.DoesNotContain("\"wetStrokes\"", json);
+
+        // And the convenience getter beside it is not a second name for the
+        // same key: `BlendOrNormal` shipped one of those and undid the whole
+        // point of making the field nullable.
+        Assert.DoesNotContain("\"wetStrokeWindow\"", json);
+    }
+
+    [Fact]
     public void Clone_DeepCopiesTheMedium_SoTweakingAPresetCannotEditPastStrokes()
     {
         var original = new BrushSettings { Medium = { Kind = MediumKind.Watercolour, Wetness = 0.9 } };
