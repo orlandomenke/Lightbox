@@ -257,26 +257,36 @@
                                       <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconClose}" />
                                     </Button>
                                   </Grid>
+                                  <!-- Two short rows rather than one long one: this
+                                       list nests inside the ~250px details panel,
+                                       and a single row of four numerics scrolls
+                                       sideways there. Classes="value" takes the
+                                       scale's numeric width; the coarse adjustment
+                                       is the anchor itself, on the canvas. -->
                                   <StackPanel Orientation="Horizontal" Spacing="4">
                                     <TextBlock Classes="dim" Text="offset" VerticalAlignment="Center" />
-                                    <NumericUpDown Width="80" Increment="1" FormatString="0.#"
+                                    <NumericUpDown Classes="value" Increment="1" FormatString="0.#"
                                                    Value="{Binding OffsetX, Mode=TwoWay}" />
-                                    <NumericUpDown Width="80" Increment="1" FormatString="0.#"
+                                    <NumericUpDown Classes="value" Increment="1" FormatString="0.#"
                                                    Value="{Binding OffsetY, Mode=TwoWay}" />
                                     <TextBlock Classes="dim" Text="scale" VerticalAlignment="Center" />
-                                    <NumericUpDown Width="80" Increment="0.05" FormatString="0.##"
+                                    <NumericUpDown Classes="value" Increment="0.05" FormatString="0.##"
                                                    Value="{Binding Scale, Mode=TwoWay}" />
                                     <TextBlock Classes="dim" Text="angle" VerticalAlignment="Center" />
-                                    <NumericUpDown Width="80" Increment="5" FormatString="0.#"
+                                    <NumericUpDown Classes="value" Increment="5" FormatString="0.#"
                                                    Value="{Binding AngleDeg, Mode=TwoWay}" />
-                                    <CheckBox Content="Turn with the anchor" FontSize="11"
-                                              IsChecked="{Binding FollowAngle, Mode=TwoWay}"
-                                              ToolTip.Tip="Follow the anchor's aim (drag its stalk in the rig overlay). Off for things that stay upright however the limb turns." />
                                   </StackPanel>
+                                  <CheckBox Content="Turn with the anchor" FontSize="11"
+                                            IsChecked="{Binding FollowAngle, Mode=TwoWay}"
+                                            ToolTip.Tip="Follow the anchor's aim (drag its stalk in the rig overlay). Off for things that stay upright however the limb turns." />
                                 </StackPanel>
                               </DataTemplate>
                             </ItemsControl.ItemTemplate>
                           </ItemsControl>
+                          <!-- Fixed widths rather than the scale's: the pair
+                               has to share the details panel's ~240px with the
+                               button, and a symbol name that outgrows its box
+                               is readable in the summary line above. -->
                           <StackPanel Orientation="Horizontal" Spacing="4" Margin="10,0,0,4">
                             <ComboBox Width="130" ItemsSource="{Binding Symbols}"
                                       SelectedItem="{Binding NewSymbol}"
