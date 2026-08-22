@@ -167,6 +167,26 @@ public class VariantAttachmentViewTests(ITestOutputHelper output) : BrushStateIs
     }
 
     [AvaloniaFact]
+    public void AFrameThatWearsNothingResolvesOnceNotPerPublish()
+    {
+        // leak-hunter's finding, kept as a count (B151's precedent): the
+        // null result used to be skipped rather than cached, so a drag
+        // across a frame with no placed anchor re-ran the resolution on
+        // every pointer event.
+        using var scratch = new Scratch();
+        var (vm, _, knight, winter) = DressedKnight(scratch);
+        vm.ProjectDocker.SwitchVariantCommand.Execute(new VariantChoice(knight, winter.Id));
+
+        var calls = 0;
+        var inner = AttachmentOverlay.Resolver!;
+        AttachmentOverlay.Resolver = (s, i) => { calls++; return inner(s, i); };
+        // An index past the placed drawing: resolves to nothing, every time.
+        for (var publish = 0; publish < 5; publish++) vm.WornOverlayFor(vm.Doc.Scene, 3);
+
+        Assert.Equal(1, calls);
+    }
+
+    [AvaloniaFact]
     public void TheEditorDressesAndUndressesAVariant()
     {
         using var scratch = new Scratch();

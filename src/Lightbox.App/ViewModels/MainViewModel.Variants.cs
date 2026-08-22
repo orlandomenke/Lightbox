@@ -103,7 +103,7 @@ public partial class MainViewModel
     /// the render thread is B130's crash with another owner, the same
     /// reason the stack bake retires its bitmaps the same way.
     /// </remarks>
-    private readonly Dictionary<int, (long Revision, SKBitmap Bitmap)> _wornOverlays = [];
+    private readonly Dictionary<int, (long Revision, SKBitmap? Bitmap)> _wornOverlays = [];
 
     /// <summary>
     /// Point <see cref="AttachmentOverlay.Resolver"/> at what the active
@@ -146,16 +146,22 @@ public partial class MainViewModel
         {
             if (cached.Revision == revision) return cached.Bitmap;
             _wornOverlays.Remove(index);
-            _cache.DisposeExternal(cached.Bitmap);
+            if (cached.Bitmap is { } stale) _cache.DisposeExternal(stale);
         }
+        // Null is cached too, not just skipped: a frame whose anchors are not
+        // placed resolves to nothing, and an uncached nothing would re-run
+        // the resolution on every pointer event of a drag across that frame.
         var rendered = AttachmentOverlay.Render(scene, index);
-        if (rendered is not null) _wornOverlays[index] = (revision, rendered);
+        _wornOverlays[index] = (revision, rendered);
         return rendered;
     }
 
     private void InvalidateWornOverlays()
     {
-        foreach (var (_, bitmap) in _wornOverlays.Values) _cache.DisposeExternal(bitmap);
+        foreach (var (_, bitmap) in _wornOverlays.Values)
+        {
+            if (bitmap is not null) _cache.DisposeExternal(bitmap);
+        }
         _wornOverlays.Clear();
     }
 
