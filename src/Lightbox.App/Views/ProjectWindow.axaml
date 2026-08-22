@@ -4,7 +4,7 @@
         xmlns:proj="using:Lightbox.Core.Projects"
         x:Class="Lightbox.App.Views.ProjectWindow"
         x:DataType="vm:ProjectWindowViewModel"
-        Width="1080" Height="700" MinWidth="720" MinHeight="420"
+        Width="1080" Height="700" MinWidth="940" MinHeight="420"
         WindowStartupLocation="CenterOwner"
         Title="{Binding Title}"
         Icon="/Assets/lightbox.ico">
@@ -326,7 +326,7 @@
           <Border DockPanel.Dock="Top" Classes="bar">
             <!--
               A WrapPanel, like the bulk bar below: five buttons and a sentence
-              do not fit the 720-pixel minimum width, and a StackPanel would
+              do not fit the window's minimum width, and a StackPanel would
               clip the sentence rather than move it to a second line.
             -->
             <WrapPanel>
@@ -366,13 +366,17 @@
             </WrapPanel>
           </Border>
 
-          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,190,110,120,90,200" Margin="8,6,8,2">
+          <!-- 160/110/120/90/100/180 rather than wider: the fixed columns plus
+               a usable NAME are what the window's MinWidth is sized for, and
+               every pixel here is taken from the name an artist scans by. -->
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,160,110,120,90,100,180" Margin="8,6,8,2">
             <TextBlock Grid.Column="0" Classes="head" Text="NAME" />
             <TextBlock Grid.Column="1" Classes="head" Text="TAGS" />
             <TextBlock Grid.Column="2" Classes="head" Text="STATUS" />
             <TextBlock Grid.Column="3" Classes="head" Text="WHO" />
             <TextBlock Grid.Column="4" Classes="head" Text="LENGTH" />
-            <TextBlock Grid.Column="5" Classes="head" Text="CARRIES" />
+            <TextBlock Grid.Column="5" Classes="head" Text="VERSIONS" />
+            <TextBlock Grid.Column="6" Classes="head" Text="CARRIES" />
           </Grid>
 
           <ListBox x:Name="StructureRows" ItemsSource="{Binding Rows}"
@@ -392,6 +396,8 @@
                           ToolTip.Tip="Open the selected documents as tabs. Closes this window." />
                 <MenuItem Header="🗀  Show in file manager" Click="OnRevealRow"
                           ToolTip.Tip="Open the folder on disk, or show the document's file inside its folder" />
+                <MenuItem Header="🕘  Version history…" Click="OnRowHistory"
+                          ToolTip.Tip="The versions kept of the selected document or sheet — revert puts one back" />
                 <Separator />
                 <MenuItem Header="🗀  New folder…" Click="OnNewFolder"
                           ToolTip.Tip="A folder you name, inside the selected one" />
@@ -426,7 +432,7 @@
                         DragDrop.AllowDrop="True"
                         DragDrop.DragOver="OnTreeRowDragOver"
                         DragDrop.Drop="OnTreeRowDrop">
-                <Grid ColumnDefinitions="*,190,110,120,90,200">
+                <Grid ColumnDefinitions="*,160,110,120,90,100,180">
 
                   <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="5">
                     <Border Width="{Binding Indent}" />
@@ -473,7 +479,24 @@
                   <TextBlock Grid.Column="3" Classes="dim" Text="{Binding AssigneeName}"
                              TextTrimming="CharacterEllipsis" />
                   <TextBlock Grid.Column="4" Classes="dim" Text="{Binding Length}" />
-                  <TextBlock Grid.Column="5" Classes="dim" Text="{Binding Carries}"
+                  <!-- The history at a glance: how many, the newest milestone
+                       in the board's own colour, and ✎ when the file moved on
+                       past it. One tooltip carries the sentence; the history
+                       itself is the row's right-click. -->
+                  <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="4"
+                              IsVisible="{Binding HasVersions}"
+                              ToolTip.Tip="{Binding VersionHint}">
+                    <TextBlock Classes="dim" Text="{Binding VersionCountLabel}"
+                               VerticalAlignment="Center" />
+                    <Border Classes="chip" VerticalAlignment="Center"
+                            IsVisible="{Binding HasMilestone}"
+                            Background="{Binding MilestoneColor}">
+                      <TextBlock Text="{Binding MilestoneLabel}" FontSize="10" />
+                    </Border>
+                    <TextBlock Classes="dim" Text="✎" VerticalAlignment="Center"
+                               IsVisible="{Binding ChangedSinceMilestone}" />
+                  </StackPanel>
+                  <TextBlock Grid.Column="6" Classes="dim" Text="{Binding Carries}"
                              TextTrimming="CharacterEllipsis" />
                 </Grid>
                 </Border>
@@ -633,6 +656,8 @@
                           ToolTip.Tip="Open the selected document as a tab. Closes this window." />
                 <MenuItem Header="🗀  Show in file manager" Click="OnRevealScope"
                           ToolTip.Tip="Open the folder on disk — the project row shows the project's own folder" />
+                <MenuItem Header="🕘  Version history…" Click="OnScopeHistory"
+                          ToolTip.Tip="The versions kept of the selected document — revert puts one back" />
                 <Separator />
                 <MenuItem Header="▤  New reference sheet…" Click="OnNewSheet"
                           ToolTip.Tip="A blank sheet, filed on the selected folder — every drawing under it can consult it" />

@@ -501,11 +501,21 @@ Five tabs, and a footer on all of them saying what the project holds and what is
 wrong with it: *47 documents · 12 Ready · 3 Reopened · 5 unassigned*.
 
 **Structure** is the tree with the columns the docker has no width for — glyph,
-name, tags, status, who is on it, how long it runs, and what each folder
-carries. Select several rows and a bar appears: set the status of nine drawings
-at once, tag a folder and everything under it, assign a sequence to somebody.
-The docker has no multi-select on purpose; a bulk edit is exactly the thing you
-do between drawings rather than during one.
+name, tags, status, who is on it, how long it runs, its versions, and what each
+folder carries. Select several rows and a bar appears: set the status of nine
+drawings at once, tag a folder and everything under it, assign a sequence to
+somebody. The docker has no multi-select on purpose; a bulk edit is exactly the
+thing you do between drawings rather than during one.
+
+The **VERSIONS** column is the history at a glance: `🕘 3` says three versions
+are kept, a coloured badge names the newest milestone in the status board's own
+colour, and **✎** means the drawing has changed since those bytes were kept —
+the row is *Ready*, the file has moved on. Hover for the sentence, right-click
+▸ **🕘 Version history…** for the history itself, with revert (also on the
+Assets tab's rows). Promoting here is what makes milestone versions, so this is
+also where you see them appear. The footer counts the drift for the whole
+project — *2 changed since approval* — because a Ready that quietly stopped
+being the file is the fact somebody schedules against.
 
 **And you can leave by way of a row.** Two gestures, on the bar above the tree
 and on any row's right-click, and they are deliberately different things rather
@@ -690,9 +700,11 @@ Three ways a version comes to exist:
 
 **File ▸ Version history…** (`Ctrl+Alt+H`) lists them newest first — also
 reachable from a right-click on any document or sheet row in the project
-docker. Select a version and **Revert to selected** to put its file back; an
-open tab reloads to show it. Greyed lines in the list record an action (a
-revert) rather than a state, and cannot be reverted to.
+docker, and from the project manager's Structure and Assets rows, where the
+**VERSIONS** column shows each drawing's history at a glance. Select a version
+and **Revert to selected** to put its file back; an open tab reloads to show
+it. Greyed lines in the list record an action (a revert) rather than a state,
+and cannot be reverted to.
 
 Versions belong to a project. A loose document has no `versions/` folder to
 keep them in, so the menu items stay greyed until the document is saved into a
