@@ -1418,6 +1418,11 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
     /// </summary>
     public bool DeleteFromDisk(BoardRow row)
     {
+        // Delete permanently forgets the version history too (Q150): the
+        // confirmation says "from the project and from disk", and kept bytes
+        // of a resource whose id is gone can never be shown or reverted —
+        // they would only accumulate. Remove from project keeps the history,
+        // because the file survives and coming back is meant to be cheap.
         if (row is { IsFolder: true, Folder: { } folder })
         {
             // The directory before the manifest: PathOf walks the parent
@@ -1427,7 +1432,11 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
             var (_, documents) = ProjectFolders.Contents(Manifest, folder);
             var deleted = ProjectIo.DeleteInProject(_project, path);
             ProjectFolders.Remove(Manifest, folder);
-            foreach (var inside in documents) ProjectIo.DetachDocument(_project, inside);
+            foreach (var inside in documents)
+            {
+                ProjectIo.DetachDocument(_project, inside);
+                ProjectVersions.ClearHistory(_project, inside.Id);
+            }
             Status = deleted
                 ? $"Deleted “{folder.Name}” and everything in it."
                 : $"Removed “{folder.Name}” from the project, but its folder could not be deleted.";
@@ -1436,6 +1445,7 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         {
             var path = document.Path;
             ProjectIo.DetachDocument(_project, document);
+            ProjectVersions.ClearHistory(_project, document.Id);
             Status = ProjectIo.DeleteInProject(_project, path)
                 ? $"Deleted “{document.Name}”."
                 : $"Removed “{document.Name}” from the project, but its file could not be deleted.";
@@ -1444,6 +1454,7 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         {
             var path = sheet.Path;
             ProjectSheets.Remove(_project, sheet);
+            ProjectVersions.ClearHistory(_project, sheet.Id);
             Status = ProjectIo.DeleteInProject(_project, path)
                 ? $"Deleted “{sheet.Name}”."
                 : $"Removed “{sheet.Name}” from the project, but its file could not be deleted.";

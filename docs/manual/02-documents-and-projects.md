@@ -710,6 +710,12 @@ Versions belong to a project. A loose document has no `versions/` folder to
 keep them in, so the menu items stay greyed until the document is saved into a
 project. A project that never uses versions never grows the folder.
 
+Versions live and die with the file they are of. **Delete permanently…** —
+which already asks first — deletes a drawing's kept versions along with it:
+bytes of a drawing whose entry is gone could never be shown or reverted again.
+**Remove from project** keeps them, the same way it keeps the file — a removed
+drawing added back finds its history where it left it.
+
 Branching a version into its own line of work is *Planned*; today the history
 is a single line per document.
 
