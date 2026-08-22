@@ -139,6 +139,25 @@ public sealed class VersionHistoryTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public void RemovingADocumentDropsItFromTheDriftCount()
+    {
+        var (project, vm, walk) = Open();
+        vm.SetSelection(vm.Rows.Where(r => ReferenceEquals(r.Document, walk)));
+        vm.SetStatus(AssetStatus.Ready);
+        Redraw(project, walk);
+        vm.RefreshVersions();
+        Assert.Contains("changed since approval", vm.Summary);
+
+        // The adversarial pass's find: the facts cache outlived the row, so
+        // the footer kept a "changed since approval" that cited nothing on
+        // screen. Removal must drop the fact with the row.
+        var row = vm.Rows.Single(r => ReferenceEquals(r.Document, walk));
+        Assert.True(vm.RemoveFromProject(row));
+        Assert.DoesNotContain("changed since approval", vm.Summary);
+        output.WriteLine(vm.Summary);
+    }
+
+    [Fact]
     public void ASheetRowCarriesItsVersionCount()
     {
         var (project, _, _) = Open();

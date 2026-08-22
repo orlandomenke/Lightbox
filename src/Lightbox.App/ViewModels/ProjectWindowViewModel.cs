@@ -1714,6 +1714,11 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
 
     private void AfterRemoval()
     {
+        // The facts cache holds an entry per versioned resource, and the
+        // footer counts the whole cache — a removed document with a drifted
+        // milestone would keep its "changed since approval" alive with no row
+        // on screen. Reloading skips ids the manifest no longer carries.
+        _versionFacts = null;
         Rebuild();
         _changed();
         RequestSave?.Invoke();
