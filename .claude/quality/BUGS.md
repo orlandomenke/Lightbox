@@ -142,6 +142,26 @@ which is a weak test and still far better than none.
 
 ### brush
 
+- [ ] **B274** `P2` `brush` Watercolour has no wet edge — B35's fix muted the rim instead of conserving pigment `evidence: AWetEdgeRimLeavesTheMiddleStanding`
+  - The single most characteristic watercolour mark — the dark dried rim — is effectively off: the preset ships `EdgePull 0.06` because at 0.70 the centre emptied to 3/255 (B35). The mechanism moves pigment to the boundary *from* the interior with no floor, so the rim and the middle trade off one-for-one and no setting gives both.
+  - The fix is conservation with a floor: the rim may only take interior pigment above some fraction of what the wash deposited, so `EdgePull` stops being a dial between "no rim" and "hollow stroke". That is a change inside `CapillaryPull`/`Deposit` with its own measurement pass — genuinely large, so filed with its roadmap line (Pillar 0 → Brush engine) rather than patched here. P2 because it is the look the medium is named for, and the reference every artist reaches for shows it. Cost: L.
+
+- [ ] **B278** `P3` `brush` Dry brush thins evenly because the tooth mask is bypassed for simulated media `evidence: DryBrushBreaksOverTheTooth`
+  - `ApplyTexture` — the per-pixel tooth mask `A' = 1 - depth·(1-height)` — is skipped whenever `Medium.Kind != None` (`BrushEngine.StampStroke`), so a low-`PaintLoad` oil or gouache stroke fades smoothly instead of catching on the peaks and skipping the valleys, which is what dry brush *is*. The sim's own paper coupling granulates deposition but never breaks the mark.
+  - Not fixed here because it is a design question as much as a wiring one: the mask and the lattice both read `PaperKind`, and applying both double-counts the tooth on wet strokes. The honest shape is probably "the mask applies where the film is thin", which lives inside `Deposit` — the sim, not the stamp path. Cost: M.
+
+- [ ] **B277** `P3` `brush` A fading ink-wash stroke breaks into bands instead of thinning `evidence: AFadingWashThinsWithoutBanding`
+  - Seen by rendering the Ink wash preset along a stroke whose pressure falls 1 → 0.05: the tail is a row of distinct ribs, one per dab, not a diluting wash. `PressureSizeGamma 1.4` shrinks the dabs faster than `Spacing 0.07` closes the gaps, so coverage — the only thing the sim reads — arrives pre-banded, and 18 flow steps do not blur it back together.
+  - Filed rather than fixed because the honest fix is not obvious: spacing that tracks pressure changes every existing stroke's dab walk, and smoothing coverage inside the sim softens marks that wanted to stay crisp. Needs a measurement pass like B35's. Cost: M.
+
+- [ ] **B276** `P3` `brush` A round ink blob dries with an axis-aligned cross in it `evidence: ABlobDriesWithoutAnAxisCross`
+  - A fat Ink-wash blob stamped nearly in place dries with a visible + through its middle, aligned to the lattice axes. The pressure projection runs 4 axis-ordered Gauss–Seidel sweeps and the MAC faces push in the four cardinal directions (`FluidLattice`), so a symmetric puddle drains anisotropically. Invisible along a moving stroke; plain on a stamp.
+  - Filed rather than fixed: more sweeps or red–black ordering changes every simulated stroke's exact pixels and costs budgeted time, so it needs the perf tests alongside. Cost: M.
+
+- [ ] **B275** `P3` `brush` A wet stroke dries with a pale seam down its spine `evidence: AWetStrokeDoesNotDryWithAPaleSpine`
+  - Every Watercolor-preset stroke dries with a one-to-two-pixel pale line down its exact centre — visible in a plain 42 px stroke and through a dark glaze. B35 turned `EdgePull` down to 0.06, so this is not the hollow-centre defect back again; something still drains the centreline specifically, most likely the water seeded deepest there keeping pigment mobile longest (`MediumSimulator.Seed` → `FluidLattice.Deposit` binds where the film is *thin*).
+  - That is a hypothesis, and this entry should not pretend otherwise — measure the deposit profile across a stroke before changing anything, the way B101 insists. Cost: M.
+
 - [ ] **B101** `P3` `brush` A simulated medium's picker tile is too faint to read `evidence: manual`
   - Repro: open the brush picker and look at **Watercolor** beside **Watercolor (flat)**. Measured by `ChannelsMoved` in `BrushPickerTests`: the flat one moves 890 pixels against its ground, the simulated one **2**, at a threshold of 12 per channel.
   - **Not the same defect as B50, and worth separating because B50's fix did not move it.** The on-canvas mark now peaks at 96/255 at the brush's own size, and the medium holds up as the brush shrinks — swept at sizes 8/12/17/25/42/80/150 the peak runs 71/80/87/98/96/105/107, so there is no size cliff. The tile is faint at a size where a real stroke is not.
