@@ -76,6 +76,19 @@ internal static class ScenePassBuilder
     /// The playhead position the fetch is for — a rig-posed frame renders
     /// differently per cel, so it is part of the fetch and part of the key.
     /// </param>
+    /// <param name="Shapes">
+    /// The mask and clipping shapes carving this pass, described as frames and
+    /// fetched at materialize time like <paramref name="CelFrame"/> is — or
+    /// null for every unshaped layer. A fresh list is described per publish,
+    /// so two specs for the same shaped layer never compare equal; that is
+    /// harmless because <see cref="LayerStackBake"/> refuses shaped specs
+    /// outright rather than keying on them.
+    /// </param>
+    /// <param name="MaskScratch">
+    /// The mask stroke in flight on this layer's own mask — the first entry
+    /// of <paramref name="Shapes"/> — while the artist paints the mask. Set
+    /// only on the active layer's pass during a mask edit.
+    /// </param>
     internal readonly record struct PassSpec(
         Frame? CelFrame,
         int CelIndex,
@@ -86,7 +99,10 @@ internal static class ScenePassBuilder
         StrokeOverlay? Overlay = null,
         SKMatrix? Matrix = null,
         SKRectI? Source = null,
-        Frame? SourceFrame = null);
+        Frame? SourceFrame = null,
+        List<LayerShapes.ShapeSpec>? Shapes = null,
+        SKBitmap? MaskScratch = null,
+        bool MaskScratchErases = false);
 
     /// <summary>
     /// The described pass list, plus where the active layer's own contribution
@@ -190,7 +206,8 @@ internal static class ScenePassBuilder
         Stroke? BrushStroke = null,
         SKMatrix? TransformPreview = null,
         IReadOnlyList<Frame>? TransformFrames = null,
-        Func<Frame, TransformSplit?>? PartsFor = null)
+        Func<Frame, TransformSplit?>? PartsFor = null,
+        bool MaskEditing = false)
     {
         internal static readonly LiveEdit None = new();
     }
@@ -219,13 +236,22 @@ internal static class ScenePassBuilder
     /// the spec deferred it. The only place a described pass touches pixels.
     /// </summary>
     internal static RenderPass Materialize(
-        in PassSpec spec, FrameBitmapCache cache, int width, int height) =>
-        new(
+        in PassSpec spec, FrameBitmapCache cache, int width, int height)
+    {
+        var shapes = LayerShapes.Resolve(spec.Shapes, cache, width, height, spec.CelIndex);
+        if (shapes is { Count: > 0 } && spec.MaskScratch is { } scratch)
+        {
+            // The layer's own mask is always the first shape when it has one,
+            // and a mask edit only exists on a layer that does.
+            shapes[0] = shapes[0] with { Scratch = scratch, ScratchErases = spec.MaskScratchErases };
+        }
+        return new(
             spec.CelFrame is { } frame
                 ? cache.Get(frame, width, height, celIndex: spec.CelIndex)
                 : spec.Bitmap,
             spec.Tint, spec.Opacity, spec.Blend, spec.Overlay, spec.Matrix, spec.Source,
-            spec.SourceFrame);
+            spec.SourceFrame, shapes);
+    }
 
     /// <summary>
     /// Describe the pass list for one publish without fetching a single cel.
@@ -309,10 +335,15 @@ internal static class ScenePassBuilder
         }
 
         var referencesQueued = false;
-        foreach (var layer in scene.Layers)
+        for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
         {
+            var layer = scene.Layers[layerIndex];
             if (!scene.IsLayerVisible(layer)) continue;
             var isActive = layer.Id == state.ActiveLayerId;
+
+            // What carves this layer — its mask, its clipping base — or null
+            // for the ordinary layer, which costs two boolean reads here.
+            var shapes = LayerShapes.For(scene, layerIndex, state.FrameIndex);
 
             // The layer's parallax matrix, or null on the picture plane — the
             // null arm is the path that existed before depth did, and every
@@ -367,6 +398,17 @@ internal static class ScenePassBuilder
                 continue;
             }
 
+            // A clipped layer whose base shows nothing this frame contributes
+            // nothing itself — the empty-shapes answer — and skipping it here
+            // is what keeps "clip to an empty cel" from compositing a
+            // fully-carved bitmap per publish for no visible result.
+            if (shapes is { Count: 0 })
+            {
+                if (state.Onion.DrawOver) passes.AddRange(ghosts);
+                if (isActive) activeEnd = passes.Count;
+                continue;
+            }
+
             // A playing document holds tileable frames as tiles, so the
             // pass carries the FRAME and the compositor reads the tile cache —
             // fetching the bitmap here would materialise the document-sized
@@ -387,7 +429,7 @@ internal static class ScenePassBuilder
             {
                 var why = TileFallback.Reason(
                     frame, scene.Camera is not null, state.HaveViewport, liveEffectHere,
-                    posed: cache.Rig.IsPosed(frame));
+                    posed: cache.Rig.IsPosed(frame), shaped: shapes is not null);
                 tileFallbacks.Note(why);
                 if (why == TileFallbackReason.None) tileFrame = frame;
             }
@@ -412,7 +454,21 @@ internal static class ScenePassBuilder
                 celFrame = frame;
             }
 
-            var overlay = OverlayFor(live, isActive);
+            // While the artist paints the layer's mask, the stroke in flight
+            // is coverage rather than content: it rides on the mask shape
+            // (MaskScratch below) instead of on the layer, so the preview is
+            // exactly what the commit will carve. Keyed on the mask existing,
+            // not applying — a stroke painted onto a *disabled* mask changes
+            // nothing on screen, and the preview must say so rather than show
+            // it as paint that vanishes at the pen lift.
+            var maskEditHere = live.MaskEditing && isActive && layer.Mask is not null;
+            var overlay = maskEditHere ? null : OverlayFor(live, isActive);
+            var maskScratch = maskEditHere && live.BrushStroke is not null
+                ? (live.PostStampedCount > 0 && live.PostScratch is not null
+                    ? live.PostScratch
+                    : live.Scratch)
+                : null;
+            var maskErases = maskEditHere && live.BrushStroke?.Tool == ToolKind.Eraser;
 
             // A transform in progress: show the drag, not just the box around
             // it. The strokes that move are drawn through the gizmo's matrix
@@ -426,7 +482,8 @@ internal static class ScenePassBuilder
                 {
                     passes.Add(new PassSpec(
                         null, state.FrameIndex, stay, null, layer.Opacity,
-                        SceneRenderer.ToSkia(layer.BlendMode), Matrix: parallax));
+                        SceneRenderer.ToSkia(layer.BlendMode), Matrix: parallax,
+                        Shapes: shapes));
                 }
                 // The drag nests inside the layer's plane: the moved strokes
                 // still live on this layer, so the preview matrix applies in
@@ -434,7 +491,8 @@ internal static class ScenePassBuilder
                 passes.Add(new PassSpec(
                     null, state.FrameIndex, parts.Moving, null, layer.Opacity,
                     SceneRenderer.ToSkia(layer.BlendMode), overlay,
-                    parallax is { } pm ? SKMatrix.Concat(pm, preview) : preview));
+                    parallax is { } pm ? SKMatrix.Concat(pm, preview) : preview,
+                    Shapes: shapes));
                 if (state.Onion.DrawOver) passes.AddRange(ghosts);
                 if (isActive) activeEnd = passes.Count;
                 continue;
@@ -454,7 +512,8 @@ internal static class ScenePassBuilder
             passes.Add(new PassSpec(
                 celFrame, state.FrameIndex, bmp, null, opacity,
                 SceneRenderer.ToSkia(layer.BlendMode), overlay, parallax,
-                SourceFrame: tileFrame));
+                SourceFrame: tileFrame, Shapes: shapes,
+                MaskScratch: maskScratch, MaskScratchErases: maskErases));
 
             // Draw-over puts them above instead. Under is how a lightbox works
             // and is what you want while drawing; over is for checking, when a
@@ -610,6 +669,15 @@ internal static class ScenePassBuilder
 
         var passes = new List<PassSpec>();
 
+        // A ghost is this layer at another time, and the layer's mask is one
+        // drawing held across all of them (Q148) — so ghosts are carved by it
+        // too, or the onion would show content the render hides. Clipping is
+        // deliberately not applied here: the base is another layer's drawing
+        // at another frame, and a ghost is a drawing aid for THIS layer's arc.
+        List<LayerShapes.ShapeSpec>? ghostShapes = layer.IsMasked
+            ? [new LayerShapes.ShapeSpec(layer.Mask!.Frame, layer.Mask.IsInverted)]
+            : null;
+
         // Pinned first, so they sit furthest back: they are the reference the
         // near ghosts and the current drawing are being placed against.
         foreach (var index in PinnedGhostIndices(scene))
@@ -619,7 +687,7 @@ internal static class ScenePassBuilder
             passes.Add(new PassSpec(
                 pinned, index, null,
                 index < state.FrameIndex ? previous : next,
-                onion.Opacity, Matrix: parallax));
+                onion.Opacity, Matrix: parallax, Shapes: ghostShapes));
         }
 
         // Furthest first so the nearest ghost ends up on top of the others,
@@ -634,7 +702,7 @@ internal static class ScenePassBuilder
                 ghost.Frame, ghost.Index, null,
                 ghost.Before ? previous : next,
                 OnionSkin.OpacityAt(ghost.Steps, onion.Opacity, onion.Falloff),
-                Matrix: parallax));
+                Matrix: parallax, Shapes: ghostShapes));
         }
         return passes;
     }

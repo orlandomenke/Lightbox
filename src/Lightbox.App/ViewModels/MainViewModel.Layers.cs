@@ -630,6 +630,123 @@ public partial class MainViewModel
         if (ActiveLayer is { } layer) SetLayerAlphaLocked(layer, !layer.AlphaLocked, alone: true);
     }
 
+    // ---- masks and clipping -------------------------------------------------
+
+    /// <summary>
+    /// The id of the layer whose mask is being painted, or null. Held by id
+    /// rather than by reference because a snapshot-undo replaces the whole
+    /// document tree, and an edit mode pointing at an orphaned instance would
+    /// paint into a drawing nothing renders.
+    /// </summary>
+    private string? _maskEditLayerId;
+
+    /// <summary>
+    /// Whether strokes are landing on the active layer's mask. True only
+    /// while the mask exists — deleting it, or undoing its creation, ends the
+    /// mode by construction rather than by bookkeeping.
+    /// </summary>
+    public bool EditingLayerMask =>
+        _maskEditLayerId is { } id && ActiveLayer is { } layer
+        && layer.Id == id && layer.Mask is not null;
+
+    /// <summary>The frame mask strokes land on, or null when not mask-editing.</summary>
+    private Frame? MaskPaintTarget() =>
+        EditingLayerMask ? ActiveLayer!.Mask!.Frame : null;
+
+    /// <summary>Drives the row chip's outline, so the mode is never invisible.</summary>
+    internal bool IsEditingMaskOf(Layer layer) =>
+        layer.Id == _maskEditLayerId && layer.Mask is not null;
+
+    internal void SetMaskEditing(Layer layer, bool editing)
+    {
+        _maskEditLayerId = editing && layer.Mask is not null ? layer.Id : null;
+        OnPropertyChanged(nameof(EditingLayerMask));
+        SyncMaskRows();
+    }
+
+    /// <summary>
+    /// Add a painted mask and start editing it. <paramref name="paintHides"/>
+    /// starts inverted: the layer stays fully visible and painting conceals —
+    /// the vignette workflow. The other way starts fully hidden and painting
+    /// reveals. Both are one flag apart forever after (Invert).
+    /// </summary>
+    internal void AddLayerMask(Layer layer, bool paintHides)
+    {
+        if (layer.Mask is not null)
+        {
+            SetMaskEditing(layer, true);
+            return;
+        }
+        _editor.Perform(
+            _ => layer.Mask = new LayerMask { Inverted = paintHides ? true : null },
+            label: "Add layer mask", frameContentUnchanged: true);
+        SetMaskEditing(layer, true);
+    }
+
+    internal void DeleteLayerMask(Layer layer)
+    {
+        if (layer.Mask is null) return;
+        if (layer.Id == _maskEditLayerId) SetMaskEditing(layer, false);
+        _editor.Perform(_ => layer.Mask = null,
+            label: "Delete layer mask", frameContentUnchanged: true);
+        SyncMaskRows();
+    }
+
+    internal void SetMaskDisabled(Layer layer, bool disabled)
+    {
+        if (layer.Mask is not { } mask || mask.Disabled == (disabled ? true : (bool?)null)) return;
+        _editor.Perform(_ => mask.Disabled = disabled ? true : null,
+            label: disabled ? "Disable layer mask" : "Enable layer mask",
+            frameContentUnchanged: true);
+        SyncMaskRows();
+    }
+
+    internal void ToggleMaskInverted(Layer layer)
+    {
+        if (layer.Mask is not { } mask) return;
+        var inverted = !mask.IsInverted;
+        _editor.Perform(_ => mask.Inverted = inverted ? true : null,
+            label: "Invert layer mask", frameContentUnchanged: true);
+        SyncMaskRows();
+    }
+
+    /// <summary>
+    /// Clip the layer to the one below (Photoshop's Ctrl+Alt+G). The base is
+    /// positional — see <see cref="Layer.ClipToBelow"/> for why it is a flag.
+    /// </summary>
+    internal void SetLayerClipped(Layer layer, bool clipped, bool alone = false)
+    {
+        var targets = ToggleTargets(layer, l => l.IsClipped, clipped, alone);
+        if (targets.Count == 0) return;
+        _editor.Perform(_ =>
+        {
+            foreach (var target in targets) target.ClipToBelow = clipped ? true : null;
+        }, label: clipped ? "Clip to layer below" : "Release clipping",
+            frameContentUnchanged: true);
+        SyncMaskRows();
+    }
+
+    [RelayCommand]
+    private void ToggleActiveLayerClipped()
+    {
+        if (ActiveLayer is { } layer) SetLayerClipped(layer, !layer.IsClipped, alone: true);
+    }
+
+    [RelayCommand]
+    private void ToggleActiveLayerMaskEditing()
+    {
+        if (ActiveLayer is { } layer && layer.Mask is not null)
+        {
+            SetMaskEditing(layer, !IsEditingMaskOf(layer));
+        }
+    }
+
+    /// <summary>Re-read every row's mask and clip state after a mask edit.</summary>
+    private void SyncMaskRows()
+    {
+        foreach (var row in LayerRows) row.SyncMaskFromModel();
+    }
+
     private void NotifyLayerGating()
     {
         OnPropertyChanged(nameof(ActiveLayerBlocked));

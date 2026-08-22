@@ -716,14 +716,20 @@ public static class SpriteSheetExporter
         Scene scene, FrameBitmapCache cache, int index, HashSet<string> skipLayerIds)
     {
         var passes = new List<RenderPass>();
-        foreach (var layer in scene.Layers)
+        for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
         {
+            var layer = scene.Layers[layerIndex];
             if (skipLayerIds.Contains(layer.Id)) continue;
             var frame = ExposureSheet.ExposedFrame(layer, index);
             if (frame is null) continue;
+            // Masks and clipping export as the canvas shows them; an empty
+            // shape list is a clipped layer over nothing this frame.
+            var shapes = LayerShapes.For(scene, layerIndex, index);
+            if (shapes is { Count: 0 }) continue;
             passes.Add(new RenderPass(
                 cache.Get(frame, scene.Width, scene.Height, celIndex: index), null, layer.Opacity,
-                SceneRenderer.ToSkia(layer.BlendMode)));
+                SceneRenderer.ToSkia(layer.BlendMode),
+                Shapes: LayerShapes.Resolve(shapes, cache, scene.Width, scene.Height, index)));
         }
         // Q143: what the viewed variant wears exports with the drawing, the
         // same way the variant's colours already do — an export that showed

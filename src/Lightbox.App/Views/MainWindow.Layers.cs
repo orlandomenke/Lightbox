@@ -191,6 +191,67 @@ public partial class MainWindow
         if (LayerRowOf(sender) is { } row) RequestMergeDown(row.Layer);
     }
 
+    // ---- masks and clipping -------------------------------------------------
+
+    /// <summary>Adding a mask activates the layer too: editing lands strokes on the active layer's mask.</summary>
+    private void AddMaskTo(LayerRow row, bool paintHides)
+    {
+        _vm.ActivateLayerCommand.Execute(row);
+        _vm.AddLayerMask(row.Layer, paintHides);
+    }
+
+    private void OnLayerMenuAddMaskHide(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) AddMaskTo(row, paintHides: true);
+    }
+
+    private void OnLayerMenuAddMaskShow(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) AddMaskTo(row, paintHides: false);
+    }
+
+    private void OnLayerMenuEditMask(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is not { } row) return;
+        _vm.ActivateLayerCommand.Execute(row);
+        _vm.SetMaskEditing(row.Layer, !_vm.IsEditingMaskOf(row.Layer));
+    }
+
+    private void OnLayerMenuDisableMask(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row)
+        {
+            _vm.SetMaskDisabled(row.Layer, !(row.Layer.Mask is { } m && !m.Applies));
+        }
+    }
+
+    private void OnLayerMenuInvertMask(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) _vm.ToggleMaskInverted(row.Layer);
+    }
+
+    private void OnLayerMenuDeleteMask(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) _vm.DeleteLayerMask(row.Layer);
+    }
+
+    private void OnLayerMenuClip(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row)
+        {
+            _vm.SetLayerClipped(row.Layer, !row.Layer.IsClipped, alone: true);
+        }
+    }
+
+    /// <summary>The mask chip on the row: click to paint the mask, click again to stop.</summary>
+    private void OnLayerMaskChipPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (LayerRowOf(sender) is not { } row) return;
+        _vm.ActivateLayerCommand.Execute(row);
+        _vm.SetMaskEditing(row.Layer, !_vm.IsEditingMaskOf(row.Layer));
+        e.Handled = true;
+    }
+
     /// <summary>Layer menu: merge the active layer down, through the same Q52 ask as Ctrl+E.</summary>
     private void OnMenuMergeDown(object? sender, RoutedEventArgs e) => RequestMergeDown(null);
 

@@ -879,6 +879,10 @@ public partial class MainViewModel
     /// <summary>The keyed frame paint lands on (exposure-sheet: the key at or before the playhead).</summary>
     private Frame? PaintTarget()
     {
+        // A mask edit takes every tool with it: the mask's drawing is the
+        // target, and there is no exposure to consult — one drawing, held
+        // across the whole timeline (Q148).
+        if (MaskPaintTarget() is { } mask) return mask;
         var i = ExposureSheet.KeyIndexAtOrBefore(ActiveLayer, CurrentFrameIndex);
         return i < 0 ? null : ActiveLayer.Cels[i].Frame;
     }
@@ -924,6 +928,9 @@ public partial class MainViewModel
         _lastAutoKeyRevision = null;
         _lastAutoGrowRevision = null;
         if (ActiveLayer is null) return null;
+        // A mask never auto-keys and never grows the scene: it exists exactly
+        // when the edit mode is on, one drawing for the whole timeline.
+        if (MaskPaintTarget() is { } mask) return mask;
         // Q103. The playhead may stand past the end of the scene, where scrubbing
         // authored nothing; this is the edit that lands, so the scene grows to
         // reach it. The cels the growth adds are holds, so a drawing made at
@@ -1189,6 +1196,15 @@ public partial class MainViewModel
         if (ActiveTool is not (ToolId.Brush or ToolId.Eraser)) return;
         if (IsPlaying) return;
         if (!CanEdit(ActiveLayer, "draw on it")) return;
+        // A blur or smudge reworks the pixels it sits on by replacing the
+        // whole layer pass live — and during a mask edit the "layer" on
+        // screen is content carved by coverage, which is not the surface the
+        // effect would be redoing. Refused out loud rather than misdrawn.
+        if (EditingLayerMask && CurrentToolSettings.Kind is BrushKind.Blur or BrushKind.Smudge)
+        {
+            AiStatus = "Blur and smudge don't work on a layer mask — paint or erase its coverage instead.";
+            return;
+        }
         if (PaintTargetOrKey() is not { } target) return;
         // Drawing ends any run of palette edits, so the recolour lands on the
         // undo stack before the stroke does rather than after it.
@@ -1236,7 +1252,9 @@ public partial class MainViewModel
         if (PrepareClipForSelection() is { } liveClip) _strokeBuilder.Current!.ClipId = liveClip.Id;
         // Stamped onto the stroke, not read from the layer at render time, so
         // unlocking the layer later cannot repaint what is already down.
-        _strokeBuilder.Current!.AlphaLocked = ActiveLayer.AlphaLocked;
+        // The layer's alpha lock guards its content, not its mask — coverage
+        // is exactly the thing a mask stroke exists to create.
+        _strokeBuilder.Current!.AlphaLocked = !EditingLayerMask && ActiveLayer.AlphaLocked;
 
         _live.Composite?.Dispose();
         _live.Composite = null;

@@ -106,14 +106,20 @@ sealed class ReferenceViewImages(FrameBitmapCache frames)
     internal string Render(ReferenceView view, int longEdge)
     {
         var passes = new List<RenderPass>();
-        foreach (var layer in view.Layers)
+        for (var layerIndex = 0; layerIndex < view.Layers.Count; layerIndex++)
         {
+            var layer = view.Layers[layerIndex];
             if (!layer.Visible) continue;
             var frame = ExposureSheet.ExposedFrame(layer, 0);
             if (frame is null) continue;
+            // The view shows the referenced document as its own canvas would,
+            // masks and clipping included.
+            var shapes = LayerShapes.For(view.Layers, l => l.Visible, layerIndex, 0);
+            if (shapes is { Count: 0 }) continue;
             passes.Add(new RenderPass(
                 frames.Get(frame, view.Width, view.Height), null,
-                layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
+                layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
+                Shapes: LayerShapes.Resolve(shapes, frames, view.Width, view.Height)));
         }
 
         // Composed at the authored size so the warm per-layer cache entries are the ones

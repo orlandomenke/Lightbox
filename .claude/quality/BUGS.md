@@ -596,6 +596,12 @@ which is a weak test and still far better than none.
   - Found 2026-08-17: `freeid question` returned Q110 while `src/` already cites Q101–Q110 in comments — the questions *directory* tops out at Q99, and the scan reads it (plus refs) but not code citations, so every question decided in-conversation and cited in code without a file is invisible to it. The collision the issuer exists to prevent, one layer up. Q111 was taken by hand for the playhead decision after grepping the tree for the true ceiling.
   - Filed rather than fixed, and the reason is the moment: this branch's objective is the bone system, and changing the id-issuing script mid-branch while depending on it is how a renumber goes wrong. The fix is one grep over the tree in `freeid`'s scan — small, its own branch.
 
+### transform
+
+- [ ] **B280** `P2` `transform` Transform preview drags a layer's mask along with the content `evidence: ATransformPreviewLeavesTheMaskWhereItIs`
+  - Found 2026-08-22 while building the masks (Q147): the transform tool's live preview draws the layer's pass through the drag matrix, and a shaped pass applies its carve *inside* that matrix — so the mask visibly rides the drag and snaps back on commit, which correctly moves only the strokes. Preview-vs-commit divergence, the exact defect class `SceneRenderer.DrawStroke`'s own comment records.
+  - Filed rather than fixed because the fix is not small: the carve has to apply in document space while the content moves in preview space, which means a shape matrix (or its inverse) plumbed through `RenderPass`/`PassSpec` and split from the parallax term that shapes *should* ride. Wrong only while the pen is down on a masked layer under the transform tool; every commit, export and still render is correct.
+
 ### ui
 
 - [ ] **B254** `P2` `ui` Hover flyouts ignore the pen and collapse as soon as they open on a Huion tablet `evidence: manual`

@@ -351,6 +351,12 @@ public partial class MainWindow
             case "docker.mergeDown":
                 RequestMergeDown(null); // null = the active layer
                 break;
+            case "docker.clipToBelow":
+                _vm.ToggleActiveLayerClippedCommand.Execute(null);
+                break;
+            case "docker.editMask":
+                _vm.ToggleActiveLayerMaskEditingCommand.Execute(null);
+                break;
             // Flipping: hop between key drawings without leaving the pen.
             case "timeline.prevKey":
                 _vm.PreviousKeyframeCommand.Execute(null);

@@ -3429,6 +3429,37 @@
                             <MenuItem Header="Select layer contents" Click="OnLayerMenuSelectAlpha" />
                             <MenuItem Header="Blank layer content" Click="OnLayerMenuBlank" />
                             <Separator />
+                            <!-- The mask is strokes like everything else (Q147):
+                                 one drawing, held across the whole timeline, and
+                                 painted with the ordinary brushes. -->
+                            <MenuItem Header="Mask">
+                              <MenuItem Header="Add — painting hides" IsVisible="{Binding CanAddMask}"
+                                        Click="OnLayerMenuAddMaskHide"
+                                        ToolTip.Tip="The layer stays visible; what you paint on the mask is concealed. The vignette workflow." />
+                              <MenuItem Header="Add — painting shows" IsVisible="{Binding CanAddMask}"
+                                        Click="OnLayerMenuAddMaskShow"
+                                        ToolTip.Tip="The layer starts hidden; what you paint on the mask is revealed." />
+                              <MenuItem Header="Paint the mask" IsVisible="{Binding HasMask}"
+                                        Click="OnLayerMenuEditMask"
+                                        ToolTip.Tip="Strokes land on the mask instead of the drawing until switched off. The chip beside the thumbnail shows and toggles this too." />
+                              <MenuItem Header="Disable" IsVisible="{Binding CanDisableMask}"
+                                        Click="OnLayerMenuDisableMask"
+                                        ToolTip.Tip="Switch the mask off without losing its drawing." />
+                              <MenuItem Header="Enable" IsVisible="{Binding MaskDisabled}"
+                                        Click="OnLayerMenuDisableMask" />
+                              <MenuItem Header="Invert" IsVisible="{Binding HasMask}"
+                                        Click="OnLayerMenuInvertMask"
+                                        ToolTip.Tip="Painted coverage hides instead of shows — a flag, not repainted strokes." />
+                              <MenuItem Header="Delete" IsVisible="{Binding HasMask}"
+                                        Click="OnLayerMenuDeleteMask"
+                                        ToolTip.Tip="Remove the mask and its drawing. The layer shows in full again." />
+                            </MenuItem>
+                            <MenuItem Header="Clip to layer below" IsVisible="{Binding !IsClipped}"
+                                      Click="OnLayerMenuClip"
+                                      ToolTip.Tip="Composite this layer only where the layer below has content (Ctrl+Alt+G). Consecutive clipped layers share the first unclipped base — an animated matte is exactly this." />
+                            <MenuItem Header="Release clipping" IsVisible="{Binding IsClipped}"
+                                      Click="OnLayerMenuClip" />
+                            <Separator />
                             <MenuItem Header="In exports">
                               <MenuItem Header="Decide automatically" Click="OnLayerMenuExportAuto"
                                         ToolTip.Tip="The export's own background handling decides. The default." />
@@ -3469,6 +3500,13 @@
                         </Border.ContextMenu>
                         <DockPanel>
                           <views:LinkBracket DockPanel.Dock="Left" />
+                          <Border Classes="clipBar" DockPanel.Dock="Left" IsVisible="{Binding IsClipped}"
+                                  Background="Transparent"
+                                  ToolTip.Tip="Clipped to the layer below — this layer shows only where that one has content">
+                            <Border Width="2" Margin="0,4" CornerRadius="1" HorizontalAlignment="Center"
+                                    VerticalAlignment="Stretch"
+                                    Background="{StaticResource AccentCyanBrush}" />
+                          </Border>
                           <ToggleButton Classes="icon glyph eye" DockPanel.Dock="Left" IsChecked="{Binding Visible}"
                                         ToolTip.Tip="Layer visibility"><Path /></ToggleButton>
                           <ToggleButton Classes="icon glyph lock" DockPanel.Dock="Left" IsChecked="{Binding Locked}"
@@ -3481,6 +3519,15 @@
                                   ToolTip.Tip="Layer content — Ctrl+click to select its visible pixels (Shift adds, Alt subtracts)">
                             <Image Source="{Binding Thumb}" Stretch="Uniform" />
                           </Border>
+                          <!-- 14×22: the thumbnail's own height so the pair reads
+                               as one strip, and narrow because it holds no image
+                               yet — it is the mask's *slot*, not its picture. -->
+                          <Border Classes="maskChip" Classes.editing="{Binding IsEditingMask}"
+                                  Classes.disabledMask="{Binding MaskDisabled}"
+                                  DockPanel.Dock="Left" Margin="2,0,0,0" Width="14" Height="22"
+                                  CornerRadius="2" VerticalAlignment="Center" IsVisible="{Binding HasMask}"
+                                  PointerPressed="OnLayerMaskChipPressed"
+                                  ToolTip.Tip="Layer mask — click to paint it, click again to return to the drawing" />
                           <Button Classes="icon" DockPanel.Dock="Right" Background="Transparent"
                                   IsVisible="{Binding IsGrouped}"
                                   Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).RemoveLayerFromGroupCommand}"

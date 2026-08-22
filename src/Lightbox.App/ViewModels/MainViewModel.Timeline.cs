@@ -1413,6 +1413,10 @@ public partial class MainViewModel
     {
         foreach (var layer in doc.Scene.Layers)
         {
+            // A mask's drawing is a frame like any other, and mask strokes
+            // undo through this resolver like any other — it just lives on
+            // the layer instead of in a cel.
+            if (layer.Mask is { } mask && mask.Frame.Id == frameId) return StrokesOf(mask.Frame);
             foreach (var cel in layer.Cels)
             {
                 if (cel.Frame is { } frame && frame.Id == frameId) return StrokesOf(frame);

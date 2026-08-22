@@ -145,6 +145,39 @@ public sealed partial class LayerRow : ObservableObject
     internal string? ThumbFrameId;
 
 
+    /// <summary>Whether the layer carries a painted mask (the docker's chip).</summary>
+    public bool HasMask => Layer.Mask is not null;
+
+    /// <summary>The mask exists but is switched off — the chip goes hollow.</summary>
+    public bool MaskDisabled => Layer.Mask is { } mask && !mask.Applies;
+
+    /// <summary>Painted coverage hides instead of shows.</summary>
+    public bool MaskInverted => Layer.Mask is { } mask && mask.IsInverted;
+
+    /// <summary>Strokes are landing on this layer's mask right now.</summary>
+    public bool IsEditingMask => _owner.IsEditingMaskOf(Layer);
+
+    /// <summary>Composites only where the layer below has content.</summary>
+    public bool IsClipped => Layer.IsClipped;
+
+    /// <summary>No mask yet — the menu offers the two ways to add one.</summary>
+    public bool CanAddMask => !HasMask;
+
+    /// <summary>A mask that currently applies — the menu offers to disable it.</summary>
+    public bool CanDisableMask => HasMask && !MaskDisabled;
+
+    /// <summary>Re-read the mask and clip properties after a mask edit.</summary>
+    internal void SyncMaskFromModel()
+    {
+        OnPropertyChanged(nameof(HasMask));
+        OnPropertyChanged(nameof(MaskDisabled));
+        OnPropertyChanged(nameof(MaskInverted));
+        OnPropertyChanged(nameof(IsEditingMask));
+        OnPropertyChanged(nameof(IsClipped));
+        OnPropertyChanged(nameof(CanAddMask));
+        OnPropertyChanged(nameof(CanDisableMask));
+    }
+
     /// <summary>Inside a layer folder (indented in the docker, eject button shown).</summary>
     public bool IsGrouped => Layer.GroupId is not null;
 
@@ -219,6 +252,7 @@ public sealed partial class LayerRow : ObservableObject
         _syncing = false;
         OnPropertyChanged(nameof(IsGrouped));
         SyncLinkFromModel();
+        SyncMaskFromModel();
     }
 
     partial void OnNameChanged(string value)
