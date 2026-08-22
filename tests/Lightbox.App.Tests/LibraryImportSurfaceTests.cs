@@ -1,3 +1,4 @@
+using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Lightbox.App.Services;
 using Lightbox.App.ViewModels;
@@ -133,6 +134,149 @@ public sealed class LibraryImportSurfaceTests(ITestOutputHelper output) : Projec
         Assert.False(vm.Characters.HasRoots);
         Assert.Empty(vm.Characters.Entries);
         Assert.DoesNotContain(_library, File.ReadAllText(AppSettings.Path));
+    }
+
+    [AvaloniaFact]
+    public void TheImportCommandIsRegisteredSoItCanBeFoundAndRebound()
+    {
+        // B58's third assertion, asked of the library: a window reachable only
+        // from a button is invisible to Configure and cannot be given a key.
+        var map = new ShortcutMap { StorePathOverride = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(), $"library-shortcuts-{Guid.NewGuid():N}.json") };
+        Assert.Contains(map.Definitions, d => d.Id == "project.libraryWindow");
+    }
+
+    [AvaloniaFact]
+    public void TheConfigurePageEditsTheSameRootsTheWindowReads()
+    {
+        var vm = Open();
+        var map = new ShortcutMap { StorePathOverride = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(), $"library-cfg-{Guid.NewGuid():N}.json") };
+        var window = new ConfigureWindow(map, vm);
+        window.FindControl<Avalonia.Controls.ListBox>("CategoryList")!.SelectedIndex = 7;
+
+        Assert.True(window.FindControl<Avalonia.Controls.ScrollViewer>("LibraryPage")!.IsVisible);
+        Assert.False(window.FindControl<Avalonia.Controls.ScrollViewer>("AiPage")!.IsVisible);
+        // The page's list IS the view model's collection — one owner (the
+        // LibraryViewModel), so Configure, the window and the picker cannot
+        // come to hold three different answers about where libraries live.
+        var list = window.FindControl<Avalonia.Controls.ListBox>("LibraryRootsList")!;
+        Assert.Same(vm.Characters.Roots, list.ItemsSource);
+
+        vm.Characters.AddRoot(_library);
+        Assert.Contains(_library, vm.Characters.Roots);
+        Assert.Contains(_library, File.ReadAllText(AppSettings.Path));
+    }
+
+    [AvaloniaFact]
+    public void AnAgentImportsThroughTheSameMergeAndAfterPath()
+    {
+        Shelf();
+        var vm = Open();
+        var api = new IpcDocumentApi(vm);
+        static IpcProtocol.Request Req(string op, object payload) => new()
+        {
+            Op = op,
+            Payload = System.Text.Json.JsonSerializer.SerializeToElement(payload, IpcProtocol.Json),
+        };
+
+        // No roots configured and no path passed: told what to do, not a crash.
+        var unconfigured = api.Handle(Req("import_character", new { character = "Knight" }));
+        Assert.False(unconfigured.Ok);
+        Assert.Contains("library", unconfigured.Error!, StringComparison.OrdinalIgnoreCase);
+
+        // A wrong name gets the shelf's contents, so the retry is a decision.
+        var wrong = api.Handle(Req("import_character", new { library = _library, character = "Dragon" }));
+        Assert.False(wrong.Ok);
+        Assert.Contains("Knight", wrong.Error!);
+
+        // A path that is not a library reads as a path problem, not a wrong
+        // name — or an agent retries name variations against an empty folder.
+        var empty = Path.Combine(_library, "not-a-library");
+        Directory.CreateDirectory(empty);
+        var badPath = api.Handle(Req("import_character", new { library = empty, character = "Knight" }));
+        Assert.False(badPath.Ok);
+        Assert.Contains("Asset library", badPath.Error!);
+        Assert.DoesNotContain("No character named", badPath.Error!);
+
+        // The import lands through the same after-path the UI uses: the
+        // docker shows it and the project is saved, not merely mutated.
+        var resp = api.Handle(Req("import_character", new { library = _library, character = "Knight" }));
+        Assert.True(resp.Ok, resp.Error);
+        Assert.Equal("Knight", resp.Payload!.Value.GetProperty("folder").GetString());
+        Assert.Equal("Knights", resp.Payload.Value.GetProperty("library").GetString());
+        Assert.Equal(1, resp.Payload.Value.GetProperty("added").GetArrayLength());
+        Assert.Contains(vm.ProjectDocker.Rows, r => r.Name == "Knight");
+        Assert.Contains("Knight", File.ReadAllText(Path.Combine(Root, "project.json")));
+    }
+
+    [AvaloniaFact]
+    public void TheAgentsDestructiveGateIsTheFlagAndNothingElse()
+    {
+        // The IPC op has no dialog, so the edited-copy gate is the flag: unset
+        // keeps and reports, exactly the UI default; set replaces. A refactor
+        // that hardcoded either side would pass every UI-path test — this is
+        // the one that drives it through the op.
+        Shelf();
+        var vm = Open();
+        var api = new IpcDocumentApi(vm);
+        static IpcProtocol.Request Req(string op, object payload) => new()
+        {
+            Op = op,
+            Payload = System.Text.Json.JsonSerializer.SerializeToElement(payload, IpcProtocol.Json),
+        };
+        Assert.True(api.Handle(Req("import_character", new { library = _library, character = "Knight" })).Ok);
+
+        var project = vm.ProjectDocker.Project!;
+        var knight = ProjectFolders.All(project.Manifest).Single(f => f.Name == "Knight");
+        var copy = ProjectFolders.DocumentsIn(project.Manifest, knight).Single();
+        ProjectIo.LoadDocument(project, copy)!.Scene.Layers[0].Cels[0].Frame!.Strokes.Add(new Stroke
+        {
+            Tool = ToolKind.Brush,
+            Color = "#ff0000",
+            Points = [new StrokePoint(5, 5, 1), new StrokePoint(6, 6, 1)],
+            Brush = new BrushSettings { Size = 2, Opacity = 1 },
+        });
+
+        var kept = api.Handle(Req("import_character", new { library = _library, character = "Knight" }));
+        Assert.True(kept.Ok, kept.Error);
+        Assert.Equal("Walk", kept.Payload!.Value.GetProperty("keptEdited")[0].GetString());
+        Assert.Equal(2, ProjectIo.LoadDocument(project, copy)!
+            .Scene.Layers[0].Cels[0].Frame!.Strokes.Count);
+
+        var replaced = api.Handle(Req(
+            "import_character", new { library = _library, character = "Knight", replaceEdited = true }));
+        Assert.True(replaced.Ok, replaced.Error);
+        Assert.Equal("Walk", replaced.Payload!.Value.GetProperty("replaced")[0].GetString());
+        Assert.Single(ProjectIo.LoadDocument(project, copy)!
+            .Scene.Layers[0].Cels[0].Frame!.Strokes);
+    }
+
+    [AvaloniaFact]
+    public void ANameTwoLibrariesOfferRefusesRatherThanGuessing()
+    {
+        // The UI path never guesses — the artist clicked one specific entry —
+        // so the agent path must not either: the scan's directory order is
+        // not a decision anybody made.
+        Shelf();
+        var second = ProjectIo.Create("Rivals", Path.Combine(_library, "rivals.lbproj"),
+            Core.Projects.ProjectType.AssetLibrary);
+        ProjectFolders.Add(second.Manifest, "Knight");
+        ProjectIo.Save(second);
+
+        var vm = Open();
+        var api = new IpcDocumentApi(vm);
+        static IpcProtocol.Request Req(string op, object payload) => new()
+        {
+            Op = op,
+            Payload = System.Text.Json.JsonSerializer.SerializeToElement(payload, IpcProtocol.Json),
+        };
+        var resp = api.Handle(Req("import_character", new { library = _library, character = "Knight" }));
+        Assert.False(resp.Ok);
+        Assert.Contains("Knights", resp.Error!);
+        Assert.Contains("Rivals", resp.Error!);
+        Assert.DoesNotContain(
+            ProjectFolders.All(vm.ProjectDocker.Project!.Manifest), f => f.Name == "Knight");
     }
 
     [AvaloniaFact]

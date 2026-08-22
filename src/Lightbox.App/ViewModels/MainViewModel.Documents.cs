@@ -802,25 +802,29 @@ public partial class MainViewModel
     /// picker and the library window read this one instance (Q138).
     /// </summary>
     public LibraryViewModel Characters => _library ??= new LibraryViewModel(
-        Settings,
-        () => ProjectDocker.Project,
-        result =>
-        {
-            // The import mutated the manifest and loaded documents in memory;
-            // the docker must show it and the disk must hold it — an import
-            // that vanishes with the session is slice 1's round-trip lesson.
-            ProjectDocker.Refresh();
-            SaveProject(everything: true);
-            var summary = string.Join(", ", new[]
-            {
-                result.Added.Count > 0 ? $"{result.Added.Count} added" : null,
-                result.Replaced.Count > 0 ? $"{result.Replaced.Count} updated" : null,
-                result.KeptEdited.Count > 0 ? $"{result.KeptEdited.Count} kept (edited here)" : null,
-            }.Where(part => part is not null));
-            AiStatus = $"Imported “{result.Folder.Name}”{(summary.Length > 0 ? $": {summary}" : "")}.";
-        });
+        Settings, () => ProjectDocker.Project, AfterLibraryImport);
 
     private LibraryViewModel? _library;
+
+    /// <summary>
+    /// What every import path owes, however it was reached — the two UI
+    /// surfaces and the MCP op all land here, so none can forget half of it.
+    /// The import mutated the manifest and loaded documents in memory; the
+    /// docker must show it and the disk must hold it — an import that
+    /// vanishes with the session is slice 1's round-trip lesson.
+    /// </summary>
+    internal void AfterLibraryImport(ImportResult result)
+    {
+        ProjectDocker.Refresh();
+        SaveProject(everything: true);
+        var summary = string.Join(", ", new[]
+        {
+            result.Added.Count > 0 ? $"{result.Added.Count} added" : null,
+            result.Replaced.Count > 0 ? $"{result.Replaced.Count} updated" : null,
+            result.KeptEdited.Count > 0 ? $"{result.KeptEdited.Count} kept (edited here)" : null,
+        }.Where(part => part is not null));
+        AiStatus = $"Imported “{result.Folder.Name}”{(summary.Length > 0 ? $": {summary}" : "")}.";
+    }
 
     /// <summary>
     /// Which panels are open, where, and how big — the whole workspace.

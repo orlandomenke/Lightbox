@@ -29,6 +29,22 @@ public static class LightboxTools
         return result.ValueKind == JsonValueKind.Undefined ? "{}" : result.GetRawText();
     }
 
+    [McpServerTool(Name = "import_character"), Description(
+        "Import a character from an asset-library project into the open project: " +
+        "its animations, its palette and its variants. Importing copies rather " +
+        "than links. Importing the same character again merges: copies that came " +
+        "from the library take its newer version, animations the library gained " +
+        "are added, and documents made locally are never touched. Copies the " +
+        "artist has edited since import are KEPT and reported under keptEdited " +
+        "unless replaceEdited is true — replacing discards the artist's edits, " +
+        "so pass it only when that is explicitly wanted. \"library\" is a path " +
+        "to a library project or a folder holding several; omit it to search " +
+        "the library folders the artist has configured.")]
+    public static Task<string> ImportCharacter(
+        string character, string? library = null, bool replaceEdited = false,
+        CancellationToken ct = default)
+        => Text("import_character", new { library, character, replaceEdited }, ct);
+
     [McpServerTool(Name = "get_scene"), Description(
         "Get the Lightbox scene: canvas size, fps, frame count, current frame, " +
         "and the layers (id, name, kind, visibility, which frames are keyed). " +

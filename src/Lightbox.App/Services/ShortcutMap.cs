@@ -451,6 +451,14 @@ public sealed class ShortcutMap
             new("project.window", "Project window (structure, status, assets)", "File",
                 G(Key.P, KeyModifiers.Control)),
 
+            // The character library's window, on the project window's footing:
+            // a registered command rather than a gesture on a button, so the
+            // picker button on the project panel stays the fast path and this
+            // is what an artist can search and rebind. No default gesture, for
+            // canvas.motionTrail's reason — the button is the way in, and
+            // being here is what lets a key be chosen freely.
+            new("project.libraryWindow", "Character library (browse and import)", "File", null),
+
             // The fluid effects window, on the same footing as the project window
             // and the board: a window of its own, opened by a registered command
             // rather than by a gesture written onto a menu item. Ctrl+E alone is

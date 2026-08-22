@@ -312,6 +312,41 @@ public partial class ConfigureWindow : Window
         LoadTimelinePage();
         LoadDrawingPage();
         LoadAiPage();
+        LoadLibraryPage();
+    }
+
+    // ---- Library page ------------------------------------------------------
+
+    /// <summary>
+    /// The library roots, edited through the same <see cref="ViewModels.LibraryViewModel"/>
+    /// the library window uses — one owner, so the two editors cannot desync,
+    /// and every change lands in the settings file the moment it is made.
+    /// </summary>
+    private void LoadLibraryPage()
+    {
+        if (_vm is null) return;
+        LibraryRootsList.ItemsSource = _vm.Characters.Roots;
+    }
+
+    private async void OnLibraryAddRoot(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_vm is null) return;
+        var picked = await StorageProvider.OpenFolderPickerAsync(
+            new Avalonia.Platform.Storage.FolderPickerOpenOptions
+            {
+                Title = "Add a library folder",
+                AllowMultiple = false,
+            });
+        if (picked.Count == 1 && picked[0].TryGetLocalPath() is { } path)
+        {
+            _vm.Characters.AddRoot(path);
+        }
+    }
+
+    private void OnLibraryRemoveRoot(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_vm is null) return;
+        if (LibraryRootsList.SelectedItem is string root) _vm.Characters.RemoveRoot(root);
     }
 
     // ---- AI page ---------------------------------------------------------------
@@ -1128,7 +1163,7 @@ public partial class ConfigureWindow : Window
     {
         if (ShortcutsPage is null || PerformancePage is null || FeaturesPage is null
             || GuidesPage is null || TimelinePage is null || DrawingPage is null
-            || ExportPage is null || AiPage is null)
+            || ExportPage is null || AiPage is null || LibraryPage is null)
         {
             return;
         }
@@ -1140,7 +1175,11 @@ public partial class ConfigureWindow : Window
         TimelinePage.IsVisible = page == 4;
         DrawingPage.IsVisible = page == 5;
         ExportPage.IsVisible = page == 6;
-        AiPage.IsVisible = page == 7;
+        // Library sits before AI: the AI page stays the last category,
+        // which TheAiPageIsTheLastCategoryAndHiddenUntilChosen asserts on
+        // purpose — appending here is how that test earns its keep.
+        LibraryPage.IsVisible = page == 7;
+        AiPage.IsVisible = page == 8;
         if (page == 1) RefreshMeasured();
         if (page == 2) RefreshFeatures();
         // Rebuilt on the way in: a grid may have been placed since the window
