@@ -148,6 +148,7 @@ public sealed partial class MainViewModel
             }
         });
         OnPropertyChanged(nameof(RigMarks));
+        if (mark.Kind == RigMarkKind.Anchor) AttachmentsMayHaveMoved();
     }
 
     /// <summary>
@@ -230,6 +231,7 @@ public sealed partial class MainViewModel
         SelectedRigMarkId = null;
         OnPropertyChanged(nameof(RigMarks));
         OnPropertyChanged(nameof(HasRig));
+        if (mark.Kind == RigMarkKind.Anchor) AttachmentsMayHaveMoved();
     }
 
     /// <summary>
@@ -255,6 +257,7 @@ public sealed partial class MainViewModel
             else CollisionShapes.ClearAcross(layer, frame, 1, id);
         });
         OnPropertyChanged(nameof(RigMarks));
+        if (mark.Kind == RigMarkKind.Anchor) AttachmentsMayHaveMoved();
     }
 
     /// <summary>
@@ -285,6 +288,7 @@ public sealed partial class MainViewModel
         });
 
         OnPropertyChanged(nameof(RigMarks));
+        if (mark.Kind == RigMarkKind.Anchor) AttachmentsMayHaveMoved();
         return changed;
     }
 
@@ -311,6 +315,7 @@ public sealed partial class MainViewModel
             Anchors.SetAcross(layer, frame, 1, id, new AnchorPoint(mark.X, mark.Y));
         });
         OnPropertyChanged(nameof(RigMarks));
+        AttachmentsMayHaveMoved();
     }
 
     partial void OnRigEditModeChanged(bool value)

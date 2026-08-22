@@ -725,7 +725,21 @@ public static class SpriteSheetExporter
                 cache.Get(frame, scene.Width, scene.Height, celIndex: index), null, layer.Opacity,
                 SceneRenderer.ToSkia(layer.BlendMode)));
         }
-        return SceneRenderer.Compose(scene.Width, scene.Height, passes, SKColors.Transparent);
+        // Q143: what the viewed variant wears exports with the drawing, the
+        // same way the variant's colours already do — an export that showed
+        // the armor on screen and dropped it from the sheet would be the
+        // canvas lying about the deliverable. Ambient like the palettes, so a
+        // document exported with no variant on view exports exactly as ever.
+        var worn = AttachmentOverlay.Render(scene, index);
+        if (worn is not null) passes.Add(new RenderPass(worn, null, 1.0));
+        try
+        {
+            return SceneRenderer.Compose(scene.Width, scene.Height, passes, SKColors.Transparent);
+        }
+        finally
+        {
+            worn?.Dispose();
+        }
     }
 
     /// <summary>

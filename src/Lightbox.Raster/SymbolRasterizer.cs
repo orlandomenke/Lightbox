@@ -72,7 +72,22 @@ public static class SymbolRasterizer
         SKCanvas target, Frame frame, SKImageInfo info, int celIndex, double outputScale = 1.0)
     {
         if (!frame.HasPlacements) return;
-        foreach (var placement in frame.Placements!)
+        StampPlacements(target, frame.Placements!, info, celIndex, outputScale);
+    }
+
+    /// <summary>
+    /// Render a list of placements that live nowhere on a frame.
+    /// </summary>
+    /// <remarks>
+    /// Q143's entry point: a variant's attachments resolve to ephemeral
+    /// placements, and the pixels have to come from the same pass a stored
+    /// placement uses or the two kinds of symbol would drift apart.
+    /// </remarks>
+    public static void StampPlacements(
+        SKCanvas target, IReadOnlyList<SymbolPlacement> placements, SKImageInfo info,
+        int celIndex, double outputScale = 1.0)
+    {
+        foreach (var placement in placements)
         {
             Stamp(target, placement, info, celIndex, outputScale);
         }

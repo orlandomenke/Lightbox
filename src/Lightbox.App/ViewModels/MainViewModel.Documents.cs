@@ -1046,7 +1046,17 @@ public partial class MainViewModel
     private void OnProjectChanged()
     {
         OnPropertyChanged(nameof(HasProject));
+        // Read before RegisterResources re-derives it: a change that removed
+        // the variant's last attachment nulls the resolver in there, and the
+        // repaint below must still happen or the armor outlives its record.
+        var dressedBefore = Rendering.AttachmentOverlay.Resolver is not null;
         RegisterResources();
+        // An attachment edited in the project window is a pixel change on the
+        // canvas behind it (Q143) — found by an adversarial pass asserting
+        // the repaint this line is: the editor's status line promised "the
+        // canvas shows it" and nothing asked the canvas to. A no-op for every
+        // project that wears nothing, before and after.
+        AttachmentsMayHaveMoved(evenIfBare: dressedBefore);
         MarkDocumentEdited();
     }
 
@@ -1147,6 +1157,10 @@ public partial class MainViewModel
         // — see MainViewModel.Variants.cs for why it must be a stand-in.
         var resolved = ApplyVariantStandIns(palettes.ToList());
         PaletteRegistry.Reset(resolved, gradients);
+        // And what those variants wear rides the same funnel (Q143), so the
+        // canvas and an export of this document agree about the armor the way
+        // they already agree about the colours.
+        ConfigureAttachmentOverlay();
         // Symbols are project-scoped while a project is open, which is the
         // point of them: the sword lives above the animations that hold it. A
         // document carries its own only when it arrived flattened from

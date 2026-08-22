@@ -456,15 +456,27 @@ palette can live* and *one of the places a palette can live*.
   - Viewing is view state, like the playhead: never serialized, never dirties
     a document, and a switch is one deliberate gesture so the full repaint it
     triggers is bounded by that gesture, not by pointer events.
-- [ ] Variant attachments — armor drawn once, riding an anchor through every animation (Q143) `evidence: VariantAttachment, AnAttachmentFollowsTheAnchorThroughEveryAnimation, APerFrameNudgeMovesTheAttachmentOnOneDrawingOnly, AFullDocumentOverrideSilencesTheAttachmentForThatAnimation`
-  - The assembly Q143 chose: anchors supply the animated position (and, once
-    Q144 lands, the direction), a symbol supplies the drawn-once add-on with
-    its own pivot, and the variant owns the attachment record — nullable,
-    absent until used. Overridable at every level, most specific wins:
-    default transform, per-document, per-frame, and a wholesale document
-    override as the escape hatch for what an attachment cannot carry.
-  - Export must flatten it — invariant 1 holds at the boundary, the way
-    `ProjectIo.Flatten` already inlines symbols.
+- [x] Variant attachments — armor drawn once, riding an anchor through every animation (Q143) `evidence: VariantAttachment, VariantAttachments, AttachmentOverlay, VariantAttachmentTests, VariantAttachmentViewTests, AnAttachmentRidesTheAnchorByName, TwoDocumentsWithDifferentAnchorIdsBothDressTheSameAttachment, FollowingTheAimTurnsThePlacementAndItsOffset, AbsenceIsTheOffState, AVariantThatWearsNothingWritesNoAttachmentsKey, TheCanvasShowsTheArmorOnlyWhileTheVariantIsViewed, MovingTheAnchorMovesTheArmor, TheExportKeepsThePromiseTheCanvasMade, TheEditorDressesAndUndressesAVariant`
+  - The assembly Q143 chose: anchors supply the animated position and, via
+    Q144, the direction; a symbol supplies the drawn-once add-on with its
+    own pivot; and the variant owns the attachment record — nullable, absent
+    until used, bound to the anchor **by name** because ids are per document
+    and names are already the sidecar's cross-document contract.
+  - **Built (2026-08-22): the record, the resolution, the overlay pass and
+    the editor.** Resolution produces <em>ephemeral</em> `SymbolPlacement`s —
+    nothing touches a frame, so invariant 1 holds without a flatten step —
+    and both compose paths (the view's publish, the exporter's frame
+    composition) append the same overlay, so the sheet shows what the canvas
+    showed, the palette's contract extended to worn pixels. The overlay
+    bitmaps are cached per timeline index, keyed by editor revision so undo
+    invalidates them for free, and retire through the frame cache's
+    pin-aware deferral (B130's lesson). The per-document and per-frame
+    override levels collapsed onto the anchor itself: nudge, aim or clear it
+    per drawing and the armor follows — no second store.
+  - **Open on purpose, recorded in Q143:** draw order (the overlay sits
+    above the whole stack; behind-a-limb needs an attachment to name its
+    layer) and which folder's armor dresses a multi-folder export (the
+    resolver is ambient per active document, like the palettes).
 - [~] Scene management `evidence: ProjectScene, AddScene, AddShot, SceneDuration, AFilmSurvivesASaveAndReload, AShotIsADocumentLikeAnyOther, ShotsAreIndentedUnderTheirScene`
 - [x] Project conversion (Illustration → Animation → Game) with no artwork recreated `evidence: Convert, ConversionReport, ConvertingRecreatesNoArtwork, ConvertingAwayFromAnimationKeepsTheCameraAndTheScenes, ConvertingDoesNotRearrangeTheScreenByItself`
 - [x] Workspace layouts, decoupled from project type `evidence: WorkspaceStore, WorkspaceViewModel, EveryProjectTypeHasABuiltInWorkspace, TakingAProjectTypesDefaultsSwitchesWorkspace`

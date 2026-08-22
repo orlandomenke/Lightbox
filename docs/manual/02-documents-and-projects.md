@@ -905,6 +905,28 @@ drawing again**. The variant goes back to the shared animation, and the
 drawing it had stays in the folder as an ordinary document — dissolving an
 arrangement is never the fastest way to delete the art made for it.
 
+**Wearing something the base does not have** — armor, a helmet, a lantern —
+is what **attachments** are for, and they sit between the palette swap and a
+full replacement drawing: draw the piece once as a **symbol**, and the
+variant wears it on a rig **anchor**, riding the anchor through every
+animation of the character.
+
+1. Draw the piece as a symbol (its pivot is where it sits on the body).
+2. In each animation, place an anchor where it attaches — the rig overlay,
+   **Ctrl+K** — and name it the same thing everywhere: `shoulder`,
+   `leftHand`. Aim the anchor's stalk if the piece should turn with the limb.
+3. In the project window, select the character's folder: each variant in the
+   details panel takes a symbol and an anchor name, plus an offset, scale,
+   extra angle and a **Turn with the anchor** switch.
+
+While the variant is viewed, the piece renders on the canvas and **exports
+with the sheet**, on every animation whose rig declares that anchor name.
+The anchor is also how you adjust it per drawing: nudge the anchor and the
+piece follows, aim it and the piece turns, **Clear here** and the piece is
+absent on that drawing — no second set of controls to learn. The attachment
+draws above the drawing; a piece that must sit behind a limb, or deform with
+the pose, is what a full replacement drawing (above) is still for.
+
 ### The character library
 
 A project whose type is **Asset library** offers its characters to other

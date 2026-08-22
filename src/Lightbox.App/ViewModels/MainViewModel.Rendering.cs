@@ -661,6 +661,16 @@ public partial class MainViewModel
             passes, heldRun, scene.Width, scene.Height, out var heldTransitioned);
         foldTransitioned |= heldTransitioned;
 
+        // Q143: what the viewed variant wears, one pass over the whole stack.
+        // Appended after the folds so every compositor route carries it; the
+        // bitmap is cached per frame index in MainViewModel.Variants.cs, and a
+        // bitmap neither cache owns passes through pin/unpin harmlessly. Null
+        // — one delegate test — for everyone not viewing a dressed variant.
+        if (WornOverlayFor(scene, CurrentFrameIndex) is { } worn)
+        {
+            passes.Add(new RenderPass(worn, null, 1.0));
+        }
+
         // A fold transition repaints everything once (see the out parameter's
         // remarks): folded and unfolded pixels can differ by an LSB, and a
         // dirty-region patch must never mix the two on one surface.

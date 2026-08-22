@@ -173,6 +173,115 @@ public sealed record AssetEntry(string Kind, string Id, string Name)
 }
 
 /// <summary>One place a sheet can be filed: a folder, or the project when null.</summary>
+/// <summary>A project symbol, offered by name for an attachment to wear.</summary>
+public sealed record SymbolChoice(string Id, string Name);
+
+/// <summary>
+/// One variant in the folder editor, with what it wears editable (Q143).
+/// </summary>
+/// <remarks>
+/// A view row over the model rather than the model itself, because adding an
+/// attachment needs per-variant input state (the symbol picked, the anchor
+/// typed) and the model must not carry form state.
+/// </remarks>
+public sealed partial class VariantRow : ObservableObject
+{
+    private readonly ProjectWindowViewModel _owner;
+
+    public VariantRow(ProjectWindowViewModel owner, SubjectVariant variant)
+    {
+        _owner = owner;
+        Variant = variant;
+        Attachments = [.. (variant.Attachments ?? [])
+            .Select(a => new AttachmentRow(a, owner))];
+    }
+
+    public SubjectVariant Variant { get; }
+
+    public string Name => Variant.Name;
+
+    public IReadOnlyList<AttachmentRow> Attachments { get; }
+
+    public bool HasAttachments => Attachments.Count > 0;
+
+    public IReadOnlyList<SymbolChoice> Symbols => _owner.SymbolChoices;
+
+    [ObservableProperty]
+    private SymbolChoice? _newSymbol;
+
+    /// <summary>
+    /// The anchor's <em>name</em>, as the rig declares it — "leftHand", the
+    /// same word the export sidecar keys by. A name rather than a picker
+    /// because the names live in documents that may not be loaded, and a
+    /// dropdown that has to read forty files to open is not a dropdown.
+    /// </summary>
+    [ObservableProperty]
+    private string _newAnchor = "";
+
+    [RelayCommand]
+    private void AddAttachment()
+    {
+        var anchor = NewAnchor.Trim();
+        if (NewSymbol is not { } symbol || anchor.Length == 0) return;
+        (Variant.Attachments ??= []).Add(new VariantAttachment
+        {
+            Anchor = anchor,
+            SymbolId = symbol.Id,
+        });
+        _owner.AttachmentsChanged(
+            $"“{Variant.Name}” wears “{symbol.Name}” on “{anchor}”. View the variant to see it ride the rig.");
+    }
+
+    [RelayCommand]
+    private void RemoveAttachment(AttachmentRow? row)
+    {
+        if (row is null || Variant.Attachments is not { } list) return;
+        list.Remove(row.Model);
+        // Back to null when the last one goes — a variant that stopped
+        // wearing things serializes like one that never did.
+        if (list.Count == 0) Variant.Attachments = null;
+        _owner.AttachmentsChanged($"“{Variant.Name}” no longer wears “{row.Summary}”.");
+    }
+}
+
+/// <summary>One attachment's editable numbers, write-through to the model.</summary>
+public sealed class AttachmentRow(VariantAttachment model, ProjectWindowViewModel owner)
+{
+    public VariantAttachment Model { get; } = model;
+
+    public string Summary => $"{owner.SymbolNameOf(Model.SymbolId)} on “{Model.Anchor}”";
+
+    public double OffsetX
+    {
+        get => Model.OffsetX;
+        set { Model.OffsetX = value; owner.AttachmentEdited(); }
+    }
+
+    public double OffsetY
+    {
+        get => Model.OffsetY;
+        set { Model.OffsetY = value; owner.AttachmentEdited(); }
+    }
+
+    public double Scale
+    {
+        get => Model.Scale;
+        set { Model.Scale = value; owner.AttachmentEdited(); }
+    }
+
+    public double AngleDeg
+    {
+        get => Model.AngleDeg;
+        set { Model.AngleDeg = value; owner.AttachmentEdited(); }
+    }
+
+    public bool FollowAngle
+    {
+        get => Model.FollowAngle;
+        set { Model.FollowAngle = value; owner.AttachmentEdited(); }
+    }
+}
+
 public sealed record SheetHomeChoice(ProjectFolder? Folder, string Label)
 {
     public override string ToString() => Label;
@@ -441,6 +550,7 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(FolderReadingLabel));
         OnPropertyChanged(nameof(WhatClearingCosts));
         OnPropertyChanged(nameof(FolderVariants));
+        OnPropertyChanged(nameof(FolderVariantRows));
     }
 
     /// <summary>Only the documents in the selection — a folder has no status.</summary>
@@ -1655,6 +1765,40 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
 
     /// <summary>The folder's variants, for the editor to list.</summary>
     public IReadOnlyList<SubjectVariant> FolderVariants => EditingFolder?.Variants ?? [];
+
+    /// <summary>
+    /// The variants with their attachments editable — what the panel binds,
+    /// where <see cref="FolderVariants"/> is the bare model list.
+    /// </summary>
+    public IReadOnlyList<VariantRow> FolderVariantRows =>
+        [.. FolderVariants.Select(v => new VariantRow(this, v))];
+
+    /// <summary>The project's symbols, offered as what an attachment can wear.</summary>
+    public IReadOnlyList<SymbolChoice> SymbolChoices =>
+        [.. _project.Symbols.Values
+            .OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(s => new SymbolChoice(s.Id, s.Name))];
+
+    /// <summary>An attachment list changed shape — rebuild and mark unsaved.</summary>
+    internal void AttachmentsChanged(string said) => Touched(said);
+
+    /// <summary>A symbol's name for a summary line, or its id when unresolved.</summary>
+    internal string SymbolNameOf(string symbolId) =>
+        _project.Symbols.GetValueOrDefault(symbolId)?.Name ?? symbolId;
+
+    /// <summary>
+    /// An attachment's numbers changed — mark unsaved without rebuilding.
+    /// </summary>
+    /// <remarks>
+    /// No rebuild on purpose: rebuilding recreates the rows, and a row
+    /// recreated under a spinner mid-edit is a field that loses focus per
+    /// nudge. The numbers live on the model, so nothing on screen is stale.
+    /// </remarks>
+    internal void AttachmentEdited()
+    {
+        Status = "Attachment changed. The canvas shows it while the variant is viewed.";
+        _changed();
+    }
 
     [ObservableProperty]
     private string _newVariantName = "";
