@@ -195,4 +195,82 @@ public class LayerMergeTests
         Assert.NotEqual(held.Id, first.Strokes[0].Id);
         Assert.NotEqual(first.Strokes[0].Id, third.Strokes[0].Id);
     }
+
+    /// <summary>A stroke covering only the left span of a bar, as mask coverage.</summary>
+    private static Stroke LeftCover(double y) => new()
+    {
+        Color = "#ffffff",
+        Points = [new StrokePoint(20, y, 1), new StrokePoint(90, y, 1)],
+        Brush = new BrushSettings { Size = 24, Hardness = 1, Opacity = 1, Flow = 1, Spacing = 0.1, AntiAlias = false },
+    };
+
+    private static SKBitmap Render(Layer layer, int t)
+    {
+        var frame = Lightbox.Core.Timeline.ExposureSheet.ExposedFrame(layer, t)!;
+        return FrameRasterizer.Materialize(frame, W, H, celIndex: t);
+    }
+
+    [Fact]
+    public void AMaskedUpperLayerBakesWithItsMaskApplied()
+    {
+        // The upper bar runs 20..180; its mask covers 20..90 — so the merged
+        // drawing carries the bar's left span and nothing of its right.
+        var scene = TestScene();
+        var lower = LayerOf(Key(Bar(60, "#2040c0")));
+        var upper = LayerOf(Key(Bar(120, "#c02040")));
+        upper.Mask = new LayerMask();
+        upper.Mask.Frame.Strokes.Add(LeftCover(120));
+
+        Assert.True(LayerMerge.WouldBakePixels(upper, lower));
+        LayerMerge.MergeDown(scene, upper, lower);
+
+        using var merged = Render(lower, 0);
+        Assert.True(merged.GetPixel(50, 120).Alpha > 0, "the covered span of the bar must survive");
+        Assert.Equal(0, merged.GetPixel(160, 120).Alpha);
+        Assert.True(merged.GetPixel(160, 60).Alpha > 0, "the lower drawing is untouched by the upper's mask");
+    }
+
+    [Fact]
+    public void AMaskedLowerLayerBakesItsMaskAndClearsIt()
+    {
+        // Even the frames the upper layer never touches are baked — the merge
+        // clears the mask, so a cleared mask must already be in the pixels.
+        var scene = TestScene();
+        var lower = LayerOf(Key(Bar(60, "#2040c0")));
+        lower.Mask = new LayerMask();
+        lower.Mask.Frame.Strokes.Add(LeftCover(60));
+        var upper = LayerOf(Key(Bar(120, "#c02040")));
+
+        Assert.True(LayerMerge.WouldBakePixels(upper, lower));
+        LayerMerge.MergeDown(scene, upper, lower);
+
+        Assert.Null(lower.Mask);
+        using var merged = Render(lower, 0);
+        Assert.True(merged.GetPixel(50, 60).Alpha > 0, "the covered span survives");
+        Assert.Equal(0, merged.GetPixel(160, 60).Alpha);
+        Assert.True(merged.GetPixel(160, 120).Alpha > 0, "the upper drawing is untouched by the lower's mask");
+    }
+
+    [Fact]
+    public void AClippedUpperLayerBakesCarvedToTheLowersContent()
+    {
+        // The bars cross only where both have ink (same row): the clipped
+        // upper survives on the lower's bar and vanishes off it.
+        var scene = TestScene();
+        var lower = LayerOf(Key(Bar(100, "#2040c0")));
+        var upper = LayerOf(Key(Bar(100, "#c02040")), Key(Bar(40, "#c02040")));
+        upper.ClipToBelow = true;
+
+        Assert.True(LayerMerge.WouldBakePixels(upper, lower));
+        LayerMerge.MergeDown(scene, upper, lower);
+
+        using var first = Render(lower, 0);
+        var over = first.GetPixel(100, 100);
+        Assert.True(over.Alpha > 0 && over.Red > over.Blue,
+            $"where the bars coincide the upper's colour wins ({over})");
+
+        using var second = Render(lower, 1);
+        Assert.Equal(0, second.GetPixel(100, 40).Alpha); // off the base: carved away
+        Assert.True(second.GetPixel(100, 100).Alpha > 0, "the held lower bar still shows");
+    }
 }

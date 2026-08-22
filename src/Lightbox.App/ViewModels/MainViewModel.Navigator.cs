@@ -148,11 +148,17 @@ public partial class MainViewModel
             var passes = new List<RenderPass>(exposed.Count);
             foreach (var (layer, frame) in exposed)
             {
+                // IndexOf per layer is fine here: a navigator refresh happens
+                // per edit, not per pointer event, and the list is the stack.
+                var shapes = LayerShapes.For(
+                    scene, scene.Layers.IndexOf(layer), CurrentFrameIndex);
+                if (shapes is { Count: 0 }) continue;
                 var bmp = _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex);
                 _cache.Pin(bmp);
                 held.Add(bmp);
                 passes.Add(new RenderPass(
-                    bmp, null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
+                    bmp, null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
+                    Shapes: LayerShapes.Resolve(shapes, _cache, scene.Width, scene.Height, CurrentFrameIndex)));
             }
 
             using var image = SceneRenderer.Compose(

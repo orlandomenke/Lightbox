@@ -137,6 +137,66 @@ public sealed class LayerLink
     public LayerLink Clone() => (LayerLink)MemberwiseClone();
 }
 
+/// <summary>
+/// A painted alpha mask on a layer: where the mask's drawing has coverage,
+/// the layer shows; where it has none, the layer hides.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>The mask is strokes, like everything else</b> (Q147). It holds an
+/// ordinary <see cref="Documents.Frame"/> whose strokes render to a single
+/// alpha channel through the one pixel path, so a mask is deterministic,
+/// undoable, replayable and reachable by the inbetweener for free — and
+/// invariant 1 keeps no exceptions. There is no white-reveals/black-conceals
+/// convention to learn: painting shows, erasing hides, exactly as the brush
+/// already behaves everywhere.
+/// </para>
+/// <para>
+/// <b>One drawing, held across the whole timeline</b> (Q148). The animated
+/// case is a clipping-mask arrangement — the matte is an ordinary layer that
+/// animates with the existing cel machinery — so the mask carries no cels, no
+/// exposure and nothing new for the sheet. The block is nullable on the layer
+/// and absent until authored, so per-frame masks later are an addition inside
+/// it rather than a migration.
+/// </para>
+/// <para>
+/// <see cref="Disabled"/> and <see cref="Inverted"/> are nullable so a fresh
+/// mask writes only its drawing — the camera's rule, applied inside the block
+/// as well as to it.
+/// </para>
+/// </remarks>
+public sealed class LayerMask
+{
+    /// <summary>The mask's drawing. Coverage is opacity.</summary>
+    public Frame Frame { get; set; } = new();
+
+    /// <summary>
+    /// Temporarily switched off (Photoshop's shift-click), keeping the
+    /// drawing. Null — and absent — while the mask applies, the ordinary case.
+    /// </summary>
+    public bool? Disabled { get; set; }
+
+    /// <summary>Whether the mask currently applies. Derived; never serialized.</summary>
+    [JsonIgnore] public bool Applies => Disabled != true;
+
+    /// <summary>
+    /// Painted coverage hides instead of shows. Null — and absent — until an
+    /// artist inverts, so inverting is a flag rather than repainted strokes.
+    /// </summary>
+    public bool? Inverted { get; set; }
+
+    /// <summary>Whether coverage hides rather than shows. Derived; never serialized.</summary>
+    [JsonIgnore] public bool IsInverted => Inverted == true;
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public LayerMask Clone()
+    {
+        var copy = (LayerMask)MemberwiseClone();
+        copy.Frame = Frame.Clone();
+        return copy;
+    }
+}
+
 public sealed class Layer
 {
     public string Id { get; set; } = Ids.NewId("layer");
@@ -230,6 +290,38 @@ public sealed class Layer
     /// <summary>Whether this layer sits off the picture plane. Derived; never serialized.</summary>
     [JsonIgnore] public bool HasDepth => Depth is not null && Depth.Value != 0;
 
+    /// <summary>
+    /// The painted alpha mask on this layer, or null — and absent — for every
+    /// layer nobody has masked, which is every layer ever saved before this
+    /// existed. See <see cref="LayerMask"/> for what a mask is made of and
+    /// why it holds one drawing rather than cels.
+    /// </summary>
+    public LayerMask? Mask { get; set; }
+
+    /// <summary>Whether an applying mask shapes this layer's output. Derived; never serialized.</summary>
+    [JsonIgnore] public bool IsMasked => Mask is { } m && m.Applies;
+
+    /// <summary>
+    /// Composite this layer only where the layer below has content — the
+    /// clipping mask. The base is the first layer beneath this one that is
+    /// not itself clipped, so consecutive clipped layers share one base,
+    /// Photoshop's rule. Null — and absent — on every unclipped layer, for
+    /// <see cref="OmitFromExport"/>'s stated reason.
+    /// </summary>
+    /// <remarks>
+    /// A flag rather than a base-layer id on purpose: the base is positional
+    /// in Photoshop and positional here, so reordering does what an artist
+    /// moving a clipped layer expects — it clips to whatever it now sits on —
+    /// instead of silently dragging a reference to a layer it no longer
+    /// touches. (The opposite trade from <see cref="BoneId"/>, where the
+    /// *same* reasoning — what does the artist mean when they reorder? —
+    /// picked the id.)
+    /// </remarks>
+    public bool? ClipToBelow { get; set; }
+
+    /// <summary>Whether this layer clips to the one below. Derived; never serialized.</summary>
+    [JsonIgnore] public bool IsClipped => ClipToBelow == true;
+
     /// <summary>Whether this layer participates in onion-skin ghosting.</summary>
     public bool OnionEnabled { get; set; } = true;
 
@@ -304,6 +396,7 @@ public sealed class Layer
     {
         var copy = (Layer)MemberwiseClone();
         copy.Cels = Cels.Select(c => c.Clone()).ToList();
+        copy.Mask = Mask?.Clone();
         return copy;
     }
 }

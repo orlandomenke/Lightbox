@@ -54,6 +54,21 @@ public sealed record StrokeOverlay(
 /// compositor never receives such a pass, and <c>DrawPass</c> skips it rather
 /// than dereferencing nothing.
 /// </param>
+/// <summary>
+/// An alpha shape carving a pass: the pass keeps only what the shape covers
+/// (DstIn), or loses it when <paramref name="Inverted"/> (DstOut). A layer
+/// mask contributes one; a clipping mask contributes the base layer's own
+/// render and, when the base is masked too, the base's mask after it — a
+/// chain of intersections, applied inside the pass's isolation so opacity and
+/// blend see the carved result.
+/// </summary>
+public sealed record PassShape(SKBitmap Mask, bool Inverted = false);
+
+/// <param name="Shapes">
+/// Alpha shapes carving this pass — a layer mask, a clipping base — or null
+/// for every unshaped layer, which must keep taking the path that existed
+/// before shapes did. See <see cref="PassShape"/>.
+/// </param>
 public sealed record RenderPass(
     SKBitmap? Bitmap,
     SKColor? Tint,
@@ -62,7 +77,8 @@ public sealed record RenderPass(
     StrokeOverlay? Overlay = null,
     SKMatrix? Matrix = null,
     SKRectI? Source = null,
-    Lightbox.Core.Documents.Frame? SourceFrame = null);
+    Lightbox.Core.Documents.Frame? SourceFrame = null,
+    IReadOnlyList<PassShape>? Shapes = null);
 
 /// <summary>
 /// Pure SkiaSharp scene compositing: white paper, then passes in order
@@ -180,9 +196,22 @@ public static class SceneRenderer
             return;
         }
 
+        var shaped = pass.Shapes is { Count: > 0 };
+
         if (pass.Overlay is not { } overlay)
         {
-            DrawLayer(canvas, pass.Bitmap, paint);
+            if (!shaped)
+            {
+                DrawLayer(canvas, pass.Bitmap, paint);
+                return;
+            }
+            // The shapes must carve the layer alone, so it is isolated and the
+            // paint — opacity, blend, tint — applies to the carved result on
+            // restore, exactly as it would have applied to the whole layer.
+            canvas.SaveLayer(paint);
+            DrawLayer(canvas, pass.Bitmap, null);
+            ApplyShapes(canvas, pass.Shapes!);
+            canvas.Restore();
             return;
         }
 
@@ -198,7 +227,10 @@ public static class SceneRenderer
         // (which would otherwise cut through everything) or a layer that
         // is transparent or blended. Skipping the offscreen layer in the
         // ordinary case roughly halves the cost of a live repaint.
-        var needsIsolation = overlay.Erases || alpha != 255 || pass.Blend != SKBlendMode.SrcOver;
+        // A shaped pass always isolates: the shapes must carve the layer and
+        // its live stroke together, and nothing else.
+        var needsIsolation = shaped
+            || overlay.Erases || alpha != 255 || pass.Blend != SKBlendMode.SrcOver;
         if (!needsIsolation)
         {
             DrawLayer(canvas, pass.Bitmap, paint);
@@ -211,7 +243,24 @@ public static class SceneRenderer
         canvas.SaveLayer(paint);
         DrawLayer(canvas, pass.Bitmap, null);
         DrawStroke(canvas, pass.Bitmap, overlay, strokePaint);
+        if (shaped) ApplyShapes(canvas, pass.Shapes!);
         canvas.Restore();
+    }
+
+    /// <summary>
+    /// Carve the isolated pass by each shape in turn. Order does not matter
+    /// for the keeps (intersection commutes); an inverted shape subtracts.
+    /// </summary>
+    private static void ApplyShapes(SKCanvas canvas, IReadOnlyList<PassShape> shapes)
+    {
+        foreach (var shape in shapes)
+        {
+            using var carve = new SKPaint
+            {
+                BlendMode = shape.Inverted ? SKBlendMode.DstOut : SKBlendMode.DstIn,
+            };
+            DrawLayer(canvas, shape.Mask, carve);
+        }
     }
 
     /// <summary>

@@ -447,14 +447,20 @@ public sealed partial class MainViewModel : ObservableObject
         var scene = Scene;
         var active = ActiveLayer;
         var passes = new List<RenderPass>();
-        foreach (var layer in scene.Layers)
+        for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
         {
+            var layer = scene.Layers[layerIndex];
             if (ReferenceEquals(layer, active)) break;
             if (!scene.IsLayerVisible(layer)) continue;
             if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is not { } frame) continue;
+            // A smudge or blur samples what it visibly sits on, so the
+            // backdrop is shaped exactly as the composite is.
+            var shapes = LayerShapes.For(scene, layerIndex, CurrentFrameIndex);
+            if (shapes is { Count: 0 }) continue;
             passes.Add(new RenderPass(
                 _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex),
-                null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
+                null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
+                Shapes: LayerShapes.Resolve(shapes, _cache, scene.Width, scene.Height, CurrentFrameIndex)));
         }
         if (passes.Count == 0) return null;
         using var image = SceneRenderer.Compose(

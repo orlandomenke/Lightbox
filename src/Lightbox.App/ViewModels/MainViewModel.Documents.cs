@@ -777,11 +777,20 @@ public partial class MainViewModel
             return;
         }
 
-        var passes = below
-            .Select(b => new RenderPass(
+        var passes = new List<RenderPass>(below.Count);
+        foreach (var b in below)
+        {
+            // The stroke re-reads what it visibly sat on, so the stack it
+            // froze against is shaped like the composite (IndexOf is fine: a
+            // rebake happens per edit, not per pointer event).
+            var shapes = LayerShapes.For(
+                Scene, Scene.Layers.IndexOf(b.Layer), CurrentFrameIndex);
+            if (shapes is { Count: 0 }) continue;
+            passes.Add(new RenderPass(
                 _cache.Get(b.Frame, width, height, celIndex: CurrentFrameIndex),
-                null, b.Layer.Opacity, SceneRenderer.ToSkia(b.Layer.BlendMode)))
-            .ToList();
+                null, b.Layer.Opacity, SceneRenderer.ToSkia(b.Layer.BlendMode),
+                Shapes: LayerShapes.Resolve(shapes, _cache, width, height, CurrentFrameIndex)));
+        }
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var image = SceneRenderer.Compose(width, height, passes, SKColors.Transparent);
         using var beneath = SKBitmap.FromImage(image);
@@ -1223,12 +1232,18 @@ public partial class MainViewModel
     {
         var scene = Scene;
         var passes = new List<RenderPass>();
-        foreach (var layer in scene.Layers)
+        for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
         {
+            var layer = scene.Layers[layerIndex];
             if (!scene.IsLayerVisible(layer)) continue;
             var frame = ExposureSheet.ExposedFrame(layer, frameIndex);
             if (frame is null) continue;
-            passes.Add(new RenderPass(_cache.Get(frame, scene.Width, scene.Height, celIndex: frameIndex), null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
+            var shapes = LayerShapes.For(scene, layerIndex, frameIndex);
+            if (shapes is { Count: 0 }) continue;
+            passes.Add(new RenderPass(
+                _cache.Get(frame, scene.Width, scene.Height, celIndex: frameIndex), null, layer.Opacity,
+                SceneRenderer.ToSkia(layer.BlendMode),
+                Shapes: LayerShapes.Resolve(shapes, _cache, scene.Width, scene.Height, frameIndex)));
         }
         using var image = SceneRenderer.Compose(scene.Width, scene.Height, passes, SceneRenderer.BackgroundOf(scene));
         using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100)

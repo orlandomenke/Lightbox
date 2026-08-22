@@ -264,6 +264,31 @@ public sealed class LayerStackBakeTests(ITestOutputHelper output) : BrushStateIs
     }
 
     /// <summary>
+    /// A masked or clipped layer reads like a Multiply for the fold: its pass
+    /// is carved per publish, so pre-folding it into a bake would serve stale
+    /// pixels the moment the mask is repainted. Correct and unfolded beats
+    /// folded and stale — the refusal in <c>Eligible</c>.
+    /// </summary>
+    [AvaloniaFact]
+    public void AMaskedLayerRefusesToFoldAndStillRenders()
+    {
+        var vm = LayeredVm();
+        vm.Doc.Scene.Layers[1].Mask = new Lightbox.Core.Documents.LayerMask();
+        var before = vm.StackBake.Rebuilds;
+
+        Published(vm).Dispose();
+        Published(vm).Dispose();
+        Published(vm).Dispose();
+
+        var delta = vm.StackBake.Rebuilds - before;
+        output.WriteLine($"rebuilds after the mask appeared: {delta}");
+        // The below segment (paper + masked layer) must not fold; the above
+        // segment may still re-fold once.
+        Assert.True(delta <= 1,
+            $"{delta} rebuilds after a mask appeared below — the masked segment folded");
+    }
+
+    /// <summary>
     /// Playback never pays for baking: the pass list changes every frame, so a
     /// fold could never be reused before it was stale.
     /// </summary>

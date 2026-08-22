@@ -941,8 +941,9 @@ public partial class MainViewModel
         foreach (var index in ahead)
         {
             var celIndex = Math.Clamp(index, 0, last);
-            foreach (var layer in scene.Layers)
+            for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
             {
+                var layer = scene.Layers[layerIndex];
                 if (!scene.IsLayerVisible(layer)) continue;
                 if (ExposureSheet.ExposedFrame(layer, celIndex) is not { } frame) continue;
 
@@ -959,7 +960,8 @@ public partial class MainViewModel
                 var why = tileNativeDoc
                     ? TileFallback.Reason(
                         frame, scene.Camera is not null, true, liveEffectHere: false,
-                        posed: _cache.Rig.IsPosed(frame))
+                        posed: _cache.Rig.IsPosed(frame),
+                        shaped: LayerShapes.For(scene, layerIndex, celIndex) is not null)
                     : TileFallbackReason.NoViewport;
 
                 if (why == TileFallbackReason.None)
@@ -1106,8 +1108,12 @@ public partial class MainViewModel
             var placement = SKMatrix.CreateScaleTranslation(
                 step, step, lvp.Left * step, lvp.Top * step);
             var p = passes[i];
+            // Shapes ride along unchanged; a shaped pass never goes
+            // tile-native (TileFallbackReason.Shaped), so this is null today
+            // and carrying it is what keeps that a fallback decision rather
+            // than a silent drop here.
             flattened[i] = new RenderPass(
-                flat, p.Tint, p.Opacity, p.Blend, p.Overlay, placement);
+                flat, p.Tint, p.Opacity, p.Blend, p.Overlay, placement, Shapes: p.Shapes);
         }
         return flattened ?? passes;
     }

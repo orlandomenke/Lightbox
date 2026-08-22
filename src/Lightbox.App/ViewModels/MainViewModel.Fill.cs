@@ -413,14 +413,20 @@ public partial class MainViewModel
     {
         var scene = Scene;
         var passes = new List<RenderPass>();
-        foreach (var layer in scene.Layers)
+        for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
         {
+            var layer = scene.Layers[layerIndex];
             if (!scene.IsLayerVisible(layer)) continue;
             var frame = ExposureSheet.ExposedFrame(layer, CurrentFrameIndex);
             if (frame is null) continue;
+            // The fill and the eyedropper read the composite the artist sees,
+            // masks and clipping included.
+            var shapes = LayerShapes.For(scene, layerIndex, CurrentFrameIndex);
+            if (shapes is { Count: 0 }) continue;
             passes.Add(new RenderPass(
                 _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex), null, layer.Opacity,
-                SceneRenderer.ToSkia(layer.BlendMode)));
+                SceneRenderer.ToSkia(layer.BlendMode),
+                Shapes: LayerShapes.Resolve(shapes, _cache, scene.Width, scene.Height, CurrentFrameIndex)));
         }
         return passes;
     }
