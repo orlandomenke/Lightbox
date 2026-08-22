@@ -90,6 +90,32 @@ public class PigmentModelTests
     }
 
     [Fact]
+    public void Over_AGlazeOnBlankCanvas_KeepsItsHue()
+    {
+        // B273. A transparent glaze is nearly all absorption, so its mass tone
+        // is close to black — and the transparent-backdrop path used to back
+        // the film with exactly that, turning every watercolour and ink stroke
+        // on blank canvas grey. Blank canvas is backed by the paper: the same
+        // glaze must come out the colour it comes out over white.
+        var glaze = Pigment.FromColor(Ultramarine, 0.05);
+
+        var onNothing = glaze.Over(new SKColor(0, 0, 0, 0), 0.6);
+        var onPaper = glaze.Over(SKColors.White, 0.6);
+
+        // The hue survives: distinctly blue, not a grey ramp.
+        Assert.True(onNothing.Blue > onNothing.Red + 60,
+            $"ultramarine glaze on blank canvas gave ({onNothing.Red},{onNothing.Green},{onNothing.Blue}) — grey, not blue");
+
+        // And it is the over-paper colour, channel for channel.
+        Assert.True(
+            Math.Abs(onNothing.Red - onPaper.Red) <= 2
+            && Math.Abs(onNothing.Green - onPaper.Green) <= 2
+            && Math.Abs(onNothing.Blue - onPaper.Blue) <= 2,
+            $"blank canvas gave ({onNothing.Red},{onNothing.Green},{onNothing.Blue}), "
+            + $"paper gave ({onPaper.Red},{onPaper.Green},{onPaper.Blue})");
+    }
+
+    [Fact]
     public void Over_FullyHiding_ConvergesToMassToneWhateverIsUnderneath()
     {
         foreach (var pig in Pigments)

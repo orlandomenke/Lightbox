@@ -178,11 +178,15 @@ public readonly struct Pigment
 
         // Kubelka-Munk answers "what colour is this film over that backing",
         // which presumes there is a backing. Where the layer is transparent
-        // there is not: keeping the backdrop's alpha would return a fully
-        // computed colour at alpha 0, so a stroke onto blank canvas would
-        // vanish. The pigment sees its own mass tone there, and it adds
-        // opacity in proportion to how much it hides.
-        var backing = Blend(MassTone, backdrop, backdrop.Alpha / 255.0);
+        // the backing is the paper the compositor will show through it, and
+        // paper is white — a glaze is a film that is *lit from behind* by the
+        // sheet. Backing it with its own mass tone here (as this used to)
+        // turned every low-hiding medium grey: a transparent glaze is nearly
+        // all absorption, so its mass tone is close to black, and watercolour
+        // and ink painted onto blank canvas lost their hue entirely (B273).
+        // Opacity is a separate question and is unchanged: the pigment adds
+        // alpha in proportion to how much it hides.
+        var backing = Blend(SKColors.White, backdrop, backdrop.Alpha / 255.0);
         var alpha = backdrop.Alpha / 255.0;
         var laid = alpha + (1.0 - alpha) * Coverage(x);
 

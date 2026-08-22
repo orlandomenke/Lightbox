@@ -242,6 +242,31 @@ public class MediumRenderingTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Watercolour_OnBlankCanvasKeepsItsHue()
+    {
+        // B273. The stroke colour here is a red (#c04030); the render must
+        // still be recognisably red, not the grey that mass-tone-backed
+        // Kubelka-Munk produced on a transparent layer. Mean over inked
+        // pixels rather than a single sample, because granulation moves
+        // individual pixels around.
+        using var bmp = Render(Stroke(Watercolour()));
+        double r = 0, b = 0, n = 0;
+        for (var y = 0; y < H; y++)
+        for (var x = 0; x < W; x++)
+        {
+            var c = bmp.GetPixel(x, y);
+            if (c.Alpha <= 32) continue;
+            r += c.Red; b += c.Blue; n++;
+        }
+
+        Assert.True(n > 0, "the stroke rendered nothing at all");
+        r /= n; b /= n;
+        output.WriteLine($"mean red {r:0.0}, mean blue {b:0.0} over {n:0} px");
+        Assert.True(r > b + 25,
+            $"a red watercolour stroke came out red {r:0.0} vs blue {b:0.0} — the hue is washing out to grey");
+    }
+
+    [Fact]
     public void EveryMediumReRendersIdentically()
     {
         // Invariant 2. A simulation is allowed, an unrepeatable one is not.
