@@ -301,6 +301,15 @@ wash dries flat. Turn it up and the border darkens and the middle pales — the
 paint is being moved, not added, so a strong wet edge is paid for out of the
 centre. That is what a real one costs too.
 
+Each patch of the wash will only give up part of what the brush put there, so
+turning this up deepens the border rather than emptying the middle. Turned a
+long way up it will still hollow a wash out, which is a real thing paint does
+and is what the top of the slider is for; the useful range is the lower part of
+its travel. **On a single stroke it is best left low.** A stroke is narrow
+enough that there is no room for a rim to gather at its border, so what edge
+pull mostly does there is thin the middle — which reads as a pale line down the
+stroke rather than as a wet edge. It is a control for washes.
+
 **Flow steps** decide how far the paint travels, not how much of it there is.
 Turn them down for a mark that stays where you put it, up for one that spreads
 and pools; the stroke carries the same pigment either way, and at zero it is

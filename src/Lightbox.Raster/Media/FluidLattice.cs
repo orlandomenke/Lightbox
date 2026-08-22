@@ -123,6 +123,60 @@ public sealed class FluidLattice
     /// </summary>
     private const float EdgeRate = 0.9f;
 
+    /// <summary>
+    /// The most of its own pigment a cell will ever hand to the rim, as a
+    /// fraction, at <c>EdgePull</c> 1. Below 1 the interior keeps a floor.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B274/B275 are one defect, and this is the floor that separates
+    /// them.</b> The pull used to be an uncapped one-way drain: every step moved
+    /// a fraction of every wet cell's suspended pigment toward the boundary, and
+    /// a cell deep inside received nothing back because its neighbours were
+    /// donating outward too. Over a long flow the interior emptied
+    /// geometrically, worst exactly on a stroke's centreline — the point
+    /// furthest from dry paper. Measured across a straight stroke as centreline
+    /// alpha over peak alpha: Ink wash shipped at <b>0.51</b>, Watercolor at
+    /// <b>0.83</b>, both <b>1.00</b> with <c>EdgePull</c> at zero, and 0.25 and
+    /// 0.08 at <c>EdgePull</c> 0.6 — and nothing else in the settings moved the
+    /// number at all. A pale line down the spine of every wet stroke is not
+    /// something wet media do, so the rim had been turned down to 0.06 to hide
+    /// it (B35), which is why watercolour shipped without the one mark it is
+    /// named for.
+    /// </para>
+    /// <para>
+    /// <b>Confining the donors to a band near the boundary was tried first and
+    /// is not the answer</b>, though it sounds like better physics. It removed
+    /// the seam by removing the rim: the cells within a few of the wet boundary
+    /// are out in the shallow fringe, mobility there is near zero, so nothing
+    /// moved and <c>EdgePull</c> 0.6 rendered pixel-identically to
+    /// <c>EdgePull</c> 0. The rim does not form at the geometric boundary — it
+    /// forms where mobility falls off, which is an interior contour.
+    /// </para>
+    /// <para>
+    /// What is actually missing is that pigment <em>binds</em>. A real wash is
+    /// not a sessile drop on glass, where the coffee ring empties the middle
+    /// completely; it is pigment on paper, and most of it grips the fibres
+    /// before it can travel. So each cell gets a budget, a share of what was
+    /// seeded into it, and once spent it holds what it has however long the flow
+    /// runs. <c>EdgePull</c> scales the share, so the dial runs from no rim to a
+    /// genuine coffee ring instead of from no rim to a hollow stroke.
+    /// </para>
+    /// <para>
+    /// <b>Two details in how the budget is kept are load-bearing, and both were
+    /// found by a test rather than by reasoning.</b> It is a share of what
+    /// <see cref="Seed"/> laid down, not of what the cell holds when the flow
+    /// starts, because a wash split across two <c>Run</c> calls would otherwise
+    /// be granted a second allowance and render differently from the same wash
+    /// run in one — the per-call state <c>TwoRuns_AreBitIdentical</c> exists to
+    /// catch. And the cap is on the <em>net</em> export, not the gross: capping
+    /// gross throttles the relay, so pigment from further in cannot pass through
+    /// on its way out and the rim never builds at all — measured rim/core 0.86
+    /// against 3.2, i.e. no rim where the guarded synthetic case wants one.
+    /// </para>
+    /// </remarks>
+    private const float EdgeBudget = 0.85f;
+
     private const float DepositBase = 0.25f;
     private const float LiftBase = 0.06f;
 
@@ -170,6 +224,8 @@ public sealed class FluidLattice
     private readonly float[] _div;
     private readonly float[] _dist;      // chamfer distance to the dry boundary
     private readonly float[] _scale;     // per-cell outflow limiter
+    private readonly float[] _laid;      // pigment seeded into each cell, as laid down
+    private readonly float[] _net;       // net pigment the capillary term has exported from it
 
     // Pigment is carried premultiplied: channel 0 is the amount, 1..3 are
     // amount × linear colour. Every transport and transfer applies the same
@@ -208,6 +264,8 @@ public sealed class FluidLattice
         _div = new float[n];
         _dist = new float[n];
         _scale = new float[n];
+        _laid = new float[n];
+        _net = new float[n];
 
         for (var c = 0; c < 4; c++)
         {
@@ -291,6 +349,8 @@ public sealed class FluidLattice
         _div.AsSpan(0, n).Clear();
         _dist.AsSpan(0, n).Clear();
         _scale.AsSpan(0, n).Clear();
+        _laid.AsSpan(0, n).Clear();
+        _net.AsSpan(0, n).Clear();
 
         for (var c = 0; c < 4; c++)
         {
@@ -345,6 +405,13 @@ public sealed class FluidLattice
         _susp[1][i] += q * Clamped(r, 0f, 1f);
         _susp[2][i] += q * Clamped(g, 0f, 1f);
         _susp[3][i] += q * Clamped(b, 0f, 1f);
+
+        // What the brush laid down here, which is what the capillary term's
+        // budget is a share of. Recorded at seeding rather than measured when
+        // the flow starts, so splitting one wash across two Run calls cannot
+        // hand the term a second allowance — that is per-call state, and
+        // TwoRuns_AreBitIdentical exists to catch exactly it.
+        _laid[i] += q;
     }
 
     /// <summary>Advance the simulation. Cost is O(width × height × steps).</summary>
@@ -873,6 +940,7 @@ public sealed class FluidLattice
         float[] t0 = _suspB[0], t1 = _suspB[1], t2 = _suspB[2], t3 = _suspB[3];
 
         var rate = Clamped(edge * EdgeRate, 0f, MaxTransfer);
+        var share = edge * EdgeBudget;
 
         for (var y = 0; y < _h; y++)
         {
@@ -893,7 +961,24 @@ public sealed class FluidLattice
                 var sum = gL + gR + gU + gD;
                 if (sum <= 0) continue;
 
+                // A cell may only ever export a share of what was laid down in
+                // it — see EdgeBudget. The cap is on the NET, so pigment from
+                // further in still relays through on its way to the rim: a
+                // gross cap throttles the relay, and then the rim never builds
+                // at all (measured rim/core 0.86 against 3.2 for a net cap).
+                var allowed = _laid[i] * share - _net[i];
+                if (allowed <= 0f) continue;
+
+                var mass = s0[i];
+                if (mass <= 0f) continue;
+
                 var frac = rate * (w / (w + WaterHold));
+                var moving = frac * mass;
+                if (moving > allowed)
+                {
+                    frac = allowed / mass;
+                    moving = allowed;
+                }
                 var norm = frac / sum;
                 var kL = gL * norm;
                 var kR = gR * norm;
@@ -901,6 +986,18 @@ public sealed class FluidLattice
                 var kD = gD * norm;
 
                 int iL = i - 1, iR = i + 1, iU = i - _w, iD = i + _w;
+
+                // Net export bookkeeping, on the same indices and weights the
+                // transfer itself uses so the two cannot disagree. Guarded the
+                // same way Scatter guards them, and for the same reason: a
+                // neighbour off the lattice has a zero weight, and its index is
+                // past the end of the array on the last row rather than merely
+                // unused.
+                _net[i] += moving;
+                if (kL > 0) _net[iL] -= mass * kL;
+                if (kR > 0) _net[iR] -= mass * kR;
+                if (kU > 0) _net[iU] -= mass * kU;
+                if (kD > 0) _net[iD] -= mass * kD;
 
                 // Same split as transport, with a negative "keep": what leaves
                 // the donor is exactly what the four neighbours receive.

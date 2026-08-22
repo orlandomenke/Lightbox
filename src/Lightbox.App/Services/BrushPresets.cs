@@ -335,7 +335,17 @@ public static class BuiltInPresets
                     // Extremely fluid and strongly absorbed: it bleeds along
                     // the fibres rather than pooling, and hardly granulates.
                     Wetness = 0.9, Viscosity = 0.05, Drag = 0.15, FlowSteps = 18,
-                    Absorbency = 0.75, EdgePull = 0.3,
+                    // B275 — 0.3 drew a pale line down the spine of every
+                    // stroke, which is the one thing an ink wash never does.
+                    // The budget cap in FluidLattice took the dip from 71/255
+                    // to 20; the rest is that ink runs 18 flow steps, so what
+                    // survives the cap still accumulates. Measured centreline
+                    // dip against the flank at this stroke width: 20 levels at
+                    // 0.3, 8 at 0.15, **4 at 0.1** — below what the eye finds
+                    // on a wash. Nothing is lost by turning it down, because
+                    // the rim it was buying does not form on a stroke or on a
+                    // wash at all (B274, re-measured).
+                    Absorbency = 0.75, EdgePull = 0.1,
                     PigmentDensity = 0.8, Granularity = 0.05, Hiding = 0.4,
                     Paper = PaperKind.Smooth, PaperScale = 6, PaperInfluence = 0.25,
                     PressureWater = 0.5, Rewetting = 0.4,

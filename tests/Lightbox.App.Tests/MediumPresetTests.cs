@@ -95,6 +95,73 @@ public class MediumPresetTests
     }
 
     /// <summary>
+    /// No wet preset dries with a pale line down its spine.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// B275, reported by the owner as "the prominent centre line… doesn't happen
+    /// in real life", and correct: a wet stroke dries evenly or with a darker
+    /// edge, never with a bright seam down the middle.
+    /// </para>
+    /// <para>
+    /// <b>`EdgePull` was the sole cause</b>, established by sweeping every
+    /// medium setting and watching this ratio: nothing else moved it at all, and
+    /// zeroing `EdgePull` alone made the profile flat. `CapillaryPull` moved a
+    /// fraction of *every* wet cell's pigment toward the boundary each step,
+    /// with no cap, so a cell deep inside donated repeatedly and received
+    /// nothing back — worst exactly on the centreline, the point furthest from
+    /// dry paper. Over ink's 18 flow steps that emptied it.
+    /// </para>
+    /// <para>
+    /// Measured centreline dip below the flank, in alpha levels of 255, across a
+    /// straight Ink wash stroke: <b>71 before</b> (a 49% trough), 20 with the
+    /// per-cell budget in `FluidLattice`, and <b>4 with the budget and the
+    /// preset's `EdgePull` at 0.1</b>. This asserts the whole middle half of the
+    /// profile is flat to within a small fraction of the peak, which is what
+    /// separates 4 from 20 — a 20-level dip is narrow and reads as a line even
+    /// though the ratio sounds mild.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("Ink wash")]
+    [InlineData("Watercolor")]
+    public void NoWetPresetDriesWithAPaleSpine(string name)
+    {
+        var brush = Preset(name);
+        // Dead straight, so a column is a clean across-stroke cut and curvature
+        // cannot hide or fake a seam.
+        var pts = Enumerable.Range(0, 70)
+            .Select(i => new StrokePoint(40 + i * 4, 100, 0.85)).ToList();
+
+        using var art = FrameRasterizer.Rasterize(
+            [new Stroke { Tool = ToolKind.Brush, Color = "#20242c", Points = pts, Brush = brush }],
+            360, 200);
+
+        var column = new List<int>();
+        for (var y = 40; y < 160; y++)
+        {
+            var a = art.GetPixel(180, y).Alpha;
+            if (a > 2) column.Add(a);
+        }
+
+        Assert.True(column.Count > 20, $"{name} rendered a {column.Count} px mark — nothing to measure");
+
+        // The seam is a dip on the centreline with a hump either side, so the
+        // measurement is the centre against its own flanks — not against the
+        // whole profile's spread, which is dominated by the mark's falloff and
+        // would report a seam on a perfectly clean stroke.
+        var half = column.Count / 2;
+        var centre = column[half];
+        var flank = Math.Min(column.Take(half).Max(), column.Skip(half + 1).Max());
+        var dip = flank - centre;
+
+        Assert.True(
+            dip <= column.Max() * 0.05,
+            $"{name} sits {dip} alpha levels below its own flanks on the centreline "
+            + $"(centre {centre}, flanks {flank}) — that is a pale seam down the stroke's spine");
+    }
+
+    /// <summary>
     /// An opaque preset's faint edge stays paint-coloured instead of running up
     /// to the paper.
     /// </summary>
