@@ -227,6 +227,63 @@ available in every project, defaulted for the ones that need it.
 - [x] Gradient editor `evidence: GradientDockerViewModel, GradientOps, GradientTests, GradientToolTests`
 - [x] Gradient tool `evidence: GradientDragStarted, BeginGradient, EndGradient, TheRampRunsAlongTheDrag, TheRampIsVisibleWhileDragging_AndSurvivesThePenLift`
 - [?] Pattern fills
+- [ ] Regrade the painting by editing the palette `evidence: PaletteOps, RegradeSwatches, PaletteRegradeTests, RotatingThePalettesHueRepaintsEveryStrokeThatUsedIt, ARegradeIsOneUndoStepAndPutsEverySwatchBackExactly, AStrokeCutLooseFromItsSwatchDoesNotMove, SwappingInAnotherPaletteKeepsSwatchIdentityAndMovesOnlyTheColours`
+  - One step past live palettes, which already prove the mechanism: recolour a
+    swatch and the art that used it follows. This lifts the same edit to the
+    whole palette — rotate its hue, shift its temperature, compress its values,
+    or swap another palette in wholesale — and the painting regrades itself.
+    Because things that belong together share one palette (Pillar 1), the same
+    gesture regrades every frame of a sequence that painted from it: a
+    colour-script experiment across a shot for the cost of one undoable edit.
+    Nobody else has this, because nobody else's colour lives in the record.
+  - **A swap rewrites colours, never identities.** Swapping palette B in means
+    writing B's colours into the existing swatches (matched by position), so
+    every `SwatchId` in the record keeps meaning something and undo is exact.
+    Rebinding strokes to a different palette's ids would touch the record
+    everywhere to say the same thing.
+  - **It only reaches art painted from the palette**, and that is stated
+    rather than hidden: a stroke whose colour was picked loose carries no
+    `SwatchId` and does not move. That limitation is also this feature's
+    argument for painting from palettes in the first place. Bulk recolour of
+    loose strokes by similarity is a real want and a separate item — folding
+    it in here would put a heuristic inside an operation whose whole value is
+    being exact.
+  - Invariant 4 is not in play and it is worth saying why: a palette is part
+    of the work, not a preference. A regrade is an authored document edit
+    travelling the exact channel a single-swatch recolour already uses — the
+    swatch wins at render time by design, and this changes the swatch.
+  - Effort: low-to-medium. The registry, the swatch reference and the repaint
+    path all exist; what is new is a set of whole-palette transforms, one undo
+    step across them, and the docker surface to reach them.
+- [ ] Ink-and-paint flatting, as fills in the record `evidence: GapAwareFill, FlattingPass, FlattingTests, AGapSmallerThanTheToleranceDoesNotLeakTheFill, EveryFlatIsAnOrdinaryFillStrokeWithContours, ReflattingAfterALineEditKeepsEachRegionsColour, TheFlatColoursAreSeededFromRegionGeometryNotFromAnIndex, AFlattingPassIsOneUndoStep`
+  - Laying flat colour under lineart is one of the most-hated jobs in comics
+    and animation ink-and-paint, and invariant 3 is what makes this version
+    different from everyone else's: a flatting pass emits **one ordinary
+    `ToolKind.Fill` stroke per enclosed region**, on a layer of its own, so
+    the result is auditable, editable per region, and replays like anything
+    else — not a bitmap somebody has to lasso apart to correct.
+  - Two halves, separable and in this order. **Gap-aware fill** first: a fill
+    that closes leaks up to a tolerance (Clip Studio's *close gap*), stored on
+    the fill's stroke like the rest of its record (invariant 4) so the same
+    fill re-renders the same way forever. **The flatting pass** second: find
+    every enclosed region of the lineart at once and fill each — the gap-aware
+    fill run everywhere, plus distinct colours.
+  - **Re-flow is the point of living in the record.** Lines change after
+    flatting — that is the whole misery of the job — so re-running the pass on
+    edited lineart must keep each region's colour, matched by spatial overlap
+    with the fills already there. Deterministic throughout: regions come from
+    geometry, and a fresh region's placeholder colour is seeded from its own
+    geometry through `Hash01`, never from an RNG or a running index
+    (invariant 2), so the same document flats the same way on any machine.
+  - The tier that *names* regions — this one is skin, bind it to the palette's
+    skin swatch — needs a model and therefore belongs to `## AI assistance`,
+    where it is listed as speculative. Same shape as the normal-map tiers: the
+    deterministic pass is the model's input, not its fallback.
+  - Pairs with the regrade item above on purpose: flats bound to swatches are
+    what let one palette edit regrade the whole ink-and-paint layer.
+  - Effort: medium-to-high. The fill machinery, contours and clip regions
+    exist; gap closing is a change inside one algorithm, the pass is new work
+    (region decomposition, overlap matching, one `PerformDelta` for the lot).
 
 ### Guides and shapes
 
@@ -324,6 +381,51 @@ the test needs relaxing.
   - **The preview goes through isolation's own overlay channel**, as the pen already does, because only one of the three can be live and two node lists would be a question with no answer that shows up on screen as both. Isolation wins outright when it is active; nothing is drawn selected on a hover, because a preview says what is *there*, not what is picked.
   - **It fits once per line, not once per pointer move.** A hover fires continuously and `PathEditSession.Open` runs a curve fit over every point of the stroke, so refitting per event would put work proportional to a stroke's length in a per-event path — the shape invariant 6 rules out. `HoverPathAt` returns whether the answer moved, so the canvas repaints on the frames that matter, and `HoveringAlongTheSameLineDoesNotRefitIt` is what keeps that true.
   - Still to build: clicking the line selecting all of it, the pen's held modifier, the close indicator, and the widen modifier. The four remaining anchors do not resolve, which is what keeps this item honestly in flight rather than green.
+
+### Replay
+
+**The stroke record is already a recording of its own making** — invariant 1
+means every saved document carries, in order, every mark that survived into the
+final image. Procreate and Clip Studio bolt a screen recorder onto the app to
+get a timelapse; here the timelapse is structural: it was never switched on, it
+exists for every document ever saved, and it can come out at any size because
+it is re-rendered rather than recorded. What is missing is only presentation.
+
+- [ ] Scrub a drawing back through its own strokes `evidence: DocumentReplay, ReplayCursor, DocumentReplayTests, ScrubbingToAStrokeShowsExactlyTheDocumentAsOfThatStroke, ScrubbingNeverWritesToTheDocument, SteppingForwardStampsOneStrokeRatherThanRebuildingTheFrame`
+  - A replay position is *a prefix of the record, rendered* — which is what
+    loading a document already does, stopped early. Strictly a view: the
+    scrubber never mutates the document, and leaving replay returns to the
+    live drawing untouched. Scoped to the frame in view, so it costs a
+    sequence nothing and needs no new concept to explain there.
+  - **Stepping forward is one stamp, not a rebuild.** Replaying stroke k+1
+    onto the surface that showed stroke k is how the renderer works anyway; a
+    per-position rebuild is quadratic over the document and is the shape of
+    mistake invariant 6 names. Scrubbing *backwards* is the expensive
+    direction, and it wants the answer the frame cache already embodies:
+    checkpoint surfaces every k strokes, re-stamp from the nearest one.
+  - **Order is the record's order** — within a layer as authored, across
+    layers bottom-up, composited as of each position. The record stores no
+    wall-clock time, so a true interleaved chronology across layers does not
+    exist; if one is ever wanted it is an optional per-stroke timestamp,
+    absent until recorded, never required. Worth noticing what the record's
+    order buys instead: undone strokes are not in it, so a replay shows the
+    drawing's decisions rather than its hesitations — tighter than a screen
+    recording, and honest about being so.
+  - Effort: medium. The rendering primitive exists (it is loading); the work
+    is the checkpointing, the scrubber surface, and keeping replay legibly
+    read-only in the UI.
+- [ ] Export the replay as a timelapse `evidence: TimelapseExporter, TimelapseExportTests, ATimelapseIsOneForwardPassHoweverManyFramesItEmits, TheFramesComeOutAtTheAskedSizeViaTheSurfaceNeverTheGeometry, AThousandStrokesEmitAsManyFramesAsAskedNotAThousand`
+  - One forward replay pass, emitting a composited frame every k strokes, k
+    derived from the asked length — a sketch and a two-hundred-hour painting
+    both come out at thirty seconds. Frames leave through the existing
+    sequence-export machinery rather than a second encoder.
+  - Output size is a surface scale, never a coordinate multiply — invariant 7
+    verbatim, and the reason a timelapse can be exported at 4K from a document
+    painted at screen size. It is also the test that this is a replay rather
+    than a recording: a screen recorder could never answer for pixels it
+    never showed.
+  - Effort: low once scrubbing exists — it is the same pass with a frame sink
+    attached, and the export plumbing already handles sequences.
 
 ### Interop
 
@@ -1581,6 +1683,7 @@ subject reading.
 - [?] Smart line cleanup suggestions
 - [?] Volume consistency checker
 - [?] Motion readability analysis
+- [?] Flatting assistant — name the regions the geometric flatting pass found (Pillar 0 → Colour), so flats arrive bound to the palette's swatches rather than wearing placeholder colours
 
 ---
 
