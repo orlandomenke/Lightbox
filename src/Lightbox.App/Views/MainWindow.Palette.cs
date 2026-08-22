@@ -112,7 +112,7 @@ public partial class MainWindow
             var ext = Path.GetExtension(path).ToLowerInvariant();
             // Video still goes by name — the importer asks a question about
             // footage and must not ask it about a picture. Images go by content
-            // instead (B280): a browser's cached drag is a temporary file whose
+            // instead (B282): a browser's cached drag is a temporary file whose
             // name says nothing, and ImportReferenceImageFile already answers
             // false for anything that does not decode.
             if (ReferenceVideoExtensions.Contains(ext) || !IsProbablyVideo(ext)) paths.Add(path);
@@ -131,7 +131,7 @@ public partial class MainWindow
     /// Whether this drag is one the window would take.
     /// </summary>
     /// <remarks>
-    /// <b>One question, asked once (B280).</b> There were two returns here, and
+    /// <b>One question, asked once (B282).</b> There were two returns here, and
     /// the second undid the first: a drag carrying no files was refused even
     /// when it carried a perfectly good picture URL, so the pointer said no to
     /// every drag straight from a browser.
@@ -210,7 +210,7 @@ public partial class MainWindow
     /// </summary>
     private static IReadOnlyList<Uri> DroppedWebImages(DragEventArgs e)
     {
-        // Carrying files no longer rules a drag out (B280): a browser commonly
+        // Carrying files no longer rules a drag out (B282): a browser commonly
         // offers both, and refusing the web half whenever a file was advertised
         // meant a picture the file half could not open was refused outright.
         // The drop tries files first and only asks here when none worked.

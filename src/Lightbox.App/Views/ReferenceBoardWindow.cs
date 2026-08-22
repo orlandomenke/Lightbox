@@ -660,7 +660,7 @@ public sealed class ReferenceBoardWindow : Window
 
     /// <summary>Every file in a drag, in the order they came — whatever it is called.</summary>
     /// <remarks>
-    /// <b>No extension filter (B280).</b> A browser that has already cached a
+    /// <b>No extension filter (B282).</b> A browser that has already cached a
     /// picture offers it as a <em>file</em> on the next drag, and that file is
     /// often a temporary one with no extension or an odd one. Filtering by name
     /// threw those away, and the drop then fell through to the web path, which
@@ -687,7 +687,7 @@ public sealed class ReferenceBoardWindow : Window
     /// </summary>
     private static IReadOnlyList<Uri> DroppedWebImages(DragEventArgs e)
     {
-        // Carrying files no longer rules a drag out (B280). It used to, to stop
+        // Carrying files no longer rules a drag out (B282). It used to, to stop
         // one picture arriving twice — but a browser commonly offers both, so
         // that rule silently refused the whole drop whenever the file half was
         // unusable. The drop tries files first and only reaches here when none
@@ -711,7 +711,7 @@ public sealed class ReferenceBoardWindow : Window
 
     /// <summary>Pictures dropped on the wall are pinned up, in the order they came.</summary>
     /// <remarks>
-    /// <b>Files first, then the web, and a word either way (B280).</b> Both are
+    /// <b>Files first, then the web, and a word either way (B282).</b> Both are
     /// tried because a browser drag commonly carries both, and either half can
     /// be the unusable one — the file may be a nameless temporary, the URL may
     /// be behind a site that refuses us. Only when neither produces a picture is

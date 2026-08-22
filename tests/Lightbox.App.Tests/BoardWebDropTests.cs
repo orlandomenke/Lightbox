@@ -7,7 +7,7 @@ using SkiaSharp;
 namespace Lightbox.App.Tests;
 
 /// <summary>
-/// Dragging pictures onto the reference board, more than once (B280).
+/// Dragging pictures onto the reference board, more than once (B282).
 /// </summary>
 /// <remarks>
 /// Reported as *"I am only able to drag an image once from a browser"*. Nothing

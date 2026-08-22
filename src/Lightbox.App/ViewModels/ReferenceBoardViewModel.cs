@@ -205,7 +205,7 @@ public sealed class ReferenceBoardViewModel
             if (Project is { } project)
             {
                 // By path first, which keeps the original file's own format; by
-                // its decoded bytes when the name says nothing (B280), so a
+                // its decoded bytes when the name says nothing (B282), so a
                 // browser's nameless temporary is still *copied into* the
                 // project rather than quietly embedded in the board file.
                 var relative = ProjectBoards.ImportImage(project, path)
