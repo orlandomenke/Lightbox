@@ -272,6 +272,72 @@ public class ProjectVersionsTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void FactsCountTheHistoryAndNoticeDriftPastTheMilestone()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (project, walk) = Saved(root);
+            ProjectVersions.SaveVersion(project, walk.Id, walk.Path, "roughs");
+            ProjectVersions.SaveVersion(
+                project, walk.Id, walk.Path, "Marked Ready", milestone: AssetStatus.Ready);
+
+            var kept = ProjectVersions.FactsFor(project, walk.Id, walk.Path);
+            Assert.Equal(2, kept.Count);
+            Assert.Equal(AssetStatus.Ready, kept.Milestone);
+            Assert.False(kept.ChangedSinceMilestone);
+
+            Redraw(project, walk);
+            var drifted = ProjectVersions.FactsFor(project, walk.Id, walk.Path);
+            output.WriteLine($"kept {kept}, after redraw {drifted}");
+            Assert.True(drifted.ChangedSinceMilestone);
+            Assert.Equal(AssetStatus.Ready, drifted.Milestone);
+
+            Assert.Equal([walk.Id], ProjectVersions.VersionedResourceIds(project));
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public void TheNewestMilestoneIsTheOneTheFactsReport()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (project, walk) = Saved(root);
+            ProjectVersions.SaveVersion(
+                project, walk.Id, walk.Path, "Marked Ready", milestone: AssetStatus.Ready);
+            Redraw(project, walk);
+            ProjectVersions.SaveVersion(
+                project, walk.Id, walk.Path, "Marked Review", milestone: AssetStatus.Review);
+
+            // Newest, not highest-ranked: after a reopen-and-re-promote, the
+            // Review bytes are what the pipeline currently stands on.
+            var facts = ProjectVersions.FactsFor(project, walk.Id, walk.Path);
+            Assert.Equal(AssetStatus.Review, facts.Milestone);
+            Assert.False(facts.ChangedSinceMilestone);
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public void FactsForAnUnversionedResourceAnswerZeroAndWriteNothing()
+    {
+        var root = TempRoot();
+        try
+        {
+            var (project, walk) = Saved(root);
+            Assert.Empty(ProjectVersions.VersionedResourceIds(project));
+            Assert.Equal(
+                new VersionFacts(0, null, false),
+                ProjectVersions.FactsFor(project, walk.Id, walk.Path));
+            // Asking is a read — the folder stays absent, the Q75 rule.
+            Assert.False(Directory.Exists(Path.Combine(root, ProjectVersions.Dir)));
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
+    [Fact]
     public void VersioningAMissingFileSaysSaveFirst()
     {
         var root = TempRoot();

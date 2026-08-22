@@ -525,6 +525,9 @@ public partial class MainWindow
         // invisible — and the Refresh below then runs as it does on any close.
         window.ViewModel.OpenDocument = _vm.OpenProjectDocument;
         window.ViewModel.OpenSheet = _vm.OpenProjectSheet;
+        // The history for a row, wired the way the docker's is: a revert saves
+        // the project first and reloads whatever tab shows the file after.
+        window.ViewModel.HistoryFor = _vm.HistoryFor;
         await window.ShowDialog(this);
         _vm.ProjectDocker.Refresh();
     }

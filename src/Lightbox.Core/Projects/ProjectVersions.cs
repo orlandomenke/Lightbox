@@ -3,6 +3,26 @@ namespace Lightbox.Core.Projects;
 using Lightbox.Core.Versioning;
 
 /// <summary>
+/// What a surface listing many resources wants to know about one resource's
+/// history without opening it: how many versions are kept, the latest
+/// milestone among them, and whether the file has changed since that
+/// milestone was kept.
+/// </summary>
+/// <param name="Milestone">
+/// The status of the newest milestone-tagged version, or null when no
+/// promotion has ever kept one. The newest rather than the highest-ranked:
+/// a Ready followed by a Review re-promotion means the Review bytes are the
+/// ones the pipeline is currently standing on.
+/// </param>
+/// <param name="ChangedSinceMilestone">
+/// True when the file on disk no longer matches the milestone's kept bytes —
+/// the fact a studio schedules against, because "Ready" on a row whose file
+/// has moved on is a claim about the history, not the file. False when there
+/// is no milestone, or its content is gone and no comparison can be honest.
+/// </param>
+public sealed record VersionFacts(int Count, AssetStatus? Milestone, bool ChangedSinceMilestone);
+
+/// <summary>
 /// Authored version history for the files a project owns — documents and
 /// character sheets. The metadata half is <see cref="FileVersionHistoryStore"/>;
 /// this is the content half: each version keeps a byte-for-byte copy of the
@@ -143,6 +163,54 @@ public static class ProjectVersions
         File.Copy(content, temp, overwrite: true);
         File.Move(temp, current, overwrite: true);
         return target;
+    }
+
+    /// <summary>
+    /// Every resource id with any history under this project, in one
+    /// directory listing. A surface building a row per resource asks this
+    /// once rather than probing per row — a project that never versions
+    /// answers empty from a single <c>Exists</c> check.
+    /// </summary>
+    public static IReadOnlyList<string> VersionedResourceIds(Project project)
+    {
+        var root = RootOf(project);
+        if (!Directory.Exists(root)) return [];
+        return [.. Directory.GetDirectories(root).Select(Path.GetFileName).OfType<string>()];
+    }
+
+    /// <summary>
+    /// The listing-level facts for one resource: version count, latest
+    /// milestone, and whether the file has drifted from that milestone's
+    /// bytes. Reads the resource's history and at most one kept copy.
+    /// </summary>
+    public static VersionFacts FactsFor(Project project, string resourceId, string relativePath)
+    {
+        var entries = StoreFor(project).GetVersions(resourceId);
+        var milestone = entries
+            .Where(e => e.MilestoneStatus is not null)
+            .OrderByDescending(e => e.VersionNumber)
+            .FirstOrDefault();
+
+        var changed = false;
+        if (milestone is not null
+            && ContentPathOf(project, resourceId, milestone.Id) is { } kept)
+        {
+            var current = Path.Combine(project.Root, relativePath);
+            changed = File.Exists(current) && !SameBytes(current, kept);
+        }
+        return new VersionFacts(entries.Length, milestone?.MilestoneStatus, changed);
+    }
+
+    /// <summary>
+    /// Byte equality, length first. The kept copy was made with
+    /// <see cref="File.Copy(string, string)"/> from the file itself, so an
+    /// untouched file matches exactly; a re-save that rewrote the bytes reads
+    /// as changed, which is the honest answer about a file that was written.
+    /// </summary>
+    private static bool SameBytes(string a, string b)
+    {
+        if (new FileInfo(a).Length != new FileInfo(b).Length) return false;
+        return File.ReadAllBytes(a).AsSpan().SequenceEqual(File.ReadAllBytes(b));
     }
 
     /// <summary>
