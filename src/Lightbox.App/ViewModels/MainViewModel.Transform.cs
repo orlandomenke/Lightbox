@@ -534,7 +534,12 @@ public partial class MainViewModel
                 {
                     if (anchors.TryGetValue(anchorId, out var point))
                     {
-                        Anchors.SetAcross(layer, frame, 1, anchorId, new Core.Documents.AnchorPoint(point.X + dx, point.Y + dy));
+                        // `with`, so the aim survives a group move — this is the
+                        // second move path beside WriteRig, and it dropped the
+                        // angle until an adversarial pass caught it.
+                        Anchors.SetAcross(
+                            layer, frame, 1, anchorId,
+                            point with { X = point.X + dx, Y = point.Y + dy });
                     }
                 }
                 OnPropertyChanged(nameof(RigMarks));
@@ -547,7 +552,9 @@ public partial class MainViewModel
                 {
                     if (anchors.TryGetValue(anchorId, out var point))
                     {
-                        Anchors.SetAcross(layer, frame, 1, anchorId, new Core.Documents.AnchorPoint(point.X - dx, point.Y - dy));
+                        Anchors.SetAcross(
+                            layer, frame, 1, anchorId,
+                            point with { X = point.X - dx, Y = point.Y - dy });
                     }
                 }
                 OnPropertyChanged(nameof(RigMarks));

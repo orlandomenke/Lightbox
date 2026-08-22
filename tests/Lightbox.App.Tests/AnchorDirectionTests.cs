@@ -90,6 +90,25 @@ public class AnchorDirectionTests(ITestOutputHelper output) : BrushStateIsolated
     }
 
     [Fact]
+    public void AnotherAnchorsCrossBeatsTheGhostStub()
+    {
+        // Refuted before it shipped: the selected anchor's stub tip sits a
+        // stalk-length along +X, and two sockets that far apart is an
+        // ordinary rig — a wrist beside a hand. A press meant for the other
+        // anchor's cross must pick it up, not rotate the selected one.
+        var marks = new[]
+        {
+            Aimed("a", 0, 0, null, selected: true),
+            Aimed("b", RigOverlay.StalkLength, 3, null),
+        };
+
+        var hit = RigOverlay.Hit(marks, RigOverlay.StalkLength, 3, scale: 1);
+
+        Assert.Equal("b", hit.Id);
+        Assert.Equal(RigCorner.None, hit.Corner);
+    }
+
+    [Fact]
     public void AMoveDragCarriesTheAimAlong()
     {
         var mark = Aimed("a", 50, 50, 30, selected: true);
@@ -163,6 +182,33 @@ public class AnchorDirectionTests(ITestOutputHelper output) : BrushStateIsolated
             var point = Anchors.ResolvedAt(vm.Doc.Scene, i)[id];
             Assert.Equal(90, point.AngleDeg!.Value, 6);
         }
+    }
+
+    [AvaloniaFact]
+    public void AGroupMoveKeepsEveryAim()
+    {
+        // The second move path beside WriteRig — the selection tool's group
+        // drag — rebuilt the point from X and Y and dropped the angle on both
+        // apply and undo. Found by an adversarial pass, so it gets its test.
+        var vm = OnOnes();
+        var id = vm.AddAnchorAt("hand", 40, 40);
+        vm.SelectedRigMarkId = id;
+        vm.DragRig(id, RigCorner.Stalk, -RigOverlay.StalkLength, 20);
+        vm.Selection.SelectAnchor(id);
+
+        vm.BeginAnchorsMove();
+        vm.UpdateAnchorsMove(5, 5);
+        vm.EndAnchorsMove();
+
+        var moved = AnchorAt(vm, id);
+        Assert.Equal((45d, 45d), (moved.X, moved.Y));
+        Assert.Equal(90, moved.AngleDeg!.Value, 6);
+
+        // And the undo lambda is a second reconstruction, not the same one.
+        vm.UndoCommand.Execute(null);
+        var back = AnchorAt(vm, id);
+        Assert.Equal((40d, 40d), (back.X, back.Y));
+        Assert.Equal(90, back.AngleDeg!.Value, 6);
     }
 
     [AvaloniaFact]

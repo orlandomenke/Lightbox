@@ -161,15 +161,25 @@ public static class RigOverlay
         var handle = HandleScreenRadius / Math.Max(0.01, scale);
         var reach = AnchorScreenRadius / Math.Max(0.01, scale);
 
-        // The selected anchor's stalk tip first, for the reason a selected
-        // shape's corners come first: the tip sits near the anchor's own
-        // cross, and cross-before-tip would make rotating impossible (Q144).
+        // The selected anchor's stalk tip beats the anchor's OWN cross — the
+        // tip sits 36 doc px from it, and cross-before-tip would make rotating
+        // impossible (Q144). It does not get to steal a press that lands on a
+        // DIFFERENT anchor's cross: two sockets a stalk-length apart is an
+        // ordinary rig, so where both are in reach, the nearer target wins.
+        (double Distance, RigHit Hit)? stalk = null;
         foreach (var mark in marks)
         {
             if (mark.Kind != RigMarkKind.Anchor || !mark.Selected) continue;
             var (tx, ty) = StalkTipOf(mark);
-            if (Math.Abs(tx - x) <= handle && Math.Abs(ty - y) <= handle)
-                return new RigHit(mark.Id, RigCorner.Stalk);
+            var distance = Math.Max(Math.Abs(tx - x), Math.Abs(ty - y));
+            if (distance <= handle) stalk = (distance, new RigHit(mark.Id, RigCorner.Stalk));
+        }
+        if (stalk is { } tip)
+        {
+            var nearerCross = marks.Any(m =>
+                m.Kind == RigMarkKind.Anchor && !m.Selected
+                && Math.Max(Math.Abs(m.X - x), Math.Abs(m.Y - y)) < tip.Distance);
+            if (!nearerCross) return tip.Hit;
         }
 
         foreach (var mark in marks)
