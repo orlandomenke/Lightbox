@@ -192,10 +192,17 @@ view onto the wall rather than the whole of it.
 | Tidy the whole wall | **Auto-arrange** — every picture fitted into the space there is, in the order they are in |
 | Find something you have lost | **Fit** (`Ctrl+Shift+F`) zooms out until everything on the board is on screen |
 | Add a picture from disk | Drag files onto the board, or **Add image…** |
-| Add one from a web page | Drag the image off the page onto the board |
+| Add one from a web page | Drag the image off the page onto the board — as many times as you like |
 | Paste one | `Ctrl+V` — a copied file, or a screenshot straight off the clipboard |
 | Put a sheet back up | **Sheets ▾** lists everything in scope that is not on the wall |
 | Move around | Wheel zooms, middle-drag or drag the empty background pans |
+
+**A drop that brings nothing says so.** Browsers hand a picture over in more
+than one way — sometimes the file it cached, sometimes only the address — and
+Lightbox tries both before giving up. What decides is whether the bytes are a
+picture, not what the file is called, so a browser's nameless temporary works
+like any other. If neither way worked, the status line says which failed rather
+than leaving you wondering.
 
 **A picture lands where you put it** — under the pointer when you drop it, in the
 middle of the view when it comes from the picker or the clipboard. Drop several

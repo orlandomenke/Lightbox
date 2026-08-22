@@ -658,18 +658,24 @@ public sealed class ReferenceBoardWindow : Window
     private static readonly DataFormat<string> HtmlFormat =
         DataFormat.CreateStringPlatformFormat("text/html");
 
-    /// <summary>The image files in a drag, in the order they came.</summary>
+    /// <summary>Every file in a drag, in the order they came — whatever it is called.</summary>
+    /// <remarks>
+    /// <b>No extension filter (B282).</b> A browser that has already cached a
+    /// picture offers it as a <em>file</em> on the next drag, and that file is
+    /// often a temporary one with no extension or an odd one. Filtering by name
+    /// threw those away, and the drop then fell through to the web path, which
+    /// refused it in turn because a file format was present — so the second drag
+    /// of the same picture did nothing at all. What decides is whether the bytes
+    /// decode, which <see cref="ReferenceBoardViewModel.AddImageFile"/> already
+    /// asks: it returns null for anything that is not a picture.
+    /// </remarks>
     private static List<string> DroppedFiles(DragEventArgs e)
     {
         var paths = new List<string>();
         if (e.DataTransfer?.TryGetFiles() is not { } items) return paths;
         foreach (var item in items)
         {
-            if (item.TryGetLocalPath() is { } path
-                && Lightbox.Core.Projects.ProjectBoards.ImageExtensions.Contains(Path.GetExtension(path)))
-            {
-                paths.Add(path);
-            }
+            if (item.TryGetLocalPath() is { } path) paths.Add(path);
         }
         return paths;
     }
@@ -681,47 +687,62 @@ public sealed class ReferenceBoardWindow : Window
     /// </summary>
     private static IReadOnlyList<Uri> DroppedWebImages(DragEventArgs e)
     {
-        if (e.DataTransfer is not { } data || data.Contains(DataFormat.File)) return [];
+        // Carrying files no longer rules a drag out (B282). It used to, to stop
+        // one picture arriving twice — but a browser commonly offers both, so
+        // that rule silently refused the whole drop whenever the file half was
+        // unusable. The drop tries files first and only reaches here when none
+        // of them produced a tile, which keeps the no-duplicates promise without
+        // the refusal.
+        if (e.DataTransfer is not { } data) return [];
         return Services.WebImageDrop.ImageUris(
             data.TryGetValue(UriListFormat),
             data.TryGetText(),
             data.TryGetValue(HtmlFormat));
     }
 
-    private static void OnDragOver(object? sender, DragEventArgs e) =>
-        e.DragEffects = DroppedFiles(e).Count > 0 || DroppedWebImages(e).Count > 0
-            ? DragDropEffects.Copy
-            : DragDropEffects.None;
+    private static void OnDragOver(object? sender, DragEventArgs e)
+    {
+        if (DroppedFiles(e).Count == 0 && DroppedWebImages(e).Count == 0) return;
+        e.DragEffects = DragDropEffects.Copy;
+        // Marked handled, as the canvas's own file drop does: an unhandled
+        // drag-over leaves the effect for something else to overwrite.
+        e.Handled = true;
+    }
 
     /// <summary>Pictures dropped on the wall are pinned up, in the order they came.</summary>
+    /// <remarks>
+    /// <b>Files first, then the web, and a word either way (B282).</b> Both are
+    /// tried because a browser drag commonly carries both, and either half can
+    /// be the unusable one — the file may be a nameless temporary, the URL may
+    /// be behind a site that refuses us. Only when neither produces a picture is
+    /// the drop refused, and then it says so: a drop that silently does nothing
+    /// is indistinguishable from a feature that does not work, which is what
+    /// this bug was reported as.
+    /// </remarks>
     private async void OnDrop(object? sender, DragEventArgs e)
     {
         // Where the pointer let go, on the board — not below everything already
         // up, which is off the bottom of the window on any wall that has been
         // arranged to fill it (B245).
         var at = ToBoard(e.GetPosition(_surface.Parent as Visual ?? this));
-
-        var files = DroppedFiles(e);
-        if (files.Count > 0)
-        {
-            e.Handled = true;
-            // Several files fan out from the drop rather than stacking exactly on
-            // top of each other, so a folder dropped at once is legible.
-            var step = 0;
-            foreach (var path in files)
-            {
-                BoardModel.AddImageFile(path, (at.X + step * 24, at.Y + step * 24));
-                step++;
-            }
-            return;
-        }
-
-        var uris = DroppedWebImages(e);
-        if (uris.Count == 0) return;
         e.Handled = true;
+
+        // Several pictures fan out from the drop rather than stacking exactly on
+        // top of each other, so a folder dropped at once is legible.
+        var pinned = 0;
+        foreach (var path in DroppedFiles(e))
+        {
+            if (BoardModel.AddImageFile(path, (at.X + pinned * 24, at.Y + pinned * 24)) is not null)
+            {
+                pinned++;
+            }
+        }
+        if (pinned > 0) return;
+
         // One tile per drop, not one per candidate: the candidates are the same
         // picture described three ways, so pinning them all would put up
         // duplicates. Same reasoning as the canvas's web drop.
+        var uris = DroppedWebImages(e);
         foreach (var uri in uris)
         {
             var bytes = await Services.WebImageDrop.FetchAsync(uri);
@@ -731,6 +752,9 @@ public sealed class ReferenceBoardWindow : Window
                 return;
             }
         }
-        _vm.AiStatus = "That drop did not contain an image Lightbox could read.";
+
+        _vm.AiStatus = uris.Count > 0
+            ? "That picture could not be fetched — the site refused it, or it is not an image."
+            : "That drop had no picture in it that Lightbox could read.";
     }
 }

@@ -110,18 +110,35 @@ public partial class MainWindow
         {
             if (item.TryGetLocalPath() is not { } path) continue;
             var ext = Path.GetExtension(path).ToLowerInvariant();
-            if (ReferenceImageExtensions.Contains(ext) || ReferenceVideoExtensions.Contains(ext))
-            {
-                paths.Add(path);
-            }
+            // Video still goes by name — the importer asks a question about
+            // footage and must not ask it about a picture. Images go by content
+            // instead (B282): a browser's cached drag is a temporary file whose
+            // name says nothing, and ImportReferenceImageFile already answers
+            // false for anything that does not decode.
+            if (ReferenceVideoExtensions.Contains(ext) || !IsProbablyVideo(ext)) paths.Add(path);
         }
         return paths;
     }
 
+    /// <summary>
+    /// Whether a name looks like footage we do not handle — the one thing a
+    /// picture import must not be handed by mistake.
+    /// </summary>
+    private static bool IsProbablyVideo(string extension) =>
+        extension is ".mpg" or ".mpeg" or ".wmv" or ".flv" or ".m4v" or ".ogv";
+
+    /// <summary>
+    /// Whether this drag is one the window would take.
+    /// </summary>
+    /// <remarks>
+    /// <b>One question, asked once (B282).</b> There were two returns here, and
+    /// the second undid the first: a drag carrying no files was refused even
+    /// when it carried a perfectly good picture URL, so the pointer said no to
+    /// every drag straight from a browser.
+    /// </remarks>
     private void OnFileDragOver(object? sender, DragEventArgs e)
     {
         if (DroppedReferenceFiles(e).Count == 0 && DroppedWebImages(e).Count == 0) return;
-        if (DroppedReferenceFiles(e).Count == 0) return;
         e.DragEffects = DragDropEffects.Copy;
         e.Handled = true;
     }
@@ -193,7 +210,11 @@ public partial class MainWindow
     /// </summary>
     private static IReadOnlyList<Uri> DroppedWebImages(DragEventArgs e)
     {
-        if (e.DataTransfer is not { } data || data.Contains(DataFormat.File)) return [];
+        // Carrying files no longer rules a drag out (B282): a browser commonly
+        // offers both, and refusing the web half whenever a file was advertised
+        // meant a picture the file half could not open was refused outright.
+        // The drop tries files first and only asks here when none worked.
+        if (e.DataTransfer is not { } data) return [];
         return Services.WebImageDrop.ImageUris(
             data.TryGetValue(UriListFormat),
             data.TryGetText(),
