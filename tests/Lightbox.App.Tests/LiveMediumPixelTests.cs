@@ -137,6 +137,88 @@ public class LiveMediumPixelTests : BrushStateIsolated
         }
     }
 
+    /// <summary>
+    /// The parity above, but over paint that is already down — which is where
+    /// a wet medium interacts with the layer rather than with blank paper.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The theory above draws on an empty layer, so nothing the medium does
+    /// with `existing` is exercised: re-wetting has nothing to re-wet and
+    /// physical mixing has nothing to mix with. That left the parity guard
+    /// blind to exactly the case where the two paths can disagree, because the
+    /// commit works into the layer while the preview is an overlay drawn over
+    /// it.
+    /// </para>
+    /// <para>
+    /// Found by building lift-and-erase — making re-wetting move the paint it
+    /// picks up instead of copying it. That is a commit-path change by nature
+    /// (the layer has to lose what the stroke took) and the preview cannot do it
+    /// from an overlay, so live and committed came apart by exactly the lifted
+    /// paint while every existing test stayed green. Measured: this build sits
+    /// at <b>0.01/255 mean and 1 at worst</b>, and the lifting prototype took it
+    /// to <b>0.47 and 32</b> — a crossing visibly lightening the moment the pen
+    /// lifts. The thresholds leave that an order of magnitude of room and still
+    /// fail on it.
+    /// </para>
+    /// <para>
+    /// Whatever eventually fuses a wash across strokes has the same shape, so
+    /// the guard belongs here before the work rather than after it. The live path
+    /// already has the answer if it is needed: blur and smudge read the layer
+    /// back, so they paint into a copy of it instead of an overlay, and a medium
+    /// that moves paint belongs in that class too.
+    /// </para>
+    /// </remarks>
+    [AvaloniaTheory]
+    [InlineData(MediumKind.Watercolour)]
+    [InlineData(MediumKind.Ink)]
+    public void AMediumStrokeCrossingWetPaintLooksTheSameLiveAsCommitted(MediumKind kind)
+    {
+        var vm = Vm();
+        vm.BrushMedium = kind;
+        // Rewetting is what makes a stroke interact with the paint it crosses,
+        // and it defaults to 0 — so without this the test draws over the layer
+        // without touching it and proves nothing.
+        vm.MediumRewetting = 0.7;
+
+        // Lay paint down and commit it, so the second stroke has something to
+        // interact with rather than blank paper.
+        vm.BeginStroke(30, 60, 0.9);
+        for (var x = 40; x <= 210; x += 10) vm.MoveStroke(x, 60, 0.9);
+        vm.EndStroke();
+        Dispatcher.UIThread.RunJobs();
+
+        vm.BeginStroke(30, 95, 0.9);
+        for (var x = 40; x <= 210; x += 10) vm.MoveStroke(x, 95, 0.9);
+        vm.EndStroke();
+        Dispatcher.UIThread.RunJobs();
+
+        // Now cross both of them.
+        RenderSnapshot? latest = null;
+        vm.SnapshotChanged += s => latest = s;
+        vm.BeginStroke(120, 30, 0.9);
+        for (var y = 40; y <= 130; y += 10)
+        {
+            vm.MoveStroke(120, y, 0.9);
+            Dispatcher.UIThread.RunJobs();
+        }
+        for (var i = 0; i < 8; i++) Dispatcher.UIThread.RunJobs();
+        Assert.NotNull(latest);
+        using var live = Pixels(latest!);
+
+        vm.EndStroke();
+        Dispatcher.UIThread.RunJobs();
+        Assert.NotNull(latest);
+        using var committed = Pixels(latest!);
+
+        var diff = Difference(live, committed);
+        var peak = Peak(live, committed);
+        Assert.True(
+            diff < 0.1 && peak < 8,
+            $"{kind}: a stroke crossing wet paint differs live from committed by {diff:0.00}/255 "
+            + $"on average and {peak} at worst — the mark will jump when the pen lifts");
+    }
+
     [AvaloniaFact]
     public void AWetEdgeIsVisibleBeforeThePenLifts()
     {

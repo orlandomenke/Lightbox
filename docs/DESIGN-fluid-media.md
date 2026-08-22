@@ -305,6 +305,58 @@ So: tip textures are a cheap, real improvement to two of the four complaints
 and no help at all with the other two. Worth doing early for that reason,
 provided the doc does not then claim the medium problem is solved.
 
+## The spike, run 2026-08-22
+
+The doc asks above for a spike before the expensive half is entered. Here it is,
+and it moves one thing from *undecided* to *measured*.
+
+**Fusing the wet region is worth 5×, and it is the whole of the seam.** Measured
+as mottle — the standard deviation of box means over a flat swatch interior,
+over the mean — on a wash of six overlapping Watercolor strokes, against the
+*same dab coverage* walked as one stroke so only the number of lattices differs:
+
+| | 2 px | 4 px | 8 px | 16 px | 32 px |
+| --- | --- | --- | --- | --- | --- |
+| six strokes, six lattices | 11.1% | 10.7% | 9.9% | 6.3% | 1.2% |
+| one stroke, one lattice | **2.2%** | **2.1%** | **1.7%** | **1.4%** | 0.6% |
+
+So the ribboning is not a double-counting artefact and not the paper: it is
+simply that each stroke gets its own wet region, its own boundary and its own
+drying, and a wash is not a stack of those. One lattice over the whole wet area
+is even. That is the payoff, and it is large enough to justify the expensive
+half.
+
+### Lift-and-erase was tried first and is not it
+
+The cheap alternative — no snapshots, each new stroke *lifts* still-wet paint off
+the layer into its own lattice and re-deposits the combination, which also fixes
+re-wetting copying rather than moving — was built and measured. It reaches
+**9.3%** at 2 px and 5.5% at 16 px, against the 11.1%/6.3% it started from. A
+real gain, and a sixth of what fusing gives; at the 16 px scale where the seams
+live, simply setting `Rewetting` to 0 does better (4.2%).
+
+The reason is now clear and is worth keeping: the seam is *geometric*. Each
+stroke's own soft-edged deposit is a hump, and overlapping humps do not add to a
+flat field however honestly the pigment is moved between them. Only sharing the
+region fixes that.
+
+It also costs preview fidelity, which is the constraint any attempt at this has
+to answer. Lifting is a commit-path change by nature — the layer has to lose
+what the stroke took — and the live preview is an overlay drawn *over* the
+unmodified layer, so it cannot show the loss. Measured on a stroke crossing wet
+paint: this build diverges live-to-committed by 0.01/255 mean and 1 at worst,
+and the lifting prototype by **0.47 and 32** — the crossing visibly lightening
+as the pen lifts. `AMediumStrokeCrossingWetPaintLooksTheSameLiveAsCommitted`
+now guards that, and it was added *because* the existing parity theory draws on
+an empty layer and so could not see it.
+
+**The live path already has the shape the answer needs.** Blur and smudge read
+the layer back, so they paint into a copy of it rather than into an overlay
+(`MainViewModel.BeginStroke`, two copies — one written, one read). Any medium
+that moves paint rather than adding it belongs in that class, and routing it
+there is what makes preview and commit agree by construction. That is the
+integration to cost, not the simulation.
+
 ## Where to start
 
 Not with the channels, despite (1) being what the other four depend on.
