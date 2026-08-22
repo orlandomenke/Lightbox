@@ -1,6 +1,8 @@
+using Lightbox.App.Rendering;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Projects;
 using Lightbox.Raster;
+using SkiaSharp;
 
 namespace Lightbox.App.ViewModels;
 
@@ -83,6 +85,100 @@ public partial class MainViewModel
             }
         }
         return result;
+    }
+
+    // ---- what the variant wears (Q143) -----------------------------------------
+
+    /// <summary>
+    /// Rendered attachment overlays by timeline index — the worn pixels are
+    /// the same for every publish of a frame, and rendering them per pointer
+    /// event would be a full-canvas cost on the drawing path (invariant 6).
+    /// </summary>
+    /// <remarks>
+    /// Each entry remembers the editor revision it was rendered at, so an
+    /// undo, a redo or any edit invalidates it without a hook: the next
+    /// publish sees the revision moved and re-renders. Stale entries retire
+    /// through the frame cache's pin-aware deferral, never a bare Dispose —
+    /// a bitmap still riding in a published pass list pulled out from under
+    /// the render thread is B130's crash with another owner, the same
+    /// reason the stack bake retires its bitmaps the same way.
+    /// </remarks>
+    private readonly Dictionary<int, (long Revision, SKBitmap Bitmap)> _wornOverlays = [];
+
+    /// <summary>
+    /// Point <see cref="AttachmentOverlay.Resolver"/> at what the active
+    /// document's viewed variants wear, or at nothing.
+    /// </summary>
+    /// <remarks>
+    /// Called from <c>RegisterResources</c> — the funnel that already repoints
+    /// the palettes per document — so the canvas and an export of the active
+    /// document always agree about the armor. The whole ancestry contributes,
+    /// like the palette stand-ins: a folder and a parent folder can each dress
+    /// their own variant.
+    /// </remarks>
+    private void ConfigureAttachmentOverlay()
+    {
+        InvalidateWornOverlays();
+        AttachmentOverlay.Resolver = null;
+        if (ProjectDocker.Project is not { } project) return;
+        var source = (SaveTargetTab ?? ActiveTab)?.Source;
+        if (ProjectFolders.ById(project.Manifest, source?.FolderId) is not { } folder) return;
+
+        List<VariantAttachment>? worn = null;
+        foreach (var above in ProjectFolders.AncestryOf(project.Manifest, folder))
+        {
+            if (project.VariantOf(above)?.Attachments is { Count: > 0 } list)
+            {
+                (worn ??= []).AddRange(list);
+            }
+        }
+        if (worn is null) return;
+        AttachmentOverlay.Resolver = (scene, index) =>
+            VariantAttachments.ResolveAt(scene, index, worn);
+    }
+
+    /// <summary>The worn overlay for a frame index, cached, or null.</summary>
+    internal SKBitmap? WornOverlayFor(Scene scene, int index)
+    {
+        if (AttachmentOverlay.Resolver is null) return null;
+        var revision = _editor.Revision;
+        if (_wornOverlays.TryGetValue(index, out var cached))
+        {
+            if (cached.Revision == revision) return cached.Bitmap;
+            _wornOverlays.Remove(index);
+            _cache.DisposeExternal(cached.Bitmap);
+        }
+        var rendered = AttachmentOverlay.Render(scene, index);
+        if (rendered is not null) _wornOverlays[index] = (revision, rendered);
+        return rendered;
+    }
+
+    private void InvalidateWornOverlays()
+    {
+        foreach (var (_, bitmap) in _wornOverlays.Values) _cache.DisposeExternal(bitmap);
+        _wornOverlays.Clear();
+    }
+
+    /// <summary>
+    /// An anchor moved, turned or was cleared: with a dressed variant on
+    /// screen that is a pixel change now, not just chrome.
+    /// </summary>
+    /// <remarks>
+    /// A no-op — one null test — while nothing is worn, which keeps rig
+    /// editing exactly as cheap as it was for everyone not using attachments.
+    /// The repaint is whole-canvas because an attachment can reach anywhere
+    /// its symbol reaches; it runs once per released gesture, never per
+    /// pointer event, so invariant 6 is not in play.
+    /// </remarks>
+    internal void AttachmentsMayHaveMoved()
+    {
+        if (AttachmentOverlay.Resolver is null) return;
+        // No cache work here: the entries are keyed by editor revision, and
+        // the edit that made this call has already moved it — the publish
+        // below re-renders what it needs.
+        _publish.InvalidateWholeCanvas();
+        _composeRing.InvalidateAll();
+        PublishSnapshot();
     }
 
     /// <summary>

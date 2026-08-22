@@ -223,18 +223,76 @@
 
                 <StackPanel Spacing="2">
                   <TextBlock Classes="head" Text="VARIANTS" />
-                  <ItemsControl ItemsSource="{Binding FolderVariants}">
+                  <ItemsControl ItemsSource="{Binding FolderVariantRows}">
                     <ItemsControl.ItemTemplate>
-                      <DataTemplate x:DataType="proj:SubjectVariant">
-                        <Grid ColumnDefinitions="*,auto" MinHeight="24">
-                          <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="11"
-                                     VerticalAlignment="Center" />
-                          <Button Grid.Column="1"
-                                  Command="{Binding $parent[ItemsControl].((vm:ProjectWindowViewModel)DataContext).RemoveVariantCommand}"
-                                  CommandParameter="{Binding}">
-                            <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconClose}" />
-                          </Button>
-                        </Grid>
+                      <DataTemplate x:DataType="vm:VariantRow">
+                        <StackPanel Spacing="2">
+                          <Grid ColumnDefinitions="*,auto" MinHeight="24">
+                            <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="11"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="1"
+                                    Command="{Binding $parent[ItemsControl].((vm:ProjectWindowViewModel)DataContext).RemoveVariantCommand}"
+                                    CommandParameter="{Binding Variant}">
+                              <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconClose}" />
+                            </Button>
+                          </Grid>
+                          <!--
+                            Q143. What the variant wears: a symbol riding a rig
+                            anchor through every animation of the subject. The
+                            numbers are the fine adjustment; the coarse one is
+                            moving and aiming the anchor itself, per drawing,
+                            in the rig overlay.
+                          -->
+                          <ItemsControl ItemsSource="{Binding Attachments}" Margin="10,0,0,0">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate x:DataType="vm:AttachmentRow">
+                                <StackPanel Spacing="2" Margin="0,0,0,4">
+                                  <Grid ColumnDefinitions="*,auto">
+                                    <TextBlock Grid.Column="0" Text="{Binding Summary}" FontSize="11"
+                                               VerticalAlignment="Center" />
+                                    <Button Grid.Column="1"
+                                            Command="{Binding $parent[ItemsControl].((vm:VariantRow)DataContext).RemoveAttachmentCommand}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip.Tip="Stop wearing it. The symbol stays in the library.">
+                                      <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconClose}" />
+                                    </Button>
+                                  </Grid>
+                                  <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <TextBlock Classes="dim" Text="offset" VerticalAlignment="Center" />
+                                    <NumericUpDown Width="80" Increment="1" FormatString="0.#"
+                                                   Value="{Binding OffsetX, Mode=TwoWay}" />
+                                    <NumericUpDown Width="80" Increment="1" FormatString="0.#"
+                                                   Value="{Binding OffsetY, Mode=TwoWay}" />
+                                    <TextBlock Classes="dim" Text="scale" VerticalAlignment="Center" />
+                                    <NumericUpDown Width="80" Increment="0.05" FormatString="0.##"
+                                                   Value="{Binding Scale, Mode=TwoWay}" />
+                                    <TextBlock Classes="dim" Text="angle" VerticalAlignment="Center" />
+                                    <NumericUpDown Width="80" Increment="5" FormatString="0.#"
+                                                   Value="{Binding AngleDeg, Mode=TwoWay}" />
+                                    <CheckBox Content="Turn with the anchor" FontSize="11"
+                                              IsChecked="{Binding FollowAngle, Mode=TwoWay}"
+                                              ToolTip.Tip="Follow the anchor's aim (drag its stalk in the rig overlay). Off for things that stay upright however the limb turns." />
+                                  </StackPanel>
+                                </StackPanel>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                          <StackPanel Orientation="Horizontal" Spacing="4" Margin="10,0,0,4">
+                            <ComboBox Width="130" ItemsSource="{Binding Symbols}"
+                                      SelectedItem="{Binding NewSymbol}"
+                                      PlaceholderText="Symbol…">
+                              <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SymbolChoice">
+                                  <TextBlock Text="{Binding Name}" />
+                                </DataTemplate>
+                              </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBox Width="110" Text="{Binding NewAnchor}" Watermark="anchor name…"
+                                     ToolTip.Tip="The anchor's name as the rig declares it — the same name the export sidecar uses." />
+                            <Button Content="Wear" Command="{Binding AddAttachmentCommand}"
+                                    ToolTip.Tip="The symbol rides this anchor through every animation of the subject while the variant is viewed." />
+                          </StackPanel>
+                        </StackPanel>
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>

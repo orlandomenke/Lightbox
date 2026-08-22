@@ -41,10 +41,37 @@ answer, most specific wins:
 4. A full document override (`ProjectIo.OverrideDocument`) replaces the whole
    drawing and the attachment machinery bows out for that animation.
 
-## What this did not answer
+## What the build settled (2026-08-22, `feat/variant-attachments`)
 
-The attachment record's exact fields, whether an attachment can name a symbol
-*cycle* (time-offset against the animation), and how the exporter flattens an
-attachment into the sheet (it must — invariant 1 holds at the boundary, the
-way `ProjectIo.Flatten` already inlines symbols). Those are the follow-up
-branch's design work; this settles the mechanism and the owner.
+- **The anchor is named by name, not id.** The sketch above said `anchorId`
+  and the model refused it: anchor ids are per document — the knight's Walk
+  and Run each declare their own "shoulder" — so an id could only ever reach
+  one animation. Names are already the cross-document contract (the sidecar
+  keys anchors by name because "leftHand" is what an engine script looks
+  for), and the attachment binds by the same word for the same reason.
+- **Levels 2 and 3 of the layering collapsed onto data that already
+  exists.** The per-document and per-frame overrides needed no new store:
+  the anchor *is* the override channel. Nudge it on one drawing and the
+  armor moves there; aim it (Q144) and the armor turns; *Clear here* and the
+  armor is absent on that drawing. What remains as record is only the
+  attachment's own default transform — offset in the anchor's frame, scale,
+  extra angle, follow-the-aim — and level 4 stays `OverrideDocument`.
+- **Symbol cycles came free.** A placement already advances with the
+  timeline index, so an attached flame flickers through the walk without a
+  field being added.
+- **Ephemeral placements, never stored.** Resolution produces fresh
+  `SymbolPlacement`s at render time; nothing touches a frame, so invariant 1
+  holds without a flatten step — and the export composes the same overlay
+  the canvas shows, which is the palette's existing contract extended to
+  pixels the variant wears.
+
+## What this still does not answer
+
+- **Draw order.** The overlay renders above the whole layer stack. Armor
+  *behind* the near arm needs an attachment to name the layer it sits under,
+  and which layer that is on two hundred frames of differing stacks is a
+  real design question — left open rather than guessed.
+- **Whose armor dresses a multi-folder export.** The overlay resolver is
+  ambient per active document, like the palettes; a folder export that spans
+  other subjects' folders composes with the active document's attachment
+  list. Same-folder exports — the ordinary case — are correct.

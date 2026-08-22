@@ -512,6 +512,11 @@ public partial class MainViewModel
         _anchorsMoveDelta = default;
         if (Math.Abs(dx) < 1e-9 && Math.Abs(dy) < 1e-9) return;
         MoveAnchorsBy(dx, dy);
+        // Once per gesture, at the close — with a dressed variant on screen a
+        // moved anchor is a pixel change now (Q143), and the worn overlay
+        // cache re-renders itself off the editor revision at the publish this
+        // triggers.
+        AttachmentsMayHaveMoved();
     }
 
     private (double X, double Y) _anchorsMoveDelta;
