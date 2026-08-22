@@ -667,6 +667,9 @@
                     ToolTip.Tip="A rectangle — a hurtbox, hitbox or physics body" />
           <MenuItem Header="Delete selected" Click="OnDeleteRigMark"
                     IsEnabled="{Binding RigEditMode}" />
+          <MenuItem Header="Clear direction here" Click="OnClearRigDirection"
+                    IsEnabled="{Binding RigEditMode}"
+                    ToolTip.Tip="Take the selected anchor's direction off this drawing. The anchor stays; drag its stalk to aim it again." />
         </MenuItem>
         <!--
           The volume checker: reads the active layer's ink and reports — a

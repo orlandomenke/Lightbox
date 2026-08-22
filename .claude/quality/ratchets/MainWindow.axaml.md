@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4771
+budget: 4774
 
 ## Why it is here despite being XAML
 
@@ -190,3 +190,7 @@ leaves a number nobody can account for. So every reason above stays, and
   to live in, and the comments carry the why (view state, the Duplicate
   parallel, the badge's reason to exist). Registration: a variant nobody
   could view was the whole defect this lands to fix.
+- **4,771 → 4,774** (2026-08-22, Q144): the rig menu's *Clear direction here*.
+  Three lines — item, handler wiring and tooltip — and it is the way back to
+  null for an anchor's direction: absent-until-used only holds if unused is
+  reachable again. A menu item has nowhere else to live.

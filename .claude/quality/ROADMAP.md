@@ -1039,13 +1039,24 @@ exists; the half that does not is what makes it *one* click.
   - **The declaration and the positions live in different places, and that is the load-bearing choice.** `Scene.Anchors` holds the names, because a name is a property of the rig and renaming "left hand" must not touch a drawing. `Frame.Anchors` holds where the point *is*, because a hold, a re-time, a cel drag and a timing preset all move drawings around the sheet — an index-keyed table would silently point at the wrong drawing after any of them, and it would look like an animation bug. On the frame the anchor travels with its drawing for free, and a test re-times a range to prove it.
   - Exported per frame, keyed by **name** rather than id, measured **inside the cell** like the pivot so trimming cannot move where a weapon attaches. Positions are stored in document pixels; normalising them into the record would bake the trim in and make a re-export at a different trim wrong.
   - Exported and nothing more: parenting a GameObject to a socket is the engine's job. Lightbox owes the position.
-- [ ] An anchor carries a direction — a nullable angle per placement (Q144) `evidence: AnchorAngle, AnAnchorWithNoAngleWritesNoAngleKey, TheAngleTravelsWithTheDrawingThroughARetime, TheSidecarCarriesTheSocketsAngle`
+- [x] An anchor carries a direction — a nullable angle per placement (Q144) `evidence: AngleDeg, StalkTipOf, AnchorDirectionTests, AnAnchorWithNoAngleWritesNoAngleKey, AnAimedAnchorRoundTripsItsAngle, TheAngleTravelsWithTheDrawingThroughARetime, TheSidecarCarriesTheSocketsAngle, TheStalkDragWritesTheAngleToTheDrawing, MovingAnAimedSocketKeepsItsAim, ClearDirectionTakesTheAngleAndOnlyTheAngle`
   - What Q143's attachments need to turn the sword with the hand, and what an
     engine wants from a socket anyway. Per frame like the position and on the
     drawing for the same reason; null means no direction, so a document whose
-    anchors never turn serializes exactly as today. A rotation stalk in the
-    rig overlay, push-across copying it with the position, and the sidecar's
-    word for it decided against the export doc's conventions.
+    anchors never turn serializes exactly as before the field existed.
+  - **Built (2026-08-22): the field, the stalk, and the sidecar.** Degrees,
+    matching every exported `RotationDeg`. The rig overlay's selected anchor
+    grows a stalk whose tip is the rotation grip — a ghost stub authors the
+    first angle, because an affordance that only exists once used is not one
+    — an aimed anchor shows its stalk unselected, and *Clear direction here*
+    is the way back to null. Every write path re-records the whole point, so
+    a move, a push-across and a re-time all carry the aim; under a resize the
+    angle is carried, never scaled — rotation is not a length, the limit
+    `ImageResize` already records for guides and bones. The generic sidecar
+    gains `angle` beside the position, absent when unaimed. The Unity payload
+    deliberately does not carry it yet: its anchors are fixed `[x, y]`
+    arrays, and reshaping a contract importers already parse is a decision
+    for whoever needs the angle there.
   - **`FrameConverter` names every property it writes, so a field added to `Frame` is silently dropped.** Cost one round-trip test to find. `WriteShared` now exists so the next base-class field is added in one place rather than two, with the hazard written down where somebody will hit it.
   - **The canvas overlay's decisions are built; the overlay itself is not** — the gesture set is designed to place anchors and shapes together, and is recorded on the hitbox/hurtbox editor item below, since it is one piece of work serving both. Nothing paints a socket or reaches the mode yet (**B58**), so an anchor is authored through the API and the file rather than on the canvas.
 - [x] Collision shapes `evidence: CollisionShape, ShapeRole, ShapeBox, CollisionShapes, CollisionShapeTests, AShapeRoundTripsThroughTheFile, ADocumentWithNoShapesCarriesNoShapeKeys, AHitboxIsActiveOnlyWhereItIsPlaced`

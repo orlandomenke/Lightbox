@@ -248,7 +248,10 @@ public static class ImageResize
 
         if (frame.Anchors is { } anchors)
             foreach (var id in anchors.Keys.ToList())
-                anchors[id] = new AnchorPoint(anchors[id].X * sx, anchors[id].Y * sy);
+                // `with`, so the angle is carried: rotation is not a length
+                // and does not scale — the same accepted limit an angled
+                // guide and a bone have under a non-uniform stretch.
+                anchors[id] = anchors[id] with { X = anchors[id].X * sx, Y = anchors[id].Y * sy };
 
         if (frame.Shapes is { } shapes)
             foreach (var id in shapes.Keys.ToList())

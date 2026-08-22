@@ -32,7 +32,8 @@ public readonly record struct RigMark(
     double Y,
     double W,
     double H,
-    bool Selected)
+    bool Selected,
+    double? AngleDeg = null)
 {
     public double Right => X + W;
 
@@ -41,9 +42,12 @@ public readonly record struct RigMark(
     public double CentreX => X + W / 2;
 
     public double CentreY => Y + H / 2;
+
+    /// <summary>Whether this anchor has an authored direction (Q144).</summary>
+    public bool HasAngle => Kind == RigMarkKind.Anchor && AngleDeg is not null;
 }
 
-/// <summary>Which corner of a shape a drag grabbed, or none.</summary>
+/// <summary>Which grip of a mark a drag grabbed, or none.</summary>
 public enum RigCorner
 {
     None,
@@ -51,6 +55,12 @@ public enum RigCorner
     TopRight,
     BottomLeft,
     BottomRight,
+
+    /// <summary>
+    /// The tip of a selected anchor's direction stalk (Q144). Dragging it
+    /// rotates the anchor instead of moving it.
+    /// </summary>
+    Stalk,
 }
 
 /// <param name="Id">The mark that was hit, or null for empty canvas.</param>
@@ -100,6 +110,20 @@ public static class RigOverlay
     /// </remarks>
     public const double AnchorScreenRadius = 9;
 
+    /// <summary>
+    /// The direction stalk's length, in <b>document</b> pixels (Q144).
+    /// </summary>
+    /// <remarks>
+    /// Document rather than screen pixels, unlike the handles, and on purpose:
+    /// the drag maths in <see cref="Drag"/> is a pure function of marks and
+    /// deltas, and a screen-sized stalk would need the zoom threaded through
+    /// every caller between the pointer and it. The <em>tip's grab target</em>
+    /// is still screen-sized — <see cref="Hit"/> divides the zoom out — so the
+    /// thing you can grab stays grabbable; only the drawn line breathes with
+    /// the zoom, the way the artwork under it does.
+    /// </remarks>
+    public const double StalkLength = 36;
+
     /// <summary>The smallest a shape may be dragged to, in document pixels.</summary>
     /// <remarks>
     /// Not zero. A rectangle collapsed to nothing is invisible, unhittable and still
@@ -136,6 +160,17 @@ public static class RigOverlay
     {
         var handle = HandleScreenRadius / Math.Max(0.01, scale);
         var reach = AnchorScreenRadius / Math.Max(0.01, scale);
+
+        // The selected anchor's stalk tip first, for the reason a selected
+        // shape's corners come first: the tip sits near the anchor's own
+        // cross, and cross-before-tip would make rotating impossible (Q144).
+        foreach (var mark in marks)
+        {
+            if (mark.Kind != RigMarkKind.Anchor || !mark.Selected) continue;
+            var (tx, ty) = StalkTipOf(mark);
+            if (Math.Abs(tx - x) <= handle && Math.Abs(ty - y) <= handle)
+                return new RigHit(mark.Id, RigCorner.Stalk);
+        }
 
         foreach (var mark in marks)
         {
@@ -192,6 +227,20 @@ public static class RigOverlay
     /// </remarks>
     public static RigMark Drag(RigMark mark, RigCorner corner, double dx, double dy)
     {
+        // Rotation, not translation: the tip follows the pointer and the angle
+        // is wherever the tip ends up relative to the anchor (Q144). Degrees,
+        // matching every exported rotation; atan2's y-first argument makes
+        // zero point along +X and positive turn clockwise on the y-down canvas.
+        if (corner == RigCorner.Stalk && mark.Kind == RigMarkKind.Anchor)
+        {
+            var (tx, ty) = StalkTipOf(mark);
+            var (px, py) = (tx + dx - mark.X, ty + dy - mark.Y);
+            // The pointer exactly on the anchor says nothing about direction —
+            // keep the angle it had rather than snapping to atan2's zero.
+            if (Math.Abs(px) < 1e-9 && Math.Abs(py) < 1e-9) return mark;
+            return mark with { AngleDeg = Math.Atan2(py, px) * (180.0 / Math.PI) };
+        }
+
         if (mark.Kind == RigMarkKind.Anchor || corner == RigCorner.None)
         {
             return mark with { X = mark.X + dx, Y = mark.Y + dy };
@@ -236,4 +285,19 @@ public static class RigOverlay
         { Corner: RigCorner.TopRight or RigCorner.BottomLeft } => "resize-nesw",
         _ => "move",
     };
+
+    /// <summary>
+    /// Where a selected anchor's direction stalk ends, in document pixels.
+    /// </summary>
+    /// <remarks>
+    /// An anchor with no authored angle still has a tip — a ghost stub along
+    /// +X — because the tip is how a direction is <em>given</em>: grabbing the
+    /// stub and dragging is the whole authoring gesture, and an affordance
+    /// that only exists once you have used it is not one.
+    /// </remarks>
+    public static (double X, double Y) StalkTipOf(RigMark mark)
+    {
+        var rad = (mark.AngleDeg ?? 0) * (Math.PI / 180.0);
+        return (mark.X + StalkLength * Math.Cos(rad), mark.Y + StalkLength * Math.Sin(rad));
+    }
 }
