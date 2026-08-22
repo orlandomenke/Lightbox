@@ -380,6 +380,14 @@ public sealed class ShortcutMap
             // Photoshop's and Krita's key, and global like theirs: merging is
             // asked for from the canvas at least as often as from the docker.
             new("docker.mergeDown", "Merge layer down", "Dockers", G(Key.E, KeyModifiers.Control)),
+            // Photoshop's key, and global like the merge: clipping is asked
+            // for from the canvas while colouring, not only from the docker.
+            new("docker.clipToBelow", "Clip layer to the one below", "Dockers",
+                G(Key.G, KeyModifiers.Control | KeyModifiers.Alt)),
+            // No default gesture, the timeline.deleteColumn reason: there is
+            // no convention to borrow, and guessing one costs somebody their
+            // key. Bindable is the requirement.
+            new("docker.editMask", "Paint the active layer's mask", "Dockers", null),
 
             // Context twins: the same key does area-appropriate things.
             // General, not canvas-scoped. Scoped, it did nothing over any docker —

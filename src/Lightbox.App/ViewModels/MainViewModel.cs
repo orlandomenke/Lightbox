@@ -434,40 +434,6 @@ public sealed partial class MainViewModel : ObservableObject
         stroke.Baked = BrushEngine.BakeSample(stroke, beneath, info);
     }
 
-    /// <summary>
-    /// Everything visible below the layer being painted on, at the playhead, or
-    /// null when there is nothing there.
-    /// </summary>
-    /// <remarks>
-    /// Null rather than a transparent bitmap for the bottom layer, so a smudge
-    /// there costs nothing and behaves exactly as it always did.
-    /// </remarks>
-    private SKBitmap? CompositeBelowActiveLayer()
-    {
-        var scene = Scene;
-        var active = ActiveLayer;
-        var passes = new List<RenderPass>();
-        for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
-        {
-            var layer = scene.Layers[layerIndex];
-            if (ReferenceEquals(layer, active)) break;
-            if (!scene.IsLayerVisible(layer)) continue;
-            if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is not { } frame) continue;
-            // A smudge or blur samples what it visibly sits on, so the
-            // backdrop is shaped exactly as the composite is.
-            var shapes = LayerShapes.For(scene, layerIndex, CurrentFrameIndex);
-            if (shapes is { Count: 0 }) continue;
-            passes.Add(new RenderPass(
-                _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex),
-                null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
-                Shapes: LayerShapes.Resolve(shapes, _cache, scene.Width, scene.Height, CurrentFrameIndex)));
-        }
-        if (passes.Count == 0) return null;
-        using var image = SceneRenderer.Compose(
-            scene.Width, scene.Height, passes, SKColors.Transparent);
-        return SKBitmap.FromImage(image);
-    }
-
     /// <summary>Frame times measured on the render thread.</summary>
     /// <remarks>
     /// The one place a frame cost arrives, so it is also where the app notices

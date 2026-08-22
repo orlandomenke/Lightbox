@@ -95,6 +95,19 @@ internal static class LayerShapes
         return null;
     }
 
+    /// <summary>
+    /// Whether anything carves this layer at all — the allocation-free half
+    /// of <see cref="For"/>, for callers that only gate on it (the tile
+    /// warm-ahead runs per lookahead frame per layer during playback, and a
+    /// discarded list there is a discarded list per tick).
+    /// </summary>
+    internal static bool Carves(Scene scene, int layerIndex)
+    {
+        var layer = scene.Layers[layerIndex];
+        return layer.IsMasked
+            || (layer.IsClipped && BaseOf(scene.Layers, layerIndex) is not null);
+    }
+
     /// <summary>The described shapes with their fetches done, ready for a <see cref="RenderPass"/>.</summary>
     internal static List<PassShape>? Resolve(
         List<ShapeSpec>? specs, FrameBitmapCache cache, int width, int height, int celIndex = 0)

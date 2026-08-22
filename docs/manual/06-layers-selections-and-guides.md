@@ -165,6 +165,63 @@ the inbetweener can no longer read. As in Photoshop, a blend mode is applied
 against the layer directly below — if it was interacting with layers deeper
 in the stack, that part of its look can shift.
 
+Merging a masked or clipped layer applies the mask and the clip into the
+merged pixels, so the result looks exactly as the pair did; a mask on the
+lower layer is applied and removed by the merge, since it is now in the
+drawing itself.
+
+### Masking a layer
+
+A layer mask hides part of a layer without touching its drawing. In Lightbox
+a mask is not a special grayscale image — it is an ordinary drawing, painted
+with your own brushes: **where the mask has paint, the layer shows; where it
+has none, the layer is hidden.** Erasing on the mask hides again. There is no
+white-reveals, black-conceals convention to remember.
+
+Right-click a layer and open **Mask**:
+
+- **Add — painting hides.** The layer stays fully visible and what you paint
+  on the mask conceals it. This is the vignette workflow: soften an edge,
+  knock a hole in a background.
+- **Add — painting shows.** The layer starts fully hidden and your marks
+  reveal it — for building a reveal by hand.
+
+The two are the same mask one **Invert** apart, and inverting is a flag, not
+a repaint. Adding a mask drops you straight into painting it: a small **chip**
+appears beside the layer's thumbnail, outlined while your strokes are landing
+on the mask. Click the chip (or use **Mask → Paint the mask**) to switch
+between painting the mask and painting the drawing — while you paint a mask,
+the canvas shows exactly what your mark reveals or hides, live, and every
+mask stroke is a normal undo step. **Disable** switches the mask off without
+losing it (the chip goes hollow); **Delete** removes it entirely.
+
+The mask is one drawing that holds across the whole timeline — it does not
+animate per frame. For an animated matte, use a clipping mask instead: the
+matte is an ordinary layer, and ordinary layers animate.
+
+Blur and smudge do not work on a mask, because a mask is coverage rather than
+pixels to rework; paint or erase it instead. A soft-edged brush gives a soft
+mask edge, exactly as it gives a soft mark.
+
+### Clipping a layer to the one below
+
+**Ctrl+Alt+G** (or right-click → **Clip to layer below**) clips the active
+layer: it composites only where the layer below has content — Photoshop's
+clipping mask, and the standard way to shade or texture a flat colour without
+leaving its silhouette. A clipped layer's row shows an accent bar, and
+several clipped layers in a row all clip to the first unclipped layer
+beneath them, so lines / colour / shading stacks work as they do elsewhere.
+
+Because the base layer is an ordinary layer, **an animated matte is just a
+clipping mask over an animated base**: animate the base's cels and everything
+clipped to it follows, with holds and exposure exactly as the sheet says. If
+the base has a mask of its own, the clipped layers respect it too. A clipped
+layer with nothing below it, or whose base shows nothing on this frame,
+simply shows nothing there.
+
+Both masks and clipping reach every render the same way: the canvas, exports,
+thumbnails and the AI's view of the document all show the carved result.
+
 ---
 
 ## Selections and transforms

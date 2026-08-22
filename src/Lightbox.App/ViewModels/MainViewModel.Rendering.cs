@@ -616,7 +616,8 @@ public partial class MainViewModel
             // field rather than written as a lambda here: a lambda capturing
             // `this` allocates a closure and a delegate on every publish, and a
             // publish happens per pointer event while drawing.
-            _passTransformSplit ??= TransformSplitFor);
+            _passTransformSplit ??= TransformSplitFor,
+            MaskEditing: EditingLayerMask);
 
         var built = ScenePassBuilder.Describe(scene, passState, _cache, _tileFallbacks, live);
         var tileNativeDoc = built.TileNative;
@@ -961,7 +962,7 @@ public partial class MainViewModel
                     ? TileFallback.Reason(
                         frame, scene.Camera is not null, true, liveEffectHere: false,
                         posed: _cache.Rig.IsPosed(frame),
-                        shaped: LayerShapes.For(scene, layerIndex, celIndex) is not null)
+                        shaped: LayerShapes.Carves(scene, layerIndex))
                     : TileFallbackReason.NoViewport;
 
                 if (why == TileFallbackReason.None)
@@ -1197,4 +1198,39 @@ public partial class MainViewModel
         return image;
     }
 
+    /// <summary>
+    /// Everything visible below the layer being painted on, at the playhead, or
+    /// null when there is nothing there.
+    /// </summary>
+    /// <remarks>
+    /// Null rather than a transparent bitmap for the bottom layer, so a smudge
+    /// there costs nothing and behaves exactly as it always did. Here rather
+    /// than in MainViewModel.cs for the ratchet's reason: it is render-path
+    /// code, and the main file may not grow.
+    /// </remarks>
+    private SKBitmap? CompositeBelowActiveLayer()
+    {
+        var scene = Scene;
+        var active = ActiveLayer;
+        var passes = new List<RenderPass>();
+        for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
+        {
+            var layer = scene.Layers[layerIndex];
+            if (ReferenceEquals(layer, active)) break;
+            if (!scene.IsLayerVisible(layer)) continue;
+            if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is not { } frame) continue;
+            // A smudge or blur samples what it visibly sits on, so the
+            // backdrop is shaped exactly as the composite is.
+            var shapes = LayerShapes.For(scene, layerIndex, CurrentFrameIndex);
+            if (shapes is { Count: 0 }) continue;
+            passes.Add(new RenderPass(
+                _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex),
+                null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
+                Shapes: LayerShapes.Resolve(shapes, _cache, scene.Width, scene.Height, CurrentFrameIndex)));
+        }
+        if (passes.Count == 0) return null;
+        using var below = SceneRenderer.Compose(
+            scene.Width, scene.Height, passes, SKColors.Transparent);
+        return SKBitmap.FromImage(below);
+    }
 }

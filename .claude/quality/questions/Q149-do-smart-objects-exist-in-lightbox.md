@@ -21,3 +21,12 @@ Text layers note for whoever picks it up: `LayerKind.Vector` exists, the SVG
 save item already establishes that the vector side must not be faked, and text
 wants to live there — an editable text object that rasterizes through the
 ordinary deterministic path, not a raster stamp of a font.
+
+**What recording it turned up (2026-08-22):** the linked-instances half needed
+no new roadmap item, because it already has a pillar. One drawing placed many
+times, edited once, updated everywhere is exactly Pillar 3's *symbols* —
+shipped for the flat case, with nesting deliberately open — so a second item
+would have been the same feature under a Photoshop name, which is the wish-list
+shape the checkbox rules exist to prevent. Text got the new item (`[?] Text`,
+under *Guides and shapes*); smart objects resolved to "already built, plus
+invariant 1".

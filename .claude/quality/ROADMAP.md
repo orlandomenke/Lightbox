@@ -236,6 +236,16 @@ available in every project, defaulted for the ones that need it.
 - [x] Shape tools `evidence: ShapeBuilder, ShapeKind, AShapeIsAnOrdinaryStroke, AnEllipseFitsItsBoxAndCloses, ShiftSquaresItAndAltGrowsItFromTheCentre`
 - [x] Vector guides `evidence: Guide, GuidesSurviveASaveAndReload, ADocumentWithNoGuidesWritesNoGuideKey, AHiddenGuideStillSnaps`
 - [x] Rulers and guide editing `evidence: RulerStrip, TickStep, DraggingOutOfTheTopRulerLeavesAHorizontalGuide, LettingGoBackOnTheRulerThrowsTheGuideAway, AGuideIsMovedByGrabbingItOnTheCanvas, TheRulersAreAbsentUntilAskedFor`
+- [?] Text
+  - Q149's real half: an editable text object on the vector side — fonts,
+    shaping, editing — that rasterizes through the ordinary deterministic
+    path, never a raster stamp of a font. It waits on the same vector
+    richness the SVG save and the icon items already wait on, and it needs
+    its own design pass before a line of it is built (what carries the text:
+    a stroke kind, a placement, or a vector-layer object).
+  - The other half of the smart-objects request needed no item at all:
+    re-editability is invariant 1, and one-drawing-placed-many-times is
+    Pillar 3's symbols, already shipped for the flat case.
 
 ### Layers and compositing
 
@@ -287,9 +297,31 @@ rounding cannot reach saved art. The two paths staying separate *is* the
 constraint — `RuntimeDeterminismTests` going red means it was broken, not that
 the test needs relaxing.
 
-- [?] Layer masks
-- [?] Clipping masks
+- [x] Layer masks `evidence: LayerMask, LayerShapes, PassShape, LayerMaskRecordTests, MaskAndClipCompositingTests, MaskEditingTests, AShapeCarvesThePassToItsCoverage, AStrokeLandsOnTheMaskAndUndoTakesItBackOffIt, TheLivePreviewShowsTheCarveBeforeThePenLifts, AMaskedLayerRefusesToFoldAndStillRenders, AMaskedUpperLayerBakesWithItsMaskApplied`
+  - **A mask is strokes, like everything else (Q147)** — one `Frame` rendered
+    to alpha through the one pixel path, so it is deterministic, undoable and
+    inbetweenable with no second representation anywhere. Coverage is opacity:
+    painting shows, erasing hides, and inverting is a flag. One drawing held
+    across the whole timeline (Q148); the animated case is a clipping
+    arrangement, which reuses every cel mechanism instead of duplicating them
+    inside the mask.
+  - **One seam for every compositor**: `LayerShapes` describes what carves a
+    layer, and the canvas publish, both exporters, the MCP render, the fill's
+    sampling composite, the smudge backdrop, the navigator and reference views
+    all ask it — a masked layer cannot look different in two of them. Shaped
+    passes refuse the fold and the tile path; merge-down bakes the mask in and
+    clears it. The one known preview gap is B280 (transform drag).
+- [x] Clipping masks `evidence: LayerShapes.BaseOf, AClippedLayerDescribesItsBaseAndTheBasesMask, ConsecutiveClippedLayersShareTheFirstUnclippedBase, AClippedLayerAtTheBottomRendersUnclipped, TheDescribedListSkipsAClippedLayerOverNothing, ClippingIsUndoableAndAbsentWhenReleased, AClippedUpperLayerBakesCarvedToTheLowersContent`
+  - Positional, Photoshop's rule: the base is the first unclipped layer
+    beneath, consecutive clipped layers share it, and the base's own mask
+    carves what clips to it. A flag rather than a base id, so reordering
+    means what the artist's drag means. Ctrl+Alt+G, the convention.
 - [?] Adjustment layers
+  - **Q146: an adjustment layer is an effect-carrying layer, not a new
+    mechanism.** It rides `DESIGN-effects.md`'s record — `EffectStack`,
+    keyable params, reach declarations — applied to the composite below and
+    scoped by the mask and clipping machinery above, which is why it waits
+    for the effects core rather than growing a parallel record.
 - [x] Blend modes `evidence: LayerBlendMode, BlendComposeTests`
 - [x] Layer folders `evidence: LayerGroup, LayerFolderTests`
 - [x] Layer and alpha locking `evidence: LayerLockTests, AlphaLockTests`

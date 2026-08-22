@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4774
+budget: 4821
 
 ## Why it is here despite being XAML
 
@@ -194,3 +194,11 @@ leaves a number nobody can account for. So every reason above stays, and
   Three lines — item, handler wiring and tooltip — and it is the way back to
   null for an anchor's direction: absent-until-used only holds if unused is
   reachable again. A menu item has nowhere else to live.
+- **4,774 → 4,821** (2026-08-22, Q147/Q148): layer masks and clipping — the
+  row's Mask submenu (seven items, tooltips carrying the two add workflows),
+  the clip/release pair, the mask chip and the clip bar on the row template.
+  Menu items and template elements have nowhere else to live, which is this
+  budget's stated exception; everything that could leave did — the chip and
+  bar *styles* went to `Controls.axaml` beside `.selected`, and the smudge
+  backdrop's code growth went to `MainViewModel.Rendering.cs` instead of the
+  main file.

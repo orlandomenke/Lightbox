@@ -84,6 +84,11 @@ internal static class ScenePassBuilder
     /// harmless because <see cref="LayerStackBake"/> refuses shaped specs
     /// outright rather than keying on them.
     /// </param>
+    /// <param name="MaskScratch">
+    /// The mask stroke in flight on this layer's own mask — the first entry
+    /// of <paramref name="Shapes"/> — while the artist paints the mask. Set
+    /// only on the active layer's pass during a mask edit.
+    /// </param>
     internal readonly record struct PassSpec(
         Frame? CelFrame,
         int CelIndex,
@@ -95,7 +100,9 @@ internal static class ScenePassBuilder
         SKMatrix? Matrix = null,
         SKRectI? Source = null,
         Frame? SourceFrame = null,
-        List<LayerShapes.ShapeSpec>? Shapes = null);
+        List<LayerShapes.ShapeSpec>? Shapes = null,
+        SKBitmap? MaskScratch = null,
+        bool MaskScratchErases = false);
 
     /// <summary>
     /// The described pass list, plus where the active layer's own contribution
@@ -199,7 +206,8 @@ internal static class ScenePassBuilder
         Stroke? BrushStroke = null,
         SKMatrix? TransformPreview = null,
         IReadOnlyList<Frame>? TransformFrames = null,
-        Func<Frame, TransformSplit?>? PartsFor = null)
+        Func<Frame, TransformSplit?>? PartsFor = null,
+        bool MaskEditing = false)
     {
         internal static readonly LiveEdit None = new();
     }
@@ -228,14 +236,22 @@ internal static class ScenePassBuilder
     /// the spec deferred it. The only place a described pass touches pixels.
     /// </summary>
     internal static RenderPass Materialize(
-        in PassSpec spec, FrameBitmapCache cache, int width, int height) =>
-        new(
+        in PassSpec spec, FrameBitmapCache cache, int width, int height)
+    {
+        var shapes = LayerShapes.Resolve(spec.Shapes, cache, width, height, spec.CelIndex);
+        if (shapes is { Count: > 0 } && spec.MaskScratch is { } scratch)
+        {
+            // The layer's own mask is always the first shape when it has one,
+            // and a mask edit only exists on a layer that does.
+            shapes[0] = shapes[0] with { Scratch = scratch, ScratchErases = spec.MaskScratchErases };
+        }
+        return new(
             spec.CelFrame is { } frame
                 ? cache.Get(frame, width, height, celIndex: spec.CelIndex)
                 : spec.Bitmap,
             spec.Tint, spec.Opacity, spec.Blend, spec.Overlay, spec.Matrix, spec.Source,
-            spec.SourceFrame,
-            LayerShapes.Resolve(spec.Shapes, cache, width, height, spec.CelIndex));
+            spec.SourceFrame, shapes);
+    }
 
     /// <summary>
     /// Describe the pass list for one publish without fetching a single cel.
@@ -438,7 +454,21 @@ internal static class ScenePassBuilder
                 celFrame = frame;
             }
 
-            var overlay = OverlayFor(live, isActive);
+            // While the artist paints the layer's mask, the stroke in flight
+            // is coverage rather than content: it rides on the mask shape
+            // (MaskScratch below) instead of on the layer, so the preview is
+            // exactly what the commit will carve. Keyed on the mask existing,
+            // not applying — a stroke painted onto a *disabled* mask changes
+            // nothing on screen, and the preview must say so rather than show
+            // it as paint that vanishes at the pen lift.
+            var maskEditHere = live.MaskEditing && isActive && layer.Mask is not null;
+            var overlay = maskEditHere ? null : OverlayFor(live, isActive);
+            var maskScratch = maskEditHere && live.BrushStroke is not null
+                ? (live.PostStampedCount > 0 && live.PostScratch is not null
+                    ? live.PostScratch
+                    : live.Scratch)
+                : null;
+            var maskErases = maskEditHere && live.BrushStroke?.Tool == ToolKind.Eraser;
 
             // A transform in progress: show the drag, not just the box around
             // it. The strokes that move are drawn through the gizmo's matrix
@@ -482,7 +512,8 @@ internal static class ScenePassBuilder
             passes.Add(new PassSpec(
                 celFrame, state.FrameIndex, bmp, null, opacity,
                 SceneRenderer.ToSkia(layer.BlendMode), overlay, parallax,
-                SourceFrame: tileFrame, Shapes: shapes));
+                SourceFrame: tileFrame, Shapes: shapes,
+                MaskScratch: maskScratch, MaskScratchErases: maskErases));
 
             // Draw-over puts them above instead. Under is how a lightbox works
             // and is what you want while drawing; over is for checking, when a

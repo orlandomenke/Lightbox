@@ -62,7 +62,17 @@ public sealed record StrokeOverlay(
 /// chain of intersections, applied inside the pass's isolation so opacity and
 /// blend see the carved result.
 /// </summary>
-public sealed record PassShape(SKBitmap Mask, bool Inverted = false);
+/// <param name="Scratch">
+/// The mask stroke in flight, while the artist is painting the mask itself:
+/// dabs that belong to the shape's coverage but are not committed yet. Drawn
+/// into the shape before it carves, so the preview is exactly the commit — an
+/// artist cannot judge a mark they are not being shown, and a mask mark's
+/// look is what it reveals or hides. <paramref name="ScratchErases"/> is the
+/// eraser's half: the dabs remove coverage instead of adding it.
+/// </param>
+public sealed record PassShape(
+    SKBitmap Mask, bool Inverted = false,
+    SKBitmap? Scratch = null, bool ScratchErases = false);
 
 /// <param name="Shapes">
 /// Alpha shapes carving this pass — a layer mask, a clipping base — or null
@@ -259,7 +269,22 @@ public static class SceneRenderer
             {
                 BlendMode = shape.Inverted ? SKBlendMode.DstOut : SKBlendMode.DstIn,
             };
-            DrawLayer(canvas, shape.Mask, carve);
+            if (shape.Scratch is null)
+            {
+                DrawLayer(canvas, shape.Mask, carve);
+                continue;
+            }
+            // A mask being painted: the committed coverage and the dabs in
+            // flight are one shape, so they group before the carve — the
+            // same isolate-then-apply the stroke overlay itself uses.
+            canvas.SaveLayer(carve);
+            DrawLayer(canvas, shape.Mask, null);
+            using var dabs = new SKPaint
+            {
+                BlendMode = shape.ScratchErases ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
+            };
+            DrawLayer(canvas, shape.Scratch, dabs);
+            canvas.Restore();
         }
     }
 

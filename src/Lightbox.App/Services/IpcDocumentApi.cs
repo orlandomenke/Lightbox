@@ -95,6 +95,12 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                 l.Name,
                 Kind = l.Kind.ToString().ToLowerInvariant(),
                 l.Visible,
+                // Both false on every ordinary layer, so an agent reading the
+                // scene sees the carve state without a second call — and
+                // RenderFramePng already applies both, so what it reads and
+                // what it renders agree.
+                HasMask = l.IsMasked,
+                Clipped = l.IsClipped,
                 KeyedFrames = Enumerable.Range(0, s.FrameCount)
                     .Where(i => ExposureSheet.FrameAtExactIndex(l, i) is not null)
                     .ToList(),
