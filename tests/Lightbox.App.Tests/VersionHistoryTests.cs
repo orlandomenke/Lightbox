@@ -158,6 +158,48 @@ public sealed class VersionHistoryTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public void DeletePermanentlyForgetsTheHistoryAndRemoveKeepsIt()
+    {
+        var (project, vm, walk) = Open();
+        vm.SetSelection(vm.Rows.Where(r => ReferenceEquals(r.Document, walk)));
+        vm.SetStatus(AssetStatus.Ready);
+        Assert.True(Directory.Exists(
+            ProjectVersions.StoreFor(project).DirectoryOf(walk.Id)));
+
+        // Remove from project leaves the disk alone — history included: the
+        // file survives, coming back is cheap, and a re-added document keeps
+        // its id, so this history is still its history (Q150's line).
+        var row = vm.Rows.Single(r => ReferenceEquals(r.Document, walk));
+        Assert.True(vm.RemoveFromProject(row));
+        Assert.True(Directory.Exists(
+            ProjectVersions.StoreFor(project).DirectoryOf(walk.Id)));
+
+        // Put it back, then delete permanently: "from the project and from
+        // disk" now includes the kept bytes, which nothing could ever show
+        // or revert once the id is gone.
+        project.Manifest.Documents.Add(walk);
+        vm.RefreshVersions();
+        var again = vm.Rows.Single(r => r.Document?.Id == walk.Id);
+        Assert.True(vm.DeleteFromDisk(again));
+        Assert.False(Directory.Exists(
+            ProjectVersions.StoreFor(project).DirectoryOf(walk.Id)));
+        output.WriteLine(vm.Status);
+    }
+
+    [Fact]
+    public void DeletingAFolderForgetsItsDocumentsHistoriesToo()
+    {
+        var (project, vm, walk) = Open();
+        vm.SetSelection(vm.Rows.Where(r => ReferenceEquals(r.Document, walk)));
+        vm.SetStatus(AssetStatus.Ready);
+
+        var folderRow = vm.Rows.Single(r => r is { IsFolder: true });
+        Assert.True(vm.DeleteFromDisk(folderRow));
+        Assert.False(Directory.Exists(
+            ProjectVersions.StoreFor(project).DirectoryOf(walk.Id)));
+    }
+
+    [Fact]
     public void ASheetRowCarriesItsVersionCount()
     {
         var (project, _, _) = Open();
