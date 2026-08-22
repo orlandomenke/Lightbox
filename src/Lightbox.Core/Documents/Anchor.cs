@@ -65,9 +65,23 @@ public sealed class Anchor
 
 /// <summary>Where an anchor sits on one drawing, in document pixels.</summary>
 /// <remarks>
+/// <para>
 /// Document pixels, like <see cref="Pivot"/> and unlike anything normalised: the
 /// exporter is the only thing that needs a cell-relative or normalised figure, and
 /// it has the trim rect to compute one. Storing a normalised value here would
 /// bake the trim into the record and make re-exporting at a different trim wrong.
+/// </para>
+/// <para>
+/// <b>Q144: the direction is per placement, like the position</b> — a hand
+/// turns through a swing, so the angle belongs to the drawing and travels with
+/// it through a hold, a re-time and a cel drag the same way the position does.
+/// Degrees, matching every exported rotation (<c>RotationDeg</c> and kin);
+/// zero points along +X and positive turns the way the y-down canvas turns.
+/// Null means <em>no direction</em>, and the document serializer drops null
+/// keys, so an anchor nobody turned writes exactly what it always wrote.
+/// Under a resize the angle is carried, never scaled: rotation is not a
+/// length, the accepted limit <see cref="ImageResize"/> already records for
+/// guides and bones.
+/// </para>
 /// </remarks>
-public sealed record AnchorPoint(double X, double Y);
+public sealed record AnchorPoint(double X, double Y, double? AngleDeg = null);

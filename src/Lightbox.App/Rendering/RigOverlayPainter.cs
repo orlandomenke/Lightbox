@@ -115,6 +115,26 @@ public static class RigOverlayPainter
             // A ring on the selected one, so which socket is being dragged is
             // readable without reading the label.
             if (mark.Selected) canvas.DrawCircle(x, y, arm * 0.6f, stroke);
+
+            // Q144: the direction stalk. An authored angle draws on every
+            // anchor — a direction nobody can see without selecting is not a
+            // direction — and the selected anchor with none gets a dim ghost
+            // stub along +X, because grabbing the stub IS how an angle is
+            // given. The tip handle appears with the selection, matching what
+            // the hit-test will actually grab.
+            if (!mark.HasAngle && !mark.Selected) continue;
+            var (tx, ty) = RigOverlay.StalkTipOf(mark);
+            // Past the continue above, no angle implies selected — the ghost
+            // stub only exists on the anchor being worked on.
+            stroke.Color = mark.HasAngle
+                ? (mark.Selected ? SelectedColor : AnchorColor)
+                : SelectedColor.WithAlpha(90);
+            canvas.DrawLine(x, y, (float)tx, (float)ty, stroke);
+            if (mark.Selected)
+            {
+                fill.Color = mark.HasAngle ? SelectedColor : SelectedColor.WithAlpha(140);
+                canvas.DrawCircle((float)tx, (float)ty, handle, fill);
+            }
         }
     }
 

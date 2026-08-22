@@ -194,9 +194,10 @@ public static class SpriteSheetExporter
         {
             if (!resolved.TryGetValue(anchor.Id, out var point)) continue;
             var name = string.IsNullOrWhiteSpace(anchor.Name) ? anchor.Id : anchor.Name.Trim();
-            if (!byName.TryAdd(name, new Point(point.X - cell.Left, point.Y - cell.Top)))
+            var exported = new Point(point.X - cell.Left, point.Y - cell.Top, point.AngleDeg);
+            if (!byName.TryAdd(name, exported))
             {
-                byName[$"{name} ({anchor.Id})"] = new Point(point.X - cell.Left, point.Y - cell.Top);
+                byName[$"{name} ({anchor.Id})"] = exported;
             }
         }
         return byName.Count > 0 ? byName : null;
@@ -1016,7 +1017,17 @@ public static class SpriteSheetExporter
         [property: JsonPropertyName("w")] int W,
         [property: JsonPropertyName("h")] int H);
 
+    /// <remarks>
+    /// The angle is Q144's socket direction — degrees, zero along +X, positive
+    /// clockwise on the y-down cell, same convention as every exported
+    /// <c>RotationDeg</c>. Null writes no key (the options ignore nulls), so a
+    /// pivot and an unaimed anchor serialize exactly as they always have. The
+    /// Unity payload deliberately does not carry it yet: its anchors are fixed
+    /// <c>[x, y]</c> arrays and a third element would reshape a contract
+    /// importers already parse.
+    /// </remarks>
     private sealed record Point(
         [property: JsonPropertyName("x")] double X,
-        [property: JsonPropertyName("y")] double Y);
+        [property: JsonPropertyName("y")] double Y,
+        [property: JsonPropertyName("angle")] double? Angle = null);
 }

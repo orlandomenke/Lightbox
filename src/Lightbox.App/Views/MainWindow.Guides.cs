@@ -102,6 +102,12 @@ public partial class MainWindow
         RefreshRigOverlay();
     }
 
+    private void OnClearRigDirection(object? sender, RoutedEventArgs e)
+    {
+        _vm.ClearSelectedAnchorDirection();
+        RefreshRigOverlay();
+    }
+
     /// <summary>
     /// Hand the canvas the marks to draw, or nothing at all.
     /// </summary>
