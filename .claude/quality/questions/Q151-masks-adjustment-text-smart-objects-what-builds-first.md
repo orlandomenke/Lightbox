@@ -1,4 +1,7 @@
-# Q146 · Masks, adjustment, text, smart objects — what builds first? — **answered 2026-08-22: masks + clipping now, adjustment on the effects record next, text and smart objects roadmapped**
+# Q151 · Masks, adjustment, text, smart objects — what builds first? — **answered 2026-08-22: masks + clipping now, adjustment on the effects record next, text and smart objects roadmapped**
+
+*(Filed as Q146 and renumbered: two branches merged the same day each allocated
+Q146, and the exporting-the-approved-bytes question reached `main` first.)*
 
 Raised by the request *"layer masks, adjustment layers, smart objects, text
 layers, clipping masks"* — five features, which is several branches of work,

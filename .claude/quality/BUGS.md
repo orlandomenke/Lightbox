@@ -561,7 +561,7 @@ which is a weak test and still far better than none.
 
 ### project
 
-- [ ] **B281** `P2` `project` Removing or deleting a folder orphans the sheets filed in it `evidence: OrphanedSheetTests, RemovingAFolderReturnsItsSheetsToTheProject, DeletingAFolderDetachesTheSheetsFiledInIt`
+- [ ] **B283** `P2` `project` Removing or deleting a folder orphans the sheets filed in it `evidence: OrphanedSheetTests, RemovingAFolderReturnsItsSheetsToTheProject, DeletingAFolderDetachesTheSheetsFiledInIt`
   - **Evidence.** `ProjectFolders.Remove` re-homes a removed folder's *documents* to the project root (the orphaned list `RemoveFromProject` walks), and nothing does the same for sheets: no code path writes `SheetRef.FolderId = null` on folder removal (grep 2026-08-22), and `ProjectWindowViewModel.DeleteFromDisk`'s folder branch detaches contained documents only. A `SheetRef` whose `FolderId` names a removed folder is skipped by every listing — `Emit` walks existing folders plus null, `ProjectSheets.In` matches by id — so the sheet vanishes from the docker, the window and the reaching chain while its ref (and, for Remove, its file) still exists.
   - Delete permanently is the worse half: the folder's directory goes, taking the sheet's file with it, while the dangling ref survives in the manifest.
   - Filed rather than fixed because it was found while the Q150 branch (delete clears version history) was in hand — one objective per branch; this is the next branch. The fix mirrors the documents path: Remove re-homes sheets to the project (`FolderId = null`), Delete detaches their refs (and, with Q150, clears their histories). Cost: S

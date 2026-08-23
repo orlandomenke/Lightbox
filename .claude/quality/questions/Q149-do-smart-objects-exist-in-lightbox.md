@@ -1,6 +1,6 @@
 # Q149 · Do smart objects (and text layers) exist in Lightbox? — **answered 2026-08-22: both roadmapped, neither built yet; smart objects reframed as linked instances**
 
-The other half of Q146: two of the five requested features are not on the
+The other half of Q151: two of the five requested features are not on the
 roadmap at all, and one of them may not even be a feature here.
 
 **Smart objects.** In Photoshop they exist to make raster edits non-destructive
