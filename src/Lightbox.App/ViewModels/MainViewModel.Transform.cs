@@ -885,7 +885,13 @@ public partial class MainViewModel
         if (frame is Frame painted && _transform.Filter is { } filter)
         {
             var moving = painted.Strokes.Where(filter).ToList();
-            var rest = painted.Strokes.Where(s => !filter(s)).ToList();
+            // Every erasure joins the static half, moving or not: an erasure
+            // caught by the marquee travels with the moving strokes it carves,
+            // but the ink it rubbed out of the strokes that STAY must not
+            // reappear the moment it leaves — that ghost is exactly what the
+            // commit's stay copy prevents (TransformErasures), and the preview
+            // has to show what the commit will produce.
+            var rest = painted.Strokes.Where(s => !filter(s) || IsErasure(s)).ToList();
             SKBitmap stay;
             if (painted.PngBase64 is { Length: > 0 })
             {
@@ -1023,7 +1029,12 @@ public partial class MainViewModel
         {
             foreach (var frame in frames)
             {
-                TransformOps.TransformFrame(frame, map, sizeScale, filter);
+                // A region-limited commit goes through the erasure-aware path:
+                // a moved erasure leaves a stay copy where it was still holding
+                // rubbed-out ink down, so erased strokes outside the selection
+                // do not come back (the ghost the preview split also guards).
+                if (filter is null) TransformOps.TransformFrame(frame, map, sizeScale);
+                else TransformErasures.TransformFrame(frame, map, sizeScale, filter);
                 // Raster baselines resample once per commit; a region-limited
                 // transform moves strokes only (baseline pixels stay put).
                 if (filter is null && frame is Frame { PngBase64.Length: > 0 } painted)

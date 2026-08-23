@@ -345,7 +345,10 @@ and it keeps that shape for the whole drag. Shift holds the move to one axis,
 guides catch it, and the whole thing is one undo step. Outside the ants, Ctrl is
 still the eyedropper it always was; the boundary is the selection edge and
 nothing else. It moves the *lines* the selection holds rather than cutting the
-pixels out, so a stroke crossing the edge travels whole.
+pixels out, so a stroke crossing the edge travels whole. **Ink you have erased
+stays erased**: eraser marks caught by the selection travel with the lines they
+carve, but what they rubbed out of the lines that stay behind does not come
+back — moving a selection never resurrects anything, in the drag or on apply.
 
 **Ctrl+T** starts a transform. The gizmo gives move, scale, rotate and a
 draggable pivot; **Perspective** mode gives four free corners. The whole
