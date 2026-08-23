@@ -18,7 +18,8 @@ namespace Lightbox.App.Tests;
 /// the menu exists, the setting persists, and it writes nothing when nobody has
 /// touched it.
 /// </remarks>
-public class DiagnosticsMenuTests
+[Collection("BrushState")]
+public class DiagnosticsMenuTests : BrushStateIsolated
 {
     [Fact]
     public void TheConsoleSwitchIsOffUntilSomebodyAsks()
