@@ -1615,7 +1615,7 @@ test reopens the bug.
   - P1 by reach: it is not an edge case, it is *opening your own work*. Masked for anyone who mostly created documents in-session and kept them open; found the day opening a saved file became the first thing the application asks you to do.
   - The regression test walks the whole route — open, draw, look in the record — because asserting the index alone would stay green if a second gate ever ate the stroke.
 
-- [x] **B285** `P2` `layers` Merge down drops live effect stacks from the render `evidence: LayerMergeTests, AMergeBakesALiveEffectStackIntoThePixels, AMergeBakesLayerStylesIntoThePixels`
+- [x] **B286** `P2` `layers` Merge down drops live effect stacks from the render `evidence: LayerMergeTests, AMergeBakesALiveEffectStackIntoThePixels, AMergeBakesLayerStylesIntoThePixels`
   - **Evidence.** `PairIsLossless` never checks `HasLiveEffects` and `BakedFrame` applies masks, clip and blend but no filter (read 2026-08-23, while giving the merge the style chain): merging a blurred or glowing layer concatenated its strokes, the upper layer's stack vanished with the layer, and the lower's kept applying to content it never described — a silent visual change on the exact gesture whose contract is "looks exactly like the two layers did".
   - Introduced with the effects record (#396), found and fixed while layer styles extended the same seam: `PairIsLossless` refuses a pair with a live stack, and `BakedFrame` runs each layer's content → filter → carve → style pipeline before compositing, clearing the baked stacks like it clears a baked mask.
 

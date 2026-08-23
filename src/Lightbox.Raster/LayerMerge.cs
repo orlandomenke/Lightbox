@@ -82,7 +82,7 @@ public static class LayerMerge
         // disabled mask was not baked and stays, still re-enableable — though
         // it will then carve the merged content.
         if (lower.IsMasked) lower.Mask = null;
-        // Same for a live stack: a pair with one always bakes (B285), so the
+        // Same for a live stack: a pair with one always bakes (B286), so the
         // merged pixels already carry the filter everywhere and keeping the
         // stack would apply it twice. A fully disabled stack was not baked
         // and stays, like a disabled mask.
@@ -126,7 +126,7 @@ public static class LayerMerge
         if (lower.IsMasked) return false;
         // A live effect stack is applied at composite time and strokes
         // cannot carry a filter — either layer having one forces the bake,
-        // which runs the content → filter → carve → style pipeline (B285).
+        // which runs the content → filter → carve → style pipeline (B286).
         if (LiveStack(upper) is not null || LiveStack(lower) is not null) return false;
         if (above is null) return true; // the lower drawing carries over untouched
         // The upper layer's mask carves its render, and its clip carves it by
@@ -236,7 +236,7 @@ public static class LayerMerge
             : FrameRasterizer.Materialize(below, scene.Width, scene.Height, celIndex: t);
         // The clip base is the lower's content and mask, never its filters —
         // the compositor's shapes resolve from frames the same way — so it
-        // is taken before the lower's own pipeline runs (B285).
+        // is taken before the lower's own pipeline runs (B286).
         SKBitmap? clipBase = null;
         if (above is not null && upper.IsClipped && !lower.IsClipped)
         {

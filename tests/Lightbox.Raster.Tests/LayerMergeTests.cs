@@ -288,7 +288,7 @@ public class LayerMergeTests
     [Fact]
     public void AMergeBakesALiveEffectStackIntoThePixels()
     {
-        // B285: the pair used to merge by concatenation, and the upper
+        // B286: the pair used to merge by concatenation, and the upper
         // layer's filter vanished with the layer. Output-white 0 crushes the
         // upper bar to black — visible or dropped, nothing in between.
         var scene = TestScene();
