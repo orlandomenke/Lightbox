@@ -217,6 +217,31 @@ public sealed partial class CanvasControl : Control
             ? (x, anchor.Y)
             : (anchor.X, y);
 
+    /// <summary>Where the object drag in progress began, for the Shift axis lock.</summary>
+    /// <remarks>
+    /// One field for the guide, reference-box, anchor and shape drags rather
+    /// than one each, because the gestures are mutually exclusive — a pointer
+    /// drags one kind of thing at a time.
+    /// </remarks>
+    private (double X, double Y) _objectDragAnchor;
+
+    /// <summary>
+    /// The pointer, held to one axis while Shift is down mid-drag — what Shift
+    /// means on the brush, the Move tool and the gradient, extended to the
+    /// object drags.
+    /// </summary>
+    /// <remarks>
+    /// Measured from the drag's anchor rather than clamped per event, for the
+    /// stroke lock's reason: a sum of clamped deltas drifts off the axis it is
+    /// supposed to be holding. The handlers emit deltas of <em>this</em> point,
+    /// so the deltas always sum back to an exactly-locked position — and
+    /// releasing Shift mid-drag hands the object back to the real pointer.
+    /// </remarks>
+    private (double X, double Y) DragPoint(PointerEventArgs e, (double X, double Y) point) =>
+        e.KeyModifiers.HasFlag(KeyModifiers.Shift)
+            ? AxisLocked(_objectDragAnchor, point.X, point.Y)
+            : point;
+
     /// <summary>True while an Alt-held stroke is in progress (drives the cursor).</summary>
     public bool IsTemporaryEraser => _painting && _erasingThisStroke;
 
@@ -2499,6 +2524,7 @@ public sealed partial class CanvasControl : Control
                 {
                     _movingGuides = true;
                     _guideMoveLast = (x, y);
+                    _objectDragAnchor = (x, y);
                     GuidesMovedStarted?.Invoke();
                     return;
                 }
@@ -2506,6 +2532,7 @@ public sealed partial class CanvasControl : Control
                 _guideDrag = grabbed.Id;
                 _guideResizing = GrabsHeightScaleTop(grabbed, pp.Position);
                 _guideDragLast = (x, y);
+                _objectDragAnchor = (x, y);
                 return;
             }
 
@@ -2632,18 +2659,21 @@ public sealed partial class CanvasControl : Control
                     {
                         _movingGuides = true;
                         _guideMoveLast = (x, y);
+                        _objectDragAnchor = (x, y);
                         GuidesMovedStarted?.Invoke();
                     }
                     else if (movingSelection && _selectionManager?.SelectedRefBoxIndices.Count > 0)
                     {
                         _movingRefBoxes = true;
                         _refBoxMoveLast = (x, y);
+                        _objectDragAnchor = (x, y);
                         RefBoxesMoveStarted?.Invoke();
                     }
                     else if (movingSelection && _selectionManager?.SelectedAnchorIds.Count > 0)
                     {
                         _movingAnchors = true;
                         _anchorMoveLast = (x, y);
+                        _objectDragAnchor = (x, y);
                         BeginRigGroupPreview(x, y, shapes: false);
                         AnchorsMoveStarted?.Invoke();
                     }
@@ -2651,6 +2681,7 @@ public sealed partial class CanvasControl : Control
                     {
                         _movingShapes = true;
                         _shapeMoveLast = (x, y);
+                        _objectDragAnchor = (x, y);
                         BeginRigGroupPreview(x, y, shapes: true);
                         ShapesMoveStarted?.Invoke();
                     }
@@ -2956,7 +2987,7 @@ public sealed partial class CanvasControl : Control
             if (_cropDragging) { CropMove(e); return; }
             if (_movingGuides)
             {
-                var (mx, my) = ViewToDoc(e.GetPosition(this));
+                var (mx, my) = DragPoint(e, ViewToDoc(e.GetPosition(this)));
                 var dx = mx - _guideMoveLast.X;
                 var dy = my - _guideMoveLast.Y;
                 GuidesMoved?.Invoke(dx, dy);
@@ -3010,7 +3041,7 @@ public sealed partial class CanvasControl : Control
 
             if (_movingRefBoxes)
             {
-                var (mx, my) = ViewToDoc(e.GetPosition(this));
+                var (mx, my) = DragPoint(e, ViewToDoc(e.GetPosition(this)));
                 var dx = mx - _refBoxMoveLast.X;
                 var dy = my - _refBoxMoveLast.Y;
                 RefBoxesMoved?.Invoke(dx, dy);
@@ -3021,7 +3052,7 @@ public sealed partial class CanvasControl : Control
 
             if (_movingAnchors)
             {
-                var (mx, my) = ViewToDoc(e.GetPosition(this));
+                var (mx, my) = DragPoint(e, ViewToDoc(e.GetPosition(this)));
                 var dx = mx - _anchorMoveLast.X;
                 var dy = my - _anchorMoveLast.Y;
                 AnchorsMoved?.Invoke(dx, dy);
@@ -3033,7 +3064,7 @@ public sealed partial class CanvasControl : Control
 
             if (_movingShapes)
             {
-                var (mx, my) = ViewToDoc(e.GetPosition(this));
+                var (mx, my) = DragPoint(e, ViewToDoc(e.GetPosition(this)));
                 var dx = mx - _shapeMoveLast.X;
                 var dy = my - _shapeMoveLast.Y;
                 ShapesMoved?.Invoke(dx, dy);
@@ -3079,6 +3110,9 @@ public sealed partial class CanvasControl : Control
             if (_guideDrag is { } dragging)
             {
                 var (gx, gy) = ViewToDoc(e.GetPosition(this));
+                // The resize is vertical by nature, so only the move takes the
+                // Shift axis lock.
+                if (!_guideResizing) (gx, gy) = DragPoint(e, (gx, gy));
                 // Incremental, like the reference nudge: an absolute drag
                 // would leave one enormous step in the history.
                 if (_guideResizing) GuideResized?.Invoke(dragging, gy - _guideDragLast.Y);

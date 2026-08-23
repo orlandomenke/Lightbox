@@ -534,6 +534,14 @@ the rulers are. The cursor changes when you are on one and the guide itself
 lights up; there is nothing floating over the drawing to click instead. The
 whole drag is one undo step, not one per twitch of the hand.
 
+**Shift holds a dragged guide to one axis** — whichever the drag has gone
+furthest along, measured from where you picked it up, so a horizon slides along
+without drifting off its height. It is the same promise Shift makes on the
+brush and on the Move tool's content drag, and it covers the group drags too:
+guides, reference boxes, anchors and hitbox shapes moved together all hold the
+same way. Press or release Shift in the middle of the drag and the thing
+follows — the lock is read from the keys as you move, not once at the press.
+
 The tool is the switch for all of this, on purpose: grabbing a guide and
 drawing along one are the same gesture in the same place, so something has to
 say which you meant. With any other tool in hand a guide is scenery you draw
