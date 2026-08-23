@@ -164,6 +164,12 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(Fps));
         NotifyAudioSurface();
         NotifyArmatureSurface();
+        // The guides are document data, and this funnel is what runs when the
+        // document under the UI is a different one — a tab switch, a file
+        // opened, an undo. Without this the canvas kept the previous
+        // document's rig: a reopened file's guides existed and were never
+        // drawn, which reads as "guides are not saved".
+        NotifyGuidesView();
         NotifyActiveLayerCompositing();
         MarkersView = Scene.Markers.ToList();
         NotifyOffSheetKeys();
