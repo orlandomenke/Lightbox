@@ -232,7 +232,8 @@ public partial class MainViewModel
                 passes.Add(new RenderPass(
                     bmp, null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
                     Shapes: resolved,
-                    Effect: EffectPasses.SelfFilter(layer, CurrentFrameIndex)));
+                    Effect: EffectPasses.SelfFilter(layer, CurrentFrameIndex),
+                    Style: EffectPasses.SelfStyle(layer, CurrentFrameIndex)));
             }
             if (EffectPasses.SceneStackPass(scene, CurrentFrameIndex) is { } grade) passes.Add(grade);
 

@@ -739,7 +739,8 @@ public static class SpriteSheetExporter
                 cache.Get(frame, scene.Width, scene.Height, celIndex: index), null, layer.Opacity,
                 SceneRenderer.ToSkia(layer.BlendMode),
                 Shapes: LayerShapes.Resolve(shapes, cache, scene.Width, scene.Height, index),
-                Effect: EffectPasses.SelfFilter(layer, index)));
+                Effect: EffectPasses.SelfFilter(layer, index),
+                Style: EffectPasses.SelfStyle(layer, index)));
         }
         // The scene grade, over the drawings and under the worn attachments'
         // own pass order below — a sheet grades exactly as the canvas does.

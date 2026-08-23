@@ -140,6 +140,39 @@ public sealed class EffectsDockerTests(ITestOutputHelper output) : BrushStateIso
     }
 
     [AvaloniaFact]
+    public void AStyleIsOfferedOnlyWhereItHasASilhouette()
+    {
+        // The mirror of the backdrop-only gate: a glow reads the layer's own
+        // silhouette, so the scene grade and adjustment layers never offer
+        // it — and a programmatic add is refused the same way.
+        var vm = Vm();
+        Assert.Contains(vm.EffectsPanel.AddChoices, c => c.Kind == "style.outerGlow");
+        Assert.DoesNotContain(vm.EffectsPanel.AdjustmentChoices, c => c.Kind == "style.stroke");
+
+        vm.EffectsPanel.EditingScene = true;
+        Assert.DoesNotContain(vm.EffectsPanel.AddChoices, c => c.Kind == "style.outerGlow");
+        vm.EffectsPanel.AddUseCommand.Execute(Choice(vm, "style.outerGlow"));
+        Assert.Null(vm.Doc.Scene.Effects);
+        vm.EffectsPanel.EditingScene = false;
+    }
+
+    [AvaloniaFact]
+    public void AColourRowWritesTheRecordAsAnUndoStep()
+    {
+        var vm = Vm();
+        vm.EffectsPanel.AddUseCommand.Execute(Choice(vm, "style.outerGlow"));
+        var row = Assert.Single(vm.EffectsPanel.ColorRows);
+        Assert.Equal("#ffffbe", row.Value); // the spec default shows before authoring
+        Assert.Null(Paint(vm).Effects!.Uses[0].Colors); // and is not yet written
+
+        row.Value = "#ff0000";
+        Assert.Equal("#ff0000", Paint(vm).Effects!.Uses[0].Colors!["color"]);
+
+        vm.UndoCommand.Execute(null);
+        Assert.Null(Paint(vm).Effects!.Uses[0].Colors); // back to absent
+    }
+
+    [AvaloniaFact]
     public void AnAdjustmentLayerChangesThePublishedComposite()
     {
         var vm = Vm();

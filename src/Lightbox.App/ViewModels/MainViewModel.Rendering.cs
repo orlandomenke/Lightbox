@@ -1266,7 +1266,8 @@ public partial class MainViewModel
                 _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex),
                 null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
                 Shapes: LayerShapes.Resolve(shapes, _cache, scene.Width, scene.Height, CurrentFrameIndex),
-                Effect: EffectPasses.SelfFilter(layer, CurrentFrameIndex)));
+                Effect: EffectPasses.SelfFilter(layer, CurrentFrameIndex),
+                Style: EffectPasses.SelfStyle(layer, CurrentFrameIndex)));
         }
         if (passes.Count == 0) return null;
         using var below = SceneRenderer.Compose(

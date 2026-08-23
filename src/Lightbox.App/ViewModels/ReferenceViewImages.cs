@@ -130,7 +130,8 @@ sealed class ReferenceViewImages(FrameBitmapCache frames)
                 frames.Get(frame, view.Width, view.Height), null,
                 layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
                 Shapes: LayerShapes.Resolve(shapes, frames, view.Width, view.Height),
-                Effect: EffectPasses.SelfFilter(layer, 0)));
+                Effect: EffectPasses.SelfFilter(layer, 0),
+                Style: EffectPasses.SelfStyle(layer, 0)));
         }
 
         // Composed at the authored size so the warm per-layer cache entries are the ones

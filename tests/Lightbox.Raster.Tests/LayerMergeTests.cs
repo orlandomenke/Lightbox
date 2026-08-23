@@ -273,4 +273,74 @@ public class LayerMergeTests
         Assert.Equal(0, second.GetPixel(100, 40).Alpha); // off the base: carved away
         Assert.True(second.GetPixel(100, 100).Alpha > 0, "the held lower bar still shows");
     }
+
+    private static Lightbox.Core.Effects.EffectStack StackOf(
+        string kind, params (string Key, double Value)[] values)
+    {
+        var use = new Lightbox.Core.Effects.EffectUse { Kind = kind };
+        foreach (var (key, value) in values)
+        {
+            use.Params[key] = new Lightbox.Core.Effects.EffectParam(value);
+        }
+        return new Lightbox.Core.Effects.EffectStack { Uses = [use] };
+    }
+
+    [Fact]
+    public void AMergeBakesALiveEffectStackIntoThePixels()
+    {
+        // B285: the pair used to merge by concatenation, and the upper
+        // layer's filter vanished with the layer. Output-white 0 crushes the
+        // upper bar to black — visible or dropped, nothing in between.
+        var scene = TestScene();
+        var lower = LayerOf(Key(Bar(150, "#2040c0")));
+        var upper = LayerOf(Key(Bar(50, "#ffffff")));
+        upper.Effects = StackOf("grade.levels", ("outWhite", 0));
+
+        Assert.True(LayerMerge.WouldBakePixels(upper, lower));
+        LayerMerge.MergeDown(scene, upper, lower);
+
+        var frame = (Frame)lower.Cels[0].Frame!;
+        Assert.True(frame.HasBaseline);
+        using var merged = Render(lower, 0);
+        var graded = merged.GetPixel(100, 50);
+        Assert.True(graded.Alpha > 200 && graded.Red < 10,
+            $"the upper bar carries its grade into the merge, got {graded}");
+        Assert.True(merged.GetPixel(100, 150).Blue > 100, "the ungraded lower bar is untouched");
+    }
+
+    [Fact]
+    public void AMergeBakesLayerStylesIntoThePixels()
+    {
+        // The lower layer's own glow, baked by the same pipeline the
+        // compositor runs (content → filter → carve → style), and the stack
+        // cleared afterwards so nothing applies twice. The mask is on the
+        // same layer on purpose: the adversary review swapped the carve and
+        // style steps and every test stayed green — this one pins the order
+        // both ways (Q155). Style-then-carve would let the mask eat the
+        // halo above the kept span (the halo assertion); and the style must
+        // read the carved silhouette, so the carved-away right half gets no
+        // glow of its own (the zero assertions).
+        var scene = TestScene();
+        var lower = LayerOf(Key(Bar(100, "#2040c0")));
+        lower.Effects = StackOf("style.outerGlow", ("size", 12.0), ("opacity", 100.0));
+        lower.Mask = new LayerMask();
+        lower.Mask.Frame.Strokes.Add(LeftCover(100)); // keeps x 20..90ish
+        var upper = LayerOf(Hold());
+
+        Assert.True(LayerMerge.WouldBakePixels(upper, lower));
+        LayerMerge.MergeDown(scene, upper, lower);
+
+        Assert.Null(lower.Effects); // baked, so cleared — like a baked mask
+        Assert.Null(lower.Mask);
+        var frame = (Frame)lower.Cels[0].Frame!;
+        Assert.True(frame.HasBaseline);
+        using var merged = Render(lower, 0);
+        var halo = merged.GetPixel(50, 78); // above the kept span
+        Assert.True(halo.Alpha > 10, $"the glow is in the pixels now, got {halo}");
+        Assert.True(merged.GetPixel(50, 100).Alpha > 200, "the kept span survives");
+        // The carved-away span must not glow: the style read the carved
+        // silhouette. A style-before-carve bake leaves a halo here.
+        Assert.Equal(0, merged.GetPixel(160, 78).Alpha);
+        Assert.Equal(0, merged.GetPixel(160, 100).Alpha);
+    }
 }
