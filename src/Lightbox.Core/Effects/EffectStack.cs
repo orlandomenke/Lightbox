@@ -41,6 +41,15 @@ public sealed class EffectUse
     public Dictionary<string, EffectParam> Params { get; set; } = [];
 
     /// <summary>
+    /// Colour parameters by key, as hex strings — the vocabulary strokes
+    /// already use. Null, and absent from the file, until a colour is
+    /// authored (Q153): the scalar params could not say "glow colour", and
+    /// packing ARGB into a keyed double would have made a colour pretend to
+    /// be animatable when the docker cannot key it yet.
+    /// </summary>
+    public Dictionary<string, string>? Colors { get; set; }
+
+    /// <summary>
     /// The value of <paramref name="key"/> at <paramref name="frame"/>, or
     /// <paramref name="fallback"/> when this use never authored it — which is
     /// how a document from an older build reads under a definition that grew
@@ -49,11 +58,16 @@ public sealed class EffectUse
     public double At(string key, int frame, double fallback) =>
         Params.TryGetValue(key, out var param) ? param.At(frame) : fallback;
 
+    /// <summary>The authored colour for <paramref name="key"/>, or the definition's default.</summary>
+    public string ColorAt(string key, string fallback) =>
+        Colors is { } colors && colors.TryGetValue(key, out var hex) ? hex : fallback;
+
     /// <summary>A copy holding no reference in common with this one.</summary>
     public EffectUse Clone()
     {
         var copy = (EffectUse)MemberwiseClone();
         copy.Params = Params.ToDictionary(p => p.Key, p => p.Value.Clone());
+        copy.Colors = Colors?.ToDictionary(c => c.Key, c => c.Value);
         return copy;
     }
 }

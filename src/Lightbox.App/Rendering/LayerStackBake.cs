@@ -498,6 +498,7 @@ public sealed class LayerStackBake : IDisposable
             && p.Bitmap is not null
             && p.Shapes is null
             && p.Effect is null
+            && p.Style is null
             && p.AdjustStack is null);
 
     private static List<PassKey> KeyOf(List<RenderPass> passes)

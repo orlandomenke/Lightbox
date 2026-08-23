@@ -79,6 +79,46 @@ public sealed partial class EffectUseRow : ObservableObject
     }
 }
 
+/// <summary>
+/// One colour of the selected effect — a swatch and a hex field, the same
+/// lightweight colour entry the fluid-effects window uses. Only a parseable
+/// hex commits, so a half-typed value never reaches the record.
+/// </summary>
+public sealed partial class EffectColorRow : ObservableObject
+{
+    private readonly EffectsViewModel _owner;
+    private readonly EffectUse _use;
+    private readonly EffectColorSpec _spec;
+    private bool _syncing;
+
+    internal EffectColorRow(EffectsViewModel owner, EffectUse use, EffectColorSpec spec)
+    {
+        _owner = owner;
+        _use = use;
+        _spec = spec;
+        _syncing = true;
+        Value = use.ColorAt(spec.Key, spec.Default);
+        _syncing = false;
+    }
+
+    public string Label => _spec.Label;
+
+    [ObservableProperty]
+    private string _value = "";
+
+    /// <summary>One brush per value, not per read (the leak review's finding).</summary>
+    [ObservableProperty]
+    private Avalonia.Media.IBrush _swatch = Avalonia.Media.Brushes.Transparent;
+
+    partial void OnValueChanged(string value)
+    {
+        Swatch = Avalonia.Media.Color.TryParse(value, out var color)
+            ? new Avalonia.Media.SolidColorBrush(color)
+            : Avalonia.Media.Brushes.Transparent;
+        if (!_syncing) _owner.CommitColor(_use, _spec, value);
+    }
+}
+
 /// <summary>A pickable effect kind for the docker's add buttons.</summary>
 public sealed record EffectChoice(string Kind, string Name);
 
@@ -127,6 +167,16 @@ public sealed partial class EffectsViewModel : ObservableObject
     public ObservableCollection<EffectUseRow> Uses { get; } = [];
 
     public ObservableCollection<EffectParamRow> Params { get; } = [];
+
+    public ObservableCollection<EffectColorRow> ColorRows { get; } = [];
+
+    /// <summary>
+    /// The adjustment-layer row's kinds: everything but the layer styles,
+    /// which read a silhouette an adjustment layer does not have (Q153).
+    /// </summary>
+    public IReadOnlyList<EffectChoice> AdjustmentChoices { get; } =
+        [.. EffectRegistry.All.Where(d => !d.SelfOnly)
+            .Select(d => new EffectChoice(d.Kind, d.Name))];
 
     /// <summary>True: the panel edits the scene grade instead of the active layer's stack.</summary>
     [ObservableProperty]
@@ -183,11 +233,13 @@ public sealed partial class EffectsViewModel : ObservableObject
         ScopeNote = !EditingScene && ActiveLayer is { IsAdjustment: false, HasLiveEffects: true }
             ? "Applied to this layer's own drawing, before blend."
             : "";
+        // Each scope offers only what does something there: a plain layer's
+        // own stack takes no backdrop-only kind (identity on the self path),
+        // and the backdrop scopes take no style (no silhouette to read).
         var selfStack = !EditingScene && ActiveLayer is { IsAdjustment: false };
-        AddChoices = selfStack
-            ? [.. EffectRegistry.All.Where(d => !d.BackdropOnly)
-                .Select(d => new EffectChoice(d.Kind, d.Name))]
-            : Catalogue;
+        AddChoices = [.. EffectRegistry.All
+            .Where(d => selfStack ? !d.BackdropOnly : !d.SelfOnly)
+            .Select(d => new EffectChoice(d.Kind, d.Name))];
         Select(Uses.FirstOrDefault(r => r.Use.Id == selectedId) ?? Uses.FirstOrDefault());
     }
 
@@ -196,10 +248,15 @@ public sealed partial class EffectsViewModel : ObservableObject
         foreach (var r in Uses) r.IsSelected = ReferenceEquals(r, row);
         _selected = row;
         Params.Clear();
+        ColorRows.Clear();
         if (row is null || EffectRegistry.Resolve(row.Use.Kind) is not { } def) return;
         foreach (var spec in def.Params)
         {
             Params.Add(new EffectParamRow(this, row.Use, spec, _owner.CurrentFrameIndex));
+        }
+        foreach (var spec in def.ColorSpecs)
+        {
+            ColorRows.Add(new EffectColorRow(this, row.Use, spec));
         }
     }
 
@@ -212,9 +269,11 @@ public sealed partial class EffectsViewModel : ObservableObject
     {
         if (EffectRegistry.Resolve(choice.Kind) is not { } def) return;
         if (!EditingScene && ActiveLayer is null) return;
-        // The add row already hides these on a self stack; the guard keeps a
+        // The add row already hides these per scope; the guards keep a
         // programmatic add from writing a use that renders as identity.
-        if (def.BackdropOnly && !EditingScene && ActiveLayer is { IsAdjustment: false }) return;
+        var selfStack = !EditingScene && ActiveLayer is { IsAdjustment: false };
+        if (def.BackdropOnly && selfStack) return;
+        if (def.SelfOnly && !selfStack) return;
         _owner.PanelEditor.Perform(_ =>
         {
             var stack = TargetStack(create: true)!;
@@ -274,6 +333,18 @@ public sealed partial class EffectsViewModel : ObservableObject
         }, label: "Effect setting", frameContentUnchanged: true);
     }
 
+    internal void CommitColor(EffectUse use, EffectColorSpec spec, string value)
+    {
+        if (!Avalonia.Media.Color.TryParse(value, out _)) return; // half-typed hex
+        _owner.PanelEditor.Perform(_ =>
+        {
+            // Authored on first edit, absent before it (Q153): the renderer
+            // reads the spec's default until a colour actually exists.
+            use.Colors ??= [];
+            use.Colors[spec.Key] = value;
+        }, label: "Effect colour", frameContentUnchanged: true);
+    }
+
     /// <summary>
     /// A new adjustment layer above the active one, carrying one effect —
     /// Photoshop's gesture, on the ordinary layer machinery: mask it, clip
@@ -283,6 +354,7 @@ public sealed partial class EffectsViewModel : ObservableObject
     private void AddAdjustmentLayer(EffectChoice choice)
     {
         if (EffectRegistry.Resolve(choice.Kind) is not { } def) return;
+        if (def.SelfOnly) return; // a style has no backdrop silhouette to read
         var insertAt = Math.Clamp(_owner.ActiveLayerIndex + 1, 0, _owner.Doc.Scene.Layers.Count);
         _owner.PanelEditor.Perform(doc =>
         {

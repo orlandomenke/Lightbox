@@ -225,9 +225,11 @@ thumbnails and the AI's view of the document all show the carved result.
 ### Adjustment layers and effects
 
 Open the **Effects** panel (Window → Effects) to filter without repainting.
-Three effects ship today — **Levels**, **Hue / Saturation** and **Gaussian
-blur** — and every one is a setting, never baked pixels: your strokes are
-untouched, sliders re-render, and undo steps back through every change.
+Three filters ship — **Levels**, **Hue / Saturation** and **Gaussian blur** —
+alongside five **layer styles** — **Drop shadow**, **Outer glow**, **Inner
+glow**, **Stroke** and **Bevel** — and every one is a setting, never baked
+pixels: your strokes are untouched, sliders re-render, and undo steps back
+through every change.
 
 An effect can sit in two places, chosen at the top of the panel:
 
@@ -247,6 +249,33 @@ One honest caveat: Hue / Saturation's **Lightness** lifts and lowers
 everything equally, black ink included — a positive nudge greys linework.
 For real value work reach for **Levels** (its gamma and output sliders are
 the tool built for it); Lightness is for a quick wash.
+
+### Layer styles
+
+The styles are the reverse case: a glow, a stroke, a shadow or a bevel
+decorates a layer's **own silhouette**, so they live on the Layer scope only —
+the scene grade and adjustment layers, which work on the composite beneath
+them, have no silhouette to read and do not offer them. Each style's colour
+sits in the panel as a swatch and a hex field.
+
+- **Drop shadow** — distance, size, angle and opacity; the angle is the light
+  direction, so the default 120° throws the shadow down and right.
+- **Outer glow** and **Inner glow** — size, spread (outer) and opacity.
+- **Stroke** — width, opacity, and a position slider: **0** outlines outside
+  the silhouette, **1** paints the rim inside it, **2** centres the line on
+  the edge.
+- **Bevel** — size, depth, light angle, and a direction slider: **0** shades
+  inside the edge (raised), **1** builds a ridge around it. Highlight and
+  shadow colours are yours to change. This is the smooth bevel only —
+  contour and gloss curves arrive with the timeline's curve editor.
+
+**Styles follow what you actually see.** Mask half a drawing and the glow
+hugs the half that is left; a blur on the same layer is trimmed by the mask
+instead, because a blur is part of the drawing where a glow decorates it.
+Styles apply after the layer's filters, whatever order the stack lists them
+in. A live stroke grows its layer's glow as you draw it, and merging a
+styled layer down bakes the style into the merged pixels — exactly what the
+canvas showed.
 
 **Adjustment layers** are the third place, and the one Photoshop users will
 reach for: right-click a layer → **New adjustment layer** (or use the
@@ -316,7 +345,10 @@ and it keeps that shape for the whole drag. Shift holds the move to one axis,
 guides catch it, and the whole thing is one undo step. Outside the ants, Ctrl is
 still the eyedropper it always was; the boundary is the selection edge and
 nothing else. It moves the *lines* the selection holds rather than cutting the
-pixels out, so a stroke crossing the edge travels whole.
+pixels out, so a stroke crossing the edge travels whole. **Ink you have erased
+stays erased**: eraser marks caught by the selection travel with the lines they
+carve, but what they rubbed out of the lines that stay behind does not come
+back — moving a selection never resurrects anything, in the drag or on apply.
 
 **Ctrl+T** starts a transform. The gizmo gives move, scale, rotate and a
 draggable pivot; **Perspective** mode gives four free corners. The whole

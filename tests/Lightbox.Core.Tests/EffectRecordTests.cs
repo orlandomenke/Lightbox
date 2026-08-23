@@ -44,6 +44,28 @@ public class EffectRecordTests
         Assert.Contains("\"gamma\"", json);
         Assert.DoesNotContain("\"disabled\"", json);
         Assert.DoesNotContain("\"keys\"", json);
+        Assert.DoesNotContain("\"colors\"", json); // absent until authored (Q153)
+    }
+
+    [Fact]
+    public void AnAuthoredColourRoundTripsAndCloneDoesNotShareIt()
+    {
+        var doc = NewDoc();
+        var use = new EffectUse
+        {
+            Kind = "style.outerGlow",
+            Colors = new() { ["color"] = "#ff8800" },
+        };
+        ArtLayer(doc).Effects = new EffectStack { Uses = [use] };
+
+        var back = DocJson.Deserialize(DocJson.Serialize(doc));
+        var loaded = Assert.Single(ArtLayer(back).Effects!.Uses);
+        Assert.Equal("#ff8800", loaded.ColorAt("color", "#000000"));
+        Assert.Equal("#123456", loaded.ColorAt("unset", "#123456")); // fallback path
+
+        var clone = loaded.Clone();
+        clone.Colors!["color"] = "#00ff00";
+        Assert.Equal("#ff8800", loaded.Colors!["color"]);
     }
 
     [Fact]

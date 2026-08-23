@@ -95,6 +95,13 @@ public sealed record PassShape(
 /// <see cref="SceneRenderer.DrawAdjustment"/>.
 /// </param>
 /// <param name="EffectFrame">The timeline frame keyed parameters evaluate at.</param>
+/// <param name="Style">
+/// The pass's layer styles — glow, stroke, shadow, bevel — applied in a
+/// group <em>outside</em> the mask carve, where <paramref name="Effect"/>
+/// applies inside it (Q155): a blur is part of what the layer shows, so the
+/// mask trims it; a glow decorates what the layer shows, so it follows the
+/// trim.
+/// </param>
 public sealed record RenderPass(
     SKBitmap? Bitmap,
     SKColor? Tint,
@@ -107,7 +114,8 @@ public sealed record RenderPass(
     IReadOnlyList<PassShape>? Shapes = null,
     SKImageFilter? Effect = null,
     Lightbox.Core.Effects.EffectStack? AdjustStack = null,
-    int EffectFrame = 0);
+    int EffectFrame = 0,
+    SKImageFilter? Style = null);
 
 /// <summary>
 /// Pure SkiaSharp scene compositing: white paper, then passes in order
@@ -317,10 +325,11 @@ public static class SceneRenderer
 
         var shaped = pass.Shapes is { Count: > 0 };
         var fx = pass.Effect;
+        var style = pass.Style;
 
         if (pass.Overlay is not { } overlay)
         {
-            if (!shaped && fx is null)
+            if (!shaped && fx is null && style is null)
             {
                 DrawLayer(canvas, pass.Bitmap, paint);
                 return;
@@ -330,10 +339,18 @@ public static class SceneRenderer
             // restore, exactly as it would have applied to the whole layer.
             // A self effect filters the content *first*, in a group of its
             // own, so a mask still cuts a crisp edge through a blurred layer
-            // rather than blurring the cut.
+            // rather than blurring the cut. The styles group sits outside the
+            // carve (Q155): a glow decorates the carved silhouette, so masking
+            // half a drawing leaves the glow hugging the half that is left.
             canvas.SaveLayer(paint);
+            if (style is not null)
+            {
+                using var stylePaint = new SKPaint { ImageFilter = style };
+                canvas.SaveLayer(stylePaint);
+            }
             DrawFiltered(canvas, pass.Bitmap, fx);
             if (shaped) ApplyShapes(canvas, pass.Shapes!);
+            if (style is not null) canvas.Restore();
             canvas.Restore();
             return;
         }
@@ -353,7 +370,7 @@ public static class SceneRenderer
         // A shaped or filtered pass always isolates: the shapes and the
         // effect must take the layer and its live stroke together, and
         // nothing else.
-        var needsIsolation = shaped || fx is not null
+        var needsIsolation = shaped || fx is not null || style is not null
             || overlay.Erases || alpha != 255 || pass.Blend != SKBlendMode.SrcOver;
         if (!needsIsolation)
         {
@@ -365,6 +382,13 @@ public static class SceneRenderer
         // SaveLayer allocates the current clip only, so a bounded live
         // region stays affordable even on a huge canvas.
         canvas.SaveLayer(paint);
+        if (style is not null)
+        {
+            // Outside the carve, like the branch above: the live stroke
+            // grows the silhouette and its glow with it, live.
+            using var stylePaint = new SKPaint { ImageFilter = style };
+            canvas.SaveLayer(stylePaint);
+        }
         if (fx is not null)
         {
             // The live stroke sits inside the filter group on purpose: a
@@ -377,6 +401,7 @@ public static class SceneRenderer
         DrawStroke(canvas, pass.Bitmap, overlay, strokePaint);
         if (fx is not null) canvas.Restore();
         if (shaped) ApplyShapes(canvas, pass.Shapes!);
+        if (style is not null) canvas.Restore();
         canvas.Restore();
     }
 

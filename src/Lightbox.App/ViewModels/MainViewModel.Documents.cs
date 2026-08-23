@@ -811,7 +811,8 @@ public partial class MainViewModel
                 _cache.Get(exposed, width, height, celIndex: CurrentFrameIndex),
                 null, b.Layer.Opacity, SceneRenderer.ToSkia(b.Layer.BlendMode),
                 Shapes: LayerShapes.Resolve(shapes, _cache, width, height, CurrentFrameIndex),
-                Effect: EffectPasses.SelfFilter(b.Layer, CurrentFrameIndex)));
+                Effect: EffectPasses.SelfFilter(b.Layer, CurrentFrameIndex),
+                Style: EffectPasses.SelfStyle(b.Layer, CurrentFrameIndex)));
         }
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var image = SceneRenderer.Compose(width, height, passes, SKColors.Transparent);
@@ -1274,7 +1275,8 @@ public partial class MainViewModel
                 _cache.Get(frame, scene.Width, scene.Height, celIndex: frameIndex), null, layer.Opacity,
                 SceneRenderer.ToSkia(layer.BlendMode),
                 Shapes: LayerShapes.Resolve(shapes, _cache, scene.Width, scene.Height, frameIndex),
-                Effect: EffectPasses.SelfFilter(layer, frameIndex)));
+                Effect: EffectPasses.SelfFilter(layer, frameIndex),
+                Style: EffectPasses.SelfStyle(layer, frameIndex)));
         }
         if (EffectPasses.SceneStackPass(scene, frameIndex) is { } grade) passes.Add(grade);
         using var image = SceneRenderer.Compose(scene.Width, scene.Height, passes, SceneRenderer.BackgroundOf(scene));

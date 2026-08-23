@@ -134,4 +134,62 @@ public class TransformPreviewTests : BrushStateIsolated
         Assert.True(PixelAt(vm, 150, 260).Alpha > 0, "the unselected bar moved with it");
         Assert.Equal(0, PixelAt(vm, 150, 60).Alpha);
     }
+
+    /// <summary>
+    /// B286 — the marquee's majority test catches eraser strokes like any
+    /// line, and carrying one away used to resurrect the ink it had rubbed
+    /// out: a ghost in the drag preview, made permanent by apply. Erased ink
+    /// must never come back (the doctrine <c>StrokePicker</c> states), so the
+    /// static half keeps every erasure and the commit leaves a stay copy.
+    /// </summary>
+    [AvaloniaFact]
+    public void MovingASelectionDoesNotResurrectErasedStrokes()
+    {
+        // A bar whose majority sits left of the marquee to come...
+        var vm = VmLayers.BareVm();
+        vm.SmoothStrokes = false;
+        vm.ColorHex = "#000000";
+        vm.BrushSize = 30;
+        vm.BrushHardness = 1;
+        vm.BrushOpacity = 1;
+        vm.BrushFlow = 1;
+        vm.AntiAliasing = false;
+        vm.BeginStroke(60, 60, 1);
+        vm.MoveStroke(150, 60, 1);
+        vm.MoveStroke(240, 60, 1);
+        vm.EndStroke();
+
+        // ...its right end rubbed out, by an erasure that sits wholly inside it.
+        vm.ActiveTool = ToolId.Eraser;
+        vm.BeginStroke(190, 60, 1);
+        vm.MoveStroke(215, 60, 1);
+        vm.MoveStroke(240, 60, 1);
+        vm.EndStroke();
+        vm.ActiveTool = ToolId.Brush;
+        Assert.Equal(0, PixelAt(vm, 215, 60).Alpha);
+
+        // The marquee catches the erasure (all three points) but not the bar
+        // (one of three), so the erasure moves and the bar stays.
+        vm.ApplySelectionShape(
+            [new(160, 20, 1), new(300, 20, 1), new(300, 120, 1), new(160, 120, 1)],
+            add: false, subtract: false);
+        Assert.True(vm.BeginTransform());
+        vm.PreviewTransform(SKMatrix.CreateTranslation(0, 140));
+        var previewed = PixelAt(vm, 215, 60).Alpha;
+
+        vm.CommitTransformAffine(0, 0, 1, 1, 0, 0, 140);
+        var applied = PixelAt(vm, 215, 60).Alpha;
+
+        Assert.Equal(0, previewed);  // the ghost the drag used to show
+        Assert.Equal(0, applied);    // and the one apply used to make permanent
+        Assert.True(PixelAt(vm, 100, 60).Alpha > 0, "the staying bar lost ink it still owns");
+
+        // The mechanism, pinned: the erasure both stayed and moved.
+        var strokes = ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes;
+        Assert.Equal(3, strokes.Count);
+        Assert.Equal(ToolKind.Eraser, strokes[1].Tool);
+        Assert.Equal(ToolKind.Eraser, strokes[2].Tool);
+        Assert.Equal(60, strokes[1].Points[0].Y, 3);
+        Assert.Equal(200, strokes[2].Points[0].Y, 3);
+    }
 }
