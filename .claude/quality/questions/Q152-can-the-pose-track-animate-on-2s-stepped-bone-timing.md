@@ -55,6 +55,15 @@ shape to build when this is scheduled:
 - The default `Ease` stays `EaseInOut`; `Hold` is a choice on a key, not a
   new default.
 
+## Landed 2026-08-23, as recommended
+
+Both halves, on this decision's own branch: `Easing.Hold`, `PoseTrack.Step`
+(nullable, absent until authored), and the sampling in
+`ArmatureOps.EffectivePoseAt` — the render pose, never `PoseAt`, so authoring
+stays fluid and the jiggle walk holds inside a step. `PoseSteppingTests`
+guards the record and the split; the UI is the pose key's ease menu and a
+"Pose on…" item on the armature row, mirroring the camera's menus.
+
 ## What this did not answer
 
 Whether the step interval eventually accepts the timing presets' patterns

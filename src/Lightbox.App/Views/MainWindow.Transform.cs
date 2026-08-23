@@ -237,6 +237,23 @@ public partial class MainWindow
             }
             case TimelineKeyKind.Pose:
             {
+                // The key's easing, Hold included — a held pose is the "on 2s"
+                // act at single-key grain (Q152). The ease belongs to the
+                // whole key, so the same menu serves the summary and bone rows.
+                var ease = new MenuItem { Header = "Ease into next" };
+                var currentEase = _vm.PoseKeyEaseAt(frame);
+                foreach (var choice in (Lightbox.Core.Inbetween.Easing[])
+                         [Lightbox.Core.Inbetween.Easing.Linear, Lightbox.Core.Inbetween.Easing.EaseIn,
+                          Lightbox.Core.Inbetween.Easing.EaseOut, Lightbox.Core.Inbetween.Easing.EaseInOut,
+                          Lightbox.Core.Inbetween.Easing.Hold])
+                {
+                    var item = new MenuItem { Header = choice == currentEase ? $"✓ {choice}" : choice.ToString() };
+                    var chosen = choice;
+                    item.Click += (_, _) => _vm.SetPoseKeyEase(frame, chosen);
+                    ease.Items.Add(item);
+                }
+                flyout.Items.Add(ease);
+
                 var bone = clicked.BoneId;
                 var pose = _vm.SelectedPoseKeys(clicked);
                 var delete = new MenuItem
@@ -301,6 +318,20 @@ public partial class MainWindow
             var keyHere = new MenuItem { Header = $"Key the pose at frame {frame + 1}" };
             keyHere.Click += (_, _) => _vm.AddPoseKeyAt(frame);
             flyout.Items.Add(keyHere);
+
+            // Track-level, not key-level: the whole rig samples on Ns (Q152),
+            // so the verb lives where the track's other whole-row verbs do.
+            var stepMenu = new MenuItem { Header = "Pose on…" };
+            var currentStep = _vm.PoseStep;
+            foreach (var step in (int[])[1, 2, 3, 4])
+            {
+                var label = step == 1 ? "1s (every frame)" : $"{step}s";
+                var item = new MenuItem { Header = step == currentStep ? $"✓ {label}" : label };
+                var chosen = step;
+                item.Click += (_, _) => _vm.SetPoseStep(chosen);
+                stepMenu.Items.Add(item);
+            }
+            flyout.Items.Add(stepMenu);
         }
 
         flyout.Items.Add(new Separator());

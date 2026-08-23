@@ -79,7 +79,11 @@ public static class RigExport
 
         var baked = BakeFrames(doc, armature, names);
 
-        return new RigDocument(SchemaVersion, doc.Scene.Fps, doc.Scene.FrameCount, bones, keys, baked);
+        // The step travels with the authored keys — a re-import loses nothing
+        // — while the baked frames already carry its effect, sampled and held.
+        var step = doc.Scene.PoseTrack?.Step is { } s and > 1 ? s : (int?)null;
+
+        return new RigDocument(SchemaVersion, doc.Scene.Fps, doc.Scene.FrameCount, step, bones, keys, baked);
     }
 
     /// <summary>Serialize the export model to the schema's JSON.</summary>
@@ -148,6 +152,7 @@ public sealed record RigDocument(
     [property: JsonPropertyName("lightboxRig")] int Schema,
     int Fps,
     int FrameCount,
+    int? Step,
     IReadOnlyList<RigBone> Bones,
     IReadOnlyList<RigKey> Keys,
     IReadOnlyList<RigFrame> Baked);
