@@ -373,22 +373,35 @@ the test needs relaxing.
     beneath, consecutive clipped layers share it, and the base's own mask
     carves what clips to it. A flag rather than a base id, so reordering
     means what the artist's drag means. Ctrl+Alt+G, the convention.
-- [?] Adjustment layers
-  - **Q151: an adjustment layer is an effect-carrying layer, not a new
-    mechanism.** It rides `DESIGN-effects.md`'s record — `EffectStack`,
-    keyable params, reach declarations — applied to the composite below and
-    scoped by the mask and clipping machinery above, which is why it waits
-    for the effects core rather than growing a parallel record.
+- [x] Adjustment layers `evidence: Layer.Adjusts, EffectsViewModel, EffectsDockerTests, AnAdjustmentPassFiltersTheBackdrop, AnAdjustmentIsCarvedByItsShapesAndFadedByItsOpacity, AnAdjustmentLayerLandsAboveTheActiveOneCarryingItsEffect, AnAdjustmentLayerChangesThePublishedComposite, AnAdjustmentLayerDescribesOneBackdropPassAndNoCelFetch`
+  - **Q151 held: an effect-carrying layer, not a new mechanism.** It rides
+    the effects record below, applied to the composite beneath it and scoped
+    by the ordinary layer machinery — its mask carves where it applies, its
+    clip grades one silhouette, its opacity is strength, its eye switches it
+    off. Its cels stay empty and nothing renders them; a document without
+    one writes no key.
 - [x] Blend modes `evidence: LayerBlendMode, BlendComposeTests`
 - [x] Layer folders `evidence: LayerGroup, LayerFolderTests`
 - [x] Layer and alpha locking `evidence: LayerLockTests, AlphaLockTests`
-- [?] Non-destructive filters
-  - Designed in `docs/DESIGN-effects.md` (2026-08-12): one effect model where
-    every parameter is constant or keyframed camera-style, nullable
-    `Layer.Effects`/`Scene.Effects` stacks absent until authored, a reach
-    declaration per effect so repaint stays bounded, and a record shaped so the
-    future node system subsumes the stack instead of replacing it. Evidence
-    anchors arrive with the Raster pass; the box stays open until then.
+- [x] Non-destructive filters `evidence: EffectUse, EffectStack, EffectRegistry, EffectPasses, EffectRecordTests, EffectRegistryTests, EffectPassTests, EffectComposeCostTests, ASelfEffectFiltersOnlyItsOwnPass, AnUnknownKindIsPreservedNotDropped, AKeyedRadiusEvaluatesPerFrame, AFilteredLayerRefusesToFoldAndStillRenders, TheSceneStackDescribesALastPass`
+  - **Built to `docs/DESIGN-effects.md`, steps 1–3 of its own build order**:
+    the record (on Q122's shared `EffectParam`, so wind, camera and blur key
+    in one vocabulary), the Raster registry with the first three of the v1
+    catalogue (levels, HSL, Gaussian blur — one of each seam the catalogue
+    names except the seeded one), the seam through every compositor, and the
+    effects docker with its own view model, the decoupling the design made
+    the review bar. Unknown kinds are preserved and rendered as identity;
+    stacks and params are absent until authored at every level.
+  - **Deliberately still open, from the design's own list**: keying UI on the
+    timeline (the record already carries keys and evaluates them — see
+    `AKeyedRadiusEvaluatesPerFrame` — the editor for placing them arrives
+    with the curve editor); film grain and vignette (grain is the invariant-2
+    seeded case and wants its `Hash01` test alongside); the layer-effect
+    output cache (today a static blur re-runs per recomposite; the fold and
+    tile refusals bound the cost, `EffectComposeCostTests` budgets it, and
+    its blur ratio is the number the cache should visibly move); presets as
+    project files (design step 5); and MCP `effects.*` operations, deferred
+    with the payload questions G12's pair review owns.
 
 ### Editing
 

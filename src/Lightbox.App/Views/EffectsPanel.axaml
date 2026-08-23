@@ -1,0 +1,122 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             x:Class="Lightbox.App.Views.EffectsPanel"
+             x:DataType="vm:EffectsViewModel">
+  <!--
+    The effects docker (DESIGN-effects.md, Q151): the stack on the active
+    layer or the scene, its parameters as sliders, and the way adjustment
+    layers are made. Bound to EffectsViewModel — the decoupling the design
+    demands, checkable by this file never mentioning MainViewModel.
+
+    Every parameter the record can key is a constant here; keying UI arrives
+    with the timeline's curve editor, and the record already carries curves,
+    so nothing shown is a dead end.
+  -->
+  <DockPanel Margin="6,4">
+    <!-- What is being edited: the active layer's stack, or the scene grade. -->
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6">
+      <RadioButton Content="Layer" GroupName="fxScope" FontSize="11"
+                   IsChecked="{Binding !EditingScene}"
+                   ToolTip.Tip="Edit the active layer's own effects — or, on an adjustment layer, what it applies beneath itself" />
+      <RadioButton Content="Scene" GroupName="fxScope" FontSize="11"
+                   IsChecked="{Binding EditingScene}"
+                   ToolTip.Tip="Edit the grade over the whole composite — everything the camera sees" />
+    </StackPanel>
+    <TextBlock DockPanel.Dock="Top" Text="{Binding TargetLabel}" FontSize="10"
+               Foreground="{StaticResource TextSecondaryBrush}"
+               Margin="0,4,0,2" TextWrapping="Wrap" />
+    <TextBlock DockPanel.Dock="Top" Text="{Binding ScopeNote}" FontSize="10"
+               Foreground="{StaticResource TextSecondaryBrush}"
+               IsVisible="{Binding ScopeNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+               Margin="0,0,0,4" TextWrapping="Wrap" />
+
+    <!-- Adding: one row of the catalogue as buttons, and the adjustment-layer
+         row beneath — Photoshop's gesture on the ordinary layer machinery. -->
+    <StackPanel DockPanel.Dock="Bottom" Margin="0,6,0,0" Spacing="4">
+      <TextBlock Text="Add to this stack" FontSize="10"
+                 Foreground="{StaticResource TextSecondaryBrush}" />
+      <ItemsControl ItemsSource="{Binding Catalogue}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:EffectChoice">
+            <Button Content="{Binding Name}" FontSize="11" Padding="6,2" Margin="0,0,4,4"
+                    Command="{Binding $parent[UserControl].((vm:EffectsViewModel)DataContext).AddUseCommand}"
+                    CommandParameter="{Binding}" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <TextBlock Text="New adjustment layer" FontSize="10"
+                 Foreground="{StaticResource TextSecondaryBrush}"
+                 ToolTip.Tip="A layer whose effect applies to everything beneath it. Mask it, clip it, fade it and hide it like any layer." />
+      <ItemsControl ItemsSource="{Binding Catalogue}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:EffectChoice">
+            <Button Content="{Binding Name}" FontSize="11" Padding="6,2" Margin="0,0,4,4"
+                    Command="{Binding $parent[UserControl].((vm:EffectsViewModel)DataContext).AddAdjustmentLayerCommand}"
+                    CommandParameter="{Binding}" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="2">
+        <!-- The stack, in composite order. -->
+        <ItemsControl ItemsSource="{Binding Uses}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:EffectUseRow">
+              <Border Background="Transparent" CornerRadius="3" Padding="2,1"
+                      Classes.selectedFx="{Binding IsSelected}">
+                <DockPanel>
+                  <CheckBox DockPanel.Dock="Left" IsChecked="{Binding Enabled}" MinWidth="0"
+                            Padding="0" ToolTip.Tip="Switch this effect off without losing its settings" />
+                  <Button DockPanel.Dock="Right" Classes="icon" Background="Transparent"
+                          Command="{Binding $parent[UserControl].((vm:EffectsViewModel)DataContext).RemoveUseCommand}"
+                          CommandParameter="{Binding}" ToolTip.Tip="Remove this effect">
+                    <Path Classes="icon" Width="8" Height="8" Data="{StaticResource IconClose}" />
+                  </Button>
+                  <Button Background="Transparent" BorderThickness="0" Padding="4,1"
+                          HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                          Command="{Binding $parent[UserControl].((vm:EffectsViewModel)DataContext).SelectUseCommand}"
+                          CommandParameter="{Binding}">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <TextBlock Text="{Binding Name}" FontSize="11" VerticalAlignment="Center" />
+                      <TextBlock Text="from a newer build" FontSize="9" VerticalAlignment="Center"
+                                 Foreground="{StaticResource StatusWarningBrush}"
+                                 IsVisible="{Binding !IsKnown}"
+                                 ToolTip.Tip="This document carries an effect this build cannot render. It is kept exactly as saved and currently does nothing." />
+                    </StackPanel>
+                  </Button>
+                </DockPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- The selected effect's parameters. -->
+        <ItemsControl ItemsSource="{Binding Params}" Margin="0,4,0,0">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:EffectParamRow">
+              <Grid ColumnDefinitions="86,*,52" Margin="0,1" MinHeight="24">
+                <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <Slider Grid.Column="1" Minimum="{Binding Min}" Maximum="{Binding Max}"
+                        Value="{Binding Value, Mode=TwoWay}" Margin="4,0" VerticalAlignment="Center" />
+                <NumericUpDown Grid.Column="2" Value="{Binding Value, Mode=TwoWay}"
+                               Minimum="{Binding Min}" Maximum="{Binding Max}"
+                               Increment="{Binding Increment}" FormatString="0.#" FontSize="10"
+                               ShowButtonSpinner="False" VerticalAlignment="Center" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

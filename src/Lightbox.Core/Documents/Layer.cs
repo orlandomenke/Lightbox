@@ -331,7 +331,7 @@ public sealed class Layer
 
     /// <summary>
     /// This layer is an adjustment layer: its <see cref="Effects"/> apply to
-    /// the composite *beneath* it rather than to content of its own (Q146).
+    /// the composite *beneath* it rather than to content of its own (Q151).
     /// Null — and absent — on every ordinary layer.
     /// </summary>
     /// <remarks>

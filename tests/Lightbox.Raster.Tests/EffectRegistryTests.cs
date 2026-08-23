@@ -90,6 +90,52 @@ public class EffectRegistryTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void AHueSpinKeepsASaturatedFlatVivid()
+    {
+        // The art-director's veto, as a regression test: the affine
+        // hue-rotation matrix clipped pure red +120° to (0,146,0) — duller
+        // and paler than the colour it started as, on exactly the cel flat
+        // an animator turns this control on. A true HSL rotation lands on
+        // green at full strength.
+        var spun = Filtered(Stack(Use("grade.hsl", ("hue", 120.0))), new SKColor(255, 0, 0));
+        output.WriteLine($"pure red +120 {spun}");
+        Assert.True(spun.Green > 240, $"the spin must stay vivid, got {spun}");
+        Assert.True(spun.Red < 15 && spun.Blue < 15, $"and stay on the wheel, got {spun}");
+
+        // Half a turn: red to full cyan, not a 60%-bright one.
+        var half = Filtered(Stack(Use("grade.hsl", ("hue", 180.0))), new SKColor(255, 0, 0));
+        output.WriteLine($"pure red +180 {half}");
+        Assert.True(half.Green > 240 && half.Blue > 240 && half.Red < 15,
+            $"half a turn is vivid cyan, got {half}");
+    }
+
+    [Fact]
+    public void TheHslFilterPreservesAlpha()
+    {
+        // Pins the premultiplication convention: a half-transparent red,
+        // desaturated, is a half-transparent grey — same alpha, neutral
+        // colour, no channel blown by handling premul as straight or back.
+        using var bmp = new SKBitmap(8, 8, SKColorType.Rgba8888, SKAlphaType.Premul);
+        bmp.Erase(new SKColor(200, 40, 40, 128));
+        using var outBmp = new SKBitmap(8, 8, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var canvas = new SKCanvas(outBmp);
+        canvas.Clear(SKColors.Transparent);
+        using var paint = new SKPaint
+        {
+            ImageFilter = EffectRegistry.FilterFor(
+                Stack(Use("grade.hsl", ("saturation", -100.0))), 0),
+        };
+        canvas.DrawBitmap(bmp, 0, 0, paint);
+        canvas.Flush();
+        var pixel = outBmp.GetPixel(4, 4);
+        output.WriteLine($"half-transparent desaturated {pixel}");
+        Assert.InRange(pixel.Alpha, 126, 130);
+        Assert.True(Math.Abs(pixel.Red - pixel.Green) <= 3 && Math.Abs(pixel.Green - pixel.Blue) <= 3,
+            $"desaturated must be neutral, got {pixel}");
+        Assert.InRange(pixel.Red, 60, 190); // present, not blown or vanished
+    }
+
+    [Fact]
     public void BlurSpreadsInkAndItsReachFollowsTheRadius()
     {
         // One bright pixel in the middle; after a blur its neighbours carry
@@ -118,6 +164,23 @@ public class EffectRegistryTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void AStaticStackAnswersWithTheSameFilterInstance()
+    {
+        // The publish path asks per pointer event; a stack nobody is editing
+        // must not allocate a chain per ask (the leak review's finding) —
+        // and a changed value must.
+        var use = Use("blur.gaussian", ("radius", 6.0));
+        var stack = Stack(use);
+        var first = EffectRegistry.FilterFor(stack, 0);
+        Assert.Same(first, EffectRegistry.FilterFor(stack, 0));
+
+        use.Params["radius"] = new EffectParam(9);
+        var changed = EffectRegistry.FilterFor(stack, 0);
+        Assert.NotSame(first, changed);
+        Assert.Same(changed, EffectRegistry.FilterFor(stack, 0));
+    }
+
+    [Fact]
     public void AKeyedRadiusEvaluatesPerFrame()
     {
         var use = Use("blur.gaussian");
@@ -141,19 +204,19 @@ public class EffectRegistryTests(ITestOutputHelper output)
     [Fact]
     public void TheChainAppliesInStackOrder()
     {
-        // Compress the range, then oversaturate — against the reverse. The
-        // saturation boost clamps at 255 only when it runs on the *unclamped*
-        // input, so the two orders land on measurably different reds; a chain
-        // that ignored stack order could not tell them apart.
+        // Lightness clamps, so the same two offsets in opposite orders end
+        // at opposite poles: up-then-down pins at white first and comes back
+        // to black; down-then-up pins at black first and comes back to
+        // white. A chain that ignored stack order could not tell them apart.
         var red = new SKColor(200, 40, 40);
-        var compressThenSat = Filtered(Stack(
-            Use("grade.levels", ("outWhite", 100.0)),
-            Use("grade.hsl", ("saturation", 100.0))), red);
-        var satThenCompress = Filtered(Stack(
-            Use("grade.hsl", ("saturation", 100.0)),
-            Use("grade.levels", ("outWhite", 100.0))), red);
-        output.WriteLine($"compress→sat {compressThenSat}, sat→compress {satThenCompress}");
-        Assert.True(compressThenSat.Red > satThenCompress.Red + 5,
-            $"order must be observable: {compressThenSat} vs {satThenCompress}");
+        var upThenDown = Filtered(Stack(
+            Use("grade.hsl", ("lightness", 100.0)),
+            Use("grade.hsl", ("lightness", -100.0))), red);
+        var downThenUp = Filtered(Stack(
+            Use("grade.hsl", ("lightness", -100.0)),
+            Use("grade.hsl", ("lightness", 100.0))), red);
+        output.WriteLine($"up→down {upThenDown}, down→up {downThenUp}");
+        Assert.True(upThenDown.Red < 10, $"white then fully darkened is black, got {upThenDown}");
+        Assert.True(downThenUp.Red > 245, $"black then fully lifted is white, got {downThenUp}");
     }
 }

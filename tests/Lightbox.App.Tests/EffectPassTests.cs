@@ -9,7 +9,7 @@ using Xunit;
 namespace Lightbox.App.Tests;
 
 /// <summary>
-/// The effect seam (DESIGN-effects.md, Q146): a self stack filters its own
+/// The effect seam (DESIGN-effects.md, Q151): a self stack filters its own
 /// pass, an adjustment pass filters the composite beneath it — carved by
 /// shapes, faded by opacity — and the pass list says all of it.
 /// </summary>

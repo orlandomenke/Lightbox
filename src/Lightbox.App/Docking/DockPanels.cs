@@ -26,6 +26,7 @@ public enum DockPanelId
     History,
     Navigator,
     Scene,
+    Effects,
 }
 
 /// <summary>Where a panel lives.</summary>
@@ -102,6 +103,10 @@ public static class DockPanels
         // path. In no default layout — shot machinery is absent until asked
         // for — so it exists only where an artist opened it.
         new(DockPanelId.Scene, "Scene", MaxExtent: 360, DefaultExtent: 240, MinExtent: 150),
+        // Effects and adjustment layers (DESIGN-effects.md, Q151). Like the
+        // Scene panel, in no default layout: a document that never filters
+        // must never show effect UI — optional means absent.
+        new(DockPanelId.Effects, "Effects", MaxExtent: 360, DefaultExtent: 260, MinExtent: 150),
     ];
 
     /// <summary>

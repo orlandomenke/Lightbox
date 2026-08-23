@@ -31,6 +31,8 @@ public sealed partial class EffectParamRow : ObservableObject
 
     public double Max => _spec.Max;
 
+    public double Increment => _spec.Increment;
+
     [ObservableProperty]
     private double _value;
 
@@ -77,6 +79,9 @@ public sealed partial class EffectUseRow : ObservableObject
     }
 }
 
+/// <summary>A pickable effect kind for the docker's add buttons.</summary>
+public sealed record EffectChoice(string Kind, string Name);
+
 /// <summary>
 /// The effects docker's view model (DESIGN-effects.md's decoupling bar): the
 /// stack on the active layer or the scene, its parameters as sliders, and
@@ -104,9 +109,6 @@ public sealed partial class EffectsViewModel : ObservableObject
             }
         };
     }
-
-    /// <summary>A pickable effect kind for the add buttons.</summary>
-    public sealed record EffectChoice(string Kind, string Name);
 
     public IReadOnlyList<EffectChoice> Catalogue { get; }
 
@@ -255,7 +257,7 @@ public sealed partial class EffectsViewModel : ObservableObject
     /// <summary>
     /// A new adjustment layer above the active one, carrying one effect —
     /// Photoshop's gesture, on the ordinary layer machinery: mask it, clip
-    /// it, fade it, hide it like any layer (Q146).
+    /// it, fade it, hide it like any layer (Q151).
     /// </summary>
     [RelayCommand]
     private void AddAdjustmentLayer(EffectChoice choice)

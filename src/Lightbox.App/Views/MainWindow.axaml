@@ -698,6 +698,8 @@
           <MenuItem Header="Graph editor" ToggleType="CheckBox" IsChecked="{Binding Workspace.GraphEditorDockerVisible, Mode=TwoWay}" />
           <MenuItem Header="Scene" ToggleType="CheckBox" IsChecked="{Binding Workspace.SceneDockerVisible, Mode=TwoWay}"
                     ToolTip.Tip="Layer depths and the camera's path — where multiplane parallax is authored" />
+          <MenuItem Header="Effects" ToggleType="CheckBox" IsChecked="{Binding Workspace.EffectsDockerVisible, Mode=TwoWay}"
+                    ToolTip.Tip="Effect stacks and adjustment layers — levels, hue/saturation and blur, on a layer or over the whole scene" />
           <MenuItem Header="Color" ToggleType="CheckBox" IsChecked="{Binding ColorDockerVisible, Mode=TwoWay}" />
           <MenuItem Header="Palette" ToggleType="CheckBox" IsChecked="{Binding PaletteDockerVisible, Mode=TwoWay}" />
           <MenuItem Header="Gradient" ToggleType="CheckBox" IsChecked="{Binding GradientDockerVisible, Mode=TwoWay}" />
@@ -3454,6 +3456,17 @@
                                         Click="OnLayerMenuDeleteMask"
                                         ToolTip.Tip="Remove the mask and its drawing. The layer shows in full again." />
                             </MenuItem>
+                            <!-- Photoshop puts this gesture at the foot of the
+                                 Layers panel; an artist who knows it looks here
+                                 first (the art-director's finding). The command
+                                 lives on the effects docker's own view model —
+                                 this is a pointer to it, not a second copy. -->
+                            <MenuItem Header="New adjustment layer"
+                                      ToolTip.Tip="A layer that filters everything beneath it — mask it, clip it, fade it like any layer. Opens the Effects panel.">
+                              <MenuItem Header="Levels" Tag="grade.levels" Click="OnLayerMenuAddAdjustment" />
+                              <MenuItem Header="Hue / Saturation" Tag="grade.hsl" Click="OnLayerMenuAddAdjustment" />
+                              <MenuItem Header="Gaussian blur" Tag="blur.gaussian" Click="OnLayerMenuAddAdjustment" />
+                            </MenuItem>
                             <MenuItem Header="Clip to layer below" IsVisible="{Binding !IsClipped}"
                                       Click="OnLayerMenuClip"
                                       ToolTip.Tip="Composite this layer only where the layer below has content (Ctrl+Alt+G). Consecutive clipped layers share the first unclipped base — an animated matte is exactly this." />
@@ -3711,6 +3724,14 @@
         <controls:Docker x:Name="SceneDockerPanel" PanelId="Scene" Title="Scene"
                          CloseCommand="{Binding ToggleSceneDockerCommand}">
           <views:ScenePanel />
+        </controls:Docker>
+
+        <!-- The effects docker (Q151): stacks and adjustment layers. The
+             panel and its view model are files of their own — what lands
+             here is registration. -->
+        <controls:Docker x:Name="EffectsDockerPanel" PanelId="Effects" Title="Effects"
+                         CloseCommand="{Binding ToggleEffectsDockerCommand}">
+          <views:EffectsPanel DataContext="{Binding EffectsPanel}" />
         </controls:Docker>
 
         <controls:Docker x:Name="HistoryPanel" PanelId="History" Title="Undo history"

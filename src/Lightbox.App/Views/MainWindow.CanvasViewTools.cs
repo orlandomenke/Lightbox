@@ -357,6 +357,9 @@ public partial class MainWindow
             case "docker.editMask":
                 _vm.ToggleActiveLayerMaskEditingCommand.Execute(null);
                 break;
+            case "docker.effects":
+                _vm.ToggleEffectsDockerCommand.Execute(null);
+                break;
             // Flipping: hop between key drawings without leaving the pen.
             case "timeline.prevKey":
                 _vm.PreviousKeyframeCommand.Execute(null);

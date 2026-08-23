@@ -144,6 +144,7 @@ public partial class MainViewModel
         _editor = new DocumentEditor(StartupDoc());
         _activeLayerIndex = FirstPaintableLayer(_editor.Doc);
         _editor.Changed += OnDocumentChanged;
+        EffectsPanel = new EffectsViewModel(this);
         // The live rig: a frame with bound strokes renders posed for the
         // timeline position asking for it. Reads `_editor` at call time, so
         // switching tabs switches the armature with everything else. A

@@ -88,7 +88,7 @@ public sealed record PassShape(
 /// </param>
 /// <param name="AdjustStack">
 /// An adjustment pass: this pass carries no content of its own — it filters
-/// the composite already beneath it (Q146), carved by <paramref name="Shapes"/>
+/// the composite already beneath it (Q151), carved by <paramref name="Shapes"/>
 /// and faded by <paramref name="Opacity"/>. The stack rides the pass rather
 /// than a baked filter because the backdrop draw happens in device space,
 /// where the compositor must scale kernel parameters itself — see
@@ -224,7 +224,8 @@ public static class SceneRenderer
         var device = transform is { } m
             ? (float)Math.Sqrt(Math.Abs(m.ScaleX * m.ScaleY - m.SkewX * m.SkewY))
             : (float)scale;
-        using var filter = Lightbox.Raster.Effects.EffectRegistry.FilterFor(
+        // Cached per stack by the registry — never disposed here.
+        var filter = Lightbox.Raster.Effects.EffectRegistry.FilterFor(
             pass.AdjustStack, pass.EffectFrame, device <= 0 ? 1f : device);
         if (filter is null) return; // a stack that currently does nothing
 

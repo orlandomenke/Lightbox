@@ -699,6 +699,13 @@
     <Setter Property="Width" Value="10" />
   </Style>
 
+  <!-- The effects docker's selected row — the stack entry whose sliders are
+       showing. The weak selection tint, like a docker row that is selected
+       but not active. -->
+  <Style Selector="Border.selectedFx">
+    <Setter Property="Background" Value="{StaticResource SelectionWeakBrush}" />
+  </Style>
+
   <Style Selector="ToggleSwitch">
     <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
   </Style>

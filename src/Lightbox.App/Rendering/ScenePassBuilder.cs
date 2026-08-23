@@ -387,7 +387,7 @@ internal static class ScenePassBuilder
             // first one over the paper.
             if (isActive) activeStart = passes.Count;
 
-            // An adjustment layer (Q146) has no drawings of its own: no cel
+            // An adjustment layer (Q151) has no drawings of its own: no cel
             // fetch, no ghosts, no tile pass — one backdrop pass, carved by
             // its mask and clip, or nothing at all while its stack is empty
             // or its clipping base shows nothing.

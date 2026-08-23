@@ -41,6 +41,37 @@ public class IpcTests
     }
 
     [AvaloniaFact]
+    public void GetScene_ReportsCarveAndEffectState()
+    {
+        // The four booleans an agent orients by (G12): false on an ordinary
+        // layer, and each one flips with the layer state it names — otherwise
+        // the surface reports a document that is not the one rendering.
+        var vm = VmWithDrawing();
+        var api = new IpcDocumentApi(vm);
+        var layer = vm.Doc.Scene.Layers[0];
+
+        var before = api.Handle(Req("get_scene")).Payload!.Value.GetProperty("layers")[0];
+        Assert.False(before.GetProperty("hasMask").GetBoolean());
+        Assert.False(before.GetProperty("clipped").GetBoolean());
+        Assert.False(before.GetProperty("isAdjustment").GetBoolean());
+        Assert.False(before.GetProperty("hasEffects").GetBoolean());
+
+        layer.Mask = new Lightbox.Core.Documents.LayerMask();
+        layer.ClipToBelow = true;
+        layer.Adjusts = true;
+        layer.Effects = new Lightbox.Core.Effects.EffectStack
+        {
+            Uses = [new Lightbox.Core.Effects.EffectUse { Kind = "grade.hsl" }],
+        };
+
+        var after = api.Handle(Req("get_scene")).Payload!.Value.GetProperty("layers")[0];
+        Assert.True(after.GetProperty("hasMask").GetBoolean());
+        Assert.True(after.GetProperty("clipped").GetBoolean());
+        Assert.True(after.GetProperty("isAdjustment").GetBoolean());
+        Assert.True(after.GetProperty("hasEffects").GetBoolean());
+    }
+
+    [AvaloniaFact]
     public void GetFrameStrokes_ReturnsWireFormat()
     {
         var api = new IpcDocumentApi(VmWithDrawing());
