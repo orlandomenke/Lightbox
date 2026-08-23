@@ -182,17 +182,18 @@ public partial class MainWindow
         _vm.AiStatus = "Fetching the image…";
         foreach (var uri in uris)
         {
-            var bytes = await Services.WebImageDrop.FetchAsync(uri);
-            if (bytes is null || !_vm.ImportReferenceImageBytes(Services.WebImageDrop.NameFor(uri), bytes))
-            {
-                continue;
-            }
-            _vm.AiStatus = $"Drawing against \u201c{Services.WebImageDrop.NameFor(uri)}\u201d.";
+            // A candidate that fetches as a *page* is read once for the image
+            // it names (B285) \u2014 that is what a drag off any site that wraps
+            // its pictures in links carries.
+            if (await Services.WebImageDrop.FetchImageAsync(uri) is not { } got) continue;
+            var name = Services.WebImageDrop.NameFor(got.Source);
+            if (!_vm.ImportReferenceImageBytes(name, got.Bytes)) continue;
+            _vm.AiStatus = $"Drawing against \u201c{name}\u201d.";
             _vm.ReferenceDockerVisible = true;
             return;
         }
-        // Every candidate failed — refused by the site, or bytes that are not
-        // an image (a page URL dragged instead of the picture).
+        // Every candidate failed — refused by the site, or a page that names
+        // no image Lightbox can read.
         _vm.AiStatus = "That drop did not contain an image Lightbox could read.";
     }
 
