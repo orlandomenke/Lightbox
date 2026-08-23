@@ -55,6 +55,27 @@ public sealed class WorkspaceStore
     /// <summary>The workspace currently applied, by name.</summary>
     public string Current { get; set; } = "";
 
+    /// <summary>
+    /// The arrangement that was on screen when the app last ran, or null for a
+    /// store that predates it.
+    /// </summary>
+    /// <remarks>
+    /// The working layout is a clone of <see cref="Current"/>'s, so before this
+    /// existed every tweak that was not explicitly saved into a workspace —
+    /// rulers turned on, a panel opened — silently reverted on the next launch
+    /// (B288, reported as "rulers should stay open on a re-open"). The app now
+    /// reopens as it was left; the named workspaces stay what they were,
+    /// snapshots that Apply and Reset return to.
+    /// </remarks>
+    public DockLayout? Session { get; set; }
+
+    /// <summary>
+    /// Whether <see cref="Session"/> differed from <see cref="Current"/>'s
+    /// saved layout — so the picker's "edited" star survives the restart too,
+    /// and Reset still has something honest to offer.
+    /// </summary>
+    public bool SessionDirty { get; set; }
+
     public Workspace? Find(string name) =>
         Workspaces.FirstOrDefault(w => string.Equals(w.Name, name, StringComparison.OrdinalIgnoreCase));
 

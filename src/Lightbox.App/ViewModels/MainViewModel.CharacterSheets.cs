@@ -574,6 +574,10 @@ public partial class MainViewModel
             Height = view.Height,
             FrameCount = 1,
             Layers = view.Layers,
+            // Shared like the layers, and written back on every edit like the
+            // layers (B287): the wrapper is rebuilt on every open, so a guide
+            // that only lived on it evaporated with the tab.
+            Guides = view.Guides,
         },
     };
 

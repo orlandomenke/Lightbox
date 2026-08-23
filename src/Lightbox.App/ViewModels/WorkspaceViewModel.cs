@@ -31,7 +31,11 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     public WorkspaceViewModel(WorkspaceStore store)
     {
         _store = store;
-        _layout = (store.Find(store.Current) ?? store.Workspaces[0]).Layout.Clone();
+        // The session layout first: the app reopens as it was left (B288).
+        // Absent — an old store, or a fresh install — it starts from the
+        // current workspace's snapshot, which is what it always did.
+        _layout = (store.Session ?? (store.Find(store.Current) ?? store.Workspaces[0]).Layout).Clone();
+        IsDirty = store.Session is not null && store.SessionDirty;
         SelectedName = store.Current;
         foreach (var option in QuickBarCatalog.All)
         {
@@ -69,6 +73,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         IsDirty = true;
         OnPropertyChanged(nameof(CurrentLabel));
         Changed?.Invoke();
+        PersistSession();
     }
 
     private void Raise()
@@ -79,6 +84,24 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         foreach (var choice in QuickBarChoices) choice.Sync();
         RefreshChoices();
         Changed?.Invoke();
+        PersistSession();
+    }
+
+    /// <summary>
+    /// Snapshot the arrangement on screen into the store, so the next launch
+    /// reopens as this one was left (B288).
+    /// </summary>
+    /// <remarks>
+    /// On every layout change rather than on close, for the settings' reason:
+    /// layout changes are discrete user gestures, the write is small and
+    /// atomic, and a close handler is the one place guaranteed to be skipped
+    /// by the exit that most needed it.
+    /// </remarks>
+    private void PersistSession()
+    {
+        _store.Session = _layout.Clone();
+        _store.SessionDirty = IsDirty;
+        _store.Save();
     }
 
     private void Mutate(Action<DockLayout> change)
@@ -543,7 +566,9 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         var saved = _store.Save(name, _layout);
         SelectedName = saved.Name;
         IsDirty = false;
-        _store.Save();
+        // The session snapshot follows, or the restart would resurrect the
+        // "edited" star the save just cleared.
+        PersistSession();
         RefreshChoices();
     }
 
@@ -557,7 +582,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     {
         if (_store.Update(SelectedName, _layout) is null) return;
         IsDirty = false;
-        _store.Save();
+        // Same as SaveAs: the cleared star has to reach the stored session.
+        PersistSession();
         RefreshChoices();
     }
 
