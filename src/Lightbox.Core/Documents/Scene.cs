@@ -321,6 +321,14 @@ public sealed class Scene
     public Camera? Camera { get; set; }
 
     /// <summary>
+    /// Effects over the whole composite, before the camera — grade, grain,
+    /// vignette — or null, exactly like <see cref="Camera"/>. A document that
+    /// never grades writes no key and pays for nothing
+    /// (DESIGN-effects.md's second attachment).
+    /// </summary>
+    public Effects.EffectStack? Effects { get; set; }
+
+    /// <summary>
     /// The scratch track the animation is timed against, or null — and null
     /// is the default, exactly like <see cref="Camera"/>. A document that
     /// never adds audio writes no key and shows no audio UI.
@@ -473,6 +481,7 @@ public sealed class Scene
         copy.References = References?.Select(r => r.Clone()).ToList();
         copy.Guides = Guides?.Select(g => g.Clone()).ToList();
         copy.Camera = Camera?.Clone();
+        copy.Effects = Effects?.Clone();
         copy.Audio = Audio?.Clone();
         copy.Pivot = Pivot?.Clone();
         copy.Anchors = Anchors?.Select(a => a.Clone()).ToList();

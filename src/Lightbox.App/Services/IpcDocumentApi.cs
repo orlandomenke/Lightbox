@@ -101,6 +101,11 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                 // what it renders agree.
                 HasMask = l.IsMasked,
                 Clipped = l.IsClipped,
+                // Predicate-shaped like its three siblings (G12 review): the
+                // model property is `Adjusts`, but `{"adjusts": true}` on the
+                // wire reads as an instruction rather than a state.
+                IsAdjustment = l.IsAdjustment,
+                HasEffects = l.HasLiveEffects,
                 KeyedFrames = Enumerable.Range(0, s.FrameCount)
                     .Where(i => ExposureSheet.FrameAtExactIndex(l, i) is not null)
                     .ToList(),

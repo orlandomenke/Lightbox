@@ -47,7 +47,9 @@ public static class LightboxTools
 
     [McpServerTool(Name = "get_scene"), Description(
         "Get the Lightbox scene: canvas size, fps, frame count, current frame, " +
-        "and the layers (id, name, kind, visibility, which frames are keyed). " +
+        "and the layers (id, name, kind, visibility, which frames are keyed, " +
+        "and the carve/effect state: hasMask, clipped, isAdjustment, " +
+        "hasEffects — render_frame already shows all of them applied). " +
         "Call this first to orient yourself. It also reports which builds you " +
         "are talking to: appBuild is the running Lightbox, mcpBuild is this " +
         "server. If they disagree, or mcpBuild is missing entirely, this server " +

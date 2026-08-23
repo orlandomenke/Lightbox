@@ -143,6 +143,10 @@ public partial class MainViewModel
         MarkDocumentEdited();
         _publish.InvalidateWholeCanvas(); // a document-wide change can move any pixel
         _composeRing.InvalidateAll();
+        // The effects docker mirrors the record it edits, so an undo — or any
+        // structural edit — re-reads it. After the scoped-edit return: a
+        // stroke commit cannot move an effect.
+        EffectsPanel.Rebuild();
         // The Scene panel is a projection of the layer stack and the camera,
         // both of which any structural edit — or its undo — can move. After
         // the scoped-edit return: a stroke commit changes neither.

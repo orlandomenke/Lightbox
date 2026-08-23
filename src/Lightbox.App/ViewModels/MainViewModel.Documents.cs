@@ -749,17 +749,22 @@ public partial class MainViewModel
         // walked every cel of every layer and every stroke of every frame,
         // which on a long scene is more work than the loop it was protecting,
         // and it ran on every edit.
-        var below = new List<(Layer Layer, Frame Frame)>();
+        var below = new List<(Layer Layer, Frame? Frame)>();
         foreach (var layer in scene.Layers)
         {
-            if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is not { } exposed) continue;
-            if (exposed is Frame painted && LiveStrokes(painted) is { Count: > 0 } live)
+            var exposed = ExposureSheet.ExposedFrame(layer, CurrentFrameIndex);
+            if (exposed is { } painted && LiveStrokes(painted) is { Count: > 0 } live)
             {
                 Rebake(live, below, scene.Width, scene.Height);
                 InvalidateFrameRender(painted.Id);
                 _dirtyThumbIds.Add(painted.Id);
             }
-            if (scene.IsLayerVisible(layer)) below.Add((layer, exposed));
+            // An adjustment layer exposes no drawing and still belongs in the
+            // stack a sample froze against — it changes what the stroke saw.
+            if (scene.IsLayerVisible(layer) && (exposed is not null || layer.IsAdjustment))
+            {
+                below.Add((layer, exposed));
+            }
         }
     }
 
@@ -767,7 +772,7 @@ public partial class MainViewModel
         [.. frame.Strokes.Where(s => s.Brush.SampleSource == SampleSource.AllLayersLive)];
 
     /// <summary>Re-freeze one frame's live strokes against the stack beneath it.</summary>
-    private void Rebake(List<Stroke> live, List<(Layer Layer, Frame Frame)> below, int width, int height)
+    private void Rebake(List<Stroke> live, List<(Layer Layer, Frame? Frame)> below, int width, int height)
     {
         if (below.Count == 0)
         {
@@ -781,15 +786,26 @@ public partial class MainViewModel
         foreach (var b in below)
         {
             // The stroke re-reads what it visibly sat on, so the stack it
-            // froze against is shaped like the composite (IndexOf is fine: a
-            // rebake happens per edit, not per pointer event).
-            var shapes = LayerShapes.For(
-                Scene, Scene.Layers.IndexOf(b.Layer), CurrentFrameIndex);
+            // froze against is shaped and filtered like the composite
+            // (IndexOf is fine: a rebake happens per edit, not per pointer
+            // event).
+            var layerIndex = Scene.Layers.IndexOf(b.Layer);
+            if (b.Layer.IsAdjustment)
+            {
+                if (EffectPasses.AdjustmentPass(Scene, layerIndex, CurrentFrameIndex, _cache) is { } adj)
+                {
+                    passes.Add(adj);
+                }
+                continue;
+            }
+            if (b.Frame is not { } exposed) continue;
+            var shapes = LayerShapes.For(Scene, layerIndex, CurrentFrameIndex);
             if (shapes is { Count: 0 }) continue;
             passes.Add(new RenderPass(
-                _cache.Get(b.Frame, width, height, celIndex: CurrentFrameIndex),
+                _cache.Get(exposed, width, height, celIndex: CurrentFrameIndex),
                 null, b.Layer.Opacity, SceneRenderer.ToSkia(b.Layer.BlendMode),
-                Shapes: LayerShapes.Resolve(shapes, _cache, width, height, CurrentFrameIndex)));
+                Shapes: LayerShapes.Resolve(shapes, _cache, width, height, CurrentFrameIndex),
+                Effect: EffectPasses.SelfFilter(b.Layer, CurrentFrameIndex)));
         }
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var image = SceneRenderer.Compose(width, height, passes, SKColors.Transparent);
@@ -1236,6 +1252,14 @@ public partial class MainViewModel
         {
             var layer = scene.Layers[layerIndex];
             if (!scene.IsLayerVisible(layer)) continue;
+            if (layer.IsAdjustment)
+            {
+                if (EffectPasses.AdjustmentPass(scene, layerIndex, frameIndex, _cache) is { } adj)
+                {
+                    passes.Add(adj);
+                }
+                continue;
+            }
             var frame = ExposureSheet.ExposedFrame(layer, frameIndex);
             if (frame is null) continue;
             var shapes = LayerShapes.For(scene, layerIndex, frameIndex);
@@ -1243,8 +1267,10 @@ public partial class MainViewModel
             passes.Add(new RenderPass(
                 _cache.Get(frame, scene.Width, scene.Height, celIndex: frameIndex), null, layer.Opacity,
                 SceneRenderer.ToSkia(layer.BlendMode),
-                Shapes: LayerShapes.Resolve(shapes, _cache, scene.Width, scene.Height, frameIndex)));
+                Shapes: LayerShapes.Resolve(shapes, _cache, scene.Width, scene.Height, frameIndex),
+                Effect: EffectPasses.SelfFilter(layer, frameIndex)));
         }
+        if (EffectPasses.SceneStackPass(scene, frameIndex) is { } grade) passes.Add(grade);
         using var image = SceneRenderer.Compose(scene.Width, scene.Height, passes, SceneRenderer.BackgroundOf(scene));
         using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100)
             ?? throw new InvalidOperationException("PNG encode failed.");

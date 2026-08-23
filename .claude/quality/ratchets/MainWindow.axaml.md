@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4821
+budget: 4842
 
 ## Why it is here despite being XAML
 
@@ -202,3 +202,13 @@ leaves a number nobody can account for. So every reason above stays, and
   bar *styles* went to `Controls.axaml` beside `.selected`, and the smudge
   backdrop's code growth went to `MainViewModel.Rendering.cs` instead of the
   main file.
+- **4,821 → 4,831** (2026-08-22, Q151): the effects docker's registration —
+  the Window-menu checkbox and the `Docker` host wrapping
+  `EffectsPanel.axaml`, the Scene panel's own pattern. The panel and its
+  view model are files of their own; these ten lines are the wiring that
+  cannot be.
+- **4,831 → 4,842** (2026-08-22, Q151): *New adjustment layer* on the layer
+  row's menu — the art-director's discoverability finding: Photoshop puts
+  this gesture at the foot of the Layers panel, so an artist who knows it
+  looks here first. A pointer to the effects docker's own command, not a
+  second copy; menu items have nowhere else to live.

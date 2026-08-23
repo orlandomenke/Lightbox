@@ -66,6 +66,16 @@ public static class SequenceExporter
                 passes.AddRange(ProductionPasses(scene, frameIndex));
                 footageQueued = true;
             }
+            // An adjustment layer has no drawing to expose: its pass filters
+            // whatever the loop has already composed beneath it.
+            if (layer.IsAdjustment)
+            {
+                if (EffectPasses.AdjustmentPass(scene, layerIndex, frameIndex, cache) is { } adj)
+                {
+                    passes.Add(adj);
+                }
+                continue;
+            }
             var frame = ExposureSheet.ExposedFrame(layer, frameIndex);
             if (frame is null) continue;
             // Masks and clipping export exactly as the canvas shows them; an
@@ -80,9 +90,12 @@ public static class SequenceExporter
                 cache.Get(frame, scene.Width, scene.Height, celIndex: frameIndex),
                 null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
                 Matrix: parallax,
-                Shapes: LayerShapes.Resolve(shapes, cache, scene.Width, scene.Height, frameIndex)));
+                Shapes: LayerShapes.Resolve(shapes, cache, scene.Width, scene.Height, frameIndex),
+                Effect: EffectPasses.SelfFilter(layer, frameIndex)));
         }
         if (!footageQueued) passes.AddRange(ProductionPasses(scene, frameIndex));
+        // The scene grade last, over everything the frame composed.
+        if (EffectPasses.SceneStackPass(scene, frameIndex) is { } grade) passes.Add(grade);
 
         SKMatrix? transform = camera is null
             ? null

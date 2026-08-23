@@ -222,6 +222,51 @@ simply shows nothing there.
 Both masks and clipping reach every render the same way: the canvas, exports,
 thumbnails and the AI's view of the document all show the carved result.
 
+### Adjustment layers and effects
+
+Open the **Effects** panel (Window → Effects) to filter without repainting.
+Three effects ship today — **Levels**, **Hue / Saturation** and **Gaussian
+blur** — and every one is a setting, never baked pixels: your strokes are
+untouched, sliders re-render, and undo steps back through every change.
+
+An effect can sit in two places, chosen at the top of the panel:
+
+- **Layer** — the stack on the active layer, applied to that layer's own
+  drawing before its blend mode and opacity. Blur the shadow layer, grade the
+  ink.
+- **Scene** — one grade over the whole composite, everything the camera sees.
+
+Hue / Saturation is the one effect the Layer scope does not offer: its true
+colour-wheel maths runs on the composite path, so on a single layer's own
+drawing it would do nothing. Add it as an **adjustment layer** and — if you
+want it on one layer only — **clip it to the layer below**; that is the same
+result, and the panel's add row keeps the distinction honest by only listing
+what will actually change pixels where you are.
+
+One honest caveat: Hue / Saturation's **Lightness** lifts and lowers
+everything equally, black ink included — a positive nudge greys linework.
+For real value work reach for **Levels** (its gamma and output sliders are
+the tool built for it); Lightness is for a quick wash.
+
+**Adjustment layers** are the third place, and the one Photoshop users will
+reach for: right-click a layer → **New adjustment layer** (or use the
+buttons in the Effects panel) and a layer with no drawing of its own lands
+above the active one, applying its effect to everything beneath it. It is an ordinary layer everywhere it counts — **mask
+it** to grade part of the picture, **clip it** to the layer below to grade
+one silhouette, fade it with its opacity, hide it with its eye, and it holds
+across the whole timeline like any layer. Delete it and nothing was ever
+touched.
+
+Effects on layers you paint under update live, exports and the AI's view show
+exactly what the canvas shows, and a document that never opens the panel
+never stores or pays for any of it. An effect saved by a newer version of
+Lightbox than yours shows in the stack marked *from a newer build* — it is
+kept exactly as saved and simply does nothing here.
+
+Keyframing effect values over time is *Planned*: the file format already
+stores animated parameters, but the editor for placing those keys arrives
+with the timeline's curve-editing work.
+
 ---
 
 ## Selections and transforms

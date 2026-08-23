@@ -243,6 +243,19 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>
+    /// The Layers menu's pointer at the effects docker: add the adjustment
+    /// layer through the docker's own command, and open the docker so its
+    /// sliders are in hand.
+    /// </summary>
+    private void OnLayerMenuAddAdjustment(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.Tag is not string kind) return;
+        if (_vm.EffectsPanel.Catalogue.FirstOrDefault(c => c.Kind == kind) is not { } choice) return;
+        _vm.EffectsPanel.AddAdjustmentLayerCommand.Execute(choice);
+        _vm.Workspace.EffectsDockerVisible = true;
+    }
+
     /// <summary>The mask chip on the row: click to paint the mask, click again to stop.</summary>
     private void OnLayerMaskChipPressed(object? sender, PointerPressedEventArgs e)
     {

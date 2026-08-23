@@ -388,6 +388,7 @@ public sealed class ShortcutMap
             // no convention to borrow, and guessing one costs somebody their
             // key. Bindable is the requirement.
             new("docker.editMask", "Paint the active layer's mask", "Dockers", null),
+            new("docker.effects", "Show or hide the Effects panel", "Dockers", null),
 
             // Context twins: the same key does area-appropriate things.
             // General, not canvas-scoped. Scoped, it did nothing over any docker —

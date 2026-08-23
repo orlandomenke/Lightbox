@@ -530,6 +530,23 @@ public partial class MainViewModel
     [RelayCommand]
     private void ToggleSidebar() => SidebarVisible = !SidebarVisible;
 
+    /// <summary>
+    /// The editor, for the panel view models that own their domain's edits
+    /// (the effects docker is the first). Follows the current document — the
+    /// field is reassigned on a tab switch — which is why panels hold this
+    /// accessor rather than the instance. Here rather than in
+    /// MainViewModel.cs for the ratchet's reason: the main file may not grow.
+    /// </summary>
+    internal DocumentEditor PanelEditor => _editor;
+
+    /// <summary>The effects docker's view model — registration only; every effect command lives on it.</summary>
+    public EffectsViewModel EffectsPanel { get; }
+
+    /// <summary>Registration only — every effect command lives on <see cref="EffectsPanel"/>.</summary>
+    [RelayCommand]
+    private void ToggleEffectsDocker() =>
+        Workspace.EffectsDockerVisible = !Workspace.EffectsDockerVisible;
+
     [RelayCommand]
     private void SwitchSidebarSide() => SidebarOnRight = !SidebarOnRight;
 

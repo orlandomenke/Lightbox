@@ -120,6 +120,13 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         set => SetVisible(DockPanelId.Scene, value);
     }
 
+    /// <summary>Whether the effects docker — stacks and adjustment layers — is on screen (Q151).</summary>
+    public bool EffectsDockerVisible
+    {
+        get => _layout.IsVisible(DockPanelId.Effects);
+        set => SetVisible(DockPanelId.Effects, value);
+    }
+
     public bool HistoryPanelVisible
     {
         get => _layout.IsVisible(DockPanelId.History);
@@ -320,6 +327,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         // switches. Found adding Scene's case beside it.
         DockPanelId.Navigator => nameof(NavigatorVisible),
         DockPanelId.Scene => nameof(SceneDockerVisible),
+        DockPanelId.Effects => nameof(EffectsDockerVisible),
         _ => nameof(TimelineVisible),
     };
 
