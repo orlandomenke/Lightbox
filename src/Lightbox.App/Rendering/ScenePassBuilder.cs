@@ -265,7 +265,10 @@ internal static class ScenePassBuilder
                 ? null
                 : Lightbox.Raster.Effects.EffectRegistry.FilterFor(spec.Fx, spec.CelIndex),
             AdjustStack: spec.Adjusts ? spec.Fx : null,
-            EffectFrame: spec.CelIndex);
+            EffectFrame: spec.CelIndex,
+            Style: spec.Adjusts || spec.Fx is null
+                ? null
+                : Lightbox.Raster.Effects.EffectRegistry.StyleFor(spec.Fx, spec.CelIndex));
     }
 
     /// <summary>

@@ -72,4 +72,44 @@ public class EffectComposeCostTests(ITestOutputHelper output)
         Assert.True(blur < baseline * 150 + 120,
             $"a blur adjustment should cost its kernel and nothing structural, got {blur:F2} ms over {baseline:F2} ms");
     }
+
+    [AvaloniaFact]
+    [Trait("Category", "Performance")]
+    public void AStyledPassCostsItsChainAndNotAnOrderMore()
+    {
+        // The whole style set on one layer at once — shadow, both glows,
+        // stroke and bevel are each a small filter graph over the pass, and
+        // five of them are still bounded work, not a structural round trip.
+        using var content = new SKBitmap(W, H, SKColorType.Rgba8888, SKAlphaType.Premul);
+        content.Erase(SKColors.Transparent);
+        using (var canvas = new SKCanvas(content))
+        using (var paint = new SKPaint { Color = SKColors.White })
+        {
+            canvas.DrawRect(SKRect.Create(W / 4, H / 4, W / 2, H / 2), paint);
+        }
+        var stack = new EffectStack
+        {
+            Uses =
+            [
+                new EffectUse { Kind = "style.dropShadow" },
+                new EffectUse { Kind = "style.outerGlow" },
+                new EffectUse { Kind = "style.innerGlow" },
+                new EffectUse { Kind = "style.stroke" },
+                new EffectUse { Kind = "style.bevel" },
+            ],
+        };
+        var plain = new List<RenderPass> { new(content, null, 1) };
+        var styled = new List<RenderPass>
+        {
+            new(content, null, 1,
+                Style: Lightbox.Raster.Effects.EffectRegistry.StyleFor(stack, 0)),
+        };
+
+        var baseline = MsPerCompose(plain);
+        var five = MsPerCompose(styled);
+        output.WriteLine(
+            $"plain {baseline:F2} ms, +5 styles {five:F2} ms ({five / baseline:F1}x)");
+        Assert.True(five < baseline * 150 + 120,
+            $"five styles are five bounded graphs, got {five:F2} ms over {baseline:F2} ms");
+    }
 }

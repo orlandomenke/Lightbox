@@ -91,7 +91,8 @@ public static class SequenceExporter
                 null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
                 Matrix: parallax,
                 Shapes: LayerShapes.Resolve(shapes, cache, scene.Width, scene.Height, frameIndex),
-                Effect: EffectPasses.SelfFilter(layer, frameIndex)));
+                Effect: EffectPasses.SelfFilter(layer, frameIndex),
+                Style: EffectPasses.SelfStyle(layer, frameIndex)));
         }
         if (!footageQueued) passes.AddRange(ProductionPasses(scene, frameIndex));
         // The scene grade last, over everything the frame composed.

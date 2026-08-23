@@ -52,7 +52,7 @@
       <TextBlock Text="New adjustment layer" FontSize="10"
                  Foreground="{StaticResource TextSecondaryBrush}"
                  ToolTip.Tip="A layer whose effect applies to everything beneath it. Mask it, clip it, fade it and hide it like any layer." />
-      <ItemsControl ItemsSource="{Binding Catalogue}">
+      <ItemsControl ItemsSource="{Binding AdjustmentChoices}">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
@@ -96,6 +96,24 @@
                   </Button>
                 </DockPanel>
               </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- The selected effect's colours: a swatch and a hex field, the
+             lightweight entry the fluid-effects window already uses. -->
+        <ItemsControl ItemsSource="{Binding ColorRows}" Margin="0,4,0,0">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:EffectColorRow">
+              <Grid ColumnDefinitions="86,20,*" Margin="0,1" MinHeight="24">
+                <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <Border Grid.Column="1" Width="14" Height="14" CornerRadius="3"
+                        Background="{Binding Swatch}" VerticalAlignment="Center"
+                        BorderBrush="{StaticResource TextSecondaryBrush}" BorderThickness="1" />
+                <TextBox Grid.Column="2" Text="{Binding Value, Mode=TwoWay}"
+                         FontSize="10" Margin="4,0" VerticalAlignment="Center" />
+              </Grid>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
