@@ -1,5 +1,7 @@
+using Avalonia.Headless.XUnit;
 using Lightbox.App.Docking;
 using Lightbox.App.ViewModels;
+using Lightbox.App.Views;
 
 namespace Lightbox.App.Tests;
 
@@ -64,6 +66,18 @@ public sealed class WorkspaceSessionTests
     }
 
     [Fact]
+    public void AFloatingPanelSurvivesInTheSession()
+    {
+        var store = WorkspaceStore.Default();
+        var vm = new WorkspaceViewModel(store);
+        vm.Layout.Float(DockPanelId.Layers, 100, 100, 320, 400);
+        vm.Touch();
+
+        var reopened = Restarted(store);
+        Assert.Equal(DockSide.Floating, reopened.Layout.SideOf(DockPanelId.Layers));
+    }
+
+    [Fact]
     public void AStoreWrittenBeforeTheSessionExistedStartsFromItsWorkspace()
     {
         // An old workspaces.json has no session key; it must open exactly as
@@ -73,5 +87,33 @@ public sealed class WorkspaceSessionTests
 
         Assert.False(vm.RulersVisible);
         Assert.False(vm.IsDirty);
+    }
+}
+
+/// <summary>
+/// The startup half of the session (B289): a restored layout can carry a
+/// torn-off panel, and the window used to die constructing itself — a floating
+/// window cannot be shown with a non-visible owner, and <c>ApplyDockLayout</c>
+/// runs in the constructor. The float now waits for Opened.
+/// </summary>
+[Collection("BrushState")]
+public sealed class FloatingSessionStartupTests : BrushStateIsolated
+{
+    [AvaloniaFact]
+    public void AWindowConstructedOverAFloatingSessionOpensInsteadOfThrowing()
+    {
+        var store = WorkspaceStore.Default();
+        store.Session = store.Workspaces[0].Layout.Clone();
+        store.Session.Float(DockPanelId.Layers, 100, 100, 320, 400);
+        store.SessionDirty = true;
+        Lightbox.Core.Serialization.DocJson.WriteAtomic(WorkspaceStore.Path, store.Serialize());
+
+        // The construction itself was the crash.
+        var window = new MainWindow();
+        window.Show();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        // And once the window is open, the torn-off panel is a window again.
+        Assert.Contains(window.FloatingWindowsForTests, w => w.IsVisible);
     }
 }

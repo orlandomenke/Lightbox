@@ -705,6 +705,21 @@ public partial class MainWindow
             open.Activate();
             return;
         }
+        // A layout restored at construction — the session, or a workspace
+        // saved with a panel torn off — reaches here before this window is
+        // visible, and a floating window cannot be shown with a non-visible
+        // owner (B289: the app died on the restart after tearing a panel
+        // off). Defer the whole re-apply to Opened, when Show(this) is legal;
+        // the panel waits in the pool until then.
+        if (!IsVisible)
+        {
+            if (!_floatingDeferred)
+            {
+                _floatingDeferred = true;
+                Opened += (_, _) => ApplyDockLayout();
+            }
+            return;
+        }
         Detach(panel);
         panel.IsFloating = true;
         var window = new FloatingPanelWindow(panel, layout.Place(id));
@@ -737,6 +752,9 @@ public partial class MainWindow
 
     /// <summary>The panels currently in windows of their own.</summary>
     internal IReadOnlyCollection<FloatingPanelWindow> FloatingWindowsForTests => _floating.Values;
+
+    /// <summary>An Opened re-apply is already queued for a deferred float.</summary>
+    private bool _floatingDeferred;
 
     /// <summary>
     /// Take a panel out of its own window, because the layout no longer says it floats.

@@ -40,7 +40,8 @@ namespace Lightbox.App.Tests;
 /// asserted directly rather than inferred.
 /// </para>
 /// </remarks>
-public class HoverShortcutScopeTests(ITestOutputHelper output)
+[Collection("BrushState")]
+public class HoverShortcutScopeTests(ITestOutputHelper output) : BrushStateIsolated
 {
     private static (MainWindow Window, MainViewModel Vm) Open()
     {
