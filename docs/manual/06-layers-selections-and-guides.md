@@ -236,6 +236,13 @@ An effect can sit in two places, chosen at the top of the panel:
   ink.
 - **Scene** — one grade over the whole composite, everything the camera sees.
 
+Hue / Saturation is the one effect the Layer scope does not offer: its true
+colour-wheel maths runs on the composite path, so on a single layer's own
+drawing it would do nothing. Add it as an **adjustment layer** and — if you
+want it on one layer only — **clip it to the layer below**; that is the same
+result, and the panel's add row keeps the distinction honest by only listing
+what will actually change pixels where you are.
+
 One honest caveat: Hue / Saturation's **Lightness** lifts and lowers
 everything equally, black ink included — a positive nudge greys linework.
 For real value work reach for **Levels** (its gamma and output sliders are

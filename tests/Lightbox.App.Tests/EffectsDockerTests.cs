@@ -117,6 +117,29 @@ public sealed class EffectsDockerTests(ITestOutputHelper output) : BrushStateIso
     }
 
     [AvaloniaFact]
+    public void ABackdropOnlyEffectIsNotOfferedOnAPlainLayersOwnStack()
+    {
+        // Hue / Saturation runs as a CPU pass on the backdrop path and is
+        // identity in a self stack — offering it there would be a control
+        // wired to nothing. The adjustment-layer row still carries it, and
+        // clipping that layer to the one below is the per-layer use.
+        var vm = Vm();
+        Assert.DoesNotContain(vm.EffectsPanel.AddChoices, c => c.Kind == "grade.hsl");
+        Assert.Contains(vm.EffectsPanel.Catalogue, c => c.Kind == "grade.hsl");
+
+        // A programmatic add is refused the same way the button is absent.
+        vm.EffectsPanel.AddUseCommand.Execute(Choice(vm, "grade.hsl"));
+        Assert.Null(Paint(vm).Effects);
+
+        // The scene scope and an adjustment layer take the full catalogue.
+        vm.EffectsPanel.EditingScene = true;
+        Assert.Contains(vm.EffectsPanel.AddChoices, c => c.Kind == "grade.hsl");
+        vm.EffectsPanel.EditingScene = false;
+        vm.EffectsPanel.AddAdjustmentLayerCommand.Execute(Choice(vm, "grade.levels"));
+        Assert.Contains(vm.EffectsPanel.AddChoices, c => c.Kind == "grade.hsl");
+    }
+
+    [AvaloniaFact]
     public void AnAdjustmentLayerChangesThePublishedComposite()
     {
         var vm = Vm();

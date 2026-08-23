@@ -35,8 +35,9 @@
          row beneath — Photoshop's gesture on the ordinary layer machinery. -->
     <StackPanel DockPanel.Dock="Bottom" Margin="0,6,0,0" Spacing="4">
       <TextBlock Text="Add to this stack" FontSize="10"
-                 Foreground="{StaticResource TextSecondaryBrush}" />
-      <ItemsControl ItemsSource="{Binding Catalogue}">
+                 Foreground="{StaticResource TextSecondaryBrush}"
+                 ToolTip.Tip="On a plain layer this offers the effects that work on a layer's own drawing. Hue / Saturation works on what is beneath — add it as an adjustment layer and clip it to the layer below." />
+      <ItemsControl ItemsSource="{Binding AddChoices}">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>

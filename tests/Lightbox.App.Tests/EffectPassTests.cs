@@ -105,13 +105,15 @@ public class EffectPassTests(ITestOutputHelper output)
     {
         using var bottom = Solid(SKColors.Red);
         using var top = LeftHalf(); // white left half as "content"
+        // A native grade: the self path composes only native uses (a CPU
+        // pass like HSL is backdrop-only), so levels is the representative.
         using var filter = Lightbox.Raster.Effects.EffectRegistry.FilterFor(
             new EffectStack
             {
                 Uses = [new EffectUse
                 {
-                    Kind = "grade.hsl",
-                    Params = { ["lightness"] = new EffectParam(-100) },
+                    Kind = "grade.levels",
+                    Params = { ["outWhite"] = new EffectParam(0) },
                 }],
             }, 0);
         using var image = SceneRenderer.Compose(8, 8,

@@ -224,27 +224,61 @@ public static class SceneRenderer
         var device = transform is { } m
             ? (float)Math.Sqrt(Math.Abs(m.ScaleX * m.ScaleY - m.SkewX * m.SkewY))
             : (float)scale;
-        // Cached per stack by the registry — never disposed here.
-        var filter = Lightbox.Raster.Effects.EffectRegistry.FilterFor(
-            pass.AdjustStack, pass.EffectFrame, device <= 0 ? 1f : device);
-        if (filter is null) return; // a stack that currently does nothing
+        if (device <= 0) device = 1f;
+        // Cached per stack by the registry — nothing here is disposed by us
+        // except the bitmaps we make.
+        var program = Lightbox.Raster.Effects.EffectRegistry.ProgramFor(
+            pass.AdjustStack, pass.EffectFrame, device);
+        if (program is null) return; // a stack that currently does nothing
 
         canvas.Flush();
-        using var snapshot = surface.Snapshot();
 
         var alpha = (byte)Math.Round(Math.Clamp(pass.Opacity, 0, 1) * 255);
         using var group = new SKPaint { Color = SKColors.White.WithAlpha(alpha) };
-        canvas.SaveLayer(group);
 
-        // The backdrop is device-space pixels: draw it back one-to-one, under
-        // the clip but outside the document transform.
-        canvas.Save();
-        canvas.SetMatrix(SKMatrix.CreateIdentity());
-        using (var paint = new SKPaint { ImageFilter = filter })
+        if (program.SoleFilter is { } filter)
         {
-            canvas.DrawImage(snapshot, 0, 0, paint);
+            // All-native: one filtered redraw of the surface, bounded by the
+            // clip at draw time. The snapshot is copy-on-write — cheap.
+            using var snapshot = surface.Snapshot();
+            canvas.SaveLayer(group);
+            // The backdrop is device-space pixels: draw it back one-to-one,
+            // under the clip but outside the document transform.
+            canvas.Save();
+            canvas.SetMatrix(SKMatrix.CreateIdentity());
+            using (var paint = new SKPaint { ImageFilter = filter })
+            {
+                canvas.DrawImage(snapshot, 0, 0, paint);
+            }
+            canvas.Restore();
         }
-        canvas.Restore();
+        else
+        {
+            // A CPU step somewhere (a true-HSL grade): read back only the
+            // clip, inflated by the stack's reach so a kernel step still
+            // sees the pixels it spills from — invariant 6's bound, kept.
+            using var full = surface.Snapshot();
+            var reach = (int)Math.Ceiling(
+                Lightbox.Raster.Effects.EffectRegistry.ReachOf(
+                    pass.AdjustStack, pass.EffectFrame) * device);
+            var clip = canvas.DeviceClipBounds;
+            var left = Math.Max(0, clip.Left - reach);
+            var top = Math.Max(0, clip.Top - reach);
+            var right = Math.Min(full.Width, clip.Right + reach);
+            var bottom = Math.Min(full.Height, clip.Bottom + reach);
+            if (right <= left || bottom <= top) return;
+            var rect = new SKRectI(left, top, right, bottom);
+
+            using var subset = full.Subset(rect);
+            var worked = SKBitmap.FromImage(subset); // ApplyTo takes ownership
+            var processed = Lightbox.Raster.Effects.EffectRegistry.ApplyTo(worked, program);
+            canvas.SaveLayer(group);
+            canvas.Save();
+            canvas.SetMatrix(SKMatrix.CreateIdentity());
+            canvas.DrawBitmap(processed, rect.Left, rect.Top);
+            canvas.Restore();
+            processed.Dispose();
+        }
 
         // Shapes are document-space bitmaps and carve under the transform,
         // exactly as they carve an ordinary pass.

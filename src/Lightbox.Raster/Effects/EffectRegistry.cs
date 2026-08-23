@@ -22,13 +22,52 @@ public sealed record EffectParamSpec(
 /// Which shelf the picker files it on — a presentation tag, never a
 /// capability: any effect can be keyed whatever shelf it sits on.
 /// </param>
+/// <param name="Cpu">
+/// A per-pixel pass run on the CPU instead of joining the Skia filter
+/// chain, or null for the ordinary native effect. The escape hatch for
+/// what a colour matrix cannot say and Skia's SkSL interpreter cannot
+/// afford — a true HSL rotation measured ~300 ms per half-megapixel as a
+/// runtime effect, ~an order less as plain C#. A CPU effect applies on the
+/// backdrop path (adjustment layers, the scene grade), where the work is
+/// clip-bounded; on a layer's own stack it renders as identity and the
+/// docker steers it to an adjustment instead — clipped to the layer below,
+/// which is per-layer use with the same pixels.
+/// </param>
 public sealed record EffectDefinition(
     string Kind,
     string Name,
     string Shelf,
     IReadOnlyList<EffectParamSpec> Params,
     Func<EffectUse, int, double> Reach,
-    Func<EffectUse, int, float, SKImageFilter?, SKImageFilter?> Chain);
+    Func<EffectUse, int, float, SKImageFilter?, SKImageFilter?> Chain,
+    Func<EffectUse, int, Action<SKBitmap>>? Cpu = null)
+{
+    /// <summary>
+    /// True when the kind only does its work on the backdrop path — a CPU
+    /// pass is identity in a self stack, so offering it there would be a
+    /// control wired to nothing. The docker reads this to keep the layer
+    /// scope's add row honest; adjustment layers and the scene take it.
+    /// </summary>
+    public bool BackdropOnly => Cpu is not null;
+}
+
+/// <summary>
+/// One executable step of a stack: a native Skia filter (consecutive native
+/// uses merge into one), or a CPU pass.
+/// </summary>
+public sealed record EffectStep(SKImageFilter? Filter, Action<SKBitmap>? Cpu);
+
+/// <summary>A stack lowered to steps, in stack order.</summary>
+public sealed class EffectProgram
+{
+    public required IReadOnlyList<EffectStep> Steps { get; init; }
+
+    public bool HasCpu => Steps.Any(s => s.Cpu is not null);
+
+    /// <summary>The whole program as one native filter, when it is one.</summary>
+    public SKImageFilter? SoleFilter =>
+        Steps.Count == 1 && Steps[0].Filter is { } f ? f : null;
+}
 
 /// <summary>
 /// The kind-id registry and the one place a stack becomes a Skia filter.
@@ -78,8 +117,9 @@ public static class EffectRegistry
                 new EffectParamSpec("lightness", "Lightness", 0, -100, 100),
             ],
             Reach: (_, _) => 0,
-            Chain: (use, frame, _, inner) =>
-                SKImageFilter.CreateColorFilter(HslFilter(use, frame), inner)),
+            // Identity in the native chain: HSL is the CPU pass below.
+            Chain: (_, _, _, inner) => inner,
+            Cpu: HslCpu),
 
         ["blur.gaussian"] = new(
             "blur.gaussian", "Gaussian blur", "blur",
@@ -115,42 +155,111 @@ public static class EffectRegistry
     /// be drawing through the old one, and freeing it under that draw is the
     /// use-after-free this comment exists to prevent.
     /// </summary>
-    private sealed class CachedFilter
+    private sealed class CachedProgram
     {
         public long Fingerprint;
-        public SKImageFilter? Filter;
+        public SKImageFilter? SelfFilter;
+        public EffectProgram? Program;
         public bool Built;
     }
 
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<EffectStack, CachedFilter>
-        Filters = [];
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<EffectStack, CachedProgram>
+        Programs = [];
 
     /// <summary>
-    /// The stack as one Skia filter at one frame, or null for a stack that
-    /// currently does nothing — disabled uses and unknown kinds skip, in
-    /// order, exactly as the chain composes. Cached per stack; do not
-    /// dispose the result.
+    /// The stack's *native* uses as one Skia filter at one frame, or null
+    /// for a stack that currently draws nothing this way — disabled uses,
+    /// unknown kinds and CPU effects skip. This is the self path (a layer's
+    /// own stack); a CPU effect there is identity by design, see
+    /// <see cref="EffectDefinition.Cpu"/>. Cached per stack; do not dispose
+    /// the result.
     /// </summary>
-    public static SKImageFilter? FilterFor(EffectStack? stack, int frame, float scale = 1f)
+    public static SKImageFilter? FilterFor(EffectStack? stack, int frame, float scale = 1f) =>
+        stack is null ? null : Slot(stack, frame, scale).SelfFilter;
+
+    /// <summary>
+    /// The whole stack as executable steps for the backdrop path — native
+    /// segments merged, CPU passes in stack order — or null when nothing
+    /// applies. Cached per stack; do not dispose the steps' filters.
+    /// </summary>
+    public static EffectProgram? ProgramFor(EffectStack? stack, int frame, float scale = 1f) =>
+        stack is null ? null : Slot(stack, frame, scale).Program;
+
+    private static CachedProgram Slot(EffectStack stack, int frame, float scale)
     {
-        if (stack is null) return null;
         var print = FingerprintOf(stack, frame, scale);
-        var slot = Filters.GetOrCreateValue(stack);
+        var slot = Programs.GetOrCreateValue(stack);
         lock (slot)
         {
-            if (slot.Built && slot.Fingerprint == print) return slot.Filter;
-            SKImageFilter? chain = null;
+            if (slot.Built && slot.Fingerprint == print) return slot;
+
+            var steps = new List<EffectStep>();
+            SKImageFilter? segment = null;
+            SKImageFilter? selfChain = null;
             foreach (var use in stack.Uses)
             {
                 if (!use.Applies) continue;
                 if (Resolve(use.Kind) is not { } def) continue;
-                chain = def.Chain(use, frame, scale, chain);
+                if (def.Cpu is { } cpu)
+                {
+                    if (segment is not null) steps.Add(new EffectStep(segment, null));
+                    segment = null;
+                    steps.Add(new EffectStep(null, cpu(use, frame)));
+                    continue;
+                }
+                segment = def.Chain(use, frame, scale, segment);
+                selfChain = def.Chain(use, frame, scale, selfChain);
             }
+            if (segment is not null) steps.Add(new EffectStep(segment, null));
+
             slot.Fingerprint = print;
-            slot.Filter = chain;
+            slot.SelfFilter = selfChain;
+            slot.Program = steps.Count == 0 ? null : new EffectProgram { Steps = steps };
             slot.Built = true;
-            return chain;
+            return slot;
         }
+    }
+
+    /// <summary>
+    /// Run a program over pixels: CPU steps mutate in place, native steps
+    /// draw through their filter. Takes ownership of <paramref name="source"/>
+    /// and returns the result — the same instance when no native step forced
+    /// a copy — which the caller disposes.
+    /// </summary>
+    public static SKBitmap ApplyTo(SKBitmap source, EffectProgram program)
+    {
+        var current = source;
+        foreach (var step in program.Steps)
+        {
+            if (step.Cpu is { } cpu)
+            {
+                // A CPU pass reads bytes, so it only knows the two 8888
+                // layouts; anything else is converted rather than silently
+                // skipped — an identity that depends on the surface format
+                // is the bug this guard replaced.
+                if (current.ColorType is not (SKColorType.Rgba8888 or SKColorType.Bgra8888)
+                    && current.Copy(SKColorType.Rgba8888) is { } converted)
+                {
+                    current.Dispose();
+                    current = converted;
+                }
+                cpu(current);
+                continue;
+            }
+            var info = new SKImageInfo(
+                current.Width, current.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+            var next = new SKBitmap(info);
+            using (var canvas = new SKCanvas(next))
+            {
+                canvas.Clear(SKColors.Transparent);
+                using var paint = new SKPaint { ImageFilter = step.Filter };
+                canvas.DrawBitmap(current, 0, 0, paint);
+                canvas.Flush();
+            }
+            current.Dispose();
+            current = next;
+        }
+        return current;
     }
 
     /// <summary>
@@ -215,19 +324,25 @@ public static class EffectRegistry
     }
 
     /// <summary>
-    /// A true HSL round-trip per pixel, as an SkSL colour filter.
+    /// A true HSL round-trip per pixel, as a CPU pass.
     /// </summary>
     /// <remarks>
     /// <para>
     /// <b>Not the affine hue-rotation matrix, and that is the art-director's
     /// veto, verified by hand:</b> the standard luma-axis matrix keeps luma
-    /// by pushing a channel negative, the filter clamps it, and a saturated
+    /// by pushing a channel negative, the clamp eats it, and a saturated
     /// flat — the exact colour a cel animator turns this on — comes out both
     /// duller and paler the further it spins (pure red +120° lands at
     /// (0,146,0) instead of green). Converting to HSL, rotating H, and
-    /// converting back stays in gamut by construction. It cannot be a colour
-    /// matrix, so it is a runtime effect — compiled once, uniforms per value,
-    /// still a pure function of the record and the frame (invariant 2).
+    /// converting back stays in gamut by construction.
+    /// </para>
+    /// <para>
+    /// <b>And not an SkSL runtime effect, which was the first fix:</b> Skia's
+    /// CPU interpreter measured ~300 ms per half-megapixel for it — three
+    /// hundred times a native colour matrix — where this loop measures in
+    /// single-digit milliseconds. It is still a pure function of the record
+    /// and the frame (invariant 2): no randomness, no state, the same pixel
+    /// in gives the same pixel out.
     /// </para>
     /// <para>
     /// Saturation scales S and lightness offsets L, both clamped — standard
@@ -236,60 +351,76 @@ public static class EffectRegistry
     /// spin.
     /// </para>
     /// </remarks>
-    private const string HslSksl = """
-        uniform float uHue;    // rotation in turns
-        uniform float uSat;    // multiplier, 0..2
-        uniform float uLight;  // offset on L, -1..1
-
-        half4 main(half4 color) {
-            float a = float(color.a);
-            float3 rgb = a > 0.0 ? float3(color.rgb) / a : float3(color.rgb);
-            float mx = max(rgb.r, max(rgb.g, rgb.b));
-            float mn = min(rgb.r, min(rgb.g, rgb.b));
-            float l = (mx + mn) * 0.5;
-            float d = mx - mn;
-            float s = 0.0;
-            float h = 0.0;
-            if (d > 0.00001) {
-                s = d / (1.0 - abs(2.0 * l - 1.0));
-                if (mx == rgb.r)      { h = mod((rgb.g - rgb.b) / d, 6.0); }
-                else if (mx == rgb.g) { h = (rgb.b - rgb.r) / d + 2.0; }
-                else                  { h = (rgb.r - rgb.g) / d + 4.0; }
-                h = h / 6.0;
-            }
-            h = fract(h + uHue);
-            s = clamp(s * uSat, 0.0, 1.0);
-            l = clamp(l + uLight, 0.0, 1.0);
-            float c = (1.0 - abs(2.0 * l - 1.0)) * s;
-            float hp = h * 6.0;
-            float x = c * (1.0 - abs(mod(hp, 2.0) - 1.0));
-            float3 o;
-            if (hp < 1.0)      { o = float3(c, x, 0.0); }
-            else if (hp < 2.0) { o = float3(x, c, 0.0); }
-            else if (hp < 3.0) { o = float3(0.0, c, x); }
-            else if (hp < 4.0) { o = float3(0.0, x, c); }
-            else if (hp < 5.0) { o = float3(x, 0.0, c); }
-            else               { o = float3(c, 0.0, x); }
-            o = o + (l - c * 0.5);
-            return half4(half3(o * a), half(a));
-        }
-        """;
-
-    private static readonly Lazy<SKRuntimeEffect> HslEffect = new(() =>
+    private static Action<SKBitmap> HslCpu(EffectUse use, int frame)
     {
-        var effect = SKRuntimeEffect.CreateColorFilter(HslSksl, out var errors);
-        return effect ?? throw new InvalidOperationException($"HSL SkSL failed to compile: {errors}");
-    });
+        var hue = (float)(use.At("hue", frame, 0) / 360.0);
+        var sat = (float)(1 + Math.Clamp(use.At("saturation", frame, 0), -100, 100) / 100.0);
+        var light = (float)(Math.Clamp(use.At("lightness", frame, 0), -100, 100) / 100.0);
+        return bitmap => ApplyHsl(bitmap, hue, sat, light);
+    }
 
-    private static SKColorFilter HslFilter(EffectUse use, int frame)
+    private static void ApplyHsl(SKBitmap bitmap, float hue, float sat, float light)
     {
-        var uniforms = new SKRuntimeEffectUniforms(HslEffect.Value)
+        // Both byte orders a compose surface hands us: raster tests build
+        // Rgba8888, the app's surfaces snapshot as the platform's N32, which
+        // is Bgra8888 here. Hue rotation cares which byte is red, so the
+        // offset is looked up rather than assumed — and a layout this loop
+        // does not know stays untouched (ApplyTo converts those first).
+        var red = bitmap.ColorType switch
         {
-            ["uHue"] = (float)(use.At("hue", frame, 0) / 360.0),
-            ["uSat"] = (float)(1 + Math.Clamp(use.At("saturation", frame, 0), -100, 100) / 100.0),
-            ["uLight"] = (float)(Math.Clamp(use.At("lightness", frame, 0), -100, 100) / 100.0),
+            SKColorType.Rgba8888 => 0,
+            SKColorType.Bgra8888 => 2,
+            _ => -1,
         };
-        return HslEffect.Value.ToColorFilter(uniforms)
-            ?? throw new InvalidOperationException("HSL uniforms rejected.");
+        if (red < 0) return;
+        var blue = 2 - red;
+        using var pixmap = bitmap.PeekPixels();
+        if (pixmap is null) return;
+        var pixels = pixmap.GetPixelSpan<byte>();
+        for (var i = 0; i + 3 < pixels.Length; i += 4)
+        {
+            var a = pixels[i + 3];
+            if (a == 0) continue;
+            // Premultiplied in, premultiplied out.
+            var inv = 1f / a;
+            var r = pixels[i + red] * inv;
+            var g = pixels[i + 1] * inv;
+            var b = pixels[i + blue] * inv;
+
+            var mx = MathF.Max(r, MathF.Max(g, b));
+            var mn = MathF.Min(r, MathF.Min(g, b));
+            var l = (mx + mn) * 0.5f;
+            var d = mx - mn;
+            float h = 0f, s = 0f;
+            if (d > 1e-5f)
+            {
+                s = d / (1f - MathF.Abs(2f * l - 1f));
+                if (mx == r) h = ((g - b) / d % 6f + 6f) % 6f;
+                else if (mx == g) h = (b - r) / d + 2f;
+                else h = (r - g) / d + 4f;
+                h *= 1f / 6f;
+            }
+
+            h += hue;
+            h -= MathF.Floor(h);
+            s = Math.Clamp(s * sat, 0f, 1f);
+            l = Math.Clamp(l + light, 0f, 1f);
+
+            var c = (1f - MathF.Abs(2f * l - 1f)) * s;
+            var hp = h * 6f;
+            var x = c * (1f - MathF.Abs(hp % 2f - 1f));
+            float or, og, ob;
+            if (hp < 1f) { or = c; og = x; ob = 0f; }
+            else if (hp < 2f) { or = x; og = c; ob = 0f; }
+            else if (hp < 3f) { or = 0f; og = c; ob = x; }
+            else if (hp < 4f) { or = 0f; og = x; ob = c; }
+            else if (hp < 5f) { or = x; og = 0f; ob = c; }
+            else { or = c; og = 0f; ob = x; }
+            var m = l - c * 0.5f;
+
+            pixels[i + red] = (byte)Math.Clamp((int)MathF.Round((or + m) * a), 0, 255);
+            pixels[i + 1] = (byte)Math.Clamp((int)MathF.Round((og + m) * a), 0, 255);
+            pixels[i + blue] = (byte)Math.Clamp((int)MathF.Round((ob + m) * a), 0, 255);
+        }
     }
 }

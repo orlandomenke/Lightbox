@@ -96,6 +96,8 @@ public sealed partial class EffectsViewModel : ObservableObject
     {
         _owner = owner;
         Catalogue = [.. EffectRegistry.All.Select(d => new EffectChoice(d.Kind, d.Name))];
+        AddChoices = [.. EffectRegistry.All.Where(d => !d.BackdropOnly)
+            .Select(d => new EffectChoice(d.Kind, d.Name))];
         _owner.PropertyChanged += (_, e) =>
         {
             // The panel mirrors the selection context: a new active layer, a
@@ -111,6 +113,16 @@ public sealed partial class EffectsViewModel : ObservableObject
     }
 
     public IReadOnlyList<EffectChoice> Catalogue { get; }
+
+    /// <summary>
+    /// The kinds the "add to this stack" row offers — the catalogue, minus
+    /// backdrop-only kinds when the target is a plain layer's own stack,
+    /// where they would render as identity. They stay one row down, as an
+    /// adjustment layer, which clipped to the layer below is the per-layer
+    /// use of the same pixels.
+    /// </summary>
+    [ObservableProperty]
+    private IReadOnlyList<EffectChoice> _addChoices = [];
 
     public ObservableCollection<EffectUseRow> Uses { get; } = [];
 
@@ -171,6 +183,11 @@ public sealed partial class EffectsViewModel : ObservableObject
         ScopeNote = !EditingScene && ActiveLayer is { IsAdjustment: false, HasLiveEffects: true }
             ? "Applied to this layer's own drawing, before blend."
             : "";
+        var selfStack = !EditingScene && ActiveLayer is { IsAdjustment: false };
+        AddChoices = selfStack
+            ? [.. EffectRegistry.All.Where(d => !d.BackdropOnly)
+                .Select(d => new EffectChoice(d.Kind, d.Name))]
+            : Catalogue;
         Select(Uses.FirstOrDefault(r => r.Use.Id == selectedId) ?? Uses.FirstOrDefault());
     }
 
@@ -195,6 +212,9 @@ public sealed partial class EffectsViewModel : ObservableObject
     {
         if (EffectRegistry.Resolve(choice.Kind) is not { } def) return;
         if (!EditingScene && ActiveLayer is null) return;
+        // The add row already hides these on a self stack; the guard keeps a
+        // programmatic add from writing a use that renders as identity.
+        if (def.BackdropOnly && !EditingScene && ActiveLayer is { IsAdjustment: false }) return;
         _owner.PanelEditor.Perform(_ =>
         {
             var stack = TargetStack(create: true)!;
