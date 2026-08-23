@@ -156,6 +156,11 @@ public partial class MainViewModel
                 _editor.Doc, frame, cel, _cache.Rig,
                 cel == CurrentFrameIndex ? _bonePreviewPose : null,
                 ghostOverBudget: _bonePreviewPose is not null && cel == CurrentFrameIndex);
+        // A blur reads neighbours, so a document with live kernel effects
+        // dirties more than the stroke touched. Asked per mark rather than
+        // cached, because a keyed radius changes per frame; a document with
+        // no effects answers 0 from one boolean sweep.
+        _publish.DirtyInflationOf = EffectDirtyInflation;
         // A retired bake may still be riding in a published pass list on its
         // way to the render thread, and every pass bitmap is pinned in the
         // frame cache at publish — so the cache's pin-aware deferral is the

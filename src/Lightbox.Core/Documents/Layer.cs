@@ -322,6 +322,35 @@ public sealed class Layer
     /// <summary>Whether this layer clips to the one below. Derived; never serialized.</summary>
     [JsonIgnore] public bool IsClipped => ClipToBelow == true;
 
+    /// <summary>
+    /// Effects on this layer's own output, before blend — blur one layer,
+    /// grade the ink — or null, and absent, on every layer nobody filtered
+    /// (DESIGN-effects.md's first attachment).
+    /// </summary>
+    public Effects.EffectStack? Effects { get; set; }
+
+    /// <summary>
+    /// This layer is an adjustment layer: its <see cref="Effects"/> apply to
+    /// the composite *beneath* it rather than to content of its own (Q146).
+    /// Null — and absent — on every ordinary layer.
+    /// </summary>
+    /// <remarks>
+    /// A nullable flag rather than a <see cref="LayerKind"/> member, so every
+    /// document ever saved parses in every build that knows the enum — and
+    /// because the layer machinery an adjustment wants is exactly the
+    /// ordinary machinery: <see cref="Mask"/> carves where it applies,
+    /// <see cref="ClipToBelow"/> scopes it to one layer's silhouette,
+    /// <see cref="Opacity"/> is its strength, visibility switches it off. An
+    /// adjustment layer's cels stay empty; nothing renders them.
+    /// </remarks>
+    public bool? Adjusts { get; set; }
+
+    /// <summary>Whether this is an adjustment layer. Derived; never serialized.</summary>
+    [JsonIgnore] public bool IsAdjustment => Adjusts == true;
+
+    /// <summary>Whether any effect currently applies here. Derived; never serialized.</summary>
+    [JsonIgnore] public bool HasLiveEffects => Effects is { } fx && fx.AppliesAnything;
+
     /// <summary>Whether this layer participates in onion-skin ghosting.</summary>
     public bool OnionEnabled { get; set; } = true;
 
@@ -397,6 +426,7 @@ public sealed class Layer
         var copy = (Layer)MemberwiseClone();
         copy.Cels = Cels.Select(c => c.Clone()).ToList();
         copy.Mask = Mask?.Clone();
+        copy.Effects = Effects?.Clone();
         return copy;
     }
 }

@@ -289,6 +289,36 @@ public sealed class LayerStackBakeTests(ITestOutputHelper output) : BrushStateIs
     }
 
     /// <summary>
+    /// An effect-carrying pass refuses to fold for the mask's reason plus
+    /// one: a slider drag changes pixels behind a stable stack reference, so
+    /// a fold key could never see the change — and an adjustment reads the
+    /// backdrop besides.
+    /// </summary>
+    [AvaloniaFact]
+    public void AFilteredLayerRefusesToFoldAndStillRenders()
+    {
+        var vm = LayeredVm();
+        vm.Doc.Scene.Layers[1].Effects = new Lightbox.Core.Effects.EffectStack
+        {
+            Uses = [new Lightbox.Core.Effects.EffectUse
+            {
+                Kind = "grade.hsl",
+                Params = { ["saturation"] = new Lightbox.Core.Effects.EffectParam(-50) },
+            }],
+        };
+        var before = vm.StackBake.Rebuilds;
+
+        Published(vm).Dispose();
+        Published(vm).Dispose();
+        Published(vm).Dispose();
+
+        var delta = vm.StackBake.Rebuilds - before;
+        output.WriteLine($"rebuilds after the effect appeared: {delta}");
+        Assert.True(delta <= 1,
+            $"{delta} rebuilds after an effect appeared below — the filtered segment folded");
+    }
+
+    /// <summary>
     /// Playback never pays for baking: the pass list changes every frame, so a
     /// fold could never be reused before it was stale.
     /// </summary>

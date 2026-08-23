@@ -110,16 +110,27 @@ sealed class ReferenceViewImages(FrameBitmapCache frames)
         {
             var layer = view.Layers[layerIndex];
             if (!layer.Visible) continue;
+            // The view shows the referenced document as its own canvas would,
+            // masks, clipping and effects included.
+            if (layer.IsAdjustment)
+            {
+                if (EffectPasses.AdjustmentPass(
+                        view.Layers, l => l.Visible, layerIndex, 0, frames,
+                        view.Width, view.Height) is { } adj)
+                {
+                    passes.Add(adj);
+                }
+                continue;
+            }
             var frame = ExposureSheet.ExposedFrame(layer, 0);
             if (frame is null) continue;
-            // The view shows the referenced document as its own canvas would,
-            // masks and clipping included.
             var shapes = LayerShapes.For(view.Layers, l => l.Visible, layerIndex, 0);
             if (shapes is { Count: 0 }) continue;
             passes.Add(new RenderPass(
                 frames.Get(frame, view.Width, view.Height), null,
                 layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
-                Shapes: LayerShapes.Resolve(shapes, frames, view.Width, view.Height)));
+                Shapes: LayerShapes.Resolve(shapes, frames, view.Width, view.Height),
+                Effect: EffectPasses.SelfFilter(layer, 0)));
         }
 
         // Composed at the authored size so the warm per-layer cache entries are the ones

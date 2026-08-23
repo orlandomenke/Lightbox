@@ -40,6 +40,13 @@ public enum TileFallbackReason
     /// draws frames alone — it has no isolation to carve in.
     /// </summary>
     Shaped,
+
+    /// <summary>
+    /// The document carries a live effect — a filtered layer, an adjustment
+    /// layer, or a scene grade — and effects need the bounded compositor's
+    /// isolation and backdrop.
+    /// </summary>
+    Effects,
 }
 
 /// <summary>
@@ -92,12 +99,18 @@ public static class TileFallback
     /// forgot would tile the layer and show it uncarved — the mask visibly
     /// not working — exactly while the sequence moves.
     /// </param>
+    /// <param name="docEffects">
+    /// The document carries a live effect stack somewhere — a document-level
+    /// condition like <paramref name="hasCamera"/>, asked here so the report
+    /// can name it.
+    /// </param>
     public static TileFallbackReason Reason(
         Frame frame, bool hasCamera, bool haveViewport, bool liveEffectHere, bool posed,
-        bool shaped)
+        bool shaped, bool docEffects = false)
     {
         if (!haveViewport) return TileFallbackReason.NoViewport;
         if (hasCamera) return TileFallbackReason.Camera;
+        if (docEffects) return TileFallbackReason.Effects;
         if (liveEffectHere) return TileFallbackReason.LiveEffect;
         if (shaped) return TileFallbackReason.Shaped;
         if (frame.HasBaseline) return TileFallbackReason.Baseline;
@@ -122,6 +135,7 @@ public static class TileFallback
         TileFallbackReason.BoundStrokes => "frames contain strokes bound to the rig",
         TileFallbackReason.LiveEffect => "a smudge or blur was in flight",
         TileFallbackReason.Shaped => "layers carry a mask or clip to another",
+        TileFallbackReason.Effects => "the document carries live effects",
         _ => reason.ToString(),
     };
 }

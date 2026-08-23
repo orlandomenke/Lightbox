@@ -417,17 +417,27 @@ public partial class MainViewModel
         {
             var layer = scene.Layers[layerIndex];
             if (!scene.IsLayerVisible(layer)) continue;
+            if (layer.IsAdjustment)
+            {
+                if (EffectPasses.AdjustmentPass(scene, layerIndex, CurrentFrameIndex, _cache) is { } adj)
+                {
+                    passes.Add(adj);
+                }
+                continue;
+            }
             var frame = ExposureSheet.ExposedFrame(layer, CurrentFrameIndex);
             if (frame is null) continue;
             // The fill and the eyedropper read the composite the artist sees,
-            // masks and clipping included.
+            // masks, clipping and effects included.
             var shapes = LayerShapes.For(scene, layerIndex, CurrentFrameIndex);
             if (shapes is { Count: 0 }) continue;
             passes.Add(new RenderPass(
                 _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex), null, layer.Opacity,
                 SceneRenderer.ToSkia(layer.BlendMode),
-                Shapes: LayerShapes.Resolve(shapes, _cache, scene.Width, scene.Height, CurrentFrameIndex)));
+                Shapes: LayerShapes.Resolve(shapes, _cache, scene.Width, scene.Height, CurrentFrameIndex),
+                Effect: EffectPasses.SelfFilter(layer, CurrentFrameIndex)));
         }
+        if (EffectPasses.SceneStackPass(scene, CurrentFrameIndex) is { } grade) passes.Add(grade);
         return passes;
     }
 

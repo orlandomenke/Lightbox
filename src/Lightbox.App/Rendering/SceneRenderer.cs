@@ -79,6 +79,22 @@ public sealed record PassShape(
 /// for every unshaped layer, which must keep taking the path that existed
 /// before shapes did. See <see cref="PassShape"/>.
 /// </param>
+/// <param name="Effect">
+/// The layer's own effect stack as one Skia filter (DESIGN-effects.md's
+/// first attachment), applied to this pass's content in its isolation —
+/// before blend and opacity, which is what "the layer's baked output" means.
+/// Built with document-space parameters: the save-layer applies it under the
+/// canvas matrix, so a blur's sigma follows the zoom on its own.
+/// </param>
+/// <param name="AdjustStack">
+/// An adjustment pass: this pass carries no content of its own — it filters
+/// the composite already beneath it (Q146), carved by <paramref name="Shapes"/>
+/// and faded by <paramref name="Opacity"/>. The stack rides the pass rather
+/// than a baked filter because the backdrop draw happens in device space,
+/// where the compositor must scale kernel parameters itself — see
+/// <see cref="SceneRenderer.DrawAdjustment"/>.
+/// </param>
+/// <param name="EffectFrame">The timeline frame keyed parameters evaluate at.</param>
 public sealed record RenderPass(
     SKBitmap? Bitmap,
     SKColor? Tint,
@@ -88,7 +104,10 @@ public sealed record RenderPass(
     SKMatrix? Matrix = null,
     SKRectI? Source = null,
     Lightbox.Core.Documents.Frame? SourceFrame = null,
-    IReadOnlyList<PassShape>? Shapes = null);
+    IReadOnlyList<PassShape>? Shapes = null,
+    SKImageFilter? Effect = null,
+    Lightbox.Core.Effects.EffectStack? AdjustStack = null,
+    int EffectFrame = 0);
 
 /// <summary>
 /// Pure SkiaSharp scene compositing: white paper, then passes in order
@@ -157,6 +176,13 @@ public static class SceneRenderer
 
         foreach (var pass in passes)
         {
+            // An adjustment pass reads the surface it is being drawn onto, so
+            // only this loop — which owns the surface — can draw it.
+            if (pass.AdjustStack is not null)
+            {
+                DrawAdjustment(surface, canvas, pass, scale, transform);
+                continue;
+            }
             // A pass may carry a matrix of its own — the transform tool's live
             // preview. It nests inside the scene transform rather than
             // replacing it, so the preview lands in document space, which is
@@ -175,6 +201,54 @@ public static class SceneRenderer
         }
         canvas.Restore();
         canvas.Flush();
+    }
+
+    /// <summary>
+    /// An adjustment layer's pass: the composite so far, re-drawn through the
+    /// stack's filter, carved by the pass's shapes and faded by its opacity —
+    /// where the shapes do not cover (or the opacity lets through), the
+    /// original pixels beneath simply remain.
+    /// </summary>
+    /// <remarks>
+    /// The snapshot is copy-on-write on the raster backend, so taking one is
+    /// cheap; the filtered redraw is bounded by the canvas clip, which the
+    /// publish path has already limited to the dirty region. The filter is
+    /// built here rather than at materialize time because the snapshot draw
+    /// runs at identity — device space — so kernel parameters declared in
+    /// document pixels (invariant 7) must be scaled by the device scale by
+    /// hand; a save-layer's CTM cannot do it for a draw that has none.
+    /// </remarks>
+    private static void DrawAdjustment(
+        SKSurface surface, SKCanvas canvas, RenderPass pass, double scale, SKMatrix? transform)
+    {
+        var device = transform is { } m
+            ? (float)Math.Sqrt(Math.Abs(m.ScaleX * m.ScaleY - m.SkewX * m.SkewY))
+            : (float)scale;
+        using var filter = Lightbox.Raster.Effects.EffectRegistry.FilterFor(
+            pass.AdjustStack, pass.EffectFrame, device <= 0 ? 1f : device);
+        if (filter is null) return; // a stack that currently does nothing
+
+        canvas.Flush();
+        using var snapshot = surface.Snapshot();
+
+        var alpha = (byte)Math.Round(Math.Clamp(pass.Opacity, 0, 1) * 255);
+        using var group = new SKPaint { Color = SKColors.White.WithAlpha(alpha) };
+        canvas.SaveLayer(group);
+
+        // The backdrop is device-space pixels: draw it back one-to-one, under
+        // the clip but outside the document transform.
+        canvas.Save();
+        canvas.SetMatrix(SKMatrix.CreateIdentity());
+        using (var paint = new SKPaint { ImageFilter = filter })
+        {
+            canvas.DrawImage(snapshot, 0, 0, paint);
+        }
+        canvas.Restore();
+
+        // Shapes are document-space bitmaps and carve under the transform,
+        // exactly as they carve an ordinary pass.
+        if (pass.Shapes is { Count: > 0 } shapes) ApplyShapes(canvas, shapes);
+        canvas.Restore();
     }
 
     private static void DrawPass(SKCanvas canvas, RenderPass pass)
@@ -207,10 +281,11 @@ public static class SceneRenderer
         }
 
         var shaped = pass.Shapes is { Count: > 0 };
+        var fx = pass.Effect;
 
         if (pass.Overlay is not { } overlay)
         {
-            if (!shaped)
+            if (!shaped && fx is null)
             {
                 DrawLayer(canvas, pass.Bitmap, paint);
                 return;
@@ -218,9 +293,12 @@ public static class SceneRenderer
             // The shapes must carve the layer alone, so it is isolated and the
             // paint — opacity, blend, tint — applies to the carved result on
             // restore, exactly as it would have applied to the whole layer.
+            // A self effect filters the content *first*, in a group of its
+            // own, so a mask still cuts a crisp edge through a blurred layer
+            // rather than blurring the cut.
             canvas.SaveLayer(paint);
-            DrawLayer(canvas, pass.Bitmap, null);
-            ApplyShapes(canvas, pass.Shapes!);
+            DrawFiltered(canvas, pass.Bitmap, fx);
+            if (shaped) ApplyShapes(canvas, pass.Shapes!);
             canvas.Restore();
             return;
         }
@@ -237,9 +315,10 @@ public static class SceneRenderer
         // (which would otherwise cut through everything) or a layer that
         // is transparent or blended. Skipping the offscreen layer in the
         // ordinary case roughly halves the cost of a live repaint.
-        // A shaped pass always isolates: the shapes must carve the layer and
-        // its live stroke together, and nothing else.
-        var needsIsolation = shaped
+        // A shaped or filtered pass always isolates: the shapes and the
+        // effect must take the layer and its live stroke together, and
+        // nothing else.
+        var needsIsolation = shaped || fx is not null
             || overlay.Erases || alpha != 255 || pass.Blend != SKBlendMode.SrcOver;
         if (!needsIsolation)
         {
@@ -251,9 +330,32 @@ public static class SceneRenderer
         // SaveLayer allocates the current clip only, so a bounded live
         // region stays affordable even on a huge canvas.
         canvas.SaveLayer(paint);
+        if (fx is not null)
+        {
+            // The live stroke sits inside the filter group on purpose: a
+            // blurred layer blurs the mark being made on it, which is what
+            // the commit will show.
+            using var fxPaint = new SKPaint { ImageFilter = fx };
+            canvas.SaveLayer(fxPaint);
+        }
         DrawLayer(canvas, pass.Bitmap, null);
         DrawStroke(canvas, pass.Bitmap, overlay, strokePaint);
+        if (fx is not null) canvas.Restore();
         if (shaped) ApplyShapes(canvas, pass.Shapes!);
+        canvas.Restore();
+    }
+
+    /// <summary>The pass's content through its own effect group, or plainly without one.</summary>
+    private static void DrawFiltered(SKCanvas canvas, SKBitmap bitmap, SKImageFilter? fx)
+    {
+        if (fx is null)
+        {
+            DrawLayer(canvas, bitmap, null);
+            return;
+        }
+        using var fxPaint = new SKPaint { ImageFilter = fx };
+        canvas.SaveLayer(fxPaint);
+        DrawLayer(canvas, bitmap, null);
         canvas.Restore();
     }
 

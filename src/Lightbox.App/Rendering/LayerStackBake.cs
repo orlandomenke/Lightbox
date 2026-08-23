@@ -474,6 +474,10 @@ public sealed class LayerStackBake : IDisposable
             // honest. Masked layers are rare per document; correct and unfolded
             // beats folded and stale.
             if (s.Shapes is not null) return false;
+            // An effect pass is refused for the same key-blindness (a slider
+            // drag changes pixels behind a stable stack reference) — and an
+            // adjustment pass reads the backdrop besides.
+            if (s.Fx is not null) return false;
             if (s.CelFrame is { } frame)
             {
                 if (!FrameBitmapCache.CanCache(frame)) return false;
@@ -492,7 +496,9 @@ public sealed class LayerStackBake : IDisposable
             && p.Overlay is null
             && p.SourceFrame is null
             && p.Bitmap is not null
-            && p.Shapes is null);
+            && p.Shapes is null
+            && p.Effect is null
+            && p.AdjustStack is null);
 
     private static List<PassKey> KeyOf(List<RenderPass> passes)
     {

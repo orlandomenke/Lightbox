@@ -962,7 +962,11 @@ public partial class MainViewModel
                     ? TileFallback.Reason(
                         frame, scene.Camera is not null, true, liveEffectHere: false,
                         posed: _cache.Rig.IsPosed(frame),
-                        shaped: LayerShapes.Carves(scene, layerIndex))
+                        shaped: LayerShapes.Carves(scene, layerIndex),
+                        // tileNativeDoc already folded the document-level
+                        // effects gate in (the builder computed it), so the
+                        // per-frame ask cannot be reached with effects live.
+                        docEffects: false)
                     : TileFallbackReason.NoViewport;
 
                 if (why == TileFallbackReason.None)
@@ -1199,6 +1203,33 @@ public partial class MainViewModel
     }
 
     /// <summary>
+    /// How far, in document pixels, this document's live effects spread a
+    /// change — what every dirty region grows by (see
+    /// <see cref="PublishState.DirtyInflationOf"/>). Conservative on purpose:
+    /// the active layer's own stack, every visible adjustment stack, and the
+    /// scene grade are summed whether or not each one actually covers the
+    /// edit, because a too-wide repaint costs milliseconds and a too-narrow
+    /// one leaves a smear at the region's edge that nobody traces back.
+    /// </summary>
+    private int EffectDirtyInflation()
+    {
+        var scene = Scene;
+        if (!EffectPasses.AnyLive(scene)) return 0;
+        var frame = CurrentFrameIndex;
+        var reach = Lightbox.Raster.Effects.EffectRegistry.ReachOf(scene.Effects, frame);
+        var active = ActiveLayer;
+        foreach (var layer in scene.Layers)
+        {
+            if (!layer.HasLiveEffects || !scene.IsLayerVisible(layer)) continue;
+            if (layer.IsAdjustment || ReferenceEquals(layer, active))
+            {
+                reach += Lightbox.Raster.Effects.EffectRegistry.ReachOf(layer.Effects, frame);
+            }
+        }
+        return (int)Math.Ceiling(reach);
+    }
+
+    /// <summary>
     /// Everything visible below the layer being painted on, at the playhead, or
     /// null when there is nothing there.
     /// </summary>
@@ -1218,6 +1249,14 @@ public partial class MainViewModel
             var layer = scene.Layers[layerIndex];
             if (ReferenceEquals(layer, active)) break;
             if (!scene.IsLayerVisible(layer)) continue;
+            if (layer.IsAdjustment)
+            {
+                if (EffectPasses.AdjustmentPass(scene, layerIndex, CurrentFrameIndex, _cache) is { } adj)
+                {
+                    passes.Add(adj);
+                }
+                continue;
+            }
             if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is not { } frame) continue;
             // A smudge or blur samples what it visibly sits on, so the
             // backdrop is shaped exactly as the composite is.
@@ -1226,7 +1265,8 @@ public partial class MainViewModel
             passes.Add(new RenderPass(
                 _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex),
                 null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
-                Shapes: LayerShapes.Resolve(shapes, _cache, scene.Width, scene.Height, CurrentFrameIndex)));
+                Shapes: LayerShapes.Resolve(shapes, _cache, scene.Width, scene.Height, CurrentFrameIndex),
+                Effect: EffectPasses.SelfFilter(layer, CurrentFrameIndex)));
         }
         if (passes.Count == 0) return null;
         using var below = SceneRenderer.Compose(

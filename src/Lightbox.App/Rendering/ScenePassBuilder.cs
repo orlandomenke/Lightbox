@@ -89,6 +89,14 @@ internal static class ScenePassBuilder
     /// of <paramref name="Shapes"/> — while the artist paints the mask. Set
     /// only on the active layer's pass during a mask edit.
     /// </param>
+    /// <param name="Fx">
+    /// The effect stack riding this pass — the layer's own when
+    /// <paramref name="Adjusts"/> is false, the backdrop's when true — or
+    /// null for every unfiltered layer. The stack reference is stable across
+    /// publishes but its *parameters* are not part of any equality, which is
+    /// one of the reasons <see cref="LayerStackBake"/> refuses to fold a pass
+    /// that carries one.
+    /// </param>
     internal readonly record struct PassSpec(
         Frame? CelFrame,
         int CelIndex,
@@ -102,7 +110,9 @@ internal static class ScenePassBuilder
         Frame? SourceFrame = null,
         List<LayerShapes.ShapeSpec>? Shapes = null,
         SKBitmap? MaskScratch = null,
-        bool MaskScratchErases = false);
+        bool MaskScratchErases = false,
+        Lightbox.Core.Effects.EffectStack? Fx = null,
+        bool Adjusts = false);
 
     /// <summary>
     /// The described pass list, plus where the active layer's own contribution
@@ -250,7 +260,12 @@ internal static class ScenePassBuilder
                 ? cache.Get(frame, width, height, celIndex: spec.CelIndex)
                 : spec.Bitmap,
             spec.Tint, spec.Opacity, spec.Blend, spec.Overlay, spec.Matrix, spec.Source,
-            spec.SourceFrame, shapes);
+            spec.SourceFrame, shapes,
+            Effect: spec.Adjusts || spec.Fx is null
+                ? null
+                : Lightbox.Raster.Effects.EffectRegistry.FilterFor(spec.Fx, spec.CelIndex),
+            AdjustStack: spec.Adjusts ? spec.Fx : null,
+            EffectFrame: spec.CelIndex);
     }
 
     /// <summary>
@@ -307,7 +322,13 @@ internal static class ScenePassBuilder
         // because "not playing" is a choice rather than a frame the tiles
         // could not serve.
         var tileModeOn = state.IsPlaying || state.IsScrubbing;
-        var tileNativeDoc = tileModeOn && scene.Camera is null && state.HaveViewport;
+        // A live effect anywhere joins the camera as a document-level tile
+        // refusal: the tiled compositor draws frames alone, and an effect —
+        // self, adjustment or scene-wide — needs the isolation and backdrop
+        // only the bounded compositor has.
+        var docEffects = EffectPasses.AnyLive(scene);
+        var tileNativeDoc = tileModeOn && scene.Camera is null && state.HaveViewport
+            && !docEffects;
 
         // Where the active layer's contribution begins and ends in the pass
         // list, so the layers that are NOT being drawn on can be folded into
@@ -365,6 +386,22 @@ internal static class ScenePassBuilder
             // what is beneath the drawing even when the active layer is the
             // first one over the paper.
             if (isActive) activeStart = passes.Count;
+
+            // An adjustment layer (Q146) has no drawings of its own: no cel
+            // fetch, no ghosts, no tile pass — one backdrop pass, carved by
+            // its mask and clip, or nothing at all while its stack is empty
+            // or its clipping base shows nothing.
+            if (layer.IsAdjustment)
+            {
+                if (layer.HasLiveEffects && shapes is not { Count: 0 })
+                {
+                    passes.Add(new PassSpec(
+                        null, state.FrameIndex, null, null, layer.Opacity,
+                        Shapes: shapes, Fx: layer.Effects, Adjusts: true));
+                }
+                if (isActive) activeEnd = passes.Count;
+                continue;
+            }
 
             // Ghosts go directly beneath the layer they belong to, not beneath
             // the whole stack. Queuing them all first was invisible while every
@@ -429,7 +466,8 @@ internal static class ScenePassBuilder
             {
                 var why = TileFallback.Reason(
                     frame, scene.Camera is not null, state.HaveViewport, liveEffectHere,
-                    posed: cache.Rig.IsPosed(frame), shaped: shapes is not null);
+                    posed: cache.Rig.IsPosed(frame), shaped: shapes is not null,
+                    docEffects: docEffects);
                 tileFallbacks.Note(why);
                 if (why == TileFallbackReason.None) tileFrame = frame;
             }
@@ -462,6 +500,9 @@ internal static class ScenePassBuilder
             // nothing on screen, and the preview must say so rather than show
             // it as paint that vanishes at the pen lift.
             var maskEditHere = live.MaskEditing && isActive && layer.Mask is not null;
+            // The layer's own stack, riding its content pass — null for the
+            // ordinary layer, and for a stack whose every use is disabled.
+            var fx = layer.HasLiveEffects ? layer.Effects : null;
             var overlay = maskEditHere ? null : OverlayFor(live, isActive);
             var maskScratch = maskEditHere && live.BrushStroke is not null
                 ? (live.PostStampedCount > 0 && live.PostScratch is not null
@@ -483,7 +524,7 @@ internal static class ScenePassBuilder
                     passes.Add(new PassSpec(
                         null, state.FrameIndex, stay, null, layer.Opacity,
                         SceneRenderer.ToSkia(layer.BlendMode), Matrix: parallax,
-                        Shapes: shapes));
+                        Shapes: shapes, Fx: fx));
                 }
                 // The drag nests inside the layer's plane: the moved strokes
                 // still live on this layer, so the preview matrix applies in
@@ -492,7 +533,7 @@ internal static class ScenePassBuilder
                     null, state.FrameIndex, parts.Moving, null, layer.Opacity,
                     SceneRenderer.ToSkia(layer.BlendMode), overlay,
                     parallax is { } pm ? SKMatrix.Concat(pm, preview) : preview,
-                    Shapes: shapes));
+                    Shapes: shapes, Fx: fx));
                 if (state.Onion.DrawOver) passes.AddRange(ghosts);
                 if (isActive) activeEnd = passes.Count;
                 continue;
@@ -513,7 +554,8 @@ internal static class ScenePassBuilder
                 celFrame, state.FrameIndex, bmp, null, opacity,
                 SceneRenderer.ToSkia(layer.BlendMode), overlay, parallax,
                 SourceFrame: tileFrame, Shapes: shapes,
-                MaskScratch: maskScratch, MaskScratchErases: maskErases));
+                MaskScratch: maskScratch, MaskScratchErases: maskErases,
+                Fx: fx));
 
             // Draw-over puts them above instead. Under is how a lightbox works
             // and is what you want while drawing; over is for checking, when a
@@ -527,6 +569,15 @@ internal static class ScenePassBuilder
         // that is the state you are in when you have imported one and have not
         // drawn anything yet, which is every time you start.
         if (!referencesQueued) passes.AddRange(ReferenceSpecs(scene, state));
+
+        // The scene stack last: the whole composite through the grade
+        // (DESIGN-effects.md's second attachment). A document that never
+        // grades adds nothing here and pays for nothing.
+        if (scene.Effects is { } sceneFx && sceneFx.AppliesAnything)
+        {
+            passes.Add(new PassSpec(
+                null, state.FrameIndex, null, null, 1.0, Fx: sceneFx, Adjusts: true));
+        }
 
         return new Plan(passes, activeStart, activeEnd, tileNativeDoc);
     }
