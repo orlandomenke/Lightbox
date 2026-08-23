@@ -171,15 +171,38 @@ public class BoardWebDropTests : BrushStateIsolated
     }
 
     [Fact]
-    public void ADropThatPinsNothingSaysSo()
+    public void ADropThatPinsNothingSaysSo_OnTheBoardItself()
+    {
+        var source = BoardWindowSource();
+        var drop = Regex.Match(
+            source, @"private async void OnDrop\(object\? sender, DragEventArgs e\)\s*\{(.+?)\n    \}",
+            RegexOptions.Singleline);
+
+        Assert.True(drop.Success, "OnDrop has moved — this guard needs to follow it");
+        // A drop that silently does nothing is indistinguishable from a feature
+        // that does not work, which is exactly how this was reported — twice:
+        // B282 for saying nothing at all, B285 for saying it only on the main
+        // window's status line, which the artist at the board cannot see.
+        Assert.Contains("Say(", drop.Groups[1].Value);
+
+        var say = Regex.Match(
+            source, @"private void Say\(string message\)\s*\{(.+?)\n    \}", RegexOptions.Singleline);
+        Assert.True(say.Success, "Say has moved — this guard needs to follow it");
+        Assert.Contains("_status.Text", say.Groups[1].Value);
+        Assert.Contains("AiStatus", say.Groups[1].Value);
+    }
+
+    [Fact]
+    public void ADropResolvesAPageToTheImageItNames()
     {
         var drop = Regex.Match(
             BoardWindowSource(), @"private async void OnDrop\(object\? sender, DragEventArgs e\)\s*\{(.+?)\n    \}",
             RegexOptions.Singleline);
 
         Assert.True(drop.Success, "OnDrop has moved — this guard needs to follow it");
-        // A drop that silently does nothing is indistinguishable from a feature
-        // that does not work, which is exactly how this was reported.
-        Assert.Contains("AiStatus", drop.Groups[1].Value);
+        // FetchAsync hands back whatever the site sends; FetchImageAsync is the
+        // one that reads a fetched *page* for the image it names (B285), which
+        // is what a drag off Pinterest and its kin carries.
+        Assert.Contains("FetchImageAsync", drop.Groups[1].Value);
     }
 }

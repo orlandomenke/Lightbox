@@ -72,6 +72,75 @@ public static partial class WebImageDrop
     private static partial Regex ImgSrc();
 
     /// <summary>
+    /// The images a fetched page names, best first: <c>og:image</c> and
+    /// <c>twitter:image</c> metadata, then <c>&lt;link rel="image_src"&gt;</c>,
+    /// then every <c>&lt;img src&gt;</c>, resolved against the page's own URL.
+    /// </summary>
+    /// <remarks>
+    /// This is the answer to a URL that fetches but does not decode (B285): on
+    /// any site that wraps its pictures in links — Pinterest, most galleries —
+    /// the drag carries the <em>page</em> URL, and the page is where the image's
+    /// real address is written down. The metadata comes first because it is the
+    /// one the site chose to represent the page, usually at full resolution,
+    /// where the <c>&lt;img&gt;</c> tags are thumbnails and chrome.
+    /// </remarks>
+    public static IReadOnlyList<Uri> ImageUrisInPage(string html, Uri page)
+    {
+        var found = new List<Uri>();
+        foreach (Match m in MetaTag().Matches(html))
+        {
+            var key = AttrValue(m.Value, "property") ?? AttrValue(m.Value, "name");
+            if (key?.ToLowerInvariant()
+                is "og:image" or "og:image:secure_url" or "twitter:image" or "twitter:image:src")
+            {
+                AdmitOnPage(found, page, AttrValue(m.Value, "content"));
+            }
+        }
+        foreach (Match m in LinkTag().Matches(html))
+        {
+            if (string.Equals(AttrValue(m.Value, "rel"), "image_src", StringComparison.OrdinalIgnoreCase))
+            {
+                AdmitOnPage(found, page, AttrValue(m.Value, "href"));
+            }
+        }
+        foreach (Match m in ImgSrc().Matches(html))
+        {
+            AdmitOnPage(found, page, m.Groups[1].Value);
+        }
+        return found;
+    }
+
+    private static void AdmitOnPage(List<Uri> found, Uri page, string? candidate)
+    {
+        if (candidate is null) return;
+        var text = System.Net.WebUtility.HtmlDecode(candidate).Trim();
+        // Already an address: kept verbatim, because a data: URI's base64 does
+        // not survive being rewritten. Anything else is resolved against the
+        // page, so a relative src is still an address.
+        if (Uri.TryCreate(text, UriKind.Absolute, out var abs) && abs.Scheme is "http" or "https" or "data")
+        {
+            Admit(found, text);
+        }
+        else if (Uri.TryCreate(page, text, out var resolved))
+        {
+            Admit(found, resolved.AbsoluteUri);
+        }
+    }
+
+    /// <summary>An attribute's value inside one tag's text, or null.</summary>
+    private static string? AttrValue(string tag, string attribute)
+    {
+        var m = Regex.Match(tag, $"""(?:^|\s){attribute}\s*=\s*["']([^"']*)["']""", RegexOptions.IgnoreCase);
+        return m.Success ? m.Groups[1].Value : null;
+    }
+
+    [GeneratedRegex("<meta[^>]+>", RegexOptions.IgnoreCase)]
+    private static partial Regex MetaTag();
+
+    [GeneratedRegex("<link[^>]+>", RegexOptions.IgnoreCase)]
+    private static partial Regex LinkTag();
+
+    /// <summary>
     /// A reference name from the URL — the file name without its extension,
     /// URL-decoded, or a plain fallback for URLs with nothing legible in them.
     /// </summary>
@@ -139,5 +208,46 @@ public static partial class WebImageDrop
         {
             return null;
         }
+    }
+
+    /// <summary>Whether these bytes open as a picture — the decoder's answer, not a name's.</summary>
+    public static bool LooksLikeImage(byte[] bytes)
+    {
+        using var stream = new MemoryStream(bytes, writable: false);
+        using var codec = SkiaSharp.SKCodec.Create(stream);
+        return codec is not null;
+    }
+
+    /// <summary>How many of a page's image candidates a resolution will try before giving up.</summary>
+    /// <remarks>The metadata candidate is nearly always the first; this bounds a page of thumbnails.</remarks>
+    public const int MaxPageCandidates = 8;
+
+    /// <summary>Pages bigger than this are not read for their image — a page is text, not an archive.</summary>
+    public const int MaxPageParseBytes = 8 * 1024 * 1024;
+
+    /// <summary>
+    /// The picture behind a dropped URI, with the address it was finally found
+    /// at. When the URI fetches but does not decode — the drag carried the
+    /// <em>page</em> the picture lives on, which is what any site that wraps
+    /// its images in links puts in a drag (B285) — the page is read once for
+    /// the image it names and the best candidate that decodes is returned.
+    /// One level only, never a page named by a page.
+    /// </summary>
+    public static async Task<(byte[] Bytes, Uri Source)?> FetchImageAsync(Uri uri)
+    {
+        var bytes = await FetchAsync(uri);
+        if (bytes is null) return null;
+        if (LooksLikeImage(bytes)) return (bytes, uri);
+        if (bytes.Length > MaxPageParseBytes) return null;
+
+        var tried = 0;
+        foreach (var candidate in ImageUrisInPage(System.Text.Encoding.UTF8.GetString(bytes), uri))
+        {
+            if (candidate == uri) continue;
+            if (++tried > MaxPageCandidates) break;
+            var inner = await FetchAsync(candidate);
+            if (inner is not null && LooksLikeImage(inner)) return (inner, candidate);
+        }
+        return null;
     }
 }

@@ -43,6 +43,17 @@ public sealed class ReferenceBoardWindow : Window
     private readonly Dictionary<string, (byte[] Bytes, Bitmap Picture)> _pictures = new(StringComparer.Ordinal);
     private readonly Button _sheetsButton = new() { Content = "Sheets ▾", Classes = { "tertiary" } };
 
+    /// <summary>
+    /// The board's own voice. A drop or paste that fails used to say so only on
+    /// the main window's status line, which the artist looking at this window
+    /// cannot see — so the failure read as total silence (B285).
+    /// </summary>
+    private readonly TextBlock _status = new()
+    {
+        VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+        Opacity = 0.75,
+    };
+
     /// <summary>Where a tile grab counts as the resize corner rather than a move.</summary>
     private const double CornerGrip = 16;
 
@@ -149,10 +160,20 @@ public sealed class ReferenceBoardWindow : Window
             Orientation = Avalonia.Layout.Orientation.Horizontal,
             Spacing = 6,
             Margin = new Thickness(8, 6),
-            Children = { arrange, fit, add, _sheetsButton },
+            Children = { arrange, fit, add, _sheetsButton, _status },
         };
         Grid.SetRow(bar, 0);
         return bar;
+    }
+
+    /// <summary>
+    /// Say it where the artist is looking — on this window — and mirror it to
+    /// the main status line, which is where every other import speaks.
+    /// </summary>
+    private void Say(string message)
+    {
+        _status.Text = message;
+        if (message.Length > 0) _vm.AiStatus = message;
     }
 
     private double BoardWidth => _surface.Bounds.Width > 1 ? _surface.Bounds.Width : Width;
@@ -349,7 +370,7 @@ public sealed class ReferenceBoardWindow : Window
             }
             else
             {
-                _vm.AiStatus = $"“{tile.Name}” has no readable picture to lay out.";
+                Say($"“{tile.Name}” has no readable picture to lay out.");
             }
         };
         var front = new MenuItem { Header = "Bring to front" };
@@ -635,7 +656,7 @@ public sealed class ReferenceBoardWindow : Window
                 if (await data.TryGetValueAsync(format) is not { Length: > 0 } bytes) continue;
                 if (BoardModel.AddImageBytes("Pasted", bytes, (centre.X, centre.Y)) is not null) return;
             }
-            _vm.AiStatus = "There is no picture on the clipboard to pin up.";
+            Say("There is no picture on the clipboard to pin up.");
         }
         catch (Exception ex)
         {
@@ -737,24 +758,33 @@ public sealed class ReferenceBoardWindow : Window
                 pinned++;
             }
         }
-        if (pinned > 0) return;
+        if (pinned > 0)
+        {
+            Say("");
+            return;
+        }
 
         // One tile per drop, not one per candidate: the candidates are the same
         // picture described three ways, so pinning them all would put up
-        // duplicates. Same reasoning as the canvas's web drop.
+        // duplicates. Same reasoning as the canvas's web drop. A candidate that
+        // fetches as a *page* is read once for the image it names (B285) —
+        // that is what a drag off any site that wraps its pictures in links
+        // carries.
         var uris = DroppedWebImages(e);
+        if (uris.Count > 0) Say("Fetching the picture…");
         foreach (var uri in uris)
         {
-            var bytes = await Services.WebImageDrop.FetchAsync(uri);
-            if (bytes is null) continue;
-            if (BoardModel.AddImageBytes(Services.WebImageDrop.NameFor(uri), bytes, (at.X, at.Y)) is not null)
+            if (await Services.WebImageDrop.FetchImageAsync(uri) is not { } got) continue;
+            if (BoardModel.AddImageBytes(
+                    Services.WebImageDrop.NameFor(got.Source), got.Bytes, (at.X, at.Y)) is not null)
             {
+                Say("");
                 return;
             }
         }
 
-        _vm.AiStatus = uris.Count > 0
-            ? "That picture could not be fetched — the site refused it, or it is not an image."
-            : "That drop had no picture in it that Lightbox could read.";
+        Say(uris.Count > 0
+            ? "That picture could not be fetched — the site refused it, or named no image Lightbox can read."
+            : "That drop had no picture in it that Lightbox could read.");
     }
 }
