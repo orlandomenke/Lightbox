@@ -124,6 +124,30 @@ A bone that gains a key where there was none is seeded from the pose you were
 already looking at, so keying one bone never snaps its neighbours back to rest. Scrub the timeline and
 bound drawings follow the pose live, in playback and in every export.
 
+### Timing the rig on 2s
+
+Tweened bones move every frame, and every frame is exactly what drawn
+animation does not do. Two controls give the rig drawn timing, and both are
+off until you ask:
+
+- **Hold a key.** Right-click a pose key ▸ **Ease into next** ▸ **Hold** and
+  the pose freezes until the next key — pose-to-pose instead of a tween, the
+  same ease menu the camera's keys have. The other choices (linear, ease in,
+  out, in-out) shape the tween the way they always did.
+- **Sample the whole track on 2s.** Right-click the Armature row's empty run ▸
+  **Pose on…** ▸ **2s** (or 3s, 4s) and the rig is *shown* every second frame
+  and held between, while the tween underneath stays fluid. Retiming is the
+  point: change the interval, or a key, and the motion re-samples — nothing is
+  re-posed. Back to **1s (every frame)** and the track is exactly what it was.
+
+The step is what the *frames show* — playback, export and bake all step —
+while posing keeps working at full precision: a key you add or drag is
+measured against the fluid tween, on whatever frame the playhead is on. Pose
+on the sampled frames (the even ones, on 2s) to see your key exactly as the
+frame will show it. Held poses land on the exposure sheet's grid, so a
+rig on 2s sits flush with drawings on 2s — and **baking** a stepped rig
+writes the held drawings, ready to re-expose and re-time like any others.
+
 **The skeleton has its own onion skin.** With onion skin on, posing also
 shows outline ghosts of the skeleton at the neighbouring **pose keys** — warm
 behind the playhead, cool ahead, the same colours the drawing's ghosts wear —
