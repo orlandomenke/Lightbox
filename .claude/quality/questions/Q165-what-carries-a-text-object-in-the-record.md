@@ -1,4 +1,4 @@
-# Q161 · What carries a text object in the record? — **answered 2026-08-24: an authored element plus one baked contour stroke per glyph**
+# Q165 · What carries a text object in the record? — **answered 2026-08-24: an authored element plus one baked contour stroke per glyph**
 
 Q149 left this open in as many words: *"it needs its own design pass before a
 line of it is built (what carries the text: a stroke kind, a placement, or a

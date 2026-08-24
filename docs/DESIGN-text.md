@@ -5,7 +5,7 @@ picture is *rendered* — because type is baked to contours the moment it is set
 and the contours are the drawing.
 
 Everything below follows from that, including the parts that look like licensing
-policy. Decisions are Q161–Q164; the roadmap item is `[x] Text` under *Guides
+policy. Decisions are Q165–Q164; the roadmap item is `[x] Text` under *Guides
 and shapes*.
 
 ## What the record holds
