@@ -46,6 +46,20 @@ public sealed record EffectColorSpec(string Key, string Label, string Default);
 /// docker steers it to an adjustment instead — clipped to the layer below,
 /// which is per-layer use with the same pixels.
 /// </param>
+/// <param name="Phase">
+/// Which step of its own clock this use is on at a frame, for an effect
+/// whose output varies with the playhead — or null for the ordinary effect
+/// that renders the same on every frame (Q159).
+/// <para>
+/// <b>It is the phase and not the frame that the filter cache fingerprints
+/// on</b>, and the difference is the rebuild rate: a wiggle on a hold of 6
+/// is the same offset for six frames running, so fingerprinting the frame
+/// would build six identical chains and drop five of them to the finalizer.
+/// Replaced filters are deliberately not disposed (see
+/// <see cref="EffectRegistry"/>'s cache), so the honest way to keep that
+/// churn down is to not create it.
+/// </para>
+/// </param>
 /// <param name="Style">
 /// A layer style's decoration (Q153): two filters that read <em>only the
 /// source silhouette</em> (null inputs), one drawn behind the content and
@@ -63,7 +77,7 @@ public sealed record EffectDefinition(
     Func<EffectUse, int, double> Reach,
     Func<EffectUse, int, float, SKImageFilter?, SKImageFilter?> Chain,
     Func<EffectUse, int, float, Action<SKBitmap, SKPointI>>? Cpu = null,
-    bool TimeSeeded = false,
+    Func<EffectUse, int, long>? Phase = null,
     IReadOnlyList<EffectColorSpec>? Colors = null,
     Func<EffectUse, int, float, (SKImageFilter? Behind, SKImageFilter? Over)>? Style = null)
 {
@@ -84,6 +98,13 @@ public sealed record EffectDefinition(
     /// <see cref="EffectRegistry.FilterFor"/>.
     /// </summary>
     public bool SelfOnly => Style is not null;
+
+    /// <summary>
+    /// True when the output varies with the playhead — see
+    /// <see cref="Phase"/>, which is also the thing the filter cache
+    /// fingerprints on.
+    /// </summary>
+    public bool TimeSeeded => Phase is not null;
 
     /// <summary>The docker's colour rows; empty for an effect with none.</summary>
     public IReadOnlyList<EffectColorSpec> ColorSpecs => Colors ?? [];
@@ -145,7 +166,17 @@ public static class EffectRegistry
     /// shared: <see cref="DefaultOf"/> answers it per use, so two wiggles
     /// differ by construction and neither writes a key until it is dialled.
     /// </summary>
-    private static readonly EffectParamSpec Seed = new("seed", "Seed", 0, 0, 999, PerUse: true);
+    /// <remarks>
+    /// The range is wide because the default is drawn from it: at 0..999 the
+    /// birthday bound puts an even chance of *some* pair of uses sharing a
+    /// seed at around forty of them, which a scene full of wiggling elements
+    /// reaches — and a collision means two things moving in lockstep, the
+    /// one failure the per-use seed exists to prevent (the adversary
+    /// review's finding). Four more digits move that boundary past any
+    /// plausible scene and cost an artist nothing: nobody reads a seed, they
+    /// only nudge it until they like the motion.
+    /// </remarks>
+    private static readonly EffectParamSpec Seed = new("seed", "Seed", 0, 0, 999999, PerUse: true);
 
     private static readonly Dictionary<string, EffectDefinition> ByKind = new()
     {
@@ -199,7 +230,7 @@ public static class EffectRegistry
                 new EffectParamSpec("hold", "Hold", 2, 1, 24),
                 Seed,
             ],
-            TimeSeeded: true,
+            Phase: (use, frame) => StepOf(use, frame, 2),
             // The offset is the whole reach: the layer can land that far from
             // where its pixels are, so the dirty region has to cover it.
             Reach: (use, frame) => Math.Max(0, use.At("amount", frame, 6)),
@@ -219,7 +250,7 @@ public static class EffectRegistry
                 new EffectParamSpec("hold", "Hold", 1, 1, 24),
                 Seed,
             ],
-            TimeSeeded: true,
+            Phase: (use, frame) => StepOf(use, frame, 1),
             Reach: (_, _) => 0,
             Chain: (use, frame, _, inner) =>
             {
@@ -244,7 +275,7 @@ public static class EffectRegistry
                 new EffectParamSpec("hold", "Hold", 1, 1, 24),
                 Seed,
             ],
-            TimeSeeded: true,
+            Phase: (use, frame) => StepOf(use, frame, 1),
             Reach: (_, _) => 0,
             // Identity in the native chain: grain is the CPU pass below, for
             // the reason Q159 records — the noise has to be ours, not Skia's.
@@ -582,17 +613,20 @@ public static class EffectRegistry
         var hash = new HashCode();
         hash.Add(scale);
         hash.Add(stack.Disabled == true);
-        // A frame-seeded effect's *parameters* do not change with the frame —
-        // its output does. Without this the cache would answer every frame
-        // with the chain it built for the first one (Q159).
-        if (stack.Uses.Exists(u => u.Applies && Resolve(u.Kind) is { TimeSeeded: true }))
-        {
-            hash.Add(frame);
-        }
         foreach (var use in stack.Uses)
         {
             hash.Add(use.Kind);
             hash.Add(use.Applies);
+            // A frame-seeded effect's *parameters* do not change with the
+            // frame — its output does, so without this the cache would answer
+            // every frame with the chain it built for the first one (Q159).
+            // The phase rather than the frame, so a hold of 6 rebuilds once
+            // instead of six times; and inside the loop that already walks
+            // the uses, so a stack with no such effect pays one null check.
+            if (use.Applies && Resolve(use.Kind) is { Phase: { } phase })
+            {
+                hash.Add(phase(use, frame));
+            }
             foreach (var (key, param) in use.Params)
             {
                 hash.Add(key);

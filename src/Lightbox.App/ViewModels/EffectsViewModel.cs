@@ -144,9 +144,19 @@ public sealed partial class EffectsViewModel : ObservableObject
     {
         _owner = owner;
         Catalogue = [.. EffectRegistry.All.Select(d => new EffectChoice(d.Kind, d.Name))];
-        AddChoices = [.. EffectRegistry.All.Where(d => !d.BackdropOnly)
+        // Two offers, computed once: what a layer's own stack takes, and
+        // what a backdrop takes. Rebuild runs on every playhead move, so
+        // deriving these there allocated the whole catalogue per frame
+        // during playback for a list that only two scopes can produce (the
+        // leak review's finding).
+        _selfOffer = [.. EffectRegistry.All.Where(d => !d.BackdropOnly)
             .Select(d => new EffectChoice(d.Kind, d.Name))];
-        AddShelves = ShelvesOf(d => !d.BackdropOnly);
+        _backdropOffer = [.. EffectRegistry.All.Where(d => !d.SelfOnly)
+            .Select(d => new EffectChoice(d.Kind, d.Name))];
+        _selfShelves = ShelvesOf(d => !d.BackdropOnly);
+        _backdropShelves = ShelvesOf(d => !d.SelfOnly);
+        AddChoices = _selfOffer;
+        AddShelves = _selfShelves;
         _owner.PropertyChanged += (_, e) =>
         {
             // The panel mirrors the selection context: a new active layer, a
@@ -172,6 +182,11 @@ public sealed partial class EffectsViewModel : ObservableObject
         "anim" => "Animation",
         _ => shelf,
     };
+
+    private readonly IReadOnlyList<EffectChoice> _selfOffer;
+    private readonly IReadOnlyList<EffectChoice> _backdropOffer;
+    private readonly IReadOnlyList<EffectShelf> _selfShelves;
+    private readonly IReadOnlyList<EffectShelf> _backdropShelves;
 
     private static IReadOnlyList<EffectShelf> ShelvesOf(Func<EffectDefinition, bool> offered) =>
         [.. EffectRegistry.All.Where(offered)
@@ -267,10 +282,8 @@ public sealed partial class EffectsViewModel : ObservableObject
         // own stack takes no backdrop-only kind (identity on the self path),
         // and the backdrop scopes take no style (no silhouette to read).
         var selfStack = !EditingScene && ActiveLayer is { IsAdjustment: false };
-        bool Offered(EffectDefinition d) => selfStack ? !d.BackdropOnly : !d.SelfOnly;
-        AddChoices = [.. EffectRegistry.All.Where(Offered)
-            .Select(d => new EffectChoice(d.Kind, d.Name))];
-        AddShelves = ShelvesOf(Offered);
+        AddChoices = selfStack ? _selfOffer : _backdropOffer;
+        AddShelves = selfStack ? _selfShelves : _backdropShelves;
         StackExists = stack is not null;
         _syncingStack = true;
         StackEnabled = stack is not { Disabled: true };

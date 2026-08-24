@@ -425,8 +425,10 @@ public class EffectRegistryTests(ITestOutputHelper output)
 
         // Dialling one seed to the other's makes them agree — the parameter
         // is the control, not a decoration.
-        var seed = EffectRegistry.DefaultOf(
-            new EffectParamSpec("seed", "Seed", 0, 0, 999, PerUse: true), b.Uses[0]);
+        // The definition's own spec, not a copy of it: a duplicate here went
+        // stale the moment the seed's range widened.
+        var spec = EffectRegistry.Resolve("anim.wiggle")!.Params.First(p => p.Key == "seed");
+        var seed = EffectRegistry.DefaultOf(spec, b.Uses[0]);
         a.Uses[0].Params["seed"] = new EffectParam(seed);
         var same = WiggledAt(a, 3);
         var other = WiggledAt(b, 3);
@@ -468,6 +470,20 @@ public class EffectRegistryTests(ITestOutputHelper output)
         var blur = Stack(Use("blur.gaussian", ("radius", 4.0)));
         var stable = EffectRegistry.FilterFor(blur, 0);
         Assert.Same(stable, EffectRegistry.FilterFor(blur, 7));
+
+        // And it is the *phase* that is fingerprinted, not the frame: a hold
+        // of 6 is one offset for six frames, so it must be one chain for six
+        // frames. Replaced filters go to the finalizer by design (disposing
+        // one a deferred publish is still drawing through is a use-after-
+        // free), which makes not creating them the only way to keep the
+        // churn down — the leak review's finding, answered.
+        var held = Stack(Use("anim.wiggle", ("amount", 6.0), ("hold", 6.0)));
+        var atZero = EffectRegistry.FilterFor(held, 0);
+        for (var frame = 1; frame < 6; frame++)
+        {
+            Assert.Same(atZero, EffectRegistry.FilterFor(held, frame));
+        }
+        Assert.NotSame(atZero, EffectRegistry.FilterFor(held, 6));
     }
 
     // ---- film grain -------------------------------------------------------
