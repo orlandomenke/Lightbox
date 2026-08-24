@@ -312,18 +312,18 @@ public static class PsdReader
         info.Skip(extraLength);
 
         var maskLength = extra.I32();
-        if (maskLength > 0) record.HasMask = true;
-        extra.Skip(Math.Min(maskLength, extra.Remaining));
+        ReadMaskData(extra, record, maskLength);
 
         // A mask is announced two ways and both have to be believed. The extra
-        // data above declares its size; the channel table declares the channel
-        // that carries it (-2 user mask, -3 real mask). Trusting only the first
-        // let a layer with genuine mask pixels and `maskLength = 0` import as a
-        // plain opaque layer, silently dropping everything the mask hid — the
-        // failure refusing exists to prevent, arrived at from the other side.
+        // data declares its rectangle; the channel table declares the channel
+        // that carries its pixels (-2 user mask, -3 real mask). Trusting only the
+        // first let a layer with genuine mask pixels and `maskLength = 0` import
+        // as a plain opaque layer, silently dropping everything the mask hid.
+        // A channel with no rectangle to put it in is the one case still refused,
+        // because there is nowhere to say where its coverage applies.
         foreach (var channel in record.Channels)
         {
-            if (channel.Id is -2 or -3) record.HasMask = true;
+            if (channel.Id is -2 or -3) record.HasMaskChannel = true;
         }
 
         var blendingRanges = extra.I32();
@@ -335,19 +335,17 @@ public static class PsdReader
         record.Name = record.UnicodeName ?? record.Name;
         if (record.Name.Length == 0) record.Name = $"Layer {index + 1}";
 
-        // Clipping is only a refusal on a layer that carries pixels; a folder
-        // marker's clipping byte is meaningless and Photoshop writes it anyway.
-        if (clipping == 1 && !record.IsGroupMarker)
+        // A folder marker's clipping byte is meaningless and Photoshop writes it
+        // anyway, so only a layer with pixels can be clipped.
+        record.Clipping = clipping == 1 && !record.IsGroupMarker;
+        // A mask channel whose rectangle the file never stated. Everything else
+        // about a mask is representable now that Lightbox has one of its own, but
+        // coverage with no bounds has no meaning — it could apply anywhere.
+        if (record.HasMaskChannel && !record.HasMaskRect)
         {
             refusals.Add(new PsdUnsupported(
-                "A clipping mask", record.Name,
-                "release it (Layer ▸ Release Clipping Mask) or merge the clipped layers together"));
-        }
-        if (record.HasMask)
-        {
-            refusals.Add(new PsdUnsupported(
-                "A layer mask", record.Name,
-                "apply it (Layer ▸ Layer Mask ▸ Apply)"));
+                "A layer mask with no bounds recorded", record.Name,
+                "apply it (Layer ▸ Layer Mask ▸ Apply) and save again"));
         }
         foreach (var (feature, remedy) in record.UnsupportedFeatures)
         {
@@ -375,6 +373,38 @@ public static class PsdReader
                 "set the folder to Pass Through at 100%, or merge it into one layer"));
         }
         return record;
+    }
+
+    /// <summary>
+    /// The layer mask data block: where the mask applies, and what applies
+    /// outside it.
+    /// </summary>
+    /// <remarks>
+    /// Twenty bytes in the ordinary case — a rectangle, a default coverage byte
+    /// and a flag byte — and more when Photoshop has stored a second "real" mask
+    /// beside the user one. Only the first is read: the extra is a rendering of
+    /// a vector mask, and a vector mask is refused separately.
+    /// </remarks>
+    private static void ReadMaskData(PsdCursor extra, LayerRecord record, int maskLength)
+    {
+        if (maskLength <= 0 || !extra.Has(maskLength))
+        {
+            extra.Skip(Math.Min(Math.Max(maskLength, 0), extra.Remaining));
+            return;
+        }
+
+        var block = extra.Bounded(maskLength);
+        extra.Skip(maskLength);
+        if (block.Remaining < 18) return;
+
+        record.MaskTop = block.I32();
+        record.MaskLeft = block.I32();
+        record.MaskBottom = block.I32();
+        record.MaskRight = block.I32();
+        record.MaskDefault = block.U8();
+        var flags = block.U8();
+        record.MaskDisabled = (flags & 0x02) != 0;
+        record.HasMaskRect = true;
     }
 
     /// <summary>
@@ -465,10 +495,12 @@ public static class PsdReader
         var bitmap = role is PsdLayerRole.Raster
             ? DecodePixels(record, depth, colorMode, budget)
             : null;
+        var mask = role is PsdLayerRole.Raster ? DecodeMask(record, depth, budget) : null;
 
         return new PsdLayer(
             record.Name, record.Left, record.Top, record.Right, record.Bottom,
-            record.BlendKey, record.Opacity, record.Visible, record.Locked, role, bitmap);
+            record.BlendKey, record.Opacity, record.Visible, record.Locked, role, bitmap,
+            mask, record.Clipping);
     }
 
     /// <summary>
@@ -522,6 +554,58 @@ public static class PsdReader
         }
         System.Runtime.InteropServices.Marshal.Copy(pixels, 0, bitmap.GetPixels(), pixels.Length);
         return bitmap;
+    }
+
+    /// <summary>
+    /// The mask channel as coverage, at the mask's own rectangle.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A mask is greyscale in the file and alpha here, because that is what it
+    /// means and what Lightbox's own mask is: coverage. White shows, black hides,
+    /// which is Photoshop's default sense and needs no inversion — the obsolete
+    /// "invert when blending" flag is deliberately not honoured.
+    /// </para>
+    /// <para>
+    /// Decoded at the <em>mask's</em> bounds, not the layer's. They are
+    /// independent in a PSD and routinely differ, and using the layer's would
+    /// read the channel at the wrong stride — which produces a plausible,
+    /// diagonally-smeared mask rather than an obvious failure.
+    /// </para>
+    /// </remarks>
+    private static PsdMask? DecodeMask(LayerRecord record, int depth, PixelBudget budget)
+    {
+        if (!record.HasMaskRect) return null;
+        var width = record.MaskRight - record.MaskLeft;
+        var height = record.MaskBottom - record.MaskTop;
+        if (width <= 0 || height <= 0) return null;
+
+        var channel = record.Channels.Find(c => c.Id is -2 or -3);
+        if (channel is null) return null;
+
+        budget.Take($"{record.Name} (mask)", width, height);
+        var coverage = DecodeChannel(record, channel, width, height, depth);
+        if (coverage is null) return null;
+
+        var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+        var bitmap = new SKBitmap(info);
+        var pixels = new byte[width * height * 4];
+        for (var i = 0; i < width * height; i++)
+        {
+            var value = i < coverage.Length ? coverage[i] : (byte)0;
+            var o = i * 4;
+            // White carried in the colour channels so the mask is legible if it is
+            // ever looked at directly; the alpha is what actually means anything.
+            pixels[o + 0] = 255;
+            pixels[o + 1] = 255;
+            pixels[o + 2] = 255;
+            pixels[o + 3] = value;
+        }
+        System.Runtime.InteropServices.Marshal.Copy(pixels, 0, bitmap.GetPixels(), pixels.Length);
+
+        return new PsdMask(
+            bitmap, record.MaskLeft, record.MaskTop, record.MaskRight, record.MaskBottom,
+            record.MaskDefault, record.MaskDisabled);
     }
 
     private static byte[]? DecodeChannel(LayerRecord record, ChannelRef channel, int width, int height, int depth)
@@ -741,7 +825,12 @@ public static class PsdReader
         public double Opacity = 1;
         public bool Visible = true;
         public bool Locked;
-        public bool HasMask;
+        public bool HasMaskChannel;
+        public bool HasMaskRect;
+        public int MaskTop, MaskLeft, MaskBottom, MaskRight;
+        public byte MaskDefault;
+        public bool MaskDisabled;
+        public bool Clipping;
         public int SectionType;
         public int Depth = 8;
         public bool Wide;

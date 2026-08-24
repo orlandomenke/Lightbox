@@ -38,10 +38,45 @@ internal sealed class PsdLayerFixture
 
     public bool Visible { get; init; } = true;
 
-    public byte Clipping { get; init; }
-
-    /// <summary>Non-zero declares a layer mask, which the reader refuses.</summary>
+    /// <summary>
+    /// Raw bytes for a mask data block of a size the reader should not parse.
+    /// </summary>
+    /// <remarks>
+    /// The blunt instrument, kept for the hostile cases. Use <see cref="Mask"/>
+    /// for a real one.
+    /// </remarks>
     public int MaskLength { get; init; }
+
+    /// <summary>
+    /// Coverage bytes for a real layer mask, one per pixel of its own rectangle.
+    /// </summary>
+    /// <remarks>
+    /// A PSD mask's rectangle is independent of its layer's, which is the part
+    /// worth being able to test: reading the channel at the layer's stride instead
+    /// produces a plausible diagonally-smeared mask rather than a clear failure.
+    /// </remarks>
+    public byte[]? Mask { get; init; }
+
+    public int MaskLeft { get; init; }
+
+    public int MaskTop { get; init; }
+
+    public int MaskRight { get; init; }
+
+    public int MaskBottom { get; init; }
+
+    /// <summary>Coverage outside the mask rectangle: 255 shows, 0 hides.</summary>
+    public byte MaskOutside { get; init; } = 255;
+
+    /// <summary>Shift-clicked off in Photoshop, keeping the drawing.</summary>
+    public bool MaskDisabled { get; init; }
+
+    /// <summary>Photoshop's clipping byte: this layer clips to the one below.</summary>
+    public bool Clipping { get; init; }
+
+    public int MaskWidth => MaskRight - MaskLeft;
+
+    public int MaskHeight => MaskBottom - MaskTop;
 
     /// <summary>`lsct`: 1 opens a folder, 2 opens a collapsed one, 3 closes one.</summary>
     public int? SectionType { get; init; }
@@ -123,8 +158,27 @@ internal sealed class PsdLayerFixture
         if (Red is not null) blocks.Add(Encode(0, Red, depth, psb));
         if (Green is not null) blocks.Add(Encode(1, Green, depth, psb));
         if (Blue is not null) blocks.Add(Encode(2, Blue, depth, psb));
-        if (MaskLength > 0) blocks.Add(Encode(-2, Red ?? [], depth, psb));
+        if (Mask is not null) blocks.Add(EncodeMask(depth, psb));
+        else if (MaskLength > 0) blocks.Add(Encode(-2, Red ?? [], depth, psb));
         return blocks;
+    }
+
+    /// <summary>The mask channel, at the mask's own width rather than the layer's.</summary>
+    private ChannelBlock EncodeMask(int depth, bool psb)
+    {
+        var raw = depth == 16 ? Widen(Mask!) : Mask!;
+        var rowBytes = MaskWidth * (depth / 8);
+        var body = Compression switch
+        {
+            PsdCompression.Rle => RleRows(raw, rowBytes, MaskHeight, psb),
+            PsdCompression.Zip => PsdFixture.Zlib(raw),
+            PsdCompression.ZipPredicted => PsdFixture.Zlib(Predict(raw, rowBytes, depth)),
+            _ => raw,
+        };
+        var ms = new MemoryStream();
+        PsdFixture.U16(ms, (int)Compression);
+        ms.Write(body);
+        return new ChannelBlock(-2, ms.ToArray());
     }
 
     private ChannelBlock Encode(short id, byte[] samples, int depth, bool psb)
@@ -151,10 +205,13 @@ internal sealed class PsdLayerFixture
     /// A PSB writes each scanline length as an int32 where a PSD writes an int16.
     /// The fixture has to honour that or it cannot test that the reader does.
     /// </param>
-    private byte[] Rle(byte[] raw, int rowBytes, bool psb)
+    private byte[] Rle(byte[] raw, int rowBytes, bool psb) =>
+        RleRows(raw, rowBytes, Height, psb);
+
+    private static byte[] RleRows(byte[] raw, int rowBytes, int height, bool psb)
     {
         var rows = new List<byte[]>();
-        for (var y = 0; y < Height; y++)
+        for (var y = 0; y < height; y++)
         {
             var offset = y * rowBytes;
             var length = Math.Min(rowBytes, Math.Max(0, raw.Length - offset));

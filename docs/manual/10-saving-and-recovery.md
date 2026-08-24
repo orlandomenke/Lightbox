@@ -62,18 +62,23 @@ import has no path attached, and **Save** sends you to **Save as…**.
 RGB and greyscale files are read, at 8 or 16 bits per channel. A 16-bit file is
 brought down to 8, which is what Lightbox paints in, and the status line says so.
 
-**Lightbox refuses a PSD it cannot draw faithfully, and tells you exactly what to
-fix.** Masks, clipping masks, adjustment layers, fill layers, text layers, smart
-objects, layer effects and a folder that blends as a group all change what the
-pixels beneath them look like, and Lightbox has no model for any of them. Rather
-than opening a picture that is not the one you saved, it lists every feature it
-found, the layer carrying it, and the Photoshop menu path that flattens it. One
-trip back to Photoshop should be enough.
+**Layer masks and clipping masks come across.** A Photoshop mask becomes a
+Lightbox [layer mask](06-layers-selections-and-guides.md) — its coverage is the
+mask's coverage, at the rectangle Photoshop gave it, with whatever it said applies
+outside — and a mask switched off in Photoshop arrives switched off. A clipped
+layer arrives clipped to the layer below, which is the same rule Photoshop uses.
 
-This is a real limitation and not a small one: plenty of working files have an
-adjustment layer or a mask somewhere and will not open until it is flattened. The
-trade is deliberate — a drawing that silently comes in wrong is worse than one
-that does not come in yet.
+**Lightbox refuses a PSD it cannot draw faithfully, and tells you exactly what to
+fix.** Adjustment layers, fill layers, text layers, smart objects, layer effects,
+vector masks and a folder that blends as a group all change what the pixels
+beneath them look like in ways Lightbox has no model for. Rather than opening a
+picture that is not the one you saved, it lists every feature it found, the layer
+carrying it, and the Photoshop menu path that flattens it. One trip back to
+Photoshop should be enough.
+
+This is still a real limitation: a file with a Curves layer or a drop shadow will
+not open until those are flattened. The trade is deliberate — a drawing that
+silently comes in wrong is worse than one that does not come in yet.
 
 CMYK, Lab, indexed-colour and duotone files, and 32-bit HDR files, are refused
 the same way, with the **Image ▸ Mode** conversion that fixes them.

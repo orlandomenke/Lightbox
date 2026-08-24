@@ -526,17 +526,29 @@ it is re-rendered rather than recorded. What is missing is only presentation.
     application had ever written one. Invariant 1 is untouched: a frame is
     `baseline + strokes stamped on top`, so a PSD layer is a drawing to paint
     over and every mark added afterwards is still a stroke.
+  - **Masks and clipping are imported**, and they were refused for one day before
+    they were not. `main` landed layer masks and clipping (Q147/Q148) between this
+    branch starting and merging, and `LayerMask` holds an ordinary `Frame` — so a
+    PSD mask arrives exactly as a layer does, as baseline coverage, and
+    `ClipToBelow` already implements Photoshop's consecutive-clipped-layers rule.
+    A mask's rectangle is its own rather than its layer's, and what lies outside
+    it is a byte in the file rather than a convention; both matter, because
+    guessing either hides or reveals three quarters of somebody's drawing. This
+    is the single biggest reduction in what the refusal costs.
   - **The decision that shapes it (2026-08-24): a PSD using features Lightbox has
-    no model for is refused, by name, all at once.** Masks, clipping masks,
-    adjustment and fill layers, text, smart objects, layer effects and a folder
-    that blends as a group all change what the pixels beneath them look like. The
+    no model for is refused, by name, all at once.** Adjustment and fill layers,
+    text, smart objects, layer effects, vector masks and a folder that blends as
+    a group all change what the pixels beneath them look like. The
     alternative on the table was to take Photoshop's own flattened composite for
     those layers, which always *looks* right and silently discards the stack; the
     owner chose refusal instead. **The cost is real and was accepted knowingly**:
     plenty of production files have an adjustment layer or a mask somewhere and
     will not open until it is flattened. What makes it defensible is that the
     refusal is a list — every feature, the layer carrying it, and the Photoshop
-    menu path that fixes it — so one trip back should be enough.
+    menu path that fixes it — so one trip back should be enough. The mask work
+    above is also the pattern for shrinking it further: every refusal here is a
+    missing *model*, so each one Lightbox grows turns a refusal into an import
+    rather than needing the reader rewritten.
   - **Not built: export.** Declined for this pass in the same exchange, which
     leaves Lightbox able to read a Photoshop file and not hand one back — the
     half most artists will notice. Writing a PSD is markedly easier than reading

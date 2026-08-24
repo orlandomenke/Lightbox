@@ -383,6 +383,177 @@ public class PsdImportTests(ITestOutputHelper output)
         Assert.Contains(result.Notes, n => n.Contains("16 bits"));
     }
 
+    // ---- masks and clipping ---------------------------------------------------
+
+    [Fact]
+    public void APhotoshopMaskBecomesALightboxLayerMask()
+    {
+        var bytes = new PsdFixture
+        {
+            Width = 4,
+            Height = 4,
+            Layers =
+            {
+                new PsdLayerFixture
+                {
+                    Name = "Masked",
+                    Red = Enumerable.Repeat((byte)200, 16).ToArray(),
+                    Alpha = Enumerable.Repeat((byte)255, 16).ToArray(),
+                    Mask = [0, 255, 255, 0],
+                    MaskLeft = 1,
+                    MaskTop = 1,
+                    MaskRight = 3,
+                    MaskBottom = 3,
+                    MaskOutside = 255,
+                },
+            },
+        }.Build();
+
+        var layer = PsdDocumentImport.Open(bytes).Document.Scene.Layers[0];
+
+        Assert.NotNull(layer.Mask);
+        Assert.True(layer.IsMasked);
+        using var coverage = Lightbox.Raster.PngCodec.Decode(layer.Mask!.Frame.PngBase64!);
+        // Canvas-sized, the mask's own rect placed inside it, and the default
+        // coverage everywhere else.
+        Assert.Equal(4, coverage.Width);
+        Assert.Equal(0, coverage.GetPixel(1, 1).Alpha);
+        Assert.Equal(255, coverage.GetPixel(2, 1).Alpha);
+        Assert.Equal(255, coverage.GetPixel(0, 0).Alpha);
+    }
+
+    [Fact]
+    public void AMaskThatHidesEverythingOutsideItselfDoesSo()
+    {
+        // The half of the mask rectangle that is easy to get wrong: what applies
+        // beyond it. Assuming "shows" here would reveal three quarters of a
+        // drawing the artist had masked away.
+        var bytes = new PsdFixture
+        {
+            Width = 4,
+            Height = 4,
+            Layers =
+            {
+                new PsdLayerFixture
+                {
+                    Name = "Keyhole",
+                    Red = Enumerable.Repeat((byte)200, 16).ToArray(),
+                    Mask = [255],
+                    MaskRight = 1,
+                    MaskBottom = 1,
+                    MaskOutside = 0,
+                },
+            },
+        }.Build();
+
+        var layer = PsdDocumentImport.Open(bytes).Document.Scene.Layers[0];
+
+        using var coverage = Lightbox.Raster.PngCodec.Decode(layer.Mask!.Frame.PngBase64!);
+        output.WriteLine($"inside={coverage.GetPixel(0, 0).Alpha}, outside={coverage.GetPixel(3, 3).Alpha}");
+        Assert.Equal(255, coverage.GetPixel(0, 0).Alpha);
+        Assert.Equal(0, coverage.GetPixel(3, 3).Alpha);
+    }
+
+    [Fact]
+    public void ADisabledMaskArrivesDisabledRatherThanMissing()
+    {
+        var bytes = new PsdFixture
+        {
+            Layers =
+            {
+                new PsdLayerFixture
+                {
+                    Name = "Off",
+                    Red = Enumerable.Repeat((byte)9, 16).ToArray(),
+                    Mask = [128],
+                    MaskRight = 1,
+                    MaskBottom = 1,
+                    MaskDisabled = true,
+                },
+            },
+        }.Build();
+
+        var layer = PsdDocumentImport.Open(bytes).Document.Scene.Layers[0];
+
+        Assert.NotNull(layer.Mask);
+        Assert.True(layer.Mask!.Disabled);
+        Assert.False(layer.IsMasked);
+    }
+
+    [Fact]
+    public void AClippedPhotoshopLayerClipsToTheOneBelow()
+    {
+        var bytes = new PsdFixture
+        {
+            Layers =
+            {
+                PsdLayerFixture.Solid("Base", 10, 10, 10, a: 255),
+                new PsdLayerFixture
+                {
+                    Name = "Paint over base",
+                    Clipping = true,
+                    Red = Enumerable.Repeat((byte)200, 16).ToArray(),
+                },
+            },
+        }.Build();
+
+        var layers = PsdDocumentImport.Open(bytes).Document.Scene.Layers;
+
+        Assert.False(layers[0].IsClipped);
+        Assert.True(layers[1].IsClipped);
+    }
+
+    [Fact]
+    public void ADocumentWithNoMasksOrClippingWritesNeitherKey()
+    {
+        // Absent, not defaulted: a PSD that used neither must serialize exactly
+        // as it did before either was supported.
+        var bytes = new PsdFixture
+        {
+            Layers = { PsdLayerFixture.Solid("Plain", 1, 2, 3, a: 255) },
+        }.Build();
+
+        var doc = PsdDocumentImport.Open(bytes).Document;
+        var json = Lightbox.Core.Serialization.DocJson.Serialize(doc);
+
+        Assert.DoesNotContain("\"mask\"", json);
+        Assert.DoesNotContain("\"clipToBelow\"", json);
+        Assert.DoesNotContain("\"disabled\"", json);
+    }
+
+    [Fact]
+    public void AMaskSurvivesBeingSavedAndReopened()
+    {
+        var bytes = new PsdFixture
+        {
+            Width = 4,
+            Height = 4,
+            Layers =
+            {
+                new PsdLayerFixture
+                {
+                    Name = "Masked",
+                    Red = Enumerable.Repeat((byte)200, 16).ToArray(),
+                    Mask = [64, 128, 192, 255],
+                    MaskRight = 2,
+                    MaskBottom = 2,
+                    Clipping = true,
+                },
+            },
+        }.Build();
+
+        var doc = PsdDocumentImport.Open(bytes).Document;
+        var reloaded = Lightbox.Core.Serialization.DocJson.Deserialize(
+            Lightbox.Core.Serialization.DocJson.Serialize(doc));
+
+        var layer = reloaded.Scene.Layers[0];
+        Assert.True(layer.IsClipped);
+        Assert.NotNull(layer.Mask);
+        using var before = Lightbox.Raster.PngCodec.Decode(doc.Scene.Layers[0].Mask!.Frame.PngBase64!);
+        using var after = Lightbox.Raster.PngCodec.Decode(layer.Mask!.Frame.PngBase64!);
+        Assert.Equal(before.GetPixel(1, 1), after.GetPixel(1, 1));
+    }
+
     // ---- what it actually looks like ------------------------------------------
 
     /// <summary>

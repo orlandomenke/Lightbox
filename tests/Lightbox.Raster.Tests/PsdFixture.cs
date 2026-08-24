@@ -142,13 +142,12 @@ internal sealed class PsdFixture
         info.Write("8BIM"u8);
         info.Write(Encoding.ASCII.GetBytes(layer.BlendKey));
         info.WriteByte(layer.Opacity);
-        info.WriteByte(layer.Clipping);
+        info.WriteByte((byte)(layer.Clipping ? 1 : 0));
         info.WriteByte((byte)(layer.Visible ? 0 : 0x02));
         info.WriteByte(0); // filler
 
         var extra = new MemoryStream();
-        I32(extra, layer.MaskLength);
-        extra.Write(new byte[layer.MaskLength]);
+        WriteMaskData(extra, layer);
         I32(extra, 0); // blending ranges
         WritePascal(extra, layer.Name);
         if (layer.SectionType is not null) WriteTagged(extra, "lsct", Int32Bytes(layer.SectionType.Value));
@@ -158,6 +157,33 @@ internal sealed class PsdFixture
 
         I32(info, (int)extra.Length);
         extra.WriteTo(info);
+    }
+
+    /// <summary>
+    /// The layer mask data block: a rectangle, the coverage outside it, and flags.
+    /// </summary>
+    /// <remarks>
+    /// Twenty bytes, which is what Photoshop writes for an ordinary user mask.
+    /// The rectangle is the mask's own and deliberately settable apart from the
+    /// layer's, because the two differing is the case a reader gets wrong.
+    /// </remarks>
+    private static void WriteMaskData(Stream extra, PsdLayerFixture layer)
+    {
+        if (layer.Mask is null)
+        {
+            I32(extra, layer.MaskLength);
+            extra.Write(new byte[layer.MaskLength]);
+            return;
+        }
+
+        I32(extra, 20);
+        I32(extra, layer.MaskTop);
+        I32(extra, layer.MaskLeft);
+        I32(extra, layer.MaskBottom);
+        I32(extra, layer.MaskRight);
+        extra.WriteByte(layer.MaskOutside);
+        extra.WriteByte((byte)(layer.MaskDisabled ? 0x02 : 0));
+        extra.Write(new byte[2]); // padding to 20
     }
 
     private void WriteComposite(MemoryStream ms)

@@ -50,7 +50,9 @@ public sealed record PsdLayer(
     bool Visible,
     bool Locked,
     PsdLayerRole Role,
-    SKBitmap? Pixels)
+    SKBitmap? Pixels,
+    PsdMask? Mask = null,
+    bool ClipsToBelow = false)
 {
     public int Width => Right - Left;
 
@@ -58,6 +60,36 @@ public sealed record PsdLayer(
 
     /// <summary>Whether this entry brackets a folder rather than holding pixels.</summary>
     public bool IsGroupMarker => Role is not PsdLayerRole.Raster;
+}
+
+/// <summary>A Photoshop layer mask: coverage pixels at their own bounds.</summary>
+/// <param name="Coverage">
+/// One byte per pixel of coverage — Photoshop's greyscale mask channel, where
+/// white shows and black hides. Held as an alpha-only bitmap because that is
+/// what it means, and because Lightbox's own mask is coverage-as-alpha too.
+/// </param>
+/// <param name="OutsideCoverage">
+/// What applies beyond <see cref="Left"/>…<see cref="Bottom"/>. A PSD mask has
+/// its own rectangle, independent of the layer's, and the rest of the layer takes
+/// this default — so a mask smaller than its layer either reveals or hides
+/// everything around itself, and which one is a byte in the file rather than a
+/// guess.
+/// </param>
+/// <param name="Disabled">
+/// Shift-clicked off in Photoshop, keeping the drawing.
+/// </param>
+public sealed record PsdMask(
+    SKBitmap Coverage,
+    int Left,
+    int Top,
+    int Right,
+    int Bottom,
+    byte OutsideCoverage,
+    bool Disabled)
+{
+    public int Width => Right - Left;
+
+    public int Height => Bottom - Top;
 }
 
 /// <summary>A PSD read into memory: canvas size, layers bottom-first, composite.</summary>
@@ -98,7 +130,11 @@ public sealed record PsdImage(
     /// </remarks>
     public void Dispose()
     {
-        foreach (var layer in Layers) layer.Pixels?.Dispose();
+        foreach (var layer in Layers)
+        {
+            layer.Pixels?.Dispose();
+            layer.Mask?.Coverage.Dispose();
+        }
         Composite?.Dispose();
     }
 }

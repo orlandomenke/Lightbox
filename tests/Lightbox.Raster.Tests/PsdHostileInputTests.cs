@@ -56,17 +56,22 @@ public class PsdHostileInputTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void AMaskDeclaredOnlyByItsChannelIdIsStillRefused()
+    public void AMaskChannelWithNoRectangleIsStillRefused()
     {
         // maskLength = 0 in the extra data, but a genuine channel -2 carrying
         // mask pixels. Believing only the length field imported this as a plain
-        // opaque layer and threw the mask away without a word.
+        // opaque layer and threw the mask away without a word. Now that masks are
+        // read, this file is still refused — for the narrower and correct reason
+        // that its coverage has no rectangle to apply in.
         var bytes = BuildHostilePsd();
 
         var refused = Assert.Throws<PsdUnsupportedException>(() => PsdReader.Read(bytes));
 
+        // Masks themselves are imported now (Q147). What is still refused is a
+        // mask channel the file gave no rectangle for: coverage with no bounds
+        // could apply anywhere, so there is nothing faithful to do with it.
         var reason = Assert.Single(refused.Reasons);
-        Assert.Equal("A layer mask", reason.Feature);
+        Assert.Equal("A layer mask with no bounds recorded", reason.Feature);
         Assert.Equal("Attack", reason.LayerName);
     }
 

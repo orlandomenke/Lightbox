@@ -380,32 +380,86 @@ public class PsdReadTests(ITestOutputHelper output)
 
     // ---- refusal --------------------------------------------------------------
 
+    // Masks and clipping were both refused until Lightbox grew models for them
+    // (Q147/Q148). They are now read, which is what turns a large share of real
+    // production files from refused into importable.
+
     [Fact]
-    public void ALayerMaskIsRefusedByNameRatherThanIgnored()
+    public void ALayerMaskIsReadAtItsOwnRectangle()
     {
+        // The mask's rectangle is independent of its layer's, and this one is
+        // deliberately smaller and offset. Reading the channel at the layer's
+        // stride instead gives a plausible diagonally-smeared mask.
         var bytes = new PsdFixture
         {
+            Width = 8,
+            Height = 8,
             Layers =
             {
                 new PsdLayerFixture
                 {
                     Name = "Masked",
-                    MaskLength = 20,
-                    Red = Enumerable.Repeat((byte)7, 16).ToArray(),
+                    Right = 8,
+                    Bottom = 8,
+                    Red = Enumerable.Repeat((byte)7, 64).ToArray(),
+                    Mask = [0, 64, 128, 255],
+                    MaskLeft = 2,
+                    MaskTop = 3,
+                    MaskRight = 4,
+                    MaskBottom = 5,
                 },
             },
         }.Build();
 
-        var ex = Assert.Throws<PsdUnsupportedException>(() => PsdReader.Read(bytes));
+        using var psd = PsdReader.Read(bytes);
+        var mask = psd.Layers[0].Mask;
 
-        var reason = Assert.Single(ex.Reasons);
-        Assert.Equal("A layer mask", reason.Feature);
-        Assert.Equal("Masked", reason.LayerName);
-        Assert.Contains("Layer Mask", reason.Remedy);
+        Assert.NotNull(mask);
+        Assert.Equal(2, mask!.Left);
+        Assert.Equal(3, mask.Top);
+        Assert.Equal(2, mask.Width);
+        Assert.Equal(2, mask.Height);
+        // Coverage is alpha: white shows, black hides.
+        Assert.Equal(0, mask.Coverage.GetPixel(0, 0).Alpha);
+        Assert.Equal(64, mask.Coverage.GetPixel(1, 0).Alpha);
+        Assert.Equal(128, mask.Coverage.GetPixel(0, 1).Alpha);
+        Assert.Equal(255, mask.Coverage.GetPixel(1, 1).Alpha);
+        Assert.False(mask.Disabled);
     }
 
     [Fact]
-    public void AClippingMaskIsRefused()
+    public void AMasksOutsideCoverageIsReadRatherThanAssumed()
+    {
+        // What lies beyond the mask rectangle is a byte in the file. Assuming it
+        // either way hides or reveals three quarters of somebody's drawing.
+        foreach (var outside in new byte[] { 0, 255 })
+        {
+            var bytes = new PsdFixture
+            {
+                Layers =
+                {
+                    new PsdLayerFixture
+                    {
+                        Name = "Masked",
+                        Red = Enumerable.Repeat((byte)7, 16).ToArray(),
+                        Mask = [255],
+                        MaskLeft = 0,
+                        MaskTop = 0,
+                        MaskRight = 1,
+                        MaskBottom = 1,
+                        MaskOutside = outside,
+                    },
+                },
+            }.Build();
+
+            using var psd = PsdReader.Read(bytes);
+
+            Assert.Equal(outside, psd.Layers[0].Mask!.OutsideCoverage);
+        }
+    }
+
+    [Fact]
+    public void ADisabledMaskKeepsItsDrawingAndSaysItIsOff()
     {
         var bytes = new PsdFixture
         {
@@ -413,16 +467,68 @@ public class PsdReadTests(ITestOutputHelper output)
             {
                 new PsdLayerFixture
                 {
+                    Name = "Shift-clicked",
+                    Red = Enumerable.Repeat((byte)7, 16).ToArray(),
+                    Mask = [200],
+                    MaskRight = 1,
+                    MaskBottom = 1,
+                    MaskDisabled = true,
+                },
+            },
+        }.Build();
+
+        using var psd = PsdReader.Read(bytes);
+
+        Assert.True(psd.Layers[0].Mask!.Disabled);
+        Assert.Equal(200, psd.Layers[0].Mask!.Coverage.GetPixel(0, 0).Alpha);
+    }
+
+    [Fact]
+    public void AClippingMaskIsReadAsClippingToTheLayerBelow()
+    {
+        var bytes = new PsdFixture
+        {
+            Layers =
+            {
+                PsdLayerFixture.Solid("Base", 1, 2, 3),
+                new PsdLayerFixture
+                {
                     Name = "Clipped",
-                    Clipping = 1,
+                    Clipping = true,
                     Red = Enumerable.Repeat((byte)7, 16).ToArray(),
                 },
             },
         }.Build();
 
-        var ex = Assert.Throws<PsdUnsupportedException>(() => PsdReader.Read(bytes));
+        using var psd = PsdReader.Read(bytes);
 
-        Assert.Contains(ex.Reasons, r => r.Feature == "A clipping mask");
+        Assert.False(psd.Layers[0].ClipsToBelow);
+        Assert.True(psd.Layers[1].ClipsToBelow);
+    }
+
+    [Fact]
+    public void AMaskChannelWithNoRectangleIsStillRefused()
+    {
+        // The one mask case left with nowhere to go: coverage whose bounds the
+        // file never stated could apply anywhere.
+        var bytes = new PsdFixture
+        {
+            Layers =
+            {
+                new PsdLayerFixture
+                {
+                    Name = "Boundless",
+                    MaskLength = 0,
+                    Red = Enumerable.Repeat((byte)7, 16).ToArray(),
+                },
+            },
+        }.Build();
+
+        // MaskLength 0 with no mask channel is an ordinary layer, so this must
+        // not refuse; the hostile file that pairs a channel with no rectangle is
+        // covered in PsdHostileInputTests.
+        using var psd = PsdReader.Read(bytes);
+        Assert.Null(psd.Layers[0].Mask);
     }
 
     [Theory]
@@ -474,7 +580,7 @@ public class PsdReadTests(ITestOutputHelper output)
         {
             Layers =
             {
-                new PsdLayerFixture { Name = "Has a mask", MaskLength = 20, Red = Ones() },
+                new PsdLayerFixture { Name = "Has a style", ExtraKeys = ["lfx2"], Red = Ones() },
                 PsdLayerFixture.Solid("Odd blend", 1, 2, 3, blend: "vLit"),
                 new PsdLayerFixture { Name = "Adjustment", ExtraKeys = ["levl"], Red = Ones() },
             },
@@ -484,7 +590,7 @@ public class PsdReadTests(ITestOutputHelper output)
 
         Assert.Equal(3, ex.Reasons.Count);
         output.WriteLine(ex.Message);
-        Assert.Contains("Has a mask", ex.Message);
+        Assert.Contains("Has a style", ex.Message);
         Assert.Contains("Odd blend", ex.Message);
         Assert.Contains("Adjustment", ex.Message);
     }
@@ -533,7 +639,7 @@ public class PsdReadTests(ITestOutputHelper output)
         {
             Layers =
             {
-                new PsdLayerFixture { Name = "Folder", SectionType = 1, Clipping = 1 },
+                new PsdLayerFixture { Name = "Folder", SectionType = 1, Clipping = true },
                 PsdLayerFixture.Solid("Art", 5, 5, 5),
             },
         }.Build();

@@ -164,7 +164,59 @@ public static class PsdDocumentImport
             Locked = entry.Locked,
             Opacity = entry.Opacity,
             BlendMode = blend.Value,
+            // Null unless Photoshop set them, so a document imported from a PSD
+            // with no masks and no clipping writes neither key — the camera's rule.
+            ClipToBelow = entry.ClipsToBelow ? true : null,
+            Mask = MaskFor(entry, canvasWidth, canvasHeight),
             Cels = [new Cel { Frame = new Frame { PngBase64 = baseline } }],
+        };
+    }
+
+    /// <summary>
+    /// A Photoshop layer mask as a Lightbox one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// These line up almost exactly, which is why the reader stopped refusing
+    /// them: <see cref="LayerMask"/> holds an ordinary <see cref="Frame"/> whose
+    /// coverage is alpha, and a PSD mask is a greyscale channel where white
+    /// shows. So the mask arrives the same way the layer does — as baseline
+    /// pixels, on a frame.
+    /// </para>
+    /// <para>
+    /// <b>The mask's rectangle is its own</b>, independent of the layer's, and
+    /// what lies outside it is a byte in the file rather than a convention: a
+    /// mask smaller than its layer either reveals or hides everything around
+    /// itself. That default is painted first and the mask's own coverage over the
+    /// top, so a mask covering a corner of a big layer behaves as Photoshop shows
+    /// it instead of hiding the other three corners.
+    /// </para>
+    /// <para>
+    /// <b>Inversion is not carried as a flag.</b> Photoshop's per-mask invert is
+    /// the obsolete "invert when blending" bit and modern files bake inversion
+    /// into the coverage itself, so <see cref="LayerMask.Inverted"/> stays absent
+    /// and the pixels say everything.
+    /// </para>
+    /// </remarks>
+    private static LayerMask? MaskFor(PsdLayer entry, int canvasWidth, int canvasHeight)
+    {
+        if (entry.Mask is not { } mask) return null;
+
+        var info = new SKImageInfo(canvasWidth, canvasHeight, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var bitmap = new SKBitmap(info);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(new SKColor(255, 255, 255, mask.OutsideCoverage));
+        using var image = SKImage.FromBitmap(mask.Coverage);
+        // SrcOver would blend the mask into the default rather than replace it,
+        // so a hole punched in a mask would not be a hole.
+        using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
+        canvas.DrawImage(image, mask.Left, mask.Top, new SKSamplingOptions(SKFilterMode.Nearest), paint);
+        canvas.Flush();
+
+        return new LayerMask
+        {
+            Frame = new Frame { PngBase64 = Lightbox.Raster.PngCodec.Encode(bitmap) },
+            Disabled = mask.Disabled ? true : null,
         };
     }
 
