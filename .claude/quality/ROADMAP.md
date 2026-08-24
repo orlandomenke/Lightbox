@@ -395,6 +395,21 @@ the test needs relaxing.
     clip grades one silhouette, its opacity is strength, its eye switches it
     off. Its cels stay empty and nothing renders them; a document without
     one writes no key.
+- [x] Effects that vary by frame `evidence: DefaultOf, EffectShelf, AWiggleMovesTheMarkAndStaysPutForTheLengthOfItsHold, AFlickerDipsOutOfFullStrengthAndNeverAboveIt, TwoWigglesDoNotMoveInLockstep, ATimeSeededStackRebuildsPerFrameAndAStaticOneDoesNot, ATiledRepaintGrainsExactlyAsAWholeOneDoes, GrainDoesNotReRollWhenTheSurfaceScales, AWiggleBoilsWhileTheDrawingHolds`
+  - **The animation shelf's first inhabitants (Q159)**, and the design's
+    step 4: wiggle and flicker (native, either path — a wiggle over the whole
+    composite is a camera shake) and film grain (a `DeterministicHash` CPU
+    pass, so backdrop-only like HSL — the noise has to be ours, not Skia's,
+    or a library upgrade re-renders a finished film). Frequency is a **hold**
+    in frames rather than a rate, and the effect reads the playhead rather
+    than the drawing, so a cel held for three frames still boils.
+  - **Two traps the design named in advance, both real and both now pinned**:
+    the filter cache fingerprints on parameters *evaluated at the frame*, so
+    a frame-seeded effect was served frame 0's chain forever until
+    `TimeSeeded` put the frame in the fingerprint; and the CPU pass runs on a
+    clip-bounded readback in device pixels, so grain re-rolled on a bounded
+    repaint and again at 2× until the readback's origin and the device scale
+    travelled with it.
 - [x] Layer styles `evidence: EffectColorSpec, StyleFor, SelfStyle, ADropShadowFallsAwayFromTheLight, AnOuterGlowHalosTheSilhouetteAndAnInnerGlowStaysInside, AStrokeOutlinesWhereItsPositionSays, ABevelLightsTheEdgeFacingTheLight, AStyleDecoratesTheCarvedSilhouetteNotTheUnmaskedContent, AStyleIsOfferedOnlyWhereItHasASilhouette, TheMasterSwitchMutesTheStackWithoutTouchingItsUses, TheStackMasterSwitchSilencesEveryChainAndTheCacheFollows`
   - **Effect kinds on the layer's own stack (Q153), not a second record**:
     drop shadow, outer glow, inner glow, stroke, and the smooth bevel
