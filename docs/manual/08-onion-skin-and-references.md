@@ -69,7 +69,9 @@ pile of them, so counting ticks counts drawings.
 
 Where each tick sits comes from the drawing itself: a **pivot anchor** placed
 on the drawing (rig edit mode, `Ctrl+K`) if there is one, else the centre of
-the drawing's ink. A **filled** tick is an anchor — your own statement of where
+the drawing's ink — the ink that is *there*, so work you rubbed out does not
+drag the tick towards where it used to be, and neither does the eraser's own
+path. A **filled** tick is an anchor — your own statement of where
 the subject is; a **hollow** tick is the derived centre — a guess that wobbles
 with the silhouette. If an arc looks wrong on hollow ticks, anchor the drawings
 before trusting it. Sockets are ignored: a hand's attachment point is not where
