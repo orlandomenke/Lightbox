@@ -178,6 +178,7 @@ public sealed partial class EffectsViewModel : ObservableObject
     {
         "grade" => "Colour",
         "blur" => "Blur",
+        "detail" => "Detail",
         "style" => "Layer styles",
         "anim" => "Animation",
         _ => shelf,

@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4892
+budget: 4894
 
 ## Why it is here despite being XAML
 
@@ -218,6 +218,15 @@ leaves a number nobody can account for. So every reason above stays, and
   and row-template elements have nowhere else to live — the chip's *styles*
   went to `Controls.axaml` beside the mask chip's, and every handler is in
   `MainWindow.Layers.cs`.
+- **4,875 → 4,877**, for the `Save as image…` menu item. Two lines, and they buy
+  the only route to a feature: the command is registered in `ShortcutMap` and
+  dispatched from `MainWindow.CanvasViewTools`, so without a menu entry it exists
+  and is invisible to anybody who has not learned the key. The handler and the
+  file-picker work went into a new partial (`MainWindow.ImageSave.cs`) rather than
+  `MainWindow.axaml.cs`, which is itself at budget. Restated against the merged
+  baseline: measured alone this branch wanted 4,776, which was 4,774 + 2 against a
+  `main` that had since moved by 101 lines — taking that number would have reported
+  `main`'s growth as a violation.
 - **4,875 → 4,892** (2026-08-24, Q161): +17 for the line clipboard's three
   entries on the **Select** menu — copy, cut and paste of the selected lines —
   and the six-line comment saying why they are here and not beside the cel's
@@ -231,3 +240,10 @@ leaves a number nobody can account for. So every reason above stays, and
   visible to `MainMenuShapeTests`, which holds every Select entry to reaching a
   command. The feature's own 350 lines are in `StrokeClipboard.cs` and
   `MainViewModel.StrokeClipboard.cs`; these seventeen are the whole markup cost.
+- **→ remeasured on the merged tree** (2026-08-24). The two raises above both
+  left 4,875 on parallel branches — the image save wanted 4,877, the line
+  clipboard 4,892 — and neither figure is right for the tree they now share:
+  taking either banks the other's growth as headroom nobody earned. Both reasons
+  stay, because deleting one leaves a number nobody can account for, and
+  `ratchets.py remeasure` supplies the figure. This is the one moment that
+  script exists for.
