@@ -73,26 +73,64 @@ public class MediumPerformanceTests(ITestOutputHelper output)
         Assert.True(ms < 300, $"a watercolour commit took {ms:F0} ms (budget 300 ms)");
     }
 
+    /// <summary>
+    /// Invariant 6 for the expensive path: the lattice is sized to the region a
+    /// stroke can reach and capped, so simulating a mark must cost what the
+    /// mark costs rather than what the canvas around it costs.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This measures how each cost GROWS with the canvas, not how the two
+    /// compare at one size, and that is B308.</b> It used to subtract the same
+    /// stroke with no medium — <c>medium - plain</c> — and assert the remainder
+    /// was positive and did not grow. The subtraction was meant to remove the
+    /// compositing both strokes pay; what it actually did was compare a bounded
+    /// cost against an unbounded one and read the <em>sign</em> of the
+    /// difference.
+    /// </para>
+    /// <para>
+    /// The plain stroke is the dearer of the two on some machines, because it
+    /// pays the footprint ceiling — a pixel pass over the stroke's region, which
+    /// grows with the canvas — while the medium is excluded from that ceiling
+    /// and runs its simulation on a lattice that does not. Measured at
+    /// hardness 0.5, flow 0.9, spacing 0.08, both strokes 98 dabs: 720p medium
+    /// <b>114 ms</b> against plain <b>126 ms</b>; 4K medium <b>116 ms</b>
+    /// against plain <b>164 ms</b>. So <c>medium - plain</c> was <em>negative</em>
+    /// and the old sanity guard failed — on <c>main</c> as readily as on the
+    /// branch that found it, in Release, with no rendering change between them.
+    /// </para>
+    /// <para>
+    /// Those same numbers are what the invariant should have been read off all
+    /// along, and they make the point far more sharply than a difference does:
+    /// nine times the canvas area costs the medium <b>+2 ms</b> and the plain
+    /// stroke <b>+38 ms</b>. A lattice that started tracking the canvas would
+    /// have to out-grow the compositing to pass, which is exactly the failure
+    /// worth catching, and no absolute timing on any machine enters the
+    /// comparison.
+    /// </para>
+    /// </remarks>
     [Fact]
     public void TheMediumCostsTheSameOnAHugeCanvasAsOnASmallOne()
     {
-        // Invariant 6, for the expensive path. The lattice is sized to the
-        // region a stroke can reach and capped, so simulating a mark must cost
-        // what the mark costs — the canvas around it is Skia's problem and
-        // already measured elsewhere. Taking the difference against the same
-        // stroke with no medium is what isolates the simulation from the
-        // compositing that grows with the canvas.
         var medium = Mark(Watercolour(), 200, 14, 120);
         var plain = Mark(new MediumSettings(), 200, 14, 120);
 
-        var smallDelta = FastestMs(medium, 1280, 720) - FastestMs(plain, 1280, 720);
-        var hugeDelta = FastestMs(medium, 3840, 2160) - FastestMs(plain, 3840, 2160);
-        output.WriteLine($"medium's own cost: {smallDelta:F1} ms at 720p, {hugeDelta:F1} ms at 4K");
+        var mediumGrowth = FastestMs(medium, 3840, 2160) - FastestMs(medium, 1280, 720);
+        var plainGrowth = FastestMs(plain, 3840, 2160) - FastestMs(plain, 1280, 720);
+        output.WriteLine(
+            $"nine times the area costs the medium {mediumGrowth:+0.0;-0.0} ms "
+            + $"and the plain stroke {plainGrowth:+0.0;-0.0} ms");
 
-        Assert.True(smallDelta > 1, "the medium cost nothing measurable — the test is not measuring it");
-        Assert.True(hugeDelta < smallDelta * 3 + 20,
-            $"the medium got {hugeDelta / smallDelta:F1}x dearer on a canvas 9x the area — " +
-            "it is tracking the canvas, not the stroke");
+        // The compositing that grows with the canvas is what the plain stroke
+        // is here to price, and the medium pays it too. What must not appear is
+        // a *second* canvas-proportional term from the simulation, so the
+        // medium's growth is allowed the plain stroke's and a fixed margin for
+        // a loaded runner — and nothing more.
+        Assert.True(
+            mediumGrowth < plainGrowth + 25,
+            $"nine times the canvas area cost the medium {mediumGrowth:F1} ms against the "
+            + $"plain stroke's {plainGrowth:F1} ms — the lattice is tracking the canvas, "
+            + "not the stroke");
     }
 
     [Fact]
