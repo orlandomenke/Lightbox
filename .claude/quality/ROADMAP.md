@@ -358,13 +358,20 @@ the test needs relaxing.
     project. `PsdWriter` and `APsdRoundTripsThroughPhotoshopWithItsLayers` are
     the anchors that will resolve when it lands, and they deliberately do not
     resolve today.
-  - **Baselines are canvas-sized**, which is the one place the import pays more
-    than it should: `FrameRasterizer.Materialize` draws a baseline stretched over
-    the whole canvas, so a layer stored at its own smaller bounds would be scaled
-    up to fill the frame. A nullable rect beside the baseline is the better
-    answer and changes a type `ImageResize`, `Crop`, `Transform` and `LayerMerge`
-    all read, so it was kept as a follow-up. PNG collapses the transparent
-    margin, so the file stays reasonable and only decode time and memory pay.
+  - **Baselines are canvas-sized**, because `FrameRasterizer.Materialize` draws a
+    baseline stretched over the whole canvas, so a layer stored at its own
+    smaller bounds would be scaled up to fill the frame. A nullable rect beside
+    the baseline is the better answer and changes a serialized type that
+    `ImageResize`, `Crop`, `Transform` and `LayerMerge` all read, so it was kept
+    as a follow-up — **B301**, cost M.
+  - **What that costs was measured rather than asserted, and half the assertion
+    was wrong.** The claim written down at the time was "only decode time and
+    memory pay". The file-size half held up completely: PNG and gzip crush the
+    transparent margin, so a 12-layer 4K import is 12 KB on disk. The time half
+    did not — reading the PSD is 1–3% of the work and building the baselines is
+    the rest, which is about four seconds for that file. PNG compression level
+    is the obvious lever and is not one. `PsdImportCostTests` holds the numbers
+    and a loose budget so the attribution cannot quietly invert.
   - **The fixtures are the part worth copying.** There is no Photoshop here, so
     the test PSDs are built in C# as the brush-format tests already build `.abr`
     and `.gbr` — and then cross-checked against `psd_tools`, an independent
