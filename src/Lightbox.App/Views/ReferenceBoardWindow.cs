@@ -697,7 +697,7 @@ public sealed class ReferenceBoardWindow : Window
 
     /// <summary>
     /// The browser counterpart: a picture dragged off a web page carries URIs
-    /// rather than files. Every format the drag holds is read (B293), because
+    /// rather than files. Every format the drag holds is read (B294), because
     /// which one carries the address is a matter of browser and platform.
     /// </summary>
     private static IReadOnlyList<Uri> DroppedWebImages(DragEventArgs e)
@@ -778,7 +778,7 @@ public sealed class ReferenceBoardWindow : Window
             }
         }
 
-        // Last: the picture the drag was carrying itself, if it had one (B293).
+        // Last: the picture the drag was carrying itself, if it had one (B294).
         // Behind the fetch because it may be a thumbnail, in front of a refusal
         // because a thumbnail on the wall beats nothing on the wall.
         if (Services.WebImageDrop.EmbeddedImageIn(e.DataTransfer) is { } embedded
@@ -789,7 +789,7 @@ public sealed class ReferenceBoardWindow : Window
         }
 
         // What it was carrying goes to the log, because the format names are the
-        // whole diagnosis and no one can report them from memory (B293).
+        // whole diagnosis and no one can report them from memory (B294).
         Services.DiagnosticLog.WriteNote(
             "reference-board-drop", "carried " + Services.WebImageDrop.DescribeFormats(e.DataTransfer));
         Say(uris.Count > 0

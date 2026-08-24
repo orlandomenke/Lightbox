@@ -389,6 +389,10 @@ public static class EffectRegistry
             SKImageFilter? overlay = null;
             foreach (var use in stack.Uses)
             {
+                // The stack's own switch mutes every use at once (Q158);
+                // the App paths already gate on AppliesAnything, this keeps
+                // a direct caller honest too.
+                if (stack.Disabled == true) break;
                 if (!use.Applies) continue;
                 if (Resolve(use.Kind) is not { } def) continue;
                 if (def.Style is { } style)
@@ -491,6 +495,7 @@ public static class EffectRegistry
     {
         var hash = new HashCode();
         hash.Add(scale);
+        hash.Add(stack.Disabled == true);
         foreach (var use in stack.Uses)
         {
             hash.Add(use.Kind);
@@ -519,7 +524,7 @@ public static class EffectRegistry
     /// </summary>
     public static double ReachOf(EffectStack? stack, int frame)
     {
-        if (stack is null) return 0;
+        if (stack is null || stack.Disabled == true) return 0;
         var reach = 0.0;
         foreach (var use in stack.Uses)
         {

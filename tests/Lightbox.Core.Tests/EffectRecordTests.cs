@@ -48,6 +48,29 @@ public class EffectRecordTests
     }
 
     [Fact]
+    public void TheStackMasterSwitchMutesEverythingAndStaysAbsentWhileOn()
+    {
+        // Q158: one click off, without touching any use's own switch — so
+        // five tuned styles come back exactly as they were.
+        var doc = NewDoc();
+        var stack = new EffectStack { Uses = [new EffectUse { Kind = "grade.levels" }] };
+        ArtLayer(doc).Effects = stack;
+
+        Assert.True(stack.AppliesAnything);
+        Assert.True(ArtLayer(doc).HasLiveEffects);
+        Assert.DoesNotContain("\"disabled\"", DocJson.Serialize(doc)); // absent while it runs
+
+        stack.Disabled = true;
+        Assert.False(stack.AppliesAnything);
+        Assert.False(ArtLayer(doc).HasLiveEffects);
+        Assert.True(stack.Uses[0].Applies); // the use's own switch untouched
+
+        var back = DocJson.Deserialize(DocJson.Serialize(doc));
+        Assert.True(ArtLayer(back).Effects!.Disabled);
+        Assert.False(ArtLayer(back).HasLiveEffects);
+    }
+
+    [Fact]
     public void AnAuthoredColourRoundTripsAndCloneDoesNotShareIt()
     {
         var doc = NewDoc();

@@ -199,7 +199,7 @@ public partial class MainWindow
             _vm.ReferenceDockerVisible = true;
             return;
         }
-        // Last: the picture the drag was carrying itself (B293). Behind the
+        // Last: the picture the drag was carrying itself (B294). Behind the
         // fetch because it may be a thumbnail, in front of a refusal because a
         // thumbnail to draw against beats no reference at all.
         if (embedded is not null && _vm.ImportReferenceImageBytes("Web image", embedded))
@@ -211,7 +211,7 @@ public partial class MainWindow
 
         // Every candidate failed — refused by the site, or a page that names
         // no image Lightbox can read. What the drag carried goes to the log,
-        // because the format names are the whole diagnosis (B293).
+        // because the format names are the whole diagnosis (B294).
         Services.DiagnosticLog.WriteNote(
             "reference-drop", "carried " + Services.WebImageDrop.DescribeFormats(data));
         _vm.AiStatus = "That drop did not contain an image Lightbox could read — what it did carry is "
@@ -231,7 +231,7 @@ public partial class MainWindow
         // meant a picture the file half could not open was refused outright.
         // The drop tries files first and only asks here when none worked.
         //
-        // Every format the drag holds is read (B293): asking for three format
+        // Every format the drag holds is read (B294): asking for three format
         // names is an X11 spelling, and a browser on another platform spells
         // the same three things differently.
         return Services.WebImageDrop.ImageUrisIn(e.DataTransfer);

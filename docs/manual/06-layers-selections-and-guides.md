@@ -277,6 +277,20 @@ in. A live stroke grows its layer's glow as you draw it, and merging a
 styled layer down bakes the style into the merged pixels — exactly what the
 canvas showed.
 
+**The quickest way in is the layer row itself**: right-click → **Layer
+style** and pick a style — it lands on that layer and the Effects panel
+opens with its sliders in hand. A layer carrying any effects wears a small
+***fx* chip** beside its thumbnail; click it to jump to the panel.
+
+**Everything here is a setting, and everything switches off.** Each effect
+has its own checkbox in the panel, and the whole stack has a **master
+switch** — the checkbox at the top of the panel, or **Layer style →
+Disable effects** on the row. One click silences every effect on the layer
+while keeping each one's own on/off and every slider exactly as you tuned
+them; the fx chip goes hollow, the way a disabled mask's chip does. There
+is no destructive version of any of this — the only thing that ever bakes
+an effect into pixels is *Merge down*, which says so first.
+
 **Adjustment layers** are the third place, and the one Photoshop users will
 reach for: right-click a layer → **New adjustment layer** (or use the
 buttons in the Effects panel) and a layer with no drawing of its own lands

@@ -240,7 +240,36 @@ public sealed partial class EffectsViewModel : ObservableObject
         AddChoices = [.. EffectRegistry.All
             .Where(d => selfStack ? !d.BackdropOnly : !d.SelfOnly)
             .Select(d => new EffectChoice(d.Kind, d.Name))];
+        StackExists = stack is not null;
+        _syncingStack = true;
+        StackEnabled = stack is not { Disabled: true };
+        _syncingStack = false;
         Select(Uses.FirstOrDefault(r => r.Use.Id == selectedId) ?? Uses.FirstOrDefault());
+        // The rows' fx chips mirror the stacks this panel edits.
+        _owner.SyncMaskRows();
+    }
+
+    /// <summary>Whether the edited target currently has a stack at all — gates the master switch.</summary>
+    [ObservableProperty]
+    private bool _stackExists;
+
+    private bool _syncingStack;
+
+    /// <summary>
+    /// The stack's master switch (Q158), as the panel header's checkbox:
+    /// everything off in one click, every use's own switch untouched.
+    /// </summary>
+    [ObservableProperty]
+    private bool _stackEnabled = true;
+
+    partial void OnStackEnabledChanged(bool value)
+    {
+        if (_syncingStack || TargetStack(create: false) is not { } stack) return;
+        if ((stack.Disabled == true) == !value) return;
+        _owner.PanelEditor.Perform(_ => stack.Disabled = value ? null : true,
+            label: value ? "Enable effects" : "Disable effects",
+            frameContentUnchanged: true);
+        Rebuild();
     }
 
     internal void Select(EffectUseRow? row)

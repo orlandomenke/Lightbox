@@ -2300,7 +2300,7 @@ test reopens the bug.
 
 ### ui
 
-- [x] **B293** `P1` `ui` A browser drag whose formats are not the three we ask for reads as an empty drop `evidence: DragPayloadFormatTests, AWindowsBrowserDragIsReadThroughItsOwnFormatNames, APictureCarriedInTheDragIsFoundWhateverFormatHoldsIt`
+- [x] **B294** `P1` `ui` A browser drag whose formats are not the three we ask for reads as an empty drop `evidence: DragPayloadFormatTests, AWindowsBrowserDragIsReadThroughItsOwnFormatNames, APictureCarriedInTheDragIsFoundWhateverFormatHoldsIt`
   - Reported 2026-08-24, Pinterest as the site: *"sometimes I am able to drag and drop an image but oftentimes Lightbox states: that drop had no picture in it that Lightbox could read."* That message is the no-candidates branch — not a fetch that failed, but a drag that read as carrying **nothing at all**.
   - **The three format names were an X11 spelling.** `text/uri-list`, `text/html` and the text member are what a Linux browser offers; Windows offers `UniformResourceLocatorW` (UTF-16, trailing NUL) and `HTML Format` (CF_HTML, a header in front of the fragment), macOS `public.url` and `public.html`, Firefox `text/x-moz-url`. Asked for by name, a drag spelled any other way yielded no candidates. It worked when the browser *also* offered a real local file — B282's half — and not otherwise, which is exactly the reported "sometimes".
   - **P1 rather than P2**, unlike its two predecessors: those cost a second drag or a page-URL resolution, this one made the feature unusable on the reporter's main platform for its main use.

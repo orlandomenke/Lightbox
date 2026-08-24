@@ -81,8 +81,16 @@ public sealed class EffectStack
 {
     public List<EffectUse> Uses { get; set; } = [];
 
+    /// <summary>
+    /// The whole stack switched off in one click — Photoshop's eye on the
+    /// Effects group — without touching any use's own switch, so five
+    /// tuned styles come back exactly as they were. Null, and absent from
+    /// the file, while it runs (Q158).
+    /// </summary>
+    public bool? Disabled { get; set; }
+
     /// <summary>Whether anything in the stack currently applies. Derived; never serialized.</summary>
-    [JsonIgnore] public bool AppliesAnything => Uses.Exists(u => u.Applies);
+    [JsonIgnore] public bool AppliesAnything => Disabled != true && Uses.Exists(u => u.Applies);
 
     /// <summary>A copy holding no reference in common with this one.</summary>
     public EffectStack Clone()

@@ -54,6 +54,30 @@ public class EffectRegistryTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void TheStackMasterSwitchSilencesEveryChainAndTheCacheFollows()
+    {
+        // Q158: one switch over the whole stack — self chain, style chain,
+        // backdrop program and reach all go quiet, and come back rebuilt.
+        var stack = Stack(
+            Use("grade.levels", ("gamma", 2.0)),
+            Use("style.outerGlow"),
+            Use("blur.gaussian", ("radius", 6.0)));
+        Assert.NotNull(EffectRegistry.FilterFor(stack, 0));
+        Assert.NotNull(EffectRegistry.StyleFor(stack, 0));
+
+        stack.Disabled = true;
+        Assert.Null(EffectRegistry.FilterFor(stack, 0));
+        Assert.Null(EffectRegistry.StyleFor(stack, 0));
+        Assert.Null(EffectRegistry.ProgramFor(stack, 0));
+        Assert.Equal(0, EffectRegistry.ReachOf(stack, 0));
+
+        stack.Disabled = null;
+        Assert.NotNull(EffectRegistry.FilterFor(stack, 0));
+        // The glow's 12 (1.5 × its default size 8) plus the blur's 9.
+        Assert.Equal(21, EffectRegistry.ReachOf(stack, 0));
+    }
+
+    [Fact]
     public void ADisabledUseDoesNothing()
     {
         var use = Use("grade.hsl", ("saturation", -100));

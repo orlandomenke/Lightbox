@@ -689,6 +689,17 @@
     <Setter Property="BorderBrush" Value="{StaticResource AccentCyanBrush}" />
     <Setter Property="BorderThickness" Value="2" />
   </Style>
+  <!-- The fx chip: the mask chip's pattern for the effect stack — filled
+       while the stack runs, hollow while its master switch is off (Q158). -->
+  <Style Selector="Border.fxChip">
+    <Setter Property="BorderBrush" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Background" Value="{StaticResource FieldGroundHoverBrush}" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Border.fxChip.disabledFx">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
   <!--
     A clipped layer indents behind an accent bar, Photoshop's own visual: the
     bar says "this rides on the layer below". 10px because it is an indent,
