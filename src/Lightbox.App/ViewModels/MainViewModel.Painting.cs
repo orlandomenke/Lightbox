@@ -1166,7 +1166,13 @@ public partial class MainViewModel
         brush.Medium.Kind != MediumKind.None
         || brush.WetEdge > 0
         || brush.TextureSurface is not null
-        || brush.Granulation > 0;
+        || brush.Granulation > 0
+        // A soft brush's footprint ceiling belongs here for the same reason the
+        // others do: it is a property of the whole mark, not of a segment. The
+        // dabs the fast path lays down are the ceiling's *input*, so capping
+        // them incrementally would feed a clamped value back into the next
+        // event's accumulation. Q157, and B293 is the fast-path version.
+        || BrushEngine.NeedsFootprintCap(brush);
 
     public void BeginStroke(double x, double y, double pressure) =>
         BeginStroke(x, y, pressure, eraseWithCurrentBrush: false);

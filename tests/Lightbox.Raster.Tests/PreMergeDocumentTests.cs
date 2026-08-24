@@ -53,8 +53,15 @@ namespace Lightbox.Raster.Tests;
 public class PreMergeDocumentTests(ITestOutputHelper output)
 {
     /// <summary>Rendered by the two-class build at <c>5855b80</c>, linux-x64, .NET 10.</summary>
-    private const string PaintedFingerprint = "C2126E1DDDBA54A31004B0A7FE8A578CFA4E0F2B97BC44E5DF10B80D553A8C71";
-    private const string VectorFingerprint = "31B6F02EA6B633652B8A271E64A986FD02793BC3DA76FB12A7EC7B14134EB9BD";
+    // Re-recorded 2026-08-24, and BOTH moved, which is the diagnosis this test
+    // asks for: both layers of the fixture are drawn with soft brushes, and a
+    // soft brush's mark is now held down to its own footprint (Q157,
+    // BrushEngine.NeedsFootprintCap) instead of saturating to about twice the
+    // hardness it was set to. This is a document saved by an older build, so it
+    // is exactly the "existing art re-renders" case Q157 decided to accept —
+    // the old pixels were the defect, not the reference.
+    private const string PaintedFingerprint = "E2DE1036E18DBCF626BC5AAD1C97FF69996CB1F05BABEA95B387BB133550ECDD";
+    private const string VectorFingerprint = "E3138AD033DE49ADDC1793562D4BF5B2AB992A7B86BC164F240BB1D0D798872F";
 
     private static Doc Load() => DocJson.Deserialize(
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "pre-merge-document.lightbox.json")));

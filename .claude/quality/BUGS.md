@@ -142,6 +142,21 @@ which is a weak test and still far better than none.
 
 ### brush
 
+- [ ] **B293** `P2` `brush` A soft brush's footprint ceiling runs in the live post-process, so its mark converges a fraction behind the pen instead of being exact under it `evidence: tests/Lightbox.App.Tests/SoftBrushLiveIsExactTests.cs`
+  - Found while fixing the hardness defect (Q157) and measured before shipping it. A soft brush's mark is now held down to the brush's own footprint, and that ceiling is a property of the **whole mark**: the dabs the fast path lays down are its input, so capping them in place would feed a clamped value back into the next event's accumulation. It therefore joins medium, wet edge, texture and granulation in `NeedsLivePostProcess`.
+  - **The consequence is a promise weakened, not a mark made worse.** `docs/manual/03-tools-and-strokes.md` says the mark under the pen is the mark you will have, with blur the one exception; a soft brush is now a second. What the artist sees under the pen is exactly what they saw before this change — uncapped dabs — and it converges to the correct, softer mark a fraction behind. So nothing regressed against today; what regressed is *exactness under the pen*, which soft brushes had and no longer do.
+  - Cost of the ceiling on a whole-mark render, 2000 px arc at 2000×800, hardness 0.35:
+
+    | size | without | with |
+    | --- | --- | --- |
+    | 12 | 25.7 ms | 39.9 ms |
+    | 30 | 33.0 ms | 47.4 ms |
+    | 80 | 46.4 ms | 87.0 ms |
+
+    So 1.44–1.87×, and the reason is that every dab is drawn twice — once for the mark, once for the footprint — plus one span pass. Too much for the per-event fast path, which is why it went where the other stroke-global passes are.
+  - **The fix is to make the footprint cheap rather than to move it.** A footprint is the falloff as a function of distance from the centreline, so it does not need one draw per dab: the stroke's path stroked at a handful of decreasing widths, outermost first, describes the same field in ~32 draws instead of ~2000, with no max-accumulation needed because the bands nest by construction. That is an approximation of the falloff and would need its own measurement against the exact version this ships, which is why it is not bolted onto this branch.
+  - **Filed rather than fixed** because it is a second objective on a branch whose first was the hardness defect. Cost: M.
+
 - [ ] **B292** `P2` `brush` The silhouette outline is rebuilt from every dab on every pointer event, doubling the live cost of inking a long stroke `evidence: tests/Lightbox.App.Tests/SilhouetteCacheCostTests.cs`
   - Found while fixing the dab-saturation defect (Q156) and measured before shipping it rather than after. A hard-edged brush now draws its whole mark as one shape, and `BrushEngine.BuildSilhouette` derives that outline from the entire dab list — so the commit gains and the live preview pays, because the preview re-presents the mark on every pointer event.
   - Measured on a 2000 px arc at 2560×1440, Display quality, per pointer event at 400 events:
