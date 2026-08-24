@@ -434,6 +434,76 @@ public class EffectRegistryTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void NoFilterChangesTheAlphaItWasGiven()
+    {
+        // Every fixture in this file was opaque until the adversary review
+        // pointed out that both primitives the detail filters are built from
+        // move alpha on their own: a blend-mode filter composites alpha
+        // Porter-Duff "over" whatever its colour blend is (a half-transparent
+        // fill came out of Find edges at 192 instead of 128), and an
+        // arithmetic filter applies its coefficients to alpha too (an unsharp
+        // mask dipped a soft alpha edge from 128 to 86). Both are invisible
+        // on an opaque test and obvious on a half-opacity stroke.
+        foreach (var use in new[]
+                 {
+                     Use("detail.sharpen", ("amount", 100.0), ("radius", 2.0)),
+                     Use("detail.edges", ("radius", 2.0)),
+                     Use("grade.invert"),
+                     Use("grade.threshold"),
+                     Use("grade.posterize"),
+                     Use("grade.gradientMap"),
+                 })
+        {
+            // A flat half-transparent fill keeps its alpha exactly.
+            using var flat = Solid(new SKColor(150, 90, 40, 128));
+            using var filtered = Through(flat, Stack(use));
+            var alpha = filtered.GetPixel(4, 4).Alpha;
+            output.WriteLine($"{use.Kind}: flat 128 -> {alpha}");
+            Assert.True(Math.Abs(alpha - 128) <= 2,
+                $"{use.Kind} moved a flat's alpha from 128 to {alpha}");
+        }
+
+        // And a soft alpha edge — half-opacity beside full — keeps both
+        // sides. This is the shape a feathered stroke or a soft eraser
+        // leaves behind, and the one the arithmetic filter distorted.
+        var soft = new SKBitmap(16, 16, SKColorType.Rgba8888, SKAlphaType.Premul);
+        soft.Erase(new SKColor(150, 90, 40, 128));
+        using (var canvas = new SKCanvas(soft))
+        using (var paint = new SKPaint { Color = new SKColor(150, 90, 40, 255) })
+        {
+            canvas.DrawRect(SKRect.Create(8, 0, 8, 16), paint);
+            canvas.Flush();
+        }
+        foreach (var kind in new[] { "detail.sharpen", "detail.edges" })
+        {
+            using var filtered = Through(soft, Stack(Use(kind, ("radius", 2.0))));
+            var dim = filtered.GetPixel(6, 8).Alpha;
+            var solid = filtered.GetPixel(13, 8).Alpha;
+            output.WriteLine($"{kind}: soft edge 128 -> {dim}, 255 -> {solid}");
+            Assert.True(Math.Abs(dim - 128) <= 3, $"{kind} dipped the soft side to {dim}");
+            Assert.True(solid >= 252, $"{kind} thinned the solid side to {solid}");
+        }
+
+        // A transparent region stays transparent: a filter that fills one in
+        // turns a layer into its own bounding box.
+        using var block = new SKBitmap(16, 16, SKColorType.Rgba8888, SKAlphaType.Premul);
+        block.Erase(SKColors.Transparent);
+        using (var canvas = new SKCanvas(block))
+        using (var paint = new SKPaint { Color = SKColors.White })
+        {
+            canvas.DrawRect(SKRect.Create(0, 0, 8, 16), paint);
+            canvas.Flush();
+        }
+        foreach (var kind in new[] { "detail.sharpen", "detail.edges" })
+        {
+            using var filtered = Through(block, Stack(Use(kind, ("radius", 2.0))));
+            output.WriteLine($"{kind}: outside the drawing -> {filtered.GetPixel(12, 8).Alpha}");
+            Assert.Equal(0, filtered.GetPixel(12, 8).Alpha);
+        }
+        soft.Dispose();
+    }
+
+    [Fact]
     public void ThresholdIsTwoTonedThroughLuminanceNotPerChannel()
     {
         // A mid grey either side of the level, and — the trap — a saturated
