@@ -372,6 +372,32 @@ the test needs relaxing.
     the rest, which is about four seconds for that file. PNG compression level
     is the obvious lever and is not one. `PsdImportCostTests` holds the numbers
     and a loose budget so the attribution cannot quietly invert.
+  - **The reader's safety was claimed, then refuted four ways** by an adversarial
+    pass on the same day, and all four are worth knowing because the existing
+    thirty-five tests — a byte-by-byte truncation fuzz among them — caught none
+    of them. Three were one shape: an attacker-controlled 64-bit PSB length
+    surviving a bounds check and truncating to a negative `int`, after which
+    `Pos + count <= End` is true for every count and the "bounds check" is not
+    one. `PsdCursor.Has` now compares by subtraction, `PsdCursor.Pos` refuses to
+    leave its section at all, and `PackBits` accumulates its scanline cursor in
+    64 bits — three fixes rather than one, because each closes the hole at a
+    different distance from the caller.
+  - **The fourth was the interesting one, and it was a refusal bypass rather than
+    a crash.** A layer mask is announced *twice* in a PSD — a length field in the
+    layer's extra data, and a channel id in its channel table. The reader
+    believed only the first, so a layer carrying real mask pixels with
+    `maskLength = 0` imported as a plain opaque layer and silently threw the mask
+    away: exactly the failure refusing exists to prevent, reached from the side
+    nobody was watching. `PsdHostileInputTests` is the regression suite, and the
+    lesson generalises — a fuzz that only truncates well-formed files never
+    corrupts a length into a value that survives the check.
+  - **A per-layer memory ceiling turned out not to be a ceiling.** Layer bounds
+    are independent of the canvas, so a 4×4 document declared four 10,000×7,000
+    layers — each under any generous per-layer cap — and asked for about 3 GB
+    from an 800 KB file. The bound that actually prices the suspicious thing is
+    the *ratio*: content past the canvas edge is ordinary in Photoshop and
+    ordinary by a small margin, so a layer is capped at four times the canvas
+    area with a floor for small documents, and a running total backs it up.
   - **The fixtures are the part worth copying.** There is no Photoshop here, so
     the test PSDs are built in C# as the brush-format tests already build `.abr`
     and `.gbr` — and then cross-checked against `psd_tools`, an independent

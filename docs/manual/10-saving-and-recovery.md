@@ -26,6 +26,7 @@ one image.
 | **Format** | **PNG** keeps transparency and loses nothing — the right answer for artwork, and the default. **JPEG** is smaller, lossy, and **has no transparency at all**. **WebP** is lossy *and* keeps transparency, which is why it is here. |
 | **Quality** | 1–100, for JPEG and WebP. Absent on PNG rather than greyed out, because PNG has no such setting. |
 | **Size** | A percentage of the document. A larger render draws the strokes onto a larger surface rather than enlarging pixels, so 200 % is genuinely sharper — the same promise the video export makes. |
+| **Fill with** | Only for a format with no transparency. The colour that shows through where the drawing is see-through — white unless you change it, which is what you want unless you are matting a sprite onto something specific. |
 | **Every frame** | Only on a document with more than one frame. Writes `name_0001.png`, `name_0002.png` and so on beside the name you chose. |
 
 Whatever the timeline is showing is what gets written, and with a camera in the
@@ -37,6 +38,12 @@ see-through areas and the dialog says so before you save, because a character on
 transparent paper saved as JPEG comes back on a solid white box. If you save
 anyway the empty areas are filled with white rather than turning black, and the
 status line afterwards says it happened.
+
+**The extension you type wins over the format you picked.** Leave the format on
+PNG and save as `cover.jpg` and you get a JPEG — typing the extension is the more
+deliberate of the two choices. The dialog's warning cannot see that coming, so in
+that case the status line after the save is where you are told the transparency
+went.
 
 **Why not TIFF, GIF, BMP or PSD?** The image library Lightbox uses has encoders
 for exactly these three formats and no others, so the rest would be menu entries

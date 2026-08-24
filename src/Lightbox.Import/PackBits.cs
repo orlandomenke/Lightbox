@@ -75,9 +75,14 @@ internal static class PackBits
         var pixels = new byte[(int)total];
         for (var row = 0; row < height; row++)
         {
+            // Long arithmetic: a PSB scanline length is a full int32 an artist did
+            // not write, and `pos + length` in 32 bits wraps negative for a large
+            // one — which passes a "too big?" test and then indexes the array with
+            // the negative result on the following row.
             var src = pos;
-            var srcEnd = pos + rowLengths[row];
-            if (srcEnd > data.Length || srcEnd > limit) return null;
+            var end = (long)pos + rowLengths[row];
+            if (end > data.Length || end > limit || end < pos) return null;
+            var srcEnd = (int)end;
 
             var dst = row * width;
             var dstEnd = dst + width;

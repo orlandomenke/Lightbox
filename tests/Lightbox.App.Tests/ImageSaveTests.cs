@@ -306,6 +306,177 @@ public class ImageSaveTests(Xunit.ITestOutputHelper output) : IDisposable
         Assert.Equal(fromExport, fromSave);
     }
 
+    // ---- the dialog and the picker disagreeing --------------------------------
+
+    /// <remarks>
+    /// This rule lived inline in the click handler, which the code index reports
+    /// as exercised by nothing — so the one place a chosen format and a typed
+    /// extension can disagree was the one place with no test behind it.
+    /// </remarks>
+    [Theory]
+    [InlineData("cover.jpg", ImageSaveFormat.Jpeg)]
+    [InlineData("cover.jpeg", ImageSaveFormat.Jpeg)]
+    [InlineData("cover.webp", ImageSaveFormat.Webp)]
+    [InlineData("cover.png", ImageSaveFormat.Png)]
+    public void ATypedExtensionOverridesTheChosenFormat(string name, ImageSaveFormat expected)
+    {
+        var chosen = new ImageSaveOptions(ImageSaveFormat.Png, Quality: 70, Matte: "#123456");
+
+        var reconciled = SaveAsImage.Reconcile(chosen, name);
+
+        Assert.Equal(expected, reconciled.Format);
+        // Everything else the artist chose survives the override.
+        Assert.Equal(70, reconciled.Quality);
+        Assert.Equal("#123456", reconciled.Matte);
+    }
+
+    [Theory]
+    [InlineData("cover.psd")]
+    [InlineData("cover.tif")]
+    [InlineData("cover")]
+    public void AnExtensionLightboxCannotWriteLeavesTheChoiceAlone(string name)
+    {
+        var chosen = new ImageSaveOptions(ImageSaveFormat.Webp);
+
+        Assert.Equal(ImageSaveFormat.Webp, SaveAsImage.Reconcile(chosen, name).Format);
+    }
+
+    [Fact]
+    public void AnOverriddenFormatStillFlattensAndStillWarns()
+    {
+        // The override path end to end: PNG chosen, ".jpg" typed. The dialog's
+        // own banner cannot have warned, so the measured one has to.
+        var path = Path("typed.jpg");
+        var options = SaveAsImage.Reconcile(new ImageSaveOptions(ImageSaveFormat.Png), path);
+
+        var result = SaveAsImage.Write(Painted(), path, options);
+
+        Assert.Equal(ImageSaveFormat.Jpeg, result.Format);
+        Assert.True(result.LostTransparency);
+        Assert.NotNull(result.Warning);
+        using var bitmap = SKBitmap.Decode(path);
+        Assert.Equal(255, bitmap.GetPixel(7, 7).Alpha);
+    }
+
+    // ---- edges ----------------------------------------------------------------
+
+    [Fact]
+    public void ASoftEdgeCountsAsTransparencyAndFlattensWithoutAHalo()
+    {
+        // The case the alpha check exists for and the one a corner-pixel test
+        // misses: an antialiased edge at alpha 14 is transparency, and handing it
+        // to the JPEG encoder unflattened is what darkens edges toward black.
+        var doc = DocumentFactory.CreateDoc(16, 16, fps: 12);
+        doc.Scene.TransparentBackground = true;
+        var layer = doc.Scene.Layers[^1];
+        layer.Cels.Clear();
+        layer.Cels.Add(new Cel
+        {
+            Frame = new Frame
+            {
+                Strokes =
+                [
+                    new Stroke
+                    {
+                        Tool = ToolKind.Brush,
+                        Color = "#000000",
+                        Brush = new BrushSettings { Opacity = 1, Size = 6, AntiAlias = true },
+                        Points = [new StrokePoint(4, 8, 1), new StrokePoint(12, 8, 1)],
+                    },
+                ],
+            },
+        });
+        var path = Path("soft.jpg");
+
+        var result = SaveAsImage.Write(doc, path, new ImageSaveOptions(ImageSaveFormat.Jpeg));
+
+        output.WriteLine($"lost transparency: {result.LostTransparency}");
+        Assert.True(result.LostTransparency);
+        using var bitmap = SKBitmap.Decode(path);
+        // Well away from the stroke the paper must be white, not darkened.
+        var far = bitmap.GetPixel(0, 0);
+        Assert.InRange(far.Red, 248, 255);
+        Assert.InRange(far.Green, 248, 255);
+        Assert.InRange(far.Blue, 248, 255);
+    }
+
+    [Fact]
+    public void AHalfOpaqueFillFlattensToTheMathematicallyRightColour()
+    {
+        // Isolates the premultiply arithmetic from antialiasing noise: black at
+        // alpha 128 over white must land near 127, not near 0.
+        var doc = DocumentFactory.CreateDoc(8, 8, fps: 12);
+        doc.Scene.TransparentBackground = true;
+        var layer = doc.Scene.Layers[^1];
+        layer.Opacity = 0.5;
+        layer.Cels.Clear();
+        layer.Cels.Add(new Cel
+        {
+            Frame = new Frame
+            {
+                Strokes =
+                [
+                    new Stroke
+                    {
+                        Tool = ToolKind.Fill,
+                        Color = "#000000",
+                        Brush = new BrushSettings { Opacity = 1, AntiAlias = false },
+                        Points =
+                        [
+                            new StrokePoint(0, 0, 1), new StrokePoint(8, 0, 1),
+                            new StrokePoint(8, 8, 1), new StrokePoint(0, 8, 1),
+                        ],
+                    },
+                ],
+            },
+        });
+        var path = Path("half.jpg");
+
+        SaveAsImage.Write(doc, path, new ImageSaveOptions(ImageSaveFormat.Jpeg, Quality: 100));
+
+        using var bitmap = SKBitmap.Decode(path);
+        var pixel = bitmap.GetPixel(4, 4);
+        output.WriteLine($"black at half opacity over white = {pixel}");
+        Assert.InRange(pixel.Red, 120, 136);
+    }
+
+    [Fact]
+    public void AScaleOfZeroOrLessDoesNotThrow()
+    {
+        // Clamped downstream by the renderer rather than here; what matters is
+        // that neither produces a zero-sized surface or an exception.
+        foreach (var scale in new[] { 0.0, -2.0 })
+        {
+            var path = Path($"scale{scale}.png");
+            var result = SaveAsImage.Write(Painted(), path, new ImageSaveOptions(Scale: scale));
+            Assert.True(File.Exists(result.Paths[0]));
+            using var bitmap = SKBitmap.Decode(result.Paths[0]);
+            Assert.True(bitmap.Width >= 1 && bitmap.Height >= 1);
+        }
+    }
+
+    [Fact]
+    public void AnUnwritablePathFailsLoudlyRatherThanSilently()
+    {
+        // The contract the menu's own try/catch depends on, and that a second
+        // caller — an MCP tool, a batch export — would depend on too.
+        var blocker = Path("not-a-directory");
+        File.WriteAllText(blocker, "in the way");
+
+        Assert.ThrowsAny<IOException>(
+            () => SaveAsImage.Write(Painted(), System.IO.Path.Combine(blocker, "out.png")));
+    }
+
+    [Theory]
+    [InlineData("character", 7, "character_0007")]
+    [InlineData("walk_0001.png", 2, "walk_0001_0002.png")]
+    public void NumberingHandlesNamesItWasNotDesignedFor(string name, int number, string expected)
+    {
+        // None of these are pretty; what matters is that none collide with
+        // another frame's file or throw.
+        Assert.Equal(expected, System.IO.Path.GetFileName(SaveAsImage.Numbered(name, number)));
+    }
+
     // ---- the format table -----------------------------------------------------
 
     [Theory]

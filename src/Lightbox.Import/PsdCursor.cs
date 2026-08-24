@@ -14,19 +14,62 @@ namespace Lightbox.Import;
 /// artwork, so overrunning throws <see cref="FormatException"/> ("this file is
 /// wrong") rather than <c>IndexOutOfRangeException</c> ("Lightbox is wrong").
 /// </remarks>
-internal sealed class PsdCursor(byte[] data, int pos, int end)
+internal sealed class PsdCursor
 {
-    public byte[] Data { get; } = data;
+    private int _pos;
 
-    public int Pos { get; set; } = pos;
-
-    public int End { get; private set; } = Math.Min(end, data.Length);
+    public PsdCursor(byte[] data, int pos, int end)
+    {
+        Data = data;
+        End = Math.Clamp(end, 0, data.Length);
+        Pos = pos;
+    }
 
     public PsdCursor(byte[] data) : this(data, 0, data.Length) { }
 
+    public byte[] Data { get; }
+
+    /// <summary>
+    /// Where the next read starts. <b>Setting it outside the section is a
+    /// format error, not a silent seek.</b>
+    /// </summary>
+    /// <remarks>
+    /// Guarded rather than a plain field, because this is the invariant every
+    /// other bounds check here assumes. <see cref="Has"/> asks whether
+    /// <c>Pos + count</c> fits; a negative <c>Pos</c> makes that always true, so
+    /// one unchecked assignment turns every subsequent check into a no-op and
+    /// the next read indexes the array out of bounds. A crafted PSB channel
+    /// length reached exactly that, through an <c>(int)</c> truncation in the
+    /// caller — so the guard lives here, once, rather than at each call site
+    /// that computes a position.
+    /// </remarks>
+    public int Pos
+    {
+        get => _pos;
+        set
+        {
+            if (value < 0 || value > End)
+                throw new FormatException($"PSD: cursor moved to {value}, outside 0..{End}.");
+            _pos = value;
+        }
+    }
+
+    public int End { get; }
+
     public int Remaining => Math.Max(0, End - Pos);
 
-    public bool Has(long count) => count >= 0 && Pos + count <= End;
+    /// <summary>Whether <paramref name="count"/> more bytes are available.</summary>
+    /// <remarks>
+    /// <b>Subtraction, not addition</b>, and that is the whole point. Every length
+    /// in a PSB is a 64-bit field an artist did not write. <c>Pos + count</c> in
+    /// 32 bits wraps negative for a large one and passes a "does it fit" test
+    /// written the obvious way; widening to <see cref="long"/> only moves the
+    /// wrap, because a length of <see cref="long.MaxValue"/> overflows that too.
+    /// <c>End - Pos</c> cannot overflow — both are non-negative and no larger
+    /// than the array — so comparing the count against it is total.
+    /// </remarks>
+    public bool Has(long count) =>
+        count >= 0 && _pos >= 0 && _pos <= End && count <= End - _pos;
 
     private void Need(int count)
     {
@@ -99,8 +142,9 @@ internal sealed class PsdCursor(byte[] data, int pos, int end)
     public void Skip(long count)
     {
         if (count < 0) throw new FormatException($"PSD: negative length {count} at byte {Pos}.");
-        Need((int)Math.Min(count, int.MaxValue));
-        Pos += (int)count;
+        if (!Has(count))
+            throw new FormatException($"PSD: skipping {count} at byte {Pos} runs past the section.");
+        Pos += (int)count; // Has() has established this fits in the section.
     }
 
     /// <summary>Peek four ASCII bytes without moving, for signature sniffing.</summary>

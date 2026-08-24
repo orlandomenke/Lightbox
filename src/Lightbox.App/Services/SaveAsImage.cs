@@ -24,7 +24,9 @@ namespace Lightbox.App.Services;
 /// <param name="Matte">
 /// The colour that shows through where the drawing is transparent, for a format
 /// that cannot keep alpha. White by default, because that is what a JPEG of
-/// artwork is nearly always wanted on and what every other application assumes.
+/// artwork is nearly always wanted on and what every other application assumes;
+/// the save dialog exposes it for the times it is not — a sprite matted onto
+/// magenta, say.
 /// </param>
 public sealed record ImageSaveOptions(
     ImageSaveFormat Format = ImageSaveFormat.Png,
@@ -73,6 +75,21 @@ public sealed record ImageSaveResult(
 /// </remarks>
 public static class SaveAsImage
 {
+    /// <summary>
+    /// Reconcile the format the dialog chose with the extension actually typed
+    /// into the file picker.
+    /// </summary>
+    /// <remarks>
+    /// <b>The extension wins</b>, because it is the more deliberate of the two: a
+    /// default was accepted, a name was typed. Extracted from the click handler
+    /// so it can be tested — it is the one place the two can disagree, and the
+    /// view it lived in is exercised by nothing.
+    /// </remarks>
+    public static ImageSaveOptions Reconcile(ImageSaveOptions options, string path) =>
+        ImageSaveFormats.FromExtension(path) is { } typed && typed != options.Format
+            ? options with { Format = typed }
+            : options;
+
     /// <summary>Write the drawing to <paramref name="path"/>.</summary>
     /// <param name="frameIndex">
     /// Which timeline frame to write. Ignored when

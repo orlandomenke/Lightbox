@@ -39,11 +39,39 @@ public static class PsdReader
     private const int MaxSidePsb = 300000;
 
     /// <summary>
-    /// A ceiling on decoded pixels, so a corrupt or hostile header cannot ask for
-    /// an allocation that takes the application down. 512 megapixels is four
-    /// times the largest canvas Photoshop's own PSD limit allows.
+    /// A ceiling on the pixels one file may decode in total, so a corrupt or
+    /// hostile header cannot ask for an allocation that takes the application
+    /// down. 512 megapixels is four times the largest canvas Photoshop's own PSD
+    /// limit allows.
     /// </summary>
     private const long MaxPixels = 512L * 1024 * 1024;
+
+    /// <summary>
+    /// How much bigger than the canvas a single layer's own bounds may be.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A total budget alone is not a bound, and this is the lesson of the case
+    /// that got past one: layer bounds are independent of the canvas, so a 4×4
+    /// document can declare four 10,000×7,000 layers — 280 megapixels, under any
+    /// generous total — from an 800 KB file. Raising the total to catch that
+    /// would refuse legitimate large paintings instead.
+    /// </para>
+    /// <para>
+    /// The ratio is the honest bound, because it prices the thing that is
+    /// actually suspicious. Content past the canvas edge is ordinary in
+    /// Photoshop, and it is ordinary by a margin — a layer twice the canvas is
+    /// unremarkable, one four billion times it is an amplification attack. Four
+    /// is generous for the former and nowhere near the latter.
+    /// </para>
+    /// </remarks>
+    private const long MaxLayerAreaOverCanvas = 4;
+
+    /// <summary>
+    /// A floor for the ratio above, so a small canvas is not a straitjacket. A
+    /// 64×64 icon document may still hold a layer of a few megapixels.
+    /// </summary>
+    private const long MinLayerAreaAllowance = 4L * 1024 * 1024;
 
     private const int ModeGrayscale = 1;
     private const int ModeRgb = 3;
@@ -89,9 +117,14 @@ public static class PsdReader
         var layers = new List<PsdLayer>(records.Count);
         try
         {
+            // Budgeted across the whole file, not just per layer. A per-layer cap
+            // alone is no cap: layer bounds are independent of the canvas, so a
+            // 4x4 document can declare a dozen 10,000x7,000 layers, each under any
+            // per-layer ceiling, and ask for gigabytes from an 800 KB file.
+            var budget = new PixelBudget(width, height);
             foreach (var record in records)
             {
-                layers.Add(BuildLayer(record, depth, colorMode));
+                layers.Add(BuildLayer(record, depth, colorMode, budget));
             }
 
             SKBitmap? composite = null;
@@ -224,8 +257,12 @@ public static class PsdReader
                 var payload = channel.Length - 2;
                 if (payload < 0 || !info.Has(payload))
                 {
-                    info.Pos = Math.Min(info.End, start + (int)Math.Max(channel.Length, 2));
-                    continue;
+                    // The declared length is wrong. Skip what is left rather than
+                    // seeking by it: `start + (int)channel.Length` truncates a
+                    // crafted 64-bit PSB length to a negative offset, and a
+                    // negative cursor makes every later bounds check vacuous.
+                    info.Pos = info.End;
+                    return records;
                 }
                 channel.Compression = compression;
                 channel.DataStart = info.Pos;
@@ -277,6 +314,17 @@ public static class PsdReader
         var maskLength = extra.I32();
         if (maskLength > 0) record.HasMask = true;
         extra.Skip(Math.Min(maskLength, extra.Remaining));
+
+        // A mask is announced two ways and both have to be believed. The extra
+        // data above declares its size; the channel table declares the channel
+        // that carries it (-2 user mask, -3 real mask). Trusting only the first
+        // let a layer with genuine mask pixels and `maskLength = 0` import as a
+        // plain opaque layer, silently dropping everything the mask hid — the
+        // failure refusing exists to prevent, arrived at from the other side.
+        foreach (var channel in record.Channels)
+        {
+            if (channel.Id is -2 or -3) record.HasMask = true;
+        }
 
         var blendingRanges = extra.I32();
         extra.Skip(Math.Min(blendingRanges, extra.Remaining));
@@ -404,7 +452,7 @@ public static class PsdReader
 
     // ---- channels to pixels ----------------------------------------------------
 
-    private static PsdLayer BuildLayer(LayerRecord record, int depth, int colorMode)
+    private static PsdLayer BuildLayer(LayerRecord record, int depth, int colorMode, PixelBudget budget)
     {
         var role = record.SectionType switch
         {
@@ -415,7 +463,7 @@ public static class PsdReader
         };
 
         var bitmap = role is PsdLayerRole.Raster
-            ? DecodePixels(record, depth, colorMode)
+            ? DecodePixels(record, depth, colorMode, budget)
             : null;
 
         return new PsdLayer(
@@ -426,13 +474,13 @@ public static class PsdReader
     /// <summary>
     /// Assemble a layer's channels into premultiplied RGBA at the layer's own size.
     /// </summary>
-    private static SKBitmap? DecodePixels(LayerRecord record, int depth, int colorMode)
+    private static SKBitmap? DecodePixels(LayerRecord record, int depth, int colorMode, PixelBudget budget)
     {
         var width = record.Right - record.Left;
         var height = record.Bottom - record.Top;
         if (width <= 0 || height <= 0) return null;
-        if ((long)width * height > MaxPixels)
-            throw new FormatException($"PSD: layer \"{record.Name}\" is {width}×{height}.");
+
+        budget.Take(record.Name, width, height);
 
         var samples = width * height;
         byte[]? red = null, green = null, blue = null, alpha = null;
@@ -643,6 +691,37 @@ public static class PsdReader
     private static byte At(byte[] plane, int i) => i < plane.Length ? plane[i] : (byte)0;
 
     // ---- parsing state ---------------------------------------------------------
+
+    /// <summary>
+    /// What one file is allowed to decode: a per-layer bound relative to the
+    /// canvas, and a running total across every layer.
+    /// </summary>
+    /// <remarks>
+    /// Two bounds because they catch different things. The ratio stops one layer
+    /// claiming absurd bounds on a small canvas; the total stops a file made of
+    /// thousands of individually reasonable layers. Either alone was got past.
+    /// </remarks>
+    private sealed class PixelBudget(int canvasWidth, int canvasHeight)
+    {
+        private readonly long _perLayer = Math.Max(
+            MinLayerAreaAllowance, (long)canvasWidth * canvasHeight * MaxLayerAreaOverCanvas);
+
+        private long _remaining = MaxPixels;
+
+        public void Take(string layerName, int width, int height)
+        {
+            var area = (long)width * height;
+            if (area > _perLayer)
+                throw new FormatException(
+                    $"PSD: layer \"{layerName}\" is {width}×{height} on a "
+                    + $"{canvasWidth}×{canvasHeight} canvas — too far past the canvas to be real.");
+            if (area > _remaining)
+                throw new FormatException(
+                    $"PSD: the layers add up to more than Lightbox will decode for one file "
+                    + $"(stopped at \"{layerName}\").");
+            _remaining -= area;
+        }
+    }
 
     private sealed class ChannelRef
     {

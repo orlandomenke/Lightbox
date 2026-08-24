@@ -49,13 +49,9 @@ public partial class MainWindow
 
         // The picker can hand back a name whose extension disagrees with the
         // format the dialog chose — an artist typing "cover.jpg" over a PNG
-        // default means it. The extension wins, because it is the more
-        // deliberate of the two.
-        var options = choice.ToOptions();
-        if (ImageSaveFormats.FromExtension(path) is { } typed && typed != options.Format)
-        {
-            options = options with { Format = typed };
-        }
+        // default means it. SaveAsImage.Reconcile owns that rule, and owns it
+        // there rather than here so it can be tested.
+        var options = SaveAsImage.Reconcile(choice.ToOptions(), path);
 
         try
         {
