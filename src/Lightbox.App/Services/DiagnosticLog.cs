@@ -172,7 +172,7 @@ internal static class DiagnosticLog
     /// <para>
     /// Written every time rather than once per context, unlike
     /// <see cref="WriteOnce"/>. The failures this is for are the ones a person
-    /// causes one at a time — a drop that read as empty (B293) — where the
+    /// causes one at a time — a drop that read as empty (B294) — where the
     /// second attempt with a different browser is exactly the line that would
     /// name the difference, and de-duplicating would throw it away.
     /// </para>

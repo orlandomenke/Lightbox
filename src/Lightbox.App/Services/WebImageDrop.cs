@@ -57,7 +57,7 @@ public static partial class WebImageDrop
         return found;
     }
 
-    // ---- what the drag actually carries (B293) ------------------------------------
+    // ---- what the drag actually carries (B294) ------------------------------------
 
     /// <summary>
     /// The image candidates in a drag, read from <b>every</b> format it carries
@@ -150,8 +150,8 @@ public static partial class WebImageDrop
     /// end only — which this did — leaves <c>"﻿https://…"</c>, which
     /// <see cref="Uri.TryCreate(string, UriKind, out Uri?)"/> rejects, so the
     /// one candidate a Windows or macOS drag carried was silently dropped and
-    /// the drop reported carrying nothing: B293's own symptom, reintroduced
-    /// inside B293's fix. Found by the adversary pass, not by the tests, which
+    /// the drop reported carrying nothing: B294's own symptom, reintroduced
+    /// inside B294's fix. Found by the adversary pass, not by the tests, which
     /// is what that pass is for. A URL begins with neither a mark nor a NUL, so
     /// both come off both ends.
     /// </remarks>
@@ -177,7 +177,7 @@ public static partial class WebImageDrop
     /// whose bytes decode — or null.
     /// </summary>
     /// <remarks>
-    /// The last resort, and deliberately behind the URLs (B293). What a browser
+    /// The last resort, and deliberately behind the URLs (B294). What a browser
     /// embeds may be the drag thumbnail rather than the original, and reference
     /// is drawn against, so the full-resolution fetch is worth trying first.
     /// When it fails — a CDN that refuses us, or no network — this is the
@@ -242,7 +242,7 @@ public static partial class WebImageDrop
         var parts = new List<string>();
         foreach (var format in data.Formats)
         {
-            // The best answer any item gives, not the first item's (B293). An
+            // The best answer any item gives, not the first item's (B294). An
             // item that throws used to end the search and report "unreadable"
             // over a later item that would have read perfectly — degrading the
             // one diagnostic this exists to provide.
