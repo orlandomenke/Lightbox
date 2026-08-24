@@ -6,6 +6,19 @@
              x:Class="Lightbox.App.Views.TextOptionsBar"
              x:DataType="vm:MainViewModel">
   <!--
+    Gated on the control rather than only on the panel inside it, which is not
+    cosmetic: the quick bar is an OverflowBar, and a child that is present but
+    empty still takes a slot and a gap. One extra gap is what pushed the Select
+    tool's marquee past the right edge and into the ▾ at a 1280px window
+    (QuickBarRoomTests). Collapsing the control itself takes it out of the row.
+  -->
+  <UserControl.IsVisible>
+    <MultiBinding Converter="{x:Static BoolConverters.And}">
+      <Binding Path="IsTextTool" />
+      <Binding Path="Workspace.QuickTextOptions" />
+    </MultiBinding>
+  </UserControl.IsVisible>
+  <!--
     The text tool's options: what the next piece of type will be, and what the
     piece being typed is — the same controls either way, because changing the
     size while a caret is up reshapes the words under the artist's hands rather
@@ -21,12 +34,6 @@
     a list nobody reaches the bottom of.
   -->
   <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-    <StackPanel.IsVisible>
-      <MultiBinding Converter="{x:Static BoolConverters.And}">
-        <Binding Path="IsTextTool" />
-        <Binding Path="Workspace.QuickTextOptions" />
-      </MultiBinding>
-    </StackPanel.IsVisible>
 
     <Button MinWidth="150" HorizontalContentAlignment="Left"
             Command="{Binding LoadFontsCommand}"

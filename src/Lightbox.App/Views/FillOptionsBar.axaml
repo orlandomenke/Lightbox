@@ -4,6 +4,18 @@
              x:Class="Lightbox.App.Views.FillOptionsBar"
              x:DataType="vm:MainViewModel">
   <!--
+    Gated on the control, not only on the panel inside it — see TextOptionsBar
+    for why. This block used to be a bare StackPanel in MainWindow.axaml, which
+    collapsed to nothing; wrapping it in a UserControl without this would have
+    left a gap in the row where the fill options are not.
+  -->
+  <UserControl.IsVisible>
+    <MultiBinding Converter="{x:Static BoolConverters.And}">
+      <Binding Path="IsFillTool" />
+      <Binding Path="Workspace.QuickFillOptions" />
+    </MultiBinding>
+  </UserControl.IsVisible>
+  <!--
     The Fill tool's options along the quick bar: how far a flood reaches, how
     much of a gap still counts as closed, and whether it tucks under the lines.
 
@@ -14,12 +26,6 @@
     shows belongs to MainViewModel.Fill.
   -->
   <StackPanel Orientation="Horizontal" Spacing="14">
-    <StackPanel.IsVisible>
-      <MultiBinding Converter="{x:Static BoolConverters.And}">
-        <Binding Path="IsFillTool" />
-        <Binding Path="Workspace.QuickFillOptions" />
-      </MultiBinding>
-    </StackPanel.IsVisible>
     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
       <TextBlock Text="Tolerance" VerticalAlignment="Center" />
       <NumericUpDown Value="{Binding FillTolerance}" Minimum="0" Maximum="255" Increment="4"
