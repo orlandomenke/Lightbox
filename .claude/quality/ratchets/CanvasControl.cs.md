@@ -1,6 +1,6 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 4901
+budget: 4891
 
 ## Why it has moved
 
@@ -117,3 +117,7 @@ other's reason and leaves a number nobody can account for.
   line in each press site and each move handler, and those are the gesture
   itself, inside the handlers that receive it — the boundary B217, B223 and
   B248 record. The exact thirty-four lines, recorded rather than rounded up.
+- **4,901 → 4,891** (2026-08-24): the text tool added a canvas mode, an event and
+  a press case. The event and the press moved to a new
+  `CanvasControl.ToolGestures.cs`, and the gradient tool's axis chrome went with
+  them — it is the same narrow surface between a pointer and one tool.

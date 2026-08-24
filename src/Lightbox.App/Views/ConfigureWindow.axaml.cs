@@ -1088,6 +1088,8 @@ public partial class ConfigureWindow : Window
         BrushScopeBox.ItemsSource = _vm.BrushMemoryChoices;
         BrushScopeBox.SelectedItem = _vm.BrushMemoryChoice;
         RecordPenAxesBox.IsChecked = _vm.AlwaysRecordPenAxes;
+        GoogleFontsBox.IsChecked = _vm.Settings.Fonts.UseGoogleFonts;
+        EmbedFontsBox.IsChecked = _vm.Settings.Fonts.EmbedOpenFonts;
         _loadingDrawing = false;
         RefreshSampleHint();
         RefreshBrushScopeHint();
@@ -1097,6 +1099,30 @@ public partial class ConfigureWindow : Window
     {
         if (_loadingDrawing || _vm is null) return;
         _vm.AlwaysRecordPenAxes = RecordPenAxesBox.IsChecked == true;
+    }
+
+    /// <summary>
+    /// Turning Google Fonts off has to reach the library, not only the file.
+    /// </summary>
+    /// <remarks>
+    /// The library decides once, when it is first asked for, whether it has a
+    /// Google source at all — which is what makes "off" mean no network rather
+    /// than a result that is thrown away. So the switch drops the built library
+    /// and the next font list builds the other kind.
+    /// </remarks>
+    private void OnGoogleFontsChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_loadingDrawing || _vm is null) return;
+        _vm.Settings.Fonts.UseGoogleFonts = GoogleFontsBox.IsChecked == true;
+        _vm.Settings.Save();
+        _vm.ForgetFontLibrary();
+    }
+
+    private void OnEmbedFontsChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_loadingDrawing || _vm is null) return;
+        _vm.Settings.Fonts.EmbedOpenFonts = EmbedFontsBox.IsChecked == true;
+        _vm.Settings.Save();
     }
 
     private void OnBrushScopeChanged(object? sender, SelectionChangedEventArgs e)

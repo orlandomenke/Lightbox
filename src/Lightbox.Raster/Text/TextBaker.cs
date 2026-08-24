@@ -29,6 +29,39 @@ namespace Lightbox.Raster.Text;
 public static class TextBaker
 {
     /// <summary>
+    /// Whether this typeface can actually set type here.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Not every font a font manager will name has outlines this can read.</b>
+    /// A Type 1 face, a bitmap-only face and a broken file are all offered by the
+    /// system as ordinary families, and all of them shape to nothing — so an
+    /// artist picks one, types a title, and the words vanish on commit with no
+    /// explanation. That happened on the first machine this was run on, where
+    /// the alphabetically first installed family is Type 1.
+    /// </para>
+    /// <para>
+    /// <b>Probed by glyph id rather than by character</b>, deliberately: asking
+    /// whether the face can draw an "A" would reject every CJK, Arabic and
+    /// symbol font, which are all perfectly usable. The question is whether the
+    /// face has outlines at all, not whether it has Latin. Glyph 0 is skipped
+    /// because <c>.notdef</c> is usually a box even in a face with nothing else.
+    /// </para>
+    /// </remarks>
+    public static bool CanSetType(SKTypeface typeface)
+    {
+        if (typeface.GlyphCount <= 1) return false;
+        using var font = new SKFont(typeface, 64);
+        var step = Math.Max(1, typeface.GlyphCount / 8);
+        for (var glyph = 1; glyph < typeface.GlyphCount; glyph += step)
+        {
+            using var path = font.GetGlyphPath((ushort)glyph);
+            if (path is { IsEmpty: false }) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
     /// The glyph strokes for an element, painted like <paramref name="paint"/>.
     /// </summary>
     /// <param name="paint">

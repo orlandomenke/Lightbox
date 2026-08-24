@@ -293,16 +293,41 @@ available in every project, defaulted for the ones that need it.
 - [x] Shape tools `evidence: ShapeBuilder, ShapeKind, AShapeIsAnOrdinaryStroke, AnEllipseFitsItsBoxAndCloses, ShiftSquaresItAndAltGrowsItFromTheCentre`
 - [x] Vector guides `evidence: Guide, GuidesSurviveASaveAndReload, ADocumentWithNoGuidesWritesNoGuideKey, AHiddenGuideStillSnaps`
 - [x] Rulers and guide editing `evidence: RulerStrip, TickStep, DraggingOutOfTheTopRulerLeavesAHorizontalGuide, LettingGoBackOnTheRulerThrowsTheGuideAway, AGuideIsMovedByGrabbingItOnTheCanvas, TheRulersAreAbsentUntilAskedFor`
-- [?] Text
-  - Q149's real half: an editable text object on the vector side — fonts,
-    shaping, editing — that rasterizes through the ordinary deterministic
-    path, never a raster stamp of a font. It waits on the same vector
-    richness the SVG save and the icon items already wait on, and it needs
-    its own design pass before a line of it is built (what carries the text:
-    a stroke kind, a placement, or a vector-layer object).
+- [x] Text `evidence: TextElement, TextBaker, GlyphOutline, FontLibrary, EachGlyphIsOneContourFillCarryingItsElement, TypeRendersFromTheRecordWithNoFontAnywhere, ADocumentNobodyHasTypedInWritesNoTextKeys, AnOpenLicensedFontIsCarriedInTheDocumentThatUsesIt, ClickingTypeAlreadySetPicksItUpToRetype`
+  - Q149's question — *what carries the text: a stroke kind, a placement, or a
+    vector-layer object* — resolved to **none of the three separately**
+    (Q186–Q189, `docs/DESIGN-text.md`). A `TextElement` holds what was typed;
+    committing shapes it and records one `ToolKind.Text` contour stroke per
+    glyph carrying `TextId`. The strokes are the drawing and the element is only
+    what lets the words be typed again — so it did not wait on vector richness
+    after all, because it needed none: a glyph is a filled contour, which the
+    fill tool already writes.
+  - **Fonts are for editing, never for rendering**, which is what makes the
+    licence question answerable rather than a lawyer's problem. Google's
+    families publish a licence permitting redistribution, so a document carries
+    one and stays retypable anywhere; an installed font's terms cannot be read,
+    so it is named and never copied. Neither choice moves a pixel.
+  - Point text only, deliberately: no wrapping box, no text on a path, one style
+    per block. Those three are the items below.
   - The other half of the smart-objects request needed no item at all:
     re-editability is invariant 1, and one-drawing-placed-many-times is
     Pillar 3's symbols, already shipped for the flat case.
+
+- [?] Box text — a dragged rectangle the words wrap inside, re-flowing when it
+  is resized. Real work rather than a flag: line breaking, and a decision about
+  what happens to type that no longer fits. Effort: medium.
+
+- [?] Text on a path — flow a baseline along a drawn line, which is the
+  Lightbox-flavoured half of typography and wants the placement/offset design
+  settled first. Effort: medium.
+
+- [?] Mixed styles in one block — a word bold inside a sentence. The record
+  already allows it in principle (a block could carry runs), and the editing
+  surface for it is the actual cost. Effort: medium.
+
+- [?] Widths beyond normal in the font list — `FontRef` records weight and
+  slant, so a condensed cut is only reachable when the foundry ships it as its
+  own family name. Widening it to width is the fix, and it is small.
 
 ### Layers and compositing
 

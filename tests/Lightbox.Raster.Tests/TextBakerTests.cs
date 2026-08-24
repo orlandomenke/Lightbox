@@ -174,6 +174,33 @@ public class TextBakerTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void TheDefaultFaceCanSetType()
+    {
+        // If this ever fails, the machine has no usable font at all and every
+        // other assertion here is meaningless — worth saying separately.
+        Assert.True(TextBaker.CanSetType(SKTypeface.Default));
+    }
+
+    [Fact]
+    public void AFaceTheProbeRejectsWouldHaveSetNothing()
+    {
+        // The guard the text tool leans on, stated as the property that makes it
+        // safe: a "no" here must mean typing in that face really would have
+        // produced nothing, rather than the probe being shy. The other direction
+        // is deliberately not asserted — a font with no Latin in it passes the
+        // probe and still sets no Latin letters, which is correct for both.
+        var rejected = 0;
+        foreach (var family in SKFontManager.Default.GetFontFamilies())
+        {
+            using var face = SKTypeface.FromFamilyName(family);
+            if (face is null || TextBaker.CanSetType(face)) continue;
+            rejected++;
+            Assert.Empty(TextBaker.Bake(Set("Hamburgefonstiv 123"), face, Paint()));
+        }
+        output.WriteLine($"{rejected} installed families have no outlines this can read");
+    }
+
+    [Fact]
     public void TypeRendersFromTheRecordWithNoFontAnywhere()
     {
         // The promise the whole design rests on: bake once, and the picture no

@@ -65,10 +65,136 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>
+    /// Characters going into type being set on the canvas.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Text input rather than key presses, and the difference is the whole
+    /// reason this exists.</b> A <c>KeyDown</c> is a physical key; what a person
+    /// typed is a string that depends on their layout, their dead keys and their
+    /// input method — so an accented character, a Greek letter or anything
+    /// composed comes through here and could not be reconstructed from key codes
+    /// without reimplementing the platform.
+    /// </para>
+    /// <para>
+    /// Tunnelled so it is seen before a focused control eats it, and it does
+    /// nothing at all unless the text tool is mid-session — a text box being
+    /// typed into is still the ordinary case for this event.
+    /// </para>
+    /// </remarks>
+    /// <summary>
+    /// Point the canvas's per-tool gestures at the view model.
+    /// </summary>
+    /// <remarks>
+    /// Here rather than in the constructor because <c>MainWindow.axaml.cs</c> is
+    /// on the monolith ratchet and this is exactly what a partial is for: one
+    /// list of what the canvas hands to which tool, next to the handlers that
+    /// receive it.
+    /// </remarks>
+    private void WireCanvasTools()
+    {
+        Canvas.PickClicked += _vm.PickColorAt;
+        Canvas.GradientDragStarted += _vm.BeginGradient;
+        Canvas.GradientDragMoved += _vm.MoveGradient;
+        Canvas.GradientDragEnded += _vm.EndGradient;
+        Canvas.GradientDragCancelled += _vm.CancelGradient;
+        _vm.GradientAxisChanged += Canvas.SetGradientAxis;
+        Canvas.ShapeDragStarted += _vm.BeginShape;
+        Canvas.ShapeDragMoved += _vm.MoveShape;
+        Canvas.ShapeDragEnded += _vm.EndShape;
+        Canvas.TextPlaced += _vm.BeginText;
+
+        // Typed characters, which are not the same thing as keys: a keyboard
+        // layout, a dead key and an input method all resolve here and nowhere
+        // else. Tunnelled so the canvas sees them before a focused control eats
+        // them; only the text tool listens.
+        AddHandler(
+            TextInputEvent, OnCanvasTextInput, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+    }
+
+    private void OnCanvasTextInput(object? sender, TextInputEventArgs e)
+    {
+        if (!_vm.TextSessionActive || e.Source is TextBox) return;
+        if (e.Text is not { Length: > 0 } typed) return;
+        _vm.TypeIntoText(typed);
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// The keys that mean something to type being set, as opposed to the
+    /// characters, which arrive at <see cref="OnCanvasTextInput"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Escape sets the type rather than throwing it away</b>, which is the
+    /// opposite of Photoshop and is chosen on the asymmetry: committing is a
+    /// single undo step, so an artist who meant to discard is one Ctrl+Z from
+    /// having done it — while an Escape that discarded would lose a typed title
+    /// with nothing to recover it from. The key everybody presses to leave a
+    /// mode should not be the destructive one.
+    /// </para>
+    /// <para>
+    /// <b>Plain keys are swallowed, modified ones are not.</b> While a caret is
+    /// on the canvas, <c>B</c> is a letter and not the brush; but Ctrl+S still
+    /// saves, because a shortcut with a modifier was never going to be a
+    /// character and an artist should not have to finish a caption to save.
+    /// </para>
+    /// </remarks>
+    private bool HandleTextSessionKey(KeyEventArgs e)
+    {
+        var accel = e.KeyModifiers.HasFlag(KeyModifiers.Control)
+            || e.KeyModifiers.HasFlag(KeyModifiers.Alt)
+            || e.KeyModifiers.HasFlag(KeyModifiers.Meta);
+
+        switch (e.Key)
+        {
+            case Key.Escape:
+                _vm.CommitText();
+                return true;
+            case Key.Enter when accel:
+                _vm.CommitText();
+                return true;
+            case Key.Enter:
+                _vm.TextNewline();
+                return true;
+            case Key.Back:
+                _vm.TextBackspace();
+                return true;
+            case Key.Delete:
+                _vm.TextDeleteForward();
+                return true;
+            case Key.Left:
+                _vm.MoveTextCaret(-1);
+                return true;
+            case Key.Right:
+                _vm.MoveTextCaret(1);
+                return true;
+            case Key.Home:
+                _vm.TextCaretToEdge(end: false);
+                return true;
+            case Key.End:
+                _vm.TextCaretToEdge(end: true);
+                return true;
+        }
+
+        // Anything else: a character (already handled as text input) or a
+        // shortcut. Only the modified ones are let through.
+        return !accel;
+    }
+
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         // Don't hijack keys while the user is typing (layer rename, color hex, AI prompt).
         if (e.Source is TextBox) return;
+
+        // Type being set on the canvas owns the keyboard, above every mode
+        // below: an artist mid-word is not reaching for a tool.
+        if (_vm.TextSessionActive && HandleTextSessionKey(e))
+        {
+            e.Handled = true;
+            return;
+        }
 
         // Grid editing owns Escape: it is a mode, and a mode you cannot leave
         // with the key everybody tries first is a mode you are stuck in.
@@ -428,6 +554,9 @@ public partial class MainWindow
                 break;
             case "tool.pen":
                 _vm.SelectToolCommand.Execute(ToolId.Pen);
+                break;
+            case "tool.text":
+                _vm.SelectToolCommand.Execute(ToolId.Text);
                 break;
             case "tool.shape":
                 _vm.SelectToolCommand.Execute(ToolId.Shape);

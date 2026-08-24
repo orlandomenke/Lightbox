@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4875
+budget: 4858
 
 ## Why it is here despite being XAML
 
@@ -218,3 +218,7 @@ leaves a number nobody can account for. So every reason above stays, and
   and row-template elements have nowhere else to live — the chip's *styles*
   went to `Controls.axaml` beside the mask chip's, and every handler is in
   `MainWindow.Layers.cs`.
+- **4,875 → 4,858** (2026-08-24): the text tool. Its rail button and options bar
+  needed eleven lines, so the Fill tool's options — thirty lines of pure
+  bindings, the exact shape `GuideOptionsBar` and the rest already have — became
+  `FillOptionsBar.axaml`. The feature paid for itself and left seventeen behind.

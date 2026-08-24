@@ -54,11 +54,27 @@ public partial class MainViewModel
     private List<Stroke>? _retyping;
     private string? _retypingFrameId;
 
+    /// <summary>
+    /// The element as the document has it, kept so undoing a retype restores
+    /// the words that were there rather than the ones being typed over them.
+    /// </summary>
+    private TextElement? _retypingOriginal;
+
     internal TextElement? LiveText => _liveText;
 
     internal int TextCaret => _textCaret;
 
     internal Stroke? LiveTextPaint => _liveTextPaint;
+
+    /// <summary>
+    /// Whether a typeface was resolved for the type being set.
+    /// </summary>
+    /// <remarks>
+    /// A seam rather than a state anybody acts on: without one there is nothing
+    /// to shape with, and the failure is silent — a caret that types and commits
+    /// nothing. Worth being able to assert.
+    /// </remarks>
+    internal bool HasTextFace => _liveTextFace is not null;
 
     /// <summary>Whether an artist is typing on the canvas right now.</summary>
     /// <remarks>
@@ -121,6 +137,23 @@ public partial class MainViewModel
     public FontLibrary Fonts => _fonts ??= new FontLibrary(
         Settings.Fonts.UseGoogleFonts ? new GoogleFontSource() : null);
 
+    /// <summary>
+    /// Drop the built library so the next request builds it against the
+    /// settings as they are now.
+    /// </summary>
+    /// <remarks>
+    /// Whether there is a Google source at all is decided when the library is
+    /// constructed — see <see cref="Fonts"/> — so turning the preference off
+    /// has to reach this or the old library goes on being able to fetch.
+    /// </remarks>
+    public void ForgetFontLibrary()
+    {
+        _fonts?.Dispose();
+        _fonts = null;
+        _allFonts = [];
+        FontChoices.Clear();
+    }
+
     public IReadOnlyList<TextAlign> TextAlignChoices { get; } =
         [TextAlign.Left, TextAlign.Centre, TextAlign.Right];
 
@@ -156,6 +189,15 @@ public partial class MainViewModel
             return;
         }
 
+        // A face the system will name but this cannot draw is refused here
+        // rather than at the commit, where the only symptom is a title that
+        // vanishes — see TextBaker.CanSetType.
+        if (!TextBaker.CanSetType(typeface))
+        {
+            AiStatus = $"“{face.Family}” has no outlines this can set type with.";
+            return;
+        }
+
         _liveTextFace = typeface;
         if (_liveText is not null)
         {
@@ -182,18 +224,34 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// A sensible face to start in: the first installed one, by name.
+    /// A sensible face to start in: the one this machine already considers its
+    /// default.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Deliberately not a hardcoded family. "Arial" is not installed on a Linux
     /// machine and "DejaVu Sans" is not installed on a Mac, so a named default
     /// is a default that is missing somewhere — and a text tool whose first
     /// click reports a missing font is one nobody tries twice.
+    /// </para>
+    /// <para>
+    /// <b>Also deliberately not "the first one alphabetically", which is what
+    /// this was.</b> On the machine it was first run on that is Bitstream
+    /// Charter, a Type 1 face with no outlines Skia will hand back — so the tool
+    /// opened in a font that silently set nothing. Skia's own default is
+    /// whatever fontconfig resolves for the system, which is by definition a
+    /// face the platform can draw with.
+    /// </para>
     /// </remarks>
     private static FontFace? DefaultFace()
     {
         var installed = FontLibrary.Installed();
-        return installed.FirstOrDefault(f => f is { Weight: 400, Italic: false })
+        var preferred = SKTypeface.Default.FamilyName;
+
+        return installed.FirstOrDefault(f =>
+                f.Family == preferred && f is { Weight: 400, Italic: false })
+            ?? installed.FirstOrDefault(f => f.Family == preferred)
+            ?? installed.FirstOrDefault(f => f is { Weight: 400, Italic: false })
             ?? installed.FirstOrDefault();
     }
 
@@ -266,6 +324,14 @@ public partial class MainViewModel
         _retyping = null;
         _retypingFrameId = null;
         _liveTextFace ??= SKTypeface.Default;
+        // Whatever face is actually in hand is the one the element names, so an
+        // artist who has not opened the font list yet still writes a document
+        // that can be retyped. Recording an empty family would leave type nobody
+        // could ever pick up again.
+        if (_liveText.Font.Family.Length == 0)
+        {
+            _liveText.Font.Family = _liveTextFace.FamilyName;
+        }
         _liveTextPaint = TextPaintPrototype();
 
         _live.EnsureScratch(Scene.Width, Scene.Height);
@@ -284,8 +350,20 @@ public partial class MainViewModel
         _textCaret = _liveText.Text.Length;
         _retyping = glyphs;
         _retypingFrameId = target.Id;
+        _retypingOriginal = element;
         _liveTextPaint = glyphs.Count > 0 ? glyphs[0].Clone() : TextPaintPrototype();
         _liveTextPaint.TextId = null;
+
+        // The bar shows what was picked up. Also what keeps the commit honest:
+        // it only records a font when the chosen face is the one the words were
+        // actually shaped in — see CommitText.
+        if (_allFonts.FirstOrDefault(f =>
+                f.Family == element.Font.Family
+                && f.Weight == element.Font.Weight
+                && f.Italic == element.Font.Italic) is { } picked)
+        {
+            SelectedFont = picked;
+        }
 
         TextSize = _liveText.Size;
         TextTracking = _liveText.Tracking;
@@ -437,6 +515,7 @@ public partial class MainViewModel
 
         var replacing = _retyping;
         var replacingFrameId = _retypingFrameId;
+        var original = _retypingOriginal;
         var paint = _liveTextPaint ?? TextPaintPrototype();
         var typed = text.Text.Trim().Length > 0;
 
@@ -453,10 +532,22 @@ public partial class MainViewModel
             ? TextBaker.Bake(text, face, paint)
             : [];
 
-        var choice = SelectedFont is { } chosen && typed
+        // Only record a font when the face in the bar is the one these words
+        // were actually shaped in. Picking type up and pressing Escape without
+        // touching anything would otherwise silently re-font it to whatever the
+        // tool happened to be set to — and, worse, carry that font into the
+        // document for text that is not set in it.
+        var chosen = SelectedFont;
+        var shapedInChosen = typed
+            && chosen is not null
+            && text.Font.SameFace(new FontRef
+            {
+                Family = chosen.Family, Weight = chosen.Weight, Italic = chosen.Italic,
+            });
+        var choice = shapedInChosen && chosen is not null
             ? Fonts.Reference(chosen, _editor.Doc, Settings.Fonts.EmbedOpenFonts)
             : default;
-        if (typed && choice.Reference is { Family.Length: > 0 }) text.Font = choice.Reference;
+        if (choice.Reference is { Family.Length: > 0 }) text.Font = choice.Reference;
 
         var frameId = target.Id;
         var removed = replacing ?? [];
@@ -513,10 +604,13 @@ public partial class MainViewModel
                         var at = i < indices.Count ? Math.Min(indices[i], list.Count) : list.Count;
                         list.Insert(at, removed[i]);
                     }
-                    if (removed.Count > 0)
+                    // The element as it was before the retype, not the one being
+                    // typed over it: undoing must put back the words that go
+                    // with the letters being put back.
+                    if (original is not null)
                     {
                         doc.Texts ??= [];
-                        doc.Texts[text.Id] = text;
+                        doc.Texts[original.Id] = original;
                     }
                 },
                 affectedFrameId: frameId);
@@ -532,9 +626,14 @@ public partial class MainViewModel
         _dirtyThumbIds.Add(frameId);
         _publish.InvalidateWholeCanvas();
         PublishSnapshot();
-        AiStatus = glyphs.Count == 0
-            ? "Type removed."
-            : $"Set {glyphs.Count} letters in {text.Font.Family}.";
+        AiStatus = glyphs.Count > 0
+            ? $"Set {glyphs.Count} letters in {text.Font.Family}."
+            : typed
+                // Words that shaped to nothing are not words that were deleted,
+                // and saying so is the difference between a font to change and a
+                // title that mysteriously disappeared.
+                ? $"“{text.Font.Family}” set no letters — try another font."
+                : "Type removed.";
     }
 
     /// <summary>Drop the type being typed. Nothing was in the document yet.</summary>
@@ -553,6 +652,7 @@ public partial class MainViewModel
         _liveTextPaint = null;
         _retyping = null;
         _retypingFrameId = null;
+        _retypingOriginal = null;
         _textCaret = 0;
         _live.ClearScratch();
         OnPropertyChanged(nameof(TextSessionActive));
