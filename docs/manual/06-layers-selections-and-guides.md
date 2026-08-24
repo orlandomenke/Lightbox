@@ -363,6 +363,10 @@ pixels out, so a stroke crossing the edge travels whole. **Ink you have erased
 stays erased**: eraser marks caught by the selection travel with the lines they
 carve, but what they rubbed out of the lines that stay behind does not come
 back — moving a selection never resurrects anything, in the drag or on apply.
+The selection takes what you can *see*: a line you rubbed out entirely is not
+on the canvas, so a box drawn where it used to be does not pick it up — and a
+half-erased line goes by where its surviving ink sits, so boxing the visible
+end moves it even when the rubbed-out part lay elsewhere.
 
 **Ctrl+T** starts a transform. The gizmo gives move, scale, rotate and a
 draggable pivot; **Perspective** mode gives four free corners. The whole

@@ -815,7 +815,7 @@ public partial class MainViewModel
     {
         if (!CanEdit(ActiveLayer, "transform it")) return false;
         var frames = CollectTransformFrames();
-        filter ??= DerivedTransformFilter();
+        filter ??= DerivedTransformFilter(frames);
         var bounds = TransformOps.Bounds(frames, filter);
         if (frames.Count == 0 || bounds is null)
         {
@@ -866,13 +866,31 @@ public partial class MainViewModel
     /// there is no way to show that on a canvas.
     /// </para>
     /// </remarks>
-    private Func<Stroke, bool>? DerivedTransformFilter()
+    /// <param name="frames">
+    /// The frames the session is opening over. The marquee's classification is
+    /// taken here, once, against what is VISIBLE on them — a stroke is judged
+    /// by the points a later erasure has not taken away, and one none of whose
+    /// ink survives is never taken at all (B297; StrokePicker's rule three).
+    /// Judging per call on raw geometry is how a lasso around a redrawn nose
+    /// used to lift the rubbed-out previous nose from under its eraser. Held
+    /// by id because a commit on a held cel clones the drawing, and the clone
+    /// keeps its stroke ids (Frame.Clone).
+    /// </param>
+    private Func<Stroke, bool>? DerivedTransformFilter(List<Frame> frames)
     {
         if (HasSelection)
         {
             int w = Scene.Width, h = Scene.Height;
             var mask = MaskFromContours(_selectionContours, w, h);
-            return s => TransformOps.MajorityInside(s, mask, w, h);
+            var moving = new HashSet<string>();
+            foreach (var frame in frames)
+            {
+                foreach (var index in TransformErasures.MovingWithin(frame.Strokes, mask, w, h))
+                {
+                    moving.Add(frame.Strokes[index].Id);
+                }
+            }
+            return s => moving.Contains(s.Id);
         }
         return StrokeSelectionFilter();
     }
