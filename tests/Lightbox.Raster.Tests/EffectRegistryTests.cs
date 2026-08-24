@@ -718,6 +718,39 @@ public class EffectRegistryTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void AFlickerBuildsOnEveryStepIncludingTheOnesThatAskForFullStrength()
+    {
+        // Skia answers an identity blend with null rather than a filter, and
+        // the flicker asks for one whenever its noise lands near zero — about
+        // one step in three hundred at the default depth. The per-use random
+        // seed hid it: the chain threw or did not depending on which id the
+        // use happened to be handed, which is the worst way for a crash to
+        // arrive. Sweeping the seed makes it certain rather than lucky.
+        var fullStrength = 0;
+        for (var seed = 0; seed < 60; seed++)
+        {
+            var use = Use("anim.flicker", ("amount", 60.0), ("hold", 1.0));
+            use.Params["seed"] = new EffectParam(seed);
+            var stack = Stack(use);
+            for (var frame = 0; frame < 40; frame++)
+            {
+                // The assertion is that this does not throw; a full-strength
+                // step legitimately answers null, which is identity.
+                if (EffectRegistry.FilterFor(stack, frame) is null) fullStrength++;
+            }
+        }
+        // ...and the sweep has to actually reach the case it exists for, or
+        // it is 2,400 iterations of proving nothing.
+        output.WriteLine($"{fullStrength} of 2400 steps asked for full strength");
+        Assert.True(fullStrength > 0, "the sweep never hit a full-strength step");
+
+        // And the full-strength case explicitly: no dip at all is the layer
+        // exactly as it was, not an exception.
+        var none = Stack(Use("anim.flicker", ("amount", 0.0)));
+        Assert.Null(EffectRegistry.FilterFor(none, 0));
+    }
+
+    [Fact]
     public void ATimeSeededStackRebuildsPerFrameAndAStaticOneDoesNot()
     {
         // The cache fingerprints a stack on its parameters evaluated at the

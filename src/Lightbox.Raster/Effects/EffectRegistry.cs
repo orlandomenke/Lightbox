@@ -430,10 +430,16 @@ public static class EffectRegistry
                 // be more opaque than it is.
                 var alpha = (byte)Math.Round(
                     Math.Clamp(1 - depth * Noise01(use, frame, 1, 47u), 0, 1) * 255);
-                return SKImageFilter.CreateColorFilter(
-                    SKColorFilter.CreateBlendMode(
-                        SKColors.White.WithAlpha(alpha), SKBlendMode.DstIn),
-                    inner);
+                // A step whose noise lands near zero asks for full strength,
+                // and Skia answers an identity blend with *null* rather than
+                // a filter — which then throws when it is used. Roughly one
+                // frame in three hundred at the default depth, so the per-use
+                // random seed hid it: the crash arrived or did not depending
+                // on which id the use happened to be given.
+                if (alpha >= 255) return inner;
+                var dim = SKColorFilter.CreateBlendMode(
+                    SKColors.White.WithAlpha(alpha), SKBlendMode.DstIn);
+                return dim is null ? inner : SKImageFilter.CreateColorFilter(dim, inner);
             }),
 
         ["grade.grain"] = new(
@@ -924,9 +930,13 @@ public static class EffectRegistry
     // ---- style-chain vocabulary -------------------------------------------
 
     /// <summary>Colourize a silhouette: the colour everywhere, scaled by its alpha.</summary>
-    private static SKImageFilter Tint(SKColor color, SKImageFilter? input) =>
-        SKImageFilter.CreateColorFilter(
-            SKColorFilter.CreateBlendMode(color, SKBlendMode.SrcIn), input);
+    private static SKImageFilter? Tint(SKColor color, SKImageFilter? input)
+    {
+        // Same trap as the flicker's dip: Skia hands back null for a blend it
+        // considers a no-op, and CreateColorFilter throws on null.
+        var tint = SKColorFilter.CreateBlendMode(color, SKBlendMode.SrcIn);
+        return tint is null ? input : SKImageFilter.CreateColorFilter(tint, input);
+    }
 
     /// <summary>Foreground drawn over background; null means the style group's source.</summary>
     private static SKImageFilter Over(SKImageFilter? foreground, SKImageFilter? background) =>
