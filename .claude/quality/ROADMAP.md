@@ -322,6 +322,19 @@ answered, and answering one does not soften the other:
 | Layer count | Do not recomposite unchanged layers | B165, not started — **mandatory** |
 | Layer count × memory | Held side composites instead of every cel resident | B198 — measured, carried by B29's candidate |
 | Pixels actually served | Tiles, and the compose-scale clamp | B144, B160 — built |
+| Pixels served *while painting* | A culled ring: viewport-sized *and* dirty-region-aware | B291 — measured, not started |
+
+**The fifth row is the one that gets worse as the artist works closer**, and it
+is worth stating beside the others because it inverts their intuition. Culling
+already prices a composite by what is on screen — and `ComposePlan.For` requires
+`dirty is null` to take that route, so a *stroke* publish never can. Painting
+therefore composes into a surface sized to the **document**, which does not shrink
+with zoom: measured on 2560×1440, a stroke at 8× zoom composes 3.7 M pixels where
+a frame change at the same zoom composes 14 k. The condition is not a mistake —
+B121 measured naive culling of an incremental publish at 109× *worse*, because the
+culled path builds a fresh surface and must fill all of it. So this is a third
+route rather than a relaxed condition, which is why it is a roadmap item and not
+a bug fix.
 
 The layer axis is swept to 100 as of 2026-08-14, and it added a fourth row: past
 about 64 layers at 1080p a single frame's cels (~830 MB) exceed the 512 MB frame

@@ -379,6 +379,32 @@ selection is an entry in the document, referenced by the strokes clipped to it).
 Settings that reach pixels — anti-aliasing, pressure curves — are recorded **on
 each stroke**, so changing a preference never alters art you have already made.
 
+### Why a hard-edged line comes out smooth
+
+A brush lays its mark down as a row of overlapping stamps, one every fraction of
+a pixel. For a **hard-edged** brush — Ink, hard round, the eraser, anything with
+hardness at 1 — the whole row is drawn as a **single shape** rather than stamp by
+stamp, and the smooth edge is worked out once for that shape.
+
+The difference is worth knowing because it shows up most where it matters least
+to explain and most to look at: **thin diagonals**, which is what hair, eyelashes
+and hatching are made of. Drawn stamp by stamp, each stamp's soft edge lands on
+top of the last one's and the two add up to something harder than either — so a
+shallow diagonal holds one column of pixels for a few rows, jumps to the next,
+and reads as a staircase instead of a line. Drawn as one shape there is nothing
+to add up, and the line keeps the same weight wherever it happens to fall between
+pixels.
+
+**Soft brushes still work stamp by stamp**, because each stamp's fade belongs to
+the stamp rather than to the mark. So do brushes with **scatter, size jitter, a
+squashed tip, or an imported bitmap tip**, whose stamps genuinely differ from one
+another. If you are inking and want the crispest possible line, a plain round tip
+at full hardness is the one to reach for.
+
+This is not a setting and there is nothing to switch on. It also applies to art
+you drew before — reopen an old drawing and its hard-edged lines are cleaner than
+they were.
+
 **An erase that rubbed nothing out is not recorded.** Sweep the eraser across
 blank canvas, or press Delete with an empty selection, and nothing is written:
 no stroke on the drawing, and no step in the history. It did nothing to nothing,

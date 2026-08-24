@@ -142,6 +142,21 @@ which is a weak test and still far better than none.
 
 ### brush
 
+- [ ] **B290** `P2` `brush` The silhouette outline is rebuilt from every dab on every pointer event, doubling the live cost of inking a long stroke `evidence: tests/Lightbox.App.Tests/SilhouetteCacheCostTests.cs`
+  - Found while fixing the dab-saturation defect (Q156) and measured before shipping it rather than after. A hard-edged brush now draws its whole mark as one shape, and `BrushEngine.BuildSilhouette` derives that outline from the entire dab list — so the commit gains and the live preview pays, because the preview re-presents the mark on every pointer event.
+  - Measured on a 2000 px arc at 2560×1440, Display quality, per pointer event at 400 events:
+
+    | | size 5 | size 24 |
+    | --- | --- | --- |
+    | per-dab (before) | 1.50 ms | 0.60 ms |
+    | silhouette (now) | **3.19 ms** | **2.02 ms** |
+
+    Against a whole-mark render, which is the commit, the reload, the export and every inbetween: **14.8 ms against 26.4 ms** at size 5, and 10.3 against 22.7 at size 24 — 1.8× *faster* there. One mechanism with opposite signs on its two callers, not a regression in the change as a whole.
+  - **The cost is the re-derivation, not the fill.** The fill is already clipped to the band the range's dabs can reach. Culling contours outside that band was tried and measured: **no change** (3.2 ms either way), so it was removed rather than kept as a comment with a number behind it. What remains is a `RadiusAt` and a few flops for each of ~4000 dabs, every event, because `StampLiveDabs` pins the settled cut at zero and so re-derives the whole outline each time.
+  - **The obvious cheap fix is wrong, and was measured wrong rather than reasoned wrong.** Letting the settled prefix be stamped separately — the per-dab path's own arrangement — writes the still-provisional tail's shape into the scratch *before* the tail backup is taken, so a tail that then moves leaves its old position behind: the live mark came out **2.8% fatter than the commit with pixels 239/255 apart in both directions**. Bounding each draw's path by its own range instead caps the mark where the full list carries a capsule onward, which is a second, separate 3.5% error. Both are recorded here because either looks like an obvious win from the code.
+  - **So the fix is a cache, not a rearrangement:** the settled prefix's contribution to the outline, held across events and extended rather than rebuilt. That needs state the engine's static path does not have, which is the design decision this is waiting on.
+  - **Filed rather than fixed** because it is a second objective on a branch whose first was the anti-aliasing defect. Bounded work either way — invariant 6 holds, the fill is band-clipped and the walk is the same order as `WalkDabs`, which BR1 already runs per event. Cost: M.
+
 - [ ] **B101** `P3` `brush` A simulated medium's picker tile is too faint to read `evidence: manual`
   - Repro: open the brush picker and look at **Watercolor** beside **Watercolor (flat)**. Measured by `ChannelsMoved` in `BrushPickerTests`: the flat one moves 890 pixels against its ground, the simulated one **2**, at a threshold of 12 per channel.
   - **Not the same defect as B50, and worth separating because B50's fix did not move it.** The on-canvas mark now peaks at 96/255 at the brush's own size, and the medium holds up as the brush shrinks — swept at sizes 8/12/17/25/42/80/150 the peak runs 71/80/87/98/96/105/107, so there is no size cliff. The tile is faint at a size where a real stroke is not.
@@ -252,6 +267,21 @@ which is a weak test and still far better than none.
   - Cost: M to diagnose, unknown to fix. **Do not start by changing the present path** — that is what B164 already did, and the counters say it is working.
   - **The per-caller tally shipped (2026-08-15), and it is the counter the bullet above asked for — no publish-path behaviour changed.** `PublishSnapshot` takes a compiler-stamped `CallerMemberName`, so all 45 call sites report themselves without being edited and the name cannot lie about where the call came from; `PublishTally` counts them during playback only, so the table is the tick's surplus rather than thousands of legitimate pointer publishes; and the render report's *who publishes during playback* section prints the table busiest-first and judges the total against the ticks — one publish per advance is the playhead's own, everything above that line is the surplus, whoever made it. `PublishTallyTests` pins the gating, the caller attribution and the report's wording, and is deliberately not this entry's evidence — the same split `StrokeToScreenTests` holds for B189, because these prove the instrument rather than the fix.
   - **What closes the diagnosis step: play for half a minute on the owner's machine, then Help ▸ Write a render report.** The section names the caller supplying the ~1.2 publishes per tick beyond the playhead's own, which is where the 176 ms backlog is being fed from — and the next fix goes at that call site, not at the present path.
+
+- [ ] **B291** `P2` `canvas` Painting can never reach viewport culling, so a stroke at 8x zoom composes 3.7 M pixels where a frame change composes 14 k `evidence: tests/Lightbox.App.Tests/CulledRingTests.cs`
+  - Reported 2026-08-23 alongside the anti-aliasing defect: *"zoomed in that performance dips."* Measured rather than taken on trust — `ComposePlan.For` on a 2560x1440 document, once with a dab-sized dirty region and once without, at each zoom:
+
+    | zoom | live-stroke route | surface | whole-canvas route | surface |
+    | --- | --- | --- | --- | --- |
+    | 1x | `Ring` | 3,686,400 px | `ViewportCulled` | 910,000 px |
+    | 2x | `Ring` | 3,686,400 px | `ViewportCulled` | 227,500 px |
+    | 4x | `Ring` | 3,686,400 px | `ViewportCulled` | 56,875 px |
+    | 8x | `Ring` | 3,686,400 px | `ViewportCulled` | 14,094 px |
+
+  - **Culling works, gets better the further you zoom in, and the painting path cannot reach it.** `ComposePlan.For` requires `dirty is null` to cull, and a stroke publish always carries a dirty region, so painting takes `Ring` — whose surface is sized to the *document* and therefore never shrinks with zoom. At 8x the artist can see 14 k pixels' worth of document and the ring is 262x that.
+  - **The condition is not a mistake, which is why this is not a flag flip.** B121 measured naive culling of an incremental publish at 109x *worse* — 1,232 px against 134,400 px for the same dab — because the culled path builds a fresh surface and must fill all of it, so it cannot honour a dirty region. The fix is a surface that is both viewport-sized *and* dirty-region-aware, which is a third route rather than a condition relaxed.
+  - **What the artist actually feels is a step, and it is smaller than the surface ratio.** The dirty-region machinery means per-event cost is mostly area-independent, so the ring's size shows up in allocation and in the full-surface work rather than in the dab. Measured, Ink brush, 2560x1440, 40 pointer events, Display quality: 0.43 ms/event at compose scale 0.5–0.625, **0.65 ms/event at 0.75–1.0** — a +50% step in one zoom notch, where `WorthScaling` snaps the scale to 1.0 and the ring quadruples to 14.7 MB. That is a compose-path number and not the whole pen-to-screen path; B178 and B189 own the rest of that latency.
+  - **Filed rather than fixed because it is genuinely large** — the third compose route, its cache keying and its interaction with `ComposeRing`'s dirty tracking — and this branch's objective was the anti-aliasing defect. Roadmapped under *Drawing floor*. Cost: L.
 
 - [ ] **B259** `P2` `canvas` Publish pacing fails intermittently under a full-solution test run `evidence: IPacingClock, PublishPacingIsDrivenByAnInjectableClock`
   - **Evidence.** `PublishPacingTests.EventsWhileTheCanvasIsBehindComposeNothingUntilItCatchesUp`
