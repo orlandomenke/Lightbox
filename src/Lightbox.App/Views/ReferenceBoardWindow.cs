@@ -672,12 +672,6 @@ public sealed class ReferenceBoardWindow : Window
         DataFormat.CreateBytesPlatformFormat("image/bmp"),
     ];
 
-    /// <summary>Formats a picture dragged out of a browser can arrive in.</summary>
-    private static readonly DataFormat<string> UriListFormat =
-        DataFormat.CreateStringPlatformFormat("text/uri-list");
-
-    private static readonly DataFormat<string> HtmlFormat =
-        DataFormat.CreateStringPlatformFormat("text/html");
 
     /// <summary>Every file in a drag, in the order they came — whatever it is called.</summary>
     /// <remarks>
@@ -703,8 +697,8 @@ public sealed class ReferenceBoardWindow : Window
 
     /// <summary>
     /// The browser counterpart: a picture dragged off a web page carries URIs
-    /// rather than files. Anything carrying actual files is not a web drag,
-    /// whatever else rides along — the same reading the canvas drop uses.
+    /// rather than files. Every format the drag holds is read (B293), because
+    /// which one carries the address is a matter of browser and platform.
     /// </summary>
     private static IReadOnlyList<Uri> DroppedWebImages(DragEventArgs e)
     {
@@ -714,16 +708,17 @@ public sealed class ReferenceBoardWindow : Window
         // unusable. The drop tries files first and only reaches here when none
         // of them produced a tile, which keeps the no-duplicates promise without
         // the refusal.
-        if (e.DataTransfer is not { } data) return [];
-        return Services.WebImageDrop.ImageUris(
-            data.TryGetValue(UriListFormat),
-            data.TryGetText(),
-            data.TryGetValue(HtmlFormat));
+        return Services.WebImageDrop.ImageUrisIn(e.DataTransfer);
     }
 
     private static void OnDragOver(object? sender, DragEventArgs e)
     {
-        if (DroppedFiles(e).Count == 0 && DroppedWebImages(e).Count == 0) return;
+        if (DroppedFiles(e).Count == 0
+            && DroppedWebImages(e).Count == 0
+            && Services.WebImageDrop.EmbeddedImageIn(e.DataTransfer) is null)
+        {
+            return;
+        }
         e.DragEffects = DragDropEffects.Copy;
         // Marked handled, as the canvas's own file drop does: an unhandled
         // drag-over leaves the effect for something else to overwrite.
@@ -783,8 +778,23 @@ public sealed class ReferenceBoardWindow : Window
             }
         }
 
+        // Last: the picture the drag was carrying itself, if it had one (B293).
+        // Behind the fetch because it may be a thumbnail, in front of a refusal
+        // because a thumbnail on the wall beats nothing on the wall.
+        if (Services.WebImageDrop.EmbeddedImageIn(e.DataTransfer) is { } embedded
+            && BoardModel.AddImageBytes("Web image", embedded, (at.X, at.Y)) is not null)
+        {
+            Say("");
+            return;
+        }
+
+        // What it was carrying goes to the log, because the format names are the
+        // whole diagnosis and no one can report them from memory (B293).
+        Services.DiagnosticLog.WriteNote(
+            "reference-board-drop", "carried " + Services.WebImageDrop.DescribeFormats(e.DataTransfer));
         Say(uris.Count > 0
             ? "That picture could not be fetched — the site refused it, or named no image Lightbox can read."
-            : "That drop had no picture in it that Lightbox could read.");
+            : "That drop had no picture in it that Lightbox could read — what it did carry is in the "
+              + "diagnostics log (Help ▸ Open the diagnostics folder).");
     }
 }
