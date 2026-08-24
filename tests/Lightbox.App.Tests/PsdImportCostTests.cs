@@ -33,7 +33,7 @@ namespace Lightbox.App.Tests;
 /// and is not one. Dropping zlib from the default to 1 saves about 20% of the
 /// encode, and dropping it to 0 takes a 32 KB file to 32 MB. The fix is to store
 /// the layer's own rect, which cuts the work from canvas area to content area —
-/// filed as B301 with this measurement behind it.
+/// filed as B304 with this measurement behind it.
 /// </para>
 /// <para>
 /// <b>The committed tests run smaller documents than the table above</b>, and

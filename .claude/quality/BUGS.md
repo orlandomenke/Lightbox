@@ -142,6 +142,34 @@ which is a weak test and still far better than none.
 
 ### brush
 
+- [ ] **B303** `P2` `brush` A medium performance test differences two noisy timings and fails when the difference goes negative `evidence: MediumPerformanceTests, TheMediumsOwnCostIsMeasuredAgainstNoiseRatherThanAssumedPositive`
+  - **Evidence.** CI on 2026-08-24 (PR416's first run, a branch touching nothing
+    in the medium path): `TheMediumCostsTheSameOnAHugeCanvasAsOnASmallOne` failed
+    on its own sanity assertion, `smallDelta > 1`, with
+    `medium's own cost: -16.9 ms at 720p, -43.8 ms at 4K`. A **negative** cost
+    means the watercolour stroke measured faster than the identical stroke with
+    no medium, which is noise rather than a result — and the test's own message
+    says so: *"the medium cost nothing measurable — the test is not measuring
+    it"*.
+  - **The method is the defect, not the medium.** The test takes
+    `FastestMs(medium) - FastestMs(plain)` across two separate measurement runs.
+    On a loaded runner the two runs see different scheduling, and a difference of
+    two noisy numbers is noisier than either — so the *sanity check* fails long
+    before the thing being guarded (that the medium tracks the stroke rather than
+    the canvas) is ever in question. The guard is sound; its floor is not
+    measurable on shared hardware.
+  - **Filed rather than fixed under the one-objective rule.** Found while a PSD
+    import branch was in hand, and it is not that branch's area — the same call
+    the entry for B296 records, and for the same reason. Both are test-side
+    defects in `Lightbox.Raster.Tests` that make CI red on unrelated branches, and
+    they want one branch between them.
+  - **The likely fix is to stop asserting a positive floor on a difference**:
+    measure the medium's cost as a *ratio* of area growth (which is what the
+    second assertion already does and is the actual promise), and drop the first
+    assertion or replace it with one that tolerates the medium being too cheap to
+    time. Interleaving the two measurements in the same run would reduce the noise
+    but not remove it. Cost: S, entirely test-side; nothing in the shipped medium
+    changes.
 - [ ] **B293** `P2` `brush` A soft brush's footprint ceiling runs in the live post-process, so its mark converges a fraction behind the pen instead of being exact under it `evidence: tests/Lightbox.App.Tests/SoftBrushLiveIsExactTests.cs`
   - Found while fixing the hardness defect (Q157) and measured before shipping it. A soft brush's mark is now held down to the brush's own footprint, and that ceiling is a property of the **whole mark**: the dabs the fast path lays down are its input, so capping them in place would feed a clamped value back into the next event's accumulation. It therefore joins medium, wet edge, texture and granulation in `NeedsLivePostProcess`.
   - **This reaches the default brush, which is worth saying plainly.** `BrushSettings.Hardness` defaults to **0.8**, so an artist who has not touched the hardness slider is drawing with a capped brush and gets the converging preview. Not only presets somebody deliberately softened.
@@ -593,7 +621,7 @@ which is a weak test and still far better than none.
 
 ### export
 
-- [ ] **B301** `P2` `export` A PSD import spends 97% of its time encoding canvas-sized baselines `evidence: BaselineRect, ALayerStoresOnlyItsOwnBoundsRatherThanTheWholeCanvas`
+- [ ] **B304** `P2` `export` A PSD import spends 97% of its time encoding canvas-sized baselines `evidence: BaselineRect, ALayerStoresOnlyItsOwnBoundsRatherThanTheWholeCanvas`
   - **Evidence.** Measured 2026-08-24, `PsdImportCostTests`, layers holding a
     300×300 patch on a large canvas:
 

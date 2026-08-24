@@ -562,7 +562,7 @@ it is re-rendered rather than recorded. What is missing is only presentation.
     smaller bounds would be scaled up to fill the frame. A nullable rect beside
     the baseline is the better answer and changes a serialized type that
     `ImageResize`, `Crop`, `Transform` and `LayerMerge` all read, so it was kept
-    as a follow-up — **B301**, cost M.
+    as a follow-up — **B304**, cost M.
   - **What that costs was measured rather than asserted, and half the assertion
     was wrong.** The claim written down at the time was "only decode time and
     memory pay". The file-size half held up completely: PNG and gzip crush the
