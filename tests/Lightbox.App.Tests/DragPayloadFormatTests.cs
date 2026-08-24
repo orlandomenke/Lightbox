@@ -7,7 +7,7 @@ namespace Lightbox.App.Tests;
 
 /// <summary>
 /// Reading a browser drag by what it carries rather than by three format names
-/// chosen in advance (B293).
+/// chosen in advance (B294).
 /// </summary>
 /// <remarks>
 /// Reported as *"sometimes I am able to drag and drop an image but oftentimes
@@ -242,7 +242,7 @@ public class DragPayloadFormatTests
     {
         // Trimmed off the end only, a leading mark stays on and Uri.TryCreate
         // rejects the string — the one candidate is dropped and the drop reads
-        // as carrying nothing, which is B293's own symptom inside B293's fix.
+        // as carrying nothing, which is B294's own symptom inside B294's fix.
         var drag = new FakeTransfer().WithBytes(
             "public.url",
             [.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes("https://example.com/pose.jpg")]);
