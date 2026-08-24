@@ -610,6 +610,42 @@ which is a weak test and still far better than none.
   - Distinct from **B10**, which was swatch *links* dying when a project was saved and reloaded and is fixed: this is the swatch itself never reaching the file. B10's guards (`ASavedProjectKeepsItsSwatchIds`) check that an id survives, which passes whether or not the palette entry behind it was written.
   - `AProjectThatNeverAsksForThisWritesNoBrushKey` is the pattern the fix should follow — a palette that was never touched must still write nothing. Cost: M
 
+### export
+
+- [ ] **B304** `P2` `export` A PSD import spends 97% of its time encoding canvas-sized baselines `evidence: BaselineRect, ALayerStoresOnlyItsOwnBoundsRatherThanTheWholeCanvas`
+  - **Evidence.** Measured 2026-08-24, `PsdImportCostTests`, layers holding a
+    300×300 patch on a large canvas:
+
+    | Document | Parse | Baselines | On disk |
+    | --- | --- | --- | --- |
+    | 1920×1080, 8 layers | 41 ms | 621 ms | 2 KB |
+    | 1920×1080, 24 layers | 47 ms | 1,929 ms | 7 KB |
+    | 3840×2160, 12 layers | 21 ms | 3,805 ms | 12 KB |
+
+    Reading the PSD is 1–3% of the work. The rest is building one full-canvas PNG
+    per layer — 8.3M pixels traversed at 4K to encode a picture that is almost
+    entirely transparent.
+  - **Not the reader's fault, and not a mistake either.** Baselines are
+    canvas-sized by decision, because `FrameRasterizer.Materialize` draws a
+    baseline stretched across the whole canvas, so a layer stored at its own
+    bounds would be scaled up to fill the frame. The write-up of that decision
+    claimed "only decode time and memory pay", which this measurement corrects:
+    the *file size* half held up completely — 12 KB for a 4K import — and the
+    *time* half did not.
+  - **Filed rather than fixed, under the second exception.** The fix is a nullable
+    rect beside the baseline, and that changes a serialized type read by
+    `FrameRasterizer`, `ImageResize`, `MainViewModel.Crop`,
+    `MainViewModel.Transform` and `LayerMerge`. It also changes what a `.lbx`
+    contains, so it wants asking about rather than deciding inside a branch whose
+    objective was reading PSDs. Cost M: the record and the rasterizer are S, the
+    five readers and their round-trip tests are the bulk.
+  - **Do not re-run the compression experiment.** PNG level is the obvious lever
+    and is not one: zlib 1 saves about 20% of the encode, and zlib 0 takes the
+    32 KB file to 32 MB. The work is proportional to canvas area whatever the
+    encoder does, which is why only the rect helps.
+  - Bounded, and only on import: nothing in the paint path does this, and a
+    document already imported pays none of it again.
+
 ### project
 
 - [ ] **B295** `P1` `project` `ids --fix` renumbers both entries of a duplicate filed inside this branch's own range, so the duplicate survives at the new number `evidence: _keeping_spots,cmd_selftest`

@@ -112,6 +112,7 @@ public partial class MainWindow
         SaveAsMenu.InputGesture = _shortcuts.Definitions.FirstOrDefault(d => d.Id == "file.saveAs")?.Current;
         SaveVersionMenu.InputGesture = _shortcuts.Definitions.FirstOrDefault(d => d.Id == "file.saveVersion")?.Current;
         VersionHistoryMenu.InputGesture = _shortcuts.Definitions.FirstOrDefault(d => d.Id == "file.versionHistory")?.Current;
+        SaveAsImageMenu.InputGesture = _shortcuts.Definitions.FirstOrDefault(d => d.Id == "file.saveAsImage")?.Current;
     }
 
     /// <summary>
@@ -500,13 +501,39 @@ public partial class MainWindow
         {
             Title = "Open animation",
             AllowMultiple = false,
-            FileTypeFilter = [LightboxFileType],
+            // Photoshop files open here rather than behind a separate Import
+            // item, because "open this drawing" is the same intent whichever
+            // application made it. What differs is that a PSD arrives with no
+            // path attached, so Save cannot write one back — see
+            // OpenPhotoshopFileAsync.
+            FileTypeFilter = [LightboxFileType, PhotoshopFileType],
         });
         if (files.Count == 0) return;
+
+        if (IsPhotoshopFile(files[0]))
+        {
+            await OpenPhotoshopFileAsync(files[0]);
+            return;
+        }
+
         await using var stream = await files[0].OpenReadAsync();
         using var reader = new StreamReader(stream);
         var json = await reader.ReadToEndAsync();
         _vm.OpenDocumentTab(DocJson.Deserialize(json), files[0].TryGetLocalPath());
+    }
+
+    /// <summary>Whether a picked file should go through the PSD reader.</summary>
+    /// <remarks>
+    /// By extension rather than by sniffing the bytes, so a mis-named file fails
+    /// as the thing the artist asked for. Sniffing would open a .psd renamed to
+    /// .lightbox.json and hide the mistake until the next save.
+    /// </remarks>
+    internal static bool IsPhotoshopFile(IStorageFile file)
+    {
+        var name = file.TryGetLocalPath() ?? file.Name;
+        var extension = Path.GetExtension(name);
+        return extension.Equals(".psd", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".psb", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Show a dialog asking how to place a multi-frame symbol.</summary>
