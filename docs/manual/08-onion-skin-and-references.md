@@ -198,14 +198,18 @@ view onto the wall rather than the whole of it.
 | Move around | Wheel zooms, middle-drag or drag the empty background pans |
 
 **A drop that brings nothing says so — on the board.** Browsers hand a picture
-over in more than one way — sometimes the file it cached, sometimes only an
-address — and Lightbox tries everything before giving up. What decides is
-whether the bytes are a picture, not what the file is called, so a browser's
-nameless temporary works like any other. When the address turns out to be the
-*page* the picture lives on — which is what many sites, Pinterest among them,
-put in a drag — the page is read for the image it names and that is fetched
-instead. If nothing worked, the board's own toolbar says which way it failed
-rather than leaving you wondering.
+over in more than one way — sometimes the file it cached, sometimes an address,
+sometimes the picture itself — and they label those differently on Windows, on
+macOS and on Linux. Lightbox reads whatever the drag turns out to be carrying
+and tries all of it before giving up. What decides is whether the bytes are a
+picture, not what anything is called, so a browser's nameless temporary works
+like any other. When the address turns out to be the *page* the picture lives
+on — which is what many sites, Pinterest among them, put in a drag — the page
+is read for the image it names and that is fetched instead. Only when every one
+of those fails does the drop refuse, and then the board's own toolbar says which
+way it failed rather than leaving you wondering; what the drag was carrying is
+written to the diagnostics log, which is the thing to attach if a drop that
+should work does not.
 
 **A picture lands where you put it** — under the pointer when you drop it, in the
 middle of the view when it comes from the picker or the clipboard. Drop several

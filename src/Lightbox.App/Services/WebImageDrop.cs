@@ -1,5 +1,7 @@
 using System.Net.Http;
+using System.Text;
 using System.Text.RegularExpressions;
+using Avalonia.Input;
 
 namespace Lightbox.App.Services;
 
@@ -53,6 +55,232 @@ public static partial class WebImageDrop
             }
         }
         return found;
+    }
+
+    // ---- what the drag actually carries (B293) ------------------------------------
+
+    /// <summary>
+    /// The image candidates in a drag, read from <b>every</b> format it carries
+    /// rather than from three format names chosen in advance.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Asking for <c>text/uri-list</c>, plain text and <c>text/html</c> by name
+    /// is an X11 spelling, and a browser on another platform spells the same
+    /// three things differently: Windows offers <c>UniformResourceLocatorW</c>
+    /// and <c>HTML Format</c>, macOS <c>public.url</c> and <c>public.html</c>,
+    /// Firefox <c>text/x-moz-url</c>. A drag whose formats were none of the
+    /// three read as carrying nothing at all — which is how this was reported:
+    /// *"sometimes I am able to drag and drop an image but oftentimes Lightbox
+    /// states that drop had no picture in it"*. It worked when a browser
+    /// happened to also offer a real file, and not otherwise.
+    /// </para>
+    /// <para>
+    /// So the format list is enumerated and every textual value in it is read.
+    /// Identifiers are sorted into the three roles by what their names contain,
+    /// because that is the one thing every platform's spelling has in common,
+    /// and anything unrecognised is treated as plain text — the bucket whose
+    /// only cost is a candidate that does not fetch.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<Uri> ImageUrisIn(IDataTransfer? data)
+    {
+        if (data is null) return [];
+        var urls = new StringBuilder();
+        var html = new StringBuilder();
+        var text = new StringBuilder();
+        foreach (var (format, value) in TextValuesIn(data))
+        {
+            var id = format.ToLowerInvariant();
+            var bucket = id.Contains("uri") || id.Contains("url") ? urls
+                : id.Contains("html") ? html
+                : text;
+            bucket.Append(value).Append('\n');
+        }
+        return ImageUris(urls.ToString(), text.ToString(), html.ToString());
+    }
+
+    /// <summary>Every format in a drag paired with its value read as text, where it is text at all.</summary>
+    public static IEnumerable<(string Format, string Value)> TextValuesIn(IDataTransfer data)
+    {
+        foreach (var format in data.Formats)
+        {
+            foreach (var item in data.Items)
+            {
+                object? raw;
+                try
+                {
+                    raw = item.TryGetRaw(format);
+                }
+                catch (Exception e) when (e is not OutOfMemoryException)
+                {
+                    // One unreadable format must not cost the drag the others.
+                    continue;
+                }
+                if (AsText(raw) is { Length: > 0 } value) yield return (format.Identifier, value);
+            }
+        }
+    }
+
+    /// <summary>Text no bigger than this is read out of a drag; past it the value is not prose.</summary>
+    private const int MaxTextValueBytes = 4 * 1024 * 1024;
+
+    /// <summary>
+    /// A dragged value as text, or null where it is not text.
+    /// </summary>
+    /// <remarks>
+    /// Bytes are included because the platform formats that carry a URL often
+    /// arrive as bytes rather than as a string — <c>UniformResourceLocatorW</c>
+    /// is UTF-16 with a trailing NUL, <c>HTML Format</c> is a UTF-8 blob with a
+    /// header in front of the fragment. Both read correctly once decoded, and
+    /// the <c>&lt;img src&gt;</c> pass does not mind the header.
+    /// </remarks>
+    private static string? AsText(object? raw) => raw switch
+    {
+        string s => Tidy(s),
+        byte[] { Length: > 0 and <= MaxTextValueBytes } b => Tidy(DecodeText(b)),
+        _ => null,
+    };
+
+    /// <summary>
+    /// The padding a platform wraps text in, off both ends.
+    /// </summary>
+    /// <remarks>
+    /// <b>The byte-order mark leads, it does not trail.</b> Trimming it off the
+    /// end only — which this did — leaves <c>"﻿https://…"</c>, which
+    /// <see cref="Uri.TryCreate(string, UriKind, out Uri?)"/> rejects, so the
+    /// one candidate a Windows or macOS drag carried was silently dropped and
+    /// the drop reported carrying nothing: B293's own symptom, reintroduced
+    /// inside B293's fix. Found by the adversary pass, not by the tests, which
+    /// is what that pass is for. A URL begins with neither a mark nor a NUL, so
+    /// both come off both ends.
+    /// </remarks>
+    private static string Tidy(string text) => text.Trim('\0', '﻿');
+
+    private static string DecodeText(byte[] bytes)
+    {
+        // UTF-16LE announces itself in ASCII text as a zero in every other
+        // byte, which no UTF-8 payload we would want to read looks like.
+        var probe = Math.Min(bytes.Length, 64);
+        var zeros = 0;
+        for (var i = 1; i < probe; i += 2)
+        {
+            if (bytes[i] == 0) zeros++;
+        }
+        return zeros > probe / 4
+            ? Encoding.Unicode.GetString(bytes)
+            : Encoding.UTF8.GetString(bytes);
+    }
+
+    /// <summary>
+    /// The picture a drag carries in its own right — a bitmap, or any member
+    /// whose bytes decode — or null.
+    /// </summary>
+    /// <remarks>
+    /// The last resort, and deliberately behind the URLs (B293). What a browser
+    /// embeds may be the drag thumbnail rather than the original, and reference
+    /// is drawn against, so the full-resolution fetch is worth trying first.
+    /// When it fails — a CDN that refuses us, or no network — this is the
+    /// difference between a wall with the picture on it and a refusal.
+    /// </remarks>
+    public static byte[]? EmbeddedImageIn(IDataTransfer? data)
+    {
+        if (data is null) return null;
+        foreach (var format in data.Formats)
+        {
+            foreach (var item in data.Items)
+            {
+                object? raw;
+                try
+                {
+                    raw = item.TryGetRaw(format);
+                }
+                catch (Exception e) when (e is not OutOfMemoryException)
+                {
+                    continue;
+                }
+                switch (raw)
+                {
+                    case byte[] { Length: > 0 } bytes when LooksLikeImage(bytes):
+                        return bytes;
+                    case Avalonia.Media.Imaging.Bitmap bitmap:
+                        if (AsPng(bitmap) is { } png) return png;
+                        break;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static byte[]? AsPng(Avalonia.Media.Imaging.Bitmap bitmap)
+    {
+        try
+        {
+            using var stream = new MemoryStream();
+            bitmap.Save(stream, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+            return stream.Length > 0 ? stream.ToArray() : null;
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// What a drag was carrying, for the diagnostics log — the format names and
+    /// how big each value was, never the values themselves.
+    /// </summary>
+    /// <remarks>
+    /// The format names are the whole diagnosis when a drop reads as empty, and
+    /// they are what no bug report can supply from memory. The values are left
+    /// out on purpose: a drag carries the address of whatever the artist was
+    /// looking at, and a log is a file that gets attached to bug reports.
+    /// </remarks>
+    public static string DescribeFormats(IDataTransfer? data)
+    {
+        if (data is null) return "no data transfer at all";
+        var parts = new List<string>();
+        foreach (var format in data.Formats)
+        {
+            // The best answer any item gives, not the first item's (B293). An
+            // item that throws used to end the search and report "unreadable"
+            // over a later item that would have read perfectly — degrading the
+            // one diagnostic this exists to provide.
+            var size = -1;
+            foreach (var item in data.Items)
+            {
+                int found;
+                try
+                {
+                    found = item.TryGetRaw(format) switch
+                    {
+                        string s => s.Length,
+                        byte[] b => b.Length,
+                        null => -1,
+                        _ => -2,
+                    };
+                }
+                catch (Exception e) when (e is not OutOfMemoryException)
+                {
+                    found = -3;
+                }
+                // Larger is better, and a real size beats every complaint.
+                if (found >= 0)
+                {
+                    size = found;
+                    break;
+                }
+                if (size == -1) size = found;
+            }
+            parts.Add(size switch
+            {
+                -1 => $"{format.Identifier} (empty)",
+                -2 => $"{format.Identifier} (an object)",
+                -3 => $"{format.Identifier} (unreadable)",
+                _ => $"{format.Identifier} ({size})",
+            });
+        }
+        return parts.Count > 0 ? string.Join(", ", parts) : "no formats at all";
     }
 
     private static IEnumerable<string> Lines(string? text) =>

@@ -165,6 +165,40 @@ internal static class DiagnosticLog
         }
     }
 
+    /// <summary>
+    /// Record something that went wrong but threw nothing — a fact, not a stack.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Written every time rather than once per context, unlike
+    /// <see cref="WriteOnce"/>. The failures this is for are the ones a person
+    /// causes one at a time — a drop that read as empty (B293) — where the
+    /// second attempt with a different browser is exactly the line that would
+    /// name the difference, and de-duplicating would throw it away.
+    /// </para>
+    /// <para>
+    /// Callers pass what they observed, never what the artist was looking at:
+    /// this file is written to be attached to a bug report.
+    /// </para>
+    /// </remarks>
+    public static void WriteNote(string context, string note)
+    {
+        try
+        {
+            lock (Gate)
+            {
+                System.IO.Directory.CreateDirectory(Directory);
+                File.AppendAllText(
+                    Path.Combine(Directory, "diagnostics.log"),
+                    $"{DateTime.Now:O} [{context}] {Build}{Environment.NewLine}{note}{Environment.NewLine}");
+            }
+        }
+        catch
+        {
+            // Diagnostics must never break drawing.
+        }
+    }
+
     /// <summary>Test seam: forget which contexts have been logged.</summary>
     internal static void ResetForTests()
     {

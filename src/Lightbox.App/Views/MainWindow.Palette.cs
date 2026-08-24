@@ -138,7 +138,12 @@ public partial class MainWindow
     /// </remarks>
     private void OnFileDragOver(object? sender, DragEventArgs e)
     {
-        if (DroppedReferenceFiles(e).Count == 0 && DroppedWebImages(e).Count == 0) return;
+        if (DroppedReferenceFiles(e).Count == 0
+            && DroppedWebImages(e).Count == 0
+            && Services.WebImageDrop.EmbeddedImageIn(e.DataTransfer) is null)
+        {
+            return;
+        }
         e.DragEffects = DragDropEffects.Copy;
         e.Handled = true;
     }
@@ -166,9 +171,10 @@ public partial class MainWindow
         }
 
         var uris = DroppedWebImages(e);
-        if (uris.Count == 0) return;
+        var embedded = Services.WebImageDrop.EmbeddedImageIn(e.DataTransfer);
+        if (uris.Count == 0 && embedded is null) return;
         e.Handled = true;
-        await ImportWebImage(uris);
+        await ImportWebImage(uris, embedded, e.DataTransfer);
     }
 
     /// <summary>
@@ -177,7 +183,8 @@ public partial class MainWindow
     /// are the same picture described three ways (uri-list, text, HTML), so
     /// importing them all would tape up duplicates.
     /// </summary>
-    private async Task ImportWebImage(IReadOnlyList<Uri> uris)
+    private async Task ImportWebImage(
+        IReadOnlyList<Uri> uris, byte[]? embedded, Avalonia.Input.IDataTransfer? data)
     {
         _vm.AiStatus = "Fetching the image…";
         foreach (var uri in uris)
@@ -192,17 +199,25 @@ public partial class MainWindow
             _vm.ReferenceDockerVisible = true;
             return;
         }
+        // Last: the picture the drag was carrying itself (B293). Behind the
+        // fetch because it may be a thumbnail, in front of a refusal because a
+        // thumbnail to draw against beats no reference at all.
+        if (embedded is not null && _vm.ImportReferenceImageBytes("Web image", embedded))
+        {
+            _vm.AiStatus = "Drawing against the dropped picture.";
+            _vm.ReferenceDockerVisible = true;
+            return;
+        }
+
         // Every candidate failed — refused by the site, or a page that names
-        // no image Lightbox can read.
-        _vm.AiStatus = "That drop did not contain an image Lightbox could read.";
+        // no image Lightbox can read. What the drag carried goes to the log,
+        // because the format names are the whole diagnosis (B293).
+        Services.DiagnosticLog.WriteNote(
+            "reference-drop", "carried " + Services.WebImageDrop.DescribeFormats(data));
+        _vm.AiStatus = "That drop did not contain an image Lightbox could read — what it did carry is "
+            + "in the diagnostics log (Help ▸ Open the diagnostics folder).";
     }
 
-    /// <summary>Formats a picture dragged out of a browser can arrive in.</summary>
-    private static readonly DataFormat<string> UriListFormat =
-        DataFormat.CreateStringPlatformFormat("text/uri-list");
-
-    private static readonly DataFormat<string> HtmlFormat =
-        DataFormat.CreateStringPlatformFormat("text/html");
 
     /// <summary>
     /// The web-image candidates in a drag, or none — the browser counterpart
@@ -215,11 +230,11 @@ public partial class MainWindow
         // offers both, and refusing the web half whenever a file was advertised
         // meant a picture the file half could not open was refused outright.
         // The drop tries files first and only asks here when none worked.
-        if (e.DataTransfer is not { } data) return [];
-        return Services.WebImageDrop.ImageUris(
-            data.TryGetValue(UriListFormat),
-            data.TryGetText(),
-            data.TryGetValue(HtmlFormat));
+        //
+        // Every format the drag holds is read (B293): asking for three format
+        // names is an X11 spelling, and a browser on another platform spells
+        // the same three things differently.
+        return Services.WebImageDrop.ImageUrisIn(e.DataTransfer);
     }
 
     private async void OnImportPaletteClicked(object? sender, RoutedEventArgs e)
