@@ -311,6 +311,21 @@ public static class PsdReader
                 $"The {PsdBlend.Describe(record.BlendKey)} blend mode", record.Name,
                 "set the layer to a mode Lightbox shares, or merge it down"));
         }
+
+        // A folder header carries the folder's own blend mode and opacity, and
+        // Photoshop composites such a folder as one unit before blending it. A
+        // Lightbox folder never does — its members stay ordinary layers in the
+        // scene and compositing order is unchanged — so an isolated group would
+        // render as something else entirely. Pass-through and plain Normal at full
+        // opacity are the two that mean "no isolation", which is every folder
+        // nobody has deliberately changed.
+        if (record.SectionType is 1 or 2
+            && (record.BlendKey is not ("pass" or "norm") || record.Opacity < 0.999))
+        {
+            refusals.Add(new PsdUnsupported(
+                "A layer folder that blends as a group", record.Name,
+                "set the folder to Pass Through at 100%, or merge it into one layer"));
+        }
         return record;
     }
 
