@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4894
+budget: 4877
 
 ## Why it is here despite being XAML
 
@@ -247,3 +247,18 @@ leaves a number nobody can account for. So every reason above stays, and
   stay, because deleting one leaves a number nobody can account for, and
   `ratchets.py remeasure` supplies the figure. This is the one moment that
   script exists for.
+- **4,875 → 4,858** (2026-08-24): the text tool. Its rail button and options bar
+  needed eleven lines, so the Fill tool's options — thirty lines of pure
+  bindings, the exact shape `GuideOptionsBar` and the rest already have — became
+  `FillOptionsBar.axaml`. The feature paid for itself and left seventeen behind.
+- **→ remeasured again, now three ways** (2026-08-24). The text tool is the
+  third branch to leave 4,875, and it is the one that came *down* — so on the
+  merged tree none of the three figures is right and the direction of the error
+  differs by pair. The image save wanted 4,877 and the line clipboard 4,892,
+  each blind to the other's menu entries; the text tool wanted 4,858, which was
+  4,875 less its own extraction and would swallow both. Every reason above
+  stays and `ratchets.py remeasure` supplies the figure. Worth noting for the
+  next branch that meets this file: an entry that *lowers* the budget is not
+  exempt from the rule — it is the case where taking one side silently discards
+  another branch's growth rather than banking its slack, which is the same
+  mistake wearing the other face.

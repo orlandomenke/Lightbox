@@ -934,6 +934,12 @@ public sealed partial class CanvasControl : Control
         Pen,
 
         /// <summary>
+        /// The text tool: a press puts a caret down and the keyboard takes over —
+        /// see <c>CanvasControl.ToolGestures.cs</c>.
+        /// </summary>
+        Text,
+
+        /// <summary>
         /// The width tool: a press grabs the line, a drag changes its weight.
         /// </summary>
         /// <remarks>
@@ -1258,26 +1264,6 @@ public sealed partial class CanvasControl : Control
 
     /// <summary>Capture was lost mid-drag: abandon the ramp rather than commit it.</summary>
     public event Action? GradientDragCancelled;
-
-    /// <summary>The axis being dragged, in document coordinates, or null when idle.</summary>
-    private (double X, double Y)? _gradientFrom, _gradientTo;
-
-    /// <summary>
-    /// Show the axis while the VM renders the ramp. View-only chrome, like the
-    /// transform gizmo: it is drawn over the composite and never reaches the
-    /// document.
-    /// </summary>
-    public void SetGradientAxis((double X, double Y)? from, (double X, double Y)? to)
-    {
-        _gradientFrom = from;
-        _gradientTo = to;
-        InvalidateVisual();
-    }
-
-    private (SKPoint From, SKPoint To)? GradientAxisPoints() =>
-        _gradientFrom is { } a && _gradientTo is { } b
-            ? (new SKPoint((float)a.X, (float)a.Y), new SKPoint((float)b.X, (float)b.Y))
-            : null;
 
     // ---- transform gizmo (Ctrl+T session) --------------------------------------
     // The gizmo owns the interactive state (pivot, scale, angle, offset or a
@@ -2637,6 +2623,10 @@ public sealed partial class CanvasControl : Control
                     e.Pointer.Capture(this);
                     _shapeDragging = true;
                     ShapeDragStarted?.Invoke(x, y);
+                    e.Handled = true;
+                    return;
+                case CanvasToolMode.Text:
+                    PlaceText(x, y);
                     e.Handled = true;
                     return;
                 case CanvasToolMode.Move:

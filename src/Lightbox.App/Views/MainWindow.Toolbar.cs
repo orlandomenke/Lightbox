@@ -79,6 +79,7 @@ public partial class MainWindow
             ToolId.Arrow => Rendering.CanvasControl.CanvasToolMode.Select,
             ToolId.DirectSelect => Rendering.CanvasControl.CanvasToolMode.PathEdit,
             ToolId.Pen => Rendering.CanvasControl.CanvasToolMode.Pen,
+            ToolId.Text => Rendering.CanvasControl.CanvasToolMode.Text,
             ToolId.Width => Rendering.CanvasControl.CanvasToolMode.Width,
             ToolId.Select => _vm.ActiveSelectVariant switch
             {

@@ -53,6 +53,7 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(IsPenTool))]
     [NotifyPropertyChangedFor(nameof(IsWidthTool))]
     [NotifyPropertyChangedFor(nameof(IsBoneTool))]
+    [NotifyPropertyChangedFor(nameof(IsTextTool))]
     [NotifyPropertyChangedFor(nameof(ActiveToolLabel))]
     [NotifyPropertyChangedFor(nameof(ActiveToolHasNoPanelOptions))]
     [NotifyPropertyChangedFor(nameof(UsesGenericToolOptions))]
@@ -655,6 +656,14 @@ public partial class MainViewModel
         // artist meant to come back to (wrong). Enter and Escape are still the
         // deliberate finish, and neither discards.
         if (value != ToolId.Pen) ParkPen();
+
+        // Type, on the other hand, is set rather than parked or thrown away.
+        // The pen can park because a half-drawn path is still on screen and
+        // still the pen's; a caret cannot, because nothing but the text tool can
+        // show it — so leaving with a word half typed would either lose it or
+        // hide it. Setting it keeps the work and costs one Ctrl+Z to change your
+        // mind, which is the same asymmetry Escape is chosen on.
+        if (value != ToolId.Text) CommitText();
 
         // B147's shape one tool along, and phase 2 shipped it: the node overlay
         // is drawn whatever the tool is, so leaving isolation for the brush left

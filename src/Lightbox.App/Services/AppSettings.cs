@@ -54,6 +54,18 @@ public sealed class AppSettings
     public LibrarySettings Library { get; set; } = new();
 
     /// <summary>
+    /// How fonts are found and whether they travel — see
+    /// <see cref="FontSettings"/>.
+    /// </summary>
+    /// <remarks>
+    /// Here rather than on the document because neither switch can change a
+    /// picture: text is baked to contours when it is set, so a document renders
+    /// the same whatever these say. What they decide is where an artist may pick
+    /// a font from and how portable the file they save is.
+    /// </remarks>
+    public FontSettings Fonts { get; set; } = new();
+
+    /// <summary>
     /// How far a frame's ink area may drift from the shot's median before the
     /// volume checker flags it, as a fraction (0.10 = ten percent).
     /// </summary>

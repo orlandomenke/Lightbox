@@ -213,6 +213,7 @@ internal static class ScenePassBuilder
         int PostStampedCount = -1,
         Stroke? Shape = null,
         Stroke? Gradient = null,
+        Stroke? Text = null,
         Stroke? BrushStroke = null,
         SKMatrix? TransformPreview = null,
         IReadOnlyList<Frame>? TransformFrames = null,
@@ -636,6 +637,20 @@ internal static class ScenePassBuilder
                 shaping.Tool == ToolKind.Eraser,
                 shaping.AlphaLocked,
                 shaping.ClipId is null ? null : ClipRegionRegistry.Resolve(shaping.ClipId));
+        }
+
+        // The text tool's typing preview: the glyphs already baked, waiting
+        // to be committed. Listed here for the reason the shape tool is —
+        // a preview the overlay does not know about is rendered into the
+        // scratch and never shown, which is how the shape tool shipped.
+        if (live.Text is { } typing)
+        {
+            return new StrokeOverlay(
+                live.Scratch,
+                typing.Brush.Opacity,
+                false,
+                typing.AlphaLocked,
+                typing.ClipId is null ? null : ClipRegionRegistry.Resolve(typing.ClipId));
         }
 
         // The gradient tool's drag preview. Opacity and the alpha lock

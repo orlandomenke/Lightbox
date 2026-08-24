@@ -1,0 +1,97 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             xmlns:svc="using:Lightbox.App.Services"
+             xmlns:core="using:Lightbox.Core.Documents"
+             x:Class="Lightbox.App.Views.TextOptionsBar"
+             x:DataType="vm:MainViewModel">
+  <!--
+    Gated on the control rather than only on the panel inside it, which is not
+    cosmetic: the quick bar is an OverflowBar, and a child that is present but
+    empty still takes a slot and a gap. One extra gap is what pushed the Select
+    tool's marquee past the right edge and into the ▾ at a 1280px window
+    (QuickBarRoomTests). Collapsing the control itself takes it out of the row.
+  -->
+  <UserControl.IsVisible>
+    <MultiBinding Converter="{x:Static BoolConverters.And}">
+      <Binding Path="IsTextTool" />
+      <Binding Path="Workspace.QuickTextOptions" />
+    </MultiBinding>
+  </UserControl.IsVisible>
+  <!--
+    The text tool's options: what the next piece of type will be, and what the
+    piece being typed is — the same controls either way, because changing the
+    size while a caret is up reshapes the words under the artist's hands rather
+    than waiting for the next block. That is the whole reason the preview bakes
+    the real strokes: there is nothing to reconcile.
+
+    A collaborator rather than more of MainWindow.axaml, which is on the
+    monolith ratchet — the trade BoneOptionsBar, GuideOptionsBar and
+    LineOptionsBar all made. The DataContext is inherited.
+
+    The font button opens the browser rather than a combo box holding four
+    thousand rows: a font is chosen by looking, and a list you cannot search is
+    a list nobody reaches the bottom of.
+  -->
+  <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+
+    <Button MinWidth="150" HorizontalContentAlignment="Left"
+            Command="{Binding LoadFontsCommand}"
+            ToolTip.Tip="The face type is set in. Installed fonts are always here; Google's are fetched once and kept.">
+      <Button.Content>
+        <TextBlock Text="{Binding SelectedFontName}" TextTrimming="CharacterEllipsis" />
+      </Button.Content>
+      <Button.Flyout>
+        <Flyout Placement="Bottom">
+          <StackPanel Spacing="6" Width="320">
+            <TextBox Text="{Binding FontFilter}" PlaceholderText="Search fonts…" />
+            <TextBlock Text="{Binding FontTrouble}" TextWrapping="Wrap" Opacity="0.75"
+                       IsVisible="{Binding FontTrouble, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            <ListBox ItemsSource="{Binding FontChoices}" SelectedItem="{Binding SelectedFont}"
+                     MaxHeight="320">
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="svc:FontFace">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding Family}" />
+                    <TextBlock Text="{Binding StyleName}" Opacity="0.6" />
+                    <!-- Which fonts can travel inside the file, said where the
+                         choice is made rather than in a preference nobody
+                         reads. -->
+                    <TextBlock Text="carries" Opacity="0.45" FontSize="10"
+                               VerticalAlignment="Center"
+                               IsVisible="{Binding Embeddable}"
+                               ToolTip.Tip="Open licence: this font can be carried inside the document, so the text stays editable on any machine." />
+                  </StackPanel>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </StackPanel>
+        </Flyout>
+      </Button.Flyout>
+    </Button>
+
+    <TextBlock Text="Size" VerticalAlignment="Center" Opacity="0.8" />
+    <NumericUpDown Value="{Binding TextSize}" Minimum="1" Maximum="2000" Increment="1"
+                   FormatString="0" Classes="value" VerticalAlignment="Center"
+                   ToolTip.Tip="Em size in document pixels." />
+
+    <TextBlock Text="Tracking" VerticalAlignment="Center" Opacity="0.8" />
+    <NumericUpDown Value="{Binding TextTracking}" Minimum="-500" Maximum="2000" Increment="10"
+                   FormatString="0" Classes="value" VerticalAlignment="Center"
+                   ToolTip.Tip="Letter-spacing in thousandths of an em — the unit every type specimen quotes." />
+
+    <TextBlock Text="Leading" VerticalAlignment="Center" Opacity="0.8" />
+    <NumericUpDown Value="{Binding TextLineHeight}" Minimum="0" Maximum="2000" Increment="1"
+                   FormatString="0" Classes="value" VerticalAlignment="Center"
+                   ToolTip.Tip="Baseline to baseline in pixels. Zero leaves it to the typeface, which is what it is designed for." />
+
+    <ComboBox ItemsSource="{Binding TextAlignChoices}" SelectedItem="{Binding TextAlign}"
+              MinWidth="100" ToolTip.Tip="Which part of the line sits on the point you clicked.">
+      <ComboBox.ItemTemplate>
+        <DataTemplate x:DataType="core:TextAlign">
+          <TextBlock Text="{Binding}" />
+        </DataTemplate>
+      </ComboBox.ItemTemplate>
+    </ComboBox>
+  </StackPanel>
+</UserControl>

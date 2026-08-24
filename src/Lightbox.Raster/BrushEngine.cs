@@ -85,9 +85,11 @@ public static class BrushEngine
     {
         if (stroke.Points.Count == 0) return;
 
-        // Both are contours rather than paths, and differ only in whether the
-        // region lands over what is there or takes it away (B173).
-        if (stroke.Tool is ToolKind.Fill or ToolKind.ClearRegion)
+        // All contours rather than paths, differing only in whether the region
+        // lands over what is there or takes it away (B173). Set type is the
+        // third: a glyph is an outline, and there is nothing about filling one
+        // that a letter needs and a poured region does not.
+        if (stroke.Tool.FillsAContour())
         {
             StampFill(target, stroke, info, outputScale, origin);
             return;

@@ -230,6 +230,9 @@ public sealed class ShortcutMap
             new("tool.pen", "Pen (draw a line by its points)", "Tools", G(Key.P)),
             // W for width, and free like P was. Illustrator puts this on Shift+W
             // because W is its own Blend tool; nothing here wanted the letter.
+            // Photoshop's letter, and it was free here: Ctrl+T is the transform,
+            // which is the same key meaning the same idea one modifier along.
+            new("tool.text", "Text (type on the canvas)", "Tools", G(Key.T)),
             new("tool.bone", "Bone (rig, pose, weights)", "Tools", G(Key.K)),
             new("armature.weightPaint", "Toggle the weight brush (bone tool)", "Canvas", G(Key.K, KeyModifiers.Control | KeyModifiers.Shift)),
             new("armature.posingMode", "Toggle posing (bone tool: bind or pose)", "Canvas", G(Key.K, KeyModifiers.Shift)),
