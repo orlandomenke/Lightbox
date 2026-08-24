@@ -277,6 +277,37 @@ in. A live stroke grows its layer's glow as you draw it, and merging a
 styled layer down bakes the style into the merged pixels — exactly what the
 canvas showed.
 
+### Effects that move: wiggle, flicker and grain
+
+Three effects vary **by frame** rather than sitting still, and they are what
+the panel's **Animation** shelf is for.
+
+- **Wiggle** shifts the layer by a random-looking amount that changes every
+  few frames — the boil a drawing gets when it is traced again and again.
+  *Amount* is how far it can stray, in pixels.
+- **Flicker** dips the layer's strength, never above full — a failing light,
+  a strobe, a shape that stutters in and out.
+- **Film grain** lays a fine noise over the picture. It is a **Colour**-shelf
+  effect and works on what is beneath it, so put it on the **Scene** scope
+  (the whole composite, which is where grain belongs) or on an adjustment
+  layer. *Size* is the grain's own size in pixels.
+
+**Hold says how often each one changes**, in frames — the same unit the
+exposure sheet uses. A wiggle on a hold of 2 moves on 2s, alongside a
+sequence animated on 2s; grain defaults to a hold of 1, because film grain
+moves every frame. **Nothing here is random in the sense that matters**: the
+same frame always looks the same, so scrubbing back and forth, exporting
+twice, or reopening the file next year all give exactly the picture you
+approved.
+
+**A held drawing still moves.** Wiggle and flicker read the *playhead*, not
+the drawing, so three frames of one held cel boil for all three — which is
+the reason to reach for them.
+
+**Seed** is what makes two layers differ. Every effect starts with its own,
+so two wiggling layers do not move in lockstep; change it to re-roll a
+motion you did not like, and leave it alone to keep the one you did.
+
 **The quickest way in is the layer row itself**: right-click → **Layer
 style** and pick a style — it lands on that layer and the Effects panel
 opens with its sliders in hand. A layer carrying any effects wears a small
@@ -363,6 +394,10 @@ pixels out, so a stroke crossing the edge travels whole. **Ink you have erased
 stays erased**: eraser marks caught by the selection travel with the lines they
 carve, but what they rubbed out of the lines that stay behind does not come
 back — moving a selection never resurrects anything, in the drag or on apply.
+The selection takes what you can *see*: a line you rubbed out entirely is not
+on the canvas, so a box drawn where it used to be does not pick it up — and a
+half-erased line goes by where its surviving ink sits, so boxing the visible
+end moves it even when the rubbed-out part lay elsewhere.
 
 **Ctrl+T** starts a transform. The gizmo gives move, scale, rotate and a
 draggable pivot; **Perspective** mode gives four free corners. The whole

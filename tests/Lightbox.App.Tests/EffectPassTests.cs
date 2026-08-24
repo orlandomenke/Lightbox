@@ -197,13 +197,44 @@ public class EffectPassTests(ITestOutputHelper output)
         return scene;
     }
 
-    private static ScenePassBuilder.Plan Describe(Scene scene, Layer active) =>
+    private static ScenePassBuilder.Plan Describe(Scene scene, Layer active, int frame = 0) =>
         ScenePassBuilder.Describe(
             scene,
             new ScenePassBuilder.State(
-                0, active.Id, IsPlaying: false, IsLightTable: false, HaveViewport: false,
+                frame, active.Id, IsPlaying: false, IsLightTable: false, HaveViewport: false,
                 new OnionSettings { Enabled = false }),
             new FrameBitmapCache(), new TileFallbackTally(), ScenePassBuilder.LiveEdit.None);
+
+    [Fact]
+    public void AWiggleBoilsWhileTheDrawingHolds()
+    {
+        // The reason the animation shelf exists (Q159): a drawing held for
+        // three frames should still move, and it only can if the effect is
+        // evaluated at the *playhead* rather than at the drawing's own index.
+        var ink = LayerWith("Ink");
+        ink.Cels[1] = new Cel();
+        ink.Cels[2] = new Cel(); // one drawing, held across all three frames
+        ink.Effects = new EffectStack
+        {
+            Uses = [new EffectUse
+            {
+                Kind = "anim.wiggle",
+                Params = { ["amount"] = new EffectParam(8), ["hold"] = new EffectParam(1) },
+            }],
+        };
+        var scene = SceneWith(ink);
+
+        var atZero = Describe(scene, ink, 0).Specs[0];
+        var atTwo = Describe(scene, ink, 2).Specs[0];
+        Assert.Equal(0, atZero.CelIndex);
+        Assert.Equal(2, atTwo.CelIndex);
+
+        // And the seam every hand-built compositor uses answers per frame.
+        var first = EffectPasses.SelfFilter(ink, 0);
+        Assert.NotNull(first);
+        Assert.Same(first, EffectPasses.SelfFilter(ink, 0));
+        Assert.NotSame(first, EffectPasses.SelfFilter(ink, 2));
+    }
 
     [Fact]
     public void AnAdjustmentLayerDescribesOneBackdropPassAndNoCelFetch()

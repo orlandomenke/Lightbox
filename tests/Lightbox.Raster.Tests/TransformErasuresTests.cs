@@ -119,4 +119,65 @@ public class TransformErasuresTests(ITestOutputHelper output)
         Assert.Equal(0, cleared);
         Assert.True(intact > 200);
     }
+
+    // ---- MovingWithin: the region filter judges visible ink (B297) ----------
+
+    /// <summary>A full-height mask over the column x0..x1.</summary>
+    private static bool[] MaskColumn(int w, int h, int x0, int x1)
+    {
+        var mask = new bool[w * h];
+        for (var y = 0; y < h; y++)
+        {
+            for (var x = x0; x <= x1; x++) mask[y * w + x] = true;
+        }
+        return mask;
+    }
+
+    [Fact]
+    public void AWhollyErasedStrokeIsNeverCaughtByARegion()
+    {
+        // Rule three (StrokePicker): a line rubbed out along its whole length
+        // is not on the canvas, so no region can mean it. Its raw points sit
+        // majority-inside the mask, which is exactly how the old filter lifted
+        // it out from under its eraser and made it visible again.
+        var old = Line(30, 50, 70, 50);
+        var erasure = Line(-40, 50, 110, 50, ToolKind.Eraser);  // majority outside, covers all of `old`
+        var moving = TransformErasures.MovingWithin(
+            [old, erasure], MaskColumn(100, 100, 20, 80), 100, 100);
+
+        output.WriteLine($"moving: [{string.Join(", ", moving)}]");
+        Assert.Empty(moving);
+    }
+
+    [Fact]
+    public void APartiallyErasedStrokeIsJudgedByItsSurvivingInk()
+    {
+        // The dual failure: the artist boxes the visible end of a half-rubbed
+        // line, and the erased points — which they cannot see — pull the raw
+        // majority outside, so the line they plainly selected refuses to move.
+        var line = Line(10, 50, 90, 50);
+        line.Points = [new(10, 50, 1), new(30, 50, 1), new(50, 50, 1), new(70, 50, 1), new(90, 50, 1)];
+        var erasure = Line(0, 50, 52, 50, ToolKind.Eraser);   // rubs out the left three points
+        var mask = MaskColumn(100, 100, 60, 99);              // the surviving end only
+
+        var moving = TransformErasures.MovingWithin([line, erasure], mask, 100, 100);
+
+        // Raw majority is 2 of 5 inside — the old filter said "stays".
+        Assert.Contains(0, moving);
+    }
+
+    [Fact]
+    public void AnErasureStillTravelsByWhereItSits()
+    {
+        // Erasures keep the raw test: they have no surviving ink to judge, and
+        // they must travel with the strokes they carve (the stay-copy machinery
+        // above decides what they leave behind). Pinned so nobody later applies
+        // the survivors rule to them and quietly un-carves every moved shape.
+        var ink = Line(30, 50, 70, 50);
+        var erasure = Line(40, 30, 60, 70, ToolKind.Eraser);
+        var moving = TransformErasures.MovingWithin(
+            [ink, erasure], MaskColumn(100, 100, 20, 80), 100, 100);
+
+        Assert.Equal([0, 1], moving);
+    }
 }
