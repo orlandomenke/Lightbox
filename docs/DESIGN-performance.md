@@ -106,7 +106,7 @@ Two habits follow, and the second one is the cheaper of the two:
   Release, failing only on CI where it reads as somebody else's flake.
 - **Price the whole operation before optimising a part of it.** A 1.65x win on
   something that is a tenth of the cost is a 6% win, and finding that out after
-  building it costs a branch. B292 and B296 are the same stroke measured twice:
+  building it costs a branch. B292 and B299 are the same stroke measured twice:
   the outline looked like the bottleneck and the fill was.
 
 ## Dimensions

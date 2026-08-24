@@ -142,7 +142,7 @@ which is a weak test and still far better than none.
 
 ### brush
 
-- [ ] **B296** `P2` `brush` A silhouette brush's live fill covers the whole mark every pointer event, because the stamping cut is pinned at zero `evidence: tests/Lightbox.App.Tests/SilhouetteTailBandTests.cs`
+- [ ] **B299** `P2` `brush` A silhouette brush's live fill covers the whole mark every pointer event, because the stamping cut is pinned at zero `evidence: tests/Lightbox.App.Tests/SilhouetteTailBandTests.cs`
   - `StampLiveDabs` pins the cut at zero for a silhouette brush, so `StampDabRange` is always called with `from = 0` and the band it writes — `RangeReach(dabs, 0, count)` — is the whole mark. **This is where a silhouette stroke's per-event time actually goes**, which B292 established by removing the other candidate and finding nothing moved: the outline derivation is worth 1–3% end to end in Release, and the fill is the rest.
   - **The pin is not gratuitous, and two ways of removing it are already known to be wrong** (both measured during #404 and #405):
     - Stamping a settled prefix separately writes the still-provisional tail's shape into the scratch *before* the tail backup is taken, so a tail that then moves leaves its old position behind — live 2.8% fatter than the commit, pixels 239/255 apart in both directions.
@@ -183,8 +183,8 @@ which is a weak test and still far better than none.
     | end to end, 800 events | 1.694 ms/event | 1.643 ms/event | 3.0% |
 
     In Debug the same end-to-end pair read 3.45 against 2.50 ms — a 27% win that does not exist.
-  - **So the outline is not the bottleneck.** The stamp is a small part of a per-event cost that is dominated by the whole-mark *fill* (**B296**) and by the walk `WalkDabs` performs every event regardless (BR1). A cache of the outline buys 1–3% end to end, which is inside the noise of three repeats.
-  - **Withdrawn rather than shipped** because the price was a public cache type, mutable state on `LivePaintSession`, and a resumable-walk refactor of the hottest function in the engine — for a change that cannot be distinguished from noise. Left open at P3 as a *finding* rather than a task: if B296 ever removes the fill, the outline becomes a larger share and this is worth re-measuring. `evidence: manual` because what is recorded here is a measurement, not a behaviour a test can assert.
+  - **So the outline is not the bottleneck.** The stamp is a small part of a per-event cost that is dominated by the whole-mark *fill* (**B299**) and by the walk `WalkDabs` performs every event regardless (BR1). A cache of the outline buys 1–3% end to end, which is inside the noise of three repeats.
+  - **Withdrawn rather than shipped** because the price was a public cache type, mutable state on `LivePaintSession`, and a resumable-walk refactor of the hottest function in the engine — for a change that cannot be distinguished from noise. Left open at P3 as a *finding* rather than a task: if B299 ever removes the fill, the outline becomes a larger share and this is worth re-measuring. `evidence: manual` because what is recorded here is a measurement, not a behaviour a test can assert.
   - The transferable half is in `docs/DESIGN-performance.md`: **measure a per-dab optimisation in Release or do not believe it.**
 
 - [ ] **B101** `P3` `brush` A simulated medium's picker tile is too faint to read `evidence: manual`
@@ -606,6 +606,11 @@ which is a weak test and still far better than none.
 
 ### project
 
+- [ ] **B300** `P2` `project` `ids` counts the branch's own remote ref as another branch, so rewriting a ledger entry you already pushed reads as a collision with yourself `evidence: cmd_ids,_ids_created_here`
+  - **Editing an entry that is already on your own remote costs a spurious renumber.** `ids` takes "created by this branch" as *in HEAD but not in the merge base with the default branch*, and "created elsewhere" as *in any other ref but not in that merge base*. A branch's own `origin/<branch>` is one of those refs, so an id it filed and pushed is in both sets and reports as a clash against itself.
+  - Reproduced on this branch 2026-08-24. B296 was filed and pushed; the entry was then rewritten in a later commit on the same branch; `ids` reported *"CLASHES ID B296 — another branch already took it"* quoting **this branch's own title**, and the pre-push autofix moved it to B299 and rewrote its citations. `origin/main` has no B296 at all, so nothing was actually colliding.
+  - **The cost is exactly the churn the machinery exists to prevent** — a renumber on a branch whose objective is something else, plus every citation of the id going stale in commit messages and pull-request bodies that are already written. It also trains the reader to accept renumbers without checking, which is the habit B295 and B264 make dangerous.
+  - The fix is to exclude the branch's own upstream from the "elsewhere" set, or to compare entry identity rather than bare presence so a rewritten entry is recognised as the same one. Filed rather than fixed because it is `project` domain on a `brush` branch, and because it sits beside two open bugs in the same tool (**B295**, **B264**) that want deciding together. Cost: S.
 - [ ] **B295** `P1` `project` `ids --fix` renumbers both entries of a duplicate filed inside this branch's own range, so the duplicate survives at the new number `evidence: _keeping_spots,cmd_selftest`
 
 - [ ] **B283** `P2` `project` Removing or deleting a folder orphans the sheets filed in it `evidence: OrphanedSheetTests, RemovingAFolderReturnsItsSheetsToTheProject, DeletingAFolderDetachesTheSheetsFiledInIt`
