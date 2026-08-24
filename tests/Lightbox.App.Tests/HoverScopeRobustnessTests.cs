@@ -49,7 +49,8 @@ namespace Lightbox.App.Tests;
 /// is known present.
 /// </para>
 /// </remarks>
-public class HoverScopeRobustnessTests(ITestOutputHelper output)
+[Collection("BrushState")]
+public class HoverScopeRobustnessTests(ITestOutputHelper output) : BrushStateIsolated
 {
     private static (MainWindow Window, MainViewModel Vm) Open()
     {

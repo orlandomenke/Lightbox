@@ -7,7 +7,7 @@ using Xunit.Abstractions;
 namespace Lightbox.Raster.Tests;
 
 /// <summary>
-/// B286 — a region-limited transform that catches an eraser stroke must not
+/// B290 — a region-limited transform that catches an eraser stroke must not
 /// resurrect the ink that eraser rubbed out. The marquee's majority test reads
 /// geometry, so it picks up erasures like any line; carrying one away used to
 /// reveal every stroke it had been holding down, as a ghost in the preview and

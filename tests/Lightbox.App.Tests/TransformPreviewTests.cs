@@ -136,7 +136,7 @@ public class TransformPreviewTests : BrushStateIsolated
     }
 
     /// <summary>
-    /// B286 — the marquee's majority test catches eraser strokes like any
+    /// B290 — the marquee's majority test catches eraser strokes like any
     /// line, and carrying one away used to resurrect the ink it had rubbed
     /// out: a ghost in the drag preview, made permanent by apply. Erased ink
     /// must never come back (the doctrine <c>StrokePicker</c> states), so the

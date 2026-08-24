@@ -678,7 +678,13 @@ public partial class MainViewModel
             case DocumentTabKind.Reference:
                 // Undo/redo replaces the wrapper doc's layer list; keep the
                 // owning document's view pointed at whatever the editor holds.
-                if (tab.View is { } view) view.Layers = Doc.Scene.Layers;
+                // The guides ride the same way (B287): they live on the view
+                // record, and the wrapper is rebuilt on every open.
+                if (tab.View is { } view)
+                {
+                    view.Layers = Doc.Scene.Layers;
+                    view.Guides = Doc.Scene.Guides;
+                }
                 // A project sheet's edits belong to the project, the way a
                 // symbol's do — there is no owning document to dirty, and the
                 // project's save is what writes them.

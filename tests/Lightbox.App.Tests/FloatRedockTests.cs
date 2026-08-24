@@ -14,7 +14,8 @@ namespace Lightbox.App.Tests;
 /// The header's ⧉ button floats a panel; the same button on a floating panel
 /// (now ⇱) docks it back where it came from.
 /// </summary>
-public class FloatRedockTests
+[Collection("BrushState")]
+public class FloatRedockTests : BrushStateIsolated
 {
     // ---- the layout's memory, no window needed -------------------------------
 

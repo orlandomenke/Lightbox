@@ -29,7 +29,8 @@ namespace Lightbox.App.Tests;
 /// rather than on the flyout that used to hold them.
 /// </para>
 /// </remarks>
-public class ToolOptionsHeightTests(ITestOutputHelper output)
+[Collection("BrushState")]
+public class ToolOptionsHeightTests(ITestOutputHelper output) : BrushStateIsolated
 {
     private static readonly string[] PageNames =
     [

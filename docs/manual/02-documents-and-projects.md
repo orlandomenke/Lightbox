@@ -324,6 +324,11 @@ time it is opened there, filed on its top folder.
 The panel is called **Reference sheets** rather than Character sheets, because
 nothing about it was ever specific to characters.
 
+**A view keeps its guides.** A model sheet is where a construction rig earns
+its keep — head-unit scales, centre lines, a perspective grid under a turnaround
+— and guides placed on a view are saved with it and are there when it is next
+opened, exactly as they are on a document.
+
 #### References a document draws against
 
 Two mechanisms, both real:

@@ -592,6 +592,8 @@ only while the rulers do — off the rulers, neither could change anything.
 Rulers, guide visibility and the lock belong to the **workspace**, not the
 document: they are how your screen is arranged, so they save, reset and switch
 with everything else, and opening somebody else's file never rearranges them.
+They also survive a restart — rulers left up are up again next time, saved
+workspace or not.
 
 **Several at once**: Shift-click to add guides to the selection, Alt-click to
 take one out, and dragging any of them moves the whole group together as one
