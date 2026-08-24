@@ -106,7 +106,7 @@ public static class AbrReader
                 {
                     var pixels = compression == 0
                         ? ReadRaw(data, p, width, height)
-                        : ReadPackBits(data, p, width, height, pos + brushLen);
+                        : PackBits.Decode(data, p, width, height, pos + brushLen);
                     if (pixels is not null)
                     {
                         AddTip(brushes, $"ABR brush {index}", pixels, width, height, spacingPercent: 0);
@@ -122,48 +122,6 @@ public static class AbrReader
     {
         var len = width * height;
         return p + len <= data.Length ? data.AsSpan(p, len).ToArray() : null;
-    }
-
-    /// <summary>PSD-style RLE: per-scanline compressed sizes (int16), then PackBits rows.</summary>
-    private static byte[]? ReadPackBits(byte[] data, int p, int width, int height, int limit)
-    {
-        if (p + height * 2 > data.Length) return null;
-        var rowLens = new int[height];
-        for (var i = 0; i < height; i++)
-        {
-            rowLens[i] = BinaryPrimitives.ReadInt16BigEndian(data.AsSpan(p));
-            p += 2;
-        }
-        var pixels = new byte[width * height];
-        for (var row = 0; row < height; row++)
-        {
-            var src = p;
-            var srcEnd = p + rowLens[row];
-            if (srcEnd > data.Length || srcEnd > limit) return null;
-            var dst = row * width;
-            var dstEnd = dst + width;
-            while (src < srcEnd && dst < dstEnd)
-            {
-                int n = (sbyte)data[src++];
-                if (n >= 0)
-                {
-                    var run = Math.Min(n + 1, dstEnd - dst);
-                    if (src + run > srcEnd + 1) break;
-                    Array.Copy(data, src, pixels, dst, run);
-                    src += n + 1;
-                    dst += run;
-                }
-                else if (n != -128)
-                {
-                    var run = Math.Min(1 - n, dstEnd - dst);
-                    if (src >= data.Length) break;
-                    var value = data[src++];
-                    for (var k = 0; k < run; k++) pixels[dst++] = value;
-                }
-            }
-            p += rowLens[row];
-        }
-        return pixels;
     }
 
     private static void AddTip(List<ImportedBrush> brushes, string name, byte[] gray, int width, int height, int spacingPercent)
