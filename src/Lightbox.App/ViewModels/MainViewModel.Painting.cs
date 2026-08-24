@@ -1764,7 +1764,7 @@ public partial class MainViewModel
         //
         // It also costs, and the cost is measured rather than assumed. A 2000 px
         // arc at 400 events: 3.19 ms an event against 1.50 ms at size 5, and 2.02
-        // against 0.60 at size 24. B290 holds the fix — cache the settled
+        // against 0.60 at size 24. B292 holds the fix — cache the settled
         // prefix's outline instead of rebuilding it — which needs state the
         // engine's static path does not have. Note that the whole-mark render
         // this shares its machinery with goes the other way, 14.8 ms against

@@ -29,7 +29,7 @@ The cost column is a 2000 px arc at size 5 rendered whole — the commit, the
 reload, the export and every inbetween, all **1.8× faster**. The live preview
 moves the other way, 1.50 → 3.19 ms per pointer event at size 5 and 0.60 → 2.02
 at size 24, because it re-derives the outline from the whole dab list on every
-event; that is **B290**, measured before this shipped rather than after.
+event; that is **B292**, measured before this shipped rather than after.
 
 Three sub-pixel positions an eighth of a pixel apart rendered *identical* pixels
 before the fix. That is the staggering: a shallow diagonal — a hair strand —

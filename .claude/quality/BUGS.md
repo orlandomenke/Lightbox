@@ -142,7 +142,7 @@ which is a weak test and still far better than none.
 
 ### brush
 
-- [ ] **B290** `P2` `brush` The silhouette outline is rebuilt from every dab on every pointer event, doubling the live cost of inking a long stroke `evidence: tests/Lightbox.App.Tests/SilhouetteCacheCostTests.cs`
+- [ ] **B292** `P2` `brush` The silhouette outline is rebuilt from every dab on every pointer event, doubling the live cost of inking a long stroke `evidence: tests/Lightbox.App.Tests/SilhouetteCacheCostTests.cs`
   - Found while fixing the dab-saturation defect (Q156) and measured before shipping it rather than after. A hard-edged brush now draws its whole mark as one shape, and `BrushEngine.BuildSilhouette` derives that outline from the entire dab list — so the commit gains and the live preview pays, because the preview re-presents the mark on every pointer event.
   - Measured on a 2000 px arc at 2560×1440, Display quality, per pointer event at 400 events:
 

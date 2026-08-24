@@ -1052,7 +1052,7 @@ public static class BrushEngine
     /// still — the fill is clipped to the band the new dabs can reach, and the
     /// walk is the same order as <c>WalkDabs</c>, which BR1 already runs per
     /// event — but a real cost on a long stroke with a small hard brush, which is
-    /// exactly inking. <b>B290</b> holds the fix, which is to cache the settled
+    /// exactly inking. <b>B292</b> holds the fix, which is to cache the settled
     /// prefix rather than re-derive it; it needs state this static path does not
     /// have, so it is its own objective.
     /// </para>
