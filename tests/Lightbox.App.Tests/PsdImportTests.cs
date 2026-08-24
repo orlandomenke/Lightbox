@@ -383,6 +383,143 @@ public class PsdImportTests(ITestOutputHelper output)
         Assert.Contains(result.Notes, n => n.Contains("16 bits"));
     }
 
+    // ---- what it actually looks like ------------------------------------------
+
+    /// <summary>
+    /// Render the imported document the way export does, at frame 0.
+    /// </summary>
+    private static SKBitmap Rendered(Doc doc)
+    {
+        using var cache = new Lightbox.App.Rendering.FrameBitmapCache();
+        using var image = SequenceExporter.RenderFrame(doc, cache, 0);
+        var info = new SKImageInfo(image.Width, image.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+        var bitmap = new SKBitmap(info);
+        image.ReadPixels(info, bitmap.GetPixels(), info.RowBytes, 0, 0);
+        return bitmap;
+    }
+
+    [Fact]
+    public void TheImportedStackRendersWithTheTopLayerOverTheBottomOne()
+    {
+        // Every other test here reads a layer's baseline directly. None of them
+        // put the stack through the renderer, so a baseline that decodes
+        // perfectly and composites in the wrong order — or not at all — would
+        // pass the lot. This is the one that says the drawing looks right.
+        var bytes = new PsdFixture
+        {
+            Width = 8,
+            Height = 8,
+            Layers =
+            {
+                PsdLayerFixture.Solid("Blue base", 0, 0, 255, a: 255, right: 8, bottom: 8),
+                PsdLayerFixture.Solid("Red patch", 255, 0, 0, a: 255, right: 4, bottom: 4),
+            },
+        }.Build();
+
+        var doc = PsdDocumentImport.Open(bytes).Document;
+        using var rendered = Rendered(doc);
+
+        var covered = rendered.GetPixel(1, 1);
+        var exposed = rendered.GetPixel(6, 6);
+        output.WriteLine($"under the patch = {covered}, beside it = {exposed}");
+        Assert.Equal(255, covered.Red);
+        Assert.Equal(0, covered.Blue);
+        Assert.Equal(255, exposed.Blue);
+        Assert.Equal(0, exposed.Red);
+        Assert.Equal(255, exposed.Alpha);
+    }
+
+    [Fact]
+    public void AHiddenPhotoshopLayerDoesNotRender()
+    {
+        var bytes = new PsdFixture
+        {
+            Width = 4,
+            Height = 4,
+            Layers =
+            {
+                PsdLayerFixture.Solid("Notes to self", 255, 0, 0, a: 255, visible: false),
+            },
+        }.Build();
+
+        var doc = PsdDocumentImport.Open(bytes).Document;
+        using var rendered = Rendered(doc);
+
+        Assert.Equal(0, rendered.GetPixel(1, 1).Alpha);
+    }
+
+    [Fact]
+    public void ALayersOpacityReachesTheRenderedPixels()
+    {
+        var bytes = new PsdFixture
+        {
+            Width = 4,
+            Height = 4,
+            Layers = { PsdLayerFixture.Solid("Half", 0, 0, 0, a: 255, opacity: 128) },
+        }.Build();
+
+        var doc = PsdDocumentImport.Open(bytes).Document;
+        using var rendered = Rendered(doc);
+
+        var pixel = rendered.GetPixel(1, 1);
+        output.WriteLine($"opacity 128/255 rendered as alpha {pixel.Alpha}");
+        Assert.InRange(pixel.Alpha, 120, 136);
+    }
+
+    [Fact]
+    public void ATranslucentPsdLayerKeepsItsAlphaThroughTheRender()
+    {
+        // The premultiply hand-off: the reader returns unpremultiplied pixels and
+        // Skia multiplies when they are drawn onto the document surface. Get that
+        // wrong and a half-transparent layer renders at the wrong strength.
+        var bytes = new PsdFixture
+        {
+            Width = 4,
+            Height = 4,
+            Layers = { PsdLayerFixture.Solid("Wash", 255, 255, 255, a: 128) },
+        }.Build();
+
+        var doc = PsdDocumentImport.Open(bytes).Document;
+        using var rendered = Rendered(doc);
+
+        var pixel = rendered.GetPixel(1, 1);
+        output.WriteLine($"stored (255,255,255,128) rendered as {pixel}");
+        Assert.InRange(pixel.Alpha, 120, 136);
+        Assert.InRange(pixel.Red, 250, 255);
+    }
+
+    [Fact]
+    public void AnImportedPsdCanBeSavedStraightBackOutAsAPng()
+    {
+        // The two halves of this branch meeting: open a Photoshop file, save it
+        // as an ordinary picture, without drawing a stroke in between.
+        var bytes = new PsdFixture
+        {
+            Width = 6,
+            Height = 6,
+            Layers = { PsdLayerFixture.Solid("Art", 12, 200, 90, a: 255, right: 6, bottom: 6) },
+        }.Build();
+        var doc = PsdDocumentImport.Open(bytes).Document;
+        var dir = Directory.CreateTempSubdirectory("lightbox-psd-png");
+        var path = System.IO.Path.Combine(dir.FullName, "out.png");
+
+        try
+        {
+            SaveAsImage.Write(doc, path);
+
+            using var saved = SKBitmap.Decode(path);
+            Assert.Equal(6, saved.Width);
+            var pixel = saved.GetPixel(2, 2);
+            Assert.Equal(12, pixel.Red);
+            Assert.Equal(200, pixel.Green);
+            Assert.Equal(90, pixel.Blue);
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
+
     [Fact]
     public void ADocumentFromAPsdSerializesAndComesBackTheSame()
     {
