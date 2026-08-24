@@ -56,12 +56,19 @@ public class EffectComposeCostTests(ITestOutputHelper output)
             new(bottom, null, 1),
             new(null, null, 1, AdjustStack: Stack("blur.gaussian", ("radius", 8.0))),
         };
+        var grained = new List<RenderPass>
+        {
+            new(bottom, null, 1),
+            new(null, null, 1, AdjustStack: Stack("grade.grain", ("amount", 40.0))),
+        };
 
         var baseline = MsPerCompose(plain);
         var grade = MsPerCompose(graded);
         var blur = MsPerCompose(blurred);
+        var grain = MsPerCompose(grained);
         output.WriteLine(
-            $"plain {baseline:F2} ms, +hsl {grade:F2} ms ({grade / baseline:F1}x), +blur {blur:F2} ms ({blur / baseline:F1}x)");
+            $"plain {baseline:F2} ms, +hsl {grade:F2} ms ({grade / baseline:F1}x), "
+            + $"+blur {blur:F2} ms ({blur / baseline:F1}x), +grain {grain:F2} ms ({grain / baseline:F1}x)");
 
         // Loose on purpose: a point grade is one extra full-surface draw
         // through a color filter, a blur is a kernel over the surface. The
@@ -71,6 +78,10 @@ public class EffectComposeCostTests(ITestOutputHelper output)
             $"a point adjustment should cost about one extra surface draw, got {grade:F2} ms over {baseline:F2} ms");
         Assert.True(blur < baseline * 150 + 120,
             $"a blur adjustment should cost its kernel and nothing structural, got {blur:F2} ms over {baseline:F2} ms");
+        // Grain is a per-pixel CPU loop with two hashes in it — the same
+        // shape as the true-HSL pass beside it, and held to the same ceiling.
+        Assert.True(grain < baseline * 40 + 30,
+            $"film grain should cost about one pass over the pixels, got {grain:F2} ms over {baseline:F2} ms");
     }
 
     [AvaloniaFact]

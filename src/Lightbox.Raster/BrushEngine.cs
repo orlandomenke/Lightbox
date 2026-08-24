@@ -1332,7 +1332,74 @@ public static class BrushEngine
         && brush.TipId is null
         && brush.Medium.Kind == MediumKind.None
         && Math.Clamp(brush.Hardness, 0, 1) < 0.999
+        && CanOutrunItsFootprint(brush)
         && !DrawsAsOneSilhouette(brush);
+
+    /// <summary>
+    /// Whether this brush can lay down more paint than its own footprint allows
+    /// — and so whether the ceiling has anything to do.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Overlap is what makes the ceiling bind, and a thin enough brush never
+    /// overlaps itself enough to reach its own shape.</b> At a pixel where one
+    /// dab's shape is <c>s</c>, <c>n</c> overlapping dabs at flow <c>f</c>
+    /// accumulate to <c>1-(1-f·s)^n</c>, and the ceiling is <c>s</c>. For small
+    /// <c>f·s</c> that is <c>n·f·s</c>, so the ceiling binds only when
+    /// <c>n·f > 1</c>.
+    /// </para>
+    /// <para>
+    /// <b><c>n</c> is at most <c>1/spacing</c></b>, and that bound is what makes
+    /// this safe rather than approximate. A pixel at perpendicular distance
+    /// <c>d</c> from the centreline is covered by the dabs within
+    /// <c>√(R²-d²)</c> of it along the line, which is at most <c>2R</c> of
+    /// travel — one diameter — and the step is <c>spacing</c> of a diameter, so
+    /// a diameter holds <c>1/spacing</c> dabs. Hence <c>n·f ≤ f/spacing</c>, and
+    /// <c>f ≤ spacing</c> is a <em>sufficient</em> condition for the ceiling
+    /// never to bind. The linearisation only errs the safe way too: the true
+    /// accumulation is concave, so it is below <c>n·f·s</c> wherever that is not
+    /// small.
+    /// </para>
+    /// <para>
+    /// <b>Four things that could break that bound, and why they do not.</b>
+    /// <em>Size jitter</em> and <em>roundness</em> only ever shrink a dab
+    /// (<c>RoundnessAt</c> clamps to 1 and squashes; the jitter scale is at most
+    /// 1), so neither extends a dab's reach past <c>R</c>. <em>Light pressure</em>
+    /// shrinks the dab and the step together — the walker spaces by the current
+    /// diameter — so the ratio is unchanged, and the 0.5 px step floor only ever
+    /// makes the step longer. <em>Flow jitter</em> multiplies by
+    /// <c>1 - h·jitter</c> and a pressure curve by a value
+    /// <c>ResponseCurve.Evaluate</c> clamps into 0..1, so <c>brush.Flow</c> is
+    /// the maximum a dab can carry rather than a sample of it.
+    /// </para>
+    /// <para>
+    /// <b>Scatter is the one that does break it, so it is excluded.</b> A
+    /// scattered dab is thrown up to <c>scatter × Size</c> off the centreline,
+    /// which widens the stretch of travel that can reach a pixel to
+    /// <c>2R(1 + 2·scatter)</c> and multiplies <c>n</c> by the same factor —
+    /// tripling it at scatter 1. Worse, the throw is measured in the brush's
+    /// nominal size while the step follows the <em>pressure-scaled</em> one, so
+    /// a light touch shrinks the step without shrinking the throw and no fixed
+    /// factor bounds it. Excluding scatter costs nothing real: a scattered brush
+    /// is not the dialled-down airbrush this is for.
+    /// </para>
+    /// <para>
+    /// It also covers the case where the dabs do not overlap at all: at spacing
+    /// 1 or more each dab stands alone, <c>n</c> is 1, and no flow can exceed
+    /// the footprint. Flow is never above 1, so the same comparison catches it.
+    /// </para>
+    /// <para>
+    /// <b>Measured, not only derived</b>
+    /// (<c>FootprintCapTests.SkippingTheCeilingWhereItCannotBindChangesNoPixel</c>).
+    /// Size 30 at spacing 0.15, capped against uncapped: <b>byte-identical at
+    /// flow 0.02, 0.05, 0.10 and 0.25</b>, first diverging at 0.5. So the real
+    /// margin is about 3.3× the line this draws, and the test keeps the ceiling
+    /// through all of it — which is the direction to be wrong in.
+    /// </para>
+    /// </remarks>
+    private static bool CanOutrunItsFootprint(BrushSettings brush) =>
+        brush.Scatter > 0
+        || Math.Clamp(brush.Flow, 0, 1) > Math.Max(brush.Spacing, 0.0001);
 
     /// <summary>
     /// Hold every pixel of a stamped mark down to the footprint recorded beside

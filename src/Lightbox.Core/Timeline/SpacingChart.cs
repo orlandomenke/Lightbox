@@ -1,4 +1,5 @@
 using Lightbox.Core.Documents;
+using Lightbox.Core.Inbetween;
 
 namespace Lightbox.Core.Timeline;
 
@@ -109,11 +110,20 @@ public static class SpacingChart
     }
 
     /// <summary>The mean of every stroke point in the drawing, or null when there is no ink.</summary>
+    /// <remarks>
+    /// <b>Of the ink, not of the record (B301).</b> This read <c>frame.Strokes</c>
+    /// raw, which put two things in the mean that are not on the drawing: the
+    /// eraser's own path — a scrub across the corner dragged the centroid into
+    /// that corner — and every line an eraser had rubbed out. Both move the
+    /// measured distance between two drawings, and this chart's whole claim is
+    /// that it measures the artwork rather than a transform (Q58), so a
+    /// centroid that includes removed work is measuring the wrong thing.
+    /// </remarks>
     internal static (double X, double Y)? Centroid(Frame frame)
     {
         double x = 0, y = 0;
         var n = 0;
-        foreach (var stroke in frame.Strokes)
+        foreach (var stroke in StrokeRecordCleaner.EffectiveStrokes(frame.Strokes))
         {
             foreach (var point in stroke.Points)
             {

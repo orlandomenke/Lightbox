@@ -16,6 +16,20 @@ using SkiaSharp;
 
 namespace Lightbox.App.ViewModels;
 
+/// <summary>What <see cref="MainViewModel.SetExternalKey"/> did to the cel.</summary>
+public enum ExternalKeyOutcome
+{
+    /// <summary>The layer is hidden or locked — nothing changed.</summary>
+    Refused,
+
+    /// <summary>A drawing was already there; only its role changed, and it
+    /// stays the artist's (no provenance).</summary>
+    ReMarked,
+
+    /// <summary>An empty drawing was created, carrying agent provenance.</summary>
+    Created,
+}
+
 /// <summary>Part of MainViewModel — see MainViewModel.cs.</summary>
 /// <remarks>
 /// Split out of <c>MainViewModel.cs</c> under Q78, which was 13,628 lines across 61
@@ -1331,6 +1345,97 @@ public partial class MainViewModel
         PublishSnapshot();
         RefreshThumbnails();
         return strokes.Count;
+    }
+
+    // ---- the exposure sheet, for an agent ------------------------------------
+    //
+    // `get_scene` has always reported `keyedFrames`, and until these there was
+    // no op that could make one: an agent could draw on a frame and could not
+    // time anything, which on a frame-by-frame application is the half that
+    // matters. Every one goes through `DocumentEditor` like the menu commands
+    // do, so an agent's retime is one undo step and cannot bypass the record.
+    //
+    // All four are non-destructive by construction — `SetKeyAt` only ever adds
+    // a drawing, `ReduceExposure` refuses to remove one, and `StretchExposure`
+    // absorbs existing holds rather than multiplying them. `ReduceToStep` is
+    // deliberately absent: it discards drawings, and a destructive agent op
+    // wants the explicit-flag treatment `import_character` has.
+
+    /// <summary>
+    /// Make <paramref name="frameIndex"/> a key on this layer — a new empty
+    /// drawing on a hold, or a re-marked role on one that is already there.
+    /// One undo step.
+    /// </summary>
+    /// <remarks>
+    /// Reports <i>which</i> of the two it did, because the caller cannot work it
+    /// out afterwards and asking the layer a second time would be a second
+    /// source of truth for the same fact — one that can drift from the stamp
+    /// below and make the agent's reply lie about what happened.
+    /// </remarks>
+    public ExternalKeyOutcome SetExternalKey(string layerId, int frameIndex, FrameRole role)
+    {
+        var layer = Scene.Layers.First(l => l.Id == layerId);
+        if (!CanEdit(layer, "key a frame on it")) return ExternalKeyOutcome.Refused;
+        if (frameIndex < 0) return ExternalKeyOutcome.Refused;
+
+        // Q31, and the narrower half of it: a frame the agent brought into
+        // existence is the agent's, a frame it only re-labelled stays the
+        // artist's. `SetKeyAt` stamps on creation alone, so asking whether one
+        // is there first is what tells the two apart.
+        var creating = ExposureSheet.FrameAtExactIndex(layer, frameIndex) is null;
+        _editor.SetKeyAt(layerId, frameIndex, role,
+                         creating ? new AiProvenance("MCP agent") : null);
+        PublishSnapshot();
+        RefreshThumbnails();
+        return creating ? ExternalKeyOutcome.Created : ExternalKeyOutcome.ReMarked;
+    }
+
+    /// <summary>
+    /// Hold the drawing exposed at <paramref name="frameIndex"/> one frame
+    /// longer, on this layer only. One undo step.
+    /// </summary>
+    public bool ExtendExternalExposure(string layerId, int frameIndex)
+    {
+        var layer = Scene.Layers.First(l => l.Id == layerId);
+        if (!CanEdit(layer, "retime it")) return false;
+        if (frameIndex < 0) return false;
+        _editor.ExtendExposure(layerId, frameIndex);
+        PublishSnapshot();
+        RefreshThumbnails();
+        return true;
+    }
+
+    /// <summary>
+    /// Shorten the exposure at <paramref name="frameIndex"/> by one frame. A
+    /// drawing is never removed, so this is a no-op when the next cel is keyed.
+    /// One undo step.
+    /// </summary>
+    public bool ReduceExternalExposure(string layerId, int frameIndex)
+    {
+        var layer = Scene.Layers.First(l => l.Id == layerId);
+        if (!CanEdit(layer, "retime it")) return false;
+        if (frameIndex < 0) return false;
+        _editor.ReduceExposure(layerId, frameIndex);
+        PublishSnapshot();
+        RefreshThumbnails();
+        return true;
+    }
+
+    /// <summary>
+    /// Re-time a range so every drawing in it is held for
+    /// <paramref name="step"/> frames — what an animator means by "on 2s".
+    /// One undo step. Returns the frames the range grew by, or -1 when the
+    /// layer cannot be edited.
+    /// </summary>
+    public int RetimeExternalExposure(string layerId, int from, int to, int step)
+    {
+        var layer = Scene.Layers.First(l => l.Id == layerId);
+        if (!CanEdit(layer, "retime it")) return -1;
+        if (step < 1) return -1;
+        var grew = _editor.StretchExposure(layerId, from, to, step);
+        PublishSnapshot();
+        RefreshThumbnails();
+        return grew;
     }
 
     /// <summary>Replace the ACTIVE tab's document (fresh editor, clean state).</summary>
