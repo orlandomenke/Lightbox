@@ -72,7 +72,7 @@ if command -v dotnet >/dev/null 2>&1 && have_sdk; then
 else
   echo "toolchain: installing the .NET 10 SDK"
   export DEBIAN_FRONTEND=noninteractive
-  $SUDO apt-get update -qq
+  $SUDO apt-get update -qq >/dev/null 2>&1 || true
   # Ubuntu 24.04 carries it in its own archive, so no Microsoft feed and no
   # install script.
   #
@@ -80,8 +80,22 @@ else
   # image today. It is named anyway because without it text rendering fails at
   # RUNTIME rather than at build time, which is an expensive way to discover a
   # base-image change.
-  $SUDO apt-get install -y -qq --no-install-recommends \
-    dotnet-sdk-10.0 libfontconfig1
+  # Into a log rather than into the agent, which is the whole point of this
+  # hook. `-qq` silences apt's own progress and does NOT silence dpkg: every
+  # "Selecting previously unselected package ..." and "Unpacking ..." line goes
+  # to stdout, and a SessionStart hook's stdout is the agent's first context.
+  # Measured off a real cold-container transcript on 2026-08-24: ~3.4 KB, about
+  # 850 tokens of package names, paid by every session that lands on a cold
+  # container to say something the next line already says in one word.
+  #
+  # Kept on failure, because a failed toolchain install is the one case where
+  # the transcript is the information.
+  if ! $SUDO apt-get install -y -qq --no-install-recommends \
+      dotnet-sdk-10.0 libfontconfig1 >/tmp/lightbox-apt.log 2>&1; then
+    echo "toolchain: apt failed — transcript follows"
+    tail -40 /tmp/lightbox-apt.log
+    exit 1
+  fi
   $SUDO rm -rf /var/lib/apt/lists/*
 fi
 

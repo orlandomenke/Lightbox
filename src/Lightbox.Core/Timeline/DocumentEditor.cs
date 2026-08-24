@@ -665,7 +665,16 @@ public sealed class DocumentEditor
     /// one. An index beyond the timeline extends it (holds on every layer).
     /// One undo step.
     /// </summary>
-    public void SetKeyAt(string layerId, int index, FrameRole role)
+    /// <param name="provenance">
+    /// Stamped on the frame <b>only when this call creates it</b>, so an agent
+    /// that authored a key is recorded as having done so (Q31). Re-marking a
+    /// drawing the artist already made is a timing edit and leaves their frame
+    /// unclaimed — which is also why this is a parameter rather than a second
+    /// edit afterwards: the stamp has to land inside the one undo step, and a
+    /// caller writing <c>frame.Ai</c> after the fact would make two.
+    /// </param>
+    public void SetKeyAt(string layerId, int index, FrameRole role,
+                         AiProvenance? provenance = null)
     {
         if (index < 0) return;
         Perform(doc =>
@@ -679,6 +688,7 @@ public sealed class DocumentEditor
             if (cel.Frame is null)
             {
                 cel.Frame = NewEmptyFrame(target);
+                cel.Frame.Ai = provenance;
             }
             cel.Frame.Role = role;
         });
