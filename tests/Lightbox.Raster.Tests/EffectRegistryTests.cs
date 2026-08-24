@@ -347,6 +347,268 @@ public class EffectRegistryTests(ITestOutputHelper output)
         Assert.Equal(0, EffectRegistry.ReachOf(Stack(Use("style.bevel")), 0)); // inner
     }
 
+    /// <summary>An 8x8 flat of one colour.</summary>
+    private static SKBitmap Solid(SKColor colour)
+    {
+        var bmp = new SKBitmap(8, 8, SKColorType.Rgba8888, SKAlphaType.Premul);
+        bmp.Erase(colour);
+        return bmp;
+    }
+
+    // ---- the Photoshop filters (Q160) -------------------------------------
+
+    /// <summary>A 16x16 split down the middle — dark left, light right.</summary>
+    private static SKBitmap Edged()
+    {
+        var bmp = new SKBitmap(16, 16, SKColorType.Rgba8888, SKAlphaType.Premul);
+        bmp.Erase(new SKColor(40, 40, 40));
+        using var canvas = new SKCanvas(bmp);
+        using var paint = new SKPaint { Color = new SKColor(210, 210, 210) };
+        canvas.DrawRect(SKRect.Create(8, 0, 8, 16), paint);
+        canvas.Flush();
+        return bmp;
+    }
+
+    /// <summary>A light bar down the middle of a dark field — two edges.</summary>
+    private static SKBitmap Barred()
+    {
+        var bmp = new SKBitmap(16, 16, SKColorType.Rgba8888, SKAlphaType.Premul);
+        bmp.Erase(new SKColor(40, 40, 40));
+        using var canvas = new SKCanvas(bmp);
+        using var paint = new SKPaint { Color = new SKColor(210, 210, 210) };
+        canvas.DrawRect(SKRect.Create(6, 0, 4, 16), paint);
+        canvas.Flush();
+        return bmp;
+    }
+
+    private static SKBitmap Through(SKBitmap source, EffectStack stack, int frame = 0)
+    {
+        var outBmp = new SKBitmap(
+            source.Width, source.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var canvas = new SKCanvas(outBmp);
+        canvas.Clear(SKColors.Transparent);
+        using var paint = new SKPaint { ImageFilter = EffectRegistry.FilterFor(stack, frame) };
+        canvas.DrawBitmap(source, 0, 0, paint);
+        canvas.Flush();
+        return outBmp;
+    }
+
+    [Fact]
+    public void SharpenSteepensAnEdgeAndAmountZeroIsExactlyIdentity()
+    {
+        using var source = Edged();
+        using var sharp = Through(source,
+            Stack(Use("detail.sharpen", ("amount", 100.0), ("radius", 2.0))));
+        // The dark side of the edge darkens and the light side lightens:
+        // that overshoot *is* sharpening.
+        var darkSide = sharp.GetPixel(7, 8).Red;
+        var lightSide = sharp.GetPixel(8, 8).Red;
+        output.WriteLine($"edge {source.GetPixel(7, 8).Red}->{darkSide}, {source.GetPixel(8, 8).Red}->{lightSide}");
+        Assert.True(darkSide < 40, $"the dark side should undershoot, got {darkSide}");
+        Assert.True(lightSide > 210, $"the light side should overshoot, got {lightSide}");
+        // Away from the edge nothing happens: a flat is already its own mean.
+        Assert.Equal(40, sharp.GetPixel(2, 8).Red);
+
+        using var none = Through(source, Stack(Use("detail.sharpen", ("amount", 0.0))));
+        // Amount 0 short-circuits to the input rather than to arithmetic
+        // that happens to cancel, so this is exact rather than nearly.
+        Assert.True(source.Bytes.AsSpan().SequenceEqual(none.Bytes),
+            "amount 0 must be the untouched picture, not nearly it");
+    }
+
+    [Fact]
+    public void FindEdgesKeepsTheEdgeAndDropsTheFlats()
+    {
+        using var source = Edged();
+        using var edges = Through(source, Stack(Use("detail.edges", ("radius", 2.0))));
+        var flat = edges.GetPixel(2, 8).Red;
+        // The darkest point of the row, not one guessed column: the edge is a
+        // couple of pixels wide and which one is darkest is Skia's business.
+        var atEdge = 255;
+        for (var x = 0; x < 16; x++) atEdge = Math.Min(atEdge, edges.GetPixel(x, 8).Red);
+        output.WriteLine($"flat {flat}, darkest {atEdge}");
+        // Drawn the way the filter is drawn everywhere else: white paper,
+        // dark lines where the picture changes.
+        Assert.True(flat > 240, $"a flat has no edges in it, got {flat}");
+        Assert.True(flat - atEdge > 40, $"and the edge must read dark, got {atEdge} against {flat}");
+    }
+
+    [Fact]
+    public void NoFilterChangesTheAlphaItWasGiven()
+    {
+        // Every fixture in this file was opaque until the adversary review
+        // pointed out that both primitives the detail filters are built from
+        // move alpha on their own: a blend-mode filter composites alpha
+        // Porter-Duff "over" whatever its colour blend is (a half-transparent
+        // fill came out of Find edges at 192 instead of 128), and an
+        // arithmetic filter applies its coefficients to alpha too (an unsharp
+        // mask dipped a soft alpha edge from 128 to 86). Both are invisible
+        // on an opaque test and obvious on a half-opacity stroke.
+        foreach (var use in new[]
+                 {
+                     Use("detail.sharpen", ("amount", 100.0), ("radius", 2.0)),
+                     Use("detail.edges", ("radius", 2.0)),
+                     Use("grade.invert"),
+                     Use("grade.threshold"),
+                     Use("grade.posterize"),
+                     Use("grade.gradientMap"),
+                 })
+        {
+            // A flat half-transparent fill keeps its alpha exactly.
+            using var flat = Solid(new SKColor(150, 90, 40, 128));
+            using var filtered = Through(flat, Stack(use));
+            var alpha = filtered.GetPixel(4, 4).Alpha;
+            output.WriteLine($"{use.Kind}: flat 128 -> {alpha}");
+            Assert.True(Math.Abs(alpha - 128) <= 2,
+                $"{use.Kind} moved a flat's alpha from 128 to {alpha}");
+        }
+
+        // And a soft alpha edge — half-opacity beside full — keeps both
+        // sides. This is the shape a feathered stroke or a soft eraser
+        // leaves behind, and the one the arithmetic filter distorted.
+        var soft = new SKBitmap(16, 16, SKColorType.Rgba8888, SKAlphaType.Premul);
+        soft.Erase(new SKColor(150, 90, 40, 128));
+        using (var canvas = new SKCanvas(soft))
+        using (var paint = new SKPaint { Color = new SKColor(150, 90, 40, 255) })
+        {
+            canvas.DrawRect(SKRect.Create(8, 0, 8, 16), paint);
+            canvas.Flush();
+        }
+        foreach (var kind in new[] { "detail.sharpen", "detail.edges" })
+        {
+            using var filtered = Through(soft, Stack(Use(kind, ("radius", 2.0))));
+            var dim = filtered.GetPixel(6, 8).Alpha;
+            var solid = filtered.GetPixel(13, 8).Alpha;
+            output.WriteLine($"{kind}: soft edge 128 -> {dim}, 255 -> {solid}");
+            Assert.True(Math.Abs(dim - 128) <= 3, $"{kind} dipped the soft side to {dim}");
+            Assert.True(solid >= 252, $"{kind} thinned the solid side to {solid}");
+        }
+
+        // A transparent region stays transparent: a filter that fills one in
+        // turns a layer into its own bounding box.
+        using var block = new SKBitmap(16, 16, SKColorType.Rgba8888, SKAlphaType.Premul);
+        block.Erase(SKColors.Transparent);
+        using (var canvas = new SKCanvas(block))
+        using (var paint = new SKPaint { Color = SKColors.White })
+        {
+            canvas.DrawRect(SKRect.Create(0, 0, 8, 16), paint);
+            canvas.Flush();
+        }
+        foreach (var kind in new[] { "detail.sharpen", "detail.edges" })
+        {
+            using var filtered = Through(block, Stack(Use(kind, ("radius", 2.0))));
+            output.WriteLine($"{kind}: outside the drawing -> {filtered.GetPixel(12, 8).Alpha}");
+            Assert.Equal(0, filtered.GetPixel(12, 8).Alpha);
+        }
+        soft.Dispose();
+    }
+
+    [Fact]
+    public void ThresholdIsTwoTonedThroughLuminanceNotPerChannel()
+    {
+        // A mid grey either side of the level, and — the trap — a saturated
+        // colour whose channels straddle it: per-channel thresholding turns
+        // that into a primary, luminance keeps it one tone.
+        using var mid = Through(Solid(new SKColor(150, 150, 150)),
+            Stack(Use("grade.threshold", ("level", 128.0))));
+        Assert.Equal(255, mid.GetPixel(4, 4).Red);
+        using var dark = Through(Solid(new SKColor(100, 100, 100)),
+            Stack(Use("grade.threshold", ("level", 128.0))));
+        Assert.Equal(0, dark.GetPixel(4, 4).Red);
+
+        using var colour = Through(Solid(new SKColor(200, 90, 30)),
+            Stack(Use("grade.threshold", ("level", 128.0))));
+        var p = colour.GetPixel(4, 4);
+        output.WriteLine($"straddling colour -> {p}");
+        Assert.True(p.Red == p.Green && p.Green == p.Blue,
+            $"threshold must be one tone, not a primary, got {p}");
+    }
+
+    [Fact]
+    public void PosterizeBandsTheRangeAndKeepsBothEnds()
+    {
+        var seen = new HashSet<byte>();
+        for (var v = 0; v < 256; v += 8)
+        {
+            using var band = Through(Solid(new SKColor((byte)v, (byte)v, (byte)v)),
+                Stack(Use("grade.posterize", ("levels", 4.0))));
+            seen.Add(band.GetPixel(4, 4).Red);
+        }
+        output.WriteLine($"4 levels gave [{string.Join(", ", seen.OrderBy(v => v))}]");
+        Assert.Equal(4, seen.Count);
+        Assert.Contains((byte)0, seen);   // the darkest band reaches black
+        Assert.Contains((byte)255, seen); // and the lightest reaches white
+    }
+
+    [Fact]
+    public void InvertIsItsOwnUndo()
+    {
+        var original = new SKColor(200, 90, 30);
+        using var once = Through(Solid(original), Stack(Use("grade.invert")));
+        var flipped = once.GetPixel(4, 4);
+        Assert.Equal(55, flipped.Red);
+        Assert.Equal(165, flipped.Green);
+
+        using var twice = Through(once, Stack(Use("grade.invert")));
+        var back = twice.GetPixel(4, 4);
+        output.WriteLine($"{original} -> {flipped} -> {back}");
+        Assert.Equal(original.Red, back.Red);
+        Assert.Equal(original.Green, back.Green);
+        Assert.Equal(original.Blue, back.Blue);
+    }
+
+    [Fact]
+    public void AGradientMapCarriesToneToItsTwoColours()
+    {
+        var use = Use("grade.gradientMap", ("midpoint", 50.0));
+        use.Colors = new() { ["shadow"] = "#0000ff", ["highlight"] = "#ffff00" };
+        var stack = Stack(use);
+
+        using var black = Through(Solid(SKColors.Black), stack);
+        using var white = Through(Solid(SKColors.White), stack);
+        var low = black.GetPixel(4, 4);
+        var high = white.GetPixel(4, 4);
+        output.WriteLine($"black -> {low}, white -> {high}");
+        Assert.True(low.Blue > 240 && low.Red < 15, $"black takes the shadow colour, got {low}");
+        Assert.True(high.Red > 240 && high.Green > 240 && high.Blue < 15,
+            $"white takes the highlight colour, got {high}");
+
+        // A mid grey lands between them, and the midpoint slider moves it.
+        using var mid = Through(Solid(new SKColor(128, 128, 128)), stack);
+        var centre = mid.GetPixel(4, 4).Red;
+        use.Params["midpoint"] = new EffectParam(80);
+        using var biased = Through(Solid(new SKColor(128, 128, 128)), stack);
+        output.WriteLine($"mid at 50 -> {centre}, at 80 -> {biased.GetPixel(4, 4).Red}");
+        Assert.InRange(centre, 80, 200);
+        Assert.True(biased.GetPixel(4, 4).Red < centre,
+            "pushing the midpoint up holds more of the picture in the shadow colour");
+    }
+
+    [Fact]
+    public void EveryPhotoshopFilterWorksOnALayersOwnStackAndOnTheBackdrop()
+    {
+        // The point of choosing this set (Q160): all of it is native, so
+        // none of it is stranded on the backdrop path the way a CPU pass is.
+        foreach (var kind in new[]
+                 {
+                     "detail.sharpen", "detail.edges",
+                     "grade.invert", "grade.threshold", "grade.posterize",
+                     "grade.gradientMap",
+                 })
+        {
+            var stack = Stack(Use(kind));
+            Assert.NotNull(EffectRegistry.FilterFor(stack, 0));
+            Assert.NotNull(EffectRegistry.ProgramFor(stack, 0));
+            Assert.False(EffectRegistry.Resolve(kind)!.BackdropOnly, kind);
+            Assert.False(EffectRegistry.Resolve(kind)!.SelfOnly, kind);
+        }
+
+        // An unsharp mask reaches as far as the blur it subtracts, so the
+        // badge follows the radius rather than the strength.
+        Assert.Equal(6, EffectRegistry.ReachOf(Stack(Use("detail.sharpen", ("radius", 4.0))), 0));
+        Assert.Equal(0, EffectRegistry.ReachOf(Stack(Use("grade.posterize")), 0));
+    }
+
     // ---- the animation shelf (Q159): effects that vary by frame ----------
 
     /// <summary>A 4x4 mark at (14,14) of a 32x32, through a native filter.</summary>
@@ -453,6 +715,39 @@ public class EffectRegistryTests(ITestOutputHelper output)
         Assert.All(masses, m => Assert.True(m <= full + 0.001, $"never brighter than full: {m} vs {full}"));
         Assert.True(masses.Exists(m => m < full * 0.9), "and it must actually dip");
         Assert.True(masses.Distinct().Count() >= 4, "a flicker that repeats itself is a hold, not a flicker");
+    }
+
+    [Fact]
+    public void AFlickerBuildsOnEveryStepIncludingTheOnesThatAskForFullStrength()
+    {
+        // Skia answers an identity blend with null rather than a filter, and
+        // the flicker asks for one whenever its noise lands near zero — about
+        // one step in three hundred at the default depth. The per-use random
+        // seed hid it: the chain threw or did not depending on which id the
+        // use happened to be handed, which is the worst way for a crash to
+        // arrive. Sweeping the seed makes it certain rather than lucky.
+        var fullStrength = 0;
+        for (var seed = 0; seed < 60; seed++)
+        {
+            var use = Use("anim.flicker", ("amount", 60.0), ("hold", 1.0));
+            use.Params["seed"] = new EffectParam(seed);
+            var stack = Stack(use);
+            for (var frame = 0; frame < 40; frame++)
+            {
+                // The assertion is that this does not throw; a full-strength
+                // step legitimately answers null, which is identity.
+                if (EffectRegistry.FilterFor(stack, frame) is null) fullStrength++;
+            }
+        }
+        // ...and the sweep has to actually reach the case it exists for, or
+        // it is 2,400 iterations of proving nothing.
+        output.WriteLine($"{fullStrength} of 2400 steps asked for full strength");
+        Assert.True(fullStrength > 0, "the sweep never hit a full-strength step");
+
+        // And the full-strength case explicitly: no dip at all is the layer
+        // exactly as it was, not an exception.
+        var none = Stack(Use("anim.flicker", ("amount", 0.0)));
+        Assert.Null(EffectRegistry.FilterFor(none, 0));
     }
 
     [Fact]

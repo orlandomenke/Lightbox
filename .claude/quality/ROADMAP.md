@@ -395,6 +395,25 @@ the test needs relaxing.
     clip grades one silhouette, its opacity is strength, its eye switches it
     off. Its cels stay empty and nothing renders them; a document without
     one writes no key.
+- [x] Photoshop-style filters `evidence: SharpenSteepensAnEdgeAndAmountZeroIsExactlyIdentity, FindEdgesKeepsTheEdgeAndDropsTheFlats, ThresholdIsTwoTonedThroughLuminanceNotPerChannel, PosterizeBandsTheRangeAndKeepsBothEnds, InvertIsItsOwnUndo, AGradientMapCarriesToneToItsTwoColours, EveryPhotoshopFilterWorksOnALayersOwnStackAndOnTheBackdrop, ThePhotoshopFiltersAreOfferedEverywhere`
+  - **Six, chosen for being native (Q160)**: sharpen (an unsharp mask, with
+    a radius), find edges, invert, threshold, posterize and gradient map.
+    Native is what lets them work on a layer's own stack as well as on
+    adjustment layers and the scene — unlike Hue/Saturation and grain, which
+    are CPU passes and therefore backdrop-only.
+  - **The convolution primitive was measured and rejected**: one 3×3 matrix
+    convolution expresses sharpen and find edges directly and costs ~1270 ms
+    per 960×540 compose, twenty times an 8 px blur, because Skia's CPU
+    convolution has no fast path. Rebuilt from blur, offset and arithmetic
+    blend the pair measures 173 ms. Both carry a radius floor of 2, because
+    Skia's raster blur is a no-op below sigma 1 and a shorter radius returns
+    the picture untouched.
+  - **Emboss is deliberately not here.** Relief needs a constant added to
+    colour only, and the arithmetic filter adds `k4` to alpha as well, so mid
+    grey arrives as half-transparent white; doing it natively takes a
+    seven-node graph referencing the input four times. It is a five-line CPU
+    pass once per-pixel passes can run on a layer's own stack, which is its
+    own branch — so it waits rather than shipping badly.
 - [x] Effects that vary by frame `evidence: DefaultOf, EffectShelf, AWiggleMovesTheMarkAndStaysPutForTheLengthOfItsHold, AFlickerDipsOutOfFullStrengthAndNeverAboveIt, TwoWigglesDoNotMoveInLockstep, ATimeSeededStackRebuildsPerFrameAndAStaticOneDoesNot, ATiledRepaintGrainsExactlyAsAWholeOneDoes, GrainDoesNotReRollWhenTheSurfaceScales, AWiggleBoilsWhileTheDrawingHolds`
   - **The animation shelf's first inhabitants (Q159)**, and the design's
     step 4: wiggle and flicker (native, either path — a wiggle over the whole
