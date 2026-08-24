@@ -79,5 +79,5 @@ post-process beside medium and wet edge rather than in the per-event fast path.
 That makes a soft brush the second exception — after blur — to the manual's
 promise that the mark under the pen is the mark you will have. Nothing regressed
 against today's *appearance* under the pen; what regressed is its exactness.
-**B293** holds the fix, which is to describe the footprint in ~32 nested stroked
+**B294** holds the fix, which is to describe the footprint in ~32 nested stroked
 bands instead of one draw per dab.

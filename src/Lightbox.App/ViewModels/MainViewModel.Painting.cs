@@ -1171,7 +1171,7 @@ public partial class MainViewModel
         // others do: it is a property of the whole mark, not of a segment. The
         // dabs the fast path lays down are the ceiling's *input*, so capping
         // them incrementally would feed a clamped value back into the next
-        // event's accumulation. Q157, and B293 is the fast-path version.
+        // event's accumulation. Q157, and B294 is the fast-path version.
         || BrushEngine.NeedsFootprintCap(brush);
 
     public void BeginStroke(double x, double y, double pressure) =>

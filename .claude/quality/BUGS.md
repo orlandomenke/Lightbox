@@ -593,6 +593,8 @@ which is a weak test and still far better than none.
 
 ### project
 
+- [ ] **B295** `P1` `project` `ids --fix` renumbers both entries of a duplicate filed inside this branch's own range, so the duplicate survives at the new number `evidence: _keeping_spots,cmd_selftest`
+
 - [ ] **B283** `P2` `project` Removing or deleting a folder orphans the sheets filed in it `evidence: OrphanedSheetTests, RemovingAFolderReturnsItsSheetsToTheProject, DeletingAFolderDetachesTheSheetsFiledInIt`
   - **Evidence.** `ProjectFolders.Remove` re-homes a removed folder's *documents* to the project root (the orphaned list `RemoveFromProject` walks), and nothing does the same for sheets: no code path writes `SheetRef.FolderId = null` on folder removal (grep 2026-08-22), and `ProjectWindowViewModel.DeleteFromDisk`'s folder branch detaches contained documents only. A `SheetRef` whose `FolderId` names a removed folder is skipped by every listing — `Emit` walks existing folders plus null, `ProjectSheets.In` matches by id — so the sheet vanishes from the docker, the window and the reaching chain while its ref (and, for Remove, its file) still exists.
   - Delete permanently is the worse half: the folder's directory goes, taking the sheet's file with it, while the dangling ref survives in the manifest.
