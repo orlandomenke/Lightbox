@@ -285,21 +285,6 @@ which is a weak test and still far better than none.
   - **The per-caller tally shipped (2026-08-15), and it is the counter the bullet above asked for — no publish-path behaviour changed.** `PublishSnapshot` takes a compiler-stamped `CallerMemberName`, so all 45 call sites report themselves without being edited and the name cannot lie about where the call came from; `PublishTally` counts them during playback only, so the table is the tick's surplus rather than thousands of legitimate pointer publishes; and the render report's *who publishes during playback* section prints the table busiest-first and judges the total against the ticks — one publish per advance is the playhead's own, everything above that line is the surplus, whoever made it. `PublishTallyTests` pins the gating, the caller attribution and the report's wording, and is deliberately not this entry's evidence — the same split `StrokeToScreenTests` holds for B189, because these prove the instrument rather than the fix.
   - **What closes the diagnosis step: play for half a minute on the owner's machine, then Help ▸ Write a render report.** The section names the caller supplying the ~1.2 publishes per tick beyond the playhead's own, which is where the 176 ms backlog is being fed from — and the next fix goes at that call site, not at the present path.
 
-- [ ] **B291** `P2` `canvas` Painting can never reach viewport culling, so a stroke at 8x zoom composes 3.7 M pixels where a frame change composes 14 k `evidence: tests/Lightbox.App.Tests/CulledRingTests.cs`
-  - Reported 2026-08-23 alongside the anti-aliasing defect: *"zoomed in that performance dips."* Measured rather than taken on trust — `ComposePlan.For` on a 2560x1440 document, once with a dab-sized dirty region and once without, at each zoom:
-
-    | zoom | live-stroke route | surface | whole-canvas route | surface |
-    | --- | --- | --- | --- | --- |
-    | 1x | `Ring` | 3,686,400 px | `ViewportCulled` | 910,000 px |
-    | 2x | `Ring` | 3,686,400 px | `ViewportCulled` | 227,500 px |
-    | 4x | `Ring` | 3,686,400 px | `ViewportCulled` | 56,875 px |
-    | 8x | `Ring` | 3,686,400 px | `ViewportCulled` | 14,094 px |
-
-  - **Culling works, gets better the further you zoom in, and the painting path cannot reach it.** `ComposePlan.For` requires `dirty is null` to cull, and a stroke publish always carries a dirty region, so painting takes `Ring` — whose surface is sized to the *document* and therefore never shrinks with zoom. At 8x the artist can see 14 k pixels' worth of document and the ring is 262x that.
-  - **The condition is not a mistake, which is why this is not a flag flip.** B121 measured naive culling of an incremental publish at 109x *worse* — 1,232 px against 134,400 px for the same dab — because the culled path builds a fresh surface and must fill all of it, so it cannot honour a dirty region. The fix is a surface that is both viewport-sized *and* dirty-region-aware, which is a third route rather than a condition relaxed.
-  - **What the artist actually feels is a step, and it is smaller than the surface ratio.** The dirty-region machinery means per-event cost is mostly area-independent, so the ring's size shows up in allocation and in the full-surface work rather than in the dab. Measured, Ink brush, 2560x1440, 40 pointer events, Display quality: 0.43 ms/event at compose scale 0.5–0.625, **0.65 ms/event at 0.75–1.0** — a +50% step in one zoom notch, where `WorthScaling` snaps the scale to 1.0 and the ring quadruples to 14.7 MB. That is a compose-path number and not the whole pen-to-screen path; B178 and B189 own the rest of that latency.
-  - **Filed rather than fixed because it is genuinely large** — the third compose route, its cache keying and its interaction with `ComposeRing`'s dirty tracking — and this branch's objective was the anti-aliasing defect. Roadmapped under *Drawing floor*. Cost: L.
-
 - [ ] **B259** `P2` `canvas` Publish pacing fails intermittently under a full-solution test run `evidence: IPacingClock, PublishPacingIsDrivenByAnInjectableClock`
   - **Evidence.** `PublishPacingTests.EventsWhileTheCanvasIsBehindComposeNothingUntilItCatchesUp`
     failed once in a `dotnet test Lightbox.sln -c Release` run (3276 of 3277 App
@@ -1338,6 +1323,32 @@ test reopens the bug.
   - The comment above `BeginMove` had already written down why not to do this — *"Re-implementing translation next to it would be a second way for the drawing to move, and the two would drift"* — and `_placementDrag`'s own remark says a placement move is an edit to two numbers. Both were describing the path that already worked.
   - Fix: `_placementDrag` carries a set instead of one id, so a group is the same operation on more of them — same anchor, same axis lock, one `PerformDelta` step for the whole drag. A selection makes the grab modal inside `BeginPlacementMove`, which is the side that knows what is selected, so `CanvasControl` went back to reporting absolute document coordinates like every other move. The parallel path is deleted. Cost: S
   - P1 because the feature did not work and the damage it did could not be taken back.
+
+- [x] **B291** `P2` `canvas` An incremental stroke publish composed the whole document, so it cost four times a whole-canvas publish of the same document `evidence: tests/Lightbox.App.Tests/WindowedRingPixelTests.cs, ChangingTheRingsOriginForcesAFullRepaint, TheRingRouteGetsAViewportSizedSurfaceAndAnOriginToPlaceIt`
+  - Reported 2026-08-23 as *"zoomed in that performance dips."* **The title above is the second one; the first was wrong**, and the correction is the useful part. It read "painting can never reach viewport culling, so a stroke at 8x zoom composes 3.7 M pixels where a frame change composes 14 k", which framed this as getting worse with zoom. Measured end to end on a 2560×1440 document, per pointer event, with a hard brush so the footprint ceiling was not in the number:
+
+    | zoom | visible doc px | whole-canvas publish | stroke publish |
+    | --- | --- | --- | --- |
+    | 1× | 910,000 | 1.48 ms | **5.88 ms** |
+    | 2× | 227,500 | 1.47 ms | **5.90 ms** |
+    | 4× | 56,875 | 1.38 ms | **5.73 ms** |
+    | 8× | 14,094 | 1.55 ms | **5.94 ms** |
+
+    It does not scale with zoom at all. It is a **flat ~4× penalty** whenever the viewport is smaller than the document: the whole-canvas publish gets culled to what is visible and the incremental one does not, so the interactive path costs four times the path it exists to optimise. That lands on B189.
+  - **The condition was about the fresh surface, not about culling.** B121 measured naive culling of an incremental publish at 109× worse because the culled route builds a new surface every publish and must fill all of it. `ComposeRing` keeps its buffers between publishes and already repaints only what went stale, so it can be given a smaller surface *and* honour a dirty region — none of the 109× applies to it. What it lacked was an origin: the document point its surface's (0,0) holds.
+  - **Fixed** by giving `ComposePlan` an `Origin` and threading it through `ComposeRing` and `SceneRenderer.ComposeInto`. Every document-to-surface mapping already funnelled through `CameraTransform.DeviceBounds`, which both the clip and the copy-forward use, so the two cannot disagree about it. Re-framing invalidates all three buffers — their stale regions were recorded against the old window — but keeps their surfaces, because panning changes the origin on every pointer move and the size on none of them. A camera is excluded for the reason the tiled route excludes it.
+  - Measured after, same probe:
+
+    | zoom | before | after | |
+    | --- | --- | --- | --- |
+    | 1× | 5.88 ms | **1.81 ms** | 3.2× |
+    | 2× | 5.90 ms | **0.57 ms** | 10.4× |
+    | 4× | 5.73 ms | **0.32 ms** | 17.7× |
+    | 8× | 5.94 ms | **0.24 ms** | 24.4× |
+
+    The cost now falls with zoom instead of being flat, which is what "proportional to what the artist can see" was supposed to mean.
+  - **The guard the old test handed over.** `ComposePlanTests` asserted the ring stayed document-sized, on the grounds that a viewport-sized surface "would place every dab in the wrong place" — true before an origin existed. That claim is about pixels, so it moved to `WindowedRingPixelTests`, which compares a windowed render against the same strokes composed the old way rather than against a recorded value. **The first cut of that file was worthless**: it captured after `EndStroke`, which is a whole-canvas publish taking the deferred culled route, so every test in it passed with the origin deleted. Captured mid-drag, two of the four fail without it.
+  - The re-frame check needed the ring driven directly. Through the pipeline it is unreachable — every stroke ends with a whole-canvas publish that marks all three buffers `NeedsFull`, so a pan was always going to repaint in full regardless, which is the same reason the `InvalidateAll` beside the culled route is documented as unproven defence.
 
 - [x] **B287** `P2` `canvas` Guides on a reference sheet view are lost when the tab is reopened `evidence: AGuideOnADocumentSheetViewSurvivesSaveAndReopen, AGuideOnAProjectSheetViewSurvivesSaveAndReopen, AViewThatNeverPlacedAGuideWritesNoGuidesKey`
   - Reported 2026-08-23, the follow-up to B284: *"It also happens in reference sheet documents. They should be persistent on open as well."* B284's fix was real and did not reach here, because a sheet view is not reopened — it is **rebuilt**: `WrapperFor` makes a fresh wrapper document around the view every time the tab opens, sharing only the view's layer list. A guide added on that tab landed on the wrapper's `Scene.Guides`, which nothing stored, so it evaporated with the tab while the drawing beside it survived.
