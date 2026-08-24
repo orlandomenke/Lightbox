@@ -429,6 +429,42 @@ public sealed partial class BoardRow : ObservableObject
     /// window is where a facet is edited — which is what closes Q39's cost.
     /// </remarks>
     public string Carries { get; init; } = "";
+
+    // ---- the version history, at a glance --------------------------------------
+    //
+    // This window is where milestone versions are *made* (promoting a card to
+    // Review or Ready keeps one), so it is where their existence must be
+    // visible — a version kept by a surface that cannot show it reads as the
+    // status line making things up. Set at build time from one facts pass,
+    // like Tags and Length.
+
+    /// <summary>How many versions the history keeps, audit lines included.</summary>
+    public int VersionCount { get; init; }
+
+    public bool HasVersions => VersionCount > 0;
+
+    public string VersionCountLabel => $"🕘 {VersionCount}";
+
+    /// <summary>The newest milestone among them, or null when none was kept.</summary>
+    public AssetStatus? Milestone { get; init; }
+
+    public bool HasMilestone => Milestone is not null;
+
+    public string MilestoneLabel => Milestone is { } m ? AssetStatuses.Label(m) : "";
+
+    /// <summary>The status board's colour, the same rule the history window's badge follows.</summary>
+    public string MilestoneColor => Milestone is { } m ? AssetStatuses.Color(m) : "#00000000";
+
+    /// <summary>The file has moved on since the milestone's bytes were kept.</summary>
+    public bool ChangedSinceMilestone { get; init; }
+
+    /// <summary>The column's sentence, since three small marks need one explanation.</summary>
+    public string VersionHint =>
+        !HasVersions ? ""
+        : Milestone is not { } m ? $"{VersionCount} kept — right-click for the version history"
+        : ChangedSinceMilestone
+            ? $"{VersionCount} kept. The {AssetStatuses.Label(m)} bytes are in the history, and the drawing has changed since."
+            : $"{VersionCount} kept. The {AssetStatuses.Label(m)} version matches the file as it stands.";
 }
 
 /// <summary>
@@ -623,7 +659,7 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
             {
                 foreach (var sheet in ProjectSheets.In(Manifest, folder))
                 {
-                    Rows.Add(new BoardRow(sheet, folder, depth + 1));
+                    Rows.Add(Build(sheet, folder, depth + 1));
                 }
             }
             foreach (var document in ProjectFolders.InOrder(Manifest, folder))
@@ -643,7 +679,7 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         {
             foreach (var sheet in ProjectSheets.In(Manifest, null))
             {
-                Rows.Add(new BoardRow(sheet, folder: null, 0));
+                Rows.Add(Build(sheet, folder: null, 0));
             }
         }
         foreach (var loose in Manifest.Documents.Where(d => d.FolderId is null))
@@ -663,12 +699,123 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
     private BoardRow? Build(DocumentRef document, ProjectFolder? folder, int depth)
     {
         if (!Matches(folder, document)) return null;
+        var versions = VersionFactsOf(document.Id);
         return new BoardRow(document, folder, depth)
         {
             Tags = ProjectBoard.TagsReaching(Manifest, document),
             Assignee = ProjectBoard.PersonById(Manifest, document.AssigneeId),
             Length = Duration((document.Frames, document.Seconds)),
+            VersionCount = versions?.Count ?? 0,
+            Milestone = versions?.Milestone,
+            ChangedSinceMilestone = versions?.ChangedSinceMilestone ?? false,
         };
+    }
+
+    /// <summary>A sheet row with its version facts — sheets version too (Q75).</summary>
+    private BoardRow Build(SheetRef sheet, ProjectFolder? folder, int depth)
+    {
+        var versions = VersionFactsOf(sheet.Id);
+        return new BoardRow(sheet, folder, depth)
+        {
+            VersionCount = versions?.Count ?? 0,
+            Milestone = versions?.Milestone,
+            ChangedSinceMilestone = versions?.ChangedSinceMilestone ?? false,
+        };
+    }
+
+    // ---- version facts, one pass per window ----------------------------------------
+
+    /// <summary>
+    /// The facts per versioned resource, loaded once and kept until something
+    /// this window did could have changed them. Rebuild runs on every edit, so
+    /// reading the histories per rebuild would put disk IO behind renaming a
+    /// row; the window is modal (B61's argument), so nothing else writes
+    /// versions while it is open and a cache cannot go stale by surprise.
+    /// </summary>
+    private IReadOnlyDictionary<string, VersionFacts>? _versionFacts;
+
+    private VersionFacts? VersionFactsOf(string resourceId) =>
+        (_versionFacts ??= LoadVersionFacts()).GetValueOrDefault(resourceId);
+
+    private IReadOnlyDictionary<string, VersionFacts> LoadVersionFacts()
+    {
+        var facts = new Dictionary<string, VersionFacts>(StringComparer.Ordinal);
+        foreach (var id in ProjectVersions.VersionedResourceIds(_project))
+        {
+            // History of something no longer in the index shows nowhere — the
+            // rows are the index's, and an orphaned history has no row.
+            var path = Manifest.Documents.FirstOrDefault(d => d.Id == id)?.Path
+                ?? (Manifest.Sheets ?? []).FirstOrDefault(s => s.Id == id)?.Path;
+            if (path is null) continue;
+            facts[id] = ProjectVersions.FactsFor(_project, id, path);
+        }
+        return facts;
+    }
+
+    /// <summary>How many documents have drifted past their milestone, for the footer.</summary>
+    private int ChangedSinceApproval =>
+        (_versionFacts ??= LoadVersionFacts()).Values.Count(f => f.ChangedSinceMilestone);
+
+    /// <summary>
+    /// Something changed the histories — a revert from the history dialog, a
+    /// milestone kept — so the next rebuild re-reads them.
+    /// </summary>
+    public void RefreshVersions()
+    {
+        _versionFacts = null;
+        Rebuild();
+    }
+
+    /// <summary>
+    /// Supplied by the owner: the history view model for a resource, carrying
+    /// the save-first and reload-after wiring only the main window has. The
+    /// same seam <c>AskName</c> uses, for the same reason — a test drives the
+    /// refusal paths with a stub and no window.
+    /// </summary>
+    public Func<string, string, string, VersionHistoryViewModel>? HistoryFor { get; set; }
+
+    /// <summary>
+    /// The history of the first document or sheet in the selection, or null
+    /// with the reason in the status line. First rather than all, the
+    /// <c>Reveal</c> rule: five selected rows must not mean five dialogs.
+    /// </summary>
+    public VersionHistoryViewModel? HistoryForSelected()
+    {
+        var row = Selected.FirstOrDefault(r => r.Document is not null || r.Sheet is not null);
+        if (row is null)
+        {
+            Status = "Select a document or a sheet — a folder has no history of its own.";
+            return null;
+        }
+        var history = row.Document is { } d
+            ? History(d.Id, d.Path, d.Name)
+            : History(row.Sheet!.Id, row.Sheet.Path, row.Sheet.Name);
+        if (history is not null && Selected.Count > 1)
+        {
+            Status = $"Showing the history of “{row.Name}” — the first document in the selection.";
+        }
+        return history;
+    }
+
+    /// <summary>The Assets tab's road to the same history, from its scope rows.</summary>
+    public VersionHistoryViewModel? HistoryForScope(AssetScope? scope)
+    {
+        if (scope?.Document is not { } document)
+        {
+            Status = "Select a document row — folders and the project have no history of their own.";
+            return null;
+        }
+        return History(document.Id, document.Path, document.Name);
+    }
+
+    private VersionHistoryViewModel? History(string id, string path, string name)
+    {
+        if (HistoryFor is null)
+        {
+            Status = "Version history is not reachable from here — use File ▸ Version history….";
+            return null;
+        }
+        return HistoryFor(id, path, name);
     }
 
     private bool Matches(ProjectFolder? folder, DocumentRef? document)
@@ -813,6 +960,10 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
             ProjectVersions.SaveVersion(
                 _project, document.Id, document.Path,
                 $"Marked {AssetStatuses.Label(now.Value)}", milestone: now);
+            // The rebuild the caller's Done() runs must show the version this
+            // just made — a kept milestone the row cannot show reads as the
+            // status line making things up.
+            _versionFacts = null;
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -1267,6 +1418,13 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
     /// </summary>
     public bool DeleteFromDisk(BoardRow row)
     {
+        // Delete permanently forgets the version history too — interim, and
+        // Q150 says what replaces it: a checkbox on the confirmation ("also
+        // delete its N kept versions"), so the artist decides with the number
+        // in front of them. Until that lands, clearing beats accumulating
+        // bytes nothing can list or revert once the manifest id is gone.
+        // Remove from project keeps the history either way: the file
+        // survives, and coming back is meant to be cheap.
         if (row is { IsFolder: true, Folder: { } folder })
         {
             // The directory before the manifest: PathOf walks the parent
@@ -1276,7 +1434,11 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
             var (_, documents) = ProjectFolders.Contents(Manifest, folder);
             var deleted = ProjectIo.DeleteInProject(_project, path);
             ProjectFolders.Remove(Manifest, folder);
-            foreach (var inside in documents) ProjectIo.DetachDocument(_project, inside);
+            foreach (var inside in documents)
+            {
+                ProjectIo.DetachDocument(_project, inside);
+                ProjectVersions.ClearHistory(_project, inside.Id);
+            }
             Status = deleted
                 ? $"Deleted “{folder.Name}” and everything in it."
                 : $"Removed “{folder.Name}” from the project, but its folder could not be deleted.";
@@ -1285,6 +1447,7 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         {
             var path = document.Path;
             ProjectIo.DetachDocument(_project, document);
+            ProjectVersions.ClearHistory(_project, document.Id);
             Status = ProjectIo.DeleteInProject(_project, path)
                 ? $"Deleted “{document.Name}”."
                 : $"Removed “{document.Name}” from the project, but its file could not be deleted.";
@@ -1293,6 +1456,7 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         {
             var path = sheet.Path;
             ProjectSheets.Remove(_project, sheet);
+            ProjectVersions.ClearHistory(_project, sheet.Id);
             Status = ProjectIo.DeleteInProject(_project, path)
                 ? $"Deleted “{sheet.Name}”."
                 : $"Removed “{sheet.Name}” from the project, but its file could not be deleted.";
@@ -1563,6 +1727,11 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
 
     private void AfterRemoval()
     {
+        // The facts cache holds an entry per versioned resource, and the
+        // footer counts the whole cache — a removed document with a drifted
+        // milestone would keep its "changed since approval" alive with no row
+        // on screen. Reloading skips ids the manifest no longer carries.
+        _versionFacts = null;
         Rebuild();
         _changed();
         RequestSave?.Invoke();
@@ -1932,6 +2101,12 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
             }
             if (s.Unset > 0) parts.Add($"{s.Unset} with no status");
             if (s.Unassigned > 0) parts.Add($"{s.Unassigned} unassigned");
+            // The footer says what is wrong with the project, and a drawing
+            // that moved past its kept milestone is exactly that kind of fact.
+            if (ChangedSinceApproval is > 0 and var drifted)
+            {
+                parts.Add($"{drifted} changed since approval");
+            }
             return string.Join(" · ", parts);
         }
     }

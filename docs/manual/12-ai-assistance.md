@@ -316,6 +316,32 @@ afterwards. Everything it does goes through the same stroke record as
 everything else, so its work is undoable and indistinguishable in kind from
 yours.
 
+### Timing, not just drawing
+
+An agent can author the exposure sheet as well as read it. Four tools cover it,
+and all of them are one undo step on your side:
+
+| Tool | What it does |
+| --- | --- |
+| `set_key` | Makes a frame a key — a new empty drawing where there was a hold, or a changed role (key, breakdown, inbetween) on a drawing already there. A frame past the end of the timeline extends it. |
+| `extend_exposure` | Holds one drawing a frame longer, on that layer only — the rest of the layer shifts right and other layers stay put, the way an X-sheet works. |
+| `reduce_exposure` | Shortens a hold by one frame. |
+| `set_exposure_step` | Re-times a range so every drawing in it is held for the same number of frames — step 2 is animating on 2s. |
+
+**None of them can lose a drawing.** `reduce_exposure` removes a hold and never
+a drawing, so on a frame that is not held it reports an error rather than
+quietly doing nothing; `set_exposure_step` absorbs the holds already in the
+range instead of multiplying them, so asking for 2s twice leaves you on 2s
+rather than 4s. Thinning a range by discarding drawings is a destructive edit
+and is deliberately not offered over MCP.
+
+**A key the agent created says so; a frame it merely re-labelled does not.** If
+an agent makes a new drawing, that frame carries its provenance, the same as an
+AI inbetween. If it only changes the role of a drawing you made, the frame stays
+yours and unmarked — the timing changed, not the art.
+
+A locked or hidden layer refuses all four, and says which.
+
 **If an agent reports a bug you know was fixed, check which build it is talking
 to.** The server is a separate published program that your MCP client launches,
 so it goes on running an old copy until you rebuild it *and* fully quit and

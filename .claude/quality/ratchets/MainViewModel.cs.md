@@ -1,6 +1,6 @@
 # src/Lightbox.App/ViewModels/MainViewModel.cs
 
-budget: 639
+budget: 611
 
 ## Why it has moved
 
@@ -51,3 +51,7 @@ is the one to read before adding a field.
   navigator its rectangle moved. Irreducible here rather than extractable: this
   is the one place the viewport is set, and the whole of the navigator's own
   code is in `MainViewModel.Navigator.cs` beside it.
+- **639 → 611** (2026-08-22, Q147): `CompositeBelowActiveLayer` moved to
+  `MainViewModel.Rendering.cs`, where the render path lives. Prompted by the
+  masks change growing it past the ceiling here — the growth went with it,
+  and the ratchet banks the move.

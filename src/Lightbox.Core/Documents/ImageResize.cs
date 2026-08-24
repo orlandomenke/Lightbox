@@ -119,9 +119,15 @@ public static class ImageResize
         scene.OriginY = Scaled(scene.OriginY, sy);
 
         foreach (var layer in scene.Layers)
+        {
             foreach (var cel in layer.Cels)
                 if (cel.Frame is { } frame)
                     ScaleFrame(frame, sx, sy, mark, resampler);
+            // The mask is a drawing like any other (Q147) and it lives on the
+            // layer, not in a cel — left unscaled, the content would slide
+            // out from under its own carve.
+            if (layer.Mask is { } mask) ScaleFrame(mask.Frame, sx, sy, mark, resampler);
+        }
 
         foreach (var region in doc.ClipRegions.Values)
         {

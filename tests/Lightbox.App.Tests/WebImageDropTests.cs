@@ -148,4 +148,100 @@ public class WebImageDropTests
 
         Assert.False(vm.HasReferences);
     }
+
+    // ---- a page URL instead of the picture (B285) -------------------------------
+    //
+    // On any site that wraps its pictures in links — Pinterest, most galleries —
+    // the drag carries the *page* URL. The page is where the image's address is
+    // written down, so a fetch that does not decode reads it once. Pinned with
+    // data: URIs so the whole chain runs without a network.
+
+    private static Uri PageUri(string html) =>
+        new("data:text/html;base64," + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(html)));
+
+    [Fact]
+    public void ThePageNamesItsImage_MetadataFirstThenLinkThenImgTags()
+    {
+        var page = new Uri("https://example.com/pin/1100989440182181227/");
+        var uris = WebImageDrop.ImageUrisInPage(
+            """
+            <html><head>
+            <meta property="og:image" content="https://cdn.example.com/originals/pose.jpg"/>
+            <meta content="https://cdn.example.com/tw/pose.jpg" name="twitter:image"/>
+            <link rel="image_src" href="/legacy/pose.jpg">
+            </head><body><img src="thumbs/pose-236x.jpg"><img src="https://cdn.example.com/originals/pose.jpg"></body></html>
+            """, page);
+
+        // Metadata first — it is the image the site chose, usually full size —
+        // then the rest, relative addresses resolved against the page, all
+        // de-duplicated.
+        Assert.Equal(
+            new[]
+            {
+                "https://cdn.example.com/originals/pose.jpg",
+                "https://cdn.example.com/tw/pose.jpg",
+                "https://example.com/legacy/pose.jpg",
+                "https://example.com/pin/1100989440182181227/thumbs/pose-236x.jpg",
+            },
+            uris.Select(u => u.AbsoluteUri).ToArray());
+    }
+
+    [Fact]
+    public void AttributeOrderAndEntitiesDoNotHideTheImage()
+    {
+        var uris = WebImageDrop.ImageUrisInPage(
+            """<meta content="https://cdn.example.com/a.jpg?w=800&amp;h=600" property="og:image">""",
+            new Uri("https://example.com/"));
+
+        Assert.Single(uris);
+        Assert.Equal("https://cdn.example.com/a.jpg?w=800&h=600", uris[0].AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task APageUrlIsResolvedToTheImageItNames()
+    {
+        // The B285 repro in miniature: the dropped URI fetches, does not
+        // decode, and the page it fetched as names the real picture.
+        var png = PngBytes();
+        var image = "data:image/png;base64," + Convert.ToBase64String(png);
+        var page = PageUri(
+            $"""<html><head><meta property="og:image" content="{image}"/></head><body>a pin page</body></html>""");
+
+        var got = await WebImageDrop.FetchImageAsync(page);
+
+        Assert.NotNull(got);
+        Assert.Equal(png, got.Value.Bytes);
+        Assert.Equal(image, got.Value.Source.OriginalString);
+    }
+
+    [Fact]
+    public async Task ADirectImageStillComesBackAsItself()
+    {
+        var png = PngBytes();
+        var uri = new Uri("data:image/png;base64," + Convert.ToBase64String(png));
+
+        var got = await WebImageDrop.FetchImageAsync(uri);
+
+        Assert.NotNull(got);
+        Assert.Equal(png, got.Value.Bytes);
+        Assert.Equal(uri, got.Value.Source);
+    }
+
+    [Fact]
+    public async Task APageThatNamesNoImageResolvesToNothing()
+    {
+        // One level only: a page naming another *page* must not recurse, and a
+        // page naming nothing fails the way a corrupt file does.
+        var inner = PageUri("<html><body>still not a picture</body></html>");
+        var outer = PageUri($"""<meta property="og:image" content="{inner.OriginalString}">""");
+
+        Assert.Null(await WebImageDrop.FetchImageAsync(outer));
+    }
+
+    [Fact]
+    public void TheDecoderIsTheJudgeOfWhatIsAnImage()
+    {
+        Assert.True(WebImageDrop.LooksLikeImage(PngBytes()));
+        Assert.False(WebImageDrop.LooksLikeImage(System.Text.Encoding.UTF8.GetBytes("<html>a page</html>")));
+    }
 }

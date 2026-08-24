@@ -477,6 +477,27 @@ public partial class ProjectWindow : Window
     private void OnRevealRow(object? sender, RoutedEventArgs e) =>
         _vm.RevealSelectedCommand.Execute(null);
 
+    /// <summary>
+    /// The row's road to the same history window the File menu and the docker
+    /// open — this window is where milestone versions are made, so it must be
+    /// able to show them. Modal over this window; a revert's reload-after
+    /// wiring rides in with the view model the owner supplied.
+    /// </summary>
+    private async void OnRowHistory(object? sender, RoutedEventArgs e) =>
+        await ShowHistoryAsync(_vm.HistoryForSelected());
+
+    private async void OnScopeHistory(object? sender, RoutedEventArgs e) =>
+        await ShowHistoryAsync(_vm.HistoryForScope(_vm.SelectedScope));
+
+    private async Task ShowHistoryAsync(ViewModels.VersionHistoryViewModel? history)
+    {
+        if (history is null) return;
+        await new VersionHistoryWindow(history).ShowDialog(this);
+        // A revert in that dialog wrote versions (the safety copy) and maybe
+        // the file — the pills and the footer must say so without a reopen.
+        _vm.RefreshVersions();
+    }
+
     private void OnOpenScopeInLightbox(object? sender, RoutedEventArgs e) =>
         _vm.OpenScopeInLightbox(_vm.SelectedScope);
 

@@ -879,6 +879,10 @@ public partial class MainViewModel
     /// <summary>The keyed frame paint lands on (exposure-sheet: the key at or before the playhead).</summary>
     private Frame? PaintTarget()
     {
+        // A mask edit takes every tool with it: the mask's drawing is the
+        // target, and there is no exposure to consult — one drawing, held
+        // across the whole timeline (Q148).
+        if (MaskPaintTarget() is { } mask) return mask;
         var i = ExposureSheet.KeyIndexAtOrBefore(ActiveLayer, CurrentFrameIndex);
         return i < 0 ? null : ActiveLayer.Cels[i].Frame;
     }
@@ -924,6 +928,9 @@ public partial class MainViewModel
         _lastAutoKeyRevision = null;
         _lastAutoGrowRevision = null;
         if (ActiveLayer is null) return null;
+        // A mask never auto-keys and never grows the scene: it exists exactly
+        // when the edit mode is on, one drawing for the whole timeline.
+        if (MaskPaintTarget() is { } mask) return mask;
         // Q103. The playhead may stand past the end of the scene, where scrubbing
         // authored nothing; this is the edit that lands, so the scene grows to
         // reach it. The cels the growth adds are holds, so a drawing made at
@@ -1159,7 +1166,13 @@ public partial class MainViewModel
         brush.Medium.Kind != MediumKind.None
         || brush.WetEdge > 0
         || brush.TextureSurface is not null
-        || brush.Granulation > 0;
+        || brush.Granulation > 0
+        // A soft brush's footprint ceiling belongs here for the same reason the
+        // others do: it is a property of the whole mark, not of a segment. The
+        // dabs the fast path lays down are the ceiling's *input*, so capping
+        // them incrementally would feed a clamped value back into the next
+        // event's accumulation. Q157, and B294 is the fast-path version.
+        || BrushEngine.NeedsFootprintCap(brush);
 
     public void BeginStroke(double x, double y, double pressure) =>
         BeginStroke(x, y, pressure, eraseWithCurrentBrush: false);
@@ -1189,6 +1202,15 @@ public partial class MainViewModel
         if (ActiveTool is not (ToolId.Brush or ToolId.Eraser)) return;
         if (IsPlaying) return;
         if (!CanEdit(ActiveLayer, "draw on it")) return;
+        // A blur or smudge reworks the pixels it sits on by replacing the
+        // whole layer pass live — and during a mask edit the "layer" on
+        // screen is content carved by coverage, which is not the surface the
+        // effect would be redoing. Refused out loud rather than misdrawn.
+        if (EditingLayerMask && CurrentToolSettings.Kind is BrushKind.Blur or BrushKind.Smudge)
+        {
+            AiStatus = "Blur and smudge don't work on a layer mask — paint or erase its coverage instead.";
+            return;
+        }
         if (PaintTargetOrKey() is not { } target) return;
         // Drawing ends any run of palette edits, so the recolour lands on the
         // undo stack before the stroke does rather than after it.
@@ -1236,7 +1258,9 @@ public partial class MainViewModel
         if (PrepareClipForSelection() is { } liveClip) _strokeBuilder.Current!.ClipId = liveClip.Id;
         // Stamped onto the stroke, not read from the layer at render time, so
         // unlocking the layer later cannot repaint what is already down.
-        _strokeBuilder.Current!.AlphaLocked = ActiveLayer.AlphaLocked;
+        // The layer's alpha lock guards its content, not its mask — coverage
+        // is exactly the thing a mask stroke exists to create.
+        _strokeBuilder.Current!.AlphaLocked = !EditingLayerMask && ActiveLayer.AlphaLocked;
 
         _live.Composite?.Dispose();
         _live.Composite = null;
@@ -1730,7 +1754,29 @@ public partial class MainViewModel
         // 1.15 ms walk at 600 points, all but a fraction of it recomputing spans that cannot have
         // changed.
         var dabs = BrushEngine.WalkDabs(live, _live.Densify);
-        var stable = BrushEngine.StableCount(dabs, _live.Dabs);
+        // A silhouette brush has no settled prefix, and pretending it does is
+        // wrong rather than merely wasteful. Its whole mark is one shape whose
+        // coverage is computed in a single pass (BrushEngine.StampDabRange), so
+        // a settled draw would write the still-provisional tail's shape into the
+        // scratch BEFORE the tail backup below is taken — baking a tail into the
+        // pixels that exist to be taken back, so a tail that then moves leaves
+        // its old position behind. Measured as the live mark 2.8% fatter than the
+        // commit, with pixels 239/255 apart in both directions.
+        //
+        // Pinning the cut at zero makes every event restore the mark's own region
+        // and redraw it once, which is what keeps this preview and the commit the
+        // same pixels — the promise LiveMatchesCommittedTests exists for, and it
+        // holds exactly: mean 0.00/255, worst 0, ink ratio 1.000.
+        //
+        // It also costs, and the cost is measured rather than assumed. A 2000 px
+        // arc at 400 events: 3.19 ms an event against 1.50 ms at size 5, and 2.02
+        // against 0.60 at size 24. B292 holds the fix — cache the settled
+        // prefix's outline instead of rebuilding it — which needs state the
+        // engine's static path does not have. Note that the whole-mark render
+        // this shares its machinery with goes the other way, 14.8 ms against
+        // 26.4 ms, so the commit, the reload and every export are faster.
+        var wholeMark = BrushEngine.DrawsAsOneSilhouette(live.Brush);
+        var stable = wholeMark ? 0 : BrushEngine.StableCount(dabs, _live.Dabs);
         _live.Dabs = dabs;
 
         // 1. Take back the tail lent out last time. Only the part of the buffer this

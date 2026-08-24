@@ -165,6 +165,182 @@ the inbetweener can no longer read. As in Photoshop, a blend mode is applied
 against the layer directly below — if it was interacting with layers deeper
 in the stack, that part of its look can shift.
 
+Merging a masked or clipped layer applies the mask and the clip into the
+merged pixels, so the result looks exactly as the pair did; a mask on the
+lower layer is applied and removed by the merge, since it is now in the
+drawing itself.
+
+### Masking a layer
+
+A layer mask hides part of a layer without touching its drawing. In Lightbox
+a mask is not a special grayscale image — it is an ordinary drawing, painted
+with your own brushes: **where the mask has paint, the layer shows; where it
+has none, the layer is hidden.** Erasing on the mask hides again. There is no
+white-reveals, black-conceals convention to remember.
+
+Right-click a layer and open **Mask**:
+
+- **Add — painting hides.** The layer stays fully visible and what you paint
+  on the mask conceals it. This is the vignette workflow: soften an edge,
+  knock a hole in a background.
+- **Add — painting shows.** The layer starts fully hidden and your marks
+  reveal it — for building a reveal by hand.
+
+The two are the same mask one **Invert** apart, and inverting is a flag, not
+a repaint. Adding a mask drops you straight into painting it: a small **chip**
+appears beside the layer's thumbnail, outlined while your strokes are landing
+on the mask. Click the chip (or use **Mask → Paint the mask**) to switch
+between painting the mask and painting the drawing — while you paint a mask,
+the canvas shows exactly what your mark reveals or hides, live, and every
+mask stroke is a normal undo step. **Disable** switches the mask off without
+losing it (the chip goes hollow); **Delete** removes it entirely.
+
+The mask is one drawing that holds across the whole timeline — it does not
+animate per frame. For an animated matte, use a clipping mask instead: the
+matte is an ordinary layer, and ordinary layers animate.
+
+Blur and smudge do not work on a mask, because a mask is coverage rather than
+pixels to rework; paint or erase it instead. A soft-edged brush gives a soft
+mask edge, exactly as it gives a soft mark.
+
+### Clipping a layer to the one below
+
+**Ctrl+Alt+G** (or right-click → **Clip to layer below**) clips the active
+layer: it composites only where the layer below has content — Photoshop's
+clipping mask, and the standard way to shade or texture a flat colour without
+leaving its silhouette. A clipped layer's row shows an accent bar, and
+several clipped layers in a row all clip to the first unclipped layer
+beneath them, so lines / colour / shading stacks work as they do elsewhere.
+
+Because the base layer is an ordinary layer, **an animated matte is just a
+clipping mask over an animated base**: animate the base's cels and everything
+clipped to it follows, with holds and exposure exactly as the sheet says. If
+the base has a mask of its own, the clipped layers respect it too. A clipped
+layer with nothing below it, or whose base shows nothing on this frame,
+simply shows nothing there.
+
+Both masks and clipping reach every render the same way: the canvas, exports,
+thumbnails and the AI's view of the document all show the carved result.
+
+### Adjustment layers and effects
+
+Open the **Effects** panel (Window → Effects) to filter without repainting.
+Three filters ship — **Levels**, **Hue / Saturation** and **Gaussian blur** —
+alongside five **layer styles** — **Drop shadow**, **Outer glow**, **Inner
+glow**, **Stroke** and **Bevel** — and every one is a setting, never baked
+pixels: your strokes are untouched, sliders re-render, and undo steps back
+through every change.
+
+An effect can sit in two places, chosen at the top of the panel:
+
+- **Layer** — the stack on the active layer, applied to that layer's own
+  drawing before its blend mode and opacity. Blur the shadow layer, grade the
+  ink.
+- **Scene** — one grade over the whole composite, everything the camera sees.
+
+Hue / Saturation is the one effect the Layer scope does not offer: its true
+colour-wheel maths runs on the composite path, so on a single layer's own
+drawing it would do nothing. Add it as an **adjustment layer** and — if you
+want it on one layer only — **clip it to the layer below**; that is the same
+result, and the panel's add row keeps the distinction honest by only listing
+what will actually change pixels where you are.
+
+One honest caveat: Hue / Saturation's **Lightness** lifts and lowers
+everything equally, black ink included — a positive nudge greys linework.
+For real value work reach for **Levels** (its gamma and output sliders are
+the tool built for it); Lightness is for a quick wash.
+
+### Layer styles
+
+The styles are the reverse case: a glow, a stroke, a shadow or a bevel
+decorates a layer's **own silhouette**, so they live on the Layer scope only —
+the scene grade and adjustment layers, which work on the composite beneath
+them, have no silhouette to read and do not offer them. Each style's colour
+sits in the panel as a swatch and a hex field.
+
+- **Drop shadow** — distance, size, angle and opacity; the angle is the light
+  direction, so the default 120° throws the shadow down and right.
+- **Outer glow** and **Inner glow** — size, spread (outer) and opacity.
+- **Stroke** — width, opacity, and a position slider: **0** outlines outside
+  the silhouette, **1** paints the rim inside it, **2** centres the line on
+  the edge.
+- **Bevel** — size, depth, light angle, and a direction slider: **0** shades
+  inside the edge (raised), **1** builds a ridge around it. Highlight and
+  shadow colours are yours to change. This is the smooth bevel only —
+  contour and gloss curves arrive with the timeline's curve editor.
+
+**Styles follow what you actually see.** Mask half a drawing and the glow
+hugs the half that is left; a blur on the same layer is trimmed by the mask
+instead, because a blur is part of the drawing where a glow decorates it.
+Styles apply after the layer's filters, whatever order the stack lists them
+in. A live stroke grows its layer's glow as you draw it, and merging a
+styled layer down bakes the style into the merged pixels — exactly what the
+canvas showed.
+
+### Effects that move: wiggle, flicker and grain
+
+Three effects vary **by frame** rather than sitting still, and they are what
+the panel's **Animation** shelf is for.
+
+- **Wiggle** shifts the layer by a random-looking amount that changes every
+  few frames — the boil a drawing gets when it is traced again and again.
+  *Amount* is how far it can stray, in pixels.
+- **Flicker** dips the layer's strength, never above full — a failing light,
+  a strobe, a shape that stutters in and out.
+- **Film grain** lays a fine noise over the picture. It is a **Colour**-shelf
+  effect and works on what is beneath it, so put it on the **Scene** scope
+  (the whole composite, which is where grain belongs) or on an adjustment
+  layer. *Size* is the grain's own size in pixels.
+
+**Hold says how often each one changes**, in frames — the same unit the
+exposure sheet uses. A wiggle on a hold of 2 moves on 2s, alongside a
+sequence animated on 2s; grain defaults to a hold of 1, because film grain
+moves every frame. **Nothing here is random in the sense that matters**: the
+same frame always looks the same, so scrubbing back and forth, exporting
+twice, or reopening the file next year all give exactly the picture you
+approved.
+
+**A held drawing still moves.** Wiggle and flicker read the *playhead*, not
+the drawing, so three frames of one held cel boil for all three — which is
+the reason to reach for them.
+
+**Seed** is what makes two layers differ. Every effect starts with its own,
+so two wiggling layers do not move in lockstep; change it to re-roll a
+motion you did not like, and leave it alone to keep the one you did.
+
+**The quickest way in is the layer row itself**: right-click → **Layer
+style** and pick a style — it lands on that layer and the Effects panel
+opens with its sliders in hand. A layer carrying any effects wears a small
+***fx* chip** beside its thumbnail; click it to jump to the panel.
+
+**Everything here is a setting, and everything switches off.** Each effect
+has its own checkbox in the panel, and the whole stack has a **master
+switch** — the checkbox at the top of the panel, or **Layer style →
+Disable effects** on the row. One click silences every effect on the layer
+while keeping each one's own on/off and every slider exactly as you tuned
+them; the fx chip goes hollow, the way a disabled mask's chip does. There
+is no destructive version of any of this — the only thing that ever bakes
+an effect into pixels is *Merge down*, which says so first.
+
+**Adjustment layers** are the third place, and the one Photoshop users will
+reach for: right-click a layer → **New adjustment layer** (or use the
+buttons in the Effects panel) and a layer with no drawing of its own lands
+above the active one, applying its effect to everything beneath it. It is an ordinary layer everywhere it counts — **mask
+it** to grade part of the picture, **clip it** to the layer below to grade
+one silhouette, fade it with its opacity, hide it with its eye, and it holds
+across the whole timeline like any layer. Delete it and nothing was ever
+touched.
+
+Effects on layers you paint under update live, exports and the AI's view show
+exactly what the canvas shows, and a document that never opens the panel
+never stores or pays for any of it. An effect saved by a newer version of
+Lightbox than yours shows in the stack marked *from a newer build* — it is
+kept exactly as saved and simply does nothing here.
+
+Keyframing effect values over time is *Planned*: the file format already
+stores animated parameters, but the editor for placing those keys arrives
+with the timeline's curve-editing work.
+
 ---
 
 ## Selections and transforms
@@ -214,7 +390,14 @@ and it keeps that shape for the whole drag. Shift holds the move to one axis,
 guides catch it, and the whole thing is one undo step. Outside the ants, Ctrl is
 still the eyedropper it always was; the boundary is the selection edge and
 nothing else. It moves the *lines* the selection holds rather than cutting the
-pixels out, so a stroke crossing the edge travels whole.
+pixels out, so a stroke crossing the edge travels whole. **Ink you have erased
+stays erased**: eraser marks caught by the selection travel with the lines they
+carve, but what they rubbed out of the lines that stay behind does not come
+back — moving a selection never resurrects anything, in the drag or on apply.
+The selection takes what you can *see*: a line you rubbed out entirely is not
+on the canvas, so a box drawn where it used to be does not pick it up — and a
+half-erased line goes by where its surviving ink sits, so boxing the visible
+end moves it even when the rubbed-out part lay elsewhere.
 
 **Ctrl+T** starts a transform. The gizmo gives move, scale, rotate and a
 draggable pivot; **Perspective** mode gives four free corners. The whole
@@ -432,6 +615,14 @@ the rulers are. The cursor changes when you are on one and the guide itself
 lights up; there is nothing floating over the drawing to click instead. The
 whole drag is one undo step, not one per twitch of the hand.
 
+**Shift holds a dragged guide to one axis** — whichever the drag has gone
+furthest along, measured from where you picked it up, so a horizon slides along
+without drifting off its height. It is the same promise Shift makes on the
+brush and on the Move tool's content drag, and it covers the group drags too:
+guides, reference boxes, anchors and hitbox shapes moved together all hold the
+same way. Press or release Shift in the middle of the drag and the thing
+follows — the lock is read from the keys as you move, not once at the press.
+
 The tool is the switch for all of this, on purpose: grabbing a guide and
 drawing along one are the same gesture in the same place, so something has to
 say which you meant. With any other tool in hand a guide is scenery you draw
@@ -450,6 +641,8 @@ only while the rulers do — off the rulers, neither could change anything.
 Rulers, guide visibility and the lock belong to the **workspace**, not the
 document: they are how your screen is arranged, so they save, reset and switch
 with everything else, and opening somebody else's file never rearranges them.
+They also survive a restart — rulers left up are up again next time, saved
+workspace or not.
 
 **Several at once**: Shift-click to add guides to the selection, Alt-click to
 take one out, and dragging any of them moves the whole group together as one

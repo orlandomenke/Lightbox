@@ -530,6 +530,23 @@ public partial class MainViewModel
     [RelayCommand]
     private void ToggleSidebar() => SidebarVisible = !SidebarVisible;
 
+    /// <summary>
+    /// The editor, for the panel view models that own their domain's edits
+    /// (the effects docker is the first). Follows the current document — the
+    /// field is reassigned on a tab switch — which is why panels hold this
+    /// accessor rather than the instance. Here rather than in
+    /// MainViewModel.cs for the ratchet's reason: the main file may not grow.
+    /// </summary>
+    internal DocumentEditor PanelEditor => _editor;
+
+    /// <summary>The effects docker's view model — registration only; every effect command lives on it.</summary>
+    public EffectsViewModel EffectsPanel { get; }
+
+    /// <summary>Registration only — every effect command lives on <see cref="EffectsPanel"/>.</summary>
+    [RelayCommand]
+    private void ToggleEffectsDocker() =>
+        Workspace.EffectsDockerVisible = !Workspace.EffectsDockerVisible;
+
     [RelayCommand]
     private void SwitchSidebarSide() => SidebarOnRight = !SidebarOnRight;
 
@@ -628,6 +645,141 @@ public partial class MainViewModel
     private void ToggleActiveLayerAlphaLocked()
     {
         if (ActiveLayer is { } layer) SetLayerAlphaLocked(layer, !layer.AlphaLocked, alone: true);
+    }
+
+    // ---- masks and clipping -------------------------------------------------
+
+    /// <summary>
+    /// The id of the layer whose mask is being painted, or null. Held by id
+    /// rather than by reference because a snapshot-undo replaces the whole
+    /// document tree, and an edit mode pointing at an orphaned instance would
+    /// paint into a drawing nothing renders.
+    /// </summary>
+    private string? _maskEditLayerId;
+
+    /// <summary>
+    /// Whether strokes are landing on the active layer's mask. True only
+    /// while the mask exists — deleting it, or undoing its creation, ends the
+    /// mode by construction rather than by bookkeeping.
+    /// </summary>
+    public bool EditingLayerMask =>
+        _maskEditLayerId is { } id && ActiveLayer is { } layer
+        && layer.Id == id && layer.Mask is not null;
+
+    /// <summary>The frame mask strokes land on, or null when not mask-editing.</summary>
+    private Frame? MaskPaintTarget() =>
+        EditingLayerMask ? ActiveLayer!.Mask!.Frame : null;
+
+    /// <summary>Drives the row chip's outline, so the mode is never invisible.</summary>
+    internal bool IsEditingMaskOf(Layer layer) =>
+        layer.Id == _maskEditLayerId && layer.Mask is not null;
+
+    internal void SetMaskEditing(Layer layer, bool editing)
+    {
+        _maskEditLayerId = editing && layer.Mask is not null ? layer.Id : null;
+        OnPropertyChanged(nameof(EditingLayerMask));
+        SyncMaskRows();
+    }
+
+    /// <summary>
+    /// Add a painted mask and start editing it. <paramref name="paintHides"/>
+    /// starts inverted: the layer stays fully visible and painting conceals —
+    /// the vignette workflow. The other way starts fully hidden and painting
+    /// reveals. Both are one flag apart forever after (Invert).
+    /// </summary>
+    internal void AddLayerMask(Layer layer, bool paintHides)
+    {
+        if (layer.Mask is not null)
+        {
+            SetMaskEditing(layer, true);
+            return;
+        }
+        _editor.Perform(
+            _ => layer.Mask = new LayerMask { Inverted = paintHides ? true : null },
+            label: "Add layer mask", frameContentUnchanged: true);
+        SetMaskEditing(layer, true);
+    }
+
+    internal void DeleteLayerMask(Layer layer)
+    {
+        if (layer.Mask is null) return;
+        if (layer.Id == _maskEditLayerId) SetMaskEditing(layer, false);
+        _editor.Perform(_ => layer.Mask = null,
+            label: "Delete layer mask", frameContentUnchanged: true);
+        SyncMaskRows();
+    }
+
+    internal void SetMaskDisabled(Layer layer, bool disabled)
+    {
+        if (layer.Mask is not { } mask || mask.Disabled == (disabled ? true : (bool?)null)) return;
+        _editor.Perform(_ => mask.Disabled = disabled ? true : null,
+            label: disabled ? "Disable layer mask" : "Enable layer mask",
+            frameContentUnchanged: true);
+        SyncMaskRows();
+    }
+
+    internal void ToggleMaskInverted(Layer layer)
+    {
+        if (layer.Mask is not { } mask) return;
+        var inverted = !mask.IsInverted;
+        _editor.Perform(_ => mask.Inverted = inverted ? true : null,
+            label: "Invert layer mask", frameContentUnchanged: true);
+        SyncMaskRows();
+    }
+
+    /// <summary>
+    /// The stack's master switch (Q158): every effect and style off in one
+    /// click without touching any use's own switch — the mask chip's
+    /// disable, applied to the fx chip.
+    /// </summary>
+    internal void ToggleLayerEffects(Layer layer)
+    {
+        if (layer.Effects is not { } stack) return;
+        var disable = stack.Disabled != true;
+        _editor.Perform(_ => stack.Disabled = disable ? true : null,
+            label: disable ? "Disable layer effects" : "Enable layer effects",
+            frameContentUnchanged: true);
+        SyncMaskRows();
+        EffectsPanel.Rebuild();
+    }
+
+    /// <summary>
+    /// Clip the layer to the one below (Photoshop's Ctrl+Alt+G). The base is
+    /// positional — see <see cref="Layer.ClipToBelow"/> for why it is a flag.
+    /// </summary>
+    internal void SetLayerClipped(Layer layer, bool clipped, bool alone = false)
+    {
+        var targets = ToggleTargets(layer, l => l.IsClipped, clipped, alone);
+        if (targets.Count == 0) return;
+        _editor.Perform(_ =>
+        {
+            foreach (var target in targets) target.ClipToBelow = clipped ? true : null;
+        }, label: clipped ? "Clip to layer below" : "Release clipping",
+            frameContentUnchanged: true);
+        SyncMaskRows();
+    }
+
+    [RelayCommand]
+    private void ToggleActiveLayerClipped()
+    {
+        if (ActiveLayer is { } layer) SetLayerClipped(layer, !layer.IsClipped, alone: true);
+    }
+
+    [RelayCommand]
+    private void ToggleActiveLayerMaskEditing()
+    {
+        if (ActiveLayer is { } layer && layer.Mask is not null)
+        {
+            SetMaskEditing(layer, !IsEditingMaskOf(layer));
+        }
+    }
+
+    /// <summary>Re-read every row's mask and clip state after a mask edit.</summary>
+    // Internal for the effects docker: an add or remove there changes what
+    // the rows' fx chips show, the same way a mask edit changes their chips.
+    internal void SyncMaskRows()
+    {
+        foreach (var row in LayerRows) row.SyncMaskFromModel();
     }
 
     private void NotifyLayerGating()

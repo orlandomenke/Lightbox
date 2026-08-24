@@ -227,6 +227,63 @@ available in every project, defaulted for the ones that need it.
 - [x] Gradient editor `evidence: GradientDockerViewModel, GradientOps, GradientTests, GradientToolTests`
 - [x] Gradient tool `evidence: GradientDragStarted, BeginGradient, EndGradient, TheRampRunsAlongTheDrag, TheRampIsVisibleWhileDragging_AndSurvivesThePenLift`
 - [?] Pattern fills
+- [ ] Regrade the painting by editing the palette `evidence: PaletteOps, RegradeSwatches, PaletteRegradeTests, RotatingThePalettesHueRepaintsEveryStrokeThatUsedIt, ARegradeIsOneUndoStepAndPutsEverySwatchBackExactly, AStrokeCutLooseFromItsSwatchDoesNotMove, SwappingInAnotherPaletteKeepsSwatchIdentityAndMovesOnlyTheColours`
+  - One step past live palettes, which already prove the mechanism: recolour a
+    swatch and the art that used it follows. This lifts the same edit to the
+    whole palette — rotate its hue, shift its temperature, compress its values,
+    or swap another palette in wholesale — and the painting regrades itself.
+    Because things that belong together share one palette (Pillar 1), the same
+    gesture regrades every frame of a sequence that painted from it: a
+    colour-script experiment across a shot for the cost of one undoable edit.
+    Nobody else has this, because nobody else's colour lives in the record.
+  - **A swap rewrites colours, never identities.** Swapping palette B in means
+    writing B's colours into the existing swatches (matched by position), so
+    every `SwatchId` in the record keeps meaning something and undo is exact.
+    Rebinding strokes to a different palette's ids would touch the record
+    everywhere to say the same thing.
+  - **It only reaches art painted from the palette**, and that is stated
+    rather than hidden: a stroke whose colour was picked loose carries no
+    `SwatchId` and does not move. That limitation is also this feature's
+    argument for painting from palettes in the first place. Bulk recolour of
+    loose strokes by similarity is a real want and a separate item — folding
+    it in here would put a heuristic inside an operation whose whole value is
+    being exact.
+  - Invariant 4 is not in play and it is worth saying why: a palette is part
+    of the work, not a preference. A regrade is an authored document edit
+    travelling the exact channel a single-swatch recolour already uses — the
+    swatch wins at render time by design, and this changes the swatch.
+  - Effort: low-to-medium. The registry, the swatch reference and the repaint
+    path all exist; what is new is a set of whole-palette transforms, one undo
+    step across them, and the docker surface to reach them.
+- [ ] Ink-and-paint flatting, as fills in the record `evidence: GapAwareFill, FlattingPass, FlattingTests, AGapSmallerThanTheToleranceDoesNotLeakTheFill, EveryFlatIsAnOrdinaryFillStrokeWithContours, ReflattingAfterALineEditKeepsEachRegionsColour, TheFlatColoursAreSeededFromRegionGeometryNotFromAnIndex, AFlattingPassIsOneUndoStep`
+  - Laying flat colour under lineart is one of the most-hated jobs in comics
+    and animation ink-and-paint, and invariant 3 is what makes this version
+    different from everyone else's: a flatting pass emits **one ordinary
+    `ToolKind.Fill` stroke per enclosed region**, on a layer of its own, so
+    the result is auditable, editable per region, and replays like anything
+    else — not a bitmap somebody has to lasso apart to correct.
+  - Two halves, separable and in this order. **Gap-aware fill** first: a fill
+    that closes leaks up to a tolerance (Clip Studio's *close gap*), stored on
+    the fill's stroke like the rest of its record (invariant 4) so the same
+    fill re-renders the same way forever. **The flatting pass** second: find
+    every enclosed region of the lineart at once and fill each — the gap-aware
+    fill run everywhere, plus distinct colours.
+  - **Re-flow is the point of living in the record.** Lines change after
+    flatting — that is the whole misery of the job — so re-running the pass on
+    edited lineart must keep each region's colour, matched by spatial overlap
+    with the fills already there. Deterministic throughout: regions come from
+    geometry, and a fresh region's placeholder colour is seeded from its own
+    geometry through `Hash01`, never from an RNG or a running index
+    (invariant 2), so the same document flats the same way on any machine.
+  - The tier that *names* regions — this one is skin, bind it to the palette's
+    skin swatch — needs a model and therefore belongs to `## AI assistance`,
+    where it is listed as speculative. Same shape as the normal-map tiers: the
+    deterministic pass is the model's input, not its fallback.
+  - Pairs with the regrade item above on purpose: flats bound to swatches are
+    what let one palette edit regrade the whole ink-and-paint layer.
+  - Effort: medium-to-high. The fill machinery, contours and clip regions
+    exist; gap closing is a change inside one algorithm, the pass is new work
+    (region decomposition, overlap matching, one `PerformDelta` for the lot).
 
 ### Guides and shapes
 
@@ -236,6 +293,16 @@ available in every project, defaulted for the ones that need it.
 - [x] Shape tools `evidence: ShapeBuilder, ShapeKind, AShapeIsAnOrdinaryStroke, AnEllipseFitsItsBoxAndCloses, ShiftSquaresItAndAltGrowsItFromTheCentre`
 - [x] Vector guides `evidence: Guide, GuidesSurviveASaveAndReload, ADocumentWithNoGuidesWritesNoGuideKey, AHiddenGuideStillSnaps`
 - [x] Rulers and guide editing `evidence: RulerStrip, TickStep, DraggingOutOfTheTopRulerLeavesAHorizontalGuide, LettingGoBackOnTheRulerThrowsTheGuideAway, AGuideIsMovedByGrabbingItOnTheCanvas, TheRulersAreAbsentUntilAskedFor`
+- [?] Text
+  - Q149's real half: an editable text object on the vector side — fonts,
+    shaping, editing — that rasterizes through the ordinary deterministic
+    path, never a raster stamp of a font. It waits on the same vector
+    richness the SVG save and the icon items already wait on, and it needs
+    its own design pass before a line of it is built (what carries the text:
+    a stroke kind, a placement, or a vector-layer object).
+  - The other half of the smart-objects request needed no item at all:
+    re-editability is invariant 1, and one-drawing-placed-many-times is
+    Pillar 3's symbols, already shipped for the flat case.
 
 ### Layers and compositing
 
@@ -255,6 +322,21 @@ answered, and answering one does not soften the other:
 | Layer count | Do not recomposite unchanged layers | B165, not started — **mandatory** |
 | Layer count × memory | Held side composites instead of every cel resident | B198 — measured, carried by B29's candidate |
 | Pixels actually served | Tiles, and the compose-scale clamp | B144, B160 — built |
+| Pixels served *while painting* | A culled ring: viewport-sized *and* dirty-region-aware | B291 — **built** |
+
+**The fifth row was not what it was first filed as, and the correction is the
+useful part.** It was written up as painting getting worse the closer the artist
+works; measured, it was a **flat ~4× penalty** at every zoom — an incremental
+stroke publish cost 5.7–6.0 ms while a whole-canvas publish of the same document
+cost 1.4–1.5 ms, because the second was culled to the viewport and the first was
+not. The interactive path cost four times the path it exists to optimise.
+
+B121's condition turned out to be about the **fresh surface**, not about culling:
+the culled route builds a new surface every publish and must fill all of it,
+which is where the 109× came from. `ComposeRing` keeps its buffers and already
+repaints only what went stale, so it could take a smaller surface all along — it
+only lacked an origin. Giving it one took the stroke publish to 1.81 ms at 100%
+and **0.24 ms at 800%**, so the cost now falls with zoom instead of being flat.
 
 The layer axis is swept to 100 as of 2026-08-14, and it added a fourth row: past
 about 64 layers at 1080p a single frame's cels (~830 MB) exceed the 512 MB frame
@@ -287,19 +369,79 @@ rounding cannot reach saved art. The two paths staying separate *is* the
 constraint — `RuntimeDeterminismTests` going red means it was broken, not that
 the test needs relaxing.
 
-- [?] Layer masks
-- [?] Clipping masks
-- [?] Adjustment layers
+- [x] Layer masks `evidence: LayerMask, LayerShapes, PassShape, LayerMaskRecordTests, MaskAndClipCompositingTests, MaskEditingTests, AShapeCarvesThePassToItsCoverage, AStrokeLandsOnTheMaskAndUndoTakesItBackOffIt, TheLivePreviewShowsTheCarveBeforeThePenLifts, AMaskedLayerRefusesToFoldAndStillRenders, AMaskedUpperLayerBakesWithItsMaskApplied`
+  - **A mask is strokes, like everything else (Q147)** — one `Frame` rendered
+    to alpha through the one pixel path, so it is deterministic, undoable and
+    inbetweenable with no second representation anywhere. Coverage is opacity:
+    painting shows, erasing hides, and inverting is a flag. One drawing held
+    across the whole timeline (Q148); the animated case is a clipping
+    arrangement, which reuses every cel mechanism instead of duplicating them
+    inside the mask.
+  - **One seam for every compositor**: `LayerShapes` describes what carves a
+    layer, and the canvas publish, both exporters, the MCP render, the fill's
+    sampling composite, the smudge backdrop, the navigator and reference views
+    all ask it — a masked layer cannot look different in two of them. Shaped
+    passes refuse the fold and the tile path; merge-down bakes the mask in and
+    clears it. The one known preview gap is B280 (transform drag).
+- [x] Clipping masks `evidence: LayerShapes.BaseOf, AClippedLayerDescribesItsBaseAndTheBasesMask, ConsecutiveClippedLayersShareTheFirstUnclippedBase, AClippedLayerAtTheBottomRendersUnclipped, TheDescribedListSkipsAClippedLayerOverNothing, ClippingIsUndoableAndAbsentWhenReleased, AClippedUpperLayerBakesCarvedToTheLowersContent`
+  - Positional, Photoshop's rule: the base is the first unclipped layer
+    beneath, consecutive clipped layers share it, and the base's own mask
+    carves what clips to it. A flag rather than a base id, so reordering
+    means what the artist's drag means. Ctrl+Alt+G, the convention.
+- [x] Adjustment layers `evidence: Layer.Adjusts, EffectsViewModel, EffectsDockerTests, AnAdjustmentPassFiltersTheBackdrop, AnAdjustmentIsCarvedByItsShapesAndFadedByItsOpacity, AnAdjustmentLayerLandsAboveTheActiveOneCarryingItsEffect, AnAdjustmentLayerChangesThePublishedComposite, AnAdjustmentLayerDescribesOneBackdropPassAndNoCelFetch`
+  - **Q151 held: an effect-carrying layer, not a new mechanism.** It rides
+    the effects record below, applied to the composite beneath it and scoped
+    by the ordinary layer machinery — its mask carves where it applies, its
+    clip grades one silhouette, its opacity is strength, its eye switches it
+    off. Its cels stay empty and nothing renders them; a document without
+    one writes no key.
+- [x] Effects that vary by frame `evidence: DefaultOf, EffectShelf, AWiggleMovesTheMarkAndStaysPutForTheLengthOfItsHold, AFlickerDipsOutOfFullStrengthAndNeverAboveIt, TwoWigglesDoNotMoveInLockstep, ATimeSeededStackRebuildsPerFrameAndAStaticOneDoesNot, ATiledRepaintGrainsExactlyAsAWholeOneDoes, GrainDoesNotReRollWhenTheSurfaceScales, AWiggleBoilsWhileTheDrawingHolds`
+  - **The animation shelf's first inhabitants (Q159)**, and the design's
+    step 4: wiggle and flicker (native, either path — a wiggle over the whole
+    composite is a camera shake) and film grain (a `DeterministicHash` CPU
+    pass, so backdrop-only like HSL — the noise has to be ours, not Skia's,
+    or a library upgrade re-renders a finished film). Frequency is a **hold**
+    in frames rather than a rate, and the effect reads the playhead rather
+    than the drawing, so a cel held for three frames still boils.
+  - **Two traps the design named in advance, both real and both now pinned**:
+    the filter cache fingerprints on parameters *evaluated at the frame*, so
+    a frame-seeded effect was served frame 0's chain forever until
+    `TimeSeeded` put the frame in the fingerprint; and the CPU pass runs on a
+    clip-bounded readback in device pixels, so grain re-rolled on a bounded
+    repaint and again at 2× until the readback's origin and the device scale
+    travelled with it.
+- [x] Layer styles `evidence: EffectColorSpec, StyleFor, SelfStyle, ADropShadowFallsAwayFromTheLight, AnOuterGlowHalosTheSilhouetteAndAnInnerGlowStaysInside, AStrokeOutlinesWhereItsPositionSays, ABevelLightsTheEdgeFacingTheLight, AStyleDecoratesTheCarvedSilhouetteNotTheUnmaskedContent, AStyleIsOfferedOnlyWhereItHasASilhouette, TheMasterSwitchMutesTheStackWithoutTouchingItsUses, TheStackMasterSwitchSilencesEveryChainAndTheCacheFollows`
+  - **Effect kinds on the layer's own stack (Q153), not a second record**:
+    drop shadow, outer glow, inner glow, stroke, and the smooth bevel
+    (Q154 — contour and gloss wait for the curve editor). All native filter
+    graphs reading the pass's silhouette, so the one-filtered-redraw fast
+    path holds; self-only, the mirror of the CPU grades' backdrop-only.
+    Styles decorate the *carved* silhouette (Q155): content → filters →
+    mask carve → styles, so a glow hugs what the mask leaves. Colours are
+    an optional `Colors` map on the use — absent until authored, not
+    keyable until colour curves are worth keying.
 - [x] Blend modes `evidence: LayerBlendMode, BlendComposeTests`
 - [x] Layer folders `evidence: LayerGroup, LayerFolderTests`
 - [x] Layer and alpha locking `evidence: LayerLockTests, AlphaLockTests`
-- [?] Non-destructive filters
-  - Designed in `docs/DESIGN-effects.md` (2026-08-12): one effect model where
-    every parameter is constant or keyframed camera-style, nullable
-    `Layer.Effects`/`Scene.Effects` stacks absent until authored, a reach
-    declaration per effect so repaint stays bounded, and a record shaped so the
-    future node system subsumes the stack instead of replacing it. Evidence
-    anchors arrive with the Raster pass; the box stays open until then.
+- [x] Non-destructive filters `evidence: EffectUse, EffectStack, EffectRegistry, EffectPasses, EffectRecordTests, EffectRegistryTests, EffectPassTests, EffectComposeCostTests, ASelfEffectFiltersOnlyItsOwnPass, AnUnknownKindIsPreservedNotDropped, AKeyedRadiusEvaluatesPerFrame, AFilteredLayerRefusesToFoldAndStillRenders, TheSceneStackDescribesALastPass`
+  - **Built to `docs/DESIGN-effects.md`, steps 1–3 of its own build order**:
+    the record (on Q122's shared `EffectParam`, so wind, camera and blur key
+    in one vocabulary), the Raster registry with the first three of the v1
+    catalogue (levels, HSL, Gaussian blur — one of each seam the catalogue
+    names except the seeded one), the seam through every compositor, and the
+    effects docker with its own view model, the decoupling the design made
+    the review bar. Unknown kinds are preserved and rendered as identity;
+    stacks and params are absent until authored at every level.
+  - **Deliberately still open, from the design's own list**: keying UI on the
+    timeline (the record already carries keys and evaluates them — see
+    `AKeyedRadiusEvaluatesPerFrame` — the editor for placing them arrives
+    with the curve editor); film grain and vignette (grain is the invariant-2
+    seeded case and wants its `Hash01` test alongside); the layer-effect
+    output cache (today a static blur re-runs per recomposite; the fold and
+    tile refusals bound the cost, `EffectComposeCostTests` budgets it, and
+    its blur ratio is the number the cache should visibly move); presets as
+    project files (design step 5); and MCP `effects.*` operations, deferred
+    with the payload questions G12's pair review owns.
 
 ### Editing
 
@@ -324,6 +466,51 @@ the test needs relaxing.
   - **The preview goes through isolation's own overlay channel**, as the pen already does, because only one of the three can be live and two node lists would be a question with no answer that shows up on screen as both. Isolation wins outright when it is active; nothing is drawn selected on a hover, because a preview says what is *there*, not what is picked.
   - **It fits once per line, not once per pointer move.** A hover fires continuously and `PathEditSession.Open` runs a curve fit over every point of the stroke, so refitting per event would put work proportional to a stroke's length in a per-event path — the shape invariant 6 rules out. `HoverPathAt` returns whether the answer moved, so the canvas repaints on the frames that matter, and `HoveringAlongTheSameLineDoesNotRefitIt` is what keeps that true.
   - Still to build: clicking the line selecting all of it, the pen's held modifier, the close indicator, and the widen modifier. The four remaining anchors do not resolve, which is what keeps this item honestly in flight rather than green.
+
+### Replay
+
+**The stroke record is already a recording of its own making** — invariant 1
+means every saved document carries, in order, every mark that survived into the
+final image. Procreate and Clip Studio bolt a screen recorder onto the app to
+get a timelapse; here the timelapse is structural: it was never switched on, it
+exists for every document ever saved, and it can come out at any size because
+it is re-rendered rather than recorded. What is missing is only presentation.
+
+- [ ] Scrub a drawing back through its own strokes `evidence: DocumentReplay, ReplayCursor, DocumentReplayTests, ScrubbingToAStrokeShowsExactlyTheDocumentAsOfThatStroke, ScrubbingNeverWritesToTheDocument, SteppingForwardStampsOneStrokeRatherThanRebuildingTheFrame`
+  - A replay position is *a prefix of the record, rendered* — which is what
+    loading a document already does, stopped early. Strictly a view: the
+    scrubber never mutates the document, and leaving replay returns to the
+    live drawing untouched. Scoped to the frame in view, so it costs a
+    sequence nothing and needs no new concept to explain there.
+  - **Stepping forward is one stamp, not a rebuild.** Replaying stroke k+1
+    onto the surface that showed stroke k is how the renderer works anyway; a
+    per-position rebuild is quadratic over the document and is the shape of
+    mistake invariant 6 names. Scrubbing *backwards* is the expensive
+    direction, and it wants the answer the frame cache already embodies:
+    checkpoint surfaces every k strokes, re-stamp from the nearest one.
+  - **Order is the record's order** — within a layer as authored, across
+    layers bottom-up, composited as of each position. The record stores no
+    wall-clock time, so a true interleaved chronology across layers does not
+    exist; if one is ever wanted it is an optional per-stroke timestamp,
+    absent until recorded, never required. Worth noticing what the record's
+    order buys instead: undone strokes are not in it, so a replay shows the
+    drawing's decisions rather than its hesitations — tighter than a screen
+    recording, and honest about being so.
+  - Effort: medium. The rendering primitive exists (it is loading); the work
+    is the checkpointing, the scrubber surface, and keeping replay legibly
+    read-only in the UI.
+- [ ] Export the replay as a timelapse `evidence: TimelapseExporter, TimelapseExportTests, ATimelapseIsOneForwardPassHoweverManyFramesItEmits, TheFramesComeOutAtTheAskedSizeViaTheSurfaceNeverTheGeometry, AThousandStrokesEmitAsManyFramesAsAskedNotAThousand`
+  - One forward replay pass, emitting a composited frame every k strokes, k
+    derived from the asked length — a sketch and a two-hundred-hour painting
+    both come out at thirty seconds. Frames leave through the existing
+    sequence-export machinery rather than a second encoder.
+  - Output size is a surface scale, never a coordinate multiply — invariant 7
+    verbatim, and the reason a timelapse can be exported at 4K from a document
+    painted at screen size. It is also the test that this is a replay rather
+    than a recording: a screen recorder could never answer for pixels it
+    never showed.
+  - Effort: low once scrubbing exists — it is the same pass with a frame sink
+    attached, and the export plumbing already handles sequences.
 
 ### Interop
 
@@ -730,6 +917,10 @@ whatever "reusable animation presets" meant, it was not that.
   - **Posing learnt to move and to commit, 2026-08-18** (Q119, Q120), from the owner using the rig as a construction guide for a run cycle. Two things were missing and neither was visible from inside the code. **Every pose drag rotated**, whatever it had hold of, so there was no gesture that translated an ordinary bone — a character could be posed and never moved. Pose mode now reads a grab exactly as bind mode does (tip aims, shaft and joint carry), which makes *move the whole skeleton* a drag on the root and nothing more, because children ride their parent through FK; `CanvasCursor.ForBone` lost a branch, since with the modes agreeing it had nothing left to say about the mode. IK and spline handles keep their place-at-the-pointer answer for every grab: the bone a drag moves is often not the bone under the pointer, so a delta has nothing to be a delta of. And **posing on a hold authored no drawing** — correctly, that is what makes trying a pose free, but it left the guide workflow with no way to say *and this one is a drawing*. `InsertDrawingFromPose` breaks the hold at the playhead and keeps what is on screen, one editor step for the key and the bake together: bound art arrives baked into its posed position, a bone guide over hand-drawn art arrives copied through to redraw over. One command rather than two, because it commits what is on screen rather than a category — the second case is `BakeFrame` returning zero and changing nothing. **Three surfaces, one command** (the owner asked for the sheet on 2026-08-18): the bone options acts on the playhead, the X-sheet's right-click acts on the cel that was clicked and then goes there — the pose baked in has to be the pose at the frame under the cursor, so it is a cel-targeted overload rather than a playhead move — and `armature.insertPoseDrawing` carries no default gesture so a cycle can be worked with it under a key. The menu item is absent rather than disabled without a rig, the camera's rule. Q121 recorded the third part of the report and answered it by *not* building it: the Transform tool still moves strokes rather than bones, because the complaint dissolved once the carry existed.
   - **The pose track became visible and editable, 2026-08-18**, from the owner asking for the armature to be keyframeable in the timeline. It already was — poses have auto-keyed at the playhead since the Bone tool landed, and `PoseKey.Bones` has always been per bone — but **nothing on screen ever said so**, which is how a key that failed to survive a reload stayed invisible until somebody scrubbed onto its frame and found the rig at rest. The track timeline now grows an **Armature** row marking every frame any bone is keyed on, expandable to one row per bone (off by default: a twenty-bone character would otherwise cost twenty rows). Keys drag to retime and right-click to remove, on the summary row for the whole pose and on a bone's row for that bone alone; `ArmatureOps.MoveKey`/`MoveBoneKey`/`RemoveKey`/`RemoveBoneKey` are the record edits, in Core because retiming a key is a pure edit of the track and wants testing without a window. A key that gains a bone is **seeded from the interpolated pose** first, `KeyPose`'s rule one operation along — a bone absent from a key is at rest on it, so a key holding one bone would snap every other bone to rest — and a key left holding nothing is removed rather than kept as a marker nothing can read. `TrackRow` gained a `TrackKind` in place of its `IsCamera` bool, Q90's three-states-of-one-question; only the painter and the host's routing branch on it.
   - **The Bone tool landed 2026-08-14** under Q81: one tool in the palette (K — the rig's always-reachable door; its first drag creates the armature), the mode is the tool, posing toggles with Shift+K and keys at the playhead (a new key copies the interpolated pose first, so keying one bone cannot snap its neighbours). `ArmatureOverlay`/`ArmatureOverlayPainter` follow `RigOverlay`'s discipline — pure hit-testing and bitmap-testable chrome, heat view included — and `ArmatureToolTests` covers hits, gestures, auto-key, undo and pixels. Coarse assignment and auto-bind ride the stroke selection. The overlay surfaces went into `CanvasControl.Overlays.cs`/`MainWindow.Overlays.cs` and the ratchet budgets came DOWN for both files; the toolbar button raised the axaml budget by its exact twelve lines. Manual section 14 documents it, weight brush marked *Planned*.
+- [x] Stepped bone timing — a held key and pose on 2s, opt-in (Q152) `evidence: SampleFrame, PoseSteppingTests, AHoldKeyFreezesThePoseUntilTheNextKey, SteppingSamplesTheRenderPoseAndLeavesAuthoringFluid, AJigglingRigHoldsDeadStillInsideAStep, AnUnsteppedTrackWritesNoStepKeyAndAHoldRoundTrips, SetPoseKeyEase, SetPoseStep, SettingAPoseKeysEaseIsOneUndoStep, SteppingTheTrackIsUndoableAndAbsentWhenCleared, ClearingTheStepRemovesATrackNothingElseAuthored`
+  - **Landed 2026-08-23**, the owner's ask: fluid auto-tween stays the default, and drawn timing is opt-in at two grains — per key (`Easing.Hold`, freeze until the next key, on the same ease menu the camera's keys use) and per track (`PoseTrack.Step`, the *render* pose sampled on Ns and held between, anchored at frame 0 so held poses sit on the exposure sheet's grid beside drawings on 2s).
+  - **The step quantizes `EffectivePoseAt` and never `PoseAt`** — the authoring/render split jiggle already made. Keys still seed from and drags still measure against the fluid tween, retiming the step re-poses nothing, and the jiggle walk holds dead-still inside a step instead of wobbling over a held pose. Bake and export ride `EffectivePoseAt`, so a stepped rig bakes to held drawings ready for the timing presets.
+  - **Optional means absent, both halves:** an unstepped track writes no `step` key, and clearing the step removes a track nothing else authored.
 - [x] Animation templates — a document in the project marked as a template `evidence: IsTemplate, TemplateId, Templates, NewFromTemplate, TemplateTests, TemplateUiTests, ANewDocumentFromATemplateIsACopyNotALink, EditingATemplateLeavesEarlierCopiesAlone, AnOrdinaryDocumentCarriesNoTemplateKeys, ALayerTheArtistHasDrawnOnIsSkippedUnlessTicked, APullNeverTouchesTheExposureSheet`
   - **Q12 answered (a), with the design written out in `docs/DESIGN-templates.md`.** A template is an ordinary animation with a flag, not a new kind of file — so an artist can make one out of work they have already done, which is where real templates come from, and editing one is just drawing.
   - **The rule that makes it safe: a template is copied, never referenced.** That is the whole difference from a symbol, which *is* a live link. If templates were references, editing one would silently rewrite every animation ever started from it — the opposite of what a starting point means.
@@ -1471,6 +1662,11 @@ not re-derive it.
   - **Lighter than undo history browser, complementary not competing.** Undo is automatic per keystroke; a version is *authored* ("roughs approved") and spans sessions. Landed 2026-08-13 on the `VersionEntry`/`VersionHistoryManager` framework that had waited in Core without a store: `FileVersionHistoryStore` persists each resource's history to `versions/<resourceId>/history.json` in the project folder, and `ProjectVersions` keeps a **byte-for-byte copy of the saved file** beside it — one mechanism for documents and sheets alike, and gzip keeps the copies cheap (~KB-scale for typical documents).
   - Three capture points: **File ▸ Save version…** (label + notes), **promotion to Review/Ready** in the project window (tagged with the milestone, so "which bytes were Ready" survives further drawing — the export-filter story's missing half), and the **safety copy every revert takes first**, which is what makes revert non-destructive by construction.
   - Project-scoped on purpose: a loose file has no `versions/` folder to write into, and the menu says so rather than hiding. `CreateBranch` remains framework-only — no UI until linear history proves itself (Q75's deferral).
+  - **The project window shows what it makes (2026-08-22).** Q75 put milestone capture in the window and every history surface elsewhere, so promoting to Ready kept a version the promoting surface could not show. Structure's VERSIONS column now carries `VersionFacts` — count, newest milestone in the board's colour, ✎ for a file that drifted past its kept bytes — the footer counts the drift ("2 changed since approval"), and both row menus open the shared history window through the owner-supplied `HistoryFor` seam. One directory listing plus one history read per versioned resource, cached per (modal) window.
+- [ ] Export the approved bytes — an export preset flag "use the Ready version where one is kept", shown per row in the plan before anything is written (Q146) `evidence: ExportApprovedBytesTests, AnExportWithTheFlagShipsTheMilestoneBytes, APresetThatNeverSetsTheFlagWritesNoKey`
+  - Decided opt-in **per preset**, not per run (Q146): the studio that wants approved-only exports wants them on every run of that preset, which is what presets are for. The plan view must say per row which bytes ship — kept or current — because a divergence between canvas and output that only shows in the output is how exports lose trust. `VersionFacts.ChangedSinceMilestone` is the per-row fact it leans on.
+- [ ] Delete permanently asks about kept versions — a checkbox on the confirmation, "also delete its N kept versions", shown only when any exist (Q150) `evidence: DeletePermanentlyAsksAboutKeptVersions, ALoneVersionedDocumentAsksBeforeDeleting, TheCheckboxCountMatchesTheHistory`
+  - The standing answer, chosen over clear-with-the-gesture (Q150, and Q150 records why the question was answered twice): the artist decides with the number in front of them. Today's unconditional clearing (landed with Q150's second, superseded answer) is interim behaviour this replaces. The implementing branch settles the checkbox's default and makes `DeleteNeedsConfirmation` answer true for a lone versioned document — only folders with contents ask today.
 - [x] The project window — structure, status, tags, assets and people across a production `evidence: ProjectWindow, ProjectWindowViewModel, ProjectBoard, ProjectWindowTests, ProjectBoardTests, TheWindowAndTheDockerListTheSameDocuments, TheFooterCountsWhatIsTrue, TheAssetsTabShowsAllThreeLevelsAtOnce, TheChainIsFourDeepAndNearestWins, SharingSomethingWithAScopeDeclaresItThere, TheFirstDeclarationOfAKindSaysThatScopingIsNowOn, TheFacetEditorAppearsForExactlyOneFolder, TheReviewedFlagCanFinallyBeSet, TheExportTabShowsWhatWouldBeWritten`
   - **HIGH-VALUE, MARKET-VALIDATED.** Studios manage projects in ShotGrid/Airtable because Lightbox has no dashboard. Current workaround: maintain separate spreadsheets tracking shot status, artist assignments, blocked items.
   - **Q29's second surface, in its own window by Q41.** The docker does what you do while drawing — find it, open it, move it, rename it. This does what you do between drawings: bulk edits, tagging, assignment and status across a production, none of which fits in 200 pixels beside a canvas. Five tabs: Structure, Status, Assets, Export, People. `docs/DESIGN-studio-dashboard.md`.
@@ -1575,20 +1771,51 @@ Four rules govern everything below, and they are not negotiable per feature:
   - Six providers behind one `IAiArtist`, chosen in Edit ▸ Configure ▸ AI: Claude, GPT, OpenRouter, Ollama, any OpenAI-compatible endpoint, and an MCP server the user supplies. The page is **generated from the catalogue**, so adding a service is a catalogue entry and a factory case — a page that hard-coded Claude's fields would pass a test that only checked Claude and then show an API key box for a local server.
 - [x] AI assistance can be switched off entirely `evidence: TurningItOffPersistsAndTakesTheArtistWithIt, TheProviderFieldsStayUsableWhileAssistanceIsOff, AiEnabled`
   - On by default, and off removes the AI bar rather than greying it — the camera's rule, for a studio that wants AI nowhere near a shot. The switch beats a complete connection, and the provider fields stay usable while it is off so a provider can be configured and proven before it is turned on.
-- [~] A connection test that checks the output, not just the reply `evidence: AiConnectionTester, AiTestDepth, AiConnectionTesterTests, AThoroughTestFailsWhenTheModelCopiedAKeyInstead, AQuickTestMakesOneCall, TheArtistInterfaceOffersInbetweeningAndNothingElse`
+- [x] A connection test that checks the output, not just the reply `evidence: AiConnectionTester, AiTestDepth, AiConnectionTesterTests, AThoroughTestFailsWhenTheModelCopiedAKeyInstead, AQuickTestMakesOneCall, EveryArtistMethodStartsFromSomethingTheArtistDrew`
   - **It asks for real work rather than pinging.** The ways this fails are mostly not reachability: a key with no credit, a model name off by a version, an endpoint that answers but cannot honour a JSON schema, an MCP server whose tool is spelled differently, a small model that returns valid JSON full of nonsense. A ping says "connected" to every one.
   - Two depths, and **both ask for an inbetween** — it is the only thing the application asks a model for, so a test that exercised anything else could pass on a provider that cannot do the job. Quick takes a two-point line and checks only that what comes back would mark; thorough adds a real inbetween and checks it lands **between** the two keys — the one assertion that separates a working connection from a working inbetweener, and the one a parse check can never make. Three verdicts rather than two, because "unreachable" and "reachable but drawing nonsense" need different fixes.
 - [x] A budget on what a request costs `evidence: AiPayloadBudgetTests, AnInbetweenRequestStaysWithinItsBudget, CostScalesWithStrokeCount_WhichIsWhySendingFewerIsTheRealLever, ResamplingIsWhatKeepsALongStrokeAffordable`
   - The one cost in this app that is invisible locally: a change that doubles a payload shows up on somebody's bill a month later and nothing in the suite says a word. Measured in `docs/DESIGN-ai-payload.md` — a 40-stroke frame pair is 102 KB and at least 26k tokens; `MaxWirePoints` is the constant carrying it, and deleting it would fail no other test.
   - The finding worth keeping: **images are ~87% of a request's bytes and ~5% of its tokens, and strokes are the reverse.** So "make the payload smaller" is two goals recommending opposite changes, and any optimisation has to say which it means. Compression is off the table for the same reason — it takes 82% off the bytes, touches no tokens, and 0.3 s of upload is invisible beside 30–120 s of generation.
-- [~] Send the strokes that need judgement, not the whole frame `evidence: StrokeSelection, StrokeSelectionTests, OnlyStrokesThatMoveAreSent, TheContextIsEnoughToPlaceThem`
+- [ ] Send the strokes that need judgement, not the whole frame `evidence: StrokeTriage, StrokeTriageTests, OnlyStrokesThatMoveAreSent, TheContextIsEnoughToPlaceThem`
   - Six times bigger than any encoding trick, and the only lever with no format risk. A 120-stroke frame is ~79k tokens and most of those strokes barely move; the deterministic inbetweener already handles a matched stroke correctly, and the AI is needed where straight interpolation fails — arcs, rotation, overlap. Halving the stroke count halves the cost exactly.
   - The hard half is knowing *which* strokes need judgement, which is `DESIGN-subject-reading.md`'s question approached from the other side.
+  - **Nothing here is built, and for a while the file could not say so.** The anchor was `StrokeSelectionTests`, which resolves against `tests/Lightbox.App.Tests/StrokeSelectionTests.cs` — picking whole lines with the black arrow, nothing to do with pruning a payload. So an item with no code behind it showed one of four anchors satisfied, which is exactly the false green the derived checkbox exists to refuse; it arrived through a name collision rather than through a claim anybody made. Renamed to `StrokeTriage` because *selection* is already taken by the canvas and means something an artist does with a mouse — **triage** is the AI-side question of which strokes need a model's judgement, and no UI concept competes for the word.
 - [x] An MCP surface, so an agent can work the document directly `evidence: IpcServer, IpcDocumentApi, IpcTests, InsertInbetweens_ValidatesAndInserts_Undoable, DrawStrokes_AppendsToExposedKey, BadRequests_FailCleanly, PipeRoundTrip_GetScene`
   - **The other direction, and it was missing from this file entirely** until the AI section was gathered — which is its own small argument for the section. `CLAUDE.md` names it as one of the three purposes and the code has shipped it since M4a, but no roadmap item claimed it, so nothing was deriving its status from the code.
   - Independent of the provider list above, and that independence is the point: there, Lightbox calls out to a model; here, an agent the artist already runs calls **in** and edits the document. Configuring a provider is not a prerequisite for either.
   - Every tool goes through the same document editor a menu item uses, marshalled onto the UI thread — so an agent's edit is one undo step, dirties the tab, and cannot bypass `BrushEngine.StampStroke`. An MCP surface that wrote pixels directly would break invariant 1 for the one caller least able to notice.
   - The anchors are named tests rather than a project name, and the first attempt at them was wrong: `McpToolTests` does not exist and `roadmap.py` demoted the item within seconds of it being written. That is the file working as designed — a green box asserted from memory is exactly what the derived checkbox exists to refuse.
+- [x] An agent can time a sequence, not only draw on it `evidence: IpcExposureTests, SetKey_MakesADrawingOnAHoldAndIsOneUndoStep, ACreatedKeyIsTheAgentsAndAReMarkedOneStaysTheArtists, ReduceExposure_RefusesRatherThanSilentlyDoingNothing, SetExposureStep_PutsARangeOnTwosAndStaysThereWhenRepeated, NoTimingOpEverRemovesADrawing, ALockedLayerRefusesEveryTimingOp`
+  - **Found by asking what the surface above actually reaches.** `get_scene` has
+    reported `keyedFrames` since the surface existed and no op could make one, so
+    an agent could draw on a frame and could not time anything. On an application
+    whose stated unit of work is a sequence, that is the half that matters — and
+    it read as a complete `[x]` because one item covered a read-rich, three-verb
+    write surface. Four ops close it: `set_key`, `extend_exposure`,
+    `reduce_exposure`, `set_exposure_step`.
+  - **Nothing new in the record.** Every op is `DocumentEditor` work the menus
+    already do — `SetKeyAt`, `ExtendExposure`, `ReduceExposure`,
+    `StretchExposure` — so an agent's retime is one undo step and invariant 1
+    holds for the caller least able to notice breaking it.
+  - **Non-destructive by construction, and that is the boundary.** `SetKeyAt`
+    only adds a drawing, `ReduceExposure` refuses to remove one, and
+    `StretchExposure` absorbs existing holds rather than multiplying them, so
+    asking for 2s twice stays on 2s. `ReduceToStep` — the one that discards
+    drawings — is deliberately **not** exposed: a destructive agent op wants the
+    explicit-flag treatment `import_character` has, and that is its own decision.
+  - **A refusal beats a silent no-op here**, because an agent cannot see the
+    timeline. `reduce_exposure` on an unheld frame errors rather than succeeding
+    without effect, and an unknown role name fails rather than quietly landing a
+    key — the reply is the only feedback the caller gets.
+  - **Q31 at its narrowest:** a key the agent *created* carries its provenance; a
+    frame it only *re-labelled* stays the artist's. So the stamp is a parameter
+    on `SetKeyAt` rather than a write afterwards — it has to land inside the one
+    undo step, and a caller setting `frame.Ai` after the fact would make two.
+  - Still ahead: the rest of the ~38 document-level commands an agent cannot
+    reach — layers, camera, effects, export, selection — and the coverage gate
+    that would make the next such gap fail a test instead of needing an audit.
+
 - [x] The AI never inserts a frame it cannot defend `evidence: InbetweenVerifier, InbetweenVerifierTests, ARubbishAnswerInsertsNothingAndSaysWhy, ARefusedFrameKeepsItsSlotAsAHold, TooCloseToTheDeterministicAnswerIsANoteNeverAVeto, PerFrameJitterIsRefusedAsIncoherent, RevealedInkBehindTheMoverIsLicensed`
   - Phase 0 of `docs/DESIGN-ai-correctness.md`: every frame a model returns is verified against the keys — betweenness, dropped strokes, licensed new ink, area-conserved volume, and temporal coherence over the *run*, which is the only check that catches boiling and the reason the verifier sees a sequence rather than a frame. A frame that fails is **refused, per frame and with the reason naming which t** (Q32) — never swapped for the deterministic answer, which stays its own command. Its slot stays a hold, so partial acceptance never shifts a surviving frame off its own timing.
   - The checks are deliberately wide — they reject "not between the keys at all", never "not where I would have put it" — and the deterministic answer passing every check is itself a pinned test. "Too close to deterministic" is a note, never a veto (Q33). The connection tester now judges with the same verifier, so a model it certifies is one the pipeline will accept.
@@ -1618,8 +1845,9 @@ The prerequisite half. Both of these exist to be *inputs to authoring* and neith
 may reach a pixel at render time.
 
 - [?] The AI reads the subject before it draws — **split in two, because one half is built and one is gated**
-- [~] …the taxonomy half: what a character IS `evidence: SubjectTaxonomy, SubjectPart, SubjectRequest, ReadSubjectAsync, SubjectReadingTests, SubjectReadingWiringTests, DeletingEveryReadingChangesNoPixel, AReadingSomebodyEditedIsNotOverwrittenByAReRead, ACharacterThatWasNeverReadWritesNoKey, TheTaxonomyGoesAtTheFrontWhereACachePrefixCanCoverIt`
-  - Once per character, from the sheets the artist drew, kept on `Character.Taxonomy` — nullable and absent until read, so a project that never asks writes no key. Reached from the Project panel, because a reading belongs to a character and a character lives there.
+- [x] …the taxonomy half: what a character IS `evidence: SubjectTaxonomy, SubjectPart, SubjectRequest, ReadSubjectAsync, SubjectReadingTests, SubjectReadingWiringTests, DeletingEveryReadingChangesNoPixel, AReadingSomebodyEditedIsNotOverwrittenByAReRead, AFolderThatWasNeverReadWritesNoKey, TheTaxonomyGoesAtTheFrontWhereACachePrefixCanCoverIt`
+  - Once per subject, from the sheets the artist drew, kept on the folder that holds them (`ProjectFolder.Taxonomy`) — nullable and absent until read, so a project that never asks writes no key. Reached from the Project panel, because a reading belongs to the folder the drawings live in.
+  - **It was `Character.Taxonomy` when Q16 decided this, and that noun is gone.** B114 dissolved `Character` and `ProjectScene` into the folder tree, and **Q40** settled that what is left is a *facet* rather than a kind: a folder with a reading is a folder with a reading, and whether an artist calls it a character, a prop or a crowd is theirs to say. So the guard is `AFolderThatWasNeverReadWritesNoKey` and the menu says *Read this folder…*. Q16's record is left as it was written — it says what was decided then, and this is where the supersession belongs.
   - **434 B, and 0.6% of a realistic 40-stroke request.** Printed against a two-stroke pair as well, where the same block reads as 43% and means nothing — the denominator is two two-point strokes. Both numbers are in the test output on purpose.
   - At the **front** of the request, where prompt caching covers a prefix. After the frame data it would save nothing, and that is a mistake worth only making once.
 - [ ] …the placement half: where each part is in one frame `evidence: PartPlacement, PlacementCache, PlacementCacheTests, ARedrawnFrameMissesTheCache`
@@ -1680,6 +1908,7 @@ subject reading.
 - [?] Smart line cleanup suggestions
 - [?] Volume consistency checker
 - [?] Motion readability analysis
+- [?] Flatting assistant — name the regions the geometric flatting pass found (Pillar 0 → Colour), so flats arrive bound to the palette's swatches rather than wearing placeholder colours
 
 ---
 

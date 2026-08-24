@@ -2,6 +2,7 @@ using Avalonia.Headless.XUnit;
 using Lightbox.App.Controls;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Inbetween;
 
 namespace Lightbox.App.Tests;
 
@@ -150,5 +151,56 @@ public class PoseTrackRowTests
         Assert.Equal(depth, vm.UndoDepth);
         // And the pose that was there is untouched.
         Assert.Equal([2], Pose(vm)[0].Keys);
+    }
+
+    [AvaloniaFact]
+    public void SettingAPoseKeysEaseIsOneUndoStep()
+    {
+        var (vm, hip, _) = Rigged();
+        vm.CurrentFrameIndex = 2;
+        vm.PoseBoneTo(hip, 140, 130);
+
+        vm.SetPoseKeyEase(2, Easing.Hold);
+        Assert.Equal(Easing.Hold, vm.PoseKeyEaseAt(2));
+
+        vm.UndoCommand.Execute(null);
+        Assert.Equal(Easing.EaseInOut, vm.PoseKeyEaseAt(2));
+
+        // No key on the frame, or the ease it already has: no step recorded.
+        var depth = vm.UndoDepth;
+        vm.SetPoseKeyEase(7, Easing.Hold);
+        vm.SetPoseKeyEase(2, Easing.EaseInOut);
+        Assert.Equal(depth, vm.UndoDepth);
+    }
+
+    [AvaloniaFact]
+    public void SteppingTheTrackIsUndoableAndAbsentWhenCleared()
+    {
+        var (vm, hip, _) = Rigged();
+        vm.CurrentFrameIndex = 2;
+        vm.PoseBoneTo(hip, 140, 130);
+
+        vm.SetPoseStep(2);
+        Assert.Equal(2, vm.PoseStep);
+        Assert.Equal(2, vm.Doc.Scene.PoseTrack!.Step);
+
+        vm.UndoCommand.Execute(null);
+        Assert.Equal(1, vm.PoseStep);
+        Assert.Null(vm.Doc.Scene.PoseTrack!.Step);
+    }
+
+    [AvaloniaFact]
+    public void ClearingTheStepRemovesATrackNothingElseAuthored()
+    {
+        // Optional means absent: a track that exists only to carry a step
+        // goes away with the step, so the document serializes as though the
+        // feature was never touched.
+        var (vm, _, _) = Rigged();
+
+        vm.SetPoseStep(2);
+        Assert.NotNull(vm.Doc.Scene.PoseTrack);
+
+        vm.SetPoseStep(1);
+        Assert.Null(vm.Doc.Scene.PoseTrack);
     }
 }

@@ -434,34 +434,6 @@ public sealed partial class MainViewModel : ObservableObject
         stroke.Baked = BrushEngine.BakeSample(stroke, beneath, info);
     }
 
-    /// <summary>
-    /// Everything visible below the layer being painted on, at the playhead, or
-    /// null when there is nothing there.
-    /// </summary>
-    /// <remarks>
-    /// Null rather than a transparent bitmap for the bottom layer, so a smudge
-    /// there costs nothing and behaves exactly as it always did.
-    /// </remarks>
-    private SKBitmap? CompositeBelowActiveLayer()
-    {
-        var scene = Scene;
-        var active = ActiveLayer;
-        var passes = new List<RenderPass>();
-        foreach (var layer in scene.Layers)
-        {
-            if (ReferenceEquals(layer, active)) break;
-            if (!scene.IsLayerVisible(layer)) continue;
-            if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is not { } frame) continue;
-            passes.Add(new RenderPass(
-                _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex),
-                null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
-        }
-        if (passes.Count == 0) return null;
-        using var image = SceneRenderer.Compose(
-            scene.Width, scene.Height, passes, SKColors.Transparent);
-        return SKBitmap.FromImage(image);
-    }
-
     /// <summary>Frame times measured on the render thread.</summary>
     /// <remarks>
     /// The one place a frame cost arrives, so it is also where the app notices

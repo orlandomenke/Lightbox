@@ -47,7 +47,9 @@ public static class LightboxTools
 
     [McpServerTool(Name = "get_scene"), Description(
         "Get the Lightbox scene: canvas size, fps, frame count, current frame, " +
-        "and the layers (id, name, kind, visibility, which frames are keyed). " +
+        "and the layers (id, name, kind, visibility, which frames are keyed, " +
+        "and the carve/effect state: hasMask, clipped, isAdjustment, " +
+        "hasEffects — render_frame already shows all of them applied). " +
         "Call this first to orient yourself. It also reports which builds you " +
         "are talking to: appBuild is the running Lightbox, mcpBuild is this " +
         "server. If they disagree, or mcpBuild is missing entirely, this server " +
@@ -156,6 +158,57 @@ public static class LightboxTools
         var strokes = ParseJsonArg(strokesJson, "strokesJson");
         return await Text("draw_strokes", new { frameIndex, layerId, strokes }, ct);
     }
+
+    [McpServerTool(Name = "set_key"), Description(
+        "Make a timeline frame a key on a layer, creating an empty drawing if " +
+        "that frame is currently a hold, or re-marking the role of the drawing " +
+        "already there. Roles are key, breakdown or inbetween. A frameIndex " +
+        "past the end of the timeline extends it. Use this to lay out an " +
+        "exposure sheet before drawing into it; draw_strokes then fills a key " +
+        "in. Returns created:true when the drawing is new. One undo step.")]
+    public static Task<string> SetKey(
+        [Description("Timeline frame index, 0-based")] int frameIndex,
+        CancellationToken ct,
+        [Description("key (default), breakdown or inbetween")] string? role = null,
+        [Description("Layer id from get_scene; omit for the active layer")] string? layerId = null) =>
+        Text("set_key", new { frameIndex, role, layerId }, ct);
+
+    [McpServerTool(Name = "extend_exposure"), Description(
+        "Hold the drawing exposed at a frame one frame longer, on this layer " +
+        "only — the rest of the layer shifts right, other layers are untouched " +
+        "(classic X-sheet behaviour). Use it to lengthen a single hold; use " +
+        "set_exposure_step to re-time a whole range at once. One undo step.")]
+    public static Task<string> ExtendExposure(
+        [Description("Timeline frame index, 0-based")] int frameIndex,
+        CancellationToken ct,
+        [Description("Layer id from get_scene; omit for the active layer")] string? layerId = null) =>
+        Text("extend_exposure", new { frameIndex, layerId }, ct);
+
+    [McpServerTool(Name = "reduce_exposure"), Description(
+        "Shorten the exposure at a frame by one, removing the hold directly " +
+        "after it and pulling the layer left. A drawing is never removed, so " +
+        "this fails rather than doing nothing when the next frame is itself a " +
+        "key. One undo step.")]
+    public static Task<string> ReduceExposure(
+        [Description("Timeline frame index, 0-based")] int frameIndex,
+        CancellationToken ct,
+        [Description("Layer id from get_scene; omit for the active layer")] string? layerId = null) =>
+        Text("reduce_exposure", new { frameIndex, layerId }, ct);
+
+    [McpServerTool(Name = "set_exposure_step"), Description(
+        "Re-time a range of frames so every drawing in it is held for `step` " +
+        "frames — step 2 is what an animator means by \"animating on 2s\". The " +
+        "range gets longer and no drawing is lost; holds already inside it are " +
+        "absorbed rather than multiplied, so applying step 2 twice stays on 2s " +
+        "rather than landing on 4s. Returns the frames the range grew by. One " +
+        "undo step.")]
+    public static Task<string> SetExposureStep(
+        [Description("First frame of the range, 0-based")] int from,
+        [Description("Last frame of the range, 0-based")] int to,
+        [Description("Frames to hold each drawing for; 2 = on 2s")] int step,
+        CancellationToken ct,
+        [Description("Layer id from get_scene; omit for the active layer")] string? layerId = null) =>
+        Text("set_exposure_step", new { from, to, step, layerId }, ct);
 
     [McpServerTool(Name = "list_reference_views"), Description(
         "List the document's character sheets and their views (id, name, size). " +

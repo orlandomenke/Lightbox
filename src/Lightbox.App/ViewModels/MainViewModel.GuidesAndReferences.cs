@@ -662,6 +662,28 @@ public partial class MainViewModel
 
     private void NotifyGuides()
     {
+        NotifyGuidesView();
+        PublishSnapshot();
+        MarkDocumentEdited();
+    }
+
+    /// <summary>
+    /// Tell everything that shows guides to re-read them, without recording an
+    /// edit.
+    /// </summary>
+    /// <remarks>
+    /// The view half of <see cref="NotifyGuides"/>, split out because two
+    /// different things move the guides under the UI. An <em>edit</em> goes
+    /// through <see cref="NotifyGuides"/> and also publishes and dirties the
+    /// document. A <em>document swap</em> — a tab switch, a file opened, an
+    /// undo — changes which guides are on screen without being an edit, and it
+    /// runs through <c>OnDocumentChanged</c>, which calls this. That call was
+    /// missing, and the cost was the owner's report "the guides are gone when I
+    /// reopen": the file carried them, the model held them, and the canvas was
+    /// never told — nothing drew them until the next guide edit.
+    /// </remarks>
+    private void NotifyGuidesView()
+    {
         OnPropertyChanged(nameof(Guides));
         OnPropertyChanged(nameof(HasGuides));
         OnPropertyChanged(nameof(GridGuides));
@@ -670,8 +692,6 @@ public partial class MainViewModel
         // undo or a pull from a set all move them without going near a setter.
         NotifySelectedGuide();
         GuidesChanged?.Invoke();
-        PublishSnapshot();
-        MarkDocumentEdited();
     }
 
     /// <summary>The guides changed; the canvas redraws its chrome from this.</summary>

@@ -22,7 +22,8 @@ namespace Lightbox.App.Tests;
 /// did not exist. The fix is a placeholder child in the XAML, and this is the
 /// test that stops it being tidied away as dead markup.
 /// </remarks>
-public class MainMenuShapeTests(ITestOutputHelper output)
+[Collection("BrushState")]
+public class MainMenuShapeTests(ITestOutputHelper output) : BrushStateIsolated
 {
     [AvaloniaFact]
     public void TheDeferredSubmenusHaveAChildSoTheyCanOpen()

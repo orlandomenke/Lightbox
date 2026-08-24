@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4776
+budget: 4877
 
 ## Why it is here despite being XAML
 
@@ -194,10 +194,36 @@ leaves a number nobody can account for. So every reason above stays, and
   Three lines — item, handler wiring and tooltip — and it is the way back to
   null for an anchor's direction: absent-until-used only holds if unused is
   reachable again. A menu item has nowhere else to live.
-- **4,774 → 4,776**, for the `Save as image…` menu item. Two lines, and they buy
+- **4,774 → 4,821** (2026-08-22, Q147/Q148): layer masks and clipping — the
+  row's Mask submenu (seven items, tooltips carrying the two add workflows),
+  the clip/release pair, the mask chip and the clip bar on the row template.
+  Menu items and template elements have nowhere else to live, which is this
+  budget's stated exception; everything that could leave did — the chip and
+  bar *styles* went to `Controls.axaml` beside `.selected`, and the smudge
+  backdrop's code growth went to `MainViewModel.Rendering.cs` instead of the
+  main file.
+- **4,821 → 4,831** (2026-08-22, Q151): the effects docker's registration —
+  the Window-menu checkbox and the `Docker` host wrapping
+  `EffectsPanel.axaml`, the Scene panel's own pattern. The panel and its
+  view model are files of their own; these ten lines are the wiring that
+  cannot be.
+- **4,831 → 4,842** (2026-08-22, Q151): *New adjustment layer* on the layer
+  row's menu — the art-director's discoverability finding: Photoshop puts
+  this gesture at the foot of the Layers panel, so an artist who knows it
+  looks here first. A pointer to the effects docker's own command, not a
+  second copy; menu items have nowhere else to live.
+- **4,842 → 4,875** (2026-08-24, Q158): the layer row's *Layer style* submenu
+  (five styles, the toggle pair and *Edit effects*, all pointers to the
+  effects docker's commands) and the fx chip beside the mask chip. Menu items
+  and row-template elements have nowhere else to live — the chip's *styles*
+  went to `Controls.axaml` beside the mask chip's, and every handler is in
+  `MainWindow.Layers.cs`.
+- **4,875 → 4,877**, for the `Save as image…` menu item. Two lines, and they buy
   the only route to a feature: the command is registered in `ShortcutMap` and
   dispatched from `MainWindow.CanvasViewTools`, so without a menu entry it exists
   and is invisible to anybody who has not learned the key. The handler and the
   file-picker work went into a new partial (`MainWindow.ImageSave.cs`) rather than
-  `MainWindow.axaml.cs`, which is itself at budget.
-
+  `MainWindow.axaml.cs`, which is itself at budget. Restated against the merged
+  baseline: measured alone this branch wanted 4,776, which was 4,774 + 2 against a
+  `main` that had since moved by 101 lines — taking that number would have reported
+  `main`'s growth as a violation.

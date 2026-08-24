@@ -191,6 +191,121 @@ public partial class MainWindow
         if (LayerRowOf(sender) is { } row) RequestMergeDown(row.Layer);
     }
 
+    // ---- masks and clipping -------------------------------------------------
+
+    /// <summary>Adding a mask activates the layer too: editing lands strokes on the active layer's mask.</summary>
+    private void AddMaskTo(LayerRow row, bool paintHides)
+    {
+        _vm.ActivateLayerCommand.Execute(row);
+        _vm.AddLayerMask(row.Layer, paintHides);
+    }
+
+    private void OnLayerMenuAddMaskHide(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) AddMaskTo(row, paintHides: true);
+    }
+
+    private void OnLayerMenuAddMaskShow(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) AddMaskTo(row, paintHides: false);
+    }
+
+    private void OnLayerMenuEditMask(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is not { } row) return;
+        _vm.ActivateLayerCommand.Execute(row);
+        _vm.SetMaskEditing(row.Layer, !_vm.IsEditingMaskOf(row.Layer));
+    }
+
+    private void OnLayerMenuDisableMask(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row)
+        {
+            _vm.SetMaskDisabled(row.Layer, !(row.Layer.Mask is { } m && !m.Applies));
+        }
+    }
+
+    private void OnLayerMenuInvertMask(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) _vm.ToggleMaskInverted(row.Layer);
+    }
+
+    private void OnLayerMenuDeleteMask(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) _vm.DeleteLayerMask(row.Layer);
+    }
+
+    private void OnLayerMenuClip(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row)
+        {
+            _vm.SetLayerClipped(row.Layer, !row.Layer.IsClipped, alone: true);
+        }
+    }
+
+    /// <summary>
+    /// The Layers menu's pointer at the effects docker: add the adjustment
+    /// layer through the docker's own command, and open the docker so its
+    /// sliders are in hand.
+    /// </summary>
+    private void OnLayerMenuAddAdjustment(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.Tag is not string kind) return;
+        if (_vm.EffectsPanel.Catalogue.FirstOrDefault(c => c.Kind == kind) is not { } choice) return;
+        _vm.EffectsPanel.AddAdjustmentLayerCommand.Execute(choice);
+        _vm.Workspace.EffectsDockerVisible = true;
+    }
+
+    /// <summary>The mask chip on the row: click to paint the mask, click again to stop.</summary>
+    private void OnLayerMaskChipPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (LayerRowOf(sender) is not { } row) return;
+        _vm.ActivateLayerCommand.Execute(row);
+        _vm.SetMaskEditing(row.Layer, !_vm.IsEditingMaskOf(row.Layer));
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// The row menu's Layer style entries: activate the row, add the style
+    /// through the docker's own command, open the docker with the sliders in
+    /// hand — the adjustment-layer pointer's pattern (Q158).
+    /// </summary>
+    private void OnLayerMenuAddStyle(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.Tag is not string kind) return;
+        if (LayerRowOf(sender) is not { } row) return;
+        if (_vm.EffectsPanel.Catalogue.FirstOrDefault(c => c.Kind == kind) is not { } choice) return;
+        _vm.ActivateLayerCommand.Execute(row);
+        _vm.EffectsPanel.EditingScene = false;
+        _vm.EffectsPanel.AddUseCommand.Execute(choice);
+        _vm.Workspace.EffectsDockerVisible = true;
+    }
+
+    /// <summary>The fx chip on the row: one click from the stack to its sliders.</summary>
+    private void OnLayerFxChipPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (LayerRowOf(sender) is not { } row) return;
+        _vm.ActivateLayerCommand.Execute(row);
+        _vm.EffectsPanel.EditingScene = false;
+        _vm.Workspace.EffectsDockerVisible = true;
+        e.Handled = true;
+    }
+
+    /// <summary>Layer style → Edit effects: the fx chip's gesture, findable by name.</summary>
+    private void OnLayerMenuEditEffects(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is not { } row) return;
+        _vm.ActivateLayerCommand.Execute(row);
+        _vm.EffectsPanel.EditingScene = false;
+        _vm.Workspace.EffectsDockerVisible = true;
+    }
+
+    /// <summary>The stack's master switch (Q158), from the row menu.</summary>
+    private void OnLayerMenuToggleEffects(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) _vm.ToggleLayerEffects(row.Layer);
+    }
+
     /// <summary>Layer menu: merge the active layer down, through the same Q52 ask as Ctrl+E.</summary>
     private void OnMenuMergeDown(object? sender, RoutedEventArgs e) => RequestMergeDown(null);
 

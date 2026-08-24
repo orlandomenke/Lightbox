@@ -86,6 +86,177 @@ public sealed class VersionHistoryTests(ITestOutputHelper output) : IDisposable
         Assert.Empty(ProjectVersions.StoreFor(project).GetVersions(walk.Id));
     }
 
+    // ---- the project window's own surface --------------------------------------------
+    //
+    // The window is where milestone versions are made, so it must show them:
+    // the VERSIONS pill on the Structure rows, the footer's drift count, and
+    // the right-click road to the shared history window through the owner's
+    // seam. All dry, like everything else here.
+
+    private static void Redraw(Project project, DocumentRef reference)
+    {
+        var doc = Lightbox.Core.Serialization.DocJson.Load(project.PathOf(reference));
+        doc.Scene.Layers[0].Cels[0].Frame!.Strokes.Add(new Stroke
+        {
+            Points = [new(1, 2, 0.5), new(30, 40, 0.5)],
+        });
+        Lightbox.Core.Serialization.DocJson.Save(doc, project.PathOf(reference));
+    }
+
+    [Fact]
+    public void PromotingShowsTheMilestoneOnTheRowAtOnce()
+    {
+        var (_, vm, walk) = Open();
+        vm.SetSelection(vm.Rows.Where(r => ReferenceEquals(r.Document, walk)));
+        vm.SetStatus(AssetStatus.Ready);
+
+        // The same rebuild the promotion runs must already carry the version
+        // it kept — the facts cache is invalidated by the capture, not by a
+        // reopen.
+        var row = vm.Rows.Single(r => ReferenceEquals(r.Document, walk));
+        Assert.Equal(1, row.VersionCount);
+        Assert.True(row.HasVersions);
+        Assert.Equal(AssetStatus.Ready, row.Milestone);
+        Assert.False(row.ChangedSinceMilestone);
+        output.WriteLine($"pill: {row.VersionCountLabel} {row.MilestoneLabel} — {row.VersionHint}");
+    }
+
+    [Fact]
+    public void TheFooterCountsDriftPastApproval()
+    {
+        var (project, vm, walk) = Open();
+        vm.SetSelection(vm.Rows.Where(r => ReferenceEquals(r.Document, walk)));
+        vm.SetStatus(AssetStatus.Ready);
+        Assert.DoesNotContain("changed since approval", vm.Summary);
+
+        Redraw(project, walk);
+        vm.RefreshVersions();
+
+        var row = vm.Rows.Single(r => ReferenceEquals(r.Document, walk));
+        Assert.True(row.ChangedSinceMilestone);
+        Assert.Contains("1 changed since approval", vm.Summary);
+        output.WriteLine(vm.Summary);
+    }
+
+    [Fact]
+    public void RemovingADocumentDropsItFromTheDriftCount()
+    {
+        var (project, vm, walk) = Open();
+        vm.SetSelection(vm.Rows.Where(r => ReferenceEquals(r.Document, walk)));
+        vm.SetStatus(AssetStatus.Ready);
+        Redraw(project, walk);
+        vm.RefreshVersions();
+        Assert.Contains("changed since approval", vm.Summary);
+
+        // The adversarial pass's find: the facts cache outlived the row, so
+        // the footer kept a "changed since approval" that cited nothing on
+        // screen. Removal must drop the fact with the row.
+        var row = vm.Rows.Single(r => ReferenceEquals(r.Document, walk));
+        Assert.True(vm.RemoveFromProject(row));
+        Assert.DoesNotContain("changed since approval", vm.Summary);
+        output.WriteLine(vm.Summary);
+    }
+
+    [Fact]
+    public void DeletePermanentlyForgetsTheHistoryAndRemoveKeepsIt()
+    {
+        var (project, vm, walk) = Open();
+        vm.SetSelection(vm.Rows.Where(r => ReferenceEquals(r.Document, walk)));
+        vm.SetStatus(AssetStatus.Ready);
+        Assert.True(Directory.Exists(
+            ProjectVersions.StoreFor(project).DirectoryOf(walk.Id)));
+
+        // Remove from project leaves the disk alone — history included: the
+        // file survives, coming back is cheap, and a re-added document keeps
+        // its id, so this history is still its history (Q150's line).
+        var row = vm.Rows.Single(r => ReferenceEquals(r.Document, walk));
+        Assert.True(vm.RemoveFromProject(row));
+        Assert.True(Directory.Exists(
+            ProjectVersions.StoreFor(project).DirectoryOf(walk.Id)));
+
+        // Put it back, then delete permanently: "from the project and from
+        // disk" now includes the kept bytes, which nothing could ever show
+        // or revert once the id is gone.
+        project.Manifest.Documents.Add(walk);
+        vm.RefreshVersions();
+        var again = vm.Rows.Single(r => r.Document?.Id == walk.Id);
+        Assert.True(vm.DeleteFromDisk(again));
+        Assert.False(Directory.Exists(
+            ProjectVersions.StoreFor(project).DirectoryOf(walk.Id)));
+        output.WriteLine(vm.Status);
+    }
+
+    [Fact]
+    public void DeletingAFolderForgetsItsDocumentsHistoriesToo()
+    {
+        var (project, vm, walk) = Open();
+        vm.SetSelection(vm.Rows.Where(r => ReferenceEquals(r.Document, walk)));
+        vm.SetStatus(AssetStatus.Ready);
+
+        var folderRow = vm.Rows.Single(r => r is { IsFolder: true });
+        Assert.True(vm.DeleteFromDisk(folderRow));
+        Assert.False(Directory.Exists(
+            ProjectVersions.StoreFor(project).DirectoryOf(walk.Id)));
+    }
+
+    [Fact]
+    public void ASheetRowCarriesItsVersionCount()
+    {
+        var (project, _, _) = Open();
+        ProjectSheets.Add(project, "Knight", project.Manifest.Folders![0]);
+        ProjectIo.Save(project);
+        var sheet = project.Manifest.Sheets![0];
+        ProjectVersions.SaveVersion(project, sheet.Id, sheet.Path, "model v1");
+
+        var vm = new ProjectWindowViewModel(project);
+        var row = vm.Rows.Single(r => r.Sheet?.Id == sheet.Id);
+        Assert.Equal(1, row.VersionCount);
+        // A sheet is never promoted, so it can carry versions and no milestone.
+        Assert.Null(row.Milestone);
+    }
+
+    [Fact]
+    public void HistoryForSelectedRidesTheSuppliedSeam()
+    {
+        var (project, vm, walk) = Open();
+        var asked = new List<string>();
+        vm.HistoryFor = (id, path, name) =>
+        {
+            asked.Add($"{id}|{path}|{name}");
+            return new VersionHistoryViewModel(project, id, path, name);
+        };
+        vm.SetSelection(vm.Rows.Where(r => ReferenceEquals(r.Document, walk)));
+
+        Assert.NotNull(vm.HistoryForSelected());
+        Assert.Equal($"{walk.Id}|{walk.Path}|walk", Assert.Single(asked));
+    }
+
+    [Fact]
+    public void HistoryForAFolderRefusesWithTheReason()
+    {
+        var (project, vm, _) = Open();
+        vm.HistoryFor = (id, path, name) => new VersionHistoryViewModel(project, id, path, name);
+        vm.SetSelection(vm.Rows.Where(r => r.IsFolder));
+
+        Assert.Null(vm.HistoryForSelected());
+        Assert.Contains("folder", vm.Status, StringComparison.OrdinalIgnoreCase);
+
+        // The Assets tab's project and folder rows refuse the same way.
+        Assert.Null(vm.HistoryForScope(vm.Assets.Single(s => s.IsProject)));
+        Assert.Contains("document", vm.Status, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AnUnsuppliedSeamRefusesRatherThanThrows()
+    {
+        var (_, vm, walk) = Open();
+        vm.SetSelection(vm.Rows.Where(r => ReferenceEquals(r.Document, walk)));
+
+        // No HistoryFor wired — a designer window, or a host that has none.
+        Assert.Null(vm.HistoryForSelected());
+        Assert.Contains("File ▸ Version history", vm.Status);
+    }
+
     // ---- the history view model -----------------------------------------------------
 
     [Fact]

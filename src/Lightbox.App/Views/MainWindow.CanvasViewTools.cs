@@ -355,6 +355,15 @@ public partial class MainWindow
             case "docker.mergeDown":
                 RequestMergeDown(null); // null = the active layer
                 break;
+            case "docker.clipToBelow":
+                _vm.ToggleActiveLayerClippedCommand.Execute(null);
+                break;
+            case "docker.editMask":
+                _vm.ToggleActiveLayerMaskEditingCommand.Execute(null);
+                break;
+            case "docker.effects":
+                _vm.ToggleEffectsDockerCommand.Execute(null);
+                break;
             // Flipping: hop between key drawings without leaving the pen.
             case "timeline.prevKey":
                 _vm.PreviousKeyframeCommand.Execute(null);
@@ -529,6 +538,9 @@ public partial class MainWindow
         // invisible — and the Refresh below then runs as it does on any close.
         window.ViewModel.OpenDocument = _vm.OpenProjectDocument;
         window.ViewModel.OpenSheet = _vm.OpenProjectSheet;
+        // The history for a row, wired the way the docker's is: a revert saves
+        // the project first and reloads whatever tab shows the file after.
+        window.ViewModel.HistoryFor = _vm.HistoryFor;
         await window.ShowDialog(this);
         _vm.ProjectDocker.Refresh();
     }
