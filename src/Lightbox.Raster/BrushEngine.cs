@@ -1290,7 +1290,8 @@ public static class BrushEngine
     /// </para>
     /// </remarks>
     private static void StampSilhouette(
-        SKCanvas canvas, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to)
+        SKCanvas canvas, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to,
+        SilhouetteCache? cache = null, int settled = 0)
     {
         var brush = stroke.Brush;
         to = Math.Min(to, dabs.Count);
@@ -1325,8 +1326,24 @@ public static class BrushEngine
         //    apart in both directions, spread evenly along the stroke.
         //
         // So `to` bounds where pixels may land, never what shape is computed.
-        using var path = new SKPath { FillType = SKPathFillType.Winding };
-        if (!BuildSilhouette(path, dabs, dabs.Count, brush)) return;
+        // With a cache the settled prefix is reused; without one the whole
+        // outline is derived, which is what the commit does exactly once.
+        SKPath? built;
+        if (cache is not null)
+        {
+            built = SilhouettePath(dabs, dabs.Count, brush, cache, settled);
+        }
+        else
+        {
+            built = new SKPath { FillType = SKPathFillType.Winding };
+            if (!BuildSilhouette(built, dabs, dabs.Count, brush))
+            {
+                built.Dispose();
+                built = null;
+            }
+        }
+        if (built is null) return;
+        using var path = built;
 
         using var paint = new SKPaint
         {
@@ -1363,6 +1380,58 @@ public static class BrushEngine
         paint.BlendMode = SKBlendMode.Src;
         canvas.DrawPath(path, paint);
         canvas.Restore();
+    }
+
+    /// <summary>
+    /// A hard brush's outline for the part of a stroke that has stopped moving,
+    /// held between pointer events so it is derived once instead of every time
+    /// (B292).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Owned by the caller, because the engine has no lifetime to hang it
+    /// on.</b> Everything in <see cref="BrushEngine"/> is a pure function of a
+    /// stroke; a static cache would be state shared between documents, and one
+    /// keyed by stroke would be a leak with extra steps. The live paint session
+    /// already exists for exactly this — per stroke, disposed with it.
+    /// </para>
+    /// <para>
+    /// <b>What it holds is the SETTLED prefix, and that word is doing work.</b>
+    /// A stroke's last few dabs move as new points arrive — that is what
+    /// <see cref="StableCount"/> measures — so an outline cached past that point
+    /// would describe dabs that have since shifted. The tail is rebuilt every
+    /// event and always was; only the part behind it is kept.
+    /// </para>
+    /// <para>
+    /// The decimation walk's state rides along with the path, because a run is
+    /// only closed by the dab that ends it: resuming from the middle of one needs
+    /// the anchor it started at and the last dab that still fitted it. Without
+    /// those the join between the cached prefix and the fresh tail would be a
+    /// different shape from the join a single pass produces.
+    /// </para>
+    /// </remarks>
+    public sealed class SilhouetteCache : IDisposable
+    {
+        internal SKPath? Prefix;
+        internal int Count;
+        internal SKPoint Anchor;
+        internal float AnchorRadius;
+        internal bool Have;
+        internal SKPoint Pending;
+        internal float PendingRadius;
+        internal bool HavePending;
+
+        /// <summary>Forget everything — a new stroke, or a brush that changed under one.</summary>
+        public void Reset()
+        {
+            Prefix?.Dispose();
+            Prefix = null;
+            Count = 0;
+            Have = false;
+            HavePending = false;
+        }
+
+        public void Dispose() => Reset();
     }
 
     /// <summary>
@@ -1407,27 +1476,213 @@ public static class BrushEngine
     private static bool BuildSilhouette(
         SKPath path, IReadOnlyList<Dab> dabs, int to, BrushSettings brush)
     {
-        const float Tolerance = 0.05f;
+        var run = default(SilhouetteRun);
+        run.Advance(path, dabs, 0, to, brush);
+        run.Close(path);
+        return run.Have;
+    }
 
-        SKPoint anchor = default;
-        var anchorRadius = 0f;
-        var have = false;
-        // The last dab that still fitted the current run, so a run ends on it
-        // rather than overshooting past the turn that broke it.
-        SKPoint pending = default;
-        var pendingRadius = 0f;
-        var havePending = false;
+    /// <summary>
+    /// The outline for <paramref name="to"/> dabs, reusing whatever
+    /// <paramref name="cache"/> already holds and extending it as far as
+    /// <paramref name="settled"/> (B292).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The point is to stop paying for the whole stroke on every pointer
+    /// event.</b> Building the outline from scratch means a <c>RadiusAt</c> and a
+    /// few flops for each dab, and at the Ink brush's spacing a 2000 px arc is
+    /// four thousand of them: measured 3.25 ms per event with only the tail
+    /// actually being filled, because the fill was bounded and the derivation
+    /// was not.
+    /// </para>
+    /// <para>
+    /// <b>What is reused is a memcpy, and what is recomputed is the tail.</b> The
+    /// cached prefix is copied into the path this returns rather than drawn
+    /// separately — two fills would saturate the side they share, which is the
+    /// whole defect the silhouette exists to remove. Copying an SKPath moves its
+    /// points and nothing else, where re-deriving them runs the dynamics chain
+    /// again.
+    /// </para>
+    /// <para>
+    /// <b>The run is deliberately left open in the cache.</b> A run is closed by
+    /// the dab that ends it, so the cached prefix stops at the last dab that
+    /// actually closed one and the state carries the rest — anchor, and the last
+    /// dab that still fitted. Closing it at the cache boundary would put a cap
+    /// there, and the shape would stop matching what one pass produces.
+    /// </para>
+    /// </remarks>
+    private static SKPath? SilhouettePath(
+        IReadOnlyList<Dab> dabs, int to, BrushSettings brush, SilhouetteCache cache, int settled)
+    {
+        settled = Math.Clamp(settled, 0, to);
 
-        void Emit(SKPoint at, float radius)
+        // Anything the cache holds beyond what is being asked for describes dabs
+        // this call does not have; start again rather than trust it.
+        if (cache.Count > settled) cache.Reset();
+
+        if (cache.Count < settled)
+        {
+            cache.Prefix ??= new SKPath { FillType = SKPathFillType.Winding };
+            var extend = new SilhouetteRun
+            {
+                Anchor = cache.Anchor,
+                AnchorRadius = cache.AnchorRadius,
+                Have = cache.Have,
+                Pending = cache.Pending,
+                PendingRadius = cache.PendingRadius,
+                HavePending = cache.HavePending,
+            };
+            extend.Advance(cache.Prefix, dabs, cache.Count, settled, brush);
+            cache.Anchor = extend.Anchor;
+            cache.AnchorRadius = extend.AnchorRadius;
+            cache.Have = extend.Have;
+            cache.Pending = extend.Pending;
+            cache.PendingRadius = extend.PendingRadius;
+            cache.HavePending = extend.HavePending;
+            cache.Count = settled;
+        }
+
+        var path = new SKPath { FillType = SKPathFillType.Winding };
+        if (cache.Prefix is { } prefix) path.AddPath(prefix);
+
+        var run = new SilhouetteRun
+        {
+            Anchor = cache.Anchor,
+            AnchorRadius = cache.AnchorRadius,
+            Have = cache.Have,
+            Pending = cache.Pending,
+            PendingRadius = cache.PendingRadius,
+            HavePending = cache.HavePending,
+        };
+        run.Advance(path, dabs, cache.Count, to, brush);
+        run.Close(path);
+
+        if (run.Have) return path;
+        path.Dispose();
+        return null;
+    }
+
+    /// <summary>
+    /// The decimation walk, as resumable state: which dab a run started at, and
+    /// the last one that still fitted it.
+    /// </summary>
+    /// <remarks>
+    /// <b>A struct with one implementation of the step, used by both callers.</b>
+    /// The cached prefix and the fresh tail have to decide "keep this dab" the
+    /// same way or the join between them is a shape neither a single pass nor a
+    /// resumed one would produce — and the ordering here is the kind that drifts
+    /// quietly if it is written twice.
+    /// </remarks>
+    private struct SilhouetteRun
+    {
+        /// <summary>
+        /// A twentieth of a pixel. Small enough that the outline it describes and
+        /// the outline of every dab are the same pixels, large enough that a
+        /// straight run collapses to its two ends.
+        /// </summary>
+        private const float Tolerance = 0.05f;
+
+        public SKPoint Anchor;
+        public float AnchorRadius;
+        public bool Have;
+
+        /// <summary>The last dab that still fitted the run, so a run ends on it
+        /// rather than overshooting past the turn that broke it.</summary>
+        public SKPoint Pending;
+        public float PendingRadius;
+        public bool HavePending;
+
+        public void Advance(
+            SKPath path, IReadOnlyList<Dab> dabs, int from, int to, BrushSettings brush)
+        {
+            for (var i = from; i < to; i++)
+            {
+                var pos = dabs[i].Pos;
+                var radius = (float)RadiusAt(brush, dabs[i].Pressure);
+                // Same guard the per-dab path uses: a zero-radius dab puts down
+                // nothing rather than a degenerate contour.
+                if (radius <= 0) continue;
+
+                if (!Have)
+                {
+                    Emit(path, pos, radius);
+                    Anchor = pos;
+                    AnchorRadius = radius;
+                    Have = true;
+                    HavePending = false;
+                    continue;
+                }
+
+                float dx = pos.X - Anchor.X, dy = pos.Y - Anchor.Y;
+                var span = MathF.Sqrt(dx * dx + dy * dy);
+                var widthDrift = MathF.Abs(radius - AnchorRadius) > Tolerance;
+                var strays = false;
+                var doublesBack = false;
+                if (HavePending)
+                {
+                    if (span > 1e-4f)
+                    {
+                        // Perpendicular distance of the dab we were about to drop
+                        // from the chord that would stand in for it.
+                        var cross = (Pending.X - Anchor.X) * dy - (Pending.Y - Anchor.Y) * dx;
+                        strays = MathF.Abs(cross) / span > Tolerance;
+                    }
+                    // **A reversal is collinear, so the perpendicular test is
+                    // blind to it.** A stroke drawn out and back along its own
+                    // line has every dab on the chord and a deviation of exactly
+                    // zero, so without this the entire mark collapses into the
+                    // two circles at its ends and the line disappears — which is
+                    // what `StrokeOpacity_DoesNotStackWithinAStroke` caught.
+                    // Monotone progress along the run is the missing condition;
+                    // as a dot product it also breaks the run at any turn past a
+                    // right angle, where a single chord had stopped describing
+                    // the path anyway.
+                    var back = (pos.X - Pending.X) * (Pending.X - Anchor.X)
+                        + (pos.Y - Pending.Y) * (Pending.Y - Anchor.Y);
+                    doublesBack = back < 0;
+                }
+
+                if (widthDrift || strays || doublesBack)
+                {
+                    if (HavePending)
+                    {
+                        Emit(path, Pending, PendingRadius);
+                        Anchor = Pending;
+                        AnchorRadius = PendingRadius;
+                    }
+                    Emit(path, pos, radius);
+                    Anchor = pos;
+                    AnchorRadius = radius;
+                    HavePending = false;
+                    continue;
+                }
+
+                Pending = pos;
+                PendingRadius = radius;
+                HavePending = true;
+            }
+        }
+
+        /// <summary>
+        /// Close the run that is still open, so the mark ends where the pen did
+        /// rather than at the last dab that happened to fit.
+        /// </summary>
+        public void Close(SKPath path)
+        {
+            if (Have && HavePending) Emit(path, Pending, PendingRadius);
+        }
+
+        private void Emit(SKPath path, SKPoint at, float radius)
         {
             path.AddCircle(at.X, at.Y, radius);
-            if (!have) return;
+            if (!Have) return;
             // The capsule joining this circle to the run's start. Offsetting
             // perpendicular to the chord rather than along the true external
             // tangent leaves an error of order (dr/len)^2, and the radius
             // tolerance is what keeps dr small; the ends are exact either way
             // because the circles themselves cover them.
-            float dx = at.X - anchor.X, dy = at.Y - anchor.Y;
+            float dx = at.X - Anchor.X, dy = at.Y - Anchor.Y;
             var len = MathF.Sqrt(dx * dx + dy * dy);
             if (len <= 1e-4f) return;
             float nx = -dy / len, ny = dx / len;
@@ -1436,83 +1691,12 @@ public static class BrushEngine
             // SUBTRACTS where it overlaps the circles it is joining — which
             // silently removes the mark's two end caps and nothing else, so the
             // stroke comes out the right width and 7% short of its own ink.
-            path.MoveTo(anchor.X - nx * anchorRadius, anchor.Y - ny * anchorRadius);
+            path.MoveTo(Anchor.X - nx * AnchorRadius, Anchor.Y - ny * AnchorRadius);
             path.LineTo(at.X - nx * radius, at.Y - ny * radius);
             path.LineTo(at.X + nx * radius, at.Y + ny * radius);
-            path.LineTo(anchor.X + nx * anchorRadius, anchor.Y + ny * anchorRadius);
+            path.LineTo(Anchor.X + nx * AnchorRadius, Anchor.Y + ny * AnchorRadius);
             path.Close();
         }
-
-        for (var i = 0; i < to; i++)
-        {
-            var pos = dabs[i].Pos;
-            var radius = (float)RadiusAt(brush, dabs[i].Pressure);
-            // Same guard the per-dab path uses: a zero-radius dab puts down
-            // nothing rather than a degenerate contour.
-            if (radius <= 0) continue;
-
-            if (!have)
-            {
-                Emit(pos, radius);
-                anchor = pos;
-                anchorRadius = radius;
-                have = true;
-                havePending = false;
-                continue;
-            }
-
-            float dx = pos.X - anchor.X, dy = pos.Y - anchor.Y;
-            var span = MathF.Sqrt(dx * dx + dy * dy);
-            var widthDrift = MathF.Abs(radius - anchorRadius) > Tolerance;
-            var strays = false;
-            var doublesBack = false;
-            if (havePending)
-            {
-                if (span > 1e-4f)
-                {
-                    // Perpendicular distance of the dab we were about to drop
-                    // from the chord that would stand in for it.
-                    var cross = (pending.X - anchor.X) * dy - (pending.Y - anchor.Y) * dx;
-                    strays = MathF.Abs(cross) / span > Tolerance;
-                }
-                // **A reversal is collinear, so the perpendicular test is blind
-                // to it.** A stroke drawn out and back along its own line has
-                // every dab on the chord and a deviation of exactly zero, so
-                // without this the entire mark collapses into the two circles at
-                // its ends and the line disappears — which is what
-                // `StrokeOpacity_DoesNotStackWithinAStroke` caught. Monotone
-                // progress along the run is the missing condition; as a dot
-                // product it also breaks the run at any turn past a right angle,
-                // where a single chord had stopped describing the path anyway.
-                var back = (pos.X - pending.X) * (pending.X - anchor.X)
-                    + (pos.Y - pending.Y) * (pending.Y - anchor.Y);
-                doublesBack = back < 0;
-            }
-
-            if (widthDrift || strays || doublesBack)
-            {
-                if (havePending)
-                {
-                    Emit(pending, pendingRadius);
-                    anchor = pending;
-                    anchorRadius = pendingRadius;
-                }
-                Emit(pos, radius);
-                anchor = pos;
-                anchorRadius = radius;
-                havePending = false;
-                continue;
-            }
-
-            pending = pos;
-            pendingRadius = radius;
-            havePending = true;
-        }
-
-        // The mark ends where the pen did, never at the last dab that happened
-        // to fit a run.
-        if (have && havePending) Emit(pending, pendingRadius);
-        return have;
     }
 
     /// <summary>
@@ -1562,11 +1746,12 @@ public static class BrushEngine
     /// </remarks>
     public static void StampDabRange(
         SKCanvas canvas, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to,
-        SKCanvas? footprint = null, bool footprintOnly = false)
+        SKCanvas? footprint = null, bool footprintOnly = false,
+        SilhouetteCache? cache = null, int settled = 0)
     {
         if (DrawsAsOneSilhouette(stroke.Brush))
         {
-            StampSilhouette(canvas, stroke, dabs, from, to);
+            StampSilhouette(canvas, stroke, dabs, from, to, cache, settled);
             return;
         }
 
