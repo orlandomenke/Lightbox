@@ -181,7 +181,20 @@ public partial class MainViewModel
     /// </summary>
     private async Task AdoptFontAsync(FontFace face)
     {
-        var typeface = await Fonts.LoadAsync(face).ConfigureAwait(true);
+        SKTypeface? typeface;
+        try
+        {
+            typeface = await Fonts.LoadAsync(face).ConfigureAwait(true);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            // Started from a property setter and nobody is awaiting it, so an
+            // escape here is an unobserved task exception rather than an error
+            // anybody sees. A font that will not load is a line of status text.
+            AiStatus = $"Could not load {face}.";
+            return;
+        }
+
         FontTrouble = Fonts.Trouble;
         if (typeface is null)
         {
@@ -218,7 +231,20 @@ public partial class MainViewModel
         SelectedFont ??= DefaultFace();
 
         if (!Settings.Fonts.UseGoogleFonts) return;
-        _allFonts = await Fonts.FacesAsync().ConfigureAwait(true);
+
+        try
+        {
+            _allFonts = await Fonts.FacesAsync().ConfigureAwait(true);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            // The source already turns being offline into a line of text; this
+            // is for everything nobody thought of. The installed fonts are
+            // already listed, so the browser still works.
+            FontTrouble = "Could not reach Google Fonts.";
+            return;
+        }
+
         FontTrouble = Fonts.Trouble;
         ShowFonts();
     }
