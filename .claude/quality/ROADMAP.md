@@ -327,11 +327,77 @@ the test needs relaxing.
 
 ### Interop
 
-- [?] PSD import/export
+- [~] PSD import/export `evidence: PsdReader, PsdDocumentImport, PsdBlendMap, PsdReadTests, PsdImportTests, PsdFixture, ChannelsBecomeRgbaAtTheLayersOwnOffset, EveryCompressionSchemeDecodesToTheSamePixels, EveryReasonIsCollectedBeforeRefusing_NotJustTheFirst, ALayersPixelsLandOnTheBaselineAtTheirCanvasPosition, APhotoshopFolderBecomesALayerFolder, PsdWriter, APsdRoundTripsThroughPhotoshopWithItsLayers`
+  - **Built: import.** RGB and greyscale, 8 and 16 bits, PSD and PSB, raw / RLE /
+    ZIP channels, folders, and layer name, visibility, opacity, blend mode and
+    locking. `.psd` and `.psb` open through **File ▸ Open…** rather than a
+    separate Import item, because "open this drawing" is the same intent whoever
+    made the file.
+  - **Imported pixels land on `Frame.PngBase64`**, the baseline that has been in
+    the model since the two frame classes merged for exactly this — "pixels with
+    no stroke provenance" — and whose own comment recorded that nothing in the
+    application had ever written one. Invariant 1 is untouched: a frame is
+    `baseline + strokes stamped on top`, so a PSD layer is a drawing to paint
+    over and every mark added afterwards is still a stroke.
+  - **The decision that shapes it (2026-08-24): a PSD using features Lightbox has
+    no model for is refused, by name, all at once.** Masks, clipping masks,
+    adjustment and fill layers, text, smart objects, layer effects and a folder
+    that blends as a group all change what the pixels beneath them look like. The
+    alternative on the table was to take Photoshop's own flattened composite for
+    those layers, which always *looks* right and silently discards the stack; the
+    owner chose refusal instead. **The cost is real and was accepted knowingly**:
+    plenty of production files have an adjustment layer or a mask somewhere and
+    will not open until it is flattened. What makes it defensible is that the
+    refusal is a list — every feature, the layer carrying it, and the Photoshop
+    menu path that fixes it — so one trip back should be enough.
+  - **Not built: export.** Declined for this pass in the same exchange, which
+    leaves Lightbox able to read a Photoshop file and not hand one back — the
+    half most artists will notice. Writing a PSD is markedly easier than reading
+    one, because the writer chooses the compression (RLE) and never meets a
+    feature it cannot represent, so this is a small item rather than a research
+    project. `PsdWriter` and `APsdRoundTripsThroughPhotoshopWithItsLayers` are
+    the anchors that will resolve when it lands, and they deliberately do not
+    resolve today.
+  - **Baselines are canvas-sized**, which is the one place the import pays more
+    than it should: `FrameRasterizer.Materialize` draws a baseline stretched over
+    the whole canvas, so a layer stored at its own smaller bounds would be scaled
+    up to fill the frame. A nullable rect beside the baseline is the better
+    answer and changes a type `ImageResize`, `Crop`, `Transform` and `LayerMerge`
+    all read, so it was kept as a follow-up. PNG collapses the transparent
+    margin, so the file stays reasonable and only decode time and memory pay.
+  - **The fixtures are the part worth copying.** There is no Photoshop here, so
+    the test PSDs are built in C# as the brush-format tests already build `.abr`
+    and `.gbr` — and then cross-checked against `psd_tools`, an independent
+    implementation, in both directions. That check found a real defect on its
+    first run: every fixture omitted the trailing image data section, which
+    `psd_tools` rejects as corrupt, so the reader had been green against files no
+    other application would open.
 - [x] Tablet optimization `evidence: PressureTests, PressureVmTests, PenDiagnostic`
-- [ ] Save as an ordinary image format — PNG, JPEG, SVG `evidence: ImageSaveFormat, SaveAsImage, ImageSaveTests, ASvgSaveKeepsVectorLayersAsPaths`
+- [~] Save as an ordinary image format — PNG, JPEG, SVG `evidence: ImageSaveFormat, SaveAsImage, ImageSaveTests, ASvgSaveKeepsVectorLayersAsPaths`
   - Export writes sheets and sequences for engines; there is no plain "save this as a picture". PNG and JPEG are small and mostly plumbing. **SVG is the interesting one and should not be faked**: a raster document cannot become an SVG except as an embedded bitmap, which is a lie in a vector wrapper. It is only honest for the vector layers, and it needs the vector side to be richer first — which is what makes it the same item as the one below.
   - JPEG needs a quality control and a warning that it has no alpha, or somebody exports a character on a white box and finds out later.
+  - **Built: PNG, JPEG and WebP**, through `File ▸ Save as image…`
+    (Ctrl+Alt+Shift+S). One image by default — the missing verb this item names —
+    with an opt-in *every frame* that writes numbered files, which exists because
+    `ExportPngSequence` is PNG-only so a JPEG or WebP sequence had no route at
+    all. It renders through `SequenceExporter.RenderFrame`, so a saved PNG and
+    that frame from an exported sequence are the same bytes by construction; a
+    test asserts exactly that, because two compositing paths would be free to
+    drift.
+  - **The alpha warning arrives before the save, not after.** The dialog says so
+    when JPEG is picked on a document that has transparency, and the result
+    reports what actually happened — measured from the rendered pixels, so a
+    fully painted canvas saved as JPEG warns about nothing. Where transparency
+    *is* lost it is filled with white rather than left to darken toward black,
+    which is what handing a premultiplied image to the JPEG encoder does.
+  - **Three formats and not more, because that is what Skia here can encode.**
+    Measured rather than assumed: of the fourteen `SKEncodedImageFormat` values,
+    eleven — BMP, GIF, ICO, WBMP, PKM, KTX, ASTC, DNG, HEIF, AVIF and JPEG XL —
+    return null from `Encode`. TIFF and PSD are the two absences an artist will
+    look for and both would be ours to write.
+  - **SVG is still not built and the box stays open for it**, on this item's own
+    reasoning above. `ASvgSaveKeepsVectorLayersAsPaths` does not resolve, which
+    is what keeps the item honestly in flight rather than green.
 - [~] Lightbox draws its own icons `evidence: IconSet, IconSetTests, EveryToolbarButtonResolvesAnIcon, NoButtonAnywhereWearsAGlyphInsteadOfAnIcon, EveryIconIsAuthoredOnTheSameGrid, ASelectionVariantIsNeverTheShapeToolsOutline, IconSourceDocument`
   - Every icon in the app should be one set, made deliberately rather than assembled. The interesting part is *how*: **the app should draw them itself**. That needs vector tooling good enough to author a 16 px glyph and an SVG save that emits real paths, which is the honest dependency chain — icons wait on the vector side, and the vector side is worth having anyway.
   - Generating the SVGs directly is the fallback and is fine as a first pass, but it is a worse test of the product: a drawing application that cannot make its own icons is telling you something about its vector tooling. Dogfooding here is a feature, not a vanity.

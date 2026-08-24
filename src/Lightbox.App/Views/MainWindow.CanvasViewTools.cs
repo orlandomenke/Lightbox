@@ -210,6 +210,10 @@ public partial class MainWindow
                 OnVersionHistoryClicked(this, e);
                 e.Handled = true;
                 break;
+            case "file.saveAsImage":
+                OnSaveAsImageClicked(this, e);
+                e.Handled = true;
+                break;
             case "canvas.transform":
                 if (!_vm.TransformActive) _vm.BeginTransform();
                 break;

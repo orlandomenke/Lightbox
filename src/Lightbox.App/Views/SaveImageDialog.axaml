@@ -1,0 +1,64 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Lightbox.App.ViewModels"
+        x:Class="Lightbox.App.Views.SaveImageDialog"
+        x:DataType="vm:SaveImageDialogViewModel"
+        Width="420" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Title="Save as image">
+
+  <StackPanel Margin="16" Spacing="12">
+
+    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+      <TextBlock Grid.Row="0" Grid.Column="0" Text="Format" VerticalAlignment="Center" />
+      <ComboBox Grid.Row="0" Grid.Column="1" x:Name="FormatBox"
+                ItemsSource="{Binding Formats}"
+                SelectedItem="{Binding Format}" />
+
+      <!--
+        Hidden rather than disabled on PNG, the rule the export window already
+        follows: a greyed slider invites a click that does nothing, where an
+        absent one says the format has no such setting.
+      -->
+      <TextBlock Grid.Row="1" Grid.Column="0" Text="Quality" VerticalAlignment="Center"
+                 IsVisible="{Binding HasQuality}" />
+      <NumericUpDown Grid.Row="1" Grid.Column="1"
+                     Value="{Binding Quality}" Minimum="1" Maximum="100" Increment="5"
+                     FormatString="0" IsVisible="{Binding HasQuality}" />
+
+      <TextBlock Grid.Row="2" Grid.Column="0" Text="Size" VerticalAlignment="Center" />
+      <NumericUpDown Grid.Row="2" Grid.Column="1"
+                     Value="{Binding ScalePercent}" Minimum="1" Maximum="1600" Increment="25"
+                     FormatString="0" />
+    </Grid>
+
+    <!--
+      Only on a document that has more than one frame. A single painting has no
+      "every frame" to offer, and an option that cannot do anything is worse
+      than one that is not there.
+    -->
+    <CheckBox IsChecked="{Binding AllFrames}" IsVisible="{Binding IsSequence}"
+              Content="Every frame, as numbered files" />
+
+    <!--
+      The warning the roadmap item asked for, in front of the save rather than
+      after it: a character saved as JPEG comes back on a solid box, and an
+      artist who learns that later has already sent the file somewhere.
+    -->
+    <Border Background="{DynamicResource SurfaceElevated}" CornerRadius="4" Padding="10"
+            IsVisible="{Binding MayLoseTransparency}">
+      <TextBlock TextWrapping="Wrap"
+                 Text="This format has no transparency. The see-through areas will be filled in — save as PNG or WebP to keep them." />
+    </Border>
+
+    <Border Background="{DynamicResource SurfaceElevated}" CornerRadius="4" Padding="10">
+      <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
+    </Border>
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="Cancel" Click="OnCancel" IsCancel="True" />
+      <Button Content="Save…" Click="OnApply" IsDefault="True" Classes="primary" />
+    </StackPanel>
+  </StackPanel>
+</Window>

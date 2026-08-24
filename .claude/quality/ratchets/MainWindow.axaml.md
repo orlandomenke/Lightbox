@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4774
+budget: 4776
 
 ## Why it is here despite being XAML
 
@@ -194,3 +194,10 @@ leaves a number nobody can account for. So every reason above stays, and
   Three lines — item, handler wiring and tooltip — and it is the way back to
   null for an anchor's direction: absent-until-used only holds if unused is
   reachable again. A menu item has nowhere else to live.
+- **4,774 → 4,776**, for the `Save as image…` menu item. Two lines, and they buy
+  the only route to a feature: the command is registered in `ShortcutMap` and
+  dispatched from `MainWindow.CanvasViewTools`, so without a menu entry it exists
+  and is invisible to anybody who has not learned the key. The handler and the
+  file-picker work went into a new partial (`MainWindow.ImageSave.cs`) rather than
+  `MainWindow.axaml.cs`, which is itself at budget.
+

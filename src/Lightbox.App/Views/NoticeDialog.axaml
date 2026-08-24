@@ -1,0 +1,24 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Lightbox.App.Views.NoticeDialog"
+        Width="480" SizeToContent="Height" MaxHeight="520"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Title="Lightbox">
+
+  <StackPanel Margin="16" Spacing="12">
+    <TextBlock x:Name="Headline" FontWeight="SemiBold" TextWrapping="Wrap" />
+
+    <!--
+      Scrolls because the body is a list of reasons and a refused PSD can carry
+      a dozen. Truncating them would defeat the point: the list exists so one
+      trip back to Photoshop fixes everything rather than the first thing.
+    -->
+    <ScrollViewer MaxHeight="320" HorizontalScrollBarVisibility="Disabled">
+      <SelectableTextBlock x:Name="Body" TextWrapping="Wrap" />
+    </ScrollViewer>
+
+    <Button Content="Close" Click="OnClose" IsDefault="True" IsCancel="True"
+            HorizontalAlignment="Right" Classes="primary" />
+  </StackPanel>
+</Window>

@@ -4,6 +4,7 @@
 | --- | --- |
 | **Save** — Ctrl+S | Writes in place. With a project open, writes the project and only the documents that changed. A drawing that has never been saved has nowhere to go, so this opens **Save as…** instead of quietly doing nothing. |
 | **Save as…** — Ctrl+Shift+S | Picks a new path. |
+| **Save as image…** — Ctrl+Alt+Shift+S | Writes the drawing as an ordinary picture — PNG, JPEG or WebP. See [below](#saving-as-an-ordinary-picture). |
 | **Export document…** | Writes a standalone `.lightbox.json` with every referenced swatch, gradient, brush tip and clip region **inlined**. |
 | **Export PNGs…** | Every frame as a numbered PNG, into a folder you pick — with the scratch track beside them as `audio.wav` when there is one. |
 | **Export video…** | Opens the [export window](#exporting-a-video) — format, size, frame range, rate, quality and sound, then the render itself. |
@@ -12,6 +13,63 @@
 Both keys can be rebound like any other — they are in **Edit ▸ Configure ▸
 Shortcuts** under *File*, and the menu shows whatever you set them to rather
 than the factory key.
+
+## Saving as an ordinary picture
+
+**File ▸ Save as image…** writes what is on the canvas as a picture anyone can
+open. This is the plain "give me a PNG of this" that the export commands above
+do not cover: they write sequences, sheets and engine metadata, and this writes
+one image.
+
+| Setting | What it decides |
+| --- | --- |
+| **Format** | **PNG** keeps transparency and loses nothing — the right answer for artwork, and the default. **JPEG** is smaller, lossy, and **has no transparency at all**. **WebP** is lossy *and* keeps transparency, which is why it is here. |
+| **Quality** | 1–100, for JPEG and WebP. Absent on PNG rather than greyed out, because PNG has no such setting. |
+| **Size** | A percentage of the document. A larger render draws the strokes onto a larger surface rather than enlarging pixels, so 200 % is genuinely sharper — the same promise the video export makes. |
+| **Every frame** | Only on a document with more than one frame. Writes `name_0001.png`, `name_0002.png` and so on beside the name you chose. |
+
+Whatever the timeline is showing is what gets written, and with a camera in the
+scene it is what the camera saw. A saved PNG is the same pixels as that frame
+from **Export PNGs…** — the same compositing runs behind both.
+
+**The transparency warning is worth reading.** Pick JPEG on a drawing with
+see-through areas and the dialog says so before you save, because a character on
+transparent paper saved as JPEG comes back on a solid white box. If you save
+anyway the empty areas are filled with white rather than turning black, and the
+status line afterwards says it happened.
+
+**Why not TIFF, GIF, BMP or PSD?** The image library Lightbox uses has encoders
+for exactly these three formats and no others, so the rest would be menu entries
+that write nothing. Writing a PSD back out is a separate piece of work and is
+not built — Lightbox can read a Photoshop file today and cannot hand one back.
+
+## Opening a Photoshop file
+
+**File ▸ Open…** accepts `.psd` and `.psb` alongside Lightbox's own documents.
+Each Photoshop layer becomes a Lightbox layer, keeping its name, visibility,
+opacity, blend mode and lock, and folders become layer folders. The drawing
+arrives as one frame — a PSD is a single image — and the imported pixels sit
+*underneath* anything you then paint, so the file is never written over: the
+import has no path attached, and **Save** sends you to **Save as…**.
+
+RGB and greyscale files are read, at 8 or 16 bits per channel. A 16-bit file is
+brought down to 8, which is what Lightbox paints in, and the status line says so.
+
+**Lightbox refuses a PSD it cannot draw faithfully, and tells you exactly what to
+fix.** Masks, clipping masks, adjustment layers, fill layers, text layers, smart
+objects, layer effects and a folder that blends as a group all change what the
+pixels beneath them look like, and Lightbox has no model for any of them. Rather
+than opening a picture that is not the one you saved, it lists every feature it
+found, the layer carrying it, and the Photoshop menu path that flattens it. One
+trip back to Photoshop should be enough.
+
+This is a real limitation and not a small one: plenty of working files have an
+adjustment layer or a mask somewhere and will not open until it is flattened. The
+trade is deliberate — a drawing that silently comes in wrong is worse than one
+that does not come in yet.
+
+CMYK, Lab, indexed-colour and duotone files, and 32-bit HDR files, are refused
+the same way, with the **Image ▸ Mode** conversion that fixes them.
 
 ## Exporting a video
 
