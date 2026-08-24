@@ -101,7 +101,7 @@ public class BrushPresetRenderFingerprintTests(ITestOutputHelper output)
     // Re-recorded again 2026-08-24, and all four moved together, which is the
     // right answer rather than a worrying one: the shape here is spacing 0.1
     // against a 0.09 target, so the walk now lays two dabs per interval where it
-    // laid one (B301, BrushEngine.SubdividesForFidelity). That reaches the
+    // laid one (B307, BrushEngine.SubdividesForFidelity). That reaches the
     // coverage every shape is built on, so a change confined to the texture
     // passes — moving "granulation" and "both" but not "plain" — would have been
     // the surprising outcome here, not this one.

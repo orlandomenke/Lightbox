@@ -131,7 +131,7 @@ public class RuntimeDeterminismTests(ITestOutputHelper output)
     /// <para>
     /// <b><c>soft</c> was re-recorded on 2026-08-24</b>, when the dab walk
     /// started subdividing a spacing interval that is too coarse to resolve the
-    /// dab's own soft band (B301, <c>BrushEngine.SubdividesForFidelity</c>). It
+    /// dab's own soft band (B307, <c>BrushEngine.SubdividesForFidelity</c>). It
     /// is the only one of the three that could move: at spacing 0.1 against a
     /// 0.09 target it walks two dabs where it walked one, each thinned to
     /// compensate. <c>jitter</c> is at spacing 0.2 and would subdivide harder

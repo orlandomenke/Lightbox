@@ -64,7 +64,7 @@ public class PreMergeDocumentTests(ITestOutputHelper output)
     // rather than by hope: every brush in the fixture is hardness 0.8 at spacing
     // 0.15, which is coarser than the 0.09 the dab's soft band can resolve, so
     // both layers now walk two dabs per spacing interval with each thinned to
-    // compensate (B301, BrushEngine.SubdividesForFidelity). Same standing as
+    // compensate (B307, BrushEngine.SubdividesForFidelity). Same standing as
     // Q157 above: this is a document saved by an older build, and the stepped
     // pixels it used to render were the defect rather than the reference.
     private const string PaintedFingerprint = "8E29B8DA2A4EDF856BFB6C65E9A6C8A80293589A80DCD41C35C47C593DD618A8";
