@@ -1008,10 +1008,401 @@ public static class BrushEngine
         return clipped.Width <= 0 || clipped.Height <= 0 ? null : ToSurface(clipped, origin);
     }
 
+    /// <summary>
+    /// Whether this brush's whole mark can be drawn as <em>one</em> silhouette
+    /// — and therefore whether <see cref="StampSilhouette"/> may replace the
+    /// per-dab loop.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Overlapping antialiased dabs destroy antialiasing, and that is the
+    /// whole reason this exists.</b> A dab's rim pixel carries partial
+    /// coverage; composited <c>SrcOver</c> against the previous dab's rim at
+    /// the same pixel it comes out at <c>1-(1-a)^n</c>. At the Ink brush's
+    /// spacing — 0.1 x size 5, a dab every half pixel — a stroke's <em>side</em>
+    /// receives the same partial coverage from a dozen dabs in a row and
+    /// saturates to opaque. The mark loses its rim and gains a stair.
+    /// </para>
+    /// <para>
+    /// Measured on a vertical size-5 Ink stroke, sweeping its sub-pixel
+    /// position across one pixel and integrating the alpha across the mark —
+    /// the exact answer is 5.000 at every position:
+    /// </para>
+    /// <list type="bullet">
+    /// <item>per-dab <c>SrcOver</c> — 4.996 to 5.886, <b>17.7% worst error</b>,
+    /// and biased one way: the mark is never thinner than asked, only fatter.
+    /// Three sub-pixel positions an eighth of a pixel apart rendered
+    /// <em>identical</em> pixels, which is the staggering: a shallow diagonal
+    /// holds a column for several rows and then jumps.</item>
+    /// <item>one silhouette — 4.996 to 5.004, <b>0.08% worst error</b>.</item>
+    /// </list>
+    /// <para>
+    /// <b>The trade is not all one way and the numbers say which way each part
+    /// goes.</b> Rendering a whole mark is <b>1.8x faster</b> — one path and one
+    /// coverage calculation instead of several thousand draw calls — measured on
+    /// a 2000 px arc at 2000x800: <b>14.8 ms against 26.4 ms</b> at size 5, and
+    /// 10.3 against 22.7 at size 24. That is the commit, the reload, the export
+    /// and every inbetween.
+    /// </para>
+    /// <para>
+    /// The <em>live preview</em> pays instead, because it re-presents the mark on
+    /// every pointer event and the outline is rebuilt from the whole dab list
+    /// each time: on the same arc at 400 events, <b>3.19 ms per event against
+    /// 1.50 ms</b> at size 5, and 2.02 against 0.60 at size 24. Bounded work
+    /// still — the fill is clipped to the band the new dabs can reach, and the
+    /// walk is the same order as <c>WalkDabs</c>, which BR1 already runs per
+    /// event — but a real cost on a long stroke with a small hard brush, which is
+    /// exactly inking. <b>B292</b> holds the fix, which is to cache the settled
+    /// prefix rather than re-derive it; it needs state this static path does not
+    /// have, so it is its own objective.
+    /// </para>
+    /// <para>
+    /// <b>The conditions are what make the shorter path equivalent, and every
+    /// one of them is load-bearing.</b> The silhouette is a union of plain
+    /// circles filled with a single colour at a single alpha, so anything that
+    /// varies colour, alpha or shape <em>between</em> dabs must fall back:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><b>Hardness below 1</b> gives each dab a radial gradient, which a
+    /// union cannot represent — the falloff belongs to the dab, not to the
+    /// silhouette. Soft brushes have the same saturation and need coverage
+    /// accumulated with <c>max</c> instead; that is its own mechanism and its
+    /// own branch.</item>
+    /// <item><b>Flow or colour jitter, and a pressure-driven flow</b> make the
+    /// dabs differently transparent, so they must composite against each other
+    /// to read correctly.</item>
+    /// <item><b>Size jitter, scatter, squash and a bitmap tip</b> put geometry
+    /// in the dab that <c>(position, radius)</c> does not carry. Excluded
+    /// rather than reproduced: the dynamics chain in <see cref="StampDab"/>
+    /// mutates its own hash seed as it goes (scatter shifts the seed the later
+    /// salts read), and a second copy of that ordering is exactly the kind of
+    /// duplicate that comes to disagree. These brushes keep the per-dab path
+    /// until the chain itself is extracted.</item>
+    /// <item><b>A paint load below 1</b> fades alpha along the stroke.</item>
+    /// <item><b>Antialiasing off</b> is left alone on purpose, so a deliberately
+    /// aliased brush renders byte-for-byte what it always did.</item>
+    /// </list>
+    /// <para>
+    /// What survives all that is the hard round family — Ink, hard round, the
+    /// eraser, and any preset an artist builds from them — which is the line
+    /// art the defect was reported against.
+    /// </para>
+    /// </remarks>
+    public static bool DrawsAsOneSilhouette(BrushSettings brush) =>
+        brush.AntiAlias
+        && brush.TipId is null
+        && Math.Clamp(brush.Hardness, 0, 1) >= 0.999
+        && !PressureResponse.IsDriven(brush, BrushDynamic.Hardness)
+        && !PressureResponse.IsDriven(brush, BrushDynamic.Flow)
+        && !PressureResponse.IsDriven(brush, BrushDynamic.Roundness)
+        && brush.FlowJitter <= 0
+        && brush.SizeJitter <= 0
+        && brush.Scatter <= 0
+        && brush.RoundnessJitter <= 0
+        && Math.Clamp(brush.Roundness, 0.05, 1) >= 0.999
+        && brush.ColorJitter <= 0
+        && brush.HueJitter <= 0
+        && brush.SaturationJitter <= 0
+        && brush.BrightnessJitter <= 0
+        && Math.Clamp(brush.Medium.PaintLoad, 0, 1) >= 1;
+
+    /// <summary>
+    /// The whole mark as one path, so Skia computes coverage once for the
+    /// union instead of once per dab. See <see cref="DrawsAsOneSilhouette"/>
+    /// for why, and for what disqualifies a brush from taking this route.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Winding fill is what makes overlapping circles a union.</b> Every
+    /// contour <c>AddCircle</c> adds runs the same direction, so the winding
+    /// number is non-zero across the whole silhouette and Skia antialiases its
+    /// outline — the shared interior edges never become edges.
+    /// </para>
+    /// <para>
+    /// The radius is still per dab, so pressure still thins and fattens the
+    /// mark. It is only the <em>coverage</em> that is computed once.
+    /// </para>
+    /// </remarks>
+    private static void StampSilhouette(
+        SKCanvas canvas, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to)
+    {
+        var brush = stroke.Brush;
+        to = Math.Min(to, dabs.Count);
+        from = Math.Max(0, from);
+        if (to <= 0) return;
+
+        // Constant by construction: DrawsAsOneSilhouette excludes every
+        // dynamic that could vary it, so any dab's pressure answers for all.
+        var alpha = DabAlpha(brush, 1);
+        if (alpha <= 0) return;
+
+        // Where this range is allowed to put pixels: everything its own dabs can
+        // reach. Computed for EVERY range, including one starting at zero —
+        // `from == 0` is the live preview's ordinary case as well as the commit's
+        // (see MainViewModel.StampLiveDabs), so there is no branch here that can
+        // assume a fresh surface.
+        if (RangeReach(dabs, from, to, brush) is not { } band) return;
+
+        // The path is ALWAYS the whole dab list — not the range, and not even the
+        // range's end. Two separate reasons, and the second one cost a debugging
+        // session:
+        //
+        //  * A union drawn for part of a stroke and composited over the union of
+        //    the part before it saturates their shared side exactly as the
+        //    per-dab path did.
+        //  * The outline is not a prefix of itself. A run of dabs is closed by
+        //    the dab that ends it, so building from `[0, to)` caps the mark at
+        //    `to` where the full list carries a capsule onward — and the band is
+        //    inflated by DabReach, which is wider than the mark, so the band
+        //    around every event straddles exactly that difference. The live
+        //    preview came out 3.5% fatter than the commit with pixels 239/255
+        //    apart in both directions, spread evenly along the stroke.
+        //
+        // So `to` bounds where pixels may land, never what shape is computed.
+        using var path = new SKPath { FillType = SKPathFillType.Winding };
+        if (!BuildSilhouette(path, dabs, dabs.Count, brush)) return;
+
+        using var paint = new SKPaint
+        {
+            IsAntialias = true,
+            Color = StrokeColor(stroke).WithAlpha((byte)Math.Round(alpha * 255)),
+        };
+
+        // Rasterise the whole mark's silhouette, but only where this range's dabs
+        // can reach, and REPLACE rather than composite. Any pixel in that band is
+        // this same stroke's, drawn from a shorter prefix of the same path, and
+        // the longer prefix is the better answer for it. Src is what makes the
+        // draw idempotent, so a band can be redrawn on every event without the
+        // rim building up — which is the whole defect, and it would come back
+        // through the preview if this composited.
+        //
+        // Safe because a dab canvas is always private: StampPaint and
+        // StampPaintDraft each stamp into their own scratch and composite the
+        // result, and the live preview's scratch holds one stroke. Nothing else
+        // has pixels in this band to lose.
+        //
+        // This is also what keeps painting bounded work (invariant 6). Building
+        // the path is proportional to the stroke and the walk above it already is
+        // (BR1), but FILLING is proportional to the band. Measured on a zigzag
+        // probe, 400 events: filling the whole mark every event cost 7.05 ms per
+        // event against 1.86 ms for the per-dab path, and clipping took it to
+        // 4.51 ms. (The figures in DrawsAsOneSilhouette are a smooth arc — a
+        // different probe, so the two sets of numbers are not comparable to each
+        // other, only each to its own baseline.)
+        canvas.Save();
+        // Pixel-aligned and unantialiased on purpose: a clip that feathered its
+        // own edge would write partial coverage into the band boundary, which is
+        // the very artefact this exists to remove.
+        canvas.ClipRect(band, SKClipOperation.Intersect, antialias: false);
+        paint.BlendMode = SKBlendMode.Src;
+        canvas.DrawPath(path, paint);
+        canvas.Restore();
+    }
+
+    /// <summary>
+    /// The outline of the whole mark, as circles at the dabs that turn or change
+    /// width and capsules bridging the straight runs between them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A silhouette needs the mark's geometry, not one circle per dab, and the
+    /// difference is most of the cost.</b> At the Ink brush's spacing a dab lands
+    /// every half pixel, so a 300 px line is six hundred circles whose union is a
+    /// shape a handful describe — consecutive dabs on a straight run at the same
+    /// radius add nothing the capsule between their ends does not already
+    /// contain.
+    /// </para>
+    /// <para>
+    /// So a dab is kept where the mark actually changes — it strays off the chord
+    /// from the last kept dab, or its radius has drifted — and dropped where it
+    /// does not. The tolerance is a twentieth of a pixel, well under what the
+    /// rasteriser can show, so this describes the same shape more cheaply rather
+    /// than describing a coarser one.
+    /// </para>
+    /// <para>
+    /// <b>It is more accurate as well as cheaper, which was not the intent.</b>
+    /// A capsule is the exact union of a straight run at constant width, where
+    /// the overlapping circles it replaces leave Skia's analytic coverage to
+    /// approximate the same shape from ninety-seven lobes. Measured on the
+    /// sub-pixel sweep above, worst width error fell from <b>4.94% to 0.08%</b>
+    /// and per-event cost from 5.77 ms to 4.51 ms on a 400-event probe.
+    /// </para>
+    /// <para>
+    /// <b>Deterministic, and that is not incidental.</b> The decision is a pure
+    /// function of the dab list — no clock, no counter, no index arithmetic a
+    /// different range would answer differently — so a re-render, an undo and an
+    /// AI inbetween all describe the same outline (invariant 2). It is also why
+    /// the run is measured from the last <em>kept</em> dab rather than from the
+    /// previous one: error against the chord that will actually be drawn is the
+    /// error that matters, and measured that way it cannot accumulate unseen.
+    /// </para>
+    /// </remarks>
+    /// <returns>False when the mark reaches nothing at all.</returns>
+    private static bool BuildSilhouette(
+        SKPath path, IReadOnlyList<Dab> dabs, int to, BrushSettings brush)
+    {
+        const float Tolerance = 0.05f;
+
+        SKPoint anchor = default;
+        var anchorRadius = 0f;
+        var have = false;
+        // The last dab that still fitted the current run, so a run ends on it
+        // rather than overshooting past the turn that broke it.
+        SKPoint pending = default;
+        var pendingRadius = 0f;
+        var havePending = false;
+
+        void Emit(SKPoint at, float radius)
+        {
+            path.AddCircle(at.X, at.Y, radius);
+            if (!have) return;
+            // The capsule joining this circle to the run's start. Offsetting
+            // perpendicular to the chord rather than along the true external
+            // tangent leaves an error of order (dr/len)^2, and the radius
+            // tolerance is what keeps dr small; the ends are exact either way
+            // because the circles themselves cover them.
+            float dx = at.X - anchor.X, dy = at.Y - anchor.Y;
+            var len = MathF.Sqrt(dx * dx + dy * dy);
+            if (len <= 1e-4f) return;
+            float nx = -dy / len, ny = dx / len;
+            // Wound the same way round as AddCircle. Winding fill is what makes
+            // these contours a union, and a capsule laid down the other way
+            // SUBTRACTS where it overlaps the circles it is joining — which
+            // silently removes the mark's two end caps and nothing else, so the
+            // stroke comes out the right width and 7% short of its own ink.
+            path.MoveTo(anchor.X - nx * anchorRadius, anchor.Y - ny * anchorRadius);
+            path.LineTo(at.X - nx * radius, at.Y - ny * radius);
+            path.LineTo(at.X + nx * radius, at.Y + ny * radius);
+            path.LineTo(anchor.X + nx * anchorRadius, anchor.Y + ny * anchorRadius);
+            path.Close();
+        }
+
+        for (var i = 0; i < to; i++)
+        {
+            var pos = dabs[i].Pos;
+            var radius = (float)RadiusAt(brush, dabs[i].Pressure);
+            // Same guard the per-dab path uses: a zero-radius dab puts down
+            // nothing rather than a degenerate contour.
+            if (radius <= 0) continue;
+
+            if (!have)
+            {
+                Emit(pos, radius);
+                anchor = pos;
+                anchorRadius = radius;
+                have = true;
+                havePending = false;
+                continue;
+            }
+
+            float dx = pos.X - anchor.X, dy = pos.Y - anchor.Y;
+            var span = MathF.Sqrt(dx * dx + dy * dy);
+            var widthDrift = MathF.Abs(radius - anchorRadius) > Tolerance;
+            var strays = false;
+            var doublesBack = false;
+            if (havePending)
+            {
+                if (span > 1e-4f)
+                {
+                    // Perpendicular distance of the dab we were about to drop
+                    // from the chord that would stand in for it.
+                    var cross = (pending.X - anchor.X) * dy - (pending.Y - anchor.Y) * dx;
+                    strays = MathF.Abs(cross) / span > Tolerance;
+                }
+                // **A reversal is collinear, so the perpendicular test is blind
+                // to it.** A stroke drawn out and back along its own line has
+                // every dab on the chord and a deviation of exactly zero, so
+                // without this the entire mark collapses into the two circles at
+                // its ends and the line disappears — which is what
+                // `StrokeOpacity_DoesNotStackWithinAStroke` caught. Monotone
+                // progress along the run is the missing condition; as a dot
+                // product it also breaks the run at any turn past a right angle,
+                // where a single chord had stopped describing the path anyway.
+                var back = (pos.X - pending.X) * (pending.X - anchor.X)
+                    + (pos.Y - pending.Y) * (pending.Y - anchor.Y);
+                doublesBack = back < 0;
+            }
+
+            if (widthDrift || strays || doublesBack)
+            {
+                if (havePending)
+                {
+                    Emit(pending, pendingRadius);
+                    anchor = pending;
+                    anchorRadius = pendingRadius;
+                }
+                Emit(pos, radius);
+                anchor = pos;
+                anchorRadius = radius;
+                havePending = false;
+                continue;
+            }
+
+            pending = pos;
+            pendingRadius = radius;
+            havePending = true;
+        }
+
+        // The mark ends where the pen did, never at the last dab that happened
+        // to fit a run.
+        if (have && havePending) Emit(pending, pendingRadius);
+        return have;
+    }
+
+    /// <summary>
+    /// Everything dabs <paramref name="from"/>..<paramref name="to"/> can reach,
+    /// as a pixel-aligned rectangle. Unclamped — a clip needs no document
+    /// bounds, and <see cref="SegmentBounds"/> is the one that does.
+    /// </summary>
+    private static SKRect? RangeReach(
+        IReadOnlyList<Dab> dabs, int from, int to, BrushSettings brush)
+    {
+        float minX = float.MaxValue, minY = float.MaxValue;
+        float maxX = float.MinValue, maxY = float.MinValue;
+        for (var i = from; i < to; i++)
+        {
+            var p = dabs[i].Pos;
+            if (p.X < minX) minX = p.X;
+            if (p.Y < minY) minY = p.Y;
+            if (p.X > maxX) maxX = p.X;
+            if (p.Y > maxY) maxY = p.Y;
+        }
+        if (minX > maxX) return null;
+
+        var reach = DabReach(brush);
+        return new SKRect(
+            MathF.Floor(minX - reach), MathF.Floor(minY - reach),
+            MathF.Ceiling(maxX + reach), MathF.Ceiling(maxY + reach));
+    }
+
     /// <summary>Stamp dabs <paramref name="from"/> (inclusive) to <paramref name="to"/> (exclusive).</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A silhouette brush ignores <paramref name="from"/> when building its
+    /// path and honours it only as a clip.</b> The coverage has to come from the
+    /// whole mark: a union drawn for part of a stroke and composited over the
+    /// union of the part before it saturates their shared side exactly as the
+    /// per-dab path does — one nick per range instead of one per dab, which is
+    /// better and still wrong.
+    /// </para>
+    /// <para>
+    /// So the range says <em>where to rasterise</em>, not what to draw, and the
+    /// band it names is written with <c>Src</c>. That keeps the incremental
+    /// contract this method has always had — stamping a stroke a range at a time
+    /// lands the same pixels as stamping it once, which is what
+    /// <c>IncrementalDabWalkTests</c> and <c>LiveMatchesCommittedTests</c> pin —
+    /// without a whole-mark fill on every pointer event.
+    /// </para>
+    /// </remarks>
     public static void StampDabRange(
         SKCanvas canvas, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to)
     {
+        if (DrawsAsOneSilhouette(stroke.Brush))
+        {
+            StampSilhouette(canvas, stroke, dabs, from, to);
+            return;
+        }
+
         var brush = stroke.Brush;
         var color = StrokeColor(stroke);
         var tip = brush.TipId is null ? null : BrushTipRegistry.Resolve(brush.TipId);

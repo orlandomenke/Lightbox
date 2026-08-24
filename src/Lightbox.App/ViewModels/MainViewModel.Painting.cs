@@ -1748,7 +1748,29 @@ public partial class MainViewModel
         // 1.15 ms walk at 600 points, all but a fraction of it recomputing spans that cannot have
         // changed.
         var dabs = BrushEngine.WalkDabs(live, _live.Densify);
-        var stable = BrushEngine.StableCount(dabs, _live.Dabs);
+        // A silhouette brush has no settled prefix, and pretending it does is
+        // wrong rather than merely wasteful. Its whole mark is one shape whose
+        // coverage is computed in a single pass (BrushEngine.StampDabRange), so
+        // a settled draw would write the still-provisional tail's shape into the
+        // scratch BEFORE the tail backup below is taken — baking a tail into the
+        // pixels that exist to be taken back, so a tail that then moves leaves
+        // its old position behind. Measured as the live mark 2.8% fatter than the
+        // commit, with pixels 239/255 apart in both directions.
+        //
+        // Pinning the cut at zero makes every event restore the mark's own region
+        // and redraw it once, which is what keeps this preview and the commit the
+        // same pixels — the promise LiveMatchesCommittedTests exists for, and it
+        // holds exactly: mean 0.00/255, worst 0, ink ratio 1.000.
+        //
+        // It also costs, and the cost is measured rather than assumed. A 2000 px
+        // arc at 400 events: 3.19 ms an event against 1.50 ms at size 5, and 2.02
+        // against 0.60 at size 24. B292 holds the fix — cache the settled
+        // prefix's outline instead of rebuilding it — which needs state the
+        // engine's static path does not have. Note that the whole-mark render
+        // this shares its machinery with goes the other way, 14.8 ms against
+        // 26.4 ms, so the commit, the reload and every export are faster.
+        var wholeMark = BrushEngine.DrawsAsOneSilhouette(live.Brush);
+        var stable = wholeMark ? 0 : BrushEngine.StableCount(dabs, _live.Dabs);
         _live.Dabs = dabs;
 
         // 1. Take back the tail lent out last time. Only the part of the buffer this

@@ -91,11 +91,29 @@ public class RuntimeDeterminismTests(ITestOutputHelper output)
     /// somebody would do to make a real regression go quiet. Which scenarios
     /// moved is the diagnosis: see the class remarks.
     /// </para>
+    /// <para>
+    /// <b><c>hard-aa</c> was re-recorded on 2026-08-23</b>, when hard-edged
+    /// brushes stopped accumulating coverage per dab and started drawing their
+    /// mark as one silhouette (<c>BrushEngine.DrawsAsOneSilhouette</c>). The
+    /// pixels genuinely changed and were meant to: overlapping antialiased dabs
+    /// had been saturating the mark's own rim, which cost a size-5 Ink stroke
+    /// 17.7% of its width at the worst sub-pixel position. Q156 records the
+    /// decision to change art already drawn rather than gate the fix.
+    /// </para>
+    /// <para>
+    /// <b>The other two hashes did not move, and that is the evidence rather
+    /// than a convenience.</b> This is precisely the localisation the class
+    /// remarks describe: <c>soft</c> is hardness 0.25 and <c>jitter</c> carries
+    /// scatter and six jitters, so both are disqualified from the silhouette and
+    /// both came back byte-identical. Had either shifted, the change would have
+    /// reached further than its own predicate allows and the diff would have
+    /// been wrong.
+    /// </para>
     /// </remarks>
     private const string Baseline = """
         jitter=B2F2F836E09EF4470E1EEC395DA260D553E5655F7AD63DC082CDE28B5075F938
         soft=C6FB71EEB611233A6B1369EEFE77269BC6E2391ED53E38F0AF1F048B954CA9ED
-        hard-aa=0BD3880B4B3938EFA38A1662882109017A8E878C33F3FF0F06493789A7210334
+        hard-aa=8AAFCED84264B48B00A4488C3F0CB1B9A48DBD9B6D625DDE356DDD243EFCF3B6
         """;
 
     /// <summary>Everything stochastic on at once — the only scenario that reaches
