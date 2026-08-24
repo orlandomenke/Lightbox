@@ -277,6 +277,31 @@ in. A live stroke grows its layer's glow as you draw it, and merging a
 styled layer down bakes the style into the merged pixels — exactly what the
 canvas showed.
 
+### The filters
+
+Six filters on the **Colour** and **Detail** shelves do the everyday
+Photoshop jobs, and every one works wherever you put it — a layer's own
+stack, an adjustment layer, or the whole scene:
+
+- **Sharpen** — an unsharp mask. *Amount* is the strength, *Radius* the size
+  of detail it works on. The radius starts at 2 pixels because anything
+  smaller has no effect at all.
+- **Find edges** — keeps where the picture changes and drops the flats,
+  drawn as dark lines on white.
+- **Invert** — the negative, and its own undo.
+- **Threshold** — everything to black or white either side of a *Level*.
+  It reads brightness, so a saturated colour comes out one flat tone rather
+  than breaking into a primary.
+- **Posterize** — flattens to a chosen number of *Levels*, keeping true
+  black and true white at the ends.
+- **Gradient map** — replaces tone with colour: the darkest parts take the
+  *Shadow* colour, the lightest the *Highlight*, and *Midpoint* decides how
+  much of the picture sits in each. A quick duotone, and a fast way to
+  colour-key a whole shot.
+
+*Emboss is Planned* — the honest version needs machinery that arrives with a
+later change, and a half-working one is worse than none.
+
 ### Effects that move: wiggle, flicker and grain
 
 Three effects vary **by frame** rather than sitting still, and they are what

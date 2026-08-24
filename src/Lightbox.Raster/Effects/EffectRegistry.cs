@@ -178,6 +178,42 @@ public static class EffectRegistry
     /// </remarks>
     private static readonly EffectParamSpec Seed = new("seed", "Seed", 0, 0, 999999, PerUse: true);
 
+    /// <summary>
+    /// <paramref name="filtered"/>'s colour at <paramref name="source"/>'s
+    /// alpha — the guard every filter built out of a blend or an arithmetic
+    /// needs.
+    /// </summary>
+    /// <remarks>
+    /// <b>Neither primitive leaves alpha alone, and neither says so.</b> A
+    /// blend-mode filter composites alpha Porter-Duff "over" whatever blend
+    /// its *colour* uses, so a half-transparent fill through a difference
+    /// comes out at <c>a + a(1-a)</c> — 128 becomes 192 — and transparent
+    /// pixels beside an edge turn partly solid. An arithmetic filter applies
+    /// its coefficients to all four channels, so an unsharp mask dips alpha
+    /// wherever alpha itself has a soft edge. Both are invisible on the
+    /// opaque fixtures a filter is naturally tested with, and both are
+    /// obvious the moment one lands on a half-opacity stroke (the adversary
+    /// review's finding).
+    /// <para>
+    /// Forcing the filtered colour opaque before intersecting is what keeps
+    /// the colour: the intersection multiplies alpha, so a result still
+    /// carrying its own inflated alpha would be multiplied twice.
+    /// </para>
+    /// </remarks>
+    private static SKImageFilter KeepingAlphaOf(
+        SKImageFilter? source, SKImageFilter filtered) =>
+        SKImageFilter.CreateBlendMode(
+            SKBlendMode.SrcIn, source, SKImageFilter.CreateColorFilter(Opaque, filtered));
+
+    /// <summary>Alpha forced to solid, colour untouched.</summary>
+    private static readonly SKColorFilter Opaque = SKColorFilter.CreateColorMatrix(
+    [
+        1, 0, 0, 0, 0,
+        0, 1, 0, 0, 0,
+        0, 0, 1, 0, 0,
+        0, 0, 0, 0, 1,
+    ])!;
+
     private static readonly Dictionary<string, EffectDefinition> ByKind = new()
     {
         ["grade.levels"] = new(
@@ -216,6 +252,139 @@ public static class EffectRegistry
             {
                 var sigma = (float)(Math.Max(0, use.At("radius", frame, 4)) / 2.0) * scale;
                 return sigma <= 0 ? inner : SKImageFilter.CreateBlur(sigma, sigma, inner);
+            }),
+
+        // ---- the detail shelf (Q160): built from the primitives Skia is
+        // fast at, not from the one that says what we mean. A general 3x3
+        // matrix convolution expresses all three directly and measured
+        // ~1270 ms per 960x540 compose — twenty times an 8px Gaussian —
+        // because Skia's CPU convolution has no fast path where blur,
+        // offset and arithmetic blend all do. Same trade as the layer
+        // stroke's morphology, and the same rule: the cheap construction
+        // that looks right is the correct one.
+
+        ["detail.sharpen"] = new(
+            "detail.sharpen", "Sharpen", "detail",
+            [
+                new EffectParamSpec("amount", "Amount", 60, 0, 300),
+                // Two is the floor, not a taste: Skia's raster blur is a
+                // no-op below sigma ~0.78 (measured), so a radius of 1.5 —
+                // the step this slider would otherwise reach — subtracts the
+                // picture from itself and hands back exactly what it was
+                // given. A slider that reaches settings which do nothing is
+                // a slider that lies. The threshold is an implementation
+                // detail of the raster backend rather than a promise, which
+                // is the other reason not to sit just above it.
+                new EffectParamSpec("radius", "Radius", 2, 2, 20, Increment: 0.5),
+            ],
+            // An unsharp mask reaches as far as the blur it subtracts.
+            Reach: (use, frame) => 1.5 * Math.Max(0, use.At("radius", frame, 2)),
+            Chain: (use, frame, scale, inner) =>
+            {
+                var amount = (float)(Math.Clamp(use.At("amount", frame, 60), 0, 300) / 100.0);
+                if (amount <= 0) return inner;
+                var sigma = SigmaOf(use, "radius", 2, frame, scale);
+                // The unsharp mask: the picture plus what a blur of it left
+                // behind. result = (1+a)*source - a*blur.
+                var mask = SKImageFilter.CreateArithmetic(
+                    0, 1 + amount, -amount, 0, enforcePMColor: true,
+                    background: SKImageFilter.CreateBlur(sigma, sigma, inner),
+                    foreground: inner);
+                return KeepingAlphaOf(inner, mask);
+            }),
+
+        ["detail.edges"] = new(
+            "detail.edges", "Find edges", "detail",
+            // The same floor as sharpen, for the same reason.
+            [new EffectParamSpec("radius", "Radius", 2, 2, 20, Increment: 0.5)],
+            Reach: (use, frame) => 1.5 * Math.Max(0, use.At("radius", frame, 2)),
+            Chain: (use, frame, scale, inner) =>
+            {
+                var sigma = SigmaOf(use, "radius", 2, frame, scale);
+                // Where a blur changed the picture is where the edges are;
+                // inverted so flats read white and lines read dark, which is
+                // the way the filter is drawn everywhere else.
+                var difference = SKImageFilter.CreateBlendMode(
+                    SKBlendMode.Difference,
+                    SKImageFilter.CreateBlur(sigma, sigma, inner), inner);
+                return KeepingAlphaOf(
+                    inner,
+                    SKImageFilter.CreateColorFilter(TableFilter(v => 255 - v), difference));
+            }),
+
+        // ---- the tone shelf: colour lookup tables, reach 0.
+
+        ["grade.invert"] = new(
+            "grade.invert", "Invert", "grade",
+            [],
+            Reach: (_, _) => 0,
+            Chain: (_, _, _, inner) => SKImageFilter.CreateColorFilter(
+                TableFilter(v => 255 - v), inner)),
+
+        ["grade.threshold"] = new(
+            "grade.threshold", "Threshold", "grade",
+            [new EffectParamSpec("level", "Level", 128, 0, 255)],
+            Reach: (_, _) => 0,
+            Chain: (use, frame, _, inner) =>
+            {
+                var level = use.At("level", frame, 128);
+                // Through luminance first, or the three channels threshold
+                // independently and a mid grey comes out primary-coloured.
+                return SKImageFilter.CreateColorFilter(
+                    SKColorFilter.CreateCompose(
+                        TableFilter(v => v >= level ? 255 : 0), Luminance()),
+                    inner);
+            }),
+
+        ["grade.posterize"] = new(
+            "grade.posterize", "Posterize", "grade",
+            [new EffectParamSpec("levels", "Levels", 6, 2, 32)],
+            Reach: (_, _) => 0,
+            Chain: (use, frame, _, inner) =>
+            {
+                var steps = Math.Clamp((int)Math.Round(use.At("levels", frame, 6)), 2, 32);
+                return SKImageFilter.CreateColorFilter(
+                    TableFilter(v =>
+                    {
+                        // Round to the nearest band and stretch the bands back
+                        // over the full range, so the darkest lands on 0 and
+                        // the lightest on 255 rather than short of both.
+                        var band = Math.Floor(v / 255.0 * steps);
+                        if (band > steps - 1) band = steps - 1;
+                        return band / (steps - 1) * 255;
+                    }),
+                    inner);
+            }),
+
+        ["grade.gradientMap"] = new(
+            "grade.gradientMap", "Gradient map", "grade",
+            [new EffectParamSpec("midpoint", "Midpoint", 50, 5, 95)],
+            Colors:
+            [
+                new EffectColorSpec("shadow", "Shadow", "#1a1633"),
+                new EffectColorSpec("highlight", "Highlight", "#ffd9a0"),
+            ],
+            Reach: (_, _) => 0,
+            Chain: (use, frame, _, inner) =>
+            {
+                var shadow = BrushEngine.ParseColor(use.ColorAt("shadow", "#1a1633"));
+                var high = BrushEngine.ParseColor(use.ColorAt("highlight", "#ffd9a0"));
+                var mid = Math.Clamp(use.At("midpoint", frame, 50), 5, 95) / 100.0;
+                // Tone to colour without touching a pixel by hand: flatten to
+                // luminance, then let three per-channel tables carry that one
+                // number to the ramp's red, green and blue (Q160).
+                var bias = Math.Log(0.5) / Math.Log(mid);
+                double Ramp(double v, byte from, byte to) =>
+                    from + (to - from) * Math.Pow(v / 255.0, bias);
+                return SKImageFilter.CreateColorFilter(
+                    SKColorFilter.CreateCompose(
+                        SKColorFilter.CreateTable(
+                            IdentityTable,
+                            Ramped(v => Ramp(v, shadow.Red, high.Red)),
+                            Ramped(v => Ramp(v, shadow.Green, high.Green)),
+                            Ramped(v => Ramp(v, shadow.Blue, high.Blue))),
+                        Luminance()),
+                    inner);
             }),
 
         // ---- the animation shelf (Q159): effects that vary by frame.
@@ -261,10 +430,16 @@ public static class EffectRegistry
                 // be more opaque than it is.
                 var alpha = (byte)Math.Round(
                     Math.Clamp(1 - depth * Noise01(use, frame, 1, 47u), 0, 1) * 255);
-                return SKImageFilter.CreateColorFilter(
-                    SKColorFilter.CreateBlendMode(
-                        SKColors.White.WithAlpha(alpha), SKBlendMode.DstIn),
-                    inner);
+                // A step whose noise lands near zero asks for full strength,
+                // and Skia answers an identity blend with *null* rather than
+                // a filter — which then throws when it is used. Roughly one
+                // frame in three hundred at the default depth, so the per-use
+                // random seed hid it: the crash arrived or did not depending
+                // on which id the use happened to be given.
+                if (alpha >= 255) return inner;
+                var dim = SKColorFilter.CreateBlendMode(
+                    SKColors.White.WithAlpha(alpha), SKBlendMode.DstIn);
+                return dim is null ? inner : SKImageFilter.CreateColorFilter(dim, inner);
             }),
 
         ["grade.grain"] = new(
@@ -662,6 +837,47 @@ public static class EffectRegistry
         return reach;
     }
 
+    // ---- convolution and tone vocabulary (Q160) ---------------------------
+
+    /// <summary>
+    /// The alpha table every colour table needs. SkiaSharp's
+    /// <c>CreateTable</c> rejects a null channel where the C API reads it as
+    /// "leave this one alone", so identity has to be spelled out — and these
+    /// filters must all leave alpha exactly as they found it.
+    /// </summary>
+    private static readonly byte[] IdentityTable = Ramped(v => v);
+
+    /// <summary>A 256-entry ramp from a function over 0..255.</summary>
+    private static byte[] Ramped(Func<double, double> f)
+    {
+        var table = new byte[256];
+        for (var i = 0; i < 256; i++)
+        {
+            table[i] = (byte)Math.Clamp(Math.Round(f(i)), 0, 255);
+        }
+        return table;
+    }
+
+    /// <summary>The same ramp on all three colour channels; alpha untouched.</summary>
+    private static SKColorFilter TableFilter(Func<double, double> f)
+    {
+        var ramp = Ramped(f);
+        return SKColorFilter.CreateTable(IdentityTable, ramp, ramp, ramp);
+    }
+
+    /// <summary>
+    /// Flatten a pixel to its luminance, keeping alpha. Rec.601 weights, the
+    /// ones the eye agrees with and the ones every other tone control in the
+    /// application already uses.
+    /// </summary>
+    private static SKColorFilter Luminance() => SKColorFilter.CreateColorMatrix(
+    [
+        0.299f, 0.587f, 0.114f, 0, 0,
+        0.299f, 0.587f, 0.114f, 0, 0,
+        0.299f, 0.587f, 0.114f, 0, 0,
+        0, 0, 0, 1, 0,
+    ]);
+
     // ---- time-seeded vocabulary (Q159) ------------------------------------
 
     /// <summary>
@@ -714,9 +930,13 @@ public static class EffectRegistry
     // ---- style-chain vocabulary -------------------------------------------
 
     /// <summary>Colourize a silhouette: the colour everywhere, scaled by its alpha.</summary>
-    private static SKImageFilter Tint(SKColor color, SKImageFilter? input) =>
-        SKImageFilter.CreateColorFilter(
-            SKColorFilter.CreateBlendMode(color, SKBlendMode.SrcIn), input);
+    private static SKImageFilter? Tint(SKColor color, SKImageFilter? input)
+    {
+        // Same trap as the flicker's dip: Skia hands back null for a blend it
+        // considers a no-op, and CreateColorFilter throws on null.
+        var tint = SKColorFilter.CreateBlendMode(color, SKBlendMode.SrcIn);
+        return tint is null ? input : SKImageFilter.CreateColorFilter(tint, input);
+    }
 
     /// <summary>Foreground drawn over background; null means the style group's source.</summary>
     private static SKImageFilter Over(SKImageFilter? foreground, SKImageFilter? background) =>
