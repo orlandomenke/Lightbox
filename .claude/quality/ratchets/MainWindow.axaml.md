@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4875
+budget: 4892
 
 ## Why it is here despite being XAML
 
@@ -218,3 +218,16 @@ leaves a number nobody can account for. So every reason above stays, and
   and row-template elements have nowhere else to live — the chip's *styles*
   went to `Controls.axaml` beside the mask chip's, and every handler is in
   `MainWindow.Layers.cs`.
+- **4,875 → 4,892** (2026-08-24, Q161): +17 for the line clipboard's three
+  entries on the **Select** menu — copy, cut and paste of the selected lines —
+  and the six-line comment saying why they are here and not beside the cel's
+  identical three words on Animation. They act on the *selection*, so they
+  belong on the menu that names it; the two sets share Ctrl+C/X/V, which is
+  exactly the ambiguity the comment exists to settle for the next reader.
+  Registration, which this budget's standing note says it must not refuse.
+  Measured after two economies rather than before them: the entries are
+  `Command` bindings rather than `Click` handlers, which costs nothing here and
+  removed nine lines from `MainWindow.Timeline.cs` — and it is what keeps them
+  visible to `MainMenuShapeTests`, which holds every Select entry to reaching a
+  command. The feature's own 350 lines are in `StrokeClipboard.cs` and
+  `MainViewModel.StrokeClipboard.cs`; these seventeen are the whole markup cost.

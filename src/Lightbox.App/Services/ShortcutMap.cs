@@ -347,9 +347,24 @@ public sealed class ShortcutMap
             new("timeline.nextFrame", "Next frame (scrub)", "Timeline", G(Key.Right), ShortcutContext.Panel, DockPanelId.Timeline),
             new("timeline.prevKey", "Flip to previous key", "Timeline", G(Key.D1)),
             new("timeline.nextKey", "Flip to next key", "Timeline", G(Key.D2)),
-            new("timeline.copyCel", "Copy cel", "Timeline", G(Key.C, KeyModifiers.Control)),
-            new("timeline.cutCel", "Cut cel", "Timeline", G(Key.X, KeyModifiers.Control)),
-            new("timeline.pasteCel", "Paste cel", "Timeline", G(Key.V, KeyModifiers.Control)),
+            // These three take the SELECTED LINES when any are selected and the
+            // cel when none are — one key for the thing an artist means, which
+            // is why the labels say both. The line-only forms are below, for
+            // anyone who wants a key that is never the cel.
+            new("timeline.copyCel", "Copy (selected lines, else the cel)", "Timeline", G(Key.C, KeyModifiers.Control)),
+            new("timeline.cutCel", "Cut (selected lines, else the cel)", "Timeline", G(Key.X, KeyModifiers.Control)),
+            new("timeline.pasteCel", "Paste (whichever was copied last)", "Timeline", G(Key.V, KeyModifiers.Control)),
+
+            // No default gestures: Ctrl+C/X/V above already reach these in the
+            // case that matters, and a second default for the same act would
+            // be a gesture nobody asked for. They are here because a command
+            // that is not in this map cannot be seen, searched or rebound —
+            // which is the failure the map exists for (CLAUDE.md's registry
+            // rule), and an artist who works mostly in lines may well want the
+            // unambiguous key.
+            new("edit.copyLines", "Copy selected lines (never the cel)", "Edit", null),
+            new("edit.cutLines", "Cut selected lines (never the cel)", "Edit", null),
+            new("edit.pasteLines", "Paste lines onto a new layer", "Edit", null),
 
             // Everything the board window does (Q87), in its own scope. Here
             // rather than wired straight to the window's key handler, because a

@@ -115,7 +115,10 @@ public class MainMenuShapeTests(ITestOutputHelper output) : BrushStateIsolated
             top);
 
         var items = TopLevel(window, "_Select").Items.OfType<MenuItem>().ToList();
-        Assert.Equal(7, items.Count);
+        // Ten since Q161: the seven marquee commands plus the line clipboard's
+        // copy, cut and paste, which act on the selection and so belong here
+        // rather than beside the cel's three on Animation.
+        Assert.Equal(10, items.Count);
         foreach (var item in items)
         {
             output.WriteLine($"{item.Header}: command={item.Command is not null}, enabled={item.IsEnabled}");
