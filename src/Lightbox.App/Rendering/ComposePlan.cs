@@ -58,6 +58,13 @@ internal enum ComposeRoute
 /// off its mark (<c>CursorAlignmentTests</c> measures how far).
 /// </param>
 /// <param name="ViewHeight">As <paramref name="ViewWidth"/>.</param>
+/// <param name="Origin">
+/// The document point the surface's (0,0) holds. Non-zero only when the ring
+/// composes a window onto the document rather than all of it (B291), and every
+/// document-to-surface mapping goes through
+/// <see cref="CameraTransform.DeviceBounds"/> so the clip and the copy-forward
+/// cannot disagree about it.
+/// </param>
 /// <param name="ImageCovers">
 /// Which document rectangle the finished image actually covers, or null for the
 /// whole document. A property of the image rather than of what the canvas asked
@@ -73,7 +80,8 @@ internal readonly record struct ComposePlan(
     SKRectI? CullRect,
     int ViewWidth,
     int ViewHeight,
-    SKRectI? ImageCovers)
+    SKRectI? ImageCovers,
+    SKPointI Origin = default)
 {
     /// <summary>
     /// Decide the route and the surface.
@@ -131,7 +139,10 @@ internal readonly record struct ComposePlan(
         //    76 ms on a 4K document. Since a small dirty region is already
         //    area-independent, culling can only ever lose there. It wins on the
         //    publishes that would repaint everything anyway, which is exactly the
-        //    frame change B29 is about.
+        //    frame change B29 is about. **This condition is about the culled
+        //    ROUTE, not about culling** — the ring gets a window of its own a few
+        //    lines down (B291), which is what stopped an incremental publish
+        //    paying for the whole document.
         var clamped = ClampToDocument(viewport, viewWidth, viewHeight);
         var culled = !tiled
             && cameraOutput is null
@@ -139,7 +150,34 @@ internal readonly record struct ComposePlan(
             && clamped is { } vp
             && (long)vp.Width * vp.Height < (long)viewWidth * viewHeight;
 
-        var (surfaceWidth, surfaceHeight) = culled && clamped is { } cull
+        // B291: the ring composes a WINDOW onto the document, not all of it.
+        //
+        // Culling above only ever applied to a whole-canvas publish, for the
+        // reason B121 measured: the culled route builds a fresh surface and has
+        // to fill it, so culling an incremental publish turned a dab-sized
+        // repaint into a viewport-sized one — 109x worse. That reasoning is
+        // sound and it is about the FRESH SURFACE, not about culling. The ring
+        // keeps its buffers between publishes and already repaints only what
+        // went stale, so it can be given a smaller surface and still honour a
+        // dirty region. Nothing about the 109x applies to it.
+        //
+        // What it buys, measured on a 2560x1440 document: an incremental dab
+        // publish cost 5.7-6.0 ms at every zoom while a whole-canvas publish of
+        // the same document cost 1.4-1.5 ms, because the second one was culled
+        // and the first was not. The interactive path was four times the cost of
+        // the path it exists to optimise.
+        //
+        // A camera is excluded for the same reason it is excluded above: it maps
+        // the viewport itself, and two things that both map the view disagree.
+        var ringWindow = !tiled
+            && !culled
+            && cameraOutput is null
+            && clamped is { } window
+            && (long)window.Width * window.Height < (long)viewWidth * viewHeight
+            ? window
+            : (SKRectI?)null;
+
+        var (surfaceWidth, surfaceHeight) = (culled ? clamped : ringWindow) is { } cull
             ? ((int)Math.Ceiling(cull.Width * renderScale), (int)Math.Ceiling(cull.Height * renderScale))
             : ((int)Math.Ceiling(viewWidth * renderScale), (int)Math.Ceiling(viewHeight * renderScale));
 
@@ -160,11 +198,14 @@ internal readonly record struct ComposePlan(
         {
             ComposeRoute.Tiled => viewport,
             ComposeRoute.ViewportCulled => clamped,
-            _ => null,
+            // A windowed ring covers exactly its window, and saying so is what
+            // lets the painter place it and SnapshotGeometry offset the patch.
+            _ => ringWindow,
         };
 
         return new ComposePlan(
-            route, info, culled ? clamped : null, viewWidth, viewHeight, covers);
+            route, info, culled ? clamped : null, viewWidth, viewHeight, covers,
+            ringWindow?.Location ?? default);
     }
 
     /// <summary>

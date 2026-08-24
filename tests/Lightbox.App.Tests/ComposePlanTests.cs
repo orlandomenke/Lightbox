@@ -59,17 +59,67 @@ public class ComposePlanTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The incremental surface must stay the whole document, not the viewport —
-    /// the ring patches a dirty region into a document-sized buffer, and a
-    /// viewport-sized one would place every dab in the wrong place.
+    /// The incremental surface is the viewport, and an origin is what places the
+    /// dabs in it (B291).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This test used to assert the opposite, and its reason was sound at the
+    /// time:</b> "a viewport-sized one would place every dab in the wrong place".
+    /// It would have — there was nothing to tell the compositor where the surface
+    /// sat in the document. `ComposePlan.Origin` is that thing, and every
+    /// document-to-surface mapping goes through
+    /// <see cref="CameraTransform.DeviceBounds"/> so the clip and the
+    /// copy-forward cannot disagree about it.
+    /// </para>
+    /// <para>
+    /// The claim the old assertion was protecting — that dabs land where they
+    /// belong — is now guarded where it can actually fail, on pixels:
+    /// <c>WindowedRingPixelTests</c>.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void TheRingRouteGetsAViewportSizedSurfaceAndAnOriginToPlaceIt()
+    {
+        var plan = Plan(SmallViewport, dirty: SKRectI.Create(410, 310, 8, 8));
+
+        Assert.Equal(ComposeRoute.Ring, plan.Route);
+        Assert.Equal(SmallViewport.Width, plan.Info.Width);
+        Assert.Equal(SmallViewport.Height, plan.Info.Height);
+        Assert.Equal(new SKPointI(SmallViewport.Left, SmallViewport.Top), plan.Origin);
+        // What the image covers has to say so too, or the painter puts it at the
+        // document's corner and SnapshotGeometry offsets the patch by nothing.
+        Assert.Equal(SmallViewport, plan.ImageCovers);
+    }
+
+    /// <summary>
+    /// A viewport that covers the whole document gets no window and no origin, so
+    /// that route stays exactly what it was.
     /// </summary>
     [Fact]
-    public void TheRingRouteGetsADocumentSizedSurface()
+    public void AViewportCoveringEverythingLeavesTheRingAlone()
     {
-        var plan = Plan(SmallViewport, dirty: SKRectI.Create(10, 10, 8, 8));
+        var plan = Plan(SKRectI.Create(0, 0, DocW, DocH), dirty: SKRectI.Create(10, 10, 8, 8));
 
+        Assert.Equal(ComposeRoute.Ring, plan.Route);
         Assert.Equal(DocW, plan.Info.Width);
         Assert.Equal(DocH, plan.Info.Height);
+        Assert.Equal(default, plan.Origin);
+        Assert.Null(plan.ImageCovers);
+    }
+
+    /// <summary>
+    /// A camera keeps the whole-document ring, for the reason the tiled route
+    /// does: it maps the viewport itself, and two things that both map the view
+    /// disagree.
+    /// </summary>
+    [Fact]
+    public void ACameraGetsNoRingWindow()
+    {
+        var plan = Plan(SmallViewport, dirty: SKRectI.Create(410, 310, 8, 8), camera: new SKSizeI(800, 450));
+
+        Assert.Equal(default, plan.Origin);
+        Assert.Null(plan.ImageCovers);
     }
 
     /// <summary>

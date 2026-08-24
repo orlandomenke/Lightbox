@@ -322,19 +322,21 @@ answered, and answering one does not soften the other:
 | Layer count | Do not recomposite unchanged layers | B165, not started — **mandatory** |
 | Layer count × memory | Held side composites instead of every cel resident | B198 — measured, carried by B29's candidate |
 | Pixels actually served | Tiles, and the compose-scale clamp | B144, B160 — built |
-| Pixels served *while painting* | A culled ring: viewport-sized *and* dirty-region-aware | B291 — measured, not started |
+| Pixels served *while painting* | A culled ring: viewport-sized *and* dirty-region-aware | B291 — **built** |
 
-**The fifth row is the one that gets worse as the artist works closer**, and it
-is worth stating beside the others because it inverts their intuition. Culling
-already prices a composite by what is on screen — and `ComposePlan.For` requires
-`dirty is null` to take that route, so a *stroke* publish never can. Painting
-therefore composes into a surface sized to the **document**, which does not shrink
-with zoom: measured on 2560×1440, a stroke at 8× zoom composes 3.7 M pixels where
-a frame change at the same zoom composes 14 k. The condition is not a mistake —
-B121 measured naive culling of an incremental publish at 109× *worse*, because the
-culled path builds a fresh surface and must fill all of it. So this is a third
-route rather than a relaxed condition, which is why it is a roadmap item and not
-a bug fix.
+**The fifth row was not what it was first filed as, and the correction is the
+useful part.** It was written up as painting getting worse the closer the artist
+works; measured, it was a **flat ~4× penalty** at every zoom — an incremental
+stroke publish cost 5.7–6.0 ms while a whole-canvas publish of the same document
+cost 1.4–1.5 ms, because the second was culled to the viewport and the first was
+not. The interactive path cost four times the path it exists to optimise.
+
+B121's condition turned out to be about the **fresh surface**, not about culling:
+the culled route builds a new surface every publish and must fill all of it,
+which is where the 109× came from. `ComposeRing` keeps its buffers and already
+repaints only what went stale, so it could take a smaller surface all along — it
+only lacked an origin. Giving it one took the stroke publish to 1.81 ms at 100%
+and **0.24 ms at 800%**, so the cost now falls with zoom instead of being flat.
 
 The layer axis is swept to 100 as of 2026-08-14, and it added a fourth row: past
 about 64 layers at 1080p a single frame's cels (~830 MB) exceed the 512 MB frame
