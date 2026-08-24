@@ -21,6 +21,25 @@ public class EffectRegistryTests(ITestOutputHelper output)
         return use;
     }
 
+    /// <summary>
+    /// <see cref="Use"/> with the id pinned, for a test that asserts on the
+    /// motion itself rather than on the fact that there is some.
+    /// </summary>
+    /// <remarks>
+    /// A per-use effect seeds from its use's id (Q159), and <c>Ids.NewId</c>
+    /// mixes the wall clock — so an <em>unsaved</em> use re-rolls its own motion
+    /// on every run. A saved document never does: the id is written into the
+    /// file once and never changes, which is what makes the seed "stable
+    /// forever" as Q159 says. Pinning it here buys the test the same stability
+    /// a real document already has (B306).
+    /// </remarks>
+    private static EffectUse SeededUse(string id, string kind, params (string Key, double Value)[] values)
+    {
+        var use = Use(kind, values);
+        use.Id = id;
+        return use;
+    }
+
     private static EffectStack Stack(params EffectUse[] uses) => new() { Uses = [.. uses] };
 
     /// <summary>
@@ -646,23 +665,64 @@ public class EffectRegistryTests(ITestOutputHelper output)
         return Ink(bmp);
     }
 
+    /// <summary>
+    /// A wiggle moves the mark, holds it for the length of its hold, and moves
+    /// it rather than smearing it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The seed is pinned and the ink is compared as a fraction, and both
+    /// halves are B306.</b> The test used to build an unsaved <c>EffectUse</c>,
+    /// whose id — and so whose wiggle — is drawn fresh from the wall clock every
+    /// run, and then assert that the mark's total ink came back <em>equal to one
+    /// decimal place</em> across a sub-pixel move.
+    /// </para>
+    /// <para>
+    /// Translating a 4×4 rect by a fractional offset resamples it, and the total
+    /// alpha lands a unit either side depending where the offset falls: 4084
+    /// against 4085 out of 4084, which is 0.02%. Most offsets survived that
+    /// assertion and about one in twenty did not — measured by applying the old
+    /// assertion to 300 distinct ids, <b>15 failed, 5.0%</b> — so it turned main
+    /// red on a commit that had not touched effects at all.
+    /// </para>
+    /// <para>
+    /// Pinning the id fixes <em>which</em> wiggle is being asked about, which is
+    /// what a saved document has anyway. Comparing the ink as a fraction of
+    /// itself fixes what is being asked: "a move, not a smear" is a statement
+    /// about ink being conserved, not about a resampler rounding the same way
+    /// twice, and it stays true if the pinned seed is ever changed.
+    /// </para>
+    /// </remarks>
     [Fact]
     public void AWiggleMovesTheMarkAndStaysPutForTheLengthOfItsHold()
     {
         // Hold 2 — the boil an animator working on 2s asks for: frames 0 and
         // 1 are the same drawing's position, frame 2 is a new one.
-        var stack = Stack(Use("anim.wiggle", ("amount", 6.0), ("hold", 2.0)));
+        var stack = Stack(SeededUse("fx_wiggle_hold2", "anim.wiggle", ("amount", 6.0), ("hold", 2.0)));
         var f0 = WiggledAt(stack, 0);
         var f1 = WiggledAt(stack, 1);
         var f2 = WiggledAt(stack, 2);
-        output.WriteLine($"f0 ({f0.X:F2},{f0.Y:F2})  f1 ({f1.X:F2},{f1.Y:F2})  f2 ({f2.X:F2},{f2.Y:F2})");
+        output.WriteLine(
+            $"f0 ({f0.X:F2},{f0.Y:F2})  f1 ({f1.X:F2},{f1.Y:F2})  f2 ({f2.X:F2},{f2.Y:F2})"
+            + $"   ink {f0.Mass:F0} → {f2.Mass:F0}");
 
         Assert.Equal(f0.X, f1.X, 3);
         Assert.Equal(f0.Y, f1.Y, 3);
         Assert.True(Math.Abs(f2.X - f0.X) + Math.Abs(f2.Y - f0.Y) > 0.5,
             $"the next hold must land somewhere else, got ({f2.X:F2},{f2.Y:F2})");
-        // And it is a move, not a smear: the mark keeps its ink.
-        Assert.Equal(f0.Mass, f2.Mass, 1);
+
+        // And it is a move, not a smear: the mark keeps its ink. Half a percent
+        // is chosen off the measurement rather than by eye — over 400 seeds the
+        // ink moves by a median of 0 units, a 95th percentile of 1, and a worst
+        // case of 5 in 4084 (0.12%), which is what resampling a rect onto a
+        // fractional offset is entitled to. Half a percent clears that worst
+        // case four times over and still catches the failure worth catching:
+        // a mark that loses a real share of itself, off the canvas edge or into
+        // a filter that eats alpha.
+        Assert.True(
+            Math.Abs(f2.Mass - f0.Mass) / f0.Mass < 0.005,
+            $"the mark lost ink moving: {f0.Mass:F0} → {f2.Mass:F0}, "
+            + $"{(f2.Mass - f0.Mass) / f0.Mass:P3}");
 
         // Same frame, same answer — twice, and after asking for another.
         Assert.Equal(f0.X, WiggledAt(stack, 0).X, 6);
