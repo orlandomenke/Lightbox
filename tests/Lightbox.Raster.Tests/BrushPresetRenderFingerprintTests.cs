@@ -92,10 +92,16 @@ public class BrushPresetRenderFingerprintTests(ITestOutputHelper output)
     /// the guard that was missing.
     /// </remarks>
     [Theory]
-    [InlineData("plain", 0, 0, "7E05EB3E711C8DC3")]
-    [InlineData("granulation", 0.35, 0, "3F2E984447E9BA34")]
-    [InlineData("wet edge", 0, 0.7, "9F85DAE813461D03")]
-    [InlineData("both", 0.35, 0.7, "5FED81B48C736616")]
+    // Re-recorded 2026-08-24: every one of these shapes is hardness 0.35, so all
+    // four are now held down to the brush's own footprint (Q157,
+    // BrushEngine.NeedsFootprintCap). The soft edge each lays down went from
+    // about half the width the brush describes to exactly it, which changes
+    // every pixel in the falloff. Said here rather than discovered later, which
+    // is what this file asks for.
+    [InlineData("plain", 0, 0, "A7D02739AC93C9B0")]
+    [InlineData("granulation", 0.35, 0, "818AF09B9711168E")]
+    [InlineData("wet edge", 0, 0.7, "DA06F1BEDB043365")]
+    [InlineData("both", 0.35, 0.7, "227155372346C095")]
     public void AShapeStillRendersWhatItDidBefore(
         string name, double granulation, double wetEdge, string expected)
     {

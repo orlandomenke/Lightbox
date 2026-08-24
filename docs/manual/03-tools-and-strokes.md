@@ -401,6 +401,29 @@ squashed tip, or an imported bitmap tip**, whose stamps genuinely differ from on
 another. If you are inking and want the crispest possible line, a plain round tip
 at full hardness is the one to reach for.
 
+### Why a soft brush's edge is as soft as you set it
+
+Hardness sets how far a brush fades out. Because a stroke lays its stamps down
+much closer together than they are wide, that fade used to build on itself: the
+mark came out with roughly **half** the soft edge the brush described, and the
+softer you set it the more you lost. Hardness 35% asked for an eight-pixel fade
+and gave you four.
+
+A mark is now held down to what the brush's own shape allows, so a stroke's edge
+is exactly as soft as one stamp of that brush — which is the thing you were
+setting all along. If your old paintings look a little softer than you remember,
+that is this.
+
+**Building up still works.** Flow is how much paint each stamp puts down, and
+going over your own stroke still darkens it. What the ceiling stops is a mark
+becoming *denser than the brush's shape allows*, so an airbrush worked back and
+forth now settles into a soft-edged mark instead of hardening into a blob. Low
+flow behaves exactly as it did.
+
+**Simulated media are left alone** — with watercolour, gouache, oil or ink the
+edge you see is made by the paint pooling and flowing, not by the brush's fade,
+and holding the stamps back would starve the flow.
+
 This is not a setting and there is nothing to switch on. It also applies to art
 you drew before — reopen an old drawing and its hard-edged lines are cleaner than
 they were.
@@ -435,6 +458,14 @@ than after, an oil brush looked fully loaded until you released and then faded t
 nothing, and a textured tip rearranged itself on pen lift. If you see anything
 like that again, it is a bug and worth reporting — it is not the medium being
 unpredictable.
+
+**A soft brush is the other exception, and it is new.** Its ceiling is worked out
+from the whole mark rather than from the stamps just laid down, so it runs with
+the wet-media passes below rather than under the pen. While you draw you see the
+mark as it looked before this change — very slightly harder at the edge — and it
+settles to the softer, correct one a moment behind the tip. Nothing looks worse
+than it used to while drawing; it is the *finished* mark that is now the one that
+differs, and only until the pass lands.
 
 **That now includes smudge, blender and blur.** They were the last to hold out:
 because they rework pixels already on the layer rather than adding new ones, each

@@ -570,9 +570,28 @@ public static class BrushEngine
 
         // Everything below works in DEVICE pixels on a scratch whose origin is
         // dev.Left/dev.Top; the passes that need document coordinates say so.
+        // The footprint the dabs are allowed to reach, accumulated as a maximum
+        // beside them. Opaque, because that is what makes Skia's Lighten a real
+        // max — see StampFootprint.
+        using var footprint = NeedsFootprintCap(brush)
+            ? SKSurface.Create(new SKImageInfo(dev.Width, dev.Height, SKColorType.Rgba8888, SKAlphaType.Opaque))
+            : null;
+        footprint?.Canvas.Clear(SKColors.Black);
+
         InDocumentSpace(canvas, dev, outputScale, origin, () =>
         {
-            StampDabs(canvas, stroke);
+            if (footprint is null)
+            {
+                StampDabs(canvas, stroke);
+            }
+            else
+            {
+                // The footprint has to be laid down in the same space as the
+                // dabs, so it takes the same transform rather than a rebuilt one.
+                InDocumentSpace(footprint.Canvas, dev, outputScale, origin, () =>
+                    StampDabs(canvas, stroke, footprint.Canvas));
+                CapToFootprint(scratch, footprint, local);
+            }
 
             // The medium replaces the flat texture effects: wet edge and
             // granulation are the cheap stand-ins for what the simulation
@@ -701,6 +720,25 @@ public static class BrushEngine
             using var view = pixels is null ? null : SKImage.FromPixels(pixels);
             if (view is null) return null;
             canvas.DrawImage(view, 0, 0);
+        }
+
+        // The footprint ceiling, before anything else touches the pixels —
+        // StampPaint applies it in the same place, which is what keeps the live
+        // mark and the commit the same. Rebuilt from the stroke rather than
+        // carried alongside the scratch: this pass is already stroke-global by
+        // design, and a second live buffer accumulating a MAXIMUM could not be
+        // rolled back when the tail moves the way the dab scratch is.
+        if (NeedsFootprintCap(brush))
+        {
+            using var footprint = SKSurface.Create(
+                new SKImageInfo(rect.Width, rect.Height, SKColorType.Rgba8888, SKAlphaType.Opaque));
+            if (footprint is not null)
+            {
+                footprint.Canvas.Clear(SKColors.Black);
+                InDocumentSpace(footprint.Canvas, surface, 1.0, origin, () =>
+                    StampFootprintPass(footprint.Canvas, stroke));
+                CapToFootprint(scratch, footprint, local);
+            }
         }
 
         // Identical to StampPaint's post-dab half, at output scale 1 — the
@@ -1107,6 +1145,134 @@ public static class BrushEngine
         && Math.Clamp(brush.Medium.PaintLoad, 0, 1) >= 1;
 
     /// <summary>
+    /// Whether this brush's mark has to be held down to its own footprint —
+    /// the soft-edged counterpart of <see cref="DrawsAsOneSilhouette"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A soft brush's hardness control lies by about a factor of two, for the
+    /// same reason a hard one's edge staggered.</b> Overlapping dabs composite
+    /// <c>SrcOver</c>, so the falloff saturates from the inside out and the soft
+    /// band is squeezed into the outermost pixels. Measured on a size-30 stroke
+    /// at flow 1, taking the edge as the distance over which alpha falls from
+    /// 0.9 to 0.1, against the same brush's <em>single dab</em> — which is what
+    /// the artist actually set:
+    /// </para>
+    /// <list type="bullet">
+    /// <item>hardness 0.10 — one dab 11 px, stroke <b>6 px</b></item>
+    /// <item>hardness 0.35 — one dab 8 px, stroke <b>4 px</b></item>
+    /// <item>hardness 0.60 — one dab 4 px, stroke 3 px</item>
+    /// <item>hardness 0.90 — one dab 1 px, stroke 1 px</item>
+    /// </list>
+    /// <para>
+    /// The softest settings lose the most, which is the wrong way round: the
+    /// control does least where it is asked for most.
+    /// </para>
+    /// <para>
+    /// <b>The fix is a ceiling, not a different accumulation (Q157).</b> Paint
+    /// still builds up dab over dab — that is what flow means, and an airbrush
+    /// worked back and forth must still darken — but no pixel may end up more
+    /// opaque than the brush's own footprint allows at that point. At flow 1 the
+    /// ceiling binds everywhere off-centre and the mark recovers the dab's exact
+    /// falloff; at flow 0.1 it does not bind at all until the artist has built
+    /// up that far, so an airbrush is untouched until it converges on a mark
+    /// carrying the brush's own soft profile — which is where it should
+    /// converge, rather than on a hard-edged blob.
+    /// </para>
+    /// <para>
+    /// Excluded: a <b>bitmap tip</b>, whose footprint is the tip's own alpha and
+    /// wants the same treatment by a different route; and anything already
+    /// taking <see cref="DrawsAsOneSilhouette"/>, where coverage is computed once
+    /// and there is nothing left to cap. Antialiasing off is left alone for the
+    /// reason it is left alone there.
+    /// </para>
+    /// <para>
+    /// <b>A simulated medium is excluded, and that one is not tidiness — it was
+    /// measured.</b> Capping the dabs takes density out of the soft fringe, and
+    /// the fringe is exactly the paint the fluid solver needs above its
+    /// capillary entry pressure: a fully wet wash's spread fell from comfortably
+    /// past B27's 1.4x threshold to 1.40x on the nose, which is that whole fix
+    /// being quietly undone. It is also the case where hardness is <em>not</em>
+    /// the control being misrepresented — under a medium the edge an artist sees
+    /// comes from the fluid rim, and the dab falloff is one input to a
+    /// simulation rather than the shape of the mark.
+    /// </para>
+    /// </remarks>
+    public static bool NeedsFootprintCap(BrushSettings brush) =>
+        brush.AntiAlias
+        && brush.TipId is null
+        && brush.Medium.Kind == MediumKind.None
+        && Math.Clamp(brush.Hardness, 0, 1) < 0.999
+        && !DrawsAsOneSilhouette(brush);
+
+    /// <summary>
+    /// Hold every pixel of a stamped mark down to the footprint recorded beside
+    /// it: <c>alpha = min(alpha, footprint)</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A span pass over <c>PeekPixels</c>, for the reason the smudge loop
+    /// gives:</b> <c>GetPixel</c>/<c>SetPixel</c> are a P/Invoke each and cost
+    /// seconds on a 4K stroke. An SkSL runtime effect was not considered for
+    /// long — <c>EffectRegistry</c> already measured Skia's CPU interpreter at
+    /// ~300 ms per half-megapixel, three hundred times a native pass.
+    /// </para>
+    /// <para>
+    /// <b>The scratch is premultiplied, so the colour channels scale with the
+    /// alpha.</b> Clamping alpha alone would leave a premultiplied colour above
+    /// its own alpha, which is not a colour — the mark would come out wrong in
+    /// hue exactly where the cap bit. Scaling all four by the same ratio keeps
+    /// the unpremultiplied colour whatever the dab chose, which matters because
+    /// colour jitter means that is not one value per stroke.
+    /// </para>
+    /// </remarks>
+    internal static void CapToFootprint(SKSurface scratch, SKSurface footprint, SKImageInfo local)
+    {
+        scratch.Canvas.Flush();
+        footprint.Canvas.Flush();
+
+        using var markPix = scratch.PeekPixels();
+        using var capPix = footprint.PeekPixels();
+        if (markPix is null || capPix is null) return;
+
+        // Both surfaces are made together by every caller, so this never fires —
+        // and a span loop is the wrong place to find that out. A footprint one
+        // row short would read off the end of its buffer rather than fail.
+        if (capPix.Width < local.Width || capPix.Height < local.Height
+            || markPix.Width < local.Width || markPix.Height < local.Height)
+        {
+            return;
+        }
+
+        var mark = markPix.GetPixelSpan<byte>();
+        var cap = capPix.GetPixelSpan<byte>();
+        int markRow = markPix.RowBytes, capRow = capPix.RowBytes;
+
+        for (var y = 0; y < local.Height; y++)
+        {
+            var mRow = y * markRow;
+            var cRow = y * capRow;
+            for (var x = 0; x < local.Width; x++)
+            {
+                var mi = mRow + x * 4;
+                var alpha = mark[mi + 3];
+                if (alpha == 0) continue;
+
+                // The footprint's red channel is the running maximum; see
+                // StampFootprint for why the shape lives in a colour channel.
+                var ceiling = cap[cRow + x * 4];
+                if (alpha <= ceiling) continue;
+
+                var scale = ceiling / (float)alpha;
+                mark[mi] = (byte)(mark[mi] * scale);
+                mark[mi + 1] = (byte)(mark[mi + 1] * scale);
+                mark[mi + 2] = (byte)(mark[mi + 2] * scale);
+                mark[mi + 3] = ceiling;
+            }
+        }
+    }
+
+    /// <summary>
     /// The whole mark as one path, so Skia computes coverage once for the
     /// union instead of once per dab. See <see cref="DrawsAsOneSilhouette"/>
     /// for why, and for what disqualifies a brush from taking this route.
@@ -1395,7 +1561,8 @@ public static class BrushEngine
     /// </para>
     /// </remarks>
     public static void StampDabRange(
-        SKCanvas canvas, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to)
+        SKCanvas canvas, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to,
+        SKCanvas? footprint = null, bool footprintOnly = false)
     {
         if (DrawsAsOneSilhouette(stroke.Brush))
         {
@@ -1411,12 +1578,29 @@ public static class BrushEngine
         for (var i = Math.Max(0, from); i < Math.Min(to, dabs.Count); i++)
         {
             var dab = dabs[i];
-            StampDab(canvas, dab.Pos, dab.Pressure, brush, color, tip, dab.Heading, tipImage, dab.Load, dab.Seed);
+            StampDab(
+                canvas, dab.Pos, dab.Pressure, brush, color, tip, dab.Heading, tipImage, dab.Load,
+                dab.Seed, footprint, footprintOnly);
         }
     }
 
-    private static void StampDabs(SKCanvas canvas, Stroke stroke) =>
-        StampDabRange(canvas, stroke, WalkDabs(stroke), 0, int.MaxValue);
+    private static void StampDabs(
+        SKCanvas canvas, Stroke stroke, SKCanvas? footprint = null, bool footprintOnly = false) =>
+        StampDabRange(canvas, stroke, WalkDabs(stroke), 0, int.MaxValue, footprint, footprintOnly);
+
+    /// <summary>
+    /// Lay down only the footprint, for a caller that already holds the dabs —
+    /// the live post-process, which is handed the accumulated scratch rather
+    /// than re-stamping it (B189's whole point).
+    /// </summary>
+    /// <remarks>
+    /// The same walk and the same geometry as a full stamp, with the colour
+    /// draw skipped. Deliberately not a second implementation: the footprint has
+    /// to land exactly where the dab did, and the dynamics chain that decides
+    /// where that is mutates its own hash seed as it goes.
+    /// </remarks>
+    private static void StampFootprintPass(SKCanvas footprint, Stroke stroke) =>
+        StampDabs(footprint, stroke, footprint, footprintOnly: true);
 
 
     /// <summary>Everything a dab can reach beyond its center: radius, scatter offset, soft edge.</summary>
@@ -1667,7 +1851,26 @@ public static class BrushEngine
         var canvas = scratch.Canvas;
         canvas.Clear(SKColors.Transparent);
         canvas.Translate(-rect.Left, -rect.Top);
-        StampDabs(canvas, stroke);
+        if (NeedsFootprintCap(brush))
+        {
+            using var footprint = SKSurface.Create(
+                new SKImageInfo(rect.Width, rect.Height, SKColorType.Rgba8888, SKAlphaType.Opaque));
+            if (footprint is not null)
+            {
+                footprint.Canvas.Clear(SKColors.Black);
+                footprint.Canvas.Translate(-rect.Left, -rect.Top);
+                StampDabs(canvas, stroke, footprint.Canvas);
+                CapToFootprint(scratch, footprint, boundsInfo);
+            }
+            else
+            {
+                StampDabs(canvas, stroke);
+            }
+        }
+        else
+        {
+            StampDabs(canvas, stroke);
+        }
         ApplyAlphaLock(canvas, stroke, targetPixels, surface);
 
         using var snapshot = scratch.Snapshot();
@@ -1698,7 +1901,8 @@ public static class BrushEngine
     private static void StampDab(
         SKCanvas canvas, SKPoint pos, double pressure, BrushSettings brush, SKColor color,
         SKBitmap? tip, double directionDeg = double.NaN, SKImage? tipImage = null,
-        double load = 1, SKPoint? seed = null)
+        double load = 1, SKPoint? seed = null, SKCanvas? footprint = null,
+        bool footprintOnly = false)
     {
         var radius = (float)(RadiusAt(brush, pressure));
         if (radius <= 0) return;
@@ -1828,14 +2032,66 @@ public static class BrushEngine
             canvas.Translate(pos.X, pos.Y);
             canvas.RotateDegrees((float)rotation);
             canvas.Scale(1f, (float)roundness);
-            SetRoundPaint(round, SKPoint.Empty, radius, hardness, dabColor);
-            canvas.DrawCircle(SKPoint.Empty, radius, round);
+            if (!footprintOnly)
+            {
+                SetRoundPaint(round, SKPoint.Empty, radius, hardness, dabColor);
+                canvas.DrawCircle(SKPoint.Empty, radius, round);
+            }
             canvas.Restore();
+            if (footprint is not null)
+            {
+                footprint.Save();
+                footprint.Translate(pos.X, pos.Y);
+                footprint.RotateDegrees((float)rotation);
+                footprint.Scale(1f, (float)roundness);
+                StampFootprint(footprint, SKPoint.Empty, radius, hardness, brush.AntiAlias);
+                footprint.Restore();
+            }
             return;
         }
 
-        SetRoundPaint(round, pos, radius, hardness, dabColor);
-        canvas.DrawCircle(pos, radius, round);
+        if (!footprintOnly)
+        {
+            SetRoundPaint(round, pos, radius, hardness, dabColor);
+            canvas.DrawCircle(pos, radius, round);
+        }
+        if (footprint is not null) StampFootprint(footprint, pos, radius, hardness, brush.AntiAlias);
+    }
+
+    /// <summary>
+    /// Record one dab's <em>shape</em> — its footprint, ignoring how much paint
+    /// it carries — into the running maximum <see cref="CapToFootprint"/> reads.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The shape goes in a colour channel, not in alpha, and that is the
+    /// whole trick.</b> The footprint has to accumulate as a <em>maximum</em>,
+    /// and Skia has no blend mode that maxes alpha: every separable mode still
+    /// composites alpha the Porter-Duff way, so <c>Lighten</c> on an alpha
+    /// gradient gives <c>1-(1-a)(1-b)</c> — the very saturation this exists to
+    /// undo. On an <b>opaque</b> surface both alphas are 1, and then
+    /// <c>Lighten</c> is exactly <c>max</c> per colour channel. So the falloff
+    /// is drawn as opaque white fading to opaque black, and the red channel
+    /// carries the running maximum.
+    /// </para>
+    /// <para>
+    /// The gradient is built at the same centre and radius as the dab itself and
+    /// under the same canvas transform, so a squashed or rotated dab records the
+    /// squashed, rotated footprint. Same geometry, same call — there is no
+    /// second copy of the dynamics chain to drift.
+    /// </para>
+    /// </remarks>
+    private static void StampFootprint(
+        SKCanvas footprint, SKPoint centre, float radius, float hardness, bool antiAlias)
+    {
+        using var paint = new SKPaint
+        {
+            IsAntialias = antiAlias,
+            BlendMode = SKBlendMode.Lighten,
+            Shader = SKShader.CreateRadialGradient(
+                centre, radius, [SKColors.White, SKColors.Black], [hardness, 1f], SKShaderTileMode.Clamp),
+        };
+        footprint.DrawCircle(centre, radius, paint);
     }
 
     private static void SetRoundPaint(SKPaint paint, SKPoint centre, float radius, float hardness, SKColor color)
