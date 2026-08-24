@@ -98,10 +98,17 @@ public class BrushPresetRenderFingerprintTests(ITestOutputHelper output)
     // about half the width the brush describes to exactly it, which changes
     // every pixel in the falloff. Said here rather than discovered later, which
     // is what this file asks for.
-    [InlineData("plain", 0, 0, "A7D02739AC93C9B0")]
-    [InlineData("granulation", 0.35, 0, "818AF09B9711168E")]
-    [InlineData("wet edge", 0, 0.7, "DA06F1BEDB043365")]
-    [InlineData("both", 0.35, 0.7, "227155372346C095")]
+    // Re-recorded again 2026-08-24, and all four moved together, which is the
+    // right answer rather than a worrying one: the shape here is spacing 0.1
+    // against a 0.09 target, so the walk now lays two dabs per interval where it
+    // laid one (B307, BrushEngine.SubdividesForFidelity). That reaches the
+    // coverage every shape is built on, so a change confined to the texture
+    // passes — moving "granulation" and "both" but not "plain" — would have been
+    // the surprising outcome here, not this one.
+    [InlineData("plain", 0, 0, "60090100627C28B0")]
+    [InlineData("granulation", 0.35, 0, "C150BEB8AA461DCE")]
+    [InlineData("wet edge", 0, 0.7, "AA1D38B0188EAE38")]
+    [InlineData("both", 0.35, 0.7, "97DF45DE8CC8304C")]
     public void AShapeStillRendersWhatItDidBefore(
         string name, double granulation, double wetEdge, string expected)
     {

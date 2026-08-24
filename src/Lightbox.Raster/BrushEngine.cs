@@ -822,6 +822,15 @@ public static class BrushEngine
         /// meaning what they say.
         /// </summary>
         public SKPoint? Seed { get; init; }
+
+        /// <summary>
+        /// How many dabs the walk split this dab's spacing interval into, so
+        /// <see cref="StampDab"/> can thin it to match — see
+        /// <see cref="SubdividesForFidelity"/>. Zero and one both mean one dab
+        /// per interval: a <c>default</c> struct has to mean "not subdivided",
+        /// and every construction site that predates subdivision leaves it so.
+        /// </summary>
+        public int Fidelity { get; init; }
     }
 
     /// <summary>Every dab of a stroke, in order.</summary>
@@ -858,7 +867,7 @@ public static class BrushEngine
         // paint actually took after spacing and smoothing have had their say.
         double travelled = 0;
 
-        foreach (var (pos, pressure) in DabPositions(stroke, densify))
+        foreach (var (pos, pressure, fidelity) in SampledDabPositions(stroke, densify))
         {
             if (previous is { } from)
             {
@@ -869,7 +878,7 @@ public static class BrushEngine
                 // zero-length step would snap the tip to zero degrees.
                 if (brush.AngleFollowsDirection && step > 0.01) heading = Math.Atan2(dy, dx) * 180 / Math.PI;
             }
-            dabs.Add(new Dab(pos, pressure, heading, LoadAt(travelled, brush)));
+            dabs.Add(new Dab(pos, pressure, heading, LoadAt(travelled, brush)) { Fidelity = fidelity });
             previous = pos;
         }
         return dabs;
@@ -906,7 +915,7 @@ public static class BrushEngine
         var heading = double.NaN;
         double travelled = 0;
 
-        foreach (var (seed, pos, pressure) in PosedDabPositions(rest, stroke.Points, brush))
+        foreach (var (seed, pos, pressure, fidelity) in PosedDabPositions(rest, stroke.Points, brush))
         {
             if (previous is { } from)
             {
@@ -915,7 +924,11 @@ public static class BrushEngine
                 travelled += step;
                 if (brush.AngleFollowsDirection && step > 0.01) heading = Math.Atan2(dy, dx) * 180 / Math.PI;
             }
-            dabs.Add(new Dab(pos, pressure, heading, LoadAt(travelled, brush)) { Seed = seed });
+            dabs.Add(new Dab(pos, pressure, heading, LoadAt(travelled, brush))
+            {
+                Seed = seed,
+                Fidelity = fidelity,
+            });
             previous = pos;
         }
         return dabs;
@@ -926,19 +939,17 @@ public static class BrushEngine
     /// dab's seed (on the rest path) and its stamped position (the same
     /// parametric spot on the posed path). The two lists correspond 1:1.
     /// </summary>
-    private static IEnumerable<(SKPoint Seed, SKPoint Pos, double Pressure)> PosedDabPositions(
+    private static IEnumerable<(SKPoint Seed, SKPoint Pos, double Pressure, int Fidelity)> PosedDabPositions(
         IReadOnlyList<StrokePoint> rest, IReadOnlyList<StrokePoint> posed, BrushSettings brush)
     {
         static SKPoint At(StrokePoint p) => new((float)p.X, (float)p.Y);
 
+        var subdivides = SubdividesForFidelity(brush);
         var first = rest[0];
         var firstPressure = Math.Max(first.Pressure, MinPressure);
-        yield return (At(first), At(posed[0]), firstPressure);
+        var (step, fidelity) = StepFor(brush, firstPressure, subdivides);
+        yield return (At(first), At(posed[0]), firstPressure, fidelity);
 
-        double StepAt(double pressure) =>
-            Math.Max(RadiusAt(brush, pressure) * 2 * brush.Spacing, MinStepPx);
-
-        var step = StepAt(firstPressure);
         double acc = 0;
         var prev = first;
         var prevPosed = posed[0];
@@ -958,12 +969,12 @@ public static class BrushEngine
                 // the very same doubles and renders the very same pixels.
                 var npPosed = GeometryOps.LerpPoint(prevPosed, curPosed, t);
                 var pressure = Math.Max(np.Pressure, MinPressure);
-                yield return (At(np), At(npPosed), pressure);
                 d -= step - acc;
                 acc = 0;
                 prev = np;
                 prevPosed = npPosed;
-                step = StepAt(pressure);
+                (step, fidelity) = StepFor(brush, pressure, subdivides);
+                yield return (At(np), At(npPosed), pressure, fidelity);
             }
             acc += d;
             prev = cur;
@@ -1143,6 +1154,124 @@ public static class BrushEngine
         && brush.SaturationJitter <= 0
         && brush.BrightnessJitter <= 0
         && Math.Clamp(brush.Medium.PaintLoad, 0, 1) >= 1;
+
+    /// <summary>
+    /// The widest spacing at which a stroke is still meant to read as a solid
+    /// line rather than a row of marks, as a fraction of dab diameter.
+    /// </summary>
+    /// <remarks>
+    /// Above this the artist is asking for separated dabs — a dotted trail, a
+    /// stamped texture — and <see cref="SubdividesForFidelity"/> leaves the
+    /// walk alone so they get them. 0.25 is Photoshop's default spacing, so
+    /// everything up to what an artist would call ordinary is covered.
+    /// </remarks>
+    private const double SmoothSpacing = 0.25;
+
+    /// <summary>
+    /// The coarsest step that still renders as a line, as a fraction of dab
+    /// diameter — the target the walk subdivides down to, and equally the
+    /// point below which it does nothing at all.
+    /// </summary>
+    /// <remarks>
+    /// Measured on straight strokes over hardness 0.2–0.9 at flow 1, 0.5 and
+    /// 0.3, as the peak-to-peak alpha wobble along the mark, which is what
+    /// reads as stepping: spacing 0.25 → 81/255; 0.20 → 51/255; 0.15 → 28/255;
+    /// 0.10 → 13/255; <b>0.09 → ≤9/255</b>; 0.05 → 4/255. 0.09 is where it
+    /// stops being visible, and it is deliberately not lower: every shipped
+    /// preset already sits at or under it, so they keep the walk they had and
+    /// pay nothing. Halving it again would double every one of their dab counts
+    /// to buy 5/255 nobody can see.
+    /// </remarks>
+    private const double FidelityStep = 0.09;
+
+    /// <summary>
+    /// The most sub-dabs one spacing interval may become.
+    /// </summary>
+    /// <remarks>
+    /// Only a nearly-hard dab asks for more than three, because its soft band
+    /// is what sets the target below — and at hardness 0.999 that band is gone
+    /// and <see cref="DrawsAsOneSilhouette"/> has taken the stroke anyway. The
+    /// cap is what keeps the sliver between "nearly hard" and "hard" from
+    /// asking for an unbounded walk, which invariant 6 does not allow.
+    /// </remarks>
+    private const int MaxFidelity = 8;
+
+    /// <summary>
+    /// Whether the walk may lay extra dabs inside one spacing interval to
+    /// resolve the dab's own falloff.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Spacing sets the texture; it was also setting the fidelity, and that
+    /// is the bug.</b> A dab's soft band is <c>(1-hardness)·radius</c> wide, and
+    /// the walk stepped <c>Spacing·diameter</c> regardless — so at hardness 0.8
+    /// and spacing 0.15 the step is 18 px across a 12 px band, sampling a
+    /// feature at less than one sample per feature. The mark comes out
+    /// corrugated at exactly the dab pitch: 15/255 peak-to-peak on a straight
+    /// stroke, 2–3× that round a bend, which is what "a line should be a line"
+    /// was reported against. Stepping finer and thinning each dab to match
+    /// converges on the mark the brush would leave if it were swept
+    /// continuously, which is the mark the artist asked for.
+    /// </para>
+    /// <para>
+    /// <b>Excluded, and each exclusion is the same argument:</b> where the dab
+    /// pattern <em>is</em> the texture, resolving it away destroys it. Scatter
+    /// and every jitter seed from the dab position (invariant 2), so more dabs
+    /// is a denser spray rather than the same spray drawn better. A bitmap tip
+    /// carries its own alpha and may be a texture rather than a shape — that
+    /// one wants the same treatment by a different route and is not decided
+    /// here. A simulated medium feeds the fluid solver from dab density, and
+    /// B27's measured wash spread is not a thing to perturb in passing.
+    /// <see cref="DrawsAsOneSilhouette"/> already computes coverage once and
+    /// exactly, so there is nothing left to resolve.
+    /// </para>
+    /// </remarks>
+    public static bool SubdividesForFidelity(BrushSettings brush) =>
+        brush.AntiAlias
+        && brush.TipId is null
+        && brush.Medium.Kind == MediumKind.None
+        && brush.Spacing <= SmoothSpacing
+        && !DrawsAsOneSilhouette(brush)
+        && brush.Scatter <= 0
+        && brush.SizeJitter <= 0
+        && brush.FlowJitter <= 0
+        && brush.RotationJitter <= 0
+        && brush.RoundnessJitter <= 0
+        && brush.ColorJitter <= 0
+        && brush.HueJitter <= 0
+        && brush.SaturationJitter <= 0
+        && brush.BrightnessJitter <= 0;
+
+    /// <summary>
+    /// One spacing interval's step and how many dabs it is split into.
+    /// </summary>
+    /// <remarks>
+    /// The split is derived from the step rather than clamped alongside it, so
+    /// <c>step × fidelity</c> is exactly the nominal interval and the thinning
+    /// in <see cref="StampDab"/> always matches the dabs actually laid.
+    /// </remarks>
+    private static (double Step, int Fidelity) StepFor(
+        BrushSettings brush, double pressure, bool subdivides)
+    {
+        var diameter = RadiusAt(brush, pressure) * 2;
+        var nominal = Math.Max(diameter * brush.Spacing, MinStepPx);
+        if (!subdivides) return (nominal, 1);
+
+        // The feature being sampled is the dab's soft band — (1-hardness) of
+        // its radius, so (1-hardness)/2 of its diameter. A wide band tolerates
+        // a coarse step and a narrow one does not, which is why the target is
+        // the band rather than a flat fraction: at hardness 0.5 the band is a
+        // quarter of the diameter and FidelityStep binds, while at 0.9 it is a
+        // twentieth and the band binds. Getting this wrong the other way was
+        // measured — a flat 0.05 subdivided a size-200 hardness-0.5 brush whose
+        // mark already wobbled 3/255, doubling its cost to buy nothing.
+        var band = (1 - Math.Clamp(HardnessAt(brush, pressure), 0, 1)) / 2;
+        var finest = Math.Max(diameter * Math.Min(FidelityStep, band), MinStepPx);
+        if (nominal <= finest) return (nominal, 1);
+
+        var fidelity = Math.Min(MaxFidelity, (int)Math.Ceiling(nominal / finest));
+        return (nominal / fidelity, fidelity);
+    }
 
     /// <summary>
     /// Whether this brush's mark has to be held down to its own footprint —
@@ -1647,7 +1776,7 @@ public static class BrushEngine
             var dab = dabs[i];
             StampDab(
                 canvas, dab.Pos, dab.Pressure, brush, color, tip, dab.Heading, tipImage, dab.Load,
-                dab.Seed, footprint, footprintOnly);
+                dab.Seed, footprint, footprintOnly, dab.Fidelity);
         }
     }
 
@@ -1969,12 +2098,12 @@ public static class BrushEngine
         SKCanvas canvas, SKPoint pos, double pressure, BrushSettings brush, SKColor color,
         SKBitmap? tip, double directionDeg = double.NaN, SKImage? tipImage = null,
         double load = 1, SKPoint? seed = null, SKCanvas? footprint = null,
-        bool footprintOnly = false)
+        bool footprintOnly = false, int fidelity = 1)
     {
         var radius = (float)(RadiusAt(brush, pressure));
         if (radius <= 0) return;
 
-        var alpha = DabAlpha(brush, pressure) * load;
+        var alpha = Thinned(DabAlpha(brush, pressure) * load, fidelity);
         if (alpha <= 0) return;
 
         // Every dynamic below is seeded from the dab's own position, never
@@ -3257,6 +3386,33 @@ public static class BrushEngine
         Math.Clamp(
             Math.Clamp(brush.Flow, 0, 1) * PressureResponse.Factor(brush, BrushDynamic.Flow, pressure), 0, 1);
 
+    /// <summary>
+    /// One dab's paint, thinned for the <paramref name="fidelity"/> dabs the
+    /// walk split its spacing interval into.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Subdividing without this would darken every mark it touched.</b> Dabs
+    /// composite <c>SrcOver</c>, so <c>n</c> of them at <c>a</c> leave
+    /// <c>1-(1-a)^n</c> — three dabs of 0.3 come out at 0.657, not 0.3. Laying
+    /// three where there was one and changing nothing else would repaint every
+    /// existing drawing heavier, which is a worse defect than the corrugation
+    /// being fixed.
+    /// </para>
+    /// <para>
+    /// <c>1-(1-a)^(1/k)</c> is the inverse: <c>k</c> thinned dabs leave exactly
+    /// what one full dab left. Exact wherever the dab is at full strength — its
+    /// flat core, and the whole of it for a hard brush — and second-order in
+    /// <c>a</c> out in the falloff, where the two differ only by the amount the
+    /// coarse walk was misrepresenting anyway. What it converges on is the mark
+    /// a continuously swept brush would leave, which is the one being asked for.
+    /// </para>
+    /// </remarks>
+    public static double Thinned(double alpha, int fidelity) =>
+        fidelity <= 1 || alpha <= 0 || alpha >= 1
+            ? alpha
+            : 1 - Math.Pow(1 - alpha, 1.0 / fidelity);
+
     /// <summary>Dab-edge hardness after the pressure response (light pressure = softer edge).</summary>
     private static float HardnessAt(BrushSettings brush, double pressure) =>
         (float)Math.Clamp(
@@ -3274,13 +3430,25 @@ public static class BrushEngine
     /// <summary>
     /// Dab centers and pressures along the stroke, spaced by
     /// <c>Brush.Spacing × the CURRENT dab diameter</c> of arc length
-    /// (floor 0.5 px). Spacing must follow the pressure-scaled size:
-    /// light pen pressure shrinks dabs, so the step shrinks with them —
+    /// (floor 0.5 px), or a whole fraction of that where
+    /// <see cref="SubdividesForFidelity"/> says the interval is too coarse to
+    /// resolve the dab's own falloff. Spacing must follow the pressure-scaled
+    /// size: light pen pressure shrinks dabs, so the step shrinks with them —
     /// otherwise a light stroke degenerates into a dotted trail of stamps.
     /// Positions and pressures are interpolated between input points, so
     /// fast strokes with sparse events still produce continuous lines.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// <b>The subdivision only ever adds dabs between the ones already there.</b>
+    /// The nominal grid is still walked — the step is <c>nominal/k</c> for a
+    /// whole <c>k</c> — so every dab the coarse walk placed is still placed, at
+    /// the same coordinates, and nothing seeded from a dab position moves
+    /// because of it. A caller that wants the paint each dab carries has to read
+    /// <see cref="Dab.Fidelity"/>, which is why <see cref="WalkDabs"/> exists
+    /// and this returns positions alone.
+    /// </para>
+    /// <para>
     /// The walk runs over <see cref="GeometryOps.Densify"/>d points rather than
     /// the raw record. A pen samples at a fixed rate, so a fast stroke arrives
     /// as widely spaced points, and walking the chords between them puts the
@@ -3289,6 +3457,7 @@ public static class BrushEngine
     /// showing through the outside of a bend. The curve passes through every
     /// recorded point and breaks at deliberate corners, so a drawn rectangle
     /// keeps its corners and the record still says where the pen was.
+    /// </para>
     /// </remarks>
     /// <param name="densify">
     /// A per-stroke cache for the live preview; null densifies from scratch. See
@@ -3297,17 +3466,30 @@ public static class BrushEngine
     public static IEnumerable<(SKPoint Pos, double Pressure)> DabPositions(
         Stroke stroke, IncrementalDensify? densify = null)
     {
+        foreach (var (pos, pressure, _) in SampledDabPositions(stroke, densify))
+        {
+            yield return (pos, pressure);
+        }
+    }
+
+    /// <summary>
+    /// <see cref="DabPositions"/>, plus how many dabs each spacing interval was
+    /// split into (see <see cref="SubdividesForFidelity"/>). The public
+    /// overload drops that, because a caller asking where the dabs are does not
+    /// care why there are more of them.
+    /// </summary>
+    private static IEnumerable<(SKPoint Pos, double Pressure, int Fidelity)> SampledDabPositions(
+        Stroke stroke, IncrementalDensify? densify)
+    {
         var pts = densify is null ? GeometryOps.Densify(stroke.Points) : densify.Of(stroke.Points);
         var brush = stroke.Brush;
+        var subdivides = SubdividesForFidelity(brush);
         var first = pts[0];
         var firstPressure = Math.Max(first.Pressure, MinPressure);
-        yield return (new SKPoint((float)first.X, (float)first.Y), firstPressure);
+        var (step, fidelity) = StepFor(brush, firstPressure, subdivides);
+        yield return (new SKPoint((float)first.X, (float)first.Y), firstPressure, fidelity);
         if (pts.Count == 1) yield break;
 
-        double StepAt(double pressure) =>
-            Math.Max(RadiusAt(brush, pressure) * 2 * brush.Spacing, MinStepPx);
-
-        var step = StepAt(firstPressure);
         double acc = 0;
         var prev = first;
         for (var i = 1; i < pts.Count; i++)
@@ -3319,11 +3501,14 @@ public static class BrushEngine
                 var t = (step - acc) / d;
                 var np = GeometryOps.LerpPoint(prev, cur, t);
                 var pressure = Math.Max(np.Pressure, MinPressure);
-                yield return (new SKPoint((float)np.X, (float)np.Y), pressure);
+                // The fidelity reported with a dab is the one the NEXT interval
+                // will be walked at, exactly as the pressure-scaled step always
+                // was: both are read off the dab that has just been placed.
                 d -= step - acc;
                 acc = 0;
                 prev = np;
-                step = StepAt(pressure);
+                (step, fidelity) = StepFor(brush, pressure, subdivides);
+                yield return (new SKPoint((float)np.X, (float)np.Y), pressure, fidelity);
             }
             acc += d;
             prev = cur;
