@@ -153,6 +153,7 @@ public partial class MainViewModel
 
     private void OnStrokeSelectionChanged()
     {
+        OnPropertyChanged(nameof(HasCopyableSelection));
         OnPropertyChanged(nameof(SelectedStrokes));
         OnPropertyChanged(nameof(StrokeSelectionSummary));
         OnPropertyChanged(nameof(HasStrokeSelection));

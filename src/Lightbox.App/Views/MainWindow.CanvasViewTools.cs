@@ -453,14 +453,36 @@ public partial class MainWindow
             case "select.all":
                 _vm.SelectAllCommand.Execute(null);
                 break;
+            // Ctrl+C/X/V mean the selected lines when there are any, and the
+            // cel when there are not. The deciding state is the one thing on
+            // screen — marching ants, or a highlighted line — rather than which
+            // panel happens to hold focus, so the key never changes meaning for
+            // a reason the artist cannot see. Copying a cel while a marquee is
+            // up is Ctrl+D first, or the timeline's own right-click menu, which
+            // is always the cel whatever is selected.
             case "timeline.copyCel":
-                _vm.CopyCurrentCel();
+                if (!_vm.CopySelectedLines()) _vm.CopyCurrentCel();
                 break;
             case "timeline.cutCel":
-                _vm.CutCurrentCel();
+                if (!_vm.CutSelectedLines()) _vm.CutCurrentCel();
                 break;
             case "timeline.pasteCel":
-                _vm.PasteCurrentCel();
+                // Paste asks which clipboard is NEWER rather than which has
+                // content: both can hold something at once, and the artist
+                // means the last thing they copied.
+                if (!_vm.LinesAreTheFresherClipboard || !_vm.PasteLinesAsLayer())
+                {
+                    _vm.PasteCurrentCel();
+                }
+                break;
+            case "edit.copyLines":
+                _vm.CopySelectedLines();
+                break;
+            case "edit.cutLines":
+                _vm.CutSelectedLines();
+                break;
+            case "edit.pasteLines":
+                _vm.PasteLinesAsLayer();
                 break;
             case "select.none":
                 _vm.DeselectCommand.Execute(null);

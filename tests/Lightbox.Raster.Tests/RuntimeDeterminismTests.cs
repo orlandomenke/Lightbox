@@ -128,10 +128,23 @@ public class RuntimeDeterminismTests(ITestOutputHelper output)
     /// reached further than its own predicate allows and the diff would have
     /// been wrong.
     /// </para>
+    /// <para>
+    /// <b><c>soft</c> was re-recorded on 2026-08-24</b>, when the dab walk
+    /// started subdividing a spacing interval that is too coarse to resolve the
+    /// dab's own soft band (B307, <c>BrushEngine.SubdividesForFidelity</c>). It
+    /// is the only one of the three that could move: at spacing 0.1 against a
+    /// 0.09 target it walks two dabs where it walked one, each thinned to
+    /// compensate. <c>jitter</c> is at spacing 0.2 and would subdivide harder
+    /// still, and did not move — scatter and its six jitters all seed from the
+    /// dab position, which disqualifies it — and <c>hard-aa</c> keeps taking the
+    /// silhouette route. Both came back byte-identical to the values recorded
+    /// beneath, which is once more exactly the set the change is allowed to
+    /// reach.
+    /// </para>
     /// </remarks>
     private const string Baseline = """
         jitter=7CB9FDADF17861527AB11094451A34CA00CA025C80C302CD47472D8043507A09
-        soft=53D4203CAD80D7CAC483D9BD242BF9ABBE970D4111842ACE992EE7F6BF7E05C9
+        soft=5654BE3493C388CE816199F745E9C56AC8D466FC4024DD0BD6155C3F4DA7749D
         hard-aa=8AAFCED84264B48B00A4488C3F0CB1B9A48DBD9B6D625DDE356DDD243EFCF3B6
         """;
 

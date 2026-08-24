@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4860
+budget: 4877
 
 ## Why it is here despite being XAML
 
@@ -227,14 +227,38 @@ leaves a number nobody can account for. So every reason above stays, and
   baseline: measured alone this branch wanted 4,776, which was 4,774 + 2 against a
   `main` that had since moved by 101 lines — taking that number would have reported
   `main`'s growth as a violation.
+- **4,875 → 4,892** (2026-08-24, Q161): +17 for the line clipboard's three
+  entries on the **Select** menu — copy, cut and paste of the selected lines —
+  and the six-line comment saying why they are here and not beside the cel's
+  identical three words on Animation. They act on the *selection*, so they
+  belong on the menu that names it; the two sets share Ctrl+C/X/V, which is
+  exactly the ambiguity the comment exists to settle for the next reader.
+  Registration, which this budget's standing note says it must not refuse.
+  Measured after two economies rather than before them: the entries are
+  `Command` bindings rather than `Click` handlers, which costs nothing here and
+  removed nine lines from `MainWindow.Timeline.cs` — and it is what keeps them
+  visible to `MainMenuShapeTests`, which holds every Select entry to reaching a
+  command. The feature's own 350 lines are in `StrokeClipboard.cs` and
+  `MainViewModel.StrokeClipboard.cs`; these seventeen are the whole markup cost.
+- **→ remeasured on the merged tree** (2026-08-24). The two raises above both
+  left 4,875 on parallel branches — the image save wanted 4,877, the line
+  clipboard 4,892 — and neither figure is right for the tree they now share:
+  taking either banks the other's growth as headroom nobody earned. Both reasons
+  stay, because deleting one leaves a number nobody can account for, and
+  `ratchets.py remeasure` supplies the figure. This is the one moment that
+  script exists for.
 - **4,875 → 4,858** (2026-08-24): the text tool. Its rail button and options bar
   needed eleven lines, so the Fill tool's options — thirty lines of pure
   bindings, the exact shape `GuideOptionsBar` and the rest already have — became
   `FillOptionsBar.axaml`. The feature paid for itself and left seventeen behind.
-- **→ remeasured on the merged tree** (2026-08-24). The two entries above both
-  start from 4,875 and neither figure is right for the tree they now share: the
-  image save wanted 4,877, the text tool wanted 4,858, and taking either would
-  report the other's change as growth nobody accounted for — the text tool's
-  extraction would swallow the menu item, or the menu item would bank the
-  extraction's slack. Both reasons stay and `ratchets.py remeasure` supplies the
-  figure, which is the one moment that script exists for.
+- **→ remeasured again, now three ways** (2026-08-24). The text tool is the
+  third branch to leave 4,875, and it is the one that came *down* — so on the
+  merged tree none of the three figures is right and the direction of the error
+  differs by pair. The image save wanted 4,877 and the line clipboard 4,892,
+  each blind to the other's menu entries; the text tool wanted 4,858, which was
+  4,875 less its own extraction and would swallow both. Every reason above
+  stays and `ratchets.py remeasure` supplies the figure. Worth noting for the
+  next branch that meets this file: an entry that *lowers* the budget is not
+  exempt from the rule — it is the case where taking one side silently discards
+  another branch's growth rather than banking its slack, which is the same
+  mistake wearing the other face.
