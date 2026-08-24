@@ -146,6 +146,129 @@ public class FootprintCapTests(ITestOutputHelper output)
         Assert.True(worst <= 1, $"a colour channel sits {worst}/255 above its own alpha");
     }
 
+    /// <summary>
+    /// <b>A brush whose flow can never reach its own footprint does not pay for
+    /// the ceiling</b> (B293).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The derivation is in <c>BrushEngine.CanOutrunItsFootprint</c>: a pixel is
+    /// covered by at most one diameter of travel, a diameter holds
+    /// <c>1/spacing</c> dabs, so <c>n·flow ≤ flow/spacing</c> and
+    /// <c>flow ≤ spacing</c> cannot reach the footprint however the dabs fall.
+    /// </para>
+    /// <para>
+    /// <b>The rows above spacing are the half that keeps this honest.</b> A
+    /// predicate that answered "no ceiling" to everything would satisfy the
+    /// first three and is what this is guarding against.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(0.02, false)]  // an airbrush dialled right down
+    [InlineData(0.05, false)]
+    [InlineData(0.15, false)]  // exactly at spacing: the bound is not strict
+    [InlineData(0.25, true)]   // above it, and the ceiling is kept even though
+    [InlineData(1.00, true)]   // it happens not to bind until about 0.5
+    public void OnlyAFlowThatCanReachTheFootprintPaysForTheCeiling(double flow, bool expected)
+    {
+        var brush = Soft(0.35, flow);
+        output.WriteLine($"flow {flow:0.00} vs spacing {brush.Spacing:0.00}: capped {BrushEngine.NeedsFootprintCap(brush)}");
+        Assert.Equal(expected, BrushEngine.NeedsFootprintCap(brush));
+    }
+
+    /// <summary>
+    /// <b>Scatter puts the ceiling back, because scatter is what breaks the
+    /// bound the skip rests on.</b>
+    /// </summary>
+    /// <remarks>
+    /// A dab thrown <c>scatter × Size</c> off the centreline can be reached from
+    /// a longer stretch of travel, so more dabs pile onto one pixel than
+    /// <c>1/spacing</c> of them — three times as many at scatter 1. And the
+    /// throw is measured in the brush's nominal size while the step follows the
+    /// pressure-scaled one, so a light touch widens the ratio without limit.
+    /// This is the row that would have shipped a wrong "sufficient condition".
+    /// </remarks>
+    [Fact]
+    public void AScatteredBrushKeepsTheCeilingHoweverLowItsFlow()
+    {
+        var still = Soft(0.35, 0.02);
+        var scattered = new BrushSettings
+        {
+            Size = 30, Hardness = 0.35, Opacity = 1, Flow = 0.02, Spacing = 0.15,
+            AntiAlias = true, Scatter = 0.4,
+        };
+        output.WriteLine($"flow 0.02, spacing 0.15: unscattered capped {BrushEngine.NeedsFootprintCap(still)}, "
+            + $"scatter 0.4 capped {BrushEngine.NeedsFootprintCap(scattered)}");
+
+        Assert.False(BrushEngine.NeedsFootprintCap(still));
+        Assert.True(BrushEngine.NeedsFootprintCap(scattered));
+    }
+
+    /// <summary>
+    /// <b>And skipping it there changes no pixel.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The two brushes differ by <b>one ulp of flow</b> — <c>0.15</c> against
+    /// the next representable double above it — which is why this is a test of
+    /// the code path rather than of the parameter. The dabs land in the same
+    /// places with the same shape at a flow that cannot differ by a
+    /// two-hundred-and-fifty-fifth of anything; the only thing either render
+    /// does differently is take or skip the ceiling.
+    /// </para>
+    /// <para>
+    /// A confounded version of this measurement read 118 changed pixels and was
+    /// wrong: it disabled the cap by turning <c>AntiAlias</c> off, which also
+    /// changes how every dab is drawn. The lesson is the one
+    /// <c>docs/DESIGN-performance.md</c> records for timings and it applies to
+    /// pixels — <i>ask what else is in this measurement</i>.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void SkippingTheCeilingWhereItCannotBindChangesNoPixel()
+    {
+        var skipped = Soft(0.35, 0.15);
+        var capped = Soft(0.35, Math.BitIncrement(0.15));
+        Assert.False(BrushEngine.NeedsFootprintCap(skipped));
+        Assert.True(BrushEngine.NeedsFootprintCap(capped));
+
+        using var a = Stroke_(skipped);
+        using var b = Stroke_(capped);
+        var (differing, worst, partial) = Compare(a, b);
+        output.WriteLine($"one ulp of flow apart: {differing} px differ, worst {worst}/255, over {partial} partial px");
+
+        Assert.True(partial > 200, $"only {partial} partial pixels — the falloff is not being sampled");
+        Assert.Equal(0, differing);
+
+        // And the comparison has teeth: a flow that really is above the
+        // footprint moves thousands of these same pixels.
+        using var loud = Stroke_(Soft(0.35, 1.0));
+        var (moved, byHowMuch, _) = Compare(a, loud);
+        output.WriteLine($"against flow 1.00: {moved} px differ, worst {byHowMuch}/255");
+        Assert.True(moved > 1000, $"the comparison found only {moved} changed pixels where it should find thousands");
+    }
+
+    /// <summary>Pixels that differ, the worst channel difference, and how many are partial.</summary>
+    private static (int Differing, int Worst, int Partial) Compare(SKBitmap a, SKBitmap b)
+    {
+        using var pa = a.PeekPixels();
+        using var pb = b.PeekPixels();
+        var sa = pa!.GetPixelSpan<byte>();
+        var sb = pb!.GetPixelSpan<byte>();
+        int differing = 0, worst = 0, partial = 0;
+        for (var i = 0; i < sa.Length; i += 4)
+        {
+            var alpha = sa[i + 3];
+            if (alpha is not (0 or 255)) partial++;
+            var d = 0;
+            for (var c = 0; c < 4; c++) d = Math.Max(d, Math.Abs(sa[i + c] - sb[i + c]));
+            if (d == 0) continue;
+            differing++;
+            if (d > worst) worst = d;
+        }
+        return (differing, worst, partial);
+    }
+
     [Theory]
     [InlineData(0.35, false, MediumKind.None, true)]    // the soft round family
     [InlineData(1.00, false, MediumKind.None, false)]   // hard: the silhouette owns it
