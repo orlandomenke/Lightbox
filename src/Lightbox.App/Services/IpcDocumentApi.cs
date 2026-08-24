@@ -28,6 +28,10 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                 "list_reference_views" => ListReferenceViews(),
                 "render_reference_view" => RenderReferenceView(request),
                 "import_character" => ImportCharacter(request),
+                "set_key" => SetKey(request),
+                "extend_exposure" => ExtendExposure(request),
+                "reduce_exposure" => ReduceExposure(request),
+                "set_exposure_step" => SetExposureStep(request),
                 _ => IpcProtocol.Response.Fail($"Unknown op \"{request.Op}\"."),
             };
         }
@@ -248,6 +252,122 @@ public sealed class IpcDocumentApi(MainViewModel vm)
         public int FrameIndex { get; set; }
         public string? LayerId { get; set; }
         public List<StrokeWire.StrokeDto> Strokes { get; set; } = [];
+    }
+
+    private sealed class KeyRef
+    {
+        public int FrameIndex { get; set; }
+        public string? LayerId { get; set; }
+        public string? Role { get; set; }
+    }
+
+    private sealed class ExposureStepRef
+    {
+        public int From { get; set; }
+        public int To { get; set; }
+        public int Step { get; set; }
+        public string? LayerId { get; set; }
+    }
+
+    /// <summary>
+    /// Parse a role name, refusing an unknown one rather than defaulting to
+    /// <see cref="FrameRole.Key"/>. An agent that misspells "breakdown" should
+    /// be told, not quietly given a key — the reply is the only feedback it has.
+    /// </summary>
+    private static FrameRole? RoleOf(string? role) => role?.Trim().ToLowerInvariant() switch
+    {
+        null or "" or "key" => FrameRole.Key,
+        "breakdown" => FrameRole.Breakdown,
+        "inbetween" => FrameRole.Inbetween,
+        _ => null,
+    };
+
+    private IpcProtocol.Response SetKey(IpcProtocol.Request request)
+    {
+        var p = Payload<KeyRef>(request);
+        var layer = ResolveLayer(p.LayerId);
+        if (p.FrameIndex < 0) return IpcProtocol.Response.Fail("frameIndex must be 0 or greater.");
+        if (RoleOf(p.Role) is not { } role)
+            return IpcProtocol.Response.Fail(
+                $"Unknown role \"{p.Role}\" — use key, breakdown or inbetween.");
+
+        var outcome = vm.SetExternalKey(layer.Id, p.FrameIndex, role);
+        if (outcome == ExternalKeyOutcome.Refused)
+            return IpcProtocol.Response.Fail($"Layer \"{layer.Name}\" cannot be edited.");
+
+        return IpcProtocol.Response.Success(new
+        {
+            p.FrameIndex,
+            LayerId = layer.Id,
+            Role = role.ToString().ToLowerInvariant(),
+            // Which of the two things happened, because they are different
+            // edits with the same op and an agent cannot see the timeline.
+            Created = outcome == ExternalKeyOutcome.Created,
+            FrameCount = vm.Doc.Scene.FrameCount,
+        });
+    }
+
+    private IpcProtocol.Response ExtendExposure(IpcProtocol.Request request)
+    {
+        var p = Payload<FrameRef>(request);
+        var layer = ResolveLayer(p.LayerId);
+        if (p.FrameIndex < 0) return IpcProtocol.Response.Fail("frameIndex must be 0 or greater.");
+        if (ExposureSheet.KeyIndexAtOrBefore(layer, p.FrameIndex) < 0)
+            return IpcProtocol.Response.Fail(
+                $"No drawing at or before frame {p.FrameIndex} on layer \"{layer.Name}\" to hold.");
+        if (!vm.ExtendExternalExposure(layer.Id, p.FrameIndex))
+            return IpcProtocol.Response.Fail($"Layer \"{layer.Name}\" cannot be edited.");
+        return IpcProtocol.Response.Success(new
+        {
+            p.FrameIndex,
+            LayerId = layer.Id,
+            FrameCount = vm.Doc.Scene.FrameCount,
+        });
+    }
+
+    private IpcProtocol.Response ReduceExposure(IpcProtocol.Request request)
+    {
+        var p = Payload<FrameRef>(request);
+        var layer = ResolveLayer(p.LayerId);
+        if (p.FrameIndex < 0) return IpcProtocol.Response.Fail("frameIndex must be 0 or greater.");
+
+        // A drawing is never removed, so the honest answer when the next cel
+        // is keyed is "nothing to shorten" rather than a success that did
+        // nothing — an agent retiming a run needs to know which it got.
+        var next = p.FrameIndex + 1;
+        var shortenable = next < layer.Cels.Count && layer.Cels[next].Frame is null;
+        if (!shortenable)
+            return IpcProtocol.Response.Fail(
+                $"Frame {p.FrameIndex} on layer \"{layer.Name}\" is not held — "
+                + "there is no hold after it to remove.");
+        if (!vm.ReduceExternalExposure(layer.Id, p.FrameIndex))
+            return IpcProtocol.Response.Fail($"Layer \"{layer.Name}\" cannot be edited.");
+        return IpcProtocol.Response.Success(new
+        {
+            p.FrameIndex,
+            LayerId = layer.Id,
+            FrameCount = vm.Doc.Scene.FrameCount,
+        });
+    }
+
+    private IpcProtocol.Response SetExposureStep(IpcProtocol.Request request)
+    {
+        var p = Payload<ExposureStepRef>(request);
+        var layer = ResolveLayer(p.LayerId);
+        if (p.Step < 1) return IpcProtocol.Response.Fail("step must be 1 or greater.");
+        if (p.From < 0 || p.To < 0) return IpcProtocol.Response.Fail("from and to must be 0 or greater.");
+
+        var grew = vm.RetimeExternalExposure(layer.Id, p.From, p.To, p.Step);
+        if (grew < 0) return IpcProtocol.Response.Fail($"Layer \"{layer.Name}\" cannot be edited.");
+        return IpcProtocol.Response.Success(new
+        {
+            p.From,
+            p.To,
+            p.Step,
+            LayerId = layer.Id,
+            Grew = grew,
+            FrameCount = vm.Doc.Scene.FrameCount,
+        });
     }
 
     private IpcProtocol.Response ListReferenceViews()

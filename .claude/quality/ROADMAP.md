@@ -1672,6 +1672,36 @@ Four rules govern everything below, and they are not negotiable per feature:
   - Independent of the provider list above, and that independence is the point: there, Lightbox calls out to a model; here, an agent the artist already runs calls **in** and edits the document. Configuring a provider is not a prerequisite for either.
   - Every tool goes through the same document editor a menu item uses, marshalled onto the UI thread — so an agent's edit is one undo step, dirties the tab, and cannot bypass `BrushEngine.StampStroke`. An MCP surface that wrote pixels directly would break invariant 1 for the one caller least able to notice.
   - The anchors are named tests rather than a project name, and the first attempt at them was wrong: `McpToolTests` does not exist and `roadmap.py` demoted the item within seconds of it being written. That is the file working as designed — a green box asserted from memory is exactly what the derived checkbox exists to refuse.
+- [x] An agent can time a sequence, not only draw on it `evidence: IpcExposureTests, SetKey_MakesADrawingOnAHoldAndIsOneUndoStep, ACreatedKeyIsTheAgentsAndAReMarkedOneStaysTheArtists, ReduceExposure_RefusesRatherThanSilentlyDoingNothing, SetExposureStep_PutsARangeOnTwosAndStaysThereWhenRepeated, NoTimingOpEverRemovesADrawing, ALockedLayerRefusesEveryTimingOp`
+  - **Found by asking what the surface above actually reaches.** `get_scene` has
+    reported `keyedFrames` since the surface existed and no op could make one, so
+    an agent could draw on a frame and could not time anything. On an application
+    whose stated unit of work is a sequence, that is the half that matters — and
+    it read as a complete `[x]` because one item covered a read-rich, three-verb
+    write surface. Four ops close it: `set_key`, `extend_exposure`,
+    `reduce_exposure`, `set_exposure_step`.
+  - **Nothing new in the record.** Every op is `DocumentEditor` work the menus
+    already do — `SetKeyAt`, `ExtendExposure`, `ReduceExposure`,
+    `StretchExposure` — so an agent's retime is one undo step and invariant 1
+    holds for the caller least able to notice breaking it.
+  - **Non-destructive by construction, and that is the boundary.** `SetKeyAt`
+    only adds a drawing, `ReduceExposure` refuses to remove one, and
+    `StretchExposure` absorbs existing holds rather than multiplying them, so
+    asking for 2s twice stays on 2s. `ReduceToStep` — the one that discards
+    drawings — is deliberately **not** exposed: a destructive agent op wants the
+    explicit-flag treatment `import_character` has, and that is its own decision.
+  - **A refusal beats a silent no-op here**, because an agent cannot see the
+    timeline. `reduce_exposure` on an unheld frame errors rather than succeeding
+    without effect, and an unknown role name fails rather than quietly landing a
+    key — the reply is the only feedback the caller gets.
+  - **Q31 at its narrowest:** a key the agent *created* carries its provenance; a
+    frame it only *re-labelled* stays the artist's. So the stamp is a parameter
+    on `SetKeyAt` rather than a write afterwards — it has to land inside the one
+    undo step, and a caller setting `frame.Ai` after the fact would make two.
+  - Still ahead: the rest of the ~38 document-level commands an agent cannot
+    reach — layers, camera, effects, export, selection — and the coverage gate
+    that would make the next such gap fail a test instead of needing an audit.
+
 - [x] The AI never inserts a frame it cannot defend `evidence: InbetweenVerifier, InbetweenVerifierTests, ARubbishAnswerInsertsNothingAndSaysWhy, ARefusedFrameKeepsItsSlotAsAHold, TooCloseToTheDeterministicAnswerIsANoteNeverAVeto, PerFrameJitterIsRefusedAsIncoherent, RevealedInkBehindTheMoverIsLicensed`
   - Phase 0 of `docs/DESIGN-ai-correctness.md`: every frame a model returns is verified against the keys — betweenness, dropped strokes, licensed new ink, area-conserved volume, and temporal coherence over the *run*, which is the only check that catches boiling and the reason the verifier sees a sequence rather than a frame. A frame that fails is **refused, per frame and with the reason naming which t** (Q32) — never swapped for the deterministic answer, which stays its own command. Its slot stays a hold, so partial acceptance never shifts a surviving frame off its own timing.
   - The checks are deliberately wide — they reject "not between the keys at all", never "not where I would have put it" — and the deterministic answer passing every check is itself a pinned test. "Too close to deterministic" is a note, never a veto (Q33). The connection tester now judges with the same verifier, so a model it certifies is one the pipeline will accept.
