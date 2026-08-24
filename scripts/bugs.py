@@ -568,11 +568,20 @@ def move_ids(moves: dict[str, str], base: str,
     clash between two branches and fails for a duplicate that landed *inside*
     this branch's range — then both entries' lines read as added, the sweep
     rewrites both, and the duplicate survives at a new number instead of being
-    repaired. Found on 2026-08-24 on a branch cut 148 commits ahead of
-    `origin/main`, with a bug id filed twice on the way: the repair announced
-    one renumber, applied it to both entries, and left the duplicate standing at
-    the new number — having rewritten six source files to get there. The
-    keeper's own line is passed in here so the sweep steps over it.
+    repaired. Found on 2026-08-24, with a bug id filed twice on the way: the
+    repair announced one renumber, applied it to both entries, and left the
+    duplicate standing at the new number — having rewritten six source files to
+    get there. The keeper's own line is passed in here so the sweep steps over
+    it.
+
+    **What made the base reach that far back is worth knowing, because it is
+    ordinary.** `origin/main` was simply stale — a container that cloned once
+    and had not fetched since, which is every fresh session. `branch_base()`
+    asks `merge-base` against that ref, so a ref 148 commits behind moves the
+    line between "mine" and "theirs" back by 148 commits, and everything filed
+    in between reads as this branch's own. `cmd_freeid` and `cmd_new` fetch
+    before allocating for exactly this reason; the repair does not, so it must
+    not depend on the base being tight.
 
     No id is named above on purpose. This sweep rewrites every citation it finds
     on a line the branch added, and a bare id in this file is a citation as far
