@@ -671,15 +671,51 @@ public class SimBakerTests(ITestOutputHelper output)
 
     // ---- progress and cancellation ---------------------------------------------------------
 
+    /// <summary>
+    /// Progress is reported, every value is a fraction, and the last one is the
+    /// end (B296).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This used to collect through <c>Progress&lt;double&gt;</c> and race
+    /// itself.</b> That type posts each callback to the thread pool, so late
+    /// callbacks were still calling <c>List.Add</c> while <c>Assert.All</c>
+    /// enumerated — <c>Collection was modified; enumeration operation may not
+    /// execute</c>, from <c>List.Enumerator.MoveNext</c>. It failed about one CI
+    /// run in three and reproduces on every local Release run of this suite.
+    /// </para>
+    /// <para>
+    /// <b>The fix is to collect synchronously rather than to tolerate the
+    /// asynchrony</b>, which is a step past the snapshot B296 proposed and buys
+    /// the assertion the old test could not make. <c>Solve</c> takes
+    /// <c>IProgress&lt;double&gt;</c>, so a collector that records on the
+    /// calling thread is a legitimate implementation of it — and with nothing
+    /// arriving late, the test can assert that progress happened <em>at all</em>
+    /// and that it reached the end. The old version passed on an empty list,
+    /// which is the sanity-check-the-other-way trap: it would have gone green on
+    /// a baker that reported nothing.
+    /// </para>
+    /// </remarks>
     [Fact]
-    public void Solving_Reports_Progress_All_The_Way()
+    public void Solving_Reports_Progress_Without_Racing_Its_Own_Callbacks()
     {
-        var seen = new List<double>();
-        new SimBaker().Solve(Fire(frames: 10), new Progress<double>(seen.Add));
+        var seen = new SynchronousProgress();
+        new SimBaker().Solve(Fire(frames: 10), seen);
 
-        // Progress<T> posts asynchronously, so the assertion is about the values
-        // reported rather than about all of them having arrived.
-        Assert.All(seen, p => Assert.InRange(p, 0, 1));
+        Assert.NotEmpty(seen.Values);
+        Assert.All(seen.Values, p => Assert.InRange(p, 0, 1));
+        Assert.Equal(1.0, seen.Values[^1], 3);
+    }
+
+    /// <summary>
+    /// An <see cref="IProgress{T}"/> that records on the calling thread, so a
+    /// test can read what it collected without racing it.
+    /// </summary>
+    private sealed class SynchronousProgress : IProgress<double>
+    {
+        public List<double> Values { get; } = [];
+
+        public void Report(double value) => Values.Add(value);
     }
 
     [Fact]
