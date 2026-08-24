@@ -393,7 +393,7 @@ the test needs relaxing.
     clip grades one silhouette, its opacity is strength, its eye switches it
     off. Its cels stay empty and nothing renders them; a document without
     one writes no key.
-- [x] Layer styles `evidence: EffectColorSpec, StyleFor, SelfStyle, ADropShadowFallsAwayFromTheLight, AnOuterGlowHalosTheSilhouetteAndAnInnerGlowStaysInside, AStrokeOutlinesWhereItsPositionSays, ABevelLightsTheEdgeFacingTheLight, AStyleDecoratesTheCarvedSilhouetteNotTheUnmaskedContent, AStyleIsOfferedOnlyWhereItHasASilhouette`
+- [x] Layer styles `evidence: EffectColorSpec, StyleFor, SelfStyle, ADropShadowFallsAwayFromTheLight, AnOuterGlowHalosTheSilhouetteAndAnInnerGlowStaysInside, AStrokeOutlinesWhereItsPositionSays, ABevelLightsTheEdgeFacingTheLight, AStyleDecoratesTheCarvedSilhouetteNotTheUnmaskedContent, AStyleIsOfferedOnlyWhereItHasASilhouette, TheMasterSwitchMutesTheStackWithoutTouchingItsUses, TheStackMasterSwitchSilencesEveryChainAndTheCacheFollows`
   - **Effect kinds on the layer's own stack (Q153), not a second record**:
     drop shadow, outer glow, inner glow, stroke, and the smooth bevel
     (Q154 — contour and gloss wait for the curve editor). All native filter

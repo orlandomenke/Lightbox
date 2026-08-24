@@ -173,6 +173,39 @@ public sealed class EffectsDockerTests(ITestOutputHelper output) : BrushStateIso
     }
 
     [AvaloniaFact]
+    public void TheMasterSwitchMutesTheStackWithoutTouchingItsUses()
+    {
+        // Q158: one click off, every use's own switch kept — so tuned
+        // effects come back exactly as they were, and the row's fx chip
+        // goes hollow while they are off.
+        var vm = Vm();
+        vm.EffectsPanel.AddUseCommand.Execute(Choice(vm, "blur.gaussian"));
+        vm.EffectsPanel.AddUseCommand.Execute(Choice(vm, "grade.levels"));
+        vm.EffectsPanel.Uses[0].Enabled = false; // one deliberately off
+        Assert.True(Paint(vm).HasLiveEffects);
+        Assert.True(vm.EffectsPanel.StackExists);
+
+        vm.EffectsPanel.StackEnabled = false;
+        Assert.True(Paint(vm).Effects!.Disabled);
+        Assert.False(Paint(vm).HasLiveEffects);
+        Assert.True(Paint(vm).Effects!.Uses[0].Disabled); // untouched
+        Assert.Null(Paint(vm).Effects!.Uses[1].Disabled);
+
+        var row = vm.LayerRows.First(r => r.Layer == Paint(vm));
+        Assert.True(row.HasEffects);
+        Assert.True(row.EffectsDisabled);
+
+        vm.UndoCommand.Execute(null);
+        Assert.True(Paint(vm).HasLiveEffects);
+
+        // The layer menu's toggle is the same switch by another door.
+        vm.ToggleLayerEffects(Paint(vm));
+        Assert.False(Paint(vm).HasLiveEffects);
+        vm.ToggleLayerEffects(Paint(vm));
+        Assert.True(Paint(vm).HasLiveEffects);
+    }
+
+    [AvaloniaFact]
     public void AnAdjustmentLayerChangesThePublishedComposite()
     {
         var vm = Vm();

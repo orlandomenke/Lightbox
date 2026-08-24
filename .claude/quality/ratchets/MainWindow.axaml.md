@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4842
+budget: 4875
 
 ## Why it is here despite being XAML
 
@@ -212,3 +212,9 @@ leaves a number nobody can account for. So every reason above stays, and
   this gesture at the foot of the Layers panel, so an artist who knows it
   looks here first. A pointer to the effects docker's own command, not a
   second copy; menu items have nowhere else to live.
+- **4,842 → 4,875** (2026-08-24, Q158): the layer row's *Layer style* submenu
+  (five styles, the toggle pair and *Edit effects*, all pointers to the
+  effects docker's commands) and the fx chip beside the mask chip. Menu items
+  and row-template elements have nowhere else to live — the chip's *styles*
+  went to `Controls.axaml` beside the mask chip's, and every handler is in
+  `MainWindow.Layers.cs`.

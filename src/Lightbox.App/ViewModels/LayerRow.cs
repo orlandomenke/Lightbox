@@ -166,7 +166,16 @@ public sealed partial class LayerRow : ObservableObject
     /// <summary>A mask that currently applies — the menu offers to disable it.</summary>
     public bool CanDisableMask => HasMask && !MaskDisabled;
 
-    /// <summary>Re-read the mask and clip properties after a mask edit.</summary>
+    /// <summary>Whether the layer carries an effect stack (the docker's fx chip).</summary>
+    public bool HasEffects => Layer.Effects is not null;
+
+    /// <summary>The stack exists but its master switch is off — the chip goes hollow (Q158).</summary>
+    public bool EffectsDisabled => Layer.Effects is { Disabled: true };
+
+    /// <summary>A stack that currently runs — the menu offers to switch it off.</summary>
+    public bool CanDisableEffects => HasEffects && !EffectsDisabled;
+
+    /// <summary>Re-read the mask, clip and effect properties after an edit.</summary>
     internal void SyncMaskFromModel()
     {
         OnPropertyChanged(nameof(HasMask));
@@ -176,6 +185,9 @@ public sealed partial class LayerRow : ObservableObject
         OnPropertyChanged(nameof(IsClipped));
         OnPropertyChanged(nameof(CanAddMask));
         OnPropertyChanged(nameof(CanDisableMask));
+        OnPropertyChanged(nameof(HasEffects));
+        OnPropertyChanged(nameof(EffectsDisabled));
+        OnPropertyChanged(nameof(CanDisableEffects));
     }
 
     /// <summary>Inside a layer folder (indented in the docker, eject button shown).</summary>
