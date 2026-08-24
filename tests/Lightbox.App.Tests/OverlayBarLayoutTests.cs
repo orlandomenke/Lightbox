@@ -37,7 +37,7 @@ namespace Lightbox.App.Tests;
 /// </para>
 /// </remarks>
 [Collection("BrushState")]
-public sealed class OverlayBarLayoutTests
+public sealed class OverlayBarLayoutTests : BrushStateIsolated
 {
     private static MainWindow Open()
     {

@@ -129,6 +129,58 @@ public class EffectPassTests(ITestOutputHelper output)
         Assert.Equal(SKColors.Red, outside); // the backdrop never met the filter
     }
 
+    [AvaloniaFact]
+    public void AStyleDecoratesTheCarvedSilhouetteNotTheUnmaskedContent()
+    {
+        // Q155: content spans x 0..16, the mask keeps x 0..8, and the glow
+        // must hug the *carved* edge at 8 — present just past it, absent
+        // where only the unmasked content's edge at 16 would have glowed.
+        var content = new SKBitmap(24, 24, SKColorType.Rgba8888, SKAlphaType.Premul);
+        content.Erase(SKColors.Transparent);
+        using (var canvas = new SKCanvas(content))
+        using (var paint = new SKPaint { Color = SKColors.White })
+        {
+            canvas.DrawRect(SKRect.Create(0, 0, 16, 24), paint);
+        }
+        var mask = new SKBitmap(24, 24, SKColorType.Rgba8888, SKAlphaType.Premul);
+        mask.Erase(SKColors.Transparent);
+        using (var canvas = new SKCanvas(mask))
+        using (var paint = new SKPaint { Color = SKColors.White })
+        {
+            canvas.DrawRect(SKRect.Create(0, 0, 8, 24), paint);
+        }
+
+        var glow = new EffectStack
+        {
+            Uses = [new EffectUse
+            {
+                Kind = "style.outerGlow",
+                Params =
+                {
+                    ["size"] = new EffectParam(6),
+                    ["opacity"] = new EffectParam(100),
+                },
+            }],
+        };
+        using var image = SceneRenderer.Compose(24, 24,
+        [
+            new RenderPass(content, null, 1, Shapes: [new PassShape(mask)],
+                Style: Lightbox.Raster.Effects.EffectRegistry.StyleFor(glow, 0)),
+        ], SKColors.Transparent);
+        using var bmp = SKBitmap.FromImage(image);
+
+        var kept = bmp.GetPixel(4, 12);
+        var pastCarve = bmp.GetPixel(11, 12);
+        var pastOldEdge = bmp.GetPixel(20, 12);
+        output.WriteLine(
+            $"kept a={kept.Alpha}, past carve a={pastCarve.Alpha}, past old edge a={pastOldEdge.Alpha}");
+        Assert.Equal(255, kept.Alpha);
+        Assert.True(pastCarve.Alpha > 20, "the glow follows the carved edge");
+        Assert.Equal(0, pastOldEdge.Alpha); // the unmasked edge never glowed
+        content.Dispose();
+        mask.Dispose();
+    }
+
     // ---- the description ---------------------------------------------------
 
     private static Layer LayerWith(string name, int cels = 3)

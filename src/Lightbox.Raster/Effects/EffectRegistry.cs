@@ -14,6 +14,12 @@ public sealed record EffectParamSpec(
     string Key, string Label, double Default, double Min, double Max, double Increment = 1);
 
 /// <summary>
+/// One colour of one effect — a glow's colour, a bevel's highlight. Hex
+/// strings, the vocabulary strokes already use; not keyable in v1 (Q153).
+/// </summary>
+public sealed record EffectColorSpec(string Key, string Label, string Default);
+
+/// <summary>
 /// What a kind id means: its parameters, its reach, and how it joins the
 /// filter chain. Definitions live here beside the other pixel code — the
 /// model never renders, the App never touches pixels (DESIGN-effects.md).
@@ -33,6 +39,15 @@ public sealed record EffectParamSpec(
 /// docker steers it to an adjustment instead — clipped to the layer below,
 /// which is per-layer use with the same pixels.
 /// </param>
+/// <param name="Style">
+/// A layer style's decoration (Q153): two filters that read <em>only the
+/// source silhouette</em> (null inputs), one drawn behind the content and
+/// one over it. Not a link in the ordinary chain, twice over: every style
+/// reads the original silhouette — a stroke outlines the drawing, never a
+/// glow's fuzz — and a graph that re-read the previous style's subtree
+/// re-evaluated it per reference, which measured seconds per compose for
+/// five styles where this assembly measures the sum of its parts.
+/// </param>
 public sealed record EffectDefinition(
     string Kind,
     string Name,
@@ -40,7 +55,9 @@ public sealed record EffectDefinition(
     IReadOnlyList<EffectParamSpec> Params,
     Func<EffectUse, int, double> Reach,
     Func<EffectUse, int, float, SKImageFilter?, SKImageFilter?> Chain,
-    Func<EffectUse, int, Action<SKBitmap>>? Cpu = null)
+    Func<EffectUse, int, Action<SKBitmap>>? Cpu = null,
+    IReadOnlyList<EffectColorSpec>? Colors = null,
+    Func<EffectUse, int, float, (SKImageFilter? Behind, SKImageFilter? Over)>? Style = null)
 {
     /// <summary>
     /// True when the kind only does its work on the backdrop path — a CPU
@@ -49,6 +66,19 @@ public sealed record EffectDefinition(
     /// scope's add row honest; adjustment layers and the scene take it.
     /// </summary>
     public bool BackdropOnly => Cpu is not null;
+
+    /// <summary>
+    /// True for a layer style — self path only, the mirror of
+    /// <see cref="BackdropOnly"/>: the backdrop has no silhouette to read,
+    /// so the docker keeps styles off adjustment layers and the scene.
+    /// Styles apply <em>after</em> the mask carve (Q155), through
+    /// <see cref="EffectRegistry.StyleFor"/>, never
+    /// <see cref="EffectRegistry.FilterFor"/>.
+    /// </summary>
+    public bool SelfOnly => Style is not null;
+
+    /// <summary>The docker's colour rows; empty for an effect with none.</summary>
+    public IReadOnlyList<EffectColorSpec> ColorSpecs => Colors ?? [];
 }
 
 /// <summary>
@@ -81,9 +111,11 @@ public sealed class EffectProgram
 /// </para>
 /// <para>
 /// <b>Everything is a pure function of the record and the frame</b>
-/// (invariant 2): no RNG, no clock, no state. The v1 catalogue is levels and
-/// HSL (point; reach 0) and Gaussian blur (kernel; reach derived from its
-/// own radius, so the badge cannot lie — the <c>BrushCostOf</c> precedent).
+/// (invariant 2): no RNG, no clock, no state. The catalogue is levels and
+/// HSL (point; reach 0), Gaussian blur (kernel; reach derived from its
+/// own radius, so the badge cannot lie — the <c>BrushCostOf</c> precedent),
+/// and the five layer styles (Q153) — silhouette decorations whose reach
+/// likewise follows their own sliders.
 /// </para>
 /// <para>
 /// <b><paramref name="scale"/> is device pixels per document unit.</b> Reach
@@ -133,6 +165,152 @@ public static class EffectRegistry
                 var sigma = (float)(Math.Max(0, use.At("radius", frame, 4)) / 2.0) * scale;
                 return sigma <= 0 ? inner : SKImageFilter.CreateBlur(sigma, sigma, inner);
             }),
+
+        // ---- layer styles (Q153): decorations of the pass's silhouette.
+        // Every filter below reads only the *source* (null inputs) — the
+        // carved layer content of the style group (Q155) — and says whether
+        // it draws behind the content or over it. Styles never read each
+        // other: a stroke outlines the drawing, not a glow's fuzz, and a
+        // graph that re-read another style's subtree re-evaluated it per
+        // reference, which is the exponential blow-up the cost budget
+        // caught (AStyledPassCostsItsChainAndNotAnOrderMore).
+
+        ["style.dropShadow"] = new(
+            "style.dropShadow", "Drop shadow", "style",
+            [
+                new EffectParamSpec("distance", "Distance", 6, 0, 100),
+                new EffectParamSpec("size", "Size", 6, 0, 100),
+                new EffectParamSpec("angle", "Angle", 120, 0, 360),
+                new EffectParamSpec("opacity", "Opacity", 75, 0, 100),
+            ],
+            Colors: [new EffectColorSpec("color", "Colour", "#000000")],
+            Reach: (use, frame) =>
+                Math.Max(0, use.At("distance", frame, 6))
+                + 1.5 * Math.Max(0, use.At("size", frame, 6)),
+            Chain: (_, _, _, inner) => inner,
+            Style: (use, frame, scale) =>
+            {
+                var (dx, dy) = LightOffset(use, frame, scale, use.At("distance", frame, 6));
+                var sigma = SigmaOf(use, "size", 6, frame, scale);
+                var color = StyleColor(use, "color", "#000000", use.At("opacity", frame, 75));
+                // The shadow falls away from the light, so the offset negates.
+                return (SKImageFilter.CreateDropShadowOnly(-dx, -dy, sigma, sigma, color), null);
+            }),
+
+        ["style.outerGlow"] = new(
+            "style.outerGlow", "Outer glow", "style",
+            [
+                new EffectParamSpec("size", "Size", 8, 0, 100),
+                new EffectParamSpec("spread", "Spread", 0, 0, 50),
+                new EffectParamSpec("opacity", "Opacity", 75, 0, 100),
+            ],
+            Colors: [new EffectColorSpec("color", "Colour", "#ffffbe")],
+            Reach: (use, frame) =>
+                Math.Max(0, use.At("spread", frame, 0))
+                + 1.5 * Math.Max(0, use.At("size", frame, 8)),
+            Chain: (_, _, _, inner) => inner,
+            Style: (use, frame, scale) =>
+            {
+                var spread = (float)Math.Max(0, use.At("spread", frame, 0)) * scale;
+                var sigma = SigmaOf(use, "size", 8, frame, scale);
+                var color = StyleColor(use, "color", "#ffffbe", use.At("opacity", frame, 75));
+                var silhouette = spread > 0 ? Resize(spread, null) : null;
+                var soft = sigma > 0
+                    ? SKImageFilter.CreateBlur(sigma, sigma, silhouette)
+                    : silhouette;
+                // Behind: the silhouette's own interior glows too, and the
+                // content covers it.
+                return (Tint(color, soft), null);
+            }),
+
+        ["style.innerGlow"] = new(
+            "style.innerGlow", "Inner glow", "style",
+            [
+                new EffectParamSpec("size", "Size", 8, 0, 100),
+                new EffectParamSpec("opacity", "Opacity", 75, 0, 100),
+            ],
+            Colors: [new EffectColorSpec("color", "Colour", "#ffffbe")],
+            Reach: (_, _) => 0, // stays inside the silhouette
+            Chain: (_, _, _, inner) => inner,
+            Style: (use, frame, scale) =>
+            {
+                var sigma = Math.Max(0.5f, SigmaOf(use, "size", 8, frame, scale));
+                var color = StyleColor(use, "color", "#ffffbe", use.At("opacity", frame, 75));
+                // Where the blurred silhouette is thin the pixel is near an
+                // edge; content minus its own blur is the inward glow band.
+                var band = Minus(null, SKImageFilter.CreateBlur(sigma, sigma));
+                return (null, Tint(color, band));
+            }),
+
+        ["style.stroke"] = new(
+            "style.stroke", "Stroke", "style",
+            [
+                new EffectParamSpec("width", "Width", 3, 1, 50),
+                // 0 outside, 1 inside, 2 centred — a picker row arrives with
+                // the docker's choice control; the mapping is in the manual.
+                new EffectParamSpec("position", "Position", 0, 0, 2),
+                new EffectParamSpec("opacity", "Opacity", 100, 0, 100),
+            ],
+            Colors: [new EffectColorSpec("color", "Colour", "#000000")],
+            Reach: (use, frame) => Math.Max(0, use.At("width", frame, 3)),
+            Chain: (_, _, _, inner) => inner,
+            Style: (use, frame, scale) =>
+            {
+                var w = (float)Math.Max(0, use.At("width", frame, 3)) * scale;
+                if (w <= 0) return (null, null);
+                var color = StyleColor(use, "color", "#000000", use.At("opacity", frame, 100));
+                var position = (int)Math.Round(use.At("position", frame, 0));
+                var ring = position switch
+                {
+                    1 => Minus(null, Resize(-w, null)),
+                    2 => Minus(Resize(w / 2, null), Resize(-w / 2, null)),
+                    _ => Minus(Resize(w, null), null),
+                };
+                return (null, Tint(color, ring));
+            }),
+
+        ["style.bevel"] = new(
+            "style.bevel", "Bevel", "style",
+            [
+                new EffectParamSpec("size", "Size", 5, 1, 50),
+                new EffectParamSpec("depth", "Depth", 30, 0, 100),
+                new EffectParamSpec("angle", "Angle", 120, 0, 360),
+                // 0 inner (raised inside the edge), 1 outer (a ridge around it).
+                new EffectParamSpec("direction", "Direction", 0, 0, 1),
+            ],
+            Colors:
+            [
+                new EffectColorSpec("highlight", "Highlight", "#ffffff"),
+                new EffectColorSpec("shadow", "Shadow", "#000000"),
+            ],
+            Reach: (use, frame) =>
+                (int)Math.Round(use.At("direction", frame, 0)) == 1
+                    ? 1.5 * Math.Max(0, use.At("size", frame, 5))
+                    : 0,
+            Chain: (_, _, _, inner) => inner,
+            Style: (use, frame, scale) =>
+            {
+                var size = (float)Math.Max(0, use.At("size", frame, 5)) * scale;
+                if (size <= 0) return (null, null);
+                var depth = Math.Clamp(use.At("depth", frame, 30), 0, 100);
+                var highlight = StyleColor(use, "highlight", "#ffffff", depth);
+                var shadow = StyleColor(use, "shadow", "#000000", depth);
+                var outer = (int)Math.Round(use.At("direction", frame, 0)) == 1;
+                var (dx, dy) = LightOffset(use, frame, 1f, size / 2);
+
+                // The blurred silhouette shifted toward and away from the
+                // light; the sliver each shift uncovers is a shaded band —
+                // light-facing for the highlight, light-averted for the
+                // shadow. Inner bands sit inside the silhouette, outer
+                // bands outside it: the same subtraction, operands swapped.
+                var sigma = size / 2;
+                var blurred = SKImageFilter.CreateBlur(sigma, sigma);
+                var toward = SKImageFilter.CreateOffset(dx, dy, blurred);
+                var away = SKImageFilter.CreateOffset(-dx, -dy, blurred);
+                var hiBand = outer ? Minus(toward, null) : Minus(null, away);
+                var shBand = outer ? Minus(away, null) : Minus(null, toward);
+                return (null, Over(Tint(highlight, hiBand), Tint(shadow, shBand)));
+            }),
     };
 
     public static EffectDefinition? Resolve(string kind) =>
@@ -159,6 +337,7 @@ public static class EffectRegistry
     {
         public long Fingerprint;
         public SKImageFilter? SelfFilter;
+        public SKImageFilter? StyleFilter;
         public EffectProgram? Program;
         public bool Built;
     }
@@ -176,6 +355,16 @@ public static class EffectRegistry
     /// </summary>
     public static SKImageFilter? FilterFor(EffectStack? stack, int frame, float scale = 1f) =>
         stack is null ? null : Slot(stack, frame, scale).SelfFilter;
+
+    /// <summary>
+    /// The stack's layer styles as one Skia filter, or null when it has
+    /// none. Styles decorate the pass <em>after</em> its mask carve (Q155),
+    /// so this chain applies in a group outside the carve while
+    /// <see cref="FilterFor"/>'s applies inside it. Cached per stack; do not
+    /// dispose the result.
+    /// </summary>
+    public static SKImageFilter? StyleFor(EffectStack? stack, int frame, float scale = 1f) =>
+        stack is null ? null : Slot(stack, frame, scale).StyleFilter;
 
     /// <summary>
     /// The whole stack as executable steps for the backdrop path — native
@@ -196,10 +385,24 @@ public static class EffectRegistry
             var steps = new List<EffectStep>();
             SKImageFilter? segment = null;
             SKImageFilter? selfChain = null;
+            SKImageFilter? behind = null;
+            SKImageFilter? overlay = null;
             foreach (var use in stack.Uses)
             {
                 if (!use.Applies) continue;
                 if (Resolve(use.Kind) is not { } def) continue;
+                if (def.Style is { } style)
+                {
+                    // A layer style: its decorations join the post-carve
+                    // group on the self path (Q155) and are identity on the
+                    // backdrop path, which has no silhouette to read. Later
+                    // uses draw over earlier ones, on both sides of the
+                    // content.
+                    var (b, o) = style(use, frame, scale);
+                    if (b is not null) behind = behind is null ? b : Over(b, behind);
+                    if (o is not null) overlay = overlay is null ? o : Over(o, overlay);
+                    continue;
+                }
                 if (def.Cpu is { } cpu)
                 {
                     if (segment is not null) steps.Add(new EffectStep(segment, null));
@@ -212,8 +415,24 @@ public static class EffectRegistry
             }
             if (segment is not null) steps.Add(new EffectStep(segment, null));
 
+            // The styled picture: decorations behind, the source itself,
+            // decorations over — the source referenced exactly once as a
+            // graph input, so five styles cost five graphs, never a tree of
+            // re-evaluated subtrees.
+            SKImageFilter? styleChain = null;
+            if (behind is not null || overlay is not null)
+            {
+                var grounded = behind is null
+                    ? null
+                    : SKImageFilter.CreateBlendMode(SKBlendMode.SrcOver, behind, null);
+                styleChain = overlay is null
+                    ? grounded
+                    : SKImageFilter.CreateBlendMode(SKBlendMode.SrcOver, grounded, overlay);
+            }
+
             slot.Fingerprint = print;
             slot.SelfFilter = selfChain;
+            slot.StyleFilter = styleChain;
             slot.Program = steps.Count == 0 ? null : new EffectProgram { Steps = steps };
             slot.Built = true;
             return slot;
@@ -281,6 +500,14 @@ public static class EffectRegistry
                 hash.Add(key);
                 hash.Add(param.At(frame));
             }
+            if (use.Colors is { } colors)
+            {
+                foreach (var (key, hex) in colors)
+                {
+                    hash.Add(key);
+                    hash.Add(hex);
+                }
+            }
         }
         return hash.ToHashCode();
     }
@@ -301,6 +528,79 @@ public static class EffectRegistry
             reach += def.Reach(use, frame);
         }
         return reach;
+    }
+
+    // ---- style-chain vocabulary -------------------------------------------
+
+    /// <summary>Colourize a silhouette: the colour everywhere, scaled by its alpha.</summary>
+    private static SKImageFilter Tint(SKColor color, SKImageFilter? input) =>
+        SKImageFilter.CreateColorFilter(
+            SKColorFilter.CreateBlendMode(color, SKBlendMode.SrcIn), input);
+
+    /// <summary>Foreground drawn over background; null means the style group's source.</summary>
+    private static SKImageFilter Over(SKImageFilter? foreground, SKImageFilter? background) =>
+        SKImageFilter.CreateBlendMode(SKBlendMode.SrcOver, background, foreground);
+
+    /// <summary>Alpha subtraction: <paramref name="from"/> where <paramref name="take"/> is not.</summary>
+    private static SKImageFilter Minus(SKImageFilter? from, SKImageFilter? take) =>
+        SKImageFilter.CreateBlendMode(SKBlendMode.DstOut, from, take);
+
+    /// <summary>
+    /// The silhouette grown (or shrunk, negative <paramref name="radius"/>)
+    /// by about that many pixels: a Gaussian at sigma = r/2, then an alpha
+    /// ramp at the value the blur takes ~r past (or before) a straight edge.
+    /// <b>Deliberately not Skia's morphology filter</b>, which measured
+    /// ~740 ms per 960×540 compose on the CPU backend where this graph
+    /// measures ~15 — and the blur rounds corners where a true dilation
+    /// squares them off, which reads better on a drawn line anyway. The
+    /// cheap approximation that looks right is the correct one (charter).
+    /// </summary>
+    private static SKImageFilter Resize(float radius, SKImageFilter? input)
+    {
+        var sigma = Math.Max(0.5f, Math.Abs(radius) / 2f);
+        var blurred = SKImageFilter.CreateBlur(sigma, sigma, input);
+        // For sigma = r/2 a straight edge's blurred alpha is ~2.3% at r
+        // outside and ~97.7% at r inside; the ramp spans a few counts for
+        // an anti-aliased edge instead of a hard step.
+        var alpha = new byte[256];
+        var identity = new byte[256];
+        int low = radius >= 0 ? 3 : 245, high = radius >= 0 ? 11 : 253;
+        for (var i = 0; i < 256; i++)
+        {
+            identity[i] = (byte)i;
+            alpha[i] = (byte)Math.Clamp((i - low) * 255 / (high - low), 0, 255);
+        }
+        return SKImageFilter.CreateColorFilter(
+            SKColorFilter.CreateTable(alpha, identity, identity, identity), blurred);
+    }
+
+    /// <summary>A blur sigma from a size-in-pixels parameter — the radius/2 convention.</summary>
+    private static float SigmaOf(EffectUse use, string key, double fallback, int frame, float scale) =>
+        (float)(Math.Max(0, use.At(key, frame, fallback)) / 2.0) * scale;
+
+    /// <summary>
+    /// The authored colour with the style's opacity folded into its alpha.
+    /// An unparseable hex falls back to the spec's default rather than to a
+    /// surprise colour — the same forgiveness a stroke's colour gets.
+    /// </summary>
+    private static SKColor StyleColor(EffectUse use, string key, string fallback, double opacityPct)
+    {
+        var color = BrushEngine.ParseColor(use.ColorAt(key, fallback));
+        var alpha = (byte)Math.Round(Math.Clamp(opacityPct, 0, 100) / 100.0 * color.Alpha);
+        return color.WithAlpha(alpha);
+    }
+
+    /// <summary>
+    /// A distance along the light direction, in device pixels, screen-y
+    /// down. The angle convention is Photoshop's — degrees anticlockwise
+    /// from the right, so the default 120° lights from the upper left.
+    /// </summary>
+    private static (float Dx, float Dy) LightOffset(
+        EffectUse use, int frame, float scale, double distance)
+    {
+        var radians = use.At("angle", frame, 120) * Math.PI / 180.0;
+        var d = Math.Max(0, distance) * scale;
+        return ((float)(Math.Cos(radians) * d), (float)(-Math.Sin(radians) * d));
     }
 
     private static SKColorFilter LevelsFilter(EffectUse use, int frame)

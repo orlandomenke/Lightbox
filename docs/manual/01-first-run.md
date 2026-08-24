@@ -239,6 +239,12 @@ what *reset* falls back to, so deleting one would take the fallback with it.
 
 The picker marks a workspace you have since rearranged with a `*`.
 
+**The app reopens as you left it.** The arrangement on screen — panels, rulers,
+guide visibility and lock, splitters — survives a restart whether or not you
+saved it into a workspace, star and all. Saving a workspace is still what makes
+an arrangement *nameable*; reset still returns to the saved snapshot. What the
+restart no longer does is quietly undo the tweaks you made since.
+
 ### The quick bar is the workspace's
 
 What the Quick options bar carries is part of the workspace, chosen for the

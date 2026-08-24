@@ -34,6 +34,16 @@ internal static class EffectPasses
             : null;
 
     /// <summary>
+    /// The layer's styles as a filter for the group outside its mask carve
+    /// (Q155) — glow, stroke, shadow, bevel decorate the carved silhouette —
+    /// or null for a layer with none.
+    /// </summary>
+    internal static SKImageFilter? SelfStyle(Layer layer, int frame) =>
+        layer.HasLiveEffects && !layer.IsAdjustment
+            ? EffectRegistry.StyleFor(layer.Effects, frame)
+            : null;
+
+    /// <summary>
     /// The adjustment pass for scene.Layers[<paramref name="layerIndex"/>],
     /// or null when it currently draws nothing (no live stack, hidden, or a
     /// clipped adjustment over an empty base).

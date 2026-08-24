@@ -393,6 +393,16 @@ the test needs relaxing.
     clip grades one silhouette, its opacity is strength, its eye switches it
     off. Its cels stay empty and nothing renders them; a document without
     one writes no key.
+- [x] Layer styles `evidence: EffectColorSpec, StyleFor, SelfStyle, ADropShadowFallsAwayFromTheLight, AnOuterGlowHalosTheSilhouetteAndAnInnerGlowStaysInside, AStrokeOutlinesWhereItsPositionSays, ABevelLightsTheEdgeFacingTheLight, AStyleDecoratesTheCarvedSilhouetteNotTheUnmaskedContent, AStyleIsOfferedOnlyWhereItHasASilhouette`
+  - **Effect kinds on the layer's own stack (Q153), not a second record**:
+    drop shadow, outer glow, inner glow, stroke, and the smooth bevel
+    (Q154 — contour and gloss wait for the curve editor). All native filter
+    graphs reading the pass's silhouette, so the one-filtered-redraw fast
+    path holds; self-only, the mirror of the CPU grades' backdrop-only.
+    Styles decorate the *carved* silhouette (Q155): content → filters →
+    mask carve → styles, so a glow hugs what the mask leaves. Colours are
+    an optional `Colors` map on the use — absent until authored, not
+    keyable until colour curves are worth keying.
 - [x] Blend modes `evidence: LayerBlendMode, BlendComposeTests`
 - [x] Layer folders `evidence: LayerGroup, LayerFolderTests`
 - [x] Layer and alpha locking `evidence: LayerLockTests, AlphaLockTests`

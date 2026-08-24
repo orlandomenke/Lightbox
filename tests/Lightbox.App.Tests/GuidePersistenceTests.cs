@@ -32,6 +32,77 @@ public class GuidePersistenceTests : BrushStateIsolated
         Assert.Equal(48, back.Scene.Guides[0].Spacing);
     }
 
+    // ---- reference sheet views (B287) --------------------------------------
+    //
+    // A sheet view is edited through a wrapper document built fresh on every
+    // open, so a guide that only lived on the wrapper's scene evaporated with
+    // the tab. The view record now carries the guides the way it carries the
+    // layers, written back through the same edit funnel.
+
+    [AvaloniaFact]
+    public void AGuideOnADocumentSheetViewSurvivesSaveAndReopen()
+    {
+        var vm = Vm();
+        var sheet = vm.AddReferenceSheet("Hero")!;
+        vm.AddReferenceView(sheet);
+        vm.OpenReferenceView(sheet.Views[0]);
+        Assert.Equal(DocumentTabKind.Reference, vm.ActiveTab!.Kind);
+
+        vm.AddGuide(GuideKind.Line, 120, 40, angle: 90);
+
+        // A fresh session from the owning document's serialized form.
+        var reopened = Vm();
+        var doc = DocJson.Deserialize(vm.SerializeDocument());
+        reopened.OpenDocumentTab(doc, null);
+        reopened.OpenReferenceView(doc.ReferenceSheets[0].Views[0]);
+
+        Assert.True(reopened.HasGuides);
+        Assert.Equal(120, reopened.Guides[0].X);
+    }
+
+    [AvaloniaFact]
+    public void AGuideOnAProjectSheetViewSurvivesSaveAndReopen()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"lightbox-guides-{Guid.NewGuid():N}.lbproj");
+        var vm = Vm();
+        var reopened = Vm();
+        try
+        {
+            vm.NewProject(root, "Knight");
+            var sheet = vm.AddReferenceSheet("Hero")!;
+            vm.AddReferenceView(sheet);
+            Assert.NotNull(vm.ActiveTab!.SheetSource);
+
+            vm.AddGuide(GuideKind.Grid, 0, 0, spacing: 24);
+            vm.Save();
+
+            reopened.OpenProject(root);
+            var filed = reopened.ProjectDocker.Project!.Manifest.Sheets!.First();
+            reopened.OpenProjectSheet(filed);
+
+            Assert.True(reopened.HasGuides);
+            Assert.Equal(24, reopened.Guides[0].Spacing);
+        }
+        finally
+        {
+            vm.ProjectDocker.Dispose();
+            reopened.ProjectDocker.Dispose();
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [AvaloniaFact]
+    public void AViewThatNeverPlacedAGuideWritesNoGuidesKey()
+    {
+        // Optional means absent: the new key must not appear on every view of
+        // every document that never used it.
+        var vm = Vm();
+        var sheet = vm.AddReferenceSheet("Hero")!;
+        vm.AddReferenceView(sheet);
+
+        Assert.DoesNotContain("\"guides\"", vm.SerializeDocument());
+    }
+
     [AvaloniaFact]
     public void AGuideSurvivesSaveAndReopenOfAStandaloneDocument()
     {
