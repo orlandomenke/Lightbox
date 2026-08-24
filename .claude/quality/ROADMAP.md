@@ -87,7 +87,7 @@ item that a painting app is simply expected to have lives here.
 - [x] Physical media simulation (watercolour, gouache, oil, ink) `evidence: MediumSimulator, FluidLattice, Pigment, MediumRenderingTests`
 - [x] A performance map, not only a ratchet — scaling curves, cliffs and a ranking `evidence: Lightbox.Bench, Harness, AnimationSweeps.cs, DrawingSweeps.cs, Cadence, Curve, Runner`
   - The `Category=Performance` tests answer "did this diff break a path we know about". They cannot answer "where does this stop being usable" or "what should we fix first", and the unit of work here is a sequence, which no budget grows. `tools/Lightbox.Bench` sweeps a dimension, fits the exponent, finds the cliff where p95 misses the budget, and ranks by pressure. Minutes to run, so it is deliberate rather than per-commit. Design: `docs/DESIGN-performance.md`; output: `.claude/quality/PERFORMANCE.md`.
-- [x] The simulated media are measured and bounded by the stroke `evidence: MediumPerformanceTests, TheMediumCostsTheSameOnAHugeCanvasAsOnASmallOne, AMediumStrokeDoesNotAllocateALatticeEachTime, AReusedLatticeRendersExactlyWhatAFreshOneWould`
+- [x] The simulated media are measured and bounded by the stroke `evidence: MediumPerformanceTests, TheMediumsCostGrowsNoFasterWithTheCanvasThanPlainCompositingDoes, AMediumStrokeDoesNotAllocateALatticeEachTime, AReusedLatticeRendersExactlyWhatAFreshOneWould`
 - [x] Every brush feature is absent from the file until it is used `evidence: MediumOnDisk, IsUntouched, BrushDynamicsSerializationTests, ABrushThatUsesNeitherWritesNeitherKey`
   - The simulation was behaviourally optional and written anyway: twenty-one medium keys on every stroke of every document, a third of the brush record, for a pass nobody switched on. `BlendOrNormal` was worse — a convenience getter beside the nullable field, serializing the exact key that making it nullable had removed. Any accessor added beside a nullable setting needs `[JsonIgnore]`.
 - [x] Expensive brushes are marked as such before you pick one `evidence: BrushCost, BrushCostOf, BrushCostTests, BrushCatalogueTests, JitterAndScatterAndTextureAreNotExpensive, EverySimulatedMediumHasAFastCounterpart`
@@ -558,11 +558,122 @@ it is re-rendered rather than recorded. What is missing is only presentation.
 
 ### Interop
 
-- [?] PSD import/export
+- [~] PSD import/export `evidence: PsdReader, PsdDocumentImport, PsdBlendMap, PsdReadTests, PsdImportTests, PsdFixture, ChannelsBecomeRgbaAtTheLayersOwnOffset, EveryCompressionSchemeDecodesToTheSamePixels, EveryReasonIsCollectedBeforeRefusing_NotJustTheFirst, ALayersPixelsLandOnTheBaselineAtTheirCanvasPosition, APhotoshopFolderBecomesALayerFolder, PsdWriter, APsdRoundTripsThroughPhotoshopWithItsLayers`
+  - **Built: import.** RGB and greyscale, 8 and 16 bits, PSD and PSB, raw / RLE /
+    ZIP channels, folders, and layer name, visibility, opacity, blend mode and
+    locking. `.psd` and `.psb` open through **File ▸ Open…** rather than a
+    separate Import item, because "open this drawing" is the same intent whoever
+    made the file.
+  - **Imported pixels land on `Frame.PngBase64`**, the baseline that has been in
+    the model since the two frame classes merged for exactly this — "pixels with
+    no stroke provenance" — and whose own comment recorded that nothing in the
+    application had ever written one. Invariant 1 is untouched: a frame is
+    `baseline + strokes stamped on top`, so a PSD layer is a drawing to paint
+    over and every mark added afterwards is still a stroke.
+  - **Masks and clipping are imported**, and they were refused for one day before
+    they were not. `main` landed layer masks and clipping (Q147/Q148) between this
+    branch starting and merging, and `LayerMask` holds an ordinary `Frame` — so a
+    PSD mask arrives exactly as a layer does, as baseline coverage, and
+    `ClipToBelow` already implements Photoshop's consecutive-clipped-layers rule.
+    A mask's rectangle is its own rather than its layer's, and what lies outside
+    it is a byte in the file rather than a convention; both matter, because
+    guessing either hides or reveals three quarters of somebody's drawing. This
+    is the single biggest reduction in what the refusal costs.
+  - **The decision that shapes it (2026-08-24): a PSD using features Lightbox has
+    no model for is refused, by name, all at once.** Adjustment and fill layers,
+    text, smart objects, layer effects, vector masks and a folder that blends as
+    a group all change what the pixels beneath them look like. The
+    alternative on the table was to take Photoshop's own flattened composite for
+    those layers, which always *looks* right and silently discards the stack; the
+    owner chose refusal instead. **The cost is real and was accepted knowingly**:
+    plenty of production files have an adjustment layer or a mask somewhere and
+    will not open until it is flattened. What makes it defensible is that the
+    refusal is a list — every feature, the layer carrying it, and the Photoshop
+    menu path that fixes it — so one trip back should be enough. The mask work
+    above is also the pattern for shrinking it further: every refusal here is a
+    missing *model*, so each one Lightbox grows turns a refusal into an import
+    rather than needing the reader rewritten.
+  - **Not built: export.** Declined for this pass in the same exchange, which
+    leaves Lightbox able to read a Photoshop file and not hand one back — the
+    half most artists will notice. Writing a PSD is markedly easier than reading
+    one, because the writer chooses the compression (RLE) and never meets a
+    feature it cannot represent, so this is a small item rather than a research
+    project. `PsdWriter` and `APsdRoundTripsThroughPhotoshopWithItsLayers` are
+    the anchors that will resolve when it lands, and they deliberately do not
+    resolve today.
+  - **Baselines are canvas-sized**, because `FrameRasterizer.Materialize` draws a
+    baseline stretched over the whole canvas, so a layer stored at its own
+    smaller bounds would be scaled up to fill the frame. A nullable rect beside
+    the baseline is the better answer and changes a serialized type that
+    `ImageResize`, `Crop`, `Transform` and `LayerMerge` all read, so it was kept
+    as a follow-up — **B304**, cost M.
+  - **What that costs was measured rather than asserted, and half the assertion
+    was wrong.** The claim written down at the time was "only decode time and
+    memory pay". The file-size half held up completely: PNG and gzip crush the
+    transparent margin, so a 12-layer 4K import is 12 KB on disk. The time half
+    did not — reading the PSD is 1–3% of the work and building the baselines is
+    the rest, which is about four seconds for that file. PNG compression level
+    is the obvious lever and is not one. `PsdImportCostTests` holds the numbers
+    and a loose budget so the attribution cannot quietly invert.
+  - **The reader's safety was claimed, then refuted four ways** by an adversarial
+    pass on the same day, and all four are worth knowing because the existing
+    thirty-five tests — a byte-by-byte truncation fuzz among them — caught none
+    of them. Three were one shape: an attacker-controlled 64-bit PSB length
+    surviving a bounds check and truncating to a negative `int`, after which
+    `Pos + count <= End` is true for every count and the "bounds check" is not
+    one. `PsdCursor.Has` now compares by subtraction, `PsdCursor.Pos` refuses to
+    leave its section at all, and `PackBits` accumulates its scanline cursor in
+    64 bits — three fixes rather than one, because each closes the hole at a
+    different distance from the caller.
+  - **The fourth was the interesting one, and it was a refusal bypass rather than
+    a crash.** A layer mask is announced *twice* in a PSD — a length field in the
+    layer's extra data, and a channel id in its channel table. The reader
+    believed only the first, so a layer carrying real mask pixels with
+    `maskLength = 0` imported as a plain opaque layer and silently threw the mask
+    away: exactly the failure refusing exists to prevent, reached from the side
+    nobody was watching. `PsdHostileInputTests` is the regression suite, and the
+    lesson generalises — a fuzz that only truncates well-formed files never
+    corrupts a length into a value that survives the check.
+  - **A per-layer memory ceiling turned out not to be a ceiling.** Layer bounds
+    are independent of the canvas, so a 4×4 document declared four 10,000×7,000
+    layers — each under any generous per-layer cap — and asked for about 3 GB
+    from an 800 KB file. The bound that actually prices the suspicious thing is
+    the *ratio*: content past the canvas edge is ordinary in Photoshop and
+    ordinary by a small margin, so a layer is capped at four times the canvas
+    area with a floor for small documents, and a running total backs it up.
+  - **The fixtures are the part worth copying.** There is no Photoshop here, so
+    the test PSDs are built in C# as the brush-format tests already build `.abr`
+    and `.gbr` — and then cross-checked against `psd_tools`, an independent
+    implementation, in both directions. That check found a real defect on its
+    first run: every fixture omitted the trailing image data section, which
+    `psd_tools` rejects as corrupt, so the reader had been green against files no
+    other application would open.
 - [x] Tablet optimization `evidence: PressureTests, PressureVmTests, PenDiagnostic`
-- [ ] Save as an ordinary image format — PNG, JPEG, SVG `evidence: ImageSaveFormat, SaveAsImage, ImageSaveTests, ASvgSaveKeepsVectorLayersAsPaths`
+- [~] Save as an ordinary image format — PNG, JPEG, SVG `evidence: ImageSaveFormat, SaveAsImage, ImageSaveTests, ASvgSaveKeepsVectorLayersAsPaths`
   - Export writes sheets and sequences for engines; there is no plain "save this as a picture". PNG and JPEG are small and mostly plumbing. **SVG is the interesting one and should not be faked**: a raster document cannot become an SVG except as an embedded bitmap, which is a lie in a vector wrapper. It is only honest for the vector layers, and it needs the vector side to be richer first — which is what makes it the same item as the one below.
   - JPEG needs a quality control and a warning that it has no alpha, or somebody exports a character on a white box and finds out later.
+  - **Built: PNG, JPEG and WebP**, through `File ▸ Save as image…`
+    (Ctrl+Alt+Shift+S). One image by default — the missing verb this item names —
+    with an opt-in *every frame* that writes numbered files, which exists because
+    `ExportPngSequence` is PNG-only so a JPEG or WebP sequence had no route at
+    all. It renders through `SequenceExporter.RenderFrame`, so a saved PNG and
+    that frame from an exported sequence are the same bytes by construction; a
+    test asserts exactly that, because two compositing paths would be free to
+    drift.
+  - **The alpha warning arrives before the save, not after.** The dialog says so
+    when JPEG is picked on a document that has transparency, and the result
+    reports what actually happened — measured from the rendered pixels, so a
+    fully painted canvas saved as JPEG warns about nothing. Where transparency
+    *is* lost it is filled with white rather than left to darken toward black,
+    which is what handing a premultiplied image to the JPEG encoder does.
+  - **Three formats and not more, because that is what Skia here can encode.**
+    Measured rather than assumed: of the fourteen `SKEncodedImageFormat` values,
+    eleven — BMP, GIF, ICO, WBMP, PKM, KTX, ASTC, DNG, HEIF, AVIF and JPEG XL —
+    return null from `Encode`. TIFF and PSD are the two absences an artist will
+    look for and both would be ours to write.
+  - **SVG is still not built and the box stays open for it**, on this item's own
+    reasoning above. `ASvgSaveKeepsVectorLayersAsPaths` does not resolve, which
+    is what keeps the item honestly in flight rather than green.
 - [~] Lightbox draws its own icons `evidence: IconSet, IconSetTests, EveryToolbarButtonResolvesAnIcon, NoButtonAnywhereWearsAGlyphInsteadOfAnIcon, EveryIconIsAuthoredOnTheSameGrid, ASelectionVariantIsNeverTheShapeToolsOutline, IconSourceDocument`
   - Every icon in the app should be one set, made deliberately rather than assembled. The interesting part is *how*: **the app should draw them itself**. That needs vector tooling good enough to author a 16 px glyph and an SVG save that emits real paths, which is the honest dependency chain — icons wait on the vector side, and the vector side is worth having anyway.
   - Generating the SVGs directly is the fallback and is fine as a first pass, but it is a worse test of the product: a drawing application that cannot make its own icons is telling you something about its vector tooling. Dogfooding here is a feature, not a vanity.

@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4858
+budget: 4860
 
 ## Why it is here despite being XAML
 
@@ -218,7 +218,23 @@ leaves a number nobody can account for. So every reason above stays, and
   and row-template elements have nowhere else to live — the chip's *styles*
   went to `Controls.axaml` beside the mask chip's, and every handler is in
   `MainWindow.Layers.cs`.
+- **4,875 → 4,877**, for the `Save as image…` menu item. Two lines, and they buy
+  the only route to a feature: the command is registered in `ShortcutMap` and
+  dispatched from `MainWindow.CanvasViewTools`, so without a menu entry it exists
+  and is invisible to anybody who has not learned the key. The handler and the
+  file-picker work went into a new partial (`MainWindow.ImageSave.cs`) rather than
+  `MainWindow.axaml.cs`, which is itself at budget. Restated against the merged
+  baseline: measured alone this branch wanted 4,776, which was 4,774 + 2 against a
+  `main` that had since moved by 101 lines — taking that number would have reported
+  `main`'s growth as a violation.
 - **4,875 → 4,858** (2026-08-24): the text tool. Its rail button and options bar
   needed eleven lines, so the Fill tool's options — thirty lines of pure
   bindings, the exact shape `GuideOptionsBar` and the rest already have — became
   `FillOptionsBar.axaml`. The feature paid for itself and left seventeen behind.
+- **→ remeasured on the merged tree** (2026-08-24). The two entries above both
+  start from 4,875 and neither figure is right for the tree they now share: the
+  image save wanted 4,877, the text tool wanted 4,858, and taking either would
+  report the other's change as growth nobody accounted for — the text tool's
+  extraction would swallow the menu item, or the menu item would bank the
+  extraction's slack. Both reasons stay and `ratchets.py remeasure` supplies the
+  figure, which is the one moment that script exists for.

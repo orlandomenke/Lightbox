@@ -442,6 +442,15 @@ public sealed class ShortcutMap
             new("file.versionHistory", "Version history (view and revert)", "File",
                 G(Key.H, KeyModifiers.Control | KeyModifiers.Alt)),
 
+            // Saving a picture rather than a document. Ctrl+Alt+Shift+S for two
+            // reasons that agree: it continues the local family, where every save
+            // is S with one more modifier than the last, and it is what Photoshop
+            // binds Save for Web to — which is the ancestor of this exact command.
+            // Ctrl+Shift+E, the other obvious candidate and Krita's own, is taken
+            // by the fluid effects window.
+            new("file.saveAsImage", "Save as image (PNG, JPEG, WebP)", "File",
+                G(Key.S, KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Shift)),
+
             // B58. The rig had no shortcut, no menu item and no binding, so the mode
             // could not be switched on and none of the editing behind it was
             // reachable. `Ctrl+R` is taken by the rulers, so this is the next key
