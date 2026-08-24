@@ -812,12 +812,15 @@ public partial class MainViewModel
         }
         else
         {
-            // Bounded canvas without culling: use full-document compositing as before
+            // The ring, over the whole document or over a window onto it (B291).
+            // `plan.Origin` is zero for the whole-document case, so that route is
+            // byte-for-byte what it always was.
             image = _composeRing.Publish(info, dirty, (surface, clip) =>
             {
                 usedClip = clip;
-                SceneRenderer.ComposeInto(surface, passes, background, clip, renderScale, cameraView);
-            }, renderScale, cameraView);
+                SceneRenderer.ComposeInto(
+                    surface, passes, background, clip, renderScale, cameraView, plan.Origin);
+            }, renderScale, cameraView, plan.Origin);
         }
         sw.Stop();
         composeScope?.Dispose();

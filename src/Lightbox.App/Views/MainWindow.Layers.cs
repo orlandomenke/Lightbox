@@ -265,6 +265,47 @@ public partial class MainWindow
         e.Handled = true;
     }
 
+    /// <summary>
+    /// The row menu's Layer style entries: activate the row, add the style
+    /// through the docker's own command, open the docker with the sliders in
+    /// hand — the adjustment-layer pointer's pattern (Q158).
+    /// </summary>
+    private void OnLayerMenuAddStyle(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.Tag is not string kind) return;
+        if (LayerRowOf(sender) is not { } row) return;
+        if (_vm.EffectsPanel.Catalogue.FirstOrDefault(c => c.Kind == kind) is not { } choice) return;
+        _vm.ActivateLayerCommand.Execute(row);
+        _vm.EffectsPanel.EditingScene = false;
+        _vm.EffectsPanel.AddUseCommand.Execute(choice);
+        _vm.Workspace.EffectsDockerVisible = true;
+    }
+
+    /// <summary>The fx chip on the row: one click from the stack to its sliders.</summary>
+    private void OnLayerFxChipPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (LayerRowOf(sender) is not { } row) return;
+        _vm.ActivateLayerCommand.Execute(row);
+        _vm.EffectsPanel.EditingScene = false;
+        _vm.Workspace.EffectsDockerVisible = true;
+        e.Handled = true;
+    }
+
+    /// <summary>Layer style → Edit effects: the fx chip's gesture, findable by name.</summary>
+    private void OnLayerMenuEditEffects(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is not { } row) return;
+        _vm.ActivateLayerCommand.Execute(row);
+        _vm.EffectsPanel.EditingScene = false;
+        _vm.Workspace.EffectsDockerVisible = true;
+    }
+
+    /// <summary>The stack's master switch (Q158), from the row menu.</summary>
+    private void OnLayerMenuToggleEffects(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) _vm.ToggleLayerEffects(row.Layer);
+    }
+
     /// <summary>Layer menu: merge the active layer down, through the same Q52 ask as Ctrl+E.</summary>
     private void OnMenuMergeDown(object? sender, RoutedEventArgs e) => RequestMergeDown(null);
 

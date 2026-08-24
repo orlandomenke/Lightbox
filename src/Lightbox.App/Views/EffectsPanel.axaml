@@ -23,9 +23,17 @@
                    IsChecked="{Binding EditingScene}"
                    ToolTip.Tip="Edit the grade over the whole composite — everything the camera sees" />
     </StackPanel>
-    <TextBlock DockPanel.Dock="Top" Text="{Binding TargetLabel}" FontSize="10"
-               Foreground="{StaticResource TextSecondaryBrush}"
-               Margin="0,4,0,2" TextWrapping="Wrap" />
+    <DockPanel DockPanel.Dock="Top" Margin="0,4,0,2">
+      <!-- The master switch (Q158): the whole stack off in one click, every
+           effect's own checkbox untouched — Photoshop's eye on the fx group. -->
+      <CheckBox DockPanel.Dock="Right" IsChecked="{Binding StackEnabled}"
+                IsVisible="{Binding StackExists}" MinWidth="0" Padding="0"
+                VerticalAlignment="Top"
+                ToolTip.Tip="Switch every effect on this stack off at once, keeping all their settings" />
+      <TextBlock Text="{Binding TargetLabel}" FontSize="10"
+                 Foreground="{StaticResource TextSecondaryBrush}"
+                 TextWrapping="Wrap" />
+    </DockPanel>
     <TextBlock DockPanel.Dock="Top" Text="{Binding ScopeNote}" FontSize="10"
                Foreground="{StaticResource TextSecondaryBrush}"
                IsVisible="{Binding ScopeNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"

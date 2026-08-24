@@ -728,6 +728,22 @@ public partial class MainViewModel
     }
 
     /// <summary>
+    /// The stack's master switch (Q158): every effect and style off in one
+    /// click without touching any use's own switch — the mask chip's
+    /// disable, applied to the fx chip.
+    /// </summary>
+    internal void ToggleLayerEffects(Layer layer)
+    {
+        if (layer.Effects is not { } stack) return;
+        var disable = stack.Disabled != true;
+        _editor.Perform(_ => stack.Disabled = disable ? true : null,
+            label: disable ? "Disable layer effects" : "Enable layer effects",
+            frameContentUnchanged: true);
+        SyncMaskRows();
+        EffectsPanel.Rebuild();
+    }
+
+    /// <summary>
     /// Clip the layer to the one below (Photoshop's Ctrl+Alt+G). The base is
     /// positional — see <see cref="Layer.ClipToBelow"/> for why it is a flag.
     /// </summary>
@@ -759,7 +775,9 @@ public partial class MainViewModel
     }
 
     /// <summary>Re-read every row's mask and clip state after a mask edit.</summary>
-    private void SyncMaskRows()
+    // Internal for the effects docker: an add or remove there changes what
+    // the rows' fx chips show, the same way a mask edit changes their chips.
+    internal void SyncMaskRows()
     {
         foreach (var row in LayerRows) row.SyncMaskFromModel();
     }

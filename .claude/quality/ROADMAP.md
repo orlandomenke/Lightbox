@@ -322,19 +322,21 @@ answered, and answering one does not soften the other:
 | Layer count | Do not recomposite unchanged layers | B165, not started — **mandatory** |
 | Layer count × memory | Held side composites instead of every cel resident | B198 — measured, carried by B29's candidate |
 | Pixels actually served | Tiles, and the compose-scale clamp | B144, B160 — built |
-| Pixels served *while painting* | A culled ring: viewport-sized *and* dirty-region-aware | B291 — measured, not started |
+| Pixels served *while painting* | A culled ring: viewport-sized *and* dirty-region-aware | B291 — **built** |
 
-**The fifth row is the one that gets worse as the artist works closer**, and it
-is worth stating beside the others because it inverts their intuition. Culling
-already prices a composite by what is on screen — and `ComposePlan.For` requires
-`dirty is null` to take that route, so a *stroke* publish never can. Painting
-therefore composes into a surface sized to the **document**, which does not shrink
-with zoom: measured on 2560×1440, a stroke at 8× zoom composes 3.7 M pixels where
-a frame change at the same zoom composes 14 k. The condition is not a mistake —
-B121 measured naive culling of an incremental publish at 109× *worse*, because the
-culled path builds a fresh surface and must fill all of it. So this is a third
-route rather than a relaxed condition, which is why it is a roadmap item and not
-a bug fix.
+**The fifth row was not what it was first filed as, and the correction is the
+useful part.** It was written up as painting getting worse the closer the artist
+works; measured, it was a **flat ~4× penalty** at every zoom — an incremental
+stroke publish cost 5.7–6.0 ms while a whole-canvas publish of the same document
+cost 1.4–1.5 ms, because the second was culled to the viewport and the first was
+not. The interactive path cost four times the path it exists to optimise.
+
+B121's condition turned out to be about the **fresh surface**, not about culling:
+the culled route builds a new surface every publish and must fill all of it,
+which is where the 109× came from. `ComposeRing` keeps its buffers and already
+repaints only what went stale, so it could take a smaller surface all along — it
+only lacked an origin. Giving it one took the stroke publish to 1.81 ms at 100%
+and **0.24 ms at 800%**, so the cost now falls with zoom instead of being flat.
 
 The layer axis is swept to 100 as of 2026-08-14, and it added a fourth row: past
 about 64 layers at 1080p a single frame's cels (~830 MB) exceed the 512 MB frame
@@ -393,7 +395,7 @@ the test needs relaxing.
     clip grades one silhouette, its opacity is strength, its eye switches it
     off. Its cels stay empty and nothing renders them; a document without
     one writes no key.
-- [x] Layer styles `evidence: EffectColorSpec, StyleFor, SelfStyle, ADropShadowFallsAwayFromTheLight, AnOuterGlowHalosTheSilhouetteAndAnInnerGlowStaysInside, AStrokeOutlinesWhereItsPositionSays, ABevelLightsTheEdgeFacingTheLight, AStyleDecoratesTheCarvedSilhouetteNotTheUnmaskedContent, AStyleIsOfferedOnlyWhereItHasASilhouette`
+- [x] Layer styles `evidence: EffectColorSpec, StyleFor, SelfStyle, ADropShadowFallsAwayFromTheLight, AnOuterGlowHalosTheSilhouetteAndAnInnerGlowStaysInside, AStrokeOutlinesWhereItsPositionSays, ABevelLightsTheEdgeFacingTheLight, AStyleDecoratesTheCarvedSilhouetteNotTheUnmaskedContent, AStyleIsOfferedOnlyWhereItHasASilhouette, TheMasterSwitchMutesTheStackWithoutTouchingItsUses, TheStackMasterSwitchSilencesEveryChainAndTheCacheFollows`
   - **Effect kinds on the layer's own stack (Q153), not a second record**:
     drop shadow, outer glow, inner glow, stroke, and the smooth bevel
     (Q154 — contour and gloss wait for the curve editor). All native filter
@@ -1655,15 +1657,16 @@ Four rules govern everything below, and they are not negotiable per feature:
   - Six providers behind one `IAiArtist`, chosen in Edit ▸ Configure ▸ AI: Claude, GPT, OpenRouter, Ollama, any OpenAI-compatible endpoint, and an MCP server the user supplies. The page is **generated from the catalogue**, so adding a service is a catalogue entry and a factory case — a page that hard-coded Claude's fields would pass a test that only checked Claude and then show an API key box for a local server.
 - [x] AI assistance can be switched off entirely `evidence: TurningItOffPersistsAndTakesTheArtistWithIt, TheProviderFieldsStayUsableWhileAssistanceIsOff, AiEnabled`
   - On by default, and off removes the AI bar rather than greying it — the camera's rule, for a studio that wants AI nowhere near a shot. The switch beats a complete connection, and the provider fields stay usable while it is off so a provider can be configured and proven before it is turned on.
-- [~] A connection test that checks the output, not just the reply `evidence: AiConnectionTester, AiTestDepth, AiConnectionTesterTests, AThoroughTestFailsWhenTheModelCopiedAKeyInstead, AQuickTestMakesOneCall, TheArtistInterfaceOffersInbetweeningAndNothingElse`
+- [x] A connection test that checks the output, not just the reply `evidence: AiConnectionTester, AiTestDepth, AiConnectionTesterTests, AThoroughTestFailsWhenTheModelCopiedAKeyInstead, AQuickTestMakesOneCall, EveryArtistMethodStartsFromSomethingTheArtistDrew`
   - **It asks for real work rather than pinging.** The ways this fails are mostly not reachability: a key with no credit, a model name off by a version, an endpoint that answers but cannot honour a JSON schema, an MCP server whose tool is spelled differently, a small model that returns valid JSON full of nonsense. A ping says "connected" to every one.
   - Two depths, and **both ask for an inbetween** — it is the only thing the application asks a model for, so a test that exercised anything else could pass on a provider that cannot do the job. Quick takes a two-point line and checks only that what comes back would mark; thorough adds a real inbetween and checks it lands **between** the two keys — the one assertion that separates a working connection from a working inbetweener, and the one a parse check can never make. Three verdicts rather than two, because "unreachable" and "reachable but drawing nonsense" need different fixes.
 - [x] A budget on what a request costs `evidence: AiPayloadBudgetTests, AnInbetweenRequestStaysWithinItsBudget, CostScalesWithStrokeCount_WhichIsWhySendingFewerIsTheRealLever, ResamplingIsWhatKeepsALongStrokeAffordable`
   - The one cost in this app that is invisible locally: a change that doubles a payload shows up on somebody's bill a month later and nothing in the suite says a word. Measured in `docs/DESIGN-ai-payload.md` — a 40-stroke frame pair is 102 KB and at least 26k tokens; `MaxWirePoints` is the constant carrying it, and deleting it would fail no other test.
   - The finding worth keeping: **images are ~87% of a request's bytes and ~5% of its tokens, and strokes are the reverse.** So "make the payload smaller" is two goals recommending opposite changes, and any optimisation has to say which it means. Compression is off the table for the same reason — it takes 82% off the bytes, touches no tokens, and 0.3 s of upload is invisible beside 30–120 s of generation.
-- [~] Send the strokes that need judgement, not the whole frame `evidence: StrokeSelection, StrokeSelectionTests, OnlyStrokesThatMoveAreSent, TheContextIsEnoughToPlaceThem`
+- [ ] Send the strokes that need judgement, not the whole frame `evidence: StrokeTriage, StrokeTriageTests, OnlyStrokesThatMoveAreSent, TheContextIsEnoughToPlaceThem`
   - Six times bigger than any encoding trick, and the only lever with no format risk. A 120-stroke frame is ~79k tokens and most of those strokes barely move; the deterministic inbetweener already handles a matched stroke correctly, and the AI is needed where straight interpolation fails — arcs, rotation, overlap. Halving the stroke count halves the cost exactly.
   - The hard half is knowing *which* strokes need judgement, which is `DESIGN-subject-reading.md`'s question approached from the other side.
+  - **Nothing here is built, and for a while the file could not say so.** The anchor was `StrokeSelectionTests`, which resolves against `tests/Lightbox.App.Tests/StrokeSelectionTests.cs` — picking whole lines with the black arrow, nothing to do with pruning a payload. So an item with no code behind it showed one of four anchors satisfied, which is exactly the false green the derived checkbox exists to refuse; it arrived through a name collision rather than through a claim anybody made. Renamed to `StrokeTriage` because *selection* is already taken by the canvas and means something an artist does with a mouse — **triage** is the AI-side question of which strokes need a model's judgement, and no UI concept competes for the word.
 - [x] An MCP surface, so an agent can work the document directly `evidence: IpcServer, IpcDocumentApi, IpcTests, InsertInbetweens_ValidatesAndInserts_Undoable, DrawStrokes_AppendsToExposedKey, BadRequests_FailCleanly, PipeRoundTrip_GetScene`
   - **The other direction, and it was missing from this file entirely** until the AI section was gathered — which is its own small argument for the section. `CLAUDE.md` names it as one of the three purposes and the code has shipped it since M4a, but no roadmap item claimed it, so nothing was deriving its status from the code.
   - Independent of the provider list above, and that independence is the point: there, Lightbox calls out to a model; here, an agent the artist already runs calls **in** and edits the document. Configuring a provider is not a prerequisite for either.
@@ -1698,8 +1701,9 @@ The prerequisite half. Both of these exist to be *inputs to authoring* and neith
 may reach a pixel at render time.
 
 - [?] The AI reads the subject before it draws — **split in two, because one half is built and one is gated**
-- [~] …the taxonomy half: what a character IS `evidence: SubjectTaxonomy, SubjectPart, SubjectRequest, ReadSubjectAsync, SubjectReadingTests, SubjectReadingWiringTests, DeletingEveryReadingChangesNoPixel, AReadingSomebodyEditedIsNotOverwrittenByAReRead, ACharacterThatWasNeverReadWritesNoKey, TheTaxonomyGoesAtTheFrontWhereACachePrefixCanCoverIt`
-  - Once per character, from the sheets the artist drew, kept on `Character.Taxonomy` — nullable and absent until read, so a project that never asks writes no key. Reached from the Project panel, because a reading belongs to a character and a character lives there.
+- [x] …the taxonomy half: what a character IS `evidence: SubjectTaxonomy, SubjectPart, SubjectRequest, ReadSubjectAsync, SubjectReadingTests, SubjectReadingWiringTests, DeletingEveryReadingChangesNoPixel, AReadingSomebodyEditedIsNotOverwrittenByAReRead, AFolderThatWasNeverReadWritesNoKey, TheTaxonomyGoesAtTheFrontWhereACachePrefixCanCoverIt`
+  - Once per subject, from the sheets the artist drew, kept on the folder that holds them (`ProjectFolder.Taxonomy`) — nullable and absent until read, so a project that never asks writes no key. Reached from the Project panel, because a reading belongs to the folder the drawings live in.
+  - **It was `Character.Taxonomy` when Q16 decided this, and that noun is gone.** B114 dissolved `Character` and `ProjectScene` into the folder tree, and **Q40** settled that what is left is a *facet* rather than a kind: a folder with a reading is a folder with a reading, and whether an artist calls it a character, a prop or a crowd is theirs to say. So the guard is `AFolderThatWasNeverReadWritesNoKey` and the menu says *Read this folder…*. Q16's record is left as it was written — it says what was decided then, and this is where the supersession belongs.
   - **434 B, and 0.6% of a realistic 40-stroke request.** Printed against a two-stroke pair as well, where the same block reads as 43% and means nothing — the denominator is two two-point strokes. Both numbers are in the test output on purpose.
   - At the **front** of the request, where prompt caching covers a prefix. After the frame data it would save nothing, and that is a mistake worth only making once.
 - [ ] …the placement half: where each part is in one frame `evidence: PartPlacement, PlacementCache, PlacementCacheTests, ARedrawnFrameMissesTheCache`

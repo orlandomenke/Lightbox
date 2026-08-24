@@ -161,13 +161,21 @@ public static class SceneRenderer
     /// existed before cameras did, so a document without one composites
     /// exactly as it always has rather than paying for a matrix concat.
     /// </param>
+    /// <param name="origin">
+    /// The document point the surface's (0,0) holds — non-zero only when the
+    /// ring composes a window onto the document rather than all of it (B291).
+    /// It shifts the clip and the passes by the same amount, through the same
+    /// helper, so a rectangle repainted here is the rectangle
+    /// <c>ComposeRing.CopyForward</c> copies.
+    /// </param>
     public static void ComposeInto(
         SKSurface surface,
         IReadOnlyList<RenderPass> passes,
         SKColor? background = null,
         SKRectI? clip = null,
         double scale = 1.0,
-        SKMatrix? transform = null)
+        SKMatrix? transform = null,
+        SKPointI origin = default)
     {
         var canvas = surface.Canvas;
         canvas.Save();
@@ -176,11 +184,15 @@ public static class SceneRenderer
         // under a camera it is somewhere else entirely.
         if (clip is { } r)
         {
-            canvas.ClipRect(CameraTransform.DeviceBounds(r, scale, transform));
+            canvas.ClipRect(CameraTransform.DeviceBounds(r, scale, transform, origin));
         }
         canvas.Clear(background ?? SKColors.White);
         if (transform is { } m) canvas.Concat(m);
         else if (scale != 1.0) canvas.Scale((float)scale);
+        // After the scale, so the shift is in document units — the space the
+        // passes are drawn in. Before any pass, so every one of them lands in
+        // the window rather than only the first.
+        if (origin != default) canvas.Translate(-origin.X, -origin.Y);
 
         foreach (var pass in passes)
         {

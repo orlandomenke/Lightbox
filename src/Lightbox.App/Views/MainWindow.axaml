@@ -3461,6 +3461,28 @@
                                  first (the art-director's finding). The command
                                  lives on the effects docker's own view model —
                                  this is a pointer to it, not a second copy. -->
+                            <!-- Photoshop's double-click-the-row reflex, as a
+                                 menu: each entry adds the style to this layer's
+                                 own stack and opens the Effects panel on it.
+                                 The commands live on the docker's view model —
+                                 pointers, not copies (Q153/Q158). -->
+                            <MenuItem Header="Layer style"
+                                      ToolTip.Tip="A glow, stroke, shadow or bevel on this layer's silhouette — a setting, never baked pixels. Opens the Effects panel.">
+                              <MenuItem Header="Drop shadow" Tag="style.dropShadow" Click="OnLayerMenuAddStyle" />
+                              <MenuItem Header="Outer glow" Tag="style.outerGlow" Click="OnLayerMenuAddStyle" />
+                              <MenuItem Header="Inner glow" Tag="style.innerGlow" Click="OnLayerMenuAddStyle" />
+                              <MenuItem Header="Stroke" Tag="style.stroke" Click="OnLayerMenuAddStyle" />
+                              <MenuItem Header="Bevel" Tag="style.bevel" Click="OnLayerMenuAddStyle" />
+                              <Separator IsVisible="{Binding HasEffects}" />
+                              <MenuItem Header="Disable effects" IsVisible="{Binding CanDisableEffects}"
+                                        Click="OnLayerMenuToggleEffects"
+                                        ToolTip.Tip="Switch every effect on this layer off at once, keeping all their settings — the fx chip goes hollow." />
+                              <MenuItem Header="Enable effects" IsVisible="{Binding EffectsDisabled}"
+                                        Click="OnLayerMenuToggleEffects" />
+                              <MenuItem Header="Edit effects" IsVisible="{Binding HasEffects}"
+                                        Click="OnLayerMenuEditEffects"
+                                        ToolTip.Tip="Open the Effects panel on this layer — the fx chip beside the thumbnail does this too." />
+                            </MenuItem>
                             <MenuItem Header="New adjustment layer"
                                       ToolTip.Tip="A layer that filters everything beneath it — mask it, clip it, fade it like any layer. Opens the Effects panel.">
                               <MenuItem Header="Levels" Tag="grade.levels" Click="OnLayerMenuAddAdjustment" />
@@ -3541,6 +3563,17 @@
                                   CornerRadius="2" VerticalAlignment="Center" IsVisible="{Binding HasMask}"
                                   PointerPressed="OnLayerMaskChipPressed"
                                   ToolTip.Tip="Layer mask — click to paint it, click again to return to the drawing" />
+                          <!-- The fx chip: the mask chip's pattern for the
+                               effect stack — hollow while the master switch
+                               is off (Q158), one click to the sliders. -->
+                          <Border Classes="fxChip" Classes.disabledFx="{Binding EffectsDisabled}"
+                                  DockPanel.Dock="Left" Margin="2,0,0,0" Height="22"
+                                  CornerRadius="2" VerticalAlignment="Center" IsVisible="{Binding HasEffects}"
+                                  PointerPressed="OnLayerFxChipPressed"
+                                  ToolTip.Tip="Layer effects — click to edit them in the Effects panel; the row menu's Layer style switches them on and off">
+                            <TextBlock Text="fx" FontSize="9" FontStyle="Italic" Margin="3,0"
+                                       VerticalAlignment="Center" />
+                          </Border>
                           <Button Classes="icon" DockPanel.Dock="Right" Background="Transparent"
                                   IsVisible="{Binding IsGrouped}"
                                   Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).RemoveLayerFromGroupCommand}"
