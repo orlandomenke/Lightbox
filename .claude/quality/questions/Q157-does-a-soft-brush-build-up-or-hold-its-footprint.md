@@ -43,7 +43,9 @@ rather than on a hard-edged blob. That is where an airbrush *should* converge.
 ## Existing art changes, again
 
 Same call as Q156, and it reaches much further: soft brushes are most of any
-painting. Seven pixel fingerprints were re-recorded, and which ones moved is the
+painting, and **`BrushSettings.Hardness` defaults to 0.8** — so this is not a
+change to presets somebody deliberately softened, it is a change to what the
+brush does out of the box. Seven pixel fingerprints were re-recorded, and which ones moved is the
 evidence that the change is scoped —
 
 - `RuntimeDeterminismTests`: `jitter` (hardness 0.8) and `soft` (0.25) moved;
