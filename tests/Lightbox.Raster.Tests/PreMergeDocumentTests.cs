@@ -60,8 +60,15 @@ public class PreMergeDocumentTests(ITestOutputHelper output)
     // hardness it was set to. This is a document saved by an older build, so it
     // is exactly the "existing art re-renders" case Q157 decided to accept —
     // the old pixels were the defect, not the reference.
-    private const string PaintedFingerprint = "E2DE1036E18DBCF626BC5AAD1C97FF69996CB1F05BABEA95B387BB133550ECDD";
-    private const string VectorFingerprint = "E3138AD033DE49ADDC1793562D4BF5B2AB992A7B86BC164F240BB1D0D798872F";
+    // Re-recorded again 2026-08-24, both moving again, and again by inspection
+    // rather than by hope: every brush in the fixture is hardness 0.8 at spacing
+    // 0.15, which is coarser than the 0.09 the dab's soft band can resolve, so
+    // both layers now walk two dabs per spacing interval with each thinned to
+    // compensate (B301, BrushEngine.SubdividesForFidelity). Same standing as
+    // Q157 above: this is a document saved by an older build, and the stepped
+    // pixels it used to render were the defect rather than the reference.
+    private const string PaintedFingerprint = "8E29B8DA2A4EDF856BFB6C65E9A6C8A80293589A80DCD41C35C47C593DD618A8";
+    private const string VectorFingerprint = "D890EDB8CF159020F13BA05AF853C6D28A2F7FD2E22624EB709443669E3C3296";
 
     private static Doc Load() => DocJson.Deserialize(
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "pre-merge-document.lightbox.json")));

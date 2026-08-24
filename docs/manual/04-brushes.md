@@ -145,6 +145,24 @@ existing strokes are untouched.
 
 **Shift + drag** on the canvas resizes the brush.
 
+#### Spacing
+
+**Spacing** is how far the brush travels between dabs, as a fraction of its own
+width. It is a texture control, not a quality one: a line drawn at an ordinary
+spacing comes out as a line, and you do not have to wind the number down to get
+one.
+
+Below about a quarter of the brush's width, the stroke is solid — Lightbox lays
+however many dabs it takes to make it so, and thins each one to match, so
+tightening the spacing does not darken the mark or cost you anything you were
+not already paying. Past that, the dabs come apart on purpose: that is the
+dotted trail, the stamped repeat, the row of leaves along a path. Wind it up
+when that is what you want.
+
+The one thing spacing still changes is a brush that has **scatter or jitter**
+turned on. There the dabs *are* the texture, so spacing sets how dense the
+spray is, and Lightbox leaves the walk exactly as you set it.
+
 #### Stabiliser
 
 The **Per brush** box beside the stabiliser decides what those controls belong
