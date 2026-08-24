@@ -1293,8 +1293,6 @@ public partial class MainViewModel
         _live.StableDabs = 0;
         _live.TailRegion = null;
         _live.Dabs = null;
-        // B292: the cached outline describes the stroke that just ended.
-        _live.Silhouette.Reset();
         _live.EffectDabs = null;
         _live.EffectSettled = 0;
         _live.SmudgeCarry = default;
@@ -1778,12 +1776,7 @@ public partial class MainViewModel
         // this shares its machinery with goes the other way, 14.8 ms against
         // 26.4 ms, so the commit, the reload and every export are faster.
         var wholeMark = BrushEngine.DrawsAsOneSilhouette(live.Brush);
-        // How much of the mark has stopped moving. The pin below keeps the
-        // *stamping* cut at zero — a silhouette has no settled prefix to draw —
-        // but the OUTLINE has one, and caching it is what stops the whole stroke
-        // being re-derived on every event (B292).
-        var settled = BrushEngine.StableCount(dabs, _live.Dabs);
-        var stable = wholeMark ? 0 : settled;
+        var stable = wholeMark ? 0 : BrushEngine.StableCount(dabs, _live.Dabs);
         _live.Dabs = dabs;
 
         // 1. Take back the tail lent out last time. Only the part of the buffer this
@@ -1845,9 +1838,7 @@ public partial class MainViewModel
                 }
             }
 
-            BrushEngine.StampDabRange(
-                _live.ScratchCanvas, live, dabs, _live.StableDabs, dabs.Count,
-                cache: wholeMark ? _live.Silhouette : null, settled: settled);
+            BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, dabs.Count);
             _live.ScratchCanvas.Flush();
         }
         _live.DabCount = dabs.Count;

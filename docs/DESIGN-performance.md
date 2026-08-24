@@ -88,6 +88,27 @@ variance.
 loop. Two reports from different machines compare by the ratio of that figure;
 their raw milliseconds do not compare at all.
 
+**A per-dab optimisation measured in Debug is not measured.** Debug inflates
+exactly what an inner-loop change removes — unrolled float arithmetic, and a
+P/Invoke per Skia call — so it flatters the change roughly twofold and does it
+silently. B292 was built, reported as a 27% win end to end, and then withdrawn:
+in Release the same pair read 1.876 against 1.861 ms per pointer event, which is
+inside the noise of three repeats. The isolated stamp genuinely was 1.65x faster
+in both configurations; what Debug hid was that the stamp is a small share of the
+event, so making it faster changed almost nothing.
+
+Two habits follow, and the second one is the cheaper of the two:
+
+- **Release for anything below the frame,** because a local `dotnet test` is
+  Debug and CI is Release — so a Debug-only conclusion is a conclusion the build
+  that ships never had. B298 is the same seam pointed the other way: a
+  performance test that passes in Debug and measures a *negative* cost in
+  Release, failing only on CI where it reads as somebody else's flake.
+- **Price the whole operation before optimising a part of it.** A 1.65x win on
+  something that is a tenth of the cost is a 6% win, and finding that out after
+  building it costs a branch. B292 and B296 are the same stroke measured twice:
+  the outline looked like the bottleneck and the fill was.
+
 ## Dimensions
 
 The list is data, not code, so the vector work adds rows rather than a rewrite.

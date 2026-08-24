@@ -69,17 +69,6 @@ sealed class LivePaintSession
     internal SKCanvas? ScratchCanvas { get; private set; }
 
     /// <summary>
-    /// A hard brush's outline for the settled part of this stroke, so it is
-    /// derived once rather than on every pointer event (B292).
-    /// </summary>
-    /// <remarks>
-    /// Lives here because the engine is a pure function of a stroke and has no
-    /// lifetime to hang a cache on. Reset with the rest of the session, so it can
-    /// never describe the stroke before this one.
-    /// </remarks>
-    internal Lightbox.Raster.BrushEngine.SilhouetteCache Silhouette { get; } = new();
-
-    /// <summary>
     /// Region of the scratch actually touched by the current stroke, so pen-up can
     /// clear just that much instead of the whole canvas (invariant 6).
     /// </summary>
