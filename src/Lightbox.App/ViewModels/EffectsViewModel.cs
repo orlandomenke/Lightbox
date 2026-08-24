@@ -21,7 +21,7 @@ public sealed partial class EffectParamRow : ObservableObject
         _use = use;
         _spec = spec;
         _syncing = true;
-        Value = use.At(spec.Key, frame, spec.Default);
+        Value = use.At(spec.Key, frame, EffectRegistry.DefaultOf(spec, use));
         _syncing = false;
     }
 
@@ -123,6 +123,14 @@ public sealed partial class EffectColorRow : ObservableObject
 public sealed record EffectChoice(string Kind, string Name);
 
 /// <summary>
+/// One shelf of the add row — the design's presentation lane, never a
+/// capability: any effect can be keyed whatever shelf it sits on. Eleven
+/// kinds in one wrap panel is a wall of buttons; grouped, an artist looking
+/// for a glow reads one heading instead of eleven labels.
+/// </summary>
+public sealed record EffectShelf(string Name, IReadOnlyList<EffectChoice> Choices);
+
+/// <summary>
 /// The effects docker's view model (DESIGN-effects.md's decoupling bar): the
 /// stack on the active layer or the scene, its parameters as sliders, and
 /// the way adjustment layers are made. Owns every effect command so
@@ -136,8 +144,19 @@ public sealed partial class EffectsViewModel : ObservableObject
     {
         _owner = owner;
         Catalogue = [.. EffectRegistry.All.Select(d => new EffectChoice(d.Kind, d.Name))];
-        AddChoices = [.. EffectRegistry.All.Where(d => !d.BackdropOnly)
+        // Two offers, computed once: what a layer's own stack takes, and
+        // what a backdrop takes. Rebuild runs on every playhead move, so
+        // deriving these there allocated the whole catalogue per frame
+        // during playback for a list that only two scopes can produce (the
+        // leak review's finding).
+        _selfOffer = [.. EffectRegistry.All.Where(d => !d.BackdropOnly)
             .Select(d => new EffectChoice(d.Kind, d.Name))];
+        _backdropOffer = [.. EffectRegistry.All.Where(d => !d.SelfOnly)
+            .Select(d => new EffectChoice(d.Kind, d.Name))];
+        _selfShelves = ShelvesOf(d => !d.BackdropOnly);
+        _backdropShelves = ShelvesOf(d => !d.SelfOnly);
+        AddChoices = _selfOffer;
+        AddShelves = _selfShelves;
         _owner.PropertyChanged += (_, e) =>
         {
             // The panel mirrors the selection context: a new active layer, a
@@ -154,6 +173,29 @@ public sealed partial class EffectsViewModel : ObservableObject
 
     public IReadOnlyList<EffectChoice> Catalogue { get; }
 
+    /// <summary>What each shelf id is called in front of an artist.</summary>
+    private static string ShelfName(string shelf) => shelf switch
+    {
+        "grade" => "Colour",
+        "blur" => "Blur",
+        "detail" => "Detail",
+        "style" => "Layer styles",
+        "anim" => "Animation",
+        _ => shelf,
+    };
+
+    private readonly IReadOnlyList<EffectChoice> _selfOffer;
+    private readonly IReadOnlyList<EffectChoice> _backdropOffer;
+    private readonly IReadOnlyList<EffectShelf> _selfShelves;
+    private readonly IReadOnlyList<EffectShelf> _backdropShelves;
+
+    private static IReadOnlyList<EffectShelf> ShelvesOf(Func<EffectDefinition, bool> offered) =>
+        [.. EffectRegistry.All.Where(offered)
+            .GroupBy(d => d.Shelf)
+            .Select(g => new EffectShelf(
+                ShelfName(g.Key),
+                [.. g.Select(d => new EffectChoice(d.Kind, d.Name))]))];
+
     /// <summary>
     /// The kinds the "add to this stack" row offers — the catalogue, minus
     /// backdrop-only kinds when the target is a plain layer's own stack,
@@ -163,6 +205,10 @@ public sealed partial class EffectsViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private IReadOnlyList<EffectChoice> _addChoices = [];
+
+    /// <summary>The same offer, grouped by shelf — what the panel shows.</summary>
+    [ObservableProperty]
+    private IReadOnlyList<EffectShelf> _addShelves = [];
 
     public ObservableCollection<EffectUseRow> Uses { get; } = [];
 
@@ -237,9 +283,8 @@ public sealed partial class EffectsViewModel : ObservableObject
         // own stack takes no backdrop-only kind (identity on the self path),
         // and the backdrop scopes take no style (no silhouette to read).
         var selfStack = !EditingScene && ActiveLayer is { IsAdjustment: false };
-        AddChoices = [.. EffectRegistry.All
-            .Where(d => selfStack ? !d.BackdropOnly : !d.SelfOnly)
-            .Select(d => new EffectChoice(d.Kind, d.Name))];
+        AddChoices = selfStack ? _selfOffer : _backdropOffer;
+        AddShelves = selfStack ? _selfShelves : _backdropShelves;
         StackExists = stack is not null;
         _syncingStack = true;
         StackEnabled = stack is not { Disabled: true };
@@ -309,6 +354,10 @@ public sealed partial class EffectsViewModel : ObservableObject
             var use = new EffectUse { Kind = def.Kind };
             foreach (var spec in def.Params)
             {
+                // A per-use default (a seed) is derived from the use's id, so
+                // writing it here would freeze one value into every document
+                // and lose the point of it being per use (Q159).
+                if (spec.PerUse) continue;
                 use.Params[spec.Key] = new EffectParam(spec.Default);
             }
             stack.Uses.Add(use);
@@ -353,7 +402,8 @@ public sealed partial class EffectsViewModel : ObservableObject
         {
             if (!use.Params.TryGetValue(spec.Key, out var param))
             {
-                use.Params[spec.Key] = param = new EffectParam(spec.Default);
+                use.Params[spec.Key] = param = new EffectParam(
+                    EffectRegistry.DefaultOf(spec, use));
             }
             // The constant. Keyed parameters are edited on the timeline once
             // keying UI lands; the record already carries them (Q122's
@@ -390,6 +440,7 @@ public sealed partial class EffectsViewModel : ObservableObject
             var use = new EffectUse { Kind = def.Kind };
             foreach (var spec in def.Params)
             {
+                if (spec.PerUse) continue;
                 use.Params[spec.Key] = new EffectParam(spec.Default);
             }
             var layer = new Layer

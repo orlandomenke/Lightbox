@@ -46,6 +46,83 @@ namespace Lightbox.Raster;
 public static class TransformErasures
 {
     /// <summary>
+    /// Record positions of the strokes a region-limited transform moves,
+    /// ascending: ink judged by where its <em>surviving</em> points sit, and
+    /// erasures by where their raw points sit.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B297 — rule three, applied to the region filter.</b> The filter used
+    /// to be <see cref="TransformOps.MajorityInside"/> over every stroke's raw
+    /// points, and a stroke record remembers ink an artist can no longer see.
+    /// So a lasso over a redrawn nose caught the <em>previous</em> nose — fully
+    /// rubbed out, points still majority-inside — and the move lifted it out
+    /// from under its eraser: an invisible line became visible and rode the
+    /// drag. The dual failure hid in the same test: a partially-erased line
+    /// whose surviving end the artist plainly boxed could still classify as
+    /// "stays", because the rubbed-out points pulled its majority outside.
+    /// <see cref="StrokePicker"/> already answers this for a click, a marquee
+    /// and select-all — erased ink is not there — and this is that answer for
+    /// the transform, from the same <see cref="StrokePicker.ErasesPoint"/>
+    /// geometry so the two surfaces cannot disagree about one rub.
+    /// </para>
+    /// <para>
+    /// <b>Erasures and gradients keep the raw test on purpose.</b> An erasure
+    /// has no surviving ink to judge — it travels by where it sits, so it can
+    /// carry the carving of the strokes it moves with, and
+    /// <see cref="TransformFrame"/> below decides what it leaves behind. A
+    /// gradient covers the layer wherever its two axis points sit, which is
+    /// <see cref="TransformOps.MajorityInside"/>'s own special case.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<int> MovingWithin(
+        IReadOnlyList<Stroke> strokes, bool[] mask, int w, int h)
+    {
+        var moving = new List<int>();
+        var erasures = StrokePicker.ErasurePositions(strokes);
+        for (var i = 0; i < strokes.Count; i++)
+        {
+            var stroke = strokes[i];
+            if (IsErasure(stroke) || stroke.Tool == ToolKind.Gradient)
+            {
+                if (TransformOps.MajorityInside(stroke, mask, w, h)) moving.Add(i);
+                continue;
+            }
+
+            var survivors = 0;
+            var inside = 0;
+            foreach (var p in stroke.Points)
+            {
+                if (ErasedAt(strokes, erasures, i, p)) continue;
+                survivors++;
+                var x = (int)Math.Round(p.X);
+                var y = (int)Math.Round(p.Y);
+                if (x >= 0 && x < w && y >= 0 && y < h && mask[y * w + x]) inside++;
+            }
+            // A stroke none of whose ink survives is not on the canvas, so no
+            // region can mean it — moving it would turn absence back into paint.
+            if (survivors == 0) continue;
+            if (inside * 2 >= survivors) moving.Add(i);
+        }
+        return moving;
+    }
+
+    /// <summary>
+    /// Has a <em>later</em> erasure taken this point's paint away? Earlier ones
+    /// cannot have: the render stamps in record order.
+    /// </summary>
+    private static bool ErasedAt(
+        IReadOnlyList<Stroke> strokes, List<int> erasures, int position, StrokePoint p)
+    {
+        for (var k = 0; k < erasures.Count; k++)
+        {
+            if (erasures[k] <= position) continue;
+            if (StrokePicker.ErasesPoint(strokes[erasures[k]], p.X, p.Y)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Transform every stroke of <paramref name="frame"/> that passes
     /// <paramref name="filter"/>, leaving a stay copy of each moved erasure
     /// that was erasing something that stays. Returns how many strokes moved

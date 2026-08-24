@@ -467,6 +467,15 @@ settles to the softer, correct one a moment behind the tip. Nothing looks worse
 than it used to while drawing; it is the *finished* mark that is now the one that
 differs, and only until the pass lands.
 
+**A very low flow escapes even that.** If a brush's flow is at or below its
+spacing, no amount of overlap can push the mark up to the brush's own shape, so
+there is no ceiling to work out and nothing settles — the mark is exact under the
+pen. **Smudge and Blender are both below that line as they ship**, which is why
+what the next paragraph says about them still holds. Scatter is the exception to
+the exception: a brush that throws its stamps around can pile more of them onto
+one spot than its spacing suggests, so it keeps the ceiling however low you set
+the flow.
+
 **That now includes smudge, blender and blur.** They were the last to hold out:
 because they rework pixels already on the layer rather than adding new ones, each
 piece of the preview restarted not only the brush but the colour it was dragging,

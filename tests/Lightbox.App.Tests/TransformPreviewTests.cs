@@ -16,7 +16,7 @@ namespace Lightbox.App.Tests;
 /// (<c>CanvasControl.TransformMatrix</c>).
 /// </summary>
 [Collection("BrushState")]
-public class TransformPreviewTests : BrushStateIsolated
+public class TransformPreviewTests(ITestOutputHelper output) : BrushStateIsolated
 {
     /// <summary>A black bar across the upper half, on a transparent document.</summary>
     private static MainViewModel Painted()
@@ -191,5 +191,70 @@ public class TransformPreviewTests : BrushStateIsolated
         Assert.Equal(ToolKind.Eraser, strokes[2].Tool);
         Assert.Equal(60, strokes[1].Points[0].Y, 3);
         Assert.Equal(200, strokes[2].Points[0].Y, 3);
+    }
+
+    /// <summary>
+    /// B297, the reported sequence: draw a nose, erase it, draw a new nose
+    /// beside it, lasso the new one and move. The record still holds the old
+    /// nose with its points majority-inside the lasso, so the old filter took
+    /// it — an invisible line rose out from under its eraser (which stayed,
+    /// its own majority outside) and rode the drag, while classification by
+    /// raw points is also how a half-erased line the artist plainly boxed
+    /// could refuse to move. The filter now judges surviving ink
+    /// (<c>TransformErasures.MovingWithin</c>): erased ink is not there, so it
+    /// cannot be caught — StrokePicker's rule three, applied to the transform.
+    /// </summary>
+    [AvaloniaFact]
+    public void MovingASelectionDoesNotLiftErasedInkFromUnderItsEraser()
+    {
+        var vm = VmLayers.BareVm();
+        vm.SmoothStrokes = false;
+        vm.ColorHex = "#000000";
+        vm.BrushSize = 30;
+        vm.BrushHardness = 1;
+        vm.BrushOpacity = 1;
+        vm.BrushFlow = 1;
+        vm.AntiAliasing = false;
+
+        // The first nose, inside the lasso to come.
+        vm.BeginStroke(225, 60, 1);
+        vm.MoveStroke(240, 60, 1);
+        vm.MoveStroke(255, 60, 1);
+        vm.EndStroke();
+        Assert.True(PixelAt(vm, 240, 60).Alpha > 0);
+
+        // Rubbed out with a sweep whose own majority lies outside the lasso —
+        // which is what a scrubbing eraser gesture looks like in the record.
+        vm.ActiveTool = ToolId.Eraser;
+        vm.BeginStroke(500, 60, 1);
+        vm.MoveStroke(370, 60, 1);
+        vm.MoveStroke(220, 60, 1);
+        vm.EndStroke();
+        vm.ActiveTool = ToolId.Brush;
+        Assert.Equal(0, PixelAt(vm, 240, 60).Alpha);
+
+        // The second nose, drawn below the first.
+        vm.BeginStroke(180, 90, 1);
+        vm.MoveStroke(210, 90, 1);
+        vm.MoveStroke(240, 90, 1);
+        vm.EndStroke();
+
+        vm.ApplySelectionShape(
+            [new(160, 20, 1), new(300, 20, 1), new(300, 120, 1), new(160, 120, 1)],
+            add: false, subtract: false);
+        Assert.True(vm.BeginTransform());
+        vm.PreviewTransform(SKMatrix.CreateTranslation(0, 140));
+
+        var ghostAtDestination = PixelAt(vm, 240, 200).Alpha;
+        var movedNose = PixelAt(vm, 210, 230).Alpha;
+        output.WriteLine($"old nose at destination {ghostAtDestination}, moved nose {movedNose}");
+        Assert.Equal(0, ghostAtDestination);   // the line that "appeared" in the report
+        Assert.True(movedNose > 0, "the visible nose did not move with the lasso");
+        Assert.Equal(0, PixelAt(vm, 240, 60).Alpha);   // and none of it resurfaces at the source
+
+        vm.CommitTransformAffine(0, 0, 1, 1, 0, 0, 140);
+        Assert.Equal(0, PixelAt(vm, 240, 200).Alpha);
+        Assert.True(PixelAt(vm, 210, 230).Alpha > 0);
+        Assert.Equal(0, PixelAt(vm, 240, 60).Alpha);
     }
 }

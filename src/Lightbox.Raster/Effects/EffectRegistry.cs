@@ -10,8 +10,15 @@ namespace Lightbox.Raster.Effects;
 /// travel is narrowest is exactly the one an artist feels toward by arrow
 /// key, so the spec says its own step.
 /// </param>
+/// <param name="PerUse">
+/// The default is derived from the use rather than fixed here — a seed
+/// (Q159). The docker does not write it on add, so it stays absent from the
+/// file until an artist dials it, and every reader falls back to
+/// <see cref="EffectRegistry.DefaultOf"/>.
+/// </param>
 public sealed record EffectParamSpec(
-    string Key, string Label, double Default, double Min, double Max, double Increment = 1);
+    string Key, string Label, double Default, double Min, double Max, double Increment = 1,
+    bool PerUse = false);
 
 /// <summary>
 /// One colour of one effect — a glow's colour, a bevel's highlight. Hex
@@ -39,6 +46,20 @@ public sealed record EffectColorSpec(string Key, string Label, string Default);
 /// docker steers it to an adjustment instead — clipped to the layer below,
 /// which is per-layer use with the same pixels.
 /// </param>
+/// <param name="Phase">
+/// Which step of its own clock this use is on at a frame, for an effect
+/// whose output varies with the playhead — or null for the ordinary effect
+/// that renders the same on every frame (Q159).
+/// <para>
+/// <b>It is the phase and not the frame that the filter cache fingerprints
+/// on</b>, and the difference is the rebuild rate: a wiggle on a hold of 6
+/// is the same offset for six frames running, so fingerprinting the frame
+/// would build six identical chains and drop five of them to the finalizer.
+/// Replaced filters are deliberately not disposed (see
+/// <see cref="EffectRegistry"/>'s cache), so the honest way to keep that
+/// churn down is to not create it.
+/// </para>
+/// </param>
 /// <param name="Style">
 /// A layer style's decoration (Q153): two filters that read <em>only the
 /// source silhouette</em> (null inputs), one drawn behind the content and
@@ -55,7 +76,8 @@ public sealed record EffectDefinition(
     IReadOnlyList<EffectParamSpec> Params,
     Func<EffectUse, int, double> Reach,
     Func<EffectUse, int, float, SKImageFilter?, SKImageFilter?> Chain,
-    Func<EffectUse, int, Action<SKBitmap>>? Cpu = null,
+    Func<EffectUse, int, float, Action<SKBitmap, SKPointI>>? Cpu = null,
+    Func<EffectUse, int, long>? Phase = null,
     IReadOnlyList<EffectColorSpec>? Colors = null,
     Func<EffectUse, int, float, (SKImageFilter? Behind, SKImageFilter? Over)>? Style = null)
 {
@@ -77,6 +99,13 @@ public sealed record EffectDefinition(
     /// </summary>
     public bool SelfOnly => Style is not null;
 
+    /// <summary>
+    /// True when the output varies with the playhead — see
+    /// <see cref="Phase"/>, which is also the thing the filter cache
+    /// fingerprints on.
+    /// </summary>
+    public bool TimeSeeded => Phase is not null;
+
     /// <summary>The docker's colour rows; empty for an effect with none.</summary>
     public IReadOnlyList<EffectColorSpec> ColorSpecs => Colors ?? [];
 }
@@ -85,7 +114,13 @@ public sealed record EffectDefinition(
 /// One executable step of a stack: a native Skia filter (consecutive native
 /// uses merge into one), or a CPU pass.
 /// </summary>
-public sealed record EffectStep(SKImageFilter? Filter, Action<SKBitmap>? Cpu);
+/// <param name="Cpu">
+/// A CPU pixel pass over the bitmap, given the document-space origin of its
+/// top-left pixel in device pixels. The origin is what lets a seeded pass
+/// (grain) survive being handed a clip-bounded readback rather than the
+/// whole surface — invariant 2 under invariant 6 (Q159).
+/// </param>
+public sealed record EffectStep(SKImageFilter? Filter, Action<SKBitmap, SKPointI>? Cpu);
 
 /// <summary>A stack lowered to steps, in stack order.</summary>
 public sealed class EffectProgram
@@ -126,6 +161,59 @@ public sealed class EffectProgram
 /// </remarks>
 public static class EffectRegistry
 {
+    /// <summary>
+    /// The seed every time-seeded effect carries (Q159). One instance,
+    /// shared: <see cref="DefaultOf"/> answers it per use, so two wiggles
+    /// differ by construction and neither writes a key until it is dialled.
+    /// </summary>
+    /// <remarks>
+    /// The range is wide because the default is drawn from it: at 0..999 the
+    /// birthday bound puts an even chance of *some* pair of uses sharing a
+    /// seed at around forty of them, which a scene full of wiggling elements
+    /// reaches — and a collision means two things moving in lockstep, the
+    /// one failure the per-use seed exists to prevent (the adversary
+    /// review's finding). Four more digits move that boundary past any
+    /// plausible scene and cost an artist nothing: nobody reads a seed, they
+    /// only nudge it until they like the motion.
+    /// </remarks>
+    private static readonly EffectParamSpec Seed = new("seed", "Seed", 0, 0, 999999, PerUse: true);
+
+    /// <summary>
+    /// <paramref name="filtered"/>'s colour at <paramref name="source"/>'s
+    /// alpha — the guard every filter built out of a blend or an arithmetic
+    /// needs.
+    /// </summary>
+    /// <remarks>
+    /// <b>Neither primitive leaves alpha alone, and neither says so.</b> A
+    /// blend-mode filter composites alpha Porter-Duff "over" whatever blend
+    /// its *colour* uses, so a half-transparent fill through a difference
+    /// comes out at <c>a + a(1-a)</c> — 128 becomes 192 — and transparent
+    /// pixels beside an edge turn partly solid. An arithmetic filter applies
+    /// its coefficients to all four channels, so an unsharp mask dips alpha
+    /// wherever alpha itself has a soft edge. Both are invisible on the
+    /// opaque fixtures a filter is naturally tested with, and both are
+    /// obvious the moment one lands on a half-opacity stroke (the adversary
+    /// review's finding).
+    /// <para>
+    /// Forcing the filtered colour opaque before intersecting is what keeps
+    /// the colour: the intersection multiplies alpha, so a result still
+    /// carrying its own inflated alpha would be multiplied twice.
+    /// </para>
+    /// </remarks>
+    private static SKImageFilter KeepingAlphaOf(
+        SKImageFilter? source, SKImageFilter filtered) =>
+        SKImageFilter.CreateBlendMode(
+            SKBlendMode.SrcIn, source, SKImageFilter.CreateColorFilter(Opaque, filtered));
+
+    /// <summary>Alpha forced to solid, colour untouched.</summary>
+    private static readonly SKColorFilter Opaque = SKColorFilter.CreateColorMatrix(
+    [
+        1, 0, 0, 0, 0,
+        0, 1, 0, 0, 0,
+        0, 0, 1, 0, 0,
+        0, 0, 0, 0, 1,
+    ])!;
+
     private static readonly Dictionary<string, EffectDefinition> ByKind = new()
     {
         ["grade.levels"] = new(
@@ -165,6 +253,209 @@ public static class EffectRegistry
                 var sigma = (float)(Math.Max(0, use.At("radius", frame, 4)) / 2.0) * scale;
                 return sigma <= 0 ? inner : SKImageFilter.CreateBlur(sigma, sigma, inner);
             }),
+
+        // ---- the detail shelf (Q160): built from the primitives Skia is
+        // fast at, not from the one that says what we mean. A general 3x3
+        // matrix convolution expresses all three directly and measured
+        // ~1270 ms per 960x540 compose — twenty times an 8px Gaussian —
+        // because Skia's CPU convolution has no fast path where blur,
+        // offset and arithmetic blend all do. Same trade as the layer
+        // stroke's morphology, and the same rule: the cheap construction
+        // that looks right is the correct one.
+
+        ["detail.sharpen"] = new(
+            "detail.sharpen", "Sharpen", "detail",
+            [
+                new EffectParamSpec("amount", "Amount", 60, 0, 300),
+                // Two is the floor, not a taste: Skia's raster blur is a
+                // no-op below sigma ~0.78 (measured), so a radius of 1.5 —
+                // the step this slider would otherwise reach — subtracts the
+                // picture from itself and hands back exactly what it was
+                // given. A slider that reaches settings which do nothing is
+                // a slider that lies. The threshold is an implementation
+                // detail of the raster backend rather than a promise, which
+                // is the other reason not to sit just above it.
+                new EffectParamSpec("radius", "Radius", 2, 2, 20, Increment: 0.5),
+            ],
+            // An unsharp mask reaches as far as the blur it subtracts.
+            Reach: (use, frame) => 1.5 * Math.Max(0, use.At("radius", frame, 2)),
+            Chain: (use, frame, scale, inner) =>
+            {
+                var amount = (float)(Math.Clamp(use.At("amount", frame, 60), 0, 300) / 100.0);
+                if (amount <= 0) return inner;
+                var sigma = SigmaOf(use, "radius", 2, frame, scale);
+                // The unsharp mask: the picture plus what a blur of it left
+                // behind. result = (1+a)*source - a*blur.
+                var mask = SKImageFilter.CreateArithmetic(
+                    0, 1 + amount, -amount, 0, enforcePMColor: true,
+                    background: SKImageFilter.CreateBlur(sigma, sigma, inner),
+                    foreground: inner);
+                return KeepingAlphaOf(inner, mask);
+            }),
+
+        ["detail.edges"] = new(
+            "detail.edges", "Find edges", "detail",
+            // The same floor as sharpen, for the same reason.
+            [new EffectParamSpec("radius", "Radius", 2, 2, 20, Increment: 0.5)],
+            Reach: (use, frame) => 1.5 * Math.Max(0, use.At("radius", frame, 2)),
+            Chain: (use, frame, scale, inner) =>
+            {
+                var sigma = SigmaOf(use, "radius", 2, frame, scale);
+                // Where a blur changed the picture is where the edges are;
+                // inverted so flats read white and lines read dark, which is
+                // the way the filter is drawn everywhere else.
+                var difference = SKImageFilter.CreateBlendMode(
+                    SKBlendMode.Difference,
+                    SKImageFilter.CreateBlur(sigma, sigma, inner), inner);
+                return KeepingAlphaOf(
+                    inner,
+                    SKImageFilter.CreateColorFilter(TableFilter(v => 255 - v), difference));
+            }),
+
+        // ---- the tone shelf: colour lookup tables, reach 0.
+
+        ["grade.invert"] = new(
+            "grade.invert", "Invert", "grade",
+            [],
+            Reach: (_, _) => 0,
+            Chain: (_, _, _, inner) => SKImageFilter.CreateColorFilter(
+                TableFilter(v => 255 - v), inner)),
+
+        ["grade.threshold"] = new(
+            "grade.threshold", "Threshold", "grade",
+            [new EffectParamSpec("level", "Level", 128, 0, 255)],
+            Reach: (_, _) => 0,
+            Chain: (use, frame, _, inner) =>
+            {
+                var level = use.At("level", frame, 128);
+                // Through luminance first, or the three channels threshold
+                // independently and a mid grey comes out primary-coloured.
+                return SKImageFilter.CreateColorFilter(
+                    SKColorFilter.CreateCompose(
+                        TableFilter(v => v >= level ? 255 : 0), Luminance()),
+                    inner);
+            }),
+
+        ["grade.posterize"] = new(
+            "grade.posterize", "Posterize", "grade",
+            [new EffectParamSpec("levels", "Levels", 6, 2, 32)],
+            Reach: (_, _) => 0,
+            Chain: (use, frame, _, inner) =>
+            {
+                var steps = Math.Clamp((int)Math.Round(use.At("levels", frame, 6)), 2, 32);
+                return SKImageFilter.CreateColorFilter(
+                    TableFilter(v =>
+                    {
+                        // Round to the nearest band and stretch the bands back
+                        // over the full range, so the darkest lands on 0 and
+                        // the lightest on 255 rather than short of both.
+                        var band = Math.Floor(v / 255.0 * steps);
+                        if (band > steps - 1) band = steps - 1;
+                        return band / (steps - 1) * 255;
+                    }),
+                    inner);
+            }),
+
+        ["grade.gradientMap"] = new(
+            "grade.gradientMap", "Gradient map", "grade",
+            [new EffectParamSpec("midpoint", "Midpoint", 50, 5, 95)],
+            Colors:
+            [
+                new EffectColorSpec("shadow", "Shadow", "#1a1633"),
+                new EffectColorSpec("highlight", "Highlight", "#ffd9a0"),
+            ],
+            Reach: (_, _) => 0,
+            Chain: (use, frame, _, inner) =>
+            {
+                var shadow = BrushEngine.ParseColor(use.ColorAt("shadow", "#1a1633"));
+                var high = BrushEngine.ParseColor(use.ColorAt("highlight", "#ffd9a0"));
+                var mid = Math.Clamp(use.At("midpoint", frame, 50), 5, 95) / 100.0;
+                // Tone to colour without touching a pixel by hand: flatten to
+                // luminance, then let three per-channel tables carry that one
+                // number to the ramp's red, green and blue (Q160).
+                var bias = Math.Log(0.5) / Math.Log(mid);
+                double Ramp(double v, byte from, byte to) =>
+                    from + (to - from) * Math.Pow(v / 255.0, bias);
+                return SKImageFilter.CreateColorFilter(
+                    SKColorFilter.CreateCompose(
+                        SKColorFilter.CreateTable(
+                            IdentityTable,
+                            Ramped(v => Ramp(v, shadow.Red, high.Red)),
+                            Ramped(v => Ramp(v, shadow.Green, high.Green)),
+                            Ramped(v => Ramp(v, shadow.Blue, high.Blue))),
+                        Luminance()),
+                    inner);
+            }),
+
+        // ---- the animation shelf (Q159): effects that vary by frame.
+        // Their parameters do not change with the playhead — their output
+        // does — which is why each declares TimeSeeded so the filter cache
+        // stops answering every frame with the first frame's chain.
+
+        ["anim.wiggle"] = new(
+            "anim.wiggle", "Wiggle", "anim",
+            [
+                new EffectParamSpec("amount", "Amount", 6, 0, 200),
+                new EffectParamSpec("hold", "Hold", 2, 1, 24),
+                Seed,
+            ],
+            Phase: (use, frame) => StepOf(use, frame, 2),
+            // The offset is the whole reach: the layer can land that far from
+            // where its pixels are, so the dirty region has to cover it.
+            Reach: (use, frame) => Math.Max(0, use.At("amount", frame, 6)),
+            Chain: (use, frame, scale, inner) =>
+            {
+                var amount = (float)Math.Max(0, use.At("amount", frame, 6)) * scale;
+                if (amount <= 0) return inner;
+                var dx = (float)(Wobble(use, frame, 2, 41u) * amount);
+                var dy = (float)(Wobble(use, frame, 2, 43u) * amount);
+                return SKImageFilter.CreateOffset(dx, dy, inner);
+            }),
+
+        ["anim.flicker"] = new(
+            "anim.flicker", "Flicker", "anim",
+            [
+                new EffectParamSpec("amount", "Amount", 40, 0, 100),
+                new EffectParamSpec("hold", "Hold", 1, 1, 24),
+                Seed,
+            ],
+            Phase: (use, frame) => StepOf(use, frame, 1),
+            Reach: (_, _) => 0,
+            Chain: (use, frame, _, inner) =>
+            {
+                var depth = Math.Clamp(use.At("amount", frame, 40), 0, 100) / 100.0;
+                if (depth <= 0) return inner;
+                // A dip out of full strength, never a lift above it: a light
+                // that flickers goes dark and comes back, and a layer cannot
+                // be more opaque than it is.
+                var alpha = (byte)Math.Round(
+                    Math.Clamp(1 - depth * Noise01(use, frame, 1, 47u), 0, 1) * 255);
+                // A step whose noise lands near zero asks for full strength,
+                // and Skia answers an identity blend with *null* rather than
+                // a filter — which then throws when it is used. Roughly one
+                // frame in three hundred at the default depth, so the per-use
+                // random seed hid it: the crash arrived or did not depending
+                // on which id the use happened to be given.
+                if (alpha >= 255) return inner;
+                var dim = SKColorFilter.CreateBlendMode(
+                    SKColors.White.WithAlpha(alpha), SKBlendMode.DstIn);
+                return dim is null ? inner : SKImageFilter.CreateColorFilter(dim, inner);
+            }),
+
+        ["grade.grain"] = new(
+            "grade.grain", "Film grain", "grade",
+            [
+                new EffectParamSpec("amount", "Amount", 25, 0, 100),
+                new EffectParamSpec("size", "Size", 1.5, 0.5, 8, Increment: 0.5),
+                new EffectParamSpec("hold", "Hold", 1, 1, 24),
+                Seed,
+            ],
+            Phase: (use, frame) => StepOf(use, frame, 1),
+            Reach: (_, _) => 0,
+            // Identity in the native chain: grain is the CPU pass below, for
+            // the reason Q159 records — the noise has to be ours, not Skia's.
+            Chain: (_, _, _, inner) => inner,
+            Cpu: GrainCpu),
 
         // ---- layer styles (Q153): decorations of the pass's silhouette.
         // Every filter below reads only the *source* (null inputs) — the
@@ -411,7 +702,7 @@ public static class EffectRegistry
                 {
                     if (segment is not null) steps.Add(new EffectStep(segment, null));
                     segment = null;
-                    steps.Add(new EffectStep(null, cpu(use, frame)));
+                    steps.Add(new EffectStep(null, cpu(use, frame, scale)));
                     continue;
                 }
                 segment = def.Chain(use, frame, scale, segment);
@@ -449,7 +740,8 @@ public static class EffectRegistry
     /// and returns the result — the same instance when no native step forced
     /// a copy — which the caller disposes.
     /// </summary>
-    public static SKBitmap ApplyTo(SKBitmap source, EffectProgram program)
+    public static SKBitmap ApplyTo(
+        SKBitmap source, EffectProgram program, SKPointI origin = default)
     {
         var current = source;
         foreach (var step in program.Steps)
@@ -466,7 +758,7 @@ public static class EffectRegistry
                     current.Dispose();
                     current = converted;
                 }
-                cpu(current);
+                cpu(current, origin);
                 continue;
             }
             var info = new SKImageInfo(
@@ -500,6 +792,16 @@ public static class EffectRegistry
         {
             hash.Add(use.Kind);
             hash.Add(use.Applies);
+            // A frame-seeded effect's *parameters* do not change with the
+            // frame — its output does, so without this the cache would answer
+            // every frame with the chain it built for the first one (Q159).
+            // The phase rather than the frame, so a hold of 6 rebuilds once
+            // instead of six times; and inside the loop that already walks
+            // the uses, so a stack with no such effect pays one null check.
+            if (use.Applies && Resolve(use.Kind) is { Phase: { } phase })
+            {
+                hash.Add(phase(use, frame));
+            }
             foreach (var (key, param) in use.Params)
             {
                 hash.Add(key);
@@ -535,12 +837,106 @@ public static class EffectRegistry
         return reach;
     }
 
+    // ---- convolution and tone vocabulary (Q160) ---------------------------
+
+    /// <summary>
+    /// The alpha table every colour table needs. SkiaSharp's
+    /// <c>CreateTable</c> rejects a null channel where the C API reads it as
+    /// "leave this one alone", so identity has to be spelled out — and these
+    /// filters must all leave alpha exactly as they found it.
+    /// </summary>
+    private static readonly byte[] IdentityTable = Ramped(v => v);
+
+    /// <summary>A 256-entry ramp from a function over 0..255.</summary>
+    private static byte[] Ramped(Func<double, double> f)
+    {
+        var table = new byte[256];
+        for (var i = 0; i < 256; i++)
+        {
+            table[i] = (byte)Math.Clamp(Math.Round(f(i)), 0, 255);
+        }
+        return table;
+    }
+
+    /// <summary>The same ramp on all three colour channels; alpha untouched.</summary>
+    private static SKColorFilter TableFilter(Func<double, double> f)
+    {
+        var ramp = Ramped(f);
+        return SKColorFilter.CreateTable(IdentityTable, ramp, ramp, ramp);
+    }
+
+    /// <summary>
+    /// Flatten a pixel to its luminance, keeping alpha. Rec.601 weights, the
+    /// ones the eye agrees with and the ones every other tone control in the
+    /// application already uses.
+    /// </summary>
+    private static SKColorFilter Luminance() => SKColorFilter.CreateColorMatrix(
+    [
+        0.299f, 0.587f, 0.114f, 0, 0,
+        0.299f, 0.587f, 0.114f, 0, 0,
+        0.299f, 0.587f, 0.114f, 0, 0,
+        0, 0, 0, 1, 0,
+    ]);
+
+    // ---- time-seeded vocabulary (Q159) ------------------------------------
+
+    /// <summary>
+    /// What a parameter reads when the document never authored it — the
+    /// spec's own default, or one derived from the use for a
+    /// <see cref="EffectParamSpec.PerUse"/> seed.
+    /// </summary>
+    /// <remarks>
+    /// Two uses of one kind must not move in lockstep — that reads as one
+    /// rigid object rather than two things wobbling — and the id is the only
+    /// thing about a use that is unique, stable and already in the record.
+    /// So the seed is a hash of it: different by construction, the same
+    /// forever, and absent from the file until an artist re-rolls it.
+    /// </remarks>
+    public static double DefaultOf(EffectParamSpec spec, EffectUse use)
+    {
+        if (!spec.PerUse) return spec.Default;
+        var h = 2166136261u;
+        foreach (var c in use.Id) h = (h ^ c) * 16777619u;
+        // Two exact small integers rather than the raw bits: a float built
+        // from an arbitrary bit pattern can be a NaN, and NaN is the one
+        // input whose hash nobody should have to reason about.
+        var unit = DeterministicHash.Unit(h & 0xFFFF, h >> 16, 7919u);
+        return Math.Round(spec.Min + unit * (spec.Max - spec.Min));
+    }
+
+    private static double SeedOf(EffectUse use, int frame) =>
+        use.At("seed", frame, DefaultOf(Seed, use));
+
+    /// <summary>
+    /// Which step of the hold <paramref name="frame"/> falls in. A hold is
+    /// the animation-native frequency control: an animator working on 2s
+    /// wants the boil on 2s, said in the units the exposure sheet uses.
+    /// </summary>
+    private static int StepOf(EffectUse use, int frame, double holdFallback)
+    {
+        var hold = Math.Max(1, (int)Math.Round(use.At("hold", frame, holdFallback)));
+        return (int)Math.Floor(frame / (double)hold);
+    }
+
+    /// <summary>The step's noise, 0..1 — same frame in, same value out, forever.</summary>
+    private static double Noise01(EffectUse use, int frame, double holdFallback, uint salt) =>
+        DeterministicHash.Unit(
+            StepOf(use, frame, holdFallback), (float)SeedOf(use, frame), salt);
+
+    /// <summary>The step's noise as a signed swing, -1..1.</summary>
+    private static double Wobble(EffectUse use, int frame, double holdFallback, uint salt) =>
+        Noise01(use, frame, holdFallback, salt) * 2 - 1;
+
     // ---- style-chain vocabulary -------------------------------------------
 
     /// <summary>Colourize a silhouette: the colour everywhere, scaled by its alpha.</summary>
-    private static SKImageFilter Tint(SKColor color, SKImageFilter? input) =>
-        SKImageFilter.CreateColorFilter(
-            SKColorFilter.CreateBlendMode(color, SKBlendMode.SrcIn), input);
+    private static SKImageFilter? Tint(SKColor color, SKImageFilter? input)
+    {
+        // Same trap as the flicker's dip: Skia hands back null for a blend it
+        // considers a no-op, and CreateColorFilter throws on null.
+        var tint = SKColorFilter.CreateBlendMode(color, SKBlendMode.SrcIn);
+        return tint is null ? input : SKImageFilter.CreateColorFilter(tint, input);
+    }
 
     /// <summary>Foreground drawn over background; null means the style group's source.</summary>
     private static SKImageFilter Over(SKImageFilter? foreground, SKImageFilter? background) =>
@@ -656,12 +1052,14 @@ public static class EffectRegistry
     /// spin.
     /// </para>
     /// </remarks>
-    private static Action<SKBitmap> HslCpu(EffectUse use, int frame)
+    private static Action<SKBitmap, SKPointI> HslCpu(EffectUse use, int frame, float scale)
     {
         var hue = (float)(use.At("hue", frame, 0) / 360.0);
         var sat = (float)(1 + Math.Clamp(use.At("saturation", frame, 0), -100, 100) / 100.0);
         var light = (float)(Math.Clamp(use.At("lightness", frame, 0), -100, 100) / 100.0);
-        return bitmap => ApplyHsl(bitmap, hue, sat, light);
+        // A point grade needs neither the origin nor the scale: every pixel
+        // is answered from its own colour.
+        return (bitmap, _) => ApplyHsl(bitmap, hue, sat, light);
     }
 
     private static void ApplyHsl(SKBitmap bitmap, float hue, float sat, float light)
@@ -726,6 +1124,76 @@ public static class EffectRegistry
             pixels[i + red] = (byte)Math.Clamp((int)MathF.Round((or + m) * a), 0, 255);
             pixels[i + 1] = (byte)Math.Clamp((int)MathF.Round((og + m) * a), 0, 255);
             pixels[i + blue] = (byte)Math.Clamp((int)MathF.Round((ob + m) * a), 0, 255);
+        }
+    }
+
+    /// <summary>
+    /// Film grain: a per-cell luminance swing, seeded from where the cell
+    /// sits in the frame and which step of the hold the playhead is on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>It is grain in the film, not dirt on the artwork.</b> The cells are
+    /// laid out in frame space — device pixels divided by the device scale —
+    /// so a camera move slides the picture underneath a grain field that
+    /// stays put, which is what a projector does and what an artist expects
+    /// from the word. Dividing by the scale is also invariant 7 as
+    /// arithmetic: at 2× the cells are twice as many device pixels across, so
+    /// the export is a sharper picture of the same grain rather than a
+    /// re-rolled one.
+    /// </para>
+    /// <para>
+    /// <b><paramref name="origin"/> is why a bounded repaint is safe.</b> The
+    /// pass is handed whatever rectangle the dirty region asked for, and
+    /// seeding from a pixel's index inside that rectangle would give one
+    /// answer when a stroke repainted a corner and another when the whole
+    /// surface recomposited. The origin turns the index back into a position.
+    /// </para>
+    /// </remarks>
+    private static Action<SKBitmap, SKPointI> GrainCpu(EffectUse use, int frame, float scale)
+    {
+        var amount = Math.Clamp(use.At("amount", frame, 25), 0, 100) / 100.0;
+        var cell = Math.Max(0.5, use.At("size", frame, 1.5)) * Math.Max(0.01f, scale);
+        var step = StepOf(use, frame, 1);
+        var seed = (float)SeedOf(use, frame);
+        return (bitmap, origin) => ApplyGrain(bitmap, origin, amount, cell, step, seed);
+    }
+
+    private static void ApplyGrain(
+        SKBitmap bitmap, SKPointI origin, double amount, double cell, int step, float seed)
+    {
+        if (amount <= 0) return;
+        if (bitmap.ColorType is not (SKColorType.Rgba8888 or SKColorType.Bgra8888)) return;
+        using var pixmap = bitmap.PeekPixels();
+        if (pixmap is null) return;
+        var pixels = pixmap.GetPixelSpan<byte>();
+        var stride = pixmap.RowBytes;
+        // ±64 counts at full strength: enough to read as film on a flat, far
+        // short of the posterised mush a wider swing gives on a cel.
+        var swing = amount * 64.0;
+        for (var y = 0; y < bitmap.Height; y++)
+        {
+            var cy = (float)Math.Floor((y + origin.Y) / cell);
+            var row = y * stride;
+            for (var x = 0; x < bitmap.Width; x++)
+            {
+                var i = row + x * 4;
+                if (i + 3 >= pixels.Length) break;
+                var a = pixels[i + 3];
+                if (a == 0) continue; // no film under a hole in the picture
+                var cx = (float)Math.Floor((x + origin.X) / cell);
+                // Two stages, because the hash takes two coordinates and this
+                // has four inputs: where the cell is, and which step of which
+                // seed is being asked for.
+                var spatial = DeterministicHash.Unit(cx, cy, 61u);
+                var n = DeterministicHash.Unit((float)spatial, step + seed, 67u) * 2 - 1;
+                // Premultiplied in, so the swing arrives scaled by coverage
+                // and a channel can never overtake its own alpha.
+                var delta = (int)Math.Round(n * swing * (a / 255.0));
+                pixels[i] = (byte)Math.Clamp(pixels[i] + delta, 0, a);
+                pixels[i + 1] = (byte)Math.Clamp(pixels[i + 1] + delta, 0, a);
+                pixels[i + 2] = (byte)Math.Clamp(pixels[i + 2] + delta, 0, a);
+            }
         }
     }
 }

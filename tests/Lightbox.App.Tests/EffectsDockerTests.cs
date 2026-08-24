@@ -206,6 +206,68 @@ public sealed class EffectsDockerTests(ITestOutputHelper output) : BrushStateIso
     }
 
     [AvaloniaFact]
+    public void TheAnimationShelfIsOfferedAndItsSeedStaysUnwritten()
+    {
+        var vm = Vm();
+        var anim = vm.EffectsPanel.AddShelves.FirstOrDefault(s => s.Name == "Animation");
+        Assert.NotNull(anim);
+        Assert.Contains(anim!.Choices, c => c.Kind == "anim.wiggle");
+        Assert.Contains(anim.Choices, c => c.Kind == "anim.flicker");
+        // Grain is a CPU pass, so it is backdrop-only like Hue/Saturation:
+        // off the layer's own row, on the adjustment-layer one.
+        Assert.DoesNotContain(vm.EffectsPanel.AddChoices, c => c.Kind == "grade.grain");
+        Assert.Contains(vm.EffectsPanel.AdjustmentChoices, c => c.Kind == "grade.grain");
+
+        vm.EffectsPanel.AddUseCommand.Execute(Choice(vm, "anim.wiggle"));
+        var use = Assert.Single(Paint(vm).Effects!.Uses);
+        Assert.True(use.Params.ContainsKey("amount"));
+        // The seed is derived from the use's id, so writing it on add would
+        // freeze one value into every document (Q159).
+        Assert.False(use.Params.ContainsKey("seed"));
+
+        var row = vm.EffectsPanel.Params.First(p => p.Label == "Seed");
+        var shown = row.Value;
+        row.Value = shown > 0 ? shown - 1 : shown + 1;
+        Assert.Equal(row.Value, Paint(vm).Effects!.Uses[0].Params["seed"].Value);
+
+        vm.UndoCommand.Execute(null);
+        Assert.False(Paint(vm).Effects!.Uses[0].Params.ContainsKey("seed"));
+    }
+
+    [AvaloniaFact]
+    public void ThePhotoshopFiltersAreOfferedEverywhere()
+    {
+        // The reason this set was chosen (Q160): all of it is native, so
+        // unlike Hue/Saturation and grain none of it is stranded on the
+        // backdrop path — every scope offers every one.
+        var vm = Vm();
+        var kinds = new[]
+        {
+            "detail.sharpen", "detail.edges",
+            "grade.invert", "grade.threshold", "grade.posterize", "grade.gradientMap",
+        };
+        foreach (var kind in kinds)
+        {
+            Assert.Contains(vm.EffectsPanel.AddChoices, c => c.Kind == kind);
+            Assert.Contains(vm.EffectsPanel.AdjustmentChoices, c => c.Kind == kind);
+        }
+        Assert.Contains(vm.EffectsPanel.AddShelves, s => s.Name == "Detail");
+
+        vm.EffectsPanel.EditingScene = true;
+        foreach (var kind in kinds)
+        {
+            Assert.Contains(vm.EffectsPanel.AddChoices, c => c.Kind == kind);
+        }
+        vm.EffectsPanel.EditingScene = false;
+
+        // And a gradient map's two colours reach the record like any other.
+        vm.EffectsPanel.AddUseCommand.Execute(Choice(vm, "grade.gradientMap"));
+        Assert.Equal(2, vm.EffectsPanel.ColorRows.Count);
+        vm.EffectsPanel.ColorRows.First(r => r.Label == "Shadow").Value = "#102040";
+        Assert.Equal("#102040", Paint(vm).Effects!.Uses[0].Colors!["shadow"]);
+    }
+
+    [AvaloniaFact]
     public void AnAdjustmentLayerChangesThePublishedComposite()
     {
         var vm = Vm();
