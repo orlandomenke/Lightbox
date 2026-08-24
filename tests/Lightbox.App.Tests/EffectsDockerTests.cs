@@ -206,6 +206,35 @@ public sealed class EffectsDockerTests(ITestOutputHelper output) : BrushStateIso
     }
 
     [AvaloniaFact]
+    public void TheAnimationShelfIsOfferedAndItsSeedStaysUnwritten()
+    {
+        var vm = Vm();
+        var anim = vm.EffectsPanel.AddShelves.FirstOrDefault(s => s.Name == "Animation");
+        Assert.NotNull(anim);
+        Assert.Contains(anim!.Choices, c => c.Kind == "anim.wiggle");
+        Assert.Contains(anim.Choices, c => c.Kind == "anim.flicker");
+        // Grain is a CPU pass, so it is backdrop-only like Hue/Saturation:
+        // off the layer's own row, on the adjustment-layer one.
+        Assert.DoesNotContain(vm.EffectsPanel.AddChoices, c => c.Kind == "grade.grain");
+        Assert.Contains(vm.EffectsPanel.AdjustmentChoices, c => c.Kind == "grade.grain");
+
+        vm.EffectsPanel.AddUseCommand.Execute(Choice(vm, "anim.wiggle"));
+        var use = Assert.Single(Paint(vm).Effects!.Uses);
+        Assert.True(use.Params.ContainsKey("amount"));
+        // The seed is derived from the use's id, so writing it on add would
+        // freeze one value into every document (Q159).
+        Assert.False(use.Params.ContainsKey("seed"));
+
+        var row = vm.EffectsPanel.Params.First(p => p.Label == "Seed");
+        var shown = row.Value;
+        row.Value = shown > 0 ? shown - 1 : shown + 1;
+        Assert.Equal(row.Value, Paint(vm).Effects!.Uses[0].Params["seed"].Value);
+
+        vm.UndoCommand.Execute(null);
+        Assert.False(Paint(vm).Effects!.Uses[0].Params.ContainsKey("seed"));
+    }
+
+    [AvaloniaFact]
     public void AnAdjustmentLayerChangesThePublishedComposite()
     {
         var vm = Vm();

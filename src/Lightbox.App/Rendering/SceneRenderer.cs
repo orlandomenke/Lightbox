@@ -291,7 +291,11 @@ public static class SceneRenderer
 
             using var subset = full.Subset(rect);
             var worked = SKBitmap.FromImage(subset); // ApplyTo takes ownership
-            var processed = Lightbox.Raster.Effects.EffectRegistry.ApplyTo(worked, program);
+            // The rectangle's own origin travels with it: a seeded pass (film
+            // grain) must give the same answer for a device pixel whether the
+            // dirty region asked for a corner or the whole surface (Q159).
+            var processed = Lightbox.Raster.Effects.EffectRegistry.ApplyTo(
+                worked, program, new SKPointI(rect.Left, rect.Top));
             canvas.SaveLayer(group);
             canvas.Save();
             canvas.SetMatrix(SKMatrix.CreateIdentity());
