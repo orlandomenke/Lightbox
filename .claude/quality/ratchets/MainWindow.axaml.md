@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4877
+budget: 4894
 
 ## Why it is here despite being XAML
 
@@ -227,3 +227,23 @@ leaves a number nobody can account for. So every reason above stays, and
   baseline: measured alone this branch wanted 4,776, which was 4,774 + 2 against a
   `main` that had since moved by 101 lines — taking that number would have reported
   `main`'s growth as a violation.
+- **4,875 → 4,892** (2026-08-24, Q161): +17 for the line clipboard's three
+  entries on the **Select** menu — copy, cut and paste of the selected lines —
+  and the six-line comment saying why they are here and not beside the cel's
+  identical three words on Animation. They act on the *selection*, so they
+  belong on the menu that names it; the two sets share Ctrl+C/X/V, which is
+  exactly the ambiguity the comment exists to settle for the next reader.
+  Registration, which this budget's standing note says it must not refuse.
+  Measured after two economies rather than before them: the entries are
+  `Command` bindings rather than `Click` handlers, which costs nothing here and
+  removed nine lines from `MainWindow.Timeline.cs` — and it is what keeps them
+  visible to `MainMenuShapeTests`, which holds every Select entry to reaching a
+  command. The feature's own 350 lines are in `StrokeClipboard.cs` and
+  `MainViewModel.StrokeClipboard.cs`; these seventeen are the whole markup cost.
+- **→ remeasured on the merged tree** (2026-08-24). The two raises above both
+  left 4,875 on parallel branches — the image save wanted 4,877, the line
+  clipboard 4,892 — and neither figure is right for the tree they now share:
+  taking either banks the other's growth as headroom nobody earned. Both reasons
+  stay, because deleting one leaves a number nobody can account for, and
+  `ratchets.py remeasure` supplies the figure. This is the one moment that
+  script exists for.

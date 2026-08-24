@@ -403,6 +403,50 @@ nothing is how you select everything.
 switch back and it is where you left it. A new document starts with nothing
 selected.
 
+### Copying lines out, and pasting them back
+
+**Ctrl+C copies what you have selected; Ctrl+V pastes it onto a new layer.**
+It works with whichever tool made the selection — a box or lasso from the
+Select tool, or lines picked with either arrow — and the two gestures mean
+slightly different things, on purpose:
+
+- **A region copies what you boxed.** Draw a box across half a line and the
+  paste shows that half. The line is not cut in two to do it: it travels whole
+  with your selection carried along as its clip, so the record still holds one
+  line, and a later change of mind can still reach the rest of it.
+- **Picked lines copy whole.** Clicking a line with the arrow means that line,
+  all of it, however much of it your last box happened to cover.
+
+When both a box and some picked lines are up, the box wins — the same order the
+transform tool uses, so the two never disagree about what "selected" means.
+
+**The paste lands on a new layer directly above the one you are on, in the
+place it was copied from.** In place because the usual reason to copy a drawing
+is to carry it to another frame or another shot, where landing anywhere else
+means lining it up by hand every time; move it afterwards with any of the tools
+if that is what you wanted. On its own layer because a paste is not part of the
+drawing underneath it until you say so — merge it down when it is.
+
+**The clipboard reaches between open documents.** Copy in one tab, switch to
+another and paste. It is Lightbox's own clipboard, not the system one, so
+nothing leaves the app and nothing arrives from outside it.
+
+**Ctrl+X cuts**: it copies, then takes the same content out. A boxed region is
+cleared and lines crossing the edge keep the part that was outside; picked
+lines are removed entirely.
+
+**Ink you have erased is never copied.** A line rubbed out along its whole
+length is not on the canvas, so a box drawn over where it used to be picks up
+nothing — the same rule that stops it being clicked, or moved.
+
+**Ctrl+C, Ctrl+X and Ctrl+V still copy, cut and paste a whole *cel* when
+nothing is selected.** With a selection up they mean the lines. If you want the
+cel while a selection is up, press **Ctrl+D** first, or use the timeline's own
+right-click menu, which is always the cel. Pasting takes whichever of the two
+you copied most recently. Both sets of verbs also have menu entries — the lines
+on the **Select** menu, the cel on **Animation** — and *Configure → Shortcuts*
+has keys for the line-only forms if you would rather they never meant the cel.
+
 **To crop the paper to a selection**, see *Cropping* under
 [Documents and projects](02-documents-and-projects.md) — it is on the **Image**
 menu, with the two resizes, because it changes the page rather than the

@@ -510,6 +510,23 @@
                   IsEnabled="{Binding HasSelection}"
                   ToolTip.Tip="Pull the outline inwards by the same amount" />
         <Separator />
+        <!--
+          The line clipboard. Here and not on Animation because these act on the
+          SELECTION, where Animation's Copy/Cut/Paste are the cel — same three
+          words, two subjects, each kept on the menu that names its own. The keys
+          are shared: Ctrl+C/X/V mean these with a selection up and the cel
+          without one.
+        -->
+        <MenuItem Header="Cop_y lines" Command="{Binding CopyLinesCommand}"
+                  IsEnabled="{Binding HasCopyableSelection}" InputGesture="Ctrl+C"
+                  ToolTip.Tip="The boxed region, or the lines picked with an arrow. A partial region copies the part you boxed." />
+        <MenuItem Header="Cut li_nes" Command="{Binding CutLinesCommand}"
+                  IsEnabled="{Binding HasCopyableSelection}" InputGesture="Ctrl+X"
+                  ToolTip.Tip="Copy, and take the same content out of the drawing" />
+        <MenuItem Header="_Paste lines" Command="{Binding PasteLinesCommand}"
+                  InputGesture="Ctrl+V"
+                  ToolTip.Tip="Onto a new layer above this one, in the place they were copied from" />
+        <Separator />
         <MenuItem Header="Delete _contents" Command="{Binding DeleteSelectionContentsCommand}"
                   InputGesture="Delete"
                   ToolTip.Tip="Clear what is inside the region. With no region, this deletes the selected lines instead." />

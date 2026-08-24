@@ -804,6 +804,10 @@ public partial class MainViewModel
             }
         }
         _celClipboard = (frames, layer.Kind);
+        // Stamped on the order the line clipboard shares, so Ctrl+V can paste
+        // whichever of the two was filled last rather than always preferring
+        // one of them.
+        _celClipboardStamp = StrokeClipboard.NextOrder();
         OnPropertyChanged(nameof(HasCelClipboard));
         // The clipboard is one row's worth of cels, so a selection reaching
         // other layers is copied from this one and the rest is said out loud
@@ -854,6 +858,16 @@ public partial class MainViewModel
         ActiveLayerIndex = cell.LayerIndex;
         CurrentFrameIndex = Math.Min(cell.Index, Scene.FrameCount - 1);
     }
+
+    /// <summary>When the cel clipboard was filled, on the order it shares with the lines.</summary>
+    private long _celClipboardStamp;
+
+    /// <summary>
+    /// Whether Ctrl+V means the copied lines rather than the copied cel: the
+    /// line clipboard holds something, and it is the newer of the two.
+    /// </summary>
+    internal bool LinesAreTheFresherClipboard =>
+        StrokeClipboard.HasContent && StrokeClipboard.Stamp > _celClipboardStamp;
 
     /// <summary>Ctrl+C/X/V target: the active layer's cel at the playhead.</summary>
     private FrameCell? CurrentCell()
