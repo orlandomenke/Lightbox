@@ -605,7 +605,7 @@ public static class InbetweenVerifier
     }
 
     private static bool IsClosed(Stroke s) =>
-        s.Tool == ToolKind.Fill
+        s.Tool.FillsAContour()
         || (s.Points.Count >= 3
             && GeometryOps.Dist(s.Points[0], s.Points[^1]) <= 0.15 * GeometryOps.PathLength(s.Points));
 

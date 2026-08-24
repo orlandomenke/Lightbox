@@ -48,7 +48,10 @@ public partial class MainViewModel
     /// </remarks>
     internal bool LivePreviewIsVisible =>
         _live.Scratch is not null
-        && (_liveShape is not null || _liveGradient is not null || _strokeBuilder.IsActive);
+        && (_liveShape is not null
+            || _liveGradient is not null
+            || TextSessionActive
+            || _strokeBuilder.IsActive);
 
     public void BeginGradient(double x, double y)
     {
