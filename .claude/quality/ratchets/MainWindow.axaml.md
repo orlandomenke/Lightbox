@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4875
+budget: 4877
 
 ## Why it is here despite being XAML
 
@@ -218,3 +218,12 @@ leaves a number nobody can account for. So every reason above stays, and
   and row-template elements have nowhere else to live — the chip's *styles*
   went to `Controls.axaml` beside the mask chip's, and every handler is in
   `MainWindow.Layers.cs`.
+- **4,875 → 4,877**, for the `Save as image…` menu item. Two lines, and they buy
+  the only route to a feature: the command is registered in `ShortcutMap` and
+  dispatched from `MainWindow.CanvasViewTools`, so without a menu entry it exists
+  and is invisible to anybody who has not learned the key. The handler and the
+  file-picker work went into a new partial (`MainWindow.ImageSave.cs`) rather than
+  `MainWindow.axaml.cs`, which is itself at budget. Restated against the merged
+  baseline: measured alone this branch wanted 4,776, which was 4,774 + 2 against a
+  `main` that had since moved by 101 lines — taking that number would have reported
+  `main`'s growth as a violation.

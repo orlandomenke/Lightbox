@@ -622,6 +622,42 @@ which is a weak test and still far better than none.
   - Distinct from **B10**, which was swatch *links* dying when a project was saved and reloaded and is fixed: this is the swatch itself never reaching the file. B10's guards (`ASavedProjectKeepsItsSwatchIds`) check that an id survives, which passes whether or not the palette entry behind it was written.
   - `AProjectThatNeverAsksForThisWritesNoBrushKey` is the pattern the fix should follow — a palette that was never touched must still write nothing. Cost: M
 
+### export
+
+- [ ] **B304** `P2` `export` A PSD import spends 97% of its time encoding canvas-sized baselines `evidence: BaselineRect, ALayerStoresOnlyItsOwnBoundsRatherThanTheWholeCanvas`
+  - **Evidence.** Measured 2026-08-24, `PsdImportCostTests`, layers holding a
+    300×300 patch on a large canvas:
+
+    | Document | Parse | Baselines | On disk |
+    | --- | --- | --- | --- |
+    | 1920×1080, 8 layers | 41 ms | 621 ms | 2 KB |
+    | 1920×1080, 24 layers | 47 ms | 1,929 ms | 7 KB |
+    | 3840×2160, 12 layers | 21 ms | 3,805 ms | 12 KB |
+
+    Reading the PSD is 1–3% of the work. The rest is building one full-canvas PNG
+    per layer — 8.3M pixels traversed at 4K to encode a picture that is almost
+    entirely transparent.
+  - **Not the reader's fault, and not a mistake either.** Baselines are
+    canvas-sized by decision, because `FrameRasterizer.Materialize` draws a
+    baseline stretched across the whole canvas, so a layer stored at its own
+    bounds would be scaled up to fill the frame. The write-up of that decision
+    claimed "only decode time and memory pay", which this measurement corrects:
+    the *file size* half held up completely — 12 KB for a 4K import — and the
+    *time* half did not.
+  - **Filed rather than fixed, under the second exception.** The fix is a nullable
+    rect beside the baseline, and that changes a serialized type read by
+    `FrameRasterizer`, `ImageResize`, `MainViewModel.Crop`,
+    `MainViewModel.Transform` and `LayerMerge`. It also changes what a `.lbx`
+    contains, so it wants asking about rather than deciding inside a branch whose
+    objective was reading PSDs. Cost M: the record and the rasterizer are S, the
+    five readers and their round-trip tests are the bulk.
+  - **Do not re-run the compression experiment.** PNG level is the obvious lever
+    and is not one: zlib 1 saves about 20% of the encode, and zlib 0 takes the
+    32 KB file to 32 MB. The work is proportional to canvas area whatever the
+    encoder does, which is why only the rect helps.
+  - Bounded, and only on import: nothing in the paint path does this, and a
+    document already imported pays none of it again.
+
 ### project
 
 - [ ] **B295** `P1` `project` `ids --fix` renumbers both entries of a duplicate filed inside this branch's own range, so the duplicate survives at the new number `evidence: _keeping_spots,cmd_selftest`
@@ -901,13 +937,10 @@ test reopens the bug.
   - Measured: peak alpha on a wash of 60 stays **60** after a blur. It used to climb to opaque. Cost: S
   - **Smudge and blender have the same runaway and it is not fixed — that is B38.** Splitting them because the fixes are not the same size: blur replaces a region and `Src` says exactly that, while a smudge has to blend and there is no blend mode for it.
 
-- [x] **B308** `P2` `brush` The medium's cost test differences two timings and asserts the sign, so it passes or fails by machine `evidence: TheMediumCostsTheSameOnAHugeCanvasAsOnASmallOne`
-  - `MediumPerformanceTests.TheMediumCostsTheSameOnAHugeCanvasAsOnASmallOne` measures `FastestMs(medium) - FastestMs(plain)` and asserts `smallDelta > 1` — "the medium cost nothing measurable". Both terms are tens of milliseconds of whole-canvas compositing, so the *difference* is a small number between two large ones, and its **sign** is what the assertion reads.
-  - **Evidence, in Release, which is what CI builds.** On this container the delta is negative every time on `main` at 7b46f04f with nothing else in the tree — `-11.6`, `-9.3`, `-12.6` ms at 720p — and equally negative on a branch that provably does not touch either stroke: `-13.5`, `-9.6`, `-13.0`. The same test passes in Debug on the same container, and passed on GitHub's runner for that same `main` commit while failing there at `-8.7` ms for the branch. Three machines, three answers, one unchanged pair of strokes.
-  - **It is not the footprint ceiling and it is not the fidelity walk, checked rather than assumed.** The plain control is size 200, hardness 0.5, spacing 0.08, pressure 1 at every point: `SubdividesForFidelity` returns true but `StepFor` declines, because 0.08 is already finer than the 0.09 target — probed, `maxFidelity=1`, so B307 changes neither the dabs nor the pixels here. The medium stroke is excluded from the walk outright. Both sides of the subtraction render exactly what they rendered before.
-  - **What the test is really for is still worth keeping**: the lattice is sized to the mark rather than the canvas, so the medium's own cost must not grow with canvas area. That is the second assertion (`hugeDelta < smallDelta * 3 + 20`) and it is sound. It is the *sanity guard* in front of it that is unsound — it assumes the plain stroke is always the cheaper of the two, and the footprint ceiling (which the plain stroke pays and the medium does not) is enough to make that false on a fast enough machine.
-  - **Fixed by measuring growth rather than levels.** The test now takes each stroke's cost at 720p *and* 4K and compares how much each **grew**, which is the invariant stated directly and contains no absolute timing from any machine: nine times the canvas area costs the medium about **+2 ms** where it costs the plain stroke **+38 ms**. A lattice that started tracking the canvas would have to out-grow the compositing to pass, which is the failure the test exists to catch. Validated in Release, where the old form failed every run: three runs, medium growth 8.6–18.7 ms against the plain stroke's 31.0–45.9 ms.
-  - **Fixed on the B307 branch rather than its own, which is a deliberate exception to one-objective-per-branch.** It was failing CI on that PR three runs running while `main` stayed green, and the diff provably changed neither stroke — 98 dabs each, and absolute costs identical on both trees to within a millisecond. A PR cannot be driven to green past a test whose premise is false, so the alternative was a branch that could never merge. Scope: this one test method.
+- [x] **B308** `P2` `brush` The medium's cost test differences two timings and asserts the sign, so it passes or fails by machine `evidence: tests/Lightbox.Raster.Tests/MediumPerformanceTests.cs, TheMediumsCostGrowsNoFasterWithTheCanvasThanPlainCompositingDoes`
+  - **The same defect as B298, found independently and filed twice — B298's fix is the one that landed.** Two branches hit it within the hour: B298 from the PSD work, this one from the B307 stroke-fidelity work, both diagnosing it as a difference of near-equals and both arriving at canvas growth as the replacement. B298 reached `main` first and its version is better — it renames the test to say what it measures, and it keeps a sanity floor on `plainGrowth`, which is a quantity meant to be large, where this branch dropped the floor altogether. This branch's own rewrite was discarded in the merge in favour of it.
+  - **Kept rather than deleted because it carries evidence B298 does not**, and the evidence is what rules out a rendering change as the cause. Both strokes walk **98 dabs** with and without B307's subdivision — probed, `maxFidelity=1`, because the control's spacing of 0.08 is already finer than the 0.09 fidelity target — and the absolute costs are identical on both trees to within a millisecond: on `main` at 081acd8a, 720p medium 113.5 ms against plain 126.9; on the branch, 114.4 against 125.5. At 4K, 118.0 against 165.4 and 115.8 against 164.0. So the plain control is simply the dearer stroke, because it pays the footprint ceiling — a pixel pass over the stroke's region, which grows with the canvas — while the medium is excluded from that ceiling and simulates on a bounded lattice.
+  - **Worth keeping for the process lesson too.** This cost three CI runs and two wrong explanations before the right one: *machine-dependent noise* (it is deterministic, and follows which stroke pays the ceiling), then *xUnit parallelism* (`Bench.cs` already declares `DisableParallelization` on the Performance collection and says so). Both were guesses that fitted the symptom; neither survived being measured. The number was real and the attribution was not, which is the lesson `docs/DESIGN-performance.md` already records.
 
 - [x] **B250** `P2` `brush` The weight brush reads a mouse as half pressure, so influence builds at half strength `evidence: AMouseDabsAtFullStrength, APenKeepsItsPressureAxis`
   - Owner's report, 2026-08-17: "I needed to paint many many times to turn it red." The weight path had its own pressure helper (`raw <= 0 ? 1.0 : raw`) that passed a mouse's ~0.5 straight into the dab, while the paint brush's `PressureOf(PointerPoint)` has always treated any non-pen pointer as full pressure. Half strength into the 0.35 per-dab rate roughly doubles the passes to saturate a region.
@@ -1855,11 +1888,46 @@ test reopens the bug.
   - Fix: store project palettes as JSON, ids intact. `.gpl` stays what it is — an interop format for the docker's Import/Export, not a storage format.
   - Mine, from the previous commit. Found by the variant tests rather than by review. Cost: S
 
-- [x] **B298** `P2` `project` MediumPerformanceTests measures the medium's cost as negative in Release, so it asserts on noise `evidence: tests/Lightbox.Raster.Tests/MediumPerformanceTests.cs, TheMediumCostsTheSameOnAHugeCanvasAsOnASmallOne`
+- [x] **B298** `P2` `project` MediumPerformanceTests measures the medium's cost as negative in Release, so it asserts on noise `evidence: tests/Lightbox.Raster.Tests/MediumPerformanceTests.cs, TheMediumsCostGrowsNoFasterWithTheCanvasThanPlainCompositingDoes`
   - **`TheMediumCostsTheSameOnAHugeCanvasAsOnASmallOne` isolates the medium by subtracting a baseline render from a medium render, and in Release the baseline is larger than the signal.** It reports a negative cost and trips its own guard — *"the medium cost nothing measurable — the test is not measuring it"* — which is the assertion doing its job and the measurement being unusable.
   - Reproduced on **clean `origin/main`** in a scratch worktree, Release, so it is not a passing branch's fault: `-17.6 ms at 720p, -57.8 ms at 4K`. Locally on a branch, three consecutive Release runs: `-16.8/-54.3`, `-12.1/-57.6`, `-15.5/-49.7`. It passes in Debug, which is why nobody has seen it: a local `dotnet test` is Debug and CI is Release, so this only ever fails on CI and reads there as somebody else's flake.
   - Found while chasing a CI failure on #412 — the medium is untouched by that branch (`NeedsFootprintCap` excludes a simulated medium, and the silhouette path is hard-brush only), and establishing *that* is what turned it up.
   - The fix is a measurement, not a tolerance: subtracting two whole-frame renders to price a pass whose cost is a fraction of one is the wrong instrument in Release. Filed rather than fixed because it is a different domain from the branch that found it, and because widening the tolerance would leave the test green and still measuring nothing. Cost: S.
+  - **Fixed 2026-08-24 by changing the instrument, which is what this entry asked
+    for.** The test differenced two quantities *expected to be nearly equal* — a
+    medium render minus a plain render at the same size — then asserted the result
+    was positive. That is the one shape where noise exceeds signal, so in Release it
+    was a coin toss. It now differences the *same* stroke across two canvas sizes
+    and compares that growth against plain compositing's growth over the same pair.
+    Compositing genuinely grows with area (ninefold, 720p → 4K), so both numbers are
+    large and noise is a fraction of each rather than all of it — and it asks the
+    question more directly, since a medium tracking the canvas would outgrow
+    compositing while one tracking the mark grows with it.
+  - **Verified in Release, because Debug never reproduced this** — that asymmetry is
+    this entry's own finding, and it makes a Debug-only check worthless here. Three
+    consecutive Release runs of the new form, against the three this entry recorded
+    for the old one:
+
+    | | medium's growth | plain's growth |
+    | --- | --- | --- |
+    | old instrument | −16.8, −12.1, −15.5 ms | *(a difference of near-equals)* |
+    | new instrument | 11.0, 20.4, 25.5 ms | 34.6, 43.2, 41.7 ms |
+
+    Every run positive, and the medium's growth consistently *below* compositing's
+    — which is invariant 6 read straight off the numbers: the lattice is bounded by
+    the stroke, so nine times the canvas adds nothing to the medium's own work. The
+    full Release suite is 722 green.
+  - The noise now biases toward passing, which is the right direction for a guard:
+    it can only shrink the compared growth, while the regression this exists to
+    catch — a lattice going full-canvas — would add hundreds of milliseconds at 4K,
+    far outside the tolerance. Renamed on purpose, so the anchor cannot resolve
+    against the broken test it replaces (the trap B296's entry records).
+  - **A duplicate was filed as B303 from another branch and withdrawn**, and the
+    reason is structural rather than careless: this entry is filed under `project`
+    while the test it names is a `brush` one, so `bugs.py mine brush` — what an
+    agent about to touch the medium runs — does not surface it. For a test-side
+    defect the domain is genuinely ambiguous: the defect is in the suite, the
+    subject is the brush, and whoever looks will look under the subject.
 
 - [x] **B296** `P2` `project` A progress test races its own callbacks, failing about one CI run in three `evidence: SimBakerTests, Solving_Reports_Progress_Without_Racing_Its_Own_Callbacks`
   - **Evidence.** `SimBakerTests.Solving_Reports_Progress_All_The_Way` (line 675) collects into a plain `List<double>` from a `new Progress<double>(seen.Add)` and then runs `Assert.All(seen, …)`. `Progress<T>` posts its callbacks to the thread pool, so late callbacks are still calling `List.Add` while the assertion enumerates — `System.InvalidOperationException : Collection was modified; enumeration operation may not execute`, thrown from `List.Enumerator.MoveNext`. Two CI sightings on 2026-08-23 and 2026-08-24, on two unrelated branches (#396's head and #413's), and it passes locally every time — the runner's timing is what makes it land.

@@ -240,6 +240,8 @@
                   IsEnabled="{Binding HasDocument}" />
         <MenuItem x:Name="SaveAsMenu" Header="Save _as…" Click="OnSaveClicked"
                   IsEnabled="{Binding HasDocument}" />
+        <MenuItem x:Name="SaveAsImageMenu" Header="Save as ima_ge…" Click="OnSaveAsImageClicked"
+                  IsEnabled="{Binding HasDocument}" />
         <!--
           Versions are project machinery: a loose file has no versions/ folder
           to keep them in. Disabled rather than hidden, same reasoning as Save
