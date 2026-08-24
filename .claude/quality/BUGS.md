@@ -1813,11 +1813,46 @@ test reopens the bug.
   - Fix: store project palettes as JSON, ids intact. `.gpl` stays what it is — an interop format for the docker's Import/Export, not a storage format.
   - Mine, from the previous commit. Found by the variant tests rather than by review. Cost: S
 
-- [x] **B298** `P2` `project` MediumPerformanceTests measures the medium's cost as negative in Release, so it asserts on noise `evidence: tests/Lightbox.Raster.Tests/MediumPerformanceTests.cs, TheMediumCostsTheSameOnAHugeCanvasAsOnASmallOne`
+- [x] **B298** `P2` `project` MediumPerformanceTests measures the medium's cost as negative in Release, so it asserts on noise `evidence: tests/Lightbox.Raster.Tests/MediumPerformanceTests.cs, TheMediumsCostGrowsNoFasterWithTheCanvasThanPlainCompositingDoes`
   - **`TheMediumCostsTheSameOnAHugeCanvasAsOnASmallOne` isolates the medium by subtracting a baseline render from a medium render, and in Release the baseline is larger than the signal.** It reports a negative cost and trips its own guard — *"the medium cost nothing measurable — the test is not measuring it"* — which is the assertion doing its job and the measurement being unusable.
   - Reproduced on **clean `origin/main`** in a scratch worktree, Release, so it is not a passing branch's fault: `-17.6 ms at 720p, -57.8 ms at 4K`. Locally on a branch, three consecutive Release runs: `-16.8/-54.3`, `-12.1/-57.6`, `-15.5/-49.7`. It passes in Debug, which is why nobody has seen it: a local `dotnet test` is Debug and CI is Release, so this only ever fails on CI and reads there as somebody else's flake.
   - Found while chasing a CI failure on #412 — the medium is untouched by that branch (`NeedsFootprintCap` excludes a simulated medium, and the silhouette path is hard-brush only), and establishing *that* is what turned it up.
   - The fix is a measurement, not a tolerance: subtracting two whole-frame renders to price a pass whose cost is a fraction of one is the wrong instrument in Release. Filed rather than fixed because it is a different domain from the branch that found it, and because widening the tolerance would leave the test green and still measuring nothing. Cost: S.
+  - **Fixed 2026-08-24 by changing the instrument, which is what this entry asked
+    for.** The test differenced two quantities *expected to be nearly equal* — a
+    medium render minus a plain render at the same size — then asserted the result
+    was positive. That is the one shape where noise exceeds signal, so in Release it
+    was a coin toss. It now differences the *same* stroke across two canvas sizes
+    and compares that growth against plain compositing's growth over the same pair.
+    Compositing genuinely grows with area (ninefold, 720p → 4K), so both numbers are
+    large and noise is a fraction of each rather than all of it — and it asks the
+    question more directly, since a medium tracking the canvas would outgrow
+    compositing while one tracking the mark grows with it.
+  - **Verified in Release, because Debug never reproduced this** — that asymmetry is
+    this entry's own finding, and it makes a Debug-only check worthless here. Three
+    consecutive Release runs of the new form, against the three this entry recorded
+    for the old one:
+
+    | | medium's growth | plain's growth |
+    | --- | --- | --- |
+    | old instrument | −16.8, −12.1, −15.5 ms | *(a difference of near-equals)* |
+    | new instrument | 11.0, 20.4, 25.5 ms | 34.6, 43.2, 41.7 ms |
+
+    Every run positive, and the medium's growth consistently *below* compositing's
+    — which is invariant 6 read straight off the numbers: the lattice is bounded by
+    the stroke, so nine times the canvas adds nothing to the medium's own work. The
+    full Release suite is 722 green.
+  - The noise now biases toward passing, which is the right direction for a guard:
+    it can only shrink the compared growth, while the regression this exists to
+    catch — a lattice going full-canvas — would add hundreds of milliseconds at 4K,
+    far outside the tolerance. Renamed on purpose, so the anchor cannot resolve
+    against the broken test it replaces (the trap B296's entry records).
+  - **A duplicate was filed as B303 from another branch and withdrawn**, and the
+    reason is structural rather than careless: this entry is filed under `project`
+    while the test it names is a `brush` one, so `bugs.py mine brush` — what an
+    agent about to touch the medium runs — does not surface it. For a test-side
+    defect the domain is genuinely ambiguous: the defect is in the suite, the
+    subject is the brush, and whoever looks will look under the subject.
 
 - [x] **B296** `P2` `project` A progress test races its own callbacks, failing about one CI run in three `evidence: SimBakerTests, Solving_Reports_Progress_Without_Racing_Its_Own_Callbacks`
   - **Evidence.** `SimBakerTests.Solving_Reports_Progress_All_The_Way` (line 675) collects into a plain `List<double>` from a `new Progress<double>(seen.Add)` and then runs `Assert.All(seen, …)`. `Progress<T>` posts its callbacks to the thread pool, so late callbacks are still calling `List.Add` while the assertion enumerates — `System.InvalidOperationException : Collection was modified; enumeration operation may not execute`, thrown from `List.Enumerator.MoveNext`. Two CI sightings on 2026-08-23 and 2026-08-24, on two unrelated branches (#396's head and #413's), and it passes locally every time — the runner's timing is what makes it land.
