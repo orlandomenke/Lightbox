@@ -1,6 +1,6 @@
-using Lightbox.App.Services;
 using System.Diagnostics;
 using System.Text;
+using Lightbox.App.Services;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Geometry;
 using Lightbox.Raster;
