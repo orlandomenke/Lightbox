@@ -53,7 +53,7 @@ public class ComposeCacheTests(ITestOutputHelper output)
     {
         var cache = new ComposeCache(1024 * 1024);
         var image = Image();
-        Assert.True(cache.Store(Key(0), image, 256));
+        Assert.True(cache.Store(Key(0), image, 256, gpuBacked: false));
 
         var found = cache.Acquire(Key(0));
 
@@ -69,8 +69,8 @@ public class ComposeCacheTests(ITestOutputHelper output)
     public void AFrameSurvivesALapOfTheLoop()
     {
         var cache = new ComposeCache(1024 * 1024);
-        cache.Store(Key(0), Image(), 256);
-        for (var frame = 1; frame < 12; frame++) cache.Store(Key(frame), Image(), 256);
+        cache.Store(Key(0), Image(), 256, gpuBacked: false);
+        for (var frame = 1; frame < 12; frame++) cache.Store(Key(frame), Image(), 256, gpuBacked: false);
 
         Assert.NotNull(cache.Acquire(Key(0)));
     }
@@ -80,7 +80,7 @@ public class ComposeCacheTests(ITestOutputHelper output)
     public void ADrawingEditMissesTheCacheItWouldOtherwiseHit()
     {
         var cache = new ComposeCache(1024 * 1024);
-        cache.Store(Key(3, epoch: 1), Image(), 256);
+        cache.Store(Key(3, epoch: 1), Image(), 256, gpuBacked: false);
 
         Assert.NotNull(cache.Acquire(Key(3, epoch: 1)));
         Assert.Null(cache.Acquire(Key(3, epoch: 2)));
@@ -93,8 +93,8 @@ public class ComposeCacheTests(ITestOutputHelper output)
         for (var frame = 0; frame < 10; frame++)
         {
             var image = Image();
-            cache.Store(Key(frame), image, 400);
-            cache.Release(image, gpuBacked: false);
+            cache.Store(Key(frame), image, 400, gpuBacked: false);
+            cache.Release(image);
         }
 
         output.WriteLine($"{cache.Count} entries, {cache.CachedBytes} bytes, {cache.Evictions} evicted");
@@ -108,10 +108,10 @@ public class ComposeCacheTests(ITestOutputHelper output)
     {
         var cache = new ComposeCache(budgetBytes: 100);
         var first = Image();
-        cache.Store(Key(0), first, 400);
-        cache.Release(first, gpuBacked: false);
+        cache.Store(Key(0), first, 400, gpuBacked: false);
+        cache.Release(first);
         var second = Image();
-        cache.Store(Key(1), second, 400);
+        cache.Store(Key(1), second, 400, gpuBacked: false);
 
         Assert.NotNull(cache.Acquire(Key(1)));
     }
@@ -127,12 +127,12 @@ public class ComposeCacheTests(ITestOutputHelper output)
     {
         var cache = new ComposeCache(budgetBytes: 500);
         var held = Image();
-        cache.Store(Key(0), held, 400);          // stored with one hold
+        cache.Store(Key(0), held, 400, gpuBacked: false);          // stored with one hold
         for (var frame = 1; frame < 6; frame++)  // push it out
         {
             var filler = Image();
-            cache.Store(Key(frame), filler, 400);
-            cache.Release(filler, gpuBacked: false);
+            cache.Store(Key(frame), filler, 400, gpuBacked: false);
+            cache.Release(filler);
         }
 
         Assert.Null(cache.Acquire(Key(0)));      // gone from the cache
@@ -144,16 +144,16 @@ public class ComposeCacheTests(ITestOutputHelper output)
     {
         var cache = new ComposeCache(budgetBytes: 500);
         var held = Image();
-        cache.Store(Key(0), held, 400);
+        cache.Store(Key(0), held, 400, gpuBacked: false);
         for (var frame = 1; frame < 6; frame++)
         {
             var filler = Image();
-            cache.Store(Key(frame), filler, 400);
-            cache.Release(filler, gpuBacked: false);
+            cache.Store(Key(frame), filler, 400, gpuBacked: false);
+            cache.Release(filler);
         }
         Assert.True(Alive(held));
 
-        cache.Release(held, gpuBacked: false);
+        cache.Release(held);
 
         Assert.False(Alive(held), "an evicted composite nobody is reading should be freed");
     }
@@ -167,14 +167,14 @@ public class ComposeCacheTests(ITestOutputHelper output)
     {
         var cache = new ComposeCache(budgetBytes: 500);
         var image = Image();
-        cache.Store(Key(0), image, 400);         // hold 1
+        cache.Store(Key(0), image, 400, gpuBacked: false);         // hold 1
         Assert.Same(image, cache.Acquire(Key(0)));  // hold 2
-        cache.Clear(gpuBacked: false);           // out of the cache, two readers
+        cache.Clear();           // out of the cache, two readers
 
-        cache.Release(image, gpuBacked: false);
+        cache.Release(image);
         Assert.True(Alive(image), "freed while a second reader still had it");
 
-        cache.Release(image, gpuBacked: false);
+        cache.Release(image);
         Assert.False(Alive(image));
     }
 
@@ -184,9 +184,9 @@ public class ComposeCacheTests(ITestOutputHelper output)
     {
         var cache = new ComposeCache(1024 * 1024);
         var image = Image();
-        cache.Store(Key(0), image, 256);
+        cache.Store(Key(0), image, 256, gpuBacked: false);
 
-        cache.Release(image, gpuBacked: false);
+        cache.Release(image);
 
         Assert.True(Alive(image));
         Assert.Same(image, cache.Acquire(Key(0)));
@@ -197,13 +197,13 @@ public class ComposeCacheTests(ITestOutputHelper output)
     {
         var cache = new ComposeCache(1024 * 1024);
         var image = Image();
-        cache.Store(Key(0), image, 256);
+        cache.Store(Key(0), image, 256, gpuBacked: false);
 
-        cache.Clear(gpuBacked: false);
+        cache.Clear();
 
         Assert.Equal(0, cache.Count);
         Assert.True(Alive(image), "clearing freed pixels a reader still had");
-        cache.Release(image, gpuBacked: false);
+        cache.Release(image);
         Assert.False(Alive(image));
     }
 
@@ -212,10 +212,10 @@ public class ComposeCacheTests(ITestOutputHelper output)
     {
         var cache = new ComposeCache(1024 * 1024);
         var image = Image();
-        cache.Store(Key(0), image, 256);
-        cache.Release(image, gpuBacked: false);
+        cache.Store(Key(0), image, 256, gpuBacked: false);
+        cache.Release(image);
 
-        cache.Clear(gpuBacked: false);
+        cache.Clear();
 
         Assert.False(Alive(image));
     }
@@ -229,10 +229,10 @@ public class ComposeCacheTests(ITestOutputHelper output)
     {
         var cache = new ComposeCache(1024 * 1024);
         var first = Image();
-        cache.Store(Key(0), first, 256);
+        cache.Store(Key(0), first, 256, gpuBacked: false);
         var second = Image();
 
-        Assert.False(cache.Store(Key(0), second, 256));
+        Assert.False(cache.Store(Key(0), second, 256, gpuBacked: false));
         Assert.Same(first, cache.Acquire(Key(0)));
         second.Dispose();
     }
@@ -247,10 +247,10 @@ public class ComposeCacheTests(ITestOutputHelper output)
         GpuImageReaper.ResetForTests();
         var cache = new ComposeCache(1024 * 1024);
         var image = Image();
-        cache.Store(Key(0), image, 256);
-        cache.Clear(gpuBacked: true);
+        cache.Store(Key(0), image, 256, gpuBacked: true);
+        cache.Clear();
 
-        cache.Release(image, gpuBacked: true);
+        cache.Release(image);
 
         Assert.True(Alive(image), "a GPU image must not be disposed off the context's thread");
         Assert.True(GpuImageReaper.PendingCount > 0, "it should be queued for the draw op to free");

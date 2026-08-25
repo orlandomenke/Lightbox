@@ -72,10 +72,18 @@ internal readonly record struct ComposeKey(FrameFingerprint Frame, int Epoch);
 /// </remarks>
 internal sealed class ComposeCache(long budgetBytes)
 {
-    private sealed class Entry(SKImage image, long bytes)
+    private sealed class Entry(SKImage image, long bytes, bool gpuBacked)
     {
         internal readonly SKImage Image = image;
         internal readonly long Bytes = bytes;
+
+        /// <summary>
+        /// Where this one has to be freed. Carried by the entry rather than
+        /// passed to every release, because the caller that lets go last is not
+        /// the caller that composed it and has no business knowing.
+        /// </summary>
+        internal readonly bool GpuBacked = gpuBacked;
+
         internal int Holds;
 
         /// <summary>True once the cache has given this up but a reader still has it.</summary>
@@ -166,12 +174,12 @@ internal sealed class ComposeCache(long budgetBytes)
     /// replacing would orphan an entry live readers are holding for no gain.
     /// </para>
     /// </remarks>
-    internal bool Store(ComposeKey key, SKImage image, long bytes)
+    internal bool Store(ComposeKey key, SKImage image, long bytes, bool gpuBacked)
     {
         lock (_gate)
         {
             if (_entries.ContainsKey(key)) return false;
-            var entry = new Entry(image, bytes) { Holds = 1 };
+            var entry = new Entry(image, bytes, gpuBacked) { Holds = 1 };
             _entries[key] = entry;
             _nodes[key] = _order.AddLast(key);
             CachedBytes += bytes;
@@ -185,11 +193,7 @@ internal sealed class ComposeCache(long budgetBytes)
     /// and this was the last reader.
     /// </summary>
     /// <param name="image">The image a previous <see cref="Acquire"/> or <see cref="Store"/> returned.</param>
-    /// <param name="gpuBacked">
-    /// Whether it is a GPU image, which decides where it is freed — see the
-    /// remarks on this class.
-    /// </param>
-    internal void Release(SKImage image, bool gpuBacked)
+    internal void Release(SKImage image)
     {
         Entry? dying = null;
         lock (_gate)
@@ -201,11 +205,11 @@ internal sealed class ComposeCache(long budgetBytes)
             _orphans.Remove(entry);
             dying = entry;
         }
-        Free(dying, gpuBacked);
+        Free(dying);
     }
 
     /// <summary>Drop everything the cache holds. Live readers keep theirs.</summary>
-    internal void Clear(bool gpuBacked)
+    internal void Clear()
     {
         List<Entry> dying = [];
         lock (_gate)
@@ -216,7 +220,7 @@ internal sealed class ComposeCache(long budgetBytes)
             _order.Clear();
             CachedBytes = 0;
         }
-        foreach (var entry in dying) Free(entry, gpuBacked);
+        foreach (var entry in dying) Free(entry);
     }
 
     private Entry? Find(SKImage image)
@@ -260,7 +264,7 @@ internal sealed class ComposeCache(long budgetBytes)
         // from Store, which is already on the render thread with the context
         // current, and an entry reaching here with no holds has no reader by
         // definition.
-        foreach (var entry in dying) entry.Image.Dispose();
+        foreach (var entry in dying) Free(entry);
     }
 
     /// <summary>
@@ -278,10 +282,10 @@ internal sealed class ComposeCache(long budgetBytes)
         dying.Add(entry);
     }
 
-    private static void Free(Entry? entry, bool gpuBacked)
+    private static void Free(Entry? entry)
     {
         if (entry is null) return;
-        if (gpuBacked) GpuImageReaper.Enqueue(entry.Image);
+        if (entry.GpuBacked) GpuImageReaper.Enqueue(entry.Image);
         else entry.Image.Dispose();
     }
 }

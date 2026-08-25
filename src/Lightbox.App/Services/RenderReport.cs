@@ -721,6 +721,47 @@ internal static class RenderReport
         sb.AppendLine();
     }
 
+    /// <summary>
+    /// The composite cache (B167 phase 7), which is the one saving that pays
+    /// with GPU compositing switched off.
+    /// </summary>
+    /// <remarks>
+    /// <b>The hit rate is the number, and it has a predicted shape.</b> Lap one
+    /// of a loop can only miss; lap two should hit nearly everything, because
+    /// the blend is byte-identical to the one a second ago. So a rate near zero
+    /// after a minute of playback does not mean "the cache is small" — it means
+    /// the key is changing when the picture is not, and the epoch is the first
+    /// thing to suspect.
+    /// </remarks>
+    private static void AppendComposeCache(StringBuilder sb)
+    {
+        var cache = Rendering.ComposeCacheHost.Shared;
+        var asked = cache.Hits + cache.Misses;
+        sb.AppendLine("-- composite cache (B167 phase 7) ----------------------------");
+        if (asked == 0)
+        {
+            sb.AppendLine("nothing asked for a cached composite this session.");
+            sb.AppendLine("  Only a playing document keys its publishes, and only when no");
+            sb.AppendLine("  stroke is in flight — so this reads zero unless a scene was played.");
+            sb.AppendLine();
+            return;
+        }
+
+        var rate = 100.0 * cache.Hits / asked;
+        sb.AppendLine($"frames served             {cache.Hits} of {asked} ({rate:F0}%)");
+        sb.AppendLine(
+            $"resident                  {cache.Count} composite(s), "
+            + $"{cache.CachedBytes / (1024 * 1024)} MB of {cache.BudgetBytes / (1024 * 1024)} MB");
+        sb.AppendLine($"dropped for the budget    {cache.Evictions}");
+        if (rate < 10 && asked > 60)
+        {
+            sb.AppendLine("  !! a rate this low after real playback is a key that changes when");
+            sb.AppendLine("     the picture does not. Suspect the render epoch first — anything");
+            sb.AppendLine("     bumping it per frame makes every lap a first lap.");
+        }
+        sb.AppendLine();
+    }
+
     private static void AppendTextureResidency(StringBuilder sb, Facts facts)
     {
         if (!facts.GpuCompositeOptedIn) return;
@@ -1383,6 +1424,7 @@ internal static class RenderReport
         }
 
         AppendTextureResidency(sb, facts);
+        AppendComposeCache(sb);
         AppendMemory(sb, facts);
 
         if (probe is { } p)
