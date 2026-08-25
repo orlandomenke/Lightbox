@@ -665,7 +665,16 @@ public sealed class DocumentEditor
     /// one. An index beyond the timeline extends it (holds on every layer).
     /// One undo step.
     /// </summary>
-    public void SetKeyAt(string layerId, int index, FrameRole role)
+    /// <param name="provenance">
+    /// Stamped on the frame <b>only when this call creates it</b>, so an agent
+    /// that authored a key is recorded as having done so (Q31). Re-marking a
+    /// drawing the artist already made is a timing edit and leaves their frame
+    /// unclaimed — which is also why this is a parameter rather than a second
+    /// edit afterwards: the stamp has to land inside the one undo step, and a
+    /// caller writing <c>frame.Ai</c> after the fact would make two.
+    /// </param>
+    public void SetKeyAt(string layerId, int index, FrameRole role,
+                         AiProvenance? provenance = null)
     {
         if (index < 0) return;
         Perform(doc =>
@@ -679,6 +688,7 @@ public sealed class DocumentEditor
             if (cel.Frame is null)
             {
                 cel.Frame = NewEmptyFrame(target);
+                cel.Frame.Ai = provenance;
             }
             cel.Frame.Role = role;
         });
@@ -887,6 +897,23 @@ public sealed class DocumentEditor
         var frame = target.Cels[fromIndex].Frame!;
         target.Cels[toIndex].Frame = copy ? CloneFrame(frame) : frame;
         if (!copy) target.Cels[fromIndex].Frame = null;
+        return true;
+    }
+
+    /// <summary>
+    /// Set one cel's drawing at an index, extending the scene to reach it.
+    /// No undo step of its own — <see cref="MoveCelIn"/>'s reason: a paste
+    /// that lands several keys is one edit to an artist and must be one to
+    /// Ctrl+Z, so the caller owns the <see cref="Perform"/>.
+    /// </summary>
+    public static bool SetCelIn(Doc doc, string layerId, int index, Frame? frame)
+    {
+        var scene = doc.Scene;
+        var target = scene.Layers.FirstOrDefault(l => l.Id == layerId);
+        if (target is null || index < 0 || frame is null) return false;
+        if (index >= scene.FrameCount) scene.FrameCount = index + 1;
+        foreach (var l in scene.Layers) PadCels(l, scene.FrameCount);
+        target.Cels[index].Frame = frame;
         return true;
     }
 

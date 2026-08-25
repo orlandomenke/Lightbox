@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml.cs
 
-budget: 440
+budget: 432
 
 ## Why it has moved
 
@@ -58,3 +58,6 @@ other's reason and leaves a number nobody can account for.
   only the wiring is here because that is where the control is in scope. The
   alternative was folding two statements onto one line to satisfy a counter,
   which makes worse code to keep a number still.
+- **440 → 432** (2026-08-24): the text tool needed two lines of canvas wiring
+  here, so the whole per-tool wiring block — pick, gradient, shape and now text —
+  moved to `MainWindow.CanvasViewTools.cs`, beside the handlers that receive it.

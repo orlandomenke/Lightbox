@@ -173,6 +173,57 @@ public sealed partial class ProjectRow : ObservableObject
     /// <summary>Whether the folder this row is carries an authored order.</summary>
     public bool HasOrder => IsFolder && Folder!.Order is not null;
 
+    /// <summary>Whether the folder this row is has variants to pick between.</summary>
+    public bool HasVariants => IsFolder && Folder!.Variants is { Count: > 0 };
+
+    /// <summary>
+    /// The name of the variant this folder row is showing, or empty for the
+    /// base subject. Set by the rebuild and copied to kept rows, like
+    /// <see cref="Name"/>.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasVariantBadge))]
+    private string _variantBadge = "";
+
+    public bool HasVariantBadge => VariantBadge.Length > 0;
+
+    /// <summary>
+    /// The variant picker for this folder row's context menu. Hangs off the
+    /// row for the reason <see cref="Owner"/> records: the flyout's only
+    /// reliable DataContext is the row itself.
+    /// </summary>
+    public IReadOnlyList<ScopeMenuEntry> VariantMenu => Owner?.VariantMenuFor(this) ?? [];
+
+    /// <summary>
+    /// The give-its-own-version menu item's label, empty when it does not
+    /// apply — which is also what hides the item.
+    /// </summary>
+    public string GiveVariantHeader => Owner?.GiveVariantHeaderFor(this) ?? "";
+
+    public bool CanGiveVariant => GiveVariantHeader.Length > 0;
+
+    /// <summary>Whether this row's drawing is a variant's stand-in for a shared one.</summary>
+    public bool IsVariantOverride => Owner?.IsVariantOverride(this) == true;
+
+    /// <summary>
+    /// Re-announce the computed variant facts after a rebuild.
+    /// </summary>
+    /// <remarks>
+    /// Needed because of B61's row reuse: a kept row is the <em>same
+    /// instance</em>, so its flyout keeps its DataContext and nothing
+    /// re-evaluates a computed property unless it is announced. Without this,
+    /// the picker's ● and the give-its-own-version item say what was true the
+    /// first time the menu opened.
+    /// </remarks>
+    internal void RefreshVariantFacts()
+    {
+        OnPropertyChanged(nameof(HasVariants));
+        OnPropertyChanged(nameof(VariantMenu));
+        OnPropertyChanged(nameof(GiveVariantHeader));
+        OnPropertyChanged(nameof(CanGiveVariant));
+        OnPropertyChanged(nameof(IsVariantOverride));
+    }
+
     /// <summary>A heading row — any folder.</summary>
     public bool IsHeading => Animation is null && Sheet is null;
 
@@ -409,6 +460,12 @@ public sealed partial class ProjectRow : ObservableObject
 public sealed record ScopeMenuEntry(string Label, ICommand Command, object? Parameter);
 
 /// <summary>
+/// One entry in a folder row's variant picker: the folder, and which variant to
+/// view — null for the base subject.
+/// </summary>
+public sealed record VariantChoice(ProjectFolder Folder, string? VariantId);
+
+/// <summary>
 /// One declaration on the selected scope, named for a person rather than by id.
 /// </summary>
 /// <param name="Label">"Palette: Knight warms" — the kind, then the thing.</param>
@@ -449,12 +506,21 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     private readonly Func<Doc> _newDocument;
     private readonly Action<DocumentRef, Doc> _open;
     private readonly Action _changed;
+    private readonly Action? _variantSwitched;
 
-    public ProjectViewModel(Func<Doc> newDocument, Action<DocumentRef, Doc> open, Action changed)
+    /// <param name="variantSwitched">
+    /// The viewed variant changed — re-resolve palettes and repaint. Separate
+    /// from <paramref name="changed"/> because a switch is view state: nothing
+    /// serialized moved, so nothing may be marked edited by it.
+    /// </param>
+    public ProjectViewModel(
+        Func<Doc> newDocument, Action<DocumentRef, Doc> open, Action changed,
+        Action? variantSwitched = null)
     {
         _newDocument = newDocument;
         _open = open;
         _changed = changed;
+        _variantSwitched = variantSwitched;
         Watcher = new Services.ProjectWatcher(Refresh);
     }
 
@@ -887,6 +953,144 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
             ? $"“{folder.Name}” uses the plain folder glyph."
             : $"“{folder.Name}” is {next}.";
         _changed();
+    }
+
+    // ---- variants ---------------------------------------------------------------
+    //
+    // The model shipped long before any of this: ActiveVariant, VariantOf and
+    // OverrideDocument all existed with nothing in the app calling them, so a
+    // variant could be created in the project window and then never viewed.
+    // Q143 is the decision this serves — the palette swap is the basic layer,
+    // and attachments arrive on top of it later.
+
+    /// <summary>
+    /// View a variant of a subject, or the base subject again (null id).
+    /// </summary>
+    /// <remarks>
+    /// <b>View state, not an edit.</b> Which variant is on screen is
+    /// <see cref="Project.ActiveVariant"/> — runtime, never serialized — so
+    /// this calls the repaint hook and deliberately not <c>_changed</c>:
+    /// looking at Winter Armour must not dirty the document.
+    /// </remarks>
+    [RelayCommand]
+    public void SwitchVariant(VariantChoice? choice)
+    {
+        if (Project is not { } project || choice is null) return;
+        var folder = choice.Folder;
+        var current = project.ActiveVariant.GetValueOrDefault(folder.Id);
+        if (current == choice.VariantId) return;
+        var variant = (folder.Variants ?? []).FirstOrDefault(v => v.Id == choice.VariantId);
+        if (choice.VariantId is not null && variant is null) return;
+
+        if (variant is null) project.ActiveVariant.Remove(folder.Id);
+        else project.ActiveVariant[folder.Id] = variant.Id;
+        Rebuild();
+        Status = variant is null
+            ? $"“{folder.Name}” shows the base subject."
+            : variant.Overrides.Count == 0
+                ? $"“{folder.Name}” shows “{variant.Name}” — the shared drawings, in its colours."
+                : $"“{folder.Name}” shows “{variant.Name}” — {Plural(variant.Overrides.Count, "drawing")} of its own, the rest shared.";
+        _variantSwitched?.Invoke();
+    }
+
+    /// <summary>The variant a folder row is showing, or null for the base.</summary>
+    internal SubjectVariant? ActiveVariantOf(ProjectFolder? folder) =>
+        folder is null || Project is null ? null : Project.VariantOf(folder);
+
+    /// <summary>
+    /// The picker for a folder row's context menu: the base, then each variant,
+    /// the one on screen marked.
+    /// </summary>
+    /// <remarks>
+    /// Entries rather than a template, for the reason <see cref="ScopeMenuEntry"/>
+    /// records: a flyout item's only reliable DataContext is the entry itself.
+    /// </remarks>
+    internal IReadOnlyList<ScopeMenuEntry> VariantMenuFor(ProjectRow row)
+    {
+        if (Project is not { } project || !row.IsFolder || row.Folder is not { } folder) return [];
+        if (folder.Variants is not { Count: > 0 } variants) return [];
+        var active = project.ActiveVariant.GetValueOrDefault(folder.Id);
+        var entries = new List<ScopeMenuEntry>
+        {
+            new(active is null ? "● Base" : "Base", SwitchVariantCommand, new VariantChoice(folder, null)),
+        };
+        entries.AddRange(variants.Select(v => new ScopeMenuEntry(
+            v.Id == active ? $"● {v.Name}" : v.Name,
+            SwitchVariantCommand, new VariantChoice(folder, v.Id))));
+        return entries;
+    }
+
+    /// <summary>
+    /// What the give-its-own-version menu item says for this row, or empty when
+    /// the gesture does not apply — no active variant, or already its own.
+    /// </summary>
+    internal string GiveVariantHeaderFor(ProjectRow row)
+    {
+        if (Project is not { } project || row.Animation is not { } shown) return "";
+        if (ActiveVariantOf(row.Folder) is not { } variant) return "";
+        if (variant.Overrides.ContainsValue(shown.Id)) return "";
+        return $"Give “{variant.Name}” its own “{shown.Name}”";
+    }
+
+    /// <summary>Whether this row's document is standing in for a shared one.</summary>
+    internal bool IsVariantOverride(ProjectRow row) =>
+        row.Animation is { } shown
+        && ActiveVariantOf(row.Folder) is { } variant
+        && variant.Overrides.ContainsValue(shown.Id);
+
+    /// <summary>
+    /// Give the folder's active variant its own copy of the selected drawing —
+    /// the escape hatch for a difference colour cannot express (Q143).
+    /// </summary>
+    /// <remarks>
+    /// Follows <see cref="DuplicateSelected"/>'s shape exactly — same clone,
+    /// same dirty mark, same "save to write it" contract — because from the
+    /// artist's side it is a duplicate with one extra fact: which drawing it
+    /// stands in for, which is the one line <c>ProjectIo.OverrideDocument</c>
+    /// adds over <c>AddDocument</c>.
+    /// </remarks>
+    [RelayCommand]
+    private void GiveVariantOwnVersion()
+    {
+        if (Project is not { } project || Selected is not { Animation: { } shown } row) return;
+        if (row.Folder is not { } folder || ActiveVariantOf(folder) is not { } variant) return;
+        if (variant.Overrides.ContainsValue(shown.Id)) return;
+        if (ProjectIo.LoadDocument(project, shown) is not { } doc)
+        {
+            Status = $"“{shown.Name}” is missing from disk, so “{variant.Name}” keeps sharing it.";
+            return;
+        }
+
+        var copy = Lightbox.Core.Serialization.DocJson.Clone(doc);
+        var reference = ProjectIo.OverrideDocument(project, folder, variant, shown, copy);
+        _dirty.Add(reference.Id);
+        Rebuild();
+        Selected = Rows.FirstOrDefault(r => r.Animation?.Id == reference.Id);
+        Status = $"“{variant.Name}” has its own “{shown.Name}” now — every other variant still shares the original. Save to write it to disk.";
+        _changed();
+    }
+
+    /// <summary>
+    /// Stop a variant's override standing in for the shared drawing.
+    /// </summary>
+    /// <remarks>
+    /// The override document is kept, as an ordinary drawing in the folder —
+    /// the same rule <c>RemoveVariant</c> follows: un-arranging must not be
+    /// the fastest way to delete the art made for the arrangement.
+    /// </remarks>
+    [RelayCommand]
+    private void ReturnToShared()
+    {
+        if (Project is not { } project || Selected is not { Animation: { } shown } row) return;
+        if (ActiveVariantOf(row.Folder) is not { } variant) return;
+        var replaced = variant.Overrides.FirstOrDefault(o => o.Value == shown.Id);
+        if (replaced.Key is null) return;
+
+        variant.Overrides.Remove(replaced.Key);
+        Rebuild();
+        Status = $"“{variant.Name}” shares the original again. “{shown.Name}” stays in the folder as its own drawing.";
+        _changed();
+        _variantSwitched?.Invoke();
     }
 
     /// <summary>
@@ -1394,6 +1598,8 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
                 // toggled shut stayed open on screen while the tree below it
                 // correctly vanished.
                 kept.IsCollapsed = fresh.IsCollapsed;
+                kept.VariantBadge = fresh.VariantBadge;
+                kept.RefreshVariantFacts();
                 Rows.Add(kept);
                 return;
             }
@@ -1528,9 +1734,14 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         foreach (var folder in ProjectFolders.ChildrenInOrder(manifest, parent))
         {
             var collapsed = _collapsed.Contains(folder.Id);
+            // The variant being viewed, worn on the row: switching is a menu
+            // away, so without the badge the only sign the goblin is Player
+            // Two would be colours the artist has to recognise.
+            var variant = ActiveVariantOf(folder);
             add(new ProjectRow(folder, depth, RunningTime(manifest, folder))
             {
                 IsCollapsed = collapsed,
+                VariantBadge = variant?.Name ?? "",
             });
             if (collapsed) continue;
             EmitFolders(manifest, folder, depth + 1, add);
@@ -1540,7 +1751,9 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
             {
                 add(new ProjectRow(folder, sheet, depth));
             }
-            foreach (var document in ProjectFolders.InOrder(manifest, folder))
+            // What the viewed variant plays: the shared drawings with its own
+            // swapped in — one walk cycle per character, never two.
+            foreach (var document in ProjectFolders.DocumentsFor(manifest, folder, variant))
             {
                 add(new ProjectRow(folder, document, depth, ShotTime(document))
                 {

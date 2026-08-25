@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Lightbox.App.Rendering;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Inbetween;
 using Lightbox.Core.Timeline;
 
 namespace Lightbox.App.ViewModels;
@@ -1440,6 +1441,79 @@ public sealed partial class MainViewModel
             ? $"Pose key at frame {frame + 1} removed."
             : $"{NameOfBone(boneId)} unkeyed at frame {frame + 1}.";
         return true;
+    }
+
+    /// <summary>
+    /// Author a pose key at a frame with the pose already interpolated there —
+    /// <c>AddCameraKeyAt</c>'s rule, applied to the rig: keying what is
+    /// already true changes nothing visually, which is what makes it safe to
+    /// then drag or edit.
+    /// </summary>
+    public void AddPoseKeyAt(int frame)
+    {
+        if (Doc.Armature is not { Bones.Count: > 0 } || frame < 0) return;
+        if (ArmatureOps.KeyAt(Scene.PoseTrack, frame) is not null) return;
+        _editor.Perform(doc =>
+        {
+            var track = doc.Scene.PoseTrack ??= new PoseTrack();
+            var key = new PoseKey { Frame = frame };
+            foreach (var (id, p) in ArmatureOps.PoseAt(track, frame)) key.Bones[id] = p;
+            track.Keys.Add(key);
+        }, label: "Key pose");
+        AfterPoseTrackEdit();
+        AiStatus = $"Pose keyed at frame {frame + 1}.";
+    }
+
+    /// <summary>The easing a pose key runs into its successor with, for the menu's check mark.</summary>
+    public Easing? PoseKeyEaseAt(int frame) => ArmatureOps.KeyAt(Scene.PoseTrack, frame)?.Ease;
+
+    /// <summary>
+    /// Set how the pose key at a frame eases into the next one —
+    /// <see cref="SetCameraKeyEase"/>'s verb on the rig's row, including
+    /// <see cref="Easing.Hold"/>, which is what makes a key a held pose
+    /// rather than a tween's endpoint (Q152).
+    /// </summary>
+    public void SetPoseKeyEase(int frame, Easing ease)
+    {
+        if (ArmatureOps.KeyAt(Scene.PoseTrack, frame) is not { } key || key.Ease == ease) return;
+        _editor.Perform(doc =>
+        {
+            if (ArmatureOps.KeyAt(doc.Scene.PoseTrack, frame) is { } k) k.Ease = ease;
+        }, label: "Ease pose key");
+        AfterPoseTrackEdit();
+        AiStatus = ease == Easing.Hold
+            ? $"Pose holds from frame {frame + 1}."
+            : $"Pose key at frame {frame + 1} eases {ease}.";
+    }
+
+    /// <summary>The interval the render pose is sampled on — 1 when the track is fluid.</summary>
+    public int PoseStep => Scene.PoseTrack?.Step is { } step and > 1 ? step : 1;
+
+    /// <summary>
+    /// Animate the rig on Ns (Q152): the pose track keeps its fluid tween and
+    /// the render samples it every <paramref name="step"/> frames. 1 turns
+    /// stepping off — and removes the track entirely when nothing else is
+    /// authored on it, because optional means absent.
+    /// </summary>
+    public void SetPoseStep(int step)
+    {
+        var wanted = Math.Max(1, step);
+        if (wanted == PoseStep) return;
+        _editor.Perform(doc =>
+        {
+            if (wanted == 1)
+            {
+                if (doc.Scene.PoseTrack is not { } track) return;
+                if (track.Keys.Count == 0) doc.Scene.PoseTrack = null;
+                else track.Step = null;
+            }
+            else
+            {
+                (doc.Scene.PoseTrack ??= new PoseTrack()).Step = wanted;
+            }
+        }, label: "Pose step");
+        AfterPoseTrackEdit();
+        AiStatus = wanted == 1 ? "Pose sampled every frame." : $"Pose on {wanted}s.";
     }
 
     /// <summary>

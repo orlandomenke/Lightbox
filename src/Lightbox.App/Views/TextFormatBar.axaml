@@ -1,0 +1,33 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             xmlns:core="using:Lightbox.Core.Documents"
+             x:Class="Lightbox.App.Views.TextFormatBar"
+             x:DataType="vm:MainViewModel">
+  <!--
+    Size and alignment, split out of TextOptionsBar so the bar can partly fit —
+    see that file for the measurement. This is the half that parks first when
+    the window is narrow, because a face you cannot see is worse than a size
+    you have to open a menu for.
+  -->
+  <UserControl.IsVisible>
+    <MultiBinding Converter="{x:Static BoolConverters.And}">
+      <Binding Path="IsTextTool" />
+      <Binding Path="Workspace.QuickTextOptions" />
+    </MultiBinding>
+  </UserControl.IsVisible>
+  <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+    <TextBlock Text="Size" VerticalAlignment="Center" Opacity="0.8" />
+    <NumericUpDown Value="{Binding TextSize}" Minimum="1" Maximum="2000" Increment="1"
+                   FormatString="0" Classes="value" VerticalAlignment="Center"
+                   ToolTip.Tip="Em size in document pixels." />
+    <ComboBox ItemsSource="{Binding TextAlignChoices}" SelectedItem="{Binding TextAlign}"
+              MinWidth="90" ToolTip.Tip="Which part of the line sits on the point you clicked.">
+      <ComboBox.ItemTemplate>
+        <DataTemplate x:DataType="core:TextAlign">
+          <TextBlock Text="{Binding}" />
+        </DataTemplate>
+      </ComboBox.ItemTemplate>
+    </ComboBox>
+  </StackPanel>
+</UserControl>

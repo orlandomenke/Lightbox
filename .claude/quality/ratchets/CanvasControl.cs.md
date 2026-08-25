@@ -1,6 +1,6 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 4867
+budget: 4831
 
 ## Why it has moved
 
@@ -110,3 +110,23 @@ other's reason and leaves a number nobody can account for.
   **The extraction is what paid for the feature**, which is the arrangement this
   file's budget is meant to force: a feature does not get to raise it, so the
   work went beside the file first and the number came down on the way past.
+- **→ 4,901** (2026-08-23): +34 for Shift holding the object drags — guides,
+  reference boxes, anchors, shapes — to one axis, the way it already holds a
+  stroke and a content move. The shared anchor, the `DragPoint` helper and its
+  reasoning sit beside `AxisLocked`, whose logic they reuse; the rest is one
+  line in each press site and each move handler, and those are the gesture
+  itself, inside the handlers that receive it — the boundary B217, B223 and
+  B248 record. The exact thirty-four lines, recorded rather than rounded up.
+- **4,901 → 4,891** (2026-08-24): the text tool added a canvas mode, an event and
+  a press case. The event and the press moved to a new
+  `CanvasControl.ToolGestures.cs`, and the gradient tool's axis chrome went with
+  them — it is the same narrow surface between a pointer and one tool.
+- **4,891 → 4,831** when the "what kind of machine is this" block moved to
+  `CanvasControl.Backend.cs` — the backend label, the software-rendering flag,
+  the texture limit, `RecordBackend` and its test seam. It moved because
+  automatic GPU compositing (B125) needed to ask that same question one step
+  further — *which backend is faster here*, not merely which is present — and
+  the ratchet refused the three lines that would have added. That refusal was
+  right: every member in the block is a static about the hardware rather than
+  about the control, so it had a name of its own and now has a file of its own.
+  The probe is called from there, so the feature added nothing to this file.

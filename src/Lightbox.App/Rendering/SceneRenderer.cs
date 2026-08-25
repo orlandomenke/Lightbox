@@ -54,6 +54,54 @@ public sealed record StrokeOverlay(
 /// compositor never receives such a pass, and <c>DrawPass</c> skips it rather
 /// than dereferencing nothing.
 /// </param>
+/// <summary>
+/// An alpha shape carving a pass: the pass keeps only what the shape covers
+/// (DstIn), or loses it when <paramref name="Inverted"/> (DstOut). A layer
+/// mask contributes one; a clipping mask contributes the base layer's own
+/// render and, when the base is masked too, the base's mask after it — a
+/// chain of intersections, applied inside the pass's isolation so opacity and
+/// blend see the carved result.
+/// </summary>
+/// <param name="Scratch">
+/// The mask stroke in flight, while the artist is painting the mask itself:
+/// dabs that belong to the shape's coverage but are not committed yet. Drawn
+/// into the shape before it carves, so the preview is exactly the commit — an
+/// artist cannot judge a mark they are not being shown, and a mask mark's
+/// look is what it reveals or hides. <paramref name="ScratchErases"/> is the
+/// eraser's half: the dabs remove coverage instead of adding it.
+/// </param>
+public sealed record PassShape(
+    SKBitmap Mask, bool Inverted = false,
+    SKBitmap? Scratch = null, bool ScratchErases = false);
+
+/// <param name="Shapes">
+/// Alpha shapes carving this pass — a layer mask, a clipping base — or null
+/// for every unshaped layer, which must keep taking the path that existed
+/// before shapes did. See <see cref="PassShape"/>.
+/// </param>
+/// <param name="Effect">
+/// The layer's own effect stack as one Skia filter (DESIGN-effects.md's
+/// first attachment), applied to this pass's content in its isolation —
+/// before blend and opacity, which is what "the layer's baked output" means.
+/// Built with document-space parameters: the save-layer applies it under the
+/// canvas matrix, so a blur's sigma follows the zoom on its own.
+/// </param>
+/// <param name="AdjustStack">
+/// An adjustment pass: this pass carries no content of its own — it filters
+/// the composite already beneath it (Q151), carved by <paramref name="Shapes"/>
+/// and faded by <paramref name="Opacity"/>. The stack rides the pass rather
+/// than a baked filter because the backdrop draw happens in device space,
+/// where the compositor must scale kernel parameters itself — see
+/// <see cref="SceneRenderer.DrawAdjustment"/>.
+/// </param>
+/// <param name="EffectFrame">The timeline frame keyed parameters evaluate at.</param>
+/// <param name="Style">
+/// The pass's layer styles — glow, stroke, shadow, bevel — applied in a
+/// group <em>outside</em> the mask carve, where <paramref name="Effect"/>
+/// applies inside it (Q155): a blur is part of what the layer shows, so the
+/// mask trims it; a glow decorates what the layer shows, so it follows the
+/// trim.
+/// </param>
 public sealed record RenderPass(
     SKBitmap? Bitmap,
     SKColor? Tint,
@@ -62,7 +110,12 @@ public sealed record RenderPass(
     StrokeOverlay? Overlay = null,
     SKMatrix? Matrix = null,
     SKRectI? Source = null,
-    Lightbox.Core.Documents.Frame? SourceFrame = null);
+    Lightbox.Core.Documents.Frame? SourceFrame = null,
+    IReadOnlyList<PassShape>? Shapes = null,
+    SKImageFilter? Effect = null,
+    Lightbox.Core.Effects.EffectStack? AdjustStack = null,
+    int EffectFrame = 0,
+    SKImageFilter? Style = null);
 
 /// <summary>
 /// Pure SkiaSharp scene compositing: white paper, then passes in order
@@ -108,13 +161,21 @@ public static class SceneRenderer
     /// existed before cameras did, so a document without one composites
     /// exactly as it always has rather than paying for a matrix concat.
     /// </param>
+    /// <param name="origin">
+    /// The document point the surface's (0,0) holds — non-zero only when the
+    /// ring composes a window onto the document rather than all of it (B291).
+    /// It shifts the clip and the passes by the same amount, through the same
+    /// helper, so a rectangle repainted here is the rectangle
+    /// <c>ComposeRing.CopyForward</c> copies.
+    /// </param>
     public static void ComposeInto(
         SKSurface surface,
         IReadOnlyList<RenderPass> passes,
         SKColor? background = null,
         SKRectI? clip = null,
         double scale = 1.0,
-        SKMatrix? transform = null)
+        SKMatrix? transform = null,
+        SKPointI origin = default)
     {
         var canvas = surface.Canvas;
         canvas.Save();
@@ -123,32 +184,157 @@ public static class SceneRenderer
         // under a camera it is somewhere else entirely.
         if (clip is { } r)
         {
-            canvas.ClipRect(CameraTransform.DeviceBounds(r, scale, transform));
+            canvas.ClipRect(CameraTransform.DeviceBounds(r, scale, transform, origin));
         }
         canvas.Clear(background ?? SKColors.White);
         if (transform is { } m) canvas.Concat(m);
         else if (scale != 1.0) canvas.Scale((float)scale);
+        // After the scale, so the shift is in document units — the space the
+        // passes are drawn in. Before any pass, so every one of them lands in
+        // the window rather than only the first.
+        if (origin != default) canvas.Translate(-origin.X, -origin.Y);
 
         foreach (var pass in passes)
         {
-            // A pass may carry a matrix of its own — the transform tool's live
-            // preview. It nests inside the scene transform rather than
-            // replacing it, so the preview lands in document space, which is
-            // where the commit will put the strokes.
-            if (pass.Matrix is { } passMatrix)
-            {
-                canvas.Save();
-                canvas.Concat(passMatrix);
-                DrawPass(canvas, pass);
-                canvas.Restore();
-            }
-            else
-            {
-                DrawPass(canvas, pass);
-            }
+            DrawOne(surface, canvas, pass, scale, transform);
         }
         canvas.Restore();
         canvas.Flush();
+    }
+
+    /// <summary>
+    /// One pass onto a surface whose canvas is already in document space:
+    /// an adjustment reads the backdrop, a matrix'd pass nests inside the
+    /// scene transform, everything else draws plainly.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Extracted so there is one of it (B309).</b> <see cref="DeferredCompose"/>
+    /// grew a second pass loop when the culled composite moved to the render
+    /// thread, and that copy knew only about bitmaps, tint, opacity, blend and
+    /// the live overlay — so every field added since (a mask's shapes, a
+    /// layer's own effect, its styles, an adjustment stack, a per-pass matrix)
+    /// was silently dropped on the route a zoomed-in artist takes. Two pass
+    /// loops is one loop with two names and no way to tell them apart; the
+    /// fast route now delegates the passes it cannot express to this.
+    /// </para>
+    /// <para>
+    /// <paramref name="scale"/> and <paramref name="transform"/> are the device
+    /// scale an adjustment's kernel parameters are declared against
+    /// (invariant 7), not a transform this applies — the canvas is already
+    /// carrying it.
+    /// </para>
+    /// </remarks>
+    internal static void DrawOne(
+        SKSurface surface, SKCanvas canvas, RenderPass pass, double scale, SKMatrix? transform)
+    {
+        // An adjustment pass reads the surface it is being drawn onto, so
+        // only a caller that owns the surface can draw it.
+        if (pass.AdjustStack is not null)
+        {
+            DrawAdjustment(surface, canvas, pass, scale, transform);
+            return;
+        }
+        // A pass may carry a matrix of its own — the transform tool's live
+        // preview. It nests inside the scene transform rather than
+        // replacing it, so the preview lands in document space, which is
+        // where the commit will put the strokes.
+        if (pass.Matrix is { } passMatrix)
+        {
+            canvas.Save();
+            canvas.Concat(passMatrix);
+            DrawPass(canvas, pass);
+            canvas.Restore();
+            return;
+        }
+        DrawPass(canvas, pass);
+    }
+
+    /// <summary>
+    /// An adjustment layer's pass: the composite so far, re-drawn through the
+    /// stack's filter, carved by the pass's shapes and faded by its opacity —
+    /// where the shapes do not cover (or the opacity lets through), the
+    /// original pixels beneath simply remain.
+    /// </summary>
+    /// <remarks>
+    /// The snapshot is copy-on-write on the raster backend, so taking one is
+    /// cheap; the filtered redraw is bounded by the canvas clip, which the
+    /// publish path has already limited to the dirty region. The filter is
+    /// built here rather than at materialize time because the snapshot draw
+    /// runs at identity — device space — so kernel parameters declared in
+    /// document pixels (invariant 7) must be scaled by the device scale by
+    /// hand; a save-layer's CTM cannot do it for a draw that has none.
+    /// </remarks>
+    private static void DrawAdjustment(
+        SKSurface surface, SKCanvas canvas, RenderPass pass, double scale, SKMatrix? transform)
+    {
+        var device = transform is { } m
+            ? (float)Math.Sqrt(Math.Abs(m.ScaleX * m.ScaleY - m.SkewX * m.SkewY))
+            : (float)scale;
+        if (device <= 0) device = 1f;
+        // Cached per stack by the registry — nothing here is disposed by us
+        // except the bitmaps we make.
+        var program = Lightbox.Raster.Effects.EffectRegistry.ProgramFor(
+            pass.AdjustStack, pass.EffectFrame, device);
+        if (program is null) return; // a stack that currently does nothing
+
+        canvas.Flush();
+
+        var alpha = (byte)Math.Round(Math.Clamp(pass.Opacity, 0, 1) * 255);
+        using var group = new SKPaint { Color = SKColors.White.WithAlpha(alpha) };
+
+        if (program.SoleFilter is { } filter)
+        {
+            // All-native: one filtered redraw of the surface, bounded by the
+            // clip at draw time. The snapshot is copy-on-write — cheap.
+            using var snapshot = surface.Snapshot();
+            canvas.SaveLayer(group);
+            // The backdrop is device-space pixels: draw it back one-to-one,
+            // under the clip but outside the document transform.
+            canvas.Save();
+            canvas.SetMatrix(SKMatrix.CreateIdentity());
+            using (var paint = new SKPaint { ImageFilter = filter })
+            {
+                canvas.DrawImage(snapshot, 0, 0, paint);
+            }
+            canvas.Restore();
+        }
+        else
+        {
+            // A CPU step somewhere (a true-HSL grade): read back only the
+            // clip, inflated by the stack's reach so a kernel step still
+            // sees the pixels it spills from — invariant 6's bound, kept.
+            using var full = surface.Snapshot();
+            var reach = (int)Math.Ceiling(
+                Lightbox.Raster.Effects.EffectRegistry.ReachOf(
+                    pass.AdjustStack, pass.EffectFrame) * device);
+            var clip = canvas.DeviceClipBounds;
+            var left = Math.Max(0, clip.Left - reach);
+            var top = Math.Max(0, clip.Top - reach);
+            var right = Math.Min(full.Width, clip.Right + reach);
+            var bottom = Math.Min(full.Height, clip.Bottom + reach);
+            if (right <= left || bottom <= top) return;
+            var rect = new SKRectI(left, top, right, bottom);
+
+            using var subset = full.Subset(rect);
+            var worked = SKBitmap.FromImage(subset); // ApplyTo takes ownership
+            // The rectangle's own origin travels with it: a seeded pass (film
+            // grain) must give the same answer for a device pixel whether the
+            // dirty region asked for a corner or the whole surface (Q159).
+            var processed = Lightbox.Raster.Effects.EffectRegistry.ApplyTo(
+                worked, program, new SKPointI(rect.Left, rect.Top));
+            canvas.SaveLayer(group);
+            canvas.Save();
+            canvas.SetMatrix(SKMatrix.CreateIdentity());
+            canvas.DrawBitmap(processed, rect.Left, rect.Top);
+            canvas.Restore();
+            processed.Dispose();
+        }
+
+        // Shapes are document-space bitmaps and carve under the transform,
+        // exactly as they carve an ordinary pass.
+        if (pass.Shapes is { Count: > 0 } shapes) ApplyShapes(canvas, shapes);
+        canvas.Restore();
     }
 
     private static void DrawPass(SKCanvas canvas, RenderPass pass)
@@ -180,9 +366,35 @@ public static class SceneRenderer
             return;
         }
 
+        var shaped = pass.Shapes is { Count: > 0 };
+        var fx = pass.Effect;
+        var style = pass.Style;
+
         if (pass.Overlay is not { } overlay)
         {
-            DrawLayer(canvas, pass.Bitmap, paint);
+            if (!shaped && fx is null && style is null)
+            {
+                DrawLayer(canvas, pass.Bitmap, paint);
+                return;
+            }
+            // The shapes must carve the layer alone, so it is isolated and the
+            // paint — opacity, blend, tint — applies to the carved result on
+            // restore, exactly as it would have applied to the whole layer.
+            // A self effect filters the content *first*, in a group of its
+            // own, so a mask still cuts a crisp edge through a blurred layer
+            // rather than blurring the cut. The styles group sits outside the
+            // carve (Q155): a glow decorates the carved silhouette, so masking
+            // half a drawing leaves the glow hugging the half that is left.
+            canvas.SaveLayer(paint);
+            if (style is not null)
+            {
+                using var stylePaint = new SKPaint { ImageFilter = style };
+                canvas.SaveLayer(stylePaint);
+            }
+            DrawFiltered(canvas, pass.Bitmap, fx);
+            if (shaped) ApplyShapes(canvas, pass.Shapes!);
+            if (style is not null) canvas.Restore();
+            canvas.Restore();
             return;
         }
 
@@ -198,7 +410,11 @@ public static class SceneRenderer
         // (which would otherwise cut through everything) or a layer that
         // is transparent or blended. Skipping the offscreen layer in the
         // ordinary case roughly halves the cost of a live repaint.
-        var needsIsolation = overlay.Erases || alpha != 255 || pass.Blend != SKBlendMode.SrcOver;
+        // A shaped or filtered pass always isolates: the shapes and the
+        // effect must take the layer and its live stroke together, and
+        // nothing else.
+        var needsIsolation = shaped || fx is not null || style is not null
+            || overlay.Erases || alpha != 255 || pass.Blend != SKBlendMode.SrcOver;
         if (!needsIsolation)
         {
             DrawLayer(canvas, pass.Bitmap, paint);
@@ -209,9 +425,72 @@ public static class SceneRenderer
         // SaveLayer allocates the current clip only, so a bounded live
         // region stays affordable even on a huge canvas.
         canvas.SaveLayer(paint);
+        if (style is not null)
+        {
+            // Outside the carve, like the branch above: the live stroke
+            // grows the silhouette and its glow with it, live.
+            using var stylePaint = new SKPaint { ImageFilter = style };
+            canvas.SaveLayer(stylePaint);
+        }
+        if (fx is not null)
+        {
+            // The live stroke sits inside the filter group on purpose: a
+            // blurred layer blurs the mark being made on it, which is what
+            // the commit will show.
+            using var fxPaint = new SKPaint { ImageFilter = fx };
+            canvas.SaveLayer(fxPaint);
+        }
         DrawLayer(canvas, pass.Bitmap, null);
         DrawStroke(canvas, pass.Bitmap, overlay, strokePaint);
+        if (fx is not null) canvas.Restore();
+        if (shaped) ApplyShapes(canvas, pass.Shapes!);
+        if (style is not null) canvas.Restore();
         canvas.Restore();
+    }
+
+    /// <summary>The pass's content through its own effect group, or plainly without one.</summary>
+    private static void DrawFiltered(SKCanvas canvas, SKBitmap bitmap, SKImageFilter? fx)
+    {
+        if (fx is null)
+        {
+            DrawLayer(canvas, bitmap, null);
+            return;
+        }
+        using var fxPaint = new SKPaint { ImageFilter = fx };
+        canvas.SaveLayer(fxPaint);
+        DrawLayer(canvas, bitmap, null);
+        canvas.Restore();
+    }
+
+    /// <summary>
+    /// Carve the isolated pass by each shape in turn. Order does not matter
+    /// for the keeps (intersection commutes); an inverted shape subtracts.
+    /// </summary>
+    private static void ApplyShapes(SKCanvas canvas, IReadOnlyList<PassShape> shapes)
+    {
+        foreach (var shape in shapes)
+        {
+            using var carve = new SKPaint
+            {
+                BlendMode = shape.Inverted ? SKBlendMode.DstOut : SKBlendMode.DstIn,
+            };
+            if (shape.Scratch is null)
+            {
+                DrawLayer(canvas, shape.Mask, carve);
+                continue;
+            }
+            // A mask being painted: the committed coverage and the dabs in
+            // flight are one shape, so they group before the carve — the
+            // same isolate-then-apply the stroke overlay itself uses.
+            canvas.SaveLayer(carve);
+            DrawLayer(canvas, shape.Mask, null);
+            using var dabs = new SKPaint
+            {
+                BlendMode = shape.ScratchErases ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
+            };
+            DrawLayer(canvas, shape.Scratch, dabs);
+            canvas.Restore();
+        }
     }
 
     /// <summary>
@@ -404,6 +683,18 @@ public static class SceneRenderer
 
         foreach (var pass in passes)
         {
+            // B309: this body draws bitmaps, tint, opacity, blend, a matrix and
+            // an overlay. A shaped or filtered pass is meant never to arrive —
+            // ScenePassBuilder refuses tile-native for a document with any live
+            // effect (docEffects) and for a shaped frame (TileFallbackReason.
+            // Shaped) — so the drop below is protected by a gate rather than by
+            // this loop. Said out loud, because the sibling route was protected
+            // by exactly such a belief and the belief was wrong.
+            System.Diagnostics.Debug.Assert(
+                pass.AdjustStack is null && pass.Shapes is not { Count: > 0 }
+                    && pass.Effect is null && pass.Style is null,
+                "B309: a shaped or filtered pass reached the tiled compositor, "
+                + "which cannot draw one — the tile-native gate has regressed.");
             if (pass.Bitmap is null && pass.SourceFrame is null) continue;
 
             var alpha = (byte)Math.Round(Math.Clamp(pass.Opacity, 0, 1) * 255);

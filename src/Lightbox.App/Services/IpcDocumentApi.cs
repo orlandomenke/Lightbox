@@ -27,6 +27,11 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                 "draw_strokes" => DrawStrokes(request),
                 "list_reference_views" => ListReferenceViews(),
                 "render_reference_view" => RenderReferenceView(request),
+                "import_character" => ImportCharacter(request),
+                "set_key" => SetKey(request),
+                "extend_exposure" => ExtendExposure(request),
+                "reduce_exposure" => ReduceExposure(request),
+                "set_exposure_step" => SetExposureStep(request),
                 _ => IpcProtocol.Response.Fail($"Unknown op \"{request.Op}\"."),
             };
         }
@@ -94,6 +99,17 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                 l.Name,
                 Kind = l.Kind.ToString().ToLowerInvariant(),
                 l.Visible,
+                // Both false on every ordinary layer, so an agent reading the
+                // scene sees the carve state without a second call — and
+                // RenderFramePng already applies both, so what it reads and
+                // what it renders agree.
+                HasMask = l.IsMasked,
+                Clipped = l.IsClipped,
+                // Predicate-shaped like its three siblings (G12 review): the
+                // model property is `Adjusts`, but `{"adjusts": true}` on the
+                // wire reads as an instruction rather than a state.
+                IsAdjustment = l.IsAdjustment,
+                HasEffects = l.HasLiveEffects,
                 KeyedFrames = Enumerable.Range(0, s.FrameCount)
                     .Where(i => ExposureSheet.FrameAtExactIndex(l, i) is not null)
                     .ToList(),
@@ -105,6 +121,76 @@ public sealed class IpcDocumentApi(MainViewModel vm)
     {
         public int FrameIndex { get; set; }
         public string? LayerId { get; set; }
+    }
+
+    private sealed class ImportCharacterRef
+    {
+        public string? Library { get; set; }
+        public string Character { get; set; } = "";
+        public bool ReplaceEdited { get; set; }
+    }
+
+    /// <summary>
+    /// The character library's agent surface: the same scan, the same merge,
+    /// the same after-path the two UI surfaces use — and the edited-copy gate
+    /// reshaped for a caller that has no dialog: with <c>replaceEdited</c>
+    /// unset the edited copies are kept and reported, exactly the UI default,
+    /// so nothing is destroyed by an agent that did not say so.
+    /// </summary>
+    private IpcProtocol.Response ImportCharacter(IpcProtocol.Request request)
+    {
+        var p = Payload<ImportCharacterRef>(request);
+        if (vm.ProjectDocker.Project is not { } project)
+            return IpcProtocol.Response.Fail("No project is open — an import needs somewhere to land.");
+        var roots = p.Library is { Length: > 0 } one
+            ? [one]
+            : (IReadOnlyList<string>)vm.Settings.Library.Roots;
+        if (roots.Count == 0)
+        {
+            return IpcProtocol.Response.Fail(
+                "No library given, and no library folders are configured. Pass a path in "
+                + "\"library\", or have the artist add one under the library window.");
+        }
+        var entries = Core.Projects.CharacterLibrary.Scan(roots);
+        // An empty shelf is a path problem, not a name problem — saying "no
+        // character named X" here sends an agent retrying name variations
+        // against a folder that was never a library.
+        if (entries.Count == 0)
+        {
+            return IpcProtocol.Response.Fail(
+                $"Nothing is offered under {string.Join(", ", roots)}. A library is a project "
+                + "whose type is Asset library — check the path points at one, or at a folder "
+                + "holding several.");
+        }
+        // Named rather than counted, the ConfirmDiscard rule for agents: the
+        // shelf's contents are what makes the retry a decision. And a name two
+        // libraries offer refuses rather than silently taking whichever the
+        // scan met first — the UI path never guesses (the artist clicked one
+        // specific entry), so the agent path must not either.
+        var matches = entries.Where(e => e.Name == p.Character).ToList();
+        if (matches.Count == 0)
+        {
+            return IpcProtocol.Response.Fail(
+                $"No character named \"{p.Character}\" — offered: "
+                + $"{string.Join(", ", entries.Select(e => e.Name))}.");
+        }
+        if (matches.Count > 1)
+        {
+            return IpcProtocol.Response.Fail(
+                $"\"{p.Character}\" is offered by more than one library "
+                + $"({string.Join(", ", matches.Select(e => e.LibraryName))}) — pass the one "
+                + "you mean as \"library\".");
+        }
+        var result = Core.Projects.CharacterLibrary.Import(matches[0], project, p.ReplaceEdited);
+        vm.AfterLibraryImport(result);
+        return IpcProtocol.Response.Success(new
+        {
+            Folder = result.Folder.Name,
+            Library = matches[0].LibraryName,
+            result.Added,
+            result.Replaced,
+            result.KeptEdited,
+        });
     }
 
     private IpcProtocol.Response GetFrameStrokes(IpcProtocol.Request request)
@@ -166,6 +252,122 @@ public sealed class IpcDocumentApi(MainViewModel vm)
         public int FrameIndex { get; set; }
         public string? LayerId { get; set; }
         public List<StrokeWire.StrokeDto> Strokes { get; set; } = [];
+    }
+
+    private sealed class KeyRef
+    {
+        public int FrameIndex { get; set; }
+        public string? LayerId { get; set; }
+        public string? Role { get; set; }
+    }
+
+    private sealed class ExposureStepRef
+    {
+        public int From { get; set; }
+        public int To { get; set; }
+        public int Step { get; set; }
+        public string? LayerId { get; set; }
+    }
+
+    /// <summary>
+    /// Parse a role name, refusing an unknown one rather than defaulting to
+    /// <see cref="FrameRole.Key"/>. An agent that misspells "breakdown" should
+    /// be told, not quietly given a key — the reply is the only feedback it has.
+    /// </summary>
+    private static FrameRole? RoleOf(string? role) => role?.Trim().ToLowerInvariant() switch
+    {
+        null or "" or "key" => FrameRole.Key,
+        "breakdown" => FrameRole.Breakdown,
+        "inbetween" => FrameRole.Inbetween,
+        _ => null,
+    };
+
+    private IpcProtocol.Response SetKey(IpcProtocol.Request request)
+    {
+        var p = Payload<KeyRef>(request);
+        var layer = ResolveLayer(p.LayerId);
+        if (p.FrameIndex < 0) return IpcProtocol.Response.Fail("frameIndex must be 0 or greater.");
+        if (RoleOf(p.Role) is not { } role)
+            return IpcProtocol.Response.Fail(
+                $"Unknown role \"{p.Role}\" — use key, breakdown or inbetween.");
+
+        var outcome = vm.SetExternalKey(layer.Id, p.FrameIndex, role);
+        if (outcome == ExternalKeyOutcome.Refused)
+            return IpcProtocol.Response.Fail($"Layer \"{layer.Name}\" cannot be edited.");
+
+        return IpcProtocol.Response.Success(new
+        {
+            p.FrameIndex,
+            LayerId = layer.Id,
+            Role = role.ToString().ToLowerInvariant(),
+            // Which of the two things happened, because they are different
+            // edits with the same op and an agent cannot see the timeline.
+            Created = outcome == ExternalKeyOutcome.Created,
+            FrameCount = vm.Doc.Scene.FrameCount,
+        });
+    }
+
+    private IpcProtocol.Response ExtendExposure(IpcProtocol.Request request)
+    {
+        var p = Payload<FrameRef>(request);
+        var layer = ResolveLayer(p.LayerId);
+        if (p.FrameIndex < 0) return IpcProtocol.Response.Fail("frameIndex must be 0 or greater.");
+        if (ExposureSheet.KeyIndexAtOrBefore(layer, p.FrameIndex) < 0)
+            return IpcProtocol.Response.Fail(
+                $"No drawing at or before frame {p.FrameIndex} on layer \"{layer.Name}\" to hold.");
+        if (!vm.ExtendExternalExposure(layer.Id, p.FrameIndex))
+            return IpcProtocol.Response.Fail($"Layer \"{layer.Name}\" cannot be edited.");
+        return IpcProtocol.Response.Success(new
+        {
+            p.FrameIndex,
+            LayerId = layer.Id,
+            FrameCount = vm.Doc.Scene.FrameCount,
+        });
+    }
+
+    private IpcProtocol.Response ReduceExposure(IpcProtocol.Request request)
+    {
+        var p = Payload<FrameRef>(request);
+        var layer = ResolveLayer(p.LayerId);
+        if (p.FrameIndex < 0) return IpcProtocol.Response.Fail("frameIndex must be 0 or greater.");
+
+        // A drawing is never removed, so the honest answer when the next cel
+        // is keyed is "nothing to shorten" rather than a success that did
+        // nothing — an agent retiming a run needs to know which it got.
+        var next = p.FrameIndex + 1;
+        var shortenable = next < layer.Cels.Count && layer.Cels[next].Frame is null;
+        if (!shortenable)
+            return IpcProtocol.Response.Fail(
+                $"Frame {p.FrameIndex} on layer \"{layer.Name}\" is not held — "
+                + "there is no hold after it to remove.");
+        if (!vm.ReduceExternalExposure(layer.Id, p.FrameIndex))
+            return IpcProtocol.Response.Fail($"Layer \"{layer.Name}\" cannot be edited.");
+        return IpcProtocol.Response.Success(new
+        {
+            p.FrameIndex,
+            LayerId = layer.Id,
+            FrameCount = vm.Doc.Scene.FrameCount,
+        });
+    }
+
+    private IpcProtocol.Response SetExposureStep(IpcProtocol.Request request)
+    {
+        var p = Payload<ExposureStepRef>(request);
+        var layer = ResolveLayer(p.LayerId);
+        if (p.Step < 1) return IpcProtocol.Response.Fail("step must be 1 or greater.");
+        if (p.From < 0 || p.To < 0) return IpcProtocol.Response.Fail("from and to must be 0 or greater.");
+
+        var grew = vm.RetimeExternalExposure(layer.Id, p.From, p.To, p.Step);
+        if (grew < 0) return IpcProtocol.Response.Fail($"Layer \"{layer.Name}\" cannot be edited.");
+        return IpcProtocol.Response.Success(new
+        {
+            p.From,
+            p.To,
+            p.Step,
+            LayerId = layer.Id,
+            Grew = grew,
+            FrameCount = vm.Doc.Scene.FrameCount,
+        });
     }
 
     private IpcProtocol.Response ListReferenceViews()

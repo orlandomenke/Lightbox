@@ -45,7 +45,8 @@ namespace Lightbox.App.Tests;
 /// wiring rather than claiming to close the report.
 /// </para>
 /// </remarks>
-public class SpaceTogglesPlaybackTests(ITestOutputHelper output)
+[Collection("BrushState")]
+public class SpaceTogglesPlaybackTests(ITestOutputHelper output) : BrushStateIsolated
 {
     private static (MainWindow Window, MainViewModel Vm) Open()
     {

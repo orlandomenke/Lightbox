@@ -602,10 +602,13 @@ public partial class MainViewModel
             IsPlaying, IsLightTable,
             HaveViewport: _publish.Viewport is { Width: > 0, Height: > 0 },
             Onion,
-            IsScrubbing);
+            IsScrubbing,
+            // Depth answers to a camera move, so it applies exactly when the
+            // composite is about to be drawn under the camera's matrix.
+            ThroughCamera: ViewThroughCamera);
         var live = new ScenePassBuilder.LiveEdit(
             _live.Composite, _live.Scratch, _live.PostScratch, _live.PostStampedCount,
-            _liveShape, _liveGradient, _strokeBuilder.Current,
+            _liveShape, _liveGradient, LiveTextPaint, _strokeBuilder.Current,
             _transform.Preview, _transform.Frames,
             // The moving/staying split stays behind a delegate because building
             // it caches bitmaps and owns their disposal — state with a lifetime,
@@ -613,7 +616,8 @@ public partial class MainViewModel
             // field rather than written as a lambda here: a lambda capturing
             // `this` allocates a closure and a delegate on every publish, and a
             // publish happens per pointer event while drawing.
-            _passTransformSplit ??= TransformSplitFor);
+            _passTransformSplit ??= TransformSplitFor,
+            MaskEditing: EditingLayerMask);
 
         var built = ScenePassBuilder.Describe(scene, passState, _cache, _tileFallbacks, live);
         var tileNativeDoc = built.TileNative;
@@ -658,6 +662,16 @@ public partial class MainViewModel
             passes, heldRun, scene.Width, scene.Height, out var heldTransitioned);
         foldTransitioned |= heldTransitioned;
 
+        // Q143: what the viewed variant wears, one pass over the whole stack.
+        // Appended after the folds so every compositor route carries it; the
+        // bitmap is cached per frame index in MainViewModel.Variants.cs, and a
+        // bitmap neither cache owns passes through pin/unpin harmlessly. Null
+        // — one delegate test — for everyone not viewing a dressed variant.
+        if (WornOverlayFor(scene, CurrentFrameIndex) is { } worn)
+        {
+            passes.Add(new RenderPass(worn, null, 1.0));
+        }
+
         // A fold transition repaints everything once (see the out parameter's
         // remarks): folded and unfolded pixels can differ by an LSB, and a
         // dirty-region patch must never mix the two on one surface.
@@ -676,6 +690,26 @@ public partial class MainViewModel
         // Read BEFORE the routing decision on purpose: whether culling is worth
         // taking depends entirely on this, per B121 in ComposePlan.
         var dirty = _publish.TakeDirty();
+
+        // A dirty rect is document-space on the layer being painted, and a
+        // layer with a depth lands its pixels somewhere else on screen while
+        // the view is through the camera. Widened here — the one funnel every
+        // MarkDirty drains through — so the ring's and the cull's clips cover
+        // the plane without either learning about parallax. The whole check
+        // costs a null test on documents that never author a depth.
+        if (dirty is { } dirtyRect && ViewThroughCamera
+            && scene.Camera is { } dirtyCam
+            && scene.Layers.Count > 0 && ActiveLayer.HasDepth)
+        {
+            var parallaxFrame = Rendering.ParallaxTransform.Prepare(
+                CameraOps.At(dirtyCam, CurrentFrameIndex, scene.Width, scene.Height),
+                CameraFraming.Centred(scene.Width, scene.Height),
+                dirtyCam.OutputWidth, dirtyCam.OutputHeight);
+            if (parallaxFrame?.MatrixFor(ActiveLayer.Depth) is { } planeMatrix)
+            {
+                dirty = Rendering.ParallaxTransform.CoverPlane(dirtyRect, planeMatrix);
+            }
+        }
 
         // Which compositor, on what surface, covering what (B166). Arithmetic on
         // six numbers, and the three conditions in it were each learned by
@@ -778,12 +812,15 @@ public partial class MainViewModel
         }
         else
         {
-            // Bounded canvas without culling: use full-document compositing as before
+            // The ring, over the whole document or over a window onto it (B291).
+            // `plan.Origin` is zero for the whole-document case, so that route is
+            // byte-for-byte what it always was.
             image = _composeRing.Publish(info, dirty, (surface, clip) =>
             {
                 usedClip = clip;
-                SceneRenderer.ComposeInto(surface, passes, background, clip, renderScale, cameraView);
-            }, renderScale, cameraView);
+                SceneRenderer.ComposeInto(
+                    surface, passes, background, clip, renderScale, cameraView, plan.Origin);
+            }, renderScale, cameraView, plan.Origin);
         }
         sw.Stop();
         composeScope?.Dispose();
@@ -908,8 +945,9 @@ public partial class MainViewModel
         foreach (var index in ahead)
         {
             var celIndex = Math.Clamp(index, 0, last);
-            foreach (var layer in scene.Layers)
+            for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
             {
+                var layer = scene.Layers[layerIndex];
                 if (!scene.IsLayerVisible(layer)) continue;
                 if (ExposureSheet.ExposedFrame(layer, celIndex) is not { } frame) continue;
 
@@ -926,7 +964,12 @@ public partial class MainViewModel
                 var why = tileNativeDoc
                     ? TileFallback.Reason(
                         frame, scene.Camera is not null, true, liveEffectHere: false,
-                        posed: _cache.Rig.IsPosed(frame))
+                        posed: _cache.Rig.IsPosed(frame),
+                        shaped: LayerShapes.Carves(scene, layerIndex),
+                        // tileNativeDoc already folded the document-level
+                        // effects gate in (the builder computed it), so the
+                        // per-frame ask cannot be reached with effects live.
+                        docEffects: false)
                     : TileFallbackReason.NoViewport;
 
                 if (why == TileFallbackReason.None)
@@ -1073,8 +1116,12 @@ public partial class MainViewModel
             var placement = SKMatrix.CreateScaleTranslation(
                 step, step, lvp.Left * step, lvp.Top * step);
             var p = passes[i];
+            // Shapes ride along unchanged; a shaped pass never goes
+            // tile-native (TileFallbackReason.Shaped), so this is null today
+            // and carrying it is what keeps that a fallback decision rather
+            // than a silent drop here.
             flattened[i] = new RenderPass(
-                flat, p.Tint, p.Opacity, p.Blend, p.Overlay, placement);
+                flat, p.Tint, p.Opacity, p.Blend, p.Overlay, placement, Shapes: p.Shapes);
         }
         return flattened ?? passes;
     }
@@ -1087,75 +1134,75 @@ public partial class MainViewModel
     private static int FloorDiv(int a, int b) => a >= 0 ? a / b : (a - b + 1) / b;
 
     /// <summary>
-    /// B82: compose only the visible rectangle of a bounded canvas, so the cost
-    /// is proportional to what the artist can see rather than to the document.
+    /// How far, in document pixels, this document's live effects spread a
+    /// change — what every dirty region grows by (see
+    /// <see cref="PublishState.DirtyInflationOf"/>). Conservative on purpose:
+    /// the active layer's own stack, every visible adjustment stack, and the
+    /// scene grade are summed whether or not each one actually covers the
+    /// edit, because a too-wide repaint costs milliseconds and a too-narrow
+    /// one leaves a smear at the region's edge that nobody traces back.
     /// </summary>
-    /// <remarks>
-    /// <paramref name="viewport"/> must already be clamped to the document — see
-    /// <see cref="ComposePlan.ClampToDocument"/>. The surface covers exactly that
-    /// so the painter draws the result into the same rectangle in document space
-    /// and the pointer mapping never has to know this happened.
-    /// </remarks>
-    private static SKImage ComposeViewportCulled(
-        List<RenderPass> passes,
-        SKColor background,
-        double renderScale,
-        SKImageInfo info,
-        SKRectI viewport)
+    private int EffectDirtyInflation()
     {
-        var surface = SKSurface.Create(info);
-        if (surface is null) throw new InvalidOperationException("Failed to create render surface");
-
-        var canvas = surface.Canvas;
-        canvas.Clear(background);
-
-        // Document space, offset so the viewport's top-left is the surface origin.
-        // Every pass then draws at its own document coordinates, exactly as it
-        // would into a full-document surface — which is the point: the passes do
-        // not learn about culling, so a culled and an uncalled compose agree.
-        canvas.Scale((float)renderScale, (float)renderScale);
-        canvas.Translate(-viewport.Left, -viewport.Top);
-
-        var visible = new SKRect(viewport.Left, viewport.Top, viewport.Right, viewport.Bottom);
-
-        foreach (var pass in passes)
+        var scene = Scene;
+        if (!EffectPasses.AnyLive(scene)) return 0;
+        var frame = CurrentFrameIndex;
+        var reach = Lightbox.Raster.Effects.EffectRegistry.ReachOf(scene.Effects, frame);
+        var active = ActiveLayer;
+        foreach (var layer in scene.Layers)
         {
-            if (pass.Bitmap is null) continue;
-
-            using var paint = new SKPaint { BlendMode = pass.Blend };
-            if (pass.Opacity < 1.0)
-                paint.Color = paint.Color.WithAlpha((byte)(pass.Opacity * 255));
-            // SrcIn, matching SceneRenderer.DrawPass: the tint replaces the
-            // pass's colour and keeps its alpha, so a transparent pixel stays
-            // transparent. Multiply does the opposite — Skia's blend-mode
-            // colour filter takes the tint as source, and Multiply against a
-            // transparent destination returns the tint at full alpha, so every
-            // empty pixel of a ghost came out solid #d04040 and the canvas
-            // flooded red. B201.
-            if (pass.Tint.HasValue)
-                paint.ColorFilter = SKColorFilter.CreateBlendMode(pass.Tint.Value, SKBlendMode.SrcIn);
-
-            // Only the visible sub-rectangle is read, which is where the saving is:
-            // src and dst are the same rectangle in document space, so no scaling
-            // beyond renderScale and no resampling of the parts nobody can see.
-            canvas.DrawBitmap(pass.Bitmap, visible, visible, paint);
-
-            if (pass.Overlay is { } overlay)
+            if (!layer.HasLiveEffects || !scene.IsLayerVisible(layer)) continue;
+            if (layer.IsAdjustment || ReferenceEquals(layer, active))
             {
-                using var overlayPaint = new SKPaint
-                {
-                    BlendMode = overlay.Erases ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
-                };
-                if (overlay.Opacity < 1.0)
-                    overlayPaint.Color = overlayPaint.Color.WithAlpha((byte)(overlay.Opacity * 255));
-                canvas.DrawBitmap(overlay.Scratch, visible, visible, overlayPaint);
+                reach += Lightbox.Raster.Effects.EffectRegistry.ReachOf(layer.Effects, frame);
             }
         }
-
-        canvas.Flush();
-        var image = surface.Snapshot();
-        surface.Dispose();
-        return image;
+        return (int)Math.Ceiling(reach);
     }
 
+    /// <summary>
+    /// Everything visible below the layer being painted on, at the playhead, or
+    /// null when there is nothing there.
+    /// </summary>
+    /// <remarks>
+    /// Null rather than a transparent bitmap for the bottom layer, so a smudge
+    /// there costs nothing and behaves exactly as it always did. Here rather
+    /// than in MainViewModel.cs for the ratchet's reason: it is render-path
+    /// code, and the main file may not grow.
+    /// </remarks>
+    private SKBitmap? CompositeBelowActiveLayer()
+    {
+        var scene = Scene;
+        var active = ActiveLayer;
+        var passes = new List<RenderPass>();
+        for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
+        {
+            var layer = scene.Layers[layerIndex];
+            if (ReferenceEquals(layer, active)) break;
+            if (!scene.IsLayerVisible(layer)) continue;
+            if (layer.IsAdjustment)
+            {
+                if (EffectPasses.AdjustmentPass(scene, layerIndex, CurrentFrameIndex, _cache) is { } adj)
+                {
+                    passes.Add(adj);
+                }
+                continue;
+            }
+            if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is not { } frame) continue;
+            // A smudge or blur samples what it visibly sits on, so the
+            // backdrop is shaped exactly as the composite is.
+            var shapes = LayerShapes.For(scene, layerIndex, CurrentFrameIndex);
+            if (shapes is { Count: 0 }) continue;
+            passes.Add(new RenderPass(
+                _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex),
+                null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
+                Shapes: LayerShapes.Resolve(shapes, _cache, scene.Width, scene.Height, CurrentFrameIndex),
+                Effect: EffectPasses.SelfFilter(layer, CurrentFrameIndex),
+                Style: EffectPasses.SelfStyle(layer, CurrentFrameIndex)));
+        }
+        if (passes.Count == 0) return null;
+        using var below = SceneRenderer.Compose(
+            scene.Width, scene.Height, passes, SKColors.Transparent);
+        return SKBitmap.FromImage(below);
+    }
 }

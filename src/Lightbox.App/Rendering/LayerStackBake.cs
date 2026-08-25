@@ -467,6 +467,17 @@ public sealed class LayerStackBake : IDisposable
             if (s.Blend != SKBlendMode.SrcOver) return false;
             if (s.Overlay is not null) return false;
             if (s.SourceFrame is not null) return false;
+            // A shaped pass — masked or clipped — is refused, not because the
+            // carve is non-associative (it is a per-pass alpha edit) but
+            // because its described list is rebuilt per publish, so the key
+            // would need to reach through to mask frames and versions to be
+            // honest. Masked layers are rare per document; correct and unfolded
+            // beats folded and stale.
+            if (s.Shapes is not null) return false;
+            // An effect pass is refused for the same key-blindness (a slider
+            // drag changes pixels behind a stable stack reference) — and an
+            // adjustment pass reads the backdrop besides.
+            if (s.Fx is not null) return false;
             if (s.CelFrame is { } frame)
             {
                 if (!FrameBitmapCache.CanCache(frame)) return false;
@@ -484,7 +495,11 @@ public sealed class LayerStackBake : IDisposable
             p.Blend == SKBlendMode.SrcOver
             && p.Overlay is null
             && p.SourceFrame is null
-            && p.Bitmap is not null);
+            && p.Bitmap is not null
+            && p.Shapes is null
+            && p.Effect is null
+            && p.Style is null
+            && p.AdjustStack is null);
 
     private static List<PassKey> KeyOf(List<RenderPass> passes)
     {

@@ -97,21 +97,56 @@ either side, with the frames between showing the blend.
 **You can see those keys, on the timeline.** Once a document has an armature,
 the track timeline grows an **Armature** row marking every frame any bone is
 keyed on — the camera's row, one track down. Tick **Bones** on the timeline bar
-to open it into one row per bone; it is closed by default, because a
-twenty-bone character would otherwise cost twenty rows.
+(or click the row's **chevron**) to open it into one row per bone; it is closed
+by default, because a twenty-bone character would otherwise cost twenty rows.
+
+**The bone rows are the hierarchy, and they fold.** Children indent under
+their parents, and a bone with children carries its own chevron in the gutter
+— click it and the subtree folds away, so a twenty-bone character can show
+the one limb you are timing rather than twenty rows or none. Folding is a
+view's memory, never the document's: a folded bone's keys still play, still
+export, and still move with the summary row.
 
 The keys are editable where they are drawn:
 
 - **Drag a key** to retime it. On the Armature row that moves the whole pose;
   on a bone's row it moves only that bone, leaving its neighbours where they
   are. A key dropped on top of another replaces it.
-- **Right-click a key** to remove it, or to jump the playhead to it. On a
-  bone's row, removing takes that bone off the key and leaves the rest of the
-  pose alone; when the last bone comes off a key, the key goes with it.
+- **Right-click a key** to remove it, copy or cut it (the key clipboard —
+  see *Copying keys* in the timeline chapter), or jump the playhead to it. On
+  a bone's row, removing takes that bone off the key and leaves the rest of
+  the pose alone; when the last bone comes off a key, the key goes with it.
+- **Select a bone's key** and its X, Y and rotation appear as numbers on the
+  strip under the tracks — the departure from rest the key holds, typed
+  instead of dragged.
 
 A bone that gains a key where there was none is seeded from the pose you were
 already looking at, so keying one bone never snaps its neighbours back to rest. Scrub the timeline and
 bound drawings follow the pose live, in playback and in every export.
+
+### Timing the rig on 2s
+
+Tweened bones move every frame, and every frame is exactly what drawn
+animation does not do. Two controls give the rig drawn timing, and both are
+off until you ask:
+
+- **Hold a key.** Right-click a pose key ▸ **Ease into next** ▸ **Hold** and
+  the pose freezes until the next key — pose-to-pose instead of a tween, the
+  same ease menu the camera's keys have. The other choices (linear, ease in,
+  out, in-out) shape the tween the way they always did.
+- **Sample the whole track on 2s.** Right-click the Armature row's empty run ▸
+  **Pose on…** ▸ **2s** (or 3s, 4s) and the rig is *shown* every second frame
+  and held between, while the tween underneath stays fluid. Retiming is the
+  point: change the interval, or a key, and the motion re-samples — nothing is
+  re-posed. Back to **1s (every frame)** and the track is exactly what it was.
+
+The step is what the *frames show* — playback, export and bake all step —
+while posing keeps working at full precision: a key you add or drag is
+measured against the fluid tween, on whatever frame the playhead is on. Pose
+on the sampled frames (the even ones, on 2s) to see your key exactly as the
+frame will show it. Held poses land on the exposure sheet's grid, so a
+rig on 2s sits flush with drawings on 2s — and **baking** a stepped rig
+writes the held drawings, ready to re-expose and re-time like any others.
 
 **The skeleton has its own onion skin.** With onion skin on, posing also
 shows outline ghosts of the skeleton at the neighbouring **pose keys** — warm

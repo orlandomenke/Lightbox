@@ -4,7 +4,7 @@
 ## Tools
 
 Down the left: **Brush** (B), **Eraser** (E), **Fill**, **Picker**,
-**Gradient**, **Crop** (C), **Arrow** (A), **Points** (N), **Pen** (P), **Width** (W), **Shape** (U), **Select** (S). Press Select again to cycle its
+**Gradient**, **Crop** (C), **Arrow** (A), **Points** (N), **Pen** (P), **Width** (W), **Text** (T), **Shape** (U), **Select** (S). Press Select again to cycle its
 variants, or hold it for the list: Freehand, Polygon, Box, Circle, Magic wand.
 
 **The rail arranges itself, and takes only the width it is using.** One centred
@@ -379,6 +379,55 @@ selection is an entry in the document, referenced by the strokes clipped to it).
 Settings that reach pixels — anti-aliasing, pressure curves — are recorded **on
 each stroke**, so changing a preference never alters art you have already made.
 
+### Why a hard-edged line comes out smooth
+
+A brush lays its mark down as a row of overlapping stamps, one every fraction of
+a pixel. For a **hard-edged** brush — Ink, hard round, the eraser, anything with
+hardness at 1 — the whole row is drawn as a **single shape** rather than stamp by
+stamp, and the smooth edge is worked out once for that shape.
+
+The difference is worth knowing because it shows up most where it matters least
+to explain and most to look at: **thin diagonals**, which is what hair, eyelashes
+and hatching are made of. Drawn stamp by stamp, each stamp's soft edge lands on
+top of the last one's and the two add up to something harder than either — so a
+shallow diagonal holds one column of pixels for a few rows, jumps to the next,
+and reads as a staircase instead of a line. Drawn as one shape there is nothing
+to add up, and the line keeps the same weight wherever it happens to fall between
+pixels.
+
+**Soft brushes still work stamp by stamp**, because each stamp's fade belongs to
+the stamp rather than to the mark. So do brushes with **scatter, size jitter, a
+squashed tip, or an imported bitmap tip**, whose stamps genuinely differ from one
+another. If you are inking and want the crispest possible line, a plain round tip
+at full hardness is the one to reach for.
+
+### Why a soft brush's edge is as soft as you set it
+
+Hardness sets how far a brush fades out. Because a stroke lays its stamps down
+much closer together than they are wide, that fade used to build on itself: the
+mark came out with roughly **half** the soft edge the brush described, and the
+softer you set it the more you lost. Hardness 35% asked for an eight-pixel fade
+and gave you four.
+
+A mark is now held down to what the brush's own shape allows, so a stroke's edge
+is exactly as soft as one stamp of that brush — which is the thing you were
+setting all along. If your old paintings look a little softer than you remember,
+that is this.
+
+**Building up still works.** Flow is how much paint each stamp puts down, and
+going over your own stroke still darkens it. What the ceiling stops is a mark
+becoming *denser than the brush's shape allows*, so an airbrush worked back and
+forth now settles into a soft-edged mark instead of hardening into a blob. Low
+flow behaves exactly as it did.
+
+**Simulated media are left alone** — with watercolour, gouache, oil or ink the
+edge you see is made by the paint pooling and flowing, not by the brush's fade,
+and holding the stamps back would starve the flow.
+
+This is not a setting and there is nothing to switch on. It also applies to art
+you drew before — reopen an old drawing and its hard-edged lines are cleaner than
+they were.
+
 **An erase that rubbed nothing out is not recorded.** Sweep the eraser across
 blank canvas, or press Delete with an empty selection, and nothing is written:
 no stroke on the drawing, and no step in the history. It did nothing to nothing,
@@ -409,6 +458,23 @@ than after, an oil brush looked fully loaded until you released and then faded t
 nothing, and a textured tip rearranged itself on pen lift. If you see anything
 like that again, it is a bug and worth reporting — it is not the medium being
 unpredictable.
+
+**A soft brush is the other exception, and it is new.** Its ceiling is worked out
+from the whole mark rather than from the stamps just laid down, so it runs with
+the wet-media passes below rather than under the pen. While you draw you see the
+mark as it looked before this change — very slightly harder at the edge — and it
+settles to the softer, correct one a moment behind the tip. Nothing looks worse
+than it used to while drawing; it is the *finished* mark that is now the one that
+differs, and only until the pass lands.
+
+**A very low flow escapes even that.** If a brush's flow is at or below its
+spacing, no amount of overlap can push the mark up to the brush's own shape, so
+there is no ceiling to work out and nothing settles — the mark is exact under the
+pen. **Smudge and Blender are both below that line as they ship**, which is why
+what the next paragraph says about them still holds. Scatter is the exception to
+the exception: a brush that throws its stamps around can pile more of them onto
+one spot than its spacing suggests, so it keeps the ceiling however low you set
+the flow.
 
 **That now includes smudge, blender and blur.** They were the last to hold out:
 because they rework pixels already on the layer rather than adding new ones, each
@@ -555,5 +621,87 @@ watercolour rectangle is watercolour; it erases, re-renders and inbetweens like
 every other mark, and it snaps to guides like every other mark. The trade is
 that it is not re-editable as a shape afterwards — that is the right bargain for
 a tool where the unit of work is two hundred drawings, not one.
+
+
+## Text
+
+The **Text** tool (T) puts a caret on the canvas and lets you type. Click where
+the words should sit, type, and press **Esc** to set them — or just reach for
+another tool, which sets them too. **Ctrl+Enter** also sets; **Enter** breaks
+the line.
+
+The point you click is the **baseline** at the alignment you have chosen, not
+the top-left corner of a box. The baseline is the line the letters stand on, so
+it is what lines up with a horizon, a shoulder, or the row of type above it, and
+it stays put when you change the size. It snaps to guides and grids like any
+other point.
+
+**What you see while typing is exactly what you get.** The letters on screen are
+the real outlines, drawn through the same engine that will record them — not a
+preview of them. Change the size, the tracking or the font while the caret is
+still up and the words reshape under your hands.
+
+### Set type is a drawing
+
+Setting type turns it into ordinary strokes — one filled outline per letter. So
+it erases, transforms, exports, composites and re-renders exactly like anything
+you drew, and **a document renders identically on a machine with none of your
+fonts installed**. The words are in the picture, not a note about the picture.
+
+What stays behind is enough to type them again. Click type with the Text tool
+and you pick it up: the caret goes to the end of the words, the size and
+alignment come back with it, and setting it again replaces the letters rather
+than stacking new ones over the old. To remove type, pick it up, clear it, and
+set it.
+
+**Esc sets rather than discards**, which is the opposite of Photoshop. Setting
+is one undo step, so if you meant to throw the words away, **Ctrl+Z** does it —
+whereas an Esc that discarded would lose a typed title with nothing to get it
+back from.
+
+### Choosing a font
+
+The font button opens the list, with a search box. It is on the options bar
+along the top with the text tool in hand, and in the **Tool options** docker,
+which has room for every setting at once — the bar carries the face, the size
+and the alignment, which are what you change mid-word, and the docker carries
+those plus tracking and leading. There are two kinds of font in the list:
+
+- **Installed** — every font on this machine. Always there, no waiting, works
+  offline.
+- **Google Fonts** — a few thousand more, fetched once and then kept on disk.
+  Marked *carries* in the list, which is explained below.
+
+Alongside the font: **Size** in pixels, **Tracking** in thousandths of an em
+(the unit type specimens quote, so a number copied off one means the same
+here), **Leading** as baseline-to-baseline in pixels — leave it at zero and the
+typeface's own spacing is used, which is what it was designed for — and the
+alignment, which decides what part of the line sits on the point you clicked.
+Tracking and leading are in the docker rather than on the bar: they are set once
+for a block, and the bar has only so much room.
+
+If a font is listed but sets nothing, Lightbox says so when you pick it. Some
+installed families are formats with no outlines it can read, and the honest
+moment to find that out is when you choose one, not after you have typed a
+title.
+
+### Which fonts travel with the file
+
+Because the letters are outlines, a document always *renders* correctly
+anywhere. Carrying the font is about something else: whether somebody else can
+**retype** the words.
+
+- A **Google font** is under an open licence that allows it to be passed around,
+  so Lightbox carries a copy inside the document. Open the file anywhere and the
+  text is editable.
+- An **installed font** is under terms Lightbox cannot read, so it is named in
+  the document and never copied. Open the file on a machine without that font
+  and the words are still there, still perfect, and picking them up to retype
+  them will say the font is missing.
+
+Both switches are in **Configure ▸ Drawing ▸ Fonts**: whether Google Fonts are
+offered at all — off means Lightbox never contacts them, which is what an
+air-gapped studio wants — and whether open-licensed fonts are carried. Neither
+changes how anything looks, then or later.
 
 ---

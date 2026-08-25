@@ -47,6 +47,13 @@ public class RigExportTests
         Assert.Equal(12, rig.Fps);
         Assert.Equal(6, rig.FrameCount);
 
+        // The step travels only when authored — an unstepped rig writes no key.
+        Assert.Null(rig.Step);
+        Assert.DoesNotContain("\"step\"", RigExport.ToJson(rig));
+        var steppedDoc = Rigged();
+        steppedDoc.Scene.PoseTrack!.Step = 2;
+        Assert.Equal(2, RigExport.Build(steppedDoc).Step);
+
         var baseBone = rig.Bones.Single(b => b.Name == "tail.base");
         var tip = rig.Bones.Single(b => b.Name == "tail.tip");
         Assert.Null(baseBone.Parent);

@@ -66,13 +66,19 @@ public static class CameraTransform
     /// more than strictly necessary and is the honest price of a rotated dirty
     /// region.
     /// </summary>
-    public static SKRect DeviceBounds(SKRectI doc, double scale, SKMatrix? transform)
+    /// <param name="origin">
+    /// The document point the surface's (0,0) holds. Zero whenever the surface
+    /// spans the whole document, which is every camera route and every
+    /// uncropped one — so the arithmetic below is unchanged for them.
+    /// </param>
+    public static SKRect DeviceBounds(
+        SKRectI doc, double scale, SKMatrix? transform, SKPointI origin = default)
     {
         if (transform is not { } m)
         {
             return SKRect.Create(
-                (float)Math.Floor(doc.Left * scale),
-                (float)Math.Floor(doc.Top * scale),
+                (float)Math.Floor((doc.Left - origin.X) * scale),
+                (float)Math.Floor((doc.Top - origin.Y) * scale),
                 (float)Math.Ceiling(doc.Width * scale) + 1,
                 (float)Math.Ceiling(doc.Height * scale) + 1);
         }

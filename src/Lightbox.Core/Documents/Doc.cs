@@ -80,6 +80,36 @@ public sealed class Doc
     public Dictionary<string, Gradient> Gradients { get; set; } = [];
 
     /// <summary>
+    /// The text elements set in this document, keyed by id, or null — which is
+    /// every document nobody has typed in.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Editing state, not rendering state.</b> Every other resource in this
+    /// class is here because the renderer needs it — a tip, a texture, a clip
+    /// region, a gradient ramp. This one is the exception and is worth the
+    /// difference being explicit: the glyph contours a text element baked to are
+    /// already in the strokes, so deleting this whole block changes no pixel of
+    /// any frame. What it deletes is the ability to retype the words.
+    /// See <see cref="TextElement"/> for why that is the right way round.
+    /// </para>
+    /// </remarks>
+    public Dictionary<string, TextElement>? Texts { get; set; }
+
+    /// <summary>
+    /// Fonts carried in the document itself, keyed by id, so text set in them
+    /// can be retyped on a machine that does not have them installed. Null
+    /// until one is carried, which needs a licence that allows it.
+    /// </summary>
+    /// <remarks>
+    /// Referenced by <see cref="FontRef.EmbeddedId"/>. See
+    /// <see cref="EmbeddedFont"/> for the licence condition and what it costs
+    /// when it is not met — the short version being that the picture is never
+    /// affected either way.
+    /// </remarks>
+    public Dictionary<string, EmbeddedFont>? Fonts { get; set; }
+
+    /// <summary>
     /// Symbols this document carries itself, keyed by id — or null, which is
     /// the ordinary case.
     /// </summary>
@@ -339,6 +369,8 @@ public sealed class Doc
         copy.Palettes = Palettes.Select(p => p.Clone()).ToList();
         copy.PaletteFolders = PaletteFolders?.Select(f => f.Clone()).ToList();
         copy.Gradients = Gradients.ToDictionary(e => e.Key, e => e.Value.Clone());
+        copy.Texts = Texts?.ToDictionary(e => e.Key, e => e.Value.Clone());
+        copy.Fonts = Fonts?.ToDictionary(e => e.Key, e => e.Value.Clone());
         copy.Symbols = Symbols?.ToDictionary(e => e.Key, e => e.Value.Clone());
         copy.Sims = Sims?.ToDictionary(e => e.Key, e => e.Value.Clone());
         copy.SimGroups = SimGroups?.ToDictionary(g => g.Key, g => g.Value.Clone());

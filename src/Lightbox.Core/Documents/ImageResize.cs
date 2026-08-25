@@ -119,9 +119,15 @@ public static class ImageResize
         scene.OriginY = Scaled(scene.OriginY, sy);
 
         foreach (var layer in scene.Layers)
+        {
             foreach (var cel in layer.Cels)
                 if (cel.Frame is { } frame)
                     ScaleFrame(frame, sx, sy, mark, resampler);
+            // The mask is a drawing like any other (Q147) and it lives on the
+            // layer, not in a cel — left unscaled, the content would slide
+            // out from under its own carve.
+            if (layer.Mask is { } mask) ScaleFrame(mask.Frame, sx, sy, mark, resampler);
+        }
 
         foreach (var region in doc.ClipRegions.Values)
         {
@@ -248,7 +254,10 @@ public static class ImageResize
 
         if (frame.Anchors is { } anchors)
             foreach (var id in anchors.Keys.ToList())
-                anchors[id] = new AnchorPoint(anchors[id].X * sx, anchors[id].Y * sy);
+                // `with`, so the angle is carried: rotation is not a length
+                // and does not scale — the same accepted limit an angled
+                // guide and a bone have under a non-uniform stretch.
+                anchors[id] = anchors[id] with { X = anchors[id].X * sx, Y = anchors[id].Y * sy };
 
         if (frame.Shapes is { } shapes)
             foreach (var id in shapes.Keys.ToList())

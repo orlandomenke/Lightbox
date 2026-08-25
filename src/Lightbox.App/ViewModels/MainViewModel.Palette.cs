@@ -41,8 +41,20 @@ public partial class MainViewModel
     public string? ActivePaletteId { get; private set; }
 
 
-    /// <summary>The swatch and the colour it held when the current edit run began.</summary>
-    private (string Id, string Before)? _pendingSwatchEdit;
+    /// <summary>
+    /// The swatch, the palette it was edited in, and the colour it held when
+    /// the current edit run began.
+    /// </summary>
+    /// <remarks>
+    /// The palette is part of the record because swatch ids are shared between
+    /// a palette and its copies on purpose — a variant's palette repaints the
+    /// base's strokes by carrying the same ids. An edit committed by swatch id
+    /// alone recolours every copy, so recolouring Winter Armour would quietly
+    /// recolour the knight. Null when the row could not say (nothing in the
+    /// running app builds one that way), and then the old walk-everything
+    /// behaviour applies.
+    /// </remarks>
+    private (string Id, string? PaletteId, string Before)? _pendingSwatchEdit;
 
     private void PaintWithSwatch(string swatchId)
     {
@@ -75,7 +87,7 @@ public partial class MainViewModel
         // A run is one swatch at a time; touching a different one closes the
         // previous run off so each lands as its own undo step.
         if (_pendingSwatchEdit is { } pending && pending.Id != row.Id) CommitSwatchEdit();
-        _pendingSwatchEdit ??= (row.Id, before);
+        _pendingSwatchEdit ??= (row.Id, row.PaletteId, before);
 
         if (row.Id == ActiveSwatchId) PaintWithSwatch(row.Id);
         RepaintForSwatch(row.Id);
@@ -99,15 +111,24 @@ public partial class MainViewModel
 
         if (_pendingSwatchEdit is not { } pending) return;
         _pendingSwatchEdit = null;
-        if (PaletteRegistry.ResolveSwatch(pending.Id)?.Color is not { } after) return;
+        // The drag mutated the row's own Swatch instance, so the edited
+        // palette holds the colour the run ended on. Read it from the model
+        // rather than the registry: a variant's palette is deliberately not
+        // registered under its own id (a stand-in answers for the base's), so
+        // the registry cannot be asked about the very palette being edited.
+        var edited = pending.PaletteId is { } inPalette
+            ? SwatchInPalette(Doc, inPalette, pending.Id)
+            : PaletteRegistry.ResolveSwatch(pending.Id);
+        if (edited?.Color is not { } after) return;
         if (after == pending.Before) return;
 
-        var (id, before) = (pending.Id, pending.Before);
+        var (id, paletteId, before) = (pending.Id, pending.PaletteId, pending.Before);
         // Looked up by id inside the closure rather than captured: a snapshot
         // undo replaces Doc wholesale, so the Swatch object this ran against
         // will not be the one a later redo has to write to.
         _editor.PerformDelta(
-            d => SetSwatchColor(d, id, after), d => SetSwatchColor(d, id, before),
+            d => SetSwatchColor(d, paletteId, id, after),
+            d => SetSwatchColor(d, paletteId, id, before),
             label: "Edit swatch colour");
     }
 
@@ -121,8 +142,23 @@ public partial class MainViewModel
     /// that instance; only undo revealed that the recorded step and the object
     /// had parted company, and undoing a project recolour appeared to do nothing.
     /// </remarks>
-    private void SetSwatchColor(Doc doc, string swatchId, string color)
+    /// <remarks>
+    /// <b>Aimed at one palette when the edit knew which.</b> A palette and its
+    /// copies share swatch ids on purpose — that sharing is what lets a
+    /// variant's palette repaint the base's strokes — so writing by swatch id
+    /// alone recolours every copy: recolouring Winter Armour would quietly
+    /// recolour the knight, and the Core suite's promise that recolouring a
+    /// variant leaves the base alone would be true everywhere except through
+    /// the panel. The id-only walk is kept for a null palette id, which no
+    /// running surface produces.
+    /// </remarks>
+    private void SetSwatchColor(Doc doc, string? paletteId, string swatchId, string color)
     {
+        if (paletteId is not null)
+        {
+            if (SwatchInPalette(doc, paletteId, swatchId) is { } swatch) swatch.Color = color;
+            return;
+        }
         var found = false;
         foreach (var palette in doc.Palettes)
         {
@@ -141,6 +177,26 @@ public partial class MainViewModel
                 if (swatch.Id == swatchId) swatch.Color = color;
             }
         }
+    }
+
+    /// <summary>
+    /// The swatch as a named palette holds it — the document's copy first,
+    /// then the project's, the same order the registry resolves in.
+    /// </summary>
+    private Swatch? SwatchInPalette(Doc doc, string paletteId, string swatchId)
+    {
+        foreach (var palette in doc.Palettes)
+        {
+            if (palette.Id == paletteId)
+                return palette.Swatches.FirstOrDefault(s => s.Id == swatchId);
+        }
+        if (ProjectDocker.Project is not { } project) return null;
+        foreach (var palette in project.Palettes)
+        {
+            if (palette.Id == paletteId)
+                return palette.Swatches.FirstOrDefault(s => s.Id == swatchId);
+        }
+        return null;
     }
 
 

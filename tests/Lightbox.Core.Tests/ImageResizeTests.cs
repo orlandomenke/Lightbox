@@ -64,6 +64,29 @@ public class ImageResizeTests
     }
 
     [Fact]
+    public void ALayerMaskScalesWithTheDrawingItCarves()
+    {
+        // The mask lives on the layer, not in a cel, so the cel walk missed
+        // it — and an unscaled mask means the doubled content slides out from
+        // under its own carve. Caught by CI's coordinate guard growing a
+        // property, found to be real here.
+        var doc = DocWithAStroke(out _);
+        var mask = new LayerMask();
+        mask.Frame.Strokes.Add(new Stroke
+        {
+            Points = [new StrokePoint(100, 50, 1)],
+            Brush = new BrushSettings { Size = 10 },
+        });
+        doc.Scene.Layers[0].Mask = mask;
+
+        ImageResize.Apply(doc, 1920, 1080, new FakeResampler());
+
+        Assert.Equal(200, mask.Frame.Strokes[0].Points[0].X);
+        Assert.Equal(100, mask.Frame.Strokes[0].Points[0].Y);
+        Assert.Equal(20, mask.Frame.Strokes[0].Brush.Size);
+    }
+
+    [Fact]
     public void AnUnlinkedResizeMovesGeometryExactlyAndTheMarkByTheAverage()
     {
         // A dab has one diameter and no axes, so a 2x1 resize cannot scale the
@@ -241,6 +264,13 @@ public class ImageResizeTests
             nameof(Scene.LayerLinks),
             nameof(Scene.GhostFrames), nameof(Scene.Anchors), nameof(Scene.Tags),
             nameof(Scene.Shapes), nameof(Scene.Audio),
+            // Effect parameters are values, not places — nothing in a grade
+            // names a point on the paper. The one spatial number, a blur's
+            // radius, is deliberately left alone by a resize for the brush
+            // rule's reason turned around: the roadmap's open effects work
+            // carries rescaling kernel params with the registry's reach
+            // knowledge, which Core does not have.
+            nameof(Scene.Effects),
         };
 
         var actual = typeof(Scene)

@@ -91,11 +91,61 @@ public class RuntimeDeterminismTests(ITestOutputHelper output)
     /// somebody would do to make a real regression go quiet. Which scenarios
     /// moved is the diagnosis: see the class remarks.
     /// </para>
+    /// <para>
+    /// <b><c>hard-aa</c> was re-recorded on 2026-08-23</b>, when hard-edged
+    /// brushes stopped accumulating coverage per dab and started drawing their
+    /// mark as one silhouette (<c>BrushEngine.DrawsAsOneSilhouette</c>). The
+    /// pixels genuinely changed and were meant to: overlapping antialiased dabs
+    /// had been saturating the mark's own rim, which cost a size-5 Ink stroke
+    /// 17.7% of its width at the worst sub-pixel position. Q156 records the
+    /// decision to change art already drawn rather than gate the fix.
+    /// </para>
+    /// <para>
+    /// <b><c>jitter</c> and <c>soft</c> were re-recorded on 2026-08-24</b>, when
+    /// a soft brush's mark stopped saturating past its own footprint (Q157,
+    /// <c>BrushEngine.NeedsFootprintCap</c>). Both carry hardness below 1 —
+    /// 0.8 and 0.25 — so both are capped; <c>hard-aa</c> is hardness 1.0, takes
+    /// the silhouette route instead, and came back byte-identical to the value
+    /// recorded below it. Which scenarios moved is again exactly the set the
+    /// change is allowed to reach.
+    /// </para>
+    /// <para>
+    /// <b>One thing this costs, worth knowing before the next failure.</b> With
+    /// <c>jitter</c> re-recorded, its value no longer dates from .NET 8: it is a
+    /// .NET 10 measurement of a changed engine. The runtime-migration evidence
+    /// the class was built for now rests on <c>hard-aa</c>, which is still the
+    /// original figure and still the only scenario reaching the antialiased edge
+    /// arithmetic. <c>jitter</c> remains the only one reaching
+    /// <c>Math.Cos</c>/<c>Math.Sin</c>, so it keeps its diagnostic job for any
+    /// future move — it just no longer carries a pre-migration baseline.
+    /// </para>
+    /// <para>
+    /// <b>The other two hashes did not move, and that is the evidence rather
+    /// than a convenience.</b> This is precisely the localisation the class
+    /// remarks describe: <c>soft</c> is hardness 0.25 and <c>jitter</c> carries
+    /// scatter and six jitters, so both are disqualified from the silhouette and
+    /// both came back byte-identical. Had either shifted, the change would have
+    /// reached further than its own predicate allows and the diff would have
+    /// been wrong.
+    /// </para>
+    /// <para>
+    /// <b><c>soft</c> was re-recorded on 2026-08-24</b>, when the dab walk
+    /// started subdividing a spacing interval that is too coarse to resolve the
+    /// dab's own soft band (B307, <c>BrushEngine.SubdividesForFidelity</c>). It
+    /// is the only one of the three that could move: at spacing 0.1 against a
+    /// 0.09 target it walks two dabs where it walked one, each thinned to
+    /// compensate. <c>jitter</c> is at spacing 0.2 and would subdivide harder
+    /// still, and did not move — scatter and its six jitters all seed from the
+    /// dab position, which disqualifies it — and <c>hard-aa</c> keeps taking the
+    /// silhouette route. Both came back byte-identical to the values recorded
+    /// beneath, which is once more exactly the set the change is allowed to
+    /// reach.
+    /// </para>
     /// </remarks>
     private const string Baseline = """
-        jitter=B2F2F836E09EF4470E1EEC395DA260D553E5655F7AD63DC082CDE28B5075F938
-        soft=C6FB71EEB611233A6B1369EEFE77269BC6E2391ED53E38F0AF1F048B954CA9ED
-        hard-aa=0BD3880B4B3938EFA38A1662882109017A8E878C33F3FF0F06493789A7210334
+        jitter=7CB9FDADF17861527AB11094451A34CA00CA025C80C302CD47472D8043507A09
+        soft=5654BE3493C388CE816199F745E9C56AC8D466FC4024DD0BD6155C3F4DA7749D
+        hard-aa=8AAFCED84264B48B00A4488C3F0CB1B9A48DBD9B6D625DDE356DDD243EFCF3B6
         """;
 
     /// <summary>Everything stochastic on at once — the only scenario that reaches

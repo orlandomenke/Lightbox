@@ -50,6 +50,21 @@ public sealed class AppSettings
     /// </summary>
     public RecentItems Recent { get; set; } = new();
 
+    /// <summary>Where character libraries live — see <see cref="LibrarySettings"/>.</summary>
+    public LibrarySettings Library { get; set; } = new();
+
+    /// <summary>
+    /// How fonts are found and whether they travel — see
+    /// <see cref="FontSettings"/>.
+    /// </summary>
+    /// <remarks>
+    /// Here rather than on the document because neither switch can change a
+    /// picture: text is baked to contours when it is set, so a document renders
+    /// the same whatever these say. What they decide is where an artist may pick
+    /// a font from and how portable the file they save is.
+    /// </remarks>
+    public FontSettings Fonts { get; set; } = new();
+
     /// <summary>
     /// How far a frame's ink area may drift from the shot's median before the
     /// volume checker flags it, as a fraction (0.10 = ten percent).
@@ -208,7 +223,40 @@ public sealed class AppSettings
     /// headless or scripted run needs.
     /// </para>
     /// </remarks>
-    public bool GpuCompositing { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("GpuCompositing")]
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacyGpuCompositing { get; set; }
+
+    /// <summary>
+    /// Where this install composites: on the card, on the processor, or
+    /// whichever the machine turns out to be faster at.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Auto by default, which is the change: the path is measured rather than
+    /// avoided.</b> It shipped off-by-default as a measurement instrument, on the
+    /// argument that the GPU path uploads every layer every frame and may be
+    /// slower on integrated graphics. That argument was right and it has been
+    /// answered — the leak that made it dangerous is fixed (B179), and the same
+    /// entry's capture says playback is better with it on: mean lateness 7.85 ms
+    /// against 13.06, worst 96 ms against 1326. What remains true is that it
+    /// cannot be right on <em>every</em> machine, and that is what Auto is for.
+    /// </para>
+    /// <para>
+    /// <b>Auto is not "on".</b> <see cref="Rendering.GpuComposeProbe"/> blends the
+    /// same passes both ways on the machine it is running on and takes the
+    /// faster, which is the only thing that catches a software rasteriser
+    /// reporting itself as a GPU. An explicit choice always wins over it.
+    /// </para>
+    /// <para>
+    /// <c>LIGHTBOX_GPU_COMPOSITE=1</c> still forces the card on, whatever this
+    /// says, which is what a headless or scripted run needs.
+    /// </para>
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonConverter(
+        typeof(System.Text.Json.Serialization.JsonStringEnumConverter))]
+    public Rendering.GpuComposeMode GpuCompositingMode { get; set; } = Rendering.GpuComposeMode.Auto;
 
     /// <summary>
     /// Record the pen's tilt and the hand's speed <em>even when the brush in
@@ -307,6 +355,7 @@ public sealed class AppSettings
         {
             var settings = JsonSerializer.Deserialize<AppSettings>(json, Json) ?? new AppSettings();
             settings.MigrateOnionFalloff();
+            settings.MigrateGpuCompositing();
             return settings;
         }
         catch (JsonException)
@@ -332,6 +381,35 @@ public sealed class AppSettings
         {
             Onion.Falloff = new OnionSettings().Falloff;
         }
+    }
+
+    /// <summary>
+    /// Carry the old GPU compositing checkbox onto the three-state mode.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Only <c>true</c> migrates, and that asymmetry is the point.</b> The old
+    /// key was a bool that every settings file carried at <c>false</c> whether the
+    /// artist had chosen the processor or had never opened the page — the two are
+    /// indistinguishable in the file. Reading <c>false</c> as a decision would
+    /// leave every existing install pinned to the processor for good, which is the
+    /// exact outcome defaulting to Auto exists to prevent. <c>true</c> is
+    /// unambiguous: nothing wrote it but a person ticking the box, so it becomes
+    /// <see cref="Rendering.GpuComposeMode.On"/>.
+    /// </para>
+    /// <para>
+    /// The old key is cleared as it is read, so the next save drops it from the
+    /// file rather than leaving two keys that can disagree.
+    /// <c>ASettingsFileWritesNoLegacyGpuKey</c> is the guard.
+    /// </para>
+    /// </remarks>
+    private void MigrateGpuCompositing()
+    {
+        if (LegacyGpuCompositing == true && GpuCompositingMode == Rendering.GpuComposeMode.Auto)
+        {
+            GpuCompositingMode = Rendering.GpuComposeMode.On;
+        }
+        LegacyGpuCompositing = null;
     }
 
     public static AppSettings Load()

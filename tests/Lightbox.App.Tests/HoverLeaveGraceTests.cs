@@ -27,7 +27,8 @@ namespace Lightbox.App.Tests;
 /// different mechanism entirely (B255).
 /// </para>
 /// </remarks>
-public class HoverLeaveGraceTests
+[Collection("BrushState")]
+public class HoverLeaveGraceTests : BrushStateIsolated
 {
     private static (MainWindow Window, CanvasControl Canvas) Open()
     {

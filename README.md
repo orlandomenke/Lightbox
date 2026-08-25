@@ -372,6 +372,10 @@ SDK that builds the repo carries the runtime that runs it. On Linux, SkiaSharp
 also needs `libfontconfig1`. The easiest route to both is the devcontainer — open
 in GitHub Codespaces, or in VS Code with the Dev Containers extension.
 
+Starting from a machine with nothing on it — including the step that is *not* in
+the clone, `git config core.hooksPath .githooks` —
+[**`docs/DEVELOPING.md`**](docs/DEVELOPING.md) is the long version.
+
 | Project | What's in it |
 | --- | --- |
 | `src/Lightbox.Core` | Document model, JSON serialization, geometry, the deterministic inbetween engine, exposure sheet, undo. No rendering, no UI. |

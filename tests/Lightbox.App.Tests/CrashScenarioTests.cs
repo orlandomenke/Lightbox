@@ -23,17 +23,19 @@ namespace Lightbox.App.Tests;
 /// process by design, which is the one thing a test cannot do to itself.
 /// </para>
 /// </remarks>
-public class CrashScenarioTests : IDisposable
+[Collection("BrushState")]
+public class CrashScenarioTests : BrushStateIsolated
 {
     private readonly string? _previous = DiagnosticLog.DirectoryOverride;
     private readonly string _scratch =
         Path.Combine(Path.GetTempPath(), $"lightbox-scen-{Guid.NewGuid():N}");
 
-    public void Dispose()
+    public override void Dispose()
     {
         DiagnosticLog.DirectoryOverride = _previous;
         DiagnosticLog.ResetForTests();
         try { Directory.Delete(_scratch, recursive: true); } catch { /* scratch */ }
+        base.Dispose();
     }
 
     [Fact]
