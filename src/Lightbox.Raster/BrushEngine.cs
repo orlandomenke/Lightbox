@@ -1453,6 +1453,73 @@ public static class BrushEngine
     /// colour jitter means that is not one value per stroke.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Cap one band of a mark to a footprint, both held as document-sized
+    /// bitmaps (B293).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>For the brushes whose only post-process is this.</b> Soft round and
+    /// Airbrush carry no granulation, wet edge, texture or medium, so the entire
+    /// worker round-trip - three rect-sized copies, a surface, an image back and
+    /// a paste - exists to run a capping that costs under three milliseconds.
+    /// This is that capping, done where the buffers already are.
+    /// </para>
+    /// <para>
+    /// <b>Band-local is sound for the reason the incremental footprint is.</b>
+    /// A footprint is a running maximum, and a pixel outside the reach of every
+    /// dab that can still move has a final one - so a band capped once stays
+    /// right, and only the band that changed needs doing again. Capping is
+    /// <em>not</em> idempotent across a growing footprint, though:
+    /// <c>min(min(m, f1), f2)</c> is not <c>min(m, f2)</c> when f2 &gt; f1, which
+    /// is why the mark is re-copied from the uncapped scratch each time rather
+    /// than capped in place twice.
+    /// </para>
+    /// <para>
+    /// Both bitmaps are the document's size and share its origin, so there is no
+    /// offset arithmetic here and no way for the two to disagree about where a
+    /// pixel is - which is the failure the surface-and-rect version has to guard
+    /// against with a size check.
+    /// </para>
+    /// </remarks>
+    public static void CapToFootprintBand(SKBitmap mark, SKBitmap footprint, SKRectI band)
+    {
+        band = SKRectI.Intersect(band, new SKRectI(0, 0, mark.Width, mark.Height));
+        band = SKRectI.Intersect(band, new SKRectI(0, 0, footprint.Width, footprint.Height));
+        if (band.Width <= 0 || band.Height <= 0) return;
+
+        using var markPix = mark.PeekPixels();
+        using var capPix = footprint.PeekPixels();
+        if (markPix is null || capPix is null) return;
+
+        var ink = markPix.GetPixelSpan<byte>();
+        var cap = capPix.GetPixelSpan<byte>();
+        int inkRow = markPix.RowBytes, capRow = capPix.RowBytes;
+
+        for (var y = band.Top; y < band.Bottom; y++)
+        {
+            var iRow = y * inkRow;
+            var cRow = y * capRow;
+            for (var x = band.Left; x < band.Right; x++)
+            {
+                var i = iRow + x * 4;
+                var alpha = ink[i + 3];
+                if (alpha == 0) continue;
+
+                // The footprint's red channel is the running maximum; see
+                // StampFootprint for why the shape lives in a colour channel.
+                var ceiling = cap[cRow + x * 4];
+                if (alpha <= ceiling) continue;
+
+                var scale = ceiling / (float)alpha;
+                ink[i] = (byte)(ink[i] * scale);
+                ink[i + 1] = (byte)(ink[i + 1] * scale);
+                ink[i + 2] = (byte)(ink[i + 2] * scale);
+                ink[i + 3] = ceiling;
+            }
+        }
+    }
+
     internal static void CapToFootprint(SKSurface scratch, SKSurface footprint, SKImageInfo local)
     {
         footprint.Canvas.Flush();

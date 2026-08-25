@@ -180,6 +180,84 @@ public static class FootprintPassCost
         return best;
     }
 
+    /// <summary>
+    /// The cap-only route: no worker, no rect-sized copies, band-local (B293).
+    /// </summary>
+    /// <remarks>
+    /// Mirrors what <c>StampLiveDabs</c> now does for a brush whose only
+    /// post-process is the ceiling - accumulate the new dabs' footprint, lift
+    /// the changed band out of the uncapped scratch, cap it. Soft round and
+    /// Airbrush are that brush; Pencil is not, because granulation keeps it on
+    /// the pass.
+    /// </remarks>
+    private static double CapOnly(BrushSettings brush, int points, int repeats)
+    {
+        var info = new SKImageInfo(Width, Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        var full = Arc(brush, points);
+        var best = double.MaxValue;
+
+        for (var r = 0; r < repeats; r++)
+        {
+            using var scratch = new SKBitmap(info);
+            using var scratchCanvas = new SKCanvas(scratch);
+            using var post = new SKBitmap(info);
+            using var footprint = new SKBitmap(
+                new SKImageInfo(Width, Height, SKColorType.Rgba8888, SKAlphaType.Opaque));
+            using var footprintCanvas = new SKCanvas(footprint);
+            footprintCanvas.Clear(SKColors.Black);
+            scratchCanvas.Clear(SKColors.Transparent);
+
+            var densify = new IncrementalDensify();
+            var stamped = 0;
+            var last = 0.0;
+
+            for (var n = 2; n <= points; n++)
+            {
+                var sofar = new Stroke
+                {
+                    Tool = full.Tool, Color = full.Color, Brush = full.Brush,
+                    Points = full.Points.Take(n).ToList(),
+                };
+                var dabs = BrushEngine.WalkDabs(sofar, densify);
+
+                // Outside the timer, as before: the dab scratch is stamped
+                // either way and is not what changed.
+                BrushEngine.StampDabRange(scratchCanvas, sofar, dabs, stamped, dabs.Count);
+                scratchCanvas.Flush();
+
+                var sw = Stopwatch.StartNew();
+                BrushEngine.AccumulateFootprint(footprintCanvas, sofar, dabs, stamped, dabs.Count);
+                footprintCanvas.Flush();
+
+                if (BrushEngine.RangeBounds(dabs, stamped, sofar.Brush, info) is { } band)
+                {
+                    using (var into = new SKCanvas(post))
+                    using (var src = new SKPaint { BlendMode = SKBlendMode.Src })
+                    using (var region = new SKBitmap())
+                    {
+                        if (scratch.ExtractSubset(region, band))
+                        {
+                            using var px = region.PeekPixels();
+                            using var view = px is null ? null : SKImage.FromPixels(px);
+                            if (view is not null) into.DrawImage(view, band.Left, band.Top, src);
+                        }
+
+                        into.Flush();
+                    }
+
+                    BrushEngine.CapToFootprintBand(post, footprint, band);
+                }
+
+                last = sw.Elapsed.TotalMilliseconds;
+                stamped = dabs.Count;
+            }
+
+            best = Math.Min(best, last);
+        }
+
+        return best;
+    }
+
     /// <summary>Least-squares exponent of a log-log fit, as the sweep harness does.</summary>
     private static double Exponent(IReadOnlyList<int> xs, IReadOnlyList<double> ys)
     {
@@ -214,22 +292,25 @@ public static class FootprintPassCost
 
         sb.AppendLine($"   footprint cap: soft {BrushEngine.NeedsFootprintCap(soft)}, control {BrushEngine.NeedsFootprintCap(noCap)}");
         sb.AppendLine();
-        sb.AppendLine("    points   rebuilt   carried   events/s rebuilt   carried");
+        sb.AppendLine("    points   rebuilt   carried   cap-only    events/s cap-only");
 
         var whole = new double[Lengths.Length];
         var carried = new double[Lengths.Length];
+        var capOnly = new double[Lengths.Length];
 
         for (var i = 0; i < Lengths.Length; i++)
         {
             whole[i] = Pass(soft, Lengths[i], repeats);
             carried[i] = CarriedPass(soft, Lengths[i], repeats);
-            var a = whole[i] > 0.0001 ? 1000.0 / whole[i] : 0;
-            var b = carried[i] > 0.0001 ? 1000.0 / carried[i] : 0;
-            sb.AppendLine($"    {Lengths[i],6}{whole[i],10:0.00}{carried[i],10:0.00}{a,14:0}{b,10:0}");
+            capOnly[i] = CapOnly(soft, Lengths[i], repeats);
+            var rate = capOnly[i] > 0.0001 ? 1000.0 / capOnly[i] : 0;
+            sb.AppendLine(
+                $"    {Lengths[i],6}{whole[i],10:0.00}{carried[i],10:0.00}{capOnly[i],11:0.00}{rate,15:0}");
         }
 
         sb.AppendLine(
-            $"    n^   {Exponent(Lengths, whole),10:0.00}{Exponent(Lengths, carried),10:0.00}");
+            $"    n^   {Exponent(Lengths, whole),10:0.00}{Exponent(Lengths, carried),10:0.00}"
+            + $"{Exponent(Lengths, capOnly),11:0.00}");
         sb.AppendLine();
         sb.AppendLine("   An exponent near 0 is a pass that does not care how long the stroke");
         sb.AppendLine("   is, and the lag is somewhere else. Near 1 is a pass that reads the");

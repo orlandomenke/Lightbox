@@ -263,6 +263,22 @@ sealed class LivePaintSession
 
     internal SKRectI? PostUsed { get; set; }
 
+    /// <summary>Make <see cref="PostScratch"/> exist at this size (B293).</summary>
+    /// <remarks>
+    /// The worker path allocates it when a result comes back; the cap-only path
+    /// writes into it directly and has no such moment, so it asks. Pooled the
+    /// same way - <see cref="ResetPostProcess"/> wipes the used region rather
+    /// than dropping the bitmap.
+    /// </remarks>
+    internal void EnsurePostScratch(int width, int height)
+    {
+        if (PostScratch is not null && PostScratch.Width == width && PostScratch.Height == height) return;
+        PostScratch?.Dispose();
+        PostScratch = new SKBitmap(
+            new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        PostUsed = null;
+    }
+
     /// <summary>Cost of the last pass, milliseconds — reported by the performance panel.</summary>
     internal double PostCostMs { get; set; }
 
