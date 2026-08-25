@@ -695,9 +695,26 @@ public static class BrushEngine
     /// <see cref="Media.MediumSimulator.ExistingRegionNeeded"/> or the rim
     /// samples stop matching the commit's.
     /// </param>
+    /// <param name="footprintPixels">
+    /// The stroke's accumulated footprint, cropped to exactly
+    /// <paramref name="rect"/>, when the caller keeps one (B293). Null rebuilds
+    /// it from every dab, which is what the commit and every export do and what
+    /// the live path did until it hurt: stamping it cost <b>37-78 ms</b> a pass
+    /// on an 800-event stroke at 4K against <b>2.8-3.1 ms</b> for the capping
+    /// itself, so the rebuild was 94% of a pass that runs per pointer event.
+    /// <para>
+    /// A footprint is a running <em>maximum</em>, which is monotone: a cached
+    /// prefix plus a fresh tail is exactly the whole. That is what makes
+    /// carrying one sound, and it is the objection the comment inside this
+    /// method used to raise - a max buffer could not be rolled back when the
+    /// tail moved - answered by giving the live session the same settled cut
+    /// and tail backup its dab scratch already had (B299).
+    /// </para>
+    /// </param>
     public static SKImage? PostProcessRegion(
         SKBitmap dabs, Stroke stroke, SKRectI rect, SKBitmap? targetPixels,
-        SKPointI origin = default, SKPointI beneathOrigin = default)
+        SKPointI origin = default, SKPointI beneathOrigin = default,
+        SKBitmap? footprintPixels = null)
     {
         var brush = stroke.Brush;
 
@@ -726,20 +743,32 @@ public static class BrushEngine
 
         // The footprint ceiling, before anything else touches the pixels —
         // StampPaint applies it in the same place, which is what keeps the live
-        // mark and the commit the same. Rebuilt from the stroke rather than
-        // carried alongside the scratch: this pass is already stroke-global by
-        // design, and a second live buffer accumulating a MAXIMUM could not be
-        // rolled back when the tail moves the way the dab scratch is.
+        // mark and the commit the same.
+        //
+        // Carried by the caller when the caller has one, and rebuilt otherwise.
+        // The comment that used to stand here said a second live buffer
+        // accumulating a MAXIMUM could not be rolled back when the tail moves;
+        // B299 built exactly that for the silhouette route, with a StableCount
+        // cut and a tail backup, and the same discipline serves this. Rebuilding
+        // was 94% of a pass that runs per pointer event.
         if (NeedsFootprintCap(brush))
         {
-            using var footprint = SKSurface.Create(
-                new SKImageInfo(rect.Width, rect.Height, SKColorType.Rgba8888, SKAlphaType.Opaque));
-            if (footprint is not null)
+            if (footprintPixels is not null)
             {
-                footprint.Canvas.Clear(SKColors.Black);
-                InDocumentSpace(footprint.Canvas, surface, 1.0, origin, () =>
-                    StampFootprintPass(footprint.Canvas, stroke));
-                CapToFootprint(scratch, footprint, local);
+                using var carried = footprintPixels.PeekPixels();
+                if (carried is not null) CapToFootprint(scratch, carried, local);
+            }
+            else
+            {
+                using var footprint = SKSurface.Create(
+                    new SKImageInfo(rect.Width, rect.Height, SKColorType.Rgba8888, SKAlphaType.Opaque));
+                if (footprint is not null)
+                {
+                    footprint.Canvas.Clear(SKColors.Black);
+                    InDocumentSpace(footprint.Canvas, surface, 1.0, origin, () =>
+                        StampFootprintPass(footprint.Canvas, stroke));
+                    CapToFootprint(scratch, footprint, local);
+                }
             }
         }
 
@@ -1426,12 +1455,27 @@ public static class BrushEngine
     /// </remarks>
     internal static void CapToFootprint(SKSurface scratch, SKSurface footprint, SKImageInfo local)
     {
-        scratch.Canvas.Flush();
         footprint.Canvas.Flush();
+        using var capPix = footprint.PeekPixels();
+        if (capPix is not null) CapToFootprint(scratch, capPix, local);
+    }
+
+    /// <summary>
+    /// The same, against a footprint the caller already holds as pixels.
+    /// </summary>
+    /// <remarks>
+    /// <b>B293.</b> The live path accumulates the footprint once across the
+    /// stroke rather than rebuilding it per pass, so what it has to offer is a
+    /// crop of its own buffer, not a surface made here. Taking a pixmap means
+    /// that crop is read where it lies: a rect-sized copy to hand it over would
+    /// give back a slice of what removing the rebuild just saved.
+    /// </remarks>
+    internal static void CapToFootprint(SKSurface scratch, SKPixmap capPix, SKImageInfo local)
+    {
+        scratch.Canvas.Flush();
 
         using var markPix = scratch.PeekPixels();
-        using var capPix = footprint.PeekPixels();
-        if (markPix is null || capPix is null) return;
+        if (markPix is null) return;
 
         // Both surfaces are made together by every caller, so this never fires —
         // and a span loop is the wrong place to find that out. A footprint one
@@ -1801,6 +1845,28 @@ public static class BrushEngine
                 dab.Seed, footprint, footprintOnly, dab.Fidelity);
         }
     }
+
+    /// <summary>
+    /// Stamp one range of dabs' footprints into a caller-owned buffer (B293).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The live path's half of <see cref="StampFootprintPass"/>: same geometry,
+    /// same call, a range instead of the whole stroke. A footprint accumulates
+    /// as a maximum, so stamping only the dabs that are new reaches the same
+    /// pixels as stamping the lot - which is what lets a pointer event stop
+    /// paying for the whole mark.
+    /// </para>
+    /// <para>
+    /// The canvas is passed twice on purpose, exactly as
+    /// <c>StampFootprintPass</c> does: <c>footprintOnly</c> suppresses the
+    /// colour draw, so the first argument is only there to satisfy the shared
+    /// dab walk and never receives a mark.
+    /// </para>
+    /// </remarks>
+    public static void AccumulateFootprint(
+        SKCanvas footprint, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to) =>
+        StampDabRange(footprint, stroke, dabs, from, to, footprint, footprintOnly: true);
 
     private static void StampDabs(
         SKCanvas canvas, Stroke stroke, SKCanvas? footprint = null, bool footprintOnly = false) =>

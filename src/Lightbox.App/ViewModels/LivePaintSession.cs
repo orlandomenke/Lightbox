@@ -171,6 +171,18 @@ sealed class LivePaintSession
         CoverageCanvas.Flush();
     }
 
+    /// <summary>
+    /// The coverage buffer's own tail backup (B293).
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="TailBackup"/> because the two hold different
+    /// pixels over the same rectangle: one is the dab scratch's ink, the other
+    /// the footprint's coverage. They share the cut and the lent region, since
+    /// both come from the same dabs and the same <c>RangeBounds</c> - what they
+    /// cannot share is the copy.
+    /// </remarks>
+    internal SKBitmap? CoverageTailBackup { get; set; }
+
     internal SKBitmap? TailBackup { get; set; }
 
     internal SKRectI? TailRegion { get; set; }
