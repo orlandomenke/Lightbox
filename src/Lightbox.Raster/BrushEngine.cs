@@ -1570,25 +1570,75 @@ public static class BrushEngine
         // needs it and the transform is the authority on what a pixel is worth.
         // At scale 1 it is 0.5 and the arithmetic is unchanged, which is why the
         // hard-aa fingerprint does not move again for this.
-        var m = canvas.TotalMatrix;
+        canvas.SaveLayer(paint);
+        canvas.Clear(SKColors.Black);
+        AccumulateCoverage(canvas, brush, dabs, 0, dabs.Count);
+        canvas.Restore();
+        canvas.Restore();
+    }
+
+    /// <summary>
+    /// Max one range of dabs' coverage into an <b>opaque</b> canvas (B299).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The caller owns the surface, and that is what makes a live stroke
+    /// incremental.</b> Max is order-independent and idempotent, so a dab
+    /// accumulated once never has to be looked at again: the live path keeps one
+    /// coverage buffer for the stroke and hands this only the dabs that are new,
+    /// where the commit hands it the lot. Both reach the same pixels, which is
+    /// the property a path union could not offer - its outline is not a prefix
+    /// of itself.
+    /// </para>
+    /// <para>
+    /// <b>The canvas must be opaque and cleared to black.</b> Skia has no blend
+    /// mode that maxes alpha - every separable mode composites it the
+    /// Porter-Duff way, so <c>Lighten</c> on an alpha gradient gives
+    /// 1-(1-a)(1-b), the saturation this exists to undo. With both alphas at 1,
+    /// <c>Lighten</c> is exactly <c>max</c> per colour channel, and black is
+    /// coverage zero.
+    /// </para>
+    /// <para>
+    /// <b>One shader for a run of equal radii, and the canvas moved under it.</b>
+    /// A gradient built per dab is correct and ruinous: it took a 12,050-dab
+    /// mark from 12.46 ms to 59.80 ms, because
+    /// <see cref="SKShader.CreateRadialGradient"/> is not a thing to do twelve
+    /// thousand times. Centred on the origin it depends only on the radius, and
+    /// <see cref="DrawsAsOneSilhouette"/> already forbids every dynamic that
+    /// could vary that except pressure on size - so a constant-pressure stroke
+    /// builds exactly one.
+    /// </para>
+    /// <para>
+    /// <b>Each dab is drawn aliased and oversized.</b> An antialiased edge
+    /// arrives as source <em>alpha</em>, and alpha composites Porter-Duff
+    /// however the colour channels blend, so an antialiased circle would put the
+    /// saturation straight back. Drawing a ramp's width past the rim, with the
+    /// gradient already at black there, means every touched pixel carries source
+    /// alpha 1 and the ring beyond the mark contributes max(0, dst) = dst.
+    /// </para>
+    /// <para>
+    /// <b>The ramp is half a DEVICE pixel</b>, read from the canvas rather than
+    /// passed in. Invariant 7: a ramp fixed in stroke units is half a pixel at
+    /// 1x and two at 4x, so the edge would stay proportionally as soft however
+    /// far the surface is scaled and a higher output scale would resolve no more
+    /// detail - which <c>OutputScaleTests</c> caught.
+    /// </para>
+    /// </remarks>
+    public static void AccumulateCoverage(
+        SKCanvas coverage, BrushSettings brush, IReadOnlyList<Dab> dabs, int from, int to)
+    {
+        to = Math.Min(to, dabs.Count);
+        from = Math.Max(0, from);
+        if (from >= to) return;
+
+        var m = coverage.TotalMatrix;
         var deviceScale = (float)Math.Sqrt(m.ScaleX * m.ScaleX + m.SkewY * m.SkewY);
         var ramp = deviceScale > 0.0001f ? 0.5f / deviceScale : 0.5f;
 
-        canvas.SaveLayer(paint);
-        canvas.Clear(SKColors.Black);
-
-        // <b>One shader for a run of equal radii, and the canvas moved under
-        // it.</b> A gradient built per dab is correct and ruinous: the first
-        // draft did that and a 12,050-dab mark went from 12.46 ms to 59.80 ms,
-        // because SKShader.CreateRadialGradient is not a thing to do twelve
-        // thousand times. Centred on the origin instead, it depends only on the
-        // radius, and DrawsAsOneSilhouette already forbids every dynamic that
-        // could vary that except pressure on size — so a constant-pressure
-        // stroke builds exactly one.
-        using var coverage = new SKPaint { IsAntialias = false, BlendMode = SKBlendMode.Lighten };
+        using var paint = new SKPaint { IsAntialias = false, BlendMode = SKBlendMode.Lighten };
         var builtFor = float.NaN;
         var outer = 0f;
-        for (var i = 0; i < dabs.Count; i++)
+        for (var i = from; i < to; i++)
         {
             var radius = (float)RadiusAt(brush, dabs[i].Pressure);
             if (radius <= 0) continue;
@@ -1598,9 +1648,9 @@ public static class BrushEngine
             // stroke rather than once a dab.
             if (float.IsNaN(builtFor) || Math.Abs(radius - builtFor) > 0.01f)
             {
-                coverage.Shader?.Dispose();
+                paint.Shader?.Dispose();
                 outer = radius + 2f * ramp;
-                coverage.Shader = SKShader.CreateRadialGradient(
+                paint.Shader = SKShader.CreateRadialGradient(
                     SKPoint.Empty,
                     outer,
                     [SKColors.White, SKColors.White, SKColors.Black, SKColors.Black],
@@ -1609,17 +1659,60 @@ public static class BrushEngine
                 builtFor = radius;
             }
 
-            canvas.Save();
-            canvas.Translate(dabs[i].Pos.X, dabs[i].Pos.Y);
-            canvas.DrawCircle(0, 0, outer, coverage);
-            canvas.Restore();
+            coverage.Save();
+            coverage.Translate(dabs[i].Pos.X, dabs[i].Pos.Y);
+            coverage.DrawCircle(0, 0, outer, paint);
+            coverage.Restore();
         }
 
-        coverage.Shader?.Dispose();
-        coverage.Shader = null;
+        paint.Shader?.Dispose();
+        paint.Shader = null;
+    }
 
-        canvas.Restore();
-        canvas.Restore();
+    /// <summary>
+    /// Read accumulated coverage back out as this stroke's ink, over one band.
+    /// </summary>
+    /// <remarks>
+    /// <b>Src, not SrcOver</b>, for the reason the whole mechanism exists: any
+    /// pixel in the band belongs to this stroke, and compositing would rebuild
+    /// the rim saturation. Replacing also makes the draw idempotent, which is
+    /// what lets the live path redraw a band on every event.
+    /// </remarks>
+    public static void CoverageToInk(
+        SKCanvas target, SKBitmap coverage, Stroke stroke, SKRectI band)
+    {
+        if (band.Width <= 0 || band.Height <= 0) return;
+        var alpha = DabAlpha(stroke.Brush, 1);
+        if (alpha <= 0) return;
+
+        // The subset FIRST, and only then wrapped. SKImage.FromBitmap on the
+        // whole buffer sets up a 33 MB image at 4K to read back a region a few
+        // hundred pixels across, every pointer event - the same trap
+        // PostProcessDabs and the live tail backup both record, and measured
+        // here as 5.94 ms an event against 0.36 ms once the subset is taken.
+        // Clamped to the buffer, not trusted to be inside it. ExtractSubset
+        // answers false for a rect that overhangs by a pixel, and an early
+        // return there is a band that silently never reaches the scratch - the
+        // mark then stops wherever the stroke first ran off the document.
+        band = SKRectI.Intersect(band, new SKRectI(0, 0, coverage.Width, coverage.Height));
+        if (band.Width <= 0 || band.Height <= 0) return;
+
+        using var region = new SKBitmap();
+        if (!coverage.ExtractSubset(region, band)) return;
+        using var pixels = region.PeekPixels();
+        using var image = pixels is null ? null : SKImage.FromPixels(pixels);
+        if (image is null) return;
+
+        using var paint = new SKPaint
+        {
+            BlendMode = SKBlendMode.Src,
+            ColorFilter = InkFrom(StrokeColor(stroke), alpha),
+        };
+        var rect = SKRect.Create(band.Left, band.Top, band.Width, band.Height);
+        target.Save();
+        target.ClipRect(rect, SKClipOperation.Intersect, antialias: false);
+        target.DrawImage(image, rect, paint);
+        target.Restore();
     }
 
     /// <summary>

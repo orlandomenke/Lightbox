@@ -104,58 +104,6 @@ public static class MaxCoverageProto
         };
     }
 
-    /// <summary>
-    /// One dab's coverage, maxed into the footprint's colour channels.
-    /// </summary>
-    /// <remarks>
-    /// Aliased and oversized on purpose. An antialiased edge would arrive as
-    /// source alpha and blend Porter-Duff; drawing one pixel wide of the rim
-    /// with the gradient already at black means the outer ring contributes
-    /// <c>max(0, dst) = dst</c> and the jagged geometric edge cannot show.
-    /// </remarks>
-    private static void MaxDab(SKCanvas footprint, SKPoint centre, float radius)
-    {
-        var outer = radius + 1f;
-        using var paint = new SKPaint
-        {
-            IsAntialias = false,
-            BlendMode = SKBlendMode.Lighten,
-            Shader = SKShader.CreateRadialGradient(
-                centre,
-                outer,
-                [SKColors.White, SKColors.White, SKColors.Black, SKColors.Black],
-                [0f, Math.Max(0f, (radius - 0.5f) / outer), (radius + 0.5f) / outer, 1f],
-                SKShaderTileMode.Clamp),
-        };
-        footprint.DrawCircle(centre, outer, paint);
-    }
-
-    /// <summary>Turn the footprint's red channel into premultiplied ink.</summary>
-    /// <remarks>
-    /// A managed pass because this is a prototype and the question is whether
-    /// the <em>coverage</em> matches; in the engine this is a colour matrix or a
-    /// runtime shader and costs one band draw. Bounded to the region asked for,
-    /// which is what keeps the per-event cost incremental.
-    /// </remarks>
-    private static void Colourise(SKBitmap footprint, SKBitmap into, SKColor color, SKRectI band)
-    {
-        // SetPixel rather than pointer arithmetic. The first draft indexed both
-        // bitmaps by hand and skewed the mark progressively across the canvas -
-        // 14 px out by mid-stroke, which reads exactly like a fidelity result
-        // and is not one. This is a prototype whose job is to answer whether the
-        // COVERAGE matches; the per-pixel cost of being obviously right is worth
-        // more here than the speed, and the timing above excludes it anyway in
-        // the engine, where this is a colour matrix over one band.
-        for (var y = Math.Max(0, band.Top); y < Math.Min(into.Height, band.Bottom); y++)
-        {
-            for (var x = Math.Max(0, band.Left); x < Math.Min(into.Width, band.Right); x++)
-            {
-                var cover = footprint.GetPixel(x, y).Red;
-                into.SetPixel(x, y, new SKColor(color.Red, color.Green, color.Blue, cover));
-            }
-        }
-    }
-
     private static SKRectI BandOf(IReadOnlyList<BrushEngine.Dab> dabs, int from, float reach)
     {
         float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
@@ -218,14 +166,19 @@ public static class MaxCoverageProto
                 var now = BrushEngine.WalkDabs(sofar, densify);
 
                 var sw = Stopwatch.StartNew();
-                for (var i = stamped; i < now.Count; i++)
-                {
-                    MaxDab(fpCanvas, now[i].Pos, (float)BrushEngine.RadiusAt(stroke.Brush, now[i].Pressure));
-                }
-
+                // The shipped entry points, not a copy of them: this measures
+                // what MainViewModel.StampLiveDabs now does per event, which is
+                // accumulate only the dabs that are new and read one band back.
+                BrushEngine.AccumulateCoverage(fpCanvas, stroke.Brush, now, stamped, now.Count);
                 fpCanvas.Flush();
                 var band = BandOf(now, stamped, radius + 2);
-                if (!band.IsEmpty) Colourise(footprint, mark, color, band);
+                if (!band.IsEmpty)
+                {
+                    using var into = new SKCanvas(mark);
+                    BrushEngine.CoverageToInk(into, footprint, stroke, band);
+                    into.Flush();
+                }
+
                 last = sw.Elapsed.TotalMilliseconds;
                 stamped = now.Count;
             }
@@ -258,16 +211,14 @@ public static class MaxCoverageProto
             using (var c2 = new SKCanvas(fp2))
             {
                 c2.Clear(SKColors.Black);
-                foreach (var dab in finalDabs!)
-                {
-                    MaxDab(c2, dab.Pos, (float)BrushEngine.RadiusAt(stroke.Brush, dab.Pressure));
-                }
-
+                BrushEngine.AccumulateCoverage(c2, stroke.Brush, finalDabs!, 0, finalDabs!.Count);
                 c2.Flush();
             }
 
-            using (var m2 = new SKCanvas(oneShot)) m2.Clear(SKColors.Transparent);
-            Colourise(fp2, oneShot, color, BandOf(finalDabs!, 0, radius + 2));
+            using var m2 = new SKCanvas(oneShot);
+            m2.Clear(SKColors.Transparent);
+            BrushEngine.CoverageToInk(m2, fp2, stroke, BandOf(finalDabs!, 0, radius + 2));
+            m2.Flush();
         }
 
         static (double Mean, int Worst, long Differing, long Total) Compare(SKBitmap a, SKBitmap b)
