@@ -177,13 +177,30 @@ public class OverflowBar : Panel
     private static double NaturalWidth(Control c) =>
         GetFlex(c) && !double.IsInfinity(c.MaxWidth) ? c.MaxWidth : c.DesiredSize.Width;
 
+    /// <summary>
+    /// The children that actually occupy the row.
+    /// </summary>
+    /// <remarks>
+    /// <b>Visible and wanting width, not merely visible.</b> A tool-options
+    /// group is a <c>UserControl</c> whose contents are gated on the tool, so
+    /// with another tool in hand it stays visible and measures to nothing — and
+    /// a zero-width child was still costing a <see cref="Spacing"/> gap and a
+    /// place in the row. Seven such groups sat in the quick bar spending 98px of
+    /// a 273px row on nothing, which is what pushed the text tool's options into
+    /// the ▾ at every ordinary window size. A child that wants no width should
+    /// cost no gap; the ones that gate the control itself were always free, and
+    /// this makes the other kind free too.
+    /// </remarks>
+    private List<Control> Occupying() =>
+        Items.Where(c => c.IsVisible && NaturalWidth(c) > 0).ToList();
+
     protected override Size MeasureOverride(Size availableSize)
     {
         foreach (var child in Children) child.Measure(Size.Infinity);
 
         var height = Children.Where(c => c.IsVisible).Select(c => c.DesiredSize.Height)
             .DefaultIfEmpty(0).Max();
-        var visible = Items.Where(c => c.IsVisible).ToList();
+        var visible = Occupying();
         var width = visible.Sum(NaturalWidth)
             + Spacing * Math.Max(0, visible.Count - 1);
         // Ask for what the row wants, but never insist: the bar's job is to
@@ -195,7 +212,7 @@ public class OverflowBar : Panel
 
     protected override Size ArrangeOverride(Size finalSize)
     {
-        var visible = Items.Where(c => c.IsVisible).ToList();
+        var visible = Occupying();
         var widths = visible.ConvertAll(NaturalWidth);
         var flexIndex = visible.FindIndex(GetFlex);
         var flexMin = flexIndex >= 0 ? Math.Max(visible[flexIndex].MinWidth, 40) : 0;

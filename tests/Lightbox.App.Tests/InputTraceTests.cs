@@ -32,11 +32,16 @@ namespace Lightbox.App.Tests;
 /// attribution — which mechanism this trace blames — cannot drift silently.
 /// </para>
 /// </remarks>
-public class InputTraceTests : IDisposable
+[Collection("BrushState")]
+public class InputTraceTests : BrushStateIsolated
 {
     public InputTraceTests() => InputTrace.ResetForTests();
 
-    public void Dispose() => InputTrace.ResetForTests();
+    public override void Dispose()
+    {
+        InputTrace.ResetForTests();
+        base.Dispose();
+    }
 
     /// <summary>Events at chosen times, so the rates are arithmetic rather than timing.</summary>
     private static void Hover(double seconds, PointerType device, int id, InputTrace.Kind kind) =>

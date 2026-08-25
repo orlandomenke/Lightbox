@@ -306,7 +306,7 @@ point or a collider:
 | In the file | What it is |
 | --- | --- |
 | `pivot` | Where the drawing is anchored, per cell. |
-| `anchors` | Named attachment points — a hand, a muzzle, a hardpoint. |
+| `anchors` | Named attachment points — a hand, a muzzle, a hardpoint. An anchor you have aimed also carries an `angle`, in degrees, so the sword can turn with the hand; one you have not carries no angle key at all. |
 | `shapes` | Collision rectangles, each with a role: `hurtbox`, `hitbox` or `physics`. |
 | `frameTags` | Your tags, as clips, with direction and a loop flag. |
 | `events` | Only the markers you ticked as engine events. |
@@ -358,6 +358,14 @@ drawn on top of it, which matches what a click picks up.
   how a hitbox stops being active partway through a swing: it exists on the
   frames that connect and nowhere else.
 - **Delete** removes the declaration and every placement of it.
+- **Aim an anchor** by dragging its **stalk** — select the anchor and a short
+  stub appears; drag its tip and the anchor points wherever you leave it, per
+  drawing, so a hand can turn through a swing. An aimed anchor shows its stalk
+  on every frame without being selected. The direction is measured in degrees
+  and rides along with the position — moving the anchor, pushing it across a
+  range and re-timing the animation all keep the aim. **Clear direction here**
+  (same submenu) takes the aim off this drawing and leaves the anchor where it
+  is; an anchor you never aim exports and saves exactly as it always did.
 
 Everything is one undo step, and **edits land on the drawing rather than on the
 frame number.** Drag a socket while parked on a held frame and it moves the

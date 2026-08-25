@@ -1,4 +1,5 @@
 using Lightbox.Core.Documents;
+using Lightbox.Core.Inbetween;
 
 namespace Lightbox.Core.Timeline;
 
@@ -99,11 +100,17 @@ public static class MotionTrail
         var maxX = double.MinValue;
         var maxY = double.MinValue;
         var any = false;
-        foreach (var stroke in frame.Strokes)
+        // The drawing as it is, not as the record remembers it (B301). Erasing
+        // kinds take ink away, so where they went says nothing about where the
+        // subject is — and neither does a line they rubbed out, which is the
+        // half the explicit tool check here used to miss: scribble something
+        // off to one side, erase it, draw the subject elsewhere, and the trail
+        // marked a point between the two. StrokeRecordCleaner answers both at
+        // once, and answers them the way this caller needs — a whole-stroke
+        // judgement with a tolerance, because a nearly-erased line contributes
+        // nearly nothing to where the drawing looks like it sits.
+        foreach (var stroke in StrokeRecordCleaner.EffectiveStrokes(frame.Strokes))
         {
-            // Erasing kinds take ink away; where they went says nothing about
-            // where the subject is.
-            if (stroke.Tool is ToolKind.Eraser or ToolKind.ClearRegion) continue;
             foreach (var point in stroke.Points)
             {
                 any = true;

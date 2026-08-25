@@ -69,7 +69,9 @@ pile of them, so counting ticks counts drawings.
 
 Where each tick sits comes from the drawing itself: a **pivot anchor** placed
 on the drawing (rig edit mode, `Ctrl+K`) if there is one, else the centre of
-the drawing's ink. A **filled** tick is an anchor — your own statement of where
+the drawing's ink — the ink that is *there*, so work you rubbed out does not
+drag the tick towards where it used to be, and neither does the eraser's own
+path. A **filled** tick is an anchor — your own statement of where
 the subject is; a **hollow** tick is the derived centre — a guess that wobbles
 with the silhouette. If an arc looks wrong on hollow ticks, anchor the drawings
 before trusting it. Sockets are ignored: a hand's attachment point is not where
@@ -192,10 +194,24 @@ view onto the wall rather than the whole of it.
 | Tidy the whole wall | **Auto-arrange** — every picture fitted into the space there is, in the order they are in |
 | Find something you have lost | **Fit** (`Ctrl+Shift+F`) zooms out until everything on the board is on screen |
 | Add a picture from disk | Drag files onto the board, or **Add image…** |
-| Add one from a web page | Drag the image off the page onto the board |
+| Add one from a web page | Drag the image off the page onto the board — as many times as you like |
 | Paste one | `Ctrl+V` — a copied file, or a screenshot straight off the clipboard |
 | Put a sheet back up | **Sheets ▾** lists everything in scope that is not on the wall |
 | Move around | Wheel zooms, middle-drag or drag the empty background pans |
+
+**A drop that brings nothing says so — on the board.** Browsers hand a picture
+over in more than one way — sometimes the file it cached, sometimes an address,
+sometimes the picture itself — and they label those differently on Windows, on
+macOS and on Linux. Lightbox reads whatever the drag turns out to be carrying
+and tries all of it before giving up. What decides is whether the bytes are a
+picture, not what anything is called, so a browser's nameless temporary works
+like any other. When the address turns out to be the *page* the picture lives
+on — which is what many sites, Pinterest among them, put in a drag — the page
+is read for the image it names and that is fetched instead. Only when every one
+of those fails does the drop refuse, and then the board's own toolbar says which
+way it failed rather than leaving you wondering; what the drag was carrying is
+written to the diagnostics log, which is the thing to attach if a drop that
+should work does not.
 
 **A picture lands where you put it** — under the pointer when you drop it, in the
 middle of the view when it comes from the picker or the clipboard. Drop several

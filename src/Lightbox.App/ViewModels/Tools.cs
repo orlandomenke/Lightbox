@@ -117,6 +117,27 @@ public enum ToolId
     Width,
 
     /// <summary>Eyedropper: click the canvas to pick the color under the cursor.</summary>
+    /// <summary>
+    /// The text tool: click to put a caret on the canvas and type.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>What it makes is ordinary strokes.</b> Committing a piece of type
+    /// shapes it, pulls each glyph's outline out of the typeface and records one
+    /// contour fill per letter — so type erases, clips, transforms, exports and
+    /// re-renders exactly like a drawing, and a document opened on a machine
+    /// with none of its fonts is unchanged. What stays behind is a
+    /// <c>TextElement</c> that lets the words be retyped;
+    /// see <c>docs/DESIGN-text.md</c>.
+    /// </para>
+    /// <para>
+    /// Clicking type that is already set picks it up rather than starting a
+    /// second block over it, which is what every application with a text tool
+    /// does and what <c>Stroke.TextId</c> is for.
+    /// </para>
+    /// </remarks>
+    Text,
+
     Picker,
 
     /// <summary>

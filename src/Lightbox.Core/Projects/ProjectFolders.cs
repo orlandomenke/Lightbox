@@ -346,7 +346,16 @@ public static class ProjectFolders
         var documents = InOrder(manifest, folder);
         if (variant is null || variant.Overrides.Count == 0) return documents;
 
-        var byId = manifest.Documents.ToDictionary(d => d.Id);
+        // Only the replacements, not every document: this runs per folder in
+        // the docker's rebuild, and the rebuild runs on every save, so a
+        // dictionary over the whole manifest here is folders × documents work
+        // for a lookup that needs Overrides.Count entries.
+        var wanted = new HashSet<string>(variant.Overrides.Values);
+        var byId = new Dictionary<string, DocumentRef>(wanted.Count);
+        foreach (var d in manifest.Documents)
+        {
+            if (wanted.Contains(d.Id)) byId[d.Id] = d;
+        }
         return [.. documents.Select(d =>
             variant.Overrides.TryGetValue(d.Id, out var replacement)
             && byId.TryGetValue(replacement, out var over) ? over : d)];

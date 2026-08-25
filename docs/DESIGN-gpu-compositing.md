@@ -274,6 +274,63 @@ hardware this repository will never own: backend, whether the durable frame is
 really GPU-backed, texture limits and a timed upload probe, written on the
 artist's machine. Two machines is a thin sample; a report per artist is not.
 
+### Built, 2026-08-25: Automatic is the default and the probe is the gate
+
+The three rules above are now code rather than intent, and two of them landed
+differently from how the note described them.
+
+**Rule 1 said `RenderReport.RunUploadProbe`'s speedup decides. It does not, and
+it should not have.** That probe times a *present* — a full frame against a
+patched one through `PresentedFrame` — which measures whether partial upload
+beats full upload on the display path. It is a good number and it is answering a
+different question: it says nothing about whether *blending* is faster on the
+card, which is the decision being made. `GpuComposeProbe` measures that one
+directly — the same three passes blended into a GPU surface and into a raster
+surface, fastest of three runs each — and it is the only thing that catches the
+software rasteriser, because a software rasteriser cannot beat the raster
+backend it *is*.
+
+**The margin is 1.5×, not 1.0×, and the gap is load-bearing.** At parity, noise
+alone would flip a machine between sessions. And a card that cannot beat the
+processor by half again at 1024² with three layers is a card whose win will not
+survive residency's memory cost — on integrated graphics that VRAM is the same
+memory the processor is competing for.
+
+**The GPU timing calls `GRContext.Submit(true)` and the CPU timing has no
+counterpart.** That asymmetry is the measurement rather than a flaw in it:
+without the synchronous submit the number is how long it took to *queue* the
+work, and the probe would report every machine — including the ones it exists to
+refuse — as impossibly fast.
+
+**Rule 2's "refuse rather than degrade" is what every failure does.** No context,
+a refused surface, a probe that threw, a probe that has not run yet: all of them
+answer *processor*. There is no path on which an unmeasured machine gets the
+card by default.
+
+**The setting became three-state, and the migration is the interesting half.**
+`Auto`/`On`/`Off`, where an explicit choice outranks the probe in both
+directions. The old key was a bool that every settings file carried at `false`
+whether the artist had chosen the processor or had never opened the page — the
+two are indistinguishable in the file — so **only `true` migrates**. Reading
+`false` as a decision would have pinned every existing install to the processor
+for good, which is the exact outcome defaulting to Auto exists to prevent.
+
+**Where the probe runs, and why not through the machinery that exists for
+this.** Inline in `CanvasControl.RenderCore` on the first frame, not through
+`RunWithGpuContext` — that is a single slot with one existing owner (the render
+report), and two things posting to one slot is a queued job silently dropped. It
+costs one frame at startup and only runs on Auto: an artist who has chosen is
+not asking to be measured.
+
+**What the suite can hold, and what it cannot.** `GpuComposeProbe.Decide` is a
+pure function of a measurement, separated from the measuring precisely so it is
+reachable — the same shape `GpuCompositeTests` already uses for the policy.
+`GpuComposeAutoTests` pins the verdict, the margin from both sides, every
+refusal, which mode outranks which, and the migration. **None of it can assert
+that the probe measures anything on a real machine**, for the reason every
+finding in B125 came from the owner's hardware: there is no graphics context
+here.
+
 ## How we will know it worked
 
 Not by feel, after the six rounds B156–B164 took to learn that. The render report

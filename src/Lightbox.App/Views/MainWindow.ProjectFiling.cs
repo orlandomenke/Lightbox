@@ -69,10 +69,17 @@ public partial class MainWindow
         }
         flyout.Items.Add(new Separator());
         var browse = new MenuItem { Header = "Browse library…" };
-        browse.Click += (_, _) => new LibraryWindow(vm).Show(this);
+        browse.Click += (_, _) => OpenLibraryWindow();
         flyout.Items.Add(browse);
         flyout.ShowAt((Control)sender!);
     }
+
+    /// <summary>
+    /// The library's browsing home — reached from the picker's last item and
+    /// from the registered <c>project.libraryWindow</c> command, one method so
+    /// the two ways in cannot come to differ.
+    /// </summary>
+    private void OpenLibraryWindow() => new LibraryWindow(_vm.Characters).Show(this);
 
     // ---- re-filing a document by dragging it -----------------------------------
 

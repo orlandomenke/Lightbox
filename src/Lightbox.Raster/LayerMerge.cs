@@ -51,7 +51,7 @@ public static class LayerMerge
             var below = ExposureSheet.ExposedFrame(lower, t);
             var above = ExposureSheet.ExposedFrame(upper, t);
             if (above is null && below is null) continue;
-            if (!PairIsLossless(upper, below, above)) return true;
+            if (!PairIsLossless(upper, lower, below, above)) return true;
         }
         return false;
     }
@@ -74,9 +74,19 @@ public static class LayerMerge
             }
             var below = ExposureSheet.ExposedFrame(lower, t);
             var above = ExposureSheet.ExposedFrame(upper, t);
-            merged.Add(new Cel { Frame = MergedFrame(scene, upper, below, above, t) });
+            merged.Add(new Cel { Frame = MergedFrame(scene, upper, lower, below, above, t) });
         }
         lower.Cels = merged;
+        // An applying mask on the lower layer was baked into every merged
+        // drawing above, so keeping it would carve the same shape twice. A
+        // disabled mask was not baked and stays, still re-enableable — though
+        // it will then carve the merged content.
+        if (lower.IsMasked) lower.Mask = null;
+        // Same for a live stack: a pair with one always bakes (B286), so the
+        // merged pixels already carry the filter everywhere and keeping the
+        // stack would apply it twice. A fully disabled stack was not baked
+        // and stays, like a disabled mask.
+        if (LiveStack(lower) is not null) lower.Effects = null;
     }
 
     /// <summary>Cels to walk: every index either layer keys, and at least one.</summary>
@@ -95,21 +105,35 @@ public static class LayerMerge
         || ExposureSheet.FrameAtExactIndex(lower, t) is not null;
 
     private static Frame? MergedFrame(
-        Scene scene, Layer upper, Frame? below, Frame? above, int t)
+        Scene scene, Layer upper, Layer lower, Frame? below, Frame? above, int t)
     {
         if (above is null && below is null) return null;
-        return PairIsLossless(upper, below, above)
+        return PairIsLossless(upper, lower, below, above)
             ? ConcatenatedFrame(below, above)
-            : BakedFrame(scene, upper, below, above, t);
+            : BakedFrame(scene, upper, lower, below, above, t);
     }
 
     /// <summary>
     /// Can this pair merge by appending the upper drawing's strokes after the
     /// lower's, with the render staying identical?
     /// </summary>
-    private static bool PairIsLossless(Layer upper, Frame? below, Frame? above)
+    private static bool PairIsLossless(Layer upper, Layer lower, Frame? below, Frame? above)
     {
+        // A mask on the lower layer is baked into every merged drawing —
+        // including the ones the upper layer leaves untouched — because the
+        // merge clears the mask afterwards, and a cleared mask must already
+        // be in the pixels everywhere.
+        if (lower.IsMasked) return false;
+        // A live effect stack is applied at composite time and strokes
+        // cannot carry a filter — either layer having one forces the bake,
+        // which runs the content → filter → carve → style pipeline (B286).
+        if (LiveStack(upper) is not null || LiveStack(lower) is not null) return false;
         if (above is null) return true; // the lower drawing carries over untouched
+        // The upper layer's mask carves its render, and its clip carves it by
+        // the lower's alpha; strokes carry neither. (A pair clipped to the
+        // same deeper base keeps clipping after the merge, so that carve is
+        // not baked and does not force one.)
+        if (upper.IsMasked || (upper.IsClipped && !lower.IsClipped)) return false;
         // A blend or opacity on the upper layer is applied at composite time;
         // its strokes carry neither, so they cannot reproduce it from inside
         // the merged layer.
@@ -138,6 +162,49 @@ public static class LayerMerge
         return true;
     }
 
+    /// <summary>
+    /// The layer's stack when it filters its own content — null for an
+    /// ordinary layer and for an adjustment layer, whose stack reads the
+    /// backdrop and never survives a content merge.
+    /// </summary>
+    private static Core.Effects.EffectStack? LiveStack(Layer layer) =>
+        layer.HasLiveEffects && !layer.IsAdjustment ? layer.Effects : null;
+
+    /// <summary>Redraw a materialized drawing through a filter, in place; null is identity.</summary>
+    private static void ApplyFilter(SKBitmap target, SKImageFilter? filter)
+    {
+        if (filter is null) return;
+        using var source = target.Copy();
+        using var canvas = new SKCanvas(target);
+        canvas.Clear(SKColors.Transparent);
+        using var paint = new SKPaint { ImageFilter = filter };
+        canvas.DrawBitmap(source, 0, 0, paint);
+        canvas.Flush();
+    }
+
+    /// <summary>
+    /// Apply a painted mask to a materialized drawing in place: the drawing
+    /// keeps its pixels where the mask's strokes have coverage (or loses them
+    /// there, inverted) — the same DstIn/DstOut the compositor applies live.
+    /// </summary>
+    private static void CarveByMask(SKBitmap target, LayerMask mask, Scene scene)
+    {
+        using var coverage = FrameRasterizer.Materialize(
+            mask.Frame, scene.Width, scene.Height);
+        Carve(target, coverage, mask.IsInverted);
+    }
+
+    private static void Carve(SKBitmap target, SKBitmap coverage, bool inverted)
+    {
+        using var canvas = new SKCanvas(target);
+        using var paint = new SKPaint
+        {
+            BlendMode = inverted ? SKBlendMode.DstOut : SKBlendMode.DstIn,
+        };
+        canvas.DrawBitmap(coverage, 0, 0, paint);
+        canvas.Flush();
+    }
+
     /// <summary>Lower drawing's content with the upper drawing's stamped after it.</summary>
     private static Frame ConcatenatedFrame(Frame? below, Frame? above)
     {
@@ -162,14 +229,50 @@ public static class LayerMerge
     /// and opacity, kept as the merged frame's pixel baseline.
     /// </summary>
     private static Frame BakedFrame(
-        Scene scene, Layer upper, Frame? below, Frame? above, int t)
+        Scene scene, Layer upper, Layer lower, Frame? below, Frame? above, int t)
     {
         using var bitmap = below is null
             ? NewCanvas(scene)
             : FrameRasterizer.Materialize(below, scene.Width, scene.Height, celIndex: t);
+        // The clip base is the lower's content and mask, never its filters —
+        // the compositor's shapes resolve from frames the same way — so it
+        // is taken before the lower's own pipeline runs (B286).
+        SKBitmap? clipBase = null;
+        if (above is not null && upper.IsClipped && !lower.IsClipped)
+        {
+            clipBase = bitmap.Copy();
+            if (lower.Mask is { } clipMask && clipMask.Applies)
+            {
+                CarveByMask(clipBase, clipMask, scene);
+            }
+        }
+        // The lower layer's own pipeline, the compositor's order (Q155):
+        // content → filter effects → mask carve → styles.
+        ApplyFilter(bitmap, Effects.EffectRegistry.FilterFor(LiveStack(lower), t));
+        if (lower.Mask is { } lowerMask && lowerMask.Applies)
+        {
+            CarveByMask(bitmap, lowerMask, scene);
+        }
+        ApplyFilter(bitmap, Effects.EffectRegistry.StyleFor(LiveStack(lower), t));
         if (above is not null)
         {
             using var top = FrameRasterizer.Materialize(above, scene.Width, scene.Height, celIndex: t);
+            ApplyFilter(top, Effects.EffectRegistry.FilterFor(LiveStack(upper), t));
+            if (upper.Mask is { } upperMask && upperMask.Applies)
+            {
+                CarveByMask(top, upperMask, scene);
+            }
+            // The upper layer clipped to the lower: its pixels only ever
+            // showed where the lower (mask included, applied just above) had
+            // content — so carve before compositing, against the lower's
+            // render as it stands, which is exactly what the compositor
+            // intersected. Not when both are clipped to a deeper base: that
+            // carve survives the merge at composite time.
+            if (clipBase is not null)
+            {
+                Carve(top, clipBase, inverted: false);
+            }
+            ApplyFilter(top, Effects.EffectRegistry.StyleFor(LiveStack(upper), t));
             using var canvas = new SKCanvas(bitmap);
             using var paint = new SKPaint
             {
@@ -179,6 +282,7 @@ public static class LayerMerge
             canvas.DrawBitmap(top, 0, 0, paint);
             canvas.Flush();
         }
+        clipBase?.Dispose();
         var frame = new Frame
         {
             Role = below?.Role ?? above!.Role,

@@ -253,9 +253,12 @@ public static class StrokePicker
     /// path walked laying dabs, a cleared region is an even-odd contour — and
     /// the three limits in rule three are applied here rather than at the two
     /// call sites, so a click and a marquee cannot come to different answers
-    /// about the same rub.
+    /// about the same rub. Internal rather than private since B297: the
+    /// transform's region filter asks the same question
+    /// (<see cref="TransformErasures.MovingWithin"/>), and a second
+    /// implementation is a second chance for the answers to differ.
     /// </remarks>
-    private static bool ErasesPoint(Stroke stroke, double x, double y)
+    internal static bool ErasesPoint(Stroke stroke, double x, double y)
     {
         if (stroke.Points.Count == 0) return false;
 
@@ -292,7 +295,7 @@ public static class StrokePicker
     /// the sweep — and the common case, a frame with none, makes
     /// <see cref="SurvivesAnywhere"/> free.
     /// </remarks>
-    private static List<int> ErasurePositions(IReadOnlyList<Stroke> strokes)
+    internal static List<int> ErasurePositions(IReadOnlyList<Stroke> strokes)
     {
         var positions = new List<int>();
         for (var i = 0; i < strokes.Count; i++)
@@ -348,10 +351,12 @@ public static class StrokePicker
     {
         if (stroke.Points.Count == 0) return false;
 
-        if (stroke.Tool == ToolKind.Fill)
+        if (stroke.Tool is ToolKind.Fill or ToolKind.Text)
         {
             // A fill is an area, so being inside it counts — and inside means
-            // even-odd, the same rule it was painted under.
+            // even-odd, the same rule it was painted under. A glyph is an area
+            // for the same reason: clicking the middle of an O should take hold
+            // of the letter, not miss between its two contours.
             var contours = new List<IReadOnlyList<StrokePoint>> { stroke.Points };
             if (stroke.Holes is not null) contours.AddRange(stroke.Holes);
             if (GeometryOps.ContainsEvenOdd(contours, x, y)) return true;
@@ -400,7 +405,7 @@ public static class StrokePicker
 
         // A fill enclosing the whole marquee has neither a point inside nor an
         // edge crossing it, and is plainly under the box.
-        if (stroke.Tool == ToolKind.Fill && stroke.Points.Count >= 3)
+        if (stroke.Tool is (ToolKind.Fill or ToolKind.Text) && stroke.Points.Count >= 3)
         {
             var contours = new List<IReadOnlyList<StrokePoint>> { stroke.Points };
             if (stroke.Holes is not null) contours.AddRange(stroke.Holes);

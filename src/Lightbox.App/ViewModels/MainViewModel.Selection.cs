@@ -62,6 +62,10 @@ public partial class MainViewModel
     private void NotifySelection()
     {
         OnPropertyChanged(nameof(HasSelection));
+        // The line clipboard's menu entries grey out with no selection, so
+        // they have to hear about one arriving or leaving (CLAUDE.md's
+        // registry rule: a capability nobody can find is not landed).
+        OnPropertyChanged(nameof(HasCopyableSelection));
         SelectionChanged?.Invoke();
         PublishSnapshot();
     }
@@ -541,6 +545,22 @@ public partial class MainViewModel
             Contours = ToDocument(_selectionContours),
             Feather = SelectionFeather,
         };
+        return (RegisterClip(region), region);
+    }
+
+    /// <summary>
+    /// Give a clip region its content-hashed id and make it resolvable.
+    /// </summary>
+    /// <remarks>
+    /// Split out of <see cref="PrepareClipForSelection"/> for the line
+    /// clipboard, which needs an id for a region it computed rather than one
+    /// the artist has up — the intersection of a copied selection with a clip
+    /// the copied stroke already carried. The hash is what makes clips dedupe
+    /// across documents: two identical regions are one entry wherever they are
+    /// prepared from, which is the property a cross-document paste leans on.
+    /// </remarks>
+    private static string RegisterClip(ClipRegion region)
+    {
         var payload = System.Text.Json.JsonSerializer.Serialize(region);
         var hash = Convert.ToHexString(
             System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(payload)))[..12];
@@ -548,7 +568,7 @@ public partial class MainViewModel
         // The renderer resolves clips by id, so it must know this one before
         // the stroke's first re-render — not only after a document reload.
         ClipRegionRegistry.Register(id, region);
-        return (id, region);
+        return id;
     }
 
     // Onion skin's settings live in AppSettings, not here and not in the

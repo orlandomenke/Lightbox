@@ -152,6 +152,21 @@ checker (roadmap, construction guides) gets its per-frame annotations free.
 G12 applies to that conditioning work: it touches the AI surface and gets the
 engineer/director pair.
 
+### Stepped timing *(owner's decision 2026-08-23, Q152: yes, and optional)*
+
+The pose track can be animated on 2s — or any interval — so fluid auto-tween
+and drawn-looking timing stop being a choice between tools. Two halves,
+recommended and taken together: a `Hold` easing on a key (the pose freezes
+until the next key — pose-to-pose, keys as reusable drawings) and a nullable
+step interval on the `PoseTrack` (auto-tween as normal, evaluation snaps to
+every Nth frame — retime the move without re-posing, and the result steps
+like drawn animation). Optional in the house sense: the interval is absent
+until authored, a document that never steps serializes byte-for-byte as
+today, and the default ease stays `EaseInOut`. Held poses land on the
+exposure sheet's grid, and bake turns each into an ordinary drawing — the
+bridge to the frame-by-frame pillar. Q152 has the full argument and the
+edges left open.
+
 ## Phases, each shippable alone
 
 | Phase | What | Cost |

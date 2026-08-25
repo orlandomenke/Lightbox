@@ -18,9 +18,9 @@
                  Text="A library is an ordinary project whose type is Asset library. Point this at one, or at a folder holding several." />
       <ListBox x:Name="RootList" ItemsSource="{Binding Roots}" MaxHeight="80" FontSize="11" />
       <StackPanel Orientation="Horizontal" Spacing="6">
-        <Button Content="Add folder…" Click="OnAddRoot" />
-        <Button Content="Remove" Click="OnRemoveRoot" />
-        <Button Content="Rescan" Click="OnRescan" />
+        <Button Classes="text" Content="Add folder…" Click="OnAddRoot" />
+        <Button Classes="text" Content="Remove" Click="OnRemoveRoot" />
+        <Button Classes="text" Content="Rescan" Click="OnRescan" />
       </StackPanel>
     </StackPanel>
 

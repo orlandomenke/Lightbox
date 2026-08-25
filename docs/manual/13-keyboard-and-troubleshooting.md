@@ -139,30 +139,32 @@ and the file on disk never read either setting.
 
 ### Blending layers on the graphics card
 
-*Experimental, and off, because it is not yet known to be faster.*
-
-**Edit → Configure → Performance → Use the graphics card to blend layers.**
+**Edit → Configure → Performance → Composite layers on the GPU.**
 
 Stacking layers together is arithmetic over every pixel, and a graphics card is
 built for exactly that. The catch is that the layer images live in ordinary
 memory and have to reach the card before it can do anything with them. On a
 laptop with shared graphics memory — which is most laptops — that transfer
-competes with the drawing you are already doing, so it can easily cost more
-than it saves.
+competes with the drawing you are already doing, so it can cost more than it
+saves. It is genuinely faster on some machines and genuinely slower on others,
+and there is no way to tell which yours is by looking at it.
 
-So this is a switch to *try*, not a setting to turn on and forget. The honest
-answer for your machine is:
+So Lightbox measures instead of guessing. There are three settings:
 
-1. Turn it on.
-2. Zoom in far enough that the canvas edges are off screen — that is the only
-   view it currently applies to. A fit-to-window view composites the old way.
-3. Play a scene back for a few seconds.
-4. **Help → Write a render report**, and look for *resident layer textures*.
+| | |
+| --- | --- |
+| **Auto** | The default. On the first frame of a session, Lightbox blends the same layers once on the card and once on the processor, and keeps whichever was faster here. |
+| **On** | Always use the card, whatever the measurement said. |
+| **Off** | Always use the processor. |
 
-The report says how many layer draws avoided a transfer. It also says when the
-answer is "nothing happened", which is the case the checkbox cannot tell you
-about on its own — a machine presenting in software has no card to blend on,
-and the hint under the checkbox says so before you spend time on it.
+The hint under the picker says what actually happened — including the case that
+is easy to be misled by. Some machines report a graphics card and then draw
+every pixel in software anyway (a remote desktop, a virtual machine, or a
+driver falling back). Such a machine passes every check except a stopwatch, so
+Auto times it and stays on the processor. If you would rather see for yourself,
+set it to On, play a scene back, and use **Help → Write a render report** —
+which says what the compositor did, what the measurement was, and how many
+layer draws avoided a transfer.
 
 Nothing you save is affected either way. Exports, thumbnails and the file on
 disk are produced by the processor whatever this is set to, so a picture that

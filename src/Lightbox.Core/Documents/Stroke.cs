@@ -129,6 +129,28 @@ public sealed class Stroke
     public string? SimId { get; set; }
 
     /// <summary>
+    /// The text element this glyph was baked from, or null for everything that
+    /// is not set type.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Provenance and a handle, exactly as <see cref="SimId"/> is</b>, and
+    /// worth stating twice because the temptation is the opposite in both cases:
+    /// it changes no pixel, and a stroke stripped of it renders identically as an
+    /// ordinary contour fill. What it buys is retyping — drop every stroke in this
+    /// cel carrying this id and bake the element again — and the ability to tell
+    /// an artist that the shape they are about to reshape by hand is a letter
+    /// that will be overwritten the next time the word changes.
+    /// </para>
+    /// <para>
+    /// The element it names lives in <see cref="Doc.Texts"/>. A missing entry is
+    /// not a broken document: it is type that has become a drawing, which is
+    /// exactly what happens to type in the end anyway.
+    /// </para>
+    /// </remarks>
+    public string? TextId { get; set; }
+
+    /// <summary>
     /// Optional semantic name ("head-outline", "left-arm"). When two
     /// keyframes label a stroke identically, the inbetweener matches them
     /// directly, and an LLM can use labels to track anatomy across frames.

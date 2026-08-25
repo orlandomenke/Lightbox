@@ -143,6 +143,10 @@ public partial class MainViewModel
         MarkDocumentEdited();
         _publish.InvalidateWholeCanvas(); // a document-wide change can move any pixel
         _composeRing.InvalidateAll();
+        // The effects docker mirrors the record it edits, so an undo — or any
+        // structural edit — re-reads it. After the scoped-edit return: a
+        // stroke commit cannot move an effect.
+        EffectsPanel.Rebuild();
         // The Scene panel is a projection of the layer stack and the camera,
         // both of which any structural edit — or its undo — can move. After
         // the scoped-edit return: a stroke commit changes neither.
@@ -164,6 +168,12 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(Fps));
         NotifyAudioSurface();
         NotifyArmatureSurface();
+        // The guides are document data, and this funnel is what runs when the
+        // document under the UI is a different one — a tab switch, a file
+        // opened, an undo. Without this the canvas kept the previous
+        // document's rig: a reopened file's guides existed and were never
+        // drawn, which reads as "guides are not saved".
+        NotifyGuidesView();
         NotifyActiveLayerCompositing();
         MarkersView = Scene.Markers.ToList();
         NotifyOffSheetKeys();

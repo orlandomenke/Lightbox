@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4726
+budget: 4882
 
 ## Why it is here despite being XAML
 
@@ -182,3 +182,92 @@ leaves a number nobody can account for. So every reason above stays, and
   in `MainWindow.ProjectFiling.cs` where it can live in a partial, which is
   why the entry point costs four lines and not forty. Registration again: an
   import nobody can reach is not a feature.
+- **4,726 → 4,771** (2026-08-21, Q143): +45 for the variant surfaces on the
+  project docker's row — the Variant submenu (the Glyph menu's entry pattern,
+  which needs its template and style inline), the two override gestures
+  beside Duplicate, and the viewed-variant badge in the row's right column.
+  All of it is the row template's own flyout and markup, which has no partial
+  to live in, and the comments carry the why (view state, the Duplicate
+  parallel, the badge's reason to exist). Registration: a variant nobody
+  could view was the whole defect this lands to fix.
+- **4,771 → 4,774** (2026-08-22, Q144): the rig menu's *Clear direction here*.
+  Three lines — item, handler wiring and tooltip — and it is the way back to
+  null for an anchor's direction: absent-until-used only holds if unused is
+  reachable again. A menu item has nowhere else to live.
+- **4,774 → 4,821** (2026-08-22, Q147/Q148): layer masks and clipping — the
+  row's Mask submenu (seven items, tooltips carrying the two add workflows),
+  the clip/release pair, the mask chip and the clip bar on the row template.
+  Menu items and template elements have nowhere else to live, which is this
+  budget's stated exception; everything that could leave did — the chip and
+  bar *styles* went to `Controls.axaml` beside `.selected`, and the smudge
+  backdrop's code growth went to `MainViewModel.Rendering.cs` instead of the
+  main file.
+- **4,821 → 4,831** (2026-08-22, Q151): the effects docker's registration —
+  the Window-menu checkbox and the `Docker` host wrapping
+  `EffectsPanel.axaml`, the Scene panel's own pattern. The panel and its
+  view model are files of their own; these ten lines are the wiring that
+  cannot be.
+- **4,831 → 4,842** (2026-08-22, Q151): *New adjustment layer* on the layer
+  row's menu — the art-director's discoverability finding: Photoshop puts
+  this gesture at the foot of the Layers panel, so an artist who knows it
+  looks here first. A pointer to the effects docker's own command, not a
+  second copy; menu items have nowhere else to live.
+- **4,842 → 4,875** (2026-08-24, Q158): the layer row's *Layer style* submenu
+  (five styles, the toggle pair and *Edit effects*, all pointers to the
+  effects docker's commands) and the fx chip beside the mask chip. Menu items
+  and row-template elements have nowhere else to live — the chip's *styles*
+  went to `Controls.axaml` beside the mask chip's, and every handler is in
+  `MainWindow.Layers.cs`.
+- **4,875 → 4,877**, for the `Save as image…` menu item. Two lines, and they buy
+  the only route to a feature: the command is registered in `ShortcutMap` and
+  dispatched from `MainWindow.CanvasViewTools`, so without a menu entry it exists
+  and is invisible to anybody who has not learned the key. The handler and the
+  file-picker work went into a new partial (`MainWindow.ImageSave.cs`) rather than
+  `MainWindow.axaml.cs`, which is itself at budget. Restated against the merged
+  baseline: measured alone this branch wanted 4,776, which was 4,774 + 2 against a
+  `main` that had since moved by 101 lines — taking that number would have reported
+  `main`'s growth as a violation.
+- **4,875 → 4,892** (2026-08-24, Q161): +17 for the line clipboard's three
+  entries on the **Select** menu — copy, cut and paste of the selected lines —
+  and the six-line comment saying why they are here and not beside the cel's
+  identical three words on Animation. They act on the *selection*, so they
+  belong on the menu that names it; the two sets share Ctrl+C/X/V, which is
+  exactly the ambiguity the comment exists to settle for the next reader.
+  Registration, which this budget's standing note says it must not refuse.
+  Measured after two economies rather than before them: the entries are
+  `Command` bindings rather than `Click` handlers, which costs nothing here and
+  removed nine lines from `MainWindow.Timeline.cs` — and it is what keeps them
+  visible to `MainMenuShapeTests`, which holds every Select entry to reaching a
+  command. The feature's own 350 lines are in `StrokeClipboard.cs` and
+  `MainViewModel.StrokeClipboard.cs`; these seventeen are the whole markup cost.
+- **→ remeasured on the merged tree** (2026-08-24). The two raises above both
+  left 4,875 on parallel branches — the image save wanted 4,877, the line
+  clipboard 4,892 — and neither figure is right for the tree they now share:
+  taking either banks the other's growth as headroom nobody earned. Both reasons
+  stay, because deleting one leaves a number nobody can account for, and
+  `ratchets.py remeasure` supplies the figure. This is the one moment that
+  script exists for.
+- **4,875 → 4,858** (2026-08-24): the text tool. Its rail button and options bar
+  needed eleven lines, so the Fill tool's options — thirty lines of pure
+  bindings, the exact shape `GuideOptionsBar` and the rest already have — became
+  `FillOptionsBar.axaml`. The feature paid for itself and left seventeen behind.
+- **→ remeasured again, now three ways** (2026-08-24). The text tool is the
+  third branch to leave 4,875, and it is the one that came *down* — so on the
+  merged tree none of the three figures is right and the direction of the error
+  differs by pair. The image save wanted 4,877 and the line clipboard 4,892,
+  each blind to the other's menu entries; the text tool wanted 4,858, which was
+  4,875 less its own extraction and would swallow both. Every reason above
+  stays and `ratchets.py remeasure` supplies the figure. Worth noting for the
+  next branch that meets this file: an entry that *lowers* the budget is not
+  exempt from the rule — it is the case where taking one side silently discards
+  another branch's growth rather than banking its slack, which is the same
+  mistake wearing the other face.
+- **4,877 → 4,882** (2026-08-25, B308): +4 for the text tool's two missing
+  surfaces — the Tool options docker's text section and the second half of its
+  quick-bar group. Four lines, and they are the whole markup cost of a bug that
+  made the tool look unfinished: the options existed and an artist could not
+  reach them, because the group was one atomic control that the OverflowBar
+  parked past its right edge at every ordinary window size. The panel and the
+  bar are `UserControl`s in their own files, the layout fix is in
+  `OverflowBar.cs`, and what lands here is registration — which this budget's
+  standing note says it must not refuse.

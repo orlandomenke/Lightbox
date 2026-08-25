@@ -27,6 +27,18 @@ public sealed partial class SwatchRow : ObservableObject
 
     public string Id => Model.Id;
 
+    /// <summary>
+    /// The palette this row was built from, or null when nothing knows.
+    /// </summary>
+    /// <remarks>
+    /// Carried so the undo step can aim at one palette. Two palettes
+    /// duplicated from one another share swatch ids — that is deliberate, it
+    /// is what makes a variant's copy repaint the same strokes — so an edit
+    /// recorded by swatch id alone recolours every copy when it lands, which
+    /// is exactly the cross-palette write Q30 forbids on the resolve side.
+    /// </remarks>
+    public string? PaletteId { get; init; }
+
     public string Color
     {
         get => Model.Color;
@@ -203,7 +215,10 @@ public sealed partial class PaletteDockerViewModel : ObservableObject
     {
         var keep = SelectedSwatch?.Id;
         Swatches.Clear();
-        foreach (var swatch in SelectedPalette?.Swatches ?? []) Swatches.Add(new SwatchRow(swatch, OnSwatchEdited));
+        foreach (var swatch in SelectedPalette?.Swatches ?? [])
+        {
+            Swatches.Add(new SwatchRow(swatch, OnSwatchEdited) { PaletteId = SelectedPalette?.Id });
+        }
         SelectedSwatch = Swatches.FirstOrDefault(s => s.Id == keep);
     }
 

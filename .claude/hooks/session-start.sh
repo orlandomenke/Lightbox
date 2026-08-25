@@ -43,6 +43,72 @@ set -euo pipefail
   fi
 ) || true
 
+# Bring local `main` up to date with the remote, so a pull request merged on
+# GitHub is not still missing from this clone the next time work starts.
+#
+# ABOVE the remote gate below, alongside the hooks-path block, for the same
+# reason that one is: this is a git-hygiene concern rather than a container one,
+# and a local clone goes stale exactly as readily as a fresh one.
+#
+# WHY THIS EXISTS. Finished work here lands as a pull request merged on GitHub,
+# and nothing on this side hears about that. Git has no "somebody merged" event
+# — no client hook fires, no ref moves — so a clone sits silently behind until a
+# human remembers to fetch. The failure that costs something is not a conflict,
+# which at least announces itself. It is an agent branching off a stale `main`,
+# reimplementing what landed last week, and the review being where anyone finds
+# out. Session start is the last moment before that decision gets made.
+#
+# FAST-FORWARD ONLY, ALWAYS. Both `merge --ff-only` and the `main:main` refspec
+# refuse anything that is not a fast-forward, which is what makes this safe to
+# run unattended: it cannot discard a local commit, rewrite history, or resolve
+# a merge on somebody's behalf. Every case it cannot handle safely it declines
+# and says so on one line. Do not "improve" this into a `pull --rebase` — the
+# whole guarantee is that the worst outcome is nothing happening.
+#
+# Two cases, because they genuinely need different commands:
+#   - `main` checked out: `merge --ff-only`, and only with a clean tree.
+#     Moving the branch under somebody's uncommitted edits at session start is
+#     the kind of surprise that makes a tool untrustworthy.
+#   - on some other branch: `git fetch origin main:main` moves the local ref
+#     without a checkout, which is the entire reason to reach for a refspec
+#     rather than a merge. Your branch is left exactly where it was.
+(
+  cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}"
+  if git rev-parse --git-dir >/dev/null 2>&1 && git remote get-url origin >/dev/null 2>&1; then
+    # Never fatal: an offline clone, a private remote with no credentials to
+    # hand, or a network that is simply down must all still start a session.
+    #
+    # SYNCHRONOUS ON PURPOSE, and cheap enough to afford it: 596/651/633 ms
+    # against GitHub on 2026-08-25 with nothing to fetch, against the ~15 s
+    # restore that the check below exists to avoid. Backgrounding it with `&`,
+    # the way the codemap build in settings.json is backgrounded, would save
+    # that half-second and reintroduce exactly the race this exists to close —
+    # an agent reading `main` while the fetch that would have moved it is still
+    # in flight. The codemap can afford to be late. A branch point cannot.
+    if git fetch --prune --quiet origin 2>/dev/null; then
+      branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+      # Skips silently when the clone has no local `main` at all, which is the
+      # right answer: creating one is a decision, not housekeeping.
+      behind=$(git rev-list --count main..origin/main 2>/dev/null || echo 0)
+      if [ "${behind:-0}" != "0" ]; then
+        if [ "$branch" = "main" ]; then
+          if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+            echo "git: main is $behind behind origin/main, and the tree is dirty — left alone"
+          elif git merge --ff-only --quiet origin/main 2>/dev/null; then
+            echo "git: main fast-forwarded $behind commit(s) to origin/main"
+          else
+            echo "git: main has diverged from origin/main — left alone, it needs a person"
+          fi
+        elif git fetch --quiet origin main:main 2>/dev/null; then
+          echo "git: local main fast-forwarded $behind commit(s) (still on $branch)"
+        else
+          echo "git: local main has diverged from origin/main — left alone, it needs a person"
+        fi
+      fi
+    fi
+  fi
+) || true
+
 # A local machine has its own toolchain and its own opinions about it.
 if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
   exit 0
@@ -72,7 +138,7 @@ if command -v dotnet >/dev/null 2>&1 && have_sdk; then
 else
   echo "toolchain: installing the .NET 10 SDK"
   export DEBIAN_FRONTEND=noninteractive
-  $SUDO apt-get update -qq
+  $SUDO apt-get update -qq >/dev/null 2>&1 || true
   # Ubuntu 24.04 carries it in its own archive, so no Microsoft feed and no
   # install script.
   #
@@ -80,8 +146,22 @@ else
   # image today. It is named anyway because without it text rendering fails at
   # RUNTIME rather than at build time, which is an expensive way to discover a
   # base-image change.
-  $SUDO apt-get install -y -qq --no-install-recommends \
-    dotnet-sdk-10.0 libfontconfig1
+  # Into a log rather than into the agent, which is the whole point of this
+  # hook. `-qq` silences apt's own progress and does NOT silence dpkg: every
+  # "Selecting previously unselected package ..." and "Unpacking ..." line goes
+  # to stdout, and a SessionStart hook's stdout is the agent's first context.
+  # Measured off a real cold-container transcript on 2026-08-24: ~3.4 KB, about
+  # 850 tokens of package names, paid by every session that lands on a cold
+  # container to say something the next line already says in one word.
+  #
+  # Kept on failure, because a failed toolchain install is the one case where
+  # the transcript is the information.
+  if ! $SUDO apt-get install -y -qq --no-install-recommends \
+      dotnet-sdk-10.0 libfontconfig1 >/tmp/lightbox-apt.log 2>&1; then
+    echo "toolchain: apt failed — transcript follows"
+    tail -40 /tmp/lightbox-apt.log
+    exit 1
+  fi
   $SUDO rm -rf /var/lib/apt/lists/*
 fi
 

@@ -156,6 +156,18 @@ sealed class PublishState
     }
 
     /// <summary>
+    /// Document pixels every dirty region must grow by, asked at mark time —
+    /// the reach of the document's live effect stacks (a blur reads
+    /// neighbours, so the region a stroke dirties is wider than the stroke;
+    /// the brush-reach rule of invariant 6, applied to effects). Null, and
+    /// free, on the ordinary document; set once by the view model, which owns
+    /// the answer. A provider rather than a number because a keyed radius
+    /// changes per frame, and a stale number here is a one-frame smear at the
+    /// edge of the dirty region that nobody ever traces back.
+    /// </summary>
+    internal Func<int>? DirtyInflationOf { get; set; }
+
+    /// <summary>
     /// Limit the next publish to a document region. Only safe when nothing outside the
     /// region can change; every other edit path must leave the default (whole-canvas)
     /// invalidation alone, or stale pixels linger.
@@ -163,6 +175,8 @@ sealed class PublishState
     internal void MarkDirty(SKRectI region)
     {
         if (WholeCanvasDirty) return;
+        var inflate = DirtyInflationOf?.Invoke() ?? 0;
+        if (inflate > 0) region.Inflate(inflate, inflate);
         if (PendingDirty is { } existing)
         {
             existing.Union(region);

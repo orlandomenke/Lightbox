@@ -53,6 +53,7 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(IsPenTool))]
     [NotifyPropertyChangedFor(nameof(IsWidthTool))]
     [NotifyPropertyChangedFor(nameof(IsBoneTool))]
+    [NotifyPropertyChangedFor(nameof(IsTextTool))]
     [NotifyPropertyChangedFor(nameof(ActiveToolLabel))]
     [NotifyPropertyChangedFor(nameof(ActiveToolHasNoPanelOptions))]
     [NotifyPropertyChangedFor(nameof(UsesGenericToolOptions))]
@@ -656,6 +657,20 @@ public partial class MainViewModel
         // deliberate finish, and neither discards.
         if (value != ToolId.Pen) ParkPen();
 
+        // Type, on the other hand, is set rather than parked or thrown away.
+        // The pen can park because a half-drawn path is still on screen and
+        // still the pen's; a caret cannot, because nothing but the text tool can
+        // show it — so leaving with a word half typed would either lose it or
+        // hide it. Setting it keeps the work and costs one Ctrl+Z to change your
+        // mind, which is the same asymmetry Escape is chosen on.
+        if (value != ToolId.Text) CommitText();
+        // Picking the tool is what fills the font list and settles which face
+        // new type is set in. It used to wait for a click on the font button,
+        // so the button read "Loading…" until an artist pressed the one control
+        // whose label was telling them it was not ready — and the browser was
+        // empty behind it.
+        else EnsureFontsLoaded();
+
         // B147's shape one tool along, and phase 2 shipped it: the node overlay
         // is drawn whatever the tool is, so leaving isolation for the brush left
         // glyphs on screen over a line nothing could reshape any more. Only the
@@ -815,7 +830,7 @@ public partial class MainViewModel
     {
         if (!CanEdit(ActiveLayer, "transform it")) return false;
         var frames = CollectTransformFrames();
-        filter ??= DerivedTransformFilter();
+        filter ??= DerivedTransformFilter(frames);
         var bounds = TransformOps.Bounds(frames, filter);
         if (frames.Count == 0 || bounds is null)
         {
@@ -866,13 +881,31 @@ public partial class MainViewModel
     /// there is no way to show that on a canvas.
     /// </para>
     /// </remarks>
-    private Func<Stroke, bool>? DerivedTransformFilter()
+    /// <param name="frames">
+    /// The frames the session is opening over. The marquee's classification is
+    /// taken here, once, against what is VISIBLE on them — a stroke is judged
+    /// by the points a later erasure has not taken away, and one none of whose
+    /// ink survives is never taken at all (B297; StrokePicker's rule three).
+    /// Judging per call on raw geometry is how a lasso around a redrawn nose
+    /// used to lift the rubbed-out previous nose from under its eraser. Held
+    /// by id because a commit on a held cel clones the drawing, and the clone
+    /// keeps its stroke ids (Frame.Clone).
+    /// </param>
+    private Func<Stroke, bool>? DerivedTransformFilter(List<Frame> frames)
     {
         if (HasSelection)
         {
             int w = Scene.Width, h = Scene.Height;
             var mask = MaskFromContours(_selectionContours, w, h);
-            return s => TransformOps.MajorityInside(s, mask, w, h);
+            var moving = new HashSet<string>();
+            foreach (var frame in frames)
+            {
+                foreach (var index in TransformErasures.MovingWithin(frame.Strokes, mask, w, h))
+                {
+                    moving.Add(frame.Strokes[index].Id);
+                }
+            }
+            return s => moving.Contains(s.Id);
         }
         return StrokeSelectionFilter();
     }

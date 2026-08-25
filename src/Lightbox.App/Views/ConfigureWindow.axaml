@@ -19,6 +19,7 @@
       <ListBoxItem Content="Timeline" />
       <ListBoxItem Content="Drawing" />
       <ListBoxItem Content="Export" />
+      <ListBoxItem Content="Library" />
       <ListBoxItem Content="AI" />
     </ListBox>
 
@@ -121,9 +122,8 @@
         <StackPanel Spacing="6">
           <TextBlock Text="Composite layers on the GPU" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
-                     Text="Experimental, and off because it is not yet known to be faster. Blending layers on the graphics card should help most on a large canvas with many layers — but the layer images have to reach the card first, and on a laptop with shared graphics memory that transfer competes with the drawing itself. It may be slower. Switch it on, play a scene back, then write a render report to see what it did on this machine." />
-          <CheckBox x:Name="GpuCompositeBox" Content="Use the graphics card to blend layers"
-                    IsCheckedChanged="OnGpuCompositeChanged" />
+                     Text="Blending layers on the graphics card helps most on a large canvas with many layers — but the layer images have to reach the card first, and on a laptop with shared graphics memory that transfer competes with the drawing itself. It is not faster everywhere. Left on Automatic, Lightbox blends the same layers both ways once at startup and keeps whichever this machine is quicker at." />
+          <ComboBox x:Name="GpuCompositeBox" Width="260" SelectionChanged="OnGpuCompositeChanged" />
           <TextBlock x:Name="GpuCompositeHint" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
         </StackPanel>
 
@@ -325,6 +325,20 @@
                      Text="Smudge and blur move pixels that are already there. This decides which pixels: only the layer you are painting on, or everything you can see through it." />
           <ComboBox x:Name="SampleBox" Width="260" SelectionChanged="OnSampleSourceChanged" />
           <TextBlock x:Name="SampleHint" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+          <TextBlock Text="Fonts" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="The text tool always offers the fonts installed on this machine. Google Fonts adds a few thousand more that look the same everywhere and are licensed to be passed around." />
+          <CheckBox x:Name="GoogleFontsBox" Content="Offer Google Fonts beside the installed ones"
+                    IsCheckedChanged="OnGoogleFontsChanged" />
+          <TextBlock Text="Nothing is requested until you open the font list, and each font is fetched once and kept. Turn this off and Lightbox never contacts fonts.google.com at all."
+                     FontSize="10" Opacity="0.65" TextWrapping="Wrap" />
+          <CheckBox x:Name="EmbedFontsBox" Content="Carry open-licensed fonts inside documents that use them"
+                    IsCheckedChanged="OnEmbedFontsChanged" />
+          <TextBlock Text="Text is drawn as outlines the moment you set it, so a document always renders correctly with no fonts installed. Carrying the font is what lets somebody else retype the words. Only fonts whose licence permits it are ever carried — never one installed on this machine, whose terms Lightbox cannot read."
+                     FontSize="10" Opacity="0.65" TextWrapping="Wrap" />
         </StackPanel>
 
         <StackPanel Spacing="6">
@@ -556,6 +570,24 @@
                      PlaceholderText="e.g. ../Game/Assets/Sprites"
                      LostFocus="OnAutoExportFolderChanged" />
           </DockPanel>
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+
+    <ScrollViewer x:Name="LibraryPage" Grid.Column="2" Margin="14" IsVisible="False"
+                  VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="16">
+        <StackPanel Spacing="6">
+          <TextBlock Text="Character libraries" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="Where shared characters live on this machine. A library is an ordinary project whose type is Asset library — point this at one, or at a folder holding several. The import button on the project panel and the library window read from these folders; nothing is scanned until one of them opens." />
+          <ListBox x:Name="LibraryRootsList" MaxHeight="160" FontSize="11" />
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Classes="text" Content="Add folder…" Click="OnLibraryAddRoot" />
+            <Button Classes="text" Content="Remove" Click="OnLibraryRemoveRoot" />
+          </StackPanel>
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.6"
+                     Text="The same list the library window edits — a setting of the machine, kept across sessions and shared by every project." />
         </StackPanel>
       </StackPanel>
     </ScrollViewer>

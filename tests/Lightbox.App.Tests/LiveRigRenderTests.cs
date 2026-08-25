@@ -145,7 +145,8 @@ public class LiveRigRenderTests
         Assert.Equal(
             TileFallbackReason.BoundStrokes,
             TileFallback.Reason(
-                BoundFrame(), hasCamera: false, haveViewport: true, liveEffectHere: false, posed: false));
+                BoundFrame(), hasCamera: false, haveViewport: true, liveEffectHere: false, posed: false,
+                shaped: false));
     }
 
     [Fact]
@@ -162,6 +163,7 @@ public class LiveRigRenderTests
         Assert.Equal(
             TileFallbackReason.BoundStrokes,
             TileFallback.Reason(
-                plain, hasCamera: false, haveViewport: true, liveEffectHere: false, posed: true));
+                plain, hasCamera: false, haveViewport: true, liveEffectHere: false, posed: true,
+                shaped: false));
     }
 }
