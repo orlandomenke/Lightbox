@@ -51,6 +51,32 @@ internal static class InputTrace
     internal enum Kind : byte
     {
         Move,
+
+        /// <summary>
+        /// One point out of a delivered move's coalesced batch.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>The paint path reads a batch, not a point.</b>
+        /// <c>CanvasControl</c> calls <c>GetIntermediatePoints</c> and appends a
+        /// sample per point, so a trace that recorded one entry per delivered
+        /// event described the hover faithfully and the <em>stroke</em> as
+        /// something sparser than the artist drew. Everything downstream of that
+        /// — pressure, tilt, the speed estimator, the dab count — came out
+        /// different on a replay.
+        /// </para>
+        /// <para>
+        /// Recorded only when a batch has more than one point, so an ordinary
+        /// hover trace is exactly the size it always was. The pair of counts is
+        /// also the answer to a question B189 asks and nothing could previously
+        /// settle: a pen advertising 240 Hz that arrives as 60 moves a second
+        /// carrying four samples each has been <em>coalesced</em>, and one that
+        /// arrives as 60 carrying one has been <em>throttled</em>. Those want
+        /// opposite fixes and looked identical.
+        /// </para>
+        /// </remarks>
+        Sample,
+
         Enter,
         Exit,
         Press,
@@ -82,7 +108,23 @@ internal static class InputTrace
         float TiltX,
         float TiltY,
         KeyModifiers Modifiers,
-        string? Detail);
+        string? Detail,
+        /// <summary>
+        /// Whether the device was in contact. Read per sample by the paint path,
+        /// which drops anything not pressed — coalesced history reaches back past
+        /// the press into hover positions, and letting those into a stroke is
+        /// B185. A replay that had to infer this from the surrounding press and
+        /// release was inferring the exact thing the bug is about.
+        /// </summary>
+        bool InContact = false,
+        /// <summary>
+        /// The platform's own timestamp for the event, which is not
+        /// <see cref="Entry.Seconds"/>: that one is when the trace saw it. The
+        /// gap between the two is driver and dispatcher latency — B189's
+        /// question — and the speed axis is computed from this one, so a replay
+        /// without it produces a different speed than the capture.
+        /// </summary>
+        ulong DeviceTime = 0);
 
     /// <summary>
     /// A minute of a 240 Hz pen plus a mouse stream and the popup chatter fits
@@ -119,6 +161,7 @@ internal static class InputTrace
             OpenPopups.Clear();
             _lastDecided = null;
             _lastAssigned = null;
+            _rigWidth = _rigHeight = _rigZoom = 0;
             _armedAtTicks = Stopwatch.GetTimestamp();
             _gcAtArm = (GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2),
                 GC.GetTotalPauseDuration());
@@ -168,23 +211,75 @@ internal static class InputTrace
         (Stopwatch.GetTimestamp() - _armedAtTicks) / (double)Stopwatch.Frequency;
 
     /// <summary>A pointer event on the canvas, with everything the device said.</summary>
+    /// <remarks>
+    /// The coalesced batch is asked for only on a move and only while armed:
+    /// <c>GetIntermediatePoints</c> allocates, and this sits on the path
+    /// invariant 6 governs. Disarmed it is still one volatile read.
+    /// </remarks>
     public static void Pointer(Kind kind, PointerEventArgs e, Visual relativeTo)
     {
         if (!Volatile.Read(ref _armed)) return;
         try
         {
+            NoteRig(relativeTo);
+            var now = Now();
+
+            // The batch first, then the delivered event, so the replay meets them
+            // in the order the paint path did.
+            if (kind == Kind.Move)
+            {
+                var points = e.GetIntermediatePoints(relativeTo);
+                if (points.Count > 1)
+                {
+                    foreach (var point in points)
+                    {
+                        Note(new Entry(
+                            now, Kind.Sample, e.Pointer.Type, e.Pointer.Id,
+                            (float)point.Position.X, (float)point.Position.Y,
+                            point.Properties.Pressure, point.Properties.XTilt, point.Properties.YTilt,
+                            e.KeyModifiers, null, point.Properties.IsLeftButtonPressed, e.Timestamp));
+                    }
+                }
+            }
+
             var pp = e.GetCurrentPoint(relativeTo);
             Note(new Entry(
-                Now(), kind, e.Pointer.Type, e.Pointer.Id,
+                now, kind, e.Pointer.Type, e.Pointer.Id,
                 (float)pp.Position.X, (float)pp.Position.Y,
                 pp.Properties.Pressure, pp.Properties.XTilt, pp.Properties.YTilt,
-                e.KeyModifiers, null));
+                e.KeyModifiers, null, pp.Properties.IsLeftButtonPressed, e.Timestamp));
         }
         catch
         {
             // Tracing must never break input.
         }
     }
+
+    /// <summary>
+    /// The shape of the surface the coordinates are relative to.
+    /// </summary>
+    /// <remarks>
+    /// <b>Without it a capture cannot be replayed at the size it was taken at.</b>
+    /// Every position in this file is canvas-relative, so replaying a
+    /// 2560×1440 capture against whatever rig a test happens to build is a
+    /// different run — silently, and most so for the events near an edge, which
+    /// are the enters and exits the whole instrument is about. Three field
+    /// writes per event and no allocation: the string is built once, in the
+    /// report.
+    /// </remarks>
+    private static void NoteRig(Visual relativeTo)
+    {
+        var bounds = relativeTo.Bounds;
+        _rigWidth = bounds.Width;
+        _rigHeight = bounds.Height;
+        _rigZoom = relativeTo is Rendering.CanvasControl canvas ? canvas.ZoomPercent : 0;
+    }
+
+    private static double _rigWidth, _rigHeight, _rigZoom;
+
+    /// <summary>The canvas the capture was taken against, for the replay to match.</summary>
+    internal static (double Width, double Height, double ZoomPercent) Rig =>
+        (_rigWidth, _rigHeight, _rigZoom);
 
     /// <summary>Capture lost carries a pointer and no position.</summary>
     public static void CaptureLost(IPointer pointer)
@@ -469,6 +564,13 @@ internal static class InputTrace
         IReadOnlyList<DeviceSeen> Devices,
         int Alternations,
         int Moves,
+        /// <summary>
+        /// Coalesced points delivered inside those moves. Beside
+        /// <see cref="Moves"/> it says whether a stream that arrives slower than
+        /// the pen advertises was coalesced or throttled — see
+        /// <see cref="Kind.Sample"/>.
+        /// </summary>
+        int Samples,
         int ShiftReported,
         int Enters,
         int Exits,
@@ -516,6 +618,7 @@ internal static class InputTrace
 
             var devices = new Dictionary<(PointerType, int), (int Events, float MaxP, bool Tilt)>();
             int alternations = 0, moves = 0, enters = 0, exits = 0, decided = 0, assigned = 0, opened = 0, shifted = 0;
+            var samples = 0;
             var lastId = int.MinValue;
             double seconds = 0;
 
@@ -537,6 +640,7 @@ internal static class InputTrace
                         if (e.Kind == Kind.Enter) enters++;
                         if (e.Kind == Kind.Exit) exits++;
                         break;
+                    case Kind.Sample: samples++; break;
                     case Kind.CursorDecided: decided++; break;
                     case Kind.CursorAssigned: assigned++; break;
                     case Kind.PopupOpened: opened++; break;
@@ -564,7 +668,7 @@ internal static class InputTrace
 
             return new Summary(
                 seconds, kept, _count > Capacity, deviceList,
-                alternations, moves, shifted, enters, exits, decided, assigned,
+                alternations, moves, samples, shifted, enters, exits, decided, assigned,
                 opened, collapsed, shortest, _stalls, _worstStall, _blockedMs, silence,
                 Verdicts(
                     seconds, deviceList, alternations, enters, exits, assigned,
@@ -697,6 +801,11 @@ internal static class InputTrace
             // before anybody blames the brush engine for feeling laggy (B189).
             sb.AppendLine($"  moves                 {summary.Moves}"
                 + (summary.Seconds > 0 ? $" ({summary.Moves / summary.Seconds:F0}/s)" : ""));
+            sb.AppendLine($"  coalesced samples     {summary.Samples}"
+                + (summary.Samples > 0 && summary.Seconds > 0
+                    ? $" ({summary.Samples / summary.Seconds:F0}/s)"
+                        + "  <-- the device's rate; the moves above are the delivery rate"
+                    : " (none — every move carried one point)"));
             sb.AppendLine($"  stream alternations   {summary.Alternations}");
             // B256. A stroke is constrained to one axis while Shift is held, and
             // "it only draws horizontal lines after the pen has been away" is
@@ -744,6 +853,12 @@ internal static class InputTrace
 
             sb.AppendLine("events (oldest first)");
             AppendEvents(sb);
+            sb.AppendLine();
+
+            // The machine's copy of the same events. A capture is only worth the
+            // round-trip it cost if it can become a fixture afterwards, and that
+            // needs the numbers unrounded — see InputTraceLog.
+            InputTraceLog.Append(sb, EntriesInOrder(), Rig, summary.Wrapped);
 
             Directory.CreateDirectory(DiagnosticLog.Directory);
             var path = Path.Combine(
@@ -759,23 +874,39 @@ internal static class InputTrace
 
     private static void AppendEvents(StringBuilder sb)
     {
+        foreach (var e in EntriesInOrder())
+        {
+            sb.Append($"  {e.Seconds,9:F4}  {e.Kind,-14}");
+            if (e.DeviceId >= 0)
+            {
+                sb.Append($"{e.Device} id {e.DeviceId}  ({e.X:F1}, {e.Y:F1})  p {e.Pressure:F2}");
+                if (e.TiltX != 0 || e.TiltY != 0) sb.Append($"  tilt {e.TiltX:F0}/{e.TiltY:F0}");
+            }
+            if (e.Modifiers != KeyModifiers.None) sb.Append($"  [{e.Modifiers}]");
+            if (e.Detail is { } detail) sb.Append($"  {detail}");
+            sb.AppendLine();
+        }
+    }
+
+    /// <summary>
+    /// Every kept event, oldest first — the ring unrolled once, under the lock,
+    /// for the two writers that need it.
+    /// </summary>
+    /// <remarks>
+    /// Copied out rather than walked in place because the second writer is
+    /// <see cref="InputTraceLog"/>, and formatting fifteen thousand lines with
+    /// the gate held would block the pointer path of a trace somebody is still
+    /// recording. The copy is the cheap half of writing the report.
+    /// </remarks>
+    internal static Entry[] EntriesInOrder()
+    {
         lock (Gate)
         {
             var kept = (int)Math.Min(_count, Capacity);
             var start = _count > Capacity ? _count % Capacity : 0;
-            for (var i = 0; i < kept; i++)
-            {
-                var e = Ring[(start + i) % Capacity];
-                sb.Append($"  {e.Seconds,9:F4}  {e.Kind,-14}");
-                if (e.DeviceId >= 0)
-                {
-                    sb.Append($"{e.Device} id {e.DeviceId}  ({e.X:F1}, {e.Y:F1})  p {e.Pressure:F2}");
-                    if (e.TiltX != 0 || e.TiltY != 0) sb.Append($"  tilt {e.TiltX:F0}/{e.TiltY:F0}");
-                }
-                if (e.Modifiers != KeyModifiers.None) sb.Append($"  [{e.Modifiers}]");
-                if (e.Detail is { } detail) sb.Append($"  {detail}");
-                sb.AppendLine();
-            }
+            var entries = new Entry[kept];
+            for (var i = 0; i < kept; i++) entries[i] = Ring[(start + i) % Capacity];
+            return entries;
         }
     }
 
@@ -784,10 +915,13 @@ internal static class InputTrace
     /// <summary>Inject an entry at a chosen time — the tests own the clock.</summary>
     internal static void NoteForTests(
         double seconds, Kind kind, PointerType device, int deviceId,
-        float pressure = 0, float tiltX = 0, float tiltY = 0, string? detail = null)
+        float pressure = 0, float tiltX = 0, float tiltY = 0, string? detail = null,
+        bool inContact = false, ulong deviceTime = 0)
     {
         if (!Volatile.Read(ref _armed)) return;
-        Note(new Entry(seconds, kind, device, deviceId, 0, 0, pressure, tiltX, tiltY, KeyModifiers.None, detail));
+        Note(new Entry(
+            seconds, kind, device, deviceId, 0, 0, pressure, tiltX, tiltY, KeyModifiers.None, detail,
+            inContact, deviceTime));
     }
 
     /// <summary>
@@ -836,6 +970,7 @@ internal static class InputTrace
             OpenPopups.Clear();
             _lastDecided = null;
             _lastAssigned = null;
+            _rigWidth = _rigHeight = _rigZoom = 0;
             _stalls = 0;
             _worstStall = 0;
             _blockedMs = 0;

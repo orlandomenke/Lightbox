@@ -1,0 +1,59 @@
+Lightbox input trace (B126/B254)
+when    2026-08-25T00:00:00.0000000Z (UTC)
+build   fixture
+os      fixture
+
+SYNTHETIC. This is not a capture from anybody's machine. It is a short file in
+the shape a real report has, so the reader and the replay harness are exercised
+against the real format rather than against a string built in a test. Its shape
+mirrors what B126's three traces measured -- a pen reporting fractional
+coordinates, pressure and tilt, traded with a phantom "mouse" that reports whole
+pixels and Avalonia's default 0.50 pressure, at gaps under a millisecond -- but
+the numbers are made up and no verdict should be read off it.
+
+A real capture belongs here too, unedited. See README.md in this folder.
+
+counters
+  moves                 8
+  stream alternations   8
+  canvas enter/exit     5/5
+
+events (oldest first)
+  (elided in the fixture -- the replay section below is what is read)
+
+replay v1
+# the same events at full precision, for the replay harness in the test
+# suite. The list above is this list rounded for reading.
+seconds	kind	device	id	x	y	pressure	tiltX	tiltY	modifiers	detail
+0.0	Enter	Pen	1	412.37	288.91	0.0	0.0	0.0	None	
+0.0041	CursorDecided	Mouse	-1	0.0	0.0	0.0	0.0	0.0	None	start->None
+0.008	Move	Pen	1	413.62	289.44	0.0	-8.0	3.0	None	
+0.0121	Move	Pen	1	415.08	290.15	0.0	-8.0	3.0	None	
+0.016	Exit	Pen	1	416.5	291.0	0.0	-8.0	3.0	None	
+0.0165	Enter	Mouse	2	417.0	291.0	0.5	0.0	0.0	None	
+0.0169	Move	Mouse	2	417.0	291.0	0.5	0.0	0.0	None	
+0.0173	Exit	Mouse	2	417.0	291.0	0.5	0.0	0.0	None	
+0.0178	Enter	Pen	1	416.5	291.0	0.0	-8.0	3.0	None	
+0.0545	Exit	Pen	1	417.5	291.5	0.0	-8.0	3.0	None	
+0.055	Enter	Mouse	2	418.0	292.0	0.5	0.0	0.0	None	
+0.0554	Move	Mouse	2	418.0	292.0	0.5	0.0	0.0	None	
+0.0558	Exit	Mouse	2	418.0	292.0	0.5	0.0	0.0	None	
+0.0563	Enter	Pen	1	417.5	291.5	0.0	-8.0	3.0	None	
+0.093	Exit	Pen	1	418.5	292.0	0.0	-8.0	3.0	None	
+0.0935	Enter	Mouse	2	419.0	293.0	0.5	0.0	0.0	None	
+0.0939	Move	Mouse	2	419.0	293.0	0.5	0.0	0.0	None	
+0.0943	Exit	Mouse	2	419.0	293.0	0.5	0.0	0.0	None	
+0.0948	Enter	Pen	1	418.5	292.0	0.0	-8.0	3.0	None	
+0.1315	Exit	Pen	1	419.5	292.5	0.0	-8.0	3.0	None	
+0.132	Enter	Mouse	2	420.0	294.0	0.5	0.0	0.0	None	
+0.1324	Move	Mouse	2	420.0	294.0	0.5	0.0	0.0	None	
+0.1328	Exit	Mouse	2	420.0	294.0	0.5	0.0	0.0	None	
+0.1333	Enter	Pen	1	419.5	292.5	0.0	-8.0	3.0	None	
+0.17	PopupOpened	Mouse	-1	0.0	0.0	0.0	0.0	0.0	None	Submenu of "Follows the rig"
+0.29	PopupClosed	Mouse	-1	0.0	0.0	0.0	0.0	0.0	None	Submenu of "Follows the rig" after 120 ms
+0.4	Press	Pen	1	420.11	295.62	0.14	-7.0	4.0	None	
+0.408	Move	Pen	1	424.83	298.07	0.47	-7.0	4.0	None	
+0.416	Move	Pen	1	430.29	301.55	0.82	-6.0	4.0	Shift	
+0.424	Release	Pen	1	434.9	304.18	0.0	-6.0	4.0	None	
+0.43	Exit	Pen	1	434.9	304.18	0.0	0.0	0.0	None	
+1.94	Note	Mouse	-1	0.0	0.0	0.0	0.0	0.0	None	trace stopped
