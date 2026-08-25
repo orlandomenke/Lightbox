@@ -388,6 +388,68 @@ public static class LiveStampSplit
     /// <summary>Document pixels the owner's hand covers per delivered move. See MarkWith.</summary>
     private const double TravelPerEvent = 15.1;
 
+    /// <summary>
+    /// Is a silhouette event's cost in BUILDING the path or in FILLING it?
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The fork that decides B299's fix, and it needs no engine change to
+    /// answer.</b> `StampSilhouette` does two things per event: rebuild an
+    /// SKPath holding a contour per kept dab, and fill it clipped to a band.
+    /// Everything proposed so far shrinks the BAND. If the cost is the build,
+    /// none of it helps and the answer is to cache the path; if the cost is the
+    /// fill, the band is the whole game.
+    /// </para>
+    /// <para>
+    /// Measured by clipping the canvas to a pinhole before the call. Skia
+    /// intersects clips, so the engine's own band becomes the pinhole and the
+    /// fill collapses to nothing while the build is untouched. Whatever time
+    /// survives the pinhole is the build.
+    /// </para>
+    /// </remarks>
+    public static string BuildOrFill(int points = 400, int repeats = 5)
+    {
+        var info = new SKImageInfo(Width, Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        var sb = new StringBuilder();
+        sb.AppendLine("-- is it the build or the fill? (B299) ------------------------");
+        sb.AppendLine($"   Ink at {points} events, {Width}x{Height}, one StampDabRange call.");
+        sb.AppendLine();
+
+        var ink = BuiltInPresets.Create().First(p => p.Name == "Ink");
+        var full = MarkWith(ink.Settings, points, TravelPerEvent);
+
+        using var live = new Live();
+        var dabs = BrushEngine.WalkDabs(full, live.Densify);
+
+        double whole = double.MaxValue, pinhole = double.MaxValue;
+        for (var r = 0; r < repeats; r++)
+        {
+            var sw = Stopwatch.StartNew();
+            BrushEngine.StampDabRange(live.Canvas, full, dabs, 0, dabs.Count);
+            live.Canvas.Flush();
+            whole = Math.Min(whole, sw.Elapsed.TotalMilliseconds);
+
+            // The same call, with nowhere to put pixels.
+            sw.Restart();
+            live.Canvas.Save();
+            live.Canvas.ClipRect(SKRect.Create(0, 0, 1, 1), SKClipOperation.Intersect, antialias: false);
+            BrushEngine.StampDabRange(live.Canvas, full, dabs, 0, dabs.Count);
+            live.Canvas.Flush();
+            live.Canvas.Restore();
+            pinhole = Math.Min(pinhole, sw.Elapsed.TotalMilliseconds);
+        }
+
+        sb.AppendLine($"   dabs in the mark            {dabs.Count}");
+        sb.AppendLine($"   whole band (what ships)     {whole,8:0.00} ms");
+        sb.AppendLine($"   clipped to one pixel        {pinhole,8:0.00} ms   <- the BUILD");
+        sb.AppendLine($"   difference                  {whole - pinhole,8:0.00} ms   <- the FILL");
+        sb.AppendLine();
+        sb.AppendLine("   If the build is most of it, shrinking the band cannot help and the");
+        sb.AppendLine("   path wants caching. If the fill is most of it, the band is the game.");
+        sb.AppendLine();
+        return sb.ToString();
+    }
+
     public static string Report(int repeats = 3)
     {
         var sb = new StringBuilder();

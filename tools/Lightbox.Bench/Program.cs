@@ -35,6 +35,8 @@ if (filter is not null && "livestamp".Contains(filter, StringComparison.OrdinalI
     Console.WriteLine("Splitting one pointer event by phase...");
     Console.WriteLine(LiveStampSplit.Report());
     Console.WriteLine(LiveStampSplit.Presets());
+    Console.WriteLine(LiveStampSplit.BuildOrFill());
+    Console.WriteLine(MaxCoverageProto.Report());
 }
 
 var scenarios = AnimationSweeps.All()
