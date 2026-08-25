@@ -122,9 +122,8 @@
         <StackPanel Spacing="6">
           <TextBlock Text="Composite layers on the GPU" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
-                     Text="Experimental, and off because it is not yet known to be faster. Blending layers on the graphics card should help most on a large canvas with many layers — but the layer images have to reach the card first, and on a laptop with shared graphics memory that transfer competes with the drawing itself. It may be slower. Switch it on, play a scene back, then write a render report to see what it did on this machine." />
-          <CheckBox x:Name="GpuCompositeBox" Content="Use the graphics card to blend layers"
-                    IsCheckedChanged="OnGpuCompositeChanged" />
+                     Text="Blending layers on the graphics card helps most on a large canvas with many layers — but the layer images have to reach the card first, and on a laptop with shared graphics memory that transfer competes with the drawing itself. It is not faster everywhere. Left on Automatic, Lightbox blends the same layers both ways once at startup and keeps whichever this machine is quicker at." />
+          <ComboBox x:Name="GpuCompositeBox" Width="260" SelectionChanged="OnGpuCompositeChanged" />
           <TextBlock x:Name="GpuCompositeHint" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
         </StackPanel>
 

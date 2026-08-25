@@ -987,16 +987,20 @@ public partial class ConfigureWindow : Window
         PlaybackQualityBox.SelectedItem = _vm.PlaybackQualityChoice;
         UndoDepthBox.Value = _vm.UndoDepth;
         CacheBudgetBox.Value = _vm.FrameCacheBudgetMb;
-        GpuCompositeBox.IsChecked = _vm.GpuCompositing;
+        GpuCompositeBox.ItemsSource = _vm.GpuCompositingChoices;
+        GpuCompositeBox.SelectedItem = _vm.GpuCompositingMode;
         _loadingPerformance = false;
         RefreshGpuCompositeHint();
         RefreshMeasured();
     }
 
-    private void OnGpuCompositeChanged(object? sender, RoutedEventArgs e)
+    private void OnGpuCompositeChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_loadingPerformance || _vm is null) return;
-        _vm.GpuCompositing = GpuCompositeBox.IsChecked == true;
+        if (GpuCompositeBox.SelectedItem is Rendering.GpuComposeMode mode)
+        {
+            _vm.GpuCompositingMode = mode;
+        }
         RefreshGpuCompositeHint();
         RefreshMeasured();
     }
@@ -1015,7 +1019,8 @@ public partial class ConfigureWindow : Window
     private void RefreshGpuCompositeHint()
     {
         if (_vm is null) return;
-        if (GpuCompositeBox.IsChecked != true)
+
+        if (_vm.GpuCompositingMode == Rendering.GpuComposeMode.Off)
         {
             GpuCompositeHint.Text = "Layers are blended on the processor.";
             return;
@@ -1029,10 +1034,36 @@ public partial class ConfigureWindow : Window
             return;
         }
 
-        GpuCompositeHint.Text =
-            "On. Only takes effect when the canvas is zoomed in past the edges of the "
-            + "document — a fit-to-window view composites the whole canvas the old way. "
-            + "Play a scene back, then Help ▸ Write a render report to see what it did.";
+        if (_vm.GpuCompositingMode == Rendering.GpuComposeMode.On)
+        {
+            GpuCompositeHint.Text =
+                "On, whatever this machine measures. Play a scene back, then "
+                + "Help ▸ Write a render report to see what it did.";
+            return;
+        }
+
+        // Automatic. Say what was measured rather than what was asked for — the
+        // status bar reading "GPU" and meaning only that Avalonia can blit
+        // misled the owner once already, and B125's entry records that as part
+        // of the bug rather than incidental to it.
+        GpuCompositeHint.Text = Rendering.GpuComposite.AutoProbe switch
+        {
+            null => "Automatic. Nothing has been drawn yet, so this machine has not been measured.",
+            { } probe when Rendering.GpuComposite.AutoDecision == true =>
+                $"Automatic: the card blended {probe.Speedup:F1}x faster than the processor here, "
+                + "so it is being used. Help ▸ Write a render report says what it did.",
+            { HadContext: false } =>
+                "Automatic: there is no graphics context on this machine, so the processor "
+                + "is blending. Choosing On would change nothing.",
+            { SurfaceRefused: true } =>
+                "Automatic: the driver would not give Lightbox a surface to blend into, so "
+                + "the processor is doing it.",
+            { } probe =>
+                $"Automatic: the card was only {probe.Speedup:F1}x the processor's speed here — "
+                + "not enough to be worth the graphics memory — so the processor is blending. "
+                + "Some machines report a graphics card and draw in software anyway; this is "
+                + "how that gets caught. Choose On to override it.",
+        };
     }
 
     private void RefreshMeasured()

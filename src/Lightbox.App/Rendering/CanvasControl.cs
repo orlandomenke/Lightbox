@@ -490,6 +490,48 @@ public sealed partial class CanvasControl : Control
         BackendDetected?.Invoke();
     }
 
+    private static bool _composeProbed;
+
+    /// <summary>
+    /// Ask this machine, once, whether it blends faster on the card.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Here because here is where the context is.</b> The <c>GRContext</c>
+    /// lives inside the render thread's lease and nowhere else — the same fact
+    /// that made GPU compositing an inversion rather than a substitution
+    /// (<c>DESIGN-gpu-compositing.md</c>'s first crux), and the same reason the
+    /// render report's upload probe has to be queued rather than called.
+    /// </para>
+    /// <para>
+    /// <b>Not through <see cref="RunWithGpuContext"/>, deliberately.</b> That is a
+    /// single slot with one existing owner (the render report), and two things
+    /// posting to one slot is a queued job silently dropped. This runs inline on
+    /// the first frame instead, which is also the earliest it can possibly run.
+    /// </para>
+    /// <para>
+    /// It costs one frame at startup and only ever runs when the mode is
+    /// Automatic — an artist who has chosen On or Off is not asking to be
+    /// measured, and measuring them anyway would spend the frame for nothing.
+    /// </para>
+    /// </remarks>
+    private static void ProbeComposeBackend(ISkiaSharpApiLease lease)
+    {
+        if (_composeProbed) return;
+        if (GpuComposite.Mode != GpuComposeMode.Auto) return;
+        _composeProbed = true;
+        var result = GpuComposeProbe.Run(lease.GrContext);
+        GpuComposite.NoteProbe(result);
+        Services.DiagnosticLog.WriteNote("gpu-compose-probe", result.Describe());
+    }
+
+    /// <summary>Test seam: let the probe run again.</summary>
+    internal static void ForgetComposeProbeForTests()
+    {
+        _composeProbed = false;
+        GpuComposite.ForgetProbeForTests();
+    }
+
     /// <summary>Test seam: pretend the backend came back as software, or as a GPU.</summary>
     internal static void ForceBackendForTests(bool? software)
     {
@@ -4043,6 +4085,9 @@ public sealed partial class CanvasControl : Control
             using var lease = feature.Lease();
             var canvas = lease.SkCanvas;
             RecordBackend(lease);
+            // Once per session, before anything composites: which backend is
+            // actually faster here. See ProbeComposeBackend.
+            ProbeComposeBackend(lease);
 
             canvas.Save();
             canvas.ClipRect(new SKRect(0, 0, (float)Bounds.Width, (float)Bounds.Height));
