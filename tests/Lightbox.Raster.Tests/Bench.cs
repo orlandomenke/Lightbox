@@ -15,7 +15,17 @@ namespace Lightbox.Raster.Tests;
 ///
 /// It does not help against the <em>other</em> test assemblies, which run at
 /// the same time under <c>dotnet test Lightbox.sln</c>. That is what
-/// <see cref="Bench.FastestMs"/> is for.
+/// <see cref="Bench.FastestMs"/> and <see cref="Bench.MachineIsQuiet"/> are for.
+///
+/// <b>Every class carrying a performance-tagged test belongs in a collection
+/// that disables parallelisation — but not necessarily this one.</b> On
+/// 2026-08-25 four such classes were found outside it and three were moved in;
+/// the fourth, <c>BrushTipOutlineTests</c>, is <c>[Collection("Registries")]</c>,
+/// which is *also* <c>DisableParallelization = true</c> and therefore already
+/// gives it what this collection would. A class can only be in one collection,
+/// so the check to make is "is it in a serial collection", not "is it in this
+/// one" — and moving it here would have cost it the registry isolation it is in
+/// that collection for.
 /// </remarks>
 [CollectionDefinition("Performance", DisableParallelization = true)]
 public class PerformanceCollection;
