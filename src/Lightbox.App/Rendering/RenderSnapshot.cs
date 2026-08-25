@@ -33,6 +33,39 @@ public sealed class RenderSnapshot(
     DeferredCompose? deferred = null) : IDisposable
 {
     private SKImage? _image = image;
+
+    /// <summary>
+    /// Which composite this is, when it is one the cache may keep — null
+    /// otherwise, which is every publish that is not a plain playback frame.
+    /// </summary>
+    /// <remarks>
+    /// Decided by the publisher rather than here, on the same reasoning
+    /// <see cref="FrameFingerprint"/> already uses: only the view model knows
+    /// whether a stroke is in flight, and a composite taken mid-stroke is one
+    /// nothing will ever ask for again.
+    /// </remarks>
+    /// <remarks>
+    /// <para>
+    /// Assigned by the publisher after construction rather than taken as a
+    /// constructor argument, because this type is public and
+    /// <see cref="ComposeKey"/> is not — widening a fingerprint, a matrix and a
+    /// viewport into the public surface to pass one internal value would be the
+    /// tail wagging the dog.
+    /// </para>
+    /// </remarks>
+    internal ComposeKey? CacheKey { get; set; }
+
+    /// <summary>
+    /// The cache this snapshot's image belongs to, when it borrowed rather than
+    /// composed — see <see cref="Materialise(GRContext?, LayerTextureCache?, ComposeCache?)"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Set means "do not dispose".</b> A borrowed image is the cache's, and
+    /// freeing it here is the use-after-free B130 already cost this project
+    /// once: an access violation inside <c>sk_canvas_draw_image_rect</c>, no
+    /// managed stack, an empty log.
+    /// </remarks>
+    private ComposeCache? _borrowedFrom;
     private readonly Lock _gate = new();
     private bool _disposed;
 
@@ -120,18 +153,48 @@ public sealed class RenderSnapshot(
     /// </remarks>
     public SKImage Materialise(GRContext? gpu) => Materialise(gpu, null);
 
+    /// <inheritdoc cref="Materialise(GRContext?, LayerTextureCache?, ComposeCache?)"/>
+    public SKImage Materialise(GRContext? gpu, LayerTextureCache? textures) =>
+        Materialise(gpu, textures, null);
+
     /// <inheritdoc cref="Materialise(GRContext?)"/>
     /// <param name="textures">
     /// Resident layer textures (B125 stage 5), so a layer showing the same
     /// drawing as the last frame is not uploaded again. Ignored unless the
     /// surface is GPU-backed.
     /// </param>
-    public SKImage Materialise(GRContext? gpu, LayerTextureCache? textures)
+    /// <param name="cache">
+    /// Finished composites from earlier frames (B167 phase 7), or null where
+    /// there is none — every caller but the canvas.
+    /// </param>
+    /// <remarks>
+    /// <b>A cache hit skips the blend entirely</b>, which is the whole feature:
+    /// lap two of a loop composes nothing. A miss composes and hands the result
+    /// to the cache, which then owns it — so the ordinary path stops disposing
+    /// its own image and starts releasing a hold instead. Both cases set
+    /// <c>_borrowedFrom</c>; the only image this snapshot still owns is one the
+    /// cache refused.
+    /// </remarks>
+    internal SKImage Materialise(GRContext? gpu, LayerTextureCache? textures, ComposeCache? cache)
     {
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             if (_image is not null) return _image;
+
+            if (cache is not null && CacheKey is { } key
+                && cache.Acquire(key) is { } cached)
+            {
+                _image = cached;
+                _borrowedFrom = cache;
+                // The cache knows how it was composed; this snapshot did not
+                // compose it, so it must not claim to know either. GpuBacked
+                // decides only where a free goes, and a borrowed image is never
+                // freed here.
+                FromCache = true;
+                return cached;
+            }
+
             if (Deferred is not { } work)
             {
                 throw new InvalidOperationException(
@@ -139,9 +202,22 @@ public sealed class RenderSnapshot(
             }
             _image = work.Compose(gpu, textures, out var onGpu);
             GpuBacked = onGpu;
+
+            if (cache is not null && CacheKey is { } storeKey
+                && cache.Store(storeKey, _image, BytesOf(_image), onGpu))
+            {
+                // Ownership moved. From here the cache frees it, once this
+                // snapshot and every other reader has let go.
+                _borrowedFrom = cache;
+            }
             return _image;
         }
     }
+
+    /// <summary>Whether this frame was served from the cache rather than blended.</summary>
+    public bool FromCache { get; private set; }
+
+    private static long BytesOf(SKImage image) => (long)image.Width * image.Height * 4;
 
     /// <summary>
     /// The passes this snapshot was composed from, when the publisher sent them
@@ -203,7 +279,15 @@ public sealed class RenderSnapshot(
             _disposed = true;
             if (_image is not null)
             {
-                if (GpuBacked) toReap = _image;
+                if (_borrowedFrom is { } cache)
+                {
+                    // Borrowed, not owned (B167 phase 7). Releasing may free it
+                    // — if the cache has already evicted it and this was the
+                    // last reader — and the cache is the only thing that can
+                    // know that, which is exactly why the decision is not here.
+                    cache.Release(_image);
+                }
+                else if (GpuBacked) toReap = _image;
                 else _image.Dispose();
                 _image = null;
             }

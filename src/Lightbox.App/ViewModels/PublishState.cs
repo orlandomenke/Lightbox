@@ -70,6 +70,44 @@ sealed class PublishState
     internal FrameFingerprint? LastPublished { get; set; }
 
     /// <summary>
+    /// How many times the document's rendered content has been invalidated.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The half <see cref="FrameFingerprint"/> cannot carry (B167 phase 7).</b>
+    /// That record answers "would this frame compose to what the *previous*
+    /// publish composed", which is a question about two adjacent moments and is
+    /// exactly right for the single-slot reuse check it was built for. A cache
+    /// asks about two moments a lap of the loop apart, and between them an
+    /// artist can have drawn — so the key needs something the fingerprint has no
+    /// reason to hold.
+    /// </para>
+    /// <para>
+    /// Bumped in <c>MainViewModel.InvalidateFrameRender</c> and
+    /// <c>ClearFrameRenders</c>, which the view model's own comment already
+    /// calls "the only thing standing between an under-the-bake edit and stale
+    /// art on screen". Anything that mutates a frame goes through there, so a
+    /// new render path that forgot to bump this would also have forgotten to
+    /// invalidate the frame cache — a failure that is loud rather than silent.
+    /// </para>
+    /// </remarks>
+    internal int RenderEpoch { get; private set; }
+
+    /// <summary>Note that something rendered has changed.</summary>
+    /// <remarks>
+    /// <b>It does not reach into the composite cache, and that is deliberate.</b>
+    /// The first version cleared it here, reasoning that giving the memory back
+    /// at once beat waiting for the budget to notice. Two things are wrong with
+    /// that. A stale entry can never be hit — its epoch is gone — so it is
+    /// never touched again and LRU evicts it before anything live; the budget
+    /// already bounds it. And this is a per-document operation on a
+    /// per-document object, called on every edit, so reaching a process-wide
+    /// lock from here made every parallel test contend on one mutex for
+    /// nothing.
+    /// </remarks>
+    internal void BumpRenderEpoch() => RenderEpoch++;
+
+    /// <summary>
     /// The document region the last publish actually recomposited (null = the whole
     /// canvas). What the artist feels as a stutter is this rect growing, so tests assert
     /// on it rather than on wall-clock, which is unusable on a shared runner.

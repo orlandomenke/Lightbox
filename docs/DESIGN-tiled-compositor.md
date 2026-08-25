@@ -79,7 +79,7 @@ yet.**
 | 4 · GPU surface for the tiled route | landed, **measured 2026-08-12: 310 publishes on the card, 0 fell back** | — |
 | 5 · resident tiles | not started | a **re-**measurement, now that residency is actually wired (see below) |
 | 6 · retire the redundant compositors | not started | phases 4–5 running long enough to trust |
-| 7 · cache the composite (added 2026-08-11) | not started | nothing — it is independent of all of the above |
+| 7 · cache the composite (added 2026-08-11) | **landed 2026-08-25** | — |
 
 **That capture happened on 2026-08-12, and it changed two things.**
 
