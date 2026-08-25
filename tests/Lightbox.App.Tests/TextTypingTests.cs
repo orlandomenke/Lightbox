@@ -98,19 +98,57 @@ public sealed class TextTypingTests(Xunit.ITestOutputHelper output) : BrushState
     }
 
     [AvaloniaFact]
-    public void PressingALetterKeyTypesIt()
+    public void ALetterKeyIsLeftUnhandledSoItCanBecomeACharacter()
     {
-        // KeyTextInput injects a character directly; a real keyboard produces a
-        // key press that the framework turns INTO a character. Only this second
-        // path can be broken by a handler that marks the key handled, which is
-        // why the tests above all passed while the tool did not work.
+        // The typing bug itself, at the only level a headless test can reach.
+        //
+        // What broke was the session marking every plain key handled, to keep B
+        // from being the brush — and a handled KeyDown never becomes a
+        // TextInput, because that is the step a handled event cancels. So the
+        // assertion is on Handled rather than on the letter arriving: this
+        // harness cannot turn a key into a character at all (KeyPressQwerty
+        // leaves even a focused TextBox empty, measured), which is exactly why
+        // the original defect shipped green.
         var (window, vm) = Typing();
 
-        window.KeyPressQwerty(PhysicalKey.A, RawInputModifiers.None);
+        var press = new KeyEventArgs
+        {
+            RoutedEvent = InputElement.KeyDownEvent,
+            Key = Key.A,
+            KeyModifiers = KeyModifiers.None,
+        };
+        window.RaiseEvent(press);
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-        output.WriteLine($"after pressing A: text='{vm.LiveText?.Text}'");
-        Assert.Equal("a", vm.LiveText?.Text);
+        output.WriteLine($"letter key: handled={press.Handled} tool={vm.ActiveTool}");
+        Assert.False(
+            press.Handled,
+            "a letter key must be left unhandled, or the framework never turns it into a character");
+        // And still kept away from the shortcuts, which is the other half.
+        Assert.Equal(ToolId.Text, vm.ActiveTool);
+        Assert.True(vm.TextSessionActive);
+    }
+
+    [AvaloniaFact]
+    public void AnEditingKeyIsHandledSoNothingElseSeesIt()
+    {
+        // The other side of the same split: keys the session acts on must be
+        // marked handled, or they reach the shortcut dispatch as well.
+        var (window, vm) = Typing();
+        window.KeyTextInput("A");
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var press = new KeyEventArgs
+        {
+            RoutedEvent = InputElement.KeyDownEvent,
+            Key = Key.Back,
+            KeyModifiers = KeyModifiers.None,
+        };
+        window.RaiseEvent(press);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.True(press.Handled, "backspace is the session's and nothing else should see it");
+        Assert.Equal("", vm.LiveText?.Text);
     }
 
     [AvaloniaFact]
