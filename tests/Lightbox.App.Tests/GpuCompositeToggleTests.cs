@@ -26,25 +26,37 @@ namespace Lightbox.App.Tests;
 public sealed class GpuCompositeToggleTests(ITestOutputHelper output) : BrushStateIsolated, IDisposable
 {
     private readonly bool? _savedOverride = GpuComposite.OptInOverride;
-    private readonly bool _savedSetting = GpuComposite.SettingEnabled;
+    private readonly GpuComposeMode _savedMode = GpuComposite.Mode;
 
     public new void Dispose()
     {
         GpuComposite.OptInOverride = _savedOverride;
-        GpuComposite.SettingEnabled = _savedSetting;
+        GpuComposite.Mode = _savedMode;
+        GpuComposite.ForgetProbeForTests();
         base.Dispose();
     }
 
     /// <summary>
-    /// Off unless asked for. An unmeasured path that may be slower is not
-    /// something a document should quietly start using.
+    /// Automatic unless asked otherwise — and this is a deliberate reversal of
+    /// what this test used to assert.
     /// </summary>
+    /// <remarks>
+    /// <b>It read "off unless asked for", on the argument that an unmeasured
+    /// path which may be slower is not something a document should quietly start
+    /// using.</b> That argument was right and it has been answered: the leak
+    /// that made the path dangerous is fixed (B179), and the same entry's
+    /// capture says playback is better with it on — mean lateness 7.85 ms
+    /// against 13.06, worst 96 against 1326. What survives of the argument is
+    /// that it cannot be right on <em>every</em> machine, which is what
+    /// Automatic is, rather than what On would be: the path is now measured on
+    /// the machine it will run on instead of being avoided everywhere.
+    /// </remarks>
     [AvaloniaFact]
-    public void ItIsOffByDefault()
+    public void ItIsAutomaticByDefault()
     {
         var settings = new AppSettings();
 
-        Assert.False(settings.GpuCompositing);
+        Assert.Equal(GpuComposeMode.Auto, settings.GpuCompositingMode);
     }
 
     /// <summary>
@@ -59,12 +71,12 @@ public sealed class GpuCompositeToggleTests(ITestOutputHelper output) : BrushSta
         GpuComposite.OptInOverride = null;
         var vm = VmLayers.PaperVm();
 
-        vm.GpuCompositing = true;
-        Assert.True(GpuComposite.SettingEnabled);
+        vm.GpuCompositingMode = GpuComposeMode.On;
+        Assert.Equal(GpuComposeMode.On, GpuComposite.Mode);
         Assert.True(GpuComposite.OptedIn);
 
-        vm.GpuCompositing = false;
-        Assert.False(GpuComposite.SettingEnabled);
+        vm.GpuCompositingMode = GpuComposeMode.Off;
+        Assert.Equal(GpuComposeMode.Off, GpuComposite.Mode);
         Assert.False(GpuComposite.OptedIn);
     }
 
@@ -76,25 +88,26 @@ public sealed class GpuCompositeToggleTests(ITestOutputHelper output) : BrushSta
     [AvaloniaFact]
     public void ItIsRemembered()
     {
-        var settings = new AppSettings { GpuCompositing = true };
+        var settings = new AppSettings { GpuCompositingMode = GpuComposeMode.On };
 
         var restored = AppSettings.Deserialize(settings.Serialize());
 
-        Assert.True(restored.GpuCompositing);
+        Assert.Equal(GpuComposeMode.On, restored.GpuCompositingMode);
     }
 
     /// <summary>
-    /// <b>A document that never touches it writes no key.</b> "Optional means
-    /// absent, not disabled" — and the cheap version of that check is to
-    /// serialise something that does not use the setting and look.
+    /// <b>The old key is gone from what gets written, so two keys can never
+    /// disagree about the same decision.</b> The cheap version of that check is
+    /// to serialise and look, which is the same move the optional-settings rule
+    /// asks for on the document model.
     /// </summary>
     [AvaloniaFact]
-    public void ADefaultSettingsFileDoesNotMentionIt()
+    public void ADefaultSettingsFileDoesNotMentionTheOldKey()
     {
         var json = new AppSettings().Serialize();
 
         output.WriteLine(json.Length > 400 ? json[..400] : json);
-        Assert.DoesNotContain("\"gpuCompositing\": true", json);
+        Assert.DoesNotContain("\"GpuCompositing\"", json);
     }
 
     /// <summary>
@@ -111,16 +124,16 @@ public sealed class GpuCompositeToggleTests(ITestOutputHelper output) : BrushSta
         vm.SnapshotChanged += Count;
         try
         {
-            vm.GpuCompositing = false;   // already false
+            vm.GpuCompositingMode = GpuComposeMode.Auto;   // already Auto
             Assert.Equal(0, publishes);
 
-            vm.GpuCompositing = true;    // a real change republishes
+            vm.GpuCompositingMode = GpuComposeMode.On;     // a real change republishes
             Assert.True(publishes > 0);
         }
         finally
         {
             vm.SnapshotChanged -= Count;
-            vm.GpuCompositing = false;
+            vm.GpuCompositingMode = GpuComposeMode.Auto;
         }
     }
 
@@ -141,19 +154,19 @@ public sealed class GpuCompositeToggleTests(ITestOutputHelper output) : BrushSta
     {
         GpuComposite.OptInOverride = null;
         var vm = VmLayers.PaperVm();
-        vm.GpuCompositing = false;
+        vm.GpuCompositingMode = GpuComposeMode.Off;
 
         GpuComposite.ResetCounters();
         GpuComposite.CountCompositeForTests(onGpu: false, times: 207);
         Assert.Equal(207, GpuComposite.CpuComposites);
 
-        vm.GpuCompositing = true;
+        vm.GpuCompositingMode = GpuComposeMode.On;
 
         output.WriteLine($"after the toggle: {GpuComposite.GpuComposites} gpu, "
                          + $"{GpuComposite.CpuComposites} cpu");
         Assert.Equal(0, GpuComposite.CpuComposites);
         Assert.Equal(0, GpuComposite.GpuComposites);
 
-        vm.GpuCompositing = false;
+        vm.GpuCompositingMode = GpuComposeMode.Auto;
     }
 }
