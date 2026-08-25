@@ -128,12 +128,21 @@ public sealed class LibraryImportSurfaceTests(ITestOutputHelper output) : Projec
         Assert.Single(vm.Characters.Entries);
         // Persisted app-side, like onion depths: which disks hold libraries is
         // a property of the machine, not of any artwork.
-        Assert.Contains(_library, File.ReadAllText(AppSettings.Path));
+        //
+        // Read back through Load rather than searched for in the file's text: a
+        // Windows path is stored with its backslashes escaped, so the raw string
+        // never appears literally and the assertion could only ever hold where
+        // separators need no escaping. The round trip is also the thing actually
+        // worth pinning — that the root survives being written and read again,
+        // not how the serializer spells it.
+        Assert.Contains(_library, AppSettings.Load().Library.Roots);
 
         vm.Characters.RemoveRoot(_library);
         Assert.False(vm.Characters.HasRoots);
         Assert.Empty(vm.Characters.Entries);
-        Assert.DoesNotContain(_library, File.ReadAllText(AppSettings.Path));
+        // On Windows the old form of this passed by never having matched in the
+        // first place, so it guarded nothing on the platform it ran on.
+        Assert.DoesNotContain(_library, AppSettings.Load().Library.Roots);
     }
 
     [AvaloniaFact]
@@ -165,7 +174,9 @@ public sealed class LibraryImportSurfaceTests(ITestOutputHelper output) : Projec
 
         vm.Characters.AddRoot(_library);
         Assert.Contains(_library, vm.Characters.Roots);
-        Assert.Contains(_library, File.ReadAllText(AppSettings.Path));
+        // Through Load for the same reason as above: the file's text spells a
+        // Windows path with escaped backslashes.
+        Assert.Contains(_library, AppSettings.Load().Library.Roots);
     }
 
     [AvaloniaFact]
