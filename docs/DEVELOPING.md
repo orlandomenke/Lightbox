@@ -247,18 +247,6 @@ For Claude Desktop, point it at a *published* `mcp/Lightbox.Mcp.exe` — see
 reports nothing at all on a bad `command`: the server never starts and the tools
 are simply absent.
 
-### Performance work
-
-```sh
-dotnet run --project tools/Lightbox.Bench -c Release
-```
-
-Minutes rather than seconds, which is why it is not in `dotnet test`. The budget
-tests inside the normal suite are the per-commit ratchet, tagged
-`[Trait("Category", "Performance")]` and deliberately loose — they catch
-order-of-magnitude regressions, not drift. The bench is the periodic map, and it
-writes `.claude/quality/PERFORMANCE.md`.
-
 ### Looking at the real window on Linux
 
 ```sh
@@ -274,13 +262,124 @@ Prefer a headless pixel test over a screenshot. Tests in
 begin/move/end pipeline and inspect the published frame; a dropped synthetic
 click looks exactly like a bug.
 
-### The GPU
+---
 
-Neither the suite nor a container can tell you whether the drawing path is using
-the graphics card, because a container has no GPU context at all. **Help ▸ Write
-a render report** moves that measurement to a machine that has one.
-`MANUAL_TESTING.md` lists what to read off it, and the line worth looking at
-first when painting feels slow is `durable frame on GPU`.
+## What only real hardware can tell you
+
+This is the part a development container is structurally unable to reach, and it
+is worth knowing how much of the project sits on the far side of that line:
+**58 entries in `BUGS.md` carry `evidence: manual`**, and four of the six open P1s
+are among them. A local machine is not a convenience here — for several of them
+it is the only instrument that exists.
+
+Three things are unreachable from a container, and each has its own way of being
+measured on a machine that has them.
+
+### The graphics card
+
+A container has no GPU context at all — nothing in the solution creates a
+`GRContext` there — so the render path a container exercises is not the one an
+artist runs. `docs/DESIGN-gpu-compositing.md` states the consequence plainly:
+upload bandwidth on an integrated GPU is the number that decides whether GPU
+compositing is a large win or a small one, *"and there is no way to measure it in
+this repository … the first measurement on real hardware is a gate, not a
+formality."*
+
+**The application now takes that measurement itself.** Compositing defaults to
+**Automatic**: on the first frame of a session `GpuComposeProbe` blends the same
+passes into a GPU surface and into a raster surface, fastest of three runs each,
+and keeps whichever won. The card has to win by **1.5×**, not merely win —
+at parity, noise alone would flip a machine between sessions.
+
+The trap that design is built around is worth knowing before you trust any
+backend string: **a software rasteriser reports as a GPU.** `llvmpipe` and
+`swiftshader` hand Skia a real GL context, so the backend says "GPU" while every
+pixel is drawn on the processor anyway — slower than the path it replaced, with
+the status bar claiming otherwise. No vendor list and no build flag catches that.
+A stopwatch does, because a software rasteriser cannot beat the raster backend it
+*is*.
+
+**Edit ▸ Configure ▸ Performance ▸ Composite layers on the GPU** is three-state
+(Auto / On / Off). Take the measurement with **Help ▸ Write a render report**,
+and read these lines:
+
+| Line | What it settles |
+| --- | --- |
+| `compositing asked for` + `probe:` | What you asked for, and what this machine answered. Printed whichever way it went, because "the processor is blending" has three causes and only one of them is a setting |
+| `durable frame on GPU` | **Check this first when painting feels slow.** *No* while the strip says GPU is `PresentedFrame.GpuSurfaceRequestFailed` — B122's saving is not happening here. The fallback is deliberately silent, so "it barely improved" and "it never ran" look identical from outside |
+| `max texture size` vs `compose surface` | A 4K canvas at a high display scale can approach the limit, which is how that silent fallback gets triggered |
+| upload probe speedup | Near 1× on a GPU-backed surface means the transfer is *not* the remaining cost. Note this answers a different question from the compose probe: it times a present, full frame against patched |
+| `repaints that copied none` | Should grow fastest while you hover *without* painting. If it does not, the cursor is dragging the artwork through a patch on every pointer move |
+
+Two reports in a row give two files rather than one overwritten — the comparison
+is the point. One at **Canvas quality: Full** and one at **Half** should differ
+by 4× in `compose surface` area, which is that setting proving it does what it
+claims.
+
+### Real timing
+
+```sh
+dotnet test --filter 'Category=Performance'          # the 34 budget tests
+dotnet run --project tools/Lightbox.Bench -c Release # the sweep
+```
+
+The budget tests are tagged `[Trait("Category", "Performance")]` and ride inside
+the normal suite as the per-commit ratchet. They are deliberately loose — they
+catch order-of-magnitude regressions, not drift — and in a container they are
+measuring a container. The bench is the periodic map rather than a ratchet: it
+takes minutes, which is why it is not in `dotnet test`, and it writes
+`.claude/quality/PERFORMANCE.md`.
+
+A number taken here is not merely less accurate than one taken on your machine —
+some are actively misleading. A startup render report written in this
+container recorded `TIP -> SCREEN mean 37430.28 ms` and
+`4903 MB is NOT in any cache this report tracks`; both are artifacts of an idle
+application under Xvfb rather than measurements of anything. This is
+`docs/DESIGN-performance.md`'s rule in its natural habitat — *the number was real
+and the attribution was not*. Read slopes here, absolute numbers there.
+
+### A pen tablet
+
+Nothing headless can reproduce a pen leaving proximity, and this repository has
+no pen and no Windows. Four bugs live entirely here — **B255** (hovering a menu
+freezes the app for up to 6 s), **B256** (a stroke draws only a horizontal line
+after the pen returns from proximity), **B126** and **B254**.
+
+**The instrument is built: `Services/InputTrace.cs`, bound to `F9`**, writing a
+report beside the crash logs. It records device type and id, event kind,
+enter/exit, cursor decisions, `KeyModifiers`, and a dispatcher heartbeat that
+distinguishes a freeze from a pointer resting somewhere else.
+
+The ritual, which only means anything performed identically on both sides of a
+change: **hover still, hover moving, draw a stroke, open a flyout**, for a
+comparable duration. A short trace extrapolates a per-minute rate from noise, so
+the instrument refuses to conclude at all under five seconds.
+
+The counters are the verdict — `stream alternations`, `events claiming Shift`,
+`canvas enter/exit`, `cursor decisions`, `popups opened`, `popups collapsed`,
+`GC pause total`, `UI-thread stalls` — and each open bug is decided by a
+particular one of them. **A fix that does not move its counter did not fix
+anything**, whatever it looks like: a flicker is exactly the kind of
+intermittent thing that both looks cured and is not.
+
+That rule was learned expensively, and B126 keeps the score: across that
+investigation, **four fixes shipped on conviction, of which one worked, one
+regressed and two did nothing — against three measurements, all three of which
+were decisive.** The change with no evidence behind it did the work; the theory
+with a mechanism, a matching upstream report and a plausible profile did not.
+
+Two findings worth not rediscovering:
+
+- **Do not retry raw-input suppression in Avalonia 12.1.1.** Marking a raw
+  pointer event `Handled` at `IInputManager.PreProcess` does not stop Avalonia
+  delivering it — proved headlessly after a filter shipped, counted 1,163 drops
+  and prevented none of them. There is no wndproc hook either
+  (`Win32Properties` is not exported), and `PointerEntered`/`PointerExited` are
+  `Direct`-routed, so no ancestor can intercept them.
+- **The cause being below the app does not put the cure there.** The echo stream
+  is Windows Ink's and unreachable in-process; what Lightbox controls is how it
+  *reacts* to the exits, and that is where every fix that worked has landed.
+  A verdict that names a culprit must not also assume a venue.
 
 ---
 
