@@ -1,5 +1,6 @@
 using Avalonia.Headless.XUnit;
 using Lightbox.App.Docking;
+using Lightbox.App.Services;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Projects;
@@ -22,8 +23,19 @@ public class SymbolBrowserTests : IDisposable
     private readonly string _root = Path.Combine(
         Path.GetTempPath(), $"lightbox-browse-{Guid.NewGuid():N}.lbproj");
 
+    // The global library is a real file beside the artist's own settings, so a
+    // browser test that does not redirect it counts whatever symbols this
+    // machine happens to have saved: green on a clean runner, red on a box that
+    // has ever promoted one.
+    private readonly string _store = Path.Combine(
+        Path.GetTempPath(), $"lightbox-browse-symlib-{Guid.NewGuid():N}.json");
+
+    public SymbolBrowserTests() => SymbolLibrary.PathOverride = _store;
+
     public void Dispose()
     {
+        SymbolLibrary.PathOverride = null;
+        if (File.Exists(_store)) File.Delete(_store);
         SymbolRegistry.Clear();
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
     }

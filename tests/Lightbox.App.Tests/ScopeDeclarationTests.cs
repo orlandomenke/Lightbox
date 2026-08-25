@@ -1,4 +1,5 @@
 using Avalonia.Headless.XUnit;
+using Lightbox.App.Services;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Projects;
@@ -17,8 +18,28 @@ public sealed class ScopeDeclarationTests(ITestOutputHelper output) : BrushState
 
     private readonly List<MainViewModel> _built = [];
 
+    // The symbol grid counts the global library alongside the project's own, and
+    // that library is a real file beside the artist's settings. Without this the
+    // scope assertions count this machine's saved symbols too.
+    private readonly string _store = RedirectedStore();
+
+    /// <summary>
+    /// A primary constructor leaves no body to redirect in, so the field
+    /// initializer does it — which runs before the base constructor, and so
+    /// before anything reads the library.
+    /// </summary>
+    private static string RedirectedStore()
+    {
+        var store = Path.Combine(
+            Path.GetTempPath(), $"lightbox-scope-symlib-{Guid.NewGuid():N}.json");
+        SymbolLibrary.PathOverride = store;
+        return store;
+    }
+
     public new void Dispose()
     {
+        SymbolLibrary.PathOverride = null;
+        if (File.Exists(_store)) File.Delete(_store);
         foreach (var vm in _built) vm.ProjectDocker.Dispose();
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
         base.Dispose();

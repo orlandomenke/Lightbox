@@ -15,7 +15,17 @@ namespace Lightbox.Raster.Tests;
 ///
 /// It does not help against the <em>other</em> test assemblies, which run at
 /// the same time under <c>dotnet test Lightbox.sln</c>. That is what
-/// <see cref="Bench.FastestMs"/> is for.
+/// <see cref="Bench.FastestMs"/> and <see cref="Bench.MachineIsQuiet"/> are for.
+///
+/// <b>Every class carrying a performance-tagged test belongs in a collection
+/// that disables parallelisation — but not necessarily this one.</b> On
+/// 2026-08-25 four such classes were found outside it and three were moved in;
+/// the fourth, <c>BrushTipOutlineTests</c>, is <c>[Collection("Registries")]</c>,
+/// which is *also* <c>DisableParallelization = true</c> and therefore already
+/// gives it what this collection would. A class can only be in one collection,
+/// so the check to make is "is it in a serial collection", not "is it in this
+/// one" — and moving it here would have cost it the registry isolation it is in
+/// that collection for.
 /// </remarks>
 [CollectionDefinition("Performance", DisableParallelization = true)]
 public class PerformanceCollection;
@@ -64,6 +74,73 @@ internal static class Bench
     /// for JIT and for whatever tables the path builds once per process, and a
     /// budget that measured that would be measuring the runtime.
     /// </param>
+    /// <summary>
+    /// Whether this machine looks quiet enough for a <em>tight</em> budget to
+    /// mean anything — measured now, on the box the test is running on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why this exists.</b> The budgets here are loose because a contended
+    /// machine inflates them, and loose budgets give up the thing they were for:
+    /// a 1200 ms ceiling around a 200 ms cost cannot see a change that makes the
+    /// path twice as slow. That is a real gap and raising or lowering the one
+    /// number cannot close it — the number has to answer two questions at once.
+    /// So it does not: the loose ceiling stays as the backstop, and the tight
+    /// one is applied only when the measurement can carry it.
+    /// </para>
+    /// <para>
+    /// <b>What is measured, and why it is the spread rather than the time.</b>
+    /// A fixed arithmetic loop is run several times and the fastest and slowest
+    /// are compared. An absolute calibration time cannot tell a busy fast
+    /// machine from an idle slow one — but contention is *intermittent* by
+    /// nature, so it shows up as variance between identical runs. Measured on
+    /// the container this was written in: <b>spread 1.09 idle, 1.59 under eight
+    /// busy threads on four cores.</b>
+    /// </para>
+    /// <para>
+    /// <b>What was tried first and does not work</b>, recorded so it is not
+    /// retried: normalising the measurement by the calibration time — the
+    /// obvious move, and what <c>tools/Lightbox.Bench</c> does for its curves.
+    /// The ratio was **10.13 idle, then 16.12 and 8.63 in two loaded runs** —
+    /// it drifts in *both* directions, because a tight float loop and a mixed
+    /// rasterisation workload do not lose the same share of a contended core.
+    /// A signal that moves 1.9x on its own cannot detect a 2x regression.
+    /// </para>
+    /// <para>
+    /// <b>The residual gap, stated rather than hidden.</b> A machine under
+    /// *steady* load has low variance and looks quiet here, so the tight budget
+    /// would be applied to an inflated number and could fail honestly-slow.
+    /// The structural answer to all of this is to stop running the
+    /// performance-tagged tests beside three other assemblies at all — this is
+    /// what can be done from inside the test assembly.
+    /// </para>
+    /// </remarks>
+    public static bool MachineIsQuiet(ITestOutputHelper? log = null, double maxSpread = 1.25)
+    {
+        const int runs = 6;
+        var best = double.MaxValue;
+        var worst = 0.0;
+        for (var r = 0; r < runs; r++)
+        {
+            var sw = Stopwatch.StartNew();
+            double acc = 0;
+            for (var i = 1; i < 3_000_000; i++) acc += 1.0 / i;
+            sw.Stop();
+            GC.KeepAlive(acc);
+            var ms = sw.Elapsed.TotalMilliseconds;
+            best = Math.Min(best, ms);
+            worst = Math.Max(worst, ms);
+        }
+        var spread = best > 0 ? worst / best : double.MaxValue;
+        var quiet = spread <= maxSpread;
+        // Always logged, both numbers: a later reader needs to know whether the
+        // tight budget ran at all before reading anything into it passing.
+        log?.WriteLine(
+            $"calibration {best:0.00}-{worst:0.00} ms, spread {spread:0.00} — "
+            + (quiet ? "quiet, the tight budget applies" : "contended, only the backstop applies"));
+        return quiet;
+    }
+
     public static double FastestMs(
         int runs, Action action, Action? before = null, bool warm = true, ITestOutputHelper? log = null)
     {
