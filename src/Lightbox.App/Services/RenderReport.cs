@@ -523,10 +523,24 @@ internal static class RenderReport
         var gpu = Rendering.GpuComposite.GpuComposites;
         var cpu = Rendering.GpuComposite.CpuComposites;
 
+        // What was asked for, and — on Automatic — what this machine answered.
+        // Printed whichever way it went, because "the processor is blending" has
+        // three different causes and only one of them is a setting.
+        var mode = Rendering.GpuComposite.Mode;
+        sb.AppendLine($"compositing asked for     {mode}");
+        if (Rendering.GpuComposite.AutoProbe is { } probe)
+        {
+            sb.AppendLine($"  probe: {probe.Describe()}");
+        }
+        else if (mode == Rendering.GpuComposeMode.Auto)
+        {
+            sb.AppendLine("  probe: has not run this session — nothing has been drawn yet.");
+        }
+
         if (!facts.GpuCompositeOptedIn)
         {
-            sb.AppendLine("compositing               CPU raster (GPU compositing is off)");
-            sb.AppendLine("  Configure > Performance > Use the graphics card to blend layers.");
+            sb.AppendLine("compositing               CPU raster");
+            sb.AppendLine("  Configure > Performance > Composite layers on the GPU.");
             return;
         }
 

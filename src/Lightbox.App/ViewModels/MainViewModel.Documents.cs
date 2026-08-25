@@ -942,18 +942,24 @@ public partial class MainViewModel
     internal bool WouldRecordSpeed =>
         AlwaysRecordPenAxes || PenAxisUse.NeedsSpeed(CurrentToolSettings);
 
-    public bool GpuCompositing
+    /// <summary>The three answers, for the Configure window's picker.</summary>
+    public IReadOnlyList<Rendering.GpuComposeMode> GpuCompositingChoices { get; } =
+        Enum.GetValues<Rendering.GpuComposeMode>();
+
+    public Rendering.GpuComposeMode GpuCompositingMode
     {
-        get => Settings.GpuCompositing;
+        get => Settings.GpuCompositingMode;
         set
         {
-            if (Settings.GpuCompositing == value) return;
-            Settings.GpuCompositing = value;
-            Rendering.GpuComposite.SettingEnabled = value;
+            if (Settings.GpuCompositingMode == value) return;
+            Settings.GpuCompositingMode = value;
+            Rendering.GpuComposite.Mode = value;
             Settings.Save();
             OnPropertyChanged();
-            // The composite path changed under the canvas, so what is on screen
-            // was produced by the other one. Republish rather than wait.
+            // The composite path may have changed under the canvas, so what is
+            // on screen was produced by the other one. Republish rather than
+            // wait. Unconditional because Auto's answer is not knowable here —
+            // it lives on the render thread — and a republish costs one frame.
             _publish.InvalidateWholeCanvas();
             PublishSnapshot();
         }
