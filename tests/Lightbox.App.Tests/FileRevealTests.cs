@@ -68,6 +68,46 @@ public class FileRevealTests
         Assert.Equal("/", FileReveal.Directory("/"));
     }
 
+    /// <summary>
+    /// The parent follows the desktop that was asked for, not the machine asking.
+    /// </summary>
+    /// <remarks>
+    /// Every case here has to give the same answer on the Linux runner and on a
+    /// Windows developer's box. Reading the parent with
+    /// <c>Path.GetDirectoryName</c> meant it did not:
+    /// <see cref="LinuxOpensTheContainingFolderBecauseThereIsNoPortableSelect"/>
+    /// asked for a Linux reveal, got <c>\art\Knight.lbproj</c> back on Windows,
+    /// and so could only ever pass on one platform.
+    /// </remarks>
+    [Fact]
+    public void TheFolderIsReadTheWayTheAskedForDesktopReadsPaths()
+    {
+        Assert.Equal("/art/Knight.lbproj",
+            FileReveal.Directory(Desktop.Linux, "/art/Knight.lbproj/walk.json"));
+        Assert.Equal("/art/Knight.lbproj",
+            FileReveal.Directory(Desktop.MacOs, "/art/Knight.lbproj/walk.json"));
+        Assert.Equal(@"C:\art\Knight.lbproj",
+            FileReveal.Directory(Desktop.Windows, @"C:\art\Knight.lbproj\walk.json"));
+
+        // Windows accepts either separator, so both have to be found.
+        Assert.Equal("C:/art", FileReveal.Directory(Desktop.Windows, "C:/art/walk.json"));
+
+        // A backslash is a legal character in a Unix filename rather than a
+        // separator, so this is one name with no parent — not a folder called
+        // "a". Getting this wrong would send xdg-open somewhere that is not
+        // there.
+        Assert.Equal(@"a\b.json", FileReveal.Directory(Desktop.Linux, @"a\b.json"));
+
+        // Roots keep their separator: without it the answer stops naming a
+        // place, and bare "C:" names the drive's current directory, which is
+        // somewhere else entirely.
+        Assert.Equal("/", FileReveal.Directory(Desktop.Linux, "/walk.json"));
+        Assert.Equal(@"C:\", FileReveal.Directory(Desktop.Windows, @"C:\walk.json"));
+
+        // No separator at all: nothing to take a parent from.
+        Assert.Equal("walk.json", FileReveal.Directory(Desktop.Linux, "walk.json"));
+    }
+
     [Fact]
     public void NothingIsRevealedForAPathThatIsNotThere()
     {
