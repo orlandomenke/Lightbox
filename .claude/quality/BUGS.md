@@ -142,6 +142,22 @@ which is a weak test and still far better than none.
 
 ### brush
 
+- [ ] **B311** `P1` `brush` A silhouette brush draws a gentle curve up to 20 px away from where its own dabs are `evidence: tests/Lightbox.Raster.Tests/SilhouetteFollowsItsDabsTests.cs`
+  - **Found 2026-08-25 while prototyping an alternative to the silhouette, by comparing three renders of one dab list.** On a gentle arc — 15.1 document px a step, heading turning 0.004 rad a step, so a radius of curvature of about 3,800 px — the per-dab path and a max-accumulated prototype both ink at the dab's own edge, and the shipped silhouette does not:
+
+    | x | dab centre y | per-dab | silhouette | error |
+    | --- | --- | --- | --- | --- |
+    | 400 | 1085.7 | 1083 | 1098 | **15** |
+    | 1200 | 1217.0 | 1214 | 1232 | **18** |
+    | 2000 | 1540.9 | 1538 | 1559 | **21** |
+    | 2800 | 2125.3 | 2122 | 2138 | **16** |
+
+    The dab radius is 2.5 px, so the per-dab row is the dab's own top edge to within rounding, and the silhouette is six to twenty-one pixels below it. The error oscillates rather than accumulating, which is the signature of where the runs happen to break rather than of drift.
+  - **The mechanism, read off `BuildSilhouette`.** The run simplifier keeps an `anchor`, and breaks the run when `pending` — the dab immediately before the current one — strays more than `Tolerance` (0.05 px) from the chord `anchor → pos`. **That samples the deviation at the one point on the run where it is smallest.** On a smooth curve the last dab is near the chord however far the middle of the run has bulged from it, so a run grows long and the capsule it finally emits cuts the corner by orders of magnitude more than the tolerance implies. A tolerance checked at the wrong point reads as tight and is not.
+  - **Why nothing caught it.** `LiveMatchesCommittedTests` compares the live preview with the commit, and both take the silhouette — they agree with each other while both stand away from the record. The determinism fingerprints were re-recorded for hard-aa when #404 landed (Q156), so they pin the displaced render as the reference. Nothing in the suite compares a silhouette against the dabs it is made of, which is what the evidence anchor above has to do.
+  - **P1, not P2 as filed.** Invariant 1 is that the stroke record is the document; a mark drawn twenty pixels from where the record puts it is lost work rather than a cosmetic fault, the same reasoning B256 carries. It reaches the whole hard round family — Ink, hard round, the eraser and any preset an artist builds from them — which is to say all line art.
+  - **Interaction with B299, stated so the two are not fixed twice.** B299 is the same code being slow; this is it being wrong. The max-accumulated prototype in `tools/Lightbox.Bench/MaxCoverageProto.cs` costs **0.02 ms an event against 12.46 ms** and tracks the per-dab render to within a pixel across the whole arc — so it answers both, and the owner has already said the silhouette itself is on the table. Fixing the run test in place is the smaller change; replacing the mechanism is the one that also closes B299.
+  - Cost: S to fix the run test (measure the maximum deviation over the run, not the last one), M to replace the mechanism.
 - [ ] **B299** `P1` `brush` A silhouette brush's live fill covers the whole mark every pointer event, because the stamping cut is pinned at zero `evidence: tests/Lightbox.App.Tests/SilhouetteTailBandTests.cs`
   - `StampLiveDabs` pins the cut at zero for a silhouette brush, so `StampDabRange` is always called with `from = 0` and the band it writes — `RangeReach(dabs, 0, count)` — is the whole mark. **This is where a silhouette stroke's per-event time actually goes**, which B292 established by removing the other candidate and finding nothing moved: the outline derivation is worth 1–3% end to end in Release, and the fill is the rest.
   - **The pin is not gratuitous, and two ways of removing it are already known to be wrong** (both measured during #404 and #405):

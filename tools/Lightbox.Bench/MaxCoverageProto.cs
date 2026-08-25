@@ -247,6 +247,102 @@ public static class MaxCoverageProto
             canvas.Flush();
         }
 
+        // ---- the same model, stamped ONCE from the final list ------------------
+        // The discriminator. If this matches the reference and the incremental
+        // one does not, the coverage model is sound and what drifts is the
+        // bookkeeping: max cannot take back a dab that moved, and Densify moves
+        // the newest span until the point after it arrives.
+        using var oneShot = new SKBitmap(info);
+        using (var fp2 = new SKBitmap(new SKImageInfo(Width, Height, SKColorType.Rgba8888, SKAlphaType.Opaque)))
+        {
+            using (var c2 = new SKCanvas(fp2))
+            {
+                c2.Clear(SKColors.Black);
+                foreach (var dab in finalDabs!)
+                {
+                    MaxDab(c2, dab.Pos, (float)BrushEngine.RadiusAt(stroke.Brush, dab.Pressure));
+                }
+
+                c2.Flush();
+            }
+
+            using (var m2 = new SKCanvas(oneShot)) m2.Clear(SKColors.Transparent);
+            Colourise(fp2, oneShot, color, BandOf(finalDabs!, 0, radius + 2));
+        }
+
+        static (double Mean, int Worst, long Differing, long Total) Compare(SKBitmap a, SKBitmap b)
+        {
+            double sum = 0;
+            long differing = 0, total = 0;
+            var worst = 0;
+            for (var y = 0; y < Height; y++)
+            for (var x = 0; x < Width; x++)
+            {
+                int pa = a.GetPixel(x, y).Alpha, pb = b.GetPixel(x, y).Alpha;
+                if (pa == 0 && pb == 0) continue;
+                total++;
+                var d = Math.Abs(pa - pb);
+                if (d > 0) differing++;
+                if (d > worst) worst = d;
+                sum += d;
+            }
+
+            return (total == 0 ? 0 : sum / total, worst, differing, total);
+        }
+
+        var oneShotVsRef = Compare(reference, oneShot);
+        // Which mark is where the dabs actually are. Decides whether the
+        // reference or the prototype is the one that moved.
+        // The same dabs down the PER-DAB path, by nudging hardness under the
+        // silhouette predicate. If this lands where the dabs are and the
+        // silhouette does not, the displacement is the silhouette's.
+        var soft = System.Text.Json.JsonSerializer.Deserialize<BrushSettings>(
+            System.Text.Json.JsonSerializer.Serialize(stroke.Brush))!;
+        soft.Hardness = 0.99;
+        var perDabStroke = new Stroke
+        {
+            Tool = stroke.Tool, Color = stroke.Color, Brush = soft, Points = stroke.Points,
+        };
+        using var perDab = new SKBitmap(info);
+        using (var c3 = new SKCanvas(perDab))
+        {
+            c3.Clear(SKColors.Transparent);
+            BrushEngine.StampDabRange(c3, perDabStroke, finalDabs!, 0, finalDabs!.Count);
+            c3.Flush();
+        }
+
+        sb.AppendLine($"   silhouette predicate: ink {BrushEngine.DrawsAsOneSilhouette(stroke.Brush)}, soft {BrushEngine.DrawsAsOneSilhouette(soft)}");
+        sb.AppendLine("   at x=1511, first ink row down the column:");
+        static int FirstInk(SKBitmap b, int x)
+        {
+            for (var y = 0; y < Height; y++) if (b.GetPixel(x, y).Alpha > 8) return y;
+            return -1;
+        }
+
+        sb.AppendLine("      x    dab y   per-dab  silhouette   max     error");
+        foreach (var px in new[] { 400, 800, 1200, 1600, 2000, 2400, 2800 })
+        {
+            var near = finalDabs!.OrderBy(d => Math.Abs(d.Pos.X - px)).First();
+            int pd = FirstInk(perDab, px), si = FirstInk(reference, px), mx = FirstInk(mark, px);
+            sb.AppendLine(
+                $"   {px,5}{near.Pos.Y,9:0.0}{pd,10}{si,12}{mx,7}{(si < 0 || pd < 0 ? 0 : si - pd),9}");
+        }
+
+        sb.AppendLine();
+
+        var probe = finalDabs!.OrderBy(d => Math.Abs(d.Pos.X - 1511f)).First();
+        sb.AppendLine($"   dab nearest x=1511 sits at  ({probe.Pos.X:0.0}, {probe.Pos.Y:0.0})  r={BrushEngine.RadiusAt(stroke.Brush, probe.Pressure):0.00}");
+        sb.AppendLine($"   first dab                   ({finalDabs![0].Pos.X:0.0}, {finalDabs![0].Pos.Y:0.0})");
+        sb.AppendLine($"   last dab                    ({finalDabs![^1].Pos.X:0.0}, {finalDabs![^1].Pos.Y:0.0})");
+        sb.AppendLine($"   first point                 ({stroke.Points[0].X:0.0}, {stroke.Points[0].Y:0.0})");
+        sb.AppendLine($"   last point                  ({stroke.Points[^1].X:0.0}, {stroke.Points[^1].Y:0.0})");
+        sb.AppendLine();
+        sb.AppendLine("   ONE-SHOT max vs the shipped silhouette (model fidelity)");
+        sb.AppendLine($"     mean difference           {oneShotVsRef.Mean,8:0.00} /255");
+        sb.AppendLine($"     worst difference          {oneShotVsRef.Worst,8} /255");
+        sb.AppendLine($"     pixels differing at all   {oneShotVsRef.Differing,8} of {oneShotVsRef.Total}");
+        sb.AppendLine();
+
         // ---- how far apart are they -------------------------------------------
         long differing = 0, refInk = 0, protoInk = 0, total = 0;
         double sum = 0;
