@@ -149,6 +149,42 @@ public sealed class CharacterVariantTests : IDisposable
     }
 
     [Fact]
+    public void TheStandInMapAnswersForTheBasePalettesId()
+    {
+        // Strokes name the palette they were painted from, and the registry
+        // never answers a named palette from another that shares the swatch id
+        // (Q30). So the variant's copy repaints nothing by existing — the
+        // renderer has to be told which id it stands in for, and this is the
+        // one place that says so.
+        var project = Knight(out var knight, out _, out var walk);
+        var winter = ProjectIo.AddVariant(project, knight, "Winter");
+
+        Assert.Empty(project.PaletteStandInsFor(walk));
+
+        project.ActiveVariant[knight.Id] = winter.Id;
+        var standIn = Assert.Single(project.PaletteStandInsFor(walk));
+        Assert.Equal(project.Palettes[0].Id, standIn.Key);
+        Assert.Equal(winter.PaletteId, standIn.Value.Id);
+    }
+
+    [Fact]
+    public void AVariantWithNoPaletteOfItsOwnStandsInForNothing()
+    {
+        // PaletteId null means "whatever the subject paints with" — the folder
+        // shares no palette, so there is nothing to substitute and nothing to
+        // hide from the flat lookup either.
+        var project = ProjectIo.Create("Plain", _root);
+        var scratch = ProjectFolders.Add(project.Manifest, "Scratch");
+        var bare = ProjectIo.AddVariant(project, scratch, "Alt");
+        var doc = ProjectIo.AddDocument(project, "Loop", Drawing(), scratch);
+
+        Assert.Null(bare.PaletteId);
+        project.ActiveVariant[scratch.Id] = bare.Id;
+        Assert.Empty(project.PaletteStandInsFor(doc));
+        Assert.Empty(project.VariantPaletteIds());
+    }
+
+    [Fact]
     public void AVariantInheritsEveryDocumentItDoesNotOverride()
     {
         // "Inherits animations" means exactly this: a walk cycle drawn once is
@@ -300,7 +336,7 @@ public sealed class CharacterVariantTests : IDisposable
         ProjectIo.Save(source);
 
         var target = ProjectIo.Create("Game", _root);
-        var imported = CharacterLibrary.Import(CharacterLibrary.Scan([_library]).Single(), target);
+        var imported = CharacterLibrary.Import(CharacterLibrary.Scan([_library]).Single(), target).Folder;
 
         Assert.Equal("Knight", imported.Name);
         Assert.Single(ProjectFolders.DocumentsIn(target.Manifest, imported));
@@ -321,7 +357,7 @@ public sealed class CharacterVariantTests : IDisposable
         ProjectIo.Save(source);
 
         var target = ProjectIo.Create("Game", _root);
-        var imported = CharacterLibrary.Import(CharacterLibrary.Scan([_library]).Single(), target);
+        var imported = CharacterLibrary.Import(CharacterLibrary.Scan([_library]).Single(), target).Folder;
 
         var walk = ProjectFolders.DocumentsIn(target.Manifest, imported)[0];
         var doc = ProjectIo.LoadDocument(target, walk)!;
@@ -341,7 +377,7 @@ public sealed class CharacterVariantTests : IDisposable
         ProjectIo.Save(source);
 
         var target = ProjectIo.Create("Game", _root);
-        var imported = CharacterLibrary.Import(CharacterLibrary.Scan([_library]).Single(), target);
+        var imported = CharacterLibrary.Import(CharacterLibrary.Scan([_library]).Single(), target).Folder;
 
         swatch.Color = "#ff0000";
         Assert.Equal("#8090a0", target.PaletteFor(imported)!.Swatches[0].Color);
@@ -358,7 +394,7 @@ public sealed class CharacterVariantTests : IDisposable
         ProjectIo.Save(source);
 
         var target = ProjectIo.Create("Game", _root);
-        var imported = CharacterLibrary.Import(CharacterLibrary.Scan([_library]).Single(), target);
+        var imported = CharacterLibrary.Import(CharacterLibrary.Scan([_library]).Single(), target).Folder;
 
         var variant = Assert.Single(imported.Variants!);
         Assert.Equal("Winter", variant.Name);
@@ -373,8 +409,53 @@ public sealed class CharacterVariantTests : IDisposable
     }
 
     [Fact]
-    public void ImportingTwiceGivesTwoDistinctFolders()
+    public void AnImportSurvivesSavingAndReopeningTheProject()
     {
+        // End to end, through the disk: everything Import assembles in memory
+        // — the documents, the palette declaration, the variant and its
+        // override, the reading — must come back from a cold load, or the
+        // library works exactly until the artist quits. Nothing below this
+        // line holds a reference to the import; only the folder proves it.
+        var source = Knight(out var knight, out var swatch, out var walk, _library);
+        source.Manifest.Type = ProjectType.AssetLibrary;
+        var winter = ProjectIo.AddVariant(source, knight, "Winter");
+        source.Palettes.Single(p => p.Id == winter.PaletteId).Swatches[0].Color = "#e8f0ff";
+        ProjectIo.OverrideDocument(source, knight, winter, walk, Drawing());
+        ProjectIo.Save(source);
+
+        var target = ProjectIo.Create("Game", _root);
+        CharacterLibrary.Import(CharacterLibrary.Scan([_library]).Single(), target);
+        ProjectIo.Save(target);
+
+        var reloaded = ProjectIo.Load(_root);
+        var imported = reloaded.WithReading.Single();
+        Assert.Equal("biped", imported.Taxonomy!.Kind);
+
+        // The animation loads from this project's own file…
+        var animations = ProjectFolders.DocumentsIn(reloaded.Manifest, imported);
+        var doc = ProjectIo.LoadDocument(reloaded, Assert.Single(animations));
+        Assert.NotNull(doc);
+        // …and still paints from the palette that travelled with it.
+        var painted = ((Frame)doc!.Scene.Layers[0].Cels[0].Frame!).Strokes[0].SwatchId;
+        Assert.Equal(swatch.Id, painted);
+        Assert.Equal(
+            "#8090a0",
+            reloaded.PaletteFor(imported)!.Swatches.Single(s => s.Id == painted).Color);
+
+        // The variant came back attached, recolour and override included.
+        var restored = Assert.Single(imported.Variants!);
+        reloaded.ActiveVariant[imported.Id] = restored.Id;
+        Assert.Equal("#e8f0ff", reloaded.PaletteFor(imported)!.Swatches[0].Color);
+        var over = Assert.Single(restored.Overrides);
+        Assert.NotNull(ProjectIo.LoadDocument(reloaded, reloaded.FindRef(over.Value)!));
+    }
+
+    [Fact]
+    public void ImportingTwiceMergesIntoOneFolder()
+    {
+        // Q138 declined numbered-beside import — "nothing would ever update".
+        // The second import finds the first by provenance and replaces the
+        // unedited copy instead of standing a Knight 2 next to the Knight.
         var source = Knight(out _, out _, out _, _library);
         source.Manifest.Type = ProjectType.AssetLibrary;
         ProjectIo.Save(source);
@@ -384,10 +465,150 @@ public sealed class CharacterVariantTests : IDisposable
         var a = CharacterLibrary.Import(entry, target);
         var b = CharacterLibrary.Import(entry, target);
 
-        Assert.NotEqual(a.Id, b.Id);
-        // Numbered rather than refused — the same rule ProjectFolders.Add uses.
-        Assert.NotEqual(a.Name, b.Name);
-        Assert.Equal(2, target.WithReading.Count());
+        Assert.Equal(a.Folder.Id, b.Folder.Id);
+        Assert.Single(target.WithReading);
+        Assert.Single(ProjectFolders.DocumentsIn(target.Manifest, b.Folder));
+        Assert.Equal(["Walk"], b.Replaced);
+        Assert.Empty(b.Added);
+        Assert.Empty(b.KeptEdited);
+    }
+
+    // ---- provenance: what a re-import may and may not touch (Q138) ------------
+
+    [Fact]
+    public void AnImportIsStampedWithItsOriginAndLocalWorkIsNot()
+    {
+        var source = Knight(out _, out _, out _, _library);
+        source.Manifest.Type = ProjectType.AssetLibrary;
+        ProjectIo.Save(source);
+
+        var target = ProjectIo.Create("Game", _root);
+        var entry = CharacterLibrary.Scan([_library]).Single();
+        var imported = CharacterLibrary.Import(entry, target).Folder;
+        var local = ProjectIo.AddDocument(target, "Taunt", Drawing(), imported);
+
+        Assert.Equal(entry.Source.Manifest.Id, imported.Origin!.LibraryId);
+        Assert.Equal(entry.Folder.Id, imported.Origin.SourceId);
+        var copy = ProjectFolders.DocumentsIn(target.Manifest, imported)
+            .Single(d => d.Name == "Walk");
+        Assert.NotNull(copy.Origin);
+        Assert.NotNull(copy.Origin!.Hash);
+        Assert.Null(local.Origin);
+    }
+
+    [Fact]
+    public void ADocumentNobodyImportedCarriesNoOriginKeys()
+    {
+        // Optional means absent: a project that never used the library must
+        // not start writing origin keys because the feature exists.
+        var project = Knight(out _, out _, out _);
+        ProjectIo.Save(project);
+        Assert.DoesNotContain("\"origin\"", File.ReadAllText(Path.Combine(_root, "project.json")));
+    }
+
+    [Fact]
+    public void ReImportReplacesByProvenanceAndNeverTouchesLocalWork()
+    {
+        var source = Knight(out var knight, out var swatch, out var walk, _library);
+        source.Manifest.Type = ProjectType.AssetLibrary;
+        ProjectIo.Save(source);
+
+        var target = ProjectIo.Create("Game", _root);
+        var imported = CharacterLibrary.Import(CharacterLibrary.Scan([_library]).Single(), target).Folder;
+        var local = ProjectIo.AddDocument(target, "Taunt", Drawing(), imported);
+        ProjectIo.Save(target);
+
+        // The library moves on: the walk gains a stroke, and a run appears.
+        source.Loaded[walk.Id].Scene.Layers[0].Cels[0].Frame!.Strokes.Add(new Stroke
+        {
+            Tool = ToolKind.Brush,
+            Color = "#000000",
+            SwatchId = swatch.Id,
+            Points = [new StrokePoint(20, 20, 1), new StrokePoint(30, 30, 1)],
+            Brush = new BrushSettings { Size = 4, Opacity = 1 },
+        });
+        ProjectIo.AddDocument(source, "Run", Drawing(swatch.Id), knight);
+        ProjectIo.Save(source);
+
+        // Through the disk on both sides: the re-import must recognise its own
+        // copies from their stamps alone, hashes included, after a cold load.
+        var reloaded = ProjectIo.Load(_root);
+        var result = CharacterLibrary.Import(CharacterLibrary.Scan([_library]).Single(), reloaded);
+
+        Assert.Equal(["Run"], result.Added);
+        Assert.Equal(["Walk"], result.Replaced);
+        Assert.Empty(result.KeptEdited);
+        // The unedited walk took the library's newer content, on its own ref…
+        var docs = ProjectFolders.DocumentsIn(reloaded.Manifest, result.Folder);
+        Assert.Equal(3, docs.Count);
+        var replaced = docs.Single(d => d.Name == "Walk");
+        Assert.Equal(2, ProjectIo.LoadDocument(reloaded, replaced)!
+            .Scene.Layers[0].Cels[0].Frame!.Strokes.Count);
+        // …and the artist's own animation was not looked at, let alone touched.
+        var kept = docs.Single(d => d.Name == "Taunt");
+        Assert.Equal(local.Id, kept.Id);
+        Assert.Null(kept.Origin);
+    }
+
+    [Fact]
+    public void AnEditedCopyIsKeptAndNamedBeforeItIsReplaced()
+    {
+        // The one destructive act in the merge warns first, Q35-style: the
+        // preflight names the edited copy, the default import keeps it, and
+        // only an explicit replaceEdited overwrites the artist's changes.
+        var source = Knight(out _, out var swatch, out _, _library);
+        source.Manifest.Type = ProjectType.AssetLibrary;
+        ProjectIo.Save(source);
+
+        var target = ProjectIo.Create("Game", _root);
+        var entry = CharacterLibrary.Scan([_library]).Single();
+        var imported = CharacterLibrary.Import(entry, target).Folder;
+        var copy = ProjectFolders.DocumentsIn(target.Manifest, imported).Single();
+        ProjectIo.LoadDocument(target, copy)!.Scene.Layers[0].Cels[0].Frame!.Strokes.Add(new Stroke
+        {
+            Tool = ToolKind.Brush,
+            Color = "#ff0000",
+            Points = [new StrokePoint(5, 5, 1), new StrokePoint(6, 6, 1)],
+            Brush = new BrushSettings { Size = 2, Opacity = 1 },
+        });
+
+        Assert.Equal(["Walk"], CharacterLibrary.WhatReimportWouldReplace(entry, target));
+
+        var kept = CharacterLibrary.Import(entry, target);
+        Assert.Equal(["Walk"], kept.KeptEdited);
+        Assert.Equal(2, ProjectIo.LoadDocument(target, copy)!
+            .Scene.Layers[0].Cels[0].Frame!.Strokes.Count);
+
+        var replaced = CharacterLibrary.Import(entry, target, replaceEdited: true);
+        Assert.Equal(["Walk"], replaced.Replaced);
+        Assert.Single(ProjectIo.LoadDocument(target, copy)!
+            .Scene.Layers[0].Cels[0].Frame!.Strokes);
+        // And having taken the library's copy, the slate is clean again.
+        Assert.Empty(CharacterLibrary.WhatReimportWouldReplace(entry, target));
+    }
+
+    [Fact]
+    public void ANameClashWithoutProvenanceStillMergesByFolder()
+    {
+        // The artist already has a folder called Knight that was never
+        // imported. Nothing matches, so nothing is replaced — the library's
+        // documents are added beside the local ones, in that folder.
+        var source = Knight(out _, out _, out _, _library);
+        source.Manifest.Type = ProjectType.AssetLibrary;
+        ProjectIo.Save(source);
+
+        var target = ProjectIo.Create("Game", _root);
+        var mine = ProjectFolders.Add(target.Manifest, "Knight");
+        var local = ProjectIo.AddDocument(target, "Walk", Drawing(), mine);
+
+        var result = CharacterLibrary.Import(CharacterLibrary.Scan([_library]).Single(), target);
+
+        Assert.Equal(mine.Id, result.Folder.Id);
+        Assert.Equal(["Walk"], result.Added);
+        Assert.Empty(result.Replaced);
+        var docs = ProjectFolders.DocumentsIn(target.Manifest, mine);
+        Assert.Equal(2, docs.Count);
+        Assert.Null(docs.Single(d => d.Id == local.Id).Origin);
     }
 
     // ---- ending subjecthood says what it costs (Q35) -------------------------

@@ -58,6 +58,9 @@ public static class QuickBarCatalog
     /// in the manual as living somewhere nothing drew.
     /// </remarks>
     public const string LineOptions = "line-options";
+
+    /// <summary>The font, size, tracking and alignment while the text tool is in hand.</summary>
+    public const string TextOptions = "text-options";
     public const string GuideOptions = "guide-options";
     public const string Transport = "transport";
     public const string AddFrame = "add-frame";
@@ -72,6 +75,7 @@ public static class QuickBarCatalog
         new(GradientOptions, "Gradient options", "The ramp and its type while the gradient tool is in hand"),
         new(ArrowOptions, "Line selection", "What the arrow tool has picked up"),
         new(LineOptions, "Inside a line", "Simplify, and how many points the line you are inside has"),
+        new(TextOptions, "Text options", "The font, size, tracking and alignment while the text tool is in hand"),
         new(GuideOptions, "Guide options", "The guide the Move tool has picked up — where it is, and the numbers behind it"),
         new(Transport, "Play / pause", "The transport, without reaching down to the timeline"),
         new(AddFrame, "Add frame", "New and duplicated frames, without reaching down to the timeline"),
@@ -86,6 +90,6 @@ public static class QuickBarCatalog
     [
         BrushOptions, EraserOptions, ShapeOptions,
         FillOptions, SelectOptions, GradientOptions, ArrowOptions, GuideOptions,
-        LineOptions,
+        LineOptions, TextOptions,
     ];
 }

@@ -48,11 +48,13 @@ public static class IconSet
     public const string Picker = "IconPicker";
     public const string Gradient = "IconGradient";
     public const string Move = "IconMove";
+    public const string Crop = "IconCrop";
     public const string Bone = "IconBone";
     public const string Pen = "IconPen";
     public const string Width = "IconWidth";
     public const string Arrow = "IconArrow";
     public const string Points = "IconPoints";
+    public const string Text = "IconText";
 
     // ---- shape variants -----------------------------------------------------
 
@@ -142,7 +144,7 @@ public static class IconSet
     public static IReadOnlyList<string> All { get; } =
     [
         EyeOpen, EyeClosed, LockOpen, LockClosed, AlphaLock, OnionOn, OnionOff,
-        Brush, Eraser, Fill, Picker, Gradient, Move, Bone, Pen, Width, Arrow, Points,
+        Brush, Eraser, Fill, Picker, Gradient, Move, Crop, Bone, Pen, Width, Arrow, Points, Text,
         ShapeLine, ShapeRect, ShapeEllipse, ShapePolygon,
         SelectLasso, SelectBox, SelectEllipse, SelectPolygon, SelectWand,
         Close, Plus, Minus, Trash, Folder, Eject, ChevronDown, ChevronUp, ChevronRight,
@@ -192,6 +194,7 @@ public static class IconSet
         ViewModels.ToolId.Picker => Picker,
         ViewModels.ToolId.Gradient => Gradient,
         ViewModels.ToolId.Move => Move,
+        ViewModels.ToolId.Crop => Crop,
         ViewModels.ToolId.Pen => Pen,
         ViewModels.ToolId.Width => Width,
         ViewModels.ToolId.Arrow => Arrow,

@@ -44,6 +44,16 @@ public partial class MainWindow
         if (CellOf(sender) is { } cell) _vm.InsertFrameAt(cell, FrameRole.Inbetween);
     }
 
+    /// <summary>
+    /// The X-sheet's way into the bone system's one timeline command. Aimed at
+    /// the cel that was right-clicked, not at the playhead — see
+    /// <c>MainViewModel.InsertDrawingFromPoseAt</c>.
+    /// </summary>
+    private void OnInsertDrawingFromPose(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.InsertDrawingFromPoseAt(cell);
+    }
+
     private void OnSetStartFrame(object? sender, RoutedEventArgs e)
     {
         if (CellOf(sender) is { } cell) _vm.SetPlaybackStart(cell);
@@ -208,6 +218,41 @@ public partial class MainWindow
     {
         if (CellOf(sender) is { } cell) _vm.PasteCel(cell);
     }
+
+    // ---- Animation menu ---------------------------------------------------------
+    // The cel context menu's verbs, re-aimed: a menu item has no cel under a
+    // pointer, so each acts on the active layer's cel at the playhead — the
+    // same answer the timeline shortcuts give.
+
+    private void OnMenuInsertKeyframe(object? sender, RoutedEventArgs e) =>
+        _vm.InsertFrameAtPlayhead(FrameRole.Key);
+
+    private void OnMenuInsertBreakdown(object? sender, RoutedEventArgs e) =>
+        _vm.InsertFrameAtPlayhead(FrameRole.Breakdown);
+
+    private void OnMenuInsertInbetween(object? sender, RoutedEventArgs e) =>
+        _vm.InsertFrameAtPlayhead(FrameRole.Inbetween);
+
+    private void OnMenuExtendExposure(object? sender, RoutedEventArgs e) => _vm.ExtendExposureAtPlayhead();
+
+    private void OnMenuReduceExposure(object? sender, RoutedEventArgs e) => _vm.ReduceExposureAtPlayhead();
+
+    private void OnMenuCopyCel(object? sender, RoutedEventArgs e) => _vm.CopyCurrentCel();
+
+    private void OnMenuCutCel(object? sender, RoutedEventArgs e) => _vm.CutCurrentCel();
+
+    private void OnMenuPasteCel(object? sender, RoutedEventArgs e) => _vm.PasteCurrentCel();
+
+    private void OnMenuClearCel(object? sender, RoutedEventArgs e) => _vm.ClearCelAtPlayhead();
+
+    private void OnMenuDeleteCel(object? sender, RoutedEventArgs e) => _vm.DeleteCelAtPlayhead();
+
+    private void OnMenuDeleteColumn(object? sender, RoutedEventArgs e) =>
+        _vm.DeleteColumnAt(_vm.CurrentFrameIndex);
+
+    private void OnMenuSetStartFrame(object? sender, RoutedEventArgs e) => _vm.SetPlaybackStartAtPlayhead();
+
+    private void OnMenuSetEndFrame(object? sender, RoutedEventArgs e) => _vm.SetPlaybackEndAtPlayhead();
 
     // ---- multi-cel selection (Ctrl+click, Shift+click) --------------------------
 

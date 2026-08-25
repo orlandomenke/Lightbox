@@ -18,13 +18,50 @@ namespace Lightbox.App.Controls;
 /// exposed — the bar the reference draws behind the dot.
 /// </param>
 /// <param name="Breakdowns">Which of <paramref name="Keys"/> are breakdowns (hollow dots).</param>
-/// <param name="IsCamera">The camera track wears the fixed camera colour.</param>
+/// <param name="Kind">What this row stands for — see <see cref="TrackKind"/>.</param>
+/// <param name="HasChildren">
+/// Whether the row folds: the armature summary always, a bone with children.
+/// The painter draws the chevron; the fold itself is the host's state, the
+/// same division as every other verb here.
+/// </param>
+/// <param name="Folded">The chevron's direction — true points right, closed.</param>
 public sealed record TrackRow(
     string Name,
     IReadOnlyList<int> Keys,
     IReadOnlyList<int> HoldEnds,
     IReadOnlyList<bool> Breakdowns,
-    bool IsCamera);
+    TrackKind Kind = TrackKind.Layer,
+    bool HasChildren = false,
+    bool Folded = false)
+{
+    /// <summary>The camera track wears the fixed camera colour.</summary>
+    public bool IsCamera => Kind is TrackKind.Camera;
+
+    /// <summary>A pose track: the armature's own keys, or one bone's.</summary>
+    public bool IsArmature => Kind is TrackKind.Armature or TrackKind.Bone;
+}
+
+/// <summary>What a track row stands for.</summary>
+/// <remarks>
+/// An enum rather than the two booleans this would otherwise have grown, for
+/// Q90's reason one type along: three states of one question read better than
+/// a pair of flags whose illegal combination nothing forbids. Only the painter
+/// and the host's routing branch on it.
+/// </remarks>
+public enum TrackKind
+{
+    /// <summary>A drawing layer's exposure.</summary>
+    Layer,
+
+    /// <summary>The camera's keys.</summary>
+    Camera,
+
+    /// <summary>The armature summary: every frame where any bone is keyed.</summary>
+    Armature,
+
+    /// <summary>One bone's keys, shown when the armature row is expanded.</summary>
+    Bone,
+}
 
 /// <summary>
 /// One clip's span on the timeline (Q57): footage or sound as a bar the hand
@@ -56,6 +93,25 @@ public class TrackView : Control
     {
         get => GetValue(TracksProperty);
         set => SetValue(TracksProperty, value);
+    }
+
+    /// <summary>
+    /// The dots that are selected, as (row, frame) pairs.
+    /// </summary>
+    /// <remarks>
+    /// Rows and frames rather than anything richer, because this control is
+    /// deliberately ignorant of what a key <em>means</em> — the same reason its
+    /// menu event hands the host a row index and lets it decide. The host knows
+    /// which row is the camera and which is a bone; all this needs to know is
+    /// which dots to light.
+    /// </remarks>
+    public static readonly StyledProperty<IReadOnlySet<(int Row, int Frame)>?> SelectedDotsProperty =
+        AvaloniaProperty.Register<TrackView, IReadOnlySet<(int Row, int Frame)>?>(nameof(SelectedDots));
+
+    public IReadOnlySet<(int Row, int Frame)>? SelectedDots
+    {
+        get => GetValue(SelectedDotsProperty);
+        set => SetValue(SelectedDotsProperty, value);
     }
 
     /// <summary>Pixels per frame; bound to the same slider the X-sheet uses.</summary>
@@ -92,6 +148,33 @@ public class TrackView : Control
     /// (index into <see cref="Tracks"/>). The host retimes the document.
     /// </summary>
     public event Action<int, int, int>? KeyDragged;
+
+    /// <summary>
+    /// A right-click landed on a key: the row, the frame, and where to put the
+    /// menu. The host decides whether that row has a menu at all — the control
+    /// knows where the dots are and nothing about what they mean.
+    /// </summary>
+    public event Action<int, int, Point>? KeyMenuRequested;
+
+    /// <summary>
+    /// A key was clicked with a modifier: (row, frame, toggle, range) — Ctrl
+    /// and Shift respectively. The host owns what a key is and therefore what
+    /// selecting one means.
+    /// </summary>
+    public event Action<int, int, bool, bool>? KeySelectRequested;
+
+    /// <summary>
+    /// A right-click landed on a track's empty run — no dot, no clip bar: the
+    /// row, the frame under the pointer, and where to put the menu. The verbs
+    /// that need no key to aim at (paste, key-here) live on it.
+    /// </summary>
+    public event Action<int, int, Point>? TrackAreaMenuRequested;
+
+    /// <summary>
+    /// The fold chevron in the gutter was clicked. The host owns the fold —
+    /// which bones are open is selection-like state, not geometry.
+    /// </summary>
+    public event Action<int>? FoldToggleRequested;
 
     /// <summary>
     /// The scratch track's waveform, one min/max pair per frame, or null for
@@ -180,6 +263,88 @@ public class TrackView : Control
     internal const double RowPitch = 22;
     private const double DotRadius = 4.5;
 
+    /// <summary>The narrowest a pair of ruler numbers may sit, in pixels.</summary>
+    private const double MinLabelGap = 40;
+
+    /// <summary>
+    /// Ruler numbers, kept between renders.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Measured, because the adaptive step made this worth measuring.</b>
+    /// Building a <see cref="FormattedText"/> costs about 35 µs, which nobody
+    /// notices 42 times — the old fixed-twelve ruler on a 500-frame scene — and
+    /// everybody notices 2000 times: 1.07 ms against 78 ms, on a strip that
+    /// repaints every time the playhead moves. At 12 fps the whole frame budget
+    /// is 83 ms, so a long scene at the widest zoom would have spent it on text
+    /// alone.
+    /// </para>
+    /// <para>
+    /// The cache is bounded by the scene's length, since a frame number is only
+    /// built when it is drawn — and cleared outright past a ceiling, so a
+    /// pathological document cannot turn a drawing aid into a retained heap.
+    /// It also has to notice the style changing underneath it: a
+    /// <c>FormattedText</c> holds its brush, so a theme change with a live cache
+    /// would leave the ruler painted in the old colour.
+    /// </para>
+    /// </remarks>
+    private readonly Dictionary<int, FormattedText> _labels = [];
+
+    private (Typeface Face, double Size, IBrush Brush)? _labelStyle;
+
+    private const int MaxCachedLabels = 4096;
+
+    /// <summary>The label cache, reachable by its test — see TimelineRulerTests.</summary>
+    internal FormattedText LabelForTests(int frame, Typeface face, double size, IBrush brush) =>
+        Label(frame, face, size, brush);
+
+    private FormattedText Label(int frame, Typeface face, double size, IBrush brush)
+    {
+        if (_labelStyle is not { } style
+            || !style.Face.Equals(face) || style.Size != size || !ReferenceEquals(style.Brush, brush)
+            || _labels.Count > MaxCachedLabels)
+        {
+            _labels.Clear();
+            _labelStyle = (face, size, brush);
+        }
+        if (!_labels.TryGetValue(frame, out var label))
+        {
+            label = new FormattedText(
+                (frame + 1).ToString(), System.Globalization.CultureInfo.InvariantCulture,
+                FlowDirection.LeftToRight, face, size, brush);
+            _labels[frame] = label;
+        }
+        return label;
+    }
+
+    /// <summary>
+    /// How many frames apart the ruler's numbers are, given how wide a frame is.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>It used to be twelve, always.</b> That reads well at the narrowest
+    /// frame width and falls apart at the widest, where twelve frames is over
+    /// eight hundred pixels — a ruler with one number on it. The playhead
+    /// carries its own number, so the practical effect was that the only frame
+    /// you could read was the one you were standing on, which is precisely what
+    /// a ruler is for avoiding.
+    /// </para>
+    /// <para>
+    /// <b>Every step divides or multiplies twelve</b>, so frame 1, 13, 25 are
+    /// numbered at every zoom. The reference's cadence is the second, and a
+    /// ladder of, say, fives would put the numbers somewhere an animator does
+    /// not count from.
+    /// </para>
+    /// </remarks>
+    internal static int LabelStep(double frameWidth)
+    {
+        foreach (var step in (int[])[1, 2, 3, 4, 6, 12, 24, 48, 96])
+        {
+            if (step * frameWidth >= MinLabelGap) return step;
+        }
+        return 192;
+    }
+
     static TrackView()
     {
         AffectsMeasure<TrackView>(
@@ -187,7 +352,8 @@ public class TrackView : Control
             VideoClipsProperty, VolumeBarsProperty);
         AffectsRender<TrackView>(
             TracksProperty, FrameWidthProperty, CurrentFrameProperty, FrameCountProperty,
-            AudioPeaksProperty, VideoClipsProperty, AudioClipsProperty, VolumeBarsProperty);
+            AudioPeaksProperty, VideoClipsProperty, AudioClipsProperty, VolumeBarsProperty,
+            SelectedDotsProperty);
     }
 
     // ---- geometry, static so the tests can hold it still ---------------------
@@ -220,10 +386,35 @@ public class TrackView : Control
         Color.Parse("#E8C55F"), // gold
     ];
 
-    private static readonly Color CameraColour = Color.Parse("#FF9F45");
+    /// <summary>
+    /// The camera's one hue, wherever it shows — the timeline track, the
+    /// ruler's key dots, the graph editor's X curve, the Scene panel's path.
+    /// Internal so the code-side consumers share this definition; the XAML
+    /// side reads its twin, <c>CameraTrack</c> in <c>Palette.axaml</c>.
+    /// </summary>
+    internal static readonly Color CameraColour = Color.Parse("#FF9F45");
+
+    /// <summary>The rig's fixed colour — the bone chrome's, so the two read as one system.</summary>
+    private static readonly Color ArmatureColour = Color.Parse("#7EC8E3");
 
     internal static Color ColourOf(int row, bool isCamera) =>
         isCamera ? CameraColour : TrackColours[row % TrackColours.Length];
+
+    /// <summary>
+    /// The colour a track's dots wear: the camera's and the armature's are
+    /// fixed, a layer's rotates through the palette by position.
+    /// </summary>
+    /// <remarks>
+    /// The armature has one colour for the same reason the camera does — it is
+    /// one thing wherever it appears, and a rig whose row changed colour when a
+    /// layer was added above it would read as a different track.
+    /// </remarks>
+    internal static Color ColourOf(int row, TrackKind kind) => kind switch
+    {
+        TrackKind.Camera => CameraColour,
+        TrackKind.Armature or TrackKind.Bone => ArmatureColour,
+        _ => TrackColours[row % TrackColours.Length],
+    };
 
     // ---- layout ---------------------------------------------------------------
 
@@ -269,28 +460,50 @@ public class TrackView : Control
                 new Point(Gutter, gy), new Point(Gutter + FrameCount * FrameWidth, gy));
         }
 
-        // Ruler: a number at 1 and every dozen frames after, the reference's
-        // cadence; a faint vertical at each numbered frame.
+        // The structure lines stay on the second's cadence whatever the
+        // numbers do: they are the rhythm an animator counts against, and
+        // drawing one per frame at a wide zoom would be a grid rather than a
+        // ruler.
         for (var f = 0; f < FrameCount; f += 12)
         {
             var x = XAtFrame(f, FrameWidth);
             context.DrawLine(faint, new Point(x, RulerHeight), new Point(x, Bounds.Height));
-            var label = new FormattedText(
-                (f + 1).ToString(), System.Globalization.CultureInfo.InvariantCulture,
-                FlowDirection.LeftToRight, typeface, 10, text);
+        }
+
+        // The numbers, as close together as they will legibly go.
+        var playhead = XAtFrame(CurrentFrame, FrameWidth);
+        for (var f = 0; f < FrameCount; f += LabelStep(FrameWidth))
+        {
+            var x = XAtFrame(f, FrameWidth);
+            // The playhead's chip is drawn last, over everything, and carries
+            // its own number. A ruler number underneath it is not hidden so
+            // much as half-visible around the edges, which reads as a smudge.
+            if (Math.Abs(x - playhead) < 11) continue;
+            var label = Label(f, typeface, 10, text);
             context.DrawText(label, new Point(x - label.Width / 2, 2));
         }
 
         for (var r = 0; r < tracks.Count; r++)
         {
             var track = tracks[r];
-            var colour = ColourOf(r, track.IsCamera);
+            var colour = ColourOf(r, track.Kind);
             var y = YAtRow(r);
 
             var name = new FormattedText(
                 track.Name, System.Globalization.CultureInfo.InvariantCulture,
                 FlowDirection.LeftToRight, typeface, 11, text);
             context.DrawText(name, new Point(10, y - name.Height / 2));
+
+            // The fold chevron, left of the name: right-pointing closed, down
+            // open — the tree control's vocabulary without the tree control.
+            if (track.HasChildren)
+            {
+                var chevron = new FormattedText(
+                    track.Folded ? "▸" : "▾",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    FlowDirection.LeftToRight, typeface, 9, text);
+                context.DrawText(chevron, new Point(1, y - chevron.Height / 2));
+            }
 
             // The track line, faint, full width — the rail the dots ride.
             var rail = new Pen(new SolidColorBrush(Color.FromArgb(0x30, colour.R, colour.G, colour.B)), 2);
@@ -319,6 +532,16 @@ public class TrackView : Control
                 else
                 {
                     context.DrawEllipse(new SolidColorBrush(colour), null, at, DotRadius, DotRadius);
+                }
+
+                // A ring around the dot rather than a different fill: a key
+                // already says three things by colour and fill — which track it
+                // is, and whether it is a breakdown — and a fourth would have to
+                // take one of them away. The ring sits outside all of it.
+                if (SelectedDots?.Contains((r, key)) == true)
+                {
+                    context.DrawEllipse(null, new Pen(new SolidColorBrush(Colors.White), 1.5),
+                        at, DotRadius + 2.5, DotRadius + 2.5);
                 }
             }
         }
@@ -413,7 +636,7 @@ public class TrackView : Control
         // A dragged dot's ghost, so the hand sees where the drawing will land.
         if (_drag is { } d)
         {
-            var colour = ColourOf(d.Row, tracks[d.Row].IsCamera);
+            var colour = ColourOf(d.Row, tracks[d.Row].Kind);
             context.DrawEllipse(
                 new SolidColorBrush(Color.FromArgb(0x88, colour.R, colour.G, colour.B)), null,
                 new Point(XAtFrame(d.ToFrame, FrameWidth), YAtRow(d.Row)), DotRadius, DotRadius);
@@ -558,7 +781,24 @@ public class TrackView : Control
         var tracks = Tracks;
         if (tracks is null || tracks.Count == 0) return;
         var p = e.GetPosition(this);
-        if (p.X < Gutter) return;
+        if (p.X < Gutter)
+        {
+            // The fold chevron is the one live spot in the gutter. Generous
+            // about x — the whole indent is easier to hit than a 9px glyph —
+            // and strict about the row actually folding, so a click on a
+            // plain layer's name stays inert.
+            if (p.Y > RulerHeight && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            {
+                var row = RowAtY(p.Y, tracks.Count);
+                if (row < tracks.Count && tracks[row].HasChildren
+                    && Math.Abs(p.Y - YAtRow(row)) <= RowPitch / 2)
+                {
+                    FoldToggleRequested?.Invoke(row);
+                    e.Handled = true;
+                }
+            }
+            return;
+        }
 
         if (p.Y > RulerHeight)
         {
@@ -566,6 +806,35 @@ public class TrackView : Control
             if (Math.Abs(p.Y - YAtRow(row)) <= RowPitch / 2 &&
                 KeyHit(tracks[row], 0, p.X, FrameWidth) is { } grabbed)
             {
+                // Right-click asks for the menu instead of starting a drag.
+                // Offered on every row; the host answers on the ones that have
+                // something to put in it, which keeps this control ignorant of
+                // what a key means.
+                if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed)
+                {
+                    KeyMenuRequested?.Invoke(row, grabbed, p);
+                    e.Handled = true;
+                    return;
+                }
+
+                // Ctrl and Shift pick rather than drag. A modified click that
+                // also armed a drag would retime the key the artist was only
+                // adding to a selection, and a stray two-pixel wobble is all
+                // that would take.
+                var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+                var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+                if (ctrl || shift)
+                {
+                    KeySelectRequested?.Invoke(row, grabbed, ctrl, shift);
+                    e.Handled = true;
+                    return;
+                }
+
+                // A plain press on a key outside the selection makes it the
+                // selection, so a drag that follows moves what is highlighted
+                // rather than something else. On a key already in it, the
+                // selection stands and the drag takes the lot.
+                KeySelectRequested?.Invoke(row, grabbed, false, false);
                 _drag = (row, grabbed, grabbed);
                 e.Pointer.Capture(this);
                 e.Handled = true;
@@ -587,6 +856,19 @@ public class TrackView : Control
             e.Pointer.Capture(this);
             e.Handled = true;
             return;
+        }
+
+        // A right-click that hit no dot and no clip asks for the track-area
+        // menu — paste and the key-here verbs need a frame, not a key.
+        if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed && p.Y > RulerHeight)
+        {
+            var row = RowAtY(p.Y, tracks.Count);
+            if (Math.Abs(p.Y - YAtRow(row)) <= RowPitch / 2)
+            {
+                TrackAreaMenuRequested?.Invoke(row, FrameAtX(p.X, FrameWidth, FrameCount), p);
+                e.Handled = true;
+                return;
+            }
         }
 
         // Anywhere else in the frame area scrubs, ruler included.

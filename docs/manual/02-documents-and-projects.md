@@ -62,6 +62,46 @@ press the button — including whether the marks will change. Both are a single
 undo step, however much they touched, and the view refits to the new paper
 afterwards.
 
+### Cropping
+
+Two more on the same menu, for the times you already know where the paper
+should stop and do not want to work out the numbers.
+
+**Crop to selection** takes the paper down to the bounding box of whatever is
+selected. Any selection will do — marquee, lasso, polygon, wand — because paper
+is a rectangle and the *box* around the selection is what it can be. Draw the
+marquee where you want the edge, then crop. A selection dragged past the edge
+of the page is clamped to the page: crop never makes the canvas bigger, which
+is what *Resize canvas* is for.
+
+**Trim to drawing** finds the smallest rectangle that still holds every mark,
+and puts the paper there. It measures **every frame of every layer**, not the
+drawing in front of you — trimming to the current cel would quietly cut the ink
+off the other two hundred. Hidden and locked layers count too, since both still
+render and still export. The background layer does not: it is paper rather than
+artwork, and counting it would mean the trim always found the page exactly as
+large as the page.
+
+**Neither one deletes anything.** Like *Resize canvas*, a crop moves three
+numbers on the document and leaves every mark exactly where it was drawn — so
+ink outside the new edge is still there, and growing the canvas back brings it
+back unchanged. That is worth knowing in both directions: you can crop
+experimentally and lose nothing, and you cannot use a crop to throw work away.
+The reason is the same one that keeps *Resize canvas* honest — a mark's texture
+is decided by where the mark is, so a deleted stroke redrawn later would not be
+the same stroke.
+
+Both are one undo step, both refit the view afterwards, and both are on
+**Image**. Neither has a key by default; both are in **Configure ▸ Shortcuts**
+under *Image* if you want to give them one.
+
+**To frame a crop by eye instead**, use the **Crop** tool (C) — it puts a
+draggable frame on the canvas and dims what falls outside it. Same crop, same
+guarantees; see [Tools and strokes](03-tools-and-strokes.md). The three answer
+different questions: the tool is *put the edge here*, Crop to selection is
+*here, where I have already marked it*, and Trim to drawing is *wherever the ink
+happens to end*.
+
 ### A project
 
 A project is a body of work: **every 2D asset in a game, an animated feature,
@@ -284,6 +324,11 @@ time it is opened there, filed on its top folder.
 The panel is called **Reference sheets** rather than Character sheets, because
 nothing about it was ever specific to characters.
 
+**A view keeps its guides.** A model sheet is where a construction rig earns
+its keep — head-unit scales, centre lines, a perspective grid under a turnaround
+— and guides placed on a view are saved with it and are there when it is next
+opened, exactly as they are on a document.
+
 #### References a document draws against
 
 Two mechanisms, both real:
@@ -461,11 +506,21 @@ Five tabs, and a footer on all of them saying what the project holds and what is
 wrong with it: *47 documents · 12 Ready · 3 Reopened · 5 unassigned*.
 
 **Structure** is the tree with the columns the docker has no width for — glyph,
-name, tags, status, who is on it, how long it runs, and what each folder
-carries. Select several rows and a bar appears: set the status of nine drawings
-at once, tag a folder and everything under it, assign a sequence to somebody.
-The docker has no multi-select on purpose; a bulk edit is exactly the thing you
-do between drawings rather than during one.
+name, tags, status, who is on it, how long it runs, its versions, and what each
+folder carries. Select several rows and a bar appears: set the status of nine
+drawings at once, tag a folder and everything under it, assign a sequence to
+somebody. The docker has no multi-select on purpose; a bulk edit is exactly the
+thing you do between drawings rather than during one.
+
+The **VERSIONS** column is the history at a glance: `🕘 3` says three versions
+are kept, a coloured badge names the newest milestone in the status board's own
+colour, and **✎** means the drawing has changed since those bytes were kept —
+the row is *Ready*, the file has moved on. Hover for the sentence, right-click
+▸ **🕘 Version history…** for the history itself, with revert (also on the
+Assets tab's rows). Promoting here is what makes milestone versions, so this is
+also where you see them appear. The footer counts the drift for the whole
+project — *2 changed since approval* — because a Ready that quietly stopped
+being the file is the fact somebody schedules against.
 
 **And you can leave by way of a row.** Two gestures, on the bar above the tree
 and on any row's right-click, and they are deliberately different things rather
@@ -650,13 +705,21 @@ Three ways a version comes to exist:
 
 **File ▸ Version history…** (`Ctrl+Alt+H`) lists them newest first — also
 reachable from a right-click on any document or sheet row in the project
-docker. Select a version and **Revert to selected** to put its file back; an
-open tab reloads to show it. Greyed lines in the list record an action (a
-revert) rather than a state, and cannot be reverted to.
+docker, and from the project manager's Structure and Assets rows, where the
+**VERSIONS** column shows each drawing's history at a glance. Select a version
+and **Revert to selected** to put its file back; an open tab reloads to show
+it. Greyed lines in the list record an action (a revert) rather than a state,
+and cannot be reverted to.
 
 Versions belong to a project. A loose document has no `versions/` folder to
 keep them in, so the menu items stay greyed until the document is saved into a
 project. A project that never uses versions never grows the folder.
+
+Versions live and die with the file they are of. **Delete permanently…** —
+which already asks first — deletes a drawing's kept versions along with it:
+bytes of a drawing whose entry is gone could never be shown or reverted again.
+**Remove from project** keeps them, the same way it keeps the file — a removed
+drawing added back finds its history where it left it.
 
 Branching a version into its own line of work is *Planned*; today the history
 is a single line per document.
@@ -840,14 +903,88 @@ Shape differences colour cannot express (a helmet the base character does not
 have) are what animation overrides are for: one animation replaced wholesale,
 the rest still shared.
 
+**Creating one** happens in the project window: select the character's folder,
+and the details panel's variant list takes a name — it arrives with its own
+copy of the folder's palette, ready to recolour in the Palette panel.
+Recolouring the copy never touches the base character's colours.
+
+**Viewing one** happens in the Project panel: right-click the folder ▸
+**Variant**, and pick from the base and every variant, with the one on screen
+marked. The canvas repaints the shared drawings in the variant's colours, the
+folder's rows swap in any drawings the variant owns outright, and the folder
+row wears the variant's name so you always know which version you are looking
+at. Which variant you are viewing is **view state, like the playhead** — it is
+not saved in the project, does not mark anything unsaved, and a document opens
+the same for everyone regardless of who closed it last.
+
+**Giving a variant its own drawing**: while viewing the variant, right-click
+the animation ▸ **Give "(variant)" its own "(name)"**. That copies the drawing
+for this variant only — it stands in for the shared one in this variant's
+running order, and every other variant (and the base) keeps the original. It
+is a Duplicate with one extra fact recorded: which drawing the copy replaces.
+
+**Undoing that**: right-click the variant's own drawing ▸ **Use the shared
+drawing again**. The variant goes back to the shared animation, and the
+drawing it had stays in the folder as an ordinary document — dissolving an
+arrangement is never the fastest way to delete the art made for it.
+
+**Wearing something the base does not have** — armor, a helmet, a lantern —
+is what **attachments** are for, and they sit between the palette swap and a
+full replacement drawing: draw the piece once as a **symbol**, and the
+variant wears it on a rig **anchor**, riding the anchor through every
+animation of the character.
+
+1. Draw the piece as a symbol (its pivot is where it sits on the body).
+2. In each animation, place an anchor where it attaches — the rig overlay,
+   **Ctrl+K** — and name it the same thing everywhere: `shoulder`,
+   `leftHand`. Aim the anchor's stalk if the piece should turn with the limb.
+3. In the project window, select the character's folder: each variant in the
+   details panel takes a symbol and an anchor name, plus an offset, scale,
+   extra angle and a **Turn with the anchor** switch.
+
+While the variant is viewed, the piece renders on the canvas and **exports
+with the sheet**, on every animation whose rig declares that anchor name.
+The anchor is also how you adjust it per drawing: nudge the anchor and the
+piece follows, aim it and the piece turns, **Clear here** and the piece is
+absent on that drawing — no second set of controls to learn. The attachment
+draws above the drawing; a piece that must sit behind a limb, or deform with
+the pose, is what a full replacement drawing (above) is still for.
+
 ### The character library
 
 A project whose type is **Asset library** offers its characters to other
-projects. Importing one copies it — animations, variants and the palettes they
-depend on — keeping swatch ids so the imported art still paints correctly.
+projects — and a library is an ordinary project, so it can be opened, drawn in
+and versioned like any other. What makes it a library is that its folders show
+up on the shelf everywhere else.
 
-Import copies rather than links. A linked character that edits in place is a
-real feature and it is *Planned*; copying is honest about what this does and
-does not quietly create a link that later breaks.
+**Where libraries live** is set once, per machine: point Lightbox at a library
+project, or at a folder holding several. Add folders from the library window
+below; nothing is scanned until a library surface is opened, so a slow network
+drive costs nothing at startup.
+
+**Two ways in, one shelf.** The **import button** on the project browser's bar is
+the fast path: a menu of every character the library folders offer — pick one
+and it is imported into the open project. **Browse library…** at the bottom of
+that menu opens the **library window**, the browsing home, which is also where
+the library folders are added and removed. The window has no key out of the
+box; **Configure → Shortcuts → “Character library”** binds one.
+
+**Importing copies** — animations, variants and the palettes they depend on,
+keeping swatch ids so the imported art still paints correctly. The copy is
+yours: recolour it, retime it, redraw it, and the library does not change.
+
+**Importing the same character again updates instead of duplicating.** Each
+copy remembers where it came from, so a re-import replaces the animations that
+came from the library, adds any the library has gained, and never touches work
+you made yourself — an animation you added to the imported character's folder
+is not the library's to overwrite. The one exception asks first: a copy **you
+have edited since importing** is named in a dialog, and *keep my versions* is
+the default. A folder that merely shares the character's name is merged into
+rather than stood beside — the library's animations arrive next to yours, and
+nothing is replaced.
+
+A linked character that edits in place everywhere is a real feature and it is
+*Planned*; copying is honest about what this does and does not quietly create
+a link that later breaks.
 
 ---

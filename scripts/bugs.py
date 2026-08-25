@@ -24,6 +24,7 @@ Commands
     sync            rewrite the checkboxes in place
     ids             ids only: unique, allocated once, none lost. No index, instant
     ids --fix       move the entry that took a number twice, citations included
+    selftest        prove ids --fix moves this branch's entry and not the other's
     new <domain> "<title>"    file a bug with an allocated id
     freeid [bug|question]     print the next free id and nothing else
     next            highest-priority open bugs, for a loop to pick from
@@ -512,6 +513,11 @@ def default_branch_ref() -> str | None:
     return None
 
 
+def merge_in_progress() -> bool:
+    """Whether a merge is half-done — MERGE_HEAD written, nothing committed yet."""
+    return _git("rev-parse", "--quiet", "--verify", "MERGE_HEAD") is not None
+
+
 def branch_base() -> str | None:
     """Where this branch left the default branch — the line between mine and theirs."""
     ref = default_branch_ref()
@@ -548,7 +554,8 @@ def added_lines(base: str) -> dict[str, list[tuple[int, str]]]:
     return found
 
 
-def move_ids(moves: dict[str, str], base: str) -> list[str]:
+def move_ids(moves: dict[str, str], base: str,
+             protect: frozenset[tuple[str, int]] = frozenset()) -> list[str]:
     """Rewrite an id everywhere *this branch wrote it*, and nowhere else.
 
     Scoped to lines the branch added because that is precisely the set of
@@ -557,6 +564,30 @@ def move_ids(moves: dict[str, str], base: str) -> list[str]:
     other entry's own line — means the one that is keeping the number. A
     whole-file replace would rewrite those too and point them at the wrong bug,
     which is the failure a renumber is supposed to prevent rather than cause.
+
+    **`protect` is the entry that is keeping the number, and it is not optional.**
+    "The other entry is older, so its line is not in the added set" holds for a
+    clash between two branches and fails for a duplicate that landed *inside*
+    this branch's range — then both entries' lines read as added, the sweep
+    rewrites both, and the duplicate survives at a new number instead of being
+    repaired. Found on 2026-08-24, with a bug id filed twice on the way: the
+    repair announced one renumber, applied it to both entries, and left the
+    duplicate standing at the new number — having rewritten six source files to
+    get there. The keeper's own line is passed in here so the sweep steps over
+    it.
+
+    **What made the base reach that far back is worth knowing, because it is
+    ordinary.** `origin/main` was simply stale — a container that cloned once
+    and had not fetched since, which is every fresh session. `branch_base()`
+    asks `merge-base` against that ref, so a ref 148 commits behind moves the
+    line between "mine" and "theirs" back by 148 commits, and everything filed
+    in between reads as this branch's own. `cmd_freeid` and `cmd_new` fetch
+    before allocating for exactly this reason; the repair does not, so it must
+    not depend on the base being tight.
+
+    No id is named above on purpose. This sweep rewrites every citation it finds
+    on a line the branch added, and a bare id in this file is a citation as far
+    as it is concerned — `cmd_selftest` assembles its ids for the same reason.
     """
     touched: list[str] = []
     for rel, additions in added_lines(base).items():
@@ -570,6 +601,8 @@ def move_ids(moves: dict[str, str], base: str) -> list[str]:
         changed = False
         for line_no, text in additions:
             if not 1 <= line_no <= len(lines):
+                continue
+            if (rel, line_no) in protect:
                 continue
             current = lines[line_no - 1]
             # The diff describes the file as it was read; anything that has moved
@@ -648,8 +681,50 @@ def _occurrences_to_move(ledger: Ledger, duplicated: dict[str, list[str]],
         ours = [s for s in same if s.ours]
         moving.extend(ours if 0 < len(ours) < len(same) else same[1:])
     for entry_id in clashed:
+        # Every occurrence, and that is safe *because* the repair refuses to run
+        # mid-merge (see cmd_ids). Outside a merge this only ever finds one: the
+        # other side's entry is on a branch that is not checked out, so it is not
+        # in the tree to move. Mid-merge it finds both and cannot tell them
+        # apart — which is the corruption the guard upstream exists to prevent,
+        # and filtering here would not have stopped, since both are marked ours.
         moving.extend(s for s in spots if s.id == entry_id)
     return moving
+
+
+def _keeping_spots(ledger: Ledger, moving: list[Occurrence],
+                   base: str | None) -> frozenset[tuple[str, int]]:
+    """Where the entries that KEEP a moving number live, so the sweep can skip them.
+
+    Only the occurrences sharing an id with something that is moving matter: an
+    unrelated entry is never rewritten because its id is not in `moves`. For a
+    file ledger that is one line; for the questions directory it is every line
+    this branch added to the keeper's own file, since its heading carries the id
+    too and a rewritten heading disagrees with the filename `questions.py check`
+    reads.
+    """
+    if base is None:
+        return frozenset()
+    ids = {s.id for s in moving}
+    if not ids:
+        return frozenset()
+    taken = {(s.id, s.where) for s in moving}
+    keeping = [s for s in _occurrences(ledger, base)
+               if s.id in ids and (s.id, s.where) not in taken]
+    if not keeping:
+        return frozenset()
+
+    if ledger.path.is_dir():
+        folder = ledger.path.relative_to(ROOT).as_posix()
+        added = added_lines(base)
+        spots = set()
+        for spot in keeping:
+            rel = f"{folder}/{spot.where}"
+            spots.update((rel, n) for n, _ in added.get(rel, []))
+        return frozenset(spots)
+
+    rel = ledger.path.relative_to(ROOT).as_posix()
+    return frozenset((rel, int(spot.where)) for spot in keeping
+                     if isinstance(spot.where, int))
 
 
 def move_in_file(path: Path, moves: dict[str, str],
@@ -731,7 +806,8 @@ def clashing_ids(ledger: Ledger, mine: list[tuple[str, str]],
 
 
 def renumber(ledger: Ledger, moving: list[Occurrence],
-             elsewhere: list[str], base: str | None) -> list[str]:
+             elsewhere: list[str], base: str | None,
+             protect: frozenset[tuple[str, int]] = frozenset()) -> list[str]:
     """Move each occurrence to a fresh id, and take its citations with it.
 
     The new ids clear every ref rather than just the ledger being repaired —
@@ -748,9 +824,182 @@ def renumber(ledger: Ledger, moving: list[Occurrence],
 
     said: list[str] = []
     if base is not None:
-        said += [f"    moved a citation at {where}" for where in move_ids(moves, base)]
+        said += [f"    moved a citation at {where}"
+                 for where in move_ids(moves, base, protect)]
     said += ledger.move(moves, moving, base)
     return [f"  RENUMBERED {old} -> {new}" for old, new in moves.items()] + said
+
+
+def cmd_selftest() -> int:
+    """Prove `ids --fix` repairs a clash without touching the other branch.
+
+    A real repository rather than a stubbed one, because the thing under test
+    *is* the git reasoning — what `merge-base` returns, and which files that
+    makes "ours". A fixture that mocked those away would have passed on the day
+    this broke.
+
+    Two scenarios, and the first is the one that broke it:
+
+    1. **Mid-merge**, the repair must refuse. HEAD is still this branch's last
+       commit, so the base predates both sides and the arriving files read as
+       this branch's own — renumbering then moves *both* entries and rewrites
+       the other one's citations.
+    2. **Once the merge is committed**, it must move this branch's entry, leave
+       the other side's id alone, and rewrite only this branch's citations.
+
+    The ids are assembled rather than written literally: `ids --fix` rewrites
+    every citation it finds in the tree, and a bare `Q7` in this file is a
+    citation as far as it is concerned — a clash on that number in the real
+    ledger would otherwise silently edit this test.
+    """
+    import shutil
+    import subprocess
+    import tempfile
+
+    tag = "Q" + "7"
+
+    def run(cwd, *args):
+        subprocess.run(args, cwd=cwd, check=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def repair(repo):
+        return subprocess.run(
+            [sys.executable, str(repo / "scripts" / "bugs.py"), "ids", "--fix"],
+            cwd=repo, capture_output=True, text=True).stdout
+
+    failures: list[str] = []
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp)
+        run(repo, "git", "init", "-q", "-b", "main")
+        run(repo, "git", "config", "user.email", "t@t")
+        run(repo, "git", "config", "user.name", "t")
+        qdir = repo / ".claude" / "quality" / "questions"
+        qdir.mkdir(parents=True)
+        (repo / "seed.md").write_text("seed\n", encoding="utf-8")
+        run(repo, "git", "add", "-A")
+        run(repo, "git", "commit", "-qm", "seed")
+
+        # Main files the id and cites it, and edits a file this branch also edits
+        # — the conflict is what makes the merge stop half-way.
+        (qdir / f"{tag}-theirs.md").write_text(f"# {tag} - theirs\n", encoding="utf-8")
+        (repo / "theirs-doc.md").write_text(f"see {tag}\n", encoding="utf-8")
+        (repo / "shared.md").write_text("main\n", encoding="utf-8")
+        run(repo, "git", "add", "-A")
+        run(repo, "git", "commit", "-qm", "theirs")
+
+        # This branch, from before that landed, takes the same number.
+        run(repo, "git", "checkout", "-q", "-b", "mine", "HEAD~1")
+        qdir.mkdir(parents=True, exist_ok=True)
+        (qdir / f"{tag}-ours.md").write_text(f"# {tag} - ours\n", encoding="utf-8")
+        (repo / "ours-doc.md").write_text(f"see {tag}\n", encoding="utf-8")
+        (repo / "shared.md").write_text("mine\n", encoding="utf-8")
+        run(repo, "git", "add", "-A")
+        run(repo, "git", "commit", "-qm", "ours")
+
+        # ROOT comes from the script's own location, so the repair has to run
+        # from a copy inside the fixture.
+        (repo / "scripts").mkdir(exist_ok=True)
+        here = Path(__file__).resolve().parent
+        for module in ("bugs.py", "evidence.py"):
+            shutil.copy2(here / module, repo / "scripts" / module)
+        run(repo, "git", "add", "-A")
+        run(repo, "git", "commit", "-qm", "tools")
+
+        subprocess.run(["git", "merge", "--no-edit", "main"], cwd=repo,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        # ---- 1. mid-merge: refuse, and change nothing --------------------------
+        out = repair(repo)
+        names = sorted(p.name for p in qdir.glob("*.md"))
+        if names != [f"{tag}-ours.md", f"{tag}-theirs.md"]:
+            failures.append(f"mid-merge repair renamed something: {names}")
+        if (repo / "theirs-doc.md").read_text(encoding="utf-8").strip() != f"see {tag}":
+            failures.append("mid-merge repair rewrote the other branch's citation")
+        if "refusing to renumber" not in out:
+            failures.append("mid-merge repair did not say why it stood down")
+        print(f"  mid-merge:  {', '.join(names)} — untouched")
+
+        # ---- 2. merge committed: repair this branch's entry only ---------------
+        run(repo, "git", "add", "-A")
+        run(repo, "git", "commit", "-qm", "merge")
+        repair(repo)
+        names = sorted(p.name for p in qdir.glob("*.md"))
+        theirs = (repo / "theirs-doc.md").read_text(encoding="utf-8").strip()
+        ours = (repo / "ours-doc.md").read_text(encoding="utf-8").strip()
+
+        if f"{tag}-theirs.md" not in names:
+            failures.append(f"the other branch's entry was renamed: {names}")
+        if any(n.startswith(f"{tag}-ours") for n in names):
+            failures.append(f"this branch's entry kept the clashed id: {names}")
+        if theirs != f"see {tag}":
+            failures.append(f"the other branch's citation was rewritten: {theirs!r}")
+        if ours == f"see {tag}":
+            failures.append("this branch's citation was not moved")
+        print(f"  committed:  {', '.join(names)} — theirs cites {theirs!r}, ours {ours!r}")
+
+    # ---- 3. both entries inside this branch's own range -----------------------
+    #
+    # The case scenarios 1 and 2 do not reach, and the one that broke on
+    # 2026-08-24. Nothing is mid-merge and nothing belongs to another branch:
+    # the base is simply far enough back that BOTH entries read as added here,
+    # which is what a branch cut from a default branch that is behind its remote
+    # looks like. `move_ids` then rewrote both ledger lines and the duplicate
+    # survived at the new number. The repair must move exactly one.
+    #
+    # A bug ledger rather than the questions directory, because this is the file
+    # path: two questions are two files and cannot share a line.
+    bug = "B" + "12"
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp)
+        run(repo, "git", "init", "-q", "-b", "main")
+        run(repo, "git", "config", "user.email", "t@t")
+        run(repo, "git", "config", "user.name", "t")
+        ledger_dir = repo / ".claude" / "quality"
+        ledger_dir.mkdir(parents=True)
+        (ledger_dir / "BUGS.md").write_text("# Bugs\n\n", encoding="utf-8")
+        (repo / "scripts").mkdir()
+        here = Path(__file__).resolve().parent
+        for module in ("bugs.py", "evidence.py"):
+            shutil.copy2(here / module, repo / "scripts" / module)
+        run(repo, "git", "add", "-A")
+        run(repo, "git", "commit", "-qm", "seed")
+
+        # On a BRANCH, so the base is the seed rather than HEAD. On `main` the
+        # merge base is HEAD itself, nothing reads as added, the citation sweep
+        # touches nothing and the repair looks correct however it is written —
+        # a fixture that stayed on `main` would pass with the guard removed.
+        run(repo, "git", "checkout", "-q", "-b", "mine")
+
+        # Two entries filed one after the other, both after the base, each with a
+        # citation of its own — exactly what two merges into a shared branch leave.
+        (ledger_dir / "BUGS.md").write_text(
+            "# Bugs\n\n"
+            f"- [ ] **{bug}** `P2` `brush` first one `evidence: manual`\n"
+            f"- [ ] **{bug}** `P1` `ui` second one `evidence: manual`\n",
+            encoding="utf-8")
+        (repo / "first-doc.md").write_text(f"see {bug}\n", encoding="utf-8")
+        (repo / "second-doc.md").write_text(f"see {bug}\n", encoding="utf-8")
+        run(repo, "git", "add", "-A")
+        run(repo, "git", "commit", "-qm", "both filed")
+
+        repair(repo)
+        after = (ledger_dir / "BUGS.md").read_text(encoding="utf-8")
+        ids = re.findall(r"\*\*(B\d+)\*\*", after)
+
+        if len(ids) != 2:
+            failures.append(f"an entry was lost by the repair: {ids}")
+        elif ids[0] == ids[1]:
+            failures.append(f"the duplicate survived the repair: both are {ids[0]}")
+        elif bug not in ids:
+            failures.append(f"both entries moved — one must keep the number: {ids}")
+        else:
+            print(f"  in-range:   {ids[0]} / {ids[1]} — one kept the number, one moved")
+
+    for line in failures:
+        print(f"  FAILED  {line}")
+    print("  ids --fix repairs this branch and leaves the other alone" if not failures
+          else f"  {len(failures)} failure(s)")
+    return 1 if failures else 0
 
 
 def cmd_ids(argv: list[str]) -> int:
@@ -767,6 +1016,28 @@ def cmd_ids(argv: list[str]) -> int:
         "Q ": next((a.split("=", 1)[1] for a in argv if a.startswith("--questions=")), None),
     }
     fix = "--fix" in argv
+    # **Never repair mid-merge.** Half-way through a merge, HEAD is still this
+    # branch's last commit, so the merge base predates both sides — and every
+    # file the *other* side is bringing in reads as "added since the base",
+    # exactly like this branch's own. Both entries are therefore marked ours,
+    # and the repair renumbers both: two entries move to one new id, a fresh
+    # duplicate appears, and the other branch's citations are rewritten in files
+    # this branch never touched.
+    #
+    # That is not hypothetical. On 2026-08-19 it renamed both sides of a Q126
+    # clash to Q130 and rewrote docs/DESIGN-pen-dynamics.md, which belonged to
+    # the other question entirely. Filtering to "ours" does not save it, because
+    # mid-merge everything looks like ours — the only safe answer is to wait
+    # until the merge is a commit and the two sides can be told apart.
+    #
+    # The report still runs, because knowing about the clash is what the author
+    # needs; it is the rewrite that has to wait.
+    if fix and merge_in_progress():
+        print("  a merge is in progress — `ids --fix` is refusing to renumber")
+        print("    mid-merge every arriving file looks like this branch's own, so the")
+        print("    repair would move BOTH sides of the clash and rewrite the other")
+        print("    entry's citations. Commit the merge first, then run it again.")
+        fix = False
     elsewhere = [a.split("=", 1)[1] for a in argv if a.startswith("--elsewhere=")]
     base_given = next((a.split("=", 1)[1] for a in argv if a.startswith("--base=")), None)
 
@@ -793,9 +1064,9 @@ def cmd_ids(argv: list[str]) -> int:
         clashed = clashing_ids(ledger, now, elsewhere, base)
 
         if fix and (duplicated or clashed):
-            for line in renumber(ledger,
-                                 _occurrences_to_move(ledger, duplicated, clashed, base),
-                                 elsewhere, base):
+            moving = _occurrences_to_move(ledger, duplicated, clashed, base)
+            for line in renumber(ledger, moving, elsewhere, base,
+                                 _keeping_spots(ledger, moving, base)):
                 print(line)
             now = ledger.reader(ledger.now())
             duplicated, clashed = duplicates_in(now), {}
@@ -1301,6 +1572,8 @@ def main() -> None:
         if len(sys.argv) < 3:
             sys.exit("usage: bugs.py mine <domain>")
         cmd_mine(sys.argv[2])
+    elif cmd == "selftest":
+        return cmd_selftest()
     elif cmd == "stats":
         cmd_stats()
     else:
@@ -1308,4 +1581,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main() or 0)

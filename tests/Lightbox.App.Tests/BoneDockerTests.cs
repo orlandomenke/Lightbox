@@ -21,7 +21,8 @@ namespace Lightbox.App.Tests;
 /// clearing the selection it was showing, and a toolbar-shaped row clipped by
 /// a 300px-wide panel.
 /// </remarks>
-public sealed class BoneDockerTests
+[Collection("BrushState")]
+public sealed class BoneDockerTests : BrushStateIsolated
 {
     private static (MainWindow Window, MainViewModel Vm) Open()
     {

@@ -312,6 +312,41 @@ public partial class ConfigureWindow : Window
         LoadTimelinePage();
         LoadDrawingPage();
         LoadAiPage();
+        LoadLibraryPage();
+    }
+
+    // ---- Library page ------------------------------------------------------
+
+    /// <summary>
+    /// The library roots, edited through the same <see cref="ViewModels.LibraryViewModel"/>
+    /// the library window uses — one owner, so the two editors cannot desync,
+    /// and every change lands in the settings file the moment it is made.
+    /// </summary>
+    private void LoadLibraryPage()
+    {
+        if (_vm is null) return;
+        LibraryRootsList.ItemsSource = _vm.Characters.Roots;
+    }
+
+    private async void OnLibraryAddRoot(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_vm is null) return;
+        var picked = await StorageProvider.OpenFolderPickerAsync(
+            new Avalonia.Platform.Storage.FolderPickerOpenOptions
+            {
+                Title = "Add a library folder",
+                AllowMultiple = false,
+            });
+        if (picked.Count == 1 && picked[0].TryGetLocalPath() is { } path)
+        {
+            _vm.Characters.AddRoot(path);
+        }
+    }
+
+    private void OnLibraryRemoveRoot(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_vm is null) return;
+        if (LibraryRootsList.SelectedItem is string root) _vm.Characters.RemoveRoot(root);
     }
 
     // ---- AI page ---------------------------------------------------------------
@@ -695,6 +730,8 @@ public partial class ConfigureWindow : Window
         HoldBox.ItemsSource = _vm.HoldDrawingChoices;
         HoldBox.SelectedItem = _vm.DrawingOnAHold;
         LoopBox.IsChecked = _vm.LoopPlayback;
+        OffSheetKeyBox.IsChecked = _vm.MarkOffSheetKeys;
+        AnimateRigBox.IsChecked = _vm.AnimateRigDuringPlayback;
         FrameWidthBox.Value = (decimal)_vm.TimelineFrameWidth;
         VolumeToleranceBox.Value = (decimal)Math.Round(_vm.Settings.VolumeTolerance * 100);
         _loadingTimeline = false;
@@ -830,6 +867,18 @@ public partial class ConfigureWindow : Window
         _vm.LoopPlayback = on;
     }
 
+    private void OnMarkOffSheetKeysChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_loadingTimeline || _vm is null || OffSheetKeyBox.IsChecked is not { } on) return;
+        _vm.MarkOffSheetKeys = on;
+    }
+
+    private void OnAnimateRigChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_loadingTimeline || _vm is null || AnimateRigBox.IsChecked is not { } on) return;
+        _vm.AnimateRigDuringPlayback = on;
+    }
+
     private void OnFrameWidthChanged(object? sender, NumericUpDownValueChangedEventArgs e)
     {
         if (_loadingTimeline || _vm is null || e.NewValue is not { } value) return;
@@ -938,16 +987,20 @@ public partial class ConfigureWindow : Window
         PlaybackQualityBox.SelectedItem = _vm.PlaybackQualityChoice;
         UndoDepthBox.Value = _vm.UndoDepth;
         CacheBudgetBox.Value = _vm.FrameCacheBudgetMb;
-        GpuCompositeBox.IsChecked = _vm.GpuCompositing;
+        GpuCompositeBox.ItemsSource = _vm.GpuCompositingChoices;
+        GpuCompositeBox.SelectedItem = _vm.GpuCompositingMode;
         _loadingPerformance = false;
         RefreshGpuCompositeHint();
         RefreshMeasured();
     }
 
-    private void OnGpuCompositeChanged(object? sender, RoutedEventArgs e)
+    private void OnGpuCompositeChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_loadingPerformance || _vm is null) return;
-        _vm.GpuCompositing = GpuCompositeBox.IsChecked == true;
+        if (GpuCompositeBox.SelectedItem is Rendering.GpuComposeMode mode)
+        {
+            _vm.GpuCompositingMode = mode;
+        }
         RefreshGpuCompositeHint();
         RefreshMeasured();
     }
@@ -966,7 +1019,8 @@ public partial class ConfigureWindow : Window
     private void RefreshGpuCompositeHint()
     {
         if (_vm is null) return;
-        if (GpuCompositeBox.IsChecked != true)
+
+        if (_vm.GpuCompositingMode == Rendering.GpuComposeMode.Off)
         {
             GpuCompositeHint.Text = "Layers are blended on the processor.";
             return;
@@ -980,10 +1034,36 @@ public partial class ConfigureWindow : Window
             return;
         }
 
-        GpuCompositeHint.Text =
-            "On. Only takes effect when the canvas is zoomed in past the edges of the "
-            + "document — a fit-to-window view composites the whole canvas the old way. "
-            + "Play a scene back, then Help ▸ Write a render report to see what it did.";
+        if (_vm.GpuCompositingMode == Rendering.GpuComposeMode.On)
+        {
+            GpuCompositeHint.Text =
+                "On, whatever this machine measures. Play a scene back, then "
+                + "Help ▸ Write a render report to see what it did.";
+            return;
+        }
+
+        // Automatic. Say what was measured rather than what was asked for — the
+        // status bar reading "GPU" and meaning only that Avalonia can blit
+        // misled the owner once already, and B125's entry records that as part
+        // of the bug rather than incidental to it.
+        GpuCompositeHint.Text = Rendering.GpuComposite.AutoProbe switch
+        {
+            null => "Automatic. Nothing has been drawn yet, so this machine has not been measured.",
+            { } probe when Rendering.GpuComposite.AutoDecision == true =>
+                $"Automatic: the card blended {probe.Speedup:F1}x faster than the processor here, "
+                + "so it is being used. Help ▸ Write a render report says what it did.",
+            { HadContext: false } =>
+                "Automatic: there is no graphics context on this machine, so the processor "
+                + "is blending. Choosing On would change nothing.",
+            { SurfaceRefused: true } =>
+                "Automatic: the driver would not give Lightbox a surface to blend into, so "
+                + "the processor is doing it.",
+            { } probe =>
+                $"Automatic: the card was only {probe.Speedup:F1}x the processor's speed here — "
+                + "not enough to be worth the graphics memory — so the processor is blending. "
+                + "Some machines report a graphics card and draw in software anyway; this is "
+                + "how that gets caught. Choose On to override it.",
+        };
     }
 
     private void RefreshMeasured()
@@ -1038,9 +1118,42 @@ public partial class ConfigureWindow : Window
         SampleBox.SelectedItem = _vm.SmudgeSampleSource;
         BrushScopeBox.ItemsSource = _vm.BrushMemoryChoices;
         BrushScopeBox.SelectedItem = _vm.BrushMemoryChoice;
+        RecordPenAxesBox.IsChecked = _vm.AlwaysRecordPenAxes;
+        GoogleFontsBox.IsChecked = _vm.Settings.Fonts.UseGoogleFonts;
+        EmbedFontsBox.IsChecked = _vm.Settings.Fonts.EmbedOpenFonts;
         _loadingDrawing = false;
         RefreshSampleHint();
         RefreshBrushScopeHint();
+    }
+
+    private void OnRecordPenAxesChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_loadingDrawing || _vm is null) return;
+        _vm.AlwaysRecordPenAxes = RecordPenAxesBox.IsChecked == true;
+    }
+
+    /// <summary>
+    /// Turning Google Fonts off has to reach the library, not only the file.
+    /// </summary>
+    /// <remarks>
+    /// The library decides once, when it is first asked for, whether it has a
+    /// Google source at all — which is what makes "off" mean no network rather
+    /// than a result that is thrown away. So the switch drops the built library
+    /// and the next font list builds the other kind.
+    /// </remarks>
+    private void OnGoogleFontsChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_loadingDrawing || _vm is null) return;
+        _vm.Settings.Fonts.UseGoogleFonts = GoogleFontsBox.IsChecked == true;
+        _vm.Settings.Save();
+        _vm.ForgetFontLibrary();
+    }
+
+    private void OnEmbedFontsChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_loadingDrawing || _vm is null) return;
+        _vm.Settings.Fonts.EmbedOpenFonts = EmbedFontsBox.IsChecked == true;
+        _vm.Settings.Save();
     }
 
     private void OnBrushScopeChanged(object? sender, SelectionChangedEventArgs e)
@@ -1107,7 +1220,7 @@ public partial class ConfigureWindow : Window
     {
         if (ShortcutsPage is null || PerformancePage is null || FeaturesPage is null
             || GuidesPage is null || TimelinePage is null || DrawingPage is null
-            || ExportPage is null || AiPage is null)
+            || ExportPage is null || AiPage is null || LibraryPage is null)
         {
             return;
         }
@@ -1119,7 +1232,11 @@ public partial class ConfigureWindow : Window
         TimelinePage.IsVisible = page == 4;
         DrawingPage.IsVisible = page == 5;
         ExportPage.IsVisible = page == 6;
-        AiPage.IsVisible = page == 7;
+        // Library sits before AI: the AI page stays the last category,
+        // which TheAiPageIsTheLastCategoryAndHiddenUntilChosen asserts on
+        // purpose — appending here is how that test earns its keep.
+        LibraryPage.IsVisible = page == 7;
+        AiPage.IsVisible = page == 8;
         if (page == 1) RefreshMeasured();
         if (page == 2) RefreshFeatures();
         // Rebuilt on the way in: a grid may have been placed since the window

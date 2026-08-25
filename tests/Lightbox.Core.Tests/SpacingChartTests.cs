@@ -27,6 +27,36 @@ public class SpacingChartTests
         return layer;
     }
 
+    /// <summary>
+    /// B301. The chart's claim is that it measures the artwork rather than a
+    /// transform (Q58), so its centroid has to be the centroid of the ink.
+    /// Raw, it took in both things that are not on the drawing — the eraser's
+    /// own path, and the line that eraser removed — and a cleanup between two
+    /// drawings then read as movement the artist never animated.
+    /// </summary>
+    [Fact]
+    public void ACleanupBetweenDrawingsIsNotMovement()
+    {
+        var second = DrawingAt(10, 0);
+        // Something tried far to the right on this drawing, then rubbed out.
+        second.Strokes.Add(new Stroke
+        {
+            Points = [new StrokePoint(99, 0, 1), new StrokePoint(101, 0, 1)],
+        });
+        second.Strokes.Add(new Stroke
+        {
+            Tool = ToolKind.Eraser,
+            Brush = new BrushSettings { Size = 20 },
+            Points = [new StrokePoint(99, 0, 1), new StrokePoint(101, 0, 1)],
+        });
+        var layer = LayerWith((0, DrawingAt(0, 0)), (2, second));
+
+        var span = Assert.Single(SpacingChart.Measure(layer));
+
+        // Raw, the mean of all six points sits at x=70 and the step reads 70.
+        Assert.Equal(10, span.Distance, 3);
+    }
+
     [Fact]
     public void EvenSpacingMeasuresEven()
     {

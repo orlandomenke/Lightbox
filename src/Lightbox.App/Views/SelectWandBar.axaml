@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             x:Class="Lightbox.App.Views.SelectWandBar"
+             x:DataType="vm:MainViewModel">
+  <!-- The wand's own numbers, already gated on the wand being the variant, so
+       this is usually absent and costs the bar nothing (B260). -->
+  <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+    <StackPanel.IsVisible>
+      <MultiBinding Converter="{x:Static BoolConverters.And}">
+        <Binding Path="IsSelectTool" />
+        <Binding Path="Workspace.QuickSelectOptions" />
+        <Binding Path="IsWandVariant" />
+      </MultiBinding>
+    </StackPanel.IsVisible>
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+      <TextBlock Text="Tolerance" VerticalAlignment="Center" />
+      <NumericUpDown Value="{Binding WandTolerance}" Minimum="0" Maximum="255" Increment="4"
+                     FormatString="0" Classes="value" VerticalAlignment="Center"
+                     ToolTip.Tip="How different a pixel may be and still join the selection" />
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+      <TextBlock Text="Gap px" VerticalAlignment="Center" />
+      <NumericUpDown Value="{Binding WandGapPx}" Minimum="0" Maximum="32" Increment="1"
+                     FormatString="0" Classes="value" VerticalAlignment="Center"
+                     ToolTip.Tip="Openings up to this many pixels still count as closed" />
+    </StackPanel>
+    <CheckBox Content="Sample all layers" IsChecked="{Binding WandSampleAllLayers}" VerticalAlignment="Center"
+              ToolTip.Tip="Select from what you see (all visible layers) instead of only the active layer" />
+  </StackPanel>
+</UserControl>

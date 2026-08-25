@@ -264,6 +264,61 @@ public sealed class LayerStackBakeTests(ITestOutputHelper output) : BrushStateIs
     }
 
     /// <summary>
+    /// A masked or clipped layer reads like a Multiply for the fold: its pass
+    /// is carved per publish, so pre-folding it into a bake would serve stale
+    /// pixels the moment the mask is repainted. Correct and unfolded beats
+    /// folded and stale — the refusal in <c>Eligible</c>.
+    /// </summary>
+    [AvaloniaFact]
+    public void AMaskedLayerRefusesToFoldAndStillRenders()
+    {
+        var vm = LayeredVm();
+        vm.Doc.Scene.Layers[1].Mask = new Lightbox.Core.Documents.LayerMask();
+        var before = vm.StackBake.Rebuilds;
+
+        Published(vm).Dispose();
+        Published(vm).Dispose();
+        Published(vm).Dispose();
+
+        var delta = vm.StackBake.Rebuilds - before;
+        output.WriteLine($"rebuilds after the mask appeared: {delta}");
+        // The below segment (paper + masked layer) must not fold; the above
+        // segment may still re-fold once.
+        Assert.True(delta <= 1,
+            $"{delta} rebuilds after a mask appeared below — the masked segment folded");
+    }
+
+    /// <summary>
+    /// An effect-carrying pass refuses to fold for the mask's reason plus
+    /// one: a slider drag changes pixels behind a stable stack reference, so
+    /// a fold key could never see the change — and an adjustment reads the
+    /// backdrop besides.
+    /// </summary>
+    [AvaloniaFact]
+    public void AFilteredLayerRefusesToFoldAndStillRenders()
+    {
+        var vm = LayeredVm();
+        vm.Doc.Scene.Layers[1].Effects = new Lightbox.Core.Effects.EffectStack
+        {
+            Uses = [new Lightbox.Core.Effects.EffectUse
+            {
+                Kind = "grade.hsl",
+                Params = { ["saturation"] = new Lightbox.Core.Effects.EffectParam(-50) },
+            }],
+        };
+        var before = vm.StackBake.Rebuilds;
+
+        Published(vm).Dispose();
+        Published(vm).Dispose();
+        Published(vm).Dispose();
+
+        var delta = vm.StackBake.Rebuilds - before;
+        output.WriteLine($"rebuilds after the effect appeared: {delta}");
+        Assert.True(delta <= 1,
+            $"{delta} rebuilds after an effect appeared below — the filtered segment folded");
+    }
+
+    /// <summary>
     /// Playback never pays for baking: the pass list changes every frame, so a
     /// fold could never be reused before it was stale.
     /// </summary>

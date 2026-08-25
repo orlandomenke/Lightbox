@@ -1,0 +1,290 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Lightbox.App.ViewModels"
+        x:Class="Lightbox.App.Views.FluidEffectsWindow"
+        x:DataType="vm:FluidEffectsViewModel"
+        Title="Effects"
+        Icon="/Assets/lightbox.ico"
+        Width="1020" Height="640" MinWidth="760" MinHeight="460">
+
+  <Window.Resources>
+    <!-- One row template for every number in the window. The rows are data
+         (FluidEffectsViewModel.Fields.cs), so adding a solver parameter is a
+         line there and nothing here. -->
+    <DataTemplate x:Key="FieldRow" x:DataType="vm:EffectFieldRow">
+      <Grid ColumnDefinitions="112,*,18" ColumnSpacing="6" Margin="0,1"
+            ToolTip.Tip="{Binding Hint}">
+        <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="11"
+                   VerticalAlignment="Center" Opacity="0.75" TextTrimming="CharacterEllipsis" />
+
+        <Grid Grid.Column="1" IsVisible="{Binding IsNumber}"
+              ColumnDefinitions="*,62" ColumnSpacing="6">
+          <Slider Grid.Column="0" VerticalAlignment="Center"
+                  Minimum="{Binding Minimum}" Maximum="{Binding Maximum}"
+                  TickFrequency="{Binding Step}"
+                  Value="{Binding Value, Mode=TwoWay}" />
+          <NumericUpDown Grid.Column="1" FormatString="0.###"
+                         Minimum="{Binding Minimum}" Maximum="{Binding Maximum}"
+                         Increment="{Binding Step}"
+                         Value="{Binding Value, Mode=TwoWay}" />
+        </Grid>
+
+        <ComboBox Grid.Column="1" IsVisible="{Binding IsChoice}" HorizontalAlignment="Stretch"
+                  ItemsSource="{Binding Choices}"
+                  SelectedIndex="{Binding ChoiceIndex, Mode=TwoWay}" />
+
+        <CheckBox Grid.Column="1" IsVisible="{Binding IsToggle}"
+                  IsChecked="{Binding IsOn, Mode=TwoWay}" />
+
+        <!-- Absent, not disabled: a revert on a field nobody has overridden is
+             a control that does nothing, which teaches an artist that the
+             controls lie. Drawn geometry rather than a glyph, and narrower than
+             `Button.icon`'s 26px tile because it rides a 24px row and is
+             clicked once, not aimed at mid-stroke. -->
+        <Button Grid.Column="2" Classes="ghost" Padding="0" Width="18" Height="18"
+                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                IsVisible="{Binding IsOverridden}" Click="OnRevertField"
+                ToolTip.Tip="Put this back to what the shared treatment says">
+          <Path Classes="icon" Data="{StaticResource IconUndo}" Width="11" Height="11" />
+        </Button>
+      </Grid>
+    </DataTemplate>
+  </Window.Resources>
+
+  <Grid ColumnDefinitions="188,*,336" Margin="8" ColumnSpacing="8">
+
+    <!-- ── the elements, and the emitters inside the selected one ───────── -->
+    <Grid Grid.Column="0" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto,*,Auto" RowSpacing="4">
+      <!-- Effects: several elements that are one thing. A group carries no
+           position of its own — the numbers below read the members and write
+           the difference back — so there is nothing here that can disagree
+           with the elements it names. -->
+      <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+        <TextBlock Grid.Column="0" Text="Effects" FontSize="11" Opacity="0.6" />
+        <ComboBox Grid.Column="1" Width="96" FontSize="10" MinHeight="20" Height="20" Padding="4,0"
+                  PlaceholderText="library"
+                  ItemsSource="{Binding Presets}"
+                  SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
+                  ToolTip.Tip="Effects you have kept. Choosing one and pressing Use makes it again here.">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:EffectPresetRow">
+              <TextBlock Text="{Binding Label}" FontSize="10" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+      </Grid>
+      <ListBox Grid.Row="1" MaxHeight="96" ItemsSource="{Binding Groups}"
+               SelectedItem="{Binding SelectedGroup, Mode=TwoWay}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:SimGroupRow">
+            <StackPanel>
+              <TextBlock Text="{Binding Label}" FontSize="11" />
+              <TextBlock Text="{Binding Detail}" FontSize="10" Opacity="0.55" />
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4">
+        <Button Classes="text" Content="Group" Click="OnNewGroup"
+                ToolTip.Tip="Start an effect from the selected element; add the others to it" />
+        <Button Classes="text" Content="Add" Click="OnAddToGroup"
+                ToolTip.Tip="Put the selected element into the selected effect" />
+        <Button Classes="text" Content="Out" Click="OnRemoveFromGroup"
+                ToolTip.Tip="Take the selected element out of its effect. It stays exactly where it is." />
+      </StackPanel>
+      <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="4"
+                  IsVisible="{Binding SelectedGroup, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <Button Classes="text" Content="Copy" Click="OnDuplicateGroup"
+                ToolTip.Tip="Copy the whole effect, elements and all, so the copy can be retuned on its own" />
+        <Button Classes="text" Content="Ungroup" Click="OnUngroup" />
+        <Button Classes="text" Content="Delete" Click="OnDeleteGroup"
+                ToolTip.Tip="Delete the effect and every element in it, drawings included" />
+      </StackPanel>
+
+      <TextBlock Grid.Row="4" Text="Elements" FontSize="11" Opacity="0.6" Margin="0,6,0,0"
+                 VerticalAlignment="Top" />
+      <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right"
+                  VerticalAlignment="Top" Margin="0,-2,0,0">
+        <!-- The library. A preset keeps an effect's *parameters*, so using one
+             costs a simulation and gives something you can then retune — where
+             a symbol would give the same frames back for nothing. -->
+        <Button Classes="text" Content="Keep" Click="OnSavePreset" FontSize="10" Padding="3,0"
+                ToolTip.Tip="Keep the selected effect in your library, so it can be made again in any document" />
+        <Button Classes="text" Content="Use" Click="OnUsePreset" FontSize="10" Padding="3,0"
+                ToolTip.Tip="Make the effect on the shelf again here, at this effect's place and frame" />
+      </StackPanel>
+      <ListBox Grid.Row="4" Margin="0,18,0,0" ItemsSource="{Binding Elements}"
+               SelectedItem="{Binding Selected, Mode=TwoWay}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:SimElementRow">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+              <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" />
+              <TextBlock Grid.Column="1" Text="{Binding GroupName}" FontSize="10" Opacity="0.5"
+                         VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="64" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <StackPanel Grid.Row="5" Orientation="Horizontal" Spacing="4">
+        <Button Classes="text" Content="Fire" Click="OnNewFire"
+                ToolTip.Tip="A new element banding from temperature — the heat ramp is the drawing" />
+        <Button Classes="text" Content="Smoke" Click="OnNewSmoke"
+                ToolTip.Tip="A new element banding from density" />
+        <Button Classes="text" Content="Delete" Click="OnDeleteElement" />
+      </StackPanel>
+
+      <TextBlock Grid.Row="6" Text="Emitters" FontSize="11" Opacity="0.6" Margin="0,6,0,0" />
+      <ListBox Grid.Row="7" ItemsSource="{Binding Emitters}"
+               SelectedItem="{Binding SelectedEmitter, Mode=TwoWay}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:EmitterRow">
+            <TextBlock Text="{Binding Label}" FontSize="11" />
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <StackPanel Grid.Row="8" Orientation="Horizontal" Spacing="4">
+        <Button Classes="text" Content="Add" Click="OnNewEmitter" />
+        <Button Classes="text" Content="Delete" Click="OnDeleteEmitter" />
+      </StackPanel>
+    </Grid>
+
+    <!-- ── everything about the selected element ────────────────────────── -->
+    <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Spacing="10" Margin="0,0,8,0"
+                  IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
+
+        <StackPanel Spacing="2"
+                    IsVisible="{Binding SelectedGroup, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <TextBlock Text="The effect" FontSize="11" Opacity="0.6"
+                     ToolTip.Tip="These move every member at once and keep the spacing between them — the smoke staying four frames behind the flash is what makes it read as one event" />
+          <Grid ColumnDefinitions="112,*" ColumnSpacing="6" Margin="0,1">
+            <TextBlock Grid.Column="0" Text="Name" FontSize="11" VerticalAlignment="Center" Opacity="0.75" />
+            <TextBox Grid.Column="1" Text="{Binding GroupName, Mode=TwoWay}"
+                     PlaceholderText="e.g. explosion" />
+          </Grid>
+          <Grid ColumnDefinitions="112,*,*,*" ColumnSpacing="6" Margin="0,1">
+            <TextBlock Grid.Column="0" Text="Place" FontSize="11" VerticalAlignment="Center" Opacity="0.75" />
+            <NumericUpDown Grid.Column="1" FormatString="0" Increment="8"
+                           Value="{Binding GroupOriginX, Mode=TwoWay}"
+                           ToolTip.Tip="Where the effect's left edge sits, in document pixels. Moves every member." />
+            <NumericUpDown Grid.Column="2" FormatString="0" Increment="8"
+                           Value="{Binding GroupOriginY, Mode=TwoWay}" />
+            <NumericUpDown Grid.Column="3" FormatString="0" Increment="1" Minimum="0"
+                           Value="{Binding GroupFirstFrame, Mode=TwoWay}"
+                           ToolTip.Tip="The frame the effect starts on. Shifts every member by the same amount, so the internal timing survives." />
+          </Grid>
+          <Button Classes="text" HorizontalAlignment="Left" Content="Bake the whole effect"
+                  Click="OnBakeGroup"
+                  ToolTip.Tip="Bake every element and put their layers in one folder" />
+        </StackPanel>
+
+        <Grid ColumnDefinitions="112,*" ColumnSpacing="6">
+          <TextBlock Grid.Column="0" Text="Name" FontSize="11" VerticalAlignment="Center" Opacity="0.75" />
+          <TextBox Grid.Column="1" Text="{Binding ElementName, Mode=TwoWay}"
+                   PlaceholderText="e.g. cloak flames" />
+        </Grid>
+
+        <StackPanel Spacing="2">
+          <TextBlock Text="Placement and timing" FontSize="11" Opacity="0.6" />
+          <ItemsControl ItemsSource="{Binding PlacementFields}" ItemTemplate="{StaticResource FieldRow}" />
+        </StackPanel>
+
+        <StackPanel Spacing="2">
+          <TextBlock Text="The fluid" FontSize="11" Opacity="0.6"
+                     ToolTip.Tip="Every one of these changes what is simulated, so the preview goes stale and waits for Simulate" />
+          <ItemsControl ItemsSource="{Binding PhysicsFields}" ItemTemplate="{StaticResource FieldRow}" />
+          <!-- The Obstacle picker belongs here and is deliberately absent until
+               the solver honours interior boundaries (build step 5d). The record
+               field and the mask rasterisation both exist, so the control would
+               bind and store perfectly and change nothing on screen — which is
+               the "controls lie" failure the export window's hidden rows exist to
+               avoid, and worse here because the value would persist and look
+               authored. It comes back with the behaviour. -->
+        </StackPanel>
+
+        <StackPanel Spacing="2" IsVisible="{Binding SelectedEmitter, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <TextBlock Text="The selected emitter" FontSize="11" Opacity="0.6" />
+          <ItemsControl ItemsSource="{Binding EmitterFields}" ItemTemplate="{StaticResource FieldRow}" />
+          <Grid ColumnDefinitions="112,*" ColumnSpacing="6" Margin="0,3,0,0">
+            <TextBlock Grid.Column="0" Text="Emit from" FontSize="11" VerticalAlignment="Center" Opacity="0.75" />
+            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch"
+                      ItemsSource="{Binding LayerChoices}"
+                      SelectedItem="{Binding EmitterMaskLayer, Mode=TwoWay}"
+                      ToolTip.Tip="Emit from wherever this layer has ink, rather than from a shape. This is how flames follow a drawn costume." />
+          </Grid>
+        </StackPanel>
+
+        <StackPanel Spacing="2">
+          <TextBlock Text="Bands" FontSize="11" Opacity="0.6" />
+          <ItemsControl ItemsSource="{Binding BandFields}" ItemTemplate="{StaticResource FieldRow}" />
+          <Grid ColumnDefinitions="112,*" ColumnSpacing="6" Margin="0,3,0,0">
+            <TextBlock Grid.Column="0" Text="Colours" FontSize="11" VerticalAlignment="Center" Opacity="0.75" />
+            <TextBox Grid.Column="1" Text="{Binding BandColorsText, Mode=TwoWay}"
+                     PlaceholderText="#3a1200 #d95f18 #ffe9a8"
+                     ToolTip.Tip="One per band, outermost first" />
+          </Grid>
+          <Grid ColumnDefinitions="112,*" ColumnSpacing="6">
+            <TextBlock Grid.Column="0" Text="Outline" FontSize="11" VerticalAlignment="Center" Opacity="0.75" />
+            <TextBox Grid.Column="1" Text="{Binding OutlineColorHex, Mode=TwoWay}" />
+          </Grid>
+        </StackPanel>
+
+        <StackPanel Spacing="2">
+          <Grid ColumnDefinitions="*,Auto,Auto">
+            <TextBlock Grid.Column="0" Text="Line treatment" FontSize="11" Opacity="0.6"
+                       VerticalAlignment="Center"
+                       ToolTip.Tip="The art style. These redraw from the solve already in hand, so they are cheap and preview as you move them." />
+            <TextBlock Grid.Column="1" Text="{Binding PenSummary}" FontSize="10" Opacity="0.5"
+                       VerticalAlignment="Center" Margin="0,0,6,0" />
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+              <Button Classes="text" Content="Take brush" Click="OnUseCurrentBrush"
+                      ToolTip.Tip="Draw this element's outlines with the brush the toolbar is holding. Copied now, not read at bake time — so re-baking always draws the same line." />
+              <Button Classes="text" Content="Default pen" Click="OnClearBrush" />
+              <Button Classes="text" Content="Revert all" Click="OnRevertTreatment" />
+            </StackPanel>
+          </Grid>
+          <ItemsControl ItemsSource="{Binding TreatmentFields}" ItemTemplate="{StaticResource FieldRow}" />
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- ── the preview, and the two buttons that cost something ─────────── -->
+    <Grid Grid.Column="2" RowDefinitions="*,Auto,Auto,Auto,Auto" RowSpacing="6">
+      <Border Grid.Row="0" Background="{StaticResource BackgroundPrimaryBrush}" CornerRadius="3" Padding="4">
+        <Image x:Name="PreviewImage" Stretch="Uniform" />
+      </Border>
+
+      <Grid Grid.Row="1" ColumnDefinitions="Auto,*,44" ColumnSpacing="6">
+        <TextBlock Grid.Column="0" Text="Frame" FontSize="11" VerticalAlignment="Center" Opacity="0.75" />
+        <Slider Grid.Column="1" x:Name="FrameSlider" VerticalAlignment="Center"
+                Minimum="0" TickFrequency="1"
+                Value="{Binding PreviewFrame, Mode=TwoWay}" />
+        <TextBlock Grid.Column="2" Text="{Binding PreviewFrame}" FontSize="11"
+                   VerticalAlignment="Center" HorizontalAlignment="Right" />
+      </Grid>
+
+      <ProgressBar Grid.Row="2" Minimum="0" Maximum="1" Height="3"
+                   Value="{Binding Progress}" />
+
+      <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="4">
+        <!-- Simulate is separate from Bake because the two cost different
+             things by a factor of forty, and a window that hid the difference
+             would make every edit feel like the slow one. -->
+        <Button Classes="primary" Content="Simulate" Click="OnSimulate"
+                ToolTip.Tip="Run the fluid again. Needed after anything under The fluid, the emitters, or placement." />
+        <Button Content="Bake" Click="OnBake"
+                ToolTip.Tip="Write the drawings into the document, replacing whatever this element drew before. Undoable in one step." />
+        <Button Classes="text" Content="Clear" Click="OnClearBake"
+                ToolTip.Tip="Take this element's drawings back out, leaving the element itself" />
+      </StackPanel>
+
+      <StackPanel Grid.Row="4" Spacing="2">
+        <Border Classes="badge warning" HorizontalAlignment="Left"
+                IsVisible="{Binding Stale}">
+          <TextBlock Text="the picture is out of date — press Simulate" />
+        </Border>
+        <TextBlock Text="{Binding Status}" FontSize="10" Opacity="0.6" TextWrapping="Wrap" />
+      </StackPanel>
+    </Grid>
+  </Grid>
+</Window>

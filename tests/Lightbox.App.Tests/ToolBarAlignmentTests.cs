@@ -160,18 +160,27 @@ public sealed class ToolBarAlignmentTests : BrushStateIsolated
     // ---- B16: the brush flyout is as tall as its page --------------------------
 
     [AvaloniaFact]
-    public void TheGearCarriesNoFlyoutAnyMore()
+    public void TheGearCarriesNoSecondCopyOfTheBrushParameters()
     {
-        // The brush parameters became the Tool options DOCKER (the owner's
-        // call), so the gear is a plain command button. A flyout reappearing
-        // here would mean the two hosts have quietly forked. Searched from
-        // the window: the gear lives in the bar's pinned section beside the
-        // preset picker now, not inside the OverflowBar.
+        // This test used to read "TheGearCarriesNoFlyoutAnyMore", from when the
+        // brush parameters became the Tool options docker and the gear became a
+        // plain command button. B261 put the flyout back — a panel opening
+        // across the window is a change an artist misses — so the wiring it
+        // asserted is deliberately gone.
+        //
+        // Its actual concern outlived it and is what is guarded here: **a
+        // flyout here must never mean the two hosts have forked.** The gear
+        // does not own a Flyout full of duplicated markup; it borrows the
+        // panel's own page at click time (MainWindow.ToolOptionsFlyout.cs) and
+        // hands it back. A declared Button.Flyout would be the second copy this
+        // has always been watching for.
         var button = Open().GetVisualDescendants().OfType<Button>()
             .First(b => (b.GetValue(ToolTip.TipProperty) as string)?.StartsWith("All brush parameters") == true);
 
         Assert.Null(button.Flyout);
-        Assert.NotNull(button.Command);
+        // And no command: the click is handled, because opening depends on
+        // whether the panel is already on screen.
+        Assert.Null(button.Command);
     }
 
     // ---- B14: deleting the paper leaves no paper --------------------------------

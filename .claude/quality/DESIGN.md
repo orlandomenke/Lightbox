@@ -377,6 +377,21 @@ a click on every stroke — a worse bargain than the height it saves.
 **Content scrolls inside its docker**, so a docker with forty swatches is as
 tall as a docker with four until the artist grows it.
 
+**A layer row states its carve state without a glyph.** Two additions the
+reference image predates, sized against what already sits on the row:
+
+- **The mask chip** — a 14×22 bordered pane beside the 38×22 thumbnail, the
+  thumbnail's own height so the pair reads as one strip. Deliberately *not*
+  an icon toggle like the eye and the lock: those switch a state, the chip is
+  a second **surface you draw on**, and clicking it moves the pen there.
+  Solid while the mask applies, hollow while disabled, cyan-outlined while
+  strokes are landing on it — cyan being the chosen-state accent the locked
+  row already established.
+- **The clip bar** — a 10px indent carrying a 2px cyan rule, before the eye.
+  An indent rather than a control (Photoshop's own visual for a clipped
+  layer), and narrower than the 14px folder indent so the two stay tellable
+  apart at a glance.
+
 **Track colours on the timeline.** Every track wears its own hue, cycling
 violet, blue, magenta, teal, green, gold — a row is findable by colour before
 it is read by name — and the camera always takes the orange, exactly as the

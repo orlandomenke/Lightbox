@@ -28,6 +28,28 @@ public sealed partial class CanvasControl
 
     private IReadOnlyList<BoneChrome>? _boneChromes;
 
+    /// <summary>
+    /// Whether those bones are standing at a pose rather than at rest, which
+    /// decides their colour.
+    /// </summary>
+    /// <remarks>
+    /// Pushed beside the chrome rather than carried on each bone: every bone in
+    /// one overlay is standing at the same thing, so a per-bone flag would be
+    /// the same answer repeated and a chance for them to disagree.
+    /// </remarks>
+    public bool BonesArePosed
+    {
+        get => _bonesArePosed;
+        set
+        {
+            if (_bonesArePosed == value) return;
+            _bonesArePosed = value;
+            InvalidateVisual();
+        }
+    }
+
+    private bool _bonesArePosed;
+
     /// <summary>The weight heat view under the bones, or null.</summary>
     public IReadOnlyList<HeatPoint>? HeatPoints
     {
@@ -137,6 +159,25 @@ public sealed partial class CanvasControl
     }
 
     private IReadOnlyList<Core.Timeline.TrailPoint>? _trailPoints;
+
+    /// <summary>
+    /// The motion arc overlay — the fitted arc, its off-arc ticks and the
+    /// predicted positions — or null for none, following
+    /// <see cref="TrailPoints"/> in every way including the null guard: while
+    /// the arc is off, a refresh must not invalidate the canvas.
+    /// </summary>
+    public Core.Timeline.MotionArcOverlay? MotionArc
+    {
+        get => _motionArc;
+        set
+        {
+            if (ReferenceEquals(_motionArc, value)) return;
+            _motionArc = value;
+            InvalidateVisual();
+        }
+    }
+
+    private Core.Timeline.MotionArcOverlay? _motionArc;
 
     /// <summary>
     /// Whether a press should edit the rig instead of drawing.

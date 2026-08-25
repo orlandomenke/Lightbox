@@ -25,6 +25,8 @@ public enum DockPanelId
     Channels,
     History,
     Navigator,
+    Scene,
+    Effects,
 }
 
 /// <summary>Where a panel lives.</summary>
@@ -92,11 +94,19 @@ public static class DockPanels
         new(DockPanelId.Channels, "Channels", MaxExtent: 320, DefaultExtent: 260, MinExtent: 140),
         // A list of labels: capped like the other list-of-rows loners that are
         // not as long as the work itself.
-        new(DockPanelId.History, "History", MaxExtent: 320, DefaultExtent: 240, MinExtent: 140),
+        new(DockPanelId.History, "Undo history", MaxExtent: 320, DefaultExtent: 240, MinExtent: 140),
         // A picture of the whole drawing with the view drawn on it. Capped and
         // short: it is glanced at and clicked, never read, and height spent on
         // it is height the layer stack wanted.
         new(DockPanelId.Navigator, "Navigator", MaxExtent: 320, DefaultExtent: 170, MinExtent: 110),
+        // The multiplane authoring surface (Q84): depth rows and the camera's
+        // path. In no default layout — shot machinery is absent until asked
+        // for — so it exists only where an artist opened it.
+        new(DockPanelId.Scene, "Scene", MaxExtent: 360, DefaultExtent: 240, MinExtent: 150),
+        // Effects and adjustment layers (DESIGN-effects.md, Q151). Like the
+        // Scene panel, in no default layout: a document that never filters
+        // must never show effect UI — optional means absent.
+        new(DockPanelId.Effects, "Effects", MaxExtent: 360, DefaultExtent: 260, MinExtent: 150),
     ];
 
     /// <summary>

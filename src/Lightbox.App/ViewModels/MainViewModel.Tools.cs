@@ -40,6 +40,7 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(IsPickerTool))]
     [NotifyPropertyChangedFor(nameof(IsGradientTool))]
     [NotifyPropertyChangedFor(nameof(IsMoveTool))]
+    [NotifyPropertyChangedFor(nameof(IsCropTool))]
     [NotifyPropertyChangedFor(nameof(ReachesGuides))]
     // Missing, and it cost the whole shape options group: nothing ever told
     // the bar the tool had changed, so IsVisible stayed false and there was no
@@ -52,6 +53,7 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(IsPenTool))]
     [NotifyPropertyChangedFor(nameof(IsWidthTool))]
     [NotifyPropertyChangedFor(nameof(IsBoneTool))]
+    [NotifyPropertyChangedFor(nameof(IsTextTool))]
     [NotifyPropertyChangedFor(nameof(ActiveToolLabel))]
     [NotifyPropertyChangedFor(nameof(ActiveToolHasNoPanelOptions))]
     [NotifyPropertyChangedFor(nameof(UsesGenericToolOptions))]
@@ -380,6 +382,9 @@ public partial class MainViewModel
 
     public bool IsMoveTool => ActiveTool == ToolId.Move;
 
+    /// <summary>The crop frame — drag a rectangle, Enter takes the paper down to it.</summary>
+    public bool IsCropTool => ActiveTool == ToolId.Crop;
+
     /// <summary>
     /// Whether the tool in hand reaches for guides — picks them, moves them,
     /// and shows their numbers.
@@ -435,6 +440,7 @@ public partial class MainViewModel
         // name is in here; the one that agreed by accident was the one nobody
         // noticed was missing.
         ToolId.Bone => "Bone",
+        ToolId.Crop => "Crop",
         _ => ActiveTool.ToString(),
     };
 
@@ -651,6 +657,20 @@ public partial class MainViewModel
         // deliberate finish, and neither discards.
         if (value != ToolId.Pen) ParkPen();
 
+        // Type, on the other hand, is set rather than parked or thrown away.
+        // The pen can park because a half-drawn path is still on screen and
+        // still the pen's; a caret cannot, because nothing but the text tool can
+        // show it — so leaving with a word half typed would either lose it or
+        // hide it. Setting it keeps the work and costs one Ctrl+Z to change your
+        // mind, which is the same asymmetry Escape is chosen on.
+        if (value != ToolId.Text) CommitText();
+        // Picking the tool is what fills the font list and settles which face
+        // new type is set in. It used to wait for a click on the font button,
+        // so the button read "Loading…" until an artist pressed the one control
+        // whose label was telling them it was not ready — and the browser was
+        // empty behind it.
+        else EnsureFontsLoaded();
+
         // B147's shape one tool along, and phase 2 shipped it: the node overlay
         // is drawn whatever the tool is, so leaving isolation for the brush left
         // glyphs on screen over a line nothing could reshape any more. Only the
@@ -661,6 +681,13 @@ public partial class MainViewModel
         // would not select. Choosing a tool that cannot work the session is
         // leaving it.
         if (value is not (ToolId.DirectSelect or ToolId.Width)) EndPathEdit();
+
+        // The crop frame is the tool, the way the rig is the Bone tool (Q81):
+        // picking Crop opens a frame on the whole page, and leaving the tool
+        // drops it. An unapplied frame surviving the switch would be a
+        // rectangle drawn over the artwork that nothing can act on any more —
+        // the same one-line rule as the four above.
+        if (value == ToolId.Crop) BeginCropFrame(); else EndCropFrame();
     }
 
     [RelayCommand]
@@ -803,7 +830,7 @@ public partial class MainViewModel
     {
         if (!CanEdit(ActiveLayer, "transform it")) return false;
         var frames = CollectTransformFrames();
-        filter ??= DerivedTransformFilter();
+        filter ??= DerivedTransformFilter(frames);
         var bounds = TransformOps.Bounds(frames, filter);
         if (frames.Count == 0 || bounds is null)
         {
@@ -854,13 +881,31 @@ public partial class MainViewModel
     /// there is no way to show that on a canvas.
     /// </para>
     /// </remarks>
-    private Func<Stroke, bool>? DerivedTransformFilter()
+    /// <param name="frames">
+    /// The frames the session is opening over. The marquee's classification is
+    /// taken here, once, against what is VISIBLE on them — a stroke is judged
+    /// by the points a later erasure has not taken away, and one none of whose
+    /// ink survives is never taken at all (B297; StrokePicker's rule three).
+    /// Judging per call on raw geometry is how a lasso around a redrawn nose
+    /// used to lift the rubbed-out previous nose from under its eraser. Held
+    /// by id because a commit on a held cel clones the drawing, and the clone
+    /// keeps its stroke ids (Frame.Clone).
+    /// </param>
+    private Func<Stroke, bool>? DerivedTransformFilter(List<Frame> frames)
     {
         if (HasSelection)
         {
             int w = Scene.Width, h = Scene.Height;
             var mask = MaskFromContours(_selectionContours, w, h);
-            return s => TransformOps.MajorityInside(s, mask, w, h);
+            var moving = new HashSet<string>();
+            foreach (var frame in frames)
+            {
+                foreach (var index in TransformErasures.MovingWithin(frame.Strokes, mask, w, h))
+                {
+                    moving.Add(frame.Strokes[index].Id);
+                }
+            }
+            return s => moving.Contains(s.Id);
         }
         return StrokeSelectionFilter();
     }

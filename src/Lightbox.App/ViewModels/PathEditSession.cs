@@ -177,7 +177,7 @@ public sealed class PathEditSession
     {
         var path = stroke.Path is { IsUsable: true } existing
             ? existing.Clone()
-            : CurveFitter.Fit(stroke.Points, closed: stroke.Tool == ToolKind.Fill);
+            : CurveFitter.Fit(stroke.Points, closed: stroke.Tool.FillsAContour());
 
         if (path is not { IsUsable: true }) return null;
 

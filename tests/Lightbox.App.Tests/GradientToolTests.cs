@@ -12,7 +12,8 @@ namespace Lightbox.App.Tests;
 /// document and a two-point axis on a stroke; editing the definition changes
 /// the art, exactly like a palette swatch.
 /// </summary>
-public class GradientToolTests
+[Collection("BrushState")]
+public class GradientToolTests : BrushStateIsolated
 {
     private static MainViewModel WithGradient(out Gradient gradient)
     {

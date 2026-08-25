@@ -80,6 +80,36 @@ public sealed class Doc
     public Dictionary<string, Gradient> Gradients { get; set; } = [];
 
     /// <summary>
+    /// The text elements set in this document, keyed by id, or null — which is
+    /// every document nobody has typed in.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Editing state, not rendering state.</b> Every other resource in this
+    /// class is here because the renderer needs it — a tip, a texture, a clip
+    /// region, a gradient ramp. This one is the exception and is worth the
+    /// difference being explicit: the glyph contours a text element baked to are
+    /// already in the strokes, so deleting this whole block changes no pixel of
+    /// any frame. What it deletes is the ability to retype the words.
+    /// See <see cref="TextElement"/> for why that is the right way round.
+    /// </para>
+    /// </remarks>
+    public Dictionary<string, TextElement>? Texts { get; set; }
+
+    /// <summary>
+    /// Fonts carried in the document itself, keyed by id, so text set in them
+    /// can be retyped on a machine that does not have them installed. Null
+    /// until one is carried, which needs a licence that allows it.
+    /// </summary>
+    /// <remarks>
+    /// Referenced by <see cref="FontRef.EmbeddedId"/>. See
+    /// <see cref="EmbeddedFont"/> for the licence condition and what it costs
+    /// when it is not met — the short version being that the picture is never
+    /// affected either way.
+    /// </remarks>
+    public Dictionary<string, EmbeddedFont>? Fonts { get; set; }
+
+    /// <summary>
     /// Symbols this document carries itself, keyed by id — or null, which is
     /// the ordinary case.
     /// </summary>
@@ -104,6 +134,83 @@ public sealed class Doc
     /// <summary>Whether this document carries symbols of its own. Derived; not serialized.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool HasSymbols => Symbols is { Count: > 0 };
+
+    /// <summary>
+    /// The effects elements authored in this document, keyed by id, or null.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Absent until authored</b>, the camera's rule and the medium block's
+    /// lesson: a document that never makes an effect is byte-identical to one
+    /// from before the feature existed, and shows no effects UI.
+    /// </para>
+    /// <para>
+    /// These are <em>authoring parameters</em>, never the drawing. Baking writes
+    /// ordinary strokes into the frames, each tagged with
+    /// <see cref="Stroke.SimId"/>; deleting every element here changes no pixel,
+    /// because the strokes are ordinary strokes. That is what keeps invariant 1
+    /// intact and is why nothing downstream — renderer, picker, transform, undo,
+    /// export, the AI payload — needed to learn what an element is.
+    /// </para>
+    /// </remarks>
+    public Dictionary<string, SimElement>? Sims { get; set; }
+
+    /// <summary>Whether this document authors any effects elements. Derived; not serialized.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasSims => Sims is { Count: > 0 };
+
+    /// <summary>
+    /// Elements that are one effect, keyed by id, or null on a document where
+    /// nobody has grouped any.
+    /// </summary>
+    /// <remarks>
+    /// Absent until authored, like <see cref="Sims"/> itself: a document with
+    /// three ungrouped elements writes no <c>simGroups</c> key. Membership lives
+    /// here rather than as a field on the element for the reason layer folders
+    /// took the same shape — an element in no group is the ordinary case and
+    /// should carry nothing saying so.
+    /// </remarks>
+    public Dictionary<string, SimGroup>? SimGroups { get; set; }
+
+    /// <summary>The group an element belongs to, or null. Linear; there are never many.</summary>
+    public SimGroup? GroupOf(SimElement element)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        if (SimGroups is null) return null;
+        foreach (var group in SimGroups.Values)
+        {
+            if (group.ElementIds.Contains(element.Id)) return group;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Shared line treatments, keyed by id, or null — the show's looks, which an
+    /// element names and may override field by field (Q118).
+    /// </summary>
+    /// <remarks>
+    /// On the document for now, in the manner <see cref="Palettes"/> began: the
+    /// scoping that makes one look serve a whole production is the same step
+    /// palettes took, and is a separate change from having the record at all.
+    /// </remarks>
+    public Dictionary<string, LineTreatment>? LineTreatments { get; set; }
+
+    /// <summary>
+    /// The treatment an element follows, with its own overrides applied over it.
+    /// </summary>
+    /// <remarks>
+    /// The one place the cascade is resolved, so nothing else has to remember
+    /// the order. A missing id resolves to the defaults rather than throwing — a
+    /// treatment deleted out from under an element should leave a plain line,
+    /// not an unopenable document.
+    /// </remarks>
+    public ResolvedTreatment TreatmentFor(SimElement element)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        LineTreatment? shared = null;
+        if (element.TreatmentId is { } id) LineTreatments?.TryGetValue(id, out shared);
+        return LineTreatment.Resolve(shared, element.Treatment);
+    }
 
     /// <summary>
     /// The document's bone hierarchy, or null — and null is the default and
@@ -262,7 +369,12 @@ public sealed class Doc
         copy.Palettes = Palettes.Select(p => p.Clone()).ToList();
         copy.PaletteFolders = PaletteFolders?.Select(f => f.Clone()).ToList();
         copy.Gradients = Gradients.ToDictionary(e => e.Key, e => e.Value.Clone());
+        copy.Texts = Texts?.ToDictionary(e => e.Key, e => e.Value.Clone());
+        copy.Fonts = Fonts?.ToDictionary(e => e.Key, e => e.Value.Clone());
         copy.Symbols = Symbols?.ToDictionary(e => e.Key, e => e.Value.Clone());
+        copy.Sims = Sims?.ToDictionary(e => e.Key, e => e.Value.Clone());
+        copy.SimGroups = SimGroups?.ToDictionary(g => g.Key, g => g.Value.Clone());
+        copy.LineTreatments = LineTreatments?.ToDictionary(e => e.Key, e => e.Value.Clone());
         copy.Armature = Armature?.Clone();
         copy.Features = Features is null ? null : new Dictionary<string, bool>(Features);
         return copy;

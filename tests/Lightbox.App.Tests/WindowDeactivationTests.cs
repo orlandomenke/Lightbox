@@ -18,7 +18,8 @@ namespace Lightbox.App.Tests;
 /// stroke in flight". Deleting the <c>Deactivated</c> subscription in
 /// MainWindow reopens the bug and fails here, nowhere else.
 /// </summary>
-public class WindowDeactivationTests
+[Collection("BrushState")]
+public class WindowDeactivationTests : BrushStateIsolated
 {
     private static (MainWindow Window, MainViewModel Vm, CanvasControl Canvas) Open()
     {

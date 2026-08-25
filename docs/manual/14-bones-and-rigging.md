@@ -19,10 +19,17 @@ Weights drag paints influence, it never turns a bone.
 
 Below the switch, the panel lists **every bone in the rig**, children indented
 under their parents. Picking one there selects it on the canvas — the same
-selection a click on the canvas makes — and the selected bone draws **white**
-where the others draw green, the same colour selection wears on every overlay.
+selection a click on the canvas makes — and the selected bone draws **white**,
+the same colour selection wears on every overlay.
 Every bone and handle sits on a dark rim, so the chrome reads on white paper
 and dark canvases alike.
+
+**The rest of the skeleton tells you which of the two things you are looking
+at.** In **Bind** it is **green** — that is the rig itself, and a drag there
+rebinds the drawing. In **Pose** and **Weights** it is **violet** — that is
+the rig *standing at the playhead*, and a drag there keys a pose. The two
+gestures look identical and mean opposite things, so the colour is what
+separates them without reading the switch.
 The rest of the panel is what you can do to the picked bone (rename, length,
 add child, delete, IK, spline, constraints), the weight brush while it is
 armed, and the binding actions. The pointer
@@ -68,11 +75,78 @@ go puts it, and the whole gesture is still a single undo step.
 
 ## Posing
 
-Switch to **posing** (**Shift+K**) and dragging a bone rotates it instead of
-editing it. The pose is keyed **at the playhead automatically** — pose the arm
+Switch to **posing** (**Shift+K**) and the same drags edit the *pose* instead
+of the skeleton. **Which part of the bone you take hold of decides what the
+drag does, and it means the same thing in both modes:**
+
+| Grab | Posing | Binding |
+| --- | --- | --- |
+| The **tip** handle | aims the bone | aims it, and sets its length |
+| The **shaft** | carries the bone, and everything parented to it | moves it in the skeleton |
+| The **joint** handle | puts the joint under the pointer | moves the rest joint |
+
+So **take a root bone by its shaft to move the whole character** — children
+ride their parent, so one drag carries the skeleton. The pointer says which of
+the two you are about to get before you press: a move cursor on the shaft and
+the joint, a turn cursor on the tip.
+
+The pose is keyed **at the playhead automatically** — pose the arm
 on frame 8 and a pose key lands on frame 8, interpolating from and to the keys
-either side, with the frames between showing the blend. Scrub the timeline and
+either side, with the frames between showing the blend.
+
+**You can see those keys, on the timeline.** Once a document has an armature,
+the track timeline grows an **Armature** row marking every frame any bone is
+keyed on — the camera's row, one track down. Tick **Bones** on the timeline bar
+(or click the row's **chevron**) to open it into one row per bone; it is closed
+by default, because a twenty-bone character would otherwise cost twenty rows.
+
+**The bone rows are the hierarchy, and they fold.** Children indent under
+their parents, and a bone with children carries its own chevron in the gutter
+— click it and the subtree folds away, so a twenty-bone character can show
+the one limb you are timing rather than twenty rows or none. Folding is a
+view's memory, never the document's: a folded bone's keys still play, still
+export, and still move with the summary row.
+
+The keys are editable where they are drawn:
+
+- **Drag a key** to retime it. On the Armature row that moves the whole pose;
+  on a bone's row it moves only that bone, leaving its neighbours where they
+  are. A key dropped on top of another replaces it.
+- **Right-click a key** to remove it, copy or cut it (the key clipboard —
+  see *Copying keys* in the timeline chapter), or jump the playhead to it. On
+  a bone's row, removing takes that bone off the key and leaves the rest of
+  the pose alone; when the last bone comes off a key, the key goes with it.
+- **Select a bone's key** and its X, Y and rotation appear as numbers on the
+  strip under the tracks — the departure from rest the key holds, typed
+  instead of dragged.
+
+A bone that gains a key where there was none is seeded from the pose you were
+already looking at, so keying one bone never snaps its neighbours back to rest. Scrub the timeline and
 bound drawings follow the pose live, in playback and in every export.
+
+### Timing the rig on 2s
+
+Tweened bones move every frame, and every frame is exactly what drawn
+animation does not do. Two controls give the rig drawn timing, and both are
+off until you ask:
+
+- **Hold a key.** Right-click a pose key ▸ **Ease into next** ▸ **Hold** and
+  the pose freezes until the next key — pose-to-pose instead of a tween, the
+  same ease menu the camera's keys have. The other choices (linear, ease in,
+  out, in-out) shape the tween the way they always did.
+- **Sample the whole track on 2s.** Right-click the Armature row's empty run ▸
+  **Pose on…** ▸ **2s** (or 3s, 4s) and the rig is *shown* every second frame
+  and held between, while the tween underneath stays fluid. Retiming is the
+  point: change the interval, or a key, and the motion re-samples — nothing is
+  re-posed. Back to **1s (every frame)** and the track is exactly what it was.
+
+The step is what the *frames show* — playback, export and bake all step —
+while posing keeps working at full precision: a key you add or drag is
+measured against the fluid tween, on whatever frame the playhead is on. Pose
+on the sampled frames (the even ones, on 2s) to see your key exactly as the
+frame will show it. Held poses land on the exposure sheet's grid, so a
+rig on 2s sits flush with drawings on 2s — and **baking** a stepped rig
+writes the held drawings, ready to re-expose and re-time like any others.
 
 **The skeleton has its own onion skin.** With onion skin on, posing also
 shows outline ghosts of the skeleton at the neighbouring **pose keys** — warm
@@ -80,6 +154,23 @@ behind the playhead, cool ahead, the same colours the drawing's ghosts wear —
 so an inbetween pose is judged against where it came from and where it goes.
 The onion bar's switch and depths drive it, and a ghost is never grabbed: a
 press through one lands on the real skeleton or the canvas.
+
+**Press play and the bones get out of the way.** Watching a cycle is watching
+the drawings, and a skeleton drawn over them is chrome you did not ask for —
+so the rig hides for the length of playback and comes back when you stop.
+Nothing about the pose changes; only whether it is drawn.
+
+If you would rather watch the rig move, tick **Show the bones while the
+animation plays** in *Configure ▸ Timeline*. It is off by default because the
+common case — flipping a cycle to judge the timing — wants the drawings and
+nothing over them. With it on, the bones re-solve at each frame and move with
+the drawings; with it off there is nothing on screen to go stale. What there is
+no longer is the third thing, which is what this fixed: the rig frozen at the
+last pose you touched while everything under it animated.
+
+The rig's **onion ghosts stand down for playback either way**, the same as the
+drawing's do — they exist to show where a pose came from and where it goes,
+which is what you are watching.
 
 **The drawing follows the drag, not just the bones.** Bound strokes re-render
 through the provisional pose as you drag, exactly — the same render the
@@ -96,6 +187,37 @@ keeps them at rest, so un-keying a pose returns exactly the drawing you made.
 **Baking** writes the pose into the drawing: bound strokes become ordinary
 posed strokes, cut loose from the rig. What you bake is what you saw — the
 live view and the baked result are pixel-identical.
+
+### Keeping a pose as a drawing
+
+Posing writes a pose key and nothing else. That is what makes trying a pose
+free — but on a long exposure it means the frames you posed still show the one
+drawing the cel is holding, and playback shows the drawings you made rather
+than the poses you authored.
+
+**Drawing from pose** is the other half. Park on a held frame, pose the rig,
+and use it: the hold breaks and that frame becomes a drawing of its own,
+holding what you were looking at. Three ways to reach it, all the same command:
+
+- the **bone options**, which acts on the frame you are standing on;
+- **right-click a cel in the X-sheet**, which acts on the cel you clicked and
+  then takes you to it — the way to work along a row without moving the
+  playhead first. It only appears once the document has an armature;
+- a key of your own, bound under *Keep this pose as a drawing* — worth doing
+  for a cycle, where you press it once per drawing.
+
+- **Bound art** arrives baked into its posed position, ready to touch up.
+- **A bone guide over hand-drawn art** — nothing bound — arrives as a copy of
+  the drawing the cel was holding, with the posed skeleton showing through it
+  to redraw over. This is the frame-by-frame way to use bones: block the
+  action out with the skeleton, then commit one drawing per frame you want.
+
+Only the frame you are on becomes a drawing. The frames after it go on
+showing the drawing they were showing — the cel after the new one re-exposes
+it, so a long hold you commit one frame out of keeps running exactly as it
+read, and the frames that were following the rig go on following it. Press it on a frame that already has a drawing of its
+own and nothing is inserted — it bakes the pose into that drawing instead,
+which is what **Bake pose** does.
 
 ## IK — reaching instead of turning
 

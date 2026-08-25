@@ -47,6 +47,7 @@ warns about.
 | P | Pen — draw a line by placing its points |
 | W | Width — make a line heavier or lighter |
 | U | Shape — line, rectangle, ellipse, polygon |
+| C | Crop — frame the page by eye; Enter crops to the frame, Esc puts it back |
 | Double-click | Go inside a line to reshape it; Esc to come back out |
 | Backspace | Take the last point back off, while drawing with the pen |
 | Enter / Esc | Finish the pen line (neither discards it — Ctrl+Z does) |
@@ -55,7 +56,7 @@ warns about.
 | Ctrl (hold) | Borrow the eyedropper; let go and your tool comes back |
 | B, E, F, V, I (hold) | Tap to switch tools as always; **hold** one, use it, and let go to land back where you were |
 | I | Eyedropper — anywhere except the timeline, where it inserts a key |
-| Ctrl+Z / Ctrl+Y | Undo, redo |
+| Ctrl+Z / Ctrl+Y | Undo, redo — also **Edit ▸ Undo / Redo**, where the entry names the step it would take back |
 | Ctrl+Shift+Z | Redo, on its other key — both bindings work, and each can be remapped on its own |
 | Ctrl+T | Transform |
 | Ctrl+E | Merge the active layer into the one below |
@@ -138,30 +139,32 @@ and the file on disk never read either setting.
 
 ### Blending layers on the graphics card
 
-*Experimental, and off, because it is not yet known to be faster.*
-
-**Edit → Configure → Performance → Use the graphics card to blend layers.**
+**Edit → Configure → Performance → Composite layers on the GPU.**
 
 Stacking layers together is arithmetic over every pixel, and a graphics card is
 built for exactly that. The catch is that the layer images live in ordinary
 memory and have to reach the card before it can do anything with them. On a
 laptop with shared graphics memory — which is most laptops — that transfer
-competes with the drawing you are already doing, so it can easily cost more
-than it saves.
+competes with the drawing you are already doing, so it can cost more than it
+saves. It is genuinely faster on some machines and genuinely slower on others,
+and there is no way to tell which yours is by looking at it.
 
-So this is a switch to *try*, not a setting to turn on and forget. The honest
-answer for your machine is:
+So Lightbox measures instead of guessing. There are three settings:
 
-1. Turn it on.
-2. Zoom in far enough that the canvas edges are off screen — that is the only
-   view it currently applies to. A fit-to-window view composites the old way.
-3. Play a scene back for a few seconds.
-4. **Help → Write a render report**, and look for *resident layer textures*.
+| | |
+| --- | --- |
+| **Auto** | The default. On the first frame of a session, Lightbox blends the same layers once on the card and once on the processor, and keeps whichever was faster here. |
+| **On** | Always use the card, whatever the measurement said. |
+| **Off** | Always use the processor. |
 
-The report says how many layer draws avoided a transfer. It also says when the
-answer is "nothing happened", which is the case the checkbox cannot tell you
-about on its own — a machine presenting in software has no card to blend on,
-and the hint under the checkbox says so before you spend time on it.
+The hint under the picker says what actually happened — including the case that
+is easy to be misled by. Some machines report a graphics card and then draw
+every pixel in software anyway (a remote desktop, a virtual machine, or a
+driver falling back). Such a machine passes every check except a stopwatch, so
+Auto times it and stays on the processor. If you would rather see for yourself,
+set it to On, play a scene back, and use **Help → Write a render report** —
+which says what the compositor did, what the measurement was, and how many
+layer draws avoided a transfer.
 
 Nothing you save is affected either way. Exports, thumbnails and the file on
 disk are produced by the processor whatever this is set to, so a picture that
@@ -302,15 +305,24 @@ UI-thread stalls — are the same numbers before and after, so one traced minute
 on each side settles whether a change helped, instead of leaving it to whether
 the flicker *feels* better.
 
-**Lightbox already filters the phantom mouse.** Where a tablet driver sends a
-mouse alongside the pen — which is what makes the pointer flicker, hover panels
-collapse, and menus freeze the application for seconds at a time — those
-duplicate events are dropped before they reach anything. The report counts them
-as `echo events dropped`. On a machine with no pen the filter can never engage,
-so an ordinary mouse is untouched; and if you pick the mouse up after using the
-pen, it is yours again a fifth of a second later. If a trace taken while
-drawing shows `echo events dropped 0`, the filter is not running — which is
-itself worth reporting.
+**What Lightbox can and cannot do about it.** The duplicate mouse a tablet
+driver sends alongside the pen cannot be stopped from inside the application —
+that was tried and measured, and it does not work. What Lightbox does instead
+is stop reacting to it: the brush ring ignores the pointer "leaving" unless it
+stays away for a twentieth of a second, and menus are drawn inside the window
+rather than as separate windows, which is what stopped a hovered menu freezing
+the application. The counters line says `popups are in-window overlays` when
+that is in force.
+
+A submenu is also held open for a quarter of a second once it opens, so the
+same duplicate events cannot make it flicker shut and open again sixty times a
+second. It still closes the moment you actually move away.
+
+Expect `stream alternations` and `canvas enter/exit` to stay high even when
+this is working — those count the driver's behaviour, which is untouched. What
+should change is what you see: a steady ring and menus that stay usable. The
+counters line reports `submenu closes refused`, which is how you can tell the
+guard engaged rather than the problem simply not happening that session.
 
 ### If playback or scrubbing stutters, read the tile section first
 

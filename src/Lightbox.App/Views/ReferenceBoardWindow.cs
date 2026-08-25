@@ -43,6 +43,17 @@ public sealed class ReferenceBoardWindow : Window
     private readonly Dictionary<string, (byte[] Bytes, Bitmap Picture)> _pictures = new(StringComparer.Ordinal);
     private readonly Button _sheetsButton = new() { Content = "Sheets ▾", Classes = { "tertiary" } };
 
+    /// <summary>
+    /// The board's own voice. A drop or paste that fails used to say so only on
+    /// the main window's status line, which the artist looking at this window
+    /// cannot see — so the failure read as total silence (B285).
+    /// </summary>
+    private readonly TextBlock _status = new()
+    {
+        VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+        Opacity = 0.75,
+    };
+
     /// <summary>Where a tile grab counts as the resize corner rather than a move.</summary>
     private const double CornerGrip = 16;
 
@@ -149,10 +160,20 @@ public sealed class ReferenceBoardWindow : Window
             Orientation = Avalonia.Layout.Orientation.Horizontal,
             Spacing = 6,
             Margin = new Thickness(8, 6),
-            Children = { arrange, fit, add, _sheetsButton },
+            Children = { arrange, fit, add, _sheetsButton, _status },
         };
         Grid.SetRow(bar, 0);
         return bar;
+    }
+
+    /// <summary>
+    /// Say it where the artist is looking — on this window — and mirror it to
+    /// the main status line, which is where every other import speaks.
+    /// </summary>
+    private void Say(string message)
+    {
+        _status.Text = message;
+        if (message.Length > 0) _vm.AiStatus = message;
     }
 
     private double BoardWidth => _surface.Bounds.Width > 1 ? _surface.Bounds.Width : Width;
@@ -349,7 +370,7 @@ public sealed class ReferenceBoardWindow : Window
             }
             else
             {
-                _vm.AiStatus = $"“{tile.Name}” has no readable picture to lay out.";
+                Say($"“{tile.Name}” has no readable picture to lay out.");
             }
         };
         var front = new MenuItem { Header = "Bring to front" };
@@ -635,7 +656,7 @@ public sealed class ReferenceBoardWindow : Window
                 if (await data.TryGetValueAsync(format) is not { Length: > 0 } bytes) continue;
                 if (BoardModel.AddImageBytes("Pasted", bytes, (centre.X, centre.Y)) is not null) return;
             }
-            _vm.AiStatus = "There is no picture on the clipboard to pin up.";
+            Say("There is no picture on the clipboard to pin up.");
         }
         catch (Exception ex)
         {
@@ -651,86 +672,129 @@ public sealed class ReferenceBoardWindow : Window
         DataFormat.CreateBytesPlatformFormat("image/bmp"),
     ];
 
-    /// <summary>Formats a picture dragged out of a browser can arrive in.</summary>
-    private static readonly DataFormat<string> UriListFormat =
-        DataFormat.CreateStringPlatformFormat("text/uri-list");
 
-    private static readonly DataFormat<string> HtmlFormat =
-        DataFormat.CreateStringPlatformFormat("text/html");
-
-    /// <summary>The image files in a drag, in the order they came.</summary>
+    /// <summary>Every file in a drag, in the order they came — whatever it is called.</summary>
+    /// <remarks>
+    /// <b>No extension filter (B282).</b> A browser that has already cached a
+    /// picture offers it as a <em>file</em> on the next drag, and that file is
+    /// often a temporary one with no extension or an odd one. Filtering by name
+    /// threw those away, and the drop then fell through to the web path, which
+    /// refused it in turn because a file format was present — so the second drag
+    /// of the same picture did nothing at all. What decides is whether the bytes
+    /// decode, which <see cref="ReferenceBoardViewModel.AddImageFile"/> already
+    /// asks: it returns null for anything that is not a picture.
+    /// </remarks>
     private static List<string> DroppedFiles(DragEventArgs e)
     {
         var paths = new List<string>();
         if (e.DataTransfer?.TryGetFiles() is not { } items) return paths;
         foreach (var item in items)
         {
-            if (item.TryGetLocalPath() is { } path
-                && Lightbox.Core.Projects.ProjectBoards.ImageExtensions.Contains(Path.GetExtension(path)))
-            {
-                paths.Add(path);
-            }
+            if (item.TryGetLocalPath() is { } path) paths.Add(path);
         }
         return paths;
     }
 
     /// <summary>
     /// The browser counterpart: a picture dragged off a web page carries URIs
-    /// rather than files. Anything carrying actual files is not a web drag,
-    /// whatever else rides along — the same reading the canvas drop uses.
+    /// rather than files. Every format the drag holds is read (B294), because
+    /// which one carries the address is a matter of browser and platform.
     /// </summary>
     private static IReadOnlyList<Uri> DroppedWebImages(DragEventArgs e)
     {
-        if (e.DataTransfer is not { } data || data.Contains(DataFormat.File)) return [];
-        return Services.WebImageDrop.ImageUris(
-            data.TryGetValue(UriListFormat),
-            data.TryGetText(),
-            data.TryGetValue(HtmlFormat));
+        // Carrying files no longer rules a drag out (B282). It used to, to stop
+        // one picture arriving twice — but a browser commonly offers both, so
+        // that rule silently refused the whole drop whenever the file half was
+        // unusable. The drop tries files first and only reaches here when none
+        // of them produced a tile, which keeps the no-duplicates promise without
+        // the refusal.
+        return Services.WebImageDrop.ImageUrisIn(e.DataTransfer);
     }
 
-    private static void OnDragOver(object? sender, DragEventArgs e) =>
-        e.DragEffects = DroppedFiles(e).Count > 0 || DroppedWebImages(e).Count > 0
-            ? DragDropEffects.Copy
-            : DragDropEffects.None;
+    private static void OnDragOver(object? sender, DragEventArgs e)
+    {
+        if (DroppedFiles(e).Count == 0
+            && DroppedWebImages(e).Count == 0
+            && Services.WebImageDrop.EmbeddedImageIn(e.DataTransfer) is null)
+        {
+            return;
+        }
+        e.DragEffects = DragDropEffects.Copy;
+        // Marked handled, as the canvas's own file drop does: an unhandled
+        // drag-over leaves the effect for something else to overwrite.
+        e.Handled = true;
+    }
 
     /// <summary>Pictures dropped on the wall are pinned up, in the order they came.</summary>
+    /// <remarks>
+    /// <b>Files first, then the web, and a word either way (B282).</b> Both are
+    /// tried because a browser drag commonly carries both, and either half can
+    /// be the unusable one — the file may be a nameless temporary, the URL may
+    /// be behind a site that refuses us. Only when neither produces a picture is
+    /// the drop refused, and then it says so: a drop that silently does nothing
+    /// is indistinguishable from a feature that does not work, which is what
+    /// this bug was reported as.
+    /// </remarks>
     private async void OnDrop(object? sender, DragEventArgs e)
     {
         // Where the pointer let go, on the board — not below everything already
         // up, which is off the bottom of the window on any wall that has been
         // arranged to fill it (B245).
         var at = ToBoard(e.GetPosition(_surface.Parent as Visual ?? this));
+        e.Handled = true;
 
-        var files = DroppedFiles(e);
-        if (files.Count > 0)
+        // Several pictures fan out from the drop rather than stacking exactly on
+        // top of each other, so a folder dropped at once is legible.
+        var pinned = 0;
+        foreach (var path in DroppedFiles(e))
         {
-            e.Handled = true;
-            // Several files fan out from the drop rather than stacking exactly on
-            // top of each other, so a folder dropped at once is legible.
-            var step = 0;
-            foreach (var path in files)
+            if (BoardModel.AddImageFile(path, (at.X + pinned * 24, at.Y + pinned * 24)) is not null)
             {
-                BoardModel.AddImageFile(path, (at.X + step * 24, at.Y + step * 24));
-                step++;
+                pinned++;
             }
+        }
+        if (pinned > 0)
+        {
+            Say("");
             return;
         }
 
-        var uris = DroppedWebImages(e);
-        if (uris.Count == 0) return;
-        e.Handled = true;
         // One tile per drop, not one per candidate: the candidates are the same
         // picture described three ways, so pinning them all would put up
-        // duplicates. Same reasoning as the canvas's web drop.
+        // duplicates. Same reasoning as the canvas's web drop. A candidate that
+        // fetches as a *page* is read once for the image it names (B285) —
+        // that is what a drag off any site that wraps its pictures in links
+        // carries.
+        var uris = DroppedWebImages(e);
+        if (uris.Count > 0) Say("Fetching the picture…");
         foreach (var uri in uris)
         {
-            var bytes = await Services.WebImageDrop.FetchAsync(uri);
-            if (bytes is null) continue;
-            if (BoardModel.AddImageBytes(Services.WebImageDrop.NameFor(uri), bytes, (at.X, at.Y)) is not null)
+            if (await Services.WebImageDrop.FetchImageAsync(uri) is not { } got) continue;
+            if (BoardModel.AddImageBytes(
+                    Services.WebImageDrop.NameFor(got.Source), got.Bytes, (at.X, at.Y)) is not null)
             {
+                Say("");
                 return;
             }
         }
-        _vm.AiStatus = "That drop did not contain an image Lightbox could read.";
+
+        // Last: the picture the drag was carrying itself, if it had one (B294).
+        // Behind the fetch because it may be a thumbnail, in front of a refusal
+        // because a thumbnail on the wall beats nothing on the wall.
+        if (Services.WebImageDrop.EmbeddedImageIn(e.DataTransfer) is { } embedded
+            && BoardModel.AddImageBytes("Web image", embedded, (at.X, at.Y)) is not null)
+        {
+            Say("");
+            return;
+        }
+
+        // What it was carrying goes to the log, because the format names are the
+        // whole diagnosis and no one can report them from memory (B294).
+        Services.DiagnosticLog.WriteNote(
+            "reference-board-drop", "carried " + Services.WebImageDrop.DescribeFormats(e.DataTransfer));
+        Say(uris.Count > 0
+            ? "That picture could not be fetched — the site refused it, or named no image Lightbox can read."
+            : "That drop had no picture in it that Lightbox could read — what it did carry is in the "
+              + "diagnostics log (Help ▸ Open the diagnostics folder).");
     }
 }

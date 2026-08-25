@@ -19,12 +19,23 @@ namespace Lightbox.Raster.Tests;
 /// it to **273 ms**, a 40x difference, which is the same lesson
 /// <c>DESIGN-performance.md</c> records from the first time round. Budgets are
 /// set loose, per the charter: they catch an order of magnitude, not drift.
+///
+/// The 960×540 case was not set loose enough for shared CI runners, and the
+/// evidence is two red runs in one day (2026-08-21) on pull requests whose
+/// diffs touched nothing in Raster: **223 ms** and **318 ms** against a
+/// 200 ms budget, both passing on re-run and passing locally with several
+/// times the margin. That is drift — runner contention — not a regression,
+/// and a budget that trips on it teaches people to re-run red CI, which is
+/// the habit that later hides a real failure. 500 ms keeps the sensitivity
+/// this test exists for: the failure mode it guards returns at 40x, not
+/// 1.6x, and the 4K case's 2000 ms already sits at the same ~7x over its
+/// measured cost.
 /// </remarks>
 [Trait("Category", "Performance")]
 public class SmudgeCostTests(ITestOutputHelper o)
 {
     [Theory]
-    [InlineData(960, 540, 40, 200)]
+    [InlineData(960, 540, 40, 500)]
     [InlineData(3840, 2160, 180, 2000)]
     public void AWholeSmudgeStrokeStaysAffordable(int w, int h, double size, int budgetMs)
     {

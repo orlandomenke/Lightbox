@@ -240,6 +240,8 @@
                   IsEnabled="{Binding HasDocument}" />
         <MenuItem x:Name="SaveAsMenu" Header="Save _as…" Click="OnSaveClicked"
                   IsEnabled="{Binding HasDocument}" />
+        <MenuItem x:Name="SaveAsImageMenu" Header="Save as ima_ge…" Click="OnSaveAsImageClicked"
+                  IsEnabled="{Binding HasDocument}" />
         <!--
           Versions are project machinery: a loose file has no versions/ folder
           to keep them in. Disabled rather than hidden, same reasoning as Save
@@ -318,6 +320,54 @@
         around the menu is a settings window nobody finds twice.
       -->
       <MenuItem Header="_Edit" Classes="top">
+        <!--
+          Undo and redo first, above everything, because that is where every
+          application an artist arrives from keeps them — and because the menu
+          is where somebody goes when the key did not do what they expected,
+          which makes putting them anywhere else actively unhelpful.
+
+          The header names the step ("Undo Draw stroke"). The record has
+          carried a label per step since the History docker landed; this reads
+          the top of it, so the menu can say what the press will do instead of
+          asking the artist to remember. Greyed rather than hidden at the ends
+          of the stack: an entry that vanishes reads as the feature being gone.
+
+          The gesture text is literal, as it is on Show rulers below and for
+          the same reason — Avalonia's InputGesture is display-only here, the
+          dispatch belongs to ShortcutMap, and both keys are rebindable there.
+        -->
+        <MenuItem Header="{Binding UndoMenuHeader}" Command="{Binding UndoCommand}"
+                  IsEnabled="{Binding CanUndo}" InputGesture="Ctrl+Z" />
+        <MenuItem Header="{Binding RedoMenuHeader}" Command="{Binding RedoCommand}"
+                  IsEnabled="{Binding CanRedo}" InputGesture="Ctrl+Y" />
+        <Separator />
+        <!--
+          The transform session, which until now existed only on Ctrl+T and a
+          right-click over the gizmo — a whole feature with no menu address.
+          Under Edit because that is where Photoshop keeps Free Transform, which
+          is the reflex an artist arrives with. The session verbs grey out
+          rather than hide while no transform is running: an entry that
+          vanishes reads as the feature being gone.
+        -->
+        <MenuItem Header="Transfor_m">
+          <MenuItem Header="_Transform (move, scale, rotate)" Click="OnMenuBeginTransform"
+                    InputGesture="Ctrl+T" IsEnabled="{Binding !TransformActive}"
+                    ToolTip.Tip="Put a frame around the selection — or the whole drawing — and drag its handles" />
+          <Separator />
+          <MenuItem Header="_Apply" Click="OnTransformApply" IsEnabled="{Binding TransformActive}"
+                    ToolTip.Tip="Keep the transformed drawing (Enter)" />
+          <MenuItem Header="_Cancel" Click="OnTransformCancel" IsEnabled="{Binding TransformActive}"
+                    ToolTip.Tip="Put everything back (Esc)" />
+          <Separator />
+          <MenuItem Header="Mirror _horizontally" Click="OnTransformMirrorH" IsEnabled="{Binding TransformActive}" />
+          <MenuItem Header="Mirror _vertically" Click="OnTransformMirrorV" IsEnabled="{Binding TransformActive}" />
+          <MenuItem Header="_Perspective (free corners)" Click="OnMenuTransformPerspective"
+                    IsEnabled="{Binding TransformActive}"
+                    ToolTip.Tip="Each corner moves on its own; press again for the box that scales and rotates" />
+          <MenuItem Header="_Reset" Click="OnTransformReset" IsEnabled="{Binding TransformActive}"
+                    ToolTip.Tip="Back to the untransformed frame, without leaving the session" />
+        </MenuItem>
+        <Separator />
         <MenuItem Header="Brush _library…" Click="OnBrushLibraryClicked" />
         <MenuItem Header="Brush _tips…" Click="OnBrushTipsClicked" />
         <Separator />
@@ -367,8 +417,200 @@
                   ToolTip.Tip="More paper, or less. Nothing drawn moves." />
         <MenuItem Header="Resize _image..." Click="OnResizeImageClicked"
                   ToolTip.Tip="Scale the artwork itself. The marks change with it." />
+        <Separator />
+        <!--
+          The two crops the comment above predicted (Q128). Both move the paper
+          and neither touches a mark: ink outside the new edge stays in the
+          record and comes back if the canvas is grown again, which is what
+          makes a crop exactly as lossless as the resize above it.
+        -->
+        <MenuItem Header="Crop to _selection" Click="OnCropToSelectionClicked"
+                  IsEnabled="{Binding HasSelection}"
+                  ToolTip.Tip="Take the paper down to the selection's bounding box. Nothing drawn moves, and ink outside the new edge is kept — grow the canvas back and it returns." />
+        <MenuItem Header="_Trim to drawing" Click="OnTrimToDrawingClicked"
+                  IsEnabled="{Binding HasAnyContent}"
+                  ToolTip.Tip="Shrink the paper to the smallest rectangle that still holds every mark, in every frame of every layer — not just the one on screen." />
+      </MenuItem>
+      <!--
+        Layer: the docker's verbs, addressed to the active layer. Between Image
+        and Select because that is Photoshop's and Krita's order, and both mirror
+        their whole layers panel here — a docker button is learnable only by
+        hovering, while the menu is the browsable catalogue of what the app can
+        do, with the shortcut printed beside the entry. The docker's context
+        menu keeps the row-targeted forms and the rarer submenus (linking,
+        exports, the rig); what lands here is the everyday set.
+
+        Blend mode and opacity stay in the docker on purpose: continuous
+        properties want a slider, not a menu — the convention every reference
+        application also follows.
+      -->
+      <MenuItem Header="La_yer" Classes="top">
+        <MenuItem Header="_New layer" Command="{Binding AddPaintedLayerCommand}"
+                  ToolTip.Tip="A fresh drawing layer above the active one" />
+        <MenuItem Header="New _folder with this layer" Command="{Binding CreateLayerFolderCommand}"
+                  ToolTip.Tip="Wrap the active layer in a folder, ready for company" />
+        <Separator />
+        <MenuItem Header="Move _up" Command="{Binding MoveActiveLayerUpCommand}"
+                  ToolTip.Tip="Toward the viewer — or the whole selection, when this layer is in it" />
+        <MenuItem Header="Move _down" Command="{Binding MoveActiveLayerDownCommand}" />
+        <MenuItem Header="Merge do_wn" Click="OnMenuMergeDown" InputGesture="Ctrl+E"
+                  ToolTip.Tip="Fold the active layer into the one below it" />
+        <Separator />
+        <MenuItem Header="_Visible" ToggleType="CheckBox"
+                  IsChecked="{Binding ActiveLayerVisible, Mode=TwoWay}"
+                  ToolTip.Tip="The docker's eye — undoable, because hiding a layer is a document decision" />
+        <MenuItem Header="_Locked" ToggleType="CheckBox"
+                  IsChecked="{Binding ActiveLayerLocked, Mode=TwoWay}"
+                  ToolTip.Tip="Nothing on the layer can change until it is unlocked" />
+        <MenuItem Header="Lock _transparency" ToggleType="CheckBox"
+                  IsChecked="{Binding ActiveLayerAlphaLocked, Mode=TwoWay}"
+                  ToolTip.Tip="Paint lands only where paint already is — for shading what is drawn" />
+        <Separator />
+        <MenuItem Header="_Select layer contents" Command="{Binding SelectActiveLayerContentsCommand}"
+                  ToolTip.Tip="A selection around everything drawn on the active layer" />
+        <MenuItem Header="_Blank layer content" Command="{Binding ClearActiveLayerCommand}"
+                  ToolTip.Tip="Every drawing on the layer loses its content; the timing stays" />
+        <MenuItem Header="Delete la_yer" Command="{Binding DeleteActiveLayerCommand}" />
+      </MenuItem>
+      <!--
+        Select: the marquee commands, which until now existed only on keys.
+        Between Image and View because that is where Photoshop, Krita and GIMP
+        all put it, and because the pointer travels left to right through the
+        bar in roughly the order a drawing is worked.
+
+        Its own top-level menu rather than a submenu under Edit: an artist
+        looking for "invert selection" looks along the bar for the word Select,
+        and a menu that is only reachable by first knowing it lives under Edit
+        is a menu that gets found once and forgotten.
+
+        What is gated, and what deliberately is not. Grow, Shrink and Fill with
+        background do nothing without a region, so they grey out. Deselect does
+        not, because it also clears the objects the arrows pick — B168's point,
+        that a deselect leaving one kind of selection live is the bug — and an
+        artist holding a picked symbol must be able to reach it. Invert does not
+        either: inverting nothing is how you select everything, which is a real
+        thing to want. Delete contents does not, because it falls back to the
+        selected lines (B173) and disabling it would take that route away.
+      -->
+      <MenuItem Header="_Select" Classes="top">
+        <MenuItem Header="_All" Command="{Binding SelectAllCommand}"
+                  InputGesture="Ctrl+A"
+                  ToolTip.Tip="The whole canvas — or, with either arrow in hand, every object on it" />
+        <MenuItem Header="_Deselect" Command="{Binding DeselectCommand}"
+                  InputGesture="Ctrl+D"
+                  ToolTip.Tip="Nothing selected afterwards: the marquee and any picked lines, guides or symbols" />
+        <MenuItem Header="_Invert" Command="{Binding InvertSelectionCommand}"
+                  InputGesture="Ctrl+Shift+I"
+                  ToolTip.Tip="Swap what is inside for what is outside. With nothing selected, this takes the whole canvas." />
+        <Separator />
+        <MenuItem Header="_Grow" Command="{Binding GrowSelectionCommand}"
+                  IsEnabled="{Binding HasSelection}"
+                  ToolTip.Tip="Push the outline outwards by the pixels set in the Select tool's options" />
+        <MenuItem Header="S_hrink" Command="{Binding ShrinkSelectionCommand}"
+                  IsEnabled="{Binding HasSelection}"
+                  ToolTip.Tip="Pull the outline inwards by the same amount" />
+        <Separator />
+        <!--
+          The line clipboard. Here and not on Animation because these act on the
+          SELECTION, where Animation's Copy/Cut/Paste are the cel — same three
+          words, two subjects, each kept on the menu that names its own. The keys
+          are shared: Ctrl+C/X/V mean these with a selection up and the cel
+          without one.
+        -->
+        <MenuItem Header="Cop_y lines" Command="{Binding CopyLinesCommand}"
+                  IsEnabled="{Binding HasCopyableSelection}" InputGesture="Ctrl+C"
+                  ToolTip.Tip="The boxed region, or the lines picked with an arrow. A partial region copies the part you boxed." />
+        <MenuItem Header="Cut li_nes" Command="{Binding CutLinesCommand}"
+                  IsEnabled="{Binding HasCopyableSelection}" InputGesture="Ctrl+X"
+                  ToolTip.Tip="Copy, and take the same content out of the drawing" />
+        <MenuItem Header="_Paste lines" Command="{Binding PasteLinesCommand}"
+                  InputGesture="Ctrl+V"
+                  ToolTip.Tip="Onto a new layer above this one, in the place they were copied from" />
+        <Separator />
+        <MenuItem Header="Delete _contents" Command="{Binding DeleteSelectionContentsCommand}"
+                  InputGesture="Delete"
+                  ToolTip.Tip="Clear what is inside the region. With no region, this deletes the selected lines instead." />
+        <!--
+          "Back" rather than "Backspace" because that is the name Avalonia's Key
+          enum uses, and it is what the Configure window shows for the same
+          binding — two names for one key across adjacent windows is worse than
+          one slightly terse name. "Backspace" does not parse and throws at
+          window construction rather than at build, which is how it was caught.
+        -->
+        <MenuItem Header="Fill with _background" Command="{Binding FillSelectionWithBackgroundCommand}"
+                  IsEnabled="{Binding HasSelection}"
+                  InputGesture="Back"
+                  ToolTip.Tip="Flood the region with the background colour — the same key's counterpart to Delete, differing in what it leaves behind" />
+      </MenuItem>
+      <!--
+        Animation: the X-sheet's verbs, aimed at the playhead. Krita is the
+        cautionary tale here — its animation commands live only in the timeline
+        docker's context menu, and that is one of its most-cited papercuts. An
+        animation-first application keeps its frame verbs where they can be
+        browsed, searched and learned.
+
+        Every entry acts on the active layer's cel at the current frame — the
+        same answer the timeline shortcuts give — because a menu item has no
+        cel under a pointer. The cel context menu keeps the row-targeted forms
+        plus the dialogs (re-time, timing chart, markers), which need a cel to
+        aim at. The ghost counts, falloff and the rest of the onion dials stay
+        on the onion bar: sliders, not verbs.
+      -->
+      <MenuItem Header="_Animation" Classes="top">
+        <MenuItem Header="_Play / pause" Command="{Binding TogglePlaybackCommand}" InputGesture="Space" />
+        <MenuItem Header="P_revious key drawing" Command="{Binding PreviousKeyframeCommand}"
+                  ToolTip.Tip="Flip back to the previous key (1)" />
+        <MenuItem Header="_Next key drawing" Command="{Binding NextKeyframeCommand}"
+                  ToolTip.Tip="Flip forward to the next key (2)" />
+        <Separator />
+        <MenuItem Header="Insert _keyframe" Click="OnMenuInsertKeyframe"
+                  ToolTip.Tip="Mark the frame at the playhead as a key drawing" />
+        <MenuItem Header="Insert _breakdown" Click="OnMenuInsertBreakdown" />
+        <MenuItem Header="Insert _inbetween frame" Click="OnMenuInsertInbetween" />
+        <Separator />
+        <MenuItem Header="_Extend exposure (+1 hold)" Click="OnMenuExtendExposure"
+                  ToolTip.Tip="Hold the drawing under the playhead one frame longer" />
+        <MenuItem Header="Re_duce exposure (−1 hold)" Click="OnMenuReduceExposure" />
+        <Separator />
+        <MenuItem Header="_Copy cel" Click="OnMenuCopyCel" InputGesture="Ctrl+C" />
+        <MenuItem Header="Cu_t cel" Click="OnMenuCutCel" InputGesture="Ctrl+X" />
+        <MenuItem Header="Pa_ste cel" Click="OnMenuPasteCel" InputGesture="Ctrl+V" />
+        <MenuItem Header="C_lear cel" Click="OnMenuClearCel"
+                  ToolTip.Tip="The drawing under the playhead loses its content; the timing stays" />
+        <MenuItem Header="Delete cel" Click="OnMenuDeleteCel" />
+        <MenuItem Header="Delete column (this frame, every layer)" Click="OnMenuDeleteColumn" />
+        <Separator />
+        <MenuItem Header="_Onion skin" ToggleType="CheckBox"
+                  IsChecked="{Binding OnionSkin, Mode=TwoWay}"
+                  ToolTip.Tip="Neighbouring drawings ghosted under the one in hand — counts and falloff are on the timeline's onion bar" />
+        <MenuItem Header="Keyed dra_wings only" ToggleType="CheckBox"
+                  IsChecked="{Binding OnionKeysOnly, Mode=TwoWay}"
+                  ToolTip.Tip="Ghost only the drawings, not every frame of a hold — how flipping works on 2s" />
+        <MenuItem Header="_Motion trail" ToggleType="CheckBox"
+                  IsChecked="{Binding MotionTrail, Mode=TwoWay}"
+                  ToolTip.Tip="The path and spacing of the drawing across neighbouring frames" />
+        <Separator />
+        <MenuItem Header="Set start frame" Click="OnMenuSetStartFrame"
+                  ToolTip.Tip="Playback loops from here" />
+        <MenuItem Header="Set end frame" Click="OnMenuSetEndFrame" />
+        <MenuItem Header="Clear playback range" Click="OnClearPlaybackRange" />
       </MenuItem>
       <MenuItem Header="_View" Classes="top">
+        <!--
+          The view transform first: the View bar's six buttons, which were the
+          only way to reach them by pointer. All view-only (invariant 5) — the
+          artwork is untouched by every one of these.
+        -->
+        <MenuItem Header="Zoom _in" Click="OnZoomIn" ToolTip.Tip="Mouse wheel does this too" />
+        <MenuItem Header="Zoom _out" Click="OnZoomOut" />
+        <MenuItem Header="Rotate view 15° counter-clockwise" Click="OnRotateCcw"
+                  ToolTip.Tip="Turn the paper, not the drawing (Shift+wheel)" />
+        <MenuItem Header="Rotate view 15° clockwise" Click="OnRotateCw" />
+        <MenuItem Header="_Mirror view" Click="OnToggleMirror" InputGesture="M"
+                  ToolTip.Tip="Flip the view to check the drawing with fresh eyes — the artwork is untouched" />
+        <MenuItem Header="_Reset view" Click="OnResetView"
+                  ToolTip.Tip="Zoom, rotation, mirror and pan, all back to home (0)" />
+        <Separator />
         <!--
           Guides are document data, like the camera, so they live under View
           next to the other things you turn on rather than in a panel that
@@ -444,6 +686,9 @@
                     ToolTip.Tip="A rectangle — a hurtbox, hitbox or physics body" />
           <MenuItem Header="Delete selected" Click="OnDeleteRigMark"
                     IsEnabled="{Binding RigEditMode}" />
+          <MenuItem Header="Clear direction here" Click="OnClearRigDirection"
+                    IsEnabled="{Binding RigEditMode}"
+                    ToolTip.Tip="Take the selected anchor's direction off this drawing. The anchor stays; drag its stalk to aim it again." />
         </MenuItem>
         <!--
           The volume checker: reads the active layer's ink and reports — a
@@ -470,6 +715,10 @@
           <MenuItem Header="Timeline" ToggleType="CheckBox" IsChecked="{Binding TimelineVisible, Mode=TwoWay}" />
           <MenuItem Header="X-sheet" ToggleType="CheckBox" IsChecked="{Binding Workspace.XsheetDockerVisible, Mode=TwoWay}" />
           <MenuItem Header="Graph editor" ToggleType="CheckBox" IsChecked="{Binding Workspace.GraphEditorDockerVisible, Mode=TwoWay}" />
+          <MenuItem Header="Scene" ToggleType="CheckBox" IsChecked="{Binding Workspace.SceneDockerVisible, Mode=TwoWay}"
+                    ToolTip.Tip="Layer depths and the camera's path — where multiplane parallax is authored" />
+          <MenuItem Header="Effects" ToggleType="CheckBox" IsChecked="{Binding Workspace.EffectsDockerVisible, Mode=TwoWay}"
+                    ToolTip.Tip="Effect stacks and adjustment layers — levels, hue/saturation and blur, on a layer or over the whole scene" />
           <MenuItem Header="Color" ToggleType="CheckBox" IsChecked="{Binding ColorDockerVisible, Mode=TwoWay}" />
           <MenuItem Header="Palette" ToggleType="CheckBox" IsChecked="{Binding PaletteDockerVisible, Mode=TwoWay}" />
           <MenuItem Header="Gradient" ToggleType="CheckBox" IsChecked="{Binding GradientDockerVisible, Mode=TwoWay}" />
@@ -483,9 +732,9 @@
           <MenuItem Header="Symbols" ToggleType="CheckBox"
                     IsChecked="{Binding Workspace.SymbolsPanelVisible, Mode=TwoWay}"
                     ToolTip.Tip="A drawing stored once and placed many times. Your own library is here with no project open; project symbols need a project." />
-          <MenuItem Header="History" ToggleType="CheckBox"
+          <MenuItem Header="Undo history" ToggleType="CheckBox"
                     IsChecked="{Binding Workspace.HistoryPanelVisible, Mode=TwoWay}"
-                    ToolTip.Tip="Every undoable step of this document, named — click one to stand the drawing at that state" />
+                    ToolTip.Tip="Every undoable step of this document, named — click one to stand the drawing at that state. Session-only: the record does not survive closing the file (B100)." />
         </MenuItem>
         <!-- A window rather than a docker, so it lives outside the submenu:
              the wall floats beside the art, on whichever screen has room. -->
@@ -515,6 +764,22 @@
           <MenuItem Header="Reset workspace" Click="OnResetWorkspace"
                     ToolTip.Tip="Discard the changes — a built-in goes back to how it shipped" />
         </MenuItem>
+      </MenuItem>
+
+      <!--
+        Effects: things that author drawings from a description rather than from
+        the pen. It is a top level of its own rather than a line under View,
+        because View is where you say what you want to *look* at and every item
+        here changes what is *in* the document — and because there is more than
+        one of these coming (goo, water, style inference), each of which would
+        otherwise be another orphan among the dockers.
+
+        No InputGesture on the item: the command lives in ShortcutMap, and a
+        hard-coded label would lie the moment somebody remapped it.
+      -->
+      <MenuItem Header="Effe_cts" Classes="top">
+        <MenuItem Header="_Fluid effects…" Click="OnOpenEffects"
+                  ToolTip.Tip="Fire, smoke and water, drawn as bands and outlines rather than as pixels — tuned in a window of its own and baked into the document as ordinary strokes" />
       </MenuItem>
 
       <!--
@@ -599,23 +864,20 @@
              directly beside this one and without a divider the pair reads as
              one group belonging to the workspace. -->
         <Border DockPanel.Dock="Right" Width="1" Margin="10,3" Background="{StaticResource BorderBrush}" />
-        <!-- Flush text with a bottom highlight — the section-tab treatment,
-             because switching workspace changes what the whole window is for.
-             Deleting a saved workspace moved to the right-click menu on its
-             name; the built-ins never offered it. -->
-        <ListBox x:Name="WorkspacePicker" DockPanel.Dock="Right" Classes="sectiontabs"
-                 ItemsSource="{Binding Workspace.WorkspaceChoices}"
-                 SelectedValue="{Binding Workspace.SelectedName, Mode=OneWay}"
-                 SelectedValueBinding="{Binding Name, DataType=vm:WorkspaceRow}"
-                 SelectionChanged="OnWorkspacePicked"
-                 VerticalAlignment="Center"
-                 ToolTip.Tip="Switch workspace — panel arrangements, saved globally">
-          <ListBox.ItemsPanel>
-            <ItemsPanelTemplate>
-              <StackPanel Orientation="Horizontal" Spacing="0" />
-            </ItemsPanelTemplate>
-          </ListBox.ItemsPanel>
-          <ListBox.ItemTemplate>
+        <!-- A dropdown rather than a tab strip, for a measured reason: the six
+             workspaces as flush tabs wanted 872px of this bar, leaving the quick
+             options ZERO width at 1280 and squeezing Size/Opacity — pinned by
+             Q70's second rule — to nothing with them. Switching workspace is
+             rare; it was paying for six always-visible targets out of the row
+             an artist aims at. Delete stays on right-click. See B260. -->
+        <ComboBox x:Name="WorkspacePicker" DockPanel.Dock="Right" MinWidth="132"
+                  ItemsSource="{Binding Workspace.WorkspaceChoices}"
+                  SelectedValue="{Binding Workspace.SelectedName, Mode=OneWay}"
+                  SelectedValueBinding="{Binding Name, DataType=vm:WorkspaceRow}"
+                  SelectionChanged="OnWorkspacePicked"
+                  VerticalAlignment="Center"
+                  ToolTip.Tip="Switch workspace — panel arrangements, saved globally">
+          <ComboBox.ItemTemplate>
             <DataTemplate x:DataType="vm:WorkspaceRow">
               <TextBlock Text="{Binding Name}" VerticalAlignment="Center">
                 <TextBlock.ContextMenu>
@@ -626,8 +888,8 @@
                 </TextBlock.ContextMenu>
               </TextBlock>
             </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
         <!--
           What this workspace's bar carries. Beside the workspace picker
           rather than at the bar's far end, because the choice belongs to the
@@ -889,12 +1151,12 @@
             </Flyout>
           </Button.Flyout>
         </Button>
-        <!-- Full brush parameters (brush + eraser): now a docker, per the
-             owner — "a tool options docker instead of keeping it in the
-             rail". The gear stays as the way in, and always OPENS. -->
-        <Button VerticalAlignment="Center"
-                ToolTip.Tip="All brush parameters (opens the Tool options panel)"
-                Command="{Binding OpenToolOptionsCommand}">
+        <!-- Full brush parameters, in a flyout AT the gear (B261): a panel
+             opening across the window is a change you miss with your eye on the
+             canvas. The flyout borrows the panel's content — see OnToolOptionsGear. -->
+        <Button x:Name="ToolOptionsGear" VerticalAlignment="Center"
+                ToolTip.Tip="All brush parameters (Tool options)"
+                Click="OnToolOptionsGear">
           <Path Classes="icon" Data="{StaticResource IconGear}" />
         </Button>
         <!-- Same rule the colour group ends with: a pinned | tool-gated boundary -->
@@ -925,7 +1187,7 @@
                        ToolTip.Tip="Opacity of the mark the tool in hand makes, in percent" />
       </StackPanel>
       <controls:OverflowBar x:Name="QuickToolOptions" Spacing="14" VerticalAlignment="Center"
-                            MoreLabel="More tool options  &#x25BE;">
+                            MoreLabel="&#x25BE;">
 
         <!-- The preset picker and its ⚙ are pinned beside the colour pair
              now, so the OverflowBar starts with the tool in hand's options. -->
@@ -1230,43 +1492,23 @@
           </StackPanel>
         </StackPanel>
 
-        <StackPanel Orientation="Horizontal" Spacing="14">
-          <StackPanel.IsVisible>
-            <MultiBinding Converter="{x:Static BoolConverters.And}">
-              <Binding Path="IsFillTool" />
-              <Binding Path="Workspace.QuickFillOptions" />
-            </MultiBinding>
-          </StackPanel.IsVisible>
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-            <TextBlock Text="Tolerance" VerticalAlignment="Center" />
-            <NumericUpDown Value="{Binding FillTolerance}" Minimum="0" Maximum="255" Increment="4"
-                           FormatString="0" Classes="value" VerticalAlignment="Center"
-                           ToolTip.Tip="How different a pixel may be and still count as the same area" />
-          </StackPanel>
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-            <TextBlock Text="Gap px" VerticalAlignment="Center" />
-            <NumericUpDown Value="{Binding FillGapPx}" Minimum="0" Maximum="32" Increment="1"
-                           FormatString="0" Classes="value" VerticalAlignment="Center"
-                           ToolTip.Tip="Openings up to this many pixels still count as closed" />
-          </StackPanel>
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-            <TextBlock Text="Grow px" VerticalAlignment="Center" />
-            <NumericUpDown Value="{Binding FillGrowPx}" Minimum="-16" Maximum="16" Increment="1"
-                           FormatString="0" Classes="value" VerticalAlignment="Center"
-                           ToolTip.Tip="Overfill (+) under the line work, or underfill (−) to keep a margin" />
-          </StackPanel>
-          <CheckBox Content="Smart fill" IsChecked="{Binding SmartFill}" VerticalAlignment="Center"
-                    ToolTip.Tip="Sample every visible layer (fill what looks empty) instead of only the active layer" />
-          <CheckBox Content="Below line work" IsChecked="{Binding FillBelowLines}" VerticalAlignment="Center"
-                    ToolTip.Tip="Tuck the fill under the lines (fills about half the line width so no white shows); off = fill on top, preserving lines" />
-        </StackPanel>
+        <!-- The Fill tool's options. -->
+        <views:FillOptionsBar />
 
         <!-- The Select tool's options. -->
-        <views:SelectOptionsBar />
+        <views:SelectShapeBar />
+        <views:SelectWandBar />
+        <views:SelectEditBar />
+        <views:SelectActionsBar />
 
         <!-- The Move tool's options: the guide it has picked up. -->
         <views:GuideOptionsBar />
         <views:LineOptionsBar />
+        <views:CropOptionsBar />
+
+        <!-- The text tool's options. -->
+        <views:TextOptionsBar />
+        <views:TextFormatBar />
 
         <!--
           The workspace's own quick options, after the tool's: not tool-gated,
@@ -1550,6 +1792,19 @@
                   <TextBlock Text="Move" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
+              <!-- Crop, beside Move because the two are the same kind of verb:
+                   one moves what is drawn, the other moves the paper it is
+                   drawn on. Its frame appears when the tool is picked and goes
+                   when another tool is, the way the rig belongs to the Bone
+                   tool below (Q81). -->
+              <ToggleButton Classes="tool" IsChecked="{Binding IsCropTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Crop}"
+                            ToolTip.Tip="Crop (C) — drag a frame, push its handles, Shift holds the ratio. Enter crops the paper to it, Escape puts the frame back round the page. Nothing drawn moves, and ink outside the frame is kept.">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Path Data="{StaticResource IconCrop}" />
+                  <TextBlock Text="Crop" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
               <!-- The rig's one door (Q81): always here, even on an unrigged
                    document, because the first drag is what creates the armature.
                    Everything else the rig needs appears only while this tool is
@@ -1589,6 +1844,14 @@
                 <StackPanel Orientation="Horizontal" Spacing="6">
                   <Path Data="{StaticResource IconPen}" />
                   <TextBlock Text="Pen" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="tool" IsChecked="{Binding IsTextTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Text}"
+                            ToolTip.Tip="Text (T) — click to put a caret on the canvas and type. Esc sets the type; clicking type already there picks it up to retype. What it leaves behind is ordinary strokes, so it erases and transforms like a drawing.">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Path Data="{StaticResource IconText}" />
+                  <TextBlock Text="Text" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
               <ToggleButton Classes="tool" IsChecked="{Binding IsWidthTool, Mode=OneWay}"
@@ -2468,6 +2731,10 @@
                     <!-- Move — the selected guide, with room for labels. -->
                     <views:GuideOptionsPanel />
 
+                    <!-- Text, with room for labels — the GuideOptionsBar and
+                         GuideOptionsPanel split again. B308. -->
+                    <views:TextOptionsPanel />
+
                     <!-- Shape -->
                     <StackPanel Spacing="6" IsVisible="{Binding IsShapeTool}">
                       <DockPanel>
@@ -2661,6 +2928,10 @@
                           </MenuFlyout>
                         </Button.Flyout>
                       </Button>
+                      <Button Classes="icon" Click="OnProjectImportFromLibrary"
+                              ToolTip.Tip="Import a character from a library — animations, palette and variants copy in. Importing again updates the copies you have not edited and never touches your own work.">
+                        <Path Classes="icon" Data="{StaticResource IconArrowDownToBar}" />
+                      </Button>
                       <Button Classes="icon"
                               Command="{Binding ProjectDocker.RemoveSelectedCommand}"
                               IsEnabled="{Binding ProjectDocker.HasSelection}"
@@ -2778,6 +3049,19 @@
                             <Separator />
                             <MenuItem Header="Duplicate" Click="OnProjectDuplicate"
                                       ToolTip.Tip="Copy this animation, art and all — a walk into a limp" />
+                            <!--
+                              Q143. The variant's escape hatch for a difference
+                              colour cannot express. A Duplicate with one extra
+                              fact — which drawing the copy stands in for — so
+                              it sits beside Duplicate. Absent unless a variant
+                              is being viewed and the drawing is still shared.
+                            -->
+                            <MenuItem Header="{Binding GiveVariantHeader}" IsVisible="{Binding CanGiveVariant}"
+                                      Command="{Binding Owner.GiveVariantOwnVersionCommand}"
+                                      ToolTip.Tip="Copy this drawing for the variant being viewed. The variant shows its copy; every other variant keeps sharing the original." />
+                            <MenuItem Header="Use the shared drawing again" IsVisible="{Binding IsVariantOverride}"
+                                      Command="{Binding Owner.ReturnToSharedCommand}"
+                                      ToolTip.Tip="Stop this drawing standing in for the shared one. It stays in the folder as its own drawing." />
                             <MenuItem Header="Rename…" Click="OnProjectRowRename" />
                             <MenuItem Header="Version history…" Click="OnProjectRowHistory"
                                       ToolTip.Tip="Kept versions of this file — view and revert" />
@@ -2806,6 +3090,28 @@
                             </MenuItem>
                             <MenuItem Header="Glyph — something else…" Click="OnProjectChooseGlyph"
                                       ToolTip.Tip="Type any character. The grid is a starting point, not a vocabulary." />
+                            <!--
+                              Q143. Which version of the subject the panel and
+                              canvas show — view state, like the playhead, so
+                              switching never dirties a document. The Glyph
+                              menu's entry pattern, because a flyout item's
+                              only reliable DataContext is the entry itself.
+                            -->
+                            <MenuItem Header="Variant" IsVisible="{Binding HasVariants}"
+                                      ItemsSource="{Binding VariantMenu}"
+                                      ToolTip.Tip="Which version of this subject you are looking at. Its palette repaints the shared drawings; drawings given to it outright stand in for the shared ones.">
+                              <MenuItem.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ScopeMenuEntry">
+                                  <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                              </MenuItem.ItemTemplate>
+                              <MenuItem.Styles>
+                                <Style Selector="MenuItem > MenuItem" x:DataType="vm:ScopeMenuEntry">
+                                  <Setter Property="Command" Value="{Binding Command}" />
+                                  <Setter Property="CommandParameter" Value="{Binding Parameter}" />
+                                </Style>
+                              </MenuItem.Styles>
+                            </MenuItem>
                             <!--
                               Q30. The plan was describable and not runnable:
                               PlanExport, DescribeExportPlan and RecordExport all
@@ -2944,6 +3250,16 @@
                                    FontSize="10" Foreground="{StaticResource AccentCoralBrush}" FontWeight="SemiBold"
                                    Margin="6,0,2,0" VerticalAlignment="Center"
                                    ToolTip.Tip="This is in your project and its file cannot be found. Removing it from the project stays your decision." />
+                        <!-- Q143. The variant this folder is showing, worn on
+                             the row: without it the only sign the knight is
+                             Winter Armour would be colours the artist has to
+                             recognise. Innermost of the right column, beside
+                             the name it qualifies. -->
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding VariantBadge}"
+                                   IsVisible="{Binding HasVariantBadge}"
+                                   FontSize="10" Opacity="0.7" FontStyle="Italic"
+                                   Margin="6,0,2,0" VerticalAlignment="Center"
+                                   ToolTip.Tip="The variant this subject is showing. Right-click ▸ Variant to switch." />
                         <Panel MinHeight="20">
                           <!-- Dimmed while it has no file, whichever reason. The
                                word beside it says which; the dimming is what
@@ -3122,6 +3438,70 @@
                             <MenuItem Header="Select layer contents" Click="OnLayerMenuSelectAlpha" />
                             <MenuItem Header="Blank layer content" Click="OnLayerMenuBlank" />
                             <Separator />
+                            <!-- The mask is strokes like everything else (Q147):
+                                 one drawing, held across the whole timeline, and
+                                 painted with the ordinary brushes. -->
+                            <MenuItem Header="Mask">
+                              <MenuItem Header="Add — painting hides" IsVisible="{Binding CanAddMask}"
+                                        Click="OnLayerMenuAddMaskHide"
+                                        ToolTip.Tip="The layer stays visible; what you paint on the mask is concealed. The vignette workflow." />
+                              <MenuItem Header="Add — painting shows" IsVisible="{Binding CanAddMask}"
+                                        Click="OnLayerMenuAddMaskShow"
+                                        ToolTip.Tip="The layer starts hidden; what you paint on the mask is revealed." />
+                              <MenuItem Header="Paint the mask" IsVisible="{Binding HasMask}"
+                                        Click="OnLayerMenuEditMask"
+                                        ToolTip.Tip="Strokes land on the mask instead of the drawing until switched off. The chip beside the thumbnail shows and toggles this too." />
+                              <MenuItem Header="Disable" IsVisible="{Binding CanDisableMask}"
+                                        Click="OnLayerMenuDisableMask"
+                                        ToolTip.Tip="Switch the mask off without losing its drawing." />
+                              <MenuItem Header="Enable" IsVisible="{Binding MaskDisabled}"
+                                        Click="OnLayerMenuDisableMask" />
+                              <MenuItem Header="Invert" IsVisible="{Binding HasMask}"
+                                        Click="OnLayerMenuInvertMask"
+                                        ToolTip.Tip="Painted coverage hides instead of shows — a flag, not repainted strokes." />
+                              <MenuItem Header="Delete" IsVisible="{Binding HasMask}"
+                                        Click="OnLayerMenuDeleteMask"
+                                        ToolTip.Tip="Remove the mask and its drawing. The layer shows in full again." />
+                            </MenuItem>
+                            <!-- Photoshop puts this gesture at the foot of the
+                                 Layers panel; an artist who knows it looks here
+                                 first (the art-director's finding). The command
+                                 lives on the effects docker's own view model —
+                                 this is a pointer to it, not a second copy. -->
+                            <!-- Photoshop's double-click-the-row reflex, as a
+                                 menu: each entry adds the style to this layer's
+                                 own stack and opens the Effects panel on it.
+                                 The commands live on the docker's view model —
+                                 pointers, not copies (Q153/Q158). -->
+                            <MenuItem Header="Layer style"
+                                      ToolTip.Tip="A glow, stroke, shadow or bevel on this layer's silhouette — a setting, never baked pixels. Opens the Effects panel.">
+                              <MenuItem Header="Drop shadow" Tag="style.dropShadow" Click="OnLayerMenuAddStyle" />
+                              <MenuItem Header="Outer glow" Tag="style.outerGlow" Click="OnLayerMenuAddStyle" />
+                              <MenuItem Header="Inner glow" Tag="style.innerGlow" Click="OnLayerMenuAddStyle" />
+                              <MenuItem Header="Stroke" Tag="style.stroke" Click="OnLayerMenuAddStyle" />
+                              <MenuItem Header="Bevel" Tag="style.bevel" Click="OnLayerMenuAddStyle" />
+                              <Separator IsVisible="{Binding HasEffects}" />
+                              <MenuItem Header="Disable effects" IsVisible="{Binding CanDisableEffects}"
+                                        Click="OnLayerMenuToggleEffects"
+                                        ToolTip.Tip="Switch every effect on this layer off at once, keeping all their settings — the fx chip goes hollow." />
+                              <MenuItem Header="Enable effects" IsVisible="{Binding EffectsDisabled}"
+                                        Click="OnLayerMenuToggleEffects" />
+                              <MenuItem Header="Edit effects" IsVisible="{Binding HasEffects}"
+                                        Click="OnLayerMenuEditEffects"
+                                        ToolTip.Tip="Open the Effects panel on this layer — the fx chip beside the thumbnail does this too." />
+                            </MenuItem>
+                            <MenuItem Header="New adjustment layer"
+                                      ToolTip.Tip="A layer that filters everything beneath it — mask it, clip it, fade it like any layer. Opens the Effects panel.">
+                              <MenuItem Header="Levels" Tag="grade.levels" Click="OnLayerMenuAddAdjustment" />
+                              <MenuItem Header="Hue / Saturation" Tag="grade.hsl" Click="OnLayerMenuAddAdjustment" />
+                              <MenuItem Header="Gaussian blur" Tag="blur.gaussian" Click="OnLayerMenuAddAdjustment" />
+                            </MenuItem>
+                            <MenuItem Header="Clip to layer below" IsVisible="{Binding !IsClipped}"
+                                      Click="OnLayerMenuClip"
+                                      ToolTip.Tip="Composite this layer only where the layer below has content (Ctrl+Alt+G). Consecutive clipped layers share the first unclipped base — an animated matte is exactly this." />
+                            <MenuItem Header="Release clipping" IsVisible="{Binding IsClipped}"
+                                      Click="OnLayerMenuClip" />
+                            <Separator />
                             <MenuItem Header="In exports">
                               <MenuItem Header="Decide automatically" Click="OnLayerMenuExportAuto"
                                         ToolTip.Tip="The export's own background handling decides. The default." />
@@ -3162,6 +3542,13 @@
                         </Border.ContextMenu>
                         <DockPanel>
                           <views:LinkBracket DockPanel.Dock="Left" />
+                          <Border Classes="clipBar" DockPanel.Dock="Left" IsVisible="{Binding IsClipped}"
+                                  Background="Transparent"
+                                  ToolTip.Tip="Clipped to the layer below — this layer shows only where that one has content">
+                            <Border Width="2" Margin="0,4" CornerRadius="1" HorizontalAlignment="Center"
+                                    VerticalAlignment="Stretch"
+                                    Background="{StaticResource AccentCyanBrush}" />
+                          </Border>
                           <ToggleButton Classes="icon glyph eye" DockPanel.Dock="Left" IsChecked="{Binding Visible}"
                                         ToolTip.Tip="Layer visibility"><Path /></ToggleButton>
                           <ToggleButton Classes="icon glyph lock" DockPanel.Dock="Left" IsChecked="{Binding Locked}"
@@ -3173,6 +3560,26 @@
                                   Background="#111" PointerPressed="OnLayerThumbPressed"
                                   ToolTip.Tip="Layer content — Ctrl+click to select its visible pixels (Shift adds, Alt subtracts)">
                             <Image Source="{Binding Thumb}" Stretch="Uniform" />
+                          </Border>
+                          <!-- 14×22: the thumbnail's own height so the pair reads
+                               as one strip, and narrow because it holds no image
+                               yet — it is the mask's *slot*, not its picture. -->
+                          <Border Classes="maskChip" Classes.editing="{Binding IsEditingMask}"
+                                  Classes.disabledMask="{Binding MaskDisabled}"
+                                  DockPanel.Dock="Left" Margin="2,0,0,0" Width="14" Height="22"
+                                  CornerRadius="2" VerticalAlignment="Center" IsVisible="{Binding HasMask}"
+                                  PointerPressed="OnLayerMaskChipPressed"
+                                  ToolTip.Tip="Layer mask — click to paint it, click again to return to the drawing" />
+                          <!-- The fx chip: the mask chip's pattern for the
+                               effect stack — hollow while the master switch
+                               is off (Q158), one click to the sliders. -->
+                          <Border Classes="fxChip" Classes.disabledFx="{Binding EffectsDisabled}"
+                                  DockPanel.Dock="Left" Margin="2,0,0,0" Height="22"
+                                  CornerRadius="2" VerticalAlignment="Center" IsVisible="{Binding HasEffects}"
+                                  PointerPressed="OnLayerFxChipPressed"
+                                  ToolTip.Tip="Layer effects — click to edit them in the Effects panel; the row menu's Layer style switches them on and off">
+                            <TextBlock Text="fx" FontSize="9" FontStyle="Italic" Margin="3,0"
+                                       VerticalAlignment="Center" />
                           </Border>
                           <Button Classes="icon" DockPanel.Dock="Right" Background="Transparent"
                                   IsVisible="{Binding IsGrouped}"
@@ -3334,7 +3741,7 @@
             </controls:Docker>
 
         <!--
-          History: the undo record with names on it. Rows above the current
+          Undo history: the undo record with names on it. Rows above the current
           state are what undo would revisit; dimmed rows below it are what
           redo would replay. Clicking either walks there. Session-only on
           purpose — persisting it is B100, blocked on the undo record
@@ -3351,14 +3758,49 @@
                                   ToolTip.Tip="Where you are in the drawing. Click or drag to go somewhere else." />
         </controls:Docker>
 
-        <controls:Docker x:Name="HistoryPanel" PanelId="History" Title="History"
+        <!-- The Scene panel (Q84): layer depths and the camera's path — the
+             multiplane authoring surface. The panel is a file of its own;
+             what lands here is registration. -->
+        <controls:Docker x:Name="SceneDockerPanel" PanelId="Scene" Title="Scene"
+                         CloseCommand="{Binding ToggleSceneDockerCommand}">
+          <views:ScenePanel />
+        </controls:Docker>
+
+        <!-- The effects docker (Q151): stacks and adjustment layers. The
+             panel and its view model are files of their own — what lands
+             here is registration. -->
+        <controls:Docker x:Name="EffectsDockerPanel" PanelId="Effects" Title="Effects"
+                         CloseCommand="{Binding ToggleEffectsDockerCommand}">
+          <views:EffectsPanel DataContext="{Binding EffectsPanel}" />
+        </controls:Docker>
+
+        <controls:Docker x:Name="HistoryPanel" PanelId="History" Title="Undo history"
                          CloseCommand="{Binding ToggleHistoryPanelCommand}">
               <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <ListBox ItemsSource="{Binding UndoHistory.Rows}"
                          Background="Transparent" BorderThickness="0" Margin="2">
+                  <ListBox.Styles>
+                    <!--
+                      The row density every other list in this window uses, and
+                      the reason it has to be said here: a ListBoxItem takes the
+                      Fluent theme's own padding unless something overrides it,
+                      which made these rows half again as tall as a layer row
+                      for no reason anybody chose. The Project docker carries the
+                      identical pair for the identical reason; the layers docker
+                      escapes it by being an ItemsControl.
+
+                      A history list is scanned rather than read — you are
+                      looking for one step among sixty — so the number of rows
+                      on screen at once is the whole usefulness of the panel.
+                    -->
+                    <Style Selector="ListBoxItem">
+                      <Setter Property="Padding" Value="2,0" />
+                      <Setter Property="MinHeight" Value="20" />
+                    </Style>
+                  </ListBox.Styles>
                   <ListBox.ItemTemplate>
                     <DataTemplate DataType="vm:UndoHistoryRow">
-                      <DockPanel Opacity="{Binding Opacity}" MinHeight="22"
+                      <DockPanel Opacity="{Binding Opacity}" MinHeight="20"
                                  Background="Transparent"
                                  DoubleTapped="OnHistoryRowJump">
                         <TextBlock DockPanel.Dock="Right" FontSize="10" Opacity="0.5"
@@ -4103,21 +4545,27 @@
                     <Path Classes="icon" Data="{StaticResource IconClose}" />
                   </Button>
                 </StackPanel>
+                <!-- The rig's own row is always there once an armature exists;
+                     this opens it into one row per bone. Off by default — a
+                     twenty-bone character would otherwise cost twenty rows. -->
+                <CheckBox Content="Bones" IsChecked="{Binding PoseRowsExpanded, Mode=TwoWay}"
+                          IsVisible="{Binding HasArmature}" VerticalAlignment="Center"
+                          ToolTip.Tip="Open the Armature row into one row per bone. Drag a key to retime it, right-click one to remove it." />
               </controls:OverflowBar>
             </Border>
           </controls:Docker.TopBar>
-          <!-- Its own horizontal scroll: the docker's content scroller is
-               vertical-only, and a long scene is wider than any window. -->
-          <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-            <controls:TrackView x:Name="TimelineTrackView"
-                                Tracks="{Binding TimelineTracks}"
-                                AudioPeaks="{Binding TimelineAudioPeaks}"
-                                AudioClips="{Binding TimelineAudioClips}"
-                                VideoClips="{Binding TimelineVideoClips}"
-                                FrameCount="{Binding TimelineFrameCount}"
-                                FrameWidth="{Binding TimelineFrameWidth}"
-                                CurrentFrame="{Binding CurrentFrameIndex, Mode=TwoWay}" />
-          </ScrollViewer>
+          <DockPanel>
+            <!-- The key inspector (Q142): one selected key's values — see TimelineInspector.axaml. -->
+            <views:TimelineInspector DockPanel.Dock="Bottom" />
+            <!-- Its own horizontal scroll: the docker's content scroller is
+                 vertical-only, and a long scene is wider than any window. -->
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+              <controls:TrackView x:Name="TimelineTrackView" Tracks="{Binding TimelineTracks}"
+                                  AudioPeaks="{Binding TimelineAudioPeaks}" AudioClips="{Binding TimelineAudioClips}"
+                                  VideoClips="{Binding TimelineVideoClips}" FrameCount="{Binding TimelineFrameCount}"
+                                  FrameWidth="{Binding TimelineFrameWidth}" SelectedDots="{Binding TimelineSelectedDots}" CurrentFrame="{Binding CurrentFrameIndex, Mode=TwoWay}" />
+            </ScrollViewer>
+          </DockPanel>
         </controls:Docker>
 
         <!-- The X-sheet: the exposure grid this application has always had,
@@ -4250,12 +4698,12 @@
                                     LeadingInset="152"
                                     CellWidth="{Binding TimelineRulerCellWidth}"
                                     Extent="{Binding TimelineExtent}"
-                                    MaxFrame="{Binding MaxScrubFrame}"
+                                    MaxFrame="{Binding MaxScrubFrame}" CameraKeyed="{Binding CameraKeyedFrames}"
                                     CurrentFrame="{Binding CurrentFrameIndex, Mode=TwoWay}"
                                     IsScrubbing="{Binding IsScrubbing, Mode=TwoWay}"
                                     RangeStart="{Binding PlaybackStartFrame, Mode=TwoWay}"
                                     RangeEnd="{Binding PlaybackEndFrame, Mode=TwoWay}"
-                                    Markers="{Binding MarkersView}" />
+                                    Markers="{Binding MarkersView}" PoseKeyed="{Binding PoseKeyedFrames}" />
             <ItemsControl ItemsSource="{Binding LayerRows}">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
@@ -4322,6 +4770,12 @@
                                     <MenuItem Header="Insert breakdown frame" Click="OnInsertBreakdown" />
                                     <MenuItem Header="Insert inbetween frame" Click="OnInsertInbetweenFrame" />
                                   </MenuItem>
+                                  <!-- Absent rather than disabled when there is no rig, the
+                                       camera's rule: a document that never made an armature
+                                       is not offered a bone command it cannot use. -->
+                                  <MenuItem Header="Drawing from pose" Click="OnInsertDrawingFromPose"
+                                            IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).HasArmature}"
+                                            ToolTip.Tip="Break the hold on this cel and keep the rig's pose at it as a drawing of its own — bound lines baked in, a bone guide copied through to draw over" />
                                   <Separator />
                                   <MenuItem Header="Extend exposure (+1 hold)" Click="OnExtendExposure" />
                                   <MenuItem Header="Reduce exposure (−1 hold)" Click="OnReduceExposure" />

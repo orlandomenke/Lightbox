@@ -157,6 +157,27 @@ public partial class MainViewModel
     [RelayCommand]
     private void MoveLayerDown(LayerRow row) => MoveLayer(row, -1);
 
+    /// <summary>The Layer menu's targets: the docker rows take a row, the menu takes whatever is active.</summary>
+    private LayerRow? ActiveLayerRow() => LayerRows.FirstOrDefault(r => r.SceneIndex == ActiveLayerIndex);
+
+    [RelayCommand]
+    private void MoveActiveLayerUp()
+    {
+        if (ActiveLayerRow() is { } row) MoveLayer(row, +1);
+    }
+
+    [RelayCommand]
+    private void MoveActiveLayerDown()
+    {
+        if (ActiveLayerRow() is { } row) MoveLayer(row, -1);
+    }
+
+    [RelayCommand]
+    private void SelectActiveLayerContents()
+    {
+        if (ActiveLayerRow() is { } row) SelectLayerAlpha(row, add: false, subtract: false);
+    }
+
     /// <summary>
     /// Drop a dragged layer beside another row — visually above it (toward the
     /// viewer) or below. The layer adopts the target's folder, so dragging into
@@ -370,6 +391,50 @@ public partial class MainViewModel
         CurrentFrameIndex = Math.Min(CurrentFrameIndex, Scene.FrameCount - 1);
     }
 
+    /// <summary>Whether there is a step to take back — the Edit menu greys out on it.</summary>
+    public bool CanUndo => _editor.CanUndo;
+
+    /// <summary>Whether there is a step to put back.</summary>
+    public bool CanRedo => _editor.CanRedo;
+
+    /// <summary>
+    /// The Edit menu's Undo entry, naming the step it would take back —
+    /// <em>Undo Draw stroke</em> rather than <em>Undo</em>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Naming it is the difference between pressing the entry and guessing, and
+    /// the name is already there: every step carries a label, which is what the
+    /// History docker has been showing all along. This is the same record read
+    /// one row at a time.
+    /// </para>
+    /// <para>
+    /// The mnemonic is in the string because Avalonia takes it from the header
+    /// whether that header is literal or bound, and a menu whose first item
+    /// loses its access key when it gains a name would be a strange trade.
+    /// </para>
+    /// </remarks>
+    public string UndoMenuHeader => _editor.UndoLabel is { } step ? $"_Undo {step}" : "_Undo";
+
+    /// <summary>The Edit menu's Redo entry, naming the step it would put back.</summary>
+    /// <inheritdoc cref="UndoMenuHeader" path="/remarks"/>
+    public string RedoMenuHeader => _editor.RedoLabel is { } step ? $"_Redo {step}" : "_Redo";
+
+    /// <summary>
+    /// Re-read the four properties above. Called from the edit funnel rather
+    /// than raised by each command, because undo state moves under commands
+    /// that never touch it — an autosave-triggered edit, a jump in the History
+    /// docker, a step trimmed by <c>MaxUndo</c>, a tab switch bringing a
+    /// different stack.
+    /// </summary>
+    private void RefreshUndoRedo()
+    {
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+        OnPropertyChanged(nameof(UndoMenuHeader));
+        OnPropertyChanged(nameof(RedoMenuHeader));
+    }
+
     [RelayCommand]
     private void Undo()
     {
@@ -465,6 +530,23 @@ public partial class MainViewModel
     [RelayCommand]
     private void ToggleSidebar() => SidebarVisible = !SidebarVisible;
 
+    /// <summary>
+    /// The editor, for the panel view models that own their domain's edits
+    /// (the effects docker is the first). Follows the current document — the
+    /// field is reassigned on a tab switch — which is why panels hold this
+    /// accessor rather than the instance. Here rather than in
+    /// MainViewModel.cs for the ratchet's reason: the main file may not grow.
+    /// </summary>
+    internal DocumentEditor PanelEditor => _editor;
+
+    /// <summary>The effects docker's view model — registration only; every effect command lives on it.</summary>
+    public EffectsViewModel EffectsPanel { get; }
+
+    /// <summary>Registration only — every effect command lives on <see cref="EffectsPanel"/>.</summary>
+    [RelayCommand]
+    private void ToggleEffectsDocker() =>
+        Workspace.EffectsDockerVisible = !Workspace.EffectsDockerVisible;
+
     [RelayCommand]
     private void SwitchSidebarSide() => SidebarOnRight = !SidebarOnRight;
 
@@ -512,6 +594,7 @@ public partial class MainViewModel
             foreach (var target in targets) target.Visible = visible;
         }, label: targets.Count == 1 ? "Set layer visible" : "Set layers visible",
             frameContentUnchanged: true);
+        NotifyLayerGating();
     }
 
     /// <summary>
@@ -564,17 +647,190 @@ public partial class MainViewModel
         if (ActiveLayer is { } layer) SetLayerAlphaLocked(layer, !layer.AlphaLocked, alone: true);
     }
 
+    // ---- masks and clipping -------------------------------------------------
+
+    /// <summary>
+    /// The id of the layer whose mask is being painted, or null. Held by id
+    /// rather than by reference because a snapshot-undo replaces the whole
+    /// document tree, and an edit mode pointing at an orphaned instance would
+    /// paint into a drawing nothing renders.
+    /// </summary>
+    private string? _maskEditLayerId;
+
+    /// <summary>
+    /// Whether strokes are landing on the active layer's mask. True only
+    /// while the mask exists — deleting it, or undoing its creation, ends the
+    /// mode by construction rather than by bookkeeping.
+    /// </summary>
+    public bool EditingLayerMask =>
+        _maskEditLayerId is { } id && ActiveLayer is { } layer
+        && layer.Id == id && layer.Mask is not null;
+
+    /// <summary>The frame mask strokes land on, or null when not mask-editing.</summary>
+    private Frame? MaskPaintTarget() =>
+        EditingLayerMask ? ActiveLayer!.Mask!.Frame : null;
+
+    /// <summary>Drives the row chip's outline, so the mode is never invisible.</summary>
+    internal bool IsEditingMaskOf(Layer layer) =>
+        layer.Id == _maskEditLayerId && layer.Mask is not null;
+
+    internal void SetMaskEditing(Layer layer, bool editing)
+    {
+        _maskEditLayerId = editing && layer.Mask is not null ? layer.Id : null;
+        OnPropertyChanged(nameof(EditingLayerMask));
+        SyncMaskRows();
+    }
+
+    /// <summary>
+    /// Add a painted mask and start editing it. <paramref name="paintHides"/>
+    /// starts inverted: the layer stays fully visible and painting conceals —
+    /// the vignette workflow. The other way starts fully hidden and painting
+    /// reveals. Both are one flag apart forever after (Invert).
+    /// </summary>
+    internal void AddLayerMask(Layer layer, bool paintHides)
+    {
+        if (layer.Mask is not null)
+        {
+            SetMaskEditing(layer, true);
+            return;
+        }
+        _editor.Perform(
+            _ => layer.Mask = new LayerMask { Inverted = paintHides ? true : null },
+            label: "Add layer mask", frameContentUnchanged: true);
+        SetMaskEditing(layer, true);
+    }
+
+    internal void DeleteLayerMask(Layer layer)
+    {
+        if (layer.Mask is null) return;
+        if (layer.Id == _maskEditLayerId) SetMaskEditing(layer, false);
+        _editor.Perform(_ => layer.Mask = null,
+            label: "Delete layer mask", frameContentUnchanged: true);
+        SyncMaskRows();
+    }
+
+    internal void SetMaskDisabled(Layer layer, bool disabled)
+    {
+        if (layer.Mask is not { } mask || mask.Disabled == (disabled ? true : (bool?)null)) return;
+        _editor.Perform(_ => mask.Disabled = disabled ? true : null,
+            label: disabled ? "Disable layer mask" : "Enable layer mask",
+            frameContentUnchanged: true);
+        SyncMaskRows();
+    }
+
+    internal void ToggleMaskInverted(Layer layer)
+    {
+        if (layer.Mask is not { } mask) return;
+        var inverted = !mask.IsInverted;
+        _editor.Perform(_ => mask.Inverted = inverted ? true : null,
+            label: "Invert layer mask", frameContentUnchanged: true);
+        SyncMaskRows();
+    }
+
+    /// <summary>
+    /// The stack's master switch (Q158): every effect and style off in one
+    /// click without touching any use's own switch — the mask chip's
+    /// disable, applied to the fx chip.
+    /// </summary>
+    internal void ToggleLayerEffects(Layer layer)
+    {
+        if (layer.Effects is not { } stack) return;
+        var disable = stack.Disabled != true;
+        _editor.Perform(_ => stack.Disabled = disable ? true : null,
+            label: disable ? "Disable layer effects" : "Enable layer effects",
+            frameContentUnchanged: true);
+        SyncMaskRows();
+        EffectsPanel.Rebuild();
+    }
+
+    /// <summary>
+    /// Clip the layer to the one below (Photoshop's Ctrl+Alt+G). The base is
+    /// positional — see <see cref="Layer.ClipToBelow"/> for why it is a flag.
+    /// </summary>
+    internal void SetLayerClipped(Layer layer, bool clipped, bool alone = false)
+    {
+        var targets = ToggleTargets(layer, l => l.IsClipped, clipped, alone);
+        if (targets.Count == 0) return;
+        _editor.Perform(_ =>
+        {
+            foreach (var target in targets) target.ClipToBelow = clipped ? true : null;
+        }, label: clipped ? "Clip to layer below" : "Release clipping",
+            frameContentUnchanged: true);
+        SyncMaskRows();
+    }
+
+    [RelayCommand]
+    private void ToggleActiveLayerClipped()
+    {
+        if (ActiveLayer is { } layer) SetLayerClipped(layer, !layer.IsClipped, alone: true);
+    }
+
+    [RelayCommand]
+    private void ToggleActiveLayerMaskEditing()
+    {
+        if (ActiveLayer is { } layer && layer.Mask is not null)
+        {
+            SetMaskEditing(layer, !IsEditingMaskOf(layer));
+        }
+    }
+
+    /// <summary>Re-read every row's mask and clip state after a mask edit.</summary>
+    // Internal for the effects docker: an add or remove there changes what
+    // the rows' fx chips show, the same way a mask edit changes their chips.
+    internal void SyncMaskRows()
+    {
+        foreach (var row in LayerRows) row.SyncMaskFromModel();
+    }
+
     private void NotifyLayerGating()
     {
         OnPropertyChanged(nameof(ActiveLayerBlocked));
         OnPropertyChanged(nameof(ActiveLayerAlphaLocked));
+        OnPropertyChanged(nameof(ActiveLayerVisible));
+        OnPropertyChanged(nameof(ActiveLayerLocked));
     }
 
     /// <summary>A row needs this to dim itself without reaching into the scene.</summary>
     internal bool IsLayerLockedByFolder(Layer layer) => Scene.GroupOf(layer) is { Locked: true };
 
     /// <summary>Shown in the tool options so the restriction is never invisible.</summary>
-    public bool ActiveLayerAlphaLocked => ActiveLayer is { AlphaLocked: true };
+    /// <remarks>
+    /// The setter exists for the Layer menu's checkbox: a two-way binding wants
+    /// a property, and routing it through <see cref="SetLayerAlphaLocked"/>
+    /// keeps the menu, the docker padlock and the shortcut on one undo path.
+    /// The same reasoning gives the two below their setters.
+    /// </remarks>
+    public bool ActiveLayerAlphaLocked
+    {
+        get => ActiveLayer is { AlphaLocked: true };
+        set
+        {
+            if (ActiveLayer is { } layer && layer.AlphaLocked != value)
+                SetLayerAlphaLocked(layer, value, alone: true);
+        }
+    }
+
+    /// <summary>The Layer menu's eye: the active layer's visibility, undoable like the docker's.</summary>
+    public bool ActiveLayerVisible
+    {
+        get => ActiveLayer is { Visible: true };
+        set
+        {
+            if (ActiveLayer is { } layer && layer.Visible != value)
+                SetLayerVisible(layer, value, alone: true);
+        }
+    }
+
+    /// <summary>The Layer menu's padlock: the active layer's lock, undoable like the docker's.</summary>
+    public bool ActiveLayerLocked
+    {
+        get => ActiveLayer is { Locked: true };
+        set
+        {
+            if (ActiveLayer is { } layer && layer.Locked != value)
+                SetLayerLocked(layer, value, alone: true);
+        }
+    }
 
     /// <summary>
     /// Per-layer onion-skin participation. A display preference, so it is
@@ -982,7 +1238,10 @@ public partial class MainViewModel
     [RelayCommand]
     private void ToggleActiveLayerVisible()
     {
-        _editor.Perform(_ => ActiveLayer.Visible = !ActiveLayer.Visible, frameContentUnchanged: true);
+        // Through SetLayerVisible rather than a direct Perform, so the Layer
+        // menu's checkbox (ActiveLayerVisible) hears about it via the same
+        // notification the docker's eye uses.
+        if (ActiveLayer is { } layer) SetLayerVisible(layer, !layer.Visible, alone: true);
         RefreshPointerIntent();
     }
 

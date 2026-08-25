@@ -217,6 +217,31 @@ public sealed partial class CanvasControl : Control
             ? (x, anchor.Y)
             : (anchor.X, y);
 
+    /// <summary>Where the object drag in progress began, for the Shift axis lock.</summary>
+    /// <remarks>
+    /// One field for the guide, reference-box, anchor and shape drags rather
+    /// than one each, because the gestures are mutually exclusive — a pointer
+    /// drags one kind of thing at a time.
+    /// </remarks>
+    private (double X, double Y) _objectDragAnchor;
+
+    /// <summary>
+    /// The pointer, held to one axis while Shift is down mid-drag — what Shift
+    /// means on the brush, the Move tool and the gradient, extended to the
+    /// object drags.
+    /// </summary>
+    /// <remarks>
+    /// Measured from the drag's anchor rather than clamped per event, for the
+    /// stroke lock's reason: a sum of clamped deltas drifts off the axis it is
+    /// supposed to be holding. The handlers emit deltas of <em>this</em> point,
+    /// so the deltas always sum back to an exactly-locked position — and
+    /// releasing Shift mid-drag hands the object back to the real pointer.
+    /// </remarks>
+    private (double X, double Y) DragPoint(PointerEventArgs e, (double X, double Y) point) =>
+        e.KeyModifiers.HasFlag(KeyModifiers.Shift)
+            ? AxisLocked(_objectDragAnchor, point.X, point.Y)
+            : point;
+
     /// <summary>True while an Alt-held stroke is in progress (drives the cursor).</summary>
     public bool IsTemporaryEraser => _painting && _erasingThisStroke;
 
@@ -417,66 +442,6 @@ public sealed partial class CanvasControl : Control
     // the diagnostics folder instead of killing the input or render loop.
     // The de-duplication and the file both live in DiagnosticLog now, so this
     // breadcrumb lands where a crash report does rather than in %TEMP%.
-
-    /// <summary>
-    /// Whether Avalonia handed the canvas a GPU-backed Skia context, and so
-    /// whether the frame the artist sees is presented by the GPU at all.
-    ///
-    /// Every "should this be on the GPU" question starts here and cannot be
-    /// answered from a headless container: on Windows the default backend is
-    /// ANGLE/D3D11 and this is expected to read "GPU", but a machine that fell
-    /// back to software rendering has a completely different cost profile and
-    /// no amount of GPU work would help it. Reported in the info strip so it
-    /// is a fact rather than an assumption.
-    /// </summary>
-    public static string GraphicsBackend { get; private set; } = "unknown";
-
-    /// <summary>
-    /// True once a frame has been presented without a GPU context, null while
-    /// nothing has been drawn yet.
-    /// </summary>
-    /// <remarks>
-    /// Worth a separate flag from the label because something has to act on
-    /// it. A machine on the software rasteriser is not a machine with a
-    /// slightly slower canvas — presenting the frame becomes the dominant
-    /// cost, and the setting that decides how many pixels get presented is the
-    /// only lever that helps.
-    /// </remarks>
-    public static bool? SoftwareRendering { get; private set; }
-
-    /// <summary>Raised the first time the backend is known.</summary>
-    public static event Action? BackendDetected;
-
-    /// <summary>
-    /// The context's texture limit, or null when there is no context. Reported
-    /// rather than merely used: at 4K with display scaling the presentation
-    /// surface approaches this, and exceeding it is what makes a GPU surface fail
-    /// to allocate and fall back to CPU without saying so.
-    /// </summary>
-    public static int? MaxTextureSize { get; private set; }
-
-    private static void RecordBackend(ISkiaSharpApiLease lease)
-    {
-        if (GraphicsBackend != "unknown") return;
-        var software = lease.GrContext is null;
-        GraphicsBackend = software ? "CPU (software)" : "GPU";
-        SoftwareRendering = software;
-        MaxTextureSize = lease.GrContext?.MaxTextureSize;
-        BackendDetected?.Invoke();
-    }
-
-    /// <summary>Test seam: pretend the backend came back as software, or as a GPU.</summary>
-    internal static void ForceBackendForTests(bool? software)
-    {
-        SoftwareRendering = software;
-        GraphicsBackend = software switch
-        {
-            true => "CPU (software)",
-            false => "GPU",
-            null => "unknown",
-        };
-        if (software is not null) BackendDetected?.Invoke();
-    }
 
     /// <summary>
     /// Record a survivable canvas failure. Kept here so the nine call sites
@@ -874,6 +839,9 @@ public sealed partial class CanvasControl : Control
         Move,
         Select,
 
+        /// <summary>The crop frame: drag it out, push its handles, Enter applies.</summary>
+        Crop,
+
         /// <summary>
         /// The Bone tool: presses select bones, drags create or move them, and
         /// in posing mode a drag rotates and keys at the playhead. Always in
@@ -904,6 +872,12 @@ public sealed partial class CanvasControl : Control
         /// with it.
         /// </remarks>
         Pen,
+
+        /// <summary>
+        /// The text tool: a press puts a caret down and the keyboard takes over —
+        /// see <c>CanvasControl.ToolGestures.cs</c>.
+        /// </summary>
+        Text,
 
         /// <summary>
         /// The width tool: a press grabs the line, a drag changes its weight.
@@ -1230,26 +1204,6 @@ public sealed partial class CanvasControl : Control
 
     /// <summary>Capture was lost mid-drag: abandon the ramp rather than commit it.</summary>
     public event Action? GradientDragCancelled;
-
-    /// <summary>The axis being dragged, in document coordinates, or null when idle.</summary>
-    private (double X, double Y)? _gradientFrom, _gradientTo;
-
-    /// <summary>
-    /// Show the axis while the VM renders the ramp. View-only chrome, like the
-    /// transform gizmo: it is drawn over the composite and never reaches the
-    /// document.
-    /// </summary>
-    public void SetGradientAxis((double X, double Y)? from, (double X, double Y)? to)
-    {
-        _gradientFrom = from;
-        _gradientTo = to;
-        InvalidateVisual();
-    }
-
-    private (SKPoint From, SKPoint To)? GradientAxisPoints() =>
-        _gradientFrom is { } a && _gradientTo is { } b
-            ? (new SKPoint((float)a.X, (float)a.Y), new SKPoint((float)b.X, (float)b.Y))
-            : null;
 
     // ---- transform gizmo (Ctrl+T session) --------------------------------------
     // The gizmo owns the interactive state (pivot, scale, angle, offset or a
@@ -1951,8 +1905,9 @@ public sealed partial class CanvasControl : Control
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
             _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing,
-            BoneChromes, HeatPoints, _hoveredLines,
-            FillPreviewForFrame(), _fillPreviewWand, _fillPreviewColor, TrailPoints));
+            BoneChromes, BonesArePosed, HeatPoints, _hoveredLines,
+            FillPreviewForFrame(), _fillPreviewWand, _fillPreviewColor, TrailPoints, MotionArc,
+            CropSurfaceRect()));
     }
 
     // The tip outline cache and TipOutlinePath moved to CanvasControl.Pointer.cs,
@@ -2235,17 +2190,6 @@ public sealed partial class CanvasControl : Control
 
     private string? _lastDiagnostic;
 
-    private void ReportInputDiagnostic(PointerType type, float rawPressure)
-    {
-        if (InputDiagnostic is null) return;
-        var text = (type == PointerType.Pen
-            ? $"Pen detected — pressure {rawPressure:0.00}"
-            : $"{type} input — no pressure axis (paints at 100%)") + TracingSuffix();
-        if (text == _lastDiagnostic) return;
-        _lastDiagnostic = text;
-        InputDiagnostic.Invoke(text);
-    }
-
     // ---- view tools -----------------------------------------------------------
 
     private void ViewUpdated()
@@ -2506,6 +2450,7 @@ public sealed partial class CanvasControl : Control
                 {
                     _movingGuides = true;
                     _guideMoveLast = (x, y);
+                    _objectDragAnchor = (x, y);
                     GuidesMovedStarted?.Invoke();
                     return;
                 }
@@ -2513,6 +2458,7 @@ public sealed partial class CanvasControl : Control
                 _guideDrag = grabbed.Id;
                 _guideResizing = GrabsHeightScaleTop(grabbed, pp.Position);
                 _guideDragLast = (x, y);
+                _objectDragAnchor = (x, y);
                 return;
             }
 
@@ -2604,6 +2550,9 @@ public sealed partial class CanvasControl : Control
                     _dragShape.Clear();
                     e.Handled = true;
                     return;
+                case CanvasToolMode.Crop:
+                    CropPress(e, x, y);
+                    return;
                 case CanvasToolMode.Gradient:
                     e.Pointer.Capture(this);
                     _gradientDragging = true;
@@ -2614,6 +2563,10 @@ public sealed partial class CanvasControl : Control
                     e.Pointer.Capture(this);
                     _shapeDragging = true;
                     ShapeDragStarted?.Invoke(x, y);
+                    e.Handled = true;
+                    return;
+                case CanvasToolMode.Text:
+                    PlaceText(x, y);
                     e.Handled = true;
                     return;
                 case CanvasToolMode.Move:
@@ -2636,18 +2589,21 @@ public sealed partial class CanvasControl : Control
                     {
                         _movingGuides = true;
                         _guideMoveLast = (x, y);
+                        _objectDragAnchor = (x, y);
                         GuidesMovedStarted?.Invoke();
                     }
                     else if (movingSelection && _selectionManager?.SelectedRefBoxIndices.Count > 0)
                     {
                         _movingRefBoxes = true;
                         _refBoxMoveLast = (x, y);
+                        _objectDragAnchor = (x, y);
                         RefBoxesMoveStarted?.Invoke();
                     }
                     else if (movingSelection && _selectionManager?.SelectedAnchorIds.Count > 0)
                     {
                         _movingAnchors = true;
                         _anchorMoveLast = (x, y);
+                        _objectDragAnchor = (x, y);
                         BeginRigGroupPreview(x, y, shapes: false);
                         AnchorsMoveStarted?.Invoke();
                     }
@@ -2655,6 +2611,7 @@ public sealed partial class CanvasControl : Control
                     {
                         _movingShapes = true;
                         _shapeMoveLast = (x, y);
+                        _objectDragAnchor = (x, y);
                         BeginRigGroupPreview(x, y, shapes: true);
                         ShapesMoveStarted?.Invoke();
                     }
@@ -2832,6 +2789,8 @@ public sealed partial class CanvasControl : Control
             _paintPointerId = e.Pointer.Id;
             _strokeWasPen = e.Pointer.Type == PointerType.Pen;
             _strokeSawRealPressure = false;
+            _penAxes.Begin();
+            _lastAxisSample = null;
             // Alt turns the brush in your hand into an eraser without
             // swapping tools, so it keeps its size, shape and dynamics. That
             // is different from E, which switches to the dedicated eraser and
@@ -2879,8 +2838,15 @@ public sealed partial class CanvasControl : Control
         _enterCount++;
         Services.InputTrace.Pointer(Services.InputTrace.Kind.Enter, e, this);
         ReportHoverChurn(e);
-        _hoverPoint = e.GetPosition(this);
-        InvalidateVisual();
+        // An enter cancels a pending teardown: the pointer never really left.
+        var wasAway = CancelLeave();
+        var at = e.GetPosition(this);
+        var moved = _hoverPoint != at;
+        _hoverPoint = at;
+        // Only repaint if this enter actually changed what is on screen. On a
+        // pen tablet this fires ~97 times a second without the ring moving at
+        // all (B255) — see RepaintOnHoverChange.
+        if (wasAway || moved) InvalidateVisual();
     }
 
     protected override void OnPointerExited(PointerEventArgs e)
@@ -2889,12 +2855,13 @@ public sealed partial class CanvasControl : Control
         _exitCount++;
         Services.InputTrace.Pointer(Services.InputTrace.Kind.Exit, e, this);
         ReportHoverChurn(e);
-        _hoverPoint = null;
-        // Nothing to re-ask about once the pointer is gone, so a later tool
-        // change falls back to the tool's own cursor rather than answering
-        // about wherever the pointer happened to leave.
-        _cursorAt = null;
-        InvalidateVisual();
+        // Deliberately *not* torn down here — see LeaveGraceMs. A departure
+        // only counts once it has lasted, because on a pen tablet almost none
+        // of them do. And because nothing is torn down, nothing on screen has
+        // changed, so there is nothing to repaint: the invalidate that used to
+        // be here painted an identical canvas ~97 times a second
+        // (RepaintOnHoverChange). SettleHover repaints when the ring really goes.
+        BeginLeave();
     }
 
     /// <summary>
@@ -2947,9 +2914,10 @@ public sealed partial class CanvasControl : Control
             InputPulse.OnCanvas();
             InvalidateVisual();
 
+            if (_cropDragging) { CropMove(e); return; }
             if (_movingGuides)
             {
-                var (mx, my) = ViewToDoc(e.GetPosition(this));
+                var (mx, my) = DragPoint(e, ViewToDoc(e.GetPosition(this)));
                 var dx = mx - _guideMoveLast.X;
                 var dy = my - _guideMoveLast.Y;
                 GuidesMoved?.Invoke(dx, dy);
@@ -3003,7 +2971,7 @@ public sealed partial class CanvasControl : Control
 
             if (_movingRefBoxes)
             {
-                var (mx, my) = ViewToDoc(e.GetPosition(this));
+                var (mx, my) = DragPoint(e, ViewToDoc(e.GetPosition(this)));
                 var dx = mx - _refBoxMoveLast.X;
                 var dy = my - _refBoxMoveLast.Y;
                 RefBoxesMoved?.Invoke(dx, dy);
@@ -3014,7 +2982,7 @@ public sealed partial class CanvasControl : Control
 
             if (_movingAnchors)
             {
-                var (mx, my) = ViewToDoc(e.GetPosition(this));
+                var (mx, my) = DragPoint(e, ViewToDoc(e.GetPosition(this)));
                 var dx = mx - _anchorMoveLast.X;
                 var dy = my - _anchorMoveLast.Y;
                 AnchorsMoved?.Invoke(dx, dy);
@@ -3026,7 +2994,7 @@ public sealed partial class CanvasControl : Control
 
             if (_movingShapes)
             {
-                var (mx, my) = ViewToDoc(e.GetPosition(this));
+                var (mx, my) = DragPoint(e, ViewToDoc(e.GetPosition(this)));
                 var dx = mx - _shapeMoveLast.X;
                 var dy = my - _shapeMoveLast.Y;
                 ShapesMoved?.Invoke(dx, dy);
@@ -3072,6 +3040,9 @@ public sealed partial class CanvasControl : Control
             if (_guideDrag is { } dragging)
             {
                 var (gx, gy) = ViewToDoc(e.GetPosition(this));
+                // The resize is vertical by nature, so only the move takes the
+                // Shift axis lock.
+                if (!_guideResizing) (gx, gy) = DragPoint(e, (gx, gy));
                 // Incremental, like the reference nudge: an absolute drag
                 // would leave one enormous step in the history.
                 if (_guideResizing) GuideResized?.Invoke(dragging, gy - _guideDragLast.Y);
@@ -3308,6 +3279,7 @@ public sealed partial class CanvasControl : Control
             // delivered as one batch per event.
             var points = e.GetIntermediatePoints(this);
             var samples = new List<ViewModels.MainViewModel.PointerSample>(points.Count);
+            (double? TiltX, double? TiltY, double? Speed) lastAxes = default;
             foreach (var pp in points)
             {
                 // Coalesced history can reach back past the press into hover
@@ -3317,12 +3289,19 @@ public sealed partial class CanvasControl : Control
                 if (!pp.Properties.IsLeftButtonPressed) continue;
                 var (x, y) = ViewToDoc(pp.Position);
                 if (_axisLockedStroke) (x, y) = AxisLocked(_paintAnchor, x, y);
-                samples.Add(new ViewModels.MainViewModel.PointerSample(x, y, PressureOf(pp)));
+                lastAxes = AxesOf(pp, e.Timestamp);
+                samples.Add(new ViewModels.MainViewModel.PointerSample(
+                    x, y, PressureOf(pp), lastAxes.TiltX, lastAxes.TiltY, lastAxes.Speed));
                 ReportCursorPressure(PressureOf(pp), penDown: true);
             }
             if (samples.Count > 0)
             {
-                ReportInputDiagnostic(e.Pointer.Type, points[^1].Properties.Pressure);
+                // The axes of the last sample, reused rather than recomputed:
+                // AxesOf advances the speed estimator, so asking it twice for
+                // one event would feed the average a phantom sample.
+                ReportInputDiagnostic(
+                    e.Pointer.Type, points[^1].Properties.Pressure,
+                    lastAxes.TiltX, lastAxes.TiltY, lastAxes.Speed);
                 PaintMoved?.Invoke(samples);
             }
             e.Handled = true;
@@ -3336,6 +3315,7 @@ public sealed partial class CanvasControl : Control
     private void OnPointerReleasedCore(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_cropDragging) { CropRelease(e); return; }
         if (_movingGuides)
         {
             _movingGuides = false;
@@ -3955,13 +3935,14 @@ public sealed partial class CanvasControl : Control
         LayerTextureCache? textures = null,
         ChannelSolo solo = ChannelSolo.None,
         PickRing? pickRing = null,
-        IReadOnlyList<BoneChrome>? bones = null,
+        IReadOnlyList<BoneChrome>? bones = null, bool bonesArePosed = false,
         IReadOnlyList<HeatPoint>? heat = null,
         IReadOnlyList<SelectedLine>? hoveredLines = null,
         SKPath? fillPreview = null,
         bool fillPreviewWand = false,
         SKColor fillPreviewColor = default,
-        IReadOnlyList<Core.Timeline.TrailPoint>? trail = null) : ICustomDrawOperation
+        IReadOnlyList<Core.Timeline.TrailPoint>? trail = null, Core.Timeline.MotionArcOverlay? motionArc = null,
+        SKRect? cropFrame = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -4097,12 +4078,12 @@ public sealed partial class CanvasControl : Control
             BalanceOverlayPainter.Paint(canvas, balanceDots, view.Scale);
             // The trail is judged against too, and sits under the armature so
             // the bones stay aimable over it.
-            MotionTrailPainter.Paint(canvas, trail, view.Scale);
+            MotionTrailPainter.Paint(canvas, trail, view.Scale, motionArc);
             // Heat under the bones, both over the rig marks: the armature is
             // aimed with the same hand, and the heat is what a weight brush
             // corrects against.
             ArmatureOverlayPainter.PaintHeat(canvas, heat, view.Scale);
-            ArmatureOverlayPainter.Paint(canvas, bones, view.Scale);
+            ArmatureOverlayPainter.Paint(canvas, bones, view.Scale, bonesArePosed);
             // Under the ants: a committed selection outranks a would-be one.
             FillPreviewPainter.Draw(canvas, fillPreview, fillPreviewWand, fillPreviewColor, view.Scale);
             DrawAnts(canvas);
@@ -4110,6 +4091,11 @@ public sealed partial class CanvasControl : Control
             DrawTransformGizmo(canvas);
             ReferenceBoxPainter.Paint(canvas, referenceBoxes, newBox, sheetBox, view.Scale);
             DrawObjectSelections(canvas);
+            // Last of the overlays: the dim is a judgement about everything
+            // underneath it, so anything drawn after would float outside the
+            // crop and read as being kept.
+            CropOverlayPainter.Paint(
+                canvas, cropFrame, new SKRect(0, 0, view.DocW, view.DocH), view.Scale);
             canvas.Restore();
 
             if (cursor is { } c) DrawBrushCursor(canvas, c);

@@ -24,6 +24,19 @@ namespace Lightbox.App.ViewModels;
 /// </remarks>
 public sealed partial class MainViewModel
 {
+    /// <summary>What a pose-mode drag does to the bone it has hold of.</summary>
+    private enum PoseEdit
+    {
+        /// <summary>Turn it so it points at the pointer — the tip grab.</summary>
+        Aim,
+
+        /// <summary>Put its origin under the pointer — the joint grab, and every IK handle.</summary>
+        Place,
+
+        /// <summary>Move it by the drag's delta — the shaft grab.</summary>
+        Carry,
+    }
+
     /// <summary>A scratch clone carrying the provisional bind-mode edit, or null.</summary>
     private Armature? _bonePreviewArmature;
 
@@ -60,7 +73,7 @@ public sealed partial class MainViewModel
         {
             // Posing an empty spot means nothing and writes nothing — the
             // same refusal the release makes.
-            if (id is not null) PreviewPoseDrag(id, x, y);
+            if (id is not null) PreviewPoseDrag(id, grab, x0, y0, x, y);
             return;
         }
 
@@ -116,7 +129,7 @@ public sealed partial class MainViewModel
         }
         else if (posing)
         {
-            PoseBoneTo(id, x1, y1);
+            PoseDrag(id, grab, x0, y0, x1, y1);
         }
         else if (extruding && grab is BoneGrab.Tip)
         {
@@ -169,10 +182,10 @@ public sealed partial class MainViewModel
     /// <summary>
     /// The pose-mode preview: the playhead pose with the provisional key
     /// merged, solved by the same chrome path the committed pose uses. The
-    /// dispatch mirrors <c>PoseBoneTo</c> — chain and spline handles
-    /// translate, everything else aims.
+    /// dispatch mirrors <c>PoseDrag</c> — chain and spline handles are placed,
+    /// the tip aims, the shaft and the joint carry the bone.
     /// </summary>
-    private void PreviewPoseDrag(string id, double x, double y)
+    private void PreviewPoseDrag(string id, BoneGrab grab, double x0, double y0, double x, double y)
     {
         if (Doc.Armature is not { } armature || armature.BoneById(id) is null) return;
 
@@ -180,7 +193,9 @@ public sealed partial class MainViewModel
         var placements = ArmatureOps.Solve(armature, pose);
 
         string targetId;
-        var translate = true;
+        // Which of the three pose edits this drag is — the same three
+        // PoseDrag lands, named here so the switch below cannot drift from it.
+        var kind = PoseEdit.Place;
         if (ChainTouching(id) is { } chain)
         {
             targetId = chain.PoleBoneId == id || chain.TargetBoneId == id ? id : chain.TargetBoneId;
@@ -192,21 +207,28 @@ public sealed partial class MainViewModel
         else
         {
             targetId = id;
-            translate = false;
+            kind = grab switch
+            {
+                BoneGrab.Tip => PoseEdit.Aim,
+                BoneGrab.Origin => PoseEdit.Place,
+                _ => PoseEdit.Carry,
+            };
         }
 
         // Clone before editing: PoseAt hands back copies today, but a pose
         // object shared with the track being mutated by a preview is the
         // kind of corruption nothing would catch until a re-render.
         var edited = pose.TryGetValue(targetId, out var b) ? b.Clone() : new BonePose();
-        if (translate)
+        if (kind is PoseEdit.Aim)
         {
-            if (armature.BoneById(targetId) is not { } target) return;
-            (edited.X, edited.Y) = ArmatureGesture.PoseTranslationDelta(placements, target, x, y);
+            edited.RotationDeg = ArmatureGesture.PoseAimDelta(armature, placements, targetId, x, y);
         }
         else
         {
-            edited.RotationDeg = ArmatureGesture.PoseAimDelta(armature, placements, targetId, x, y);
+            if (armature.BoneById(targetId) is not { } target) return;
+            (edited.X, edited.Y) = kind is PoseEdit.Carry
+                ? ArmatureGesture.PoseMoveDelta(placements, target, pose.GetValueOrDefault(targetId), x - x0, y - y0)
+                : ArmatureGesture.PoseTranslationDelta(placements, target, x, y);
         }
         pose[targetId] = edited;
 

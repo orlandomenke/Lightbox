@@ -154,6 +154,33 @@ public static class ArmatureGesture
     }
 
     /// <summary>
+    /// A pose-mode shaft drag: the translation the key would hold so the bone
+    /// moves BY a world delta rather than TO a point.
+    /// </summary>
+    /// <remarks>
+    /// The distinction is the whole gesture. A shaft is grabbed anywhere along
+    /// its length, so placing its origin under the pointer would snap the bone
+    /// to the hand the moment the drag started — the reason bind mode has
+    /// <see cref="ApplyMoveBy"/> beside <see cref="ApplyDragBind"/>, one mode
+    /// along. The delta is measured from the press every event, and
+    /// <paramref name="from"/> is the pose the drag started on, so a preview
+    /// and the release that follows it compute the same answer rather than
+    /// accumulating.
+    /// </remarks>
+    public static (double X, double Y) PoseMoveDelta(
+        IReadOnlyDictionary<string, BonePlacement> placements, Bone target, BonePose? from,
+        double dx, double dy)
+    {
+        var prot = target.ParentId is { } pid && placements.TryGetValue(pid, out var pp)
+            ? pp.RotationDeg
+            : 0.0;
+        var rad = -prot * Math.PI / 180.0;
+        return (
+            (from?.X ?? 0) + Math.Cos(rad) * dx - Math.Sin(rad) * dy,
+            (from?.Y ?? 0) + Math.Sin(rad) * dx + Math.Cos(rad) * dy);
+    }
+
+    /// <summary>
     /// A pose-mode handle drag: the translation the key would hold so the
     /// handle lands under the pointer, in the parent's frame.
     /// </summary>

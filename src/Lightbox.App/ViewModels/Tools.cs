@@ -117,7 +117,51 @@ public enum ToolId
     Width,
 
     /// <summary>Eyedropper: click the canvas to pick the color under the cursor.</summary>
+    /// <summary>
+    /// The text tool: click to put a caret on the canvas and type.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>What it makes is ordinary strokes.</b> Committing a piece of type
+    /// shapes it, pulls each glyph's outline out of the typeface and records one
+    /// contour fill per letter — so type erases, clips, transforms, exports and
+    /// re-renders exactly like a drawing, and a document opened on a machine
+    /// with none of its fonts is unchanged. What stays behind is a
+    /// <c>TextElement</c> that lets the words be retyped;
+    /// see <c>docs/DESIGN-text.md</c>.
+    /// </para>
+    /// <para>
+    /// Clicking type that is already set picks it up rather than starting a
+    /// second block over it, which is what every application with a text tool
+    /// does and what <c>Stroke.TextId</c> is for.
+    /// </para>
+    /// </remarks>
+    Text,
+
     Picker,
+
+    /// <summary>
+    /// The crop frame: drag a rectangle, adjust it by its handles, Enter to
+    /// take the paper down to it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A tool rather than a third menu item, and Q128 says why.</b> The two
+    /// Image-menu commands answer the arithmetic — <em>crop to this selection</em>,
+    /// <em>trim to the ink</em> — and framing is not arithmetic. Deciding where an
+    /// edge goes is a judgement made by eye, so it wants a rectangle you can push
+    /// around while looking at the drawing, which is the one thing neither a
+    /// marquee nor a dialog gives you.
+    /// </para>
+    /// <para>
+    /// <b>It changes nothing about what a crop <em>is</em>.</b> The frame is decided
+    /// by <c>CropSession</c> and applied by <c>CanvasResize.CropTo</c>, the same call
+    /// both menu commands make — so this is a third caller, not a second
+    /// implementation, and marks outside the new edge survive here exactly as they do
+    /// there.
+    /// </para>
+    /// </remarks>
+    Crop,
 
     /// <summary>Drag to lay down the gradient selected in the gradient docker.</summary>
     Gradient,

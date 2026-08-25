@@ -1,5 +1,7 @@
 using System.Net.Http;
+using System.Text;
 using System.Text.RegularExpressions;
+using Avalonia.Input;
 
 namespace Lightbox.App.Services;
 
@@ -55,6 +57,232 @@ public static partial class WebImageDrop
         return found;
     }
 
+    // ---- what the drag actually carries (B294) ------------------------------------
+
+    /// <summary>
+    /// The image candidates in a drag, read from <b>every</b> format it carries
+    /// rather than from three format names chosen in advance.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Asking for <c>text/uri-list</c>, plain text and <c>text/html</c> by name
+    /// is an X11 spelling, and a browser on another platform spells the same
+    /// three things differently: Windows offers <c>UniformResourceLocatorW</c>
+    /// and <c>HTML Format</c>, macOS <c>public.url</c> and <c>public.html</c>,
+    /// Firefox <c>text/x-moz-url</c>. A drag whose formats were none of the
+    /// three read as carrying nothing at all — which is how this was reported:
+    /// *"sometimes I am able to drag and drop an image but oftentimes Lightbox
+    /// states that drop had no picture in it"*. It worked when a browser
+    /// happened to also offer a real file, and not otherwise.
+    /// </para>
+    /// <para>
+    /// So the format list is enumerated and every textual value in it is read.
+    /// Identifiers are sorted into the three roles by what their names contain,
+    /// because that is the one thing every platform's spelling has in common,
+    /// and anything unrecognised is treated as plain text — the bucket whose
+    /// only cost is a candidate that does not fetch.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<Uri> ImageUrisIn(IDataTransfer? data)
+    {
+        if (data is null) return [];
+        var urls = new StringBuilder();
+        var html = new StringBuilder();
+        var text = new StringBuilder();
+        foreach (var (format, value) in TextValuesIn(data))
+        {
+            var id = format.ToLowerInvariant();
+            var bucket = id.Contains("uri") || id.Contains("url") ? urls
+                : id.Contains("html") ? html
+                : text;
+            bucket.Append(value).Append('\n');
+        }
+        return ImageUris(urls.ToString(), text.ToString(), html.ToString());
+    }
+
+    /// <summary>Every format in a drag paired with its value read as text, where it is text at all.</summary>
+    public static IEnumerable<(string Format, string Value)> TextValuesIn(IDataTransfer data)
+    {
+        foreach (var format in data.Formats)
+        {
+            foreach (var item in data.Items)
+            {
+                object? raw;
+                try
+                {
+                    raw = item.TryGetRaw(format);
+                }
+                catch (Exception e) when (e is not OutOfMemoryException)
+                {
+                    // One unreadable format must not cost the drag the others.
+                    continue;
+                }
+                if (AsText(raw) is { Length: > 0 } value) yield return (format.Identifier, value);
+            }
+        }
+    }
+
+    /// <summary>Text no bigger than this is read out of a drag; past it the value is not prose.</summary>
+    private const int MaxTextValueBytes = 4 * 1024 * 1024;
+
+    /// <summary>
+    /// A dragged value as text, or null where it is not text.
+    /// </summary>
+    /// <remarks>
+    /// Bytes are included because the platform formats that carry a URL often
+    /// arrive as bytes rather than as a string — <c>UniformResourceLocatorW</c>
+    /// is UTF-16 with a trailing NUL, <c>HTML Format</c> is a UTF-8 blob with a
+    /// header in front of the fragment. Both read correctly once decoded, and
+    /// the <c>&lt;img src&gt;</c> pass does not mind the header.
+    /// </remarks>
+    private static string? AsText(object? raw) => raw switch
+    {
+        string s => Tidy(s),
+        byte[] { Length: > 0 and <= MaxTextValueBytes } b => Tidy(DecodeText(b)),
+        _ => null,
+    };
+
+    /// <summary>
+    /// The padding a platform wraps text in, off both ends.
+    /// </summary>
+    /// <remarks>
+    /// <b>The byte-order mark leads, it does not trail.</b> Trimming it off the
+    /// end only — which this did — leaves <c>"﻿https://…"</c>, which
+    /// <see cref="Uri.TryCreate(string, UriKind, out Uri?)"/> rejects, so the
+    /// one candidate a Windows or macOS drag carried was silently dropped and
+    /// the drop reported carrying nothing: B294's own symptom, reintroduced
+    /// inside B294's fix. Found by the adversary pass, not by the tests, which
+    /// is what that pass is for. A URL begins with neither a mark nor a NUL, so
+    /// both come off both ends.
+    /// </remarks>
+    private static string Tidy(string text) => text.Trim('\0', '﻿');
+
+    private static string DecodeText(byte[] bytes)
+    {
+        // UTF-16LE announces itself in ASCII text as a zero in every other
+        // byte, which no UTF-8 payload we would want to read looks like.
+        var probe = Math.Min(bytes.Length, 64);
+        var zeros = 0;
+        for (var i = 1; i < probe; i += 2)
+        {
+            if (bytes[i] == 0) zeros++;
+        }
+        return zeros > probe / 4
+            ? Encoding.Unicode.GetString(bytes)
+            : Encoding.UTF8.GetString(bytes);
+    }
+
+    /// <summary>
+    /// The picture a drag carries in its own right — a bitmap, or any member
+    /// whose bytes decode — or null.
+    /// </summary>
+    /// <remarks>
+    /// The last resort, and deliberately behind the URLs (B294). What a browser
+    /// embeds may be the drag thumbnail rather than the original, and reference
+    /// is drawn against, so the full-resolution fetch is worth trying first.
+    /// When it fails — a CDN that refuses us, or no network — this is the
+    /// difference between a wall with the picture on it and a refusal.
+    /// </remarks>
+    public static byte[]? EmbeddedImageIn(IDataTransfer? data)
+    {
+        if (data is null) return null;
+        foreach (var format in data.Formats)
+        {
+            foreach (var item in data.Items)
+            {
+                object? raw;
+                try
+                {
+                    raw = item.TryGetRaw(format);
+                }
+                catch (Exception e) when (e is not OutOfMemoryException)
+                {
+                    continue;
+                }
+                switch (raw)
+                {
+                    case byte[] { Length: > 0 } bytes when LooksLikeImage(bytes):
+                        return bytes;
+                    case Avalonia.Media.Imaging.Bitmap bitmap:
+                        if (AsPng(bitmap) is { } png) return png;
+                        break;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static byte[]? AsPng(Avalonia.Media.Imaging.Bitmap bitmap)
+    {
+        try
+        {
+            using var stream = new MemoryStream();
+            bitmap.Save(stream, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+            return stream.Length > 0 ? stream.ToArray() : null;
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// What a drag was carrying, for the diagnostics log — the format names and
+    /// how big each value was, never the values themselves.
+    /// </summary>
+    /// <remarks>
+    /// The format names are the whole diagnosis when a drop reads as empty, and
+    /// they are what no bug report can supply from memory. The values are left
+    /// out on purpose: a drag carries the address of whatever the artist was
+    /// looking at, and a log is a file that gets attached to bug reports.
+    /// </remarks>
+    public static string DescribeFormats(IDataTransfer? data)
+    {
+        if (data is null) return "no data transfer at all";
+        var parts = new List<string>();
+        foreach (var format in data.Formats)
+        {
+            // The best answer any item gives, not the first item's (B294). An
+            // item that throws used to end the search and report "unreadable"
+            // over a later item that would have read perfectly — degrading the
+            // one diagnostic this exists to provide.
+            var size = -1;
+            foreach (var item in data.Items)
+            {
+                int found;
+                try
+                {
+                    found = item.TryGetRaw(format) switch
+                    {
+                        string s => s.Length,
+                        byte[] b => b.Length,
+                        null => -1,
+                        _ => -2,
+                    };
+                }
+                catch (Exception e) when (e is not OutOfMemoryException)
+                {
+                    found = -3;
+                }
+                // Larger is better, and a real size beats every complaint.
+                if (found >= 0)
+                {
+                    size = found;
+                    break;
+                }
+                if (size == -1) size = found;
+            }
+            parts.Add(size switch
+            {
+                -1 => $"{format.Identifier} (empty)",
+                -2 => $"{format.Identifier} (an object)",
+                -3 => $"{format.Identifier} (unreadable)",
+                _ => $"{format.Identifier} ({size})",
+            });
+        }
+        return parts.Count > 0 ? string.Join(", ", parts) : "no formats at all";
+    }
+
     private static IEnumerable<string> Lines(string? text) =>
         text is null
             ? []
@@ -70,6 +298,75 @@ public static partial class WebImageDrop
 
     [GeneratedRegex("""<img[^>]+src\s*=\s*["']([^"']+)["']""", RegexOptions.IgnoreCase)]
     private static partial Regex ImgSrc();
+
+    /// <summary>
+    /// The images a fetched page names, best first: <c>og:image</c> and
+    /// <c>twitter:image</c> metadata, then <c>&lt;link rel="image_src"&gt;</c>,
+    /// then every <c>&lt;img src&gt;</c>, resolved against the page's own URL.
+    /// </summary>
+    /// <remarks>
+    /// This is the answer to a URL that fetches but does not decode (B285): on
+    /// any site that wraps its pictures in links — Pinterest, most galleries —
+    /// the drag carries the <em>page</em> URL, and the page is where the image's
+    /// real address is written down. The metadata comes first because it is the
+    /// one the site chose to represent the page, usually at full resolution,
+    /// where the <c>&lt;img&gt;</c> tags are thumbnails and chrome.
+    /// </remarks>
+    public static IReadOnlyList<Uri> ImageUrisInPage(string html, Uri page)
+    {
+        var found = new List<Uri>();
+        foreach (Match m in MetaTag().Matches(html))
+        {
+            var key = AttrValue(m.Value, "property") ?? AttrValue(m.Value, "name");
+            if (key?.ToLowerInvariant()
+                is "og:image" or "og:image:secure_url" or "twitter:image" or "twitter:image:src")
+            {
+                AdmitOnPage(found, page, AttrValue(m.Value, "content"));
+            }
+        }
+        foreach (Match m in LinkTag().Matches(html))
+        {
+            if (string.Equals(AttrValue(m.Value, "rel"), "image_src", StringComparison.OrdinalIgnoreCase))
+            {
+                AdmitOnPage(found, page, AttrValue(m.Value, "href"));
+            }
+        }
+        foreach (Match m in ImgSrc().Matches(html))
+        {
+            AdmitOnPage(found, page, m.Groups[1].Value);
+        }
+        return found;
+    }
+
+    private static void AdmitOnPage(List<Uri> found, Uri page, string? candidate)
+    {
+        if (candidate is null) return;
+        var text = System.Net.WebUtility.HtmlDecode(candidate).Trim();
+        // Already an address: kept verbatim, because a data: URI's base64 does
+        // not survive being rewritten. Anything else is resolved against the
+        // page, so a relative src is still an address.
+        if (Uri.TryCreate(text, UriKind.Absolute, out var abs) && abs.Scheme is "http" or "https" or "data")
+        {
+            Admit(found, text);
+        }
+        else if (Uri.TryCreate(page, text, out var resolved))
+        {
+            Admit(found, resolved.AbsoluteUri);
+        }
+    }
+
+    /// <summary>An attribute's value inside one tag's text, or null.</summary>
+    private static string? AttrValue(string tag, string attribute)
+    {
+        var m = Regex.Match(tag, $"""(?:^|\s){attribute}\s*=\s*["']([^"']*)["']""", RegexOptions.IgnoreCase);
+        return m.Success ? m.Groups[1].Value : null;
+    }
+
+    [GeneratedRegex("<meta[^>]+>", RegexOptions.IgnoreCase)]
+    private static partial Regex MetaTag();
+
+    [GeneratedRegex("<link[^>]+>", RegexOptions.IgnoreCase)]
+    private static partial Regex LinkTag();
 
     /// <summary>
     /// A reference name from the URL — the file name without its extension,
@@ -139,5 +436,46 @@ public static partial class WebImageDrop
         {
             return null;
         }
+    }
+
+    /// <summary>Whether these bytes open as a picture — the decoder's answer, not a name's.</summary>
+    public static bool LooksLikeImage(byte[] bytes)
+    {
+        using var stream = new MemoryStream(bytes, writable: false);
+        using var codec = SkiaSharp.SKCodec.Create(stream);
+        return codec is not null;
+    }
+
+    /// <summary>How many of a page's image candidates a resolution will try before giving up.</summary>
+    /// <remarks>The metadata candidate is nearly always the first; this bounds a page of thumbnails.</remarks>
+    public const int MaxPageCandidates = 8;
+
+    /// <summary>Pages bigger than this are not read for their image — a page is text, not an archive.</summary>
+    public const int MaxPageParseBytes = 8 * 1024 * 1024;
+
+    /// <summary>
+    /// The picture behind a dropped URI, with the address it was finally found
+    /// at. When the URI fetches but does not decode — the drag carried the
+    /// <em>page</em> the picture lives on, which is what any site that wraps
+    /// its images in links puts in a drag (B285) — the page is read once for
+    /// the image it names and the best candidate that decodes is returned.
+    /// One level only, never a page named by a page.
+    /// </summary>
+    public static async Task<(byte[] Bytes, Uri Source)?> FetchImageAsync(Uri uri)
+    {
+        var bytes = await FetchAsync(uri);
+        if (bytes is null) return null;
+        if (LooksLikeImage(bytes)) return (bytes, uri);
+        if (bytes.Length > MaxPageParseBytes) return null;
+
+        var tried = 0;
+        foreach (var candidate in ImageUrisInPage(System.Text.Encoding.UTF8.GetString(bytes), uri))
+        {
+            if (candidate == uri) continue;
+            if (++tried > MaxPageCandidates) break;
+            var inner = await FetchAsync(candidate);
+            if (inner is not null && LooksLikeImage(inner)) return (inner, candidate);
+        }
+        return null;
     }
 }

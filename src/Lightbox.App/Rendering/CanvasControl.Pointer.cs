@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Input;
 using SkiaSharp;
 
 namespace Lightbox.App.Rendering;
@@ -125,6 +126,225 @@ public sealed partial class CanvasControl
     {
         get => GetValue(PointerBadgeProperty);
         set => SetValue(PointerBadgeProperty, value);
+    }
+
+    // ---- the pen's other axes (tilt and speed) ----------------------------------
+
+    /// <summary>The tilt reader and speed estimator for the stroke in flight.</summary>
+    private readonly PenAxes _penAxes = new();
+
+    /// <summary>Where the last sample was, for the speed estimate.</summary>
+    private (double X, double Y, ulong T)? _lastAxisSample;
+
+    /// <summary>
+    /// The pen axes for a sample — always measured, never filtered here.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Reading them is free; storing them is not.</b> Two properties off a
+    /// pointer point and a running average cost nothing at 200 Hz, while
+    /// writing them into every point of every document costs 113 bytes a point
+    /// and 1.70× the saved file. So this reports what the pen said and
+    /// <c>StrokeBuilder</c> — which holds the stroke's own brush — decides what
+    /// is kept. Measuring unconditionally also means the diagnostics readout
+    /// can answer "does my tablet report tilt at all" whatever brush is in
+    /// hand, which is the question an artist actually arrives with.
+    /// </para>
+    /// <para>
+    /// The timestamp is the <em>event's</em>, not the point's: coalesced
+    /// intermediate points share one, which is why <see cref="PenAxes.SpeedFor"/>
+    /// holds its estimate rather than dividing by zero when two samples arrive
+    /// together. Verified against the shipped Avalonia assembly rather than
+    /// assumed — per-point timestamps do not exist.
+    /// </para>
+    /// </remarks>
+    private (double? TiltX, double? TiltY, double? Speed) AxesOf(PointerPoint pp, ulong timestamp)
+    {
+        var isPen = pp.Pointer.Type == PointerType.Pen;
+        var (tx, ty) = _penAxes.TiltFor(isPen, pp.Properties.XTilt, pp.Properties.YTilt);
+
+        double? speed = null;
+        var at = pp.Position;
+        if (_lastAxisSample is { } prev)
+        {
+            speed = _penAxes.SpeedFor(at.X - prev.X, at.Y - prev.Y, timestamp - (double)prev.T);
+        }
+        else
+        {
+            // The first sample of a stroke starts from rest rather than from a
+            // guess: inventing a speed here would put a mark on the paper the
+            // hand did not make.
+            speed = 0;
+        }
+        _lastAxisSample = (at.X, at.Y, timestamp);
+        return (tx, ty, speed);
+    }
+
+    private void ReportInputDiagnostic(PointerType type, float rawPressure) =>
+        ReportInputDiagnostic(type, rawPressure, null, null, null);
+
+    /// <summary>
+    /// The live readout beside the pen settings, with the axes when they are
+    /// being recorded.
+    /// </summary>
+    /// <remarks>
+    /// <b>Tilt is the one worth showing.</b> Whether a tablet reports it at all
+    /// is a fact about the driver that nothing else in the application can
+    /// answer, and "my pen has tilt" is exactly the belief an artist arrives
+    /// with and can be wrong about. Speed rides along because it is free once
+    /// the line exists, and because a speed pinned at 1.00 says the reference
+    /// needs tuning for that hand.
+    /// </remarks>
+    private void ReportInputDiagnostic(
+        PointerType type, float rawPressure, double? tiltX, double? tiltY, double? speed)
+    {
+        if (InputDiagnostic is null) return;
+        var axes = tiltX is { } tx && tiltY is { } ty
+            ? $" · tilt {tx:0}/{ty:0}"
+            : type == PointerType.Pen ? " · no tilt reported" : "";
+        if (speed is { } sp) axes += $" · speed {sp:0.00}";
+        var text = (type == PointerType.Pen
+            ? $"Pen detected — pressure {rawPressure:0.00}{axes}"
+            : $"{type} input — no pressure axis (paints at 100%)") + TracingSuffix();
+        if (text == _lastDiagnostic) return;
+        _lastDiagnostic = text;
+        InputDiagnostic.Invoke(text);
+    }
+
+    // ---- the departure that is not one (B126) -----------------------------------
+
+    /// <summary>When the pointer last left, or null while it is here.</summary>
+    private DateTime? _leftAt;
+
+    private Avalonia.Threading.DispatcherTimer? _leaveTimer;
+
+    /// <summary>
+    /// A departure only counts once it has lasted this long.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The pointer leaves and comes back 39 times a second and never
+    /// actually goes anywhere.</b> Three traces from the reporter's Huion say
+    /// so precisely: every one of 663, then 2,763, then 1,448 exits was
+    /// followed immediately by a <em>different device</em> entering, none by
+    /// the same one, at a median gap of <b>0.5 ms</b>. It is Windows Ink's
+    /// phantom mouse trading the canvas with the pen. Tearing the hover state
+    /// down on each exit is what makes the brush ring strobe and hands the
+    /// window's arrow back in between.
+    /// </para>
+    /// <para>
+    /// <b>Sized against the measurement rather than picked.</b> The churn's p90
+    /// gap is 0.8 ms; the longest genuine departure in the same traces was 16
+    /// seconds. Fifty milliseconds sits far clear of the real thing while
+    /// swallowing all of the false. Nobody perceives the ring outstaying the
+    /// pointer by a twentieth of a second; everybody perceives it strobing.
+    /// </para>
+    /// <para>
+    /// <b>What this does not fix, said plainly.</b> Only the canvas's own hover
+    /// state is debounced. The submenu thrash that freezes the application
+    /// (B255) happens inside Avalonia's <c>MenuItem</c> code, which no handler
+    /// here is on the path of — that is what <c>OverlayPopups</c> is for. The
+    /// echo itself is Windows Ink's and cannot be suppressed from in here at
+    /// all; <c>PenEchoFilter</c> tried and is the reason that is now known.
+    /// </para>
+    /// </remarks>
+    private const double LeaveGraceMs = 50;
+
+    /// <summary>True once the pointer has been away long enough to mean it.</summary>
+    internal bool HoverIsStale =>
+        _leftAt is { } left && (DateTime.UtcNow - left).TotalMilliseconds >= LeaveGraceMs;
+
+    /// <summary>Note a departure and arm the settle.</summary>
+    /// <remarks>
+    /// One timer for the control's life, restarted per exit rather than one
+    /// timer per exit — at 39 departures a second the latter would be work
+    /// proportional to the churn, on the thread the churn is already starving.
+    /// </remarks>
+    private void BeginLeave()
+    {
+        _leftAt = DateTime.UtcNow;
+
+        // Cleared at once, unlike the hover point, because the two answer
+        // different questions and only one of them strobes. This is what a
+        // *tool change* re-asks about, and B241's rule is that with the pointer
+        // gone there is nothing to re-ask — the tool's own cursor stands. Held
+        // through the grace, picking up the eyedropper while the pointer was
+        // off the canvas would show whatever the pointer had last been over,
+        // which `WithThePointerOffTheCanvasThereIsNothingToReAskAbout` exists
+        // to forbid. The ring is the thing the echo strobes, and the ring is
+        // the only thing debounced.
+        _cursorAt = null;
+        try
+        {
+            _leaveTimer ??= new Avalonia.Threading.DispatcherTimer(
+                TimeSpan.FromMilliseconds(LeaveGraceMs),
+                Avalonia.Threading.DispatcherPriority.Background,
+                (_, _) => SettleHover());
+            _leaveTimer.Stop();
+            _leaveTimer.Start();
+        }
+        catch
+        {
+            // No dispatcher (a headless construction): SettleHover is still
+            // reached by the next pointer event, which is enough for a test.
+        }
+    }
+
+    /// <summary>
+    /// The pointer is back, so the departure never happened. Returns whether
+    /// one was pending.
+    /// </summary>
+    private bool CancelLeave()
+    {
+        var wasAway = _leftAt is not null;
+        _leftAt = null;
+        try { _leaveTimer?.Stop(); }
+        catch { /* nothing to stop */ }
+        return wasAway;
+    }
+
+    /// <summary>
+    /// Why enter and exit no longer repaint unconditionally.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Measured, on the machine this is for.</b> The sixth trace counts
+    /// <b>6,090 enters and 6,091 exits in 63 seconds — 97 a second</b>, none of
+    /// which is the artist's hand going anywhere. Each of those used to call
+    /// <c>InvalidateVisual</c>, and on a 4K document a full canvas invalidation
+    /// is not free.
+    /// </para>
+    /// <para>
+    /// <b>It became redundant when the leave grace landed, which is the point.</b>
+    /// Before it, an exit tore the hover state down and the ring genuinely had
+    /// to be repainted. Now an exit changes nothing at all until
+    /// <see cref="SettleHover"/> decides the departure was real — and that
+    /// repaints. So the invalidate on exit repainted an identical canvas, and
+    /// the one on enter repainted it back.
+    /// </para>
+    /// <para>
+    /// <b>Stated as waste removal rather than as a fix.</b> The same trace shows
+    /// 43 UI-thread stalls with <em>zero</em> popups, so whatever blocks the
+    /// thread is not the popup churn and may not be this either. Removing work
+    /// that provably changes no pixel is right on its own terms; whether it
+    /// moves the stall count is for the next trace to say, not for this comment
+    /// to claim.
+    /// </para>
+    /// </remarks>
+    internal const string RepaintOnHoverChange =
+        "enter/exit repaint only when the ring actually moves or returns";
+
+    /// <summary>
+    /// Drop the hover state if the departure has lasted. Returns whether it did.
+    /// </summary>
+    internal bool SettleHover()
+    {
+        if (!HoverIsStale) return false;
+
+        CancelLeave();
+        _hoverPoint = null;
+        InvalidateVisual();
+        return true;
     }
 
     /// <summary>

@@ -109,6 +109,48 @@ public sealed class Stroke
     public bool AlphaLocked { get; set; }
 
     /// <summary>
+    /// The effects element that baked this stroke, or null for everything an
+    /// artist drew.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Provenance and a handle, never behaviour.</b> It changes no pixel:
+    /// deleting it leaves an ordinary stroke that renders identically, exactly
+    /// as <c>Frame.AiProvenance</c> does. What it buys is re-baking — drop every
+    /// stroke carrying this id in the element's range and run again — and the
+    /// ability to tell an artist that the line they just tried to reshape came
+    /// from a simulation that will overwrite it.
+    /// </para>
+    /// <para>
+    /// Absent from the file on every stroke that was drawn by hand, which is
+    /// every stroke in a document that has never made an effect.
+    /// </para>
+    /// </remarks>
+    public string? SimId { get; set; }
+
+    /// <summary>
+    /// The text element this glyph was baked from, or null for everything that
+    /// is not set type.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Provenance and a handle, exactly as <see cref="SimId"/> is</b>, and
+    /// worth stating twice because the temptation is the opposite in both cases:
+    /// it changes no pixel, and a stroke stripped of it renders identically as an
+    /// ordinary contour fill. What it buys is retyping — drop every stroke in this
+    /// cel carrying this id and bake the element again — and the ability to tell
+    /// an artist that the shape they are about to reshape by hand is a letter
+    /// that will be overwritten the next time the word changes.
+    /// </para>
+    /// <para>
+    /// The element it names lives in <see cref="Doc.Texts"/>. A missing entry is
+    /// not a broken document: it is type that has become a drawing, which is
+    /// exactly what happens to type in the end anyway.
+    /// </para>
+    /// </remarks>
+    public string? TextId { get; set; }
+
+    /// <summary>
     /// Optional semantic name ("head-outline", "left-arm"). When two
     /// keyframes label a stroke identically, the inbetweener matches them
     /// directly, and an LLM can use labels to track anatomy across frames.

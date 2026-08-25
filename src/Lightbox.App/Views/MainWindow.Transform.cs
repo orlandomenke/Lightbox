@@ -30,6 +30,11 @@ public partial class MainWindow
     /// <summary>Transform session: the VM owns the frames, the canvas owns the gizmo.</summary>
     private void WireTransformSession()
     {
+        // The timeline's menu and fold events, wired beside their handlers —
+        // the shared wiring block in MainWindow.axaml.cs is at its ratchet.
+        TimelineTrackView.TrackAreaMenuRequested += OnTrackAreaMenu;
+        TimelineTrackView.FoldToggleRequested += _vm.ToggleTrackFold;
+
         _vm.TransformBegun += (minX, minY, maxX, maxY) =>
         {
             Canvas.BeginTransformGizmo(minX, minY, maxX, maxY);
@@ -86,6 +91,22 @@ public partial class MainWindow
 
     private void OnTransformCancel(object? sender, RoutedEventArgs e) => _vm.CancelTransform();
 
+    /// <summary>Edit ▸ Transform: the same session Ctrl+T begins.</summary>
+    private void OnMenuBeginTransform(object? sender, RoutedEventArgs e)
+    {
+        if (!_vm.TransformActive) _vm.BeginTransform();
+    }
+
+    /// <summary>
+    /// Edit ▸ Transform ▸ Perspective: the gizmo context menu's toggle, kept in
+    /// step with the tool-options ToggleButton the same way that menu is.
+    /// </summary>
+    private void OnMenuTransformPerspective(object? sender, RoutedEventArgs e)
+    {
+        Canvas.TransformPerspective = !Canvas.TransformPerspective;
+        TransformPerspectiveToggle.IsChecked = Canvas.TransformPerspective;
+    }
+
     /// <summary>Right-click on the canvas during a transform: the options menu.</summary>
     private void ShowTransformMenu(Avalonia.Point viewPos)
     {
@@ -126,24 +147,214 @@ public partial class MainWindow
 
     /// <summary>
     /// A dot on the track timeline was dragged to a new frame. Track 0 is the
-    /// camera when one exists (the projection puts it on top); everything
-    /// after maps onto LayerRows in the same order.
+    /// camera when one exists (the projection puts it on top), the armature
+    /// and its bones come next, and everything after maps onto LayerRows in
+    /// the same order.
     /// </summary>
+    /// <remarks>
+    /// The row arithmetic lives in the view model (<c>TracksAboveLayers</c>,
+    /// <c>IsPoseTrack</c>, <c>BoneOfTrack</c>) rather than here, because the
+    /// same three questions are asked again by the key menu below and a second
+    /// count that disagreed would retime the wrong track.
+    /// </remarks>
+    /// <summary>
+    /// A key was dragged along its row. Retimes the whole selection when the
+    /// grabbed key is in it, and that key alone when it is not.
+    /// </summary>
+    /// <remarks>
+    /// The three kinds no longer route to three methods here. Retiming is the
+    /// one verb camera keys, pose keys and cels share, so it is one call — and
+    /// it has to be, because a mixed selection cannot be moved by a branch that
+    /// picks a single kind from the row it started on. See
+    /// <c>MainViewModel.RetimeSelection</c>.
+    /// </remarks>
     private void OnTrackKeyDragged(int trackIndex, int fromFrame, int toFrame)
     {
-        var hasCamera = _vm.HasCamera;
-        if (hasCamera && trackIndex == 0)
+        if (_vm.TrackKeyAt(trackIndex, fromFrame) is not { } grabbed) return;
+        _vm.RetimeSelection(grabbed, toFrame - fromFrame);
+    }
+
+    /// <summary>A modified click on a key: Ctrl adds or drops, Shift ranges.</summary>
+    private void OnTrackKeySelect(int trackIndex, int frame, bool toggle, bool range)
+    {
+        if (_vm.TrackKeyAt(trackIndex, frame) is not { } key) return;
+        _vm.SelectTrackKey(key, toggle, range);
+    }
+
+    /// <summary>
+    /// A right-click on a dot: the key menu, on every kind of row.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Copy and cut cross kinds because they are the clipboard's face of
+    /// retiming — "this beat, elsewhere" — and cover the selection when the
+    /// clicked key is in it. Delete stays per kind: removing a camera key,
+    /// unkeying a bone and clearing a drawing leave different things behind,
+    /// so each row offers its own and leaves the others' keys alone.
+    /// </para>
+    /// <para>
+    /// This used to answer only the armature's rows; the owner asked for a
+    /// timeline right-click menu outright (2026-08-21), and a menu that
+    /// worked on one row in three read as broken rather than as restrained.
+    /// </para>
+    /// </remarks>
+    private void OnTrackKeyMenu(int trackIndex, int frame, Avalonia.Point at)
+    {
+        if (_vm.TrackKeyAt(trackIndex, frame) is not { } clicked) return;
+        var flyout = new MenuFlyout { Placement = PlacementMode.Pointer };
+
+        var count = _vm.IsTrackKeySelected(clicked) ? _vm.KeySelection.Count : 1;
+        var what = count > 1 ? $"{count} keys" : "key";
+        var copy = new MenuItem { Header = $"Copy {what}" };
+        copy.Click += (_, _) => _vm.CopyTimelineKeys(clicked);
+        flyout.Items.Add(copy);
+        var cut = new MenuItem { Header = $"Cut {what}" };
+        cut.Click += (_, _) => _vm.CutTimelineKeys(clicked);
+        flyout.Items.Add(cut);
+        flyout.Items.Add(new Separator());
+
+        switch (clicked.Kind)
         {
-            _vm.MoveCameraKey(fromFrame, toFrame);
-            return;
+            case TimelineKeyKind.Camera:
+            {
+                // The graph editor's easing menu, where the key actually is.
+                var ease = new MenuItem { Header = "Ease into next" };
+                var current = _vm.CameraKeyEaseAt(frame);
+                foreach (var choice in (Lightbox.Core.Inbetween.Easing[])
+                         [Lightbox.Core.Inbetween.Easing.Linear, Lightbox.Core.Inbetween.Easing.EaseIn,
+                          Lightbox.Core.Inbetween.Easing.EaseOut, Lightbox.Core.Inbetween.Easing.EaseInOut])
+                {
+                    var item = new MenuItem { Header = choice == current ? $"✓ {choice}" : choice.ToString() };
+                    var chosen = choice;
+                    item.Click += (_, _) => _vm.SetCameraKeyEase(frame, chosen);
+                    ease.Items.Add(item);
+                }
+                flyout.Items.Add(ease);
+                var remove = new MenuItem { Header = "Remove camera key" };
+                remove.Click += (_, _) => _vm.RemoveCameraKeyAt(frame);
+                flyout.Items.Add(remove);
+                break;
+            }
+            case TimelineKeyKind.Pose:
+            {
+                // The key's easing, Hold included — a held pose is the "on 2s"
+                // act at single-key grain (Q152). The ease belongs to the
+                // whole key, so the same menu serves the summary and bone rows.
+                var ease = new MenuItem { Header = "Ease into next" };
+                var currentEase = _vm.PoseKeyEaseAt(frame);
+                foreach (var choice in (Lightbox.Core.Inbetween.Easing[])
+                         [Lightbox.Core.Inbetween.Easing.Linear, Lightbox.Core.Inbetween.Easing.EaseIn,
+                          Lightbox.Core.Inbetween.Easing.EaseOut, Lightbox.Core.Inbetween.Easing.EaseInOut,
+                          Lightbox.Core.Inbetween.Easing.Hold])
+                {
+                    var item = new MenuItem { Header = choice == currentEase ? $"✓ {choice}" : choice.ToString() };
+                    var chosen = choice;
+                    item.Click += (_, _) => _vm.SetPoseKeyEase(frame, chosen);
+                    ease.Items.Add(item);
+                }
+                flyout.Items.Add(ease);
+
+                var bone = clicked.BoneId;
+                var pose = _vm.SelectedPoseKeys(clicked);
+                var delete = new MenuItem
+                {
+                    Header = pose.Count > 1
+                        ? $"Delete {pose.Count} pose keys"
+                        : bone is null ? "Delete this pose key" : "Unkey this bone here",
+                };
+                delete.Click += (_, _) =>
+                {
+                    foreach (var k in pose.OrderByDescending(k => k.Frame)) _vm.DeletePoseKey(k.BoneId, k.Frame);
+                };
+                flyout.Items.Add(delete);
+                break;
+            }
+            default:
+            {
+                var clear = new MenuItem { Header = "Clear drawing (keep the timing)" };
+                clear.Click += (_, _) =>
+                {
+                    if (TrackCellAt(trackIndex, frame) is { } cell) _vm.ClearCelAt(cell);
+                };
+                flyout.Items.Add(clear);
+                break;
+            }
         }
-        var rowIndex = trackIndex - (hasCamera ? 1 : 0);
-        if (rowIndex < 0 || rowIndex >= _vm.LayerRows.Count) return;
-        var row = _vm.LayerRows[rowIndex];
-        var from = row.Cells.FirstOrDefault(c => c.Index == fromFrame);
-        var to = row.Cells.FirstOrDefault(c => c.Index == toFrame);
-        if (from is null || to is null) return;
-        _vm.MoveCel(from, to, copy: false);
+
+        flyout.Items.Add(new Separator());
+        var goThere = new MenuItem { Header = $"Go to frame {frame + 1}" };
+        goThere.Click += (_, _) => _vm.CurrentFrameIndex = frame;
+        flyout.Items.Add(goThere);
+        flyout.ShowAt(TimelineTrackView, showAtPointer: true);
+    }
+
+    /// <summary>
+    /// A right-click on a track's empty run: the verbs that need a frame
+    /// rather than a key — paste, keying here, the playback range.
+    /// </summary>
+    private void OnTrackAreaMenu(int trackIndex, int frame, Avalonia.Point at)
+    {
+        var flyout = new MenuFlyout { Placement = PlacementMode.Pointer };
+
+        var paste = new MenuItem
+        {
+            Header = $"Paste keys at frame {frame + 1}",
+            IsEnabled = _vm.HasTimelineKeyClipboard,
+        };
+        paste.Click += (_, _) => _vm.PasteTimelineKeysAt(frame);
+        flyout.Items.Add(paste);
+
+        // Keying belongs to the row the pointer is on — a camera key from the
+        // camera's row, a pose key from the armature's. Both key what is
+        // already interpolated there, so nothing jumps.
+        if (_vm.TrackKeyAt(trackIndex, frame) is { Kind: TimelineKeyKind.Camera })
+        {
+            var keyHere = new MenuItem { Header = $"Key the camera at frame {frame + 1}" };
+            keyHere.Click += (_, _) => _vm.AddCameraKeyAt(frame);
+            flyout.Items.Add(keyHere);
+        }
+        else if (_vm.IsPoseTrack(trackIndex))
+        {
+            var keyHere = new MenuItem { Header = $"Key the pose at frame {frame + 1}" };
+            keyHere.Click += (_, _) => _vm.AddPoseKeyAt(frame);
+            flyout.Items.Add(keyHere);
+
+            // Track-level, not key-level: the whole rig samples on Ns (Q152),
+            // so the verb lives where the track's other whole-row verbs do.
+            var stepMenu = new MenuItem { Header = "Pose on…" };
+            var currentStep = _vm.PoseStep;
+            foreach (var step in (int[])[1, 2, 3, 4])
+            {
+                var label = step == 1 ? "1s (every frame)" : $"{step}s";
+                var item = new MenuItem { Header = step == currentStep ? $"✓ {label}" : label };
+                var chosen = step;
+                item.Click += (_, _) => _vm.SetPoseStep(chosen);
+                stepMenu.Items.Add(item);
+            }
+            flyout.Items.Add(stepMenu);
+        }
+
+        flyout.Items.Add(new Separator());
+        var start = new MenuItem { Header = $"Playback starts at frame {frame + 1}" };
+        start.Click += (_, _) => _vm.SetPlaybackStartAt(frame);
+        flyout.Items.Add(start);
+        var end = new MenuItem { Header = $"Playback ends at frame {frame + 1}" };
+        end.Click += (_, _) => _vm.SetPlaybackEndAt(frame);
+        flyout.Items.Add(end);
+
+        flyout.Items.Add(new Separator());
+        var goThere = new MenuItem { Header = $"Go to frame {frame + 1}" };
+        goThere.Click += (_, _) => _vm.CurrentFrameIndex = frame;
+        flyout.Items.Add(goThere);
+        flyout.ShowAt(TimelineTrackView, showAtPointer: true);
+    }
+
+    /// <summary>The X-sheet cell a layer track's (row, frame) stands for, or null.</summary>
+    private FrameCell? TrackCellAt(int trackIndex, int frame)
+    {
+        var rowIndex = trackIndex - _vm.TracksAboveLayers;
+        if (rowIndex < 0 || rowIndex >= _vm.LayerRows.Count) return null;
+        return _vm.LayerRows[rowIndex].Cells.FirstOrDefault(c => c.Index == frame);
     }
 
     /// <summary>

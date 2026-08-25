@@ -1,6 +1,31 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:Lightbox.App.Controls">
+
+  <!--
+    B126 / B255. Every tooltip opens to the right of the pointer rather than
+    below it, and this is an experiment with a measurement attached rather
+    than a style preference.
+
+    Avalonia's default placement flips when the tip would collide with a
+    boundary; AvaloniaUI/Avalonia#20980 and #15486 report that the flip
+    invalidates the :pointerover state that triggered it, which re-runs the
+    placement, forever. On a pen tablet whose driver already trades the
+    pointer between two devices ~97 times a second, that loop has something
+    to spin on constantly - and this application sets no placement anywhere,
+    so all 345 tooltips in MainWindow.axaml alone take the flipping default.
+
+    `Right` does not flip in the reported cycle. One setter here rather than
+    345 attributes, which also makes it one line to revert if the next trace
+    says it changed nothing.
+
+    **Not claimed as the fix.** The residual UI-thread stalls appeared in a
+    trace with zero popups, so the cause is not established; this tests one
+    named hypothesis and the trace says whether it was right.
+  -->
+  <Style Selector="Control">
+    <Setter Property="ToolTip.Placement" Value="Right" />
+  </Style>
   <!--
     The control treatments from the design, in one place.
 
@@ -636,6 +661,59 @@
     first, which is exactly the kind of ordering nobody re-checks.
   -->
   <Style Selector="Border.layerRow.selected">
+    <Setter Property="Background" Value="{StaticResource SelectionWeakBrush}" />
+  </Style>
+
+  <!--
+    The layer row's mask chip: a small pane beside the thumbnail. Solid while
+    the mask applies, hollow while disabled, and outlined in cyan while
+    strokes are landing on it — the mode must never be invisible, or the next
+    mark goes somewhere the artist did not mean. Deliberately not a glyph
+    toggle like the eye and the lock: those switch a state, this is a second
+    *surface* you draw on, and it reads as a pane for that reason. Cyan is
+    the chosen-state accent, the lockedLayer precedent. Here beside
+    `.selected` for the same reason it is: the row template stays in
+    MainWindow.axaml, whose ratchet is why no style joins it that can live
+    application-wide.
+  -->
+  <Style Selector="Border.maskChip">
+    <Setter Property="BorderBrush" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Background" Value="{StaticResource FieldGroundHoverBrush}" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Border.maskChip.disabledMask">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Border.maskChip.editing">
+    <Setter Property="BorderBrush" Value="{StaticResource AccentCyanBrush}" />
+    <Setter Property="BorderThickness" Value="2" />
+  </Style>
+  <!-- The fx chip: the mask chip's pattern for the effect stack — filled
+       while the stack runs, hollow while its master switch is off (Q158). -->
+  <Style Selector="Border.fxChip">
+    <Setter Property="BorderBrush" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Background" Value="{StaticResource FieldGroundHoverBrush}" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Border.fxChip.disabledFx">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <!--
+    A clipped layer indents behind an accent bar, Photoshop's own visual: the
+    bar says "this rides on the layer below". 10px because it is an indent,
+    not a control — wide enough to read as one, narrower than the 14px folder
+    indent so the two stay tellable apart.
+  -->
+  <Style Selector="Border.clipBar">
+    <Setter Property="Width" Value="10" />
+  </Style>
+
+  <!-- The effects docker's selected row — the stack entry whose sliders are
+       showing. The weak selection tint, like a docker row that is selected
+       but not active. -->
+  <Style Selector="Border.selectedFx">
     <Setter Property="Background" Value="{StaticResource SelectionWeakBrush}" />
   </Style>
 

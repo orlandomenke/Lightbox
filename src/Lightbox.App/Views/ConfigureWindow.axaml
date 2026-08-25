@@ -19,6 +19,7 @@
       <ListBoxItem Content="Timeline" />
       <ListBoxItem Content="Drawing" />
       <ListBoxItem Content="Export" />
+      <ListBoxItem Content="Library" />
       <ListBoxItem Content="AI" />
     </ListBox>
 
@@ -121,9 +122,8 @@
         <StackPanel Spacing="6">
           <TextBlock Text="Composite layers on the GPU" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
-                     Text="Experimental, and off because it is not yet known to be faster. Blending layers on the graphics card should help most on a large canvas with many layers — but the layer images have to reach the card first, and on a laptop with shared graphics memory that transfer competes with the drawing itself. It may be slower. Switch it on, play a scene back, then write a render report to see what it did on this machine." />
-          <CheckBox x:Name="GpuCompositeBox" Content="Use the graphics card to blend layers"
-                    IsCheckedChanged="OnGpuCompositeChanged" />
+                     Text="Blending layers on the graphics card helps most on a large canvas with many layers — but the layer images have to reach the card first, and on a laptop with shared graphics memory that transfer competes with the drawing itself. It is not faster everywhere. Left on Automatic, Lightbox blends the same layers both ways once at startup and keeps whichever this machine is quicker at." />
+          <ComboBox x:Name="GpuCompositeBox" Width="260" SelectionChanged="OnGpuCompositeChanged" />
           <TextBlock x:Name="GpuCompositeHint" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
         </StackPanel>
 
@@ -328,6 +328,32 @@
         </StackPanel>
 
         <StackPanel Spacing="6">
+          <TextBlock Text="Fonts" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="The text tool always offers the fonts installed on this machine. Google Fonts adds a few thousand more that look the same everywhere and are licensed to be passed around." />
+          <CheckBox x:Name="GoogleFontsBox" Content="Offer Google Fonts beside the installed ones"
+                    IsCheckedChanged="OnGoogleFontsChanged" />
+          <TextBlock Text="Nothing is requested until you open the font list, and each font is fetched once and kept. Turn this off and Lightbox never contacts fonts.google.com at all."
+                     FontSize="10" Opacity="0.65" TextWrapping="Wrap" />
+          <CheckBox x:Name="EmbedFontsBox" Content="Carry open-licensed fonts inside documents that use them"
+                    IsCheckedChanged="OnEmbedFontsChanged" />
+          <TextBlock Text="Text is drawn as outlines the moment you set it, so a document always renders correctly with no fonts installed. Carrying the font is what lets somebody else retype the words. Only fonts whose licence permits it are ever carried — never one installed on this machine, whose terms Lightbox cannot read."
+                     FontSize="10" Opacity="0.65" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+          <TextBlock Text="What a stroke records from the pen" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="Pressure is always recorded. Tilt and speed are recorded whenever the brush you are drawing with uses them, and left out when it does not — so a drawing stays exactly as small as it needs to be." />
+          <CheckBox x:Name="RecordPenAxesBox" Content="Always record tilt and speed, even when the brush ignores them"
+                    IsCheckedChanged="OnRecordPenAxesChanged" />
+          <TextBlock Text="Switch this on to keep the numbers for later: a stroke can then be given a tilt or speed curve months after it was drawn and will respond to it. Left off, adding that curve does nothing, because the pen's tilt was never stored. It roughly doubles the size of a drawing."
+                     FontSize="10" Opacity="0.65" TextWrapping="Wrap" />
+          <TextBlock Text="Turning this off later leaves finished drawings alone — the strokes that recorded tilt keep it."
+                     FontSize="10" Opacity="0.65" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
           <TextBlock Text="Where the brush lives" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
                      Text="Whether the brush belongs to the tool or to the drawing. Come back to a comic or a set of game assets after a fortnight and the question is not which brush you like, but which brush the work is drawn with." />
@@ -461,6 +487,24 @@
         </StackPanel>
 
         <StackPanel Spacing="6">
+          <TextBlock Text="The X-sheet and the Timeline" FontWeight="SemiBold" />
+          <CheckBox x:Name="OffSheetKeyBox" Content="Mark frames where the camera or a bone is keyed"
+                    IsCheckedChanged="OnMarkOffSheetKeysChanged"
+                    ToolTip.Tip="A small orange or blue square under the X-sheet's frame number, in the Timeline's own track colours" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="The X-sheet is the exposure sheet: it shows ink and when it is exposed, which is why camera moves and bone poses live on the Timeline instead. Off by default — turn it on when you want the sheet to tell you that something happens on a frame it cannot draw." />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+          <TextBlock Text="The rig during playback" FontWeight="SemiBold" />
+          <CheckBox x:Name="AnimateRigBox" Content="Show the bones while the animation plays"
+                    IsCheckedChanged="OnAnimateRigChanged"
+                    ToolTip.Tip="Off, the bones are hidden while playing; on, they follow the playhead with everything else" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="Playback is for watching the animation, so the rig gets out of the way by default. Turn it on when what you are checking is the rig itself — whether a limb reads through the movement." />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
           <TextBlock Text="Frame width" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
                      Text="How wide one frame is on the timeline. Also on the timeline's own bar, where it is quicker to reach." />
@@ -526,6 +570,24 @@
                      PlaceholderText="e.g. ../Game/Assets/Sprites"
                      LostFocus="OnAutoExportFolderChanged" />
           </DockPanel>
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+
+    <ScrollViewer x:Name="LibraryPage" Grid.Column="2" Margin="14" IsVisible="False"
+                  VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="16">
+        <StackPanel Spacing="6">
+          <TextBlock Text="Character libraries" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="Where shared characters live on this machine. A library is an ordinary project whose type is Asset library — point this at one, or at a folder holding several. The import button on the project panel and the library window read from these folders; nothing is scanned until one of them opens." />
+          <ListBox x:Name="LibraryRootsList" MaxHeight="160" FontSize="11" />
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Classes="text" Content="Add folder…" Click="OnLibraryAddRoot" />
+            <Button Classes="text" Content="Remove" Click="OnLibraryRemoveRoot" />
+          </StackPanel>
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.6"
+                     Text="The same list the library window edits — a setting of the machine, kept across sessions and shared by every project." />
         </StackPanel>
       </StackPanel>
     </ScrollViewer>

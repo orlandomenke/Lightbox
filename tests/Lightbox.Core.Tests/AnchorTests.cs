@@ -185,6 +185,55 @@ public class AnchorTests
         Assert.Equal(new AnchorPoint(12.5, 34.5), Anchors.At(back.Scene.Layers[0].Cels[0].Frame!, declared.Id));
     }
 
+    // ---- direction (Q144) --------------------------------------------------------
+
+    [Fact]
+    public void AnAnchorWithNoAngleWritesNoAngleKey()
+    {
+        // Q144's absent-until-used half: the angle is nullable so a document
+        // whose anchors never turn serializes exactly as it did before the
+        // field existed — the camera's rule, applied again.
+        var doc = new Doc { Scene = OnOnes(1) };
+        var anchor = Anchors.Declare(doc.Scene, "Hand");
+        Anchors.SetAcross(doc.Scene.Layers[0], 0, 1, anchor.Id, new AnchorPoint(10, 20));
+
+        var json = System.Text.Json.JsonSerializer.Serialize(doc, DocJson.Options);
+
+        Assert.DoesNotContain("\"angleDeg\"", json);
+    }
+
+    [Fact]
+    public void AnAimedAnchorRoundTripsItsAngle()
+    {
+        var doc = new Doc { Scene = OnOnes(1) };
+        var anchor = Anchors.Declare(doc.Scene, "Muzzle");
+        Anchors.SetAcross(doc.Scene.Layers[0], 0, 1, anchor.Id, new AnchorPoint(10, 20, -45));
+
+        var back = DocJson.Clone(doc);
+
+        var point = Anchors.At(back.Scene.Layers[0].Cels[0].Frame!, doc.Scene.Anchors![0].Id);
+        Assert.Equal(new AnchorPoint(10, 20, -45), point);
+    }
+
+    [Fact]
+    public void TheAngleTravelsWithTheDrawingThroughARetime()
+    {
+        // The same property the position has, for the same reason: direction is
+        // per drawing, and an index-keyed table would aim the wrong one after
+        // any re-time.
+        var scene = OnOnes(4);
+        var anchor = Anchors.Declare(scene, "Hand");
+        var layer = scene.Layers[0];
+        var third = layer.Cels[2].Frame!;
+        Anchors.SetAcross(layer, 2, 1, anchor.Id, new AnchorPoint(99, 99, 30));
+
+        Lightbox.Core.Timeline.ExposureSheet.ApplyTiming(
+            layer, 0, 4, new Lightbox.Core.Timeline.TimingPreset("On 2s", [2]));
+
+        var moved = layer.Cels.First(c => ReferenceEquals(c.Frame, third));
+        Assert.Equal(new AnchorPoint(99, 99, 30), Anchors.At(moved.Frame!, anchor.Id));
+    }
+
     // ---- resolving for the exporter --------------------------------------------
 
     [Fact]

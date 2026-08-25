@@ -71,9 +71,43 @@ public sealed class DocumentEditor
     /// </summary>
     public int MaxUndo { get; set; } = 64;
 
-    public Doc Doc { get; private set; }
+    /// <summary>The document as it now stands. Undo and redo <b>replace</b> it.</summary>
+    /// <remarks>
+    /// <b>The instance is not stable, and anything that caches it must say so
+    /// by subscribing to <see cref="DocReplaced"/>.</b> A snapshot step holds
+    /// whichever document is not current and swaps on every undo and redo —
+    /// which is what makes redo exact and free (see <c>SnapshotStep</c>) — so
+    /// one undo leaves every other holder of the old object pointing at a
+    /// document that will never receive another edit. B257 is what that costs
+    /// when it is missed.
+    /// </remarks>
+    public Doc Doc
+    {
+        get;
+        private set
+        {
+            if (ReferenceEquals(field, value)) return;
+            field = value;
+            DocReplaced?.Invoke(value);
+        }
+    }
 
     public event Action? Changed;
+
+    /// <summary>
+    /// Raised when undo, redo or a discarded step swapped a different document
+    /// instance in. Never raised by an ordinary edit, which mutates in place.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Changed"/> on purpose: <c>Changed</c> says the
+    /// document is different, which is true after every edit and is what the
+    /// render and the dirty badge want. This says the <em>object</em> is
+    /// different, which is only ever interesting to something holding a
+    /// reference of its own — and there is exactly one such thing, the
+    /// project's loaded-document cache, whose entry is what a project save
+    /// writes to disk.
+    /// </remarks>
+    public event Action<Doc>? DocReplaced;
 
     public DocumentEditor(Doc doc)
     {
@@ -94,6 +128,23 @@ public sealed class DocumentEditor
 
     public bool CanUndo => _undo.Count > 0;
     public bool CanRedo => _redo.Count > 0;
+
+    /// <summary>
+    /// What the next undo would take back, named — null when there is nothing
+    /// to undo.
+    /// </summary>
+    /// <remarks>
+    /// For the Edit menu, which says <em>Undo Draw stroke</em> rather than
+    /// <c>Undo</c>: a menu entry that names the step is the difference between
+    /// pressing it and guessing. Peeking rather than reading
+    /// <see cref="History"/> because that allocates a list of every row to
+    /// answer a question about one, and this is read on every document change.
+    /// </remarks>
+    public string? UndoLabel => _undo.Count > 0 ? _undo.Peek().Label : null;
+
+    /// <summary>What the next redo would put back — null when there is nothing to redo.</summary>
+    /// <inheritdoc cref="UndoLabel" path="/remarks"/>
+    public string? RedoLabel => _redo.Count > 0 ? _redo.Peek().Label : null;
 
     /// <summary>Run a mutation as one undoable step (whole-document snapshot).</summary>
     /// <remarks>
@@ -614,7 +665,16 @@ public sealed class DocumentEditor
     /// one. An index beyond the timeline extends it (holds on every layer).
     /// One undo step.
     /// </summary>
-    public void SetKeyAt(string layerId, int index, FrameRole role)
+    /// <param name="provenance">
+    /// Stamped on the frame <b>only when this call creates it</b>, so an agent
+    /// that authored a key is recorded as having done so (Q31). Re-marking a
+    /// drawing the artist already made is a timing edit and leaves their frame
+    /// unclaimed — which is also why this is a parameter rather than a second
+    /// edit afterwards: the stamp has to land inside the one undo step, and a
+    /// caller writing <c>frame.Ai</c> after the fact would make two.
+    /// </param>
+    public void SetKeyAt(string layerId, int index, FrameRole role,
+                         AiProvenance? provenance = null)
     {
         if (index < 0) return;
         Perform(doc =>
@@ -628,6 +688,7 @@ public sealed class DocumentEditor
             if (cel.Frame is null)
             {
                 cel.Frame = NewEmptyFrame(target);
+                cel.Frame.Ai = provenance;
             }
             cel.Frame.Role = role;
         });
@@ -813,16 +874,47 @@ public sealed class DocumentEditor
         var layer = FindLayer(layerId);
         if (layer is null || fromIndex == toIndex || fromIndex < 0 || toIndex < 0) return;
         if (fromIndex >= layer.Cels.Count || layer.Cels[fromIndex].Frame is null) return;
-        Perform(doc =>
-        {
-            var scene = doc.Scene;
-            if (toIndex >= scene.FrameCount) scene.FrameCount = toIndex + 1;
-            foreach (var l in scene.Layers) PadCels(l, scene.FrameCount);
-            var target = scene.Layers.First(l => l.Id == layerId);
-            var frame = target.Cels[fromIndex].Frame!;
-            target.Cels[toIndex].Frame = copy ? CloneFrame(frame) : frame;
-            if (!copy) target.Cels[fromIndex].Frame = null;
-        });
+        Perform(doc => MoveCelIn(doc, layerId, fromIndex, toIndex, copy));
+    }
+
+    /// <summary>
+    /// The move itself, against a document, with no undo step of its own.
+    /// </summary>
+    /// <remarks>
+    /// Extracted from <see cref="MoveCel"/> so a caller retiming several things
+    /// at once can put them all inside one <see cref="Perform"/>. A drag that
+    /// moves four keys is one edit to an artist and must be one to Ctrl+Z;
+    /// calling <see cref="MoveCel"/> in a loop would leave four.
+    /// </remarks>
+    public static bool MoveCelIn(Doc doc, string layerId, int fromIndex, int toIndex, bool copy = false)
+    {
+        var scene = doc.Scene;
+        var target = scene.Layers.FirstOrDefault(l => l.Id == layerId);
+        if (target is null || fromIndex == toIndex || fromIndex < 0 || toIndex < 0) return false;
+        if (fromIndex >= target.Cels.Count || target.Cels[fromIndex].Frame is null) return false;
+        if (toIndex >= scene.FrameCount) scene.FrameCount = toIndex + 1;
+        foreach (var l in scene.Layers) PadCels(l, scene.FrameCount);
+        var frame = target.Cels[fromIndex].Frame!;
+        target.Cels[toIndex].Frame = copy ? CloneFrame(frame) : frame;
+        if (!copy) target.Cels[fromIndex].Frame = null;
+        return true;
+    }
+
+    /// <summary>
+    /// Set one cel's drawing at an index, extending the scene to reach it.
+    /// No undo step of its own — <see cref="MoveCelIn"/>'s reason: a paste
+    /// that lands several keys is one edit to an artist and must be one to
+    /// Ctrl+Z, so the caller owns the <see cref="Perform"/>.
+    /// </summary>
+    public static bool SetCelIn(Doc doc, string layerId, int index, Frame? frame)
+    {
+        var scene = doc.Scene;
+        var target = scene.Layers.FirstOrDefault(l => l.Id == layerId);
+        if (target is null || index < 0 || frame is null) return false;
+        if (index >= scene.FrameCount) scene.FrameCount = index + 1;
+        foreach (var l in scene.Layers) PadCels(l, scene.FrameCount);
+        target.Cels[index].Frame = frame;
+        return true;
     }
 
     /// <summary>Clear every drawing in [from, to] on a layer (cels become holds). One undo step.</summary>

@@ -66,7 +66,9 @@ public sealed class TimelineRuler : Control
     static TimelineRuler()
     {
         AffectsMeasure<TimelineRuler>(ExtentProperty, CellWidthProperty, LeadingInsetProperty);
-        AffectsRender<TimelineRuler>(MaxFrameProperty, CurrentFrameProperty, RangeStartProperty, RangeEndProperty, MarkersProperty);
+        AffectsRender<TimelineRuler>(
+            MaxFrameProperty, CurrentFrameProperty, RangeStartProperty, RangeEndProperty, MarkersProperty,
+            CameraKeyedProperty, PoseKeyedProperty);
     }
 
     public bool IsScrubbing
@@ -95,6 +97,44 @@ public sealed class TimelineRuler : Control
         set => SetValue(MarkersProperty, value);
     }
 
+    /// <summary>
+    /// Frames carrying a camera key, and frames carrying a pose key — the two
+    /// things that are animated here and have no cel to show it with.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Opt in, and empty rather than hidden when it is off.</b> The X-sheet
+    /// is the exposure sheet: it shows ink, and camera moves and bone poses are
+    /// not ink, which is why they live on the Timeline instead. What an artist
+    /// can lose by that division is the knowledge that <em>something happens
+    /// here at all</em> — four drawings on the sheet and a pose on frame 9 with
+    /// nothing on the sheet to say so.
+    /// </para>
+    /// <para>
+    /// Two sets rather than one, in the colours the Timeline already gives those
+    /// tracks, so a mark says which without needing a legend. The control is
+    /// told which frames to mark and nothing about why, the same division the
+    /// rest of this file keeps.
+    /// </para>
+    /// </remarks>
+    public static readonly StyledProperty<IReadOnlySet<int>?> CameraKeyedProperty =
+        AvaloniaProperty.Register<TimelineRuler, IReadOnlySet<int>?>(nameof(CameraKeyed));
+
+    public IReadOnlySet<int>? CameraKeyed
+    {
+        get => GetValue(CameraKeyedProperty);
+        set => SetValue(CameraKeyedProperty, value);
+    }
+
+    public static readonly StyledProperty<IReadOnlySet<int>?> PoseKeyedProperty =
+        AvaloniaProperty.Register<TimelineRuler, IReadOnlySet<int>?>(nameof(PoseKeyed));
+
+    public IReadOnlySet<int>? PoseKeyed
+    {
+        get => GetValue(PoseKeyedProperty);
+        set => SetValue(PoseKeyedProperty, value);
+    }
+
     private static readonly IBrush BackgroundBrush = new SolidColorBrush(Color.Parse("#181818"));
     private static readonly IBrush PlayheadBrush = new SolidColorBrush(Color.Parse("#4a6ea9"));
     private static readonly IBrush NumberBrush = new SolidColorBrush(Color.Parse("#c8c8c8"));
@@ -103,6 +143,14 @@ public sealed class TimelineRuler : Control
     private static readonly IBrush TickBrush = new SolidColorBrush(Color.Parse("#3a3a3a"));
     private static readonly IBrush RangeStartBrush = new SolidColorBrush(Color.Parse("#4caf50"));
     private static readonly IBrush RangeEndBrush = new SolidColorBrush(Color.Parse("#e05555"));
+
+    // The Timeline's own track colours, so a mark here and the track it stands
+    // for are recognisably the same thing.
+    private static readonly IBrush CameraKeyBrush = new SolidColorBrush(TrackView.CameraColour);
+    private static readonly IBrush PoseKeyBrush = new SolidColorBrush(Color.Parse("#7EC8E3"));
+
+    /// <summary>How wide a mark is, and how far in from the cell's edge it sits.</summary>
+    private const double MarkSize = 3;
 
     // ---- the loop handles ----------------------------------------------------------
 
@@ -191,6 +239,26 @@ public sealed class TimelineRuler : Control
                 (i + 1).ToString(), CultureInfo.InvariantCulture, FlowDirection.LeftToRight, typeface, 10, brush);
             context.DrawText(text, new Point(x + (CellWidth - 2 - text.Width) / 2, (h - text.Height) / 2));
             context.FillRectangle(TickBrush, new Rect(x - 1, h - 4, 1, 4));
+
+            // Along the bottom edge, where the tick already lives, so the
+            // numbers keep the middle of the cell. Two marks sit side by side
+            // when a frame carries both.
+            var camera = CameraKeyed?.Contains(i) == true;
+            var pose = PoseKeyed?.Contains(i) == true;
+            if (camera || pose)
+            {
+                var width = (camera ? MarkSize : 0) + (pose ? MarkSize : 0) + (camera && pose ? 1 : 0);
+                var markX = x + (CellWidth - 2 - width) / 2;
+                if (camera)
+                {
+                    context.FillRectangle(CameraKeyBrush, new Rect(markX, h - MarkSize, MarkSize, MarkSize));
+                    markX += MarkSize + 1;
+                }
+                if (pose)
+                {
+                    context.FillRectangle(PoseKeyBrush, new Rect(markX, h - MarkSize, MarkSize, MarkSize));
+                }
+            }
         }
 
         DrawLoopHandles(context, h);

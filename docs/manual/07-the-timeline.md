@@ -3,12 +3,20 @@
 
 ## The timeline family
 
+**The everyday frame verbs are also on the Animation menu**, each aimed at the
+drawing under the playhead on the layer you are on: play/pause and flipping to
+the neighbouring keys, inserting a keyframe, breakdown or inbetween, extending
+and reducing an exposure, the cel clipboard, clear and delete, onion skin and
+motion trail, and the playback range. The cel's right-click menu stays the way
+to aim any of them at a *particular* cel — and keeps the dialogs (re-time,
+timing chart, markers), which need one to aim at.
+
 Three views over the same animation share the bottom panel as tabs, and
 nothing you do in one is invisible in another:
 
 | | |
 | --- | --- |
-| **Timeline** | One coloured track per layer: drawings are dots, holds are the bars behind them, the camera is its own orange track on top, and the scratch track's waveform is its own band underneath. **Drag a dot** to retime that drawing; click anywhere else to scrub. |
+| **Timeline** | One coloured track per layer: drawings are dots, holds are the bars behind them, the camera is its own orange track on top, and the scratch track's waveform is its own band underneath. **Drag a dot** to retime that drawing; click anywhere else to scrub. The ruler numbers as closely as the frames are wide — every frame when they are wide, every second or third when they are narrow — and always numbers 1, 13, 25, so the second's cadence stays where you expect it. **Ctrl+click** picks dots and **Shift+click** ranges over the keys on that track, across the camera, the bones and the drawings alike — see *Picking keys on the Timeline* below. |
 | **X-sheet** | The exposure sheet — the grid described below, where cels are edited, exposed, re-timed and annotated. |
 | **Graph editor** | Value over time for the things that interpolate: the camera's position, zoom and rotation (drag a key dot — up and down for value, sideways to retime; a chip shows the value as you drag), and the **measured spacing** of your drawings — how far the ink actually moves between poses, the spacing chart read off the art itself. Even spacing is constant speed; widening is an ease; a spike is the drawing that pops. **Double-click** the plot to key the camera's framing at that frame (it keys what is already there, so nothing jumps — then drag it). **Right-click a key** for its easing into the next key, and to remove it. The **legend** on the bar toggles each curve, and its swatch says which colour is whose; the dashed **Spacing (intended)** curve is the same travel redistributed by the easing picked on the X-sheet bar — where the hollow dots and the filled ones disagree is the drawing that misses the ease. Spacing curves read the active layer. With one curve showing, the axis carries its numbers. |
 
@@ -43,6 +51,124 @@ cell, you can stand on it.
 **Playback is not affected.** Playing runs to the end of the scene, or to the
 start and end you set for the playback range, and never out into the hatching.
 Scrubbing is free; playing is bounded.
+
+## When the sheet cannot show what is happening
+
+The X-sheet is the **exposure sheet**: ink, and when it is exposed. The camera
+and the armature are animated too, but they are not part of the exposure, so
+they live on the Timeline and have no cell here. That division is deliberate —
+a camera key belongs to no layer, and a row for it in the drawing grid would
+change what the grid means.
+
+What it costs is knowing that something happens at all. Four drawings on the
+sheet and a pose on frame 9, and nothing in front of you says frame 9 is
+different.
+
+**Configure ▸ Timeline ▸ Mark frames where the camera or a bone is keyed** turns
+on a small square under the X-sheet's frame number: orange for a camera key,
+blue for a pose key, in the Timeline's own track colours, and two side by side
+on a frame carrying both. It marks only the frames that actually hold a key —
+not the frames a camera moves across, which are interpolated and are not
+decisions you made.
+
+**It is off by default**, and off means absent: a document with no camera and no
+rig shows nothing and costs nothing, and the sheet stays a sheet unless you ask
+it to say more.
+
+## Picking keys on the Timeline
+
+The X-sheet's cells are one way to pick things; the Timeline's dots are the
+other, and **they are the same selection**. Cels you pick on one show up on the
+other — the two are views over one animation. Camera and bone keys simply have
+no X-sheet cell to appear in.
+
+**Ctrl+click** a dot to add it or drop it. **Shift+click** takes the keys
+between the last dot you picked and this one, *on that track* — the keys, not
+every frame between them, because an empty frame has nothing to retime. A
+selected dot wears a white ring.
+
+A plain click on a dot that is **not** selected makes it the selection, so the
+drag that follows moves what you can see is picked. A plain click on one that
+**is** already selected leaves the selection alone — otherwise the press that
+starts a drag would throw away the five keys you were about to move. To narrow a
+selection back down, click a dot outside it.
+
+**Dragging retimes everything selected, by the same number of frames, as one
+undo step.** This is the point of picking across kinds: a camera move, two bone
+keys and a drawing shift together, which is what "push this beat two frames
+later" means. Drag a dot that is not in the selection and only it moves.
+
+If any part of the selection would land before frame 1, the whole drag is
+refused rather than moving some of it and clamping the rest — a partial shift
+closes the gaps you were keeping.
+
+**Retiming and the key clipboard cross kinds; deleting does not.** Moving and
+copying are the two things a camera key, a pose key and a drawing genuinely
+have in common — "this beat, two frames later" and "this beat, there too" are
+one gesture each. Deleting is not one verb with three names: removing a camera
+key, unkeying a bone and clearing a drawing leave different things behind. So
+each row's right-click offers its own delete — the pose row's **Delete**
+covers the pose keys in the selection and leaves a camera key or a drawing
+beside them alone.
+
+## The timeline's right-click menu
+
+**Right-click a key dot** for its menu, on every kind of row:
+
+- **Copy / Cut** — the whole selection when the dot is in it, the dot alone
+  when it is not. See *Copying keys* below; cut removes exactly what it
+  copied, as one undo step.
+- The row's own verbs: a camera key offers **Ease into next** (the graph
+  editor's easing menu, where the key actually is) and **Remove camera key**;
+  a pose key offers **Delete this pose key** or **Unkey this bone here**; a
+  drawing offers **Clear drawing**, which keeps the timing the way the
+  X-sheet's clear does.
+- **Go to frame** — jump the playhead to the key.
+
+**Right-click an empty stretch of a track** for the verbs that need a frame
+rather than a key: **Paste keys at this frame**, **Key the camera here** (on
+the camera's row) or **Key the pose here** (on the armature's rows) — both key
+what is already interpolated there, so nothing jumps — and the playback
+range's start and end.
+
+## Copying keys
+
+**Copy** takes whatever the dot selection holds — camera keys, pose keys,
+single bones' entries, drawings — and **Paste** lands the lot with the
+earliest key on the frame you aim at, every distance between them kept. That
+is the clipboard's face of the mixed retime: a camera move, two bone keys and
+a drawing copied as one beat and pasted as one beat, one undo step.
+
+What landing means is each kind's own replace: a camera key or a whole pose
+key on the destination gives way; a single bone's entry joins the pose key
+already there (seeding a new key from the interpolated pose first, so pasting
+one bone never snaps its neighbours to rest); a drawing replaces the cel on
+its frame, extending the scene if it must. A key whose home is gone — the
+camera removed since the copy, a bone deleted, a layer locked — is skipped and
+the status line says so.
+
+This clipboard is deliberately separate from the **cel clipboard** (above):
+that one is a sequence of drawings on one row, pasted consecutively with the
+holes closed; this one is a set of keys at their distances. Copying cels for
+re-timing wants the first; copying a beat wants this.
+
+**Copy selected keys** and **Paste keys at playhead** are in **Edit →
+Configure → Shortcuts** under Timeline, unbound by default — Ctrl+C already
+means the cel clipboard, and a second silent reading of it would be a trap.
+
+## The key inspector
+
+**Select exactly one key and its numbers appear** on a strip under the
+tracks: a camera key's X, Y, zoom and rotation; a bone key's X, Y and
+rotation (its departure from rest — zero means the bind pose); a drawing's
+layer **depth**, the Scene panel's number editable where the key is. Type or
+spin, and the change lands in the key itself — the same values the graph
+editor drags, as digits.
+
+The strip is absent when nothing is selected, and absent when several keys
+are — it shows one key's truth rather than an average. The armature summary
+row's key is a whole pose, so it offers the hint to open **Bones** and pick
+one bone's key instead of pretending a pose is three numbers.
 
 ## The scratch track
 
@@ -150,14 +276,23 @@ two cels across four layers. Ctrl+click a picked cel again to drop it. Shift
 still ranges from the last cel you clicked, and re-ranges rather than adding a
 second run, so it is the way to correct an overshoot.
 
-**Clear** and **delete** cover every cel you picked, on every layer, and the
-cels you left out are left alone — a delete works from the end of the row
-backwards, so the gaps it makes never shift the cels you picked next. **Copy**,
-**cut** and **paste** work on one row, because a cel clipboard is a sequence of
-drawings on one layer; copying a picked-out set takes the cels you chose in
-order and pastes them consecutively, holes closed up. If the selection reached
-other layers, the status line says which were not copied rather than pretending
-otherwise.
+**Everything on the cel's right-click menu covers the selection** — insert a
+key, breakdown or inbetween, extend and reduce exposure, clear, delete, and the
+three re-timing commands. The cels you left out are left alone, and an action
+aimed at a cel that is *not* in the selection takes that cel alone, so
+right-clicking somewhere else is never a trap.
+
+The ones that change the length of a row — extend, reduce, delete — work from
+the **end of the row backwards**, so the frames they add or remove never shift
+the cels you picked further along. The re-timing commands treat a picked-out
+selection as **runs** rather than as one span: select cels 1, 2 and 5 and you
+re-time a pair and a single, not everything from 1 to 5.
+
+**Copy**, **cut** and **paste** work on one row, because a cel clipboard is a
+sequence of drawings on one layer; copying a picked-out set takes the cels you
+chose in order and pastes them consecutively, holes closed up. If the selection
+reached other layers, the status line says which were not copied rather than
+pretending otherwise.
 
 ## Timing presets
 
@@ -288,7 +423,8 @@ the same place, so the grips win where they are and clicking anywhere else on
 the bar still scrubs.
 
 The **Set playback start / end** items on a cel's context menu still work and
-do the same thing; the grips are the version you can aim.
+do the same thing; the grips are the version you can aim. The **Animation**
+menu carries the same pair, taking the playhead's frame as the bound.
 
 ## Looping
 

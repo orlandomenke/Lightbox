@@ -76,6 +76,27 @@ internal static class ScenePassBuilder
     /// The playhead position the fetch is for — a rig-posed frame renders
     /// differently per cel, so it is part of the fetch and part of the key.
     /// </param>
+    /// <param name="Shapes">
+    /// The mask and clipping shapes carving this pass, described as frames and
+    /// fetched at materialize time like <paramref name="CelFrame"/> is — or
+    /// null for every unshaped layer. A fresh list is described per publish,
+    /// so two specs for the same shaped layer never compare equal; that is
+    /// harmless because <see cref="LayerStackBake"/> refuses shaped specs
+    /// outright rather than keying on them.
+    /// </param>
+    /// <param name="MaskScratch">
+    /// The mask stroke in flight on this layer's own mask — the first entry
+    /// of <paramref name="Shapes"/> — while the artist paints the mask. Set
+    /// only on the active layer's pass during a mask edit.
+    /// </param>
+    /// <param name="Fx">
+    /// The effect stack riding this pass — the layer's own when
+    /// <paramref name="Adjusts"/> is false, the backdrop's when true — or
+    /// null for every unfiltered layer. The stack reference is stable across
+    /// publishes but its *parameters* are not part of any equality, which is
+    /// one of the reasons <see cref="LayerStackBake"/> refuses to fold a pass
+    /// that carries one.
+    /// </param>
     internal readonly record struct PassSpec(
         Frame? CelFrame,
         int CelIndex,
@@ -86,7 +107,12 @@ internal static class ScenePassBuilder
         StrokeOverlay? Overlay = null,
         SKMatrix? Matrix = null,
         SKRectI? Source = null,
-        Frame? SourceFrame = null);
+        Frame? SourceFrame = null,
+        List<LayerShapes.ShapeSpec>? Shapes = null,
+        SKBitmap? MaskScratch = null,
+        bool MaskScratchErases = false,
+        Lightbox.Core.Effects.EffectStack? Fx = null,
+        bool Adjusts = false);
 
     /// <summary>
     /// The described pass list, plus where the active layer's own contribution
@@ -142,6 +168,13 @@ internal static class ScenePassBuilder
     /// but they agree on the thing tiles care about: the sequence is moving, so
     /// a cel costs its ink rather than its paper.
     /// </param>
+    /// <param name="ThroughCamera">
+    /// The composite will be drawn under the camera's matrix (view-through-camera,
+    /// or an export). This is when a layer's depth means anything: parallax is
+    /// the depth-dependent response to camera moves, so a world view — where
+    /// there is no camera matrix to respond to — shows every plane head-on,
+    /// exactly as the design's rule 2 says it must.
+    /// </param>
     internal readonly record struct State(
         int FrameIndex,
         string? ActiveLayerId,
@@ -149,7 +182,8 @@ internal static class ScenePassBuilder
         bool IsLightTable,
         bool HaveViewport,
         OnionSettings Onion,
-        bool IsScrubbing = false);
+        bool IsScrubbing = false,
+        bool ThroughCamera = false);
 
     /// <summary>
     /// The moving and staying halves of a frame under a live transform, as the
@@ -179,10 +213,12 @@ internal static class ScenePassBuilder
         int PostStampedCount = -1,
         Stroke? Shape = null,
         Stroke? Gradient = null,
+        Stroke? Text = null,
         Stroke? BrushStroke = null,
         SKMatrix? TransformPreview = null,
         IReadOnlyList<Frame>? TransformFrames = null,
-        Func<Frame, TransformSplit?>? PartsFor = null)
+        Func<Frame, TransformSplit?>? PartsFor = null,
+        bool MaskEditing = false)
     {
         internal static readonly LiveEdit None = new();
     }
@@ -211,13 +247,30 @@ internal static class ScenePassBuilder
     /// the spec deferred it. The only place a described pass touches pixels.
     /// </summary>
     internal static RenderPass Materialize(
-        in PassSpec spec, FrameBitmapCache cache, int width, int height) =>
-        new(
+        in PassSpec spec, FrameBitmapCache cache, int width, int height)
+    {
+        var shapes = LayerShapes.Resolve(spec.Shapes, cache, width, height, spec.CelIndex);
+        if (shapes is { Count: > 0 } && spec.MaskScratch is { } scratch)
+        {
+            // The layer's own mask is always the first shape when it has one,
+            // and a mask edit only exists on a layer that does.
+            shapes[0] = shapes[0] with { Scratch = scratch, ScratchErases = spec.MaskScratchErases };
+        }
+        return new(
             spec.CelFrame is { } frame
                 ? cache.Get(frame, width, height, celIndex: spec.CelIndex)
                 : spec.Bitmap,
             spec.Tint, spec.Opacity, spec.Blend, spec.Overlay, spec.Matrix, spec.Source,
-            spec.SourceFrame);
+            spec.SourceFrame, shapes,
+            Effect: spec.Adjusts || spec.Fx is null
+                ? null
+                : Lightbox.Raster.Effects.EffectRegistry.FilterFor(spec.Fx, spec.CelIndex),
+            AdjustStack: spec.Adjusts ? spec.Fx : null,
+            EffectFrame: spec.CelIndex,
+            Style: spec.Adjusts || spec.Fx is null
+                ? null
+                : Lightbox.Raster.Effects.EffectRegistry.StyleFor(spec.Fx, spec.CelIndex));
+    }
 
     /// <summary>
     /// Describe the pass list for one publish without fetching a single cel.
@@ -273,7 +326,13 @@ internal static class ScenePassBuilder
         // because "not playing" is a choice rather than a frame the tiles
         // could not serve.
         var tileModeOn = state.IsPlaying || state.IsScrubbing;
-        var tileNativeDoc = tileModeOn && scene.Camera is null && state.HaveViewport;
+        // A live effect anywhere joins the camera as a document-level tile
+        // refusal: the tiled compositor draws frames alone, and an effect —
+        // self, adjustment or scene-wide — needs the isolation and backdrop
+        // only the bounded compositor has.
+        var docEffects = EffectPasses.AnyLive(scene);
+        var tileNativeDoc = tileModeOn && scene.Camera is null && state.HaveViewport
+            && !docEffects;
 
         // Where the active layer's contribution begins and ends in the pass
         // list, so the layers that are NOT being drawn on can be folded into
@@ -284,11 +343,37 @@ internal static class ScenePassBuilder
         var activeStart = -1;
         var activeEnd = -1;
 
-        var referencesQueued = false;
-        foreach (var layer in scene.Layers)
+        // Multiplane: only a composite drawn under the camera's matrix has a
+        // camera move for depth to respond to. The shared half — the framing
+        // and its inverted matrix — is prepared once per publish, and only
+        // when some layer actually has a depth: this loop runs per pointer
+        // event while drawing, and a depthless document must pay a boolean
+        // scan here and nothing more.
+        ParallaxTransform.Frame? parallaxFrame = null;
+        if (state.ThroughCamera && scene.Camera is { } cam
+            && scene.Layers.Exists(l => l.HasDepth))
         {
+            parallaxFrame = ParallaxTransform.Prepare(
+                CameraOps.At(cam, state.FrameIndex, scene.Width, scene.Height),
+                CameraFraming.Centred(scene.Width, scene.Height),
+                cam.OutputWidth, cam.OutputHeight);
+        }
+
+        var referencesQueued = false;
+        for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
+        {
+            var layer = scene.Layers[layerIndex];
             if (!scene.IsLayerVisible(layer)) continue;
             var isActive = layer.Id == state.ActiveLayerId;
+
+            // What carves this layer — its mask, its clipping base — or null
+            // for the ordinary layer, which costs two boolean reads here.
+            var shapes = LayerShapes.For(scene, layerIndex, state.FrameIndex);
+
+            // The layer's parallax matrix, or null on the picture plane — the
+            // null arm is the path that existed before depth did, and every
+            // depthless layer must keep taking it.
+            var parallax = parallaxFrame?.MatrixFor(layer.Depth);
 
             // An imported reference goes over the paper and under every
             // drawing — the same place as the photograph you would tape to the
@@ -306,13 +391,31 @@ internal static class ScenePassBuilder
             // first one over the paper.
             if (isActive) activeStart = passes.Count;
 
+            // An adjustment layer (Q151) has no drawings of its own: no cel
+            // fetch, no ghosts, no tile pass — one backdrop pass, carved by
+            // its mask and clip, or nothing at all while its stack is empty
+            // or its clipping base shows nothing.
+            if (layer.IsAdjustment)
+            {
+                if (layer.HasLiveEffects && shapes is not { Count: 0 })
+                {
+                    passes.Add(new PassSpec(
+                        null, state.FrameIndex, null, null, layer.Opacity,
+                        Shapes: shapes, Fx: layer.Effects, Adjusts: true));
+                }
+                if (isActive) activeEnd = passes.Count;
+                continue;
+            }
+
             // Ghosts go directly beneath the layer they belong to, not beneath
             // the whole stack. Queuing them all first was invisible while every
             // layer was transparent; the moment a document opened on opaque
             // paper, the paper painted over every ghost. Interleaving is also
             // what makes multi-layer onion read correctly — a layer's ghosts
             // sit under it, exactly as its own earlier frames would.
-            var ghosts = GhostSpecsFor(layer, scene, state);
+            // Ghosts ride their layer's plane — a ghost is the same drawing at
+            // another time, so it parallaxes exactly as the drawing does.
+            var ghosts = GhostSpecsFor(layer, scene, state, parallax);
             if (!state.Onion.DrawOver) passes.AddRange(ghosts);
 
             // Past the end of the scene the canvas shows no drawing (Q103).
@@ -331,6 +434,17 @@ internal static class ScenePassBuilder
                 // are looking at the gap you are about to draw the inbetween
                 // into. The ghosts still show — there is simply no drawing of
                 // this layer's own to put them under or over.
+                if (state.Onion.DrawOver) passes.AddRange(ghosts);
+                if (isActive) activeEnd = passes.Count;
+                continue;
+            }
+
+            // A clipped layer whose base shows nothing this frame contributes
+            // nothing itself — the empty-shapes answer — and skipping it here
+            // is what keeps "clip to an empty cel" from compositing a
+            // fully-carved bitmap per publish for no visible result.
+            if (shapes is { Count: 0 })
+            {
                 if (state.Onion.DrawOver) passes.AddRange(ghosts);
                 if (isActive) activeEnd = passes.Count;
                 continue;
@@ -356,7 +470,8 @@ internal static class ScenePassBuilder
             {
                 var why = TileFallback.Reason(
                     frame, scene.Camera is not null, state.HaveViewport, liveEffectHere,
-                    posed: cache.Rig.IsPosed(frame));
+                    posed: cache.Rig.IsPosed(frame), shaped: shapes is not null,
+                    docEffects: docEffects);
                 tileFallbacks.Note(why);
                 if (why == TileFallbackReason.None) tileFrame = frame;
             }
@@ -381,7 +496,24 @@ internal static class ScenePassBuilder
                 celFrame = frame;
             }
 
-            var overlay = OverlayFor(live, isActive);
+            // While the artist paints the layer's mask, the stroke in flight
+            // is coverage rather than content: it rides on the mask shape
+            // (MaskScratch below) instead of on the layer, so the preview is
+            // exactly what the commit will carve. Keyed on the mask existing,
+            // not applying — a stroke painted onto a *disabled* mask changes
+            // nothing on screen, and the preview must say so rather than show
+            // it as paint that vanishes at the pen lift.
+            var maskEditHere = live.MaskEditing && isActive && layer.Mask is not null;
+            // The layer's own stack, riding its content pass — null for the
+            // ordinary layer, and for a stack whose every use is disabled.
+            var fx = layer.HasLiveEffects ? layer.Effects : null;
+            var overlay = maskEditHere ? null : OverlayFor(live, isActive);
+            var maskScratch = maskEditHere && live.BrushStroke is not null
+                ? (live.PostStampedCount > 0 && live.PostScratch is not null
+                    ? live.PostScratch
+                    : live.Scratch)
+                : null;
+            var maskErases = maskEditHere && live.BrushStroke?.Tool == ToolKind.Eraser;
 
             // A transform in progress: show the drag, not just the box around
             // it. The strokes that move are drawn through the gizmo's matrix
@@ -395,11 +527,17 @@ internal static class ScenePassBuilder
                 {
                     passes.Add(new PassSpec(
                         null, state.FrameIndex, stay, null, layer.Opacity,
-                        SceneRenderer.ToSkia(layer.BlendMode)));
+                        SceneRenderer.ToSkia(layer.BlendMode), Matrix: parallax,
+                        Shapes: shapes, Fx: fx));
                 }
+                // The drag nests inside the layer's plane: the moved strokes
+                // still live on this layer, so the preview matrix applies in
+                // plane-local document space and the parallax wraps it.
                 passes.Add(new PassSpec(
                     null, state.FrameIndex, parts.Moving, null, layer.Opacity,
-                    SceneRenderer.ToSkia(layer.BlendMode), overlay, preview));
+                    SceneRenderer.ToSkia(layer.BlendMode), overlay,
+                    parallax is { } pm ? SKMatrix.Concat(pm, preview) : preview,
+                    Shapes: shapes, Fx: fx));
                 if (state.Onion.DrawOver) passes.AddRange(ghosts);
                 if (isActive) activeEnd = passes.Count;
                 continue;
@@ -418,8 +556,10 @@ internal static class ScenePassBuilder
                 : layer.Opacity;
             passes.Add(new PassSpec(
                 celFrame, state.FrameIndex, bmp, null, opacity,
-                SceneRenderer.ToSkia(layer.BlendMode), overlay,
-                SourceFrame: tileFrame));
+                SceneRenderer.ToSkia(layer.BlendMode), overlay, parallax,
+                SourceFrame: tileFrame, Shapes: shapes,
+                MaskScratch: maskScratch, MaskScratchErases: maskErases,
+                Fx: fx));
 
             // Draw-over puts them above instead. Under is how a lightbox works
             // and is what you want while drawing; over is for checking, when a
@@ -433,6 +573,15 @@ internal static class ScenePassBuilder
         // that is the state you are in when you have imported one and have not
         // drawn anything yet, which is every time you start.
         if (!referencesQueued) passes.AddRange(ReferenceSpecs(scene, state));
+
+        // The scene stack last: the whole composite through the grade
+        // (DESIGN-effects.md's second attachment). A document that never
+        // grades adds nothing here and pays for nothing.
+        if (scene.Effects is { } sceneFx && sceneFx.AppliesAnything)
+        {
+            passes.Add(new PassSpec(
+                null, state.FrameIndex, null, null, 1.0, Fx: sceneFx, Adjusts: true));
+        }
 
         return new Plan(passes, activeStart, activeEnd, tileNativeDoc);
     }
@@ -488,6 +637,20 @@ internal static class ScenePassBuilder
                 shaping.Tool == ToolKind.Eraser,
                 shaping.AlphaLocked,
                 shaping.ClipId is null ? null : ClipRegionRegistry.Resolve(shaping.ClipId));
+        }
+
+        // The text tool's typing preview: the glyphs already baked, waiting
+        // to be committed. Listed here for the reason the shape tool is —
+        // a preview the overlay does not know about is rendered into the
+        // scratch and never shown, which is how the shape tool shipped.
+        if (live.Text is { } typing)
+        {
+            return new StrokeOverlay(
+                live.Scratch,
+                typing.Brush.Opacity,
+                false,
+                typing.AlphaLocked,
+                typing.ClipId is null ? null : ClipRegionRegistry.Resolve(typing.ClipId));
         }
 
         // The gradient tool's drag preview. Opacity and the alpha lock
@@ -549,7 +712,7 @@ internal static class ScenePassBuilder
     /// that mode ghosts other layers rather than other frames.
     /// </summary>
     internal static IReadOnlyList<PassSpec> GhostSpecsFor(
-        Layer layer, Scene scene, State state)
+        Layer layer, Scene scene, State state, SKMatrix? parallax = null)
     {
         var onion = state.Onion;
         // Ghosts are a drawing aid. During playback they are noise, and the
@@ -575,6 +738,15 @@ internal static class ScenePassBuilder
 
         var passes = new List<PassSpec>();
 
+        // A ghost is this layer at another time, and the layer's mask is one
+        // drawing held across all of them (Q148) — so ghosts are carved by it
+        // too, or the onion would show content the render hides. Clipping is
+        // deliberately not applied here: the base is another layer's drawing
+        // at another frame, and a ghost is a drawing aid for THIS layer's arc.
+        List<LayerShapes.ShapeSpec>? ghostShapes = layer.IsMasked
+            ? [new LayerShapes.ShapeSpec(layer.Mask!.Frame, layer.Mask.IsInverted)]
+            : null;
+
         // Pinned first, so they sit furthest back: they are the reference the
         // near ghosts and the current drawing are being placed against.
         foreach (var index in PinnedGhostIndices(scene))
@@ -584,7 +756,7 @@ internal static class ScenePassBuilder
             passes.Add(new PassSpec(
                 pinned, index, null,
                 index < state.FrameIndex ? previous : next,
-                onion.Opacity));
+                onion.Opacity, Matrix: parallax, Shapes: ghostShapes));
         }
 
         // Furthest first so the nearest ghost ends up on top of the others,
@@ -598,7 +770,8 @@ internal static class ScenePassBuilder
                 // ghost must show the pose it holds where it lives.
                 ghost.Frame, ghost.Index, null,
                 ghost.Before ? previous : next,
-                OnionSkin.OpacityAt(ghost.Steps, onion.Opacity, onion.Falloff)));
+                OnionSkin.OpacityAt(ghost.Steps, onion.Opacity, onion.Falloff),
+                Matrix: parallax, Shapes: ghostShapes));
         }
         return passes;
     }

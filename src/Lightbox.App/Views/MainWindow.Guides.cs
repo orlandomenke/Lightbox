@@ -102,6 +102,12 @@ public partial class MainWindow
         RefreshRigOverlay();
     }
 
+    private void OnClearRigDirection(object? sender, RoutedEventArgs e)
+    {
+        _vm.ClearSelectedAnchorDirection();
+        RefreshRigOverlay();
+    }
+
     /// <summary>
     /// Hand the canvas the marks to draw, or nothing at all.
     /// </summary>
@@ -123,6 +129,7 @@ public partial class MainWindow
     {
         var bones = _vm.BoneChromes;
         Canvas.BoneChromes = bones.Count > 0 ? bones : null;
+        Canvas.BonesArePosed = _vm.BonesShowAPose;
         var heat = _vm.HeatPoints;
         Canvas.HeatPoints = heat.Count > 0 ? heat : null;
     }

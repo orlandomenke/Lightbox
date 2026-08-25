@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             x:Class="Lightbox.App.Views.TimelineInspector"
+             x:DataType="vm:MainViewModel">
+  <!--
+    The key inspector (Q142): the one selected key's values, as numbers, on a
+    strip under the timeline's tracks. Present only while exactly one key is
+    selected — optional means absent, so an unselected timeline pays nothing.
+    Every write takes the value's existing door (the graph editor's camera
+    path, the pose keying, the Scene panel's depth); see
+    MainViewModel.TimelineInspector.cs.
+  -->
+  <Border Classes="dockerBar" IsVisible="{Binding TimelineInspectorVisible}">
+    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+      <TextBlock Text="{Binding InspectorTitle}" FontSize="11" FontWeight="SemiBold"
+                 VerticalAlignment="Center" />
+      <TextBlock Text="{Binding InspectorHint}" FontSize="11"
+                 Foreground="{StaticResource TextSecondaryBrush}"
+                 IsVisible="{Binding InspectorIsPoseSummary}" VerticalAlignment="Center" />
+      <StackPanel Orientation="Horizontal" Spacing="4"
+                  IsVisible="{Binding InspectorHasPosition}">
+        <TextBlock Text="X" FontSize="11" VerticalAlignment="Center" />
+        <NumericUpDown Classes="value" Value="{Binding InspectorX}" Increment="1" FormatString="0.#" FontSize="11" VerticalAlignment="Center"
+                       ToolTip.Tip="Camera: the document x the frame centres on. Bone: offset from its rest x, in the parent's frame" />
+        <TextBlock Text="Y" FontSize="11" VerticalAlignment="Center" />
+        <NumericUpDown Classes="value" Value="{Binding InspectorY}" Increment="1" FormatString="0.#" FontSize="11" VerticalAlignment="Center"
+                       ToolTip.Tip="Camera: the document y the frame centres on. Bone: offset from its rest y, in the parent's frame" />
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="4"
+                  IsVisible="{Binding InspectorHasRotation}">
+        <TextBlock Text="Rotation" FontSize="11" VerticalAlignment="Center" />
+        <NumericUpDown Classes="value" Value="{Binding InspectorRotation}" Increment="1" FormatString="0.#" FontSize="11" VerticalAlignment="Center"
+                       ToolTip.Tip="Clockwise degrees. Camera: roll. Bone: rotation added to its rest" />
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="4"
+                  IsVisible="{Binding InspectorIsCamera}">
+        <TextBlock Text="Zoom" FontSize="11" VerticalAlignment="Center" />
+        <NumericUpDown Classes="value" Value="{Binding InspectorZoom}" Increment="0.05" FormatString="0.00"
+                       Minimum="0.05" Maximum="32" FontSize="11" VerticalAlignment="Center"
+                       ToolTip.Tip="1 shows the output size one-for-one; 2 is a 2× push in" />
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="4"
+                  IsVisible="{Binding InspectorIsCel}">
+        <TextBlock Text="Depth" FontSize="11" VerticalAlignment="Center" />
+        <NumericUpDown Classes="value" Value="{Binding InspectorDepth}" Increment="100" FormatString="0"
+                       Minimum="-750" Maximum="1000000" FontSize="11" VerticalAlignment="Center"
+                       ToolTip.Tip="The layer's distance behind the picture plane, in canvas units — the Scene panel's number, editable where the key is" />
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>

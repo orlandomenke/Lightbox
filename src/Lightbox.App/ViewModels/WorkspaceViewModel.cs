@@ -31,7 +31,11 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     public WorkspaceViewModel(WorkspaceStore store)
     {
         _store = store;
-        _layout = (store.Find(store.Current) ?? store.Workspaces[0]).Layout.Clone();
+        // The session layout first: the app reopens as it was left (B288).
+        // Absent — an old store, or a fresh install — it starts from the
+        // current workspace's snapshot, which is what it always did.
+        _layout = (store.Session ?? (store.Find(store.Current) ?? store.Workspaces[0]).Layout).Clone();
+        IsDirty = store.Session is not null && store.SessionDirty;
         SelectedName = store.Current;
         foreach (var option in QuickBarCatalog.All)
         {
@@ -69,6 +73,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         IsDirty = true;
         OnPropertyChanged(nameof(CurrentLabel));
         Changed?.Invoke();
+        PersistSession();
     }
 
     private void Raise()
@@ -79,6 +84,24 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         foreach (var choice in QuickBarChoices) choice.Sync();
         RefreshChoices();
         Changed?.Invoke();
+        PersistSession();
+    }
+
+    /// <summary>
+    /// Snapshot the arrangement on screen into the store, so the next launch
+    /// reopens as this one was left (B288).
+    /// </summary>
+    /// <remarks>
+    /// On every layout change rather than on close, for the settings' reason:
+    /// layout changes are discrete user gestures, the write is small and
+    /// atomic, and a close handler is the one place guaranteed to be skipped
+    /// by the exit that most needed it.
+    /// </remarks>
+    private void PersistSession()
+    {
+        _store.Session = _layout.Clone();
+        _store.SessionDirty = IsDirty;
+        _store.Save();
     }
 
     private void Mutate(Action<DockLayout> change)
@@ -111,6 +134,20 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     {
         get => _layout.IsVisible(DockPanelId.Navigator);
         set => SetVisible(DockPanelId.Navigator, value);
+    }
+
+    /// <summary>Whether the Scene panel — depths and the camera path — is on screen (Q84).</summary>
+    public bool SceneDockerVisible
+    {
+        get => _layout.IsVisible(DockPanelId.Scene);
+        set => SetVisible(DockPanelId.Scene, value);
+    }
+
+    /// <summary>Whether the effects docker — stacks and adjustment layers — is on screen (Q151).</summary>
+    public bool EffectsDockerVisible
+    {
+        get => _layout.IsVisible(DockPanelId.Effects);
+        set => SetVisible(DockPanelId.Effects, value);
     }
 
     public bool HistoryPanelVisible
@@ -308,6 +345,12 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         DockPanelId.ToolOptions => nameof(ToolOptionsDockerVisible),
         DockPanelId.Xsheet => nameof(XsheetDockerVisible),
         DockPanelId.GraphEditor => nameof(GraphEditorDockerVisible),
+        // Navigator's case was missing — it fell to the default and raised
+        // TimelineVisible, so its menu checkbox went stale on workspace
+        // switches. Found adding Scene's case beside it.
+        DockPanelId.Navigator => nameof(NavigatorVisible),
+        DockPanelId.Scene => nameof(SceneDockerVisible),
+        DockPanelId.Effects => nameof(EffectsDockerVisible),
         _ => nameof(TimelineVisible),
     };
 
@@ -368,6 +411,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject
 
     public bool QuickLineOptions => QuickHas(QuickBarCatalog.LineOptions);
 
+    public bool QuickTextOptions => QuickHas(QuickBarCatalog.TextOptions);
+
     public bool QuickTransport => QuickHas(QuickBarCatalog.Transport);
 
     public bool QuickAddFrame => QuickHas(QuickBarCatalog.AddFrame);
@@ -390,6 +435,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject
             [QuickBarCatalog.ArrowOptions] = nameof(QuickArrowOptions),
             [QuickBarCatalog.GuideOptions] = nameof(QuickGuideOptions),
             [QuickBarCatalog.LineOptions] = nameof(QuickLineOptions),
+            [QuickBarCatalog.TextOptions] = nameof(QuickTextOptions),
             [QuickBarCatalog.Transport] = nameof(QuickTransport),
             [QuickBarCatalog.AddFrame] = nameof(QuickAddFrame),
         };
@@ -426,8 +472,16 @@ public sealed partial class WorkspaceViewModel : ObservableObject
 
     public void Redock(DockPanelId id) => Mutate(l => l.Redock(id));
 
-    /// <summary>Tab a panel together with another.</summary>
-    public void JoinGroup(DockPanelId id, DockPanelId target) => Mutate(l => l.JoinGroup(id, target));
+    /// <summary>
+    /// Tab a panel together with another, at a position in that slot's strip.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="target"/> may be the panel itself, which is a tab being
+    /// moved along the header it is already in — see <see cref="DockLayout.JoinGroup"/>
+    /// for why that is one operation rather than two.
+    /// </remarks>
+    public void JoinGroup(DockPanelId id, DockPanelId target, int? tabIndex = null) =>
+        Mutate(l => l.JoinGroup(id, target, tabIndex));
 
     /// <summary>Show a tab, and stop showing its siblings.</summary>
     /// <remarks>
@@ -515,7 +569,9 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         var saved = _store.Save(name, _layout);
         SelectedName = saved.Name;
         IsDirty = false;
-        _store.Save();
+        // The session snapshot follows, or the restart would resurrect the
+        // "edited" star the save just cleared.
+        PersistSession();
         RefreshChoices();
     }
 
@@ -529,7 +585,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     {
         if (_store.Update(SelectedName, _layout) is null) return;
         IsDirty = false;
-        _store.Save();
+        // Same as SaveAs: the cleared star has to reach the stored session.
+        PersistSession();
         RefreshChoices();
     }
 

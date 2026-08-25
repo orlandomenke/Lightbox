@@ -81,6 +81,7 @@ internal static class InputTrace
         float Pressure,
         float TiltX,
         float TiltY,
+        KeyModifiers Modifiers,
         string? Detail);
 
     /// <summary>
@@ -119,6 +120,8 @@ internal static class InputTrace
             _lastDecided = null;
             _lastAssigned = null;
             _armedAtTicks = Stopwatch.GetTimestamp();
+            _gcAtArm = (GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2),
+                GC.GetTotalPauseDuration());
             Volatile.Write(ref _armed, true);
         }
         StartHeartbeat();
@@ -129,6 +132,37 @@ internal static class InputTrace
         Volatile.Write(ref _armed, false);
         StopHeartbeat();
     }
+
+    /// <summary>
+    /// Collections and total pause time when the trace was armed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Added because the residual UI-thread stalls survived every fix aimed
+    /// at what was drawing them.</b> The sixth trace showed 43 stalls totalling
+    /// 30% of the session with <em>zero</em> popups open, so the cause is not
+    /// the popup churn that produced the original 18.9-second freezes.
+    /// </para>
+    /// <para>
+    /// <b>Garbage collection is the hypothesis this measures, and the shape of
+    /// the code invites it.</b> <c>CanvasControl.DrawOp</c> is an
+    /// <c>ICustomDrawOperation</c> whose primary constructor captures about
+    /// thirty-five arguments as fields — a <c>RenderSnapshot</c> owning a
+    /// full-canvas image, a texture cache, a presented frame, several paths and
+    /// a dozen lists — and <c>Dispose</c> releases three of them. One is
+    /// allocated per repaint, and the enter/exit churn was driving ~97 repaints
+    /// a second.
+    /// </para>
+    /// <para>
+    /// <b><see cref="GC.GetTotalPauseDuration"/> settles it rather than
+    /// suggesting it.</b> If the pause time the runtime reports is close to the
+    /// stall time the heartbeat measured, the thread was blocked collecting and
+    /// the fix is allocation; if it is a small fraction, garbage collection is
+    /// exonerated and the next hypothesis gets its turn. Either way the answer
+    /// arrives as a number rather than an argument.
+    /// </para>
+    /// </remarks>
+    private static (int Gen0, int Gen1, int Gen2, TimeSpan Pause) _gcAtArm;
 
     private static double Now() =>
         (Stopwatch.GetTimestamp() - _armedAtTicks) / (double)Stopwatch.Frequency;
@@ -144,7 +178,7 @@ internal static class InputTrace
                 Now(), kind, e.Pointer.Type, e.Pointer.Id,
                 (float)pp.Position.X, (float)pp.Position.Y,
                 pp.Properties.Pressure, pp.Properties.XTilt, pp.Properties.YTilt,
-                null));
+                e.KeyModifiers, null));
         }
         catch
         {
@@ -156,7 +190,7 @@ internal static class InputTrace
     public static void CaptureLost(IPointer pointer)
     {
         if (!Volatile.Read(ref _armed)) return;
-        Note(new Entry(Now(), Kind.CaptureLost, pointer.Type, pointer.Id, 0, 0, 0, 0, 0, null));
+        Note(new Entry(Now(), Kind.CaptureLost, pointer.Type, pointer.Id, 0, 0, 0, 0, 0, KeyModifiers.None, null));
     }
 
     /// <summary>
@@ -170,7 +204,7 @@ internal static class InputTrace
         {
             if (kind == _lastDecided) return;
             NoteLocked(new Entry(
-                Now(), Kind.CursorDecided, PointerType.Mouse, -1, 0, 0, 0, 0, 0,
+                Now(), Kind.CursorDecided, PointerType.Mouse, -1, 0, 0, 0, 0, 0, KeyModifiers.None,
                 $"{_lastDecided ?? "start"}→{kind}"));
             _lastDecided = kind;
         }
@@ -183,7 +217,7 @@ internal static class InputTrace
         lock (Gate)
         {
             NoteLocked(new Entry(
-                Now(), Kind.CursorAssigned, PointerType.Mouse, -1, 0, 0, 0, 0, 0,
+                Now(), Kind.CursorAssigned, PointerType.Mouse, -1, 0, 0, 0, 0, 0, KeyModifiers.None,
                 $"{_lastAssigned ?? "start"}→{kind}"));
             _lastAssigned = kind;
         }
@@ -202,7 +236,7 @@ internal static class InputTrace
             if (open)
             {
                 OpenPopups[key] = now;
-                NoteLocked(new Entry(now, Kind.PopupOpened, PointerType.Mouse, -1, 0, 0, 0, 0, 0, what));
+                NoteLocked(new Entry(now, Kind.PopupOpened, PointerType.Mouse, -1, 0, 0, 0, 0, 0, KeyModifiers.None, what));
                 return;
             }
             string detail = what;
@@ -212,7 +246,7 @@ internal static class InputTrace
                 PopupLives.Add(ms);
                 detail = $"{what} after {ms:F0} ms";
             }
-            NoteLocked(new Entry(now, Kind.PopupClosed, PointerType.Mouse, -1, 0, 0, 0, 0, 0, detail));
+            NoteLocked(new Entry(now, Kind.PopupClosed, PointerType.Mouse, -1, 0, 0, 0, 0, 0, KeyModifiers.None, detail));
         }
     }
 
@@ -235,7 +269,7 @@ internal static class InputTrace
         lock (Gate)
         {
             NoteLocked(new Entry(
-                Now(), Kind.Note, PointerType.Mouse, -1, 0, 0, 0, 0, 0, what));
+                Now(), Kind.Note, PointerType.Mouse, -1, 0, 0, 0, 0, 0, KeyModifiers.None, what));
         }
     }
 
@@ -263,6 +297,7 @@ internal static class InputTrace
     private static Avalonia.Threading.DispatcherTimer? _heartbeat;
     private static double _lastBeat;
     private static double _worstStall;
+    private static double _blockedMs;
     private static int _stalls;
 
     /// <summary>
@@ -293,6 +328,7 @@ internal static class InputTrace
         {
             _lastBeat = Now();
             _worstStall = 0;
+            _blockedMs = 0;
             _stalls = 0;
             _heartbeat ??= new Avalonia.Threading.DispatcherTimer(
                 TimeSpan.FromMilliseconds(HeartbeatMs),
@@ -317,8 +353,9 @@ internal static class InputTrace
         {
             _stalls++;
             _worstStall = Math.Max(_worstStall, since);
+            _blockedMs += since;
             NoteLocked(new Entry(
-                now, Kind.Stall, PointerType.Mouse, -1, 0, 0, 0, 0, 0,
+                now, Kind.Stall, PointerType.Mouse, -1, 0, 0, 0, 0, 0, KeyModifiers.None,
                 $"the UI thread was blocked for {since:F0} ms"));
         }
     }
@@ -432,6 +469,7 @@ internal static class InputTrace
         IReadOnlyList<DeviceSeen> Devices,
         int Alternations,
         int Moves,
+        int ShiftReported,
         int Enters,
         int Exits,
         int CursorDecisionChanges,
@@ -441,6 +479,7 @@ internal static class InputTrace
         double? ShortestPopupMs,
         int Stalls,
         double WorstStallMs,
+        double BlockedMs,
         double LongestSilenceMs,
         IReadOnlyList<string> Verdicts);
 
@@ -476,7 +515,7 @@ internal static class InputTrace
             }
 
             var devices = new Dictionary<(PointerType, int), (int Events, float MaxP, bool Tilt)>();
-            int alternations = 0, moves = 0, enters = 0, exits = 0, decided = 0, assigned = 0, opened = 0;
+            int alternations = 0, moves = 0, enters = 0, exits = 0, decided = 0, assigned = 0, opened = 0, shifted = 0;
             var lastId = int.MinValue;
             double seconds = 0;
 
@@ -494,6 +533,7 @@ internal static class InputTrace
                         if (lastId != int.MinValue && e.DeviceId != lastId) alternations++;
                         lastId = e.DeviceId;
                         if (e.Kind == Kind.Move) moves++;
+                        if (e.Modifiers.HasFlag(KeyModifiers.Shift)) shifted++;
                         if (e.Kind == Kind.Enter) enters++;
                         if (e.Kind == Kind.Exit) exits++;
                         break;
@@ -524,8 +564,8 @@ internal static class InputTrace
 
             return new Summary(
                 seconds, kept, _count > Capacity, deviceList,
-                alternations, moves, enters, exits, decided, assigned,
-                opened, collapsed, shortest, _stalls, _worstStall, silence,
+                alternations, moves, shifted, enters, exits, decided, assigned,
+                opened, collapsed, shortest, _stalls, _worstStall, _blockedMs, silence,
                 Verdicts(
                     seconds, deviceList, alternations, enters, exits, assigned,
                     opened, collapsed, _stalls, _worstStall, silence));
@@ -658,19 +698,40 @@ internal static class InputTrace
             sb.AppendLine($"  moves                 {summary.Moves}"
                 + (summary.Seconds > 0 ? $" ({summary.Moves / summary.Seconds:F0}/s)" : ""));
             sb.AppendLine($"  stream alternations   {summary.Alternations}");
+            // B256. A stroke is constrained to one axis while Shift is held, and
+            // "it only draws horizontal lines after the pen has been away" is
+            // exactly what that constraint looks like. Nothing recorded whether
+            // Shift was actually reported, so this says so rather than leaving it
+            // to be deduced from the shape of the mark.
+            sb.AppendLine($"  events claiming Shift {summary.ShiftReported}"
+                + (summary.ShiftReported > 0 ? "  <-- axis-lock would engage" : ""));
             sb.AppendLine($"  canvas enter/exit     {summary.Enters}/{summary.Exits}");
             sb.AppendLine($"  cursor decisions      {summary.CursorDecisionChanges} changes");
             sb.AppendLine($"  cursor assignments    {summary.CursorAssignments}");
             sb.AppendLine($"  popups opened         {summary.PopupsOpened}"
                 + (summary.ShortestPopupMs is { } s ? $", shortest life {s:F0} ms" : ""));
             sb.AppendLine($"  popups collapsed      {summary.PopupsCollapsed} (under {CollapsedPopupMs:F0} ms)");
+            var gc = (
+                GC.CollectionCount(0) - _gcAtArm.Gen0,
+                GC.CollectionCount(1) - _gcAtArm.Gen1,
+                GC.CollectionCount(2) - _gcAtArm.Gen2,
+                GC.GetTotalPauseDuration() - _gcAtArm.Pause);
+            sb.AppendLine($"  GC collections        gen0 {gc.Item1}, gen1 {gc.Item2}, gen2 {gc.Item3}");
+            sb.AppendLine($"  GC pause total        {gc.Item4.TotalMilliseconds:F0} ms"
+                + (summary.Stalls > 0
+                    ? $"  ({gc.Item4.TotalMilliseconds / Math.Max(1, summary.BlockedMs) * 100:F0}% of the blocked time)"
+                    : ""));
             sb.AppendLine($"  UI-thread stalls      {summary.Stalls}"
                 + (summary.Stalls > 0 ? $", worst {summary.WorstStallMs:F0} ms" : "")
                 + $" (over {StallMs:F0} ms)");
             // The filter's own count, so a trace says whether it engaged rather
             // than leaving "the churn is gone" and "the pen was not used" to
             // look identical.
-            sb.AppendLine($"  echo events dropped   {PenEchoFilter.Dropped}");
+            sb.AppendLine($"  popups are            {(PopupsAreOverlays ? "in-window overlays" : "native windows")}");
+            // The grace's own count, so a trace says whether it engaged rather
+            // than leaving a fallen popup rate and an idle guard looking alike.
+            sb.AppendLine($"  submenu closes refused {SubmenuCloseGrace.Refused}"
+                + (SubmenuCloseGrace.Installed ? "" : "  (grace not installed)"));
             sb.AppendLine($"  longest silence       {summary.LongestSilenceMs:F0} ms"
                 + (summary.Stalls == 0 && summary.LongestSilenceMs > 2000
                     ? " — no stall in it, so the pointer was off the canvas"
@@ -711,6 +772,7 @@ internal static class InputTrace
                     sb.Append($"{e.Device} id {e.DeviceId}  ({e.X:F1}, {e.Y:F1})  p {e.Pressure:F2}");
                     if (e.TiltX != 0 || e.TiltY != 0) sb.Append($"  tilt {e.TiltX:F0}/{e.TiltY:F0}");
                 }
+                if (e.Modifiers != KeyModifiers.None) sb.Append($"  [{e.Modifiers}]");
                 if (e.Detail is { } detail) sb.Append($"  {detail}");
                 sb.AppendLine();
             }
@@ -725,7 +787,7 @@ internal static class InputTrace
         float pressure = 0, float tiltX = 0, float tiltY = 0, string? detail = null)
     {
         if (!Volatile.Read(ref _armed)) return;
-        Note(new Entry(seconds, kind, device, deviceId, 0, 0, pressure, tiltX, tiltY, detail));
+        Note(new Entry(seconds, kind, device, deviceId, 0, 0, pressure, tiltX, tiltY, KeyModifiers.None, detail));
     }
 
     /// <summary>
@@ -750,6 +812,19 @@ internal static class InputTrace
         }
     }
 
+    /// <summary>
+    /// Whether popups are rendered inside the window rather than as native
+    /// windows — the setting B255's freeze turns on.
+    /// </summary>
+    /// <remarks>
+    /// In the report because it is the one fact that decides how to read the
+    /// stall count: the freeze tracked native popup creation at ~100/s, so a
+    /// trace still showing stalls with popups as overlays means the cause is
+    /// something else, and the same trace with them as native windows means the
+    /// setting did not take.
+    /// </remarks>
+    internal static bool PopupsAreOverlays { get; set; }
+
     /// <summary>Back to cold: disarmed, empty, no remembered cursor.</summary>
     internal static void ResetForTests()
     {
@@ -763,6 +838,7 @@ internal static class InputTrace
             _lastAssigned = null;
             _stalls = 0;
             _worstStall = 0;
+            _blockedMs = 0;
         }
         StopHeartbeat();
     }
@@ -775,8 +851,9 @@ internal static class InputTrace
         {
             _stalls++;
             _worstStall = Math.Max(_worstStall, blockedMs);
+            _blockedMs += blockedMs;
             NoteLocked(new Entry(
-                seconds, Kind.Stall, PointerType.Mouse, -1, 0, 0, 0, 0, 0,
+                seconds, Kind.Stall, PointerType.Mouse, -1, 0, 0, 0, 0, 0, KeyModifiers.None,
                 $"the UI thread was blocked for {blockedMs:F0} ms"));
         }
     }

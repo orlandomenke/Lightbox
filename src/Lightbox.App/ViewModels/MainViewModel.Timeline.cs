@@ -160,6 +160,15 @@ public partial class MainViewModel
                 RefreshLayerThumbs();
             }
         }
+        // The rig stands at the playhead whenever it is showing a pose, so
+        // moving the playhead moves it. Nothing asked BoneChromes again on a
+        // frame change, so the overlay sat at whatever pose it last computed —
+        // on a scrub as much as during playback, which is where it was noticed.
+        // Gated on actually showing a pose: in bind mode the chrome is the rest
+        // skeleton and does not move with the playhead, so notifying there
+        // would repaint the overlay for nothing on every frame.
+        if (ArmatureEditMode && BonesShowAPose) OnPropertyChanged(nameof(BoneChromes));
+
         using (Profile(profiling, Services.TickProfile.Phase.Bookkeeping))
         {
             RefreshCamera();
@@ -398,6 +407,13 @@ public partial class MainViewModel
     public void SetPlaybackEnd(FrameCell cell) =>
         PlaybackEndFrame = Math.Min(cell.Index, Scene.FrameCount - 1);
 
+    // The track timeline's twins: no cell under a pointer there, just a frame.
+    public void SetPlaybackStartAt(int frame) =>
+        PlaybackStartFrame = Math.Clamp(frame, 0, Scene.FrameCount - 1);
+
+    public void SetPlaybackEndAt(int frame) =>
+        PlaybackEndFrame = Math.Clamp(frame, 0, Scene.FrameCount - 1);
+
     public void ClearPlaybackRange()
     {
         PlaybackStartFrame = -1;
@@ -412,7 +428,11 @@ public partial class MainViewModel
     public void InsertFrameAt(FrameCell cell, FrameRole role)
     {
         if (cell.LayerIndex < 0 || cell.LayerIndex >= Scene.Layers.Count) return;
-        _editor.SetKeyAt(Scene.Layers[cell.LayerIndex].Id, cell.Index, role);
+        // Every selected cel, so marking a run as breakdowns is one gesture
+        // rather than one click per drawing. With nothing selected this is the
+        // clicked cel alone, which is what every programmatic caller passes.
+        ForEachSelectedCel(cell, "insert a drawing on it",
+            (layer, index) => _editor.SetKeyAt(layer.Id, index, role));
         ActiveLayerIndex = cell.LayerIndex;
         CurrentFrameIndex = Math.Min(cell.Index, Scene.FrameCount - 1);
     }
@@ -424,17 +444,13 @@ public partial class MainViewModel
 
     private Layer? LayerOfCell(FrameCell cell) => LayerAt(cell.LayerIndex);
 
-    public void ExtendExposureAt(FrameCell cell)
-    {
-        if (LayerOfCell(cell) is not { } layer) return;
-        _editor.ExtendExposure(layer.Id, cell.Index);
-    }
+    public void ExtendExposureAt(FrameCell cell) =>
+        ForEachSelectedCel(cell, "extend an exposure on it",
+            (layer, index) => _editor.ExtendExposure(layer.Id, index));
 
-    public void ReduceExposureAt(FrameCell cell)
-    {
-        if (LayerOfCell(cell) is not { } layer) return;
-        _editor.ReduceExposure(layer.Id, cell.Index);
-    }
+    public void ReduceExposureAt(FrameCell cell) =>
+        ForEachSelectedCel(cell, "reduce an exposure on it",
+            (layer, index) => _editor.ReduceExposure(layer.Id, index));
 
     /// <summary>Frames each drawing is held for by the two re-timing commands.</summary>
     [ObservableProperty]
@@ -453,10 +469,12 @@ public partial class MainViewModel
     public void StretchExposureAt(FrameCell cell)
     {
         if (LayerOfCell(cell) is not { } layer) return;
-        if (!CanEdit(layer, "re-time it")) return;
-        var (start, end) = OpRangeFor(cell);
-        var grew = _editor.StretchExposure(layer.Id, start, end, ExposureStep);
-        AfterRetime(layer);
+        var grew = 0;
+        ForEachSelectedRun(cell, "re-time it", (target, start, end) =>
+        {
+            grew += _editor.StretchExposure(target.Id, start, end, ExposureStep);
+            AfterRetime(target);
+        });
         AiStatus = grew > 0
             ? $"Stretched to {ExposureStep}s — the range grew by {grew} frame{(grew == 1 ? "" : "s")}."
             : "Nothing to stretch in that range.";
@@ -470,10 +488,12 @@ public partial class MainViewModel
     public void ReduceToStepAt(FrameCell cell)
     {
         if (LayerOfCell(cell) is not { } layer) return;
-        if (!CanEdit(layer, "re-time it")) return;
-        var (start, end) = OpRangeFor(cell);
-        var dropped = _editor.ReduceToStep(layer.Id, start, end, Math.Max(2, ExposureStep));
-        AfterRetime(layer);
+        var dropped = 0;
+        ForEachSelectedRun(cell, "re-time it", (target, start, end) =>
+        {
+            dropped += _editor.ReduceToStep(target.Id, start, end, Math.Max(2, ExposureStep));
+            AfterRetime(target);
+        });
         AiStatus = dropped > 0
             ? $"Reduced to {Math.Max(2, ExposureStep)}s — discarded {dropped} drawing{(dropped == 1 ? "" : "s")}."
             : "Nothing to reduce in that range.";
@@ -534,17 +554,21 @@ public partial class MainViewModel
     {
         if (LayerOfCell(cell) is not { } layer) return;
         if (SelectedTimingPreset is not { } preset) return;
-        if (!CanEdit(layer, "re-time it")) return;
 
-        var (start, end) = OpRangeFor(cell);
-        var change = _editor.ApplyTiming(layer.Id, start, end, preset);
+        var change = (Drawings: 0, Frames: 0, Grew: 0);
+        ForEachSelectedRun(cell, "re-time it", (target, start, end) =>
+        {
+            var run = _editor.ApplyTiming(target.Id, start, end, preset);
+            if (run.Drawings == 0) return;
+            change = (change.Drawings + run.Drawings, change.Frames + run.Frames, change.Grew + run.Grew);
+            AfterRetime(target);
+        });
         if (change.Drawings == 0)
         {
             AiStatus = "Nothing to re-time there — that range holds no drawing of its own.";
             return;
         }
 
-        AfterRetime(layer);
         var length = change.Grew switch
         {
             > 0 => $", {change.Grew} frame{(change.Grew == 1 ? "" : "s")} longer",
@@ -780,6 +804,10 @@ public partial class MainViewModel
             }
         }
         _celClipboard = (frames, layer.Kind);
+        // Stamped on the order the line clipboard shares, so Ctrl+V can paste
+        // whichever of the two was filled last rather than always preferring
+        // one of them.
+        _celClipboardStamp = StrokeClipboard.NextOrder();
         OnPropertyChanged(nameof(HasCelClipboard));
         // The clipboard is one row's worth of cels, so a selection reaching
         // other layers is copied from this one and the rest is said out loud
@@ -831,6 +859,16 @@ public partial class MainViewModel
         CurrentFrameIndex = Math.Min(cell.Index, Scene.FrameCount - 1);
     }
 
+    /// <summary>When the cel clipboard was filled, on the order it shares with the lines.</summary>
+    private long _celClipboardStamp;
+
+    /// <summary>
+    /// Whether Ctrl+V means the copied lines rather than the copied cel: the
+    /// line clipboard holds something, and it is the newer of the two.
+    /// </summary>
+    internal bool LinesAreTheFresherClipboard =>
+        StrokeClipboard.HasContent && StrokeClipboard.Stamp > _celClipboardStamp;
+
     /// <summary>Ctrl+C/X/V target: the active layer's cel at the playhead.</summary>
     private FrameCell? CurrentCell()
     {
@@ -853,6 +891,40 @@ public partial class MainViewModel
         if (CurrentCell() is { } cell) PasteCel(cell);
     }
 
+    // ---- Animation menu: the cel context menu's verbs, aimed at the playhead ----
+    // A menu item has no cel under a pointer, so these are the same twins the
+    // shortcuts above use: the active layer's cel at the current frame.
+
+    /// <summary>Mark the playhead's cel as a drawing of the given role (Animation menu).</summary>
+    public void InsertFrameAtPlayhead(FrameRole role) =>
+        _editor.SetKeyAt(ActiveLayer.Id, CurrentFrameIndex, role);
+
+    public void ExtendExposureAtPlayhead()
+    {
+        if (CurrentCell() is { } cell) ExtendExposureAt(cell);
+    }
+
+    public void ReduceExposureAtPlayhead()
+    {
+        if (CurrentCell() is { } cell) ReduceExposureAt(cell);
+    }
+
+    public void ClearCelAtPlayhead()
+    {
+        if (CurrentCell() is { } cell) ClearCelAt(cell);
+    }
+
+    public void DeleteCelAtPlayhead()
+    {
+        if (CurrentCell() is { } cell) DeleteCelAt(cell);
+    }
+
+    public void SetPlaybackStartAtPlayhead() =>
+        PlaybackStartFrame = Math.Min(CurrentFrameIndex, Scene.FrameCount - 1);
+
+    public void SetPlaybackEndAtPlayhead() =>
+        PlaybackEndFrame = Math.Min(CurrentFrameIndex, Scene.FrameCount - 1);
+
     // ---- multi-cel selection ------------------------------------------------------
 
     /// <summary>
@@ -867,10 +939,22 @@ public partial class MainViewModel
     /// holes in them by construction. <see cref="CelRange"/> still answers the
     /// old question for the callers that only ever asked it.
     /// </remarks>
-    private readonly HashSet<(int Layer, int Index)> _celSelection = [];
+    private readonly HashSet<TimelineKey> _keySelection = [];
+
+    /// <summary>
+    /// The cels in the selection, which is all the X-sheet and the cel
+    /// operations can act on. Camera and pose keys are in the same set and are
+    /// simply not cels; see <see cref="TimelineKey"/> for why one set holds all
+    /// three.
+    /// </summary>
+    private IEnumerable<(int Layer, int Index)> _celSelection =>
+        _keySelection.Where(k => k.IsCel).Select(k => (k.LayerIndex, k.Frame));
 
     /// <summary>The selected cels, as (scene layer index, frame index) pairs.</summary>
-    public IReadOnlySet<(int Layer, int Index)> CelSelection => _celSelection;
+    public IReadOnlySet<TimelineKey> KeySelection => _keySelection;
+
+    /// <summary>The cel half of the selection, as (scene layer index, frame) pairs.</summary>
+    public IReadOnlySet<(int Layer, int Index)> CelSelection => _celSelection.ToHashSet();
 
     /// <summary>
     /// The selection read as one contiguous run on one row, or null when it is
@@ -884,12 +968,13 @@ public partial class MainViewModel
     {
         get
         {
-            if (_celSelection.Count == 0) return null;
-            var layer = _celSelection.First().Layer;
-            if (_celSelection.Any(c => c.Layer != layer)) return null;
-            var start = _celSelection.Min(c => c.Index);
-            var end = _celSelection.Max(c => c.Index);
-            return end - start + 1 == _celSelection.Count ? (layer, start, end) : null;
+            var cels = _celSelection.ToList();
+            if (cels.Count == 0) return null;
+            var layer = cels[0].Layer;
+            if (cels.Any(c => c.Layer != layer)) return null;
+            var start = cels.Min(c => c.Index);
+            var end = cels.Max(c => c.Index);
+            return end - start + 1 == cels.Count ? (layer, start, end) : null;
         }
     }
 
@@ -905,12 +990,12 @@ public partial class MainViewModel
     {
         if (cell.IsVirtual) return;
         var anchor = _celAnchor.Layer == cell.LayerIndex ? _celAnchor : (cell.LayerIndex, cell.Index);
-        _celSelection.Clear();
+        _keySelection.Clear();
         for (var i = Math.Min(anchor.Index, cell.Index); i <= Math.Max(anchor.Index, cell.Index); i++)
         {
-            _celSelection.Add((cell.LayerIndex, i));
+            _keySelection.Add(TimelineKey.Cel(cell.LayerIndex, i));
         }
-        RefreshCelSelectionHighlights();
+        RefreshTimelineSelection();
     }
 
     /// <summary>
@@ -924,24 +1009,27 @@ public partial class MainViewModel
     public void ToggleCelSelection(FrameCell cell)
     {
         if (cell.IsVirtual) return;
-        var key = (cell.LayerIndex, cell.Index);
-        if (!_celSelection.Add(key)) _celSelection.Remove(key);
-        _celAnchor = key;
-        RefreshCelSelectionHighlights();
+        var key = TimelineKey.Cel(cell.LayerIndex, cell.Index);
+        if (!_keySelection.Add(key)) _keySelection.Remove(key);
+        _celAnchor = (cell.LayerIndex, cell.Index);
+        RefreshTimelineSelection();
     }
 
     public void ClearCelRange()
     {
-        if (_celSelection.Count == 0) return;
-        _celSelection.Clear();
-        RefreshCelSelectionHighlights();
+        if (_keySelection.Count == 0) return;
+        _keySelection.Clear();
+        RefreshTimelineSelection();
     }
 
     private void RefreshCelSelectionHighlights()
     {
         foreach (var row in LayerRows)
         {
-            foreach (var c in row.Cells) c.IsSelected = _celSelection.Contains((c.LayerIndex, c.Index));
+            foreach (var c in row.Cells)
+            {
+                c.IsSelected = _keySelection.Contains(TimelineKey.Cel(c.LayerIndex, c.Index));
+            }
         }
     }
 
@@ -952,11 +1040,54 @@ public partial class MainViewModel
     /// </summary>
     private List<int> OpCelsOn(FrameCell cell, int layerIndex)
     {
-        if (!_celSelection.Contains((cell.LayerIndex, cell.Index)))
+        if (!_keySelection.Contains(TimelineKey.Cel(cell.LayerIndex, cell.Index)))
         {
             return cell.LayerIndex == layerIndex ? [cell.Index] : [];
         }
         return _celSelection.Where(c => c.Layer == layerIndex).Select(c => c.Index).Order().ToList();
+    }
+
+    /// <summary>
+    /// Run a per-cel operation over every cel the operation reaches — the
+    /// selection when the cell is inside it, else just that cell — skipping any
+    /// layer that refuses edits and saying which.
+    /// </summary>
+    /// <remarks>
+    /// <b>Descending, and that is the whole reason this is a helper rather than
+    /// a loop at each call site.</b> Extending an exposure pushes the rest of
+    /// the row down; reducing pulls it up. Applied up the row, the second cel an
+    /// artist picked no longer means the cel they picked, because the first
+    /// operation moved it. Worked from the end, every index still means what it
+    /// meant when it was clicked.
+    /// </remarks>
+    private void ForEachSelectedCel(FrameCell cell, string verb, Action<Layer, int> apply)
+    {
+        foreach (var layerIndex in OpLayersFor(cell))
+        {
+            if (LayerAt(layerIndex) is not { } layer) continue;
+            if (!CanEdit(layer, verb)) continue;
+            foreach (var index in OpCelsOn(cell, layerIndex).OrderDescending()) apply(layer, index);
+        }
+    }
+
+    /// <summary>
+    /// The same, for the operations that take a <em>run</em> rather than a cel:
+    /// each contiguous run of selected cels, latest first.
+    /// </summary>
+    /// <remarks>
+    /// Re-timing a range is not the same as re-timing each of its cels, so these
+    /// cannot use <see cref="ForEachSelectedCel"/> — a preset applied cel by cel
+    /// would lay its whole pattern on every one. A Ctrl+click selection with a
+    /// hole in it is two runs, and two runs is what they get.
+    /// </remarks>
+    private void ForEachSelectedRun(FrameCell cell, string verb, Action<Layer, int, int> apply)
+    {
+        foreach (var layerIndex in OpLayersFor(cell))
+        {
+            if (LayerAt(layerIndex) is not { } layer) continue;
+            if (!CanEdit(layer, verb)) continue;
+            foreach (var (start, end) in RunsOf(OpCelsOn(cell, layerIndex))) apply(layer, start, end);
+        }
     }
 
     /// <summary>
@@ -965,7 +1096,7 @@ public partial class MainViewModel
     /// else just the cell's own layer.
     /// </summary>
     private List<int> OpLayersFor(FrameCell cell) =>
-        _celSelection.Contains((cell.LayerIndex, cell.Index))
+        _keySelection.Contains(TimelineKey.Cel(cell.LayerIndex, cell.Index))
             ? _celSelection.Select(c => c.Layer).Distinct().Order().ToList()
             : [cell.LayerIndex];
 
@@ -988,13 +1119,6 @@ public partial class MainViewModel
         }
         runs.Reverse();
         return runs;
-    }
-
-    /// <summary>The range the operation on this cell should cover, for the callers that want one.</summary>
-    private (int Start, int End) OpRangeFor(FrameCell cell)
-    {
-        var cels = OpCelsOn(cell, cell.LayerIndex);
-        return cels.Count == 0 ? (cell.Index, cell.Index) : (cels[0], cels[^1]);
     }
 
     /// <summary>Drop of a dragged cel: move (or Ctrl-copy) the drawing along its row.</summary>
@@ -1303,6 +1427,10 @@ public partial class MainViewModel
     {
         foreach (var layer in doc.Scene.Layers)
         {
+            // A mask's drawing is a frame like any other, and mask strokes
+            // undo through this resolver like any other — it just lives on
+            // the layer instead of in a cel.
+            if (layer.Mask is { } mask && mask.Frame.Id == frameId) return StrokesOf(mask.Frame);
             foreach (var cel in layer.Cels)
             {
                 if (cel.Frame is { } frame && frame.Id == frameId) return StrokesOf(frame);

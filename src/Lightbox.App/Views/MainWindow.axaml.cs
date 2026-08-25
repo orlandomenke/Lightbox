@@ -83,6 +83,8 @@ public partial class MainWindow : Window
             _vm.DragWidth,
             () => _vm.EndWidthDrag());
         TimelineTrackView.KeyDragged += OnTrackKeyDragged;
+        TimelineTrackView.KeyMenuRequested += OnTrackKeyMenu;
+        TimelineTrackView.KeySelectRequested += OnTrackKeySelect;
         // The clip bars (Q57): body slides, edges trim, right-click splits;
         // the view model owns what that does to the record. An audio bar's
         // StripIndex is its section index; a video bar is named by its strip
@@ -152,6 +154,7 @@ public partial class MainWindow : Window
 
         WireTransformSession(); // window side lives in MainWindow.Transform.cs
         WireGradientRamp();
+        WireCropTool(); // window side lives in MainWindow.Crop.cs
         SyncCanvasToolMode();
 
         // The camera frame is view-only chrome, so it crosses to the canvas the
@@ -200,15 +203,7 @@ public partial class MainWindow : Window
                 if (ReferenceEquals(v, Canvas)) return true;
             return false;
         }
-        Canvas.PickClicked += _vm.PickColorAt;
-        Canvas.GradientDragStarted += _vm.BeginGradient;
-        Canvas.GradientDragMoved += _vm.MoveGradient;
-        Canvas.GradientDragEnded += _vm.EndGradient;
-        Canvas.ShapeDragStarted += _vm.BeginShape;
-        Canvas.ShapeDragMoved += _vm.MoveShape;
-        Canvas.ShapeDragEnded += _vm.EndShape;
-        Canvas.GradientDragCancelled += _vm.CancelGradient;
-        _vm.GradientAxisChanged += Canvas.SetGradientAxis;
+        WireCanvasTools();
 
         Canvas.ReferenceDragged += (dx, dy, wholeSheet) =>
         {

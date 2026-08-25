@@ -65,10 +65,173 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>
+    /// Characters going into type being set on the canvas.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Text input rather than key presses, and the difference is the whole
+    /// reason this exists.</b> A <c>KeyDown</c> is a physical key; what a person
+    /// typed is a string that depends on their layout, their dead keys and their
+    /// input method — so an accented character, a Greek letter or anything
+    /// composed comes through here and could not be reconstructed from key codes
+    /// without reimplementing the platform.
+    /// </para>
+    /// <para>
+    /// Tunnelled so it is seen before a focused control eats it, and it does
+    /// nothing at all unless the text tool is mid-session — a text box being
+    /// typed into is still the ordinary case for this event.
+    /// </para>
+    /// </remarks>
+    /// <summary>
+    /// Point the canvas's per-tool gestures at the view model.
+    /// </summary>
+    /// <remarks>
+    /// Here rather than in the constructor because <c>MainWindow.axaml.cs</c> is
+    /// on the monolith ratchet and this is exactly what a partial is for: one
+    /// list of what the canvas hands to which tool, next to the handlers that
+    /// receive it.
+    /// </remarks>
+    private void WireCanvasTools()
+    {
+        Canvas.PickClicked += _vm.PickColorAt;
+        Canvas.GradientDragStarted += _vm.BeginGradient;
+        Canvas.GradientDragMoved += _vm.MoveGradient;
+        Canvas.GradientDragEnded += _vm.EndGradient;
+        Canvas.GradientDragCancelled += _vm.CancelGradient;
+        _vm.GradientAxisChanged += Canvas.SetGradientAxis;
+        Canvas.ShapeDragStarted += _vm.BeginShape;
+        Canvas.ShapeDragMoved += _vm.MoveShape;
+        Canvas.ShapeDragEnded += _vm.EndShape;
+        Canvas.TextPlaced += _vm.BeginText;
+
+        // Typed characters, which are not the same thing as keys: a keyboard
+        // layout, a dead key and an input method all resolve here and nowhere
+        // else. Tunnelled so the canvas sees them before a focused control eats
+        // them; only the text tool listens.
+        AddHandler(
+            TextInputEvent, OnCanvasTextInput, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+    }
+
+    private void OnCanvasTextInput(object? sender, TextInputEventArgs e)
+    {
+        if (!_vm.TextSessionActive || e.Source is TextBox) return;
+        if (e.Text is not { Length: > 0 } typed) return;
+        _vm.TypeIntoText(typed);
+        e.Handled = true;
+    }
+
+    /// <summary>What a key press means while type is being set.</summary>
+    private enum TextKey
+    {
+        /// <summary>Acted on here. Mark it handled and stop.</summary>
+        Consumed,
+
+        /// <summary>
+        /// Not ours, but not a shortcut either: stop, and leave the event
+        /// <em>unhandled</em> so the framework can still turn it into a
+        /// character.
+        /// </summary>
+        Character,
+
+        /// <summary>Carry on to the shortcut dispatch.</summary>
+        Shortcut,
+    }
+
+    /// <summary>
+    /// The keys that mean something to type being set, as opposed to the
+    /// characters, which arrive at <see cref="OnCanvasTextInput"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Escape sets the type rather than throwing it away</b>, which is the
+    /// opposite of Photoshop and is chosen on the asymmetry: committing is a
+    /// single undo step, so an artist who meant to discard is one Ctrl+Z from
+    /// having done it — while an Escape that discarded would lose a typed title
+    /// with nothing to recover it from. The key everybody presses to leave a
+    /// mode should not be the destructive one.
+    /// </para>
+    /// <para>
+    /// <b>Three answers rather than two, and the middle one is the whole bug
+    /// this enum exists to fix.</b> A character key must be kept away from the
+    /// shortcut dispatch — while a caret is up, <c>B</c> is a letter and not the
+    /// brush — and it must <em>not</em> be marked handled, because a handled
+    /// <c>KeyDown</c> never becomes a <c>TextInput</c>: the framework's key →
+    /// character step is what a handled event cancels. Fusing "do not run
+    /// shortcuts" with "mark handled" shipped a caret that could not take a
+    /// letter, and every headless test passed because
+    /// <c>KeyTextInput</c> injects a character without a key press and so never
+    /// crosses this code at all. <c>TextTypingTests.PressingALetterKeyTypesIt</c>
+    /// presses the key instead, and fails without this.
+    /// </para>
+    /// <para>
+    /// Modified keys are the third answer: Ctrl+S was never going to be a
+    /// character, and an artist should not have to finish a caption to save.
+    /// </para>
+    /// </remarks>
+    private TextKey HandleTextSessionKey(KeyEventArgs e)
+    {
+        var accel = e.KeyModifiers.HasFlag(KeyModifiers.Control)
+            || e.KeyModifiers.HasFlag(KeyModifiers.Alt)
+            || e.KeyModifiers.HasFlag(KeyModifiers.Meta);
+
+        switch (e.Key)
+        {
+            case Key.Escape:
+                _vm.CommitText();
+                return TextKey.Consumed;
+            case Key.Enter when accel:
+                _vm.CommitText();
+                return TextKey.Consumed;
+            case Key.Enter:
+                _vm.TextNewline();
+                return TextKey.Consumed;
+            case Key.Back:
+                _vm.TextBackspace();
+                return TextKey.Consumed;
+            case Key.Delete:
+                _vm.TextDeleteForward();
+                return TextKey.Consumed;
+            case Key.Left:
+                _vm.MoveTextCaret(-1);
+                return TextKey.Consumed;
+            case Key.Right:
+                _vm.MoveTextCaret(1);
+                return TextKey.Consumed;
+            case Key.Home:
+                _vm.TextCaretToEdge(end: false);
+                return TextKey.Consumed;
+            case Key.End:
+                _vm.TextCaretToEdge(end: true);
+                return TextKey.Consumed;
+        }
+
+        // Anything else is a character on its way to becoming one, or a
+        // shortcut. Only the modified ones reach the shortcuts.
+        return accel ? TextKey.Shortcut : TextKey.Character;
+    }
+
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         // Don't hijack keys while the user is typing (layer rename, color hex, AI prompt).
         if (e.Source is TextBox) return;
+
+        // Type being set on the canvas owns the keyboard, above every mode
+        // below: an artist mid-word is not reaching for a tool.
+        if (_vm.TextSessionActive)
+        {
+            switch (HandleTextSessionKey(e))
+            {
+                case TextKey.Consumed:
+                    e.Handled = true;
+                    return;
+                // Deliberately not marked handled — see HandleTextSessionKey.
+                // Returning here is what keeps it away from the shortcuts;
+                // leaving it unhandled is what lets it become a letter.
+                case TextKey.Character:
+                    return;
+            }
+        }
 
         // Grid editing owns Escape: it is a mode, and a mode you cannot leave
         // with the key everybody tries first is a mode you are stuck in.
@@ -102,6 +265,28 @@ public partial class MainWindow
             if (e.Key == Key.Escape)
             {
                 _vm.CancelTransform();
+                e.Handled = true;
+                return;
+            }
+        }
+
+        // The crop frame owns them next, and for the transform's reason: while a
+        // frame is up, Enter and Escape are what an artist reaches for to take
+        // it or drop it. Escape resets the frame to the whole page rather than
+        // putting the tool away — leaving the tool is picking another one, and
+        // a key that did both would make "undo my drag" and "I am finished
+        // cropping" the same gesture.
+        if (_vm.CropFrame is not null)
+        {
+            if (e.Key == Key.Enter)
+            {
+                ApplyCropFrame();
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.Escape)
+            {
+                _vm.CancelCropFrame();
                 e.Handled = true;
                 return;
             }
@@ -188,6 +373,10 @@ public partial class MainWindow
                 OnVersionHistoryClicked(this, e);
                 e.Handled = true;
                 break;
+            case "file.saveAsImage":
+                OnSaveAsImageClicked(this, e);
+                e.Handled = true;
+                break;
             case "canvas.transform":
                 if (!_vm.TransformActive) _vm.BeginTransform();
                 break;
@@ -202,11 +391,19 @@ public partial class MainWindow
                 OnOpenReferenceBoard(this, e);
                 e.Handled = true;
                 break;
+            case "effects.window":
+                OnOpenEffects(this, e);
+                e.Handled = true;
+                break;
             case "project.window":
                 // Harmless with no project, for the same reason as above: the
                 // method guards on it rather than the key handler holding a
                 // second copy of the condition.
                 _ = OpenProjectWindowAsync();
+                e.Handled = true;
+                break;
+            case "project.libraryWindow":
+                OpenLibraryWindow();
                 e.Handled = true;
                 break;
             case "diagnostics.inputTrace":
@@ -221,6 +418,18 @@ public partial class MainWindow
                 _ = ResizeAsync(ViewModels.ResizeMode.Image);
                 e.Handled = true;
                 break;
+            // Both go through the window rather than straight to the view model
+            // for ResizeAsync's reason: the paper is a different size than the
+            // zoom and pan were chosen for, and a cropped canvas left half
+            // off-screen reads as the crop having gone wrong.
+            case "image.cropToSelection":
+                CropToSelection();
+                e.Handled = true;
+                break;
+            case "image.trimToDrawing":
+                TrimToDrawing();
+                e.Handled = true;
+                break;
             case "timeline.insertKey":
                 _vm.InsertKeyframeAtPlayhead();
                 break;
@@ -228,6 +437,14 @@ public partial class MainWindow
                 // The playhead, because a shortcut has no cel under a pointer —
                 // the menu route passes the cel that was clicked.
                 _vm.DeleteColumnAt(_vm.CurrentFrameIndex);
+                e.Handled = true;
+                break;
+            case "timeline.copyKeys":
+                _vm.CopySelectedTimelineKeys();
+                e.Handled = true;
+                break;
+            case "timeline.pasteKeys":
+                _vm.PasteTimelineKeysAtPlayhead();
                 e.Handled = true;
                 break;
             case "timeline.playPause":
@@ -264,20 +481,45 @@ public partial class MainWindow
             case "tool.gradient":
                 _vm.ActiveTool = ToolId.Gradient;
                 break;
+            case "tool.crop":
+                _vm.ActiveTool = ToolId.Crop;
+                break;
             case "tool.select":
                 _vm.SelectToolCommand.Execute(ToolId.Select); // again = next variant
                 break;
             case "select.all":
                 _vm.SelectAllCommand.Execute(null);
                 break;
+            // Ctrl+C/X/V mean the selected lines when there are any, and the
+            // cel when there are not. The deciding state is the one thing on
+            // screen — marching ants, or a highlighted line — rather than which
+            // panel happens to hold focus, so the key never changes meaning for
+            // a reason the artist cannot see. Copying a cel while a marquee is
+            // up is Ctrl+D first, or the timeline's own right-click menu, which
+            // is always the cel whatever is selected.
             case "timeline.copyCel":
-                _vm.CopyCurrentCel();
+                if (!_vm.CopySelectedLines()) _vm.CopyCurrentCel();
                 break;
             case "timeline.cutCel":
-                _vm.CutCurrentCel();
+                if (!_vm.CutSelectedLines()) _vm.CutCurrentCel();
                 break;
             case "timeline.pasteCel":
-                _vm.PasteCurrentCel();
+                // Paste asks which clipboard is NEWER rather than which has
+                // content: both can hold something at once, and the artist
+                // means the last thing they copied.
+                if (!_vm.LinesAreTheFresherClipboard || !_vm.PasteLinesAsLayer())
+                {
+                    _vm.PasteCurrentCel();
+                }
+                break;
+            case "edit.copyLines":
+                _vm.CopySelectedLines();
+                break;
+            case "edit.cutLines":
+                _vm.CutSelectedLines();
+                break;
+            case "edit.pasteLines":
+                _vm.PasteLinesAsLayer();
                 break;
             case "select.none":
                 _vm.DeselectCommand.Execute(null);
@@ -297,6 +539,15 @@ public partial class MainWindow
                 break;
             case "docker.mergeDown":
                 RequestMergeDown(null); // null = the active layer
+                break;
+            case "docker.clipToBelow":
+                _vm.ToggleActiveLayerClippedCommand.Execute(null);
+                break;
+            case "docker.editMask":
+                _vm.ToggleActiveLayerMaskEditingCommand.Execute(null);
+                break;
+            case "docker.effects":
+                _vm.ToggleEffectsDockerCommand.Execute(null);
                 break;
             // Flipping: hop between key drawings without leaving the pen.
             case "timeline.prevKey":
@@ -340,6 +591,12 @@ public partial class MainWindow
             case "canvas.motionTrail":
                 _vm.MotionTrail = !_vm.MotionTrail;
                 break;
+            case "canvas.motionArc":
+                _vm.MotionArcs = !_vm.MotionArcs;
+                break;
+            case "canvas.arcPrediction":
+                _vm.ArcPrediction = !_vm.ArcPrediction;
+                break;
             case "canvas.showGuides":
                 _vm.Workspace.GuidesVisible = !_vm.Workspace.GuidesVisible;
                 break;
@@ -360,6 +617,9 @@ public partial class MainWindow
                 break;
             case "tool.pen":
                 _vm.SelectToolCommand.Execute(ToolId.Pen);
+                break;
+            case "tool.text":
+                _vm.SelectToolCommand.Execute(ToolId.Text);
                 break;
             case "tool.shape":
                 _vm.SelectToolCommand.Execute(ToolId.Shape);
@@ -387,6 +647,9 @@ public partial class MainWindow
                 break;
             case "armature.deleteBone":
                 _vm.DeleteBoneCommand.Execute(null);
+                break;
+            case "armature.insertPoseDrawing":
+                _vm.InsertPoseDrawingCommand.Execute(null);
                 break;
             case "lines.simplify":
                 _vm.SimplifyLineCommand.Execute(null);
@@ -463,12 +726,40 @@ public partial class MainWindow
         // invisible — and the Refresh below then runs as it does on any close.
         window.ViewModel.OpenDocument = _vm.OpenProjectDocument;
         window.ViewModel.OpenSheet = _vm.OpenProjectSheet;
+        // The history for a row, wired the way the docker's is: a revert saves
+        // the project first and reloads whatever tab shows the file after.
+        window.ViewModel.HistoryFor = _vm.HistoryFor;
         await window.ShowDialog(this);
         _vm.ProjectDocker.Refresh();
     }
 
     private async void OnProjectWindowClicked(object? sender, RoutedEventArgs e) =>
         await OpenProjectWindowAsync();
+
+    private void OnCropToSelectionClicked(object? sender, RoutedEventArgs e) => CropToSelection();
+
+    private void OnTrimToDrawingClicked(object? sender, RoutedEventArgs e) => TrimToDrawing();
+
+    /// <summary>
+    /// Crop the paper to the marquee, then refit the view.
+    /// </summary>
+    /// <remarks>
+    /// The refit is <see cref="ResizeAsync"/>'s, for its reason: the view was
+    /// framed for paper that is now a different size. Only on a crop that
+    /// actually changed something — resetting the view after a refused crop
+    /// would throw away the artist's zoom to report that nothing happened.
+    /// </remarks>
+    private void CropToSelection()
+    {
+        if (_vm.CropToSelection()) Canvas.ResetView();
+    }
+
+    /// <summary>Crop the paper to the ink, then refit the view.</summary>
+    /// <inheritdoc cref="CropToSelection" path="/remarks"/>
+    private void TrimToDrawing()
+    {
+        if (_vm.TrimToDrawing()) Canvas.ResetView();
+    }
 
     private async void OnResizeCanvasClicked(object? sender, RoutedEventArgs e) =>
         await ResizeAsync(ViewModels.ResizeMode.Canvas);

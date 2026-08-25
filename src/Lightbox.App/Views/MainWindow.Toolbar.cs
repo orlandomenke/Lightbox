@@ -69,6 +69,7 @@ public partial class MainWindow
             ToolId.Gradient => Rendering.CanvasControl.CanvasToolMode.Gradient,
             ToolId.Shape => Rendering.CanvasControl.CanvasToolMode.Shape,
             ToolId.Move => Rendering.CanvasControl.CanvasToolMode.Move,
+            ToolId.Crop => Rendering.CanvasControl.CanvasToolMode.Crop,
             ToolId.Bone => Rendering.CanvasControl.CanvasToolMode.Bone,
             // Reviving the object-selection mode rather than adding a parallel
             // one. It has been in the enum with its whole hit-test chain since
@@ -78,6 +79,7 @@ public partial class MainWindow
             ToolId.Arrow => Rendering.CanvasControl.CanvasToolMode.Select,
             ToolId.DirectSelect => Rendering.CanvasControl.CanvasToolMode.PathEdit,
             ToolId.Pen => Rendering.CanvasControl.CanvasToolMode.Pen,
+            ToolId.Text => Rendering.CanvasControl.CanvasToolMode.Text,
             ToolId.Width => Rendering.CanvasControl.CanvasToolMode.Width,
             ToolId.Select => _vm.ActiveSelectVariant switch
             {

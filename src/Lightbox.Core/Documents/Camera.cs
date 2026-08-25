@@ -135,6 +135,25 @@ public static class CameraOps
     public static bool ClearKey(Camera camera, int frame) =>
         camera.Keys.RemoveAll(k => k.Frame == frame) > 0;
 
+    /// <summary>
+    /// Retime a key. False when there is none to move, or when the destination
+    /// already holds one — two camera keys on a frame is not a state the
+    /// interpolator has an answer for.
+    /// </summary>
+    /// <remarks>
+    /// Pure, and separate from the view model that used to do it inline, so a
+    /// batch of retimes can happen inside a single undo step. A drag that moves
+    /// four keys is one edit to an artist and must be one to Ctrl+Z.
+    /// </remarks>
+    public static bool MoveKey(Camera? camera, int from, int to)
+    {
+        if (camera is null || from == to || to < 0) return false;
+        if (KeyAt(camera, from) is not { } key) return false;
+        if (KeyAt(camera, to) is not null) return false;
+        key.Frame = to;
+        return true;
+    }
+
     private static CameraFraming Framing(CameraKey k) => new(k.X, k.Y, Zoom(k.Zoom), k.RotationDeg);
 
     private static double Lerp(double a, double b, double t) => a + (b - a) * t;

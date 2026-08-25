@@ -95,6 +95,16 @@ public partial class MainViewModel
 
     private void OnDocumentChanged()
     {
+        // First, and above the scoped-edit return below: a stroke commit takes
+        // that fast path and is exactly the edit the Edit menu must not miss.
+        RefreshUndoRedo();
+        RefreshCropAvailability();
+        // The Layer menu's checkboxes read the active layer live, so the value
+        // is always right — but a binding only re-reads on a notification, and
+        // an undo restores visibility/locks without one. Here rather than in
+        // the undo path alone, because redo and a loaded document move the
+        // same state the same way.
+        NotifyLayerGating();
         // B151: the swatch's frame list describes a tree that just moved. An undo
         // or a structural edit can add, remove or replace the frames it names, and
         // a stale list would repaint the wrong ones — or, worse, none of them.
@@ -133,6 +143,14 @@ public partial class MainViewModel
         MarkDocumentEdited();
         _publish.InvalidateWholeCanvas(); // a document-wide change can move any pixel
         _composeRing.InvalidateAll();
+        // The effects docker mirrors the record it edits, so an undo — or any
+        // structural edit — re-reads it. After the scoped-edit return: a
+        // stroke commit cannot move an effect.
+        EffectsPanel.Rebuild();
+        // The Scene panel is a projection of the layer stack and the camera,
+        // both of which any structural edit — or its undo — can move. After
+        // the scoped-edit return: a stroke commit changes neither.
+        NotifyScenePanel();
         BrushTipRegistry.Register(Doc.BrushTips);
         ClipRegionRegistry.Register(Doc.ClipRegions);
         RegisterResources();
@@ -150,8 +168,15 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(Fps));
         NotifyAudioSurface();
         NotifyArmatureSurface();
+        // The guides are document data, and this funnel is what runs when the
+        // document under the UI is a different one — a tab switch, a file
+        // opened, an undo. Without this the canvas kept the previous
+        // document's rig: a reopened file's guides existed and were never
+        // drawn, which reads as "guides are not saved".
+        NotifyGuidesView();
         NotifyActiveLayerCompositing();
         MarkersView = Scene.Markers.ToList();
+        NotifyOffSheetKeys();
         RefreshCelSelectionHighlights();
         ScheduleVolumeCheck();
         // Undo/redo publishes from ApplyEditScope instead, once the stale

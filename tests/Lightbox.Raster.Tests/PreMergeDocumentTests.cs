@@ -53,8 +53,22 @@ namespace Lightbox.Raster.Tests;
 public class PreMergeDocumentTests(ITestOutputHelper output)
 {
     /// <summary>Rendered by the two-class build at <c>5855b80</c>, linux-x64, .NET 10.</summary>
-    private const string PaintedFingerprint = "C2126E1DDDBA54A31004B0A7FE8A578CFA4E0F2B97BC44E5DF10B80D553A8C71";
-    private const string VectorFingerprint = "31B6F02EA6B633652B8A271E64A986FD02793BC3DA76FB12A7EC7B14134EB9BD";
+    // Re-recorded 2026-08-24, and BOTH moved, which is the diagnosis this test
+    // asks for: both layers of the fixture are drawn with soft brushes, and a
+    // soft brush's mark is now held down to its own footprint (Q157,
+    // BrushEngine.NeedsFootprintCap) instead of saturating to about twice the
+    // hardness it was set to. This is a document saved by an older build, so it
+    // is exactly the "existing art re-renders" case Q157 decided to accept —
+    // the old pixels were the defect, not the reference.
+    // Re-recorded again 2026-08-24, both moving again, and again by inspection
+    // rather than by hope: every brush in the fixture is hardness 0.8 at spacing
+    // 0.15, which is coarser than the 0.09 the dab's soft band can resolve, so
+    // both layers now walk two dabs per spacing interval with each thinned to
+    // compensate (B307, BrushEngine.SubdividesForFidelity). Same standing as
+    // Q157 above: this is a document saved by an older build, and the stepped
+    // pixels it used to render were the defect rather than the reference.
+    private const string PaintedFingerprint = "8E29B8DA2A4EDF856BFB6C65E9A6C8A80293589A80DCD41C35C47C593DD618A8";
+    private const string VectorFingerprint = "D890EDB8CF159020F13BA05AF853C6D28A2F7FD2E22624EB709443669E3C3296";
 
     private static Doc Load() => DocJson.Deserialize(
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "pre-merge-document.lightbox.json")));

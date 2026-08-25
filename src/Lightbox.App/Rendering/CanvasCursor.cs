@@ -268,7 +268,14 @@ public static class CanvasCursor
         ToolId.Picker => CanvasCursorKind.Pick,
         ToolId.Fill or ToolId.Gradient => CanvasCursorKind.Fill,
         ToolId.Move => CanvasCursorKind.Move,
-        ToolId.Pen or ToolId.Shape or ToolId.Select or ToolId.Width => CanvasCursorKind.Precise,
+        // Crop joins them because a frame is dragged out corner to corner, the
+        // way a marquee is: the pointer has to say where the edge will land,
+        // and a fat arrow hides the pixel you are aiming at.
+        // Text joins them because a click places the baseline at exactly the
+        // point pressed — the same "say where this will land" job the pen has,
+        // and the reason none of these wear a fat arrow.
+        ToolId.Pen or ToolId.Shape or ToolId.Select or ToolId.Width
+            or ToolId.Crop or ToolId.Text => CanvasCursorKind.Precise,
         // Bones are records picked and dragged, the arrows' kind of act.
         ToolId.Arrow or ToolId.DirectSelect or ToolId.Bone => CanvasCursorKind.PickRecords,
         _ => CanvasCursorKind.Default,
@@ -294,7 +301,7 @@ public static class CanvasCursor
     /// the gesture read the same hit-test and cannot disagree.
     /// </para>
     /// </remarks>
-    /// <param name="posing">Posing rotates whatever it grabs; binding edits the skeleton.</param>
+    /// <param name="posing">Posing keys the drag; binding edits the skeleton. Only empty canvas reads it — see below.</param>
     /// <param name="weightPainting">The weight brush is armed, and it is a brush like any other.</param>
     public static CanvasCursorKind ForBone(BoneGrab grab, bool posing, bool weightPainting = false)
     {
@@ -308,9 +315,11 @@ public static class CanvasCursor
             // Nothing under the pointer: a drag here starts a new bone, which
             // is a placing gesture like the pen's.
             BoneGrab.None => posing ? CanvasCursorKind.PickRecords : CanvasCursorKind.Precise,
-            // Posing turns whatever it takes hold of.
-            _ when posing => CanvasCursorKind.Rotate,
-            // Binding: the shaft and the joint move the bone, the tip re-aims it.
+            // The tip aims in both modes, the shaft and the joint move in
+            // both. Two branches where there were three, and the collapse is
+            // the point rather than a tidy-up: once posing read a grab the way
+            // binding does (owner's decision, 2026-08-18), the cursor had
+            // nothing left to say about the mode.
             BoneGrab.Tip => CanvasCursorKind.Rotate,
             _ => CanvasCursorKind.Move,
         };

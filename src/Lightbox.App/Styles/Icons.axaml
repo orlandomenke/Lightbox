@@ -50,6 +50,9 @@
     an icon.
   -->
   <StreamGeometry x:Key="IconBone">M0,0 M24,24 M8.5,15.5 L15.5,8.5 M7.22,17.5 a2.1,2.1 0 1 0 4.2,0 a2.1,2.1 0 1 0 -4.2,0 M4.4,14.68 a2.1,2.1 0 1 0 4.2,0 a2.1,2.1 0 1 0 -4.2,0 M15.4,9.32 a2.1,2.1 0 1 0 4.2,0 a2.1,2.1 0 1 0 -4.2,0 M12.58,6.5 a2.1,2.1 0 1 0 4.2,0 a2.1,2.1 0 1 0 -4.2,0</StreamGeometry>
+  <!-- Two offset L-brackets crossing, the way a crop mark is drawn on
+       paper and the way every application that has this tool draws it. -->
+  <StreamGeometry x:Key="IconCrop">M0,0 M24,24 M6.5,2.5 V17.5 H21.5 M2.5,6.5 H17.5 V21.5</StreamGeometry>
   <StreamGeometry x:Key="IconMove">M0,0 M24,24 M12,2.8 V21.2 M2.8,12 H21.2 M12,2.8 L9.6,5.2 M12,2.8 L14.4,5.2 M12,21.2 L9.6,18.8 M12,21.2 L14.4,18.8 M2.8,12 L5.2,9.6 M2.8,12 L5.2,14.4 M21.2,12 L18.8,9.6 M21.2,12 L18.8,14.4</StreamGeometry>
   <!--
     The pen: a nib on the same diagonal the other tools point along, with the
@@ -65,6 +68,14 @@
     glyph — a centreline with a width at every point, which is what a Lightbox
     stroke has always been.
   -->
+  <!--
+    Text: a serifed capital T on a baseline. Drawn rather than set, like every
+    other glyph in the rail — an icon that was the letter "T" in the system font
+    would be the mistake NoToolButtonDrawsAGlyphFromASystemFont exists to catch,
+    and it would be that mistake on the one button where nobody would question
+    it. The serifs are what stop it reading as a crosshair or a plus.
+  -->
+  <StreamGeometry x:Key="IconText">M0,0 M24,24 M4.5,6 H19.5 M4.5,6 V9 M19.5,6 V9 M12,6 V18.5 M8.4,18.5 H15.6</StreamGeometry>
   <StreamGeometry x:Key="IconWidth">M0,0 M24,24 M3.5,12 C8,7 16,7 20.5,12 C16,17 8,17 3.5,12 Z M12,4.2 V6.6 M12,4.2 L10.4,5.8 M12,4.2 L13.6,5.8 M12,19.8 V17.4 M12,19.8 L10.4,18.2 M12,19.8 L13.6,18.2</StreamGeometry>
 
   <!--

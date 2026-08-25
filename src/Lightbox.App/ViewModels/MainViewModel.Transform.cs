@@ -512,6 +512,11 @@ public partial class MainViewModel
         _anchorsMoveDelta = default;
         if (Math.Abs(dx) < 1e-9 && Math.Abs(dy) < 1e-9) return;
         MoveAnchorsBy(dx, dy);
+        // Once per gesture, at the close — with a dressed variant on screen a
+        // moved anchor is a pixel change now (Q143), and the worn overlay
+        // cache re-renders itself off the editor revision at the publish this
+        // triggers.
+        AttachmentsMayHaveMoved();
     }
 
     private (double X, double Y) _anchorsMoveDelta;
@@ -534,7 +539,12 @@ public partial class MainViewModel
                 {
                     if (anchors.TryGetValue(anchorId, out var point))
                     {
-                        Anchors.SetAcross(layer, frame, 1, anchorId, new Core.Documents.AnchorPoint(point.X + dx, point.Y + dy));
+                        // `with`, so the aim survives a group move — this is the
+                        // second move path beside WriteRig, and it dropped the
+                        // angle until an adversarial pass caught it.
+                        Anchors.SetAcross(
+                            layer, frame, 1, anchorId,
+                            point with { X = point.X + dx, Y = point.Y + dy });
                     }
                 }
                 OnPropertyChanged(nameof(RigMarks));
@@ -547,7 +557,9 @@ public partial class MainViewModel
                 {
                     if (anchors.TryGetValue(anchorId, out var point))
                     {
-                        Anchors.SetAcross(layer, frame, 1, anchorId, new Core.Documents.AnchorPoint(point.X - dx, point.Y - dy));
+                        Anchors.SetAcross(
+                            layer, frame, 1, anchorId,
+                            point with { X = point.X - dx, Y = point.Y - dy });
                     }
                 }
                 OnPropertyChanged(nameof(RigMarks));
@@ -690,9 +702,9 @@ public partial class MainViewModel
                 // last: a Ctrl+click selection has holes in it on purpose, and
                 // transforming what an artist deselected is the one reading of
                 // this scope they cannot undo by deselecting harder.
-                if (_celSelection.Count > 0)
+                if (CelSelection.Count > 0)
                 {
-                    foreach (var (layerIndex, index) in _celSelection)
+                    foreach (var (layerIndex, index) in CelSelection)
                     {
                         if (layerIndex < 0 || layerIndex >= Scene.Layers.Count) continue;
                         Add(ExposureSheet.ExposedFrame(Scene.Layers[layerIndex], index));
@@ -873,7 +885,13 @@ public partial class MainViewModel
         if (frame is Frame painted && _transform.Filter is { } filter)
         {
             var moving = painted.Strokes.Where(filter).ToList();
-            var rest = painted.Strokes.Where(s => !filter(s)).ToList();
+            // Every erasure joins the static half, moving or not: an erasure
+            // caught by the marquee travels with the moving strokes it carves,
+            // but the ink it rubbed out of the strokes that STAY must not
+            // reappear the moment it leaves — that ghost is exactly what the
+            // commit's stay copy prevents (TransformErasures), and the preview
+            // has to show what the commit will produce.
+            var rest = painted.Strokes.Where(s => !filter(s) || IsErasure(s)).ToList();
             SKBitmap stay;
             if (painted.PngBase64 is { Length: > 0 })
             {
@@ -959,7 +977,7 @@ public partial class MainViewModel
     private string? HeldCelNeedingKey()
     {
         if (TransformScope is not (TransformScope.ActiveCel or TransformScope.CelRange)) return null;
-        if (TransformScope is TransformScope.CelRange && _celSelection.Count > 0) return null;
+        if (TransformScope is TransformScope.CelRange && CelSelection.Count > 0) return null;
         if (DrawingOnAHold == HoldDrawing.EditTheHeldDrawing) return null;
         if (ActiveLayer is not { } layer || layer.Cels.Count == 0) return null;
         var here = Math.Clamp(CurrentFrameIndex, 0, layer.Cels.Count - 1);
@@ -1011,7 +1029,12 @@ public partial class MainViewModel
         {
             foreach (var frame in frames)
             {
-                TransformOps.TransformFrame(frame, map, sizeScale, filter);
+                // A region-limited commit goes through the erasure-aware path:
+                // a moved erasure leaves a stay copy where it was still holding
+                // rubbed-out ink down, so erased strokes outside the selection
+                // do not come back (the ghost the preview split also guards).
+                if (filter is null) TransformOps.TransformFrame(frame, map, sizeScale);
+                else TransformErasures.TransformFrame(frame, map, sizeScale, filter);
                 // Raster baselines resample once per commit; a region-limited
                 // transform moves strokes only (baseline pixels stay put).
                 if (filter is null && frame is Frame { PngBase64.Length: > 0 } painted)
