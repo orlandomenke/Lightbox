@@ -865,7 +865,8 @@ def cmd_selftest() -> int:
     def repair(repo):
         return subprocess.run(
             [sys.executable, str(repo / "scripts" / "bugs.py"), "ids", "--fix"],
-            cwd=repo, capture_output=True, text=True).stdout
+            cwd=repo, capture_output=True, text=True,
+            encoding="utf-8", errors="replace").stdout
 
     failures: list[str] = []
     with tempfile.TemporaryDirectory() as tmp:

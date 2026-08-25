@@ -507,6 +507,86 @@ public class LedgerGateTests(ITestOutputHelper output)
                          + "one that sees a push that bypassed the hook");
     }
 
+    /// <summary>
+    /// Every <c>subprocess.run</c> in <c>scripts/</c> that reads output as text names
+    /// its encoding, because the default is the locale's and the ledgers are full of
+    /// characters cp1252 has no mapping for.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>text=True</c> without <c>encoding=</c> decodes git's output with
+    /// <c>locale.getpreferredencoding()</c>. On Linux that is UTF-8 and the bug is
+    /// invisible; under a Windows console codepage it is cp1252, and the house style's
+    /// em dashes and arrows are exactly what it cannot decode.
+    /// </para>
+    /// <para>
+    /// The failure is worse than a crash. <c>subprocess</c> drains the pipe on a helper
+    /// thread, so a <c>UnicodeDecodeError</c> kills that thread rather than raising to
+    /// the caller: the pipe is never drained and the parent blocks on it indefinitely.
+    /// <c>bugs.py ids</c> did that for fourteen minutes and took a whole
+    /// <c>dotnet test</c> run down with it — and the same call is in
+    /// <c>.githooks/pre-push</c>, where a hang blocks every push.
+    /// </para>
+    /// <para>
+    /// A ratchet rather than a one-off repair, on purpose. The original fix decorated
+    /// every call that existed at the time; by the time it was merged forward,
+    /// <c>main</c> had grown another one that was not. A fix naming only today's
+    /// callers is reopened by the next person to add one.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void EveryTextModeSubprocessCallInTheScriptsNamesItsEncoding()
+    {
+        var scripts = Directory.GetFiles(Path.Combine(RepoRoot(), "scripts"), "*.py");
+        Assert.NotEmpty(scripts);
+
+        var undecorated = new List<string>();
+        var scanned = 0;
+        foreach (var path in scripts)
+        {
+            var src = File.ReadAllText(path);
+            for (var at = src.IndexOf("subprocess.run(", StringComparison.Ordinal); at >= 0;
+                 at = src.IndexOf("subprocess.run(", at + 1, StringComparison.Ordinal))
+            {
+                var open = src.IndexOf('(', at);
+                int depth = 0, close = open;
+                for (; close < src.Length; close++)
+                {
+                    if (src[close] == '(') { depth++; }
+                    else if (src[close] == ')' && --depth == 0) { break; }
+                }
+
+                var call = src[open..Math.Min(close + 1, src.Length)];
+                scanned++;
+
+                // Byte mode decodes nothing, so it cannot hit this.
+                var textMode = call.Contains("text=True", StringComparison.Ordinal)
+                               || call.Contains("universal_newlines=True", StringComparison.Ordinal);
+                if (!textMode || call.Contains("encoding=", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var line = 1;
+                const char newline = (char)10;
+                for (var i = 0; i < at; i++)
+                {
+                    if (src[i] == newline) { line++; }
+                }
+
+                undecorated.Add($"{Path.GetFileName(path)}:{line}");
+            }
+        }
+
+        output.WriteLine($"{scripts.Length} scripts, {scanned} subprocess.run calls, "
+                         + $"{undecorated.Count} undecorated");
+
+        Assert.True(undecorated.Count == 0,
+            "these read subprocess output as text without naming an encoding, so they decode with "
+            + "the locale codec and block forever on a byte it cannot map: "
+            + string.Join(", ", undecorated));
+    }
+
     // -----------------------------------------------------------------------
     // The same idea one artefact along: the generated index.
     //
