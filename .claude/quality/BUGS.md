@@ -148,6 +148,21 @@ which is a weak test and still far better than none.
   - **It costs nothing on the publish path, which is why it went here.** Measured on a 2560×1440 document, per pointer event, hard brush (no cap, no post-process) against the default soft one: **5.88 ms vs 5.80 ms** at 100%, and 5.94 vs 6.01 at 800%. The ceiling is off the path the pen waits on, which is the whole point of putting it beside the other stroke-global passes.
   - **The consequence is a promise weakened, not a mark made worse.** `docs/manual/03-tools-and-strokes.md` says the mark under the pen is the mark you will have, with blur the one exception; a soft brush is now a second. What the artist sees under the pen is exactly what they saw before this change — uncapped dabs — and it converges to the correct, softer mark a fraction behind. So nothing regressed against today; what regressed is *exactness under the pen*, which soft brushes had and no longer do.
   - Cost of the ceiling on a whole-mark render, 2000 px arc at 2000×800, hardness 0.35:
+  - **Measured 2026-08-26, after the artist felt it.** With B299 landed, Ink's live stamp is incremental and sits under the pen - and the brushes that did not change became visibly the ones that lag. Reported as *"where the ink brush now stays fixated to the pen, the others don't"*, which is this entry's title arrived at from the other end. `FootprintPassCost` (`tools/Lightbox.Bench`) prices one pass at 3840x2160 with Soft round, at the owner's own 15.1 document px of travel an event:
+
+    | points | whole pass | without the cap | the CAP | events/s |
+    | --- | --- | --- | --- | --- |
+    | 50 | 7.93 ms | 0.20 | **7.73** | 126 |
+    | 200 | 40.17 ms | 9.41 | **30.76** | 25 |
+    | 400 | 52.12 ms | 12.23 | **39.89** | 19 |
+    | 800 | 61.89 ms | 12.41 | **49.48** | 16 |
+    | **n^** | **0.77** | 1.51 | **0.69** | |
+
+    The cap is isolated by *removing* it rather than by instrumenting it - the same stroke run again at hardness 1, which makes `NeedsFootprintCap` false and skips the block. Soft round carries no granulation, wet edge, texture or medium, so nothing else in the pass moves with it.
+  - **So the suspicion is confirmed and the size of it is worse than B299's was.** The pass grows with the mark (exponent 0.77) because `PostProcessBounds` *is* the whole stroke's bounds and the footprint is rebuilt from every dab every time. At 800 points one pass costs **61.89 ms**, a ceiling of **16 events a second** against a pen delivering **112**. Ink at its worst was 18.64 ms. The mark still appears immediately - the dabs are stamped on the UI thread - so what the artist sees is the *settled* look converging behind the hand, which is exactly what this entry is named for.
+  - **Two growth sources, not one, and they want different fixes.** The footprint cap is 49.48 ms of the 61.89 and grows at 0.69; the rest is 12.41 ms growing at 1.51, which is the region copy following the area of the mark's bounds rather than its length. Fixing the cap alone would take a 800-point pass to about 12 ms - still over the 8.9 ms budget, but off the cliff.
+  - **The blocker the code records is now answered.** `PostProcessRegion` says the footprint is *"rebuilt from the stroke rather than carried alongside the scratch… a second live buffer accumulating a MAXIMUM could not be rolled back when the tail moves the way the dab scratch is"*. B299 built exactly that: `LivePaintSession.Coverage` is a persistent max buffer owned by the UI thread, with a settled cut from `StableCount` and a tail backup that rolls the moving part back. The same shape applies here, and B292's third bullet already worked out the arithmetic - max-accumulation is monotone, so a cached prefix plus a fresh tail is exactly the whole.
+  - **And B293's own untried candidate is no longer untried.** The note above calls the per-dab `SKShader.CreateRadialGradient` in `StampFootprint` the remaining suspect, with one gradient per stroke under a translate as the fix. B299 did that in `AccumulateCoverage` and measured it: the build half of a silhouette draw went from 14.08 ms to 8.94 ms. The technique transfers unchanged.
 
     | size | without | with |
     | --- | --- | --- |
