@@ -305,6 +305,14 @@ UI-thread stalls — are the same numbers before and after, so one traced minute
 on each side settles whether a change helped, instead of leaving it to whether
 the flicker *feels* better.
 
+**The file ends in a block of tab-separated numbers, and that part is not for
+you to read.** It is the same events again at full precision, and it is what
+lets your minute be replayed against the application afterwards — so a fix can
+be checked against what your pen actually did rather than against a description
+of it, and so the same check runs on every build from then on. The only thing it
+asks of you is to **send the whole file rather than the summary at the top**:
+without that block the events are gone, and a trace can only ever be read once.
+
 **What Lightbox can and cannot do about it.** The duplicate mouse a tablet
 driver sends alongside the pen cannot be stopped from inside the application —
 that was tried and measured, and it does not work. What Lightbox does instead
