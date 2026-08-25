@@ -8,6 +8,17 @@ namespace Lightbox.Raster.Tests;
 /// Field to strokes, judged on a <em>static</em> field so the tracer is measured
 /// without the solver in the reading.
 /// </summary>
+// THE ROOT CAUSE OF THE BUDGET BELOW BEING FLAKY, and a one-line fix that
+// predates the number being raised. `PerformanceCollection` exists precisely so
+// a timing test is not run beside several threads of rasterisation on a
+// four-core box — and this class, which carries one, was never opted into it.
+// Nine other Raster classes with performance-tagged tests are in it; this one,
+// BrushPreviewRendererTests, BrushTipOutlineTests and SmudgeCostTests are not.
+//
+// 28 tests move into the serial collection to isolate the 1 that needs it. That
+// is the trade, and it is worth it: a chronic false alarm costs a re-run and
+// some trust every time it fires, and it fired twice in one day.
+[Collection("Performance")]
 public class FieldTracerTests(ITestOutputHelper output)
 {
     /// <summary>A cone falling from 1 at the centre to 0 at <paramref name="radius"/>.</summary>
@@ -600,12 +611,30 @@ public class FieldTracerTests(ITestOutputHelper output)
 
         output.WriteLine($"{frames} frames re-traced in {ms:F1} ms ({strokes} strokes, {ms / frames:F2} ms/frame)");
         Assert.True(strokes > frames, "the fixture drew almost nothing, so nothing was measured");
-        // 1200, up from 400 (2026-08-20): the fastest-of-3 sits well under
-        // 200 ms alone, but under a full four-assembly parallel run on a
-        // loaded container this tripped twice in one day at ~2 s while
-        // passing every isolated re-run. The charter's budgets catch
-        // order-of-magnitude regressions, not contention — 1200 still fails
-        // a 10x regression and stops crying wolf on a busy machine.
+        // TWO budgets, because one number cannot answer two questions.
+        //
+        // The backstop, always applied. 1200, up from 400 (2026-08-20): the
+        // fastest-of-3 sits well under 200 ms alone, but under a full
+        // four-assembly parallel run on a loaded container this tripped twice
+        // in one day at ~2 s while passing every isolated re-run. The
+        // charter's budgets catch order-of-magnitude regressions, not
+        // contention — 1200 still fails a 6x regression and stops crying wolf
+        // on a busy machine.
         Assert.True(ms < 1200, $"re-tracing 48 frames took {ms:F0} ms");
+
+        // And the tight one, applied only when the machine is quiet enough for
+        // the number to mean anything. 1200 around a ~200 ms cost cannot see a
+        // change that makes this twice as slow, which is the regression a
+        // guard like this is actually for; 400 can, and on a contended box it
+        // is the false alarm that raised the ceiling in the first place.
+        // Bench.MachineIsQuiet decides which case this run is, and says so in
+        // the log either way — see its remarks for what it measures and for
+        // the normalisation approach that was tried and does not work.
+        if (Bench.MachineIsQuiet(output))
+        {
+            Assert.True(ms < 400,
+                $"re-tracing 48 frames took {ms:F0} ms on a quiet machine (tight budget 400 ms; "
+                + "the loose 1200 ms backstop passed, so this is a real slowdown rather than contention)");
+        }
     }
 }
