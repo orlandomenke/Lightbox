@@ -212,6 +212,94 @@ actually for.
 errors; C# compiler warnings **are** — `TreatWarningsAsErrors` is set repo-wide
 in `Directory.Build.props`, so a stray unused variable fails the build.
 
+## Where the build goes
+
+Stock .NET layout — nothing here overrides `OutputPath`. Each project writes
+beside itself:
+
+```
+src/Lightbox.App/bin/Debug/net10.0/
+```
+
+`-c Release` puts it in `bin/Release/net10.0/` instead, and every other project
+follows the same shape. What matters in there:
+
+| | |
+| --- | --- |
+| `Lightbox.App.dll` | the managed assembly |
+| `Lightbox.App.exe` (`Lightbox.App` on Linux) | the apphost — the thing you actually launch |
+| `Lightbox.App.runtimeconfig.json` | what tells it to use the .NET 10 runtime |
+
+**It is about 590 MB**, nearly all of it SkiaSharp and HarfBuzz native binaries
+for every runtime identifier — Windows, Linux, macOS, Android, ARM — plus their
+native `.pdb` symbols. Worth knowing before you wonder where the disk went.
+`bin/` and `obj/` are both gitignored.
+
+`dotnet run` builds into that same folder and launches from it, so running the
+app produces no separate artifact.
+
+## Making something you can hand to somebody
+
+The folder above is **not distributable** — it needs a .NET runtime installed on
+the target. A bundle that does not is a `publish`, and the RID is what switches
+it on: `Lightbox.App.csproj` conditions `PublishSingleFile` on
+`RuntimeIdentifier` being set, so a plain `dotnet publish` with no `-r` is a
+different and non-bundled thing.
+
+```powershell
+dotnet publish src/Lightbox.App/Lightbox.App.csproj -c Release -r win-x64 --self-contained true -p:PublishTrimmed=false -p:DebugType=embedded -o publish/win-x64
+dotnet publish src/Lightbox.Mcp/Lightbox.Mcp.csproj -c Release -r win-x64 --self-contained true -p:PublishTrimmed=false -p:DebugType=embedded -o publish/win-x64/mcp
+```
+
+That is what `.github/workflows/release.yml` runs, minus its
+`-p:Version=` — CI derives the number from the tag or the run, and without it you
+get `Directory.Build.props`'s `VersionPrefix`. Add
+`-p:Version=0.1.0-local` if you want to tell your own build apart in
+**Help ▸ About** or in a crash report.
+
+Run `Lightbox.App.exe` from it directly: nothing is installed, no admin needed,
+no .NET required.
+
+**`publish/` was not gitignored until this was written, and the second-order
+effect is the reason it is now.** Around 200 MB of untracked files in the working
+tree is untidy; what it *also* does is make `git status --porcelain` non-empty,
+which is exactly what the session hook checks before fast-forwarding `main`. A
+local publish would therefore have left every later session reporting
+*"main is N behind origin/main, and the tree is dirty — left alone"* until you
+deleted it, with the cause several steps removed from the symptom.
+
+**The MCP server goes in its own `mcp\` subfolder**, and that is not tidiness —
+a self-contained executable only ever looks for its runtime beside itself, so the
+two publishes have nothing to share. It is also the path the Claude Desktop
+config in `README.md` expects, and a wrong `command` there fails *silently*: the
+server simply never starts and the tools do not appear.
+
+What that actually produces — measured, running the command above on Linux:
+
+```
+publish/win-x64/          113 MB, five files
+  Lightbox.App.exe         97 MB   the whole app, single-file
+  libSkiaSharp.dll         11 MB   ┐
+  av_libglesv2.dll        5.4 MB   │ loose on purpose, see below
+  libHarfBuzzSharp.dll    1.8 MB   │
+  soft_oal.dll            1.1 MB   ┘
+```
+
+**You can publish the Windows bundle from Linux or macOS** — `-r win-x64` is a
+cross-publish and needs no Windows to run it.
+
+Two deliberate quirks, both argued in the csproj rather than here:
+
+- **The native libraries stay loose beside the executable** instead of
+  self-extracting. .NET 10 stopped adding a single-file app's own directory to
+  the native search path, and Avalonia loads ANGLE through a raw `LoadLibrary`
+  that never consulted it anyway. The failure mode is silent — the app falls back
+  to software rendering and simply feels slow — so four files in the folder is
+  the cheap way to sidestep the question.
+- **Native `.pdb`s are dropped**, which is why the folder is 113 MB and not 216:
+  `libSkiaSharp.pdb` alone is 84 MB of somebody else's C++ symbols. Confirmed
+  above — the publish contains none.
+
 ---
 
 ## Four things that will cost you an afternoon
