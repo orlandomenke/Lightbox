@@ -101,6 +101,57 @@ internal static class GpuComposeProbe
     /// <summary>Runs per backend; the fastest is taken, per the charter's argument.</summary>
     private const int Iterations = 3;
 
+    private static bool _ran;
+
+    /// <summary>
+    /// Ask this machine, once per session, and record the answer.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Called from inside the draw op, because that is where the context
+    /// is.</b> The <c>GRContext</c> lives in the render thread's lease and
+    /// nowhere else — the same fact that made GPU compositing an inversion
+    /// rather than a substitution (<c>DESIGN-gpu-compositing.md</c>'s first
+    /// crux), and the same reason the render report's upload probe has to be
+    /// queued rather than called.
+    /// </para>
+    /// <para>
+    /// <b>Not through <c>CanvasControl.RunWithGpuContext</c>, deliberately.</b>
+    /// That is a single slot with one existing owner (the render report), and
+    /// two things posting to one slot is a queued job silently dropped. This
+    /// runs inline on the first frame instead, which is also the earliest it
+    /// can possibly run.
+    /// </para>
+    /// <para>
+    /// <b>And it lives here rather than on the canvas, which is not
+    /// tidiness.</b> <c>CanvasControl.cs</c> is one of the two files the
+    /// monolith ratchet holds at a fixed size, and it earned that by absorbing
+    /// exactly this kind of passenger. The rule the ratchet encodes is that a
+    /// thing the canvas merely *calls* belongs with the thing it calls.
+    /// </para>
+    /// <para>
+    /// It costs one frame at startup and only ever runs when the mode is
+    /// Automatic — an artist who has chosen On or Off is not asking to be
+    /// measured, and measuring them anyway would spend the frame for nothing.
+    /// </para>
+    /// </remarks>
+    internal static void RunOnce(GRContext? gpu)
+    {
+        if (_ran) return;
+        if (GpuComposite.Mode != GpuComposeMode.Auto) return;
+        _ran = true;
+        var result = Run(gpu);
+        GpuComposite.NoteProbe(result);
+        Services.DiagnosticLog.WriteNote("gpu-compose-probe", result.Describe());
+    }
+
+    /// <summary>Test seam: let the probe run again.</summary>
+    internal static void ForgetForTests()
+    {
+        _ran = false;
+        GpuComposite.ForgetProbeForTests();
+    }
+
     /// <summary>
     /// The verdict, as a pure function of the measurement.
     /// </summary>
