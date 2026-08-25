@@ -1576,52 +1576,50 @@ public static class BrushEngine
 
         canvas.SaveLayer(paint);
         canvas.Clear(SKColors.Black);
+
+        // <b>One shader for a run of equal radii, and the canvas moved under
+        // it.</b> A gradient built per dab is correct and ruinous: the first
+        // draft did that and a 12,050-dab mark went from 12.46 ms to 59.80 ms,
+        // because SKShader.CreateRadialGradient is not a thing to do twelve
+        // thousand times. Centred on the origin instead, it depends only on the
+        // radius, and DrawsAsOneSilhouette already forbids every dynamic that
+        // could vary that except pressure on size — so a constant-pressure
+        // stroke builds exactly one.
+        using var coverage = new SKPaint { IsAntialias = false, BlendMode = SKBlendMode.Lighten };
+        var builtFor = float.NaN;
+        var outer = 0f;
         for (var i = 0; i < dabs.Count; i++)
         {
-            MaxCoverage(canvas, dabs[i].Pos, (float)RadiusAt(brush, dabs[i].Pressure), ramp);
+            var radius = (float)RadiusAt(brush, dabs[i].Pressure);
+            if (radius <= 0) continue;
+
+            // A hundredth of a pixel is far below what the rasteriser can show,
+            // so a pressure ramp rebuilds the shader a handful of times down a
+            // stroke rather than once a dab.
+            if (float.IsNaN(builtFor) || Math.Abs(radius - builtFor) > 0.01f)
+            {
+                coverage.Shader?.Dispose();
+                outer = radius + 2f * ramp;
+                coverage.Shader = SKShader.CreateRadialGradient(
+                    SKPoint.Empty,
+                    outer,
+                    [SKColors.White, SKColors.White, SKColors.Black, SKColors.Black],
+                    [0f, Math.Max(0f, (radius - ramp) / outer), (radius + ramp) / outer, 1f],
+                    SKShaderTileMode.Clamp);
+                builtFor = radius;
+            }
+
+            canvas.Save();
+            canvas.Translate(dabs[i].Pos.X, dabs[i].Pos.Y);
+            canvas.DrawCircle(0, 0, outer, coverage);
+            canvas.Restore();
         }
 
-        canvas.Restore();
-        canvas.Restore();
-    }
+        coverage.Shader?.Dispose();
+        coverage.Shader = null;
 
-    /// <summary>
-    /// One dab's coverage, maxed into an opaque footprint's colour channels.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <b>Aliased and one pixel oversized, both on purpose.</b> An antialiased
-    /// edge arrives as source <em>alpha</em>, and alpha composites Porter-Duff
-    /// however the colour channels blend — so an antialiased circle would put
-    /// the saturation straight back. Drawing the circle a pixel wide of the rim,
-    /// with the gradient already at black there, means every touched pixel
-    /// carries source alpha 1 and the ring beyond the mark contributes
-    /// <c>max(0, dst) = dst</c>. The jagged geometric edge cannot show because
-    /// nothing is drawn at it.
-    /// </para>
-    /// <para>
-    /// <b>The ramp is one device pixel and lives in the shader</b>, which is where this
-    /// departs from <see cref="StampFootprint"/>: that runs White at the
-    /// hardness stop to Black at 1, and for a hard brush — hardness 1 — the two
-    /// stops coincide and there is no ramp to antialias with at all.
-    /// </para>
-    /// </remarks>
-    private static void MaxCoverage(SKCanvas footprint, SKPoint centre, float radius, float ramp)
-    {
-        if (radius <= 0) return;
-        var outer = radius + 2f * ramp;
-        using var paint = new SKPaint
-        {
-            IsAntialias = false,
-            BlendMode = SKBlendMode.Lighten,
-            Shader = SKShader.CreateRadialGradient(
-                centre,
-                outer,
-                [SKColors.White, SKColors.White, SKColors.Black, SKColors.Black],
-                [0f, Math.Max(0f, (radius - ramp) / outer), (radius + ramp) / outer, 1f],
-                SKShaderTileMode.Clamp),
-        };
-        footprint.DrawCircle(centre, outer, paint);
+        canvas.Restore();
+        canvas.Restore();
     }
 
     /// <summary>
