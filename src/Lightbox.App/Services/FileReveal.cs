@@ -63,7 +63,7 @@ public static class FileReveal
             // No portable equivalent of "select this file". Opening the folder
             // it is in is the nearest true thing; pretending otherwise would
             // mean shipping a Nautilus-only feature and calling it Linux.
-            _ => new ShellCommand("xdg-open", [isDirectory ? path : Directory(path)]),
+            _ => new ShellCommand("xdg-open", [isDirectory ? path : Directory(desktop, path)]),
         };
 
     /// <summary>Hand the path to whatever application owns it.</summary>
@@ -76,9 +76,39 @@ public static class FileReveal
         _ => new ShellCommand("xdg-open", [path]),
     };
 
+    private static readonly char[] WindowsSeparators = ['\\', '/'];
+
+    /// <summary>
+    /// The folder a path lives in, read the way <paramref name="desktop"/> reads
+    /// paths rather than the way this machine does.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not <see cref="Path.GetDirectoryName(string)"/>: that follows
+    /// the host, which made <see cref="RevealCommand"/> impure — the same
+    /// (desktop, path) pair answered differently depending on where it ran. A
+    /// Linux path asked for on Windows came back with a backslash in it, so the
+    /// test that pins the Linux branch could only pass on a Unix runner.
+    /// </remarks>
+    public static string Directory(Desktop desktop, string path)
+    {
+        // A backslash is a legal character in a Unix filename, so only Windows
+        // is allowed to read one as a separator.
+        var cut = desktop == Desktop.Windows
+            ? path.LastIndexOfAny(WindowsSeparators)
+            : path.LastIndexOf('/');
+        if (cut < 0) return path;
+
+        // Keep the separator where dropping it would stop the answer naming a
+        // place: "/walk.json" lives in "/", and "C:\walk.json" lives in "C:\",
+        // where a bare "C:" means the drive's current directory instead.
+        if (cut == 0 || (desktop == Desktop.Windows && path[cut - 1] == ':'))
+            return path[..(cut + 1)];
+
+        return path[..cut];
+    }
+
     /// <summary>The folder a path lives in, or the path itself if it has no parent.</summary>
-    public static string Directory(string path) =>
-        Path.GetDirectoryName(path) is { Length: > 0 } parent ? parent : path;
+    public static string Directory(string path) => Directory(Current, path);
 
     /// <summary>Show a file or folder in the desktop's file manager.</summary>
     public static bool Reveal(string path)

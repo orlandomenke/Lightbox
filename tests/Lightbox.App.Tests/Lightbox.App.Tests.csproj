@@ -44,6 +44,17 @@
     copies of a hand-written binary format builder would drift, and the whole point of the fixtures
     is that a failure says which field disagreed rather than "the bytes changed".
   -->
+  <!--
+    Recorded input traces, copied beside the assembly so InputTraceReplayTests can read
+    them at run time. They are read as files rather than embedded because the point is that
+    the file the reporter sends is the file the harness loads: an embedded copy would let the
+    on-disk format drift from the one a capture actually arrives in, which is the one thing
+    this fixture set exists to prevent.
+  -->
+  <ItemGroup>
+    <None Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <Compile Include="..\Lightbox.Raster.Tests\PsdFixture.cs" Link="PsdFixture.cs" />
     <Compile Include="..\Lightbox.Raster.Tests\PsdLayerFixture.cs" Link="PsdLayerFixture.cs" />

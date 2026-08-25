@@ -1,0 +1,44 @@
+Lightbox input trace (B126/B254)
+when    2026-08-25T00:00:00.0000000Z (UTC)
+build   fixture
+os      fixture
+
+SYNTHETIC, and the companion to synthetic-huion-echo.txt: that one is a hover in
+the v1 format, this one is a stroke in v2. It exists to hold the three things v2
+records and v1 could not -- the coalesced batch the paint path actually reads,
+the per-sample contact flag, and the device's own clock -- and to pin the one
+that is a bug rather than a field: the first batch opens with a sample from
+before the press, which must not join the stroke (B185).
+
+The numbers are made up. No verdict should be read off it.
+
+events (oldest first)
+  (elided in the fixture -- the replay section below is what is read)
+
+replay v2
+# the same events at full precision, for the replay harness in the test
+# suite. The list above is this list rounded for reading.
+# rig canvas=800.00x600.00 zoom=100.00 wrapped=false
+seconds	kind	device	id	x	y	pressure	tiltX	tiltY	modifiers	detail	inContact	deviceTime
+0.0	Enter	Pen	1	400.37	300.91	0.0	-8.0	3.0	None		0	1000
+0.008	Move	Pen	1	401.44	301.62	0.0	-8.0	3.0	None		0	1008
+0.016	Press	Pen	1	402.51	302.33	0.12	-8.0	3.0	None		1	1016
+0.024	Sample	Pen	1	100.25	100.75	0.0	-8.0	3.0	None		0	1024
+0.0255	Sample	Pen	1	405.68	303.86	0.18	-8.0	3.0	None		1	1025
+0.027	Sample	Pen	1	408.85	305.39	0.24	-8.0	3.0	None		1	1026
+0.0285	Sample	Pen	1	412.02	306.92	0.3	-8.0	3.0	None		1	1027
+0.03	Sample	Pen	1	415.19	308.45	0.36	-8.0	3.0	None		1	1028
+0.03	Move	Pen	1	415.19	308.45	0.36	-8.0	3.0	None		1	1029
+0.032	Sample	Pen	1	418.36	309.98	0.42	-8.0	3.0	None		1	1032
+0.0335	Sample	Pen	1	421.53	311.51	0.48	-8.0	3.0	None		1	1033
+0.035	Sample	Pen	1	424.7	313.04	0.54	-8.0	3.0	None		1	1034
+0.0365	Sample	Pen	1	427.87	314.57	0.6	-8.0	3.0	None		1	1035
+0.038	Move	Pen	1	427.87	314.57	0.6	-8.0	3.0	None		1	1036
+0.04	Sample	Pen	1	431.04	316.1	0.66	-8.0	3.0	None		1	1040
+0.0415	Sample	Pen	1	434.21	317.63	0.72	-8.0	3.0	None		1	1041
+0.043	Sample	Pen	1	437.38	319.16	0.78	-8.0	3.0	None		1	1042
+0.0445	Sample	Pen	1	440.55	320.69	0.84	-8.0	3.0	None		1	1043
+0.046	Move	Pen	1	440.55	320.69	0.84	-8.0	3.0	None		1	1044
+0.056	Release	Pen	1	440.55	320.69	0.0	-8.0	3.0	None		0	1056
+0.06	Exit	Pen	1	440.55	320.69	0.0	-8.0	3.0	None		0	1060
+1.56	Note	Mouse	-1	0.0	0.0	0.0	0.0	0.0	None	trace stopped	0	0

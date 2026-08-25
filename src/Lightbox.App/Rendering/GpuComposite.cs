@@ -257,10 +257,16 @@ internal static class GpuComposite
     }
 
     /// <summary>For tests: forget the session's verdict.</summary>
+    /// <remarks>
+    /// The counters go with it, for the reason <see cref="NoteProbe"/> gives:
+    /// forgetting the verdict is a change of answer, and a tally that survives
+    /// one describes composites made under a verdict that no longer holds.
+    /// </remarks>
     internal static void ForgetProbeForTests()
     {
         AutoProbe = null;
         _autoDecision = null;
+        ResetCounters();
     }
 
     /// <summary>For tests: force the opt-in on or off, or null to read the real answer.</summary>

@@ -250,9 +250,52 @@ public sealed partial class CanvasControl
     /// </remarks>
     private const double LeaveGraceMs = 50;
 
+    /// <summary>
+    /// Whether the brush ring has a position to be drawn at.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The strobe of B126 reduced to something countable: the ring going away
+    /// and coming back is what the artist sees flickering. Watched by the replay
+    /// harness across a whole capture rather than asserted at one moment,
+    /// because the complaint was never about a single teardown — and watched
+    /// through the hover point itself rather than through <see cref="SettleHover"/>
+    /// so it stays true however the ring is torn down. A future change that
+    /// dropped the hover point in <c>OnPointerExited</c> again would bypass the
+    /// settle entirely, and a counter kept there would report nothing wrong.
+    /// </para>
+    /// <para>
+    /// Here rather than beside the hover point it reads, because
+    /// <c>CanvasControl.cs</c> is at its size ratchet and needing the room is
+    /// explicitly not a reason to raise one.
+    /// </para>
+    /// </remarks>
+    internal bool HasHoverRing => _hoverPoint is not null;
+
+    /// <summary>Where "how long ago did the pointer leave" is read from.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A seam, and it exists because replaying a capture faithfully is
+    /// otherwise impossible.</b> The churn this grace was built against has a
+    /// median gap of <b>0.5 ms</b>. Raising one pointer event into a real canvas
+    /// costs more than that, so a replay of a recorded trace can never keep up
+    /// with the wall clock — and against <see cref="DateTime.UtcNow"/> every
+    /// half-millisecond departure in the capture would age past the 50 ms grace
+    /// while the harness was still delivering it. The replay would then report
+    /// teardowns the reporter's machine never had, which is worse than no
+    /// replay: a fixture that fails for a reason belonging to the harness.
+    /// </para>
+    /// <para>
+    /// Per instance rather than static, so nothing about a test's clock can
+    /// reach a canvas it did not construct. In the application it is never
+    /// assigned, and the default is the clock it always read.
+    /// </para>
+    /// </remarks>
+    internal Func<DateTime> HoverClock { get; set; } = () => DateTime.UtcNow;
+
     /// <summary>True once the pointer has been away long enough to mean it.</summary>
     internal bool HoverIsStale =>
-        _leftAt is { } left && (DateTime.UtcNow - left).TotalMilliseconds >= LeaveGraceMs;
+        _leftAt is { } left && (HoverClock() - left).TotalMilliseconds >= LeaveGraceMs;
 
     /// <summary>Note a departure and arm the settle.</summary>
     /// <remarks>
@@ -262,7 +305,7 @@ public sealed partial class CanvasControl
     /// </remarks>
     private void BeginLeave()
     {
-        _leftAt = DateTime.UtcNow;
+        _leftAt = HoverClock();
 
         // Cleared at once, unlike the hover point, because the two answer
         // different questions and only one of them strobes. This is what a

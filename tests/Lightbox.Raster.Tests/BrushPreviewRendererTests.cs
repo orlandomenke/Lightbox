@@ -14,6 +14,11 @@ namespace Lightbox.Raster.Tests;
 /// enough of the brush's character to choose by, and rendering sixty of them has to be
 /// quick enough that opening the picker is not an event.
 /// </remarks>
+// Carries a performance-tagged budget, so it belongs in the collection that
+// keeps a timing test off a machine running several threads of rasterisation
+// beside it. 12 tests, 1 of them a budget. This is the class that failed CI on 2026-08-25
+// at 930 ms against a 400 ms budget, while passing in isolation.
+[Collection("Performance")]
 public class BrushPreviewRendererTests(ITestOutputHelper output)
 {
     private static BrushSettings Plain() => new()

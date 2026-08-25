@@ -52,6 +52,20 @@ No fontconfig, no display server, nothing else. The SDK is also available as an
 installer from <https://dotnet.microsoft.com/download/dotnet/10.0> if you would
 rather not use winget.
 
+**Two things about the shell, because every other example below is written for
+bash and Windows is the platform this is actually developed on:**
+
+- **`&&` does not chain commands in Windows PowerShell 5.1**, the shell Windows
+  ships with. It fails with *"The token '&&' is not a valid statement separator
+  in this version"*. Run the lines separately — every multi-command block here
+  is written one command per line for that reason. PowerShell 7 accepts `&&`.
+- **`python3` is probably not the name, and this page's own install line is
+  why.** `winget install Python.Python.3.12` above fetches the python.org build,
+  which puts `python` and `py` on the PATH — not `python3`. (The Microsoft Store
+  build does provide `python3`.) Every `python3 scripts/…` below is spelled the
+  way the repository's hooks and CI spell it, because those run on Linux, so on
+  Windows read them as `py scripts/…`.
+
 ### Linux (Ubuntu 24.04)
 
 ```sh
@@ -131,8 +145,15 @@ has diverged from the remote, a clone with no local `main`, and no network. By
 hand, the same thing is:
 
 ```sh
-git fetch --prune origin && git merge --ff-only origin/main
+git fetch --prune origin
+git merge --ff-only origin/main
 ```
+
+Two lines rather than one joined with `&&`, because **`&&` is not a statement
+separator in Windows PowerShell 5.1** — the shell Windows ships with — and this
+is the platform Lightbox is actually developed on. It fails with
+*"The token '&&' is not a valid statement separator in this version"*.
+PowerShell 7 accepts it; 5.1 does not.
 
 Measured at 596/651/633 ms against GitHub with nothing to fetch, which is why it
 runs synchronously rather than in the background like the codemap build — the
@@ -190,6 +211,94 @@ actually for.
 (`AVLN5001` deprecations and `AVLN3001` reachability). Those are not promoted to
 errors; C# compiler warnings **are** — `TreatWarningsAsErrors` is set repo-wide
 in `Directory.Build.props`, so a stray unused variable fails the build.
+
+## Where the build goes
+
+Stock .NET layout — nothing here overrides `OutputPath`. Each project writes
+beside itself:
+
+```
+src/Lightbox.App/bin/Debug/net10.0/
+```
+
+`-c Release` puts it in `bin/Release/net10.0/` instead, and every other project
+follows the same shape. What matters in there:
+
+| | |
+| --- | --- |
+| `Lightbox.App.dll` | the managed assembly |
+| `Lightbox.App.exe` (`Lightbox.App` on Linux) | the apphost — the thing you actually launch |
+| `Lightbox.App.runtimeconfig.json` | what tells it to use the .NET 10 runtime |
+
+**It is about 590 MB**, nearly all of it SkiaSharp and HarfBuzz native binaries
+for every runtime identifier — Windows, Linux, macOS, Android, ARM — plus their
+native `.pdb` symbols. Worth knowing before you wonder where the disk went.
+`bin/` and `obj/` are both gitignored.
+
+`dotnet run` builds into that same folder and launches from it, so running the
+app produces no separate artifact.
+
+## Making something you can hand to somebody
+
+The folder above is **not distributable** — it needs a .NET runtime installed on
+the target. A bundle that does not is a `publish`, and the RID is what switches
+it on: `Lightbox.App.csproj` conditions `PublishSingleFile` on
+`RuntimeIdentifier` being set, so a plain `dotnet publish` with no `-r` is a
+different and non-bundled thing.
+
+```powershell
+dotnet publish src/Lightbox.App/Lightbox.App.csproj -c Release -r win-x64 --self-contained true -p:PublishTrimmed=false -p:DebugType=embedded -o publish/win-x64
+dotnet publish src/Lightbox.Mcp/Lightbox.Mcp.csproj -c Release -r win-x64 --self-contained true -p:PublishTrimmed=false -p:DebugType=embedded -o publish/win-x64/mcp
+```
+
+That is what `.github/workflows/release.yml` runs, minus its
+`-p:Version=` — CI derives the number from the tag or the run, and without it you
+get `Directory.Build.props`'s `VersionPrefix`. Add
+`-p:Version=0.1.0-local` if you want to tell your own build apart in
+**Help ▸ About** or in a crash report.
+
+Run `Lightbox.App.exe` from it directly: nothing is installed, no admin needed,
+no .NET required.
+
+**`publish/` was not gitignored until this was written, and the second-order
+effect is the reason it is now.** Around 200 MB of untracked files in the working
+tree is untidy; what it *also* does is make `git status --porcelain` non-empty,
+which is exactly what the session hook checks before fast-forwarding `main`. A
+local publish would therefore have left every later session reporting
+*"main is N behind origin/main, and the tree is dirty — left alone"* until you
+deleted it, with the cause several steps removed from the symptom.
+
+**The MCP server goes in its own `mcp\` subfolder**, and that is not tidiness —
+a self-contained executable only ever looks for its runtime beside itself, so the
+two publishes have nothing to share. It is also the path the Claude Desktop
+config in `README.md` expects, and a wrong `command` there fails *silently*: the
+server simply never starts and the tools do not appear.
+
+What that actually produces — measured, running the command above on Linux:
+
+```
+publish/win-x64/          113 MB, five files
+  Lightbox.App.exe         97 MB   the whole app, single-file
+  libSkiaSharp.dll         11 MB   ┐
+  av_libglesv2.dll        5.4 MB   │ loose on purpose, see below
+  libHarfBuzzSharp.dll    1.8 MB   │
+  soft_oal.dll            1.1 MB   ┘
+```
+
+**You can publish the Windows bundle from Linux or macOS** — `-r win-x64` is a
+cross-publish and needs no Windows to run it.
+
+Two deliberate quirks, both argued in the csproj rather than here:
+
+- **The native libraries stay loose beside the executable** instead of
+  self-extracting. .NET 10 stopped adding a single-file app's own directory to
+  the native search path, and Avalonia loads ANGLE through a raw `LoadLibrary`
+  that never consulted it anyway. The failure mode is silent — the app falls back
+  to software rendering and simply feels slow — so four files in the folder is
+  the cheap way to sidestep the question.
+- **Native `.pdb`s are dropped**, which is why the folder is 113 MB and not 216:
+  `libSkiaSharp.pdb` alone is 84 MB of somebody else's C++ symbols. Confirmed
+  above — the publish contains none.
 
 ---
 

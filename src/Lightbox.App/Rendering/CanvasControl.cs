@@ -4032,7 +4032,7 @@ public sealed partial class CanvasControl : Control
             // parks the resource. Before Materialise on purpose, so the memory
             // this frame is about to ask for was just given back.
             GpuImageReaper.Drain(lease.GrContext);
-            var composed = snapshot.Materialise(lease.GrContext, textures);
+            var composed = snapshot.Materialise(lease.GrContext, textures, ComposeCacheHost.Shared);
             // B179: Skia's own GPU resource cache is the one large pool the
             // memory section could not see, and it is only askable from here —
             // the context lives in the lease and nowhere else. Sampled rather

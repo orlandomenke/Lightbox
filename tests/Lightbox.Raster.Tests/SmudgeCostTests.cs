@@ -32,6 +32,10 @@ namespace Lightbox.Raster.Tests;
 /// measured cost.
 /// </remarks>
 [Trait("Category", "Performance")]
+// Carries a performance-tagged budget, so it belongs in the collection that
+// keeps a timing test off a machine running several threads of rasterisation
+// beside it. 1 test, and it is the budget — so this one costs nothing to serialise.
+[Collection("Performance")]
 public class SmudgeCostTests(ITestOutputHelper o)
 {
     [Theory]

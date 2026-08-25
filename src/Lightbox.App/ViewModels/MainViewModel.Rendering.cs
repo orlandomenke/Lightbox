@@ -383,6 +383,7 @@ public partial class MainViewModel
     /// </remarks>
     private void InvalidateFrameRender(string frameId)
     {
+        _publish.BumpRenderEpoch();
         _cache.Invalidate(frameId);
         _tileFrames.Invalidate(frameId);
         _thumbs.Invalidate(frameId);
@@ -393,6 +394,7 @@ public partial class MainViewModel
     /// <inheritdoc cref="InvalidateFrameRender"/>
     private void ClearFrameRenders()
     {
+        _publish.BumpRenderEpoch();
         _cache.Clear();
         _tileFrames.Clear();
         // Correctness does not need this — every flatten key carries the stamp of
@@ -847,11 +849,31 @@ public partial class MainViewModel
             // the rectangle the canvas last asked for — because it is what tells the
             // painter where to put the image. Null means "the whole document", which
             // is what every uncalled path produces.
-            handler(new RenderSnapshot(
+            var snapshot = new RenderSnapshot(
                 image, (int)viewWidth, (int)viewHeight, seq, imageCovers,
                 SnapshotGeometry.ChangedInImageSpace(
                     usedClip, imageCovers, renderScale, throughCamera: cameraView is not null),
-                passes, ReleaseFor(passes, flattenedOwned), deferred));
+                passes, ReleaseFor(passes, flattenedOwned), deferred)
+            {
+                // B167 phase 7: which composite this is, when it is one worth
+                // keeping. Only while playing, and only with no live edit —
+                // the same scope B165's reuse check already takes, for the same
+                // reason. A composite taken mid-stroke is one nothing will ever
+                // ask for again, and caching it would spend the budget on
+                // frames that cannot be hit.
+                // `deferred is not null` is the load-bearing half and it is not
+                // belt-and-braces: a snapshot that already carries an image has
+                // nothing left to compose, so Materialise returns before it ever
+                // reaches the cache. Keying one would be a setting wired to
+                // nothing — the failure this codebase keeps finding. The ring
+                // route publishes an image; the tiled route playback takes does
+                // not, which is where the saving is.
+                CacheKey = deferred is not null && IsPlaying
+                    && _live.Composite is null && _live.Scratch is null
+                    ? new Rendering.ComposeKey(fingerprint, _publish.RenderEpoch)
+                    : null,
+            };
+            handler(snapshot);
         }
         else
         {

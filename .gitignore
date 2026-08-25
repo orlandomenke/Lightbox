@@ -1,5 +1,9 @@
 bin/
 obj/
+# `dotnet publish -o publish/win-x64` — the layout release.yml uses and
+# DEVELOPING.md tells you to run. ~200 MB, and untracked files are what the
+# session hook reads as a dirty tree when it declines to fast-forward `main`.
+publish/
 *.user
 
 # Generated index. Nothing under .claude/codemap/ is committed any more,
