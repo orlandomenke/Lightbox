@@ -94,14 +94,18 @@ sealed class PublishState
     internal int RenderEpoch { get; private set; }
 
     /// <summary>Note that something rendered has changed.</summary>
-    internal void BumpRenderEpoch()
-    {
-        RenderEpoch++;
-        // Everything cached is now unreachable by key anyway; this is about
-        // giving the memory back at once rather than waiting for the budget to
-        // notice (B167 phase 7).
-        Rendering.ComposeCacheHost.Invalidate();
-    }
+    /// <remarks>
+    /// <b>It does not reach into the composite cache, and that is deliberate.</b>
+    /// The first version cleared it here, reasoning that giving the memory back
+    /// at once beat waiting for the budget to notice. Two things are wrong with
+    /// that. A stale entry can never be hit — its epoch is gone — so it is
+    /// never touched again and LRU evicts it before anything live; the budget
+    /// already bounds it. And this is a per-document operation on a
+    /// per-document object, called on every edit, so reaching a process-wide
+    /// lock from here made every parallel test contend on one mutex for
+    /// nothing.
+    /// </remarks>
+    internal void BumpRenderEpoch() => RenderEpoch++;
 
     /// <summary>
     /// The document region the last publish actually recomposited (null = the whole

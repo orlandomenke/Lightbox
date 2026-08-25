@@ -42,17 +42,6 @@ internal static class ComposeCacheHost
 
     internal static ComposeCache Shared { get; } = new(Budget);
 
-    /// <summary>
-    /// Everything cached is stale — a drawing changed, or the document did.
-    /// </summary>
-    /// <remarks>
-    /// Called on the UI thread from the same funnel that bumps the epoch. The
-    /// epoch alone would already make every entry unreachable, so this is about
-    /// giving the memory back promptly rather than about correctness; a GPU
-    /// image still goes to the reaper rather than being freed here (B179).
-    /// </remarks>
-    internal static void Invalidate() => Shared.Clear();
-
     // There is deliberately no ResetForTests here. Swapping the instance under
     // a suite that runs collections in parallel is one test deciding whether
     // another passes, and a cache whose whole subject is a lifetime hazard is
