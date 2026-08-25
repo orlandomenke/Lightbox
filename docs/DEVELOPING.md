@@ -52,6 +52,20 @@ No fontconfig, no display server, nothing else. The SDK is also available as an
 installer from <https://dotnet.microsoft.com/download/dotnet/10.0> if you would
 rather not use winget.
 
+**Two things about the shell, because every other example below is written for
+bash and Windows is the platform this is actually developed on:**
+
+- **`&&` does not chain commands in Windows PowerShell 5.1**, the shell Windows
+  ships with. It fails with *"The token '&&' is not a valid statement separator
+  in this version"*. Run the lines separately — every multi-command block here
+  is written one command per line for that reason. PowerShell 7 accepts `&&`.
+- **`python3` is probably not the name, and this page's own install line is
+  why.** `winget install Python.Python.3.12` above fetches the python.org build,
+  which puts `python` and `py` on the PATH — not `python3`. (The Microsoft Store
+  build does provide `python3`.) Every `python3 scripts/…` below is spelled the
+  way the repository's hooks and CI spell it, because those run on Linux, so on
+  Windows read them as `py scripts/…`.
+
 ### Linux (Ubuntu 24.04)
 
 ```sh
@@ -131,8 +145,15 @@ has diverged from the remote, a clone with no local `main`, and no network. By
 hand, the same thing is:
 
 ```sh
-git fetch --prune origin && git merge --ff-only origin/main
+git fetch --prune origin
+git merge --ff-only origin/main
 ```
+
+Two lines rather than one joined with `&&`, because **`&&` is not a statement
+separator in Windows PowerShell 5.1** — the shell Windows ships with — and this
+is the platform Lightbox is actually developed on. It fails with
+*"The token '&&' is not a valid statement separator in this version"*.
+PowerShell 7 accepts it; 5.1 does not.
 
 Measured at 596/651/633 ms against GitHub with nothing to fetch, which is why it
 runs synchronously rather than in the background like the codemap build — the
