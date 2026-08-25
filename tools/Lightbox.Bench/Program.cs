@@ -27,6 +27,16 @@ if (filter is null || "brushes".Contains(filter, StringComparison.OrdinalIgnoreC
     Console.WriteLine(BrushPresetSweeps.Isolate());
 }
 
+// B189: which phase of one pointer event grows with the stroke. A table
+// rather than a curve, and printed rather than written into PERFORMANCE.md,
+// for the reason the brush table above gives — a diagnosis, not a ratchet.
+if (filter is not null && "livestamp".Contains(filter, StringComparison.OrdinalIgnoreCase))
+{
+    Console.WriteLine("Splitting one pointer event by phase...");
+    Console.WriteLine(LiveStampSplit.Report());
+    Console.WriteLine(LiveStampSplit.Presets());
+}
+
 var scenarios = AnimationSweeps.All()
     .Concat(DrawingSweeps.All())
     .Where(s => filter is null || s.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
@@ -49,7 +59,10 @@ foreach (var scenario in scenarios)
 // somebody investigating one curve gets told nine things broke.
 var Partial = filter is not null;
 var report = Report(curves, calibration);
-if (outPath is not null)
+// A filter that matches no scenario — a diagnostic run like --filter
+// livestamp — must not overwrite the map with an empty one. The tables
+// those runs print are their whole output; the map is not theirs to touch.
+if (outPath is not null && curves.Count > 0)
 {
     File.WriteAllText(outPath, report);
 
