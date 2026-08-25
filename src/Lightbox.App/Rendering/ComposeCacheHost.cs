@@ -40,7 +40,7 @@ internal static class ComposeCacheHost
     private static readonly long Budget = MemoryBudget.Share(
         fraction: 1.0 / 12, floorBytes: 128L * 1024 * 1024, ceilingBytes: 1024L * 1024 * 1024);
 
-    internal static ComposeCache Shared { get; private set; } = new(Budget);
+    internal static ComposeCache Shared { get; } = new(Budget);
 
     /// <summary>
     /// Everything cached is stale — a drawing changed, or the document did.
@@ -53,6 +53,9 @@ internal static class ComposeCacheHost
     /// </remarks>
     internal static void Invalidate() => Shared.Clear();
 
-    /// <summary>For tests: a cache nobody else has touched.</summary>
-    internal static void ResetForTests() => Shared = new ComposeCache(Budget);
+    // There is deliberately no ResetForTests here. Swapping the instance under
+    // a suite that runs collections in parallel is one test deciding whether
+    // another passes, and a cache whose whole subject is a lifetime hazard is
+    // the last thing that should introduce one. Tests that need a cache build
+    // their own; the two that need this one only read it.
 }

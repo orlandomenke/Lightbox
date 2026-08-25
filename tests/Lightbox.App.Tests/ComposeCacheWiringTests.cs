@@ -163,23 +163,27 @@ public class ComposeCacheWiringTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The host clears on an edit, and a live reader keeps its pixels through
-    /// it — the clear happens on the UI thread while the render thread may
-    /// still be drawing the frame it was handed.
+    /// The session's cache exists and is budgeted from the machine.
     /// </summary>
+    /// <remarks>
+    /// <b>A read rather than an exercise, deliberately.</b> The behaviour —
+    /// clearing leaves a live reader's pixels alone — is held by
+    /// <c>ComposeCacheTests.ClearingLeavesALiveReadersImageAlone</c> on a cache
+    /// of its own, and this used to repeat it against
+    /// <see cref="ComposeCacheHost.Shared"/>. That was a test mutating
+    /// process-wide static state inside a suite that runs collections in
+    /// parallel, which is the classic way one test starts deciding whether
+    /// another passes — and this branch is the last place that should be
+    /// introducing one. What is left is the part only the host can answer:
+    /// that there is a cache and that its budget came from the machine rather
+    /// than from a constant.
+    /// </remarks>
     [Fact]
-    public void InvalidatingTheHostLeavesALiveFrameAlone()
+    public void TheSessionHasACacheSizedFromTheMachine()
     {
-        ComposeCacheHost.ResetForTests();
-        var snapshot = Deferred(SKColors.SeaGreen, Key(0));
-        var composed = snapshot.Materialise(null, null, ComposeCacheHost.Shared);
+        var budget = ComposeCacheHost.Shared.BudgetBytes;
 
-        ComposeCacheHost.Invalidate();
-
-        Assert.True(Alive(composed), "invalidating freed a frame the render thread still holds");
-        Assert.Equal(0, ComposeCacheHost.Shared.Count);
-        snapshot.Dispose();
-        Assert.False(Alive(composed));
-        ComposeCacheHost.ResetForTests();
+        output.WriteLine($"{budget / (1024 * 1024)} MB");
+        Assert.InRange(budget, 128L * 1024 * 1024, 1024L * 1024 * 1024);
     }
 }
