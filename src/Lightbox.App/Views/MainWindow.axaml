@@ -1492,36 +1492,8 @@
           </StackPanel>
         </StackPanel>
 
-        <StackPanel Orientation="Horizontal" Spacing="14">
-          <StackPanel.IsVisible>
-            <MultiBinding Converter="{x:Static BoolConverters.And}">
-              <Binding Path="IsFillTool" />
-              <Binding Path="Workspace.QuickFillOptions" />
-            </MultiBinding>
-          </StackPanel.IsVisible>
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-            <TextBlock Text="Tolerance" VerticalAlignment="Center" />
-            <NumericUpDown Value="{Binding FillTolerance}" Minimum="0" Maximum="255" Increment="4"
-                           FormatString="0" Classes="value" VerticalAlignment="Center"
-                           ToolTip.Tip="How different a pixel may be and still count as the same area" />
-          </StackPanel>
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-            <TextBlock Text="Gap px" VerticalAlignment="Center" />
-            <NumericUpDown Value="{Binding FillGapPx}" Minimum="0" Maximum="32" Increment="1"
-                           FormatString="0" Classes="value" VerticalAlignment="Center"
-                           ToolTip.Tip="Openings up to this many pixels still count as closed" />
-          </StackPanel>
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-            <TextBlock Text="Grow px" VerticalAlignment="Center" />
-            <NumericUpDown Value="{Binding FillGrowPx}" Minimum="-16" Maximum="16" Increment="1"
-                           FormatString="0" Classes="value" VerticalAlignment="Center"
-                           ToolTip.Tip="Overfill (+) under the line work, or underfill (−) to keep a margin" />
-          </StackPanel>
-          <CheckBox Content="Smart fill" IsChecked="{Binding SmartFill}" VerticalAlignment="Center"
-                    ToolTip.Tip="Sample every visible layer (fill what looks empty) instead of only the active layer" />
-          <CheckBox Content="Below line work" IsChecked="{Binding FillBelowLines}" VerticalAlignment="Center"
-                    ToolTip.Tip="Tuck the fill under the lines (fills about half the line width so no white shows); off = fill on top, preserving lines" />
-        </StackPanel>
+        <!-- The Fill tool's options. -->
+        <views:FillOptionsBar />
 
         <!-- The Select tool's options. -->
         <views:SelectShapeBar />
@@ -1533,6 +1505,10 @@
         <views:GuideOptionsBar />
         <views:LineOptionsBar />
         <views:CropOptionsBar />
+
+        <!-- The text tool's options. -->
+        <views:TextOptionsBar />
+        <views:TextFormatBar />
 
         <!--
           The workspace's own quick options, after the tool's: not tool-gated,
@@ -1868,6 +1844,14 @@
                 <StackPanel Orientation="Horizontal" Spacing="6">
                   <Path Data="{StaticResource IconPen}" />
                   <TextBlock Text="Pen" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="tool" IsChecked="{Binding IsTextTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Text}"
+                            ToolTip.Tip="Text (T) — click to put a caret on the canvas and type. Esc sets the type; clicking type already there picks it up to retype. What it leaves behind is ordinary strokes, so it erases and transforms like a drawing.">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Path Data="{StaticResource IconText}" />
+                  <TextBlock Text="Text" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
               <ToggleButton Classes="tool" IsChecked="{Binding IsWidthTool, Mode=OneWay}"
@@ -2746,6 +2730,10 @@
 
                     <!-- Move — the selected guide, with room for labels. -->
                     <views:GuideOptionsPanel />
+
+                    <!-- Text, with room for labels — the GuideOptionsBar and
+                         GuideOptionsPanel split again. B308. -->
+                    <views:TextOptionsPanel />
 
                     <!-- Shape -->
                     <StackPanel Spacing="6" IsVisible="{Binding IsShapeTool}">

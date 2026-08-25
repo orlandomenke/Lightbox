@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             x:Class="Lightbox.App.Views.FillOptionsBar"
+             x:DataType="vm:MainViewModel">
+  <!--
+    Gated on the control, not only on the panel inside it — see TextOptionsBar
+    for why. This block used to be a bare StackPanel in MainWindow.axaml, which
+    collapsed to nothing; wrapping it in a UserControl without this would have
+    left a gap in the row where the fill options are not.
+  -->
+  <UserControl.IsVisible>
+    <MultiBinding Converter="{x:Static BoolConverters.And}">
+      <Binding Path="IsFillTool" />
+      <Binding Path="Workspace.QuickFillOptions" />
+    </MultiBinding>
+  </UserControl.IsVisible>
+  <!--
+    The Fill tool's options along the quick bar: how far a flood reaches, how
+    much of a gap still counts as closed, and whether it tucks under the lines.
+
+    A collaborator rather than more of MainWindow.axaml, which is on the
+    monolith ratchet — the trade BoneOptionsBar, GuideOptionsBar, LineOptionsBar
+    and TextOptionsBar all made, and the direction that file is supposed to
+    move in. Markup only; the DataContext is inherited and every decision it
+    shows belongs to MainViewModel.Fill.
+  -->
+  <StackPanel Orientation="Horizontal" Spacing="14">
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+      <TextBlock Text="Tolerance" VerticalAlignment="Center" />
+      <NumericUpDown Value="{Binding FillTolerance}" Minimum="0" Maximum="255" Increment="4"
+                     FormatString="0" Classes="value" VerticalAlignment="Center"
+                     ToolTip.Tip="How different a pixel may be and still count as the same area" />
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+      <TextBlock Text="Gap px" VerticalAlignment="Center" />
+      <NumericUpDown Value="{Binding FillGapPx}" Minimum="0" Maximum="32" Increment="1"
+                     FormatString="0" Classes="value" VerticalAlignment="Center"
+                     ToolTip.Tip="Openings up to this many pixels still count as closed" />
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+      <TextBlock Text="Grow px" VerticalAlignment="Center" />
+      <NumericUpDown Value="{Binding FillGrowPx}" Minimum="-16" Maximum="16" Increment="1"
+                     FormatString="0" Classes="value" VerticalAlignment="Center"
+                     ToolTip.Tip="Overfill (+) under the line work, or underfill (−) to keep a margin" />
+    </StackPanel>
+    <CheckBox Content="Smart fill" IsChecked="{Binding SmartFill}" VerticalAlignment="Center"
+              ToolTip.Tip="Sample every visible layer (fill what looks empty) instead of only the active layer" />
+    <CheckBox Content="Below line work" IsChecked="{Binding FillBelowLines}" VerticalAlignment="Center"
+              ToolTip.Tip="Tuck the fill under the lines (fills about half the line width so no white shows); off = fill on top, preserving lines" />
+  </StackPanel>
+</UserControl>

@@ -186,7 +186,7 @@ public partial class MainViewModel
         // Mirror it where the render thread can see it (B125): the draw op has no
         // route to the view model, and an environment variable still forces it on
         // for headless runs.
-        Rendering.GpuComposite.SettingEnabled = Settings.GpuCompositing;
+        Rendering.GpuComposite.Mode = Settings.GpuCompositingMode;
         if (Enum.TryParse<CanvasQuality>(Settings.CanvasQuality, out var storedQuality))
         {
             _canvasQuality = storedQuality;

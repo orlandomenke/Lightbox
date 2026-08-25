@@ -197,7 +197,7 @@ def cmd_new(title: str) -> int:
     """Allocate an id and write the file. The argument is what has to be thought about."""
     allocated = subprocess.run(
         (sys.executable, str(ROOT / "scripts" / "bugs.py"), "freeid", "question"),
-        capture_output=True, text=True)
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
     entry_id = allocated.stdout.strip()
     if not re.fullmatch(r"Q\d+", entry_id):
         print(f"could not allocate an id: {allocated.stderr.strip()}", file=sys.stderr)

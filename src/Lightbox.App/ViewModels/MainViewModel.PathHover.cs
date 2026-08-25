@@ -153,10 +153,9 @@ public partial class MainViewModel
     /// Whether a stroke's outline should be drawn closed.
     /// </summary>
     /// <remarks>
-    /// Fills and cleared regions are contours rather than paths — the same
-    /// distinction <c>ToolKind.ClearRegion</c> exists to make — so their
+    /// Fills, cleared regions and glyphs are contours rather than paths — the
+    /// same distinction <c>ToolKind.ClearRegion</c> exists to make — so their
     /// preview has to close or a filled shape previews as an open horseshoe.
     /// </remarks>
-    private static bool IsClosedStroke(Stroke stroke) =>
-        stroke.Tool is ToolKind.Fill or ToolKind.ClearRegion;
+    private static bool IsClosedStroke(Stroke stroke) => stroke.Tool.FillsAContour();
 }

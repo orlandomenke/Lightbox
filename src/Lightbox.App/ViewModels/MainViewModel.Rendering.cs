@@ -608,7 +608,7 @@ public partial class MainViewModel
             ThroughCamera: ViewThroughCamera);
         var live = new ScenePassBuilder.LiveEdit(
             _live.Composite, _live.Scratch, _live.PostScratch, _live.PostStampedCount,
-            _liveShape, _liveGradient, _strokeBuilder.Current,
+            _liveShape, _liveGradient, LiveTextPaint, _strokeBuilder.Current,
             _transform.Preview, _transform.Frames,
             // The moving/staying split stays behind a delegate because building
             // it caches bitmaps and owns their disposal — state with a lifetime,
@@ -1132,78 +1132,6 @@ public partial class MainViewModel
     private static readonly SKSamplingOptions Linear = new(SKFilterMode.Linear);
 
     private static int FloorDiv(int a, int b) => a >= 0 ? a / b : (a - b + 1) / b;
-
-    /// <summary>
-    /// B82: compose only the visible rectangle of a bounded canvas, so the cost
-    /// is proportional to what the artist can see rather than to the document.
-    /// </summary>
-    /// <remarks>
-    /// <paramref name="viewport"/> must already be clamped to the document — see
-    /// <see cref="ComposePlan.ClampToDocument"/>. The surface covers exactly that
-    /// so the painter draws the result into the same rectangle in document space
-    /// and the pointer mapping never has to know this happened.
-    /// </remarks>
-    private static SKImage ComposeViewportCulled(
-        List<RenderPass> passes,
-        SKColor background,
-        double renderScale,
-        SKImageInfo info,
-        SKRectI viewport)
-    {
-        var surface = SKSurface.Create(info);
-        if (surface is null) throw new InvalidOperationException("Failed to create render surface");
-
-        var canvas = surface.Canvas;
-        canvas.Clear(background);
-
-        // Document space, offset so the viewport's top-left is the surface origin.
-        // Every pass then draws at its own document coordinates, exactly as it
-        // would into a full-document surface — which is the point: the passes do
-        // not learn about culling, so a culled and an uncalled compose agree.
-        canvas.Scale((float)renderScale, (float)renderScale);
-        canvas.Translate(-viewport.Left, -viewport.Top);
-
-        var visible = new SKRect(viewport.Left, viewport.Top, viewport.Right, viewport.Bottom);
-
-        foreach (var pass in passes)
-        {
-            if (pass.Bitmap is null) continue;
-
-            using var paint = new SKPaint { BlendMode = pass.Blend };
-            if (pass.Opacity < 1.0)
-                paint.Color = paint.Color.WithAlpha((byte)(pass.Opacity * 255));
-            // SrcIn, matching SceneRenderer.DrawPass: the tint replaces the
-            // pass's colour and keeps its alpha, so a transparent pixel stays
-            // transparent. Multiply does the opposite — Skia's blend-mode
-            // colour filter takes the tint as source, and Multiply against a
-            // transparent destination returns the tint at full alpha, so every
-            // empty pixel of a ghost came out solid #d04040 and the canvas
-            // flooded red. B201.
-            if (pass.Tint.HasValue)
-                paint.ColorFilter = SKColorFilter.CreateBlendMode(pass.Tint.Value, SKBlendMode.SrcIn);
-
-            // Only the visible sub-rectangle is read, which is where the saving is:
-            // src and dst are the same rectangle in document space, so no scaling
-            // beyond renderScale and no resampling of the parts nobody can see.
-            canvas.DrawBitmap(pass.Bitmap, visible, visible, paint);
-
-            if (pass.Overlay is { } overlay)
-            {
-                using var overlayPaint = new SKPaint
-                {
-                    BlendMode = overlay.Erases ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
-                };
-                if (overlay.Opacity < 1.0)
-                    overlayPaint.Color = overlayPaint.Color.WithAlpha((byte)(overlay.Opacity * 255));
-                canvas.DrawBitmap(overlay.Scratch, visible, visible, overlayPaint);
-            }
-        }
-
-        canvas.Flush();
-        var image = surface.Snapshot();
-        surface.Dispose();
-        return image;
-    }
 
     /// <summary>
     /// How far, in document pixels, this document's live effects spread a

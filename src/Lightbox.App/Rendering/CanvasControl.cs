@@ -444,66 +444,6 @@ public sealed partial class CanvasControl : Control
     // breadcrumb lands where a crash report does rather than in %TEMP%.
 
     /// <summary>
-    /// Whether Avalonia handed the canvas a GPU-backed Skia context, and so
-    /// whether the frame the artist sees is presented by the GPU at all.
-    ///
-    /// Every "should this be on the GPU" question starts here and cannot be
-    /// answered from a headless container: on Windows the default backend is
-    /// ANGLE/D3D11 and this is expected to read "GPU", but a machine that fell
-    /// back to software rendering has a completely different cost profile and
-    /// no amount of GPU work would help it. Reported in the info strip so it
-    /// is a fact rather than an assumption.
-    /// </summary>
-    public static string GraphicsBackend { get; private set; } = "unknown";
-
-    /// <summary>
-    /// True once a frame has been presented without a GPU context, null while
-    /// nothing has been drawn yet.
-    /// </summary>
-    /// <remarks>
-    /// Worth a separate flag from the label because something has to act on
-    /// it. A machine on the software rasteriser is not a machine with a
-    /// slightly slower canvas — presenting the frame becomes the dominant
-    /// cost, and the setting that decides how many pixels get presented is the
-    /// only lever that helps.
-    /// </remarks>
-    public static bool? SoftwareRendering { get; private set; }
-
-    /// <summary>Raised the first time the backend is known.</summary>
-    public static event Action? BackendDetected;
-
-    /// <summary>
-    /// The context's texture limit, or null when there is no context. Reported
-    /// rather than merely used: at 4K with display scaling the presentation
-    /// surface approaches this, and exceeding it is what makes a GPU surface fail
-    /// to allocate and fall back to CPU without saying so.
-    /// </summary>
-    public static int? MaxTextureSize { get; private set; }
-
-    private static void RecordBackend(ISkiaSharpApiLease lease)
-    {
-        if (GraphicsBackend != "unknown") return;
-        var software = lease.GrContext is null;
-        GraphicsBackend = software ? "CPU (software)" : "GPU";
-        SoftwareRendering = software;
-        MaxTextureSize = lease.GrContext?.MaxTextureSize;
-        BackendDetected?.Invoke();
-    }
-
-    /// <summary>Test seam: pretend the backend came back as software, or as a GPU.</summary>
-    internal static void ForceBackendForTests(bool? software)
-    {
-        SoftwareRendering = software;
-        GraphicsBackend = software switch
-        {
-            true => "CPU (software)",
-            false => "GPU",
-            null => "unknown",
-        };
-        if (software is not null) BackendDetected?.Invoke();
-    }
-
-    /// <summary>
     /// Record a survivable canvas failure. Kept here so the nine call sites
     /// read the same as they always did; the writing itself moved.
     /// </summary>
@@ -934,6 +874,12 @@ public sealed partial class CanvasControl : Control
         Pen,
 
         /// <summary>
+        /// The text tool: a press puts a caret down and the keyboard takes over —
+        /// see <c>CanvasControl.ToolGestures.cs</c>.
+        /// </summary>
+        Text,
+
+        /// <summary>
         /// The width tool: a press grabs the line, a drag changes its weight.
         /// </summary>
         /// <remarks>
@@ -1258,26 +1204,6 @@ public sealed partial class CanvasControl : Control
 
     /// <summary>Capture was lost mid-drag: abandon the ramp rather than commit it.</summary>
     public event Action? GradientDragCancelled;
-
-    /// <summary>The axis being dragged, in document coordinates, or null when idle.</summary>
-    private (double X, double Y)? _gradientFrom, _gradientTo;
-
-    /// <summary>
-    /// Show the axis while the VM renders the ramp. View-only chrome, like the
-    /// transform gizmo: it is drawn over the composite and never reaches the
-    /// document.
-    /// </summary>
-    public void SetGradientAxis((double X, double Y)? from, (double X, double Y)? to)
-    {
-        _gradientFrom = from;
-        _gradientTo = to;
-        InvalidateVisual();
-    }
-
-    private (SKPoint From, SKPoint To)? GradientAxisPoints() =>
-        _gradientFrom is { } a && _gradientTo is { } b
-            ? (new SKPoint((float)a.X, (float)a.Y), new SKPoint((float)b.X, (float)b.Y))
-            : null;
 
     // ---- transform gizmo (Ctrl+T session) --------------------------------------
     // The gizmo owns the interactive state (pivot, scale, angle, offset or a
@@ -2637,6 +2563,10 @@ public sealed partial class CanvasControl : Control
                     e.Pointer.Capture(this);
                     _shapeDragging = true;
                     ShapeDragStarted?.Invoke(x, y);
+                    e.Handled = true;
+                    return;
+                case CanvasToolMode.Text:
+                    PlaceText(x, y);
                     e.Handled = true;
                     return;
                 case CanvasToolMode.Move:

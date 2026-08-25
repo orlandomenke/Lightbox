@@ -196,31 +196,58 @@ public static class SceneRenderer
 
         foreach (var pass in passes)
         {
-            // An adjustment pass reads the surface it is being drawn onto, so
-            // only this loop — which owns the surface — can draw it.
-            if (pass.AdjustStack is not null)
-            {
-                DrawAdjustment(surface, canvas, pass, scale, transform);
-                continue;
-            }
-            // A pass may carry a matrix of its own — the transform tool's live
-            // preview. It nests inside the scene transform rather than
-            // replacing it, so the preview lands in document space, which is
-            // where the commit will put the strokes.
-            if (pass.Matrix is { } passMatrix)
-            {
-                canvas.Save();
-                canvas.Concat(passMatrix);
-                DrawPass(canvas, pass);
-                canvas.Restore();
-            }
-            else
-            {
-                DrawPass(canvas, pass);
-            }
+            DrawOne(surface, canvas, pass, scale, transform);
         }
         canvas.Restore();
         canvas.Flush();
+    }
+
+    /// <summary>
+    /// One pass onto a surface whose canvas is already in document space:
+    /// an adjustment reads the backdrop, a matrix'd pass nests inside the
+    /// scene transform, everything else draws plainly.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Extracted so there is one of it (B309).</b> <see cref="DeferredCompose"/>
+    /// grew a second pass loop when the culled composite moved to the render
+    /// thread, and that copy knew only about bitmaps, tint, opacity, blend and
+    /// the live overlay — so every field added since (a mask's shapes, a
+    /// layer's own effect, its styles, an adjustment stack, a per-pass matrix)
+    /// was silently dropped on the route a zoomed-in artist takes. Two pass
+    /// loops is one loop with two names and no way to tell them apart; the
+    /// fast route now delegates the passes it cannot express to this.
+    /// </para>
+    /// <para>
+    /// <paramref name="scale"/> and <paramref name="transform"/> are the device
+    /// scale an adjustment's kernel parameters are declared against
+    /// (invariant 7), not a transform this applies — the canvas is already
+    /// carrying it.
+    /// </para>
+    /// </remarks>
+    internal static void DrawOne(
+        SKSurface surface, SKCanvas canvas, RenderPass pass, double scale, SKMatrix? transform)
+    {
+        // An adjustment pass reads the surface it is being drawn onto, so
+        // only a caller that owns the surface can draw it.
+        if (pass.AdjustStack is not null)
+        {
+            DrawAdjustment(surface, canvas, pass, scale, transform);
+            return;
+        }
+        // A pass may carry a matrix of its own — the transform tool's live
+        // preview. It nests inside the scene transform rather than
+        // replacing it, so the preview lands in document space, which is
+        // where the commit will put the strokes.
+        if (pass.Matrix is { } passMatrix)
+        {
+            canvas.Save();
+            canvas.Concat(passMatrix);
+            DrawPass(canvas, pass);
+            canvas.Restore();
+            return;
+        }
+        DrawPass(canvas, pass);
     }
 
     /// <summary>
@@ -656,6 +683,18 @@ public static class SceneRenderer
 
         foreach (var pass in passes)
         {
+            // B309: this body draws bitmaps, tint, opacity, blend, a matrix and
+            // an overlay. A shaped or filtered pass is meant never to arrive —
+            // ScenePassBuilder refuses tile-native for a document with any live
+            // effect (docEffects) and for a shaped frame (TileFallbackReason.
+            // Shaped) — so the drop below is protected by a gate rather than by
+            // this loop. Said out loud, because the sibling route was protected
+            // by exactly such a belief and the belief was wrong.
+            System.Diagnostics.Debug.Assert(
+                pass.AdjustStack is null && pass.Shapes is not { Count: > 0 }
+                    && pass.Effect is null && pass.Style is null,
+                "B309: a shaped or filtered pass reached the tiled compositor, "
+                + "which cannot draw one — the tile-native gate has regressed.");
             if (pass.Bitmap is null && pass.SourceFrame is null) continue;
 
             var alpha = (byte)Math.Round(Math.Clamp(pass.Opacity, 0, 1) * 255);

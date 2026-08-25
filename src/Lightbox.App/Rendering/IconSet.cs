@@ -54,6 +54,7 @@ public static class IconSet
     public const string Width = "IconWidth";
     public const string Arrow = "IconArrow";
     public const string Points = "IconPoints";
+    public const string Text = "IconText";
 
     // ---- shape variants -----------------------------------------------------
 
@@ -143,7 +144,7 @@ public static class IconSet
     public static IReadOnlyList<string> All { get; } =
     [
         EyeOpen, EyeClosed, LockOpen, LockClosed, AlphaLock, OnionOn, OnionOff,
-        Brush, Eraser, Fill, Picker, Gradient, Move, Crop, Bone, Pen, Width, Arrow, Points,
+        Brush, Eraser, Fill, Picker, Gradient, Move, Crop, Bone, Pen, Width, Arrow, Points, Text,
         ShapeLine, ShapeRect, ShapeEllipse, ShapePolygon,
         SelectLasso, SelectBox, SelectEllipse, SelectPolygon, SelectWand,
         Close, Plus, Minus, Trash, Folder, Eject, ChevronDown, ChevronUp, ChevronRight,

@@ -162,7 +162,7 @@ public partial class MainViewModel
         SelectedLinesChanged?.Invoke(selected.Count == 0
             ? null
             : [.. selected.Select(s =>
-                ((IReadOnlyList<StrokePoint>)s.Points, s.Tool == ToolKind.Fill))]);
+                ((IReadOnlyList<StrokePoint>)s.Points, s.Tool.FillsAContour()))]);
     }
 
     /// <summary>Whether any line is selected — for enabling the actions that need one.</summary>
