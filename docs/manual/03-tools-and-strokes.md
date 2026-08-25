@@ -661,8 +661,11 @@ back from.
 
 ### Choosing a font
 
-The font button in the tool options opens the list, with a search box. There are
-two kinds in it:
+The font button opens the list, with a search box. It is on the options bar
+along the top with the text tool in hand, and in the **Tool options** docker,
+which has room for every setting at once — the bar carries the face, the size
+and the alignment, which are what you change mid-word, and the docker carries
+those plus tracking and leading. There are two kinds of font in the list:
 
 - **Installed** — every font on this machine. Always there, no waiting, works
   offline.
@@ -674,6 +677,8 @@ Alongside the font: **Size** in pixels, **Tracking** in thousandths of an em
 here), **Leading** as baseline-to-baseline in pixels — leave it at zero and the
 typeface's own spacing is used, which is what it was designed for — and the
 alignment, which decides what part of the line sits on the point you clicked.
+Tracking and leading are in the docker rather than on the bar: they are set once
+for a block, and the bar has only so much room.
 
 If a font is listed but sets nothing, Lightbox says so when you pick it. Some
 installed families are formats with no outlines it can read, and the honest

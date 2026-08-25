@@ -32,10 +32,23 @@
     The font button opens the browser rather than a combo box holding four
     thousand rows: a font is chosen by looking, and a list you cannot search is
     a list nobody reaches the bottom of.
+
+    One control, and the split is the fix for a real defect rather than taste.
+    Measured: with the text tool in hand the bar is 273px at a 1280px window
+    and the five-control group wanted 443px, so the OverflowBar parked the
+    whole thing past its right edge and an artist saw an empty bar with a ▾
+    they had no reason to open. That is B260's second cause exactly — a group
+    that is one atomic control can only fit whole — and the answer is the one
+    the Select group already uses: several small controls, so the part that
+    matters most stays put and the rest parks first.
+
+    The face is that part. Size and alignment are TextFormatBar; tracking and
+    leading are set once for a block and live in TextOptionsPanel, with room
+    for their labels.
   -->
   <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
 
-    <Button MinWidth="150" HorizontalContentAlignment="Left"
+    <Button MinWidth="120" HorizontalContentAlignment="Left"
             Command="{Binding LoadFontsCommand}"
             ToolTip.Tip="The face type is set in. Installed fonts are always here; Google's are fetched once and kept.">
       <Button.Content>
@@ -70,28 +83,5 @@
       </Button.Flyout>
     </Button>
 
-    <TextBlock Text="Size" VerticalAlignment="Center" Opacity="0.8" />
-    <NumericUpDown Value="{Binding TextSize}" Minimum="1" Maximum="2000" Increment="1"
-                   FormatString="0" Classes="value" VerticalAlignment="Center"
-                   ToolTip.Tip="Em size in document pixels." />
-
-    <TextBlock Text="Tracking" VerticalAlignment="Center" Opacity="0.8" />
-    <NumericUpDown Value="{Binding TextTracking}" Minimum="-500" Maximum="2000" Increment="10"
-                   FormatString="0" Classes="value" VerticalAlignment="Center"
-                   ToolTip.Tip="Letter-spacing in thousandths of an em — the unit every type specimen quotes." />
-
-    <TextBlock Text="Leading" VerticalAlignment="Center" Opacity="0.8" />
-    <NumericUpDown Value="{Binding TextLineHeight}" Minimum="0" Maximum="2000" Increment="1"
-                   FormatString="0" Classes="value" VerticalAlignment="Center"
-                   ToolTip.Tip="Baseline to baseline in pixels. Zero leaves it to the typeface, which is what it is designed for." />
-
-    <ComboBox ItemsSource="{Binding TextAlignChoices}" SelectedItem="{Binding TextAlign}"
-              MinWidth="100" ToolTip.Tip="Which part of the line sits on the point you clicked.">
-      <ComboBox.ItemTemplate>
-        <DataTemplate x:DataType="core:TextAlign">
-          <TextBlock Text="{Binding}" />
-        </DataTemplate>
-      </ComboBox.ItemTemplate>
-    </ComboBox>
   </StackPanel>
 </UserControl>

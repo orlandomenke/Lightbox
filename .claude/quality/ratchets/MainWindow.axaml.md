@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4877
+budget: 4882
 
 ## Why it is here despite being XAML
 
@@ -262,3 +262,12 @@ leaves a number nobody can account for. So every reason above stays, and
   exempt from the rule — it is the case where taking one side silently discards
   another branch's growth rather than banking its slack, which is the same
   mistake wearing the other face.
+- **4,877 → 4,882** (2026-08-25, B308): +4 for the text tool's two missing
+  surfaces — the Tool options docker's text section and the second half of its
+  quick-bar group. Four lines, and they are the whole markup cost of a bug that
+  made the tool look unfinished: the options existed and an artist could not
+  reach them, because the group was one atomic control that the OverflowBar
+  parked past its right edge at every ordinary window size. The panel and the
+  bar are `UserControl`s in their own files, the layout fix is in
+  `OverflowBar.cs`, and what lands here is registration — which this budget's
+  standing note says it must not refuse.
