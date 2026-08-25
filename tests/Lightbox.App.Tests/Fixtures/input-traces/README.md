@@ -26,6 +26,17 @@ the same evidence turned into a test.
 3. Say in the bug entry that the capture is here. A trace named in a ledger and
    findable nowhere is the state this folder replaces.
 
+Two sweeps run over every file here without anybody wiring them up:
+`EveryCheckedInCaptureReplaysCleanly` (it loads, it is input, it replays) and
+`NoCheckedInCaptureMakesThisBuildChangeItsMindAndChangeItBack` — the oracle,
+which replays with the instrument armed and refuses a cursor decision that goes
+away and comes back. That second one is B126's claim, checked against every
+minute anybody has ever sent in.
+
+A capture that *should* flip — a pointer genuinely crossing a guide and back —
+belongs out of the sweep with an assertion of its own, rather than being a reason
+to soften it.
+
 **Do not edit a capture to make a test pass.** A capture is evidence; the moment
 it is tuned it is a fixture that agrees with the code by construction, which is
 the failure mode `BUGS.md` calls a green checkbox over a guess. Trim it — the
