@@ -114,6 +114,30 @@ it already** — `core.hooksPath` replaces the hooks directory wholesale, so
 overriding somebody's existing choice would silently disable every hook they
 had. If you point it elsewhere, add the guard to your own arrangement.
 
+### Keeping `main` current
+
+The session hook also fast-forwards your local `main` onto `origin/main` at the
+start of every agent session, because nothing else is going to. Work lands here
+as a pull request merged on GitHub, and git has no client-side event for that —
+no hook fires, no ref moves — so a clone sits silently behind until somebody
+remembers to fetch. What that costs is not a conflict, which at least announces
+itself. It is branching off a stale `main`, reimplementing what landed last
+week, and review being where anyone finds out.
+
+It is **fast-forward only**, both when `main` is checked out and when it is not,
+so it can never discard a local commit or resolve anything on your behalf. Four
+situations it declines, each on one line: a dirty working tree, a `main` that
+has diverged from the remote, a clone with no local `main`, and no network. By
+hand, the same thing is:
+
+```sh
+git fetch --prune origin && git merge --ff-only origin/main
+```
+
+Measured at 596/651/633 ms against GitHub with nothing to fetch, which is why it
+runs synchronously rather than in the background like the codemap build — the
+codemap can afford to be late, a branch point cannot.
+
 ### The derived files a clone does not carry
 
 `.claude/codemap/` and `.claude/quality/QUESTIONS.md` are **generated and
