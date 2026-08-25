@@ -2780,9 +2780,9 @@ public sealed partial class CanvasControl : Control
 
             // A second device pressing mid-stroke is never the artist — it is
             // the synthesized mouse click a window activation delivers while
-            // the pen is already down. Restarting the stroke from its position
-            // would begin the mark wherever the mouse was last left.
-            if (_painting) return;
+            // the pen is already down. Unless it is the pen and the stroke in
+            // flight is not the pen's, which is B256: see PenTakesOverFrom.
+            if (_painting && !PenTakesOverFrom(e)) return;
 
             e.Pointer.Capture(this);
             _painting = true;
@@ -3609,13 +3609,6 @@ public sealed partial class CanvasControl : Control
             var t = i / 48.0 * Math.PI * 2;
             yield return new(cx + rx * Math.Cos(t), cy + ry * Math.Sin(t), 1);
         }
-    }
-
-    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
-    {
-        base.OnPointerCaptureLost(e);
-        Services.InputTrace.CaptureLost(e.Pointer);
-        CancelPointerGestures();
     }
 
     /// <summary>

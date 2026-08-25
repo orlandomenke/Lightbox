@@ -1,0 +1,2448 @@
+Lightbox input trace (B126/B254)
+when    2026-08-25T17:55:36.7707017Z (UTC)
+build   0.1.0+65d9576dd07cbe75b32a937dd9171f55ab9eea3a
+os      Microsoft Windows NT 10.0.22631.0
+traced  25.1 s, 1204 events
+
+devices
+  Pen id 1001: 873 events, max pressure 1.00, tilt reported
+  Mouse id 1000: 102 events, max pressure 0.50, no tilt
+
+counters
+  moves                 959 (38/s)
+  coalesced samples     205 (8/s)  <-- the device's rate; the moves above are the delivery rate
+  stream alternations   3
+  events claiming Shift 0
+  canvas enter/exit     5/4
+  cursor decisions      1 changes
+  cursor assignments    0
+  popups opened         0
+  popups collapsed      0 (under 500 ms)
+  GC collections        gen0 6, gen1 4, gen2 3
+  GC pause total        49 ms  (0% of the blocked time)
+  UI-thread stalls      23, worst 1089 ms (over 250 ms)
+  popups are            in-window overlays
+  submenu closes refused 0
+  longest silence       1089 ms
+
+verdicts
+  Two pointer streams interleave (Pen id 1001 and Mouse id 1000; 3 switches, 7/min) — a second, driver-emulated device beside the pen is the working explanation, and suppressing the echo stream is the fix to try.
+  The pointer left and re-entered the canvas 4+5 times (21/min) — enter/exit churn; every exit re-arms the window's default cursor and dismisses hover UI.
+  Lightbox assigned the canvas cursor 0 time(s) in 25 s and never changed its mind, so nothing here is flipping it deliberately. If the arrow still flickered, it is the enter/exit churn above doing it: the canvas's hidden cursor only applies while the pointer is over the canvas, so every exit hands the window's arrow back for as long as the gap lasts. The cause is below the app; the cure need not be.
+  The UI thread was blocked 23 time(s), worst 1.1 s — the application really did stop answering, and any silence in the event list around that point is the freeze rather than the pointer being elsewhere.
+
+events (oldest first)
+     0.2869  Stall           the UI thread was blocked for 287 ms
+     1.3681  Stall           the UI thread was blocked for 1081 ms
+     2.4446  Stall           the UI thread was blocked for 1077 ms
+     3.5303  Stall           the UI thread was blocked for 1086 ms
+     4.6079  Stall           the UI thread was blocked for 1078 ms
+     5.6841  Stall           the UI thread was blocked for 1076 ms
+     6.2216  Enter         Mouse id 1000  (56.0, 446.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-3503.0, 116.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-3503.0, 147.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-3523.0, 201.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-3550.0, 242.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-3623.0, 310.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-3703.0, 363.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-3807.0, 418.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-3922.0, 462.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4073.0, 507.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4227.0, 542.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4391.0, 564.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4547.0, 580.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4683.0, 587.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4659.0, 590.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4690.0, 590.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4653.0, 579.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4641.0, 588.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4635.0, 546.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4646.0, 564.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4594.0, 535.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4595.0, 522.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4565.0, 513.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4586.0, 503.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4545.0, 500.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4548.0, 499.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4539.0, 497.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4532.0, 497.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4532.0, 497.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4532.0, 498.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4533.0, 503.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4536.0, 506.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4536.0, 511.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4538.0, 518.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4541.0, 524.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4538.0, 529.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4533.0, 531.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4534.0, 535.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4531.0, 535.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4530.0, 536.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4526.0, 539.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4511.0, 542.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4457.0, 544.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4374.0, 544.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4267.0, 539.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-4073.0, 519.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-3894.0, 496.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-3682.0, 473.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-3431.0, 443.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-3181.0, 419.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-2965.0, 399.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-2715.0, 382.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-2466.0, 372.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-2217.0, 365.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-1968.0, 362.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-1749.0, 362.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-1530.0, 362.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-1315.0, 362.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-1096.0, 364.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-877.0, 378.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-692.0, 384.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-472.0, 404.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (-286.0, 417.0)  p 0.50
+     6.2222  Sample        Mouse id 1000  (56.0, 446.0)  p 0.50
+     6.2222  Move          Mouse id 1000  (56.0, 446.0)  p 0.50
+     6.2287  CursorDecided   start→Paint
+     6.2295  Move          Mouse id 1000  (212.0, 459.0)  p 0.50
+     6.2299  Stall           the UI thread was blocked for 546 ms
+     6.2362  Move          Mouse id 1000  (360.0, 468.0)  p 0.50
+     6.2433  Move          Mouse id 1000  (494.0, 481.0)  p 0.50
+     6.2512  Move          Mouse id 1000  (575.0, 489.0)  p 0.50
+     6.2587  Move          Mouse id 1000  (659.0, 498.0)  p 0.50
+     6.2661  Move          Mouse id 1000  (722.0, 505.0)  p 0.50
+     6.2739  Move          Mouse id 1000  (792.0, 513.0)  p 0.50
+     6.2811  Move          Mouse id 1000  (824.0, 518.0)  p 0.50
+     6.2888  Move          Mouse id 1000  (847.0, 518.0)  p 0.50
+     6.2959  Move          Mouse id 1000  (864.0, 518.0)  p 0.50
+     6.3042  Move          Mouse id 1000  (873.0, 518.0)  p 0.50
+     6.3112  Move          Mouse id 1000  (876.0, 518.0)  p 0.50
+     6.3186  Move          Mouse id 1000  (877.0, 518.0)  p 0.50
+     6.3492  Move          Mouse id 1000  (874.0, 518.0)  p 0.50
+     6.3560  Move          Mouse id 1000  (858.0, 516.0)  p 0.50
+     6.3636  Move          Mouse id 1000  (825.0, 508.0)  p 0.50
+     6.3711  Move          Mouse id 1000  (740.0, 497.0)  p 0.50
+     6.3782  Move          Mouse id 1000  (628.0, 479.0)  p 0.50
+     6.3863  Move          Mouse id 1000  (479.0, 460.0)  p 0.50
+     6.3938  Move          Mouse id 1000  (289.0, 437.0)  p 0.50
+     6.4017  Move          Mouse id 1000  (69.0, 413.0)  p 0.50
+     6.4086  Exit          Mouse id 1000  (69.0, 413.0)  p 0.50
+     6.7576  Stall           the UI thread was blocked for 307 ms
+     7.8465  Stall           the UI thread was blocked for 1089 ms
+     8.9210  Stall           the UI thread was blocked for 1075 ms
+    10.0004  Stall           the UI thread was blocked for 1079 ms
+    11.0779  Stall           the UI thread was blocked for 1078 ms
+    12.1508  Stall           the UI thread was blocked for 1073 ms
+    13.2331  Stall           the UI thread was blocked for 1082 ms
+    14.3063  Stall           the UI thread was blocked for 1073 ms
+    15.3843  Stall           the UI thread was blocked for 1078 ms
+    16.4583  Stall           the UI thread was blocked for 1074 ms
+    17.5392  Stall           the UI thread was blocked for 1081 ms
+    18.6179  Stall           the UI thread was blocked for 1079 ms
+    19.6996  Stall           the UI thread was blocked for 1082 ms
+    19.9650  Enter         Mouse id 1000  (900.0, 159.0)  p 0.50
+    19.9654  Move          Mouse id 1000  (900.0, 159.0)  p 0.50
+    19.9659  Stall           the UI thread was blocked for 266 ms
+    19.9684  Move          Mouse id 1000  (900.0, 160.0)  p 0.50
+    19.9745  Move          Mouse id 1000  (898.0, 160.0)  p 0.50
+    19.9789  Move          Mouse id 1000  (896.0, 161.0)  p 0.50
+    19.9846  Move          Mouse id 1000  (893.0, 162.0)  p 0.50
+    19.9883  Move          Mouse id 1000  (891.0, 163.0)  p 0.50
+    19.9948  Move          Mouse id 1000  (888.0, 165.0)  p 0.50
+    19.9984  Move          Mouse id 1000  (885.0, 167.0)  p 0.50
+    20.0044  Move          Mouse id 1000  (882.0, 169.0)  p 0.50
+    20.0082  Move          Mouse id 1000  (880.0, 171.0)  p 0.50
+    20.0149  Move          Mouse id 1000  (877.0, 173.0)  p 0.50
+    20.0184  Move          Mouse id 1000  (874.0, 175.0)  p 0.50
+    20.0246  Move          Mouse id 1000  (871.0, 177.0)  p 0.50
+    20.0286  Move          Mouse id 1000  (868.0, 180.0)  p 0.50
+    20.0346  Move          Mouse id 1000  (866.0, 182.0)  p 0.50
+    20.0383  Move          Mouse id 1000  (863.0, 184.0)  p 0.50
+    20.0448  Move          Mouse id 1000  (861.0, 186.0)  p 0.50
+    20.0484  Move          Mouse id 1000  (859.0, 188.0)  p 0.50
+    20.0545  Move          Mouse id 1000  (857.0, 190.0)  p 0.50
+    20.0587  Move          Mouse id 1000  (856.0, 192.0)  p 0.50
+    20.0645  Move          Mouse id 1000  (855.0, 194.0)  p 0.50
+    20.0684  Move          Mouse id 1000  (854.0, 195.0)  p 0.50
+    20.0746  Move          Mouse id 1000  (854.0, 197.0)  p 0.50
+    20.0788  Move          Mouse id 1000  (854.0, 199.0)  p 0.50
+    20.0845  Move          Mouse id 1000  (854.0, 201.0)  p 0.50
+    20.0883  Move          Mouse id 1000  (855.0, 203.0)  p 0.50
+    20.0947  Move          Mouse id 1000  (855.0, 205.0)  p 0.50
+    20.0984  Move          Mouse id 1000  (856.0, 206.0)  p 0.50
+    20.1050  Move          Mouse id 1000  (857.0, 208.0)  p 0.50
+    20.1084  Move          Mouse id 1000  (858.0, 210.0)  p 0.50
+    20.1166  Move          Mouse id 1000  (860.0, 211.0)  p 0.50
+    20.1206  Move          Mouse id 1000  (861.0, 212.0)  p 0.50
+    20.1272  Move          Mouse id 1000  (863.0, 213.0)  p 0.50
+    20.1305  Move          Mouse id 1000  (865.0, 213.0)  p 0.50
+    20.1365  Move          Mouse id 1000  (867.0, 213.0)  p 0.50
+    20.1403  Move          Mouse id 1000  (869.0, 212.0)  p 0.50
+    20.1467  Move          Mouse id 1000  (872.0, 212.0)  p 0.50
+    20.1504  Move          Mouse id 1000  (874.0, 211.0)  p 0.50
+    20.1564  Move          Mouse id 1000  (877.0, 211.0)  p 0.50
+    20.1605  Move          Mouse id 1000  (879.0, 210.0)  p 0.50
+    20.1665  Move          Mouse id 1000  (881.0, 209.0)  p 0.50
+    20.1704  Move          Mouse id 1000  (883.0, 208.0)  p 0.50
+    20.1774  Move          Mouse id 1000  (885.0, 208.0)  p 0.50
+    20.1827  Move          Mouse id 1000  (887.0, 207.0)  p 0.50
+    20.1865  Move          Mouse id 1000  (889.0, 206.0)  p 0.50
+    20.1927  Move          Mouse id 1000  (890.0, 206.0)  p 0.50
+    20.1966  Move          Mouse id 1000  (892.0, 205.0)  p 0.50
+    20.2028  Move          Mouse id 1000  (893.0, 205.0)  p 0.50
+    20.2064  Move          Mouse id 1000  (894.0, 205.0)  p 0.50
+    20.2127  Move          Mouse id 1000  (895.0, 205.0)  p 0.50
+    20.2161  Move          Mouse id 1000  (896.0, 204.0)  p 0.50
+    20.2224  Move          Mouse id 1000  (897.0, 205.0)  p 0.50
+    20.2324  Move          Mouse id 1000  (898.0, 205.0)  p 0.50
+    20.2525  Move          Mouse id 1000  (899.0, 205.0)  p 0.50
+    20.2563  Move          Mouse id 1000  (900.0, 204.0)  p 0.50
+    20.2665  Move          Mouse id 1000  (901.0, 203.0)  p 0.50
+    20.2727  Move          Mouse id 1000  (902.0, 203.0)  p 0.50
+    20.2772  Move          Mouse id 1000  (904.0, 202.0)  p 0.50
+    20.2824  Move          Mouse id 1000  (905.0, 201.0)  p 0.50
+    20.2863  Move          Mouse id 1000  (907.0, 200.0)  p 0.50
+    20.2924  Move          Mouse id 1000  (908.0, 200.0)  p 0.50
+    20.2967  Move          Mouse id 1000  (910.0, 199.0)  p 0.50
+    20.3024  Move          Mouse id 1000  (911.0, 198.0)  p 0.50
+    20.3063  Move          Mouse id 1000  (913.0, 197.0)  p 0.50
+    20.3106  Move          Mouse id 1000  (914.0, 197.0)  p 0.50
+    20.3165  Move          Mouse id 1000  (915.0, 196.0)  p 0.50
+    20.3204  Move          Mouse id 1000  (917.0, 195.0)  p 0.50
+    20.3273  Move          Mouse id 1000  (918.0, 195.0)  p 0.50
+    20.3306  Move          Mouse id 1000  (919.0, 194.0)  p 0.50
+    20.3364  Move          Mouse id 1000  (920.0, 194.0)  p 0.50
+    20.3470  Move          Mouse id 1000  (921.0, 194.0)  p 0.50
+    20.3500  Move          Mouse id 1000  (921.0, 193.0)  p 0.50
+    20.3773  Press         Mouse id 1000  (921.0, 193.0)  p 0.50
+    20.4391  Exit          Mouse id 1000  (921.0, 193.0)  p 0.50
+    20.4408  Press         Pen id 1001  (921.6, 193.0)  p 0.09  tilt 29/38
+    20.4522  Enter         Pen id 1001  (921.3, 192.2)  p 0.50
+    20.4529  Sample        Pen id 1001  (921.6, 192.7)  p 0.16  tilt 29/38
+    20.4529  Sample        Pen id 1001  (921.6, 192.3)  p 0.19  tilt 29/38
+    20.4529  Sample        Pen id 1001  (921.3, 192.2)  p 0.20  tilt 28/38
+    20.4529  Move          Pen id 1001  (921.3, 192.2)  p 0.20  tilt 28/38
+    20.4549  Sample        Pen id 1001  (921.0, 192.1)  p 0.21  tilt 28/39
+    20.4549  Sample        Pen id 1001  (920.7, 192.1)  p 0.21  tilt 28/39
+    20.4549  Sample        Pen id 1001  (919.4, 192.1)  p 0.21  tilt 28/39
+    20.4549  Sample        Pen id 1001  (918.5, 192.2)  p 0.21  tilt 28/39
+    20.4549  Sample        Pen id 1001  (916.9, 192.4)  p 0.21  tilt 28/40
+    20.4549  Sample        Pen id 1001  (915.3, 192.8)  p 0.21  tilt 28/40
+    20.4549  Sample        Pen id 1001  (913.5, 193.2)  p 0.21  tilt 28/40
+    20.4549  Sample        Pen id 1001  (911.3, 193.9)  p 0.21  tilt 28/40
+    20.4549  Sample        Pen id 1001  (908.7, 194.6)  p 0.22  tilt 28/40
+    20.4549  Sample        Pen id 1001  (906.2, 195.4)  p 0.22  tilt 28/40
+    20.4549  Sample        Pen id 1001  (903.1, 196.4)  p 0.23  tilt 28/41
+    20.4549  Sample        Pen id 1001  (899.9, 197.4)  p 0.23  tilt 28/41
+    20.4549  Sample        Pen id 1001  (896.8, 198.6)  p 0.24  tilt 28/41
+    20.4549  Sample        Pen id 1001  (893.3, 199.7)  p 0.24  tilt 28/41
+    20.4549  Sample        Pen id 1001  (889.8, 201.1)  p 0.25  tilt 28/41
+    20.4549  Sample        Pen id 1001  (886.1, 202.7)  p 0.25  tilt 28/41
+    20.4549  Sample        Pen id 1001  (882.0, 204.4)  p 0.25  tilt 28/41
+    20.4549  Move          Pen id 1001  (882.0, 204.4)  p 0.25  tilt 28/41
+    20.4550  Exit          Pen id 1001  (881.0, 204.0)  p 0.50
+    20.4554  Enter         Mouse id 1000  (921.0, 193.0)  p 0.50
+    20.4554  Move          Mouse id 1000  (921.0, 193.0)  p 0.50
+    20.4603  Exit          Mouse id 1000  (921.0, 193.0)  p 0.50
+    20.4605  Enter         Pen id 1001  (878.2, 206.2)  p 0.50
+    20.4606  Move          Pen id 1001  (878.2, 206.2)  p 0.25  tilt 28/41
+    20.4640  Move          Pen id 1001  (873.8, 208.2)  p 0.25  tilt 28/41
+    20.5066  Sample        Pen id 1001  (869.7, 210.4)  p 0.25  tilt 28/41
+    20.5066  Sample        Pen id 1001  (865.6, 212.5)  p 0.25  tilt 28/40
+    20.5066  Sample        Pen id 1001  (861.2, 214.8)  p 0.25  tilt 28/40
+    20.5066  Sample        Pen id 1001  (856.8, 217.2)  p 0.25  tilt 28/40
+    20.5066  Sample        Pen id 1001  (853.0, 219.4)  p 0.25  tilt 29/40
+    20.5066  Sample        Pen id 1001  (849.5, 221.6)  p 0.26  tilt 29/39
+    20.5066  Sample        Pen id 1001  (846.4, 223.6)  p 0.26  tilt 29/39
+    20.5066  Sample        Pen id 1001  (843.9, 225.6)  p 0.26  tilt 29/39
+    20.5066  Move          Pen id 1001  (843.9, 225.6)  p 0.26  tilt 29/39
+    20.5078  Move          Pen id 1001  (841.6, 227.1)  p 0.26  tilt 29/39
+    20.5140  Move          Pen id 1001  (840.1, 228.7)  p 0.26  tilt 29/40
+    20.5179  Move          Pen id 1001  (838.8, 230.0)  p 0.26  tilt 29/40
+    20.5209  Stall           the UI thread was blocked for 254 ms
+    20.5239  Move          Pen id 1001  (838.2, 231.0)  p 0.26  tilt 29/40
+    20.5280  Move          Pen id 1001  (837.9, 232.0)  p 0.25  tilt 29/40
+    20.5342  Move          Pen id 1001  (838.2, 232.7)  p 0.25  tilt 29/40
+    20.5380  Move          Pen id 1001  (838.5, 233.5)  p 0.24  tilt 29/40
+    20.5441  Move          Pen id 1001  (839.4, 234.2)  p 0.24  tilt 29/40
+    20.5481  Move          Pen id 1001  (840.4, 235.0)  p 0.24  tilt 29/40
+    20.5541  Move          Pen id 1001  (842.0, 235.5)  p 0.23  tilt 29/40
+    20.5581  Move          Pen id 1001  (843.9, 236.1)  p 0.23  tilt 29/40
+    20.5642  Move          Pen id 1001  (846.1, 236.4)  p 0.23  tilt 29/40
+    20.5682  Move          Pen id 1001  (848.9, 236.7)  p 0.23  tilt 29/40
+    20.5742  Move          Pen id 1001  (852.4, 236.8)  p 0.23  tilt 29/40
+    20.5782  Move          Pen id 1001  (856.1, 236.7)  p 0.23  tilt 29/40
+    20.5822  Move          Pen id 1001  (860.5, 236.4)  p 0.23  tilt 29/40
+    20.5883  Move          Pen id 1001  (865.0, 236.1)  p 0.23  tilt 31/40
+    20.5921  Move          Pen id 1001  (869.7, 235.6)  p 0.23  tilt 31/41
+    20.5983  Move          Pen id 1001  (874.7, 235.1)  p 0.23  tilt 29/41
+    20.6020  Move          Pen id 1001  (880.1, 234.5)  p 0.24  tilt 29/41
+    20.6081  Move          Pen id 1001  (885.4, 233.9)  p 0.24  tilt 29/41
+    20.6122  Move          Pen id 1001  (891.1, 233.4)  p 0.24  tilt 29/41
+    20.6183  Move          Pen id 1001  (896.4, 232.9)  p 0.24  tilt 29/41
+    20.6222  Move          Pen id 1001  (902.1, 232.4)  p 0.25  tilt 29/42
+    20.6283  Move          Pen id 1001  (907.8, 231.9)  p 0.25  tilt 29/42
+    20.6320  Move          Pen id 1001  (913.5, 231.4)  p 0.25  tilt 29/43
+    20.6385  Move          Pen id 1001  (919.1, 231.0)  p 0.25  tilt 29/43
+    20.6419  Move          Pen id 1001  (924.8, 230.7)  p 0.25  tilt 29/43
+    20.6481  Move          Pen id 1001  (930.1, 230.4)  p 0.25  tilt 29/43
+    20.6521  Move          Pen id 1001  (935.5, 230.2)  p 0.25  tilt 29/43
+    20.6580  Move          Pen id 1001  (940.2, 230.2)  p 0.25  tilt 29/43
+    20.6620  Move          Pen id 1001  (944.6, 230.2)  p 0.25  tilt 29/43
+    20.6660  Move          Pen id 1001  (949.0, 230.4)  p 0.25  tilt 29/43
+    20.6720  Move          Pen id 1001  (953.1, 230.8)  p 0.25  tilt 29/43
+    20.6762  Move          Pen id 1001  (957.2, 231.2)  p 0.25  tilt 28/43
+    20.6821  Move          Pen id 1001  (960.7, 231.9)  p 0.25  tilt 28/43
+    20.6859  Move          Pen id 1001  (963.8, 232.7)  p 0.25  tilt 28/43
+    20.6919  Move          Pen id 1001  (966.4, 233.6)  p 0.25  tilt 28/43
+    20.6960  Move          Pen id 1001  (968.6, 234.7)  p 0.25  tilt 28/43
+    20.7024  Move          Pen id 1001  (970.5, 236.0)  p 0.25  tilt 28/43
+    20.7061  Move          Pen id 1001  (971.7, 237.5)  p 0.25  tilt 26/43
+    20.7124  Move          Pen id 1001  (972.7, 239.0)  p 0.25  tilt 26/43
+    20.7161  Move          Pen id 1001  (973.0, 241.0)  p 0.26  tilt 26/43
+    20.7221  Move          Pen id 1001  (972.7, 243.1)  p 0.26  tilt 26/43
+    20.7260  Move          Pen id 1001  (972.0, 245.4)  p 0.26  tilt 26/43
+    20.7323  Move          Pen id 1001  (970.8, 247.9)  p 0.26  tilt 26/42
+    20.7360  Move          Pen id 1001  (968.9, 250.5)  p 0.26  tilt 26/42
+    20.7421  Move          Pen id 1001  (966.4, 253.3)  p 0.27  tilt 26/42
+    20.7464  Move          Pen id 1001  (963.2, 256.3)  p 0.27  tilt 26/42
+    20.7500  Move          Pen id 1001  (959.8, 259.5)  p 0.27  tilt 26/42
+    20.7559  Move          Pen id 1001  (956.0, 262.6)  p 0.27  tilt 26/42
+    20.7601  Move          Pen id 1001  (951.9, 265.8)  p 0.27  tilt 26/42
+    20.7665  Move          Pen id 1001  (947.5, 269.3)  p 0.27  tilt 26/42
+    20.7700  Move          Pen id 1001  (942.7, 272.9)  p 0.28  tilt 26/41
+    20.7761  Move          Pen id 1001  (937.7, 276.7)  p 0.28  tilt 26/41
+    20.7802  Move          Pen id 1001  (932.4, 280.7)  p 0.28  tilt 26/40
+    20.7860  Move          Pen id 1001  (926.7, 284.6)  p 0.28  tilt 26/40
+    20.7899  Move          Pen id 1001  (921.0, 288.7)  p 0.29  tilt 26/40
+    20.7962  Move          Pen id 1001  (915.3, 292.8)  p 0.29  tilt 26/40
+    20.8000  Move          Pen id 1001  (909.7, 296.9)  p 0.29  tilt 26/39
+    20.8062  Move          Pen id 1001  (904.0, 300.8)  p 0.30  tilt 26/39
+    20.8101  Move          Pen id 1001  (898.3, 305.0)  p 0.30  tilt 26/39
+    20.8161  Move          Pen id 1001  (892.7, 309.1)  p 0.30  tilt 26/39
+    20.8200  Move          Pen id 1001  (887.0, 313.3)  p 0.30  tilt 26/38
+    20.8260  Move          Pen id 1001  (881.6, 317.5)  p 0.30  tilt 28/38
+    20.8304  Move          Pen id 1001  (876.3, 321.7)  p 0.30  tilt 28/37
+    20.8340  Move          Pen id 1001  (870.9, 325.9)  p 0.30  tilt 28/37
+    20.8401  Move          Pen id 1001  (865.6, 329.9)  p 0.31  tilt 28/37
+    20.8442  Move          Pen id 1001  (860.9, 333.8)  p 0.31  tilt 28/37
+    20.8500  Move          Pen id 1001  (855.8, 337.7)  p 0.31  tilt 28/36
+    20.8541  Move          Pen id 1001  (851.4, 341.4)  p 0.31  tilt 28/36
+    20.8603  Move          Pen id 1001  (847.3, 345.1)  p 0.31  tilt 28/36
+    20.8640  Move          Pen id 1001  (843.9, 348.6)  p 0.31  tilt 28/36
+    20.8701  Move          Pen id 1001  (840.4, 351.9)  p 0.31  tilt 28/35
+    20.8741  Move          Pen id 1001  (837.2, 355.1)  p 0.31  tilt 28/35
+    20.8802  Move          Pen id 1001  (834.7, 358.2)  p 0.31  tilt 28/35
+    20.8840  Move          Pen id 1001  (832.5, 361.0)  p 0.31  tilt 28/35
+    20.8899  Move          Pen id 1001  (830.6, 363.8)  p 0.31  tilt 28/35
+    20.8940  Move          Pen id 1001  (829.1, 366.3)  p 0.31  tilt 28/35
+    20.9002  Move          Pen id 1001  (827.5, 368.5)  p 0.31  tilt 28/35
+    20.9042  Move          Pen id 1001  (826.5, 370.7)  p 0.31  tilt 28/35
+    20.9102  Move          Pen id 1001  (825.9, 372.7)  p 0.31  tilt 28/34
+    20.9141  Move          Pen id 1001  (825.6, 374.6)  p 0.31  tilt 28/34
+    20.9201  Move          Pen id 1001  (825.6, 376.5)  p 0.31  tilt 28/34
+    20.9239  Move          Pen id 1001  (825.6, 378.3)  p 0.31  tilt 28/34
+    20.9280  Move          Pen id 1001  (825.9, 379.7)  p 0.31  tilt 28/34
+    20.9340  Move          Pen id 1001  (826.5, 381.3)  p 0.31  tilt 26/34
+    20.9379  Move          Pen id 1001  (827.2, 382.7)  p 0.31  tilt 26/34
+    20.9442  Move          Pen id 1001  (828.4, 384.1)  p 0.31  tilt 26/34
+    20.9480  Move          Pen id 1001  (829.7, 385.2)  p 0.31  tilt 26/34
+    20.9539  Move          Pen id 1001  (831.3, 386.2)  p 0.31  tilt 26/34
+    20.9578  Move          Pen id 1001  (833.1, 387.2)  p 0.31  tilt 26/32
+    20.9641  Move          Pen id 1001  (835.0, 388.0)  p 0.31  tilt 26/32
+    20.9680  Move          Pen id 1001  (837.2, 388.6)  p 0.32  tilt 26/32
+    20.9741  Move          Pen id 1001  (839.8, 389.0)  p 0.32  tilt 26/32
+    20.9780  Move          Pen id 1001  (842.6, 389.3)  p 0.32  tilt 26/32
+    20.9841  Move          Pen id 1001  (845.4, 389.3)  p 0.33  tilt 26/32
+    20.9880  Move          Pen id 1001  (848.6, 388.9)  p 0.33  tilt 26/31
+    20.9941  Move          Pen id 1001  (852.4, 388.5)  p 0.33  tilt 26/31
+    20.9981  Move          Pen id 1001  (856.5, 387.8)  p 0.33  tilt 26/31
+    21.0041  Move          Pen id 1001  (860.5, 386.9)  p 0.33  tilt 26/31
+    21.0082  Move          Pen id 1001  (864.6, 385.8)  p 0.34  tilt 26/31
+    21.0144  Move          Pen id 1001  (869.0, 384.4)  p 0.34  tilt 26/31
+    21.0184  Move          Pen id 1001  (873.8, 382.7)  p 0.35  tilt 26/31
+    21.0221  Move          Pen id 1001  (878.8, 380.9)  p 0.35  tilt 26/31
+    21.0282  Move          Pen id 1001  (884.2, 378.8)  p 0.36  tilt 26/31
+    21.0321  Move          Pen id 1001  (889.5, 376.7)  p 0.36  tilt 26/31
+    21.0381  Move          Pen id 1001  (895.2, 374.3)  p 0.36  tilt 26/31
+    21.0422  Move          Pen id 1001  (900.5, 371.9)  p 0.36  tilt 26/31
+    21.0482  Move          Pen id 1001  (906.5, 369.2)  p 0.37  tilt 26/31
+    21.0520  Move          Pen id 1001  (912.5, 366.3)  p 0.37  tilt 26/31
+    21.0582  Move          Pen id 1001  (918.5, 363.0)  p 0.37  tilt 26/31
+    21.0621  Move          Pen id 1001  (924.8, 359.7)  p 0.37  tilt 26/31
+    21.0681  Move          Pen id 1001  (931.1, 356.2)  p 0.37  tilt 26/31
+    21.0721  Move          Pen id 1001  (937.4, 352.6)  p 0.37  tilt 26/31
+    21.0784  Move          Pen id 1001  (943.4, 348.8)  p 0.37  tilt 26/31
+    21.0820  Move          Pen id 1001  (949.7, 345.1)  p 0.37  tilt 26/31
+    21.0881  Move          Pen id 1001  (956.0, 341.2)  p 0.37  tilt 26/31
+    21.0920  Move          Pen id 1001  (962.0, 337.5)  p 0.37  tilt 26/31
+    21.0982  Move          Pen id 1001  (967.9, 333.6)  p 0.37  tilt 26/31
+    21.1021  Move          Pen id 1001  (973.3, 329.6)  p 0.37  tilt 26/31
+    21.1064  Move          Pen id 1001  (978.7, 325.6)  p 0.37  tilt 26/32
+    21.1121  Move          Pen id 1001  (983.7, 321.6)  p 0.38  tilt 26/32
+    21.1161  Move          Pen id 1001  (989.0, 317.4)  p 0.38  tilt 26/32
+    21.1220  Move          Pen id 1001  (993.8, 313.4)  p 0.38  tilt 26/32
+    21.1260  Move          Pen id 1001  (998.5, 309.5)  p 0.38  tilt 26/34
+    21.1321  Move          Pen id 1001  (1002.6, 305.7)  p 0.38  tilt 26/34
+    21.1363  Move          Pen id 1001  (1006.4, 302.1)  p 0.38  tilt 26/34
+    21.1421  Move          Pen id 1001  (1009.8, 298.5)  p 0.38  tilt 28/34
+    21.1463  Move          Pen id 1001  (1012.7, 294.8)  p 0.39  tilt 28/34
+    21.1520  Move          Pen id 1001  (1015.5, 291.3)  p 0.39  tilt 28/34
+    21.1559  Move          Pen id 1001  (1018.0, 287.8)  p 0.39  tilt 28/34
+    21.1621  Move          Pen id 1001  (1019.9, 284.6)  p 0.39  tilt 28/34
+    21.1661  Move          Pen id 1001  (1021.8, 281.4)  p 0.39  tilt 28/34
+    21.1721  Move          Pen id 1001  (1023.4, 278.5)  p 0.39  tilt 28/34
+    21.1761  Move          Pen id 1001  (1024.3, 275.6)  p 0.40  tilt 28/34
+    21.1823  Move          Pen id 1001  (1025.3, 272.8)  p 0.40  tilt 28/34
+    21.1860  Move          Pen id 1001  (1025.9, 270.2)  p 0.40  tilt 28/34
+    21.1899  Move          Pen id 1001  (1026.2, 267.7)  p 0.40  tilt 26/34
+    21.1961  Move          Pen id 1001  (1026.5, 265.2)  p 0.40  tilt 26/34
+    21.2000  Move          Pen id 1001  (1026.2, 262.7)  p 0.41  tilt 26/34
+    21.2060  Move          Pen id 1001  (1025.9, 260.1)  p 0.41  tilt 26/35
+    21.2100  Move          Pen id 1001  (1025.6, 257.6)  p 0.42  tilt 26/35
+    21.2161  Move          Pen id 1001  (1024.9, 255.0)  p 0.43  tilt 26/35
+    21.2199  Move          Pen id 1001  (1024.0, 252.7)  p 0.43  tilt 26/35
+    21.2259  Move          Pen id 1001  (1023.1, 250.2)  p 0.44  tilt 26/35
+    21.2301  Move          Pen id 1001  (1021.8, 247.9)  p 0.45  tilt 28/35
+    21.2361  Move          Pen id 1001  (1020.2, 245.4)  p 0.45  tilt 28/35
+    21.2400  Move          Pen id 1001  (1019.0, 243.1)  p 0.46  tilt 28/35
+    21.2462  Move          Pen id 1001  (1017.7, 240.7)  p 0.46  tilt 28/36
+    21.2501  Move          Pen id 1001  (1016.1, 238.5)  p 0.46  tilt 28/36
+    21.2562  Move          Pen id 1001  (1014.6, 236.2)  p 0.46  tilt 28/37
+    21.2602  Move          Pen id 1001  (1013.0, 234.1)  p 0.47  tilt 28/37
+    21.2642  Move          Pen id 1001  (1011.4, 231.9)  p 0.47  tilt 28/37
+    21.2699  Move          Pen id 1001  (1009.8, 229.9)  p 0.47  tilt 28/37
+    21.2740  Move          Pen id 1001  (1008.3, 227.7)  p 0.47  tilt 28/37
+    21.2801  Move          Pen id 1001  (1006.7, 225.6)  p 0.47  tilt 28/37
+    21.2840  Move          Pen id 1001  (1005.1, 223.4)  p 0.47  tilt 28/37
+    21.2901  Move          Pen id 1001  (1003.5, 221.2)  p 0.47  tilt 28/37
+    21.2941  Move          Pen id 1001  (1002.0, 219.2)  p 0.47  tilt 28/37
+    21.3001  Move          Pen id 1001  (1000.4, 217.3)  p 0.47  tilt 28/37
+    21.3039  Move          Pen id 1001  (998.8, 215.4)  p 0.47  tilt 28/38
+    21.3100  Move          Pen id 1001  (996.9, 213.6)  p 0.47  tilt 28/38
+    21.3140  Move          Pen id 1001  (995.0, 212.1)  p 0.47  tilt 28/38
+    21.3200  Move          Pen id 1001  (993.1, 210.6)  p 0.48  tilt 28/38
+    21.3240  Move          Pen id 1001  (991.2, 209.5)  p 0.48  tilt 28/38
+    21.3302  Move          Pen id 1001  (989.0, 208.5)  p 0.48  tilt 29/38
+    21.3339  Move          Pen id 1001  (986.8, 208.0)  p 0.49  tilt 29/39
+    21.3379  Move          Pen id 1001  (984.0, 207.8)  p 0.50  tilt 29/39
+    21.3442  Move          Pen id 1001  (980.9, 208.0)  p 0.52  tilt 29/39
+    21.3480  Move          Pen id 1001  (977.1, 208.7)  p 0.53  tilt 29/39
+    21.3541  Move          Pen id 1001  (972.7, 209.9)  p 0.54  tilt 29/39
+    21.3582  Move          Pen id 1001  (967.3, 211.5)  p 0.56  tilt 29/39
+    21.3643  Move          Pen id 1001  (961.6, 213.6)  p 0.56  tilt 29/39
+    21.3680  Move          Pen id 1001  (955.7, 216.4)  p 0.57  tilt 29/39
+    21.3744  Move          Pen id 1001  (949.0, 219.4)  p 0.57  tilt 29/39
+    21.3783  Move          Pen id 1001  (942.1, 222.8)  p 0.58  tilt 29/39
+    21.3842  Move          Pen id 1001  (935.2, 226.6)  p 0.58  tilt 29/39
+    21.3880  Move          Pen id 1001  (927.9, 230.7)  p 0.59  tilt 31/39
+    21.3941  Move          Pen id 1001  (921.0, 235.2)  p 0.61  tilt 31/39
+    21.3980  Move          Pen id 1001  (914.4, 240.1)  p 0.62  tilt 31/39
+    21.4039  Move          Pen id 1001  (907.8, 245.2)  p 0.64  tilt 31/38
+    21.4079  Move          Pen id 1001  (902.1, 250.3)  p 0.67  tilt 31/38
+    21.4140  Move          Pen id 1001  (896.4, 255.4)  p 0.69  tilt 31/38
+    21.4180  Move          Pen id 1001  (891.7, 260.4)  p 0.70  tilt 31/38
+    21.4220  Move          Pen id 1001  (887.3, 265.1)  p 0.72  tilt 31/37
+    21.4280  Move          Pen id 1001  (883.5, 269.9)  p 0.73  tilt 32/37
+    21.4320  Move          Pen id 1001  (880.4, 274.4)  p 0.74  tilt 32/36
+    21.4379  Move          Pen id 1001  (878.2, 278.7)  p 0.74  tilt 34/36
+    21.4419  Move          Pen id 1001  (876.3, 282.6)  p 0.75  tilt 34/36
+    21.4481  Move          Pen id 1001  (875.3, 286.3)  p 0.75  tilt 34/36
+    21.4520  Move          Pen id 1001  (874.7, 289.5)  p 0.75  tilt 34/35
+    21.4581  Move          Pen id 1001  (874.4, 292.4)  p 0.75  tilt 34/35
+    21.4624  Move          Pen id 1001  (874.7, 295.2)  p 0.75  tilt 34/34
+    21.4680  Move          Pen id 1001  (875.7, 297.5)  p 0.74  tilt 35/34
+    21.4719  Move          Pen id 1001  (876.9, 299.6)  p 0.73  tilt 35/34
+    21.4784  Move          Pen id 1001  (878.5, 301.6)  p 0.71  tilt 35/34
+    21.4821  Move          Pen id 1001  (880.1, 303.3)  p 0.67  tilt 35/32
+    21.4880  Move          Pen id 1001  (882.3, 304.8)  p 0.61  tilt 35/32
+    21.4920  Move          Pen id 1001  (884.5, 306.1)  p 0.54  tilt 35/31
+    21.4982  Move          Pen id 1001  (887.6, 307.1)  p 0.46  tilt 35/31
+    21.5020  Move          Pen id 1001  (890.5, 307.8)  p 0.36  tilt 35/31
+    21.5080  Move          Pen id 1001  (893.6, 308.1)  p 0.25  tilt 36/31
+    21.5122  Move          Pen id 1001  (897.1, 308.0)  p 0.15  tilt 36/31
+    21.5160  Move          Pen id 1001  (900.2, 307.5)  p 0.07  tilt 36/31
+    21.5232  Release       Pen id 1001  (900.2, 307.5)  p 0.00  tilt 36/29
+    21.5254  CaptureLost   Pen id 1001  (0.0, 0.0)  p 0.00
+    21.5467  Sample        Pen id 1001  (907.2, 305.7)  p 0.00  tilt 36/29
+    21.5467  Sample        Pen id 1001  (910.9, 304.5)  p 0.00  tilt 36/29
+    21.5467  Sample        Pen id 1001  (915.0, 303.1)  p 0.00  tilt 36/29
+    21.5467  Sample        Pen id 1001  (919.8, 301.5)  p 0.00  tilt 36/29
+    21.5467  Sample        Pen id 1001  (924.8, 299.9)  p 0.00  tilt 36/29
+    21.5467  Move          Pen id 1001  (924.8, 299.9)  p 0.00  tilt 36/29
+    21.5522  Move          Pen id 1001  (929.8, 298.2)  p 0.00  tilt 36/29
+    21.5585  Move          Pen id 1001  (934.9, 296.6)  p 0.00  tilt 36/29
+    21.5622  Move          Pen id 1001  (940.5, 295.1)  p 0.00  tilt 36/29
+    21.5682  Move          Pen id 1001  (946.2, 293.6)  p 0.00  tilt 36/29
+    21.5721  Move          Pen id 1001  (951.9, 292.0)  p 0.00  tilt 36/29
+    21.5781  Move          Pen id 1001  (957.5, 290.6)  p 0.00  tilt 36/29
+    21.5822  Move          Pen id 1001  (963.5, 289.0)  p 0.00  tilt 36/29
+    21.5902  Move          Pen id 1001  (969.8, 287.5)  p 0.00  tilt 35/29
+    21.5964  Move          Pen id 1001  (977.1, 285.8)  p 0.00  tilt 35/29
+    21.6001  Move          Pen id 1001  (984.3, 284.1)  p 0.00  tilt 35/29
+    21.6059  Move          Pen id 1001  (990.9, 282.6)  p 0.00  tilt 35/29
+    21.6099  Move          Pen id 1001  (996.6, 281.4)  p 0.00  tilt 34/29
+    21.6160  Move          Pen id 1001  (1002.0, 280.3)  p 0.00  tilt 34/29
+    21.6199  Move          Pen id 1001  (1006.7, 279.3)  p 0.00  tilt 34/29
+    21.6259  Move          Pen id 1001  (1011.1, 278.3)  p 0.00  tilt 34/29
+    21.6301  Move          Pen id 1001  (1015.2, 277.1)  p 0.00  tilt 34/29
+    21.6361  Move          Pen id 1001  (1019.3, 275.8)  p 0.00  tilt 34/29
+    21.6402  Move          Pen id 1001  (1023.1, 274.5)  p 0.00  tilt 32/29
+    21.6462  Move          Pen id 1001  (1026.8, 273.1)  p 0.00  tilt 32/29
+    21.6500  Move          Pen id 1001  (1030.3, 271.7)  p 0.00  tilt 32/29
+    21.6539  Move          Pen id 1001  (1033.8, 270.0)  p 0.00  tilt 32/29
+    21.6599  Move          Pen id 1001  (1037.2, 268.4)  p 0.00  tilt 32/29
+    21.6640  Move          Pen id 1001  (1040.4, 266.7)  p 0.00  tilt 32/31
+    21.6700  Move          Pen id 1001  (1042.9, 265.0)  p 0.00  tilt 31/31
+    21.6742  Move          Pen id 1001  (1045.7, 263.3)  p 0.00  tilt 31/31
+    21.6804  Move          Pen id 1001  (1048.3, 261.5)  p 0.00  tilt 31/31
+    21.6842  Move          Pen id 1001  (1050.8, 259.7)  p 0.00  tilt 31/31
+    21.6900  Move          Pen id 1001  (1053.0, 257.9)  p 0.00  tilt 31/31
+    21.6947  Move          Pen id 1001  (1055.2, 255.8)  p 0.00  tilt 31/31
+    21.7003  Move          Pen id 1001  (1057.4, 253.9)  p 0.00  tilt 29/31
+    21.7041  Move          Pen id 1001  (1059.3, 251.9)  p 0.00  tilt 29/31
+    21.7123  Move          Pen id 1001  (1061.2, 249.7)  p 0.00  tilt 29/31
+    21.7162  Move          Pen id 1001  (1062.7, 247.7)  p 0.00  tilt 29/32
+    21.7220  Move          Pen id 1001  (1064.0, 245.8)  p 0.00  tilt 29/32
+    21.7260  Move          Pen id 1001  (1064.9, 244.4)  p 0.00  tilt 29/32
+    21.7322  Move          Pen id 1001  (1065.6, 243.1)  p 0.00  tilt 29/32
+    21.7381  Move          Pen id 1001  (1065.9, 242.0)  p 0.00  tilt 29/34
+    21.7421  Move          Pen id 1001  (1066.2, 241.0)  p 0.00  tilt 29/34
+    21.7484  Move          Pen id 1001  (1066.2, 240.0)  p 0.00  tilt 29/34
+    21.7521  Move          Pen id 1001  (1066.5, 238.8)  p 0.00  tilt 29/34
+    21.7581  Move          Pen id 1001  (1066.5, 237.7)  p 0.00  tilt 29/34
+    21.7621  Move          Pen id 1001  (1066.5, 236.6)  p 0.00  tilt 29/34
+    21.7681  Move          Pen id 1001  (1066.2, 235.2)  p 0.00  tilt 29/35
+    21.7721  Move          Pen id 1001  (1066.2, 233.9)  p 0.00  tilt 29/35
+    21.7784  Move          Pen id 1001  (1065.9, 232.6)  p 0.00  tilt 29/35
+    21.7821  Move          Pen id 1001  (1065.6, 231.2)  p 0.00  tilt 29/35
+    21.7880  Move          Pen id 1001  (1065.6, 229.9)  p 0.00  tilt 29/36
+    21.7919  Move          Pen id 1001  (1065.3, 228.4)  p 0.00  tilt 29/36
+    21.7981  Move          Pen id 1001  (1064.9, 226.9)  p 0.00  tilt 29/36
+    21.8020  Move          Pen id 1001  (1064.9, 225.4)  p 0.00  tilt 29/36
+    21.8081  Move          Pen id 1001  (1064.9, 224.0)  p 0.00  tilt 29/36
+    21.8124  Move          Pen id 1001  (1064.9, 222.5)  p 0.00  tilt 29/36
+    21.8181  Move          Pen id 1001  (1065.3, 220.9)  p 0.00  tilt 29/36
+    21.8219  Move          Pen id 1001  (1065.6, 219.3)  p 0.00  tilt 29/36
+    21.8287  Move          Pen id 1001  (1065.9, 217.6)  p 0.00  tilt 29/36
+    21.8324  Move          Pen id 1001  (1066.5, 215.9)  p 0.00  tilt 29/36
+    21.8382  Move          Pen id 1001  (1067.1, 214.1)  p 0.00  tilt 29/36
+    21.8422  Move          Pen id 1001  (1067.8, 212.3)  p 0.00  tilt 29/36
+    21.8482  Move          Pen id 1001  (1068.4, 210.4)  p 0.00  tilt 29/36
+    21.8521  Move          Pen id 1001  (1069.0, 208.4)  p 0.00  tilt 31/36
+    21.8583  Move          Pen id 1001  (1070.0, 206.5)  p 0.00  tilt 31/36
+    21.8623  Move          Pen id 1001  (1070.9, 204.6)  p 0.00  tilt 29/36
+    21.8681  Move          Pen id 1001  (1071.9, 202.7)  p 0.00  tilt 29/36
+    21.8720  Move          Pen id 1001  (1072.8, 201.0)  p 0.00  tilt 29/36
+    21.8783  Move          Pen id 1001  (1074.1, 199.0)  p 0.00  tilt 29/36
+    21.8820  Move          Pen id 1001  (1075.3, 197.3)  p 0.00  tilt 29/36
+    21.8880  Move          Pen id 1001  (1076.9, 195.6)  p 0.00  tilt 29/36
+    21.8920  Move          Pen id 1001  (1078.2, 194.3)  p 0.00  tilt 29/36
+    21.8983  Move          Pen id 1001  (1079.4, 193.0)  p 0.00  tilt 29/36
+    21.9023  Move          Pen id 1001  (1081.0, 192.1)  p 0.00  tilt 29/36
+    21.9080  Move          Pen id 1001  (1082.6, 191.5)  p 0.00  tilt 29/36
+    21.9121  Move          Pen id 1001  (1083.8, 191.2)  p 0.00  tilt 29/36
+    21.9182  Move          Pen id 1001  (1085.1, 191.1)  p 0.00  tilt 29/36
+    21.9220  Move          Pen id 1001  (1086.4, 191.1)  p 0.00  tilt 29/36
+    21.9262  Move          Pen id 1001  (1087.6, 191.0)  p 0.00  tilt 29/36
+    21.9324  Move          Pen id 1001  (1088.3, 190.9)  p 0.00  tilt 29/36
+    21.9362  Move          Pen id 1001  (1089.2, 190.6)  p 0.00  tilt 29/36
+    21.9421  Move          Pen id 1001  (1090.1, 190.4)  p 0.00  tilt 28/36
+    21.9462  Move          Pen id 1001  (1090.8, 190.0)  p 0.00  tilt 28/36
+    21.9520  Move          Pen id 1001  (1091.4, 189.5)  p 0.00  tilt 28/36
+    21.9561  Move          Pen id 1001  (1092.0, 188.9)  p 0.00  tilt 28/36
+    21.9620  Move          Pen id 1001  (1092.3, 188.5)  p 0.00  tilt 28/36
+    21.9659  Move          Pen id 1001  (1093.0, 188.0)  p 0.00  tilt 28/36
+    21.9719  Move          Pen id 1001  (1093.0, 187.6)  p 0.00  tilt 28/36
+    21.9759  Move          Pen id 1001  (1093.3, 187.2)  p 0.00  tilt 28/36
+    21.9819  Move          Pen id 1001  (1093.3, 187.2)  p 0.00  tilt 28/36
+    21.9859  Move          Pen id 1001  (1093.0, 186.9)  p 0.00  tilt 28/36
+    21.9921  Move          Pen id 1001  (1092.3, 186.4)  p 0.00  tilt 26/36
+    21.9966  Press         Pen id 1001  (1091.7, 185.9)  p 0.01  tilt 26/36
+    22.0021  Move          Pen id 1001  (1090.8, 185.3)  p 0.09  tilt 26/36
+    22.0058  Move          Pen id 1001  (1089.8, 184.9)  p 0.17  tilt 26/36
+    22.0119  Move          Pen id 1001  (1088.9, 184.5)  p 0.27  tilt 26/36
+    22.0159  Move          Pen id 1001  (1087.9, 184.4)  p 0.32  tilt 26/35
+    22.0220  Move          Pen id 1001  (1086.7, 184.5)  p 0.35  tilt 26/35
+    22.0260  Move          Pen id 1001  (1085.4, 185.0)  p 0.36  tilt 26/35
+    22.0322  Move          Pen id 1001  (1083.5, 185.8)  p 0.38  tilt 28/35
+    22.0358  Move          Pen id 1001  (1081.6, 186.9)  p 0.39  tilt 28/35
+    22.0398  Move          Pen id 1001  (1079.4, 188.4)  p 0.40  tilt 28/35
+    22.0459  Move          Pen id 1001  (1076.6, 190.3)  p 0.41  tilt 28/35
+    22.0497  Move          Pen id 1001  (1073.8, 192.7)  p 0.42  tilt 28/35
+    22.0562  Move          Pen id 1001  (1070.0, 195.5)  p 0.43  tilt 28/34
+    22.0599  Move          Pen id 1001  (1065.6, 199.0)  p 0.45  tilt 28/34
+    22.0661  Move          Pen id 1001  (1060.9, 203.2)  p 0.47  tilt 28/34
+    22.0697  Move          Pen id 1001  (1055.8, 207.9)  p 0.49  tilt 29/34
+    22.0757  Move          Pen id 1001  (1050.5, 212.9)  p 0.52  tilt 29/34
+    22.0799  Move          Pen id 1001  (1045.1, 218.2)  p 0.56  tilt 29/34
+    22.0859  Move          Pen id 1001  (1039.1, 223.9)  p 0.59  tilt 29/32
+    22.0900  Move          Pen id 1001  (1033.1, 229.9)  p 0.62  tilt 29/32
+    22.0960  Move          Pen id 1001  (1027.2, 236.4)  p 0.64  tilt 29/31
+    22.1001  Move          Pen id 1001  (1021.2, 243.2)  p 0.66  tilt 31/31
+    22.1058  Move          Pen id 1001  (1015.2, 250.2)  p 0.67  tilt 31/29
+    22.1098  Move          Pen id 1001  (1009.8, 257.0)  p 0.69  tilt 31/29
+    22.1160  Move          Pen id 1001  (1004.5, 263.6)  p 0.70  tilt 31/29
+    22.1199  Move          Pen id 1001  (1000.1, 270.1)  p 0.72  tilt 32/29
+    22.1241  Move          Pen id 1001  (996.3, 276.0)  p 0.75  tilt 32/26
+    22.1299  Move          Pen id 1001  (992.8, 281.4)  p 0.78  tilt 34/26
+    22.1338  Move          Pen id 1001  (990.0, 286.3)  p 0.81  tilt 34/26
+    22.1399  Move          Pen id 1001  (987.8, 290.6)  p 0.84  tilt 34/26
+    22.1438  Move          Pen id 1001  (985.9, 294.5)  p 0.87  tilt 34/25
+    22.1500  Move          Pen id 1001  (984.3, 297.8)  p 0.90  tilt 34/25
+    22.1539  Move          Pen id 1001  (983.4, 300.7)  p 0.92  tilt 34/23
+    22.1600  Move          Pen id 1001  (982.4, 303.3)  p 0.93  tilt 35/23
+    22.1641  Move          Pen id 1001  (982.1, 305.5)  p 0.94  tilt 35/22
+    22.1699  Move          Pen id 1001  (982.1, 307.5)  p 0.94  tilt 35/22
+    22.1739  Move          Pen id 1001  (982.4, 309.2)  p 0.95  tilt 35/21
+    22.1800  Move          Pen id 1001  (983.1, 310.8)  p 0.95  tilt 36/21
+    22.1839  Move          Pen id 1001  (984.0, 312.2)  p 0.95  tilt 36/19
+    22.1901  Move          Pen id 1001  (985.3, 313.3)  p 0.95  tilt 36/19
+    22.1940  Move          Pen id 1001  (987.2, 314.2)  p 0.95  tilt 36/18
+    22.2000  Move          Pen id 1001  (989.4, 314.9)  p 0.94  tilt 37/18
+    22.2039  Move          Pen id 1001  (992.2, 315.1)  p 0.94  tilt 37/17
+    22.2100  Move          Pen id 1001  (995.0, 315.1)  p 0.94  tilt 37/17
+    22.2140  Move          Pen id 1001  (998.8, 314.9)  p 0.94  tilt 37/17
+    22.2181  Move          Pen id 1001  (1002.9, 314.3)  p 0.94  tilt 37/17
+    22.2241  Move          Pen id 1001  (1007.3, 313.5)  p 0.94  tilt 37/15
+    22.2584  Sample        Pen id 1001  (1012.0, 312.6)  p 0.94  tilt 37/15
+    22.2584  Sample        Pen id 1001  (1017.4, 311.6)  p 0.95  tilt 37/15
+    22.2584  Sample        Pen id 1001  (1022.4, 310.6)  p 0.95  tilt 36/15
+    22.2584  Sample        Pen id 1001  (1028.1, 309.5)  p 0.96  tilt 36/15
+    22.2584  Sample        Pen id 1001  (1033.1, 308.5)  p 0.97  tilt 36/15
+    22.2584  Sample        Pen id 1001  (1038.5, 307.8)  p 0.98  tilt 36/17
+    22.2584  Sample        Pen id 1001  (1043.8, 307.1)  p 0.99  tilt 35/17
+    22.2584  Move          Pen id 1001  (1043.8, 307.1)  p 0.99  tilt 35/17
+    22.2640  Move          Pen id 1001  (1049.2, 306.5)  p 1.00  tilt 35/17
+    22.2681  Move          Pen id 1001  (1054.2, 306.1)  p 1.00  tilt 35/17
+    22.2739  Move          Pen id 1001  (1059.3, 305.7)  p 1.00  tilt 35/17
+    22.2781  Move          Pen id 1001  (1064.0, 305.5)  p 1.00  tilt 34/17
+    22.2840  Move          Pen id 1001  (1069.0, 305.3)  p 1.00  tilt 34/18
+    22.2879  Move          Pen id 1001  (1073.4, 305.1)  p 1.00  tilt 34/18
+    22.2939  Move          Pen id 1001  (1077.9, 305.0)  p 1.00  tilt 34/18
+    22.2980  Move          Pen id 1001  (1082.0, 305.1)  p 1.00  tilt 34/18
+    22.3039  Move          Pen id 1001  (1085.7, 305.3)  p 1.00  tilt 34/19
+    22.3080  Move          Pen id 1001  (1088.9, 305.5)  p 1.00  tilt 32/19
+    22.3119  Move          Pen id 1001  (1092.0, 305.9)  p 1.00  tilt 32/20
+    22.3180  Move          Pen id 1001  (1094.5, 306.5)  p 1.00  tilt 32/20
+    22.3219  Move          Pen id 1001  (1096.8, 307.3)  p 1.00  tilt 32/21
+    22.3280  Move          Pen id 1001  (1098.6, 308.3)  p 1.00  tilt 31/21
+    22.3320  Move          Pen id 1001  (1099.6, 309.6)  p 1.00  tilt 31/21
+    22.3379  Move          Pen id 1001  (1100.5, 311.2)  p 1.00  tilt 31/21
+    22.3421  Move          Pen id 1001  (1100.5, 313.0)  p 1.00  tilt 31/22
+    22.3481  Move          Pen id 1001  (1099.9, 315.1)  p 1.00  tilt 29/22
+    22.3520  Move          Pen id 1001  (1099.0, 317.6)  p 1.00  tilt 29/23
+    22.3579  Move          Pen id 1001  (1097.1, 320.3)  p 1.00  tilt 29/23
+    22.3622  Move          Pen id 1001  (1094.9, 323.4)  p 1.00  tilt 29/23
+    22.3681  Move          Pen id 1001  (1092.0, 326.5)  p 1.00  tilt 29/23
+    22.3719  Move          Pen id 1001  (1088.9, 329.7)  p 1.00  tilt 29/24
+    22.3780  Move          Pen id 1001  (1085.4, 333.0)  p 1.00  tilt 29/24
+    22.3820  Move          Pen id 1001  (1081.6, 336.4)  p 1.00  tilt 29/24
+    22.3879  Move          Pen id 1001  (1077.2, 340.2)  p 1.00  tilt 29/24
+    22.3919  Move          Pen id 1001  (1072.2, 344.1)  p 1.00  tilt 29/24
+    22.3959  Move          Pen id 1001  (1067.1, 348.3)  p 1.00  tilt 29/24
+    22.4022  Move          Pen id 1001  (1061.5, 352.5)  p 1.00  tilt 29/24
+    22.4060  Move          Pen id 1001  (1055.8, 356.8)  p 1.00  tilt 28/24
+    22.4121  Move          Pen id 1001  (1050.1, 361.3)  p 1.00  tilt 28/24
+    22.4161  Move          Pen id 1001  (1044.5, 365.7)  p 1.00  tilt 28/24
+    22.4219  Move          Pen id 1001  (1038.2, 370.4)  p 1.00  tilt 28/24
+    22.4259  Move          Pen id 1001  (1032.2, 375.3)  p 1.00  tilt 28/24
+    22.4320  Move          Pen id 1001  (1025.9, 380.4)  p 1.00  tilt 28/23
+    22.4359  Move          Pen id 1001  (1019.9, 385.6)  p 1.00  tilt 28/23
+    22.4420  Move          Pen id 1001  (1013.9, 391.0)  p 1.00  tilt 28/23
+    22.4460  Move          Pen id 1001  (1007.9, 396.1)  p 1.00  tilt 26/23
+    22.4520  Move          Pen id 1001  (1002.3, 401.4)  p 1.00  tilt 26/23
+    22.4559  Move          Pen id 1001  (996.6, 406.7)  p 1.00  tilt 26/23
+    22.4621  Move          Pen id 1001  (991.6, 412.1)  p 1.00  tilt 26/22
+    22.4660  Move          Pen id 1001  (986.5, 417.3)  p 1.00  tilt 26/22
+    22.4718  Move          Pen id 1001  (982.4, 422.4)  p 1.00  tilt 26/22
+    22.4770  Move          Pen id 1001  (978.3, 427.1)  p 1.00  tilt 26/22
+    22.4821  Move          Pen id 1001  (974.9, 431.6)  p 1.00  tilt 26/21
+    22.4864  Move          Pen id 1001  (972.0, 435.6)  p 1.00  tilt 26/21
+    22.4905  Move          Pen id 1001  (969.2, 439.4)  p 1.00  tilt 26/21
+    22.4960  Move          Pen id 1001  (967.0, 443.0)  p 1.00  tilt 26/21
+    22.5003  Move          Pen id 1001  (965.4, 446.3)  p 1.00  tilt 26/20
+    22.5060  Move          Pen id 1001  (964.2, 449.1)  p 1.00  tilt 26/20
+    22.5105  Move          Pen id 1001  (963.2, 451.7)  p 1.00  tilt 26/20
+    22.5161  Move          Pen id 1001  (962.9, 453.9)  p 1.00  tilt 26/20
+    22.5210  Move          Pen id 1001  (962.9, 455.8)  p 1.00  tilt 26/19
+    22.5259  Move          Pen id 1001  (963.5, 457.4)  p 1.00  tilt 26/19
+    22.5310  Move          Pen id 1001  (964.8, 458.7)  p 1.00  tilt 26/18
+    22.5360  Move          Pen id 1001  (966.4, 459.8)  p 1.00  tilt 26/18
+    22.5406  Move          Pen id 1001  (968.3, 460.6)  p 1.00  tilt 26/18
+    22.5461  Move          Pen id 1001  (970.5, 461.2)  p 1.00  tilt 26/18
+    22.5509  Move          Pen id 1001  (973.0, 461.3)  p 1.00  tilt 26/17
+    22.5560  Move          Pen id 1001  (976.1, 461.0)  p 1.00  tilt 26/17
+    22.5604  Move          Pen id 1001  (979.6, 460.5)  p 1.00  tilt 26/17
+    22.5660  Move          Pen id 1001  (983.7, 459.5)  p 1.00  tilt 26/17
+    22.5706  Move          Pen id 1001  (988.1, 458.0)  p 1.00  tilt 26/17
+    22.5751  Move          Pen id 1001  (992.8, 456.3)  p 1.00  tilt 26/17
+    22.5802  Move          Pen id 1001  (997.9, 454.2)  p 1.00  tilt 26/17
+    22.5849  Move          Pen id 1001  (1003.2, 452.0)  p 1.00  tilt 26/17
+    22.5900  Move          Pen id 1001  (1008.6, 449.4)  p 1.00  tilt 26/17
+    22.5945  Move          Pen id 1001  (1014.2, 446.6)  p 1.00  tilt 26/17
+    22.6000  Move          Pen id 1001  (1020.2, 443.7)  p 1.00  tilt 26/17
+    22.6046  Move          Pen id 1001  (1026.5, 440.6)  p 1.00  tilt 26/17
+    22.6101  Move          Pen id 1001  (1032.8, 437.3)  p 1.00  tilt 26/17
+    22.6152  Move          Pen id 1001  (1038.8, 433.9)  p 1.00  tilt 25/17
+    22.6200  Move          Pen id 1001  (1045.4, 430.4)  p 1.00  tilt 25/17
+    22.6247  Move          Pen id 1001  (1051.7, 426.6)  p 1.00  tilt 25/17
+    22.6300  Move          Pen id 1001  (1058.0, 422.6)  p 1.00  tilt 25/17
+    22.6345  Move          Pen id 1001  (1064.6, 418.5)  p 1.00  tilt 25/17
+    22.6400  Move          Pen id 1001  (1070.6, 414.3)  p 1.00  tilt 25/17
+    22.6505  Sample        Pen id 1001  (1076.6, 410.2)  p 1.00  tilt 25/17
+    22.6505  Sample        Pen id 1001  (1082.3, 405.9)  p 1.00  tilt 25/17
+    22.6505  Move          Pen id 1001  (1082.3, 405.9)  p 1.00  tilt 25/17
+    22.6549  Move          Pen id 1001  (1087.6, 401.9)  p 1.00  tilt 26/17
+    22.6601  Move          Pen id 1001  (1093.0, 397.8)  p 1.00  tilt 26/17
+    22.6647  Move          Pen id 1001  (1097.7, 393.7)  p 1.00  tilt 26/17
+    22.6688  Move          Pen id 1001  (1102.4, 389.7)  p 1.00  tilt 26/18
+    22.6744  Move          Pen id 1001  (1106.8, 385.8)  p 1.00  tilt 26/18
+    22.6796  Move          Pen id 1001  (1110.3, 381.9)  p 1.00  tilt 26/18
+    22.6848  Move          Pen id 1001  (1114.1, 378.0)  p 1.00  tilt 26/18
+    22.6920  Move          Pen id 1001  (1116.9, 374.3)  p 1.00  tilt 26/19
+    22.7004  Sample        Pen id 1001  (1119.7, 370.8)  p 1.00  tilt 26/19
+    22.7004  Sample        Pen id 1001  (1122.3, 367.3)  p 1.00  tilt 26/19
+    22.7004  Move          Pen id 1001  (1122.3, 367.3)  p 1.00  tilt 26/19
+    22.7065  Move          Pen id 1001  (1124.5, 363.9)  p 1.00  tilt 26/19
+    22.7131  Move          Pen id 1001  (1126.4, 360.5)  p 1.00  tilt 26/19
+    22.7234  Sample        Pen id 1001  (1127.9, 357.2)  p 1.00  tilt 26/19
+    22.7234  Sample        Pen id 1001  (1128.9, 353.9)  p 1.00  tilt 26/20
+    22.7234  Move          Pen id 1001  (1128.9, 353.9)  p 1.00  tilt 26/20
+    22.7293  Sample        Pen id 1001  (1129.8, 350.8)  p 1.00  tilt 26/20
+    22.7293  Sample        Pen id 1001  (1130.5, 347.8)  p 1.00  tilt 26/20
+    22.7293  Move          Pen id 1001  (1130.5, 347.8)  p 1.00  tilt 26/20
+    22.7360  Move          Pen id 1001  (1130.8, 344.8)  p 1.00  tilt 26/20
+    22.7414  Move          Pen id 1001  (1130.8, 341.9)  p 1.00  tilt 26/21
+    22.7472  Move          Pen id 1001  (1130.5, 339.2)  p 1.00  tilt 26/21
+    22.7522  Sample        Pen id 1001  (1129.8, 336.6)  p 1.00  tilt 26/21
+    22.7522  Sample        Pen id 1001  (1128.9, 333.9)  p 1.00  tilt 26/21
+    22.7522  Move          Pen id 1001  (1128.9, 333.9)  p 1.00  tilt 26/21
+    22.7579  Move          Pen id 1001  (1127.3, 331.3)  p 1.00  tilt 26/21
+    22.7635  Move          Pen id 1001  (1125.7, 329.0)  p 1.00  tilt 26/21
+    22.7681  Move          Pen id 1001  (1123.8, 326.5)  p 1.00  tilt 26/22
+    22.7737  Move          Pen id 1001  (1121.6, 324.1)  p 1.00  tilt 26/22
+    22.7789  Move          Pen id 1001  (1119.1, 321.8)  p 1.00  tilt 26/21
+    22.7844  Move          Pen id 1001  (1116.6, 319.5)  p 1.00  tilt 26/21
+    22.7893  Move          Pen id 1001  (1113.4, 317.4)  p 1.00  tilt 26/21
+    22.7939  Move          Pen id 1001  (1110.3, 315.3)  p 1.00  tilt 26/21
+    22.7993  Move          Pen id 1001  (1106.8, 313.3)  p 1.00  tilt 26/22
+    22.8044  Move          Pen id 1001  (1103.1, 311.4)  p 1.00  tilt 28/22
+    22.8098  Move          Pen id 1001  (1099.0, 309.5)  p 1.00  tilt 28/22
+    22.8151  Move          Pen id 1001  (1094.9, 307.6)  p 1.00  tilt 28/22
+    22.8211  Move          Pen id 1001  (1090.8, 305.9)  p 1.00  tilt 28/22
+    22.8258  Move          Pen id 1001  (1086.7, 304.4)  p 1.00  tilt 28/22
+    22.8312  Move          Pen id 1001  (1082.6, 302.7)  p 1.00  tilt 28/22
+    22.8366  Sample        Pen id 1001  (1078.2, 301.2)  p 1.00  tilt 28/22
+    22.8366  Sample        Pen id 1001  (1073.4, 299.7)  p 1.00  tilt 28/22
+    22.8366  Move          Pen id 1001  (1073.4, 299.7)  p 1.00  tilt 28/22
+    22.8420  Move          Pen id 1001  (1068.7, 298.5)  p 1.00  tilt 29/22
+    22.8482  Move          Pen id 1001  (1064.0, 297.1)  p 1.00  tilt 29/22
+    22.8539  Move          Pen id 1001  (1059.3, 295.7)  p 1.00  tilt 29/22
+    22.8588  Move          Pen id 1001  (1054.6, 294.5)  p 1.00  tilt 29/22
+    22.8640  Move          Pen id 1001  (1049.8, 293.2)  p 1.00  tilt 29/22
+    22.8693  Move          Pen id 1001  (1045.1, 292.0)  p 1.00  tilt 29/22
+    22.8748  Move          Pen id 1001  (1040.4, 291.1)  p 1.00  tilt 29/22
+    22.8816  Move          Pen id 1001  (1035.3, 290.1)  p 1.00  tilt 29/22
+    22.8880  Sample        Pen id 1001  (1030.3, 289.4)  p 1.00  tilt 31/22
+    22.8880  Sample        Pen id 1001  (1024.9, 288.9)  p 1.00  tilt 31/22
+    22.8880  Move          Pen id 1001  (1024.9, 288.9)  p 1.00  tilt 31/22
+    22.8934  Move          Pen id 1001  (1020.2, 288.5)  p 1.00  tilt 31/22
+    22.8990  Move          Pen id 1001  (1015.2, 288.5)  p 1.00  tilt 31/22
+    22.9052  Move          Pen id 1001  (1009.8, 288.6)  p 1.00  tilt 31/22
+    22.9111  Move          Pen id 1001  (1004.2, 289.0)  p 1.00  tilt 31/23
+    22.9178  Sample        Pen id 1001  (998.2, 289.8)  p 1.00  tilt 31/23
+    22.9178  Sample        Pen id 1001  (992.2, 291.0)  p 1.00  tilt 31/23
+    22.9178  Move          Pen id 1001  (992.2, 291.0)  p 1.00  tilt 31/23
+    22.9243  Move          Pen id 1001  (986.2, 292.4)  p 1.00  tilt 32/23
+    22.9299  Sample        Pen id 1001  (979.6, 294.3)  p 1.00  tilt 32/23
+    22.9299  Sample        Pen id 1001  (973.0, 296.3)  p 1.00  tilt 32/23
+    22.9299  Move          Pen id 1001  (973.0, 296.3)  p 1.00  tilt 32/23
+    22.9362  Move          Pen id 1001  (965.7, 298.9)  p 1.00  tilt 32/23
+    22.9422  Move          Pen id 1001  (958.5, 301.7)  p 1.00  tilt 32/23
+    22.9500  Move          Pen id 1001  (951.2, 304.9)  p 1.00  tilt 32/23
+    22.9571  Sample        Pen id 1001  (943.7, 308.5)  p 1.00  tilt 34/23
+    22.9571  Sample        Pen id 1001  (936.1, 312.5)  p 1.00  tilt 34/22
+    22.9571  Move          Pen id 1001  (936.1, 312.5)  p 1.00  tilt 34/22
+    22.9645  Move          Pen id 1001  (928.3, 316.7)  p 1.00  tilt 34/22
+    22.9715  Sample        Pen id 1001  (920.7, 321.1)  p 1.00  tilt 34/22
+    22.9715  Sample        Pen id 1001  (913.1, 325.6)  p 1.00  tilt 34/22
+    22.9715  Move          Pen id 1001  (913.1, 325.6)  p 1.00  tilt 34/22
+    22.9793  Move          Pen id 1001  (905.6, 330.0)  p 1.00  tilt 34/22
+    22.9871  Sample        Pen id 1001  (898.3, 334.5)  p 1.00  tilt 34/22
+    22.9871  Sample        Pen id 1001  (891.4, 339.2)  p 1.00  tilt 34/21
+    22.9871  Move          Pen id 1001  (891.4, 339.2)  p 1.00  tilt 34/21
+    22.9944  Move          Pen id 1001  (884.5, 343.8)  p 1.00  tilt 34/21
+    23.0023  Sample        Pen id 1001  (877.9, 348.6)  p 1.00  tilt 34/21
+    23.0023  Sample        Pen id 1001  (871.9, 353.1)  p 1.00  tilt 34/21
+    23.0023  Move          Pen id 1001  (871.9, 353.1)  p 1.00  tilt 34/21
+    23.0101  Sample        Pen id 1001  (865.6, 357.8)  p 1.00  tilt 34/21
+    23.0101  Sample        Pen id 1001  (859.3, 362.4)  p 1.00  tilt 34/21
+    23.0101  Move          Pen id 1001  (859.3, 362.4)  p 1.00  tilt 34/21
+    23.0208  Sample        Pen id 1001  (853.6, 366.9)  p 1.00  tilt 34/21
+    23.0208  Sample        Pen id 1001  (848.3, 371.5)  p 1.00  tilt 34/21
+    23.0208  Move          Pen id 1001  (848.3, 371.5)  p 1.00  tilt 34/21
+    23.0286  Move          Pen id 1001  (842.9, 376.1)  p 1.00  tilt 34/20
+    23.0367  Sample        Pen id 1001  (838.2, 380.5)  p 1.00  tilt 34/20
+    23.0367  Sample        Pen id 1001  (833.8, 384.8)  p 1.00  tilt 34/20
+    23.0367  Move          Pen id 1001  (833.8, 384.8)  p 1.00  tilt 34/20
+    23.0449  Sample        Pen id 1001  (829.7, 388.8)  p 1.00  tilt 32/20
+    23.0449  Sample        Pen id 1001  (825.6, 392.6)  p 1.00  tilt 32/20
+    23.0449  Move          Pen id 1001  (825.6, 392.6)  p 1.00  tilt 32/20
+    23.0540  Sample        Pen id 1001  (822.1, 396.1)  p 1.00  tilt 32/20
+    23.0540  Sample        Pen id 1001  (819.0, 399.1)  p 1.00  tilt 32/20
+    23.0540  Move          Pen id 1001  (819.0, 399.1)  p 1.00  tilt 32/20
+    23.0619  Move          Pen id 1001  (816.1, 402.0)  p 1.00  tilt 32/20
+    23.0700  Sample        Pen id 1001  (813.9, 404.7)  p 1.00  tilt 32/20
+    23.0700  Sample        Pen id 1001  (812.0, 407.2)  p 1.00  tilt 32/20
+    23.0700  Move          Pen id 1001  (812.0, 407.2)  p 1.00  tilt 32/20
+    23.0786  Move          Pen id 1001  (810.2, 409.6)  p 1.00  tilt 32/20
+    23.0869  Sample        Pen id 1001  (808.9, 411.8)  p 1.00  tilt 32/20
+    23.0869  Sample        Pen id 1001  (807.6, 413.8)  p 1.00  tilt 32/19
+    23.0869  Move          Pen id 1001  (807.6, 413.8)  p 1.00  tilt 32/19
+    23.0950  Sample        Pen id 1001  (807.0, 415.6)  p 1.00  tilt 31/19
+    23.0950  Sample        Pen id 1001  (806.4, 417.0)  p 1.00  tilt 31/19
+    23.0950  Move          Pen id 1001  (806.4, 417.0)  p 1.00  tilt 31/19
+    23.1036  Move          Pen id 1001  (806.1, 418.4)  p 1.00  tilt 31/19
+    23.1126  Sample        Pen id 1001  (806.1, 419.5)  p 1.00  tilt 31/19
+    23.1126  Sample        Pen id 1001  (806.4, 420.6)  p 1.00  tilt 31/19
+    23.1126  Move          Pen id 1001  (806.4, 420.6)  p 1.00  tilt 31/19
+    23.1217  Sample        Pen id 1001  (806.7, 421.5)  p 1.00  tilt 31/19
+    23.1217  Sample        Pen id 1001  (807.3, 422.4)  p 1.00  tilt 31/19
+    23.1217  Move          Pen id 1001  (807.3, 422.4)  p 1.00  tilt 31/19
+    23.1290  Sample        Pen id 1001  (808.3, 423.2)  p 1.00  tilt 31/18
+    23.1290  Sample        Pen id 1001  (809.5, 423.9)  p 1.00  tilt 31/18
+    23.1290  Move          Pen id 1001  (809.5, 423.9)  p 1.00  tilt 31/18
+    23.1372  Move          Pen id 1001  (810.8, 424.4)  p 1.00  tilt 31/18
+    23.1452  Sample        Pen id 1001  (812.7, 424.8)  p 1.00  tilt 31/18
+    23.1452  Sample        Pen id 1001  (814.6, 425.0)  p 1.00  tilt 31/18
+    23.1452  Move          Pen id 1001  (814.6, 425.0)  p 1.00  tilt 31/18
+    23.1541  Sample        Pen id 1001  (816.8, 425.0)  p 1.00  tilt 31/18
+    23.1541  Sample        Pen id 1001  (819.3, 424.8)  p 1.00  tilt 31/18
+    23.1541  Move          Pen id 1001  (819.3, 424.8)  p 1.00  tilt 31/18
+    23.1615  Move          Pen id 1001  (821.8, 424.3)  p 1.00  tilt 29/18
+    23.1732  Sample        Pen id 1001  (825.3, 423.6)  p 1.00  tilt 29/18
+    23.1732  Sample        Pen id 1001  (828.4, 422.7)  p 1.00  tilt 29/18
+    23.1732  Sample        Pen id 1001  (832.2, 421.5)  p 1.00  tilt 29/18
+    23.1732  Move          Pen id 1001  (832.2, 421.5)  p 1.00  tilt 29/18
+    23.1816  Move          Pen id 1001  (835.7, 420.1)  p 1.00  tilt 29/18
+    23.1895  Sample        Pen id 1001  (839.8, 418.3)  p 1.00  tilt 29/18
+    23.1895  Sample        Pen id 1001  (843.9, 416.3)  p 1.00  tilt 29/18
+    23.1895  Move          Pen id 1001  (843.9, 416.3)  p 1.00  tilt 29/18
+    23.1970  Move          Pen id 1001  (847.9, 414.0)  p 1.00  tilt 29/18
+    23.2049  Sample        Pen id 1001  (852.4, 411.7)  p 1.00  tilt 29/18
+    23.2049  Sample        Pen id 1001  (856.8, 409.3)  p 1.00  tilt 29/19
+    23.2049  Move          Pen id 1001  (856.8, 409.3)  p 1.00  tilt 29/19
+    23.2130  Sample        Pen id 1001  (860.9, 407.0)  p 1.00  tilt 29/19
+    23.2130  Sample        Pen id 1001  (865.3, 404.5)  p 1.00  tilt 29/19
+    23.2130  Move          Pen id 1001  (865.3, 404.5)  p 1.00  tilt 29/19
+    23.2216  Move          Pen id 1001  (869.4, 402.1)  p 1.00  tilt 29/19
+    23.2297  Sample        Pen id 1001  (873.1, 399.4)  p 1.00  tilt 29/19
+    23.2297  Sample        Pen id 1001  (877.2, 396.5)  p 1.00  tilt 29/19
+    23.2297  Move          Pen id 1001  (877.2, 396.5)  p 1.00  tilt 29/19
+    23.2373  Move          Pen id 1001  (881.0, 393.5)  p 1.00  tilt 29/19
+    23.2454  Sample        Pen id 1001  (885.1, 390.5)  p 1.00  tilt 29/19
+    23.2454  Sample        Pen id 1001  (888.9, 387.3)  p 1.00  tilt 29/20
+    23.2454  Move          Pen id 1001  (888.9, 387.3)  p 1.00  tilt 29/20
+    23.2534  Sample        Pen id 1001  (892.7, 384.3)  p 1.00  tilt 28/20
+    23.2534  Sample        Pen id 1001  (896.4, 381.0)  p 1.00  tilt 28/20
+    23.2534  Move          Pen id 1001  (896.4, 381.0)  p 1.00  tilt 28/20
+    23.2609  Move          Pen id 1001  (899.9, 377.8)  p 1.00  tilt 28/20
+    23.2687  Sample        Pen id 1001  (903.1, 374.8)  p 1.00  tilt 28/21
+    23.2687  Sample        Pen id 1001  (906.2, 371.6)  p 1.00  tilt 28/21
+    23.2687  Move          Pen id 1001  (906.2, 371.6)  p 1.00  tilt 28/21
+    23.2765  Sample        Pen id 1001  (909.0, 368.5)  p 1.00  tilt 28/21
+    23.2765  Sample        Pen id 1001  (911.9, 365.5)  p 1.00  tilt 28/21
+    23.2765  Move          Pen id 1001  (911.9, 365.5)  p 1.00  tilt 28/21
+    23.2882  Sample        Pen id 1001  (914.4, 362.4)  p 1.00  tilt 28/21
+    23.2882  Sample        Pen id 1001  (916.9, 359.3)  p 1.00  tilt 28/21
+    23.2882  Move          Pen id 1001  (916.9, 359.3)  p 1.00  tilt 28/21
+    23.2962  Sample        Pen id 1001  (919.1, 356.4)  p 1.00  tilt 28/22
+    23.2962  Sample        Pen id 1001  (921.0, 353.6)  p 1.00  tilt 29/22
+    23.2962  Move          Pen id 1001  (921.0, 353.6)  p 1.00  tilt 29/22
+    23.3051  Move          Pen id 1001  (923.2, 350.7)  p 1.00  tilt 29/22
+    23.3139  Sample        Pen id 1001  (924.8, 348.1)  p 1.00  tilt 29/22
+    23.3139  Sample        Pen id 1001  (926.4, 345.6)  p 1.00  tilt 29/23
+    23.3139  Move          Pen id 1001  (926.4, 345.6)  p 1.00  tilt 29/23
+    23.3232  Sample        Pen id 1001  (927.3, 343.2)  p 1.00  tilt 29/23
+    23.3232  Sample        Pen id 1001  (928.6, 341.0)  p 1.00  tilt 29/23
+    23.3232  Move          Pen id 1001  (928.6, 341.0)  p 1.00  tilt 29/23
+    23.3324  Sample        Pen id 1001  (929.2, 338.9)  p 1.00  tilt 29/23
+    23.3324  Sample        Pen id 1001  (929.8, 337.0)  p 1.00  tilt 29/23
+    23.3324  Move          Pen id 1001  (929.8, 337.0)  p 1.00  tilt 29/23
+    23.3422  Sample        Pen id 1001  (929.8, 335.3)  p 1.00  tilt 29/23
+    23.3422  Sample        Pen id 1001  (929.8, 333.7)  p 1.00  tilt 29/23
+    23.3422  Move          Pen id 1001  (929.8, 333.7)  p 1.00  tilt 29/23
+    23.3546  Sample        Pen id 1001  (929.8, 332.1)  p 1.00  tilt 29/23
+    23.3546  Sample        Pen id 1001  (929.2, 330.5)  p 1.00  tilt 29/23
+    23.3546  Move          Pen id 1001  (929.2, 330.5)  p 1.00  tilt 29/23
+    23.3642  Sample        Pen id 1001  (928.3, 329.0)  p 1.00  tilt 29/23
+    23.3642  Sample        Pen id 1001  (927.3, 327.3)  p 0.88  tilt 29/23
+    23.3642  Move          Pen id 1001  (927.3, 327.3)  p 0.88  tilt 29/23
+    23.3741  Sample        Pen id 1001  (925.7, 325.7)  p 0.72  tilt 29/23
+    23.3741  Sample        Pen id 1001  (923.8, 324.1)  p 0.50  tilt 29/23
+    23.3741  Move          Pen id 1001  (923.8, 324.1)  p 0.50  tilt 29/23
+    23.3844  Sample        Pen id 1001  (921.6, 322.7)  p 0.32  tilt 29/23
+    23.3844  Sample        Pen id 1001  (919.4, 321.1)  p 0.18  tilt 29/23
+    23.3844  Move          Pen id 1001  (919.4, 321.1)  p 0.18  tilt 29/23
+    23.3939  Move          Pen id 1001  (916.9, 319.8)  p 0.06  tilt 29/23
+    23.4030  Release       Pen id 1001  (916.9, 319.8)  p 0.00  tilt 29/23
+    23.4031  CaptureLost   Pen id 1001  (0.0, 0.0)  p 0.00
+    23.4273  Sample        Pen id 1001  (913.5, 317.5)  p 0.00  tilt 29/23
+    23.4273  Sample        Pen id 1001  (912.8, 316.6)  p 0.00  tilt 29/24
+    23.4273  Sample        Pen id 1001  (913.5, 315.8)  p 0.00  tilt 31/24
+    23.4273  Sample        Pen id 1001  (914.4, 315.1)  p 0.00  tilt 31/24
+    23.4273  Sample        Pen id 1001  (916.3, 314.6)  p 0.00  tilt 31/24
+    23.4273  Sample        Pen id 1001  (918.5, 314.0)  p 0.00  tilt 31/25
+    23.4273  Sample        Pen id 1001  (921.3, 313.8)  p 0.00  tilt 31/25
+    23.4273  Move          Pen id 1001  (921.3, 313.8)  p 0.00  tilt 31/25
+    23.4526  Sample        Pen id 1001  (924.8, 313.6)  p 0.00  tilt 31/25
+    23.4526  Sample        Pen id 1001  (928.6, 313.8)  p 0.00  tilt 31/25
+    23.4526  Sample        Pen id 1001  (933.0, 314.1)  p 0.00  tilt 31/25
+    23.4526  Sample        Pen id 1001  (938.0, 314.3)  p 0.00  tilt 31/25
+    23.4526  Move          Pen id 1001  (938.0, 314.3)  p 0.00  tilt 31/25
+    23.4545  Move          Pen id 1001  (942.7, 314.3)  p 0.00  tilt 31/25
+    23.4601  Move          Pen id 1001  (947.8, 313.9)  p 0.00  tilt 31/25
+    23.4647  Move          Pen id 1001  (953.1, 313.2)  p 0.00  tilt 31/25
+    23.4687  Stall           the UI thread was blocked for 859 ms
+    23.4702  Move          Pen id 1001  (958.5, 312.4)  p 0.00  tilt 31/25
+    23.4742  Move          Pen id 1001  (964.2, 311.4)  p 0.00  tilt 31/26
+    23.4804  Move          Pen id 1001  (970.5, 310.7)  p 0.00  tilt 31/26
+    23.4843  Move          Pen id 1001  (976.8, 310.4)  p 0.00  tilt 31/26
+    23.4905  Move          Pen id 1001  (982.7, 310.5)  p 0.00  tilt 31/26
+    23.4941  Move          Pen id 1001  (989.0, 310.7)  p 0.00  tilt 31/26
+    23.5004  Move          Pen id 1001  (994.7, 310.9)  p 0.00  tilt 31/26
+    23.5043  Move          Pen id 1001  (1000.1, 311.0)  p 0.00  tilt 31/26
+    23.5105  Move          Pen id 1001  (1005.4, 311.3)  p 0.00  tilt 31/26
+    23.5143  Move          Pen id 1001  (1010.5, 311.4)  p 0.00  tilt 31/26
+    23.5183  Move          Pen id 1001  (1015.8, 311.6)  p 0.00  tilt 31/26
+    23.5241  Move          Pen id 1001  (1020.5, 311.9)  p 0.00  tilt 31/26
+    23.5281  Move          Pen id 1001  (1025.3, 312.4)  p 0.00  tilt 29/26
+    23.5342  Move          Pen id 1001  (1030.0, 312.7)  p 0.00  tilt 29/26
+    23.5381  Move          Pen id 1001  (1034.1, 313.3)  p 0.00  tilt 29/26
+    23.5442  Move          Pen id 1001  (1038.5, 314.0)  p 0.00  tilt 29/26
+    23.5484  Move          Pen id 1001  (1042.6, 314.8)  p 0.00  tilt 29/26
+    23.5543  Move          Pen id 1001  (1046.4, 315.7)  p 0.00  tilt 29/26
+    23.5580  Move          Pen id 1001  (1049.8, 316.6)  p 0.00  tilt 29/26
+    23.5665  Move          Pen id 1001  (1053.6, 317.5)  p 0.00  tilt 29/26
+    23.5701  Move          Pen id 1001  (1056.8, 318.4)  p 0.00  tilt 29/26
+    23.5764  Move          Pen id 1001  (1059.9, 319.3)  p 0.00  tilt 29/26
+    23.5827  Move          Pen id 1001  (1062.4, 320.3)  p 0.00  tilt 28/26
+    23.5864  Move          Pen id 1001  (1064.6, 321.4)  p 0.00  tilt 28/25
+    23.5921  Move          Pen id 1001  (1066.5, 322.4)  p 0.00  tilt 28/25
+    23.5971  Move          Pen id 1001  (1068.4, 323.5)  p 0.00  tilt 28/26
+    23.6022  Move          Pen id 1001  (1069.7, 324.8)  p 0.00  tilt 29/26
+    23.6060  Move          Pen id 1001  (1070.6, 326.0)  p 0.00  tilt 29/26
+    23.6132  Move          Pen id 1001  (1071.6, 327.3)  p 0.00  tilt 28/26
+    23.6160  Move          Pen id 1001  (1071.9, 328.5)  p 0.00  tilt 28/26
+    23.6220  Move          Pen id 1001  (1072.2, 329.7)  p 0.00  tilt 28/26
+    23.6259  Move          Pen id 1001  (1072.2, 331.1)  p 0.00  tilt 28/26
+    23.6322  Move          Pen id 1001  (1071.9, 332.6)  p 0.00  tilt 29/26
+    23.6361  Move          Pen id 1001  (1071.2, 334.1)  p 0.00  tilt 29/26
+    23.6424  Move          Pen id 1001  (1070.6, 335.8)  p 0.00  tilt 29/26
+    23.6466  Move          Pen id 1001  (1069.7, 337.7)  p 0.00  tilt 29/26
+    23.6521  Move          Pen id 1001  (1068.7, 339.8)  p 0.00  tilt 29/26
+    23.6560  Move          Pen id 1001  (1067.8, 342.0)  p 0.00  tilt 29/26
+    23.6620  Move          Pen id 1001  (1066.5, 344.1)  p 0.00  tilt 29/26
+    23.6661  Move          Pen id 1001  (1065.9, 346.2)  p 0.00  tilt 29/26
+    23.6720  Move          Pen id 1001  (1064.9, 348.3)  p 0.00  tilt 29/26
+    23.6763  Move          Pen id 1001  (1064.3, 350.3)  p 0.00  tilt 29/26
+    23.6823  Move          Pen id 1001  (1063.7, 352.2)  p 0.00  tilt 29/26
+    23.6861  Move          Pen id 1001  (1063.1, 354.1)  p 0.00  tilt 29/26
+    23.6920  Move          Pen id 1001  (1062.4, 355.9)  p 0.00  tilt 29/26
+    23.6966  Move          Pen id 1001  (1062.4, 357.8)  p 0.00  tilt 29/26
+    23.7023  Move          Pen id 1001  (1062.1, 359.6)  p 0.00  tilt 29/26
+    23.7060  Move          Pen id 1001  (1061.8, 361.2)  p 0.00  tilt 29/26
+    23.7121  Move          Pen id 1001  (1061.8, 362.6)  p 0.00  tilt 29/26
+    23.7162  Move          Pen id 1001  (1062.1, 363.9)  p 0.00  tilt 29/26
+    23.7219  Move          Pen id 1001  (1062.1, 365.0)  p 0.00  tilt 29/26
+    23.7261  Move          Pen id 1001  (1062.4, 366.0)  p 0.00  tilt 29/26
+    23.7320  Move          Pen id 1001  (1063.1, 366.8)  p 0.00  tilt 29/26
+    23.7360  Move          Pen id 1001  (1063.4, 367.5)  p 0.00  tilt 29/26
+    23.7420  Move          Pen id 1001  (1064.0, 368.2)  p 0.00  tilt 28/26
+    23.7467  Move          Pen id 1001  (1064.3, 368.6)  p 0.00  tilt 28/26
+    23.7520  Move          Pen id 1001  (1064.6, 369.2)  p 0.00  tilt 28/26
+    23.7560  Move          Pen id 1001  (1065.3, 369.7)  p 0.00  tilt 28/26
+    23.7620  Move          Pen id 1001  (1065.6, 370.3)  p 0.00  tilt 28/26
+    23.7661  Move          Pen id 1001  (1065.6, 370.9)  p 0.00  tilt 28/26
+    23.7721  Move          Pen id 1001  (1065.6, 371.7)  p 0.00  tilt 26/26
+    23.7766  Move          Pen id 1001  (1065.6, 372.6)  p 0.00  tilt 26/28
+    23.7823  Move          Pen id 1001  (1065.3, 373.5)  p 0.00  tilt 26/28
+    23.7860  Move          Pen id 1001  (1064.6, 374.8)  p 0.00  tilt 26/28
+    23.7924  Move          Pen id 1001  (1064.0, 375.9)  p 0.00  tilt 26/28
+    23.7964  Move          Pen id 1001  (1063.1, 377.3)  p 0.00  tilt 26/28
+    23.8021  Move          Pen id 1001  (1062.4, 378.4)  p 0.00  tilt 26/28
+    23.8060  Move          Pen id 1001  (1061.2, 379.6)  p 0.00  tilt 26/28
+    23.8123  Move          Pen id 1001  (1059.9, 380.9)  p 0.00  tilt 26/28
+    23.8162  Move          Pen id 1001  (1059.0, 382.1)  p 0.00  tilt 26/29
+    23.8220  Move          Pen id 1001  (1057.7, 383.6)  p 0.00  tilt 26/29
+    23.8260  Move          Pen id 1001  (1056.8, 385.1)  p 0.00  tilt 26/29
+    23.8322  Move          Pen id 1001  (1055.8, 386.7)  p 0.00  tilt 26/29
+    23.8360  Move          Pen id 1001  (1054.9, 388.2)  p 0.00  tilt 26/29
+    23.8420  Move          Pen id 1001  (1054.2, 390.0)  p 0.00  tilt 26/29
+    23.8482  Move          Pen id 1001  (1053.3, 391.5)  p 0.00  tilt 26/31
+    23.8520  Move          Pen id 1001  (1052.7, 393.2)  p 0.00  tilt 26/31
+    23.8580  Move          Pen id 1001  (1052.3, 394.8)  p 0.00  tilt 26/31
+    23.8619  Move          Pen id 1001  (1051.4, 396.4)  p 0.00  tilt 26/31
+    23.8682  Move          Pen id 1001  (1050.8, 397.9)  p 0.00  tilt 26/31
+    23.8720  Move          Pen id 1001  (1049.8, 399.4)  p 0.00  tilt 26/31
+    23.8782  Move          Pen id 1001  (1048.9, 400.9)  p 0.00  tilt 26/32
+    23.8822  Move          Pen id 1001  (1047.9, 402.6)  p 0.00  tilt 26/32
+    23.8881  Move          Pen id 1001  (1046.7, 404.5)  p 0.00  tilt 26/32
+    23.8919  Move          Pen id 1001  (1045.7, 406.5)  p 0.00  tilt 26/32
+    23.8982  Move          Pen id 1001  (1044.5, 408.5)  p 0.00  tilt 26/32
+    23.9021  Move          Pen id 1001  (1043.5, 410.9)  p 0.00  tilt 26/32
+    23.9082  Move          Pen id 1001  (1042.3, 413.2)  p 0.00  tilt 26/34
+    23.9120  Move          Pen id 1001  (1041.0, 415.6)  p 0.00  tilt 26/34
+    23.9181  Move          Pen id 1001  (1039.4, 418.0)  p 0.00  tilt 26/34
+    23.9220  Move          Pen id 1001  (1038.2, 420.4)  p 0.00  tilt 26/34
+    23.9280  Move          Pen id 1001  (1036.9, 423.1)  p 0.00  tilt 26/34
+    23.9321  Move          Pen id 1001  (1035.3, 425.7)  p 0.00  tilt 26/34
+    23.9381  Move          Pen id 1001  (1034.1, 428.2)  p 0.00  tilt 26/34
+    23.9441  Move          Pen id 1001  (1032.8, 430.7)  p 0.00  tilt 26/34
+    23.9496  Move          Pen id 1001  (1031.6, 433.1)  p 0.00  tilt 26/34
+    23.9541  Move          Pen id 1001  (1030.3, 435.3)  p 0.00  tilt 26/34
+    23.9580  Move          Pen id 1001  (1029.4, 437.5)  p 0.00  tilt 26/35
+    23.9641  Move          Pen id 1001  (1028.7, 439.5)  p 0.00  tilt 26/35
+    23.9680  Move          Pen id 1001  (1028.1, 441.4)  p 0.00  tilt 26/35
+    23.9740  Move          Pen id 1001  (1027.5, 443.1)  p 0.00  tilt 26/35
+    23.9780  Move          Pen id 1001  (1027.5, 444.6)  p 0.00  tilt 26/35
+    23.9842  Move          Pen id 1001  (1027.5, 446.0)  p 0.00  tilt 26/35
+    23.9880  Move          Pen id 1001  (1027.5, 447.2)  p 0.00  tilt 26/35
+    23.9940  Move          Pen id 1001  (1027.2, 448.3)  p 0.00  tilt 26/35
+    23.9980  Move          Pen id 1001  (1027.2, 449.4)  p 0.00  tilt 26/35
+    24.0041  Move          Pen id 1001  (1026.8, 450.4)  p 0.00  tilt 26/35
+    24.0087  Move          Pen id 1001  (1026.5, 451.4)  p 0.00  tilt 26/36
+    24.0143  Move          Pen id 1001  (1026.5, 452.5)  p 0.00  tilt 26/36
+    24.0180  Move          Pen id 1001  (1026.2, 453.4)  p 0.00  tilt 26/36
+    24.0240  Move          Pen id 1001  (1026.2, 454.5)  p 0.00  tilt 26/36
+    24.0279  Move          Pen id 1001  (1026.2, 455.5)  p 0.00  tilt 26/36
+    24.0341  Move          Pen id 1001  (1026.2, 456.5)  p 0.00  tilt 26/36
+    24.0380  Move          Pen id 1001  (1026.2, 457.5)  p 0.00  tilt 26/36
+    24.0440  Move          Pen id 1001  (1026.5, 458.5)  p 0.00  tilt 25/36
+    24.0481  Move          Pen id 1001  (1026.5, 459.7)  p 0.00  tilt 25/36
+    24.0540  Move          Pen id 1001  (1026.8, 460.9)  p 0.00  tilt 25/36
+    24.0601  Move          Pen id 1001  (1027.2, 462.3)  p 0.00  tilt 25/36
+    24.0640  Move          Pen id 1001  (1027.5, 463.8)  p 0.00  tilt 25/36
+    24.0703  Move          Pen id 1001  (1027.5, 465.2)  p 0.00  tilt 25/36
+    24.0741  Move          Pen id 1001  (1027.8, 466.8)  p 0.00  tilt 25/36
+    24.0805  Move          Pen id 1001  (1028.1, 468.4)  p 0.00  tilt 25/35
+    24.0841  Move          Pen id 1001  (1028.4, 470.2)  p 0.00  tilt 25/35
+    24.0901  Move          Pen id 1001  (1028.4, 472.0)  p 0.00  tilt 25/35
+    24.0940  Move          Pen id 1001  (1028.4, 474.1)  p 0.00  tilt 26/35
+    24.1002  Move          Pen id 1001  (1028.4, 476.2)  p 0.00  tilt 26/35
+    24.1041  Move          Pen id 1001  (1028.1, 478.5)  p 0.00  tilt 26/35
+    24.1101  Move          Pen id 1001  (1028.1, 480.8)  p 0.00  tilt 26/35
+    24.1142  Move          Pen id 1001  (1027.5, 483.1)  p 0.00  tilt 26/35
+    24.1201  Move          Pen id 1001  (1027.2, 485.5)  p 0.00  tilt 26/34
+    24.1241  Move          Pen id 1001  (1026.8, 487.9)  p 0.00  tilt 26/34
+    24.1303  Move          Pen id 1001  (1026.5, 490.2)  p 0.00  tilt 26/34
+    24.1342  Move          Pen id 1001  (1026.2, 492.4)  p 0.00  tilt 26/34
+    24.1401  Move          Pen id 1001  (1025.9, 494.6)  p 0.00  tilt 26/34
+    24.1441  Move          Pen id 1001  (1025.9, 496.5)  p 0.00  tilt 26/34
+    24.1505  Move          Pen id 1001  (1025.9, 498.2)  p 0.00  tilt 26/34
+    24.1541  Move          Pen id 1001  (1025.9, 499.7)  p 0.00  tilt 26/34
+    24.1600  Move          Pen id 1001  (1025.9, 500.8)  p 0.00  tilt 26/32
+    24.1661  Move          Pen id 1001  (1025.9, 502.0)  p 0.00  tilt 26/32
+    24.1700  Move          Pen id 1001  (1025.9, 502.8)  p 0.00  tilt 26/32
+    24.1760  Move          Pen id 1001  (1025.9, 503.7)  p 0.00  tilt 26/32
+    24.1809  Move          Pen id 1001  (1025.9, 504.5)  p 0.00  tilt 26/31
+    24.1860  Move          Pen id 1001  (1026.2, 505.3)  p 0.00  tilt 28/31
+    24.1900  Move          Pen id 1001  (1026.5, 506.0)  p 0.00  tilt 28/31
+    24.1980  Move          Pen id 1001  (1026.5, 506.7)  p 0.00  tilt 28/31
+    24.2002  Move          Pen id 1001  (1027.2, 507.4)  p 0.00  tilt 28/31
+    24.2062  Move          Pen id 1001  (1027.5, 508.1)  p 0.00  tilt 29/31
+    24.2103  Move          Pen id 1001  (1027.8, 508.7)  p 0.00  tilt 29/31
+    24.2142  Move          Pen id 1001  (1028.4, 509.2)  p 0.00  tilt 29/31
+    24.2204  Move          Pen id 1001  (1029.0, 509.7)  p 0.00  tilt 29/31
+    24.2242  Move          Pen id 1001  (1029.7, 510.1)  p 0.00  tilt 29/31
+    24.2304  Move          Pen id 1001  (1030.3, 510.5)  p 0.00  tilt 29/29
+    24.2383  Move          Pen id 1001  (1031.2, 510.8)  p 0.00  tilt 29/29
+    24.2444  Move          Pen id 1001  (1031.6, 510.9)  p 0.00  tilt 29/29
+    24.2484  Move          Pen id 1001  (1032.5, 511.2)  p 0.00  tilt 29/29
+    24.2543  Move          Pen id 1001  (1033.1, 511.3)  p 0.00  tilt 29/29
+    24.2581  Move          Pen id 1001  (1033.8, 511.3)  p 0.00  tilt 29/29
+    24.2642  Move          Pen id 1001  (1034.4, 511.2)  p 0.00  tilt 29/26
+    24.2684  Move          Pen id 1001  (1034.7, 511.0)  p 0.00  tilt 29/26
+    24.2721  Move          Pen id 1001  (1035.3, 510.6)  p 0.00  tilt 29/26
+    24.2784  Move          Pen id 1001  (1036.0, 510.1)  p 0.00  tilt 29/26
+    24.2823  Move          Pen id 1001  (1036.3, 509.3)  p 0.00  tilt 29/26
+    24.2882  Move          Pen id 1001  (1036.9, 508.5)  p 0.00  tilt 28/26
+    24.2923  Move          Pen id 1001  (1037.2, 507.4)  p 0.00  tilt 28/25
+    24.2983  Move          Pen id 1001  (1037.9, 506.3)  p 0.00  tilt 28/25
+    24.3023  Move          Pen id 1001  (1038.2, 504.9)  p 0.00  tilt 28/25
+    24.3085  Move          Pen id 1001  (1038.5, 503.6)  p 0.00  tilt 28/25
+    24.3122  Move          Pen id 1001  (1039.1, 502.0)  p 0.00  tilt 28/24
+    24.3183  Move          Pen id 1001  (1039.7, 500.4)  p 0.00  tilt 28/24
+    24.3223  Move          Pen id 1001  (1040.4, 498.7)  p 0.00  tilt 28/24
+    24.3283  Move          Pen id 1001  (1041.3, 496.9)  p 0.00  tilt 26/24
+    24.3324  Move          Pen id 1001  (1042.6, 495.2)  p 0.00  tilt 26/23
+    24.3382  Move          Pen id 1001  (1043.8, 493.5)  p 0.00  tilt 26/23
+    24.3421  Move          Pen id 1001  (1046.0, 492.0)  p 0.00  tilt 26/23
+    24.3485  Move          Pen id 1001  (1047.9, 490.7)  p 0.00  tilt 26/23
+    24.3522  Move          Pen id 1001  (1049.8, 489.5)  p 0.00  tilt 26/23
+    24.3587  Move          Pen id 1001  (1051.4, 488.2)  p 0.00  tilt 26/23
+    24.3622  Move          Pen id 1001  (1052.7, 486.9)  p 0.00  tilt 26/22
+    24.3684  Move          Pen id 1001  (1053.3, 485.3)  p 0.00  tilt 26/22
+    24.3722  Move          Pen id 1001  (1053.6, 483.5)  p 0.00  tilt 26/22
+    24.3781  Move          Pen id 1001  (1053.9, 481.7)  p 0.00  tilt 25/22
+    24.3824  Move          Pen id 1001  (1053.9, 479.5)  p 0.00  tilt 25/22
+    24.3882  Move          Pen id 1001  (1053.9, 477.6)  p 0.00  tilt 25/22
+    24.3926  Move          Pen id 1001  (1053.9, 475.4)  p 0.00  tilt 25/22
+    24.3984  Move          Pen id 1001  (1053.3, 473.2)  p 0.00  tilt 25/22
+    24.4023  Move          Pen id 1001  (1053.3, 470.8)  p 0.00  tilt 25/23
+    24.4061  Move          Pen id 1001  (1052.7, 468.4)  p 0.00  tilt 25/23
+    24.4122  Move          Pen id 1001  (1052.3, 465.7)  p 0.00  tilt 25/23
+    24.4162  Move          Pen id 1001  (1051.7, 462.9)  p 0.00  tilt 25/23
+    24.4221  Move          Pen id 1001  (1051.1, 459.8)  p 0.00  tilt 25/24
+    24.4262  Move          Pen id 1001  (1050.8, 456.6)  p 0.00  tilt 26/24
+    24.4324  Move          Pen id 1001  (1049.8, 453.1)  p 0.00  tilt 26/25
+    24.4361  Move          Pen id 1001  (1049.2, 449.5)  p 0.00  tilt 26/25
+    24.4421  Move          Pen id 1001  (1048.3, 445.8)  p 0.00  tilt 26/25
+    24.4460  Move          Pen id 1001  (1047.3, 442.6)  p 0.00  tilt 26/25
+    24.4521  Move          Pen id 1001  (1046.4, 439.3)  p 0.00  tilt 26/26
+    24.4581  Move          Pen id 1001  (1045.4, 436.1)  p 0.00  tilt 26/26
+    24.4643  Move          Pen id 1001  (1044.2, 432.9)  p 0.00  tilt 26/26
+    24.4681  Move          Pen id 1001  (1042.9, 429.9)  p 0.00  tilt 26/26
+    24.4741  Move          Pen id 1001  (1041.6, 426.9)  p 0.00  tilt 26/26
+    24.4781  Move          Pen id 1001  (1040.4, 424.2)  p 0.00  tilt 26/26
+    24.4843  Move          Pen id 1001  (1039.4, 421.5)  p 0.00  tilt 26/28
+    24.4882  Move          Pen id 1001  (1038.5, 418.7)  p 0.00  tilt 28/28
+    24.4944  Move          Pen id 1001  (1037.2, 415.9)  p 0.00  tilt 28/29
+    24.4982  Move          Pen id 1001  (1036.3, 413.1)  p 0.00  tilt 28/29
+    24.5041  Move          Pen id 1001  (1035.0, 410.2)  p 0.00  tilt 28/29
+    24.5080  Move          Pen id 1001  (1033.8, 407.5)  p 0.00  tilt 29/29
+    24.5142  Move          Pen id 1001  (1032.5, 404.8)  p 0.00  tilt 29/29
+    24.5182  Move          Pen id 1001  (1031.2, 402.1)  p 0.00  tilt 29/29
+    24.5244  Move          Pen id 1001  (1030.0, 399.1)  p 0.00  tilt 29/29
+    24.5283  Move          Pen id 1001  (1029.0, 396.3)  p 0.00  tilt 29/29
+    24.5345  Move          Pen id 1001  (1027.8, 393.4)  p 0.00  tilt 29/31
+    24.5381  Move          Pen id 1001  (1027.2, 390.4)  p 0.00  tilt 29/31
+    24.5442  Move          Pen id 1001  (1026.2, 387.5)  p 0.00  tilt 29/31
+    24.5482  Move          Pen id 1001  (1025.6, 384.5)  p 0.00  tilt 31/31
+    24.5584  Move          Pen id 1001  (1024.9, 381.2)  p 0.00  tilt 31/31
+    24.5623  Move          Pen id 1001  (1024.0, 377.7)  p 0.00  tilt 31/31
+    24.5666  Move          Pen id 1001  (1023.4, 374.2)  p 0.00  tilt 31/31
+    24.5725  Move          Pen id 1001  (1023.1, 371.0)  p 0.00  tilt 31/31
+    24.5765  Move          Pen id 1001  (1022.4, 367.8)  p 0.00  tilt 31/31
+    24.5823  Move          Pen id 1001  (1021.8, 365.0)  p 0.00  tilt 31/31
+    24.5867  Move          Pen id 1001  (1021.8, 362.1)  p 0.00  tilt 31/31
+    24.5924  Move          Pen id 1001  (1021.5, 359.3)  p 0.00  tilt 31/31
+    24.5962  Move          Pen id 1001  (1021.2, 356.5)  p 0.00  tilt 31/31
+    24.6024  Move          Pen id 1001  (1020.9, 353.8)  p 0.00  tilt 31/31
+    24.6061  Move          Pen id 1001  (1020.9, 350.9)  p 0.00  tilt 31/31
+    24.6126  Move          Pen id 1001  (1020.5, 348.3)  p 0.00  tilt 31/31
+    24.6162  Move          Pen id 1001  (1020.5, 345.7)  p 0.00  tilt 31/31
+    24.6220  Move          Pen id 1001  (1020.5, 343.5)  p 0.00  tilt 31/31
+    24.6263  Move          Pen id 1001  (1020.5, 341.3)  p 0.00  tilt 31/31
+    24.6325  Move          Pen id 1001  (1020.5, 339.5)  p 0.00  tilt 31/31
+    24.6362  Move          Pen id 1001  (1020.5, 337.8)  p 0.00  tilt 31/29
+    24.6421  Move          Pen id 1001  (1020.5, 336.2)  p 0.00  tilt 31/29
+    24.6461  Move          Pen id 1001  (1020.2, 334.6)  p 0.00  tilt 31/29
+    24.6523  Move          Pen id 1001  (1020.2, 333.1)  p 0.00  tilt 32/29
+    24.6561  Move          Pen id 1001  (1020.2, 331.8)  p 0.00  tilt 32/29
+    24.6622  Move          Pen id 1001  (1019.9, 330.5)  p 0.00  tilt 32/29
+    24.6663  Move          Pen id 1001  (1019.9, 329.4)  p 0.00  tilt 32/28
+    24.6722  Move          Pen id 1001  (1019.9, 328.4)  p 0.00  tilt 32/28
+    24.6761  Move          Pen id 1001  (1019.6, 327.4)  p 0.00  tilt 32/28
+    24.6807  Move          Pen id 1001  (1019.3, 326.6)  p 0.00  tilt 32/28
+    24.6862  Move          Pen id 1001  (1019.3, 325.8)  p 0.00  tilt 32/26
+    24.6901  Move          Pen id 1001  (1019.0, 325.0)  p 0.00  tilt 32/26
+    24.6962  Move          Pen id 1001  (1018.6, 324.3)  p 0.00  tilt 32/26
+    24.7004  Move          Pen id 1001  (1018.6, 323.6)  p 0.00  tilt 32/26
+    24.7063  Move          Pen id 1001  (1018.3, 322.9)  p 0.00  tilt 32/26
+    24.7101  Move          Pen id 1001  (1017.7, 322.3)  p 0.00  tilt 32/26
+    24.7163  Move          Pen id 1001  (1017.4, 321.8)  p 0.00  tilt 32/26
+    24.7201  Move          Pen id 1001  (1017.1, 321.4)  p 0.00  tilt 32/26
+    24.7262  Move          Pen id 1001  (1016.8, 321.0)  p 0.00  tilt 32/26
+    24.7308  Move          Pen id 1001  (1016.1, 320.7)  p 0.00  tilt 34/26
+    24.7361  Move          Pen id 1001  (1015.8, 320.2)  p 0.00  tilt 34/25
+    24.7400  Move          Pen id 1001  (1015.5, 319.9)  p 0.00  tilt 34/25
+    24.7459  Move          Pen id 1001  (1015.2, 319.3)  p 0.00  tilt 34/25
+    24.7501  Move          Pen id 1001  (1014.9, 318.6)  p 0.00  tilt 34/25
+    24.7583  Move          Pen id 1001  (1014.9, 317.6)  p 0.00  tilt 34/26
+    24.7620  Move          Pen id 1001  (1014.9, 316.6)  p 0.00  tilt 34/26
+    24.7683  Move          Pen id 1001  (1015.2, 315.3)  p 0.00  tilt 34/26
+    24.7721  Move          Pen id 1001  (1015.8, 314.1)  p 0.00  tilt 34/26
+    24.7780  Move          Pen id 1001  (1016.1, 312.7)  p 0.00  tilt 34/26
+    24.7823  Move          Pen id 1001  (1016.4, 311.2)  p 0.00  tilt 35/26
+    24.7881  Move          Pen id 1001  (1016.8, 309.6)  p 0.00  tilt 35/26
+    24.7922  Move          Pen id 1001  (1017.4, 308.0)  p 0.00  tilt 35/26
+    24.7983  Move          Pen id 1001  (1017.7, 306.2)  p 0.00  tilt 35/26
+    24.8021  Move          Pen id 1001  (1018.3, 304.4)  p 0.00  tilt 36/26
+    24.8080  Move          Pen id 1001  (1018.6, 302.2)  p 0.00  tilt 36/28
+    24.8119  Move          Pen id 1001  (1019.0, 300.2)  p 0.00  tilt 36/28
+    24.8181  Move          Pen id 1001  (1019.3, 297.9)  p 0.00  tilt 36/28
+    24.8220  Move          Pen id 1001  (1019.6, 295.5)  p 0.00  tilt 36/28
+    24.8281  Move          Pen id 1001  (1019.9, 292.9)  p 0.00  tilt 36/29
+    24.8322  Move          Pen id 1001  (1019.9, 290.1)  p 0.00  tilt 36/29
+    24.8381  Move          Pen id 1001  (1019.9, 287.1)  p 0.00  tilt 36/29
+    24.8420  Move          Pen id 1001  (1019.9, 283.9)  p 0.00  tilt 37/29
+    24.8481  Move          Pen id 1001  (1019.3, 280.5)  p 0.00  tilt 37/29
+    24.8520  Move          Pen id 1001  (1019.0, 276.9)  p 0.00  tilt 37/29
+    24.8581  Move          Pen id 1001  (1018.3, 273.3)  p 0.00  tilt 37/31
+    24.8643  Move          Pen id 1001  (1017.7, 269.5)  p 0.00  tilt 37/31
+    24.8682  Move          Pen id 1001  (1016.8, 265.8)  p 0.00  tilt 37/32
+    24.8743  Move          Pen id 1001  (1015.8, 262.3)  p 0.00  tilt 38/32
+    24.8782  Move          Pen id 1001  (1014.6, 259.0)  p 0.00  tilt 38/34
+    24.8842  Move          Pen id 1001  (1013.3, 256.1)  p 0.00  tilt 38/34
+    24.8881  Move          Pen id 1001  (1012.0, 253.4)  p 0.00  tilt 38/34
+    24.8942  Move          Pen id 1001  (1011.1, 251.3)  p 0.00  tilt 38/34
+    24.8984  Move          Pen id 1001  (1010.5, 249.6)  p 0.00  tilt 38/36
+    24.9042  Move          Pen id 1001  (1009.5, 248.2)  p 0.00  tilt 38/36
+    24.9081  Move          Pen id 1001  (1008.9, 247.1)  p 0.00  tilt 38/36
+    24.9142  Move          Pen id 1001  (1008.6, 246.3)  p 0.00  tilt 37/36
+    24.9181  Move          Pen id 1001  (1007.9, 245.7)  p 0.00  tilt 37/37
+    24.9243  Move          Pen id 1001  (1007.6, 245.4)  p 0.00  tilt 37/37
+    24.9281  Move          Pen id 1001  (1007.0, 245.1)  p 0.00  tilt 37/38
+    24.9345  Move          Pen id 1001  (1006.4, 245.1)  p 0.00  tilt 37/38
+    24.9381  Move          Pen id 1001  (1005.7, 245.1)  p 0.00  tilt 37/38
+    24.9441  Move          Pen id 1001  (1004.8, 245.1)  p 0.00  tilt 36/38
+    24.9482  Move          Pen id 1001  (1004.2, 245.3)  p 0.00  tilt 36/39
+    24.9543  Move          Pen id 1001  (1003.5, 245.5)  p 0.00  tilt 36/39
+    24.9581  Move          Pen id 1001  (1002.6, 245.8)  p 0.00  tilt 36/39
+    24.9643  Move          Pen id 1001  (1001.6, 246.1)  p 0.00  tilt 36/39
+    24.9681  Move          Pen id 1001  (1000.4, 246.3)  p 0.00  tilt 36/40
+    24.9740  Move          Pen id 1001  (999.1, 246.6)  p 0.00  tilt 36/40
+    24.9780  Move          Pen id 1001  (997.9, 246.9)  p 0.00  tilt 36/40
+    24.9842  Move          Pen id 1001  (996.3, 247.1)  p 0.00  tilt 36/40
+    24.9881  Move          Pen id 1001  (994.7, 247.2)  p 0.00  tilt 36/41
+    24.9941  Move          Pen id 1001  (993.1, 247.4)  p 0.00  tilt 36/41
+    24.9982  Move          Pen id 1001  (991.6, 247.5)  p 0.00  tilt 36/41
+    25.0041  Move          Pen id 1001  (989.7, 247.8)  p 0.00  tilt 36/41
+    25.0080  Move          Pen id 1001  (988.1, 247.9)  p 0.00  tilt 36/41
+    25.0142  Move          Pen id 1001  (986.5, 248.1)  p 0.00  tilt 36/41
+    25.0180  Move          Pen id 1001  (984.9, 248.3)  p 0.00  tilt 36/40
+    25.0241  Move          Pen id 1001  (983.4, 248.6)  p 0.00  tilt 36/40
+    25.0280  Move          Pen id 1001  (981.5, 248.8)  p 0.00  tilt 36/40
+    25.0342  Move          Pen id 1001  (979.9, 249.0)  p 0.00  tilt 36/40
+    25.0380  Move          Pen id 1001  (978.3, 249.2)  p 0.00  tilt 36/39
+    25.0440  Move          Pen id 1001  (976.4, 249.5)  p 0.00  tilt 36/39
+    25.0481  Move          Pen id 1001  (974.6, 249.8)  p 0.00  tilt 36/39
+    25.0541  Move          Pen id 1001  (973.0, 250.3)  p 0.00  tilt 36/39
+    25.0580  Move          Pen id 1001  (971.4, 251.0)  p 0.00  tilt 36/38
+    25.0646  Move          Pen id 1001  (969.5, 251.9)  p 0.00  tilt 36/38
+    25.0681  Move          Pen id 1001  (967.3, 252.9)  p 0.00  tilt 36/38
+    25.0740  Move          Pen id 1001  (965.4, 254.2)  p 0.00  tilt 37/38
+    25.0781  Move          Pen id 1001  (963.2, 255.7)  p 0.00  tilt 37/37
+    25.0841  Move          Pen id 1001  (960.7, 257.4)  p 0.00  tilt 37/37
+    25.0881  Move          Pen id 1001  (958.5, 259.3)  p 0.00  tilt 37/37
+    25.0942  Move          Pen id 1001  (956.3, 261.3)  p 0.00  tilt 38/37
+    25.0983  Move          Pen id 1001  (954.4, 263.3)  p 0.00  tilt 38/36
+    25.1042  Move          Pen id 1001  (952.5, 265.2)  p 0.00  tilt 38/36
+    25.1080  Move          Pen id 1001  (950.9, 267.1)  p 0.00  tilt 38/35
+    25.1144  Move          Pen id 1001  (949.7, 268.8)  p 0.00  tilt 39/35
+    25.1181  Move          Pen id 1001  (948.4, 270.2)  p 0.00  tilt 39/35
+    25.1242  Move          Pen id 1001  (947.5, 271.5)  p 0.00  tilt 39/35
+    25.1281  Move          Pen id 1001  (946.2, 272.5)  p 0.00  tilt 39/34
+    25.1342  Move          Pen id 1001  (945.3, 273.3)  p 0.00  tilt 40/34
+
+replay v2
+# the same events at full precision, for the replay harness in the test
+# suite. The list above is this list rounded for reading.
+# rig canvas=1563.00x629.00 zoom=100.00 wrapped=false
+seconds	kind	device	id	x	y	pressure	tiltX	tiltY	modifiers	detail	inContact	deviceTime
+0.2869368	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 287 ms	0	0
+1.3681196	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 1081 ms	0	0
+2.4446454	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 1077 ms	0	0
+3.5303289	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 1086 ms	0	0
+4.6079208	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 1078 ms	0	0
+5.6840523	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 1076 ms	0	0
+6.2216413	Enter	Mouse	1000	56	446	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-3503	116	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-3503	147	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-3523	201	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-3550	242	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-3623	310	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-3703	363	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-3807	418	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-3922	462	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4073	507	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4227	542	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4391	564	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4547	580	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4683	587	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4659	590	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4690	590	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4653	579	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4641	588	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4635	546	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4646	564	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4594	535	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4595	522	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4565	513	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4586	503	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4545	500	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4548	499	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4539	497	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4532	497	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4532	497	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4532	498	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4533	503	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4536	506	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4536	511	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4538	518	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4541	524	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4538	529	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4533	531	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4534	535	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4531	535	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4530	536	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4526	539	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4511	542	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4457	544	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4374	544	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4267	539	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-4073	519	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-3894	496	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-3682	473	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-3431	443	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-3181	419	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-2965	399	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-2715	382	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-2466	372	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-2217	365	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-1968	362	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-1749	362	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-1530	362	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-1315	362	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-1096	364	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-877	378	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-692	384	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-472	404	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	-286	417	0.5	0	0	None		0	125615500
+6.2222383	Sample	Mouse	1000	56	446	0.5	0	0	None		0	125615500
+6.2222383	Move	Mouse	1000	56	446	0.5	0	0	None		0	125615500
+6.2287499	CursorDecided	Mouse	-1	0	0	0	0	0	None	start→Paint	0	0
+6.229489	Move	Mouse	1000	212	459	0.5	0	0	None		0	125615515
+6.2299472	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 546 ms	0	0
+6.2361797	Move	Mouse	1000	360	468	0.5	0	0	None		0	125615515
+6.2432763	Move	Mouse	1000	494	481	0.5	0	0	None		0	125615531
+6.2511786	Move	Mouse	1000	575	489	0.5	0	0	None		0	125615531
+6.2586666	Move	Mouse	1000	659	498	0.5	0	0	None		0	125615546
+6.2660963	Move	Mouse	1000	722	505	0.5	0	0	None		0	125615546
+6.2739427	Move	Mouse	1000	792	513	0.5	0	0	None		0	125615562
+6.2810932	Move	Mouse	1000	824	518	0.5	0	0	None		0	125615562
+6.2888377	Move	Mouse	1000	847	518	0.5	0	0	None		0	125615578
+6.2959352	Move	Mouse	1000	864	518	0.5	0	0	None		0	125615578
+6.3042263	Move	Mouse	1000	873	518	0.5	0	0	None		0	125615593
+6.3112046	Move	Mouse	1000	876	518	0.5	0	0	None		0	125615593
+6.3185883	Move	Mouse	1000	877	518	0.5	0	0	None		0	125615609
+6.3492011	Move	Mouse	1000	874	518	0.5	0	0	None		0	125615640
+6.3560049	Move	Mouse	1000	858	516	0.5	0	0	None		0	125615640
+6.3635624	Move	Mouse	1000	825	508	0.5	0	0	None		0	125615640
+6.3710708	Move	Mouse	1000	740	497	0.5	0	0	None		0	125615656
+6.3781905	Move	Mouse	1000	628	479	0.5	0	0	None		0	125615656
+6.3862703	Move	Mouse	1000	479	460	0.5	0	0	None		0	125615671
+6.3937664	Move	Mouse	1000	289	437	0.5	0	0	None		0	125615671
+6.4017236	Move	Mouse	1000	69	413	0.5	0	0	None		0	125615687
+6.4085913	Exit	Mouse	1000	69	413	0.5	0	0	None		0	0
+6.7575796	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 307 ms	0	0
+7.8465148	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 1089 ms	0	0
+8.9210442	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 1075 ms	0	0
+10.0003917	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 1079 ms	0	0
+11.0779374	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 1078 ms	0	0
+12.1507943	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 1073 ms	0	0
+13.2331479	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 1082 ms	0	0
+14.3062968	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 1073 ms	0	0
+15.3842883	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 1078 ms	0	0
+16.458328	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 1074 ms	0	0
+17.5391725	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 1081 ms	0	0
+18.6178825	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 1079 ms	0	0
+19.6996373	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 1082 ms	0	0
+19.9650061	Enter	Mouse	1000	900	159	0.5	0	0	None		0	125629250
+19.9654205	Move	Mouse	1000	900	159	0.5	0	0	None		0	125629250
+19.9659237	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 266 ms	0	0
+19.9684261	Move	Mouse	1000	900	160	0.5	0	0	None		0	125629250
+19.9744698	Move	Mouse	1000	898	160	0.5	0	0	None		0	125629265
+19.9789079	Move	Mouse	1000	896	161	0.5	0	0	None		0	125629265
+19.98457	Move	Mouse	1000	893	162	0.5	0	0	None		0	125629265
+19.9882911	Move	Mouse	1000	891	163	0.5	0	0	None		0	125629265
+19.9947676	Move	Mouse	1000	888	165	0.5	0	0	None		0	125629281
+19.9983796	Move	Mouse	1000	885	167	0.5	0	0	None		0	125629281
+20.0043703	Move	Mouse	1000	882	169	0.5	0	0	None		0	125629281
+20.0082486	Move	Mouse	1000	880	171	0.5	0	0	None		0	125629281
+20.0149432	Move	Mouse	1000	877	173	0.5	0	0	None		0	125629296
+20.0184307	Move	Mouse	1000	874	175	0.5	0	0	None		0	125629296
+20.0245844	Move	Mouse	1000	871	177	0.5	0	0	None		0	125629312
+20.0286024	Move	Mouse	1000	868	180	0.5	0	0	None		0	125629312
+20.0346355	Move	Mouse	1000	866	182	0.5	0	0	None		0	125629312
+20.0382944	Move	Mouse	1000	863	184	0.5	0	0	None		0	125629312
+20.0447817	Move	Mouse	1000	861	186	0.5	0	0	None		0	125629328
+20.0483704	Move	Mouse	1000	859	188	0.5	0	0	None		0	125629328
+20.054498	Move	Mouse	1000	857	190	0.5	0	0	None		0	125629328
+20.0587018	Move	Mouse	1000	856	192	0.5	0	0	None		0	125629343
+20.0645044	Move	Mouse	1000	855	194	0.5	0	0	None		0	125629343
+20.0684353	Move	Mouse	1000	854	195	0.5	0	0	None		0	125629343
+20.074575	Move	Mouse	1000	854	197	0.5	0	0	None		0	125629343
+20.0788494	Move	Mouse	1000	854	199	0.5	0	0	None		0	125629359
+20.0844505	Move	Mouse	1000	854	201	0.5	0	0	None		0	125629359
+20.0883469	Move	Mouse	1000	855	203	0.5	0	0	None		0	125629375
+20.0946882	Move	Mouse	1000	855	205	0.5	0	0	None		0	125629375
+20.0983754	Move	Mouse	1000	856	206	0.5	0	0	None		0	125629390
+20.1049778	Move	Mouse	1000	857	208	0.5	0	0	None		0	125629390
+20.1084078	Move	Mouse	1000	858	210	0.5	0	0	None		0	125629390
+20.1165655	Move	Mouse	1000	860	211	0.5	0	0	None		0	125629390
+20.1205839	Move	Mouse	1000	861	212	0.5	0	0	None		0	125629406
+20.1271572	Move	Mouse	1000	863	213	0.5	0	0	None		0	125629406
+20.1304786	Move	Mouse	1000	865	213	0.5	0	0	None		0	125629421
+20.1364948	Move	Mouse	1000	867	213	0.5	0	0	None		0	125629421
+20.1402993	Move	Mouse	1000	869	212	0.5	0	0	None		0	125629421
+20.1467018	Move	Mouse	1000	872	212	0.5	0	0	None		0	125629421
+20.1503853	Move	Mouse	1000	874	211	0.5	0	0	None		0	125629421
+20.1564276	Move	Mouse	1000	877	211	0.5	0	0	None		0	125629437
+20.1604608	Move	Mouse	1000	879	210	0.5	0	0	None		0	125629437
+20.1665006	Move	Mouse	1000	881	209	0.5	0	0	None		0	125629453
+20.1704362	Move	Mouse	1000	883	208	0.5	0	0	None		0	125629453
+20.1773858	Move	Mouse	1000	885	208	0.5	0	0	None		0	125629453
+20.1826522	Move	Mouse	1000	887	207	0.5	0	0	None		0	125629468
+20.1864924	Move	Mouse	1000	889	206	0.5	0	0	None		0	125629468
+20.1926534	Move	Mouse	1000	890	206	0.5	0	0	None		0	125629484
+20.1965577	Move	Mouse	1000	892	205	0.5	0	0	None		0	125629484
+20.2027546	Move	Mouse	1000	893	205	0.5	0	0	None		0	125629484
+20.2063608	Move	Mouse	1000	894	205	0.5	0	0	None		0	125629484
+20.2127125	Move	Mouse	1000	895	205	0.5	0	0	None		0	125629500
+20.2161166	Move	Mouse	1000	896	204	0.5	0	0	None		0	125629500
+20.222384	Move	Mouse	1000	897	205	0.5	0	0	None		0	125629500
+20.2324049	Move	Mouse	1000	898	205	0.5	0	0	None		0	125629515
+20.2524739	Move	Mouse	1000	899	205	0.5	0	0	None		0	125629531
+20.2562771	Move	Mouse	1000	900	204	0.5	0	0	None		0	125629531
+20.2664932	Move	Mouse	1000	901	203	0.5	0	0	None		0	125629546
+20.272654	Move	Mouse	1000	902	203	0.5	0	0	None		0	125629546
+20.2771885	Move	Mouse	1000	904	202	0.5	0	0	None		0	125629562
+20.282419	Move	Mouse	1000	905	201	0.5	0	0	None		0	125629562
+20.2863369	Move	Mouse	1000	907	200	0.5	0	0	None		0	125629562
+20.2924313	Move	Mouse	1000	908	200	0.5	0	0	None		0	125629578
+20.2967247	Move	Mouse	1000	910	199	0.5	0	0	None		0	125629578
+20.3024475	Move	Mouse	1000	911	198	0.5	0	0	None		0	125629578
+20.3063219	Move	Mouse	1000	913	197	0.5	0	0	None		0	125629593
+20.310561	Move	Mouse	1000	914	197	0.5	0	0	None		0	125629593
+20.3164822	Move	Mouse	1000	915	196	0.5	0	0	None		0	125629593
+20.3203636	Move	Mouse	1000	917	195	0.5	0	0	None		0	125629593
+20.3273037	Move	Mouse	1000	918	195	0.5	0	0	None		0	125629609
+20.3305939	Move	Mouse	1000	919	194	0.5	0	0	None		0	125629609
+20.3364446	Move	Mouse	1000	920	194	0.5	0	0	None		0	125629625
+20.347031	Move	Mouse	1000	921	194	0.5	0	0	None		0	125629625
+20.3500371	Move	Mouse	1000	921	193	0.5	0	0	None		0	125629625
+20.3773274	Press	Mouse	1000	921	193	0.5	0	0	None		1	125629640
+20.4391234	Exit	Mouse	1000	921	193	0.5	0	0	None		0	0
+20.4408464	Press	Pen	1001	921.645	193.01495	0.09472656	29	38	None		1	125629656
+20.4522093	Enter	Pen	1001	921.3301	192.22133	0.5	0	0	None		1	125629663
+20.4528986	Sample	Pen	1001	921.645	192.67484	0.15820312	29	38	None		1	125629663
+20.4528986	Sample	Pen	1001	921.645	192.3347	0.1875	29	38	None		1	125629663
+20.4528986	Sample	Pen	1001	921.3301	192.22133	0.20019531	28	38	None		1	125629663
+20.4528986	Move	Pen	1001	921.3301	192.22133	0.20019531	28	38	None		1	125629663
+20.4548923	Sample	Pen	1001	921.01514	192.10794	0.20605469	28	39	None		1	125629745
+20.4548923	Sample	Pen	1001	920.7002	192.10794	0.20800781	28	39	None		1	125629745
+20.4548923	Sample	Pen	1001	919.4404	192.10794	0.20800781	28	39	None		1	125629745
+20.4548923	Sample	Pen	1001	918.4956	192.22133	0.20800781	28	39	None		1	125629745
+20.4548923	Sample	Pen	1001	916.9209	192.44807	0.20800781	28	40	None		1	125629745
+20.4548923	Sample	Pen	1001	915.3461	192.78821	0.20800781	28	40	None		1	125629745
+20.4548923	Sample	Pen	1001	913.4565	193.24171	0.20996094	28	40	None		1	125629745
+20.4548923	Sample	Pen	1001	911.25183	193.92198	0.21191406	28	40	None		1	125629745
+20.4548923	Sample	Pen	1001	908.7323	194.60223	0.21582031	28	40	None		1	125629745
+20.4548923	Sample	Pen	1001	906.2127	195.39587	0.22070312	28	40	None		1	125629745
+20.4548923	Sample	Pen	1001	903.0633	196.41626	0.2265625	28	41	None		1	125629745
+20.4548923	Sample	Pen	1001	899.9138	197.43666	0.23242188	28	41	None		1	125629745
+20.4548923	Sample	Pen	1001	896.7644	198.57043	0.23730469	28	41	None		1	125629745
+20.4548923	Sample	Pen	1001	893.3	199.7042	0.2421875	28	41	None		1	125629745
+20.4548923	Sample	Pen	1001	889.8356	201.06471	0.24511719	28	41	None		1	125629745
+20.4548923	Sample	Pen	1001	886.0563	202.652	0.24804688	28	41	None		1	125629745
+20.4548923	Sample	Pen	1001	881.962	204.35265	0.25097656	28	41	None		1	125629745
+20.4548923	Move	Pen	1001	881.962	204.35265	0.25097656	28	41	None		1	125629745
+20.4550403	Exit	Pen	1001	881	204	0.5	0	0	None		0	0
+20.4553601	Enter	Mouse	1000	921	193	0.5	0	0	None		1	125629718
+20.4553992	Move	Mouse	1000	921	193	0.5	0	0	None		1	125629718
+20.4602634	Exit	Mouse	1000	921	193	0.5	0	0	None		0	0
+20.4604854	Enter	Pen	1001	878.1826	206.16669	0.5	0	0	None		1	125629751
+20.4606282	Move	Pen	1001	878.1826	206.16669	0.25195312	28	41	None		1	125629751
+20.4640165	Move	Pen	1001	873.7734	208.20746	0.25390625	28	41	None		1	125629755
+20.506569	Sample	Pen	1001	869.6791	210.36162	0.25390625	28	41	None		1	125629795
+20.506569	Sample	Pen	1001	865.58484	212.5158	0.2548828	28	40	None		1	125629795
+20.506569	Sample	Pen	1001	861.1756	214.78333	0.2548828	28	40	None		1	125629795
+20.506569	Sample	Pen	1001	856.76636	217.16425	0.2548828	28	40	None		1	125629795
+20.506569	Sample	Pen	1001	852.987	219.43178	0.2548828	29	40	None		1	125629795
+20.506569	Sample	Pen	1001	849.5226	221.58594	0.25585938	29	39	None		1	125629795
+20.506569	Sample	Pen	1001	846.37317	223.62672	0.25683594	29	39	None		1	125629795
+20.506569	Sample	Pen	1001	843.8536	225.55412	0.2578125	29	39	None		1	125629795
+20.506569	Move	Pen	1001	843.8536	225.55412	0.2578125	29	39	None		1	125629795
+20.5077621	Move	Pen	1001	841.649	227.1414	0.2578125	29	39	None		1	125629799
+20.5139774	Move	Pen	1001	840.0743	228.72868	0.25878906	29	40	None		1	125629805
+20.5179045	Move	Pen	1001	838.81445	229.97583	0.2578125	29	40	None		1	125629809
+20.5208893	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 254 ms	0	0
+20.52392	Move	Pen	1001	838.1846	230.99622	0.25585938	29	40	None		1	125629815
+20.5280435	Move	Pen	1001	837.8696	232.01662	0.2529297	29	40	None		1	125629819
+20.5341725	Move	Pen	1001	838.1846	232.69687	0.24902344	29	40	None		1	125629825
+20.538048	Move	Pen	1001	838.4995	233.49051	0.24414062	29	40	None		1	125629829
+20.5441192	Move	Pen	1001	839.4444	234.17078	0.24023438	29	40	None		1	125629835
+20.5481443	Move	Pen	1001	840.3892	234.96442	0.23632812	29	40	None		1	125629839
+20.554054	Move	Pen	1001	841.9639	235.5313	0.23339844	29	40	None		1	125629845
+20.5581297	Move	Pen	1001	843.8536	236.09818	0.23242188	29	40	None		1	125629849
+20.5641857	Move	Pen	1001	846.0582	236.43831	0.23144531	29	40	None		1	125629855
+20.5681758	Move	Pen	1001	848.8927	236.66507	0.23144531	29	40	None		1	125629859
+20.5742066	Move	Pen	1001	852.3571	236.77844	0.23144531	29	40	None		1	125629865
+20.5782072	Move	Pen	1001	856.1365	236.66507	0.23144531	29	40	None		1	125629869
+20.5821697	Move	Pen	1001	860.5457	236.43831	0.23144531	29	40	None		1	125629873
+20.5882687	Move	Pen	1001	864.9549	236.09818	0.23046875	31	40	None		1	125629879
+20.5920566	Move	Pen	1001	869.6791	235.64467	0.23144531	31	41	None		1	125629883
+20.5982855	Move	Pen	1001	874.7182	235.07779	0.23339844	29	41	None		1	125629889
+20.6020043	Move	Pen	1001	880.07227	234.51091	0.23632812	29	41	None		1	125629893
+20.6081458	Move	Pen	1001	885.42633	233.94402	0.23925781	29	41	None		1	125629899
+20.6121885	Move	Pen	1001	891.0954	233.37714	0.24121094	29	41	None		1	125629903
+20.6183247	Move	Pen	1001	896.44946	232.92363	0.24414062	29	41	None		1	125629909
+20.6222136	Move	Pen	1001	902.11847	232.35675	0.24609375	29	42	None		1	125629913
+20.6282935	Move	Pen	1001	907.7875	231.90323	0.24707031	29	42	None		1	125629919
+20.6320245	Move	Pen	1001	913.4565	231.44972	0.24902344	29	43	None		1	125629923
+20.638546	Move	Pen	1001	919.1255	230.99622	0.25	29	43	None		1	125629930
+20.6419189	Move	Pen	1001	924.7945	230.6561	0.25097656	29	43	None		1	125629933
+20.6480715	Move	Pen	1001	930.14856	230.42934	0.25195312	29	43	None		1	125629939
+20.6520589	Move	Pen	1001	935.5026	230.20258	0.25097656	29	43	None		1	125629943
+20.6579557	Move	Pen	1001	940.2268	230.20258	0.25097656	29	43	None		1	125629949
+20.6620331	Move	Pen	1001	944.63605	230.20258	0.25195312	29	43	None		1	125629953
+20.6659803	Move	Pen	1001	949.0453	230.42934	0.25195312	29	43	None		1	125629957
+20.6719565	Move	Pen	1001	953.1396	230.76947	0.2529297	29	43	None		1	125629963
+20.6761908	Move	Pen	1001	957.2338	231.22298	0.2529297	28	43	None		1	125629967
+20.6820885	Move	Pen	1001	960.69824	231.90323	0.2529297	28	43	None		1	125629973
+20.6858783	Move	Pen	1001	963.8477	232.69687	0.2529297	28	43	None		1	125629977
+20.6919307	Move	Pen	1001	966.36725	233.60388	0.25195312	28	43	None		1	125629983
+20.6960446	Move	Pen	1001	968.5719	234.73766	0.25195312	28	43	None		1	125629987
+20.7023824	Move	Pen	1001	970.46155	235.9848	0.2529297	28	43	None		1	125629993
+20.7060686	Move	Pen	1001	971.7213	237.45871	0.2529297	26	43	None		1	125629997
+20.7124076	Move	Pen	1001	972.66614	239.04597	0.25390625	26	43	None		1	125630003
+20.7161126	Move	Pen	1001	972.9811	240.97339	0.25585938	26	43	None		1	125630007
+20.7220957	Move	Pen	1001	972.66614	243.12755	0.2578125	26	43	None		1	125630013
+20.726017	Move	Pen	1001	972.03625	245.39508	0.25976562	26	43	None		1	125630017
+20.7323102	Move	Pen	1001	970.7765	247.88937	0.26171875	26	42	None		1	125630023
+20.7359543	Move	Pen	1001	968.88684	250.49706	0.26367188	26	42	None		1	125630027
+20.7420768	Move	Pen	1001	966.36725	253.33147	0.265625	26	42	None		1	125630033
+20.7463524	Move	Pen	1001	963.21783	256.27927	0.26660156	26	42	None		1	125630037
+20.7499774	Move	Pen	1001	959.7534	259.45383	0.2685547	26	42	None		1	125630041
+20.7559092	Move	Pen	1001	955.97406	262.6284	0.2705078	26	42	None		1	125630047
+20.7601495	Move	Pen	1001	951.87976	265.80292	0.27148438	26	42	None		1	125630051
+20.766457	Move	Pen	1001	947.4705	269.31763	0.2734375	26	42	None		1	125630057
+20.7699641	Move	Pen	1001	942.7464	272.94568	0.27539062	26	41	None		1	125630061
+20.776115	Move	Pen	1001	937.7073	276.6871	0.27734375	26	41	None		1	125630067
+20.7801921	Move	Pen	1001	932.3532	280.6553	0.28027344	26	40	None		1	125630071
+20.7859924	Move	Pen	1001	926.68414	284.6235	0.28320312	26	40	None		1	125630077
+20.7899173	Move	Pen	1001	921.01514	288.70505	0.2861328	26	40	None		1	125630081
+20.7961738	Move	Pen	1001	915.3461	292.78662	0.29003906	26	40	None		1	125630087
+20.8000421	Move	Pen	1001	909.6771	296.8682	0.2939453	26	39	None		1	125630091
+20.8061561	Move	Pen	1001	904.0081	300.8364	0.296875	26	39	None		1	125630097
+20.8101278	Move	Pen	1001	898.3391	305.03134	0.2998047	26	39	None		1	125630101
+20.8160845	Move	Pen	1001	892.6701	309.1129	0.3017578	26	39	None		1	125630107
+20.8199898	Move	Pen	1001	887.0011	313.30786	0.30273438	26	38	None		1	125630111
+20.8259803	Move	Pen	1001	881.64703	317.5028	0.30371094	28	38	None		1	125630117
+20.8303682	Move	Pen	1001	876.29297	321.69775	0.3046875	28	37	None		1	125630121
+20.8339868	Move	Pen	1001	870.9389	325.8927	0.3046875	28	37	None		1	125630125
+20.8401077	Move	Pen	1001	865.58484	329.86087	0.30566406	28	37	None		1	125630131
+20.8441989	Move	Pen	1001	860.86066	333.82907	0.30664062	28	37	None		1	125630135
+20.850028	Move	Pen	1001	855.82153	337.68387	0.30664062	28	36	None		1	125630141
+20.8540687	Move	Pen	1001	851.4123	341.42532	0.3076172	28	36	None		1	125630145
+20.860312	Move	Pen	1001	847.318	345.05338	0.3076172	28	36	None		1	125630151
+20.8640196	Move	Pen	1001	843.8536	348.56805	0.30859375	28	36	None		1	125630155
+20.8700704	Move	Pen	1001	840.3892	351.856	0.3095703	28	35	None		1	125630161
+20.8741169	Move	Pen	1001	837.23975	355.14392	0.3095703	28	35	None		1	125630165
+20.8802312	Move	Pen	1001	834.7202	358.2051	0.30859375	28	35	None		1	125630171
+20.8840389	Move	Pen	1001	832.51556	361.03952	0.30859375	28	35	None		1	125630175
+20.8899403	Move	Pen	1001	830.6259	363.76056	0.3076172	28	35	None		1	125630181
+20.8940418	Move	Pen	1001	829.0512	366.25485	0.30664062	28	35	None		1	125630185
+20.9002136	Move	Pen	1001	827.47644	368.5224	0.30664062	28	35	None		1	125630191
+20.904158	Move	Pen	1001	826.5316	370.67657	0.30664062	28	35	None		1	125630195
+20.9101543	Move	Pen	1001	825.90173	372.71735	0.30566406	28	34	None		1	125630201
+20.9141334	Move	Pen	1001	825.5868	374.64474	0.30566406	28	34	None		1	125630205
+20.9201309	Move	Pen	1001	825.5868	376.45877	0.30566406	28	34	None		1	125630211
+20.9239308	Move	Pen	1001	825.5868	378.27283	0.30566406	28	34	None		1	125630215
+20.9280355	Move	Pen	1001	825.90173	379.7467	0.30566406	28	34	None		1	125630219
+20.9340105	Move	Pen	1001	826.5316	381.33398	0.30566406	26	34	None		1	125630225
+20.9379358	Move	Pen	1001	827.1615	382.69452	0.30664062	26	34	None		1	125630229
+20.9441547	Move	Pen	1001	828.42126	384.05502	0.30664062	26	34	None		1	125630235
+20.9480374	Move	Pen	1001	829.6811	385.1888	0.3076172	26	34	None		1	125630239
+20.9539146	Move	Pen	1001	831.2558	386.2092	0.3095703	26	34	None		1	125630245
+20.9578449	Move	Pen	1001	833.14545	387.22958	0.31152344	26	32	None		1	125630249
+20.9641005	Move	Pen	1001	835.03516	388.02322	0.31347656	26	32	None		1	125630255
+20.9680302	Move	Pen	1001	837.23975	388.59012	0.3173828	26	32	None		1	125630259
+20.9740636	Move	Pen	1001	839.75934	389.0436	0.3203125	26	32	None		1	125630265
+20.9780152	Move	Pen	1001	842.5938	389.2704	0.3232422	26	32	None		1	125630269
+20.9840633	Move	Pen	1001	845.42834	389.2704	0.32714844	26	32	None		1	125630275
+20.987964	Move	Pen	1001	848.57776	388.93024	0.32910156	26	31	None		1	125630279
+20.9941342	Move	Pen	1001	852.3571	388.47675	0.3310547	26	31	None		1	125630285
+20.9980982	Move	Pen	1001	856.4514	387.79648	0.3330078	26	31	None		1	125630289
+21.0041479	Move	Pen	1001	860.5457	386.88947	0.33496094	26	31	None		1	125630295
+21.0082156	Move	Pen	1001	864.63995	385.75568	0.33691406	26	31	None		1	125630299
+21.0143797	Move	Pen	1001	869.0492	384.39517	0.3408203	26	31	None		1	125630305
+21.0183502	Move	Pen	1001	873.7734	382.69452	0.34570312	26	31	None		1	125630309
+21.0220817	Move	Pen	1001	878.8125	380.8805	0.35058594	26	31	None		1	125630313
+21.0282112	Move	Pen	1001	884.16656	378.8397	0.35546875	26	31	None		1	125630319
+21.0321107	Move	Pen	1001	889.5206	376.68555	0.359375	26	31	None		1	125630323
+21.0381189	Move	Pen	1001	895.18964	374.30463	0.3623047	26	31	None		1	125630329
+21.0421612	Move	Pen	1001	900.5437	371.9237	0.3642578	26	31	None		1	125630333
+21.0482464	Move	Pen	1001	906.5277	369.20267	0.36621094	26	31	None		1	125630339
+21.0520248	Move	Pen	1001	912.51166	366.25485	0.36816406	26	31	None		1	125630343
+21.05824	Move	Pen	1001	918.4956	362.96692	0.36914062	26	31	None		1	125630349
+21.0621209	Move	Pen	1001	924.7945	359.67902	0.3701172	26	31	None		1	125630353
+21.068114	Move	Pen	1001	931.0934	356.1643	0.3701172	26	31	None		1	125630359
+21.0720958	Move	Pen	1001	937.39233	352.64963	0.36914062	26	31	None		1	125630363
+21.0783547	Move	Pen	1001	943.3763	348.79483	0.36914062	26	31	None		1	125630369
+21.0820313	Move	Pen	1001	949.6752	345.05338	0.36914062	26	31	None		1	125630373
+21.0880802	Move	Pen	1001	955.97406	341.19858	0.3701172	26	31	None		1	125630379
+21.0919968	Move	Pen	1001	961.958	337.45712	0.37109375	26	31	None		1	125630383
+21.0981571	Move	Pen	1001	967.94196	333.60233	0.3720703	26	31	None		1	125630389
+21.102102	Move	Pen	1001	973.296	329.63412	0.37304688	26	31	None		1	125630393
+21.1063639	Move	Pen	1001	978.6501	325.55255	0.37402344	26	32	None		1	125630397
+21.1121081	Move	Pen	1001	983.6892	321.58435	0.37597656	26	32	None		1	125630403
+21.1161278	Move	Pen	1001	989.04333	317.3894	0.3779297	26	32	None		1	125630407
+21.1220212	Move	Pen	1001	993.76746	313.42123	0.37890625	26	32	None		1	125630413
+21.1259535	Move	Pen	1001	998.49164	309.45303	0.38085938	26	34	None		1	125630417
+21.1321009	Move	Pen	1001	1002.58594	305.7116	0.38183594	26	34	None		1	125630423
+21.1362513	Move	Pen	1001	1006.3653	302.08353	0.38378906	26	34	None		1	125630427
+21.1421322	Move	Pen	1001	1009.8297	298.45547	0.38476562	28	34	None		1	125630433
+21.1462893	Move	Pen	1001	1012.6642	294.82742	0.38671875	28	34	None		1	125630437
+21.1520305	Move	Pen	1001	1015.4987	291.31274	0.38867188	28	34	None		1	125630443
+21.1559194	Move	Pen	1001	1018.01825	287.79803	0.390625	28	34	None		1	125630447
+21.1621043	Move	Pen	1001	1019.9079	284.6235	0.39257812	28	34	None		1	125630453
+21.1661076	Move	Pen	1001	1021.7976	281.44894	0.3935547	28	34	None		1	125630457
+21.1721109	Move	Pen	1001	1023.3723	278.50113	0.39453125	28	34	None		1	125630463
+21.1760667	Move	Pen	1001	1024.3171	275.55334	0.3955078	28	34	None		1	125630467
+21.1823376	Move	Pen	1001	1025.262	272.8323	0.39648438	28	34	None		1	125630473
+21.1859828	Move	Pen	1001	1025.8918	270.22464	0.3984375	28	34	None		1	125630477
+21.189871	Move	Pen	1001	1026.2068	267.73035	0.40039062	26	34	None		1	125630481
+21.1961327	Move	Pen	1001	1026.5217	265.23605	0.4033203	26	34	None		1	125630487
+21.2000407	Move	Pen	1001	1026.2068	262.74176	0.40820312	26	34	None		1	125630491
+21.2059535	Move	Pen	1001	1025.8918	260.1341	0.41308594	26	35	None		1	125630497
+21.2100415	Move	Pen	1001	1025.5769	257.6398	0.41992188	26	35	None		1	125630501
+21.2160609	Move	Pen	1001	1024.947	255.03212	0.4267578	26	35	None		1	125630507
+21.2199345	Move	Pen	1001	1024.0022	252.65121	0.43359375	26	35	None		1	125630511
+21.2258683	Move	Pen	1001	1023.0574	250.15692	0.4404297	26	35	None		1	125630517
+21.2300887	Move	Pen	1001	1021.7976	247.88937	0.44628906	28	35	None		1	125630521
+21.2361364	Move	Pen	1001	1020.2229	245.39508	0.45117188	28	35	None		1	125630527
+21.2399585	Move	Pen	1001	1018.9631	243.12755	0.45507812	28	35	None		1	125630531
+21.2462499	Move	Pen	1001	1017.7033	240.74663	0.45898438	28	36	None		1	125630537
+21.2500711	Move	Pen	1001	1016.1286	238.4791	0.46191406	28	36	None		1	125630541
+21.2562005	Move	Pen	1001	1014.55383	236.21156	0.46484375	28	37	None		1	125630547
+21.2602379	Move	Pen	1001	1012.9791	234.0574	0.46679688	28	37	None		1	125630551
+21.2642011	Move	Pen	1001	1011.4044	231.90323	0.46875	28	37	None		1	125630555
+21.2699395	Move	Pen	1001	1009.8297	229.86246	0.46972656	28	37	None		1	125630561
+21.2739696	Move	Pen	1001	1008.25494	227.7083	0.47070312	28	37	None		1	125630565
+21.2801062	Move	Pen	1001	1006.68024	225.55412	0.47070312	28	37	None		1	125630571
+21.2839816	Move	Pen	1001	1005.1055	223.39996	0.4716797	28	37	None		1	125630575
+21.2901451	Move	Pen	1001	1003.53076	221.2458	0.4716797	28	37	None		1	125630581
+21.2941002	Move	Pen	1001	1001.95605	219.20502	0.4716797	28	37	None		1	125630585
+21.3000711	Move	Pen	1001	1000.38135	217.27762	0.4716797	28	37	None		1	125630591
+21.3039259	Move	Pen	1001	998.8066	215.3502	0.4716797	28	38	None		1	125630595
+21.3100194	Move	Pen	1001	996.91693	213.64955	0.47265625	28	38	None		1	125630601
+21.3140433	Move	Pen	1001	995.0273	212.06227	0.4736328	28	38	None		1	125630605
+21.3199633	Move	Pen	1001	993.1376	210.58838	0.47558594	28	38	None		1	125630611
+21.3239709	Move	Pen	1001	991.2479	209.4546	0.47851562	28	38	None		1	125630615
+21.3302456	Move	Pen	1001	989.04333	208.54759	0.48339844	29	38	None		1	125630621
+21.3339072	Move	Pen	1001	986.8387	207.98071	0.49121094	29	39	None		1	125630625
+21.3379101	Move	Pen	1001	984.0042	207.75395	0.5019531	29	39	None		1	125630629
+21.3441652	Move	Pen	1001	980.85474	207.98071	0.515625	29	39	None		1	125630635
+21.3480056	Move	Pen	1001	977.0754	208.66096	0.53027344	29	39	None		1	125630639
+21.3541267	Move	Pen	1001	972.66614	209.90811	0.5439453	29	39	None		1	125630645
+21.3581951	Move	Pen	1001	967.3121	211.49539	0.55566406	29	39	None		1	125630649
+21.3642688	Move	Pen	1001	961.64307	213.64955	0.56347656	29	39	None		1	125630655
+21.3679614	Move	Pen	1001	955.6591	216.3706	0.5673828	29	39	None		1	125630659
+21.3743689	Move	Pen	1001	949.0453	219.43178	0.57128906	29	39	None		1	125630665
+21.3782853	Move	Pen	1001	942.11646	222.83308	0.5751953	29	39	None		1	125630669
+21.3842329	Move	Pen	1001	935.1877	226.57452	0.5810547	29	39	None		1	125630675
+21.3880142	Move	Pen	1001	927.944	230.6561	0.5908203	31	39	None		1	125630679
+21.3940716	Move	Pen	1001	921.01514	235.19116	0.60546875	31	39	None		1	125630685
+21.3979734	Move	Pen	1001	914.4013	240.06638	0.6230469	31	39	None		1	125630689
+21.4039377	Move	Pen	1001	907.7875	245.16833	0.6435547	31	38	None		1	125630695
+21.4079161	Move	Pen	1001	902.11847	250.2703	0.66503906	31	38	None		1	125630699
+21.4139536	Move	Pen	1001	896.44946	255.37225	0.6855469	31	38	None		1	125630705
+21.4180177	Move	Pen	1001	891.7253	260.36084	0.70410156	31	38	None		1	125630709
+21.4219589	Move	Pen	1001	887.31604	265.12268	0.71972656	31	37	None		1	125630713
+21.4280048	Move	Pen	1001	883.5367	269.8845	0.7314453	32	37	None		1	125630719
+21.4319695	Move	Pen	1001	880.3872	274.4196	0.7392578	32	36	None		1	125630723
+21.4378955	Move	Pen	1001	878.1826	278.7279	0.7441406	34	36	None		1	125630729
+21.4418766	Move	Pen	1001	876.29297	282.5827	0.7480469	34	36	None		1	125630733
+21.4481053	Move	Pen	1001	875.3481	286.32416	0.75	34	36	None		1	125630739
+21.4519579	Move	Pen	1001	874.7182	289.4987	0.75	34	35	None		1	125630743
+21.458121	Move	Pen	1001	874.40326	292.4465	0.75	34	35	None		1	125630749
+21.4623963	Move	Pen	1001	874.7182	295.16754	0.7480469	34	34	None		1	125630753
+21.4680439	Move	Pen	1001	875.6631	297.54846	0.7402344	35	34	None		1	125630759
+21.4719424	Move	Pen	1001	876.92285	299.58923	0.72753906	35	34	None		1	125630763
+21.478424	Move	Pen	1001	878.49756	301.63004	0.7050781	35	34	None		1	125630769
+21.4820751	Move	Pen	1001	880.07227	303.3307	0.66796875	35	32	None		1	125630773
+21.4879802	Move	Pen	1001	882.2769	304.8046	0.61328125	35	32	None		1	125630779
+21.4919952	Move	Pen	1001	884.4815	306.05173	0.5419922	35	31	None		1	125630783
+21.4981861	Move	Pen	1001	887.631	307.0721	0.4609375	35	31	None		1	125630789
+21.5019955	Move	Pen	1001	890.46545	307.75238	0.3642578	35	31	None		1	125630793
+21.5080075	Move	Pen	1001	893.6149	308.0925	0.25390625	36	31	None		1	125630799
+21.5121768	Move	Pen	1001	897.07935	307.97913	0.15332031	36	31	None		1	125630803
+21.5159725	Move	Pen	1001	900.22876	307.52563	0.06640625	36	31	None		1	125630807
+21.523238	Release	Pen	1001	900.22876	307.52563	0	36	29	None		0	125630813
+21.5253659	CaptureLost	Pen	1001	0	0	0	0	0	None		0	0
+21.5467378	Sample	Pen	1001	907.1576	305.7116	0	36	29	None		0	125630837
+21.5467378	Sample	Pen	1001	910.9369	304.46445	0	36	29	None		0	125630837
+21.5467378	Sample	Pen	1001	915.0312	303.10394	0	36	29	None		0	125630837
+21.5467378	Sample	Pen	1001	919.7554	301.51666	0	36	29	None		0	125630837
+21.5467378	Sample	Pen	1001	924.7945	299.92938	0	36	29	None		0	125630837
+21.5467378	Move	Pen	1001	924.7945	299.92938	0	36	29	None		0	125630837
+21.5521738	Move	Pen	1001	929.8336	298.22873	0	36	29	None		0	125630843
+21.5584995	Move	Pen	1001	934.87274	296.64145	0	36	29	None		0	125630849
+21.5621642	Move	Pen	1001	940.54175	295.05417	0	36	29	None		0	125630853
+21.5681928	Move	Pen	1001	946.21075	293.58026	0	36	29	None		0	125630859
+21.5720764	Move	Pen	1001	951.87976	291.99298	0	36	29	None		0	125630863
+21.5781116	Move	Pen	1001	957.54877	290.63248	0	36	29	None		0	125630869
+21.5821794	Move	Pen	1001	963.5328	289.0452	0	36	29	None		0	125630873
+21.590163	Move	Pen	1001	969.83167	287.45792	0	35	29	None		0	125630881
+21.5964235	Move	Pen	1001	977.0754	285.75726	0	35	29	None		0	125630887
+21.6000745	Move	Pen	1001	984.31915	284.0566	0	35	29	None		0	125630891
+21.6059442	Move	Pen	1001	990.933	282.5827	0	35	29	None		0	125630897
+21.6098776	Move	Pen	1001	996.602	281.44894	0	34	29	None		0	125630901
+21.6159926	Move	Pen	1001	1001.95605	280.3152	0	34	29	None		0	125630907
+21.6199333	Move	Pen	1001	1006.68024	279.29477	0	34	29	None		0	125630911
+21.6259019	Move	Pen	1001	1011.0895	278.27438	0	34	29	None		0	125630917
+21.6300877	Move	Pen	1001	1015.1838	277.14062	0	34	29	None		0	125630921
+21.6361452	Move	Pen	1001	1019.278	275.7801	0	34	29	None		0	125630927
+21.6401659	Move	Pen	1001	1023.0574	274.53296	0	32	29	None		0	125630931
+21.6462019	Move	Pen	1001	1026.8367	273.05905	0	32	29	None		0	125630937
+21.6499929	Move	Pen	1001	1030.3011	271.69852	0	32	29	None		0	125630941
+21.6539051	Move	Pen	1001	1033.7655	269.99786	0	32	29	None		0	125630945
+21.6598727	Move	Pen	1001	1037.2299	268.41058	0	32	29	None		0	125630951
+21.6640205	Move	Pen	1001	1040.3794	266.70993	0	32	31	None		0	125630955
+21.6699877	Move	Pen	1001	1042.8989	265.00928	0	31	31	None		0	125630961
+21.6741509	Move	Pen	1001	1045.7334	263.30862	0	31	31	None		0	125630965
+21.6803928	Move	Pen	1001	1048.2529	261.4946	0	31	31	None		0	125630971
+21.6841953	Move	Pen	1001	1050.7726	259.68057	0	31	31	None		0	125630975
+21.6900329	Move	Pen	1001	1052.9772	257.86655	0	31	31	None		0	125630981
+21.6947479	Move	Pen	1001	1055.1818	255.82576	0	31	31	None		0	125630985
+21.7003336	Move	Pen	1001	1057.3864	253.89836	0	29	31	None		0	125630991
+21.7040645	Move	Pen	1001	1059.2761	251.85757	0	29	31	None		0	125630995
+21.7123283	Move	Pen	1001	1061.1658	249.70341	0	29	31	None		0	125631003
+21.7161902	Move	Pen	1001	1062.7405	247.66263	0	29	32	None		0	125631007
+21.7220466	Move	Pen	1001	1064.0002	245.84859	0	29	32	None		0	125631013
+21.7259817	Move	Pen	1001	1064.9451	244.3747	0	29	32	None		0	125631017
+21.7321559	Move	Pen	1001	1065.575	243.12755	0	29	32	None		0	125631023
+21.738106	Move	Pen	1001	1065.8899	241.99377	0	29	34	None		0	125631029
+21.7421124	Move	Pen	1001	1066.2048	240.97339	0	29	34	None		0	125631033
+21.7483895	Move	Pen	1001	1066.2048	239.953	0	29	34	None		0	125631039
+21.7521177	Move	Pen	1001	1066.5198	238.81923	0	29	34	None		0	125631043
+21.758112	Move	Pen	1001	1066.5198	237.68546	0	29	34	None		0	125631049
+21.7621255	Move	Pen	1001	1066.5198	236.55168	0	29	34	None		0	125631053
+21.7681194	Move	Pen	1001	1066.2048	235.19116	0	29	35	None		0	125631059
+21.7720949	Move	Pen	1001	1066.2048	233.94402	0	29	35	None		0	125631063
+21.7783584	Move	Pen	1001	1065.8899	232.5835	0	29	35	None		0	125631069
+21.7821074	Move	Pen	1001	1065.575	231.22298	0	29	35	None		0	125631073
+21.7879957	Move	Pen	1001	1065.575	229.86246	0	29	36	None		0	125631079
+21.7918884	Move	Pen	1001	1065.26	228.38855	0	29	36	None		0	125631083
+21.7981455	Move	Pen	1001	1064.9451	226.91466	0	29	36	None		0	125631089
+21.8020058	Move	Pen	1001	1064.9451	225.44075	0	29	36	None		0	125631093
+21.808106	Move	Pen	1001	1064.9451	223.96686	0	29	36	None		0	125631099
+21.8124068	Move	Pen	1001	1064.9451	222.49295	0	29	36	None		0	125631103
+21.8180612	Move	Pen	1001	1065.26	220.90567	0	29	36	None		0	125631109
+21.8219254	Move	Pen	1001	1065.575	219.3184	0	29	36	None		0	125631113
+21.8286582	Move	Pen	1001	1065.8899	217.61775	0	29	36	None		0	125631119
+21.8324091	Move	Pen	1001	1066.5198	215.9171	0	29	36	None		0	125631123
+21.8382082	Move	Pen	1001	1067.1497	214.10306	0	29	36	None		0	125631129
+21.8421626	Move	Pen	1001	1067.7795	212.28903	0	29	36	None		0	125631133
+21.8482234	Move	Pen	1001	1068.4094	210.36162	0	29	36	None		0	125631139
+21.8520865	Move	Pen	1001	1069.0394	208.43422	0	31	36	None		0	125631143
+21.858276	Move	Pen	1001	1069.9843	206.5068	0	31	36	None		0	125631149
+21.8623208	Move	Pen	1001	1070.9291	204.5794	0	29	36	None		0	125631153
+21.8680767	Move	Pen	1001	1071.8739	202.652	0	29	36	None		0	125631159
+21.871986	Move	Pen	1001	1072.8187	200.95134	0	29	36	None		0	125631163
+21.8783226	Move	Pen	1001	1074.0785	199.02394	0	29	36	None		0	125631169
+21.8819908	Move	Pen	1001	1075.3383	197.32329	0	29	36	None		0	125631173
+21.8880128	Move	Pen	1001	1076.913	195.62263	0	29	36	None		0	125631179
+21.8919896	Move	Pen	1001	1078.1727	194.2621	0	29	36	None		0	125631183
+21.8983276	Move	Pen	1001	1079.4326	193.01495	0	29	36	None		0	125631189
+21.9022666	Move	Pen	1001	1081.0073	192.10794	0	29	36	None		0	125631193
+21.9079764	Move	Pen	1001	1082.582	191.54106	0	29	36	None		0	125631199
+21.9121086	Move	Pen	1001	1083.8418	191.20093	0	29	36	None		0	125631203
+21.9181966	Move	Pen	1001	1085.1016	191.08755	0	29	36	None		0	125631209
+21.9220344	Move	Pen	1001	1086.3613	191.08755	0	29	36	None		0	125631213
+21.9261562	Move	Pen	1001	1087.6211	190.97418	0	29	36	None		0	125631217
+21.9323645	Move	Pen	1001	1088.251	190.8608	0	29	36	None		0	125631223
+21.9362317	Move	Pen	1001	1089.1958	190.63405	0	29	36	None		0	125631227
+21.9420609	Move	Pen	1001	1090.1407	190.40729	0	28	36	None		0	125631233
+21.9461708	Move	Pen	1001	1090.7706	189.95378	0	28	36	None		0	125631237
+21.9520227	Move	Pen	1001	1091.4005	189.50027	0	28	36	None		0	125631243
+21.9561024	Move	Pen	1001	1092.0304	188.9334	0	28	36	None		0	125631247
+21.9620175	Move	Pen	1001	1092.3453	188.47989	0	28	36	None		0	125631253
+21.9659108	Move	Pen	1001	1092.9752	188.02638	0	28	36	None		0	125631257
+21.9718848	Move	Pen	1001	1092.9752	187.57286	0	28	36	None		0	125631263
+21.9758708	Move	Pen	1001	1093.2902	187.23274	0	28	36	None		0	125631267
+21.9819309	Move	Pen	1001	1093.2902	187.23274	0	28	36	None		0	125631273
+21.9859104	Move	Pen	1001	1092.9752	186.89261	0	28	36	None		0	125631277
+21.9920541	Move	Pen	1001	1092.3453	186.4391	0	26	36	None		0	125631283
+21.9966101	Press	Pen	1001	1091.7155	185.87221	0.0087890625	26	36	None		1	125631287
+22.0020832	Move	Pen	1001	1090.7706	185.30533	0.0859375	26	36	None		1	125631293
+22.0058128	Move	Pen	1001	1089.8258	184.85182	0.17285156	26	36	None		1	125631297
+22.0119049	Move	Pen	1001	1088.8809	184.51169	0.2685547	26	36	None		1	125631303
+22.0159168	Move	Pen	1001	1087.936	184.39832	0.3203125	26	35	None		1	125631307
+22.0220187	Move	Pen	1001	1086.6763	184.51169	0.3466797	26	35	None		1	125631313
+22.0259512	Move	Pen	1001	1085.4165	184.9652	0.36328125	26	35	None		1	125631317
+22.0321602	Move	Pen	1001	1083.5269	185.75883	0.375	28	35	None		1	125631323
+22.0358062	Move	Pen	1001	1081.6372	186.89261	0.38671875	28	35	None		1	125631327
+22.0397948	Move	Pen	1001	1079.4326	188.3665	0.3984375	28	35	None		1	125631331
+22.045899	Move	Pen	1001	1076.598	190.29391	0.4111328	28	35	None		1	125631337
+22.0497249	Move	Pen	1001	1073.7635	192.67484	0.421875	28	35	None		1	125631341
+22.0561869	Move	Pen	1001	1069.9843	195.50925	0.4326172	28	34	None		1	125631347
+22.0599396	Move	Pen	1001	1065.575	199.02394	0.44726562	28	34	None		1	125631351
+22.066074	Move	Pen	1001	1060.8508	203.21889	0.4658203	28	34	None		1	125631357
+22.0697376	Move	Pen	1001	1055.8116	207.86734	0.4921875	29	34	None		1	125631361
+22.075747	Move	Pen	1001	1050.4576	212.85591	0.5234375	29	34	None		1	125631367
+22.0799012	Move	Pen	1001	1045.1035	218.18463	0.5566406	29	34	None		1	125631371
+22.085936	Move	Pen	1001	1039.1196	223.85347	0.58984375	29	32	None		1	125631377
+22.089993	Move	Pen	1001	1033.1356	229.86246	0.6171875	29	32	None		1	125631381
+22.0960216	Move	Pen	1001	1027.1516	236.43831	0.6386719	29	31	None		1	125631387
+22.1000608	Move	Pen	1001	1021.1677	243.24092	0.65625	31	31	None		1	125631391
+22.105808	Move	Pen	1001	1015.1838	250.15692	0.671875	31	29	None		1	125631397
+22.1098165	Move	Pen	1001	1009.8297	256.95953	0.68652344	31	29	None		1	125631401
+22.1159618	Move	Pen	1001	1004.4756	263.64877	0.70214844	31	29	None		1	125631407
+22.1199064	Move	Pen	1001	1000.0664	270.11124	0.72265625	32	29	None		1	125631411
+22.1241122	Move	Pen	1001	996.28705	276.00684	0.74609375	32	26	None		1	125631415
+22.1299301	Move	Pen	1001	992.82263	281.44894	0.7753906	34	26	None		1	125631421
+22.1337931	Move	Pen	1001	989.98816	286.32416	0.8076172	34	26	None		1	125631425
+22.139861	Move	Pen	1001	987.7835	290.63248	0.8408203	34	26	None		1	125631431
+22.1438265	Move	Pen	1001	985.89386	294.48727	0.87109375	34	25	None		1	125631435
+22.1499912	Move	Pen	1001	984.31915	297.7752	0.8964844	34	25	None		1	125631441
+22.1539326	Move	Pen	1001	983.37427	300.72302	0.91503906	34	23	None		1	125631445
+22.1599663	Move	Pen	1001	982.42944	303.3307	0.9296875	35	23	None		1	125631451
+22.1640531	Move	Pen	1001	982.1145	305.48483	0.93847656	35	22	None		1	125631455
+22.1698887	Move	Pen	1001	982.1145	307.52563	0.94433594	35	22	None		1	125631461
+22.1739034	Move	Pen	1001	982.42944	309.2263	0.9482422	35	21	None		1	125631465
+22.1799923	Move	Pen	1001	983.0593	310.81357	0.9482422	36	21	None		1	125631471
+22.1839117	Move	Pen	1001	984.0042	312.17407	0.9482422	36	19	None		1	125631475
+22.1900506	Move	Pen	1001	985.264	313.30786	0.9482422	36	19	None		1	125631481
+22.1939512	Move	Pen	1001	987.1536	314.21487	0.94628906	36	18	None		1	125631485
+22.2000457	Move	Pen	1001	989.3583	314.89514	0.94433594	37	18	None		1	125631491
+22.2039344	Move	Pen	1001	992.19275	315.1219	0.9423828	37	17	None		1	125631495
+22.2099896	Move	Pen	1001	995.0273	315.1219	0.9404297	37	17	None		1	125631501
+22.2139743	Move	Pen	1001	998.8066	314.89514	0.93847656	37	17	None		1	125631505
+22.2180541	Move	Pen	1001	1002.9009	314.32825	0.93847656	37	17	None		1	125631509
+22.224071	Move	Pen	1001	1007.3101	313.5346	0.9404297	37	15	None		1	125631515
+22.2583731	Sample	Pen	1001	1012.0343	312.6276	0.94433594	37	15	None		1	125631549
+22.2583731	Sample	Pen	1001	1017.38837	311.6072	0.9482422	37	15	None		1	125631549
+22.2583731	Sample	Pen	1001	1022.4275	310.5868	0.953125	36	15	None		1	125631549
+22.2583731	Sample	Pen	1001	1028.0966	309.45303	0.9580078	36	15	None		1	125631549
+22.2583731	Sample	Pen	1001	1033.1356	308.54602	0.9658203	36	15	None		1	125631549
+22.2583731	Sample	Pen	1001	1038.4897	307.75238	0.9765625	36	17	None		1	125631549
+22.2583731	Sample	Pen	1001	1043.8438	307.0721	0.9941406	35	17	None		1	125631549
+22.2583731	Move	Pen	1001	1043.8438	307.0721	0.9941406	35	17	None		1	125631549
+22.2639736	Move	Pen	1001	1049.1979	306.50525	0.99902344	35	17	None		1	125631555
+22.2680673	Move	Pen	1001	1054.2369	306.05173	0.99902344	35	17	None		1	125631559
+22.273934	Move	Pen	1001	1059.2761	305.7116	0.99902344	35	17	None		1	125631565
+22.2780872	Move	Pen	1001	1064.0002	305.48483	0.99902344	34	17	None		1	125631569
+22.2839894	Move	Pen	1001	1069.0394	305.2581	0.99902344	34	18	None		1	125631575
+22.2878983	Move	Pen	1001	1073.4486	305.1447	0.99902344	34	18	None		1	125631579
+22.2938557	Move	Pen	1001	1077.8578	305.03134	0.99902344	34	18	None		1	125631585
+22.297998	Move	Pen	1001	1081.9521	305.1447	0.99902344	34	18	None		1	125631589
+22.3039177	Move	Pen	1001	1085.7314	305.2581	0.99902344	34	19	None		1	125631595
+22.3080308	Move	Pen	1001	1088.8809	305.48483	0.99902344	32	19	None		1	125631599
+22.3119395	Move	Pen	1001	1092.0304	305.93835	0.99902344	32	20	None		1	125631603
+22.318001	Move	Pen	1001	1094.5499	306.50525	0.99902344	32	20	None		1	125631609
+22.3219275	Move	Pen	1001	1096.7545	307.2989	0.99902344	32	21	None		1	125631613
+22.3280453	Move	Pen	1001	1098.6442	308.31927	0.99902344	31	21	None		1	125631619
+22.3319613	Move	Pen	1001	1099.589	309.5664	0.99902344	31	21	None		1	125631623
+22.3379356	Move	Pen	1001	1100.5339	311.1537	0.99902344	31	21	None		1	125631629
+22.3420901	Move	Pen	1001	1100.5339	312.9677	0.99902344	31	22	None		1	125631633
+22.3481447	Move	Pen	1001	1099.9039	315.1219	0.99902344	29	22	None		1	125631639
+22.3519542	Move	Pen	1001	1098.9591	317.61618	0.99902344	29	23	None		1	125631643
+22.3579322	Move	Pen	1001	1097.0695	320.33722	0.99902344	29	23	None		1	125631649
+22.3622024	Move	Pen	1001	1094.8649	323.3984	0.99902344	29	23	None		1	125631653
+22.368091	Move	Pen	1001	1092.0304	326.45956	0.99902344	29	23	None		1	125631659
+22.3718728	Move	Pen	1001	1088.8809	329.7475	0.99902344	29	24	None		1	125631663
+22.377973	Move	Pen	1001	1085.4165	333.03543	0.99902344	29	24	None		1	125631669
+22.3819933	Move	Pen	1001	1081.6372	336.43674	0.99902344	29	24	None		1	125631673
+22.3878875	Move	Pen	1001	1077.2279	340.17816	0.99902344	29	24	None		1	125631679
+22.3919245	Move	Pen	1001	1072.1888	344.14636	0.99902344	29	24	None		1	125631683
+22.3959159	Move	Pen	1001	1067.1497	348.3413	0.99902344	29	24	None		1	125631687
+22.4021681	Move	Pen	1001	1061.4807	352.53625	0.99902344	29	24	None		1	125631693
+22.4059616	Move	Pen	1001	1055.8116	356.84457	0.99902344	28	24	None		1	125631697
+22.4120779	Move	Pen	1001	1050.1427	361.26627	0.99902344	28	24	None		1	125631703
+22.4160824	Move	Pen	1001	1044.4736	365.688	0.99902344	28	24	None		1	125631707
+22.4218881	Move	Pen	1001	1038.1748	370.4498	0.99902344	28	24	None		1	125631713
+22.4258687	Move	Pen	1001	1032.1908	375.325	0.99902344	28	24	None		1	125631717
+22.4320245	Move	Pen	1001	1025.8918	380.42697	0.99902344	28	23	None		1	125631723
+22.4359205	Move	Pen	1001	1019.9079	385.6423	0.99902344	28	23	None		1	125631727
+22.4420236	Move	Pen	1001	1013.92395	390.97104	0.99902344	28	23	None		1	125631733
+22.4459598	Move	Pen	1001	1007.94	396.073	0.99902344	26	23	None		1	125631737
+22.4520092	Move	Pen	1001	1002.271	401.4017	0.99902344	26	23	None		1	125631743
+22.4558701	Move	Pen	1001	996.602	406.7304	0.99902344	26	23	None		1	125631747
+22.4620505	Move	Pen	1001	991.56287	412.05914	0.99902344	26	22	None		1	125631753
+22.466005	Move	Pen	1001	986.52374	417.27448	0.99902344	26	22	None		1	125631757
+22.4718466	Move	Pen	1001	982.42944	422.37643	0.99902344	26	22	None		1	125631763
+22.476963	Move	Pen	1001	978.33514	427.13824	0.99902344	26	22	None		1	125631767
+22.4820756	Move	Pen	1001	974.8708	431.55997	0.99902344	26	21	None		1	125631773
+22.4864061	Move	Pen	1001	972.03625	435.6415	0.99902344	26	21	None		1	125631777
+22.4905129	Move	Pen	1001	969.2018	439.38297	0.99902344	26	21	None		1	125631781
+22.49595	Move	Pen	1001	966.99713	443.01102	0.99902344	26	21	None		1	125631787
+22.5003298	Move	Pen	1001	965.4224	446.29895	0.99902344	26	20	None		1	125631791
+22.5060061	Move	Pen	1001	964.16266	449.13336	0.99902344	26	20	None		1	125631797
+22.5105404	Move	Pen	1001	963.21783	451.74106	0.99902344	26	20	None		1	125631801
+22.516144	Move	Pen	1001	962.90283	453.8952	0.99902344	26	20	None		1	125631807
+22.5209925	Move	Pen	1001	962.90283	455.8226	0.99902344	26	19	None		1	125631811
+22.5259361	Move	Pen	1001	963.5328	457.40988	0.99902344	26	19	None		1	125631817
+22.5309666	Move	Pen	1001	964.79254	458.65704	0.99902344	26	18	None		1	125631821
+22.5359939	Move	Pen	1001	966.36725	459.7908	0.99902344	26	18	None		1	125631827
+22.5405654	Move	Pen	1001	968.2569	460.58444	0.99902344	26	18	None		1	125631831
+22.5461176	Move	Pen	1001	970.46155	461.15134	0.99902344	26	18	None		1	125631837
+22.5509156	Move	Pen	1001	972.9811	461.2647	0.99902344	26	17	None		1	125631841
+22.5559907	Move	Pen	1001	976.13055	461.03796	0.99902344	26	17	None		1	125631847
+22.5603893	Move	Pen	1001	979.595	460.47107	0.99902344	26	17	None		1	125631851
+22.5659911	Move	Pen	1001	983.6892	459.45068	0.99902344	26	17	None		1	125631857
+22.5706251	Move	Pen	1001	988.09845	457.97678	0.99902344	26	17	None		1	125631861
+22.5750869	Move	Pen	1001	992.82263	456.27612	0.99902344	26	17	None		1	125631865
+22.5802403	Move	Pen	1001	997.86176	454.23532	0.99902344	26	17	None		1	125631871
+22.5848793	Move	Pen	1001	1003.2158	451.9678	0.99902344	26	17	None		1	125631875
+22.589959	Move	Pen	1001	1008.5699	449.36014	0.99902344	26	17	None		1	125631881
+22.5944758	Move	Pen	1001	1014.2389	446.63907	0.99902344	26	17	None		1	125631885
+22.5999966	Move	Pen	1001	1020.2229	443.69128	0.99902344	26	17	None		1	125631891
+22.6046234	Move	Pen	1001	1026.5217	440.6301	0.99902344	26	17	None		1	125631895
+22.6100692	Move	Pen	1001	1032.8207	437.34216	0.99902344	26	17	None		1	125631901
+22.6151758	Move	Pen	1001	1038.8047	433.94086	0.99902344	25	17	None		1	125631905
+22.6200172	Move	Pen	1001	1045.4185	430.42618	0.99902344	25	17	None		1	125631911
+22.6246932	Move	Pen	1001	1051.7174	426.57138	0.99902344	25	17	None		1	125631915
+22.6299885	Move	Pen	1001	1058.0162	422.60318	0.99902344	25	17	None		1	125631921
+22.6345257	Move	Pen	1001	1064.6301	418.5216	0.99902344	25	17	None		1	125631925
+22.6400085	Move	Pen	1001	1070.6141	414.32666	0.99902344	25	17	None		1	125631931
+22.6505271	Sample	Pen	1001	1076.598	410.2451	0.99902344	25	17	None		1	125631941
+22.6505271	Sample	Pen	1001	1082.2671	405.93677	0.99902344	25	17	None		1	125631941
+22.6505271	Move	Pen	1001	1082.2671	405.93677	0.99902344	25	17	None		1	125631941
+22.6549429	Move	Pen	1001	1087.6211	401.8552	0.99902344	26	17	None		1	125631945
+22.6601133	Move	Pen	1001	1092.9752	397.77365	0.99902344	26	17	None		1	125631951
+22.6646725	Move	Pen	1001	1097.6993	393.69208	0.99902344	26	17	None		1	125631955
+22.6688407	Move	Pen	1001	1102.4236	389.72388	0.99902344	26	18	None		1	125631959
+22.6743588	Move	Pen	1001	1106.8328	385.75568	0.99902344	26	18	None		1	125631965
+22.6796132	Move	Pen	1001	1110.2972	381.90088	0.99902344	26	18	None		1	125631969
+22.6848014	Move	Pen	1001	1114.0765	378.04605	0.99902344	26	18	None		1	125631975
+22.6919958	Move	Pen	1001	1116.911	374.30463	0.99902344	26	19	None		1	125631979
+22.7003527	Sample	Pen	1001	1119.7455	370.78995	0.99902344	26	19	None		1	125631989
+22.7003527	Sample	Pen	1001	1122.2651	367.27527	0.99902344	26	19	None		1	125631989
+22.7003527	Move	Pen	1001	1122.2651	367.27527	0.99902344	26	19	None		1	125631989
+22.7064982	Move	Pen	1001	1124.4697	363.87393	0.99902344	26	19	None		1	125631995
+22.7130905	Move	Pen	1001	1126.3594	360.47263	0.99902344	26	19	None		1	125631999
+22.723376	Sample	Pen	1001	1127.9341	357.18472	0.99902344	26	19	None		1	125632009
+22.723376	Sample	Pen	1001	1128.8789	353.8968	0.99902344	26	20	None		1	125632009
+22.723376	Move	Pen	1001	1128.8789	353.8968	0.99902344	26	20	None		1	125632009
+22.7293335	Sample	Pen	1001	1129.8237	350.8356	0.99902344	26	20	None		1	125632019
+22.7293335	Sample	Pen	1001	1130.4536	347.7744	0.99902344	26	20	None		1	125632019
+22.7293335	Move	Pen	1001	1130.4536	347.7744	0.99902344	26	20	None		1	125632019
+22.7359805	Move	Pen	1001	1130.7686	344.82663	0.99902344	26	20	None		1	125632025
+22.741397	Move	Pen	1001	1130.7686	341.8788	0.99902344	26	21	None		1	125632029
+22.7472385	Move	Pen	1001	1130.4536	339.15778	0.99902344	26	21	None		1	125632035
+22.7522036	Sample	Pen	1001	1129.8237	336.5501	0.99902344	26	21	None		1	125632043
+22.7522036	Sample	Pen	1001	1128.8789	333.94244	0.99902344	26	21	None		1	125632043
+22.7522036	Move	Pen	1001	1128.8789	333.94244	0.99902344	26	21	None		1	125632043
+22.7579434	Move	Pen	1001	1127.3042	331.33478	0.99902344	26	21	None		1	125632049
+22.7634516	Move	Pen	1001	1125.7295	328.95386	0.99902344	26	21	None		1	125632053
+22.7681097	Move	Pen	1001	1123.8398	326.45956	0.99902344	26	22	None		1	125632059
+22.7736628	Move	Pen	1001	1121.6353	324.07864	0.99902344	26	22	None		1	125632063
+22.7788713	Move	Pen	1001	1119.1156	321.81113	0.99902344	26	21	None		1	125632069
+22.784412	Move	Pen	1001	1116.5961	319.54358	0.99902344	26	21	None		1	125632073
+22.7893177	Move	Pen	1001	1113.4467	317.3894	0.99902344	26	21	None		1	125632079
+22.7938515	Move	Pen	1001	1110.2972	315.34863	0.99902344	26	21	None		1	125632083
+22.7993387	Move	Pen	1001	1106.8328	313.30786	0.99902344	26	22	None		1	125632089
+22.8044246	Move	Pen	1001	1103.0535	311.38043	0.99902344	28	22	None		1	125632093
+22.8098409	Move	Pen	1001	1098.9591	309.45303	0.99902344	28	22	None		1	125632099
+22.8150606	Move	Pen	1001	1094.8649	307.639	0.99902344	28	22	None		1	125632103
+22.8210753	Move	Pen	1001	1090.7706	305.93835	0.99902344	28	22	None		1	125632109
+22.8257914	Move	Pen	1001	1086.6763	304.35107	0.99902344	28	22	None		1	125632113
+22.8311928	Move	Pen	1001	1082.582	302.65042	0.99902344	28	22	None		1	125632119
+22.8366232	Sample	Pen	1001	1078.1727	301.1765	0.99902344	28	22	None		1	125632127
+22.8366232	Sample	Pen	1001	1073.4486	299.70264	0.99902344	28	22	None		1	125632127
+22.8366232	Move	Pen	1001	1073.4486	299.70264	0.99902344	28	22	None		1	125632127
+22.8419878	Move	Pen	1001	1068.7244	298.45547	0.99902344	29	22	None		1	125632133
+22.8481864	Move	Pen	1001	1064.0002	297.09494	0.99902344	29	22	None		1	125632137
+22.853864	Move	Pen	1001	1059.2761	295.73444	0.99902344	29	22	None		1	125632143
+22.8587744	Move	Pen	1001	1054.5519	294.48727	0.99902344	29	22	None		1	125632147
+22.8640461	Move	Pen	1001	1049.8278	293.24014	0.99902344	29	22	None		1	125632153
+22.8692649	Move	Pen	1001	1045.1035	291.99298	0.99902344	29	22	None		1	125632157
+22.8748238	Move	Pen	1001	1040.3794	291.08597	0.99902344	29	22	None		1	125632163
+22.8815611	Move	Pen	1001	1035.3402	290.06558	0.99902344	29	22	None		1	125632167
+22.8879914	Sample	Pen	1001	1030.3011	289.3853	0.99902344	31	22	None		1	125632177
+22.8879914	Sample	Pen	1001	1024.947	288.93182	0.99902344	31	22	None		1	125632177
+22.8879914	Move	Pen	1001	1024.947	288.93182	0.99902344	31	22	None		1	125632177
+22.893363	Move	Pen	1001	1020.2229	288.4783	0.99902344	31	22	None		1	125632183
+22.8989787	Move	Pen	1001	1015.1838	288.4783	0.99902344	31	22	None		1	125632187
+22.9051595	Move	Pen	1001	1009.8297	288.59167	0.99902344	31	22	None		1	125632194
+22.9110529	Move	Pen	1001	1004.16064	289.0452	0.99902344	31	23	None		1	125632197
+22.9178289	Sample	Pen	1001	998.1767	289.83884	0.99902344	31	23	None		1	125632207
+22.9178289	Sample	Pen	1001	992.19275	290.9726	0.99902344	31	23	None		1	125632207
+22.9178289	Move	Pen	1001	992.19275	290.9726	0.99902344	31	23	None		1	125632207
+22.9242515	Move	Pen	1001	986.2088	292.4465	0.99902344	32	23	None		1	125632211
+22.9299199	Sample	Pen	1001	979.595	294.26053	0.99902344	32	23	None		1	125632221
+22.9299199	Sample	Pen	1001	972.9811	296.3013	0.99902344	32	23	None		1	125632221
+22.9299199	Move	Pen	1001	972.9811	296.3013	0.99902344	32	23	None		1	125632221
+22.9361997	Move	Pen	1001	965.73737	298.909	0.99902344	32	23	None		1	125632227
+22.9422313	Move	Pen	1001	958.49365	301.7434	0.99902344	32	23	None		1	125632231
+22.9500148	Move	Pen	1001	951.2499	304.91797	0.99902344	32	23	None		1	125632237
+22.9571187	Sample	Pen	1001	943.6912	308.54602	0.99902344	34	23	None		1	125632247
+22.9571187	Sample	Pen	1001	936.1325	312.51422	0.99902344	34	22	None		1	125632247
+22.9571187	Move	Pen	1001	936.1325	312.51422	0.99902344	34	22	None		1	125632247
+22.9644598	Move	Pen	1001	928.2589	316.70917	0.99902344	34	22	None		1	125632251
+22.971542	Sample	Pen	1001	920.7002	321.13086	0.99902344	34	22	None		1	125632261
+22.971542	Sample	Pen	1001	913.14154	325.55255	0.99902344	34	22	None		1	125632261
+22.971542	Move	Pen	1001	913.14154	325.55255	0.99902344	34	22	None		1	125632261
+22.9793397	Move	Pen	1001	905.5828	329.97424	0.99902344	34	22	None		1	125632267
+22.9870871	Sample	Pen	1001	898.3391	334.50934	0.99902344	34	22	None		1	125632277
+22.9870871	Sample	Pen	1001	891.41034	339.15778	0.99902344	34	21	None		1	125632277
+22.9870871	Move	Pen	1001	891.41034	339.15778	0.99902344	34	21	None		1	125632277
+22.9944129	Move	Pen	1001	884.4815	343.80624	0.99902344	34	21	None		1	125632281
+23.0023023	Sample	Pen	1001	877.8677	348.56805	0.99902344	34	21	None		1	125632291
+23.0023023	Sample	Pen	1001	871.8837	353.10315	0.99902344	34	21	None		1	125632291
+23.0023023	Move	Pen	1001	871.8837	353.10315	0.99902344	34	21	None		1	125632291
+23.0101036	Sample	Pen	1001	865.58484	357.7516	0.99902344	34	21	None		1	125632301
+23.0101036	Sample	Pen	1001	859.2859	362.40005	0.99902344	34	21	None		1	125632301
+23.0101036	Move	Pen	1001	859.2859	362.40005	0.99902344	34	21	None		1	125632301
+23.0207699	Sample	Pen	1001	853.6169	366.93512	0.99902344	34	21	None		1	125632311
+23.0207699	Sample	Pen	1001	848.2628	371.47018	0.99902344	34	21	None		1	125632311
+23.0207699	Move	Pen	1001	848.2628	371.47018	0.99902344	34	21	None		1	125632311
+23.028602	Move	Pen	1001	842.90875	376.11865	0.99902344	34	20	None		1	125632315
+23.0367435	Sample	Pen	1001	838.1846	380.54034	0.99902344	34	20	None		1	125632325
+23.0367435	Sample	Pen	1001	833.7753	384.84866	0.99902344	34	20	None		1	125632325
+23.0367435	Move	Pen	1001	833.7753	384.84866	0.99902344	34	20	None		1	125632325
+23.044885	Sample	Pen	1001	829.6811	388.81686	0.99902344	32	20	None		1	125632335
+23.044885	Sample	Pen	1001	825.5868	392.5583	0.99902344	32	20	None		1	125632335
+23.044885	Move	Pen	1001	825.5868	392.5583	0.99902344	32	20	None		1	125632335
+23.0539734	Sample	Pen	1001	822.1224	396.073	0.99902344	32	20	None		1	125632345
+23.0539734	Sample	Pen	1001	818.97296	399.13416	0.99902344	32	20	None		1	125632345
+23.0539734	Move	Pen	1001	818.97296	399.13416	0.99902344	32	20	None		1	125632345
+23.0619407	Move	Pen	1001	816.1384	401.9686	0.99902344	32	20	None		1	125632351
+23.0700466	Sample	Pen	1001	813.93384	404.68964	0.99902344	32	20	None		1	125632361
+23.0700466	Sample	Pen	1001	812.0441	407.18393	0.99902344	32	20	None		1	125632361
+23.0700466	Move	Pen	1001	812.0441	407.18393	0.99902344	32	20	None		1	125632361
+23.0786373	Move	Pen	1001	810.1545	409.56485	0.99902344	32	20	None		1	125632365
+23.0869346	Sample	Pen	1001	808.8947	411.83237	0.99902344	32	20	None		1	125632375
+23.0869346	Sample	Pen	1001	807.6349	413.7598	0.99902344	32	19	None		1	125632375
+23.0869346	Move	Pen	1001	807.6349	413.7598	0.99902344	32	19	None		1	125632375
+23.0950201	Sample	Pen	1001	807.005	415.57382	0.99902344	31	19	None		1	125632385
+23.0950201	Sample	Pen	1001	806.3751	417.0477	0.99902344	31	19	None		1	125632385
+23.0950201	Move	Pen	1001	806.3751	417.0477	0.99902344	31	19	None		1	125632385
+23.1035561	Move	Pen	1001	806.0602	418.40823	0.99902344	31	19	None		1	125632389
+23.1126252	Sample	Pen	1001	806.0602	419.542	0.99902344	31	19	None		1	125632399
+23.1126252	Sample	Pen	1001	806.3751	420.5624	0.99902344	31	19	None		1	125632399
+23.1126252	Move	Pen	1001	806.3751	420.5624	0.99902344	31	19	None		1	125632399
+23.1216926	Sample	Pen	1001	806.69006	421.46942	0.99902344	31	19	None		1	125632409
+23.1216926	Sample	Pen	1001	807.31995	422.37643	0.99902344	31	19	None		1	125632409
+23.1216926	Move	Pen	1001	807.31995	422.37643	0.99902344	31	19	None		1	125632409
+23.1290068	Sample	Pen	1001	808.2648	423.17007	0.99902344	31	18	None		1	125632419
+23.1290068	Sample	Pen	1001	809.5246	423.85034	0.99902344	31	18	None		1	125632419
+23.1290068	Move	Pen	1001	809.5246	423.85034	0.99902344	31	18	None		1	125632419
+23.1371734	Move	Pen	1001	810.78436	424.4172	0.99902344	31	18	None		1	125632425
+23.1452278	Sample	Pen	1001	812.674	424.75735	0.99902344	31	18	None		1	125632435
+23.1452278	Sample	Pen	1001	814.5637	424.9841	0.99902344	31	18	None		1	125632435
+23.1452278	Move	Pen	1001	814.5637	424.9841	0.99902344	31	18	None		1	125632435
+23.1540865	Sample	Pen	1001	816.7683	424.9841	0.99902344	31	18	None		1	125632445
+23.1540865	Sample	Pen	1001	819.2879	424.75735	0.99902344	31	18	None		1	125632445
+23.1540865	Move	Pen	1001	819.2879	424.75735	0.99902344	31	18	None		1	125632445
+23.1614908	Move	Pen	1001	821.80743	424.30383	0.99902344	29	18	None		1	125632449
+23.1732323	Sample	Pen	1001	825.27185	423.62357	0.99902344	29	18	None		1	125632463
+23.1732323	Sample	Pen	1001	828.42126	422.71655	0.99902344	29	18	None		1	125632463
+23.1732323	Sample	Pen	1001	832.2006	421.46942	0.99902344	29	18	None		1	125632463
+23.1732323	Move	Pen	1001	832.2006	421.46942	0.99902344	29	18	None		1	125632463
+23.1815507	Move	Pen	1001	835.66504	420.1089	0.99902344	29	18	None		1	125632469
+23.1894542	Sample	Pen	1001	839.75934	418.29486	0.99902344	29	18	None		1	125632479
+23.1894542	Sample	Pen	1001	843.8536	416.2541	0.99902344	29	18	None		1	125632479
+23.1894542	Move	Pen	1001	843.8536	416.2541	0.99902344	29	18	None		1	125632479
+23.1969927	Move	Pen	1001	847.9479	413.98654	0.99902344	29	18	None		1	125632483
+23.2048693	Sample	Pen	1001	852.3571	411.719	0.99902344	29	18	None		1	125632493
+23.2048693	Sample	Pen	1001	856.76636	409.33807	0.99902344	29	19	None		1	125632493
+23.2048693	Move	Pen	1001	856.76636	409.33807	0.99902344	29	19	None		1	125632493
+23.2130307	Sample	Pen	1001	860.86066	406.95718	0.99902344	29	19	None		1	125632503
+23.2130307	Sample	Pen	1001	865.2699	404.4629	0.99902344	29	19	None		1	125632503
+23.2130307	Move	Pen	1001	865.2699	404.4629	0.99902344	29	19	None		1	125632503
+23.2215577	Move	Pen	1001	869.36414	402.08197	0.99902344	29	19	None		1	125632509
+23.2297025	Sample	Pen	1001	873.1435	399.36093	0.99902344	29	19	None		1	125632519
+23.2297025	Sample	Pen	1001	877.2378	396.5265	0.99902344	29	19	None		1	125632519
+23.2297025	Move	Pen	1001	877.2378	396.5265	0.99902344	29	19	None		1	125632519
+23.2373122	Move	Pen	1001	881.01715	393.46533	0.99902344	29	19	None		1	125632523
+23.245368	Sample	Pen	1001	885.1114	390.51752	0.99902344	29	19	None		1	125632533
+23.245368	Sample	Pen	1001	888.89075	387.34296	0.99902344	29	20	None		1	125632533
+23.245368	Move	Pen	1001	888.89075	387.34296	0.99902344	29	20	None		1	125632533
+23.2534264	Sample	Pen	1001	892.6701	384.2818	0.99902344	28	20	None		1	125632543
+23.2534264	Sample	Pen	1001	896.44946	380.99387	0.99902344	28	20	None		1	125632543
+23.2534264	Move	Pen	1001	896.44946	380.99387	0.99902344	28	20	None		1	125632543
+23.2608987	Move	Pen	1001	899.9138	377.8193	0.99902344	28	20	None		1	125632549
+23.2687174	Sample	Pen	1001	903.0633	374.75812	0.99902344	28	21	None		1	125632557
+23.2687174	Sample	Pen	1001	906.2127	371.5836	0.99902344	28	21	None		1	125632557
+23.2687174	Move	Pen	1001	906.2127	371.5836	0.99902344	28	21	None		1	125632557
+23.2764892	Sample	Pen	1001	909.04724	368.5224	0.99902344	28	21	None		1	125632567
+23.2764892	Sample	Pen	1001	911.8818	365.4612	0.99902344	28	21	None		1	125632567
+23.2764892	Move	Pen	1001	911.8818	365.4612	0.99902344	28	21	None		1	125632567
+23.2882291	Sample	Pen	1001	914.4013	362.40005	0.99902344	28	21	None		1	125632577
+23.2882291	Sample	Pen	1001	916.9209	359.33887	0.99902344	28	21	None		1	125632577
+23.2882291	Move	Pen	1001	916.9209	359.33887	0.99902344	28	21	None		1	125632577
+23.2961636	Sample	Pen	1001	919.1255	356.39108	0.99902344	28	22	None		1	125632587
+23.2961636	Sample	Pen	1001	921.01514	353.55664	0.99902344	29	22	None		1	125632587
+23.2961636	Move	Pen	1001	921.01514	353.55664	0.99902344	29	22	None		1	125632587
+23.305094	Move	Pen	1001	923.2198	350.72223	0.99902344	29	22	None		1	125632593
+23.3139211	Sample	Pen	1001	924.7945	348.11456	0.99902344	29	22	None		1	125632603
+23.3139211	Sample	Pen	1001	926.3692	345.62027	0.99902344	29	23	None		1	125632603
+23.3139211	Move	Pen	1001	926.3692	345.62027	0.99902344	29	23	None		1	125632603
+23.3232032	Sample	Pen	1001	927.3141	343.23935	0.99902344	29	23	None		1	125632613
+23.3232032	Sample	Pen	1001	928.57385	340.9718	0.99902344	29	23	None		1	125632613
+23.3232032	Move	Pen	1001	928.57385	340.9718	0.99902344	29	23	None		1	125632613
+23.332394	Sample	Pen	1001	929.20374	338.93103	0.99902344	29	23	None		1	125632623
+23.332394	Sample	Pen	1001	929.8336	337.00363	0.99902344	29	23	None		1	125632623
+23.332394	Move	Pen	1001	929.8336	337.00363	0.99902344	29	23	None		1	125632623
+23.3421685	Sample	Pen	1001	929.8336	335.30298	0.99902344	29	23	None		1	125632633
+23.3421685	Sample	Pen	1001	929.8336	333.7157	0.99902344	29	23	None		1	125632633
+23.3421685	Move	Pen	1001	929.8336	333.7157	0.99902344	29	23	None		1	125632633
+23.3546082	Sample	Pen	1001	929.8336	332.12842	0.99902344	29	23	None		1	125632641
+23.3546082	Sample	Pen	1001	929.20374	330.54114	0.99902344	29	23	None		1	125632641
+23.3546082	Move	Pen	1001	929.20374	330.54114	0.99902344	29	23	None		1	125632641
+23.3642039	Sample	Pen	1001	928.2589	328.95386	0.99902344	29	23	None		1	125632651
+23.3642039	Sample	Pen	1001	927.3141	327.2532	0.8828125	29	23	None		1	125632651
+23.3642039	Move	Pen	1001	927.3141	327.2532	0.8828125	29	23	None		1	125632651
+23.3741266	Sample	Pen	1001	925.7393	325.66592	0.7158203	29	23	None		1	125632661
+23.3741266	Sample	Pen	1001	923.8497	324.07864	0.4970703	29	23	None		1	125632661
+23.3741266	Move	Pen	1001	923.8497	324.07864	0.4970703	29	23	None		1	125632661
+23.3844291	Sample	Pen	1001	921.645	322.71814	0.3173828	29	23	None		1	125632671
+23.3844291	Sample	Pen	1001	919.4404	321.13086	0.17773438	29	23	None		1	125632671
+23.3844291	Move	Pen	1001	919.4404	321.13086	0.17773438	29	23	None		1	125632671
+23.3939353	Move	Pen	1001	916.9209	319.77032	0.064453125	29	23	None		1	125632677
+23.4030428	Release	Pen	1001	916.9209	319.77032	0	29	23	None		0	125632681
+23.403144	CaptureLost	Pen	1001	0	0	0	0	0	None		0	0
+23.4272724	Sample	Pen	1001	913.4565	317.5028	0	29	23	None		0	125632717
+23.4272724	Sample	Pen	1001	912.8266	316.5958	0	29	24	None		0	125632717
+23.4272724	Sample	Pen	1001	913.4565	315.80215	0	31	24	None		0	125632717
+23.4272724	Sample	Pen	1001	914.4013	315.1219	0	31	24	None		0	125632717
+23.4272724	Sample	Pen	1001	916.29095	314.555	0	31	24	None		0	125632717
+23.4272724	Sample	Pen	1001	918.4956	313.9881	0	31	25	None		0	125632717
+23.4272724	Sample	Pen	1001	921.3301	313.76135	0	31	25	None		0	125632717
+23.4272724	Move	Pen	1001	921.3301	313.76135	0	31	25	None		0	125632717
+23.4525536	Sample	Pen	1001	924.7945	313.64798	0	31	25	None		0	125632741
+23.4525536	Sample	Pen	1001	928.57385	313.76135	0	31	25	None		0	125632741
+23.4525536	Sample	Pen	1001	932.9831	314.1015	0	31	25	None		0	125632741
+23.4525536	Sample	Pen	1001	938.0222	314.32825	0	31	25	None		0	125632741
+23.4525536	Move	Pen	1001	938.0222	314.32825	0	31	25	None		0	125632741
+23.4544569	Move	Pen	1001	942.7464	314.32825	0	31	25	None		0	125632746
+23.4601041	Move	Pen	1001	947.7855	313.87473	0	31	25	None		0	125632751
+23.4646834	Move	Pen	1001	953.1396	313.19446	0	31	25	None		0	125632756
+23.4686877	Stall	Mouse	-1	0	0	0	0	0	None	the UI thread was blocked for 859 ms	0	0
+23.4702169	Move	Pen	1001	958.49365	312.40085	0	31	25	None		0	125632761
+23.4741659	Move	Pen	1001	964.16266	311.38043	0	31	26	None		0	125632765
+23.4803525	Move	Pen	1001	970.46155	310.7002	0	31	26	None		0	125632771
+23.4842974	Move	Pen	1001	976.76044	310.36005	0	31	26	None		0	125632775
+23.4904623	Move	Pen	1001	982.7444	310.47342	0	31	26	None		0	125632781
+23.4941306	Move	Pen	1001	989.04333	310.7002	0	31	26	None		0	125632785
+23.5004119	Move	Pen	1001	994.71234	310.92694	0	31	26	None		0	125632791
+23.5042681	Move	Pen	1001	1000.0664	311.0403	0	31	26	None		0	125632795
+23.5104518	Move	Pen	1001	1005.4205	311.26706	0	31	26	None		0	125632801
+23.5142609	Move	Pen	1001	1010.4596	311.38043	0	31	26	None		0	125632805
+23.5183276	Move	Pen	1001	1015.81366	311.6072	0	31	26	None		0	125632809
+23.5241089	Move	Pen	1001	1020.53784	311.94733	0	31	26	None		0	125632815
+23.5280982	Move	Pen	1001	1025.262	312.40085	0	29	26	None		0	125632819
+23.5342002	Move	Pen	1001	1029.9862	312.74097	0	29	26	None		0	125632825
+23.538055	Move	Pen	1001	1034.0804	313.30786	0	29	26	None		0	125632829
+23.544162	Move	Pen	1001	1038.4897	313.9881	0	29	26	None		0	125632835
+23.5483677	Move	Pen	1001	1042.584	314.78174	0	29	26	None		0	125632839
+23.5542545	Move	Pen	1001	1046.3633	315.68875	0	29	26	None		0	125632845
+23.5580199	Move	Pen	1001	1049.8278	316.5958	0	29	26	None		0	125632849
+23.5665271	Move	Pen	1001	1053.607	317.5028	0	29	26	None		0	125632857
+23.5701055	Move	Pen	1001	1056.7565	318.40982	0	29	26	None		0	125632861
+23.5763601	Move	Pen	1001	1059.906	319.31683	0	29	26	None		0	125632867
+23.5826804	Move	Pen	1001	1062.4255	320.33722	0	28	26	None		0	125632873
+23.5864297	Move	Pen	1001	1064.6301	321.3576	0	28	25	None		0	125632877
+23.5920637	Move	Pen	1001	1066.5198	322.378	0	28	25	None		0	125632883
+23.5970554	Move	Pen	1001	1068.4094	323.51178	0	28	26	None		0	125632887
+23.6022335	Move	Pen	1001	1069.6693	324.7589	0	29	26	None		0	125632893
+23.605976	Move	Pen	1001	1070.6141	326.00607	0	29	26	None		0	125632897
+23.6131633	Move	Pen	1001	1071.559	327.2532	0	28	26	None		0	125632903
+23.61604	Move	Pen	1001	1071.8739	328.50037	0	28	26	None		0	125632907
+23.6220004	Move	Pen	1001	1072.1888	329.7475	0	28	26	None		0	125632913
+23.6258984	Move	Pen	1001	1072.1888	331.10803	0	28	26	None		0	125632917
+23.6322409	Move	Pen	1001	1071.8739	332.5819	0	29	26	None		0	125632923
+23.636131	Move	Pen	1001	1071.244	334.05582	0	29	26	None		0	125632927
+23.6424085	Move	Pen	1001	1070.6141	335.75647	0	29	26	None		0	125632933
+23.6465571	Move	Pen	1001	1069.6693	337.68387	0	29	26	None		0	125632937
+23.6520721	Move	Pen	1001	1068.7244	339.83804	0	29	26	None		0	125632943
+23.6560007	Move	Pen	1001	1067.7795	341.99222	0	29	26	None		0	125632947
+23.6619728	Move	Pen	1001	1066.5198	344.14636	0	29	26	None		0	125632953
+23.6660783	Move	Pen	1001	1065.8899	346.18716	0	29	26	None		0	125632957
+23.6720478	Move	Pen	1001	1064.9451	348.3413	0	29	26	None		0	125632963
+23.676254	Move	Pen	1001	1064.3152	350.2687	0	29	26	None		0	125632967
+23.6823147	Move	Pen	1001	1063.6853	352.19614	0	29	26	None		0	125632973
+23.6860511	Move	Pen	1001	1063.0554	354.12354	0	29	26	None		0	125632977
+23.6919545	Move	Pen	1001	1062.4255	355.93756	0	29	26	None		0	125632983
+23.6966213	Move	Pen	1001	1062.4255	357.7516	0	29	26	None		0	125632987
+23.7023235	Move	Pen	1001	1062.1106	359.5656	0	29	26	None		0	125632993
+23.7060012	Move	Pen	1001	1061.7957	361.1529	0	29	26	None		0	125632997
+23.7121461	Move	Pen	1001	1061.7957	362.6268	0	29	26	None		0	125633003
+23.7161617	Move	Pen	1001	1062.1106	363.87393	0	29	26	None		0	125633007
+23.7219428	Move	Pen	1001	1062.1106	365.00772	0	29	26	None		0	125633013
+23.726083	Move	Pen	1001	1062.4255	366.0281	0	29	26	None		0	125633017
+23.7320373	Move	Pen	1001	1063.0554	366.82175	0	29	26	None		0	125633023
+23.7359728	Move	Pen	1001	1063.3704	367.502	0	29	26	None		0	125633027
+23.7420183	Move	Pen	1001	1064.0002	368.18228	0	28	26	None		0	125633033
+23.746744	Move	Pen	1001	1064.3152	368.63577	0	28	26	None		0	125633037
+23.7520226	Move	Pen	1001	1064.6301	369.20267	0	28	26	None		0	125633043
+23.7559731	Move	Pen	1001	1065.26	369.65616	0	28	26	None		0	125633047
+23.7620304	Move	Pen	1001	1065.575	370.33643	0	28	26	None		0	125633053
+23.7660935	Move	Pen	1001	1065.575	370.90332	0	28	26	None		0	125633057
+23.772141	Move	Pen	1001	1065.575	371.69696	0	26	26	None		0	125633063
+23.7765725	Move	Pen	1001	1065.575	372.60397	0	26	28	None		0	125633067
+23.7823337	Move	Pen	1001	1065.26	373.511	0	26	28	None		0	125633073
+23.7860318	Move	Pen	1001	1064.6301	374.75812	0	26	28	None		0	125633077
+23.7923574	Move	Pen	1001	1064.0002	375.8919	0	26	28	None		0	125633083
+23.7964128	Move	Pen	1001	1063.0554	377.2524	0	26	28	None		0	125633087
+23.8021224	Move	Pen	1001	1062.4255	378.3862	0	26	28	None		0	125633093
+23.8059818	Move	Pen	1001	1061.1658	379.63333	0	26	28	None		0	125633097
+23.8122556	Move	Pen	1001	1059.906	380.8805	0	26	28	None		0	125633103
+23.8162019	Move	Pen	1001	1058.9612	382.12762	0	26	29	None		0	125633107
+23.8220307	Move	Pen	1001	1057.7013	383.60153	0	26	29	None		0	125633113
+23.8259617	Move	Pen	1001	1056.7565	385.07544	0	26	29	None		0	125633117
+23.8321625	Move	Pen	1001	1055.8116	386.6627	0	26	29	None		0	125633123
+23.835994	Move	Pen	1001	1054.8668	388.24997	0	26	29	None		0	125633127
+23.8420461	Move	Pen	1001	1054.2369	389.95062	0	26	29	None		0	125633133
+23.8482273	Move	Pen	1001	1053.2921	391.5379	0	26	31	None		0	125633139
+23.8519689	Move	Pen	1001	1052.6622	393.23856	0	26	31	None		0	125633143
+23.8579579	Move	Pen	1001	1052.3473	394.82584	0	26	31	None		0	125633149
+23.861908	Move	Pen	1001	1051.4025	396.41312	0	26	31	None		0	125633153
+23.8682247	Move	Pen	1001	1050.7726	397.88702	0	26	31	None		0	125633159
+23.8720084	Move	Pen	1001	1049.8278	399.36093	0	26	31	None		0	125633163
+23.8782175	Move	Pen	1001	1048.8829	400.94818	0	26	32	None		0	125633169
+23.8821905	Move	Pen	1001	1047.938	402.64883	0	26	32	None		0	125633173
+23.8880648	Move	Pen	1001	1046.6782	404.4629	0	26	32	None		0	125633179
+23.8919335	Move	Pen	1001	1045.7334	406.50366	0	26	32	None		0	125633183
+23.8981698	Move	Pen	1001	1044.4736	408.54443	0	26	32	None		0	125633189
+23.9020506	Move	Pen	1001	1043.5288	410.92535	0	26	32	None		0	125633193
+23.9082221	Move	Pen	1001	1042.269	413.1929	0	26	34	None		0	125633199
+23.9119977	Move	Pen	1001	1041.0093	415.57382	0	26	34	None		0	125633203
+23.9181291	Move	Pen	1001	1039.4346	417.95474	0	26	34	None		0	125633209
+23.9219805	Move	Pen	1001	1038.1748	420.449	0	26	34	None		0	125633213
+23.927969	Move	Pen	1001	1036.9149	423.0567	0	26	34	None		0	125633219
+23.9321141	Move	Pen	1001	1035.3402	425.66437	0	26	34	None		0	125633223
+23.9380798	Move	Pen	1001	1034.0804	428.15866	0	26	34	None		0	125633229
+23.9440502	Move	Pen	1001	1032.8207	430.65295	0	26	34	None		0	125633235
+23.9495997	Move	Pen	1001	1031.5609	433.14725	0	26	34	None		0	125633240
+23.9541099	Move	Pen	1001	1030.3011	435.3014	0	26	34	None		0	125633245
+23.9579931	Move	Pen	1001	1029.3563	437.45557	0	26	35	None		0	125633249
+23.9641094	Move	Pen	1001	1028.7264	439.49634	0	26	35	None		0	125633255
+23.9680381	Move	Pen	1001	1028.0966	441.42374	0	26	35	None		0	125633259
+23.9740259	Move	Pen	1001	1027.4666	443.1244	0	26	35	None		0	125633265
+23.9779679	Move	Pen	1001	1027.4666	444.5983	0	26	35	None		0	125633269
+23.9841898	Move	Pen	1001	1027.4666	445.95883	0	26	35	None		0	125633275
+23.988005	Move	Pen	1001	1027.4666	447.20596	0	26	35	None		0	125633279
+23.9939723	Move	Pen	1001	1027.1516	448.33975	0	26	35	None		0	125633285
+23.998032	Move	Pen	1001	1027.1516	449.36014	0	26	35	None		0	125633289
+24.004055	Move	Pen	1001	1026.8367	450.38052	0	26	35	None		0	125633295
+24.0087324	Move	Pen	1001	1026.5217	451.4009	0	26	36	None		0	125633300
+24.0142835	Move	Pen	1001	1026.5217	452.53467	0	26	36	None		0	125633305
+24.0180493	Move	Pen	1001	1026.2068	453.4417	0	26	36	None		0	125633309
+24.0239788	Move	Pen	1001	1026.2068	454.4621	0	26	36	None		0	125633315
+24.027922	Move	Pen	1001	1026.2068	455.48248	0	26	36	None		0	125633319
+24.0340829	Move	Pen	1001	1026.2068	456.50287	0	26	36	None		0	125633325
+24.0380179	Move	Pen	1001	1026.2068	457.52325	0	26	36	None		0	125633329
+24.0440459	Move	Pen	1001	1026.5217	458.54367	0	25	36	None		0	125633335
+24.0480918	Move	Pen	1001	1026.5217	459.67743	0	25	36	None		0	125633339
+24.0540317	Move	Pen	1001	1026.8367	460.92456	0	25	36	None		0	125633345
+24.0601103	Move	Pen	1001	1027.1516	462.2851	0	25	36	None		0	125633351
+24.0640319	Move	Pen	1001	1027.4666	463.759	0	25	36	None		0	125633355
+24.0702966	Move	Pen	1001	1027.4666	465.2329	0	25	36	None		0	125633361
+24.0740695	Move	Pen	1001	1027.7816	466.82016	0	25	36	None		0	125633365
+24.0804713	Move	Pen	1001	1028.0966	468.40744	0	25	35	None		0	125633371
+24.0841433	Move	Pen	1001	1028.4115	470.22147	0	25	35	None		0	125633375
+24.0900803	Move	Pen	1001	1028.4115	472.03552	0	25	35	None		0	125633381
+24.0940193	Move	Pen	1001	1028.4115	474.0763	0	26	35	None		0	125633385
+24.1001669	Move	Pen	1001	1028.4115	476.23047	0	26	35	None		0	125633391
+24.1040712	Move	Pen	1001	1028.0966	478.498	0	26	35	None		0	125633395
+24.110124	Move	Pen	1001	1028.0966	480.76553	0	26	35	None		0	125633401
+24.1142041	Move	Pen	1001	1027.4666	483.14645	0	26	35	None		0	125633405
+24.1200639	Move	Pen	1001	1027.1516	485.52737	0	26	34	None		0	125633411
+24.1240563	Move	Pen	1001	1026.8367	487.90826	0	26	34	None		0	125633415
+24.1303376	Move	Pen	1001	1026.5217	490.1758	0	26	34	None		0	125633421
+24.1341763	Move	Pen	1001	1026.2068	492.44336	0	26	34	None		0	125633425
+24.1401156	Move	Pen	1001	1025.8918	494.5975	0	26	34	None		0	125633431
+24.1440785	Move	Pen	1001	1025.8918	496.52493	0	26	34	None		0	125633435
+24.1505138	Move	Pen	1001	1025.8918	498.2256	0	26	34	None		0	125633441
+24.1541228	Move	Pen	1001	1025.8918	499.69946	0	26	34	None		0	125633445
+24.1600355	Move	Pen	1001	1025.8918	500.83325	0	26	32	None		0	125633451
+24.1660722	Move	Pen	1001	1025.8918	501.967	0	26	32	None		0	125633457
+24.1700203	Move	Pen	1001	1025.8918	502.76065	0	26	32	None		0	125633461
+24.1760345	Move	Pen	1001	1025.8918	503.66766	0	26	32	None		0	125633467
+24.1808848	Move	Pen	1001	1025.8918	504.4613	0	26	31	None		0	125633472
+24.1860241	Move	Pen	1001	1026.2068	505.25494	0	28	31	None		0	125633477
+24.1899809	Move	Pen	1001	1026.5217	506.04858	0	28	31	None		0	125633481
+24.1980327	Move	Pen	1001	1026.5217	506.72885	0	28	31	None		0	125633487
+24.2002107	Move	Pen	1001	1027.1516	507.4091	0	28	31	None		0	125633491
+24.2062386	Move	Pen	1001	1027.4666	508.08936	0	29	31	None		0	125633497
+24.2103183	Move	Pen	1001	1027.7816	508.65625	0	29	31	None		0	125633501
+24.214175	Move	Pen	1001	1028.4115	509.22314	0	29	31	None		0	125633505
+24.2203662	Move	Pen	1001	1029.0414	509.67664	0	29	31	None		0	125633511
+24.2241667	Move	Pen	1001	1029.6713	510.13016	0	29	31	None		0	125633515
+24.2304145	Move	Pen	1001	1030.3011	510.47028	0	29	29	None		0	125633521
+24.2383425	Move	Pen	1001	1031.246	510.8104	0	29	29	None		0	125633529
+24.2443713	Move	Pen	1001	1031.5609	510.9238	0	29	29	None		0	125633535
+24.2484044	Move	Pen	1001	1032.5057	511.15054	0	29	29	None		0	125633539
+24.2543066	Move	Pen	1001	1033.1356	511.26392	0	29	29	None		0	125633545
+24.2581376	Move	Pen	1001	1033.7655	511.26392	0	29	29	None		0	125633549
+24.2642029	Move	Pen	1001	1034.3954	511.15054	0	29	26	None		0	125633555
+24.2683986	Move	Pen	1001	1034.7103	511.03717	0	29	26	None		0	125633559
+24.2720667	Move	Pen	1001	1035.3402	510.58365	0	29	26	None		0	125633563
+24.2784224	Move	Pen	1001	1035.9701	510.13016	0	29	26	None		0	125633569
+24.2823128	Move	Pen	1001	1036.285	509.33652	0	29	26	None		0	125633573
+24.2882098	Move	Pen	1001	1036.9149	508.54288	0	28	26	None		0	125633579
+24.2923076	Move	Pen	1001	1037.2299	507.4091	0	28	25	None		0	125633583
+24.2983294	Move	Pen	1001	1037.8597	506.27533	0	28	25	None		0	125633589
+24.3022999	Move	Pen	1001	1038.1748	504.9148	0	28	25	None		0	125633593
+24.3084858	Move	Pen	1001	1038.4897	503.5543	0	28	25	None		0	125633599
+24.3121725	Move	Pen	1001	1039.1196	501.967	0	28	24	None		0	125633603
+24.3183445	Move	Pen	1001	1039.7495	500.37973	0	28	24	None		0	125633609
+24.3222612	Move	Pen	1001	1040.3794	498.67908	0	28	24	None		0	125633613
+24.3282562	Move	Pen	1001	1041.3242	496.86505	0	26	24	None		0	125633619
+24.332366	Move	Pen	1001	1042.584	495.1644	0	26	23	None		0	125633623
+24.3382228	Move	Pen	1001	1043.8438	493.46375	0	26	23	None		0	125633629
+24.3420978	Move	Pen	1001	1046.0483	491.98984	0	26	23	None		0	125633633
+24.3484762	Move	Pen	1001	1047.938	490.7427	0	26	23	None		0	125633639
+24.3522077	Move	Pen	1001	1049.8278	489.49554	0	26	23	None		0	125633643
+24.3586618	Move	Pen	1001	1051.4025	488.2484	0	26	23	None		0	125633649
+24.3621782	Move	Pen	1001	1052.6622	486.88788	0	26	22	None		0	125633653
+24.3684455	Move	Pen	1001	1053.2921	485.3006	0	26	22	None		0	125633659
+24.3721841	Move	Pen	1001	1053.607	483.48657	0	26	22	None		0	125633663
+24.3781201	Move	Pen	1001	1053.922	481.67255	0	25	22	None		0	125633669
+24.3823809	Move	Pen	1001	1053.922	479.51837	0	25	22	None		0	125633673
+24.3882274	Move	Pen	1001	1053.922	477.59097	0	25	22	None		0	125633679
+24.392603	Move	Pen	1001	1053.922	475.43683	0	25	22	None		0	125633683
+24.3984096	Move	Pen	1001	1053.2921	473.16928	0	25	22	None		0	125633689
+24.4022947	Move	Pen	1001	1053.2921	470.78836	0	25	23	None		0	125633693
+24.4061014	Move	Pen	1001	1052.6622	468.40744	0	25	23	None		0	125633697
+24.4122111	Move	Pen	1001	1052.3473	465.6864	0	25	23	None		0	125633703
+24.4162263	Move	Pen	1001	1051.7174	462.852	0	25	23	None		0	125633707
+24.4221292	Move	Pen	1001	1051.0875	459.7908	0	25	24	None		0	125633713
+24.426232	Move	Pen	1001	1050.7726	456.61624	0	26	24	None		0	125633717
+24.432428	Move	Pen	1001	1049.8278	453.10156	0	26	25	None		0	125633723
+24.4360825	Move	Pen	1001	1049.1979	449.4735	0	26	25	None		0	125633727
+24.4420806	Move	Pen	1001	1048.2529	445.84546	0	26	25	None		0	125633733
+24.4460013	Move	Pen	1001	1047.3081	442.55753	0	26	25	None		0	125633737
+24.4521325	Move	Pen	1001	1046.3633	439.2696	0	26	26	None		0	125633743
+24.4580682	Move	Pen	1001	1045.4185	436.09503	0	26	26	None		0	125633749
+24.4642589	Move	Pen	1001	1044.1587	432.92047	0	26	26	None		0	125633755
+24.4680694	Move	Pen	1001	1042.8989	429.8593	0	26	26	None		0	125633759
+24.4740557	Move	Pen	1001	1041.6392	426.9115	0	26	26	None		0	125633765
+24.4781355	Move	Pen	1001	1040.3794	424.19046	0	26	26	None		0	125633769
+24.4843353	Move	Pen	1001	1039.4346	421.46942	0	26	28	None		0	125633775
+24.4881639	Move	Pen	1001	1038.4897	418.74835	0	28	28	None		0	125633779
+24.4944029	Move	Pen	1001	1037.2299	415.91394	0	28	29	None		0	125633785
+24.498189	Move	Pen	1001	1036.285	413.07953	0	28	29	None		0	125633789
+24.5040773	Move	Pen	1001	1035.0253	410.2451	0	28	29	None		0	125633795
+24.5079854	Move	Pen	1001	1033.7655	407.52405	0	29	29	None		0	125633799
+24.5142244	Move	Pen	1001	1032.5057	404.803	0	29	29	None		0	125633805
+24.5181934	Move	Pen	1001	1031.246	402.08197	0	29	29	None		0	125633809
+24.5243772	Move	Pen	1001	1029.9862	399.13416	0	29	29	None		0	125633815
+24.5283377	Move	Pen	1001	1029.0414	396.29974	0	29	29	None		0	125633819
+24.5345026	Move	Pen	1001	1027.7816	393.35193	0	29	31	None		0	125633825
+24.5381265	Move	Pen	1001	1027.1516	390.40414	0	29	31	None		0	125633829
+24.5441541	Move	Pen	1001	1026.2068	387.45633	0	29	31	None		0	125633835
+24.5481993	Move	Pen	1001	1025.5769	384.50854	0	31	31	None		0	125633839
+24.5583811	Move	Pen	1001	1024.947	381.2206	0	31	31	None		0	125633849
+24.5622754	Move	Pen	1001	1024.0022	377.70593	0	31	31	None		0	125633853
+24.5666075	Move	Pen	1001	1023.3723	374.19125	0	31	31	None		0	125633857
+24.5725249	Move	Pen	1001	1023.0574	371.0167	0	31	31	None		0	125633863
+24.5764844	Move	Pen	1001	1022.4275	367.84213	0	31	31	None		0	125633867
+24.5823112	Move	Pen	1001	1021.7976	365.00772	0	31	31	None		0	125633873
+24.5866868	Move	Pen	1001	1021.7976	362.0599	0	31	31	None		0	125633877
+24.5923652	Move	Pen	1001	1021.48267	359.33887	0	31	31	None		0	125633883
+24.5961539	Move	Pen	1001	1021.1677	356.50446	0	31	31	None		0	125633887
+24.6024376	Move	Pen	1001	1020.8528	353.78342	0	31	31	None		0	125633893
+24.6060564	Move	Pen	1001	1020.8528	350.94897	0	31	31	None		0	125633897
+24.6126245	Move	Pen	1001	1020.53784	348.3413	0	31	31	None		0	125633903
+24.61622	Move	Pen	1001	1020.53784	345.73364	0	31	31	None		0	125633907
+24.6220472	Move	Pen	1001	1020.53784	343.4661	0	31	31	None		0	125633913
+24.6263446	Move	Pen	1001	1020.53784	341.31195	0	31	31	None		0	125633917
+24.6324968	Move	Pen	1001	1020.53784	339.49792	0	31	31	None		0	125633923
+24.6361927	Move	Pen	1001	1020.53784	337.79727	0	31	29	None		0	125633927
+24.6421029	Move	Pen	1001	1020.53784	336.21	0	31	29	None		0	125633933
+24.6460912	Move	Pen	1001	1020.2229	334.6227	0	31	29	None		0	125633937
+24.6522764	Move	Pen	1001	1020.2229	333.1488	0	32	29	None		0	125633943
+24.6561192	Move	Pen	1001	1020.2229	331.7883	0	32	29	None		0	125633947
+24.6621863	Move	Pen	1001	1019.9079	330.54114	0	32	29	None		0	125633953
+24.6663408	Move	Pen	1001	1019.9079	329.40738	0	32	28	None		0	125633957
+24.6721547	Move	Pen	1001	1019.9079	328.38696	0	32	28	None		0	125633963
+24.6760954	Move	Pen	1001	1019.59296	327.36658	0	32	28	None		0	125633967
+24.6806776	Move	Pen	1001	1019.278	326.57294	0	32	28	None		0	125633971
+24.686185	Move	Pen	1001	1019.278	325.7793	0	32	26	None		0	125633977
+24.690059	Move	Pen	1001	1018.9631	324.98566	0	32	26	None		0	125633981
+24.6961872	Move	Pen	1001	1018.64813	324.30542	0	32	26	None		0	125633987
+24.7003738	Move	Pen	1001	1018.64813	323.62515	0	32	26	None		0	125633991
+24.7062976	Move	Pen	1001	1018.3332	322.9449	0	32	26	None		0	125633997
+24.7100839	Move	Pen	1001	1017.7033	322.26462	0	32	26	None		0	125634001
+24.7162664	Move	Pen	1001	1017.38837	321.81113	0	32	26	None		0	125634007
+24.7200786	Move	Pen	1001	1017.0734	321.3576	0	32	26	None		0	125634011
+24.7261936	Move	Pen	1001	1016.7585	321.0175	0	32	26	None		0	125634017
+24.7308427	Move	Pen	1001	1016.1286	320.67734	0	34	26	None		0	125634021
+24.736072	Move	Pen	1001	1015.81366	320.22385	0	34	25	None		0	125634027
+24.7399667	Move	Pen	1001	1015.4987	319.8837	0	34	25	None		0	125634031
+24.7459344	Move	Pen	1001	1015.1838	319.31683	0	34	25	None		0	125634037
+24.7500892	Move	Pen	1001	1014.86884	318.63657	0	34	25	None		0	125634041
+24.7582536	Move	Pen	1001	1014.86884	317.61618	0	34	26	None		0	125634049
+24.7620461	Move	Pen	1001	1014.86884	316.5958	0	34	26	None		0	125634053
+24.768258	Move	Pen	1001	1015.1838	315.34863	0	34	26	None		0	125634059
+24.7720923	Move	Pen	1001	1015.81366	314.1015	0	34	26	None		0	125634063
+24.7779567	Move	Pen	1001	1016.1286	312.74097	0	34	26	None		0	125634069
+24.7822776	Move	Pen	1001	1016.44354	311.1537	0	35	26	None		0	125634073
+24.7880873	Move	Pen	1001	1016.7585	309.5664	0	35	26	None		0	125634079
+24.7921589	Move	Pen	1001	1017.38837	307.97913	0	35	26	None		0	125634083
+24.7982631	Move	Pen	1001	1017.7033	306.1651	0	35	26	None		0	125634089
+24.802104	Move	Pen	1001	1018.3332	304.35107	0	36	26	None		0	125634093
+24.8079801	Move	Pen	1001	1018.64813	302.1969	0	36	28	None		0	125634099
+24.8119191	Move	Pen	1001	1018.9631	300.15613	0	36	28	None		0	125634103
+24.8181218	Move	Pen	1001	1019.278	297.88858	0	36	28	None		0	125634109
+24.8220203	Move	Pen	1001	1019.59296	295.5077	0	36	28	None		0	125634113
+24.828064	Move	Pen	1001	1019.9079	292.9	0	36	29	None		0	125634119
+24.8322395	Move	Pen	1001	1019.9079	290.06558	0	36	29	None		0	125634123
+24.8380599	Move	Pen	1001	1019.9079	287.1178	0	36	29	None		0	125634129
+24.8419978	Move	Pen	1001	1019.9079	283.94324	0	37	29	None		0	125634133
+24.8480917	Move	Pen	1001	1019.278	280.54193	0	37	29	None		0	125634139
+24.8520473	Move	Pen	1001	1018.9631	276.91388	0	37	29	None		0	125634143
+24.8581206	Move	Pen	1001	1018.3332	273.2858	0	37	31	None		0	125634149
+24.8643291	Move	Pen	1001	1017.7033	269.54437	0	37	31	None		0	125634155
+24.8682429	Move	Pen	1001	1016.7585	265.80292	0	37	32	None		0	125634159
+24.8742818	Move	Pen	1001	1015.81366	262.28824	0	38	32	None		0	125634165
+24.8781974	Move	Pen	1001	1014.55383	259.0003	0	38	34	None		0	125634169
+24.8842061	Move	Pen	1001	1013.29407	256.05252	0	38	34	None		0	125634175
+24.8881464	Move	Pen	1001	1012.0343	253.44484	0	38	34	None		0	125634179
+24.8942038	Move	Pen	1001	1011.0895	251.29068	0	38	34	None		0	125634185
+24.8983771	Move	Pen	1001	1010.4596	249.59003	0	38	36	None		0	125634189
+24.9042007	Move	Pen	1001	1009.5147	248.2295	0	38	36	None		0	125634195
+24.9080765	Move	Pen	1001	1008.8848	247.09573	0	38	36	None		0	125634199
+24.9142042	Move	Pen	1001	1008.5699	246.30211	0	37	36	None		0	125634205
+24.9180532	Move	Pen	1001	1007.94	245.73521	0	37	37	None		0	125634209
+24.924318	Move	Pen	1001	1007.62506	245.39508	0	37	37	None		0	125634215
+24.9281081	Move	Pen	1001	1006.9952	245.05496	0	37	38	None		0	125634219
+24.9345235	Move	Pen	1001	1006.3653	245.05496	0	37	38	None		0	125634225
+24.9381457	Move	Pen	1001	1005.7354	245.05496	0	37	38	None		0	125634229
+24.9441026	Move	Pen	1001	1004.7906	245.05496	0	36	38	None		0	125634235
+24.9481618	Move	Pen	1001	1004.16064	245.28171	0	36	39	None		0	125634239
+24.9542581	Move	Pen	1001	1003.53076	245.50847	0	36	39	None		0	125634245
+24.9580531	Move	Pen	1001	1002.58594	245.84859	0	36	39	None		0	125634249
+24.9643324	Move	Pen	1001	1001.6411	246.07535	0	36	39	None		0	125634255
+24.9681131	Move	Pen	1001	1000.38135	246.30211	0	36	40	None		0	125634259
+24.9740186	Move	Pen	1001	999.1215	246.64223	0	36	40	None		0	125634265
+24.9779755	Move	Pen	1001	997.86176	246.86899	0	36	40	None		0	125634269
+24.9841983	Move	Pen	1001	996.28705	247.09573	0	36	40	None		0	125634275
+24.9880892	Move	Pen	1001	994.71234	247.20912	0	36	41	None		0	125634279
+24.9941072	Move	Pen	1001	993.1376	247.43587	0	36	41	None		0	125634285
+24.9981829	Move	Pen	1001	991.56287	247.54926	0	36	41	None		0	125634289
+25.0040861	Move	Pen	1001	989.6732	247.776	0	36	41	None		0	125634295
+25.0080204	Move	Pen	1001	988.09845	247.88937	0	36	41	None		0	125634299
+25.0141586	Move	Pen	1001	986.52374	248.11613	0	36	41	None		0	125634305
+25.0180353	Move	Pen	1001	984.94904	248.34288	0	36	40	None		0	125634309
+25.0240545	Move	Pen	1001	983.37427	248.56964	0	36	40	None		0	125634315
+25.0279942	Move	Pen	1001	981.4846	248.79639	0	36	40	None		0	125634319
+25.0341918	Move	Pen	1001	979.9099	249.02315	0	36	40	None		0	125634325
+25.0380353	Move	Pen	1001	978.33514	249.24991	0	36	39	None		0	125634329
+25.0439906	Move	Pen	1001	976.4455	249.47665	0	36	39	None		0	125634335
+25.048113	Move	Pen	1001	974.55585	249.81679	0	36	39	None		0	125634339
+25.0540741	Move	Pen	1001	972.9811	250.2703	0	36	39	None		0	125634345
+25.0580199	Move	Pen	1001	971.4064	250.95056	0	36	38	None		0	125634349
+25.0646451	Move	Pen	1001	969.5167	251.85757	0	36	38	None		0	125634355
+25.068077	Move	Pen	1001	967.3121	252.87796	0	36	38	None		0	125634359
+25.0740016	Move	Pen	1001	965.4224	254.23848	0	37	38	None		0	125634365
+25.078145	Move	Pen	1001	963.21783	255.71239	0	37	37	None		0	125634369
+25.0841406	Move	Pen	1001	960.69824	257.41302	0	37	37	None		0	125634375
+25.0880835	Move	Pen	1001	958.49365	259.34045	0	37	37	None		0	125634379
+25.0941544	Move	Pen	1001	956.289	261.26785	0	38	37	None		0	125634385
+25.0982944	Move	Pen	1001	954.39935	263.30862	0	38	36	None		0	125634389
+25.1041616	Move	Pen	1001	952.50964	265.23605	0	38	36	None		0	125634395
+25.1080182	Move	Pen	1001	950.93494	267.05008	0	38	35	None		0	125634399
+25.1144216	Move	Pen	1001	949.6752	268.75073	0	39	35	None		0	125634405
+25.1180663	Move	Pen	1001	948.4154	270.22464	0	39	35	None		0	125634409
+25.1241605	Move	Pen	1001	947.4705	271.47177	0	39	35	None		0	125634415
+25.1281194	Move	Pen	1001	946.21075	272.49216	0	39	34	None		0	125634419
+25.1342406	Move	Pen	1001	945.2659	273.2858	0	40	34	None		0	125634425
