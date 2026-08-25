@@ -121,6 +121,23 @@ public partial class MainWindow
         e.Handled = true;
     }
 
+    /// <summary>What a key press means while type is being set.</summary>
+    private enum TextKey
+    {
+        /// <summary>Acted on here. Mark it handled and stop.</summary>
+        Consumed,
+
+        /// <summary>
+        /// Not ours, but not a shortcut either: stop, and leave the event
+        /// <em>unhandled</em> so the framework can still turn it into a
+        /// character.
+        /// </summary>
+        Character,
+
+        /// <summary>Carry on to the shortcut dispatch.</summary>
+        Shortcut,
+    }
+
     /// <summary>
     /// The keys that mean something to type being set, as opposed to the
     /// characters, which arrive at <see cref="OnCanvasTextInput"/>.
@@ -135,13 +152,24 @@ public partial class MainWindow
     /// mode should not be the destructive one.
     /// </para>
     /// <para>
-    /// <b>Plain keys are swallowed, modified ones are not.</b> While a caret is
-    /// on the canvas, <c>B</c> is a letter and not the brush; but Ctrl+S still
-    /// saves, because a shortcut with a modifier was never going to be a
-    /// character and an artist should not have to finish a caption to save.
+    /// <b>Three answers rather than two, and the middle one is the whole bug
+    /// this enum exists to fix.</b> A character key must be kept away from the
+    /// shortcut dispatch — while a caret is up, <c>B</c> is a letter and not the
+    /// brush — and it must <em>not</em> be marked handled, because a handled
+    /// <c>KeyDown</c> never becomes a <c>TextInput</c>: the framework's key →
+    /// character step is what a handled event cancels. Fusing "do not run
+    /// shortcuts" with "mark handled" shipped a caret that could not take a
+    /// letter, and every headless test passed because
+    /// <c>KeyTextInput</c> injects a character without a key press and so never
+    /// crosses this code at all. <c>TextTypingTests.PressingALetterKeyTypesIt</c>
+    /// presses the key instead, and fails without this.
+    /// </para>
+    /// <para>
+    /// Modified keys are the third answer: Ctrl+S was never going to be a
+    /// character, and an artist should not have to finish a caption to save.
     /// </para>
     /// </remarks>
-    private bool HandleTextSessionKey(KeyEventArgs e)
+    private TextKey HandleTextSessionKey(KeyEventArgs e)
     {
         var accel = e.KeyModifiers.HasFlag(KeyModifiers.Control)
             || e.KeyModifiers.HasFlag(KeyModifiers.Alt)
@@ -151,36 +179,36 @@ public partial class MainWindow
         {
             case Key.Escape:
                 _vm.CommitText();
-                return true;
+                return TextKey.Consumed;
             case Key.Enter when accel:
                 _vm.CommitText();
-                return true;
+                return TextKey.Consumed;
             case Key.Enter:
                 _vm.TextNewline();
-                return true;
+                return TextKey.Consumed;
             case Key.Back:
                 _vm.TextBackspace();
-                return true;
+                return TextKey.Consumed;
             case Key.Delete:
                 _vm.TextDeleteForward();
-                return true;
+                return TextKey.Consumed;
             case Key.Left:
                 _vm.MoveTextCaret(-1);
-                return true;
+                return TextKey.Consumed;
             case Key.Right:
                 _vm.MoveTextCaret(1);
-                return true;
+                return TextKey.Consumed;
             case Key.Home:
                 _vm.TextCaretToEdge(end: false);
-                return true;
+                return TextKey.Consumed;
             case Key.End:
                 _vm.TextCaretToEdge(end: true);
-                return true;
+                return TextKey.Consumed;
         }
 
-        // Anything else: a character (already handled as text input) or a
-        // shortcut. Only the modified ones are let through.
-        return !accel;
+        // Anything else is a character on its way to becoming one, or a
+        // shortcut. Only the modified ones reach the shortcuts.
+        return accel ? TextKey.Shortcut : TextKey.Character;
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
@@ -190,10 +218,19 @@ public partial class MainWindow
 
         // Type being set on the canvas owns the keyboard, above every mode
         // below: an artist mid-word is not reaching for a tool.
-        if (_vm.TextSessionActive && HandleTextSessionKey(e))
+        if (_vm.TextSessionActive)
         {
-            e.Handled = true;
-            return;
+            switch (HandleTextSessionKey(e))
+            {
+                case TextKey.Consumed:
+                    e.Handled = true;
+                    return;
+                // Deliberately not marked handled — see HandleTextSessionKey.
+                // Returning here is what keeps it away from the shortcuts;
+                // leaving it unhandled is what lets it become a letter.
+                case TextKey.Character:
+                    return;
+            }
         }
 
         // Grid editing owns Escape: it is a mode, and a mode you cannot leave

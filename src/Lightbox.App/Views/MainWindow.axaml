@@ -1508,6 +1508,7 @@
 
         <!-- The text tool's options. -->
         <views:TextOptionsBar />
+        <views:TextFormatBar />
 
         <!--
           The workspace's own quick options, after the tool's: not tool-gated,
@@ -2729,6 +2730,10 @@
 
                     <!-- Move — the selected guide, with room for labels. -->
                     <views:GuideOptionsPanel />
+
+                    <!-- Text, with room for labels — the GuideOptionsBar and
+                         GuideOptionsPanel split again. B308. -->
+                    <views:TextOptionsPanel />
 
                     <!-- Shape -->
                     <StackPanel Spacing="6" IsVisible="{Binding IsShapeTool}">

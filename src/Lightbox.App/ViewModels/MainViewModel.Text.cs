@@ -222,6 +222,21 @@ public partial class MainViewModel
         }
     }
 
+    /// <summary>
+    /// Fill the font list once, on reaching for the tool.
+    /// </summary>
+    /// <remarks>
+    /// Idempotent and fire-and-forget: picking the text tool is not a moment to
+    /// wait on a network, and picking it a second time must not refetch. The
+    /// installed faces are in hand synchronously, so the list is never empty
+    /// even when Google is unreachable.
+    /// </remarks>
+    public void EnsureFontsLoaded()
+    {
+        if (_allFonts.Count > 0) return;
+        _ = LoadFontsCommand.ExecuteAsync(null);
+    }
+
     /// <summary>Fill the browser: installed at once, Google when it answers.</summary>
     [RelayCommand]
     private async Task LoadFonts()
@@ -726,6 +741,15 @@ public partial class MainViewModel
         _live.ScratchCanvas.Flush();
         _live.ScratchUsed = new SKRectI(0, 0, Scene.Width, Scene.Height);
         _publish.InvalidateWholeCanvas();
+        // And ask for the frame to be published, which is the half that was
+        // missing: invalidating says the canvas is stale, publishing is what
+        // puts new pixels on it. Without this the composite an artist sees
+        // stays the one taken when the caret went down — so every letter
+        // reached the record and the scratch, and the screen showed an empty
+        // caret sitting still. The shape tool's MoveShape has always paired
+        // the two; text did not, and nothing was red because no test looks at
+        // what was published.
+        RequestSnapshot();
     }
 
     /// <summary>

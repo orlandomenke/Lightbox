@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
@@ -74,4 +75,38 @@ public class OverflowBarFlexTests
             }
         }
     }
+    [AvaloniaFact]
+    public void ZeroWidthChildrenCostNoRoom()
+    {
+        // B308's third cause. A tool-options group is a UserControl whose
+        // contents are gated on the tool, so with another tool in hand it stays
+        // visible and measures to nothing — and each one was still costing a
+        // spacing gap and a place in the row. Seven of them spent 98px of a
+        // 273px bar on nothing, which is what pushed the text tool's options
+        // into the ▾ at every ordinary window size.
+        var bar = new OverflowBar { Spacing = 14 };
+        for (var i = 0; i < 7; i++)
+        {
+            bar.Children.Add(new Border { Width = 0, Height = 20 });
+        }
+        var wanted = new Border { Width = 200, Height = 20 };
+        bar.Children.Add(wanted);
+
+        var window = new Window { Content = bar, Width = 300, Height = 60 };
+        window.Show();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        window.Measure(new Size(300, 60));
+        window.Arrange(new Rect(0, 0, 300, 60));
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        // The seven empties must buy nothing, so the one real child starts at 0
+        // and stays on the bar rather than being parked past its right edge.
+        Assert.Equal(0, wanted.Bounds.X);
+        Assert.True(
+            wanted.Bounds.X < bar.Bounds.Width,
+            $"a 200px child was pushed off a {bar.Bounds.Width:F0}px bar by seven empty siblings");
+
+        window.Close();
+    }
+
 }

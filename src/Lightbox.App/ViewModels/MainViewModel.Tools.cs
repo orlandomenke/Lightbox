@@ -664,6 +664,12 @@ public partial class MainViewModel
         // hide it. Setting it keeps the work and costs one Ctrl+Z to change your
         // mind, which is the same asymmetry Escape is chosen on.
         if (value != ToolId.Text) CommitText();
+        // Picking the tool is what fills the font list and settles which face
+        // new type is set in. It used to wait for a click on the font button,
+        // so the button read "Loading…" until an artist pressed the one control
+        // whose label was telling them it was not ready — and the browser was
+        // empty behind it.
+        else EnsureFontsLoaded();
 
         // B147's shape one tool along, and phase 2 shipped it: the node overlay
         // is drawn whatever the tool is, so leaving isolation for the brush left
