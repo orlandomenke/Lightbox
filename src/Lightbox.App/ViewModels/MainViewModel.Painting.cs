@@ -1180,6 +1180,13 @@ public partial class MainViewModel
 
     internal (double X, double Y)? LastStrokeEndForTests => _lastStrokeEnd;
 
+    /// <summary>
+    /// How much of the live mark is settled, and how much is still on loan
+    /// (B299). The pair is the incrementality of the live path made countable:
+    /// the difference between them is the only work a pointer event repeats.
+    /// </summary>
+    internal (int Settled, int Total) LiveDabCutForTests => (_live.StableDabs, _live.DabCount);
+
     /// <param name="eraseWithCurrentBrush">
     /// Alt was held. The stroke erases but keeps the brush's own size, shape
     /// and dynamics — unlike switching to the eraser, which brings its own.
@@ -1286,6 +1293,14 @@ public partial class MainViewModel
         {
             _live.EnsureScratch(Scene.Width, Scene.Height);
             _live.ClearScratch();
+            // B299: a hard round brush accumulates its coverage across the whole
+            // stroke, so the buffer that holds it starts empty here rather than
+            // being rebuilt per event. Only for the brushes that use it - every
+            // other brush pays nothing for this line.
+            if (BrushEngine.DrawsAsOneSilhouette(CurrentToolSettings))
+            {
+                _live.BeginCoverage(Scene.Width, Scene.Height);
+            }
         }
         _live.ResetPostProcess();
         _live.StampedCount = 0;
@@ -1754,31 +1769,135 @@ public partial class MainViewModel
         // 1.15 ms walk at 600 points, all but a fraction of it recomputing spans that cannot have
         // changed.
         var dabs = BrushEngine.WalkDabs(live, _live.Densify);
-        // A silhouette brush has no settled prefix, and pretending it does is
-        // wrong rather than merely wasteful. Its whole mark is one shape whose
-        // coverage is computed in a single pass (BrushEngine.StampDabRange), so
-        // a settled draw would write the still-provisional tail's shape into the
-        // scratch BEFORE the tail backup below is taken — baking a tail into the
-        // pixels that exist to be taken back, so a tail that then moves leaves
-        // its old position behind. Measured as the live mark 2.8% fatter than the
-        // commit, with pixels 239/255 apart in both directions.
+        // <b>A silhouette brush is now incremental, and B299 is why it had to
+        // be.</b> Its coverage is accumulated as a running maximum rather than
+        // unioned as a path (B311), and max is order-independent and idempotent
+        // - so a dab already accumulated never has to be looked at again. That
+        // is the property a path union could not offer, and the reason three
+        // attempts to give the old mechanism a settled cut failed: its outline
+        // is not a prefix of itself, so no prefix of the dab list had settled
+        // pixels.
         //
-        // Pinning the cut at zero makes every event restore the mark's own region
-        // and redraw it once, which is what keeps this preview and the commit the
-        // same pixels — the promise LiveMatchesCommittedTests exists for, and it
-        // holds exactly: mean 0.00/255, worst 0, ink ratio 1.000.
+        // With max, `StableCount` is finally the right question. Coverage at a
+        // pixel is the largest any ONE dab puts there, so a dab whose position
+        // has stopped moving contributes a fixed amount for ever. There is no
+        // run, no chord and no anchor to reach back past.
         //
-        // It also costs, and the cost is measured rather than assumed. A 2000 px
-        // arc at 400 events: 3.19 ms an event against 1.50 ms at size 5, and 2.02
-        // against 0.60 at size 24. B292 holds the fix — cache the settled
-        // prefix's outline instead of rebuilding it — which needs state the
-        // engine's static path does not have. Note that the whole-mark render
-        // this shares its machinery with goes the other way, 14.8 ms against
-        // 26.4 ms, so the commit, the reload and every export are faster.
+        // What max cannot do is take a dab back: a moving tail would otherwise
+        // smear its own history into the buffer. So the tail keeps exactly the
+        // backup-and-replace the scratch already used, moved one level down onto
+        // the coverage buffer.
         var wholeMark = BrushEngine.DrawsAsOneSilhouette(live.Brush);
-        var stable = wholeMark ? 0 : BrushEngine.StableCount(dabs, _live.Dabs);
+        var stable = BrushEngine.StableCount(dabs, _live.Dabs);
         _live.Dabs = dabs;
 
+        if (wholeMark && _live.CoverageCanvas is { } coverage && _live.Coverage is { } buffer)
+        {
+            // A cut that went BACKWARDS would mean a dab already accumulated has
+            // moved, and its old position is in the buffer permanently. Densify
+            // looks one point ahead so a dab that survived the last point
+            // survives the next, which is why StableCount is monotone in
+            // practice - but "in practice" is not an invariant, and the failure
+            // would be a smear nobody could trace. Rebuilding from black is
+            // correct, rare, and costs one stroke's accumulation.
+            if (stable < _live.StableDabs)
+            {
+                coverage.Clear(SKColors.Black);
+                _live.StableDabs = 0;
+                _live.TailRegion = null;
+            }
+
+            // 1. Take back the tail lent out last time, so its dabs stop
+            //    contributing before this event's are measured.
+            if (_live.TailRegion is { } handedBack && _live.TailBackup is not null)
+            {
+                using var restore = SKImage.FromBitmap(_live.TailBackup);
+                using var src = new SKPaint { BlendMode = SKBlendMode.Src };
+                coverage.DrawImage(
+                    restore,
+                    new SKRect(0, 0, handedBack.Width, handedBack.Height),
+                    new SKRect(handedBack.Left, handedBack.Top, handedBack.Right, handedBack.Bottom),
+                    src);
+                coverage.Flush();
+            }
+
+            var settledCut = Math.Max(_live.StableDabs, Math.Min(stable, dabs.Count));
+
+            // 2. Everything whose position has stopped moving, accumulated once
+            //    and never again. THIS is the whole win: a stroke of twelve
+            //    thousand dabs stamps the thirty that are new.
+            BrushEngine.AccumulateCoverage(coverage, live.Brush, dabs, _live.StableDabs, settledCut);
+
+            // 3. The rest on loan, so the mark reaches the pen tip.
+            var lendNow = BrushEngine.RangeBounds(dabs, settledCut, live.Brush, info);
+            if (lendNow is { } lending)
+            {
+                coverage.Flush();
+                if (_live.TailBackup is null
+                    || _live.TailBackup.Width < lending.Width
+                    || _live.TailBackup.Height < lending.Height)
+                {
+                    _live.TailBackup?.Dispose();
+                    _live.TailBackup = new SKBitmap(new SKImageInfo(
+                        Math.Max(lending.Width, 64), Math.Max(lending.Height, 64),
+                        SKColorType.Rgba8888, SKAlphaType.Premul));
+                }
+
+                // A real copy, not a subset view: ExtractSubset shares pixels,
+                // which would make the backup track the buffer and the rollback
+                // a no-op - the same trap the scratch's own tail records.
+                using (var region = new SKBitmap())
+                {
+                    if (buffer.ExtractSubset(region, lending))
+                    {
+                        using var pixels = region.PeekPixels();
+                        using var view = pixels is null ? null : SKImage.FromPixels(pixels);
+                        if (view is not null)
+                        {
+                            using var into = new SKCanvas(_live.TailBackup);
+                            using var src = new SKPaint { BlendMode = SKBlendMode.Src };
+                            into.DrawImage(view, 0, 0, src);
+                            into.Flush();
+                        }
+                    }
+                }
+
+                BrushEngine.AccumulateCoverage(coverage, live.Brush, dabs, settledCut, dabs.Count);
+                coverage.Flush();
+            }
+
+            // 4. Read the changed region back out as ink. Everything the two
+            //    accumulations and the restore could have touched: the newly
+            //    settled dabs' reach, the region lent last time and the one lent
+            //    now. Anything outside that is already correct in the scratch.
+            var changed = BrushEngine.RangeBounds(dabs, _live.StableDabs, live.Brush, info);
+            if (_live.TailRegion is { } before)
+            {
+                changed = changed is { } grown ? SKRectI.Union(grown, before) : before;
+            }
+
+            if (lendNow is { } now)
+            {
+                changed = changed is { } grown ? SKRectI.Union(grown, now) : now;
+            }
+
+            _live.StableDabs = settledCut;
+            _live.TailRegion = lendNow;
+            if (changed is { } band)
+            {
+                BrushEngine.CoverageToInk(_live.ScratchCanvas, buffer, live, band);
+                _live.ScratchCanvas.Flush();
+                _live.ScratchUsed = _live.ScratchUsed is { } prior
+                    ? LivePaintSession.UnionRect(prior, band)
+                    : band;
+            }
+
+            _live.DabCount = dabs.Count;
+            return;
+        }
+
+        // The per-dab route, unchanged: it stamps only the dabs in its own
+        // range with SrcOver, so a settled prefix was never a problem for it.
         // 1. Take back the tail lent out last time. Only the part of the buffer this
         // tail actually used: the backup is sized to the largest tail seen, so drawing
         // the whole thing would scale a bigger image into a smaller rect.

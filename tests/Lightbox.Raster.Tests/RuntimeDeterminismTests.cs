@@ -141,11 +141,41 @@ public class RuntimeDeterminismTests(ITestOutputHelper output)
     /// beneath, which is once more exactly the set the change is allowed to
     /// reach.
     /// </para>
+    /// <para>
+    /// <b><c>hard-aa</c> was re-recorded again on 2026-08-25</b>, when the
+    /// silhouette stopped being a path union and became a running maximum
+    /// (<c>BrushEngine.MaxCoverage</c>). This one is a <b>bug fix</b> rather than
+    /// a trade, which the entry above was: <c>BuildSilhouette</c> closed a run
+    /// when the dab <em>immediately before</em> the current one strayed 0.05 px
+    /// from the chord, and on a smooth curve that dab hugs the chord however far
+    /// the middle of the run has bulged away. Runs grew long, the capsules they
+    /// collapsed to cut the corner, and a gentle arc landed <b>6-21 px from its
+    /// own dabs</b> (B311). A tolerance checked at the wrong point reads as tight
+    /// and is not.
+    /// </para>
+    /// <para>
+    /// <b>So the value replaced here recorded a defect, and that is worth being
+    /// plain about.</b> The 2026-08-23 entry above re-recorded <c>hard-aa</c> to
+    /// pin the silhouette's render; the render it pinned was displaced. Nothing
+    /// in the suite compared a silhouette against the dabs it was made of -
+    /// <c>LiveMatchesCommittedTests</c> compares live with commit and both took
+    /// the same wrong route - so this file was the only thing holding it, and a
+    /// fingerprint holds whatever it was shown. <c>SilhouetteFollowsItsDabsTests</c>
+    /// now asks the question that was missing, against the per-dab render rather
+    /// than against a remembered number.
+    /// </para>
+    /// <para>
+    /// <b><c>jitter</c> and <c>soft</c> came back byte-identical</b>, which is
+    /// again exactly the set the change is allowed to reach: <c>soft</c> is
+    /// hardness 0.25 and <c>jitter</c> carries scatter and six jitters, so both
+    /// are disqualified from the silhouette predicate and neither can see this.
+    /// Had either moved, the diff would have been wrong.
+    /// </para>
     /// </remarks>
     private const string Baseline = """
         jitter=7CB9FDADF17861527AB11094451A34CA00CA025C80C302CD47472D8043507A09
         soft=5654BE3493C388CE816199F745E9C56AC8D466FC4024DD0BD6155C3F4DA7749D
-        hard-aa=8AAFCED84264B48B00A4488C3F0CB1B9A48DBD9B6D625DDE356DDD243EFCF3B6
+        hard-aa=5C38D5CF0C9D9ADEA4F1C17F571792433222CC8ED3DD09B59DCDA24FABAB7F9F
         """;
 
     /// <summary>Everything stochastic on at once — the only scenario that reaches

@@ -122,6 +122,55 @@ sealed class LivePaintSession
     /// in a single-pass render.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// A hard round mark's coverage so far, as a running maximum (B299).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is what makes a silhouette stroke incremental, and it is the
+    /// whole reason max was chosen over a path union.</b> Max is
+    /// order-independent and idempotent, so a cached prefix plus a fresh tail is
+    /// exactly the whole: a dab already accumulated never has to be looked at
+    /// again. A path union has no such property — its outline is not a prefix of
+    /// itself — which is why every attempt to make the old mechanism
+    /// incremental failed, three of them.
+    /// </para>
+    /// <para>
+    /// <b>Opaque, because that is the trick.</b> Skia has no blend mode that
+    /// maxes alpha — every separable mode composites it the Porter-Duff way —
+    /// so the coverage lives in a colour channel on a surface whose alpha is
+    /// always 1, where <c>Lighten</c> is exactly <c>max</c>. See
+    /// <c>BrushEngine.StampFootprint</c>, which records the same thing for the
+    /// soft brushes' footprint.
+    /// </para>
+    /// <para>
+    /// Document-sized like the scratch beside it, and for the same reason: the
+    /// mark may go anywhere, and a buffer that grew with the stroke would be
+    /// <c>EnsureScratch</c>'s problem a second time.
+    /// </para>
+    /// </remarks>
+    internal SKBitmap? Coverage { get; private set; }
+
+    /// <inheritdoc cref="Coverage"/>
+    internal SKCanvas? CoverageCanvas { get; private set; }
+
+    /// <summary>Make the coverage buffer exist at this size, and empty.</summary>
+    internal void BeginCoverage(int width, int height)
+    {
+        if (Coverage is null || Coverage.Width != width || Coverage.Height != height)
+        {
+            CoverageCanvas?.Dispose();
+            Coverage?.Dispose();
+            Coverage = new SKBitmap(
+                new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Opaque));
+            CoverageCanvas = new SKCanvas(Coverage);
+        }
+
+        // Black is coverage zero, which the colour matrix turns into alpha zero.
+        CoverageCanvas!.Clear(SKColors.Black);
+        CoverageCanvas.Flush();
+    }
+
     internal SKBitmap? TailBackup { get; set; }
 
     internal SKRectI? TailRegion { get; set; }
@@ -285,6 +334,10 @@ sealed class LivePaintSession
         // read, so keeping it saves an allocation per stroke without any state surviving.
         SmudgeCarry = default;
         SmudgeRegion = null;
+        // The coverage buffer is kept for the same reason TailBackup is: it is
+        // reused across strokes and BeginCoverage always clears it before a
+        // stroke reads it, so holding it saves an allocation per stroke without
+        // any state surviving.
         ResetPostProcess();
     }
 

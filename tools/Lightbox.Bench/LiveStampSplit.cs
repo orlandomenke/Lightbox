@@ -40,6 +40,23 @@ namespace Lightbox.Bench;
 /// divergence here would measure something the artist does not pay for.
 /// </para>
 /// <para>
+/// <b>And it drifted within a day of that sentence being written, which is the
+/// argument for the split below.</b> When B311 replaced the silhouette's path
+/// union with max accumulation, this file went on mirroring the old flow and
+/// reported Ink at 65.07 ms an event - a cost the code had stopped paying. A
+/// hand-copy of a hot path is a second implementation, and a second
+/// implementation is a thing that disagrees.
+/// </para>
+/// <para>
+/// <b>So the silhouette route is no longer mirrored at all.</b> It now has real
+/// entry points - <c>BrushEngine.AccumulateCoverage</c> and
+/// <c>CoverageToInk</c> - so this calls them, and the only thing left in the
+/// harness is the bookkeeping being measured: which dabs are new, what the tail
+/// borrowed, which band is read back. The per-dab route keeps its four-phase
+/// mirror because that route did not change, and its phases are exactly what
+/// the question is about.
+/// </para>
+/// <para>
 /// <b>Silhouette brushes are a separate row on purpose, and that row is the
 /// answer.</b> <see cref="BrushEngine.DrawsAsOneSilhouette"/> pins the settled
 /// cut at zero, so for those the "settled" phase never advances and the tail is
@@ -93,18 +110,31 @@ public static class LiveStampSplit
             new(new SKImageInfo(Width, Height, SKColorType.Rgba8888, SKAlphaType.Premul));
 
         public readonly SKCanvas Canvas;
+
+        /// <summary>The silhouette route's persistent coverage, as LivePaintSession holds it.</summary>
+        public readonly SKBitmap Coverage =
+            new(new SKImageInfo(Width, Height, SKColorType.Rgba8888, SKAlphaType.Opaque));
+
+        public readonly SKCanvas CoverageCanvas;
         public SKBitmap? TailBackup;
         public SKRectI? TailRegion;
         public List<BrushEngine.Dab>? Dabs;
         public int StableDabs;
         public readonly IncrementalDensify Densify = new();
 
-        public Live() => Canvas = new SKCanvas(Scratch);
+        public Live()
+        {
+            Canvas = new SKCanvas(Scratch);
+            CoverageCanvas = new SKCanvas(Coverage);
+            CoverageCanvas.Clear(SKColors.Black);
+        }
 
         public void Dispose()
         {
             Canvas.Dispose();
             Scratch.Dispose();
+            CoverageCanvas.Dispose();
+            Coverage.Dispose();
             TailBackup?.Dispose();
         }
     }
@@ -189,8 +219,85 @@ public static class LiveStampSplit
         var walk = sw.Elapsed.TotalMilliseconds;
 
         var wholeMark = BrushEngine.DrawsAsOneSilhouette(sofar.Brush);
-        var stable = wholeMark ? 0 : BrushEngine.StableCount(dabs, live.Dabs);
+        var stable = BrushEngine.StableCount(dabs, live.Dabs);
         live.Dabs = dabs;
+
+        if (wholeMark)
+        {
+            // The engine's own entry points, not a copy of them. Everything
+            // below this branch is the per-dab route, which is unchanged.
+            sw.Restart();
+            if (live.TailRegion is { } handedBack && live.TailBackup is not null)
+            {
+                using var restore = SKImage.FromBitmap(live.TailBackup);
+                using var src = new SKPaint { BlendMode = SKBlendMode.Src };
+                live.CoverageCanvas.DrawImage(
+                    restore,
+                    new SKRect(0, 0, handedBack.Width, handedBack.Height),
+                    new SKRect(handedBack.Left, handedBack.Top, handedBack.Right, handedBack.Bottom),
+                    src);
+                live.CoverageCanvas.Flush();
+            }
+
+            var restoredMs = sw.Elapsed.TotalMilliseconds;
+
+            var cut = Math.Max(live.StableDabs, Math.Min(stable, dabs.Count));
+            sw.Restart();
+            BrushEngine.AccumulateCoverage(live.CoverageCanvas, sofar.Brush, dabs, live.StableDabs, cut);
+            live.CoverageCanvas.Flush();
+            var settledMs = sw.Elapsed.TotalMilliseconds;
+
+            sw.Restart();
+            var lend = BrushEngine.RangeBounds(dabs, cut, sofar.Brush, info);
+            if (lend is { } lending)
+            {
+                if (live.TailBackup is null
+                    || live.TailBackup.Width < lending.Width
+                    || live.TailBackup.Height < lending.Height)
+                {
+                    live.TailBackup?.Dispose();
+                    live.TailBackup = new SKBitmap(new SKImageInfo(
+                        Math.Max(lending.Width, 64), Math.Max(lending.Height, 64),
+                        SKColorType.Rgba8888, SKAlphaType.Premul));
+                }
+
+                using (var region = new SKBitmap())
+                {
+                    if (live.Coverage.ExtractSubset(region, lending))
+                    {
+                        using var px = region.PeekPixels();
+                        using var view = px is null ? null : SKImage.FromPixels(px);
+                        if (view is not null)
+                        {
+                            using var into = new SKCanvas(live.TailBackup);
+                            using var src = new SKPaint { BlendMode = SKBlendMode.Src };
+                            into.DrawImage(view, 0, 0, src);
+                            into.Flush();
+                        }
+                    }
+                }
+
+                BrushEngine.AccumulateCoverage(live.CoverageCanvas, sofar.Brush, dabs, cut, dabs.Count);
+                live.CoverageCanvas.Flush();
+            }
+
+            var changed = BrushEngine.RangeBounds(dabs, live.StableDabs, sofar.Brush, info);
+            if (live.TailRegion is { } before)
+            {
+                changed = changed is { } g ? SKRectI.Union(g, before) : before;
+            }
+
+            if (lend is { } now)
+            {
+                changed = changed is { } g ? SKRectI.Union(g, now) : now;
+            }
+
+            if (changed is { } band) BrushEngine.CoverageToInk(live.Canvas, live.Coverage, sofar, band);
+            live.Canvas.Flush();
+            live.StableDabs = cut;
+            live.TailRegion = lend;
+            return (walk, restoredMs, settledMs, sw.Elapsed.TotalMilliseconds);
+        }
 
         // 1. Take back the tail lent out last time.
         sw.Restart();

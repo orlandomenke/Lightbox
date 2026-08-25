@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Lightbox.App.ViewModels;
+using Lightbox.Raster;
 
 namespace Lightbox.App.Tests;
 
@@ -34,6 +35,80 @@ namespace Lightbox.App.Tests;
 [Collection("BrushState")]
 public class LongStrokeCostTests(ITestOutputHelper output) : BrushStateIsolated
 {
+    /// <summary>
+    /// A hard round stroke re-stamps only the dabs that are still moving,
+    /// however long it gets (B299).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Structural rather than timed, and that is the point.</b> The budget
+    /// test above measures milliseconds and is therefore at the mercy of the
+    /// machine; this measures the thing the milliseconds come from. If the
+    /// settled cut advances, a pointer event repeats only the tail, and the cost
+    /// cannot grow with the mark no matter what the clock says on the day.
+    /// </para>
+    /// <para>
+    /// <b>Why it can be asked at all now.</b> Coverage accumulated as a maximum
+    /// is a per-dab property, so a dab whose position has settled contributes a
+    /// fixed amount for ever and <c>StableCount</c> is a sound cut. The path
+    /// union it replaced had no such prefix - its outline is not a prefix of
+    /// itself - which is why the same cut was tried three times against it and
+    /// failed three times. This test would have been unwritable a day ago.
+    /// </para>
+    /// <para>
+    /// <b>The bound is generous on purpose.</b> What is being refused is growth
+    /// proportional to the stroke, not a particular tail length: at 600 events
+    /// this mark carries thousands of dabs, so a tail that stays in the tens is
+    /// the assertion however the densifier is tuned later.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void ASilhouetteStrokeRestampsOnlyItsMovingTail()
+    {
+        var vm = new MainViewModel(null)
+        {
+            SmoothStrokes = false,
+            BrushSize = 6,
+            BrushHardness = 1,
+            BrushOpacity = 1,
+            BrushFlow = 1,
+            ColorHex = "#000000",
+        };
+        vm.NewDocument(new NewDocumentSettings("ink", 1920, 1080, 12, 72, "#ffffff", false));
+        Assert.True(
+            BrushEngine.DrawsAsOneSilhouette(vm.CurrentToolSettingsForTest),
+            "this test is about the silhouette route and the brush must take it");
+
+        vm.BeginStroke(50, 500, 1);
+        Dispatcher.UIThread.RunJobs();
+
+        var worstTail = 0;
+        var total = 0;
+        var x = 50.0;
+        for (var i = 0; i < 600; i++)
+        {
+            x += 2.5;
+            if (x > 1850) x = 50;
+            vm.MoveStroke(x, 500 + Math.Sin(x / 40) * 200, 0.9);
+            Dispatcher.UIThread.RunJobs();
+
+            var (settled, dabs) = vm.LiveDabCutForTests;
+            total = dabs;
+            // Ignore the opening events, where there is no settled prefix to
+            // speak of and the tail IS the mark.
+            if (i >= 20 && dabs - settled > worstTail) worstTail = dabs - settled;
+        }
+
+        vm.EndStroke();
+        output.WriteLine($"{total} dabs, worst provisional tail {worstTail}");
+
+        // The mark has to be long enough for the question to mean anything: a
+        // stroke of forty dabs would pass this on a build that re-stamped
+        // everything, which is the shape of mistake brush-measurement warns of.
+        Assert.True(total > 1000, $"the stroke only reached {total} dabs");
+        Assert.True(worstTail < 80, $"a pointer event re-stamped {worstTail} dabs");
+    }
+
     [AvaloniaFact]
     [Trait("Category", "Performance")]
     public void APointerEventStaysInBudgetDeepIntoALongStroke()
