@@ -1,6 +1,6 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 4831
+budget: 4824
 
 ## Why it has moved
 
@@ -130,3 +130,4 @@ other's reason and leaves a number nobody can account for.
   right: every member in the block is a static about the hardware rather than
   about the control, so it had a name of its own and now has a file of its own.
   The probe is called from there, so the feature added nothing to this file.
+- **4,831 → 4,824** when `CanvasControl.PointerOwnership.cs` took the question of *which device owns the gesture in flight*: the pen-over-echo takeover B256 needed, and `OnPointerCaptureLost`, which moved with it because deciding whether a capture loss belongs to the owner is the only thing it now does.

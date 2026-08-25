@@ -40,11 +40,29 @@ public class InputTraceReplayTests : BrushStateIsolated
         base.Dispose();
     }
 
-    private static (Window Window, CanvasControl Canvas, MainViewModel Vm) NewRig()
+    private static (Window Window, CanvasControl Canvas, MainViewModel Vm) NewRig() =>
+        NewRig(800, 600);
+
+    /// <summary>
+    /// The same rig at a capture's own recorded size.
+    /// </summary>
+    /// <remarks>
+    /// Every position in a trace is canvas-relative, so replaying a capture
+    /// against a canvas of another size is a different run — most so for the
+    /// enters and exits near an edge, which is what <c>OutsideCanvas</c> exists
+    /// to make loud. A capture that records its rig gets to be replayed on it.
+    /// </remarks>
+    private static (Window Window, CanvasControl Canvas, MainViewModel Vm) NewRig(
+        double width, double height)
     {
         var vm = new MainViewModel(null) { SmoothStrokes = false };
         var canvas = new CanvasControl();
-        var window = new Window { Width = 800, Height = 600, Content = canvas };
+        var window = new Window
+        {
+            Width = width > 0 ? width : 800,
+            Height = height > 0 ? height : 600,
+            Content = canvas,
+        };
         vm.SnapshotChanged += s => canvas.UpdateSnapshot(s);
         canvas.PaintStarted += vm.BeginStroke;
         canvas.PaintMoved += vm.MoveStrokeBatch;
@@ -411,6 +429,64 @@ public class InputTraceReplayTests : BrushStateIsolated
         Assert.Equal(0, result.Samples);
         Assert.Equal(0, capture.CanvasWidth);
         Assert.True(result.Replayed > 0);
+        window.Close();
+    }
+
+    /// <summary>
+    /// The promoted mouse press does not keep the stroke the pen came to make
+    /// (B256).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The reporter's capture, and the whole of the bug in two strokes.</b>
+    /// The pen came back into proximity; Windows Ink's phantom mouse pressed at
+    /// (921, 193) and the pen pressed at (921.6, 193.0) <b>63 ms later</b>. The
+    /// mouse owned the stroke, so the move handler's ownership guard dropped
+    /// every one of the pen's 238 in-contact samples — 210 delivered moves and
+    /// the coalesced points riding with them — and the mark the artist drew for
+    /// 1.1 seconds reached the record as <b>one point</b>. The second stroke
+    /// in the same minute — pen already in proximity, no promoted press — was
+    /// never affected, which is the reporter's <i>"on release and drawing again
+    /// solves it"</i> measured rather than described.
+    /// </para>
+    /// <para>
+    /// <b>Asserted on the record, not on the events.</b> Invariant 1: the stroke
+    /// record is the document, so what was lost is points in a document, and
+    /// counting delivered batches would pass on a build that delivered them and
+    /// then dropped them.
+    /// </para>
+    /// <para>
+    /// <b>This one IS an evidence anchor on B256</b>, unlike
+    /// <c>StrokeAxisLockTests</c>, and the difference is what each proves. Those
+    /// demonstrate a mechanism that could produce the reported shape; this
+    /// replays the minute in which it actually happened and holds the outcome.
+    /// The residual manual step is the reporter confirming the symptom is gone,
+    /// which no capture can do — but the mark being lost is no longer a
+    /// hypothesis about a machine this repository has not got.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void ThePromotedMousePressDoesNotKeepTheStrokeThePenCameToMake()
+    {
+        var capture = InputTraceLog.ReadFile(
+            Fixture("huion-pen-echo-press-steals-the-stroke.txt"));
+        var (window, canvas, vm) = NewRig(capture.CanvasWidth, capture.CanvasHeight);
+
+        InputTraceReplay.Replay(capture, window, canvas);
+
+        var strokes = vm.PaintStrokes();
+        Assert.Equal(2, strokes.Count);
+        // One point before the fix, measured. The threshold is far above that
+        // and far below the ~200 the pen's moves survive the sample-distance
+        // filter as, so it fails on the bug and does not chase the filter.
+        Assert.True(
+            strokes[0].Points.Count > 50,
+            $"the pen's mark reached the record as {strokes[0].Points.Count} points");
+        // The sensitivity half: the stroke that never lost the race is the
+        // control, so a build where no mark lands at all cannot pass.
+        Assert.True(
+            strokes[1].Points.Count > 50,
+            $"the uncontested mark reached the record as {strokes[1].Points.Count} points");
         window.Close();
     }
 
