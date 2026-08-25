@@ -203,15 +203,7 @@ public partial class MainWindow : Window
                 if (ReferenceEquals(v, Canvas)) return true;
             return false;
         }
-        Canvas.PickClicked += _vm.PickColorAt;
-        Canvas.GradientDragStarted += _vm.BeginGradient;
-        Canvas.GradientDragMoved += _vm.MoveGradient;
-        Canvas.GradientDragEnded += _vm.EndGradient;
-        Canvas.ShapeDragStarted += _vm.BeginShape;
-        Canvas.ShapeDragMoved += _vm.MoveShape;
-        Canvas.ShapeDragEnded += _vm.EndShape;
-        Canvas.GradientDragCancelled += _vm.CancelGradient;
-        _vm.GradientAxisChanged += Canvas.SetGradientAxis;
+        WireCanvasTools();
 
         Canvas.ReferenceDragged += (dx, dy, wholeSheet) =>
         {

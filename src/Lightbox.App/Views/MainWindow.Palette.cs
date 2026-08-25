@@ -110,18 +110,40 @@ public partial class MainWindow
         {
             if (item.TryGetLocalPath() is not { } path) continue;
             var ext = Path.GetExtension(path).ToLowerInvariant();
-            if (ReferenceImageExtensions.Contains(ext) || ReferenceVideoExtensions.Contains(ext))
-            {
-                paths.Add(path);
-            }
+            // Video still goes by name — the importer asks a question about
+            // footage and must not ask it about a picture. Images go by content
+            // instead (B282): a browser's cached drag is a temporary file whose
+            // name says nothing, and ImportReferenceImageFile already answers
+            // false for anything that does not decode.
+            if (ReferenceVideoExtensions.Contains(ext) || !IsProbablyVideo(ext)) paths.Add(path);
         }
         return paths;
     }
 
+    /// <summary>
+    /// Whether a name looks like footage we do not handle — the one thing a
+    /// picture import must not be handed by mistake.
+    /// </summary>
+    private static bool IsProbablyVideo(string extension) =>
+        extension is ".mpg" or ".mpeg" or ".wmv" or ".flv" or ".m4v" or ".ogv";
+
+    /// <summary>
+    /// Whether this drag is one the window would take.
+    /// </summary>
+    /// <remarks>
+    /// <b>One question, asked once (B282).</b> There were two returns here, and
+    /// the second undid the first: a drag carrying no files was refused even
+    /// when it carried a perfectly good picture URL, so the pointer said no to
+    /// every drag straight from a browser.
+    /// </remarks>
     private void OnFileDragOver(object? sender, DragEventArgs e)
     {
-        if (DroppedReferenceFiles(e).Count == 0 && DroppedWebImages(e).Count == 0) return;
-        if (DroppedReferenceFiles(e).Count == 0) return;
+        if (DroppedReferenceFiles(e).Count == 0
+            && DroppedWebImages(e).Count == 0
+            && Services.WebImageDrop.EmbeddedImageIn(e.DataTransfer) is null)
+        {
+            return;
+        }
         e.DragEffects = DragDropEffects.Copy;
         e.Handled = true;
     }
@@ -149,9 +171,10 @@ public partial class MainWindow
         }
 
         var uris = DroppedWebImages(e);
-        if (uris.Count == 0) return;
+        var embedded = Services.WebImageDrop.EmbeddedImageIn(e.DataTransfer);
+        if (uris.Count == 0 && embedded is null) return;
         e.Handled = true;
-        await ImportWebImage(uris);
+        await ImportWebImage(uris, embedded, e.DataTransfer);
     }
 
     /// <summary>
@@ -160,31 +183,41 @@ public partial class MainWindow
     /// are the same picture described three ways (uri-list, text, HTML), so
     /// importing them all would tape up duplicates.
     /// </summary>
-    private async Task ImportWebImage(IReadOnlyList<Uri> uris)
+    private async Task ImportWebImage(
+        IReadOnlyList<Uri> uris, byte[]? embedded, Avalonia.Input.IDataTransfer? data)
     {
         _vm.AiStatus = "Fetching the image…";
         foreach (var uri in uris)
         {
-            var bytes = await Services.WebImageDrop.FetchAsync(uri);
-            if (bytes is null || !_vm.ImportReferenceImageBytes(Services.WebImageDrop.NameFor(uri), bytes))
-            {
-                continue;
-            }
-            _vm.AiStatus = $"Drawing against \u201c{Services.WebImageDrop.NameFor(uri)}\u201d.";
+            // A candidate that fetches as a *page* is read once for the image
+            // it names (B285) \u2014 that is what a drag off any site that wraps
+            // its pictures in links carries.
+            if (await Services.WebImageDrop.FetchImageAsync(uri) is not { } got) continue;
+            var name = Services.WebImageDrop.NameFor(got.Source);
+            if (!_vm.ImportReferenceImageBytes(name, got.Bytes)) continue;
+            _vm.AiStatus = $"Drawing against \u201c{name}\u201d.";
             _vm.ReferenceDockerVisible = true;
             return;
         }
-        // Every candidate failed — refused by the site, or bytes that are not
-        // an image (a page URL dragged instead of the picture).
-        _vm.AiStatus = "That drop did not contain an image Lightbox could read.";
+        // Last: the picture the drag was carrying itself (B294). Behind the
+        // fetch because it may be a thumbnail, in front of a refusal because a
+        // thumbnail to draw against beats no reference at all.
+        if (embedded is not null && _vm.ImportReferenceImageBytes("Web image", embedded))
+        {
+            _vm.AiStatus = "Drawing against the dropped picture.";
+            _vm.ReferenceDockerVisible = true;
+            return;
+        }
+
+        // Every candidate failed — refused by the site, or a page that names
+        // no image Lightbox can read. What the drag carried goes to the log,
+        // because the format names are the whole diagnosis (B294).
+        Services.DiagnosticLog.WriteNote(
+            "reference-drop", "carried " + Services.WebImageDrop.DescribeFormats(data));
+        _vm.AiStatus = "That drop did not contain an image Lightbox could read — what it did carry is "
+            + "in the diagnostics log (Help ▸ Open the diagnostics folder).";
     }
 
-    /// <summary>Formats a picture dragged out of a browser can arrive in.</summary>
-    private static readonly DataFormat<string> UriListFormat =
-        DataFormat.CreateStringPlatformFormat("text/uri-list");
-
-    private static readonly DataFormat<string> HtmlFormat =
-        DataFormat.CreateStringPlatformFormat("text/html");
 
     /// <summary>
     /// The web-image candidates in a drag, or none — the browser counterpart
@@ -193,11 +226,15 @@ public partial class MainWindow
     /// </summary>
     private static IReadOnlyList<Uri> DroppedWebImages(DragEventArgs e)
     {
-        if (e.DataTransfer is not { } data || data.Contains(DataFormat.File)) return [];
-        return Services.WebImageDrop.ImageUris(
-            data.TryGetValue(UriListFormat),
-            data.TryGetText(),
-            data.TryGetValue(HtmlFormat));
+        // Carrying files no longer rules a drag out (B282): a browser commonly
+        // offers both, and refusing the web half whenever a file was advertised
+        // meant a picture the file half could not open was refused outright.
+        // The drop tries files first and only asks here when none worked.
+        //
+        // Every format the drag holds is read (B294): asking for three format
+        // names is an X11 spelling, and a browser on another platform spells
+        // the same three things differently.
+        return Services.WebImageDrop.ImageUrisIn(e.DataTransfer);
     }
 
     private async void OnImportPaletteClicked(object? sender, RoutedEventArgs e)

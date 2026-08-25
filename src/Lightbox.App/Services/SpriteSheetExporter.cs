@@ -194,9 +194,10 @@ public static class SpriteSheetExporter
         {
             if (!resolved.TryGetValue(anchor.Id, out var point)) continue;
             var name = string.IsNullOrWhiteSpace(anchor.Name) ? anchor.Id : anchor.Name.Trim();
-            if (!byName.TryAdd(name, new Point(point.X - cell.Left, point.Y - cell.Top)))
+            var exported = new Point(point.X - cell.Left, point.Y - cell.Top, point.AngleDeg);
+            if (!byName.TryAdd(name, exported))
             {
-                byName[$"{name} ({anchor.Id})"] = new Point(point.X - cell.Left, point.Y - cell.Top);
+                byName[$"{name} ({anchor.Id})"] = exported;
             }
         }
         return byName.Count > 0 ? byName : null;
@@ -715,16 +716,50 @@ public static class SpriteSheetExporter
         Scene scene, FrameBitmapCache cache, int index, HashSet<string> skipLayerIds)
     {
         var passes = new List<RenderPass>();
-        foreach (var layer in scene.Layers)
+        for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
         {
+            var layer = scene.Layers[layerIndex];
             if (skipLayerIds.Contains(layer.Id)) continue;
+            // An adjustment layer filters what the loop already composed.
+            if (layer.IsAdjustment)
+            {
+                if (EffectPasses.AdjustmentPass(scene, layerIndex, index, cache) is { } adj)
+                {
+                    passes.Add(adj);
+                }
+                continue;
+            }
             var frame = ExposureSheet.ExposedFrame(layer, index);
             if (frame is null) continue;
+            // Masks and clipping export as the canvas shows them; an empty
+            // shape list is a clipped layer over nothing this frame.
+            var shapes = LayerShapes.For(scene, layerIndex, index);
+            if (shapes is { Count: 0 }) continue;
             passes.Add(new RenderPass(
                 cache.Get(frame, scene.Width, scene.Height, celIndex: index), null, layer.Opacity,
-                SceneRenderer.ToSkia(layer.BlendMode)));
+                SceneRenderer.ToSkia(layer.BlendMode),
+                Shapes: LayerShapes.Resolve(shapes, cache, scene.Width, scene.Height, index),
+                Effect: EffectPasses.SelfFilter(layer, index),
+                Style: EffectPasses.SelfStyle(layer, index)));
         }
-        return SceneRenderer.Compose(scene.Width, scene.Height, passes, SKColors.Transparent);
+        // The scene grade, over the drawings and under the worn attachments'
+        // own pass order below — a sheet grades exactly as the canvas does.
+        if (EffectPasses.SceneStackPass(scene, index) is { } sheetGrade) passes.Add(sheetGrade);
+        // Q143: what the viewed variant wears exports with the drawing, the
+        // same way the variant's colours already do — an export that showed
+        // the armor on screen and dropped it from the sheet would be the
+        // canvas lying about the deliverable. Ambient like the palettes, so a
+        // document exported with no variant on view exports exactly as ever.
+        var worn = AttachmentOverlay.Render(scene, index);
+        if (worn is not null) passes.Add(new RenderPass(worn, null, 1.0));
+        try
+        {
+            return SceneRenderer.Compose(scene.Width, scene.Height, passes, SKColors.Transparent);
+        }
+        finally
+        {
+            worn?.Dispose();
+        }
     }
 
     /// <summary>
@@ -1016,7 +1051,17 @@ public static class SpriteSheetExporter
         [property: JsonPropertyName("w")] int W,
         [property: JsonPropertyName("h")] int H);
 
+    /// <remarks>
+    /// The angle is Q144's socket direction — degrees, zero along +X, positive
+    /// clockwise on the y-down cell, same convention as every exported
+    /// <c>RotationDeg</c>. Null writes no key (the options ignore nulls), so a
+    /// pivot and an unaimed anchor serialize exactly as they always have. The
+    /// Unity payload deliberately does not carry it yet: its anchors are fixed
+    /// <c>[x, y]</c> arrays and a third element would reshape a contract
+    /// importers already parse.
+    /// </remarks>
     private sealed record Point(
         [property: JsonPropertyName("x")] double X,
-        [property: JsonPropertyName("y")] double Y);
+        [property: JsonPropertyName("y")] double Y,
+        [property: JsonPropertyName("angle")] double? Angle = null);
 }

@@ -41,10 +41,16 @@ namespace Lightbox.App.Rendering;
 /// not the one that reaches playback.
 /// </para>
 /// <para>
-/// <b>The pixels must not change.</b> This composes exactly what
-/// <c>ComposeViewportCulled</c> composed, in the same order, with the same
-/// transform; <c>ComposeIdentityTests</c> is the harness that says so, and
-/// <c>DeferredComposeTests</c> is where it is said.
+/// <b>The pixels must not change, and the first way that was checked was not
+/// enough.</b> This was written to compose exactly what the view model's
+/// <c>ComposeViewportCulled</c> composed, and it did — both of them read five
+/// fields of a <see cref="RenderPass"/> and ignored the rest, so they agreed
+/// with each other perfectly while both disagreed with
+/// <see cref="SceneRenderer"/>, which is the path that decides what a mask,
+/// an effect, a style and an adjustment layer look like. That is B201's shape
+/// exactly, one level up, and it is B309. The reference the tests measure
+/// against is now <see cref="SceneRenderer"/> itself, and the copy this was
+/// taken from is deleted rather than left to be copied again.
 /// </para>
 /// </remarks>
 /// <param name="Passes">
@@ -117,6 +123,20 @@ public readonly record struct DeferredCompose(
         for (var i = 0; i < Passes.Count; i++)
         {
             var pass = Passes[i];
+
+            // B309: the fast body below knows about bitmaps, tint, opacity,
+            // blend and a live overlay, and nothing else. Every other field a
+            // pass can carry — a mask's shapes, the layer's own effect, its
+            // styles, an adjustment stack, a per-pass matrix, a reference
+            // cell's source window — is drawn by the one implementation that
+            // understands it. Skipping them, which is what this loop used to
+            // do, is a layer that quietly stops being carved and a grade that
+            // quietly stops applying, on the route a zoomed-in artist takes.
+            if (NeedsFullFidelity(pass))
+            {
+                SceneRenderer.DrawOne(surface, canvas, pass, RenderScale, transform: null);
+                continue;
+            }
             if (pass.Bitmap is null) continue;
 
             using var paint = new SKPaint { BlendMode = pass.Blend };
@@ -174,6 +194,38 @@ public readonly record struct DeferredCompose(
         canvas.Flush();
         return surface.Snapshot();
     }
+
+    /// <summary>
+    /// Whether this pass carries anything the fast body below cannot express,
+    /// and must therefore go through <see cref="SceneRenderer.DrawOne"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Stated as what the fast path CAN do, not as a list of what is new
+    /// (B309).</b> The bug this replaces was a loop that read five fields of a
+    /// record with thirteen and ignored the rest in silence; enumerating the
+    /// exotic ones here would reintroduce it the next time a field is added.
+    /// A pass reaches the fast route only by being plainly ordinary, so a
+    /// field added to <see cref="RenderPass"/> tomorrow is drawn correctly
+    /// (and more slowly) rather than dropped.
+    /// </para>
+    /// <para>
+    /// The overlay's own mask is in the list for the same reason: an
+    /// alpha-locked or clipped live stroke needs the isolation
+    /// <see cref="StrokeOverlay.NeedsMask"/> describes, and the fast body
+    /// draws the scratch flat. <c>MainViewModel</c> asserts no overlay reaches
+    /// this route at all, but that is a <c>Debug.Assert</c> — compiled out of
+    /// the build an artist runs, which is the build that must not be wrong.
+    /// </para>
+    /// </remarks>
+    internal static bool NeedsFullFidelity(RenderPass pass) =>
+        pass.Shapes is { Count: > 0 }
+        || pass.Effect is not null
+        || pass.Style is not null
+        || pass.AdjustStack is not null
+        || pass.Matrix is not null
+        || pass.Source is not null
+        || pass.Overlay is { NeedsMask: true };
 
     /// <summary>
     /// Linear, matching what the canvas already uses for the finished frame. The

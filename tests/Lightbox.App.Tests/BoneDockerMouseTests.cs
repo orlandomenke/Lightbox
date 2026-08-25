@@ -22,7 +22,8 @@ namespace Lightbox.App.Tests;
 /// show for the Bone tool — and still hit-tested, an invisible sheet over
 /// the whole panel. These tests click.
 /// </summary>
-public class BoneDockerMouseTests
+[Collection("BrushState")]
+public class BoneDockerMouseTests : BrushStateIsolated
 {
     private static void Pump() => Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 

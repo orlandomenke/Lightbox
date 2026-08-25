@@ -38,6 +38,30 @@ namespace Lightbox.App.Rendering;
 /// are indistinguishable otherwise.</item>
 /// </list>
 /// </remarks>
+/// <summary>
+/// Where a session composites, as the artist set it.
+/// </summary>
+/// <remarks>
+/// <b>Three states rather than a checkbox, because "off" and "not asked" are
+/// different answers and the old bool could not tell them apart.</b> Every
+/// settings file written before this existed carries <c>"GpuCompositing": false</c>
+/// whether the artist chose it or never opened the page — so reading that false
+/// as a decision would pin every existing install to the processor forever,
+/// which is the outcome defaulting to Auto exists to avoid. See
+/// <c>AppSettings.MigrateGpuCompositing</c>.
+/// </remarks>
+public enum GpuComposeMode
+{
+    /// <summary>Let the machine decide — <see cref="GpuComposeProbe"/> measures and answers.</summary>
+    Auto,
+
+    /// <summary>The card, whatever the probe thinks.</summary>
+    On,
+
+    /// <summary>The processor, whatever the probe thinks.</summary>
+    Off,
+}
+
 internal static class GpuComposite
 {
     /// <summary>
@@ -159,49 +183,85 @@ internal static class GpuComposite
     /// </para>
     /// </remarks>
     internal static bool OptedIn =>
-        _override ?? (ForcedByEnvironment || SettingEnabled);
+        _override ?? (ForcedByEnvironment || Mode switch
+        {
+            GpuComposeMode.On => true,
+            GpuComposeMode.Off => false,
+            // Auto, and the probe has not answered yet: the processor. The
+            // frames before the first render are few and being briefly right is
+            // better than being briefly fast.
+            _ => _autoDecision == true,
+        });
 
     /// <summary>
-    /// Mirrors <c>AppSettings.GpuCompositing</c>, written when settings load and
-    /// when the toggle moves.
+    /// What the artist asked for: the card, the processor, or "decide on this
+    /// machine".
     /// </summary>
     /// <remarks>
     /// <para>
-    /// A mirror rather than a read, because this is consulted from the render
-    /// thread inside the draw op and the settings object lives on the view model.
-    /// A bool written on the UI thread and read on the render thread is the one
-    /// shape of sharing that needs no synchronisation — a torn read of a bool
-    /// does not exist, and being one frame stale after a toggle is invisible.
+    /// A mirror of <c>AppSettings.GpuCompositingMode</c> rather than a read of
+    /// it, for the reason the old bool had: this is consulted from the render
+    /// thread inside the draw op and the settings object lives on the view
+    /// model. A value written on the UI thread and read on the render thread is
+    /// the one shape of sharing that needs no synchronisation, and being one
+    /// frame stale after a toggle is invisible.
     /// </para>
     /// <para>
     /// <b>Moving it clears the counters, and that is B184 rather than tidiness.</b>
-    /// Nothing else in the application ever calls <see cref="ResetCounters"/>, so
-    /// the tallies ran for the life of the process — and every composite made
-    /// while the toggle was <em>off</em> landed in <see cref="CpuComposites"/>,
-    /// which the report then prints as a fallback. A capture taken after a
-    /// bisect therefore read <c>160 did, 207 fell back</c> when nothing had
-    /// fallen back at all: the 207 were the previous playback, taken with the
-    /// path switched off. That is the exact reading a discriminating experiment
+    /// The tallies otherwise run for the life of the process, so a capture taken
+    /// after a switch reads the previous mode's composites as this one's
+    /// fallbacks — which is exactly the reading a discriminating experiment
     /// cannot survive, and it happened on the one bug the experiment was for.
     /// </para>
-    /// <para>
-    /// The counts are only ever printed for the mode that is running, so
-    /// clearing them on the transition loses nothing and makes the line mean
-    /// what it says.
-    /// </para>
     /// </remarks>
-    internal static bool SettingEnabled
+    internal static GpuComposeMode Mode
     {
-        get => _settingEnabled;
+        get => _mode;
         set
         {
-            if (_settingEnabled == value) return;
-            _settingEnabled = value;
+            if (_mode == value) return;
+            _mode = value;
             ResetCounters();
         }
     }
 
-    private static bool _settingEnabled;
+    private static GpuComposeMode _mode = GpuComposeMode.Auto;
+
+    private static bool? _autoDecision;
+
+    /// <summary>The probe's measurement, or null when it has not run this session.</summary>
+    internal static GpuProbeResult? AutoProbe { get; private set; }
+
+    /// <summary>
+    /// Whether <see cref="GpuComposeMode.Auto"/> has decided, and which way —
+    /// null until the probe has run.
+    /// </summary>
+    internal static bool? AutoDecision => _autoDecision;
+
+    /// <summary>
+    /// Record what the machine said. Called once per session from the draw op,
+    /// which is the only place with a graphics context.
+    /// </summary>
+    /// <remarks>
+    /// The counters are cleared with it for the same reason a mode change clears
+    /// them: composites made before the verdict landed were made under the other
+    /// answer, and a report that mixes them says something untrue about both.
+    /// </remarks>
+    internal static void NoteProbe(in GpuProbeResult result)
+    {
+        AutoProbe = result;
+        var decided = GpuComposeProbe.Decide(result);
+        if (_autoDecision == decided) return;
+        _autoDecision = decided;
+        ResetCounters();
+    }
+
+    /// <summary>For tests: forget the session's verdict.</summary>
+    internal static void ForgetProbeForTests()
+    {
+        AutoProbe = null;
+        _autoDecision = null;
+    }
 
     /// <summary>For tests: force the opt-in on or off, or null to read the real answer.</summary>
     internal static bool? OptInOverride

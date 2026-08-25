@@ -223,6 +223,14 @@ jobs:
       - name: The roadmap's checkboxes match the code
         run: python3 scripts/roadmap.py check
 
+      # CLAUDE.md is loaded into every session and again into every subagent, so
+      # a paragraph added to it is paid once per agent per session, forever. It
+      # reached 37,909 characters before anything measured that, half of it in
+      # two sections. The ratchet holds the line; the rule it enforces is that a
+      # rule stays resident and the incident that produced it moves to a skill.
+      - name: The per-session prelude is within its budget
+        run: python3 scripts/prelude.py check
+
       # The generated index is untracked (2026-08-08, Q55): committing it made
       # every pair of parallel branches conflict by construction, and GitHub
       # runs no merge driver, so every open PR went red the moment any other

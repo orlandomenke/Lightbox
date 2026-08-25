@@ -124,6 +124,36 @@ public class MotionTrailTests
         Assert.Equal(50, point.Y);
     }
 
+    /// <summary>
+    /// B301, the other half of the test above. That one proves the eraser's own
+    /// path is not the subject; this one proves the ink it took away is not the
+    /// subject either. Rejecting the erasure while keeping what it erased put
+    /// the marker between the drawing and a scribble nobody can see.
+    /// </summary>
+    [Fact]
+    public void InkAnEraserTookAwayIsNotTheSubjectEither()
+    {
+        var frame = DrawingAt(30);
+        // A scribble far to the right, then rubbed out along its whole length.
+        frame.Strokes.Add(new Stroke
+        {
+            Points = [new StrokePoint(190, 40, 1), new StrokePoint(210, 60, 1)],
+        });
+        frame.Strokes.Add(new Stroke
+        {
+            Tool = ToolKind.Eraser,
+            Brush = new BrushSettings { Size = 60 },
+            Points = [new StrokePoint(190, 40, 1), new StrokePoint(210, 60, 1)],
+        });
+        var layer = new Layer { Cels = [new Cel { Frame = frame }] };
+
+        var point = Assert.Single(MotionTrail.PointsAround(new Scene(), layer, 0, 0, 0));
+
+        // Raw bounds would span 20..210 and mark the subject at 115.
+        Assert.Equal(30, point.X);
+        Assert.Equal(50, point.Y);
+    }
+
     [Fact]
     public void AnEmptyDrawingHasNoTickAndTheDocumentPivotIsNotAFallback()
     {

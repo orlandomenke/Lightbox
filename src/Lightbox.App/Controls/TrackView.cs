@@ -19,12 +19,20 @@ namespace Lightbox.App.Controls;
 /// </param>
 /// <param name="Breakdowns">Which of <paramref name="Keys"/> are breakdowns (hollow dots).</param>
 /// <param name="Kind">What this row stands for — see <see cref="TrackKind"/>.</param>
+/// <param name="HasChildren">
+/// Whether the row folds: the armature summary always, a bone with children.
+/// The painter draws the chevron; the fold itself is the host's state, the
+/// same division as every other verb here.
+/// </param>
+/// <param name="Folded">The chevron's direction — true points right, closed.</param>
 public sealed record TrackRow(
     string Name,
     IReadOnlyList<int> Keys,
     IReadOnlyList<int> HoldEnds,
     IReadOnlyList<bool> Breakdowns,
-    TrackKind Kind = TrackKind.Layer)
+    TrackKind Kind = TrackKind.Layer,
+    bool HasChildren = false,
+    bool Folded = false)
 {
     /// <summary>The camera track wears the fixed camera colour.</summary>
     public bool IsCamera => Kind is TrackKind.Camera;
@@ -154,6 +162,19 @@ public class TrackView : Control
     /// selecting one means.
     /// </summary>
     public event Action<int, int, bool, bool>? KeySelectRequested;
+
+    /// <summary>
+    /// A right-click landed on a track's empty run — no dot, no clip bar: the
+    /// row, the frame under the pointer, and where to put the menu. The verbs
+    /// that need no key to aim at (paste, key-here) live on it.
+    /// </summary>
+    public event Action<int, int, Point>? TrackAreaMenuRequested;
+
+    /// <summary>
+    /// The fold chevron in the gutter was clicked. The host owns the fold —
+    /// which bones are open is selection-like state, not geometry.
+    /// </summary>
+    public event Action<int>? FoldToggleRequested;
 
     /// <summary>
     /// The scratch track's waveform, one min/max pair per frame, or null for
@@ -365,7 +386,13 @@ public class TrackView : Control
         Color.Parse("#E8C55F"), // gold
     ];
 
-    private static readonly Color CameraColour = Color.Parse("#FF9F45");
+    /// <summary>
+    /// The camera's one hue, wherever it shows — the timeline track, the
+    /// ruler's key dots, the graph editor's X curve, the Scene panel's path.
+    /// Internal so the code-side consumers share this definition; the XAML
+    /// side reads its twin, <c>CameraTrack</c> in <c>Palette.axaml</c>.
+    /// </summary>
+    internal static readonly Color CameraColour = Color.Parse("#FF9F45");
 
     /// <summary>The rig's fixed colour — the bone chrome's, so the two read as one system.</summary>
     private static readonly Color ArmatureColour = Color.Parse("#7EC8E3");
@@ -466,6 +493,17 @@ public class TrackView : Control
                 track.Name, System.Globalization.CultureInfo.InvariantCulture,
                 FlowDirection.LeftToRight, typeface, 11, text);
             context.DrawText(name, new Point(10, y - name.Height / 2));
+
+            // The fold chevron, left of the name: right-pointing closed, down
+            // open — the tree control's vocabulary without the tree control.
+            if (track.HasChildren)
+            {
+                var chevron = new FormattedText(
+                    track.Folded ? "▸" : "▾",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    FlowDirection.LeftToRight, typeface, 9, text);
+                context.DrawText(chevron, new Point(1, y - chevron.Height / 2));
+            }
 
             // The track line, faint, full width — the rail the dots ride.
             var rail = new Pen(new SolidColorBrush(Color.FromArgb(0x30, colour.R, colour.G, colour.B)), 2);
@@ -743,7 +781,24 @@ public class TrackView : Control
         var tracks = Tracks;
         if (tracks is null || tracks.Count == 0) return;
         var p = e.GetPosition(this);
-        if (p.X < Gutter) return;
+        if (p.X < Gutter)
+        {
+            // The fold chevron is the one live spot in the gutter. Generous
+            // about x — the whole indent is easier to hit than a 9px glyph —
+            // and strict about the row actually folding, so a click on a
+            // plain layer's name stays inert.
+            if (p.Y > RulerHeight && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            {
+                var row = RowAtY(p.Y, tracks.Count);
+                if (row < tracks.Count && tracks[row].HasChildren
+                    && Math.Abs(p.Y - YAtRow(row)) <= RowPitch / 2)
+                {
+                    FoldToggleRequested?.Invoke(row);
+                    e.Handled = true;
+                }
+            }
+            return;
+        }
 
         if (p.Y > RulerHeight)
         {
@@ -801,6 +856,19 @@ public class TrackView : Control
             e.Pointer.Capture(this);
             e.Handled = true;
             return;
+        }
+
+        // A right-click that hit no dot and no clip asks for the track-area
+        // menu — paste and the key-here verbs need a frame, not a key.
+        if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed && p.Y > RulerHeight)
+        {
+            var row = RowAtY(p.Y, tracks.Count);
+            if (Math.Abs(p.Y - YAtRow(row)) <= RowPitch / 2)
+            {
+                TrackAreaMenuRequested?.Invoke(row, FrameAtX(p.X, FrameWidth, FrameCount), p);
+                e.Handled = true;
+                return;
+            }
         }
 
         // Anywhere else in the frame area scrubs, ruler included.

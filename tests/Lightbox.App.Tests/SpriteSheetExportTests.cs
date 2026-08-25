@@ -472,6 +472,28 @@ public class SpriteSheetExportTests : IDisposable
     }
 
     [Fact]
+    public void TheSidecarCarriesTheSocketsAngle()
+    {
+        // Q144. Degrees beside the position, so an engine can turn the sword
+        // with the hand — and absent entirely when nobody aimed the socket,
+        // so an old importer parses exactly what it always parsed.
+        var doc = Walking(2);
+        var layer = doc.Scene.Layers.First(l => !l.IsBackground);
+        var aimed = Anchors.Declare(doc.Scene, "muzzle");
+        var plain = Anchors.Declare(doc.Scene, "hand");
+        Anchors.SetAcross(layer, 0, 2, aimed.Id, new AnchorPoint(70, 60, -45));
+        Anchors.SetAcross(layer, 0, 2, plain.Id, new AnchorPoint(30, 30));
+
+        var result = SpriteSheetExporter.Export(doc, Path_("angled.png"));
+
+        var frame = Meta(result).GetProperty("frames")[0];
+        Assert.Equal(-45, frame.GetProperty("anchors").GetProperty("muzzle")
+            .GetProperty("angle").GetDouble());
+        Assert.False(frame.GetProperty("anchors").GetProperty("hand")
+            .TryGetProperty("angle", out _), "an unaimed socket grew an angle key");
+    }
+
+    [Fact]
     public void AnAnchorOnAHeldDrawingIsExportedOnEveryFrameItShows()
     {
         // A socket that vanished on every other frame would read as a rigging bug

@@ -16,6 +16,20 @@ using SkiaSharp;
 
 namespace Lightbox.App.ViewModels;
 
+/// <summary>What <see cref="MainViewModel.SetExternalKey"/> did to the cel.</summary>
+public enum ExternalKeyOutcome
+{
+    /// <summary>The layer is hidden or locked — nothing changed.</summary>
+    Refused,
+
+    /// <summary>A drawing was already there; only its role changed, and it
+    /// stays the artist's (no provenance).</summary>
+    ReMarked,
+
+    /// <summary>An empty drawing was created, carrying agent provenance.</summary>
+    Created,
+}
+
 /// <summary>Part of MainViewModel — see MainViewModel.cs.</summary>
 /// <remarks>
 /// Split out of <c>MainViewModel.cs</c> under Q78, which was 13,628 lines across 61
@@ -678,7 +692,13 @@ public partial class MainViewModel
             case DocumentTabKind.Reference:
                 // Undo/redo replaces the wrapper doc's layer list; keep the
                 // owning document's view pointed at whatever the editor holds.
-                if (tab.View is { } view) view.Layers = Doc.Scene.Layers;
+                // The guides ride the same way (B287): they live on the view
+                // record, and the wrapper is rebuilt on every open.
+                if (tab.View is { } view)
+                {
+                    view.Layers = Doc.Scene.Layers;
+                    view.Guides = Doc.Scene.Guides;
+                }
                 // A project sheet's edits belong to the project, the way a
                 // symbol's do — there is no owning document to dirty, and the
                 // project's save is what writes them.
@@ -749,17 +769,22 @@ public partial class MainViewModel
         // walked every cel of every layer and every stroke of every frame,
         // which on a long scene is more work than the loop it was protecting,
         // and it ran on every edit.
-        var below = new List<(Layer Layer, Frame Frame)>();
+        var below = new List<(Layer Layer, Frame? Frame)>();
         foreach (var layer in scene.Layers)
         {
-            if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is not { } exposed) continue;
-            if (exposed is Frame painted && LiveStrokes(painted) is { Count: > 0 } live)
+            var exposed = ExposureSheet.ExposedFrame(layer, CurrentFrameIndex);
+            if (exposed is { } painted && LiveStrokes(painted) is { Count: > 0 } live)
             {
                 Rebake(live, below, scene.Width, scene.Height);
                 InvalidateFrameRender(painted.Id);
                 _dirtyThumbIds.Add(painted.Id);
             }
-            if (scene.IsLayerVisible(layer)) below.Add((layer, exposed));
+            // An adjustment layer exposes no drawing and still belongs in the
+            // stack a sample froze against — it changes what the stroke saw.
+            if (scene.IsLayerVisible(layer) && (exposed is not null || layer.IsAdjustment))
+            {
+                below.Add((layer, exposed));
+            }
         }
     }
 
@@ -767,7 +792,7 @@ public partial class MainViewModel
         [.. frame.Strokes.Where(s => s.Brush.SampleSource == SampleSource.AllLayersLive)];
 
     /// <summary>Re-freeze one frame's live strokes against the stack beneath it.</summary>
-    private void Rebake(List<Stroke> live, List<(Layer Layer, Frame Frame)> below, int width, int height)
+    private void Rebake(List<Stroke> live, List<(Layer Layer, Frame? Frame)> below, int width, int height)
     {
         if (below.Count == 0)
         {
@@ -777,11 +802,32 @@ public partial class MainViewModel
             return;
         }
 
-        var passes = below
-            .Select(b => new RenderPass(
-                _cache.Get(b.Frame, width, height, celIndex: CurrentFrameIndex),
-                null, b.Layer.Opacity, SceneRenderer.ToSkia(b.Layer.BlendMode)))
-            .ToList();
+        var passes = new List<RenderPass>(below.Count);
+        foreach (var b in below)
+        {
+            // The stroke re-reads what it visibly sat on, so the stack it
+            // froze against is shaped and filtered like the composite
+            // (IndexOf is fine: a rebake happens per edit, not per pointer
+            // event).
+            var layerIndex = Scene.Layers.IndexOf(b.Layer);
+            if (b.Layer.IsAdjustment)
+            {
+                if (EffectPasses.AdjustmentPass(Scene, layerIndex, CurrentFrameIndex, _cache) is { } adj)
+                {
+                    passes.Add(adj);
+                }
+                continue;
+            }
+            if (b.Frame is not { } exposed) continue;
+            var shapes = LayerShapes.For(Scene, layerIndex, CurrentFrameIndex);
+            if (shapes is { Count: 0 }) continue;
+            passes.Add(new RenderPass(
+                _cache.Get(exposed, width, height, celIndex: CurrentFrameIndex),
+                null, b.Layer.Opacity, SceneRenderer.ToSkia(b.Layer.BlendMode),
+                Shapes: LayerShapes.Resolve(shapes, _cache, width, height, CurrentFrameIndex),
+                Effect: EffectPasses.SelfFilter(b.Layer, CurrentFrameIndex),
+                Style: EffectPasses.SelfStyle(b.Layer, CurrentFrameIndex)));
+        }
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var image = SceneRenderer.Compose(width, height, passes, SKColors.Transparent);
         using var beneath = SKBitmap.FromImage(image);
@@ -795,6 +841,36 @@ public partial class MainViewModel
     /// opened — the app is document-first and shows no project UI until then.
     /// </summary>
     public ProjectViewModel ProjectDocker { get; }
+
+    /// <summary>
+    /// The character library — see <see cref="LibraryViewModel"/>. Lazy so a
+    /// session that never opens the library builds nothing for it; both the
+    /// picker and the library window read this one instance (Q138).
+    /// </summary>
+    public LibraryViewModel Characters => _library ??= new LibraryViewModel(
+        Settings, () => ProjectDocker.Project, AfterLibraryImport);
+
+    private LibraryViewModel? _library;
+
+    /// <summary>
+    /// What every import path owes, however it was reached — the two UI
+    /// surfaces and the MCP op all land here, so none can forget half of it.
+    /// The import mutated the manifest and loaded documents in memory; the
+    /// docker must show it and the disk must hold it — an import that
+    /// vanishes with the session is slice 1's round-trip lesson.
+    /// </summary>
+    internal void AfterLibraryImport(ImportResult result)
+    {
+        ProjectDocker.Refresh();
+        SaveProject(everything: true);
+        var summary = string.Join(", ", new[]
+        {
+            result.Added.Count > 0 ? $"{result.Added.Count} added" : null,
+            result.Replaced.Count > 0 ? $"{result.Replaced.Count} updated" : null,
+            result.KeptEdited.Count > 0 ? $"{result.KeptEdited.Count} kept (edited here)" : null,
+        }.Where(part => part is not null));
+        AiStatus = $"Imported “{result.Folder.Name}”{(summary.Length > 0 ? $": {summary}" : "")}.";
+    }
 
     /// <summary>
     /// Which panels are open, where, and how big — the whole workspace.
@@ -866,18 +942,24 @@ public partial class MainViewModel
     internal bool WouldRecordSpeed =>
         AlwaysRecordPenAxes || PenAxisUse.NeedsSpeed(CurrentToolSettings);
 
-    public bool GpuCompositing
+    /// <summary>The three answers, for the Configure window's picker.</summary>
+    public IReadOnlyList<Rendering.GpuComposeMode> GpuCompositingChoices { get; } =
+        Enum.GetValues<Rendering.GpuComposeMode>();
+
+    public Rendering.GpuComposeMode GpuCompositingMode
     {
-        get => Settings.GpuCompositing;
+        get => Settings.GpuCompositingMode;
         set
         {
-            if (Settings.GpuCompositing == value) return;
-            Settings.GpuCompositing = value;
-            Rendering.GpuComposite.SettingEnabled = value;
+            if (Settings.GpuCompositingMode == value) return;
+            Settings.GpuCompositingMode = value;
+            Rendering.GpuComposite.Mode = value;
             Settings.Save();
             OnPropertyChanged();
-            // The composite path changed under the canvas, so what is on screen
-            // was produced by the other one. Republish rather than wait.
+            // The composite path may have changed under the canvas, so what is
+            // on screen was produced by the other one. Republish rather than
+            // wait. Unconditional because Auto's answer is not knowable here —
+            // it lives on the render thread — and a republish costs one frame.
             _publish.InvalidateWholeCanvas();
             PublishSnapshot();
         }
@@ -1016,7 +1098,17 @@ public partial class MainViewModel
     private void OnProjectChanged()
     {
         OnPropertyChanged(nameof(HasProject));
+        // Read before RegisterResources re-derives it: a change that removed
+        // the variant's last attachment nulls the resolver in there, and the
+        // repaint below must still happen or the armor outlives its record.
+        var dressedBefore = Rendering.AttachmentOverlay.Resolver is not null;
         RegisterResources();
+        // An attachment edited in the project window is a pixel change on the
+        // canvas behind it (Q143) — found by an adversarial pass asserting
+        // the repaint this line is: the editor's status line promised "the
+        // canvas shows it" and nothing asked the canvas to. A no-op for every
+        // project that wears nothing, before and after.
+        AttachmentsMayHaveMoved(evenIfBare: dressedBefore);
         MarkDocumentEdited();
     }
 
@@ -1112,8 +1204,15 @@ public partial class MainViewModel
                 if (visibleGradients is null || visibleGradients.Contains(id)) gradients[id] = gradient;
             }
         }
-        var resolved = palettes.ToList();
+        // Active variants swap their copies in for the base palettes here, at
+        // the one funnel every palette passes through on its way to rendering
+        // — see MainViewModel.Variants.cs for why it must be a stand-in.
+        var resolved = ApplyVariantStandIns(palettes.ToList());
         PaletteRegistry.Reset(resolved, gradients);
+        // And what those variants wear rides the same funnel (Q143), so the
+        // canvas and an export of this document agree about the armor the way
+        // they already agree about the colours.
+        ConfigureAttachmentOverlay();
         // Symbols are project-scoped while a project is open, which is the
         // point of them: the sword lives above the animations that hold it. A
         // document carries its own only when it arrived flattened from
@@ -1176,13 +1275,30 @@ public partial class MainViewModel
     {
         var scene = Scene;
         var passes = new List<RenderPass>();
-        foreach (var layer in scene.Layers)
+        for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
         {
+            var layer = scene.Layers[layerIndex];
             if (!scene.IsLayerVisible(layer)) continue;
+            if (layer.IsAdjustment)
+            {
+                if (EffectPasses.AdjustmentPass(scene, layerIndex, frameIndex, _cache) is { } adj)
+                {
+                    passes.Add(adj);
+                }
+                continue;
+            }
             var frame = ExposureSheet.ExposedFrame(layer, frameIndex);
             if (frame is null) continue;
-            passes.Add(new RenderPass(_cache.Get(frame, scene.Width, scene.Height, celIndex: frameIndex), null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
+            var shapes = LayerShapes.For(scene, layerIndex, frameIndex);
+            if (shapes is { Count: 0 }) continue;
+            passes.Add(new RenderPass(
+                _cache.Get(frame, scene.Width, scene.Height, celIndex: frameIndex), null, layer.Opacity,
+                SceneRenderer.ToSkia(layer.BlendMode),
+                Shapes: LayerShapes.Resolve(shapes, _cache, scene.Width, scene.Height, frameIndex),
+                Effect: EffectPasses.SelfFilter(layer, frameIndex),
+                Style: EffectPasses.SelfStyle(layer, frameIndex)));
         }
+        if (EffectPasses.SceneStackPass(scene, frameIndex) is { } grade) passes.Add(grade);
         using var image = SceneRenderer.Compose(scene.Width, scene.Height, passes, SceneRenderer.BackgroundOf(scene));
         using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100)
             ?? throw new InvalidOperationException("PNG encode failed.");
@@ -1235,6 +1351,97 @@ public partial class MainViewModel
         PublishSnapshot();
         RefreshThumbnails();
         return strokes.Count;
+    }
+
+    // ---- the exposure sheet, for an agent ------------------------------------
+    //
+    // `get_scene` has always reported `keyedFrames`, and until these there was
+    // no op that could make one: an agent could draw on a frame and could not
+    // time anything, which on a frame-by-frame application is the half that
+    // matters. Every one goes through `DocumentEditor` like the menu commands
+    // do, so an agent's retime is one undo step and cannot bypass the record.
+    //
+    // All four are non-destructive by construction — `SetKeyAt` only ever adds
+    // a drawing, `ReduceExposure` refuses to remove one, and `StretchExposure`
+    // absorbs existing holds rather than multiplying them. `ReduceToStep` is
+    // deliberately absent: it discards drawings, and a destructive agent op
+    // wants the explicit-flag treatment `import_character` has.
+
+    /// <summary>
+    /// Make <paramref name="frameIndex"/> a key on this layer — a new empty
+    /// drawing on a hold, or a re-marked role on one that is already there.
+    /// One undo step.
+    /// </summary>
+    /// <remarks>
+    /// Reports <i>which</i> of the two it did, because the caller cannot work it
+    /// out afterwards and asking the layer a second time would be a second
+    /// source of truth for the same fact — one that can drift from the stamp
+    /// below and make the agent's reply lie about what happened.
+    /// </remarks>
+    public ExternalKeyOutcome SetExternalKey(string layerId, int frameIndex, FrameRole role)
+    {
+        var layer = Scene.Layers.First(l => l.Id == layerId);
+        if (!CanEdit(layer, "key a frame on it")) return ExternalKeyOutcome.Refused;
+        if (frameIndex < 0) return ExternalKeyOutcome.Refused;
+
+        // Q31, and the narrower half of it: a frame the agent brought into
+        // existence is the agent's, a frame it only re-labelled stays the
+        // artist's. `SetKeyAt` stamps on creation alone, so asking whether one
+        // is there first is what tells the two apart.
+        var creating = ExposureSheet.FrameAtExactIndex(layer, frameIndex) is null;
+        _editor.SetKeyAt(layerId, frameIndex, role,
+                         creating ? new AiProvenance("MCP agent") : null);
+        PublishSnapshot();
+        RefreshThumbnails();
+        return creating ? ExternalKeyOutcome.Created : ExternalKeyOutcome.ReMarked;
+    }
+
+    /// <summary>
+    /// Hold the drawing exposed at <paramref name="frameIndex"/> one frame
+    /// longer, on this layer only. One undo step.
+    /// </summary>
+    public bool ExtendExternalExposure(string layerId, int frameIndex)
+    {
+        var layer = Scene.Layers.First(l => l.Id == layerId);
+        if (!CanEdit(layer, "retime it")) return false;
+        if (frameIndex < 0) return false;
+        _editor.ExtendExposure(layerId, frameIndex);
+        PublishSnapshot();
+        RefreshThumbnails();
+        return true;
+    }
+
+    /// <summary>
+    /// Shorten the exposure at <paramref name="frameIndex"/> by one frame. A
+    /// drawing is never removed, so this is a no-op when the next cel is keyed.
+    /// One undo step.
+    /// </summary>
+    public bool ReduceExternalExposure(string layerId, int frameIndex)
+    {
+        var layer = Scene.Layers.First(l => l.Id == layerId);
+        if (!CanEdit(layer, "retime it")) return false;
+        if (frameIndex < 0) return false;
+        _editor.ReduceExposure(layerId, frameIndex);
+        PublishSnapshot();
+        RefreshThumbnails();
+        return true;
+    }
+
+    /// <summary>
+    /// Re-time a range so every drawing in it is held for
+    /// <paramref name="step"/> frames — what an animator means by "on 2s".
+    /// One undo step. Returns the frames the range grew by, or -1 when the
+    /// layer cannot be edited.
+    /// </summary>
+    public int RetimeExternalExposure(string layerId, int from, int to, int step)
+    {
+        var layer = Scene.Layers.First(l => l.Id == layerId);
+        if (!CanEdit(layer, "retime it")) return -1;
+        if (step < 1) return -1;
+        var grew = _editor.StretchExposure(layerId, from, to, step);
+        PublishSnapshot();
+        RefreshThumbnails();
+        return grew;
     }
 
     /// <summary>Replace the ACTIVE tab's document (fresh editor, clean state).</summary>

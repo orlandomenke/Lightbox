@@ -4,7 +4,7 @@
         xmlns:proj="using:Lightbox.Core.Projects"
         x:Class="Lightbox.App.Views.ProjectWindow"
         x:DataType="vm:ProjectWindowViewModel"
-        Width="1080" Height="700" MinWidth="720" MinHeight="420"
+        Width="1080" Height="700" MinWidth="940" MinHeight="420"
         WindowStartupLocation="CenterOwner"
         Title="{Binding Title}"
         Icon="/Assets/lightbox.ico">
@@ -223,18 +223,86 @@
 
                 <StackPanel Spacing="2">
                   <TextBlock Classes="head" Text="VARIANTS" />
-                  <ItemsControl ItemsSource="{Binding FolderVariants}">
+                  <ItemsControl ItemsSource="{Binding FolderVariantRows}">
                     <ItemsControl.ItemTemplate>
-                      <DataTemplate x:DataType="proj:SubjectVariant">
-                        <Grid ColumnDefinitions="*,auto" MinHeight="24">
-                          <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="11"
-                                     VerticalAlignment="Center" />
-                          <Button Grid.Column="1"
-                                  Command="{Binding $parent[ItemsControl].((vm:ProjectWindowViewModel)DataContext).RemoveVariantCommand}"
-                                  CommandParameter="{Binding}">
-                            <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconClose}" />
-                          </Button>
-                        </Grid>
+                      <DataTemplate x:DataType="vm:VariantRow">
+                        <StackPanel Spacing="2">
+                          <Grid ColumnDefinitions="*,auto" MinHeight="24">
+                            <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="11"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="1"
+                                    Command="{Binding $parent[ItemsControl].((vm:ProjectWindowViewModel)DataContext).RemoveVariantCommand}"
+                                    CommandParameter="{Binding Variant}">
+                              <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconClose}" />
+                            </Button>
+                          </Grid>
+                          <!--
+                            Q143. What the variant wears: a symbol riding a rig
+                            anchor through every animation of the subject. The
+                            numbers are the fine adjustment; the coarse one is
+                            moving and aiming the anchor itself, per drawing,
+                            in the rig overlay.
+                          -->
+                          <ItemsControl ItemsSource="{Binding Attachments}" Margin="10,0,0,0">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate x:DataType="vm:AttachmentRow">
+                                <StackPanel Spacing="2" Margin="0,0,0,4">
+                                  <Grid ColumnDefinitions="*,auto">
+                                    <TextBlock Grid.Column="0" Text="{Binding Summary}" FontSize="11"
+                                               VerticalAlignment="Center" />
+                                    <Button Grid.Column="1"
+                                            Command="{Binding $parent[ItemsControl].((vm:VariantRow)DataContext).RemoveAttachmentCommand}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip.Tip="Stop wearing it. The symbol stays in the library.">
+                                      <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconClose}" />
+                                    </Button>
+                                  </Grid>
+                                  <!-- Two short rows rather than one long one: this
+                                       list nests inside the ~250px details panel,
+                                       and a single row of four numerics scrolls
+                                       sideways there. Classes="value" takes the
+                                       scale's numeric width; the coarse adjustment
+                                       is the anchor itself, on the canvas. -->
+                                  <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <TextBlock Classes="dim" Text="offset" VerticalAlignment="Center" />
+                                    <NumericUpDown Classes="value" Increment="1" FormatString="0.#"
+                                                   Value="{Binding OffsetX, Mode=TwoWay}" />
+                                    <NumericUpDown Classes="value" Increment="1" FormatString="0.#"
+                                                   Value="{Binding OffsetY, Mode=TwoWay}" />
+                                    <TextBlock Classes="dim" Text="scale" VerticalAlignment="Center" />
+                                    <NumericUpDown Classes="value" Increment="0.05" FormatString="0.##"
+                                                   Value="{Binding Scale, Mode=TwoWay}" />
+                                    <TextBlock Classes="dim" Text="angle" VerticalAlignment="Center" />
+                                    <NumericUpDown Classes="value" Increment="5" FormatString="0.#"
+                                                   Value="{Binding AngleDeg, Mode=TwoWay}" />
+                                  </StackPanel>
+                                  <CheckBox Content="Turn with the anchor" FontSize="11"
+                                            IsChecked="{Binding FollowAngle, Mode=TwoWay}"
+                                            ToolTip.Tip="Follow the anchor's aim (drag its stalk in the rig overlay). Off for things that stay upright however the limb turns." />
+                                </StackPanel>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                          <!-- Fixed widths rather than the scale's: the pair
+                               has to share the details panel's ~240px with the
+                               button, and a symbol name that outgrows its box
+                               is readable in the summary line above. -->
+                          <StackPanel Orientation="Horizontal" Spacing="4" Margin="10,0,0,4">
+                            <ComboBox Width="130" ItemsSource="{Binding Symbols}"
+                                      SelectedItem="{Binding NewSymbol}"
+                                      PlaceholderText="Symbol…">
+                              <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SymbolChoice">
+                                  <TextBlock Text="{Binding Name}" />
+                                </DataTemplate>
+                              </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBox Width="110" Text="{Binding NewAnchor}" Watermark="anchor name…"
+                                     ToolTip.Tip="The anchor's name as the rig declares it — the same name the export sidecar uses." />
+                            <Button Content="Wear" Command="{Binding AddAttachmentCommand}"
+                                    ToolTip.Tip="The symbol rides this anchor through every animation of the subject while the variant is viewed." />
+                          </StackPanel>
+                        </StackPanel>
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
@@ -258,7 +326,7 @@
           <Border DockPanel.Dock="Top" Classes="bar">
             <!--
               A WrapPanel, like the bulk bar below: five buttons and a sentence
-              do not fit the 720-pixel minimum width, and a StackPanel would
+              do not fit the window's minimum width, and a StackPanel would
               clip the sentence rather than move it to a second line.
             -->
             <WrapPanel>
@@ -298,13 +366,17 @@
             </WrapPanel>
           </Border>
 
-          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,190,110,120,90,200" Margin="8,6,8,2">
+          <!-- 160/110/120/90/100/180 rather than wider: the fixed columns plus
+               a usable NAME are what the window's MinWidth is sized for, and
+               every pixel here is taken from the name an artist scans by. -->
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,160,110,120,90,100,180" Margin="8,6,8,2">
             <TextBlock Grid.Column="0" Classes="head" Text="NAME" />
             <TextBlock Grid.Column="1" Classes="head" Text="TAGS" />
             <TextBlock Grid.Column="2" Classes="head" Text="STATUS" />
             <TextBlock Grid.Column="3" Classes="head" Text="WHO" />
             <TextBlock Grid.Column="4" Classes="head" Text="LENGTH" />
-            <TextBlock Grid.Column="5" Classes="head" Text="CARRIES" />
+            <TextBlock Grid.Column="5" Classes="head" Text="VERSIONS" />
+            <TextBlock Grid.Column="6" Classes="head" Text="CARRIES" />
           </Grid>
 
           <ListBox x:Name="StructureRows" ItemsSource="{Binding Rows}"
@@ -324,6 +396,8 @@
                           ToolTip.Tip="Open the selected documents as tabs. Closes this window." />
                 <MenuItem Header="🗀  Show in file manager" Click="OnRevealRow"
                           ToolTip.Tip="Open the folder on disk, or show the document's file inside its folder" />
+                <MenuItem Header="🕘  Version history…" Click="OnRowHistory"
+                          ToolTip.Tip="The versions kept of the selected document or sheet — revert puts one back" />
                 <Separator />
                 <MenuItem Header="🗀  New folder…" Click="OnNewFolder"
                           ToolTip.Tip="A folder you name, inside the selected one" />
@@ -358,7 +432,7 @@
                         DragDrop.AllowDrop="True"
                         DragDrop.DragOver="OnTreeRowDragOver"
                         DragDrop.Drop="OnTreeRowDrop">
-                <Grid ColumnDefinitions="*,190,110,120,90,200">
+                <Grid ColumnDefinitions="*,160,110,120,90,100,180">
 
                   <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="5">
                     <Border Width="{Binding Indent}" />
@@ -405,7 +479,24 @@
                   <TextBlock Grid.Column="3" Classes="dim" Text="{Binding AssigneeName}"
                              TextTrimming="CharacterEllipsis" />
                   <TextBlock Grid.Column="4" Classes="dim" Text="{Binding Length}" />
-                  <TextBlock Grid.Column="5" Classes="dim" Text="{Binding Carries}"
+                  <!-- The history at a glance: how many, the newest milestone
+                       in the board's own colour, and ✎ when the file moved on
+                       past it. One tooltip carries the sentence; the history
+                       itself is the row's right-click. -->
+                  <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="4"
+                              IsVisible="{Binding HasVersions}"
+                              ToolTip.Tip="{Binding VersionHint}">
+                    <TextBlock Classes="dim" Text="{Binding VersionCountLabel}"
+                               VerticalAlignment="Center" />
+                    <Border Classes="chip" VerticalAlignment="Center"
+                            IsVisible="{Binding HasMilestone}"
+                            Background="{Binding MilestoneColor}">
+                      <TextBlock Text="{Binding MilestoneLabel}" FontSize="10" />
+                    </Border>
+                    <TextBlock Classes="dim" Text="✎" VerticalAlignment="Center"
+                               IsVisible="{Binding ChangedSinceMilestone}" />
+                  </StackPanel>
+                  <TextBlock Grid.Column="6" Classes="dim" Text="{Binding Carries}"
                              TextTrimming="CharacterEllipsis" />
                 </Grid>
                 </Border>
@@ -565,6 +656,8 @@
                           ToolTip.Tip="Open the selected document as a tab. Closes this window." />
                 <MenuItem Header="🗀  Show in file manager" Click="OnRevealScope"
                           ToolTip.Tip="Open the folder on disk — the project row shows the project's own folder" />
+                <MenuItem Header="🕘  Version history…" Click="OnScopeHistory"
+                          ToolTip.Tip="The versions kept of the selected document — revert puts one back" />
                 <Separator />
                 <MenuItem Header="▤  New reference sheet…" Click="OnNewSheet"
                           ToolTip.Tip="A blank sheet, filed on the selected folder — every drawing under it can consult it" />

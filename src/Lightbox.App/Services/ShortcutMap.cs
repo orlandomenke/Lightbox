@@ -230,6 +230,9 @@ public sealed class ShortcutMap
             new("tool.pen", "Pen (draw a line by its points)", "Tools", G(Key.P)),
             // W for width, and free like P was. Illustrator puts this on Shift+W
             // because W is its own Blend tool; nothing here wanted the letter.
+            // Photoshop's letter, and it was free here: Ctrl+T is the transform,
+            // which is the same key meaning the same idea one modifier along.
+            new("tool.text", "Text (type on the canvas)", "Tools", G(Key.T)),
             new("tool.bone", "Bone (rig, pose, weights)", "Tools", G(Key.K)),
             new("armature.weightPaint", "Toggle the weight brush (bone tool)", "Canvas", G(Key.K, KeyModifiers.Control | KeyModifiers.Shift)),
             new("armature.posingMode", "Toggle posing (bone tool: bind or pose)", "Canvas", G(Key.K, KeyModifiers.Shift)),
@@ -356,9 +359,24 @@ public sealed class ShortcutMap
             new("timeline.nextFrame", "Next frame (scrub)", "Timeline", G(Key.Right), ShortcutContext.Panel, DockPanelId.Timeline),
             new("timeline.prevKey", "Flip to previous key", "Timeline", G(Key.D1)),
             new("timeline.nextKey", "Flip to next key", "Timeline", G(Key.D2)),
-            new("timeline.copyCel", "Copy cel", "Timeline", G(Key.C, KeyModifiers.Control)),
-            new("timeline.cutCel", "Cut cel", "Timeline", G(Key.X, KeyModifiers.Control)),
-            new("timeline.pasteCel", "Paste cel", "Timeline", G(Key.V, KeyModifiers.Control)),
+            // These three take the SELECTED LINES when any are selected and the
+            // cel when none are — one key for the thing an artist means, which
+            // is why the labels say both. The line-only forms are below, for
+            // anyone who wants a key that is never the cel.
+            new("timeline.copyCel", "Copy (selected lines, else the cel)", "Timeline", G(Key.C, KeyModifiers.Control)),
+            new("timeline.cutCel", "Cut (selected lines, else the cel)", "Timeline", G(Key.X, KeyModifiers.Control)),
+            new("timeline.pasteCel", "Paste (whichever was copied last)", "Timeline", G(Key.V, KeyModifiers.Control)),
+
+            // No default gestures: Ctrl+C/X/V above already reach these in the
+            // case that matters, and a second default for the same act would
+            // be a gesture nobody asked for. They are here because a command
+            // that is not in this map cannot be seen, searched or rebound —
+            // which is the failure the map exists for (CLAUDE.md's registry
+            // rule), and an artist who works mostly in lines may well want the
+            // unambiguous key.
+            new("edit.copyLines", "Copy selected lines (never the cel)", "Edit", null),
+            new("edit.cutLines", "Cut selected lines (never the cel)", "Edit", null),
+            new("edit.pasteLines", "Paste lines onto a new layer", "Edit", null),
 
             // Everything the board window does (Q87), in its own scope. Here
             // rather than wired straight to the window's key handler, because a
@@ -389,6 +407,15 @@ public sealed class ShortcutMap
             // Photoshop's and Krita's key, and global like theirs: merging is
             // asked for from the canvas at least as often as from the docker.
             new("docker.mergeDown", "Merge layer down", "Dockers", G(Key.E, KeyModifiers.Control)),
+            // Photoshop's key, and global like the merge: clipping is asked
+            // for from the canvas while colouring, not only from the docker.
+            new("docker.clipToBelow", "Clip layer to the one below", "Dockers",
+                G(Key.G, KeyModifiers.Control | KeyModifiers.Alt)),
+            // No default gesture, the timeline.deleteColumn reason: there is
+            // no convention to borrow, and guessing one costs somebody their
+            // key. Bindable is the requirement.
+            new("docker.editMask", "Paint the active layer's mask", "Dockers", null),
+            new("docker.effects", "Show or hide the Effects panel", "Dockers", null),
 
             // Context twins: the same key does area-appropriate things.
             // General, not canvas-scoped. Scoped, it did nothing over any docker —
@@ -411,6 +438,12 @@ public sealed class ShortcutMap
             // would be guessing at what an artist wants there. Bindable is what
             // was actually missing.
             new("timeline.deleteColumn", "Delete column (this frame, every layer)", "Timeline", null, ShortcutContext.Panel, DockPanelId.Timeline),
+            // The key clipboard crosses kinds — camera keys, pose keys, cels —
+            // where Ctrl+C is the cel clipboard's. No default gesture for the
+            // deleteColumn reason: taking a second reading of copy inside the
+            // timeline would be guessing; bindable is the requirement.
+            new("timeline.copyKeys", "Copy selected keys (camera, pose, cels)", "Timeline", null, ShortcutContext.Panel, DockPanelId.Timeline),
+            new("timeline.pasteKeys", "Paste keys at playhead", "Timeline", null, ShortcutContext.Panel, DockPanelId.Timeline),
             new("canvas.nudgeLeft", "Nudge selection left", "Canvas", G(Key.Left), ShortcutContext.Canvas),
             new("canvas.nudgeRight", "Nudge selection right", "Canvas", G(Key.Right), ShortcutContext.Canvas),
             new("canvas.nudgeUp", "Nudge selection up", "Canvas", G(Key.Up), ShortcutContext.Canvas),
@@ -433,6 +466,15 @@ public sealed class ShortcutMap
             new("file.versionHistory", "Version history (view and revert)", "File",
                 G(Key.H, KeyModifiers.Control | KeyModifiers.Alt)),
 
+            // Saving a picture rather than a document. Ctrl+Alt+Shift+S for two
+            // reasons that agree: it continues the local family, where every save
+            // is S with one more modifier than the last, and it is what Photoshop
+            // binds Save for Web to — which is the ancestor of this exact command.
+            // Ctrl+Shift+E, the other obvious candidate and Krita's own, is taken
+            // by the fluid effects window.
+            new("file.saveAsImage", "Save as image (PNG, JPEG, WebP)", "File",
+                G(Key.S, KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Shift)),
+
             // B58. The rig had no shortcut, no menu item and no binding, so the mode
             // could not be switched on and none of the editing behind it was
             // reachable. `Ctrl+R` is taken by the rulers, so this is the next key
@@ -453,6 +495,14 @@ public sealed class ShortcutMap
             // Save as had none at all. `Ctrl+P` is free — nothing prints.
             new("project.window", "Project window (structure, status, assets)", "File",
                 G(Key.P, KeyModifiers.Control)),
+
+            // The character library's window, on the project window's footing:
+            // a registered command rather than a gesture on a button, so the
+            // picker button on the project panel stays the fast path and this
+            // is what an artist can search and rebind. No default gesture, for
+            // canvas.motionTrail's reason — the button is the way in, and
+            // being here is what lets a key be chosen freely.
+            new("project.libraryWindow", "Character library (browse and import)", "File", null),
 
             // The fluid effects window, on the same footing as the project window
             // and the board: a window of its own, opened by a registered command

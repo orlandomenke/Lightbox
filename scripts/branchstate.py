@@ -63,7 +63,8 @@ SESSION_SUFFIX = re.compile(r"-(?=[a-z0-9]{6}$)(?=[a-z0-9]*\d)(?=[a-z0-9]*[a-z])
 
 def git(*args: str) -> str:
     result = subprocess.run(
-        ["git", *args], cwd=ROOT, capture_output=True, text=True, check=False)
+        ["git", *args], cwd=ROOT, capture_output=True,
+        text=True, encoding="utf-8", errors="replace", check=False)
     return result.stdout.strip()
 
 
@@ -209,7 +210,8 @@ def main() -> int:
     # run from a hook while somebody is mid-edit.
     merge = subprocess.run(
         ["git", "merge-tree", "--write-tree", "--name-only", remote_base, "HEAD"],
-        cwd=ROOT, capture_output=True, text=True, check=False)
+        cwd=ROOT, capture_output=True,
+        text=True, encoding="utf-8", errors="replace", check=False)
 
     if merge.returncode == 0:
         print(f"branch: {branch} — {ahead} ahead, {behind} behind {base}, merges clean")

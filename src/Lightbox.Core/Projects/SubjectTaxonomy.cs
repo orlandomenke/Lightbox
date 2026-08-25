@@ -71,6 +71,17 @@ public sealed class SubjectVariant
     /// folder; this only says which one it stands in for.
     /// </remarks>
     public Dictionary<string, string> Overrides { get; set; } = [];
+
+    /// <summary>
+    /// What this variant wears: symbols riding anchors through every
+    /// animation of the subject, or null when it wears nothing (Q143).
+    /// </summary>
+    /// <remarks>
+    /// Nullable, so a variant that is only a recolour writes no
+    /// <c>attachments</c> key — the camera's rule, the same one
+    /// <see cref="ProjectFolder.Variants"/> itself follows.
+    /// </remarks>
+    public List<VariantAttachment>? Attachments { get; set; }
 }
 
 /// <summary>One named part of a subject, and where it sits relative to the others.</summary>

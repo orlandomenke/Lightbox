@@ -271,8 +271,11 @@ public static class CanvasCursor
         // Crop joins them because a frame is dragged out corner to corner, the
         // way a marquee is: the pointer has to say where the edge will land,
         // and a fat arrow hides the pixel you are aiming at.
+        // Text joins them because a click places the baseline at exactly the
+        // point pressed — the same "say where this will land" job the pen has,
+        // and the reason none of these wear a fat arrow.
         ToolId.Pen or ToolId.Shape or ToolId.Select or ToolId.Width
-            or ToolId.Crop => CanvasCursorKind.Precise,
+            or ToolId.Crop or ToolId.Text => CanvasCursorKind.Precise,
         // Bones are records picked and dragged, the arrows' kind of act.
         ToolId.Arrow or ToolId.DirectSelect or ToolId.Bone => CanvasCursorKind.PickRecords,
         _ => CanvasCursorKind.Default,

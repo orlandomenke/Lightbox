@@ -86,7 +86,8 @@ USING_INTERNAL = re.compile(r"^\s*using\s+(Lightbox\.[\w\.]+)\s*;", re.MULTILINE
 def run(args: list[str]) -> str:
     try:
         return subprocess.run(
-            args, cwd=ROOT, capture_output=True, text=True, check=False, timeout=120
+            args, cwd=ROOT, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", check=False, timeout=120
         ).stdout
     except (OSError, subprocess.SubprocessError):
         return ""

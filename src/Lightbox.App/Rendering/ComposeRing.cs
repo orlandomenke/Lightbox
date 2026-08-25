@@ -52,6 +52,18 @@ public sealed class ComposeRing : IDisposable
     private int _next;
     private SKImageInfo _info;
 
+    /// <summary>
+    /// The document point every buffer's (0,0) currently holds (B291).
+    /// </summary>
+    /// <remarks>
+    /// Part of the buffers' identity, not a per-publish argument: every stale
+    /// region they carry is a document rectangle that was mapped through this
+    /// origin, so a publish under a different one cannot patch them — the pixels
+    /// they hold describe a different window. Changing it invalidates all three,
+    /// exactly as changing the size does.
+    /// </remarks>
+    private SKPointI _origin;
+
     /// <summary>The buffer painted most recently — a correct composite, and so the source every catch-up copies from.</summary>
     private Buffer? _current;
 
@@ -81,9 +93,15 @@ public sealed class ComposeRing : IDisposable
         SKRectI? dirty,
         Action<SKSurface, SKRectI?> paint,
         double regionScale = 1.0,
-        SKMatrix? transform = null)
+        SKMatrix? transform = null,
+        SKPointI origin = default)
     {
-        if (!_info.Equals(info)) Reset(info);
+        // A pan or a zoom moves the window these buffers hold, and every stale
+        // region in them was recorded against the old one. Re-framing is
+        // therefore a full repaint, not a patch — the same reason a size change
+        // is, and the same reason PresentedFrame forces a full present when a
+        // snapshot's DocViewport moves.
+        if (!_info.Equals(info) || _origin != origin) Reset(info, origin);
 
         // A full-canvas publish repaints its own buffer and invalidates the
         // rest, so catching anything up first would only be thrown away.
@@ -160,7 +178,8 @@ public sealed class ComposeRing : IDisposable
             foreach (var other in _buffers)
             {
                 if (!Behind(other)) continue;
-                CopyForward(other.Surface!, fresh, other.NeedsFull ? null : other.Stale, scale, transform);
+                CopyForward(
+                    other.Surface!, fresh, other.NeedsFull ? null : other.Stale, scale, transform, _origin);
                 other.Stale = null;
                 other.NeedsFull = false;
             }
@@ -185,7 +204,9 @@ public sealed class ComposeRing : IDisposable
     /// transparent where the document is, and blending would leave the old
     /// contents showing through.
     /// </summary>
-    private static void CopyForward(SKSurface target, SKImage fresh, SKRectI? region, double scale, SKMatrix? transform)
+    private static void CopyForward(
+        SKSurface target, SKImage fresh, SKRectI? region, double scale, SKMatrix? transform,
+        SKPointI origin)
     {
         var canvas = target.Canvas;
         canvas.Save();
@@ -194,7 +215,7 @@ public sealed class ComposeRing : IDisposable
         {
             // The same mapping ComposeInto applies to its clip, so a rect that
             // was repainted there is the rect that gets copied here.
-            canvas.ClipRect(CameraTransform.DeviceBounds(r, scale, transform));
+            canvas.ClipRect(CameraTransform.DeviceBounds(r, scale, transform, origin));
         }
         using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
         canvas.DrawImage(fresh, 0, 0, paint);
@@ -235,16 +256,27 @@ public sealed class ComposeRing : IDisposable
         _current = null;
     }
 
-    private void Reset(SKImageInfo info)
+    private void Reset(SKImageInfo info, SKPointI origin = default)
     {
+        // A re-frame at the same size keeps its surfaces. Panning while zoomed in
+        // changes the origin on every pointer move and the size on none of them,
+        // so tearing down three buffers and allocating three more would make the
+        // gesture that benefits most from a windowed ring the one that pays for
+        // it. The pixels are wrong either way — NeedsFull says so — but the
+        // allocation is not.
+        var resized = !_info.Equals(info);
         foreach (var buffer in _buffers)
         {
-            buffer.Surface?.Dispose();
-            buffer.Surface = null;
+            if (resized)
+            {
+                buffer.Surface?.Dispose();
+                buffer.Surface = null;
+            }
             buffer.NeedsFull = true;
             buffer.Stale = null;
         }
         _info = info;
+        _origin = origin;
         _next = 0;
         _current = null;
     }

@@ -407,6 +407,13 @@ public partial class MainViewModel
     public void SetPlaybackEnd(FrameCell cell) =>
         PlaybackEndFrame = Math.Min(cell.Index, Scene.FrameCount - 1);
 
+    // The track timeline's twins: no cell under a pointer there, just a frame.
+    public void SetPlaybackStartAt(int frame) =>
+        PlaybackStartFrame = Math.Clamp(frame, 0, Scene.FrameCount - 1);
+
+    public void SetPlaybackEndAt(int frame) =>
+        PlaybackEndFrame = Math.Clamp(frame, 0, Scene.FrameCount - 1);
+
     public void ClearPlaybackRange()
     {
         PlaybackStartFrame = -1;
@@ -797,6 +804,10 @@ public partial class MainViewModel
             }
         }
         _celClipboard = (frames, layer.Kind);
+        // Stamped on the order the line clipboard shares, so Ctrl+V can paste
+        // whichever of the two was filled last rather than always preferring
+        // one of them.
+        _celClipboardStamp = StrokeClipboard.NextOrder();
         OnPropertyChanged(nameof(HasCelClipboard));
         // The clipboard is one row's worth of cels, so a selection reaching
         // other layers is copied from this one and the rest is said out loud
@@ -848,6 +859,16 @@ public partial class MainViewModel
         CurrentFrameIndex = Math.Min(cell.Index, Scene.FrameCount - 1);
     }
 
+    /// <summary>When the cel clipboard was filled, on the order it shares with the lines.</summary>
+    private long _celClipboardStamp;
+
+    /// <summary>
+    /// Whether Ctrl+V means the copied lines rather than the copied cel: the
+    /// line clipboard holds something, and it is the newer of the two.
+    /// </summary>
+    internal bool LinesAreTheFresherClipboard =>
+        StrokeClipboard.HasContent && StrokeClipboard.Stamp > _celClipboardStamp;
+
     /// <summary>Ctrl+C/X/V target: the active layer's cel at the playhead.</summary>
     private FrameCell? CurrentCell()
     {
@@ -869,6 +890,40 @@ public partial class MainViewModel
     {
         if (CurrentCell() is { } cell) PasteCel(cell);
     }
+
+    // ---- Animation menu: the cel context menu's verbs, aimed at the playhead ----
+    // A menu item has no cel under a pointer, so these are the same twins the
+    // shortcuts above use: the active layer's cel at the current frame.
+
+    /// <summary>Mark the playhead's cel as a drawing of the given role (Animation menu).</summary>
+    public void InsertFrameAtPlayhead(FrameRole role) =>
+        _editor.SetKeyAt(ActiveLayer.Id, CurrentFrameIndex, role);
+
+    public void ExtendExposureAtPlayhead()
+    {
+        if (CurrentCell() is { } cell) ExtendExposureAt(cell);
+    }
+
+    public void ReduceExposureAtPlayhead()
+    {
+        if (CurrentCell() is { } cell) ReduceExposureAt(cell);
+    }
+
+    public void ClearCelAtPlayhead()
+    {
+        if (CurrentCell() is { } cell) ClearCelAt(cell);
+    }
+
+    public void DeleteCelAtPlayhead()
+    {
+        if (CurrentCell() is { } cell) DeleteCelAt(cell);
+    }
+
+    public void SetPlaybackStartAtPlayhead() =>
+        PlaybackStartFrame = Math.Min(CurrentFrameIndex, Scene.FrameCount - 1);
+
+    public void SetPlaybackEndAtPlayhead() =>
+        PlaybackEndFrame = Math.Min(CurrentFrameIndex, Scene.FrameCount - 1);
 
     // ---- multi-cel selection ------------------------------------------------------
 
@@ -940,7 +995,7 @@ public partial class MainViewModel
         {
             _keySelection.Add(TimelineKey.Cel(cell.LayerIndex, i));
         }
-        RefreshCelSelectionHighlights();
+        RefreshTimelineSelection();
     }
 
     /// <summary>
@@ -957,14 +1012,14 @@ public partial class MainViewModel
         var key = TimelineKey.Cel(cell.LayerIndex, cell.Index);
         if (!_keySelection.Add(key)) _keySelection.Remove(key);
         _celAnchor = (cell.LayerIndex, cell.Index);
-        RefreshCelSelectionHighlights();
+        RefreshTimelineSelection();
     }
 
     public void ClearCelRange()
     {
         if (_keySelection.Count == 0) return;
         _keySelection.Clear();
-        RefreshCelSelectionHighlights();
+        RefreshTimelineSelection();
     }
 
     private void RefreshCelSelectionHighlights()
@@ -1372,6 +1427,10 @@ public partial class MainViewModel
     {
         foreach (var layer in doc.Scene.Layers)
         {
+            // A mask's drawing is a frame like any other, and mask strokes
+            // undo through this resolver like any other — it just lives on
+            // the layer instead of in a cel.
+            if (layer.Mask is { } mask && mask.Frame.Id == frameId) return StrokesOf(mask.Frame);
             foreach (var cel in layer.Cels)
             {
                 if (cel.Frame is { } frame && frame.Id == frameId) return StrokesOf(frame);

@@ -400,12 +400,21 @@ public sealed class WorkspaceTests : BrushStateIsolated
                 // drawing, plus the one entry that points at where the rest
                 // went; ProjectWindowTests guards the moved surface.
                 ["Open", "Open with default app…", "Show in file manager", "Copy path",
-                 "Duplicate", "Rename…",
+                 "Duplicate",
+                 // Q143's two override gestures. The first one's header is
+                 // dynamic — "Give “Winter Armour” its own “Walk”" — and with
+                 // no variant being viewed it resolves empty, which is also
+                 // what hides it; the empty string here is that binding
+                 // resolving, which is exactly what this test exists to prove.
+                 "", "Use the shared drawing again",
+                 "Rename…",
                  // Q75. The docker row's road to the history window; the File
                  // menu is the other, and both open the same window.
                  "Version history…",
                  // Q38. The artist says what a folder is; nothing derives it.
                  "Glyph", "Glyph — something else…",
+                 // Q143. Which version of the subject is on screen.
+                 "Variant",
                  // Q30's last mile: the plan was countable and describable and
                  // no view called either, so these two are what make it real.
                  "Export this folder…", "Test export",

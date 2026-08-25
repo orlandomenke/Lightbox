@@ -34,6 +34,19 @@ public enum TileFallbackReason
     /// playhead — and the tile store knows frames only by id.
     /// </summary>
     BoundStrokes,
+
+    /// <summary>
+    /// A mask or clipping mask carves this layer, and the tiled compositor
+    /// draws frames alone — it has no isolation to carve in.
+    /// </summary>
+    Shaped,
+
+    /// <summary>
+    /// The document carries a live effect — a filtered layer, an adjustment
+    /// layer, or a scene grade — and effects need the bounded compositor's
+    /// isolation and backdrop.
+    /// </summary>
+    Effects,
 }
 
 /// <summary>
@@ -80,12 +93,26 @@ public static class TileFallback
     /// rather than defaulted: a call site that forgot would tile a posed frame
     /// and draw it at rest, which looks like the rig not working at all.
     /// </param>
+    /// <param name="shaped">
+    /// A mask or clipping mask carves this layer's pass. Required rather than
+    /// defaulted for <paramref name="posed"/>'s reason: a call site that
+    /// forgot would tile the layer and show it uncarved — the mask visibly
+    /// not working — exactly while the sequence moves.
+    /// </param>
+    /// <param name="docEffects">
+    /// The document carries a live effect stack somewhere — a document-level
+    /// condition like <paramref name="hasCamera"/>, asked here so the report
+    /// can name it.
+    /// </param>
     public static TileFallbackReason Reason(
-        Frame frame, bool hasCamera, bool haveViewport, bool liveEffectHere, bool posed)
+        Frame frame, bool hasCamera, bool haveViewport, bool liveEffectHere, bool posed,
+        bool shaped, bool docEffects = false)
     {
         if (!haveViewport) return TileFallbackReason.NoViewport;
         if (hasCamera) return TileFallbackReason.Camera;
+        if (docEffects) return TileFallbackReason.Effects;
         if (liveEffectHere) return TileFallbackReason.LiveEffect;
+        if (shaped) return TileFallbackReason.Shaped;
         if (frame.HasBaseline) return TileFallbackReason.Baseline;
         if (frame.HasPlacements) return TileFallbackReason.Placements;
         // Either half is enough, and neither implies the other: a stroke can
@@ -107,6 +134,8 @@ public static class TileFallback
         TileFallbackReason.EffectStroke => "frames contain smudge or blur strokes",
         TileFallbackReason.BoundStrokes => "frames contain strokes bound to the rig",
         TileFallbackReason.LiveEffect => "a smudge or blur was in flight",
+        TileFallbackReason.Shaped => "layers carry a mask or clip to another",
+        TileFallbackReason.Effects => "the document carries live effects",
         _ => reason.ToString(),
     };
 }

@@ -19,6 +19,44 @@ public enum ProjectType
 }
 
 /// <summary>
+/// Where an imported copy came from: the library project and the entry inside
+/// it. The stamp is what lets a re-import merge instead of duplicate (Q138) —
+/// it replaces exactly the copies that came from the same source and never
+/// touches work the artist made locally.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Optional and absent on anything never imported — the "optional means
+/// absent" rule; a project that never used the library writes no origin keys.
+/// Identified by <b>ids, never paths</b>: the manifest id survives the library
+/// being moved, renamed or offline, which is also what makes these stamps the
+/// edges a future dependency graph reads (Pillar 3) without a migration.
+/// </para>
+/// <para>
+/// <see cref="Hash"/> is the imported copy's content at the moment of import,
+/// so "edited since import" is answerable without the library present: hash
+/// the copy again and compare. Replacing an edited copy is the one destructive
+/// act in the merge, and it warns first, Q35-style.
+/// </para>
+/// </remarks>
+public sealed class ImportOrigin
+{
+    /// <summary>The library project's manifest id.</summary>
+    public string LibraryId { get; set; } = "";
+
+    /// <summary>The source folder or document ref id inside that library.</summary>
+    public string SourceId { get; set; } = "";
+
+    /// <summary>
+    /// Content hash of the copy as imported — documents only, null on folders.
+    /// </summary>
+    public string? Hash { get; set; }
+
+    public bool Matches(string libraryId, string sourceId)
+        => LibraryId == libraryId && SourceId == sourceId;
+}
+
+/// <summary>
 /// A pointer to a document inside the project, not the document itself.
 ///
 /// This is the whole reason the project is a folder rather than one file: a
@@ -97,6 +135,12 @@ public sealed class DocumentRef
     /// </para>
     /// </remarks>
     public bool? IsTemplate { get; set; }
+
+    /// <summary>
+    /// Where this document was imported from, or null for work made here —
+    /// see <see cref="ImportOrigin"/>.
+    /// </summary>
+    public ImportOrigin? Origin { get; set; }
 
     /// <summary>Seconds this shot runs, or null when the hint is not filled in.</summary>
     public double? Seconds => Frames > 0 && Fps > 0 ? Frames / (double)Fps : null;

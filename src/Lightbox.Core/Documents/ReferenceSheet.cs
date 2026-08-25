@@ -39,6 +39,20 @@ public sealed class ReferenceView
     /// <summary>Layer stack; each layer uses a single cel (no timeline).</summary>
     public List<Layer> Layers { get; set; } = [];
 
+    /// <summary>
+    /// Guides placed on this view, or null — absent unless used, exactly like
+    /// <see cref="Scene.Guides"/>.
+    /// </summary>
+    /// <remarks>
+    /// A sheet view is edited through a wrapper document built fresh on every
+    /// open, so anything that should survive has to live on this record. The
+    /// layers always did; the guides landed on the wrapper's scene and
+    /// evaporated with it — reported as "guides are gone in reference sheet
+    /// documents" (B287). A construction rig on a model sheet is exactly the
+    /// kind of guide that has to be there tomorrow.
+    /// </remarks>
+    public List<Guide>? Guides { get; set; }
+
     /// <summary>A view with one painted layer, ready to draw on.</summary>
     public static ReferenceView Create(string name, int width, int height) => new()
     {
@@ -61,6 +75,7 @@ public sealed class ReferenceView
     {
         var copy = (ReferenceView)MemberwiseClone();
         copy.Layers = Layers.Select(l => l.Clone()).ToList();
+        copy.Guides = Guides?.Select(g => g.Clone()).ToList();
         return copy;
     }
 }

@@ -14,7 +14,8 @@ namespace Lightbox.App.Tests;
 /// each viewable alone. Solo is view-only — the same side of the line as zoom
 /// and mirror — so nothing here touches the document.
 /// </summary>
-public class ChannelsDockerTests(ITestOutputHelper output)
+[Collection("BrushState")]
+public class ChannelsDockerTests(ITestOutputHelper output) : BrushStateIsolated
 {
     // ---- the filters, at the pixel ----------------------------------------
 

@@ -68,7 +68,8 @@ public sealed partial class MainViewModel
                 if (!anchors.TryGetValue(declared.Id, out var point)) continue;
                 marks.Add(new RigMark(
                     declared.Id, RigMarkKind.Anchor, declared.Name,
-                    point.X, point.Y, 0, 0, declared.Id == SelectedRigMarkId));
+                    point.X, point.Y, 0, 0, declared.Id == SelectedRigMarkId,
+                    point.AngleDeg));
             }
 
             var boxes = CollisionShapes.ResolvedAt(Doc.Scene, CurrentFrameIndex);
@@ -135,7 +136,10 @@ public sealed partial class MainViewModel
 
             if (mark.Kind == RigMarkKind.Anchor)
             {
-                Anchors.SetAcross(layer, frame, 1, mark.Id, new AnchorPoint(mark.X, mark.Y));
+                // The angle rides along on every write — a move that dropped
+                // it would silently un-aim a socket the artist had turned.
+                Anchors.SetAcross(
+                    layer, frame, 1, mark.Id, new AnchorPoint(mark.X, mark.Y, mark.AngleDeg));
             }
             else
             {
@@ -144,6 +148,7 @@ public sealed partial class MainViewModel
             }
         });
         OnPropertyChanged(nameof(RigMarks));
+        if (mark.Kind == RigMarkKind.Anchor) AttachmentsMayHaveMoved();
     }
 
     /// <summary>
@@ -226,6 +231,7 @@ public sealed partial class MainViewModel
         SelectedRigMarkId = null;
         OnPropertyChanged(nameof(RigMarks));
         OnPropertyChanged(nameof(HasRig));
+        if (mark.Kind == RigMarkKind.Anchor) AttachmentsMayHaveMoved();
     }
 
     /// <summary>
@@ -251,6 +257,7 @@ public sealed partial class MainViewModel
             else CollisionShapes.ClearAcross(layer, frame, 1, id);
         });
         OnPropertyChanged(nameof(RigMarks));
+        if (mark.Kind == RigMarkKind.Anchor) AttachmentsMayHaveMoved();
     }
 
     /// <summary>
@@ -274,13 +281,41 @@ public sealed partial class MainViewModel
         {
             if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) return;
             changed = mark.Kind == RigMarkKind.Anchor
-                ? Anchors.SetAcross(layer, from, count, id, new AnchorPoint(mark.X, mark.Y))
+                ? Anchors.SetAcross(
+                    layer, from, count, id, new AnchorPoint(mark.X, mark.Y, mark.AngleDeg))
                 : CollisionShapes.SetAcross(
                     layer, from, count, id, new ShapeBox(mark.X, mark.Y, mark.W, mark.H));
         });
 
         OnPropertyChanged(nameof(RigMarks));
+        if (mark.Kind == RigMarkKind.Anchor) AttachmentsMayHaveMoved();
         return changed;
+    }
+
+    /// <summary>
+    /// Take the direction off the selected anchor, on this drawing only.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q144's way back to null.</b> Absent-until-used only holds if unused
+    /// is reachable again: an angle that could be authored but never cleared
+    /// would serialize forever after one accidental stalk drag. This drawing
+    /// only, like every rig write — push-across is how an artist propagates
+    /// the cleared state, the same way they propagate a set one.
+    /// </remarks>
+    public void ClearSelectedAnchorDirection()
+    {
+        if (SelectedRigMarkId is not { } id) return;
+        if (MarkOf(id) is not { Kind: RigMarkKind.Anchor, AngleDeg: not null } mark) return;
+
+        var layerId = ActiveLayer.Id;
+        var frame = CurrentFrameIndex;
+        _editor.Perform(doc =>
+        {
+            if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) return;
+            Anchors.SetAcross(layer, frame, 1, id, new AnchorPoint(mark.X, mark.Y));
+        });
+        OnPropertyChanged(nameof(RigMarks));
+        AttachmentsMayHaveMoved();
     }
 
     partial void OnRigEditModeChanged(bool value)

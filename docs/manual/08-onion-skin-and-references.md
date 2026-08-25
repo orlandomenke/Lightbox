@@ -13,7 +13,10 @@ playback — the one thing playback has to show is the animation.
 **The same controls are on both the Timeline and the X-sheet bars**, because
 onion skin belongs to you rather than to whichever view of the animation you
 have up. They used to be on the X-sheet's bar alone, which made the Timeline tab
-look as though one drawing each way was all it could do.
+look as though one drawing each way was all it could do. The on/off switch —
+along with **Keyed drawings only** and the motion trail — is also on the
+**Animation** menu, so it can be reached with the timeline hidden; the dials
+stay on the bar, where a slider belongs.
 
 Everything else is behind the **⚙** next to those fields:
 
@@ -66,7 +69,9 @@ pile of them, so counting ticks counts drawings.
 
 Where each tick sits comes from the drawing itself: a **pivot anchor** placed
 on the drawing (rig edit mode, `Ctrl+K`) if there is one, else the centre of
-the drawing's ink. A **filled** tick is an anchor — your own statement of where
+the drawing's ink — the ink that is *there*, so work you rubbed out does not
+drag the tick towards where it used to be, and neither does the eraser's own
+path. A **filled** tick is an anchor — your own statement of where
 the subject is; a **hollow** tick is the derived centre — a guess that wobbles
 with the silhouette. If an arc looks wrong on hollow ticks, anchor the drawings
 before trusting it. Sockets are ignored: a hand's attachment point is not where
@@ -244,10 +249,24 @@ view onto the wall rather than the whole of it.
 | Tidy the whole wall | **Auto-arrange** — every picture fitted into the space there is, in the order they are in |
 | Find something you have lost | **Fit** (`Ctrl+Shift+F`) zooms out until everything on the board is on screen |
 | Add a picture from disk | Drag files onto the board, or **Add image…** |
-| Add one from a web page | Drag the image off the page onto the board |
+| Add one from a web page | Drag the image off the page onto the board — as many times as you like |
 | Paste one | `Ctrl+V` — a copied file, or a screenshot straight off the clipboard |
 | Put a sheet back up | **Sheets ▾** lists everything in scope that is not on the wall |
 | Move around | Wheel zooms, middle-drag or drag the empty background pans |
+
+**A drop that brings nothing says so — on the board.** Browsers hand a picture
+over in more than one way — sometimes the file it cached, sometimes an address,
+sometimes the picture itself — and they label those differently on Windows, on
+macOS and on Linux. Lightbox reads whatever the drag turns out to be carrying
+and tries all of it before giving up. What decides is whether the bytes are a
+picture, not what anything is called, so a browser's nameless temporary works
+like any other. When the address turns out to be the *page* the picture lives
+on — which is what many sites, Pinterest among them, put in a drag — the page
+is read for the image it names and that is fetched instead. Only when every one
+of those fails does the drop refuse, and then the board's own toolbar says which
+way it failed rather than leaving you wondering; what the drag was carrying is
+written to the diagnostics log, which is the thing to attach if a drop that
+should work does not.
 
 **A picture lands where you put it** — under the pointer when you drop it, in the
 middle of the view when it comes from the picker or the clipboard. Drop several
@@ -454,5 +473,35 @@ on the canvas still paints, camera or no camera.
 The camera is the one transform that is not view-only: it is authored, saved and
 exported. It still never touches a stroke — it only decides what part of the
 record a render shows.
+
+### Multiplane parallax — layer depth
+
+**Give a layer a depth and a camera move separates the planes by itself** —
+classic Disney multiplane, without a rostrum. A pan slides a far hill less than
+the trees in front of it; a push grows the foreground faster than the sky. The
+depths live in the **Scene** panel (**View ▸ Dockers ▸ Scene**): one row per
+layer with its depth in canvas units, a marker showing where the plane sits,
+and the camera's path drawn across the page underneath.
+
+**Depth 0 is the picture plane** — the canvas as it always was. **1000 shows
+half of a camera move**, larger is further, and a small negative depth floats a
+layer in front of the plane so it moves *more*. Setting a depth back to 0
+removes it from the file entirely.
+
+Three rules keep it honest:
+
+- **Depth does nothing without a camera.** No camera, no parallax — the world
+  view, an asset export and every document you have ever saved are untouched.
+  The Scene panel says so when the document has no camera.
+- **You see it where the camera sees it.** Parallax shows in *Through camera*
+  preview, playback through the camera, and every export — never in the plain
+  working view, which shows the planes head-on so drawing stays simple.
+- **The drawing never changes.** Depth is compositing, like the camera itself:
+  strokes keep their coordinates, and clearing a depth puts the layer back
+  exactly where it was.
+
+Each depth edit is one undo step. Zoom responds too, geometrically — a distant
+plane grows less under a push, which is what makes a truck-in read as depth
+rather than as a scale.
 
 ---

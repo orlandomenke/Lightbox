@@ -422,6 +422,18 @@ public sealed class PoseTrack
     /// <summary>Authored poses. Order is not guaranteed; read through <see cref="ArmatureOps"/>.</summary>
     public List<PoseKey> Keys { get; set; } = [];
 
+    /// <summary>
+    /// Animate the rig on Ns: the <em>render</em> pose is sampled every this
+    /// many frames — anchored at frame 0, the exposure sheet's grid — and held
+    /// between samples, so fluid auto-tween steps like drawn animation (Q152).
+    /// Null (the default) samples every frame and is what every document
+    /// written before this key existed means. Authoring is never stepped:
+    /// <see cref="ArmatureOps.PoseAt"/> stays fluid, because keys are seeded
+    /// from it and drags are measured against it — the same authoring/render
+    /// split jiggle already made.
+    /// </summary>
+    public int? Step { get; set; }
+
     /// <summary>A copy holding no reference in common with this one.</summary>
     public PoseTrack Clone()
     {
@@ -629,9 +641,31 @@ public static class ArmatureOps
     /// </summary>
     public const int SettleHorizonFrames = 240;
 
+    /// <summary>
+    /// The frame a render actually samples: the query frame snapped down to
+    /// the track's <see cref="PoseTrack.Step"/> grid, or the frame itself on
+    /// an unstepped track. Anchored at frame 0 so held poses land on the same
+    /// grid the exposure sheet exposes drawings on.
+    /// </summary>
+    public static int SampleFrame(PoseTrack? track, int frame)
+    {
+        if (track?.Step is not { } step || step <= 1) return frame;
+        // Floor division, so a (never authored today) negative frame would
+        // still snap down rather than towards zero.
+        var q = frame / step;
+        if (frame < 0 && frame % step != 0) q--;
+        return q * step;
+    }
+
     public static Dictionary<string, BonePose> EffectivePoseAt(
         Armature armature, PoseTrack? track, int frame)
     {
+        // Stepping quantizes the whole render sample — base pose and the
+        // jiggle walk alike — so two real frames inside one step are the same
+        // call and agree to the bit. The motion underneath stays fluid; only
+        // where it is *sampled* changes, which is what lets an artist retime
+        // the step without re-posing anything (Q152).
+        frame = SampleFrame(track, frame);
         var basePose = PoseAt(track, frame);
         var keys = Ordered(track);
         if (keys.Count == 0) return basePose;

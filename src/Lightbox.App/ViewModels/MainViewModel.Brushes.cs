@@ -144,6 +144,7 @@ public partial class MainViewModel
         _editor = new DocumentEditor(StartupDoc());
         _activeLayerIndex = FirstPaintableLayer(_editor.Doc);
         _editor.Changed += OnDocumentChanged;
+        EffectsPanel = new EffectsViewModel(this);
         // The live rig: a frame with bound strokes renders posed for the
         // timeline position asking for it. Reads `_editor` at call time, so
         // switching tabs switches the armature with everything else. A
@@ -156,6 +157,11 @@ public partial class MainViewModel
                 _editor.Doc, frame, cel, _cache.Rig,
                 cel == CurrentFrameIndex ? _bonePreviewPose : null,
                 ghostOverBudget: _bonePreviewPose is not null && cel == CurrentFrameIndex);
+        // A blur reads neighbours, so a document with live kernel effects
+        // dirties more than the stroke touched. Asked per mark rather than
+        // cached, because a keyed radius changes per frame; a document with
+        // no effects answers 0 from one boolean sweep.
+        _publish.DirtyInflationOf = EffectDirtyInflation;
         // A retired bake may still be riding in a published pass list on its
         // way to the render thread, and every pass bitmap is pinned in the
         // frame cache at publish — so the cache's pin-aware deferral is the
@@ -180,7 +186,7 @@ public partial class MainViewModel
         // Mirror it where the render thread can see it (B125): the draw op has no
         // route to the view model, and an environment variable still forces it on
         // for headless runs.
-        Rendering.GpuComposite.SettingEnabled = Settings.GpuCompositing;
+        Rendering.GpuComposite.Mode = Settings.GpuCompositingMode;
         if (Enum.TryParse<CanvasQuality>(Settings.CanvasQuality, out var storedQuality))
         {
             _canvasQuality = storedQuality;
@@ -238,7 +244,8 @@ public partial class MainViewModel
         PaletteDocker.ProjectSource = () => ProjectDocker?.Project;
         PaletteDocker.ProjectEdited = OnProjectChanged;
         GradientDocker = new GradientDockerViewModel(OnGradientEdited, PerformGradientEdit);
-        ProjectDocker = new ProjectViewModel(NewAnimationDoc, OpenProjectDocument, OnProjectChanged);
+        ProjectDocker = new ProjectViewModel(
+            NewAnimationDoc, OpenProjectDocument, OnProjectChanged, OnVariantSwitched);
         ProjectDocker.OpenSheet = OpenProjectSheet;
         // HasProject is a forwarding property, so it has no notification of its
         // own. Without this relay the project panel stays hidden after New or

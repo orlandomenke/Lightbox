@@ -90,6 +90,12 @@
   <SolidColorBrush x:Key="AccentLimeBrush" Color="{StaticResource AccentLime}" />
   <SolidColorBrush x:Key="AccentAmberBrush" Color="{StaticResource AccentAmber}" />
 
+  <!-- The camera's one hue, wherever it shows. The code-side twin is
+       TrackView.CameraColour - the two carry the same value on purpose, and
+       whichever moves takes the other with it. -->
+  <Color x:Key="CameraTrack">#FF9F45</Color>
+  <SolidColorBrush x:Key="CameraTrackBrush" Color="{StaticResource CameraTrack}" />
+
   <!--
     The primary action gradient, coral into magenta. One definition: the mockup
     uses it on the primary button and the loading bar, and two hand-built copies

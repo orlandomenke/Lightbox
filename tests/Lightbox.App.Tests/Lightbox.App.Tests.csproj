@@ -38,4 +38,15 @@
     <Compile Include="..\Lightbox.Raster.Tests\VisualSheet.cs" Link="VisualSheet.cs" />
   </ItemGroup>
 
+  <!--
+    The PSD fixture builder, linked for the same reason: the reader is tested in the Raster suite
+    and the mapping onto a document is tested here, and both need to hand the same bytes in. Two
+    copies of a hand-written binary format builder would drift, and the whole point of the fixtures
+    is that a failure says which field disagreed rather than "the bytes changed".
+  -->
+  <ItemGroup>
+    <Compile Include="..\Lightbox.Raster.Tests\PsdFixture.cs" Link="PsdFixture.cs" />
+    <Compile Include="..\Lightbox.Raster.Tests\PsdLayerFixture.cs" Link="PsdLayerFixture.cs" />
+  </ItemGroup>
+
 </Project>

@@ -201,15 +201,25 @@ public sealed class ReferenceBoardViewModel
         using (decoded)
         {
             var name = Path.GetFileNameWithoutExtension(path);
-            if (Project is { } project && ProjectBoards.ImportImage(project, path) is { } relative)
-            {
-                return AddTile(name, decoded.Width, decoded.Height, at, tile =>
-                {
-                    tile.Path = relative;
-                    tile.Origin = path;
-                });
-            }
             var png = Lightbox.Raster.PngCodec.Encode(decoded);
+            if (Project is { } project)
+            {
+                // By path first, which keeps the original file's own format; by
+                // its decoded bytes when the name says nothing (B282), so a
+                // browser's nameless temporary is still *copied into* the
+                // project rather than quietly embedded in the board file.
+                var relative = ProjectBoards.ImportImage(project, path)
+                    ?? ProjectBoards.ImportImage(
+                        project, Convert.FromBase64String(png), $"{ProjectIo.Slug(name)}.png");
+                if (relative is not null)
+                {
+                    return AddTile(name, decoded.Width, decoded.Height, at, tile =>
+                    {
+                        tile.Path = relative;
+                        tile.Origin = path;
+                    });
+                }
+            }
             return AddTile(name, decoded.Width, decoded.Height, at, tile =>
             {
                 tile.Png = png;

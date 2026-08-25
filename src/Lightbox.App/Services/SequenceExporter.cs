@@ -39,10 +39,24 @@ public static class SequenceExporter
         var camera = scene.Camera;
         var (outWidth, outHeight) = OutputSize(scene);
 
+        // The framing is per-frame; a layer's parallax response to it is
+        // per-layer, below. Null without a camera, which is also what makes
+        // depth do nothing on an asset document — there is no framing for it
+        // to respond to. The shared half of the parallax arithmetic is
+        // prepared once per frame, only when some layer has a depth.
+        var framing = camera is null
+            ? (CameraFraming?)null
+            : CameraOps.At(camera, frameIndex, scene.Width, scene.Height);
+        var parallaxFrame = framing is { } pf && scene.Layers.Exists(l => l.HasDepth)
+            ? ParallaxTransform.Prepare(
+                pf, CameraFraming.Centred(scene.Width, scene.Height), outWidth, outHeight)
+            : null;
+
         var passes = new List<RenderPass>();
         var footageQueued = false;
-        foreach (var layer in scene.Layers)
+        for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
         {
+            var layer = scene.Layers[layerIndex];
             if (!scene.IsLayerVisible(layer)) continue;
             // Production footage goes over the paper and under every drawing
             // (Q57) — the same slot the canvas gives it, so the export shows
@@ -52,18 +66,41 @@ public static class SequenceExporter
                 passes.AddRange(ProductionPasses(scene, frameIndex));
                 footageQueued = true;
             }
+            // An adjustment layer has no drawing to expose: its pass filters
+            // whatever the loop has already composed beneath it.
+            if (layer.IsAdjustment)
+            {
+                if (EffectPasses.AdjustmentPass(scene, layerIndex, frameIndex, cache) is { } adj)
+                {
+                    passes.Add(adj);
+                }
+                continue;
+            }
             var frame = ExposureSheet.ExposedFrame(layer, frameIndex);
             if (frame is null) continue;
+            // Masks and clipping export exactly as the canvas shows them; an
+            // empty shape list is a clipped layer over nothing this frame.
+            var shapes = LayerShapes.For(scene, layerIndex, frameIndex);
+            if (shapes is { Count: 0 }) continue;
+            // Multiplane: a layer with a depth exports through its plane's
+            // matrix — the same pass slot the canvas preview uses, so the
+            // deliverable is what the artist was looking at.
+            var parallax = parallaxFrame?.MatrixFor(layer.Depth);
             passes.Add(new RenderPass(
                 cache.Get(frame, scene.Width, scene.Height, celIndex: frameIndex),
-                null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
+                null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
+                Matrix: parallax,
+                Shapes: LayerShapes.Resolve(shapes, cache, scene.Width, scene.Height, frameIndex),
+                Effect: EffectPasses.SelfFilter(layer, frameIndex),
+                Style: EffectPasses.SelfStyle(layer, frameIndex)));
         }
         if (!footageQueued) passes.AddRange(ProductionPasses(scene, frameIndex));
+        // The scene grade last, over everything the frame composed.
+        if (EffectPasses.SceneStackPass(scene, frameIndex) is { } grade) passes.Add(grade);
 
         SKMatrix? transform = camera is null
             ? null
-            : CameraTransform.Matrix(
-                CameraOps.At(camera, frameIndex, scene.Width, scene.Height), outWidth, outHeight, scale);
+            : CameraTransform.Matrix(framing!.Value, outWidth, outHeight, scale);
 
         // Scale 1 with no explicit size takes exactly the arithmetic it always
         // did — a document exported at its own size must be byte-for-byte what
