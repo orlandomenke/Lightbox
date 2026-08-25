@@ -140,11 +140,12 @@ public sealed partial class CanvasControl
     private IReadOnlyList<RigMark>? _rigMarks;
 
     /// <summary>
-    /// The motion trail's ticks, or null for none — absent when the trail is
-    /// off, following <see cref="RigMarks"/>: a flattened snapshot pushed from
-    /// the window when the view model says it changed, not bound.
+    /// The motion trail's ticks and the analysis riding them (Q134), or null
+    /// for none — absent when the trail is off, following
+    /// <see cref="RigMarks"/>: a flattened snapshot pushed from the window
+    /// when the view model says it changed, not bound.
     /// </summary>
-    public IReadOnlyList<Core.Timeline.TrailPoint>? TrailPoints
+    public TrailOverlay? TrailPoints
     {
         get => _trailPoints;
         set
@@ -158,7 +159,7 @@ public sealed partial class CanvasControl
         }
     }
 
-    private IReadOnlyList<Core.Timeline.TrailPoint>? _trailPoints;
+    private TrailOverlay? _trailPoints;
 
     /// <summary>
     /// The motion arc overlay — the fitted arc, its off-arc ticks and the

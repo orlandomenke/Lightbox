@@ -25,6 +25,17 @@ public sealed class MotionTrailSettings
     public int After { get; set; } = 4;
 
     /// <summary>
+    /// The analysers riding the trail, each off by default for the
+    /// trail's own reason: they are reached for while judging a sequence,
+    /// not left on while drawing. All three only speak while the trail is on.
+    /// </summary>
+    public bool SpacingGhosts { get; set; }
+
+    public bool JumpArc { get; set; }
+
+    public bool WalkReport { get; set; }
+
+    /// <summary>
     /// The fitted arc and its off-arc judgement, riding the trail's ticks.
     /// Off by default like the trail itself — a judgement you ask for.
     /// </summary>
@@ -37,4 +48,12 @@ public sealed class MotionTrailSettings
     /// without the whole judgement, or judged without being told.
     /// </summary>
     public bool Predict { get; set; }
+
+    /// <summary>
+    /// Judge spacing and the jump arc where the audience looks (Q137): each
+    /// drawing's subject projected by that frame's camera framing. Meaningful
+    /// only when the document has a camera; the walk checks stay world-space
+    /// regardless — a camera move cannot make a foot slide.
+    /// </summary>
+    public bool ThroughCamera { get; set; }
 }

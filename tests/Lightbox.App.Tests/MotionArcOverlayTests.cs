@@ -151,7 +151,7 @@ public sealed class MotionArcOverlayTests(ITestOutputHelper output) : BrushState
         MotionArcOverlay? arc = null;
         IReadOnlyList<TrailPoint>? trail = null;
         vm.MotionArcChanged += a => arc = a;
-        vm.MotionTrailChanged += p => trail = p;
+        vm.MotionTrailChanged += o => trail = o?.Points;
         vm.ArcPrediction = true;
         vm.MotionTrailAfter = 0;
 

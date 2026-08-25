@@ -115,6 +115,31 @@
             <CheckBox Content="Predict the next position" IsChecked="{Binding ArcPrediction}"
                       ToolTip.Tip="A dashed tick where the drawing after the last one should go, spacing continued from your own — and, when the playhead stands on an empty cel between drawings, where that drawing's subject belongs. Suggestions are dashed so they cannot be misread as drawings." />
 
+            <TextBlock Text="Analysis" FontWeight="SemiBold" FontSize="12" Margin="0,4,0,0" />
+            <!--
+              The analysers ride the trail (Q134): geometry on the canvas
+              beside the trail's own ticks, words here. They only speak while
+              the trail is on — marks with no ticks to sit beside would be
+              chrome nobody asked to learn — so the checkboxes disable with it.
+            -->
+            <StackPanel Spacing="4" IsEnabled="{Binding MotionTrail}">
+              <CheckBox Content="Spacing targets" IsChecked="{Binding SpacingGhosts}"
+                        ToolTip.Tip="A dashed ghost tick where the intended spacing (the extreme's timing chart, else the easing) wants each inbetween, with a tether from the drawing that misses it." />
+              <CheckBox Content="Jump arc" IsChecked="{Binding JumpArcOverlay}"
+                        ToolTip.Tip="A gravity arc fitted to the run the playhead is in — constant speed across, constant fall down. Drawings off the arc are ringed." />
+              <CheckBox Content="Walk cycle report" IsChecked="{Binding WalkReport}"
+                        ToolTip.Tip="Reads the walk under the playhead — the tag's range if one covers it, else the whole layer: does the loop close (when it is meant to loop), do the contacts land evenly, does the bob match between steps, does the planted foot hold its place. Advisory — a deliberate shuffle is allowed to trip it." />
+              <CheckBox Content="Through the camera" IsChecked="{Binding AnalyseThroughCamera}"
+                        IsEnabled="{Binding HasCamera}"
+                        ToolTip.Tip="Judge spacing and the jump arc where the audience looks: each drawing projected by that frame's camera framing. Needs a camera. The walk checks stay in the world either way — a camera move cannot make a foot slide." />
+              <Button Content="Nudge to spacing" Command="{Binding NudgeToSpacingCommand}"
+                      ToolTip.Tip="Move the playhead's drawing along its own path to where the intended spacing wants it. One undo step." />
+              <Button Content="Detect contacts" Command="{Binding DetectContactsCommand}"
+                      ToolTip.Tip="Read the layer's footfalls from the lowest ink and mark them as named &quot;contact&quot; markers — one undo step, and frames you already marked are left alone. The jump arc fits between them from then on." />
+            </StackPanel>
+            <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.8"
+                       Text="{Binding AnalysisReadout}" IsVisible="{Binding HasAnalysisReadout}" />
+
             <TextBlock Text="Ghost poses" FontWeight="SemiBold" FontSize="12" Margin="0,4,0,0" />
             <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.6"
                        Text="A pinned frame stays ghosted from every other frame — the extreme you are animating towards, however far away it is." />

@@ -242,6 +242,12 @@ One thing, three uses, and which one you get depends on what you fill in:
 | A **note** | Prose about the frame, as long as it needs to be: *the hand pops here, fix on 2s*. It is not drawn on the ruler; it appears in the notes list and on hover. Writing a note on an unmarked frame creates the marker for you. |
 | An **event** | Tick it and the marker is exported to your game engine as an animation event — `OnFootstep` at frame 7. Off by default, because most markers are notes to yourself and a game has nothing to do with them. |
 
+**Detect contacts** (in the onion bar's ⚙, under *Analysis*) reads your
+sequence's footfalls off the lowest ink and marks each one with a "contact"
+marker — one undo step, and any frame you already marked is left exactly as
+you marked it. The jump arc analyser fits between contact markers, and an
+exporter can tick them as events like any other marker.
+
 Renaming a marker keeps its note and its event tick. **Next / previous marker**
 walks between them, which is what makes them useful on a long sheet rather than
 labels you have to find by eye; walking past the last one stays where it is rather

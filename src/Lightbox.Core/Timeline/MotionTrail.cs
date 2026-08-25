@@ -84,7 +84,16 @@ public static class MotionTrail
     /// The subject's position on one drawing: its placed pivot anchor, else
     /// the centre of its ink bounds, else nothing.
     /// </summary>
-    public static (double X, double Y, bool Anchored)? Locate(Scene scene, Frame frame)
+    public static (double X, double Y, bool Anchored)? Locate(Scene scene, Frame frame) =>
+        Locate(scene, frame, InkBounds(frame));
+
+    /// <summary>
+    /// <see cref="Locate(Scene, Frame)"/> for a caller that already walked the
+    /// ink — the walk analyser needs the bounds anyway, and locating through
+    /// the plain overload would walk every point a second time.
+    /// </summary>
+    public static (double X, double Y, bool Anchored)? Locate(
+        Scene scene, Frame frame, (double MinX, double MinY, double MaxX, double MaxY)? bounds)
     {
         if (scene.Anchors is { } declared && frame.Anchors is { } placed)
         {
@@ -95,6 +104,16 @@ public static class MotionTrail
             }
         }
 
+        return bounds is { } b ? ((b.MinX + b.MaxX) / 2, (b.MinY + b.MaxY) / 2, false) : null;
+    }
+
+    /// <summary>
+    /// The bounds of a drawing's ink, or null when there is none. Shared with
+    /// the analysers so "where the feet are" and "where the subject is" read
+    /// the same strokes by the same rule.
+    /// </summary>
+    public static (double MinX, double MinY, double MaxX, double MaxY)? InkBounds(Frame frame)
+    {
         var minX = double.MaxValue;
         var minY = double.MaxValue;
         var maxX = double.MinValue;
@@ -120,6 +139,6 @@ public static class MotionTrail
                 if (point.Y > maxY) maxY = point.Y;
             }
         }
-        return any ? ((minX + maxX) / 2, (minY + maxY) / 2, false) : null;
+        return any ? (minX, minY, maxX, maxY) : null;
     }
 }

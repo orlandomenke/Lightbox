@@ -84,6 +84,61 @@ skin's. It has no key out of the box; **Configure → Shortcuts → “Show moti
 trail”** binds one. A drawing with strokes bound to bones is trailed where it
 was drawn, not where the pose moved it — trailing the posed motion is *Planned*.
 
+### Reading the trail: the analysers
+
+Behind the same **⚙**, under **Analysis**, three readers ride the trail. They
+only speak while the trail is on — they annotate its ticks — and each is a
+shortcut you can rebind (**Configure → Shortcuts**, gestureless out of the box).
+Whatever they have to say appears as text under the checkboxes, following the
+playhead.
+
+**Spacing targets** puts a dashed amber tick where the intended spacing wants
+each inbetween — the extreme's timing chart if it has one, else the easing
+picked on the X-sheet bar — with a tether from any drawing that misses its
+mark. The targets sit on the path you drew: the assistant re-times your motion,
+it never straightens it. **Nudge to spacing** then moves the playhead's drawing
+along that path onto its target — the whole drawing, anchors and all, as one
+undo step. Extremes are never nudged; they are the statements the spacing is
+measured between. A drawing with a pixel baseline, or with
+selection-clipped strokes, is refused whole rather than having its ink moved
+out from under its pixels or its mask.
+
+**Jump arc** fits a gravity arc to the run the playhead is in — extreme to
+extreme, constant speed across, constant fall down — draws it dashed, and rings
+any drawing sitting off it. Four drawings with a subject are the minimum: three
+fit any parabola, so the first honest verdict needs a fourth. A run whose best
+fit accelerates upward is called out as not reading ballistic at all. Frame the
+jump with extremes — and where the run carries **"contact" markers** (yours, or
+**Detect contacts**'), the fit trims itself to the airborne stretch between
+them, so a crouched takeoff or landing never drags the arc.
+
+**Walk cycle report** reads the walk under the playhead — the **tag's range**
+if one covers it (so "frames 30–70 are the walk" is a tag, the same object an
+engine clip is), else the whole layer — and reports in prose: whether the loop
+closes, whether the contacts land evenly, whether the bob matches between
+steps, and whether the **planted foot holds its place** — still on the ground
+in a travelling walk, treading at a constant rate in place. The loop checks
+only run when the range is meant to repeat: the tag's own *Loop* flag decides,
+and without a tag, standing in place does. It is advisory — a deliberate
+shuffle is allowed to trip it — and it needs at least four drawings with ink.
+
+**The ground doesn't have to be flat.** Name a line guide **"ground"** (View →
+Guides, then name it in its options) and every foot, bob and gravity reading
+measures against that line at whatever angle it lies — slopes and tilted
+layouts read correctly. Without one, the ground is the lowest ink the sequence
+reaches, horizontal, as a sprite cycle expects. And when the drawing **changes
+size** across the range — a character walking toward camera — the analysers say
+so and stand down rather than flagging staging you meant: a flat reading of
+depth motion would only cry wolf.
+
+**Through the camera** (needs a camera) re-judges spacing and the jump arc on
+each drawing's **projected** position — what the audience sees, not what the
+world does. Spacing that is even in the world can bunch up on screen under a
+zooming camera; the ghost targets still land in the world, at the place whose
+projection is even, so the nudge works exactly as before. The jump verdict is
+then about the read — correct gravity can legitimately fail to read as an arc
+under a camera move, which is worth knowing and not an error — and the walk
+checks stay in the world either way: a camera move cannot make a foot slide.
 ### The arc, and the predicted position
 
 Two more switches live behind the **⚙**, under the trail's depths, and both

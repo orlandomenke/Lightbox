@@ -141,7 +141,7 @@ public sealed class MotionTrailOverlayTests(ITestOutputHelper output) : BrushSta
 
         IReadOnlyList<TrailPoint>? latest = null;
         var pushes = 0;
-        vm.MotionTrailChanged += p => { latest = p; pushes++; };
+        vm.MotionTrailChanged += o => { latest = o?.Points; pushes++; };
 
         // Two drawings in two places.
         vm.ColorHex = "#000000";
@@ -199,7 +199,7 @@ public sealed class MotionTrailOverlayTests(ITestOutputHelper output) : BrushSta
 
         IReadOnlyList<TrailPoint>? latest = null;
         var pushes = 0;
-        vm.MotionTrailChanged += p => { latest = p; pushes++; };
+        vm.MotionTrailChanged += o => { latest = o?.Points; pushes++; };
         vm.MotionTrail = true;
         Assert.NotNull(latest);
 

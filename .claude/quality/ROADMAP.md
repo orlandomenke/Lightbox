@@ -1341,16 +1341,66 @@ every other AI feature and are only legible together.
     cel would pile invisible coincident dots on every hold and make tick
     counting lie about drawing counts, so ticks count drawings and a hold on
     2s is one tick standing still.
-- [?] Spacing assistant
+- [x] Spacing assistant `evidence: SpacingAssistant, TargetsForRun, FrameTranslate, AnalysisOverlayPainter, SpacingAssistantTests, FrameTranslateTests, ABunchedDrawingIsFlaggedAndItsTargetSitsOnTheMeasuredPath, TheExtremesOwnChartBeatsTheGlobalEasing, TheNudgeMovesTheDrawingAndUndoRestoresTheExactBits, ANudgeRefusesADrawingWithAPixelBaseline, ANudgeRefusesAClipLimitedStroke, EvenWorldSpacingCanMissThroughAZoomingCamera`
+  - **The acting half of the spacing chart (Q134)**: ghost ticks on the trail
+    where the intended spacing (the extreme's chart, else the easing) wants
+    each inbetween, and a one-click nudge that slides the playhead's drawing
+    along the measured path onto its target — a whole-frame translate
+    (`FrameTranslate`, everything `ImageResize` visits), one undo step, exact
+    on undo. Targets use the trail's subject (`MotionTrail.Locate`), not the
+    graph's centroid, so the ghost and the real tick cannot disagree.
+  - Extremes are never targets; a drawing with a pixel baseline or a
+    selection-clipped stroke is refused whole rather than torn from its
+    pixels or its mask (the clip lives on the document, content-hashed and
+    shareable, so it cannot travel with one drawing).
 - [x] Timing charts `evidence: TimingChart, TimingChartView, TimingChartTests, TimingChartVmTests, TheChartPlacesTheInbetweensExactlyOnItsRungs, TheInbetweenerObeysTheChartOverTheBar`
   - The ladder on the extreme (Q58): `Frame.Chart` holds the rungs, the cel
     menu's editor writes them, and both inbetweeners and the intended-spacing
     curve read the same list — one authored object, every consumer.
-- [?] Automatic contact frame detection
+- [x] Automatic contact frame detection `evidence: ContactFrames, ContactReading, ContactFramesTests, AFootfallStartsWhereAPlantedDrawingFollowsAnAirborneOne, AShotIsNotACycleSoNothingWraps, DetectContactsMarksTheFootfallsOnceAndUndoes, DetectContactsLeavesTheArtistsOwnMarkerAlone, ContactMarkersTrimTheFitToTheAirborneStretch`
+  - **Detection reads; the marker is the artist's** (Q135): "Detect contacts"
+    reads footfalls off the lowest ink — the walk analyser's ground-band rule,
+    shared through `ContactFrames.Planted` so the two can never disagree —
+    and writes named "contact" markers as one undo step, on request only.
+    Frames already marked are left alone, whatever they say.
+  - Linear where the walk analyser wraps: a shot is not a cycle, so frame 0
+    planted IS a footfall and the landing is not the takeoff.
+  - The jump arc analyser trims its fit to the airborne stretch between
+    contact markers — authored record, not re-detection, so correcting a
+    wrong split is editing a marker rather than arguing with a heuristic.
 - [?] Perspective consistency checker
 - [?] Silhouette readability preview
-- [?] Walk cycle analyzer
-- [?] Jump arc analyzer
+- [x] Walk cycle analyzer `evidence: WalkCycleAnalyser, WalkCycleReport, WalkFinding, Ground, WalkCycleAnalyserTests, ShotAnalyserTests, ACleanCycleReportsNoFindings, ASeamThatJumpsNamesTheLoop, UnevenContactsNameTheStride, ALopsidedBobNamesBothSteps, AWalkUpASlopeReadsItsContactsAlongTheSlope, ATravellingWalksPlantedFootMustHoldItsPlace, AWalkTowardCameraIsHedgedNotFlagged`
+  - Reads the active layer's sheet as one cycle (Q134): loop closure, contact
+    evenness, bob symmetry — all off the record, feet as the lowest ink,
+    tolerances as fractions of ink height. Prose in the trail's flyout
+    readout, advisory by design: a deliberate shuffle is allowed to trip it.
+  - **The loop check is a seam check, not an equality check** — a correct
+    cycle's last drawing differs from its first by one step, so the seam is
+    judged against the steps *away* from it (a wrong endpoint corrupts the
+    step beside it too, and must not set its own yardstick).
+  - **Shot terms since Q137**: the range is the tag under the playhead (else
+    the whole sheet), the ground is the artist's "ground" line guide at any
+    angle (else horizontal lowest ink), the seam checks gate on the tag's own
+    `Loop` flag (else standing in place), a travelling walk gains foot-slide
+    detection — the planted foot holds still, or treads at a constant rate —
+    and size drift past the depth band is hedged as depth motion instead of
+    flagged. Always world-space: a camera move cannot make a foot slide.
+- [x] Jump arc analyzer `evidence: JumpArcAnalyser, JumpArcFit, FitRun, CameraView, JumpArcAnalyserTests, ShotAnalyserTests, PointsOnAParabolaFitWithNoOffenders, ADrawingOffTheArcIsNamed, AnArcThatNeverComesDownIsNotBallistic, TheFitIsTheRunAtThePlayheadNotTheWholeLayer, AJumpOnASlopeFitsTheParabolaItActuallyDescribes, ThroughTheCameraTheJumpVerdictTravelsWithoutACurve`
+  - Fits x-linear/y-quadratic to the playhead's run (Q134) — cel-index time,
+    so 2s carry their real timing — draws the arc dashed on the trail and
+    rings the drawings off it. Closed-form least squares run twice: once over
+    everything, once without the single worst drawing, because a plain fit is
+    dragged toward the bump and smears blame onto its neighbours (measured:
+    one 40 px bump flagged four of six drawings before the trim, one after).
+  - Under four located drawings it returns nothing: three points fit any
+    parabola. Contact markers trim the fit to the airborne stretch (Q135).
+  - **Shot terms since Q137**: the fit's axes are the ground guide's, so a
+    jump on a slope fits the parabola it actually describes; size drift past
+    the depth band suppresses flags and hedges instead; and "through the
+    camera" refits on each frame's projected position — does it read as an
+    arc where the audience looks — with the verdict hedged as being about the
+    read, and no curve drawn (a between-frames sample has no framing).
 - [?] Timing diagnostics
 
 ## Pillar 5 — One-click export to game engines

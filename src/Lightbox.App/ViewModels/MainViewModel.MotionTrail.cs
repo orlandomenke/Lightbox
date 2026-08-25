@@ -10,10 +10,11 @@ namespace Lightbox.App.ViewModels;
 public partial class MainViewModel
 {
     /// <summary>
-    /// The trail's ticks changed: the window pushes them to the canvas. Null
-    /// means no trail — off, or nothing in range has a locatable subject.
+    /// The trail's ticks — or the analysis riding them (Q134) — changed: the
+    /// window pushes the snapshot to the canvas. Null means nothing to draw —
+    /// off, or nothing in range has a locatable subject.
     /// </summary>
-    public event Action<IReadOnlyList<TrailPoint>?>? MotionTrailChanged;
+    public event Action<Rendering.TrailOverlay?>? MotionTrailChanged;
 
     /// <summary>
     /// The arc overlay changed: the fitted arc, its off-arc ticks and the
@@ -113,11 +114,18 @@ public partial class MainViewModel
     /// </summary>
     public void RefreshMotionTrail()
     {
-        if (MotionTrailChanged is null && MotionArcChanged is null) return;
         // Off during playback, like onion ghosts and for their reason — and
         // that guard is also what keeps the bounds walk off the tick path
         // (B152's lesson): OnIsPlayingChanged catches up when playback stops.
-        if (!Settings.Trail.Enabled || IsPlaying || ActiveLayer is not { } layer)
+        var active = !Settings.Trail.Enabled || IsPlaying ? null : ActiveLayer;
+        // Once per refresh, for the overlay AND the readout — the readout
+        // re-running the analysers its overlay had just run was a doubled
+        // record walk per playhead move.
+        RecomputeAnalysis(active);
+        OnPropertyChanged(nameof(AnalysisReadout));
+        OnPropertyChanged(nameof(HasAnalysisReadout));
+        if (MotionTrailChanged is null && MotionArcChanged is null) return;
+        if (active is not { } layer)
         {
             MotionTrailChanged?.Invoke(null);
             MotionArcChanged?.Invoke(null);
@@ -139,7 +147,7 @@ public partial class MainViewModel
         if (nextDrawingExists) points.RemoveAt(points.Count - 1);
         // One tick is not a motion; the painter agrees, and null keeps the
         // canvas's "absent, not merely invisible" rule.
-        MotionTrailChanged?.Invoke(points.Count > 1 ? points : null);
+        MotionTrailChanged?.Invoke(BuildTrailOverlay(points));
         MotionArcChanged?.Invoke(ComputeArc(points, nextDrawingExists));
     }
 
