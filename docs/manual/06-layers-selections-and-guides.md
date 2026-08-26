@@ -544,6 +544,13 @@ this drawing, because a line lives on one. If you have both an area selected and
 lines picked, the **area wins**; the transform says which it took when it starts,
 so you are not left guessing.
 
+**The handles fit the drawing you can see.** A drawing you have reworked still
+remembers what you rubbed out, and the box ignores it — so the handles sit round
+the art rather than round its history. **An imported drawing transforms too**,
+even though it is pixels rather than strokes; with a selection up the imported
+pixels stay put, so the box shrinks to the lines that are actually going to
+move.
+
 Because strokes are geometry, a transform is **lossless**: rotating and
 rotating back leaves no softening.
 
