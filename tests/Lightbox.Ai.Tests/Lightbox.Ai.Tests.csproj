@@ -24,6 +24,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Lightbox.Ai\Lightbox.Ai.csproj" />
+    <!--
+      Raster is here for one reason: PixelContextMeasurementTests has to render
+      the very strokes it is deciding whether to stop sending, and a hand-rolled
+      stand-in would measure a picture the application never produces.
+    -->
+    <ProjectReference Include="..\..\src\Lightbox.Raster\Lightbox.Raster.csproj" />
   </ItemGroup>
 
 </Project>
