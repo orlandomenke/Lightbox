@@ -526,6 +526,15 @@ public sealed class ShortcutMap
             // tablet's own driver may have taken it.
             new("diagnostics.inputTrace", "Record an input trace (pen problems)", "Help",
                 G(Key.F9)),
+            // A key for the input trace's reason, and more so: the artifact this
+            // exists to catch happens DURING a stroke and is gone by the time a
+            // hand reaches a menu. F10 writes out the frames already recorded,
+            // so the pen can stop where the problem was rather than where the
+            // menu is. Recording itself is a menu toggle — that one is not
+            // urgent, and a key that silently starts costing memory is worse
+            // than a box you ticked on purpose.
+            new("diagnostics.writeFrames", "Write out the last frames drawn", "Help",
+                G(Key.F10)),
         ];
     }
 

@@ -190,16 +190,44 @@ public class PublishStateTests(Xunit.ITestOutputHelper output)
         Assert.False(publish.CanvasIsBehind(damMs: 250));
     }
 
-    /// <summary>A canvas that has fallen behind the newest publish is behind.</summary>
-    [Fact]
-    public void ACanvasBehindTheNewestPublishIsBehindUntilTheDamExpires()
+    /// <summary>
+    /// A canvas is behind once the publishes ahead of it reach the depth
+    /// allowed in flight, and not before.
+    /// </summary>
+    /// <remarks>
+    /// <b>Written as the general statement because the specific one broke.</b>
+    /// This asserted that being ONE publish ahead of the canvas means behind,
+    /// which was true while exactly one frame was allowed in flight and stopped
+    /// being true the day two were (measured to halve the publish cycle and the
+    /// ink-per-publish). A test that hard-codes a value it does not name fails
+    /// for a reason that has nothing to do with what it is checking, and reads
+    /// as a regression when it is a default moving.
+    /// </remarks>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void ACanvasIsBehindOnceTheDepthIsFullAndNotBefore(int depth)
     {
-        var publish = new PublishState { LastPublishTicks = System.Diagnostics.Stopwatch.GetTimestamp() };
+        var publish = new PublishState
+        {
+            InFlightDepth = depth,
+            LastPublishTicks = System.Diagnostics.Stopwatch.GetTimestamp(),
+        };
         publish.NotePresented(1);
-        publish.NextSequence();
-        publish.NextSequence();          // seq 2 published, canvas has drawn 1
 
-        Assert.True(publish.CanvasIsBehind(damMs: 250));
+        // One short of the depth: there is still room, so nothing is held.
+        for (var i = 0; i < depth; i++) publish.NextSequence();
+        Assert.False(
+            publish.CanvasIsBehind(damMs: 250),
+            $"at a depth of {depth}, {depth - 1} publishes ahead of the canvas should still fit");
+
+        // One more fills it.
+        publish.NextSequence();
+        Assert.True(
+            publish.CanvasIsBehind(damMs: 250),
+            $"at a depth of {depth}, {depth} publishes ahead of the canvas is full");
+
         // A dam of zero is already expired, so the publish goes ahead regardless — the
         // liveness half, which is what stops a hidden window damming forever.
         Assert.False(publish.CanvasIsBehind(damMs: 0));

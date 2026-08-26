@@ -989,9 +989,25 @@ public partial class ConfigureWindow : Window
         CacheBudgetBox.Value = _vm.FrameCacheBudgetMb;
         GpuCompositeBox.ItemsSource = _vm.GpuCompositingChoices;
         GpuCompositeBox.SelectedItem = _vm.GpuCompositingMode;
+        DesktopCompositorBox.IsChecked = _vm.PresentThroughDesktopCompositor;
         _loadingPerformance = false;
         RefreshGpuCompositeHint();
         RefreshMeasured();
+    }
+
+    /// <summary>
+    /// Which way frames reach the screen. Takes effect at the next start, and
+    /// says so rather than appearing to have done nothing.
+    /// </summary>
+    private void OnDesktopCompositorChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_loadingPerformance || _vm is null) return;
+        if (DesktopCompositorBox.IsChecked is not { } on) return;
+        if (on == _vm.PresentThroughDesktopCompositor) return;
+        _vm.PresentThroughDesktopCompositor = on;
+        _vm.AiStatus = on
+            ? "Lightbox will present through the desktop compositor at the next start"
+            : "Lightbox will present straight to the screen at the next start";
     }
 
     private void OnGpuCompositeChanged(object? sender, SelectionChangedEventArgs e)

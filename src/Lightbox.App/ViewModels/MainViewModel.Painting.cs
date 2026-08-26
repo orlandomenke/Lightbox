@@ -1307,6 +1307,38 @@ public partial class MainViewModel
         if (region is { } lost) NotePostProcessDirty(lost);
     }
 
+    /// <summary>
+    /// How often the pen actually delivers, so a slow publish cycle can be told
+    /// from a pen that is not asking for one.
+    /// </summary>
+    /// <remarks>
+    /// <b>Context for the cycle, and the thing that stops a wrong conclusion.</b>
+    /// "Nine and a half publishes a second against a cycle that should allow
+    /// sixteen" only means something if events are arriving fast enough to want
+    /// sixteen. If the tablet delivers every 60 ms there is nothing to fix in
+    /// the pipeline and the arithmetic was measuring the hand. Measured on
+    /// arrival, before any filtering, so it is the pen's cadence and not this
+    /// application's opinion of it.
+    /// </remarks>
+    internal Services.Tally EventIntervalTally => _eventIntervalTally;
+
+    private readonly Services.Tally _eventIntervalTally = new();
+    private long _lastEventAt;
+
+    private void NoteEventArrival()
+    {
+        var now = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (_lastEventAt != 0)
+        {
+            var gap = (now - _lastEventAt) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            // A gap this long is the artist pausing, lifting or thinking, not a
+            // delivery interval — counting it would report the pen as slower
+            // than it is and hide the cadence the pipeline has to keep up with.
+            if (gap < 250) _eventIntervalTally.Add(gap);
+        }
+        _lastEventAt = now;
+    }
+
     private void NotePostProcessDirty(SKRectI region) =>
         _live.PostPending = _live.PostPending is { } prior
             ? LivePaintSession.UnionRect(prior, region)
@@ -1697,6 +1729,7 @@ public partial class MainViewModel
         // B189: clocked on arrival so the render report can price the whole
         // pen→screen chain on the artist's machine, not just the stamp.
         var arrived = Rendering.StrokeToScreen.EventArrived();
+        NoteEventArrival();
         foreach (var s in samples)
         {
             var (fx, fy) = _stabilizer.FilterLive(s.X, s.Y);
@@ -2782,17 +2815,83 @@ public partial class MainViewModel
 
     private long _damBeganAt;
 
+    /// <summary>
+    /// Of the time a deferral was held, how much of it the awaited frame had
+    /// already been on screen for.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The dam's own figure cannot say whether it is pacing or overhead.</b>
+    /// On the owner's machine a deferral is held 54.98 ms while
+    /// <c>publish -&gt; drawn</c> is 30.67, and the difference is not drawing
+    /// and not composing. It is one of two things with two different fixes:
+    /// the release notification queueing behind the artist's pointer events, or
+    /// simply nothing asking again until the next one arrives.
+    /// </para>
+    /// <para>
+    /// This is the second: time between the draw actually landing and the dam
+    /// noticing. Waiting for a canvas that has not drawn yet is the dam doing
+    /// its job; waiting after it has is the cost worth removing.
+    /// </para>
+    /// </remarks>
+    internal double DamLateTotalMs { get; private set; }
+
+    /// <inheritdoc cref="DamLateTotalMs"/>
+    internal double DamLateWorstMs { get; private set; }
+
     /// <summary>Close off a deferral and record how long it lasted.</summary>
-    private void NoteDamReleased(bool byPresent)
+    /// <summary>How many deferrals a pointer event let through by asking (B321).</summary>
+    internal int DamReleasedByEvent { get; private set; }
+
+    private void NoteDamReleased(bool byPresent, bool byEvent = false)
     {
-        if (byPresent) DamReleasedByPresent++;
+        if (byEvent) DamReleasedByEvent++;
+        else if (byPresent) DamReleasedByPresent++;
         else DamReleasedByTimer++;
+        // Stamped here rather than at the publish, because the gap between the
+        // two is the thing being measured.
+        DamReleasedAtTicks = System.Diagnostics.Stopwatch.GetTimestamp();
         if (_damBeganAt == 0) return;
-        var held = (System.Diagnostics.Stopwatch.GetTimestamp() - _damBeganAt)
-                   * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+        var now = System.Diagnostics.Stopwatch.GetTimestamp();
+        var held = (now - _damBeganAt) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
         DamHeldTotalMs += held;
         if (held > DamHeldWorstMs) DamHeldWorstMs = held;
+
+        // How long the frame had already been drawn when this released. Bounded
+        // by the hold itself: a draw that landed BEFORE the deferral began is
+        // not this deferral's waste, it is the previous one's, and counting it
+        // here would double it.
+        if (_renderedAtProbe?.Invoke() is { } drawnAt && drawnAt > 0)
+        {
+            var late = (now - Math.Max(drawnAt, _damBeganAt))
+                       * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            if (late > 0 && late <= held)
+            {
+                DamLateTotalMs += late;
+                if (late > DamLateWorstMs) DamLateWorstMs = late;
+            }
+        }
         _damBeganAt = 0;
+    }
+
+    private Func<long>? _renderedAtProbe;
+
+    /// <summary>
+    /// When the canvas last finished a NEW frame, for the split above. Supplied
+    /// by the window beside <see cref="SetRenderedSeqProbe"/>; absent headless,
+    /// where there is no canvas and the split has nothing to say.
+    /// </summary>
+    internal void SetRenderedAtProbe(Func<long> probe) => _renderedAtProbe = probe;
+
+    /// <summary>
+    /// Frames allowed in flight before a publish is held (see
+    /// <see cref="PublishState.InFlightDepth"/>). Settable so a test can drive
+    /// both depths in one process.
+    /// </summary>
+    internal int InFlightDepth
+    {
+        get => _publish.InFlightDepth;
+        set => _publish.InFlightDepth = value;
     }
 
     /// <summary>

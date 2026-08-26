@@ -84,8 +84,13 @@ internal static class RenderReport
          long Pixels, long MarkPixels,
          int WorstW, int WorstH, long WorstMarkPixels, int WorstTail)? LivePost = null,
         (int Deferrals, int ByPresent, int ByTimer, int Released,
-         double HeldTotalMs, double HeldWorstMs)? Dam = null,
-        (int Count, double TotalMs, double WorstMs)? Compose = null,
+         double HeldTotalMs, double HeldWorstMs,
+         double LateTotalMs, double LateWorstMs, int ByEvent)? Dam = null,
+        (double CycleMedianMs, double CycleMeanMs, long Cycles,
+         double ReleaseToPublishMedianMs, double ReleaseToPublishMeanMs,
+         double EventIntervalMedianMs, long Events)? Cycle = null,
+        (int Count, double TotalMs, double WorstMs, double MedianMs, bool MeanDistorted)? Compose = null,
+        (double DescribeMs, double ComposeMs, double HandoffMs)? BuildPhases = null,
         Rendering.PublishTally? PublishesByCaller = null);
 
     /// <summary>
@@ -1010,7 +1015,106 @@ internal static class RenderReport
         if (facts.Compose is { Count: > 0 } comp)
         {
             sb.AppendLine(
-                $"building each frame      mean {comp.TotalMs / comp.Count,7:0.##} ms   worst {comp.WorstMs,7:0.##} ms   (UI thread, before the publish)");
+                $"building each frame      mean {comp.TotalMs / comp.Count,7:0.##} ms   median {comp.MedianMs,7:0.##} ms   worst {comp.WorstMs,7:0.##} ms   (UI thread, before the publish)");
+            // Said out loud rather than left to whoever notices the two columns
+            // disagree. A mean over a latency distribution with stalls in it
+            // describes no frame that ever happened, and one taken on this
+            // machine put 5.4 ms on a 3.2 ms build from a single 2-second
+            // stall — which the report then explained confidently and wrongly.
+            if (comp.MeanDistorted)
+            {
+                sb.AppendLine(
+                    "  !! the mean is more than twice the median, so a stall is doing the");
+                sb.AppendLine(
+                    "     talking rather than the typical frame. Read the MEDIAN as the cost");
+                sb.AppendLine(
+                    "     and the WORST as the thing to chase; the phase split below is");
+                sb.AppendLine(
+                    "     built from means and inherits the same distortion.");
+            }
+            // Split, because the one number stopped naming its own cause once
+            // it became the largest item in the chain. The three are different
+            // fixes and the report should say which one is being asked for.
+            if (facts.BuildPhases is { } ph)
+            {
+                var n = comp.Count;
+                sb.AppendLine(
+                    $"    describing it         mean {ph.DescribeMs / n,7:0.##} ms   (pass list, stack fold, cel fetches)");
+                sb.AppendLine(
+                    $"    compositing it        mean {ph.ComposeMs / n,7:0.##} ms   (the CPU blend, on this thread)");
+                sb.AppendLine(
+                    $"    handing it over       mean {ph.HandoffMs / n,7:0.##} ms   (snapshot swap and retire)");
+                // Derived rather than measured, so the four ALWAYS sum to the
+                // whole and a cost cannot hide between two stamps. The first
+                // version of this split printed three numbers adding to 2.52 ms
+                // of a 22.63 ms build and said nothing about the other 20 —
+                // which was the frame capture, recording from inside the window
+                // that was timing it.
+                var rest = comp.TotalMs - ph.DescribeMs - ph.ComposeMs - ph.HandoffMs;
+                sb.AppendLine(
+                    $"    everything else       mean {rest / n,7:0.##} ms   (whatever the three above do not cover)");
+                var describe = ph.DescribeMs / Math.Max(1e-9, comp.TotalMs);
+                var compose = ph.ComposeMs / Math.Max(1e-9, comp.TotalMs);
+                var other = rest / Math.Max(1e-9, comp.TotalMs);
+                // A share is only worth a verdict when the whole is worth
+                // attacking. The first version of this judged on share alone
+                // and printed "the CPU composite is 83% of the build — that is
+                // B125 stage 6's ground" about a build of 3.49 ms: it was
+                // recommending an architectural project to win 2.88 ms. A
+                // phase can be almost all of something negligible.
+                // Judged on the MEDIAN: whether the build is worth attacking is a
+                // question about the typical frame, and the mean answers a
+                // different one whenever the session contains a stall.
+                var typical = comp.MedianMs > 0 ? comp.MedianMs : comp.TotalMs / comp.Count;
+                if (typical < MaterialBuildMs)
+                {
+                    sb.AppendLine(
+                        $"  >> A typical build is {typical:0.##} ms, so none of this is worth");
+                    sb.AppendLine(
+                        "     attacking however the share falls. The time is elsewhere — read");
+                    sb.AppendLine(
+                        "     publish -> drawn and the dam below.");
+                }
+                else if (other >= 0.5)
+                {
+                    sb.AppendLine(
+                        $"  >> {other * 100:0}% of the build is in NEITHER describing, compositing nor");
+                    sb.AppendLine(
+                        "     handing over. Something between those steps is the cost, and no");
+                    sb.AppendLine(
+                        "     fix aimed at any of the three would touch it. Split it further");
+                    sb.AppendLine(
+                        "     before acting — the phases here exist because the single number");
+                    sb.AppendLine(
+                        "     above it stopped naming its own cause.");
+                }
+                else
+                if (compose >= 0.5)
+                {
+                    sb.AppendLine(
+                        $"  >> The CPU composite is {compose * 100:0}% of the build, and it runs on the");
+                    sb.AppendLine(
+                        "     UI thread — the same thread the pen is delivering into. That is");
+                    sb.AppendLine(
+                        "     B125 stage 6's ground: the ring route never reaches the card.");
+                }
+                else if (describe >= 0.5)
+                {
+                    sb.AppendLine(
+                        $"  >> Describing the frame is {describe * 100:0}% of the build, so the cost is in");
+                    sb.AppendLine(
+                        "     the pass list, the stack fold or the cel fetches rather than in any");
+                    sb.AppendLine(
+                        "     blending. Moving the composite would not move this.");
+                }
+                else
+                {
+                    sb.AppendLine(
+                        "  >> No single phase of the build dominates, so the build is broadly");
+                    sb.AppendLine(
+                        "     costly rather than blocked on one step. Read the three above.");
+                }
+            }
         }
 
         sb.AppendLine($"  stamping the dabs       mean {s.Stamp.MeanMs,7:0.##} ms   worst {s.Stamp.WorstMs,7:0.##} ms");
@@ -1022,7 +1126,31 @@ internal static class RenderReport
             sb.AppendLine(
                 $"  publish held back       {dam.Deferrals} times   mean {held:0.##} ms   worst {dam.HeldWorstMs:0.##} ms");
             sb.AppendLine(
-                $"    released by the screen  {dam.ByPresent}      by the 250 ms backstop  {dam.ByTimer}");
+                $"    released by the screen  {dam.ByPresent}      by the 250 ms backstop  {dam.ByTimer}"
+                + (dam.ByEvent > 0 ? $"      by a pointer event asking  {dam.ByEvent}" : ""));
+            // The half of a deferral that is not pacing. Waiting for a canvas
+            // that has not drawn yet is the dam doing its job; waiting after it
+            // has drawn is overhead, and the two are not separable from the
+            // hold alone — which is why the hold sat at 54.98 ms beside a
+            // `publish -> drawn` of 30.67 with nothing to say about the gap.
+            if (dam.Deferrals > 0 && dam.LateTotalMs > 0)
+            {
+                var late = dam.LateTotalMs / dam.Deferrals;
+                var share = dam.LateTotalMs / Math.Max(1e-9, dam.HeldTotalMs);
+                sb.AppendLine(
+                    $"    already drawn, still held  mean {late,7:0.##} ms   worst {dam.LateWorstMs,7:0.##} ms   ({share * 100:0}% of the hold)");
+                if (share >= 0.25)
+                {
+                    sb.AppendLine(
+                        "  >> That share is not pacing, it is the dam finding out late. The");
+                    sb.AppendLine(
+                        "     frame was on screen and the publish went on waiting — either the");
+                    sb.AppendLine(
+                        "     release notification is queued behind the artist's own pointer");
+                    sb.AppendLine(
+                        "     events, or nothing asked again until the next one arrived.");
+                }
+            }
             if (dam.ByTimer > dam.ByPresent)
             {
                 sb.AppendLine("  !! the BACKSTOP is pacing the canvas, not the screen. That timer");
@@ -1034,6 +1162,34 @@ internal static class RenderReport
         }
         if (s.Publishes > 0)
         {
+            if (facts.Cycle is { Cycles: > 4 } cyc)
+            {
+                // The whole loop, so every part above is a share of something
+                // rather than a number on its own. Median, because the cycle is
+                // a latency distribution and one stall moves its mean without
+                // moving any cycle that actually happened.
+                sb.AppendLine(
+                    $"  publish -> publish      median {cyc.CycleMedianMs,7:0.##} ms   mean {cyc.CycleMeanMs,7:0.##} ms   ({cyc.Cycles} cycles — the whole loop)");
+                sb.AppendLine(
+                    $"    frames allowed in flight  {ViewModels.PublishState.DefaultInFlightDepth}   (LIGHTBOX_INFLIGHT overrides; 2 is the default)");
+                sb.AppendLine(
+                    $"    dam let go -> publish  median {cyc.ReleaseToPublishMedianMs,7:0.##} ms   mean {cyc.ReleaseToPublishMeanMs,7:0.##} ms");
+                if (cyc.Events > 4)
+                {
+                    sb.AppendLine(
+                        $"    the pen delivers every  median {cyc.EventIntervalMedianMs,7:0.##} ms   ({cyc.Events} intervals, pauses excluded)");
+                }
+                if (cyc.CycleMedianMs > 0 && cyc.EventIntervalMedianMs > 0)
+                {
+                    var eventsPerCycle = cyc.CycleMedianMs / cyc.EventIntervalMedianMs;
+                    sb.AppendLine(
+                        $"  >> A cycle is {eventsPerCycle:0.#} pen events long. THAT is the chunkiness — how");
+                    sb.AppendLine(
+                        "     much ink arrives at once — and it is set by the cycle rather than by");
+                    sb.AppendLine(
+                        "     any of the latencies above it.");
+                }
+            }
             sb.AppendLine($"  event -> publish        mean {s.WaitToPublish.MeanMs,7:0.##} ms   worst {s.WaitToPublish.WorstMs,7:0.##} ms   (oldest event carried)");
             sb.AppendLine($"    newest event          mean {s.TipToPublish.MeanMs,7:0.##} ms   worst {s.TipToPublish.WorstMs,7:0.##} ms");
         }
@@ -1479,6 +1635,17 @@ internal static class RenderReport
         return samples[samples.Count / 2];
     }
 
+    /// <summary>
+    /// Below this, the frame build is not where a latency problem lives and the
+    /// report says so rather than naming whichever phase happens to be biggest.
+    /// </summary>
+    /// <remarks>
+    /// Five milliseconds is about a third of a 60 Hz frame: small enough that
+    /// removing all of it could not change how drawing feels, which is the
+    /// question this section is being read to answer.
+    /// </remarks>
+    private const double MaterialBuildMs = 5.0;
+
     private static string Compose(string kind, Facts facts, Totals? totals, Probe? probe)
     {
         var sb = new StringBuilder();
@@ -1491,6 +1658,10 @@ internal static class RenderReport
 
         sb.AppendLine("-- where the work happens ------------------------------------");
         sb.AppendLine($"presentation backend      {facts.Backend}");
+        // Which composition path the window ran under, so two reports taken to
+        // compare them can be told apart without anybody having to remember
+        // which one they set the variable for.
+        sb.AppendLine($"composition               {Program.CompositionChoice}");
         // Was "compositing is on the CPU either way", which stopped being true
         // when B167 phase 4 put the tiled composite on the card. Derived from the
         // toggle rather than asserted, so it cannot go stale the same way twice.

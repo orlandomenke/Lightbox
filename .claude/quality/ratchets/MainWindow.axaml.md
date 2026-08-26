@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4882
+budget: 4886
 
 ## Why it is here despite being XAML
 
@@ -271,3 +271,12 @@ leaves a number nobody can account for. So every reason above stays, and
   bar are `UserControl`s in their own files, the layout fix is in
   `OverflowBar.cs`, and what lands here is registration — which this budget's
   standing note says it must not refuse.
+- **4,882 → 4,886** (2026-08-26): the frame capture's two Help entries — arm
+  recording, and write the recorded frames out. Four lines, which is two
+  elements at two lines each; the reasoning that would have made it twelve is
+  in `OnToggleFrameCapture` and `OnWriteFrameCapture` in
+  `MainWindow.Workspace.cs`, where a reader chasing this behaviour ends up
+  anyway and where a doc comment is worth more than an XML one. A menu item has
+  nowhere else to live, which is this file's standing exception; the same
+  change's view-model property did have somewhere — it went to
+  `MainViewModel.Rendering.cs` and left that ratchet untouched at 611.
