@@ -277,6 +277,7 @@ public partial class MainViewModel
                 if (doc.Scene.References is { Count: 0 }) doc.Scene.References = null;
             });
             Lightbox.Raster.ReferenceStripRegistry.Forget(taped.Id);
+            _flattenedViews.Remove(taped.Id);
             AfterReferenceChange();
             return null;
         }
@@ -293,6 +294,10 @@ public partial class MainViewModel
         };
         strip.Scale = FitScale(strip, scene);
         strip.CentreOn(scene.Width, scene.Height);
+        // The picture above IS the flatten this view is owed, so record it as
+        // one — otherwise the funnel pass the Perform below sets off would
+        // render the same view a second time to discover nothing had changed.
+        _flattenedViews[strip.Id] = ViewStamp.Of(view, RevisionEditing(view));
 
         var index = 0;
         target.Editor.Perform(doc =>
@@ -451,6 +456,30 @@ public partial class MainViewModel
     private bool _refreshingLinkedStrips;
 
     /// <summary>
+    /// The document object the last refresh looked at, so an edit on an
+    /// animation tab can be recognised as one that cannot have moved a sheet
+    /// (B325). Null until the first refresh.
+    /// </summary>
+    private Doc? _linkedStripsDoc;
+
+    /// <summary>
+    /// What each taped-up view looked like when its strip was last flattened,
+    /// keyed by strip id. See <see cref="ViewStamp"/> and B325.
+    /// </summary>
+    private readonly Dictionary<string, ViewStamp> _flattenedViews = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// How many times a taped-up view has actually been flattened to PNG
+    /// (B325) — the number the gates above exist to keep down.
+    /// </summary>
+    /// <remarks>
+    /// A counter rather than a timing, for the reason the performance budgets
+    /// give: a test that asserts milliseconds measures the machine it ran on,
+    /// and what B325 is about is <em>whether the work happens at all</em>.
+    /// </remarks>
+    internal int LinkedStripFlattens { get; private set; }
+
+    /// <summary>
     /// Re-flatten every taped-up view whose picture no longer matches its
     /// strip — the "live" half of Q69's decision.
     /// </summary>
@@ -458,12 +487,30 @@ public partial class MainViewModel
     /// <para>
     /// Called from the edit funnel, so it runs on every document edit and has
     /// to be cheap when there is nothing to do — the common case is no linked
-    /// strip and costs one null check. With a linked strip, the re-flatten
-    /// re-reads per-layer bitmaps that are already cached and pays one PNG
-    /// encode at the view's authored size, per edit, per linked strip. That
-    /// is the price of "live" and it was chosen knowingly over a snapshot
-    /// with a refresh button; the string compare below keeps edits that did
-    /// not change the picture from re-registering identical bytes.
+    /// strip and costs one null check.
+    /// </para>
+    /// <para>
+    /// <b>B325: the re-flatten is now asked whether it is needed before it is
+    /// paid for.</b> It used to render, encode and base64 the view and only
+    /// then compare the bytes, so the whole cost landed on every edit
+    /// anywhere. Measured on one 960×540 view: drawing on the animation canvas
+    /// went from <b>7.5 ms per stroke to 26.6 with one view taped up and 44.5
+    /// with two</b>, and an undo on the sheet from 49 ms to 74 and 92. The
+    /// picture had not changed in any of those, because a stroke on the canvas
+    /// cannot change a sheet.
+    /// </para>
+    /// <para>
+    /// <b>Two gates, because the two tabs can be answered with different
+    /// certainty.</b> From an animation tab the answer is provable: the only
+    /// edits there that reach a sheet view are undo, redo and a history jump,
+    /// and all three <em>swap the document object</em> rather than mutating it
+    /// — so a reference compare on <see cref="_linkedStripsDoc"/> is complete.
+    /// From a sheet tab the picture really can move, so the gate is a
+    /// <see cref="ViewStamp"/> of what the flatten reads. A stamp is only as
+    /// good as its enumeration, and the failure it can produce — a strip left
+    /// showing the previous picture — is <b>exactly what B326 says happens
+    /// today for every edit</b>, so this cannot make the canvas more stale
+    /// than it already is. When B326 lands, the stamp becomes load-bearing.
     /// </para>
     /// <para>
     /// Deliberately not an <c>Editor.Perform</c>: the strip's pixels are
@@ -478,6 +525,14 @@ public partial class MainViewModel
         var doc = SaveTargetTab?.Doc ?? Doc;
         if (doc.Scene.References is not { Count: > 0 } strips) return;
 
+        // B325's first gate. Recorded even when the refresh below finds nothing
+        // to do, so the next animation-tab edit compares against what is open
+        // now rather than against whatever was open when a flatten last ran.
+        var onASheet = ActiveTab?.Kind == DocumentTabKind.Reference;
+        var sameDocument = ReferenceEquals(doc, _linkedStripsDoc);
+        _linkedStripsDoc = doc;
+        if (!onASheet && sameDocument) return;
+
         _refreshingLinkedStrips = true;
         try
         {
@@ -490,6 +545,14 @@ public partial class MainViewModel
                 // pixels stand and the strip stops following anything.
                 if (!views.TryGetValue(viewId, out var view)) continue;
 
+                // B325's second gate. Taken before the render, which is the
+                // whole point — the byte compare below it is a second line of
+                // defence that has already been paid for by the time it runs.
+                var stamp = ViewStamp.Of(view, RevisionEditing(view));
+                if (_flattenedViews.TryGetValue(strip.Id, out var last) && stamp.Matches(last)) continue;
+                _flattenedViews[strip.Id] = stamp;
+
+                LinkedStripFlattens++;
                 var png = RenderReferenceViewPng(view);
                 if (png == strip.Png) continue;
                 strip.Png = png;
@@ -514,6 +577,77 @@ public partial class MainViewModel
             _refreshingLinkedStrips = false;
         }
     }
+
+    /// <summary>
+    /// The revision of the editor that can change <paramref name="view"/> —
+    /// the tab open on it — or -1 when no tab is.
+    /// </summary>
+    /// <remarks>
+    /// A view is drawn on through its own tab and nowhere else, so this is the
+    /// number that moves when its content does. -1 rather than 0 for "no tab":
+    /// zero is a real revision (an editor with nothing on its undo stack), and
+    /// a closed tab must not read as the same state as a freshly opened one.
+    /// </remarks>
+    private long RevisionEditing(ReferenceView view)
+    {
+        for (var i = 0; i < Tabs.Count; i++)
+        {
+            if (ReferenceEquals(Tabs[i].View, view)) return Tabs[i].Editor.Revision;
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// Everything <see cref="ReferenceViewImages.Render"/> reads, cheaply — so
+    /// the refresh above can ask whether a view moved without flattening it
+    /// (B325).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The view object itself is part of the stamp, not just its id.</b> An
+    /// undo on the owning document restores a whole cloned
+    /// <c>Doc.ReferenceSheets</c>, so the view carrying a given id after the
+    /// undo is a different object with different content. Comparing by id
+    /// alone would call that unchanged.
+    /// </para>
+    /// <para>
+    /// <b>Stroke counts as well as the editor's revision</b>, because a couple
+    /// of edits reach the funnel without an undo step on purpose — the layer
+    /// opacity slider is the worked example, applied live so that dragging it
+    /// does not flood the history — and the revision does not move for those.
+    /// The per-layer compositing fields cover that one; the counts cover
+    /// anything that adds or removes ink without going through the editor.
+    /// </para>
+    /// </remarks>
+    private sealed record ViewStamp(ReferenceView View, long Revision, int Width, int Height, LayerStamp[] Layers)
+    {
+        internal static ViewStamp Of(ReferenceView view, long revision)
+        {
+            var layers = new LayerStamp[view.Layers.Count];
+            for (var i = 0; i < layers.Length; i++)
+            {
+                var layer = view.Layers[i];
+                var frame = ExposureSheet.ExposedFrame(layer, 0);
+                layers[i] = new LayerStamp(
+                    layer.Id, layer.Visible, layer.Opacity, layer.BlendMode,
+                    layer.IsAdjustment, layer.IsClipped, layer.HasLiveEffects,
+                    frame?.Id, frame?.Strokes.Count ?? 0);
+            }
+            return new ViewStamp(view, revision, view.Width, view.Height, layers);
+        }
+
+        internal bool Matches(ViewStamp other) =>
+            ReferenceEquals(View, other.View)
+            && Revision == other.Revision
+            && Width == other.Width
+            && Height == other.Height
+            && Layers.AsSpan().SequenceEqual(other.Layers.AsSpan());
+    }
+
+    /// <summary>One layer's contribution to a <see cref="ViewStamp"/>.</summary>
+    private readonly record struct LayerStamp(
+        string Id, bool Visible, double Opacity, LayerBlendMode BlendMode,
+        bool Adjustment, bool Clipped, bool Effects, string? FrameId, int Strokes);
 
     /// <summary>Open (or focus) the tab editing a character-sheet view.</summary>
     public void OpenReferenceView(ReferenceView view)
