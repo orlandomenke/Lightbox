@@ -76,32 +76,67 @@ internal static class Program
     /// </para>
     /// </remarks>
     internal static IReadOnlyList<Win32CompositionMode> CompositionModes() =>
-        (Environment.GetEnvironmentVariable("LIGHTBOX_COMPOSITION") ?? "").Trim().ToLowerInvariant() switch
+        Choice switch
         {
             // Ordered as fallbacks: if the swap chain cannot be had, take the
             // ordinary path rather than failing to open a window.
-            "lowlatency" =>
+            // Asked for the desktop compositor: the path Lightbox shipped
+            // before this was measured, kept reachable for a driver that
+            // refuses a swap chain.
+            "compositor" =>
+            [
+                Win32CompositionMode.WinUIComposition,
+                Win32CompositionMode.RedirectionSurface,
+            ],
+            "redirection" => [Win32CompositionMode.RedirectionSurface],
+            // Ordered as fallbacks: if the swap chain cannot be had, take the
+            // ordinary path rather than failing to open a window.
+            _ =>
             [
                 Win32CompositionMode.LowLatencyDxgiSwapChain,
                 Win32CompositionMode.WinUIComposition,
                 Win32CompositionMode.RedirectionSurface,
             ],
-            "redirection" => [Win32CompositionMode.RedirectionSurface],
-            _ =>
-            [
-                Win32CompositionMode.WinUIComposition,
-                Win32CompositionMode.RedirectionSurface,
-            ],
         };
 
-    /// <summary>What <see cref="CompositionModes"/> chose, for the render report.</summary>
-    internal static string CompositionChoice =>
-        (Environment.GetEnvironmentVariable("LIGHTBOX_COMPOSITION") ?? "").Trim().ToLowerInvariant() switch
+    /// <summary>
+    /// Which composition path to ask for: the environment variable if somebody
+    /// set one, otherwise the artist's setting, otherwise the swap chain.
+    /// </summary>
+    /// <remarks>
+    /// The variable wins so an A/B can be run without touching the settings
+    /// file, which is how this became the default in the first place. Read once
+    /// — a platform option is fixed for the life of the process.
+    /// </remarks>
+    private static string Choice
+    {
+        get
         {
-            "lowlatency" => "low-latency swap chain (LIGHTBOX_COMPOSITION=lowlatency)",
-            "redirection" => "redirection surface (LIGHTBOX_COMPOSITION=redirection)",
-            _ => "WinUI composition (the default — set LIGHTBOX_COMPOSITION=lowlatency to compare)",
-        };
+            var env = (Environment.GetEnvironmentVariable("LIGHTBOX_COMPOSITION") ?? "")
+                .Trim().ToLowerInvariant();
+            if (env.Length > 0) return env;
+            // Never let a broken settings file stop the window opening: this
+            // runs before anything else and its failure mode is no application
+            // at all, so it falls back to the measured-best path.
+            try
+            {
+                return Services.AppSettings.Load().PresentThroughDesktopCompositor
+                    ? "compositor" : "lowlatency";
+            }
+            catch
+            {
+                return "lowlatency";
+            }
+        }
+    }
+
+    /// <summary>What <see cref="CompositionModes"/> chose, for the render report.</summary>
+    internal static string CompositionChoice => Choice switch
+    {
+        "compositor" => "WinUI composition (Configure ▸ asked for the desktop compositor)",
+        "redirection" => "redirection surface (LIGHTBOX_COMPOSITION=redirection)",
+        _ => "low-latency swap chain (the default)",
+    };
 
     /// <summary>
     /// Open a console when somebody has asked to watch the traces.

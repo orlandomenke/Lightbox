@@ -101,6 +101,38 @@ public sealed class AppSettings
     public bool ShowDiagnosticsConsole { get; set; }
 
     /// <summary>
+    /// Present each frame through the desktop compositor instead of straight
+    /// to a swap chain. Off, because the swap chain is measurably faster.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>An escape hatch rather than a preference, and named for what it
+    /// does.</b> Measured on the owner's machine, 2026-08-26, same build and
+    /// same brush across two sessions of about six thousand pointer events:
+    /// presenting to a low-latency swap chain took <c>publish -&gt; drawn</c>
+    /// from <b>52.07 ms to 30.67 ms</b>, the wait for a visual pass from 21.27
+    /// to 10.19, and delivered 544 frames where the compositor route delivered
+    /// 381. Ink arrived in 11.3-event batches instead of 16.8, which is the
+    /// half an artist feels as chunkiness rather than as lateness.
+    /// </para>
+    /// <para>
+    /// The trade is real and was audited before this became the default: the
+    /// swap chain gives up DWM compositing, so window transparency and blur
+    /// effects go with it. Lightbox uses none — no transparency hint, no
+    /// acrylic, no mica, and B255 already draws popups inside the window
+    /// rather than as native ones. Every <c>Background="Transparent"</c> in the
+    /// XAML is a control inside a window, which Skia composites itself.
+    /// </para>
+    /// <para>
+    /// It exists at all because a graphics driver can refuse a swap chain in
+    /// ways a test cannot predict, and "turn it off and restart" has to be
+    /// reachable by somebody whose window will not draw. Read once at startup —
+    /// a platform option cannot change while the app runs.
+    /// </para>
+    /// </remarks>
+    public bool PresentThroughDesktopCompositor { get; set; }
+
+    /// <summary>
     /// Whether to autosave over the document's own file once it has one,
     /// rather than only to the recovery copy.
     /// </summary>

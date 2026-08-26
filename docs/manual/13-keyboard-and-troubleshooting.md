@@ -170,6 +170,27 @@ Nothing you save is affected either way. Exports, thumbnails and the file on
 disk are produced by the processor whatever this is set to, so a picture that
 came out of the graphics card is never the picture that gets written down.
 
+### Presenting straight to the screen
+
+**Configure → Performance → Present through the desktop compositor** is off,
+and that is deliberate: Lightbox hands each finished frame directly to the
+screen rather than to Windows' desktop compositor, which would hold it for its
+own rhythm on top of Lightbox's.
+
+It is worth the milliseconds. Measured on one machine across two sessions of
+about six thousand pen events each — same brush, same drawing — going direct
+took the wait between a frame being ready and being on screen from **52 ms to
+31 ms**, and delivered **544 frames where the compositor route delivered 381**.
+Ink arrived in batches of 11 pen events instead of 17, which is the half you
+feel as the mark appearing in lumps rather than as it simply being late.
+
+**Turn it on only if something is visibly wrong** — the window will not draw,
+or the picture tears. Some graphics drivers refuse the direct path. The
+trade-off is window transparency and blur effects, which Lightbox does not use,
+so there is nothing else to lose by it. Either way it takes effect at the next
+start, and **Help → Write a render report** names which path the session
+actually ran under, on the `composition` line at the top.
+
 ### When the app changes it for you
 
 If the canvas cannot keep up, Lightbox turns the quality down to Half once and

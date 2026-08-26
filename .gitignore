@@ -51,3 +51,6 @@ __pycache__/
 # would mean the repository carried an image of whatever the code did on the day somebody ran it —
 # and a stale sheet is worse than none, because it looks current. Regenerate in a few seconds.
 artifacts/
+
+# Throwaway A/B build output — see the composition commit. Never committed.
+/ab/
