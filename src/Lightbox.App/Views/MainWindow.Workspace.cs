@@ -346,7 +346,7 @@ public partial class MainWindow
             (_vm.DamDeferrals, _vm.DamReleasedByPresent, _vm.DamReleasedByTimer,
              _vm.DamReleasedByPresent + _vm.DamReleasedByTimer,
              _vm.DamHeldTotalMs, _vm.DamHeldWorstMs,
-             _vm.DamLateTotalMs, _vm.DamLateWorstMs),
+             _vm.DamLateTotalMs, _vm.DamLateWorstMs, _vm.DamReleasedByEvent),
             (_vm.CycleTally.MedianMs, _vm.CycleTally.MeanMs, _vm.CycleTally.Count,
              _vm.ReleaseToPublishTally.MedianMs, _vm.ReleaseToPublishTally.MeanMs,
              _vm.EventIntervalTally.MedianMs, _vm.EventIntervalTally.Count),

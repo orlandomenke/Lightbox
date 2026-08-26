@@ -85,7 +85,7 @@ internal static class RenderReport
          int WorstW, int WorstH, long WorstMarkPixels, int WorstTail)? LivePost = null,
         (int Deferrals, int ByPresent, int ByTimer, int Released,
          double HeldTotalMs, double HeldWorstMs,
-         double LateTotalMs, double LateWorstMs)? Dam = null,
+         double LateTotalMs, double LateWorstMs, int ByEvent)? Dam = null,
         (double CycleMedianMs, double CycleMeanMs, long Cycles,
          double ReleaseToPublishMedianMs, double ReleaseToPublishMeanMs,
          double EventIntervalMedianMs, long Events)? Cycle = null,
@@ -1126,7 +1126,8 @@ internal static class RenderReport
             sb.AppendLine(
                 $"  publish held back       {dam.Deferrals} times   mean {held:0.##} ms   worst {dam.HeldWorstMs:0.##} ms");
             sb.AppendLine(
-                $"    released by the screen  {dam.ByPresent}      by the 250 ms backstop  {dam.ByTimer}");
+                $"    released by the screen  {dam.ByPresent}      by the 250 ms backstop  {dam.ByTimer}"
+                + (dam.ByEvent > 0 ? $"      by a pointer event asking  {dam.ByEvent}" : ""));
             // The half of a deferral that is not pacing. Waiting for a canvas
             // that has not drawn yet is the dam doing its job; waiting after it
             // has drawn is overhead, and the two are not separable from the
@@ -1169,11 +1170,8 @@ internal static class RenderReport
                 // moving any cycle that actually happened.
                 sb.AppendLine(
                     $"  publish -> publish      median {cyc.CycleMedianMs,7:0.##} ms   mean {cyc.CycleMeanMs,7:0.##} ms   ({cyc.Cycles} cycles — the whole loop)");
-                if (ViewModels.PublishState.DefaultInFlightDepth != 1)
-                {
-                    sb.AppendLine(
-                        $"    frames allowed in flight  {ViewModels.PublishState.DefaultInFlightDepth}   (LIGHTBOX_INFLIGHT — the shipped default is 1)");
-                }
+                sb.AppendLine(
+                    $"    frames allowed in flight  {ViewModels.PublishState.DefaultInFlightDepth}   (LIGHTBOX_INFLIGHT overrides; 2 is the default)");
                 sb.AppendLine(
                     $"    dam let go -> publish  median {cyc.ReleaseToPublishMedianMs,7:0.##} ms   mean {cyc.ReleaseToPublishMeanMs,7:0.##} ms");
                 if (cyc.Events > 4)

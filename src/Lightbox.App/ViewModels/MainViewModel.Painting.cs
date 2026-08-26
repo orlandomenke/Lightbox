@@ -2836,9 +2836,13 @@ public partial class MainViewModel
     internal double DamLateWorstMs { get; private set; }
 
     /// <summary>Close off a deferral and record how long it lasted.</summary>
-    private void NoteDamReleased(bool byPresent)
+    /// <summary>How many deferrals a pointer event let through by asking (B321).</summary>
+    internal int DamReleasedByEvent { get; private set; }
+
+    private void NoteDamReleased(bool byPresent, bool byEvent = false)
     {
-        if (byPresent) DamReleasedByPresent++;
+        if (byEvent) DamReleasedByEvent++;
+        else if (byPresent) DamReleasedByPresent++;
         else DamReleasedByTimer++;
         // Stamped here rather than at the publish, because the gap between the
         // two is the thing being measured.

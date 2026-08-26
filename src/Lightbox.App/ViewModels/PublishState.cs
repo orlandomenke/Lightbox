@@ -121,17 +121,44 @@ sealed class PublishState
     internal int FramesReused { get; set; }
 
     /// <summary>
-    /// Frames allowed in flight before a publish is held. One is the shipped
-    /// behaviour; two lets the pipeline run at its own depth.
+    /// Frames allowed in flight before a publish is held. Two, measured.
     /// </summary>
     /// <remarks>
-    /// <b>Being measured rather than chosen, which is why it is an environment
-    /// variable.</b> The composition path was settled the same way and the A/B
-    /// was worth more than the reasoning on either side of it. Depth is the
-    /// only thing capping the update rate now that the dam's own overhead is
-    /// 0.15 ms, and the risk it carries is the one B189 named: a frame composed
-    /// and then replaced before anything drew it. `replaced before drawing` in
-    /// the report is where that shows, and a rise there is the cost of this.
+    /// <para>
+    /// <b>One frame in flight caps the update rate at one publish per round
+    /// trip, however fast everything else becomes.</b> On the owner's machine
+    /// that was twenty-eight publishes a second from a tablet delivering two
+    /// hundred. The pipeline is already about two vsyncs deep in latency, so a
+    /// second frame costs no more waiting — it is what is being paid for
+    /// anyway — and lets a publish go out each vsync instead of each round trip.
+    /// </para>
+    /// <para>
+    /// Measured as an A/B on 2026-08-26, same build, same brush:
+    /// </para>
+    /// <list type="bullet">
+    /// <item>the publish cycle <b>35.44 ms → 17.16 ms</b>, which is one vsync</item>
+    /// <item>ink arriving <b>9.5 pen events at a time → 4.1</b></item>
+    /// <item><c>TIP -&gt; SCREEN</c> 46.11 → <b>35.87 ms</b>, and <c>PEN -&gt; SCREEN</c> 90.26 → <b>49.98</b></item>
+    /// <item>the owner's verdict, which is the one that counts: <i>"in general
+    ///   it feels fluid… way less than when we started"</i> — the first change
+    ///   of that day to alter what they felt rather than only what was measured</item>
+    /// </list>
+    /// <para>
+    /// <b>The cost is real and is B189's:</b> a frame composed and then replaced
+    /// before anything drew it. That went from 1.9% to <b>15.6%</b>. B189 chose
+    /// a depth of one when the rate was <b>48.7%</b> — 935 of 1921 — and when a
+    /// publish cost about 27 ms of UI thread. A build now costs 1.7 ms, so the
+    /// waste is a third the rate at a sixteenth the unit price: roughly 440 ms
+    /// of UI thread across a session of 7,595 events.
+    /// </para>
+    /// <para>
+    /// <c>LIGHTBOX_INFLIGHT</c> still overrides, because that is how this was
+    /// settled and how it would be re-settled. Deliberately NOT a Configure
+    /// setting: an artist cannot judge frames-in-flight, and a preference
+    /// nobody can evaluate is a worse answer than a measurement.
+    /// <c>replaced before drawing</c> in the render report is the number that
+    /// would reverse this.
+    /// </para>
     /// </remarks>
     internal int InFlightDepth { get; set; } = DefaultInFlightDepth;
 
@@ -142,7 +169,7 @@ sealed class PublishState
     /// </summary>
     internal static readonly int DefaultInFlightDepth =
         int.TryParse(Environment.GetEnvironmentVariable("LIGHTBOX_INFLIGHT"), out var d)
-        && d >= 1 && d <= 4 ? d : 1;
+        && d >= 1 && d <= 4 ? d : 2;
 
     private long _sequence;
 

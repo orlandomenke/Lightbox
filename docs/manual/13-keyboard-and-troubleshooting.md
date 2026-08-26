@@ -191,6 +191,24 @@ so there is nothing else to lose by it. Either way it takes effect at the next
 start, and **Help → Write a render report** names which path the session
 actually ran under, on the `composition` line at the top.
 
+### Why fast strokes still trail a little
+
+The mark keeps up with the pen because Lightbox sends the canvas a new frame
+about every 17 milliseconds — one screen refresh — rather than waiting for each
+one to be drawn before starting the next. What that does **not** change is how
+long a frame takes to reach the glass, which is around 36 milliseconds from the
+newest pen position to ink on screen.
+
+That is why a slow stroke looks attached and a fast one trails. The delay is
+the same either way; what differs is how far your hand has travelled during it.
+At a gentle pace that is a few pixels and invisible. At speed it is a visible
+gap between the nib and the last ink — and the faster you go, the wider it
+looks, without anything having got slower.
+
+Closing that gap further is a matter of the frame reaching the screen sooner
+rather than of the brush being quicker: the drawing itself is about four
+milliseconds of the thirty-six.
+
 ### When the app changes it for you
 
 If the canvas cannot keep up, Lightbox turns the quality down to Half once and

@@ -28,10 +28,18 @@ namespace Lightbox.App.Tests;
 [Collection("BrushState")]
 public class DamNoticesTheDrawTests(ITestOutputHelper output) : BrushStateIsolated
 {
-    private static MainViewModel Ready()
+    /// <summary>
+    /// A view model with the dam at a KNOWN depth. These tests are about how a
+    /// deferral is noticed and accounted for, not about how many frames the
+    /// application ships in flight — and when that default moved from one to
+    /// two, three of them failed for a reason that had nothing to do with what
+    /// they assert. A test that depends on a default should say so.
+    /// </summary>
+    private static MainViewModel Ready(int depth = 1)
     {
         var vm = new MainViewModel(null)
         {
+            InFlightDepth = depth,
             SmoothStrokes = false,
             ColorHex = "#000000",
             BrushSize = 12,
@@ -250,10 +258,10 @@ public class DamNoticesTheDrawTests(ITestOutputHelper output) : BrushStateIsolat
     [AvaloniaTheory]
     [InlineData(1, 0)]
     [InlineData(2, 1)]
+    [InlineData(3, 2)]
     public void DepthDecidesHowManyPublishesAreAllowedPerRoundTrip(int depth, int expected)
     {
-        var vm = Ready();
-        vm.InFlightDepth = depth;
+        var vm = Ready(depth);
         var seqs = new List<long>();
         vm.SnapshotChanged += s => seqs.Add(s.Seq);
 
@@ -277,6 +285,60 @@ public class DamNoticesTheDrawTests(ITestOutputHelper output) : BrushStateIsolat
 
         output.WriteLine($"depth {depth}: {seqs.Count - before} publishes against an undrawn frame");
         Assert.Equal(expected, seqs.Count - before);
+
+        vm.EndStroke();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>
+    /// Every deferral is accounted for, however it came to be let through.
+    /// </summary>
+    /// <remarks>
+    /// The pointer-event path — <c>CanvasIsBehind</c> answering false because
+    /// <c>AdoptRenderedSeq</c> saw the draw — published and left the tally
+    /// open, so <c>publish held back</c> was a mean over only the deferrals
+    /// that went through the announcement or the timer. Measured on the owner's
+    /// machine, 2026-08-27: <b>1,568 deferrals against 388 accounted
+    /// releases</b>. The number was not wrong so much as computed over a
+    /// quarter of its subject, which is worse — it looked trustworthy.
+    /// </remarks>
+    [AvaloniaFact]
+    public void EveryDeferralIsAccountedForHoweverItWasReleased()
+    {
+        var vm = Ready();
+        var seqs = new List<long>();
+        vm.SnapshotChanged += s => seqs.Add(s.Seq);
+
+        long drawn = 0;
+        vm.SetRenderedSeqProbe(() => drawn);
+        vm.SetRenderedAtProbe(() => System.Diagnostics.Stopwatch.GetTimestamp());
+
+        vm.BeginStroke(50, 50, 1);
+        Dispatcher.UIThread.RunJobs();
+        Move(vm, 60, 50);
+        drawn = seqs[^1];
+
+        // Three round trips, each released by a pointer event asking rather
+        // than by the announcement — NoteFramePresented is never called.
+        for (var i = 0; i < 3; i++)
+        {
+            Move(vm, 70 + i * 10, 50);
+            var inFlight = seqs[^1];
+            Move(vm, 75 + i * 10, 50);   // defers
+            drawn = inFlight;            // the canvas draws, silently
+            Move(vm, 78 + i * 10, 50);   // an event asks, and it publishes
+        }
+
+        var accounted = vm.DamReleasedByPresent + vm.DamReleasedByTimer + vm.DamReleasedByEvent;
+        output.WriteLine(
+            $"deferrals {vm.DamDeferrals}, accounted {accounted} "
+            + $"(screen {vm.DamReleasedByPresent}, timer {vm.DamReleasedByTimer}, event {vm.DamReleasedByEvent})");
+
+        Assert.True(vm.DamDeferrals > 0, "nothing deferred, so nothing is being tested");
+        Assert.True(
+            vm.DamReleasedByEvent > 0,
+            "no deferral was released by an event asking, so this proves nothing about that path");
+        Assert.Equal(vm.DamDeferrals, accounted);
 
         vm.EndStroke();
         Dispatcher.UIThread.RunJobs();

@@ -677,6 +677,14 @@ public partial class MainViewModel
         // Any publish satisfies a deferred one — the snapshot it hands over is
         // built from the current state, which includes whatever the deferral
         // was waiting to show.
+        // A publish satisfies whatever deferral was open, however it came to be
+        // let through — and until now only two of the three ways closed the
+        // BOOKS on it. The pointer-event path (CanvasIsBehind answering false
+        // because AdoptRenderedSeq saw the draw) published and left the tally
+        // open, so `publish held back` was a mean over the quarter of deferrals
+        // that happened to go through the announcement or the timer. Measured
+        // 2026-08-27: 1,568 deferrals against 388 accounted releases.
+        if (_publish.WaitingForPresent) NoteDamReleased(byPresent: true, byEvent: true);
         _publish.WaitingForPresent = false;
         var publishAt = System.Diagnostics.Stopwatch.GetTimestamp();
         // Before LastPublishTicks is overwritten, because that field IS the
