@@ -533,6 +533,19 @@ public partial class MainViewModel
     /// about where the call came from.
     /// </param>
     /// <summary>
+    /// The last few published frames and the buffers behind them, for looking
+    /// at an artifact after it has gone. Off until armed from the Help menu.
+    /// </summary>
+    /// <remarks>
+    /// Here rather than in <c>MainViewModel.cs</c> because that file is under a
+    /// ratchet and this is new work: the rule is that new work goes into a
+    /// partial rather than onto the end of a file that is already too big. The
+    /// publish path this records from is in this partial anyway, which makes it
+    /// the right home rather than merely an available one.
+    /// </remarks>
+    internal Services.FrameCapture Capture { get; } = new();
+
+    /// <summary>
     /// Every frame the UI thread has built and what each cost (B321) — as a
     /// distribution, not a running total.
     /// </summary>

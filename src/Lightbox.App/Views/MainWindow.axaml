@@ -806,18 +806,10 @@
         -->
         <MenuItem Header="Write a render report" Click="OnWriteRenderReport"
                   ToolTip.Tip="Measures this machine's drawing path and writes it to the diagnostics folder" />
-    <!--
-      The render report's counterpart: that one measures time, these two
-      record pixels. Always visible for the same reason it is — an artist
-      seeing something wrong on the canvas will not think to turn diagnostics
-      on first, and by the time they have, the stroke is over.
-    -->
-    <MenuItem Header="Record frames while drawing" ToggleType="CheckBox"
-              Click="OnToggleFrameCapture"
-              ToolTip.Tip="Keeps the last frames and the brush buffers behind them, for looking at afterwards" />
-    <MenuItem Header="Write out the last frames drawn" Click="OnWriteFrameCapture"
-              InputGesture="F10"
-              ToolTip.Tip="Writes the recorded frames to the diagnostics folder as images" />
+        <MenuItem Header="Record frames while drawing" ToggleType="CheckBox" Click="OnToggleFrameCapture"
+                  ToolTip.Tip="Keeps the last frames and the brush buffers behind them, for looking at afterwards" />
+        <MenuItem Header="Write out the last frames drawn" Click="OnWriteFrameCapture" InputGesture="F10"
+                  ToolTip.Tip="Writes those frames to the diagnostics folder as images (see OnWriteFrameCapture)" />
         <!--
           Absent unless diagnostics are on, the same way the Project menu items
           are absent without a project: an item you can click that then does
