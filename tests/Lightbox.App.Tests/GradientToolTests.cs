@@ -320,6 +320,12 @@ public class GradientToolTests : BrushStateIsolated
         // centreline, and the ramp colours the whole layer regardless of where
         // they sit. Judging the selection by those two points meant a marquee
         // drawn straight over a visible gradient reported an empty scope.
+        //
+        // B323 changed the shape of the answer, not this promise: the marquee
+        // still finds the gradient, and now takes the part of it inside the
+        // region rather than the whole ramp. So the record holds two entries —
+        // the part left behind and the part that travelled — and it is the
+        // travelling one that lands at 170.
         var vm = WithGradient(out _);
         Drag(vm, 100, 20, 100, 120);
 
@@ -330,7 +336,61 @@ public class GradientToolTests : BrushStateIsolated
         Assert.True(vm.BeginTransform(), vm.AiStatus);
         vm.CommitTransformAffine(0, 0, 1, 1, 0, 0, 150);
 
-        Assert.Equal(170, Assert.Single(Strokes(vm)).Points[0].Y, 3);
+        var strokes = Strokes(vm);
+        Assert.Equal(2, strokes.Count);
+        Assert.Equal(20, strokes[0].Points[0].Y, 3);    // stayed, where it was drawn
+        Assert.Equal(170, strokes[1].Points[0].Y, 3);   // travelled
+        // Both carry a clip, or one of them is covering the whole layer and
+        // the other is invisible underneath it.
+        Assert.NotNull(strokes[0].ClipId);
+        Assert.NotNull(strokes[1].ClipId);
+        Assert.NotEqual(strokes[0].ClipId, strokes[1].ClipId);
+    }
+
+    /// <summary>
+    /// B323: the ramp inside the marquee moves and the ramp outside it does not.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The owner's call against the recommendation</b>, recorded in Q166.
+    /// The argument for leaving a gradient whole was that it has no location —
+    /// it is a property of the layer, so "the part inside the selection" is not
+    /// something the record can say apart from the ramp. The argument that won
+    /// is that a marquee has to mean one thing everywhere: once a stroke moves
+    /// only what you boxed, a gradient that alone ignored the box was the odd
+    /// one out.
+    /// </para>
+    /// <para>
+    /// Measured as colours rather than as record shape, because the shape is
+    /// already pinned above and the thing an artist would report is what the
+    /// canvas looks like. The probes are far from the seam so antialiasing
+    /// along the clip boundary is not part of the number.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void ASelectionOverAGradientMovesOnlyTheRampInsideIt()
+    {
+        var vm = WithGradient(out _);
+        Drag(vm, 100, 20, 100, 120);            // black at y=20 through white at y=120
+
+        var insideBefore = At(vm, 150, 60).Red;
+        var outsideBefore = At(vm, 30, 60).Red;
+
+        // A marquee down the right-hand side only, so the left is untouched.
+        vm.ApplySelectionShape(
+            [new(120, 0, 1), new(300, 0, 1), new(300, 300, 1), new(120, 300, 1)],
+            add: false, subtract: false);
+        Assert.True(vm.BeginTransform(), vm.AiStatus);
+        vm.CommitTransformAffine(0, 0, 1, 1, 0, 0, 60);   // down 60
+
+        var insideAfter = At(vm, 150, 60).Red;
+        var outsideAfter = At(vm, 30, 60).Red;
+
+        // The half nobody selected reads exactly as it did.
+        Assert.Equal(outsideBefore, outsideAfter);
+        // The half that was selected does not: its ramp slid down with it, so
+        // the colour at a fixed point is the one that used to sit 60 higher.
+        Assert.NotEqual(insideBefore, insideAfter);
     }
 
     [AvaloniaFact]

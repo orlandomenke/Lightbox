@@ -105,13 +105,32 @@ wholly rubbed-out ink is exactly that. Two of B290's own tests caught it. An
 erasure is duplicated, not divided: erasing twice is erasing once, so the
 original stays untouched and only the travelling copy is clipped.
 
-**Two things this question did not decide, decided by building it.** A gradient
-is not split — it has no location, so "the part inside the selection" is not
-something the record can say apart from the ramp, and dividing one turns every
-region-limited move over a background gradient into a shifted rectangle of
-background. That is a question about what a marquee means over a *fill*, and it
-is still open. And a stroke wholly inside the region still moves whole with no
-clip and no copy, so the common case gets no slower.
+**Two things this question did not decide, decided by building it.** A stroke
+wholly inside the region still moves whole with no clip and no copy, so the
+common case gets no slower. And a gradient was left whole at first — see the
+section below, where that was overturned.
+
+## The gradient, asked separately and answered against the recommendation (B323)
+
+Raised the same day, once the build had surfaced it: **should a marquee clip a
+gradient the way it now clips a stroke?**
+
+| | What it costs |
+| --- | --- |
+| Leave it whole (recommended) | Nothing, and it is what B7's special case already said: a gradient has no location — the ramp colours the layer wherever its two axis points sit — so "the part inside the selection" is not something the record can say apart from the ramp itself. Nothing in the five reported symptoms touched gradients. |
+| **Clip it like a stroke** (**chosen**) | A marquee has to mean one thing everywhere, and once a stroke moves only what you boxed, a gradient that alone ignored the box is the odd one out. Photoshop moves the pixels you selected whatever laid them down. |
+
+**The cost of the chosen answer, written here so it is not rediscovered as a
+surprise:** a region-limited move on a layer carrying a background gradient now
+leaves a **visible rectangle of shifted background**. Move a character across a
+gradient sky and the sky inside the marquee travels with them. That is the
+trade, and the owner took it knowingly.
+
+Mechanically it is one line — `RegionReading.Crosses` judges a gradient by
+whether any of the page is left *out* of the region, which is B7's own reading
+pointed the other way. `Reaches` is untouched, so B7's promise that a marquee
+over a visible gradient finds it holds exactly as before; only the shape of the
+answer changed, from one entry to two carrying complementary clips.
 
 Measured on `main` for the arrangement that shows it — a horizontal band across
 a line with a vertical eraser through it, neither of the eraser's ends inside
