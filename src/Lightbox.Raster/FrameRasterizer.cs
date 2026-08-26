@@ -96,6 +96,117 @@ public static class FrameRasterizer
     }
 
     /// <summary>
+    /// Rebuild one rectangle of a frame's pixels in place: clear it, then replay
+    /// only the strokes that reach it, in record order. Returns false — having
+    /// touched nothing — when the frame is one this cannot rebuild exactly, and
+    /// the caller must fall back to re-rendering the whole drawing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B327: <see cref="Append"/> run backwards.</b> Committing a stroke is
+    /// bounded work; undoing it dropped the frame's bitmap and re-stamped every
+    /// stroke on it, so drawing was O(1) and taking it back was O(n) —
+    /// <b>3 092 ms per Ctrl+Z at 1 600 strokes</b>, dead linear. This makes undo
+    /// cost what the mark cost, which is invariant 6's shape.
+    /// </para>
+    /// <para>
+    /// <b>Invariant 2 is what makes the replay exact rather than approximate.</b>
+    /// <c>Hash01</c> seeds every dab dynamic from the IEEE-754 bits of its
+    /// position, so a stroke replayed under a clip lands the same dabs it landed
+    /// the first time. The clip is on the <em>canvas</em> and never on the
+    /// geometry — invariant 7's rule, and the same reason output scale is a
+    /// surface transform. <c>StampStroke</c> is still handed the whole-document
+    /// <paramref name="info"/> so the stroke-global passes (wet edge, medium,
+    /// granulation, texture) compute over the whole stroke and Skia clips the
+    /// drawing: <b>compute whole, clip to the region</b>, which is the rule
+    /// <c>RasterizeByTile</c> already lives by.
+    /// </para>
+    /// <para>
+    /// <b>What it refuses, and why refusing is the safe direction.</b> Falling
+    /// back costs a re-render; a wrong fast path leaves ink on the canvas the
+    /// document no longer describes. So this returns false for anything it
+    /// cannot promise, and the caller is expected to treat false as ordinary.
+    /// </para>
+    /// </remarks>
+    /// <param name="region">
+    /// The rectangle to rebuild, in <b>surface</b> pixels — already scaled, and
+    /// already clamped to the bitmap by the caller.
+    /// </param>
+    public static bool RepaintRegion(
+        SKBitmap layer, Frame frame, SKRectI region, int width, int height,
+        double outputScale = 1.0, SKBitmap? backdrop = null)
+    {
+        if (region.Width <= 0 || region.Height <= 0) return false;
+        if (!CanRepaintRegion(frame)) return false;
+
+        var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
+
+        // Asked before anything is painted, so a refusal leaves the bitmap as it
+        // was rather than half-rebuilt.
+        var replay = new List<Stroke>();
+        foreach (var stroke in frame.Strokes)
+        {
+            if (BrushEngine.ReachBounds(stroke) is not { } reach) continue;
+            if (!Scale(reach, outputScale).IntersectsWith(region)) continue;
+            // An effect brush reads the pixels it sits on. Outside the clip this
+            // bitmap holds the drawing as it stands *now* — every stroke, including
+            // ones painted after this one — where a full render would have shown it
+            // only what came before. A smudge whose dabs sample across the region
+            // edge would therefore drag future ink into the past. No coordinate
+            // fixes that, so the whole repaint goes back to the slow path.
+            if (stroke.Brush.Kind is BrushKind.Smudge or BrushKind.Blur) return false;
+            replay.Add(stroke);
+        }
+
+        using var canvas = new SKCanvas(layer);
+        canvas.Save();
+        canvas.ClipRect(SKRect.Create(region.Left, region.Top, region.Width, region.Height));
+        canvas.Clear(SKColors.Transparent);
+        foreach (var stroke in replay)
+        {
+            BrushEngine.StampStroke(
+                canvas, stroke, info, layer, outputScale: outputScale, backdrop: backdrop);
+        }
+        canvas.Restore();
+        canvas.Flush();
+        // Same announcement Append makes, and for the same reason: this bitmap is
+        // the one the frame cache holds, and anything keyed on its identity — a
+        // tile split, a baked layer stack — must see the content move.
+        BitmapVersion.Bump(layer);
+        return true;
+    }
+
+    /// <summary>
+    /// Whether a frame's pixels can be rebuilt a region at a time at all.
+    /// </summary>
+    /// <remarks>
+    /// Three refusals, each because the region would not hold the whole answer.
+    /// A <b>baseline</b> is stored pixels under the strokes, so clearing a
+    /// rectangle destroys part of it and only a crop would put it back (nothing
+    /// in the app writes one, so this is a guard rather than a case). A
+    /// <b>placement</b> is stamped over the strokes by <c>SymbolRasterizer</c>
+    /// and answers to a symbol that can be edited elsewhere, so its footprint is
+    /// not this frame's to compute. A frame that <b>samples the layers beneath
+    /// it live</b> is never cached in the first place — <c>FrameBitmapCache.Get</c>
+    /// drops it on every read — so there is no bitmap here to patch.
+    /// </remarks>
+    public static bool CanRepaintRegion(Frame frame) =>
+        string.IsNullOrEmpty(frame.PngBase64)
+        && frame.Placements is not { Count: > 0 }
+        && !frame.Strokes.Any(s => s.Brush.SampleSource == SampleSource.AllLayersLive);
+
+    /// <summary>A reach in stroke coordinates as surface pixels.</summary>
+    private static SKRectI Scale(SKRectI rect, double outputScale)
+    {
+        if (outputScale == 1.0) return rect;
+        return new SKRectI(
+            (int)Math.Floor(rect.Left * outputScale),
+            (int)Math.Floor(rect.Top * outputScale),
+            (int)Math.Ceiling(rect.Right * outputScale),
+            (int)Math.Ceiling(rect.Bottom * outputScale));
+    }
+
+    /// <summary>
     /// Materialize a painted frame's pixels: baseline PNG (if any) with the
     /// stroke record stamped on top, in order. Strokes are never baked into
     /// the baseline, so this is repeatable and always current.

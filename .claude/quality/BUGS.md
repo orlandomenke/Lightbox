@@ -205,26 +205,6 @@ which is a weak test and still far better than none.
 
 ### canvas
 
-- [ ] **B327** `P1` `canvas` Undo re-stamps every stroke on the drawing, so a finished drawing costs seconds per Ctrl+Z `evidence: none yet`
-  - Reported as *"undo is really slow in a reference sheet drawing"*. The reference sheet turned out to be a red herring — a plain document with the same amount of ink measured the same (463 ms against 471 ms at 300 strokes). What is actually true is that **a model sheet is one dense finished drawing**, so every stroke lives on the cel being undone, while an animation spreads the same work over many sparse cels. The reporter's fast "single file" was a lighter drawing, not a different code path.
-  - **The asymmetry is exact and it is in the ledger already.** Committing a stroke is bounded work: `AppendToFrameRender` stamps the one new stroke onto the cached bitmap, which is invariant 6's shape. Undoing it is not: `ApplyEditScope` calls `InvalidateFrameRender(frameId)`, the cache entry goes, and the next publish re-enters `FrameBitmapCache.Get` → `Render`, which replays **every stroke on that cel** through the brush engine. Drawing is O(1) and taking it back is O(n).
-  - Measured headless, one 960×540 cel, undoing one stroke at a time:
-
-    | strokes on the drawing | ms per undo |
-    | --- | --- |
-    | 50 | 79 |
-    | 100 | 151 |
-    | 200 | 324 |
-    | 400 | 729 |
-    | 800 | 1 498 |
-    | 1 600 | **3 092** |
-
-  - Dead linear at ~1.9 ms per stroke, with no knee — so this is not a cliff to tune around, it is the shape of the work. Three seconds per Ctrl+Z at 1 600 strokes is well inside what a finished drawing carries, and B142 uses 5 000 strokes as its reference painting.
-  - **It is the drawing being undone that costs, not the document.** 300 strokes sitting on layer 1 while a stroke on layer 2 is undone costs **21.8 ms** — layer 1 stays cached. So the fix has a narrow target.
-  - **The shape of the fix is `AppendToFrameRender` run backwards.** A `DeltaStep` knows the stroke it reverted, so undo could clear that stroke's bounds on the cached bitmap and replay only the strokes that intersect them, in order, instead of dropping the whole cel. Bounded by the reverted stroke's footprint, which is invariant 6 applied to undo. **Invariant 2 is what makes it sound rather than approximate**: `Hash01` seeds every dab from the IEEE-754 bits of its position, so a stroke replayed under a clip produces bit-identical dabs — the clip is on the canvas, never on the geometry, which is invariant 7's rule and the same reason output scale is a canvas transform.
-  - Not built on B325's branch — one objective per branch, and this is a different shape. It needs a repaint-region primitive `FrameBitmapCache`/`FrameRasterizer` do not have, it has to agree with the tile cache and the layer-stack bake that `InvalidateFrameRender` also drops, and a snapshot undo (which has no stroke to name) must keep falling back to today's behaviour. **Cost: L.**
-  - Sibling: **B325**, the reference-sheet-specific tax that rides on top of this one and is fixed.
-
 - [ ] **B255** `P1` `canvas` Hovering a menu with a pen tablet freezes the app for up to 6 seconds `evidence: manual`
   - **Measured, 2026-08-17, second `InputTrace` run on the reporter's Huion machine** — 56.7 s, 15,268 events, and this bug is the reason the stall watch was added to the instrument at all. The reporter had said the application "froze for a little while"; the first trace could not tell a freeze from a pointer resting over a menu, and the heartbeat that settled it found **22 UI-thread stalls, worst 6,103 ms**.
   - **The cause is not a correlation, it is an identity.** Every stall over three seconds is preceded by ~100 popup opens per second; the rate in windows away from any stall is **0.0/s**:
@@ -1347,6 +1327,28 @@ test reopens the bug.
   - Two things this did not fix, both logged rather than folded in: spread is still only +20% (**B27**), and `PaintLoad` still thins the whole stroke instead of running out along it (**B26**), which is the rest of why oil looks translucent.
 
 ### canvas
+
+- [x] **B327** `P1` `canvas` Undo re-stamps every stroke on the drawing, so a finished drawing costs seconds per Ctrl+Z `evidence: UndoRegionRepaintTests, UndoingAStrokeLeavesExactlyThePixelsAFullRenderWould, RedoingItPutsBackExactlyThosePixelsToo, UndoingAnEraserRestoresWhatWasBeneathIt, RepeatedUndosDoNotDriftFromTheRecord, UndoPatchesTheDrawingRatherThanDroppingIt, ASmudgeOnTheDrawingSendsUndoBackToTheWholeRender`
+  - Reported as *"undo is really slow in a reference sheet drawing"*. The reference sheet was a red herring: a plain document with the same amount of ink measured the same (463 ms against 471 ms at 300 strokes). What is true is that **a model sheet is one dense finished drawing**, so every stroke lives on the cel being undone, while an animation spreads the same work over many sparse cels. The reporter's fast "single file" was a lighter drawing, not a different code path. The reference-sheet-specific half of the complaint is **B325**.
+  - **The asymmetry was exact.** Committing a stroke is bounded work — `AppendToFrameRender` stamps the one new mark onto the cached bitmap, invariant 6's shape. Undoing it was not: `ApplyEditScope` called `InvalidateFrameRender`, the cache entry went, and the next publish re-entered `FrameBitmapCache.Get` → `Render`, replaying **every stroke on that cel**. Drawing O(1), taking it back O(n), at ~1.9 ms per stroke with no knee — 50 strokes 79 ms, 400 strokes 729 ms, 800 strokes 1 498 ms, **1 600 strokes 3 092 ms**.
+  - **Fixed by running `Append` backwards.** A `DeltaStep` now carries the rectangle its revert can repaint (`GeometryOps.BBox`, supplied by `BrushEngine.CommitBounds`), `EditScope` hands it to the view model, and `FrameBitmapCache.RepaintRegion` clears that rectangle on the cached bitmap and replays only the strokes that reach it, in record order.
+  - **Invariant 2 is what makes the replay exact rather than approximate.** `Hash01` seeds every dab dynamic from the IEEE-754 bits of its position, so a stroke replayed under a clip lands the dabs it landed the first time. The clip is on the **canvas**, never on the geometry — invariant 7's rule, and the same reason output scale is a surface transform. `StampStroke` still receives the whole-document `info`, so the stroke-global passes compute over the whole stroke and Skia clips the drawing: *compute whole, clip to the region*, which is what `RasterizeByTile` already does.
+  - Measured after, same probe and machine:
+
+    | drawing | before | after |
+    | --- | --- | --- |
+    | 200 small marks spread over the canvas | ~324 ms | **4.6 ms** |
+    | 800 small marks spread over the canvas | ~1 498 ms | **6.7 ms** |
+    | 200 long strokes all crossing one band | ~324 ms | 450 ms |
+    | 800 long strokes all crossing one band | ~1 498 ms | 1 435 ms |
+
+  - **It is the drawing being undone that costs, not the document.** 300 strokes sitting on layer 1 while a stroke on layer 2 is undone costs **21.8 ms** — layer 1 stays cached. That is what says the fix has a narrow target rather than needing the whole render path rethought.
+  - **The last two rows are the honest limit and they are not a defect.** When every stroke crosses the reverted mark's footprint, repainting that footprint *is* repainting the drawing, and there is nothing to save. The first two are the case that matters: undo stops growing with the drawing — four times the strokes moves it 4.6 → 6.7 ms instead of 4×. Worth recording that the first measurement of this fix showed **no gain at all**, because the probe drew every stroke through one narrow band; a probe that only measures the worst case will report that the fix does not work.
+  - **What it refuses, falling back to the old whole-drawing render:** a frame carrying a baseline PNG, a frame with symbol placements, a posed frame (`PoseResolver` means the held pixels came from a *substitute* frame), strokes that sample the layers live, and any **smudge or blur** reaching the region. The last is the interesting one: an effect brush reads the pixels it sits on, and outside the clip the bitmap holds the drawing as it stands *now* — including strokes painted after it — where a full render would have shown it only what came before. A smudge sampling across the region edge would drag future ink into the past, and no coordinate conversion fixes that. It is the same shape as B195's tiling finding, arrived at from the other side.
+  - **Declared per commit path, never inferred.** The brush, shape, pen and fill commits pass their stroke's footprint; the text commit does not, because it removes and reinserts several strokes and its footprint is a union rather than a mark. A path that says nothing gets today's behaviour, which is why adding one is safe: `MainViewModel.FrameRenderDrops` is the counter that makes a forgetful new path visible as something other than a mystery.
+  - **The bar is bit-identity, not similarity**, because a patch that merely looks right shows ink the document no longer describes, and only where marks overlap. Detection power proved with three mutants: dropping the clear kills four tests, reversing the replay order kills three, and removing the effect-brush refusal kills the smudge test. Cost: L
+  - **Two holes stay open on purpose, and `Q167` answers them.** Replaying the record is what makes both the overlap case and the effect-brush refusal unavoidable here. Measured after this landed, restoring a saved copy of the patch instead costs **0.045 ms where this replay costs 7 497 ms** on a hatched 800-stroke drawing, and has no sampling problem at all — so the next step is Photoshop's and Krita's, filed as a roadmap item under *Editing*. Nothing in that supersedes this entry: the replay path stays for steps that name no footprint.
+  - Sibling: **B325**, the reference-sheet-specific tax that rode on top of this one, fixed on its own branch.
 
 - [x] **B312** `P1` `canvas` The stall watch reports background-priority starvation as a blocked UI thread `evidence: AStallTheCanvasAnsweredAcrossIsOverruled, AStallWithNothingAcrossItIsStillReported, TheTracesOwnBookkeepingDoesNotOverruleAStall`
   - **The instrument contradicted itself in one file and the verdict line still took a side.** The reporter's capture of 2026-08-25 prints `UI-thread stalls 3, worst 10888 ms` and, two lines above it, `longest silence 53 ms` over `moves 1698 (112/s)`. A 10.9-second block inside a 15.2-second trace that never stopped answering for more than a twentieth of a second. The verdict said *"the application really did stop answering, and any silence in the event list around that point is the freeze"* — which is the sentence a reader acts on, and it was wrong.

@@ -1634,7 +1634,11 @@ public partial class MainViewModel
                     RemoveStrokeById(doc, frameId, stroke.Id);
                     if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
                 },
-                affectedFrameId: frameId);
+                affectedFrameId: frameId,
+                // B327, the same declaration the brush commit makes: the revert
+                // removes one stroke, so the pixels that can move are the ones
+                // that stroke could reach.
+                repaintBounds: RepaintBoundsOf(stroke));
         }
         finally
         {
@@ -3027,7 +3031,11 @@ public partial class MainViewModel
                     RemoveStrokeById(doc, frameId, stroke.Id);
                     if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
                 },
-                affectedFrameId: frameId);
+                affectedFrameId: frameId,
+                // B327. The revert takes one stroke back out, so the only pixels
+                // that can move are the ones that stroke could reach — which is
+                // the same rectangle the canvas dirty region below is built from.
+                repaintBounds: RepaintBoundsOf(stroke));
         }
         finally
         {
