@@ -53,11 +53,27 @@ internal sealed class Tally
     /// <summary>The single worst, which no summary statistic can stand in for.</summary>
     public double WorstMs { get; private set; }
 
+    /// <summary>
+    /// The single best, which answers a question no average can (B321).
+    /// </summary>
+    /// <remarks>
+    /// <b>A wait and a gate look identical in the mean and differ in the
+    /// minimum.</b> If a step ever completes in nearly no time, whatever makes
+    /// it slow on average is a queue that happened to be busy — something to
+    /// look into. If its best case is as long as its typical case, nothing is
+    /// queued behind anything: the step is being held until a moment that
+    /// arrives on its own schedule, and no amount of speeding up the work
+    /// either side of it moves the number. That distinction is the whole of
+    /// B321's verdict, and the mean cannot make it.
+    /// </remarks>
+    public double BestMs { get; private set; }
+
     public double MeanMs => Count == 0 ? 0 : TotalMs / Count;
 
     public void Add(double ms)
     {
         if (double.IsNaN(ms) || double.IsInfinity(ms)) return;
+        if (Count == 0 || ms < BestMs) BestMs = ms;
         Count++;
         TotalMs += ms;
         if (ms > WorstMs) WorstMs = ms;
@@ -109,6 +125,7 @@ internal sealed class Tally
         Count = 0;
         TotalMs = 0;
         WorstMs = 0;
+        BestMs = 0;
         _kept = 0;
     }
 }

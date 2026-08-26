@@ -52,13 +52,16 @@ public partial class CanvasControl
 
     private long _lastRenderedAtTicks;
 
-    private void NoteRendered(long seq)
+    private void NoteRendered(long seq) =>
+        NoteRendered(seq, System.Diagnostics.Stopwatch.GetTimestamp());
+
+    private void NoteRendered(long seq, long drawStartedTicks)
     {
         // Before the early return below, which is about keeping the high-water
         // mark monotonic. A frame that arrived out of order was still drawn, and
         // dropping it here would flatter the average by counting only the
         // frames that behaved.
-        _presentWait.Rendered(seq);
+        _presentWait.Rendered(seq, drawStartedTicks);
         StrokeToScreen.Shared.Rendered(seq);
 
         long current;

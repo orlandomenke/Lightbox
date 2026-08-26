@@ -3871,7 +3871,7 @@ public sealed partial class CanvasControl : Control
     private sealed partial class DrawOp(
         Rect bounds, RenderSnapshot snapshot, ViewState view, BrushCursor? cursor,
         SKPath? ants, SKPath? antsOpen, float antsPhase, LazyGizmo? lazy = null,
-        TxGizmoData? txGizmo = null, Action<long>? onRendered = null,
+        TxGizmoData? txGizmo = null, Action<long, long>? onRendered = null,
         Action<double>? onFrameTime = null, SKPoint[]? cameraFrame = null,
         (SKPoint From, SKPoint To)? gradientAxis = null,
         IReadOnlyList<ReferenceBox>? referenceBoxes = null,
@@ -3924,7 +3924,12 @@ public sealed partial class CanvasControl : Control
             try
             {
                 RenderCore(context);
-                onRendered?.Invoke(snapshot.Seq);
+                // B321: the start stamp goes with the sequence, so the three
+                // phases of publish -> drawn sum to the total instead of merely
+                // sitting near it. Taken before RenderCore rather than here —
+                // the wait to be picked up ends when the draw begins, not when
+                // it finishes.
+                onRendered?.Invoke(snapshot.Seq, started);
                 onFrameTime?.Invoke(
                     (System.Diagnostics.Stopwatch.GetTimestamp() - started)
                     * 1000.0 / System.Diagnostics.Stopwatch.Frequency);

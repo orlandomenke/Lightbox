@@ -370,6 +370,92 @@ internal static class RenderReport
         }
     }
 
+    /// <summary>
+    /// What this present path cannot go below, and whether it is already there
+    /// (B321).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The arithmetic has no free parameters, which is the only reason it is
+    /// allowed to reach a verdict.</b> Its inputs are the refresh rate, which
+    /// comes from the operating system and not from anything Lightbox measures,
+    /// and the draw, which is measured. Everything else is counting: a frame
+    /// published at no particular moment waits on average half a refresh for the
+    /// visual pass that hands it over, and the compositor picks that hand-over
+    /// up on the following refresh rather than the current one, so the floor is
+    /// one and a half refreshes plus whatever the draw costs.
+    /// </para>
+    /// <para>
+    /// <b>Why a floor is worth printing at all.</b> Six wrong hypotheses were
+    /// recorded against this bug in two days, four of them confident, and every
+    /// one of them was a number that looked large next to nothing. A latency
+    /// with no floor beside it always looks like a defect. This line is what
+    /// lets a reader tell "slow" from "as fast as this architecture goes", and
+    /// it is deliberately printed whether the answer flatters the code or not.
+    /// </para>
+    /// </remarks>
+    private static void AppendPresentFloor(StringBuilder sb, Rendering.PresentLatency.Stats stats)
+    {
+        if (Rendering.DisplayCadence.PeriodMs is not { } period || period <= 0)
+        {
+            sb.AppendLine("  screen refresh rate unknown, so no floor is computed here —");
+            sb.AppendLine("  every number above is a duration with nothing to compare it to.");
+            return;
+        }
+
+        var hz = Rendering.DisplayCadence.Hz ?? 0;
+        var draw = stats.Queued > 0 ? stats.KeyedDrawMeanMs : stats.DrawMeanMs;
+        var floor = (period * 1.5) + draw;
+        var measured = stats.MedianMs > 0 ? stats.MedianMs : stats.MeanMs;
+
+        sb.AppendLine(
+            $"  the screen refreshes every {period:0.##} ms ({hz} Hz)");
+        sb.AppendLine(
+            $"  floor for this path       {floor:0.##} ms   (half a refresh for the visual pass,");
+        sb.AppendLine(
+            $"                            one for the pick-up, plus the {draw:0.##} ms draw)");
+        sb.AppendLine(
+            $"  measured (median)         {measured:0.##} ms   = {measured / period:0.##} refreshes");
+
+        // A tenth of a refresh of slack: below that the two are the same number
+        // measured twice, and claiming a difference would be reading noise.
+        var slack = period * 0.1;
+        if (measured <= floor + slack)
+        {
+            sb.AppendLine("  >> AT THE FLOOR. The frame is not slow to produce — it is waiting");
+            sb.AppendLine("     for the screen, twice, and the work between the waits is small");
+            sb.AppendLine("     enough to fit inside them. Making anything here faster buys");
+            sb.AppendLine("     nothing; only removing a hop, or presenting without waiting for");
+            sb.AppendLine("     the refresh, would move it. See B321.");
+        }
+        else
+        {
+            sb.AppendLine(
+                $"  >> {measured - floor:0.##} ms ABOVE the floor, so some of this is a cost rather than a");
+            sb.AppendLine("     cadence. The phases above say which one is carrying it.");
+        }
+
+        if (stats.Queued > 0)
+        {
+            // The discriminator, and the reason `best` is tallied at all: a
+            // queue empties sometimes and a gate never does.
+            if (stats.QueueBestMs > stats.QueueMedianMs * 0.5)
+            {
+                sb.AppendLine("     The wait to be picked up never gets short — its best case is");
+                sb.AppendLine("     close to its typical one — so the render thread is not busy,");
+                sb.AppendLine("     it is being held. That is a gate, not a queue.");
+            }
+            else
+            {
+                sb.AppendLine("     The wait to be picked up DOES get short sometimes, so the render");
+                sb.AppendLine("     thread is being kept busy rather than held. That is a queue and");
+                sb.AppendLine("     it has something in it worth finding.");
+            }
+        }
+
+        sb.AppendLine();
+    }
+
     private static void AppendPresentWaitByInput(
         StringBuilder sb, Rendering.PresentLatency.Stats stats,
         (long Requested, long Delivered)? animationFrames)
@@ -858,14 +944,28 @@ internal static class RenderReport
         {
             var after = stats.MeanMs - stats.ToEnqueueMeanMs;
             sb.AppendLine(
-                $"    waiting for a visual pass  {stats.ToEnqueueMeanMs:0.##} ms   worst {stats.ToEnqueueWorstMs:0.##} ms");
+                $"    waiting for a visual pass  {stats.ToEnqueueMeanMs:0.##} ms   median {stats.ToEnqueueMedianMs:0.##} ms   worst {stats.ToEnqueueWorstMs:0.##} ms");
             sb.AppendLine(
                 $"    then in the compositor     {after:0.##} ms");
+            // B321's third split, and the one the floor verdict turns on: the
+            // compositor's half is a wait to be picked up plus a draw, and until
+            // this line existed the difference between them was a subtraction
+            // with nothing to attribute it to.
+            if (stats.Queued > 0)
+            {
+                sb.AppendLine(
+                    $"      waiting to be picked up  {stats.QueueMeanMs:0.##} ms   median {stats.QueueMedianMs:0.##} ms   best {stats.QueueBestMs:0.##} ms");
+                sb.AppendLine(
+                    $"      then drawing             {stats.KeyedDrawMeanMs:0.##} ms   (this frame's own draw)");
+            }
+
             if (stats.Draws > 0)
             {
                 sb.AppendLine(
-                    $"      of which drawing         {stats.DrawMeanMs:0.##} ms   worst {stats.DrawWorstMs:0.##} ms");
+                    $"      of which drawing         {stats.DrawMeanMs:0.##} ms   worst {stats.DrawWorstMs:0.##} ms   (every draw, cursor repaints included)");
             }
+
+            AppendPresentFloor(sb, stats);
 
             if (stats.MeanMs > 25)
             {
