@@ -34,6 +34,24 @@ public partial class CanvasControl
     /// </remarks>
     internal long LastRenderedSeq => System.Threading.Interlocked.Read(ref _lastRenderedSeq);
 
+    /// <summary>
+    /// When the high-water mark above last moved, as a stopwatch timestamp —
+    /// so the publisher can tell how much of a deferral it spent waiting for a
+    /// draw and how much it spent waiting to find out about one.
+    /// </summary>
+    /// <remarks>
+    /// <b>The two are different faults with different fixes and the dam's own
+    /// figure cannot tell them apart.</b> On the owner's machine a deferral is
+    /// held 54.98 ms while <c>publish -&gt; drawn</c> is 30.67 — so roughly
+    /// twenty-four milliseconds is neither the drawing nor the composing. It is
+    /// either the release notification queueing behind the artist's pointer
+    /// events, or nothing asking again until the next one arrives. Guessing
+    /// between those is how B321's first verdict came to be retracted.
+    /// </remarks>
+    internal long LastRenderedAtTicks => System.Threading.Interlocked.Read(ref _lastRenderedAtTicks);
+
+    private long _lastRenderedAtTicks;
+
     private void NoteRendered(long seq)
     {
         // Before the early return below, which is about keeping the high-water
@@ -50,6 +68,11 @@ public partial class CanvasControl
             if (seq <= current) return;
         }
         while (Interlocked.CompareExchange(ref _lastRenderedSeq, seq, current) != current);
+
+        // Stamped only when the mark actually moved, beside the mark itself:
+        // the two are read together and a timestamp for a frame the publisher
+        // was not waiting on would make the split below meaningless.
+        Interlocked.Exchange(ref _lastRenderedAtTicks, System.Diagnostics.Stopwatch.GetTimestamp());
 
         // Only when the high-water mark moved: a cursor repaint re-draws the
         // same snapshot many times a second, and the publisher only cares that

@@ -2778,18 +2778,66 @@ public partial class MainViewModel
 
     private long _damBeganAt;
 
+    /// <summary>
+    /// Of the time a deferral was held, how much of it the awaited frame had
+    /// already been on screen for.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The dam's own figure cannot say whether it is pacing or overhead.</b>
+    /// On the owner's machine a deferral is held 54.98 ms while
+    /// <c>publish -&gt; drawn</c> is 30.67, and the difference is not drawing
+    /// and not composing. It is one of two things with two different fixes:
+    /// the release notification queueing behind the artist's pointer events, or
+    /// simply nothing asking again until the next one arrives.
+    /// </para>
+    /// <para>
+    /// This is the second: time between the draw actually landing and the dam
+    /// noticing. Waiting for a canvas that has not drawn yet is the dam doing
+    /// its job; waiting after it has is the cost worth removing.
+    /// </para>
+    /// </remarks>
+    internal double DamLateTotalMs { get; private set; }
+
+    /// <inheritdoc cref="DamLateTotalMs"/>
+    internal double DamLateWorstMs { get; private set; }
+
     /// <summary>Close off a deferral and record how long it lasted.</summary>
     private void NoteDamReleased(bool byPresent)
     {
         if (byPresent) DamReleasedByPresent++;
         else DamReleasedByTimer++;
         if (_damBeganAt == 0) return;
-        var held = (System.Diagnostics.Stopwatch.GetTimestamp() - _damBeganAt)
-                   * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+        var now = System.Diagnostics.Stopwatch.GetTimestamp();
+        var held = (now - _damBeganAt) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
         DamHeldTotalMs += held;
         if (held > DamHeldWorstMs) DamHeldWorstMs = held;
+
+        // How long the frame had already been drawn when this released. Bounded
+        // by the hold itself: a draw that landed BEFORE the deferral began is
+        // not this deferral's waste, it is the previous one's, and counting it
+        // here would double it.
+        if (_renderedAtProbe?.Invoke() is { } drawnAt && drawnAt > 0)
+        {
+            var late = (now - Math.Max(drawnAt, _damBeganAt))
+                       * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            if (late > 0 && late <= held)
+            {
+                DamLateTotalMs += late;
+                if (late > DamLateWorstMs) DamLateWorstMs = late;
+            }
+        }
         _damBeganAt = 0;
     }
+
+    private Func<long>? _renderedAtProbe;
+
+    /// <summary>
+    /// When the canvas last finished a NEW frame, for the split above. Supplied
+    /// by the window beside <see cref="SetRenderedSeqProbe"/>; absent headless,
+    /// where there is no canvas and the split has nothing to say.
+    /// </summary>
+    internal void SetRenderedAtProbe(Func<long> probe) => _renderedAtProbe = probe;
 
     /// <summary>
     /// Let the pacing read what the canvas has drawn without waiting to be told

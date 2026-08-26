@@ -84,7 +84,8 @@ internal static class RenderReport
          long Pixels, long MarkPixels,
          int WorstW, int WorstH, long WorstMarkPixels, int WorstTail)? LivePost = null,
         (int Deferrals, int ByPresent, int ByTimer, int Released,
-         double HeldTotalMs, double HeldWorstMs)? Dam = null,
+         double HeldTotalMs, double HeldWorstMs,
+         double LateTotalMs, double LateWorstMs)? Dam = null,
         (int Count, double TotalMs, double WorstMs, double MedianMs, bool MeanDistorted)? Compose = null,
         (double DescribeMs, double ComposeMs, double HandoffMs)? BuildPhases = null,
         Rendering.PublishTally? PublishesByCaller = null);
@@ -1123,6 +1124,29 @@ internal static class RenderReport
                 $"  publish held back       {dam.Deferrals} times   mean {held:0.##} ms   worst {dam.HeldWorstMs:0.##} ms");
             sb.AppendLine(
                 $"    released by the screen  {dam.ByPresent}      by the 250 ms backstop  {dam.ByTimer}");
+            // The half of a deferral that is not pacing. Waiting for a canvas
+            // that has not drawn yet is the dam doing its job; waiting after it
+            // has drawn is overhead, and the two are not separable from the
+            // hold alone — which is why the hold sat at 54.98 ms beside a
+            // `publish -> drawn` of 30.67 with nothing to say about the gap.
+            if (dam.Deferrals > 0 && dam.LateTotalMs > 0)
+            {
+                var late = dam.LateTotalMs / dam.Deferrals;
+                var share = dam.LateTotalMs / Math.Max(1e-9, dam.HeldTotalMs);
+                sb.AppendLine(
+                    $"    already drawn, still held  mean {late,7:0.##} ms   worst {dam.LateWorstMs,7:0.##} ms   ({share * 100:0}% of the hold)");
+                if (share >= 0.25)
+                {
+                    sb.AppendLine(
+                        "  >> That share is not pacing, it is the dam finding out late. The");
+                    sb.AppendLine(
+                        "     frame was on screen and the publish went on waiting — either the");
+                    sb.AppendLine(
+                        "     release notification is queued behind the artist's own pointer");
+                    sb.AppendLine(
+                        "     events, or nothing asked again until the next one arrived.");
+                }
+            }
             if (dam.ByTimer > dam.ByPresent)
             {
                 sb.AppendLine("  !! the BACKSTOP is pacing the canvas, not the screen. That timer");
