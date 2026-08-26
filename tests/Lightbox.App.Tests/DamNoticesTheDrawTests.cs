@@ -1,5 +1,6 @@
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
+using Lightbox.App.Rendering;
 using Lightbox.App.ViewModels;
 
 namespace Lightbox.App.Tests;
@@ -180,5 +181,50 @@ public class DamNoticesTheDrawTests(ITestOutputHelper output) : BrushStateIsolat
 
         vm.EndStroke();
         Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>
+    /// The canvas's "I drew it" reaches the UI thread ahead of the pointer
+    /// events queued behind it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is the one that matters, and the two tests above are why it was
+    /// nearly missed.</b> They prove a pointer event can release a deferral
+    /// without the announcement — true, and irrelevant in a real stroke: the
+    /// announcement is posted from the render thread the instant the draw
+    /// lands, and the event that would overtake it arrives afterwards into the
+    /// same FIFO queue. At Input the announcement therefore sat behind every
+    /// queued pointer event, each paying its own stamping. Measured: 29.66 ms
+    /// of a 53.88 ms hold, after the frame was already on screen.
+    /// </para>
+    /// <para>
+    /// Tested by draining priorities rather than by a clock — B314's technique.
+    /// Running the queue down to Input and no further leaves anything AT Input
+    /// exactly where it sat, so a post above Input is delivered and a post at
+    /// Input is not. Put the priority back and this fails, which is what makes
+    /// it worth having.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheCanvasSaysItDrewBeforeQueuedPointerEventsRun()
+    {
+        var canvas = new CanvasControl();
+        long? announced = null;
+        canvas.SnapshotPresented += seq => announced = seq;
+
+        // A pointer event's worth of work, queued at Input BEFORE the draw
+        // lands — which is the ordering a real stroke produces.
+        var pointerRan = false;
+        Dispatcher.UIThread.Post(() => pointerRan = true, DispatcherPriority.Input);
+
+        canvas.NoteRenderedForTest(7);
+
+        // Drain everything above Input, and nothing at it.
+        Dispatcher.UIThread.RunJobs(DispatcherPriority.Default);
+
+        output.WriteLine($"announced {announced?.ToString() ?? "nothing"}, pointer work ran: {pointerRan}");
+        Assert.False(pointerRan, "the drain reached Input, so this proves nothing — tighten it");
+        Assert.Equal(7, announced);
     }
 }

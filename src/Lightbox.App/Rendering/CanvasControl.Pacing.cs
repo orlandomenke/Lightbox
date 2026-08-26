@@ -81,9 +81,31 @@ public partial class CanvasControl
         // notification has not been processed yet, so the post that releases
         // it is always already queued.
         if (SnapshotPresented is null) return;
+        // Above Input, and this is the fix rather than a tidy-up.
+        //
+        // **The dam always waits for this post, whatever the probe above can
+        // read.** `AdoptRenderedSeq` lets a pointer event release a deferral
+        // without being told (B321), and a test drives exactly that — but in a
+        // real stroke it never happens, because this post is queued from the
+        // render thread the moment the draw lands and the pointer event that
+        // would have overtaken it arrives afterwards, into the same FIFO queue.
+        // The event can never get in front. So the dam's release costs whatever
+        // this post costs, and at Input that is the whole queue of pointer
+        // events ahead of it, each paying its own ~4 ms of stamping.
+        //
+        // Measured on the owner's machine: a deferral held 53.88 ms of which
+        // **29.66 ms — 55% — was after the frame was already on screen**.
+        //
+        // Default sits above Input and below Render. **What it does NOT do is
+        // jump the publish ahead of the artist's events**, which is B73's
+        // ordering and the reason this was at Input: `NoteFramePresented`
+        // releases the dam and then goes through `RequestSnapshot`, whose own
+        // post is still at Input. Only the bookkeeping moves up — a message
+        // saying something already true, which is worth nothing late and costs
+        // one dispatcher turn per drawn frame to deliver early.
         Avalonia.Threading.Dispatcher.UIThread.Post(
             () => SnapshotPresented?.Invoke(seq),
-            Avalonia.Threading.DispatcherPriority.Input);
+            Avalonia.Threading.DispatcherPriority.Default);
     }
 
     /// <summary>Frame times arrive from the render thread; marshal to the UI thread to publish them.</summary>
