@@ -850,12 +850,31 @@ public partial class MainViewModel
     /// direct manipulation cannot mean something other than the thing under
     /// your hand.
     /// </param>
+    /// <summary>
+    /// The paper, in stroke coordinates — what a baseline is bounded by.
+    /// </summary>
+    /// <remarks>
+    /// The origin is added, not assumed zero: a page that has been cropped or
+    /// grown leftward starts somewhere other than (0,0), and stroke
+    /// coordinates are the space the transform works in. The crop path's own
+    /// <c>DrawingBounds</c> builds the identical rectangle for the identical
+    /// reason.
+    /// </remarks>
+    private SKRect PaperRect() => new(
+        Scene.Left, Scene.Top, Scene.Left + Scene.Width, Scene.Top + Scene.Height);
+
     public bool BeginTransform(bool gizmo = true, Func<Stroke, bool>? filter = null)
     {
         if (!CanEdit(ActiveLayer, "transform it")) return false;
         var frames = CollectTransformFrames();
         filter ??= DerivedTransformFilter(frames);
-        var bounds = TransformOps.Bounds(frames, filter);
+        // B302: the box round the drawing as it LOOKS, not as the record
+        // remembers it. TransformOps.Bounds walked stroke points and nothing
+        // else, so the handles wrapped rubbed-out ink — and, the half that was
+        // not cosmetic, a frame that is nothing but imported pixels measured as
+        // empty and this method refused it. See VisibleDrawingBounds for why
+        // wrapping the strokes in StrokeRecordCleaner is the wrong fix.
+        var bounds = VisibleDrawingBounds.Of(frames, filter, PaperRect());
         if (frames.Count == 0 || bounds is null)
         {
             AiStatus = "Nothing to transform in this scope.";
@@ -870,9 +889,7 @@ public partial class MainViewModel
         // B225: the gizmo's own box, which is what a move lines up against a
         // guide. Set from the same value the gizmo is raised with below, so the
         // box that snaps and the box on screen cannot disagree.
-        _transform.SnapBounds = new SKRect(
-            (float)bounds.Value.MinX, (float)bounds.Value.MinY,
-            (float)bounds.Value.MaxX, (float)bounds.Value.MaxY);
+        _transform.SnapBounds = bounds.Value;
         _transform.HeldFrameIdToKey = HeldCelNeedingKey();
         TransformActive = true;
         // The session's controls live in the Tool options docker now (Q70), so
@@ -881,7 +898,7 @@ public partial class MainViewModel
         // be reachable only through a panel the artist cannot see.
         OpenToolOptions();
         var b = bounds.Value;
-        if (gizmo) TransformBegun?.Invoke(b.MinX, b.MinY, b.MaxX, b.MaxY);
+        if (gizmo) TransformBegun?.Invoke(b.Left, b.Top, b.Right, b.Bottom);
         return true;
     }
 
