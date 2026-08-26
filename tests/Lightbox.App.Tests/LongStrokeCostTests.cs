@@ -62,6 +62,73 @@ public class LongStrokeCostTests(ITestOutputHelper output) : BrushStateIsolated
     /// the assertion however the densifier is tuned later.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// A brush with an effect in it re-processes only the band that moved
+    /// (B313).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The twin of the test below, for the other route.</b> That one is
+    /// about re-stamping dabs; this is about the post-process, which is where
+    /// Pencil and the flats spend their time — one pass per pointer event over
+    /// the whole mark, copies included, growing with every event.
+    /// </para>
+    /// <para>
+    /// <b>An area, not a duration.</b> A millisecond figure on a loaded machine
+    /// cannot separate "reads less of the mark" from "happened to run while
+    /// nothing else did", and this repository has been fooled by exactly that
+    /// before. The pass's own rect against the mark's rect is the structural
+    /// question and the clock is not involved.
+    /// </para>
+    /// <para>
+    /// The runner is made synchronous so a pass lands inside <c>RunJobs</c>;
+    /// asynchronously the stroke would finish before any pass ran and the test
+    /// would measure nothing at all.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void AGranulatedStrokeReprocessesOnlyTheBandThatMoved()
+    {
+        var vm = new MainViewModel(null)
+        {
+            SmoothStrokes = false,
+            BrushSize = 3,
+            BrushHardness = 0.9,
+            BrushOpacity = 1,
+            BrushFlow = 0.85,
+            BrushGranulation = 0.15,
+            ColorHex = "#000000",
+            LivePostRunner = work => { work(); return Task.CompletedTask; },
+        };
+        vm.NewDocument(new NewDocumentSettings("pencil", 1920, 1080, 12, 72, "#ffffff", false));
+
+        vm.BeginStroke(50, 500, 1);
+        Dispatcher.UIThread.RunJobs();
+
+        var x = 50.0;
+        for (var i = 0; i < 400; i++)
+        {
+            x += 4.0;
+            if (x > 1850) x = 50;
+            vm.MoveStroke(x, 500 + Math.Sin(x / 40) * 200, 0.9);
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        var worst = vm.LivePostWorstPixels;
+        var mark = vm.LivePostWorstMarkPixels;
+        vm.EndStroke();
+        output.WriteLine(
+            $"worst pass {worst} px of a {mark} px mark ({(mark == 0 ? 0 : 100.0 * worst / mark):0.0}%)");
+
+        // The mark has to be big enough for the ratio to mean anything: a pass
+        // over a mark barely larger than one event's reach would pass this on a
+        // build that read the whole thing every time.
+        Assert.True(mark > 400_000, $"the mark only reached {mark} px");
+        Assert.True(
+            worst < mark / 4,
+            $"a pass read {worst} px of a {mark} px mark");
+    }
+
     [AvaloniaFact]
     public void ASilhouetteStrokeRestampsOnlyItsMovingTail()
     {

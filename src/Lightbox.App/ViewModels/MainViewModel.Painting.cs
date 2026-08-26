@@ -1158,6 +1158,20 @@ public partial class MainViewModel
     internal double LivePostWorstMs { get; private set; }
 
     /// <summary>
+    /// Pixels in the largest single pass, against the mark it belonged to
+    /// (B313). Tests only.
+    /// </summary>
+    /// <remarks>
+    /// An area rather than a duration, because the thing B313 changes is how
+    /// much of the mark a pass reads and a wall-clock figure on a loaded
+    /// machine cannot tell "reads less" from "ran while nothing else did".
+    /// </remarks>
+    internal long LivePostWorstPixels { get; private set; }
+
+    /// <summary>The largest the whole mark got while passes were running.</summary>
+    internal long LivePostWorstMarkPixels { get; private set; }
+
+    /// <summary>
     /// Effects that cannot be applied per segment because they read the whole
     /// stroke. Texture and granulation are pointwise and could be incremental,
     /// but they are cheap enough to come along for the ride.
@@ -1188,6 +1202,30 @@ public partial class MainViewModel
         && brush.WetEdge <= 0
         && brush.TextureSurface is null
         && brush.Granulation <= 0;
+
+    /// <summary>
+    /// Record that this region of the dab scratch has moved, so the next live
+    /// post-process knows what it has to redo (B313).
+    /// </summary>
+    /// <summary>
+    /// Put a region back after a pass took it and then did not land (B313).
+    /// </summary>
+    /// <remarks>
+    /// A pass clears the pending region when it copies its inputs, on the
+    /// assumption it is about to process them. Every way that assumption can
+    /// fail — a runner that will not schedule, an exception inside the effects,
+    /// a canvas resized while the worker ran — has to hand the region back, or
+    /// the preview keeps a patch that no later pass has any reason to revisit.
+    /// </remarks>
+    private void NotePostProcessLost(SKRectI? region)
+    {
+        if (region is { } lost) NotePostProcessDirty(lost);
+    }
+
+    private void NotePostProcessDirty(SKRectI region) =>
+        _live.PostPending = _live.PostPending is { } prior
+            ? LivePaintSession.UnionRect(prior, region)
+            : region;
 
     private static bool NeedsLivePostProcess(BrushSettings brush) =>
         brush.Medium.Kind != MediumKind.None
@@ -1929,6 +1967,7 @@ public partial class MainViewModel
                 _live.ScratchUsed = _live.ScratchUsed is { } prior
                     ? LivePaintSession.UnionRect(prior, band)
                     : band;
+                NotePostProcessDirty(band);
             }
 
             _live.DabCount = dabs.Count;
@@ -2061,16 +2100,22 @@ public partial class MainViewModel
             }
         }
 
-        // 4. For a brush whose only post-process is the ceiling, apply it here
-        // and skip the worker entirely (B293). The band is everything the three
-        // steps above could have touched: the newly settled dabs' reach, the
-        // region lent last time and the one lent now.
+        // 4. Everything the three steps above could have touched: the newly
+        // settled dabs' reach, the region lent last time and the one lent now.
+        // Computed for every brush on this route rather than only for the
+        // capping ones, because it is also what tells the post-process which
+        // band it has to redo (B313) — and the pass cannot work it out for
+        // itself without a second dab walk per event.
+        var touched = BrushEngine.RangeBounds(dabs, settledFrom, live.Brush, info);
+        if (lentBefore is { } lentWas) touched = touched is { } g ? SKRectI.Union(g, lentWas) : lentWas;
+        if (_live.TailRegion is { } lentNow) touched = touched is { } g ? SKRectI.Union(g, lentNow) : lentNow;
+        if (touched is { } dirty) NotePostProcessDirty(dirty);
+
+        // For a brush whose only post-process is the ceiling, apply it here and
+        // skip the worker entirely (B293).
         if (carriesFootprint && CapIsTheWholePass(live.Brush) && _live.Scratch is { } inkSource)
         {
-            var changed = BrushEngine.RangeBounds(dabs, settledFrom, live.Brush, info);
-            if (lentBefore is { } was) changed = changed is { } g ? SKRectI.Union(g, was) : was;
-            if (_live.TailRegion is { } now) changed = changed is { } g ? SKRectI.Union(g, now) : now;
-
+            var changed = touched;
             if (changed is { } band)
             {
                 _live.EnsurePostScratch(Scene.Width, Scene.Height);
@@ -2195,19 +2240,87 @@ public partial class MainViewModel
         };
         var count = whole.Points.Count;
 
-        if (BrushEngine.PostProcessBounds(whole, info) is not { } rect
-            || CopyRegion(dabs, rect) is not { } dabsCrop)
+        if (BrushEngine.PostProcessBounds(whole, info) is not { } mark)
         {
             _live.PostQueued = false;
             return;
         }
 
+        // B313: the whole mark, or only the band that has moved since the last
+        // pass. Every effect here reads one pixel to write one pixel — the
+        // granulation and paper fields are anchored to the document, and the
+        // footprint ceiling is carried below rather than re-rendered — except
+        // the wet edge, which is a blur and gets a skirt it computes and throws
+        // away. A simulated medium is not band-local at all: its lattice flows
+        // across the whole wet area, which is the reason this pass is
+        // stroke-global in the first place.
+        var stamp = System.Text.Json.JsonSerializer.Serialize(whole.Brush);
+        var bandLocal = whole.Brush.Medium.Kind == MediumKind.None
+            // Nothing processed yet, or a buffer that was just re-made: there is
+            // no earlier pass for a band to be an increment of.
+            && _live.PostUsed is not null
+            // The artist moved a slider: the pass applies the current settings
+            // to the whole mark, so everything outside a band would keep the old
+            // ones and disagree with the commit.
+            && _live.PostBrushStamp == stamp;
+
+        var rect = mark;
+        if (bandLocal)
+        {
+            if (_live.PostPending is not { } pending)
+            {
+                // The dabs have not moved since the last pass took its copy.
+                _live.PostQueued = false;
+                return;
+            }
+
+            var halo = BrushEngine.LivePassHalo(whole.Brush);
+            rect = SKRectI.Intersect(
+                new SKRectI(
+                    pending.Left - halo, pending.Top - halo,
+                    pending.Right + halo, pending.Bottom + halo),
+                mark);
+            if (rect.Width <= 0 || rect.Height <= 0)
+            {
+                _live.PostQueued = false;
+                return;
+            }
+        }
+
+        if (CopyRegion(dabs, rect) is not { } dabsCrop)
+        {
+            _live.PostQueued = false;
+            return;
+        }
+
+        // Recorded here rather than at the finish, because what B313 changes is
+        // how much of the mark a pass READS — and it reads it whether or not the
+        // result survives long enough to be pasted.
+        // Tracked independently rather than as a pair: the biggest pass and the
+        // biggest mark do not have to be the same event, and pinning the mark to
+        // whichever pass happened to be largest would report the mark as it was
+        // three events in — which is the shape a first, whole-mark pass has.
+        var passPixels = (long)rect.Width * rect.Height;
+        var markPixels = (long)mark.Width * mark.Height;
+        if (passPixels > LivePostWorstPixels) LivePostWorstPixels = passPixels;
+        if (markPixels > LivePostWorstMarkPixels) LivePostWorstMarkPixels = markPixels;
+
+        // Taken now, restored if the pass never runs — a region dropped here is
+        // a patch of preview nothing would ever come back to. A whole-mark pass
+        // restores the whole mark rather than the band that provoked it,
+        // because that is what its failure leaves unprocessed.
+        var restoreIfLost = bandLocal ? _live.PostPending : mark;
+        _live.PostPending = null;
+
         // targetPixels is the committed layer: the medium re-wets what is
         // already there, exactly as it will on commit. Copied because the
-        // frame cache owns the original and may evict it mid-pass.
+        // frame cache owns the original and may evict it mid-pass. Only a
+        // medium reads it, and copying a mark-sized region every pass for a
+        // brush that never looks at it was pure cost (B313).
         SKBitmap? beneathCrop = null;
         var beneathOrigin = default(SKPointI);
-        if (PaintTarget() is { } frame
+        if (whole.Brush.Medium.Kind != MediumKind.None
+            && PaintTarget() is { } frame
             && _cache.Get(frame, Scene.Width, Scene.Height) is { } beneath)
         {
             var needed = Lightbox.Raster.Media.MediumSimulator.ExistingRegionNeeded(
@@ -2241,6 +2354,7 @@ public partial class MainViewModel
             // runner ran the work before throwing; SKBitmap.Dispose is
             // idempotent, so that costs nothing.
             _live.PostQueued = false;
+            NotePostProcessLost(restoreIfLost);
             dabsCrop.Dispose();
             beneathCrop?.Dispose();
             footprintCrop?.Dispose();
@@ -2276,7 +2390,8 @@ public partial class MainViewModel
             // finish starved by continuous pointer input would hold the
             // single-flight flag and stop the next pass from ever starting.
             Avalonia.Threading.Dispatcher.UIThread.Post(
-                () => FinishLivePostProcess(processed, rect, count, generation, costMs, info),
+                () => FinishLivePostProcess(
+                    processed, rect, count, generation, costMs, info, stamp, restoreIfLost),
                 Avalonia.Threading.DispatcherPriority.Input);
         }
     }
@@ -2287,11 +2402,19 @@ public partial class MainViewModel
     /// </summary>
     private void FinishLivePostProcess(
         SKImage? processed, SKRectI rect, int count, int generation, double costMs,
-        SKImageInfo computedAgainst)
+        SKImageInfo computedAgainst, string brushStamp, SKRectI? restoreIfLost)
     {
         _live.PostQueued = false;
         using var image = processed;
-        if (image is null) return;
+        if (image is null)
+        {
+            NotePostProcessLost(restoreIfLost);
+            return;
+        }
+
+        // A result belonging to a stroke that is already over needs no region
+        // put back — ResetPostProcess has cleared the whole ledger. One from
+        // this stroke that cannot be used does.
         if (generation != _live.PostGeneration || !_strokeBuilder.IsActive) return;
         // The document changed size while the worker ran — a mid-stroke canvas
         // resize does not go through ClearLiveEffectState, so the generation
@@ -2301,7 +2424,11 @@ public partial class MainViewModel
         // it; pasting that into the new one puts the preview at the wrong
         // place. Checked against the size the copies were TAKEN at, so it
         // catches every size-changing mutation whatever path it took.
-        if (Scene.Width != computedAgainst.Width || Scene.Height != computedAgainst.Height) return;
+        if (Scene.Width != computedAgainst.Width || Scene.Height != computedAgainst.Height)
+        {
+            NotePostProcessLost(restoreIfLost);
+            return;
+        }
 
         var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         if (_live.PostScratch is null || _live.PostScratch.Width != info.Width || _live.PostScratch.Height != info.Height)
@@ -2313,7 +2440,17 @@ public partial class MainViewModel
 
         using (var canvas = new SKCanvas(_live.PostScratch))
         {
-            LivePaintSession.ClearRegion(canvas, _live.PostUsed);
+            // B313: the buffer accumulates. It used to be wiped back to the
+            // previous pass's rect and rewritten, which only worked because
+            // every pass covered the whole mark. Bands are increments, and the
+            // compositor takes the WHOLE overlay from this one buffer once any
+            // pass has landed (`ScenePassBuilder.OverlayFor`) — so wiping would
+            // show one band of processed mark and nothing else.
+            //
+            // Exactly-once still holds where bands overlap: each band is
+            // processed from the pristine dab scratch and pasted with Src, so a
+            // pixel covered twice is written twice with the same value rather
+            // than having the effect applied to its own output.
             using var replace = new SKPaint { BlendMode = SKBlendMode.Src };
             canvas.DrawImage(image, rect.Left, rect.Top, replace);
             canvas.Flush();
@@ -2321,7 +2458,10 @@ public partial class MainViewModel
 
         _live.PostCostMs = costMs;
         _live.PostStampedCount = count;
-        _live.PostUsed = rect;
+        _live.PostBrushStamp = brushStamp;
+        _live.PostUsed = _live.PostUsed is { } already
+            ? LivePaintSession.UnionRect(already, rect)
+            : rect;
         LivePostPasses++;
         LivePostTotalMs += costMs;
         if (costMs > LivePostWorstMs) LivePostWorstMs = costMs;
