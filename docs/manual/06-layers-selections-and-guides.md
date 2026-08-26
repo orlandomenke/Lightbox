@@ -528,6 +528,12 @@ with scatter or jitter lands its grain exactly where it always did, and a later
 change of mind can still reach the rest of the line. A stroke that sits *wholly*
 inside the selection simply moves, with no clip and nothing left behind.
 
+**A gradient is treated like anything else.** Move a selection on a layer with
+a gradient on it and the ramp inside the marquee travels too — so a marquee
+over a gradient sky leaves a rectangle of sky that has shifted with whatever
+you moved. If that is not what you want, put the gradient on its own layer and
+transform the layer above it.
+
 **An eraser travels with the ink it carved.** If you rub a bite out of a line
 and then move the line, the bite goes too — and if you move only part of it, the
 part left behind keeps its own edge. Rubbed-out paint never comes back, whatever
