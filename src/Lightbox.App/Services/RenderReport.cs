@@ -1036,7 +1036,22 @@ internal static class RenderReport
                 var describe = ph.DescribeMs / Math.Max(1e-9, comp.TotalMs);
                 var compose = ph.ComposeMs / Math.Max(1e-9, comp.TotalMs);
                 var other = rest / Math.Max(1e-9, comp.TotalMs);
-                if (other >= 0.5)
+                // A share is only worth a verdict when the whole is worth
+                // attacking. The first version of this judged on share alone
+                // and printed "the CPU composite is 83% of the build — that is
+                // B125 stage 6's ground" about a build of 3.49 ms: it was
+                // recommending an architectural project to win 2.88 ms. A
+                // phase can be almost all of something negligible.
+                if (comp.TotalMs / comp.Count < MaterialBuildMs)
+                {
+                    sb.AppendLine(
+                        $"  >> The whole build is {comp.TotalMs / comp.Count:0.##} ms, so none of this is worth");
+                    sb.AppendLine(
+                        "     attacking however the share falls. The time is elsewhere — read");
+                    sb.AppendLine(
+                        "     publish -> drawn and the dam below.");
+                }
+                else if (other >= 0.5)
                 {
                     sb.AppendLine(
                         $"  >> {other * 100:0}% of the build is in NEITHER describing, compositing nor");
@@ -1544,6 +1559,17 @@ internal static class RenderReport
         return samples[samples.Count / 2];
     }
 
+    /// <summary>
+    /// Below this, the frame build is not where a latency problem lives and the
+    /// report says so rather than naming whichever phase happens to be biggest.
+    /// </summary>
+    /// <remarks>
+    /// Five milliseconds is about a third of a 60 Hz frame: small enough that
+    /// removing all of it could not change how drawing feels, which is the
+    /// question this section is being read to answer.
+    /// </remarks>
+    private const double MaterialBuildMs = 5.0;
+
     private static string Compose(string kind, Facts facts, Totals? totals, Probe? probe)
     {
         var sb = new StringBuilder();
@@ -1556,6 +1582,10 @@ internal static class RenderReport
 
         sb.AppendLine("-- where the work happens ------------------------------------");
         sb.AppendLine($"presentation backend      {facts.Backend}");
+        // Which composition path the window ran under, so two reports taken to
+        // compare them can be told apart without anybody having to remember
+        // which one they set the variable for.
+        sb.AppendLine($"composition               {Program.CompositionChoice}");
         // Was "compositing is on the CPU either way", which stopped being true
         // when B167 phase 4 put the tiled composite on the card. Derived from the
         // toggle rather than asserted, so it cannot go stale the same way twice.

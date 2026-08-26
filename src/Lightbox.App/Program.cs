@@ -38,13 +38,70 @@ internal static class Program
             // The cost, so it is a trade rather than a free win: an overlay
             // popup is clipped to the window, so a menu opening near an edge
             // is laid out inside it rather than spilling onto the desktop.
-            .With(new Win32PlatformOptions { OverlayPopups = true })
+            .With(new Win32PlatformOptions
+            {
+                OverlayPopups = true,
+                CompositionMode = CompositionModes(),
+            })
             // Inter, bundled: the typeface both design references are set in,
             // and the same face on every platform. Half of "the fonts look
             // big" was the fallback font — DejaVu runs a size wider than
             // Inter at the same size.
             .WithInterFont()
             .LogToTrace();
+
+    /// <summary>
+    /// How the window's pixels reach the screen, in the order Avalonia should
+    /// try them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Being measured rather than chosen, which is why it is an environment
+    /// variable and not a setting yet.</b> The owner's report of 2026-08-26
+    /// puts <c>publish -&gt; drawn</c> at 52.22 ms around a draw of 3.98 ms —
+    /// about three vsyncs of pure queueing, with every other cost in the chain
+    /// now under 6 ms. Composition is where that queue lives: the default path
+    /// hands each frame to DWM, which holds it for its own cadence on top of
+    /// the compositor's.
+    /// </para>
+    /// <para>
+    /// <c>LowLatencyDxgiSwapChain</c> is Avalonia's answer to exactly this and
+    /// presents to a swap chain directly. It is <b>not</b> the default here,
+    /// because it gives up DWM's compositing — transparency and some window
+    /// effects go with it — and because a latency win that has not been
+    /// measured on the owner's own hardware is a guess. Set
+    /// <c>LIGHTBOX_COMPOSITION=lowlatency</c> to try it; the render report
+    /// prints which mode a session actually ran under, so two reports can be
+    /// compared without anybody having to remember.
+    /// </para>
+    /// </remarks>
+    internal static IReadOnlyList<Win32CompositionMode> CompositionModes() =>
+        (Environment.GetEnvironmentVariable("LIGHTBOX_COMPOSITION") ?? "").Trim().ToLowerInvariant() switch
+        {
+            // Ordered as fallbacks: if the swap chain cannot be had, take the
+            // ordinary path rather than failing to open a window.
+            "lowlatency" =>
+            [
+                Win32CompositionMode.LowLatencyDxgiSwapChain,
+                Win32CompositionMode.WinUIComposition,
+                Win32CompositionMode.RedirectionSurface,
+            ],
+            "redirection" => [Win32CompositionMode.RedirectionSurface],
+            _ =>
+            [
+                Win32CompositionMode.WinUIComposition,
+                Win32CompositionMode.RedirectionSurface,
+            ],
+        };
+
+    /// <summary>What <see cref="CompositionModes"/> chose, for the render report.</summary>
+    internal static string CompositionChoice =>
+        (Environment.GetEnvironmentVariable("LIGHTBOX_COMPOSITION") ?? "").Trim().ToLowerInvariant() switch
+        {
+            "lowlatency" => "low-latency swap chain (LIGHTBOX_COMPOSITION=lowlatency)",
+            "redirection" => "redirection surface (LIGHTBOX_COMPOSITION=redirection)",
+            _ => "WinUI composition (the default — set LIGHTBOX_COMPOSITION=lowlatency to compare)",
+        };
 
     /// <summary>
     /// Open a console when somebody has asked to watch the traces.
