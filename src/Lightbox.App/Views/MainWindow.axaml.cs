@@ -141,6 +141,9 @@ public partial class MainWindow : Window
         // B189: the publisher paces its coalesced publishes to what the canvas
         // has actually drawn, and this is the signal it paces against.
         Canvas.SnapshotPresented += seq => _vm.NoteFramePresented(seq);
+        // B321: and the same truth without the dispatcher hop, for when the dam
+        // is deciding mid-stroke and the message has not had a turn yet.
+        _vm.SetRenderedSeqProbe(() => Canvas.LastRenderedSeq);
         // The backend is only knowable once a frame has been drawn, so the
         // startup report waits for that rather than for construction. One frame
         // later than "startup", and the only point at which it has an answer.

@@ -85,6 +85,7 @@ internal static class RenderReport
          int WorstW, int WorstH, long WorstMarkPixels, int WorstTail)? LivePost = null,
         (int Deferrals, int ByPresent, int ByTimer, int Released,
          double HeldTotalMs, double HeldWorstMs)? Dam = null,
+        (int Count, double TotalMs, double WorstMs)? Compose = null,
         Rendering.PublishTally? PublishesByCaller = null);
 
     /// <summary>
@@ -855,16 +856,37 @@ internal static class RenderReport
                 $"    waiting for a visual pass  {stats.ToEnqueueMeanMs:0.##} ms   worst {stats.ToEnqueueWorstMs:0.##} ms");
             sb.AppendLine(
                 $"    then in the compositor     {after:0.##} ms");
-            if (stats.MeanMs > 25)
+            if (stats.Draws > 0)
             {
                 sb.AppendLine(
-                    after > stats.ToEnqueueMeanMs
-                        ? "  >> Most of the wait is AFTER the hand-over, so the frame is built\n"
-                          + "     promptly and the compositor is slow to draw it — the CPU\n"
-                          + "     composite (B125), not the dispatcher."
-                        : "  >> Most of the wait is BEFORE the hand-over, so the compositor is\n"
-                          + "     not the problem: the canvas is not being asked to paint. That is\n"
-                          + "     scheduling (B150), and the fix is a different one entirely.");
+                    $"      of which drawing         {stats.DrawMeanMs:0.##} ms   worst {stats.DrawWorstMs:0.##} ms");
+            }
+
+            if (stats.MeanMs > 25)
+            {
+                // Three phases, so three verdicts. The draw is checked first
+                // because it is the only one of them that is WORK — the other
+                // two are a frame waiting its turn, and waiting is a cadence to
+                // be understood rather than a cost to be optimised away.
+                if (stats.Draws > 0 && after > stats.ToEnqueueMeanMs && stats.DrawMeanMs < after / 2)
+                {
+                    sb.AppendLine("  >> The DRAW is a small part of the compositor's half, so the");
+                    sb.AppendLine("     frame is not slow to paint — it is waiting its turn on the");
+                    sb.AppendLine("     render thread. That is a cadence (vsync, queue depth), and");
+                    sb.AppendLine("     making the composite faster would not move it.");
+                }
+                else if (after > stats.ToEnqueueMeanMs)
+                {
+                    sb.AppendLine("  >> Most of the wait is AFTER the hand-over and the draw itself");
+                    sb.AppendLine("     accounts for it, so the compositor really is slow to paint —");
+                    sb.AppendLine("     the CPU composite (B125), not the dispatcher.");
+                }
+                else
+                {
+                    sb.AppendLine("  >> Most of the wait is BEFORE the hand-over, so the compositor is");
+                    sb.AppendLine("     not the problem: the canvas is not being asked to paint. That");
+                    sb.AppendLine("     is scheduling (B150), and the fix is a different one entirely.");
+                }
             }
         }
         sb.AppendLine($"replaced before drawing    {stats.Superseded}");
@@ -983,6 +1005,14 @@ internal static class RenderReport
         }
 
         sb.AppendLine($"pointer events stamped    {s.Events}");
+        // B321: the UI thread's own half. Everything else in this section is a
+        // wait; this is the work that happens before any of it.
+        if (facts.Compose is { Count: > 0 } comp)
+        {
+            sb.AppendLine(
+                $"building each frame      mean {comp.TotalMs / comp.Count,7:0.##} ms   worst {comp.WorstMs,7:0.##} ms   (UI thread, before the publish)");
+        }
+
         sb.AppendLine($"  stamping the dabs       mean {s.Stamp.MeanMs,7:0.##} ms   worst {s.Stamp.WorstMs,7:0.##} ms");
         var perPublish = s.Publishes == 0 ? 0 : (double)s.Events / s.Publishes;
         sb.AppendLine($"publishes carrying ink    {s.Publishes}  ({perPublish:0.#} events per publish)");
@@ -1054,10 +1084,15 @@ internal static class RenderReport
                     $"  queued -> started       mean {waitMean:0.##} ms   worst {wet.WaitWorstMs:0.##} ms   over {wet.Waits} passes");
                 if (waitMean > 20)
                 {
-                    sb.AppendLine("  !! a pass spends longer WAITING to start than running. It is");
-                    sb.AppendLine("     posted at Background priority, which Avalonia runs below");
-                    sb.AppendLine("     Input — so a moving pen outranks it for as long as the hand");
-                    sb.AppendLine("     keeps moving, which is the whole of a long stroke.");
+                    // The text this replaces said the pass was "posted at
+                    // Background priority" -- true when written and false since
+                    // B314 moved it to Input, which is worse than saying
+                    // nothing: a reader would chase a fix that already landed.
+                    // A long wait now means a busy dispatcher, not starvation.
+                    sb.AppendLine("  !! a pass spends longer waiting to start than running. Since");
+                    sb.AppendLine("     B314 it is posted at Input priority, so this is not");
+                    sb.AppendLine("     starvation — it is the UI thread being busy with something");
+                    sb.AppendLine("     else when the pass comes due.");
                 }
             }
 

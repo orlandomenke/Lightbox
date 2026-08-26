@@ -65,6 +65,14 @@ internal sealed class PresentLatency
     private double _toEnqueueTotalMs;
     private double _toEnqueueWorstMs;
 
+    // And the compositor's half split again, because "in the compositor" is a
+    // queue wait plus a draw, and those are not the same finding: a draw of a
+    // few milliseconds sitting inside thirty is the frame waiting for vsync,
+    // twice — which is a cadence, not a cost, and wants no fix at all.
+    private int _drawCount;
+    private double _drawTotalMs;
+    private double _drawWorstMs;
+
     // The same three numbers again, split by what happened while the frame was
     // waiting. See Cohort.
     private readonly int[] _cohortCount = new int[3];
@@ -140,6 +148,26 @@ internal sealed class PresentLatency
         }
     }
 
+    /// <summary>
+    /// How long the draw op itself took, on the render thread (B321).
+    /// </summary>
+    /// <remarks>
+    /// The op already times itself for the performance monitor; this is the
+    /// same figure kept where the rest of the chain lives, so a reader can see
+    /// the drawing against the waiting instead of against nothing. Not keyed by
+    /// sequence, because a cursor repaint draws too and the question here is
+    /// what a draw costs rather than which publish paid for it.
+    /// </remarks>
+    public void Drew(double milliseconds)
+    {
+        lock (_gate)
+        {
+            _drawCount++;
+            _drawTotalMs += milliseconds;
+            if (milliseconds > _drawWorstMs) _drawWorstMs = milliseconds;
+        }
+    }
+
     /// <summary>That frame has been drawn.</summary>
     public void Rendered(long seq)
     {
@@ -191,6 +219,9 @@ internal sealed class PresentLatency
             _enqueuedCount = 0;
             _toEnqueueTotalMs = 0;
             _toEnqueueWorstMs = 0;
+            _drawCount = 0;
+            _drawTotalMs = 0;
+            _drawWorstMs = 0;
         }
         InputPulse.Reset();
     }
@@ -218,7 +249,8 @@ internal sealed class PresentLatency
     public readonly record struct Stats(
         int Presented, int Superseded, double MeanMs, double WorstMs,
         IReadOnlyList<CohortStats>? ByCohort = null,
-        int Enqueued = 0, double ToEnqueueMeanMs = 0, double ToEnqueueWorstMs = 0);
+        int Enqueued = 0, double ToEnqueueMeanMs = 0, double ToEnqueueWorstMs = 0,
+        int Draws = 0, double DrawMeanMs = 0, double DrawWorstMs = 0);
 
     /// <param name="Which">What arrived while these frames were waiting.</param>
     /// <param name="Count">How many frames.</param>
@@ -250,7 +282,10 @@ internal sealed class PresentLatency
                     cohorts,
                     _enqueuedCount,
                     _enqueuedCount == 0 ? 0 : _toEnqueueTotalMs / _enqueuedCount,
-                    _toEnqueueWorstMs);
+                    _toEnqueueWorstMs,
+                    _drawCount,
+                    _drawCount == 0 ? 0 : _drawTotalMs / _drawCount,
+                    _drawWorstMs);
             }
         }
     }

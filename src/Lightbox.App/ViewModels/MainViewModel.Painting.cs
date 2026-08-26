@@ -2791,6 +2791,12 @@ public partial class MainViewModel
         _damBeganAt = 0;
     }
 
+    /// <summary>
+    /// Let the pacing read what the canvas has drawn without waiting to be told
+    /// (B321). Supplied by the window; absent headless.
+    /// </summary>
+    internal void SetRenderedSeqProbe(Func<long> probe) => _publish.RenderedSeqProbe = probe;
+
     internal void NoteFramePresented(long seq)
     {
         if (!_publish.NotePresented(seq)) return;

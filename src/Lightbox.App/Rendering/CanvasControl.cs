@@ -362,6 +362,30 @@ public sealed partial class CanvasControl : Control
     /// <summary>Highest snapshot sequence the render thread has finished drawing.</summary>
     private long _lastRenderedSeq;
 
+    /// <summary>
+    /// The same figure, readable from the UI thread without waiting to be told
+    /// (B321).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The publish dam waits for a message that describes something already
+    /// true.</b> <see cref="SnapshotPresented"/> is posted to the UI thread from
+    /// <c>NoteRendered</c>, so the dam learns of a draw one dispatcher hop after
+    /// it happened — and mid-stroke that hop queues behind the pointer events
+    /// the artist is generating. Measured on the owner's machine: the pacing
+    /// round trip is <b>97.55 ms</b> against a <c>publish -&gt; drawn</c> of
+    /// <b>56.96 ms</b>, so roughly forty of it is the telling rather than the
+    /// drawing.
+    /// </para>
+    /// <para>
+    /// The event stays: it is what re-enters <c>RequestSnapshot</c> so a
+    /// deferral is released even if no further event arrives, and it keeps
+    /// B73's ordering when it does. This is only so a dam being <em>checked</em>
+    /// can consult the truth instead of the last message about it.
+    /// </para>
+    /// </remarks>
+    internal long LastRenderedSeq => Interlocked.Read(ref _lastRenderedSeq);
+
     /// <summary>Pointer position in view space while it hovers the canvas.</summary>
     private Point? _hoverPoint;
 
@@ -3903,6 +3927,10 @@ public sealed partial class CanvasControl : Control
     /// <summary>Frame times arrive from the render thread; marshal to the UI thread to publish them.</summary>
     private void ReportFrameTime(double milliseconds)
     {
+        // B321: kept beside the rest of the chain, not only sent to the
+        // performance monitor. Without it "in the compositor" is a queue wait
+        // and a draw added together, and those are different findings.
+        _presentWait.Drew(milliseconds);
         if (FrameRendered is null) return;
         Avalonia.Threading.Dispatcher.UIThread.Post(
             () => FrameRendered?.Invoke(milliseconds),

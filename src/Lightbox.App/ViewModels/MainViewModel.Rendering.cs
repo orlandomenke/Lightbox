@@ -532,6 +532,33 @@ public partial class MainViewModel
     /// tally. Never pass it by hand — the value's worth is that it cannot lie
     /// about where the call came from.
     /// </param>
+    /// <summary>How many frames the UI thread has built, and what they cost (B321).</summary>
+    internal int ComposeCount { get; private set; }
+
+    /// <summary>Total milliseconds spent building them.</summary>
+    internal double ComposeTotalMs { get; private set; }
+
+    /// <summary>The most expensive single build.</summary>
+    internal double ComposeWorstMs { get; private set; }
+
+    /// <summary>
+    /// Close off one frame's build, timed from the publish stamp (B321).
+    /// </summary>
+    /// <remarks>
+    /// Reuses <see cref="PublishState.LastPublishTicks"/> rather than taking a
+    /// second timestamp: it is stamped at the top of this method for the dam's
+    /// liveness check, so it already marks the moment the build began and a
+    /// second reading would only invite the two to drift.
+    /// </remarks>
+    private void NoteComposeCost()
+    {
+        var ms = (System.Diagnostics.Stopwatch.GetTimestamp() - _publish.LastPublishTicks)
+                 * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+        ComposeCount++;
+        ComposeTotalMs += ms;
+        if (ms > ComposeWorstMs) ComposeWorstMs = ms;
+    }
+
     public void PublishSnapshot(
         [System.Runtime.CompilerServices.CallerMemberName] string publisher = "")
     {
@@ -873,6 +900,14 @@ public partial class MainViewModel
                     ? new Rendering.ComposeKey(fingerprint, _publish.RenderEpoch)
                     : null,
             };
+            // B321: the last unmeasured box in the chain from pen to screen.
+            // Everything from the publish stamp at the top of this method to
+            // here is the UI thread BUILDING the frame — the composite B189
+            // sized at ~27 ms when it added the publish dam, and which nothing
+            // has re-measured since. The rest of the chain is instrumented end
+            // to end now, and a gap in the middle is the one place a cost can
+            // still hide.
+            NoteComposeCost();
             handler(snapshot);
         }
         else
