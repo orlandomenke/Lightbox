@@ -68,6 +68,30 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(IsWandVariant))]
     private SelectVariant _activeSelectVariant = SelectVariant.Freehand;
 
+    /// <summary>
+    /// Switching shape lets a half-drawn polygon go, the way switching tool
+    /// already did.
+    /// </summary>
+    /// <remarks>
+    /// <b>B316.</b> <see cref="LeaveToolStateBehind"/> has cancelled the
+    /// polygon on a tool change since B147 stated the rule — modal work does
+    /// not outlive the thing that can finish it — but a variant change is not a
+    /// tool change: <c>ActiveTool</c> stays <see cref="ToolId.Select"/> the
+    /// whole time, so nothing fired. The half-drawn trail then stayed on screen
+    /// under the new shape with no gesture left that could close it: the box
+    /// does not take vertices, and the double-click that would have closed it
+    /// belongs to a tool the artist is no longer holding. It read as the first
+    /// selection refusing to go away.
+    /// <para>
+    /// Only the polygon, deliberately. A <em>committed</em> selection is not
+    /// modal work and must survive the switch — an artist reaching for a
+    /// different shape to add to or subtract from what they have is the whole
+    /// reason Shift and Alt exist here.
+    /// </para>
+    /// </remarks>
+    partial void OnActiveSelectVariantChanged(SelectVariant value) =>
+        CancelPolygonInProgress();
+
     public bool IsFreehandVariant => ActiveSelectVariant == SelectVariant.Freehand;
 
     public bool IsPolygonVariant => ActiveSelectVariant == SelectVariant.Polygon;

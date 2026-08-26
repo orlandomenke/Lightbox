@@ -1867,9 +1867,9 @@ public sealed partial class CanvasControl : Control
             (float)(Bounds.Width / 2 + _pan.X),
             (float)(Bounds.Height / 2 + _pan.Y));
 
-        // Selection overlay paths (doc space; the op transforms them with the
-        // view) — built in CanvasControl.Selection.cs from the cached base.
-        var (ants, openPath) = AntsPathsForFrame();
+        // Selection overlay paths (surface pixels, the space the op draws in) —
+        // built in CanvasControl.Selection.cs from the cached base.
+        var (ants, openPath) = AntsPathsForFrame(view.Scale);
 
         LazyGizmo? lazy = null;
         if (LazyRadius > 0 && _hoverPoint is { } lp)

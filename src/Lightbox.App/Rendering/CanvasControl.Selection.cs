@@ -69,10 +69,52 @@ public partial class CanvasControl
         InvalidateVisual();
     }
 
+    /// <summary>How wide the ring on a polygon's first vertex is, on screen.</summary>
+    private const float PolygonVertexRingPixels = 4f;
+
     /// <summary>The overlay paths one frame draws; the op owns and disposes them.</summary>
-    private (SKPath? Ants, SKPath? Open) AntsPathsForFrame()
-        => (SelectionAnts.FramePath(_antsBase, _selectionPreview, _dragShape, _txActive),
-            SelectionAnts.OpenPath(_polygonInProgress));
+    /// <param name="scale">
+    /// View scale, so the first vertex's ring stays one size on screen instead
+    /// of growing with the zoom — the rule every other piece of chrome in
+    /// <c>DrawAnts</c> follows.
+    /// </param>
+    /// <remarks>
+    /// Both halves work in <b>surface</b> pixels, which is what the renderer
+    /// draws in: the polygon is already there (<c>AddPolygonVertex</c> converts
+    /// per vertex), and the drag shape and the pointer are converted here.
+    /// </remarks>
+    private (SKPath? Ants, SKPath? Open) AntsPathsForFrame(float scale)
+    {
+        var origin = (X: (double)DocumentOrigin.X, Y: (double)DocumentOrigin.Y);
+        return (
+            SelectionAnts.FramePath(
+                _antsBase, _selectionPreview, _dragShape, _txActive, origin),
+            SelectionAnts.OpenPath(
+                _polygonInProgress,
+                PolygonRubberBandTarget(),
+                PolygonVertexRingPixels / Math.Max(0.01f, scale)));
+    }
+
+    /// <summary>
+    /// Where the polygon's rubber band reaches: the pointer, in surface
+    /// pixels — null when no polygon is being drawn or the pointer has left.
+    /// </summary>
+    /// <remarks>
+    /// <b>B315.</b> The band is the half of the preview that says the tool is
+    /// live between clicks. Without it the trail only ever showed what had
+    /// already been decided, so the gap between placing a vertex and placing
+    /// the next one looked exactly like a tool that had stopped responding.
+    /// Read from <see cref="_hoverPoint"/> rather than from a pointer event so
+    /// it survives the frames where the pointer has not moved.
+    /// </remarks>
+    private (double X, double Y)? PolygonRubberBandTarget()
+    {
+        if (_polygonInProgress.Count == 0) return null;
+        if (ToolMode != CanvasToolMode.SelectPolygon) return null;
+        if (_hoverPoint is not { } p) return null;
+        var (dx, dy) = ViewToDoc(p);
+        return DocToSurface(dx, dy);
+    }
 
     // ---- fill / wand hover preview -----------------------------------------
 
