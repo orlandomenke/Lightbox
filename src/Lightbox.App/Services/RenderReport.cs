@@ -845,6 +845,28 @@ internal static class RenderReport
         sb.AppendLine($"frames published and drawn {stats.Presented}");
         sb.AppendLine($"  mean wait to be drawn    {stats.MeanMs:0.##} ms");
         sb.AppendLine($"  worst wait               {stats.WorstMs:0.##} ms");
+        // B321: that wait, split where the UI thread hands the draw to the
+        // compositor. Two explanations, opposite fixes, and one number cannot
+        // choose between them.
+        if (stats.Enqueued > 0)
+        {
+            var after = stats.MeanMs - stats.ToEnqueueMeanMs;
+            sb.AppendLine(
+                $"    waiting for a visual pass  {stats.ToEnqueueMeanMs:0.##} ms   worst {stats.ToEnqueueWorstMs:0.##} ms");
+            sb.AppendLine(
+                $"    then in the compositor     {after:0.##} ms");
+            if (stats.MeanMs > 25)
+            {
+                sb.AppendLine(
+                    after > stats.ToEnqueueMeanMs
+                        ? "  >> Most of the wait is AFTER the hand-over, so the frame is built\n"
+                          + "     promptly and the compositor is slow to draw it — the CPU\n"
+                          + "     composite (B125), not the dispatcher."
+                        : "  >> Most of the wait is BEFORE the hand-over, so the compositor is\n"
+                          + "     not the problem: the canvas is not being asked to paint. That is\n"
+                          + "     scheduling (B150), and the fix is a different one entirely.");
+            }
+        }
         sb.AppendLine($"replaced before drawing    {stats.Superseded}");
 
         AppendPresentWaitByInput(sb, stats, facts.AnimationFrames);

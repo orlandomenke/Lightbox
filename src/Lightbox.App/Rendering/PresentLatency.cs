@@ -43,8 +43,8 @@ internal sealed class PresentLatency
     /// </remarks>
     public const int Tracked = 16;
 
-    private readonly (long Seq, long Ticks, long Canvas, long Elsewhere)[] _pending =
-        new (long, long, long, long)[Tracked];
+    private readonly (long Seq, long Ticks, long Canvas, long Elsewhere, long Enqueued)[] _pending =
+        new (long, long, long, long, long)[Tracked];
 
     private readonly Lock _gate = new();
 
@@ -53,6 +53,17 @@ internal sealed class PresentLatency
     private int _superseded;
     private double _totalMs;
     private double _worstMs;
+
+    // B321: the wait split in two at the moment the UI thread hands the draw
+    // over. A frame handed to the canvas waits 70-88 ms to be drawn in every
+    // capture the owner has taken, and that single number has two completely
+    // different explanations with two completely different fixes: Avalonia not
+    // scheduling the visual pass (the wait is before the hand-over) or the
+    // render thread being slow (after it). The report could not tell them apart
+    // and neither could anyone reading it.
+    private int _enqueuedCount;
+    private double _toEnqueueTotalMs;
+    private double _toEnqueueWorstMs;
 
     // The same three numbers again, split by what happened while the frame was
     // waiting. See Cohort.
@@ -84,7 +95,48 @@ internal sealed class PresentLatency
             // than the compositor's queue, so it was superseded rather than
             // still in flight.
             if (_pending[slot].Ticks != 0) _superseded++;
-            _pending[slot] = (seq, Stopwatch.GetTimestamp(), canvas, elsewhere);
+            _pending[slot] = (seq, Stopwatch.GetTimestamp(), canvas, elsewhere, 0);
+        }
+    }
+
+    /// <summary>
+    /// The UI thread has built the draw and handed it to the compositor (B321).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The midpoint of the wait, and the only place it can honestly be taken:
+    /// before this the frame is waiting for Avalonia to run a visual pass at
+    /// all, after it the frame is in the compositor's hands. Recorded per
+    /// sequence rather than as a running average so it stays comparable with the
+    /// total in the same row.
+    /// </para>
+    /// <para>
+    /// Called from the render override, which may run for a frame this ring has
+    /// already forgotten, or for one that was never published (a cursor repaint
+    /// re-draws the same snapshot). Both are ignored rather than counted — a
+    /// midpoint attributed to the wrong publish is worse than a missing one.
+    /// </para>
+    /// </remarks>
+    public void Enqueued(long seq)
+    {
+        lock (_gate)
+        {
+            for (var i = 0; i < Tracked; i++)
+            {
+                if (_pending[i].Seq != seq || _pending[i].Ticks == 0) continue;
+                // Only the first hand-over of a given publish: a repaint of the
+                // same snapshot would otherwise restate the midpoint as though
+                // the frame had been re-published.
+                if (_pending[i].Enqueued != 0) return;
+
+                var now = Stopwatch.GetTimestamp();
+                _pending[i].Enqueued = now;
+                var ms = (now - _pending[i].Ticks) * 1000.0 / Stopwatch.Frequency;
+                _enqueuedCount++;
+                _toEnqueueTotalMs += ms;
+                if (ms > _toEnqueueWorstMs) _toEnqueueWorstMs = ms;
+                return;
+            }
         }
     }
 
@@ -136,6 +188,9 @@ internal sealed class PresentLatency
             Array.Clear(_cohortCount);
             Array.Clear(_cohortTotal);
             Array.Clear(_cohortWorst);
+            _enqueuedCount = 0;
+            _toEnqueueTotalMs = 0;
+            _toEnqueueWorstMs = 0;
         }
         InputPulse.Reset();
     }
@@ -150,9 +205,20 @@ internal sealed class PresentLatency
     /// the report treats absent and "not three cohorts" the same way, which is
     /// to print nothing rather than to guess.
     /// </param>
+    /// <param name="Enqueued">
+    /// Frames whose hand-over to the compositor was timed (B321).
+    /// </param>
+    /// <param name="ToEnqueueMeanMs">
+    /// Of <see cref="MeanMs"/>, how much elapsed before the UI thread even built
+    /// the draw. The rest is the compositor's half. Split because 88 ms of
+    /// waiting has two explanations that want opposite fixes, and one number
+    /// cannot choose between them.
+    /// </param>
+    /// <param name="ToEnqueueWorstMs">The worst single wait before hand-over.</param>
     public readonly record struct Stats(
         int Presented, int Superseded, double MeanMs, double WorstMs,
-        IReadOnlyList<CohortStats>? ByCohort = null);
+        IReadOnlyList<CohortStats>? ByCohort = null,
+        int Enqueued = 0, double ToEnqueueMeanMs = 0, double ToEnqueueWorstMs = 0);
 
     /// <param name="Which">What arrived while these frames were waiting.</param>
     /// <param name="Count">How many frames.</param>
@@ -181,7 +247,10 @@ internal sealed class PresentLatency
                     _superseded,
                     _presented == 0 ? 0 : _totalMs / _presented,
                     _worstMs,
-                    cohorts);
+                    cohorts,
+                    _enqueuedCount,
+                    _enqueuedCount == 0 ? 0 : _toEnqueueTotalMs / _enqueuedCount,
+                    _toEnqueueWorstMs);
             }
         }
     }

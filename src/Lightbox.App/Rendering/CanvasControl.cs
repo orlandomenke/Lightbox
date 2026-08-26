@@ -1898,6 +1898,13 @@ public sealed partial class CanvasControl : Control
         var gpuWork = _pendingGpuWork;
         _pendingGpuWork = null;
 
+        // B321: the midpoint of publish -> drawn. Everything above this line is
+        // the frame waiting for Avalonia to run a visual pass at all;
+        // everything below it is the compositor's. Taken here rather than after
+        // the Custom call because building the op is this method's own work and
+        // belongs on the near side of the split.
+        _presentWait.Enqueued(snapshot.Seq);
+
         context.Custom(new DrawOp(
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
