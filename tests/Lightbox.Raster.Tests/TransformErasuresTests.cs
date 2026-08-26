@@ -138,15 +138,44 @@ public class TransformErasuresTests(ITestOutputHelper output)
     {
         // Rule three (StrokePicker): a line rubbed out along its whole length
         // is not on the canvas, so no region can mean it. Its raw points sit
-        // majority-inside the mask, which is exactly how the old filter lifted
-        // it out from under its eraser and made it visible again.
+        // inside the mask, which is exactly how the old filter lifted it out
+        // from under its eraser and made it visible again.
         var old = Line(30, 50, 70, 50);
-        var erasure = Line(-40, 50, 110, 50, ToolKind.Eraser);  // majority outside, covers all of `old`
+        var erasure = Line(-40, 50, 110, 50, ToolKind.Eraser);  // reaches past the mask, covers all of `old`
         var moving = TransformErasures.MovingWithin(
             [old, erasure], MaskColumn(100, 100, 20, 80), 100, 100);
 
         output.WriteLine($"moving: [{string.Join(", ", moving)}]");
-        Assert.Empty(moving);
+        // The erased line is the subject, and it stays put whatever else does.
+        Assert.DoesNotContain(0, moving);
+    }
+
+    /// <summary>
+    /// The erasure beside it <em>is</em> caught now, and that is the change
+    /// B319 made rather than a hole in the rule above.
+    /// </summary>
+    /// <remarks>
+    /// Under the majority filter this erasure stayed — its midpoint is inside
+    /// the mask and its two ends are not. Under "any point inside" it is
+    /// caught, and being caught no longer means being carried off whole: it
+    /// straddles the boundary, so <see cref="TransformErasures.CrossesRegion"/>
+    /// says so and the commit splits it, leaving the outside part exactly
+    /// where it was to keep holding down the ink it rubbed out there. Nothing
+    /// the region does not cover moves, which is the promise the old majority
+    /// rule was standing in for.
+    /// </remarks>
+    [Fact]
+    public void AnErasureAcrossTheBoundaryIsCaughtAndReportedAsCrossing()
+    {
+        var old = Line(30, 50, 70, 50);
+        var erasure = Line(-40, 50, 110, 50, ToolKind.Eraser);
+        var mask = MaskColumn(100, 100, 20, 80);
+
+        var moving = TransformErasures.MovingWithin([old, erasure], mask, 100, 100);
+
+        Assert.Contains(1, moving);
+        Assert.True(
+            new TransformErasures.RegionReading([old, erasure], mask, 100, 100).Crosses(erasure));
     }
 
     [Fact]

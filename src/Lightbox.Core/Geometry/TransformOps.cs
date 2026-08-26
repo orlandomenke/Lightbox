@@ -204,6 +204,41 @@ public static class TransformOps
     /// of this method follows, applied to an object whose extent happens to be
     /// the canvas.
     /// </remarks>
+    /// <summary>
+    /// Region filter: true when <em>any</em> of a stroke's points falls inside
+    /// the mask. A gradient is judged by what it covers, exactly as in
+    /// <see cref="MajorityInside"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B319. The rule a clipping transform needs, and the one a
+    /// whole-stroke transform could not use.</b> While a region moved strokes
+    /// entire, a majority was the only defensible bar — half in and half out
+    /// had to resolve to one answer, and taking a stroke on a single point
+    /// inside would have dragged a whole line across the canvas because its
+    /// tip grazed the marquee.
+    /// </para>
+    /// <para>
+    /// Once the region moves only the <em>part</em> it covers, that reasoning
+    /// inverts. A stroke with one point inside has one point's worth to
+    /// contribute and nothing else of it moves, so there is no longer a
+    /// penalty for saying yes — and there is a large penalty for saying no,
+    /// because "the majority is outside" is what made a box over part of a
+    /// drawing report <em>nothing to transform in this scope</em>.
+    /// </para>
+    /// </remarks>
+    public static bool AnyInside(Stroke stroke, bool[] mask, int w, int h)
+    {
+        if (stroke.Tool == ToolKind.Gradient) return Array.IndexOf(mask, true) >= 0;
+        foreach (var p in stroke.Points)
+        {
+            var x = (int)Math.Round(p.X);
+            var y = (int)Math.Round(p.Y);
+            if (x >= 0 && x < w && y >= 0 && y < h && mask[y * w + x]) return true;
+        }
+        return false;
+    }
+
     public static bool MajorityInside(Stroke stroke, bool[] mask, int w, int h)
     {
         if (stroke.Tool == ToolKind.Gradient) return Array.IndexOf(mask, true) >= 0;

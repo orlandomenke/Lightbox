@@ -862,6 +862,9 @@ public partial class MainViewModel
             if (TransformActive) CancelTransform();
             return false;
         }
+        // A restart is a new session with possibly a different selection, and
+        // this one is keyed to nothing but the session it was built for.
+        _previewSplit = null;
         _transform.Begin(frames, filter);
         _transform.MovingBounds = PreviewMovingBounds(frames, filter);
         // B225: the gizmo's own box, which is what a move lines up against a
