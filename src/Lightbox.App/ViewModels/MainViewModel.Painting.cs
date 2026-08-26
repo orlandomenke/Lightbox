@@ -2876,6 +2876,17 @@ public partial class MainViewModel
     internal void SetRenderedAtProbe(Func<long> probe) => _renderedAtProbe = probe;
 
     /// <summary>
+    /// Frames allowed in flight before a publish is held (see
+    /// <see cref="PublishState.InFlightDepth"/>). Settable so a test can drive
+    /// both depths in one process.
+    /// </summary>
+    internal int InFlightDepth
+    {
+        get => _publish.InFlightDepth;
+        set => _publish.InFlightDepth = value;
+    }
+
+    /// <summary>
     /// Let the pacing read what the canvas has drawn without waiting to be told
     /// (B321). Supplied by the window; absent headless.
     /// </summary>

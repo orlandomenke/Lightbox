@@ -227,4 +227,58 @@ public class DamNoticesTheDrawTests(ITestOutputHelper output) : BrushStateIsolat
         Assert.False(pointerRan, "the drain reached Input, so this proves nothing — tighten it");
         Assert.Equal(7, announced);
     }
+
+    /// <summary>
+    /// One frame in flight publishes once per round trip; two publishes twice.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The mechanism, which is all a headless test can judge.</b> Whether a
+    /// deeper pipeline feels better depends on a real vsync and a real hand,
+    /// and this pump has neither. What it can say is that the depth is wired to
+    /// something and does what it claims: at 1 a second event against an
+    /// undrawn frame composes nothing, and at 2 it composes.
+    /// </para>
+    /// <para>
+    /// The measurement that made this worth trying: a cycle of 35.44 ms against
+    /// a <c>publish -&gt; drawn</c> of 31.19, a dam whose own overhead is
+    /// 0.15 ms, and a pen delivering every 5.06 ms. Twenty-eight publishes a
+    /// second from a tablet offering two hundred, and depth is the only thing
+    /// left setting that.
+    /// </para>
+    /// </remarks>
+    [AvaloniaTheory]
+    [InlineData(1, 0)]
+    [InlineData(2, 1)]
+    public void DepthDecidesHowManyPublishesAreAllowedPerRoundTrip(int depth, int expected)
+    {
+        var vm = Ready();
+        vm.InFlightDepth = depth;
+        var seqs = new List<long>();
+        vm.SnapshotChanged += s => seqs.Add(s.Seq);
+
+        long drawn = 0;
+        vm.SetRenderedSeqProbe(() => drawn);
+
+        vm.BeginStroke(50, 50, 1);
+        Dispatcher.UIThread.RunJobs();
+        Move(vm, 60, 50);
+        Assert.NotEmpty(seqs);
+        drawn = seqs[^1];          // caught up
+
+        Move(vm, 70, 50);          // publishes; that frame is now in flight
+        var before = seqs.Count;
+
+        // The canvas draws nothing more. How many further publishes get out is
+        // exactly the depth minus the one already in flight.
+        Move(vm, 80, 50);
+        Move(vm, 90, 50);
+        Move(vm, 100, 50);
+
+        output.WriteLine($"depth {depth}: {seqs.Count - before} publishes against an undrawn frame");
+        Assert.Equal(expected, seqs.Count - before);
+
+        vm.EndStroke();
+        Dispatcher.UIThread.RunJobs();
+    }
 }

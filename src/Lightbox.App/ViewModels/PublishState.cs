@@ -133,7 +133,14 @@ sealed class PublishState
     /// and then replaced before anything drew it. `replaced before drawing` in
     /// the report is where that shows, and a rise there is the cost of this.
     /// </remarks>
-    internal static int InFlightDepth { get; } =
+    internal int InFlightDepth { get; set; } = DefaultInFlightDepth;
+
+    /// <summary>
+    /// What the environment asked for, read once. Settable per instance above so
+    /// a test can drive both depths in one process — a static readonly is fixed
+    /// by whichever test touched the class first, which is not a seam at all.
+    /// </summary>
+    internal static readonly int DefaultInFlightDepth =
         int.TryParse(Environment.GetEnvironmentVariable("LIGHTBOX_INFLIGHT"), out var d)
         && d >= 1 && d <= 4 ? d : 1;
 

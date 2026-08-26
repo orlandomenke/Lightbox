@@ -1169,10 +1169,10 @@ internal static class RenderReport
                 // moving any cycle that actually happened.
                 sb.AppendLine(
                     $"  publish -> publish      median {cyc.CycleMedianMs,7:0.##} ms   mean {cyc.CycleMeanMs,7:0.##} ms   ({cyc.Cycles} cycles — the whole loop)");
-                if (ViewModels.PublishState.InFlightDepth != 1)
+                if (ViewModels.PublishState.DefaultInFlightDepth != 1)
                 {
                     sb.AppendLine(
-                        $"    frames allowed in flight  {ViewModels.PublishState.InFlightDepth}   (LIGHTBOX_INFLIGHT — the shipped default is 1)");
+                        $"    frames allowed in flight  {ViewModels.PublishState.DefaultInFlightDepth}   (LIGHTBOX_INFLIGHT — the shipped default is 1)");
                 }
                 sb.AppendLine(
                     $"    dam let go -> publish  median {cyc.ReleaseToPublishMedianMs,7:0.##} ms   mean {cyc.ReleaseToPublishMeanMs,7:0.##} ms");
