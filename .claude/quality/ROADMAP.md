@@ -494,6 +494,19 @@ the test needs relaxing.
   - The tools that make a region are also the ones that show it being made: the polygon rings its first vertex and bands to the pointer (B315), a half-drawn one goes when you reach for another shape (B316), and the rubber band sits under the hand on a cropped page (B317).
   - **Built: Ctrl inside a selection drags what is in it (Q104).** Requested as *"when selecting and pressing ctrl and hovering on a selected area (and during) enable moving"*, and the whole question was where the boundary sits, because Ctrl was already the held eyedropper. The narrower claim wins: the move needs a selection *and* the pointer inside it, so the picker keeps the rest of the canvas. That is only defensible because the cursor says which one is armed before the press — the item above, one commit earlier.
   - **It reuses rather than adds**, which is the point: `BeginSelectionMove` is `BeginLineMove` with a different refusal, the filter is `DerivedTransformFilter`, the press rides the line drag's own move/commit/discard channel, and the marching ants already follow a session's preview matrix. Nothing new had to be built for the undo step, the axis lock, the guides or the outline.
+- [ ] Undo restores a mark's pixels instead of rebuilding them `evidence: TileSnapshot, UndoTileSnapshotTests, RestoringAMarkCostsItsAreaRatherThanTheDrawing, ASmudgeUndoesWithoutFallingBackToTheWholeRender`
+  - **Q167, answered 2026-08-26.** B327 stopped undo re-stamping every stroke on a drawing and made it replay only the reverted mark's footprint — a scattered 800-stroke drawing went from ~1 498 ms per Ctrl+Z to 6.7 ms. It still rebuilds by **replaying the record**, which leaves two holes: a mark covering most of the drawing replays most of the drawing, and a smudge or blur anywhere in the patch forces a full re-render because an effect brush would sample pixels from the wrong moment.
+  - **The answer is Photoshop's and Krita's: copy the tiles under a mark before stamping it, and swap them back on undo.** Their undo costs the area changed and nothing else. Measured on a 960×540 document before deciding, because *"or test it"* was the instruction:
+
+    | drawing | patch | snapshot on commit | restore on undo | replay today |
+    | --- | --- | --- | --- | --- |
+    | scattered, 800 strokes | 6 KB | 0.007 ms | 0.016 ms | 39.4 ms |
+    | hatched band, 800 strokes | 279 KB | 0.039 ms | 0.045 ms | **7 497.3 ms** |
+    | canvas-crossing, 50 strokes | 1 975 KB | 0.695 ms | 0.937 ms | 1 600.6 ms |
+
+  - **The commit-cost worry was tested and did not survive.** The objection to snapshotting was that drawing happens a thousand times an hour and undo does not, so a slower pen lift would be a bad trade. The copy costs 0.039 ms on a 279 KB patch against the ~7.5 ms a commit already pays. It only approaches 9% of a commit on a full-canvas mark.
+  - **So the budget is a guard, not a design principle.** It exists because a canvas-crossing mark is ~126 MB across a 64-step history at 960×540 and over 2 GB at 4K — not because of commit time. On ordinary drawings a mark is 6 KB and it never engages. Express it as a total the way `FrameBitmapCache.ByteBudget` is, so trimming is an eviction policy rather than a refusal at commit time.
+  - **It does not touch invariant 1.** The stroke record stays the document; the snapshot is a cache of a state the record can already describe, and a snapshot that disagreed with the record would be a bug rather than a second source of truth. B327's replay stays for steps that name no footprint and for snapshots trimmed out of the budget, and structural undo is untouched — a `SnapshotStep` has no mark to name. Reuse `TileGrid`, `TiledRasterizer` and `_tileFrames` rather than inventing a second set of squares. Cost: L
 - [x] Warp transform `evidence: TransformToolTests, TransformBegun`
 - [?] Liquify
 - [?] Clone stamp

@@ -381,14 +381,92 @@ public partial class MainViewModel
     /// stale art on screen. A mutation path that bypasses the funnel is a
     /// defect here even if every cache happens to survive it.
     /// </remarks>
-    private void InvalidateFrameRender(string frameId)
+    /// <param name="repaintBounds">
+    /// Every pixel the edit could have moved, in document coordinates — B327's
+    /// hint. With one, the frame's cached bitmap is <em>patched</em> over that
+    /// rectangle instead of dropped, so undoing a mark costs what making it
+    /// cost. Null, or a frame the patch cannot promise, falls back to dropping
+    /// it. Only the full-render cache takes the hint: the tiles and the
+    /// thumbnail are cheap to rebuild and the bake only wants telling.
+    /// </param>
+    private void InvalidateFrameRender(string frameId, GeometryOps.BBox? repaintBounds = null)
     {
         _publish.BumpRenderEpoch();
-        _cache.Invalidate(frameId);
+        // Before the cache work rather than after it (B327). A warm in flight was
+        // started from the frame as it stood before this edit; on the drop path it
+        // would be refused on arrival because the entry it targets is gone, but a
+        // *patched* entry is still there to be overwritten — so a stale warm could
+        // land on top of the repair. Flushing first removes the question.
+        _prewarm.Flush();
+        if (TryRepaintFrameRegion(frameId, repaintBounds))
+        {
+            FrameRegionRepaints++;
+        }
+        else
+        {
+            FrameRenderDrops++;
+            _cache.Invalidate(frameId);
+        }
         _tileFrames.Invalidate(frameId);
         _thumbs.Invalidate(frameId);
         _stackBake.NoteFrameChanged(frameId);
-        _prewarm.Flush();
+    }
+
+    /// <summary>
+    /// A committed mark's footprint, as the rectangle an undo of it would have
+    /// to repaint (B327). Null for a mark with no computable reach, which is
+    /// the answer that keeps the old whole-drawing behaviour.
+    /// </summary>
+    /// <remarks>
+    /// <b><see cref="BrushEngine.CommitBounds"/>, and with no origin, because
+    /// that is the space the frame cache renders in.</b> <c>FrameRasterizer</c>
+    /// materializes a cel with no origin argument, so the bitmap this rectangle
+    /// indexes into starts at zero whatever <c>Scene.Left</c> says. Handing an
+    /// origin-adjusted rectangle to the patch would repair the wrong part of the
+    /// picture on a document that had been grown.
+    /// </remarks>
+    private GeometryOps.BBox? RepaintBoundsOf(Stroke stroke)
+    {
+        var info = new SKImageInfo(
+            Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        return BrushEngine.CommitBounds(stroke, info) is { } rect
+            ? new GeometryOps.BBox(rect.Left, rect.Top, rect.Right, rect.Bottom)
+            : null;
+    }
+
+    /// <summary>
+    /// Patch the cached render of one frame over <paramref name="repaintBounds"/>,
+    /// or say it could not be done. See B327.
+    /// </summary>
+    /// <summary>
+    /// How many frame invalidations were served by patching a rectangle rather
+    /// than by dropping the drawing's pixels (B327), and how many were not.
+    /// </summary>
+    /// <remarks>
+    /// Counters rather than timings, for the reason the performance budgets
+    /// give: what the fix is about is <em>which path ran</em>, and a millisecond
+    /// assertion measures the machine it ran on. The refused count is the one
+    /// worth watching — it is how a new commit path that forgets to declare its
+    /// footprint shows up as something other than a mystery.
+    /// </remarks>
+    internal int FrameRegionRepaints { get; private set; }
+
+    /// <inheritdoc cref="FrameRegionRepaints"/>
+    internal int FrameRenderDrops { get; private set; }
+
+    private bool TryRepaintFrameRegion(string frameId, GeometryOps.BBox? repaintBounds)
+    {
+        if (repaintBounds is not { } bounds) return false;
+        if (FrameById(Doc, frameId) is not { } frame) return false;
+
+        // Outward to whole pixels: a mark covering part of a pixel dirties all of
+        // it, and rounding inward leaves a hairline of the old drawing behind.
+        var rect = new SKRectI(
+            (int)Math.Floor(bounds.MinX),
+            (int)Math.Floor(bounds.MinY),
+            (int)Math.Ceiling(bounds.MaxX),
+            (int)Math.Ceiling(bounds.MaxY));
+        return _cache.RepaintRegion(frame, rect);
     }
 
     /// <inheritdoc cref="InvalidateFrameRender"/>

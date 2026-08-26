@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Geometry;
 using Lightbox.Core.Serialization;
 
 namespace Lightbox.Core.Timeline;
@@ -196,11 +197,27 @@ public sealed class DocumentEditor
     /// <paramref name="affectedFrameId"/> lets undo/redo invalidate only that
     /// frame instead of every cached bitmap and thumbnail.
     /// </summary>
+    /// <param name="repaintBounds">
+    /// Every pixel this step can change, in stroke coordinates — so undo and
+    /// redo can repaint that rectangle instead of dropping the whole drawing
+    /// (B327). Null means "somewhere on the named frame, and I cannot say
+    /// where", which is the old behaviour and the safe answer.
+    /// <para>
+    /// <b>A promise about pixels, not about the record.</b> A caller that names
+    /// a rectangle its revert can paint outside leaves stale ink on the canvas
+    /// — wrong quietly, which is worse than slow — so it goes on steps whose
+    /// mark has a computable footprint (<c>BrushEngine.CommitBounds</c>) and is
+    /// left null everywhere else.
+    /// </para>
+    /// </param>
     public void PerformDelta(
         Action<Doc> apply, Action<Doc> revert, string? affectedFrameId = null,
-        string? label = null, [CallerMemberName] string caller = "")
+        string? label = null, GeometryOps.BBox? repaintBounds = null,
+        [CallerMemberName] string caller = "")
     {
-        PushStep(new DeltaStep(apply, revert, affectedFrameId), label ?? Humanize(caller));
+        PushStep(
+            new DeltaStep(apply, revert, affectedFrameId, repaintBounds),
+            label ?? Humanize(caller));
         apply(Doc);
         Changed?.Invoke();
     }
@@ -245,7 +262,15 @@ public sealed class DocumentEditor
     /// its id intact (<c>Frame.Clone</c> is a <c>MemberwiseClone</c>) and cached
     /// pixels keyed by that id are therefore still correct.
     /// </param>
-    public readonly record struct EditScope(bool Any, string? FrameId, bool FrameContentUnchanged = false)
+    /// <param name="RepaintBounds">
+    /// Every pixel the step could have changed, in stroke coordinates, or null
+    /// when it did not say. B327: with a rectangle, undo repaints it and leaves
+    /// the rest of the drawing's cached pixels alone; without one, the frame's
+    /// bitmap is dropped and every stroke on it is stamped again.
+    /// </param>
+    public readonly record struct EditScope(
+        bool Any, string? FrameId, bool FrameContentUnchanged = false,
+        GeometryOps.BBox? RepaintBounds = null)
     {
         public bool DocumentWide => Any && FrameId is null && !FrameContentUnchanged;
     }
@@ -261,7 +286,8 @@ public sealed class DocumentEditor
         Doc = entry.Step.Rollback(Doc);
         _redo.Push(entry);
         Changed?.Invoke();
-        return new EditScope(true, entry.Step.FrameId, entry.Step.FrameContentUnchanged);
+        return new EditScope(
+            true, entry.Step.FrameId, entry.Step.FrameContentUnchanged, entry.Step.RepaintBounds);
     }
 
     public EditScope RedoScoped()
@@ -273,7 +299,8 @@ public sealed class DocumentEditor
         // redoing back to a saved state reads as saved rather than as new work.
         _undo.Push(entry);
         Changed?.Invoke();
-        return new EditScope(true, entry.Step.FrameId, entry.Step.FrameContentUnchanged);
+        return new EditScope(
+            true, entry.Step.FrameId, entry.Step.FrameContentUnchanged, entry.Step.RepaintBounds);
     }
 
     /// <summary>
@@ -402,6 +429,12 @@ public sealed class DocumentEditor
         /// <summary>This step altered no drawing — structure only (B202).</summary>
         bool FrameContentUnchanged { get; }
 
+        /// <summary>
+        /// Every pixel this step can change, in stroke coordinates, or null when
+        /// it cannot say (B327).
+        /// </summary>
+        GeometryOps.BBox? RepaintBounds => null;
+
         /// <summary>Take the document back to before this step; returns the doc to use.</summary>
         Doc Rollback(Doc doc);
 
@@ -444,9 +477,14 @@ public sealed class DocumentEditor
     }
 
     /// <summary>Targeted mutation with an exact inverse — no document clone.</summary>
-    private sealed class DeltaStep(Action<Doc> apply, Action<Doc> revert, string? frameId) : IEditStep
+    private sealed class DeltaStep(
+        Action<Doc> apply, Action<Doc> revert, string? frameId,
+        GeometryOps.BBox? repaintBounds = null) : IEditStep
     {
         public string? FrameId => frameId;
+
+        /// <inheritdoc />
+        public GeometryOps.BBox? RepaintBounds => repaintBounds;
 
         /// <summary>
         /// Always false: a delta either names its frame — which is already the
