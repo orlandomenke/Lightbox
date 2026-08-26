@@ -1172,6 +1172,56 @@ public partial class MainViewModel
     internal long LivePostWorstMarkPixels { get; private set; }
 
     /// <summary>
+    /// How long a queued pass waited before it started, and how much of the
+    /// mark it then read (B313's follow-up).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Two numbers because the report could not tell two faults apart.</b>
+    /// A capture showing one pass per seven pointer events, with each pass
+    /// measured under a millisecond, has either of two causes and they want
+    /// opposite fixes: the pass is <em>starved</em> — posted at Background,
+    /// which Avalonia runs below Input, so continuous drawing outranks it,
+    /// which is B312's lesson in a different file — or it is <em>not
+    /// band-local</em> after all and each one is doing far more work than the
+    /// bench says.
+    /// </para>
+    /// <para>
+    /// The wait separates them. A long wait with a small rect is starvation; a
+    /// short wait with a mark-sized rect is the band never engaging.
+    /// </para>
+    /// </remarks>
+    internal double LivePostWaitTotalMs { get; private set; }
+
+    /// <summary>The longest a queued pass waited before starting.</summary>
+    internal double LivePostWaitWorstMs { get; private set; }
+
+    /// <summary>How many passes the wait was measured over.</summary>
+    internal int LivePostWaits { get; private set; }
+
+    /// <summary>Pass rect area summed, against the mark area summed.</summary>
+    internal long LivePostPixels { get; private set; }
+
+    /// <summary>The mark's area at each of those passes, summed.</summary>
+    internal long LivePostMarkPixels { get; private set; }
+
+    /// <summary>When the outstanding pass was posted, for the wait above.</summary>
+    private long _postQueuedAt;
+
+    /// <summary>
+    /// The priority the live post-process is queued at (B313).
+    /// </summary>
+    /// <remarks>
+    /// Named rather than written inline so a test can assert it. Nothing
+    /// headless can prove a priority is right — that is a fact about a real
+    /// dispatcher under real input — but a test can refuse the one value that
+    /// is known to be wrong, which is what stops this being quietly returned to
+    /// Background by someone reading the comment it used to carry.
+    /// </remarks>
+    internal static readonly Avalonia.Threading.DispatcherPriority LivePostPriority
+        = Avalonia.Threading.DispatcherPriority.Input;
+
+    /// <summary>
     /// Effects that cannot be applied per segment because they read the whole
     /// stroke. Texture and granulation are pointwise and could be incremental,
     /// but they are cheap enough to come along for the ride.
@@ -2158,24 +2208,55 @@ public partial class MainViewModel
     /// Ask for a re-render of the stroke so far.
     ///
     /// Scheduling is left to the dispatcher rather than to a wall-clock
-    /// throttle of our own. Background priority yields to pointer input and to
-    /// the Default-priority snapshot, so during a fast drag the pass starts in
-    /// whatever gaps exist and during a pause it starts immediately — which is
-    /// exactly the cadence wanted, and the dispatcher already knows how busy
-    /// the thread is. A cost-based throttle was tried first and was worse in
-    /// the way that matters: it blocked the pass that would have settled the
-    /// preview, so the mark froze part-drawn until the pen lifted.
+    /// throttle of our own; only one pass is ever outstanding — the flag spans
+    /// the whole start → worker → finish arc, not just the dispatcher post —
+    /// and a pass with nothing new to draw returns immediately.
     ///
-    /// Only one pass is ever outstanding — the flag now spans the whole
-    /// start → worker → finish arc, not just the dispatcher post — and a pass
-    /// with nothing new to draw returns immediately.
+    /// <para>
+    /// <b>Input priority, and B313 is why it is no longer Background.</b> The
+    /// text that stood here argued that Background "yields to pointer input, so
+    /// during a fast drag the pass starts in whatever gaps exist". Measured on
+    /// the owner's hand, during a fast drag there are no gaps: the report puts
+    /// the wait from queued to started at a mean of 7.5 ms and a <b>worst of
+    /// 3,126 ms</b>. Avalonia runs <c>Render &gt; Loaded &gt; Default &gt; Input
+    /// &gt; Background</c>, so for as long as the hand keeps moving the pass is
+    /// outranked by every event — which is the whole of a long fast stroke, and
+    /// exactly when an artist is watching the tip.
+    /// </para>
+    /// <para>
+    /// <b>The cost of being late compounds, which is what made it visible.</b>
+    /// The pending region keeps accumulating while the pass waits, so a starved
+    /// pass is no longer a band: the same capture shows a <b>360 ms</b> pass
+    /// over a region that averaged <b>1.3%</b> of the mark. And a brush with an
+    /// effect displays the mark as of the last completed pass
+    /// (<c>ScenePassBuilder.OverlayFor</c>), so the paint simply stops at the
+    /// last one until the next lands. The old comment predicted this shape
+    /// precisely, as the failure of a cost-based throttle it had already
+    /// rejected — <i>"the mark froze part-drawn until the pen lifted"</i> —
+    /// without noticing that Background priority is a throttle too.
+    /// </para>
+    /// <para>
+    /// <b>Input rather than Default</b>, for B73's reason: that queue is FIFO,
+    /// so this lands behind the events already waiting and ahead of the ones
+    /// after — the pass sees every event that has arrived, and does not jump the
+    /// pen. Default sits <em>above</em> Input here and would do the latter.
+    /// <see cref="FinishLivePostProcess"/> has been at Input since B189 on the
+    /// identical argument, which was never carried back to the start.
+    /// </para>
+    /// <para>
+    /// <b>What makes this affordable now and not before.</b> The reasoning for
+    /// yielding was written when a pass cost 45–143 ms; B293 and B313 took it to
+    /// under one. A millisecond of work between pointer events is not a throttle
+    /// worth having.
+    /// </para>
     /// </summary>
     private void RequestLivePostProcess()
     {
         if (_live.PostQueued) return;
         _live.PostQueued = true;
+        _postQueuedAt = System.Diagnostics.Stopwatch.GetTimestamp();
         Avalonia.Threading.Dispatcher.UIThread.Post(
-            StartLivePostProcess, Avalonia.Threading.DispatcherPriority.Background);
+            StartLivePostProcess, LivePostPriority);
     }
 
     /// <summary>
@@ -2215,6 +2296,20 @@ public partial class MainViewModel
     /// </remarks>
     private void StartLivePostProcess()
     {
+        // Measured before any early return: a pass that was queued and then
+        // found nothing to do still waited, and how long it waited is the
+        // question. Recorded even when it bails, or the mean would be taken
+        // only over the passes that happened to get through.
+        if (_postQueuedAt != 0)
+        {
+            var waited = (System.Diagnostics.Stopwatch.GetTimestamp() - _postQueuedAt)
+                         * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            LivePostWaitTotalMs += waited;
+            if (waited > LivePostWaitWorstMs) LivePostWaitWorstMs = waited;
+            LivePostWaits++;
+            _postQueuedAt = 0;
+        }
+
         if (_strokeBuilder.Current is not { } live || !_strokeBuilder.IsActive
             || !NeedsLivePostProcess(live.Brush)
             || _live.PostStampedCount == live.Points.Count // nothing new since last pass
@@ -2304,6 +2399,8 @@ public partial class MainViewModel
         var markPixels = (long)mark.Width * mark.Height;
         if (passPixels > LivePostWorstPixels) LivePostWorstPixels = passPixels;
         if (markPixels > LivePostWorstMarkPixels) LivePostWorstMarkPixels = markPixels;
+        LivePostPixels += passPixels;
+        LivePostMarkPixels += markPixels;
 
         // Taken now, restored if the pass never runs — a region dropped here is
         // a patch of preview nothing would ever come back to. A whole-mark pass

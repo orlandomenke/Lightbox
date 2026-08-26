@@ -190,7 +190,12 @@ public class StrokeToScreenTests(ITestOutputHelper output) : IDisposable
         RenderReport.ResetForTests();
         var path = RenderReport.WriteStartup(new RenderReport.Facts(
             "CPU (software)", true, false, false, 8192, 1920, 1080, 1.0, "Full", 1.0,
-            StrokeWait: stats, LivePost: livePost))!;
+            StrokeWait: stats,
+            // Widened where it is used rather than in the signature: these
+            // cases are about the pass-cost line, and B313's wait and band
+            // counters have their own tests. Zeroes there read as "not
+            // measured", which is what the report prints them as.
+            LivePost: livePost is { } p ? (p.Passes, p.TotalMs, p.WorstMs, 0, 0.0, 0.0, 0L, 0L) : null))!;
         var text = File.ReadAllText(path);
         var start = text.IndexOf("-- pen to screen", StringComparison.Ordinal);
         Assert.True(start >= 0, $"the pen-to-screen section is missing:\n{text}");

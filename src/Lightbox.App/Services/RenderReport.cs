@@ -79,7 +79,9 @@ internal static class RenderReport
         (int Frames, int Flattens)? Pinned = null,
         (long Bytes, long Budget)? TileStore = null,
         Rendering.StrokeToScreen.Stats? StrokeWait = null,
-        (int Passes, double TotalMs, double WorstMs)? LivePost = null,
+        (int Passes, double TotalMs, double WorstMs,
+         int Waits, double WaitTotalMs, double WaitWorstMs,
+         long Pixels, long MarkPixels)? LivePost = null,
         Rendering.PublishTally? PublishesByCaller = null);
 
     /// <summary>
@@ -997,6 +999,41 @@ internal static class RenderReport
         {
             var mean = wet.TotalMs / wet.Passes;
             sb.AppendLine($"live medium passes        {wet.Passes}   mean {mean:0.##} ms   worst {wet.WorstMs:0.##} ms   (wet brushes only, OFF the UI thread)");
+
+            // B313's follow-up: a pass being cheap is only half the story. It
+            // has to actually RUN, and it has to be reading a band rather than
+            // the whole mark. These two separate the faults — a long wait with
+            // a small rect is the pass being starved at Background priority
+            // (B312's lesson in another file), a short wait with a mark-sized
+            // rect is the band never engaging.
+            if (wet.Waits > 0)
+            {
+                var waitMean = wet.WaitTotalMs / wet.Waits;
+                sb.AppendLine(
+                    $"  queued -> started       mean {waitMean:0.##} ms   worst {wet.WaitWorstMs:0.##} ms   over {wet.Waits} passes");
+                if (waitMean > 20)
+                {
+                    sb.AppendLine("  !! a pass spends longer WAITING to start than running. It is");
+                    sb.AppendLine("     posted at Background priority, which Avalonia runs below");
+                    sb.AppendLine("     Input — so a moving pen outranks it for as long as the hand");
+                    sb.AppendLine("     keeps moving, which is the whole of a long stroke.");
+                }
+            }
+
+            if (wet.MarkPixels > 0)
+            {
+                var share = 100.0 * wet.Pixels / wet.MarkPixels;
+                sb.AppendLine(
+                    $"  of the mark re-processed  {share:0.#}%   (band-local passes read only what moved)");
+                if (share > 50)
+                {
+                    sb.AppendLine("  !! the pass is reading most of the mark every time, so it grows");
+                    sb.AppendLine("     with the stroke. Either the band is not engaging or something");
+                    sb.AppendLine("     is forcing whole-mark passes — a brush setting changing");
+                    sb.AppendLine("     mid-stroke does that deliberately.");
+                }
+            }
+
             if (mean > 33)
             {
                 sb.AppendLine("  !! a pass this slow no longer blocks input, but the simulated look");

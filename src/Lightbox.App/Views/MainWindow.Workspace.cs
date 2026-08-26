@@ -321,7 +321,9 @@ public partial class MainWindow
             _vm.PinnedBitmaps,
             _vm.TileStoreBytes,
             Rendering.StrokeToScreen.Shared.Snapshot,
-            (_vm.LivePostPasses, _vm.LivePostTotalMs, _vm.LivePostWorstMs),
+            (_vm.LivePostPasses, _vm.LivePostTotalMs, _vm.LivePostWorstMs,
+             _vm.LivePostWaits, _vm.LivePostWaitTotalMs, _vm.LivePostWaitWorstMs,
+             _vm.LivePostPixels, _vm.LivePostMarkPixels),
             _vm.ReportPublishTally);
     }
 
