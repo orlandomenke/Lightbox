@@ -321,7 +321,14 @@ public partial class MainWindow
             _vm.PinnedBitmaps,
             _vm.TileStoreBytes,
             Rendering.StrokeToScreen.Shared.Snapshot,
-            (_vm.LivePostPasses, _vm.LivePostTotalMs, _vm.LivePostWorstMs),
+            (_vm.LivePostPasses, _vm.LivePostTotalMs, _vm.LivePostWorstMs,
+             _vm.LivePostWaits, _vm.LivePostWaitTotalMs, _vm.LivePostWaitWorstMs,
+             _vm.LivePostPixels, _vm.LivePostMarkPixels,
+             _vm.LivePostWorstMsWidth, _vm.LivePostWorstMsHeight,
+             _vm.LivePostWorstMsMarkPixels, _vm.LiveWorstProvisionalTail),
+            (_vm.DamDeferrals, _vm.DamReleasedByPresent, _vm.DamReleasedByTimer,
+             _vm.DamReleasedByPresent + _vm.DamReleasedByTimer,
+             _vm.DamHeldTotalMs, _vm.DamHeldWorstMs),
             _vm.ReportPublishTally);
     }
 

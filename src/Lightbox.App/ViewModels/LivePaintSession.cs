@@ -263,6 +263,41 @@ sealed class LivePaintSession
 
     internal SKRectI? PostUsed { get; set; }
 
+    /// <summary>
+    /// The region of the dab scratch that has changed since a pass last took a
+    /// copy of it — which is the region the next pass has to redo (B313).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Accumulated by the stamping rather than derived by the pass.</b>
+    /// <c>StampLiveDabs</c> already knows exactly what it touched: the newly
+    /// settled dabs' reach, the tail it took back and the tail it lent this
+    /// time. Asking the pass to work it out again would mean a second dab walk
+    /// per event, which is the cost B189 removed.
+    /// </para>
+    /// <para>
+    /// Null means nothing has moved and a pass has nothing to do. It is taken
+    /// and cleared when a pass copies its inputs, and unioned back if that pass
+    /// never runs — a lost region is a stale patch of preview that nothing
+    /// would ever revisit.
+    /// </para>
+    /// </remarks>
+    internal SKRectI? PostPending { get; set; }
+
+    /// <summary>
+    /// The brush the last pass ran with, serialized (B313).
+    /// </summary>
+    /// <remarks>
+    /// An artist can retune a slider mid-stroke, and the pass applies the
+    /// current settings to the <em>whole</em> mark — which is what the commit
+    /// will do, so it is right. A band-local pass would leave everything
+    /// outside the band carrying the old settings, so a change here forces one
+    /// whole-mark pass. Compared as text because <c>BrushSettings</c> is a
+    /// mutable class with reference equality and a hand-written field list
+    /// would be one edit away from missing the field that mattered.
+    /// </remarks>
+    internal string? PostBrushStamp { get; set; }
+
     /// <summary>Make <see cref="PostScratch"/> exist at this size (B293).</summary>
     /// <remarks>
     /// The worker path allocates it when a result comes back; the cap-only path
@@ -276,7 +311,11 @@ sealed class LivePaintSession
         PostScratch?.Dispose();
         PostScratch = new SKBitmap(
             new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        // A fresh buffer holds nothing, so the next pass has to cover the whole
+        // mark rather than a band — which is exactly what a null PostUsed means
+        // to StartLivePostProcess (B313).
         PostUsed = null;
+        PostPending = null;
     }
 
     /// <summary>Cost of the last pass, milliseconds — reported by the performance panel.</summary>
@@ -402,6 +441,8 @@ sealed class LivePaintSession
             ClearRegion(canvas, PostUsed);
         }
         PostUsed = null;
+        PostPending = null;
+        PostBrushStamp = null;
         PostCostMs = 0;
         PostStampedCount = -1;
     }

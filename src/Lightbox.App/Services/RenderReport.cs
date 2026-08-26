@@ -79,7 +79,12 @@ internal static class RenderReport
         (int Frames, int Flattens)? Pinned = null,
         (long Bytes, long Budget)? TileStore = null,
         Rendering.StrokeToScreen.Stats? StrokeWait = null,
-        (int Passes, double TotalMs, double WorstMs)? LivePost = null,
+        (int Passes, double TotalMs, double WorstMs,
+         int Waits, double WaitTotalMs, double WaitWorstMs,
+         long Pixels, long MarkPixels,
+         int WorstW, int WorstH, long WorstMarkPixels, int WorstTail)? LivePost = null,
+        (int Deferrals, int ByPresent, int ByTimer, int Released,
+         double HeldTotalMs, double HeldWorstMs)? Dam = null,
         Rendering.PublishTally? PublishesByCaller = null);
 
     /// <summary>
@@ -959,6 +964,22 @@ internal static class RenderReport
         sb.AppendLine($"  stamping the dabs       mean {s.Stamp.MeanMs,7:0.##} ms   worst {s.Stamp.WorstMs,7:0.##} ms");
         var perPublish = s.Publishes == 0 ? 0 : (double)s.Events / s.Publishes;
         sb.AppendLine($"publishes carrying ink    {s.Publishes}  ({perPublish:0.#} events per publish)");
+        if (facts.Dam is { Deferrals: > 0 } dam)
+        {
+            var held = dam.Released == 0 ? 0 : dam.HeldTotalMs / dam.Released;
+            sb.AppendLine(
+                $"  publish held back       {dam.Deferrals} times   mean {held:0.##} ms   worst {dam.HeldWorstMs:0.##} ms");
+            sb.AppendLine(
+                $"    released by the screen  {dam.ByPresent}      by the 250 ms backstop  {dam.ByTimer}");
+            if (dam.ByTimer > dam.ByPresent)
+            {
+                sb.AppendLine("  !! the BACKSTOP is pacing the canvas, not the screen. That timer");
+                sb.AppendLine("     exists for a window that has stopped presenting at all, so a");
+                sb.AppendLine("     drawing canvas reaching it means the present notification is");
+                sb.AppendLine("     not arriving or not matching the frame it waited on — and the");
+                sb.AppendLine("     update rate is then a constant nobody chose as one.");
+            }
+        }
         if (s.Publishes > 0)
         {
             sb.AppendLine($"  event -> publish        mean {s.WaitToPublish.MeanMs,7:0.##} ms   worst {s.WaitToPublish.WorstMs,7:0.##} ms   (oldest event carried)");
@@ -997,6 +1018,65 @@ internal static class RenderReport
         {
             var mean = wet.TotalMs / wet.Passes;
             sb.AppendLine($"live medium passes        {wet.Passes}   mean {mean:0.##} ms   worst {wet.WorstMs:0.##} ms   (wet brushes only, OFF the UI thread)");
+
+            // B313's follow-up: a pass being cheap is only half the story. It
+            // has to actually RUN, and it has to be reading a band rather than
+            // the whole mark. These two separate the faults — a long wait with
+            // a small rect is the pass being starved at Background priority
+            // (B312's lesson in another file), a short wait with a mark-sized
+            // rect is the band never engaging.
+            if (wet.Waits > 0)
+            {
+                var waitMean = wet.WaitTotalMs / wet.Waits;
+                sb.AppendLine(
+                    $"  queued -> started       mean {waitMean:0.##} ms   worst {wet.WaitWorstMs:0.##} ms   over {wet.Waits} passes");
+                if (waitMean > 20)
+                {
+                    sb.AppendLine("  !! a pass spends longer WAITING to start than running. It is");
+                    sb.AppendLine("     posted at Background priority, which Avalonia runs below");
+                    sb.AppendLine("     Input — so a moving pen outranks it for as long as the hand");
+                    sb.AppendLine("     keeps moving, which is the whole of a long stroke.");
+                }
+            }
+
+            if (wet.MarkPixels > 0)
+            {
+                var share = 100.0 * wet.Pixels / wet.MarkPixels;
+                sb.AppendLine(
+                    $"  of the mark re-processed  {share:0.#}%   (band-local passes read only what moved)");
+                if (share > 50)
+                {
+                    sb.AppendLine("  !! the pass is reading most of the mark every time, so it grows");
+                    sb.AppendLine("     with the stroke. Either the band is not engaging or something");
+                    sb.AppendLine("     is forcing whole-mark passes — a brush setting changing");
+                    sb.AppendLine("     mid-stroke does that deliberately.");
+                }
+            }
+
+            // The slowest pass's own geometry. A mean band beside a worst cost
+            // cannot say whether the expensive pass was expensive because it
+            // was big — these two lines can, and they disagree loudly when the
+            // cost is somewhere other than the area.
+            if (wet.WorstW > 0 && wet.WorstMarkPixels > 0)
+            {
+                var worstArea = (long)wet.WorstW * wet.WorstH;
+                var worstShare = 100.0 * worstArea / wet.WorstMarkPixels;
+                sb.AppendLine(
+                    $"  the slowest pass ran over {wet.WorstW}x{wet.WorstH} px — {worstShare:0.#}% of the mark");
+                if (worstShare < 10 && wet.WorstMs > 100)
+                {
+                    sb.AppendLine("  !! that pass was slow WITHOUT being big, so its cost is not the");
+                    sb.AppendLine("     area it covered. Look at what the pass does per pixel, or at");
+                    sb.AppendLine("     what the worker was competing with for a core.");
+                }
+            }
+
+            if (wet.WorstTail > 0)
+            {
+                sb.AppendLine(
+                    $"  longest provisional tail  {wet.WorstTail} dabs re-stamped per event");
+            }
+
             if (mean > 33)
             {
                 sb.AppendLine("  !! a pass this slow no longer blocks input, but the simulated look");

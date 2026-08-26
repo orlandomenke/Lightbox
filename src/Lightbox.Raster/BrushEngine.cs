@@ -1367,6 +1367,51 @@ public static class BrushEngine
         && !DrawsAsOneSilhouette(brush);
 
     /// <summary>
+    /// How far outside a band the live post-process has to look for the pixels
+    /// inside it to come out right (B313).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Every effect in this pass is pointwise except one.</b> Granulation is
+    /// a repeat shader under a document-space transform and the paper field
+    /// indexes <c>mod tile</c> from the rect's document corner, so both give the
+    /// same value for a pixel whatever rect it is asked about — measured at
+    /// <b>0/255</b> over a 180 px band against the whole 1182 px mark. The
+    /// footprint ceiling is pointwise too <em>provided the caller carries it</em>:
+    /// rebuilding it inside each rect re-renders the tip's gradients at a
+    /// different device offset and moves a handful of pixels by 2-3/255, which
+    /// the canvas-anchored buffer B293 already carries does not.
+    /// </para>
+    /// <para>
+    /// <b>The wet edge is the exception, and it is a blur.</b> Its rim is the
+    /// silhouette minus a blurred copy of itself, so a band that simply stops
+    /// mid-mark shows the blur a cut edge and invents a rim along it: 25/255 on
+    /// Watercolor (flat), 7/255 on Gouache. Give the pass a skirt it computes
+    /// and then throws away and the rim is derived from real neighbours —
+    /// <b>0/255 from a halo of 4 px</b> on both.
+    /// </para>
+    /// <para>
+    /// The figure is three sigmas of that blur, which is where a Gaussian's
+    /// support has effectively ended, plus a pixel for the rounding. Sigma is
+    /// read from <see cref="ApplyWetEdge"/>'s own rim width rather than
+    /// restated, so a change to one cannot silently outgrow the other.
+    /// </para>
+    /// </remarks>
+    public static int LivePassHalo(BrushSettings brush)
+    {
+        if (brush.WetEdge <= 0) return 0;
+        var sigma = RimWidth(brush) * 0.7;
+        return (int)Math.Ceiling(sigma * 3.0) + 1;
+    }
+
+    /// <summary>
+    /// The wet edge's rim, in document pixels. Capped because past a few dozen
+    /// pixels it stops reading as a wet edge at all.
+    /// </summary>
+    private static double RimWidth(BrushSettings brush) =>
+        Math.Clamp(brush.Size * 0.12, 1.0, 48.0);
+
+    /// <summary>
     /// Whether this brush can lay down more paint than its own footprint allows
     /// — and so whether the ceiling has anything to do.
     /// </summary>
@@ -2496,7 +2541,7 @@ public static class BrushEngine
         // band: past a few dozen pixels it stops reading as a wet edge anyway.
         // The cap is a document width, so the rim keeps the same physical size
         // when the render scale goes up.
-        var width = (float)(Math.Clamp(brush.Size * 0.12, 1.0, 48.0) * outputScale);
+        var width = (float)(RimWidth(brush) * outputScale);
         // Written into below, from the mask — nothing is drawn here first. It
         // used to receive the raw stroke image on creation, a full-region draw
         // the Clear before the carve then threw away entirely (B177).
