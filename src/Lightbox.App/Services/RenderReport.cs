@@ -81,7 +81,8 @@ internal static class RenderReport
         Rendering.StrokeToScreen.Stats? StrokeWait = null,
         (int Passes, double TotalMs, double WorstMs,
          int Waits, double WaitTotalMs, double WaitWorstMs,
-         long Pixels, long MarkPixels)? LivePost = null,
+         long Pixels, long MarkPixels,
+         int WorstW, int WorstH, long WorstMarkPixels, int WorstTail)? LivePost = null,
         Rendering.PublishTally? PublishesByCaller = null);
 
     /// <summary>
@@ -1032,6 +1033,30 @@ internal static class RenderReport
                     sb.AppendLine("     is forcing whole-mark passes — a brush setting changing");
                     sb.AppendLine("     mid-stroke does that deliberately.");
                 }
+            }
+
+            // The slowest pass's own geometry. A mean band beside a worst cost
+            // cannot say whether the expensive pass was expensive because it
+            // was big — these two lines can, and they disagree loudly when the
+            // cost is somewhere other than the area.
+            if (wet.WorstW > 0 && wet.WorstMarkPixels > 0)
+            {
+                var worstArea = (long)wet.WorstW * wet.WorstH;
+                var worstShare = 100.0 * worstArea / wet.WorstMarkPixels;
+                sb.AppendLine(
+                    $"  the slowest pass ran over {wet.WorstW}x{wet.WorstH} px — {worstShare:0.#}% of the mark");
+                if (worstShare < 10 && wet.WorstMs > 100)
+                {
+                    sb.AppendLine("  !! that pass was slow WITHOUT being big, so its cost is not the");
+                    sb.AppendLine("     area it covered. Look at what the pass does per pixel, or at");
+                    sb.AppendLine("     what the worker was competing with for a core.");
+                }
+            }
+
+            if (wet.WorstTail > 0)
+            {
+                sb.AppendLine(
+                    $"  longest provisional tail  {wet.WorstTail} dabs re-stamped per event");
             }
 
             if (mean > 33)

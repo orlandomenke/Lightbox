@@ -1208,6 +1208,41 @@ public partial class MainViewModel
     /// <summary>When the outstanding pass was posted, for the wait above.</summary>
     private long _postQueuedAt;
 
+    /// <summary>The mark's area at the pass currently in flight.</summary>
+    private long _passMarkPixels;
+
+    /// <summary>
+    /// The band the slowest pass ran over, and the mark it was part of.
+    /// </summary>
+    /// <remarks>
+    /// <b>An average band says nothing about the pass an artist feels.</b> The
+    /// report shows a band averaging 3.2% of the mark beside a worst pass of
+    /// 393 ms, and those two cannot both be typical. Recording the geometry of
+    /// the <em>slowest</em> pass rather than the largest answers the question
+    /// that matters: was it slow because it was big, or slow for some other
+    /// reason entirely.
+    /// </remarks>
+    internal int LivePostWorstMsWidth { get; private set; }
+
+    /// <summary>Height of that same band.</summary>
+    internal int LivePostWorstMsHeight { get; private set; }
+
+    /// <summary>The mark's area when that slowest pass ran.</summary>
+    internal long LivePostWorstMsMarkPixels { get; private set; }
+
+    /// <summary>
+    /// The longest the stroke's provisional tail got — dabs re-stamped every
+    /// pointer event because their positions have not settled.
+    /// </summary>
+    /// <remarks>
+    /// The suspected reason a FAST stroke costs more than a slow one: the tail
+    /// is what stabilisation has not finished moving, so the faster the hand,
+    /// the more of the mark is still provisional, and the more of it every pass
+    /// has to redo. If this stays small while passes are slow, that theory is
+    /// dead and the cost is somewhere else.
+    /// </remarks>
+    internal int LiveWorstProvisionalTail { get; private set; }
+
     /// <summary>
     /// The priority the live post-process is queued at (B313).
     /// </summary>
@@ -2161,6 +2196,12 @@ public partial class MainViewModel
         if (_live.TailRegion is { } lentNow) touched = touched is { } g ? SKRectI.Union(g, lentNow) : lentNow;
         if (touched is { } dirty) NotePostProcessDirty(dirty);
 
+        // How much of the mark is still on loan. Suspected to grow with pen
+        // speed, which would make a fast stroke cost more per event than a slow
+        // one for reasons nothing else in the report explains.
+        var provisional = dabs.Count - _live.StableDabs;
+        if (provisional > LiveWorstProvisionalTail) LiveWorstProvisionalTail = provisional;
+
         // For a brush whose only post-process is the ceiling, apply it here and
         // skip the worker entirely (B293).
         if (carriesFootprint && CapIsTheWholePass(live.Brush) && _live.Scratch is { } inkSource)
@@ -2401,6 +2442,7 @@ public partial class MainViewModel
         if (markPixels > LivePostWorstMarkPixels) LivePostWorstMarkPixels = markPixels;
         LivePostPixels += passPixels;
         LivePostMarkPixels += markPixels;
+        _passMarkPixels = markPixels;
 
         // Taken now, restored if the pass never runs — a region dropped here is
         // a patch of preview nothing would ever come back to. A whole-mark pass
@@ -2561,7 +2603,16 @@ public partial class MainViewModel
             : rect;
         LivePostPasses++;
         LivePostTotalMs += costMs;
-        if (costMs > LivePostWorstMs) LivePostWorstMs = costMs;
+        if (costMs > LivePostWorstMs)
+        {
+            LivePostWorstMs = costMs;
+            // The geometry of the SLOWEST pass, not of the largest: those are
+            // the same question only if cost follows area, and whether it does
+            // is exactly what is in doubt.
+            LivePostWorstMsWidth = rect.Width;
+            LivePostWorstMsHeight = rect.Height;
+            LivePostWorstMsMarkPixels = _passMarkPixels;
+        }
 
         _publish.MarkDirty(rect);
         // Through the coalescing path, not straight to PublishSnapshot. A

@@ -195,7 +195,9 @@ public class StrokeToScreenTests(ITestOutputHelper output) : IDisposable
             // cases are about the pass-cost line, and B313's wait and band
             // counters have their own tests. Zeroes there read as "not
             // measured", which is what the report prints them as.
-            LivePost: livePost is { } p ? (p.Passes, p.TotalMs, p.WorstMs, 0, 0.0, 0.0, 0L, 0L) : null))!;
+            LivePost: livePost is { } p
+                ? (p.Passes, p.TotalMs, p.WorstMs, 0, 0.0, 0.0, 0L, 0L, 0, 0, 0L, 0)
+                : null))!;
         var text = File.ReadAllText(path);
         var start = text.IndexOf("-- pen to screen", StringComparison.Ordinal);
         Assert.True(start >= 0, $"the pen-to-screen section is missing:\n{text}");
