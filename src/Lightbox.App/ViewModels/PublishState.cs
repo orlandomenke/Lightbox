@@ -120,6 +120,23 @@ sealed class PublishState
     /// </summary>
     internal int FramesReused { get; set; }
 
+    /// <summary>
+    /// Frames allowed in flight before a publish is held. One is the shipped
+    /// behaviour; two lets the pipeline run at its own depth.
+    /// </summary>
+    /// <remarks>
+    /// <b>Being measured rather than chosen, which is why it is an environment
+    /// variable.</b> The composition path was settled the same way and the A/B
+    /// was worth more than the reasoning on either side of it. Depth is the
+    /// only thing capping the update rate now that the dam's own overhead is
+    /// 0.15 ms, and the risk it carries is the one B189 named: a frame composed
+    /// and then replaced before anything drew it. `replaced before drawing` in
+    /// the report is where that shows, and a rise there is the cost of this.
+    /// </remarks>
+    internal static int InFlightDepth { get; } =
+        int.TryParse(Environment.GetEnvironmentVariable("LIGHTBOX_INFLIGHT"), out var d)
+        && d >= 1 && d <= 4 ? d : 1;
+
     private long _sequence;
 
     /// <summary>The number stamped on the next snapshot, so the canvas can order them.</summary>
@@ -199,7 +216,20 @@ sealed class PublishState
         // events, which is precisely when the pacing is deciding.
         AdoptRenderedSeq();
         if (PresentedSeq == 0) return false;
-        if (_sequence <= PresentedSeq) return false;
+        // How many frames may be in flight at once. One is what B189 chose when
+        // a publish cost ~27 ms of UI thread and half of them were replaced
+        // before anything drew them — waste worth preventing. It also caps the
+        // update rate at 1 / (publish -> drawn) however fast everything else
+        // gets, and the owner's capture of 2026-08-26 shows exactly that: a
+        // cycle of 35.44 ms against a `publish -> drawn` of 31.19, with the
+        // dam's own overhead down to 0.15 ms and a pen delivering every 5.06.
+        // Twenty-eight publishes a second from a tablet offering two hundred.
+        //
+        // The pipeline is ALREADY about two vsyncs deep in latency, so a depth
+        // of two costs no more waiting — it is what is being paid for anyway —
+        // and lets a publish go out each vsync instead of each round trip. A
+        // build now costs 1.25 ms rather than the 27 that made waste expensive.
+        if (_sequence - PresentedSeq < InFlightDepth) return false;
         return (System.Diagnostics.Stopwatch.GetTimestamp() - LastPublishTicks)
             * 1000.0 / System.Diagnostics.Stopwatch.Frequency < damMs;
     }
