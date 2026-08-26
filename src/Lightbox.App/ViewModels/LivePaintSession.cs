@@ -282,7 +282,103 @@ sealed class LivePaintSession
     /// would ever revisit.
     /// </para>
     /// </remarks>
-    internal SKRectI? PostPending { get; set; }
+    internal List<SKRectI> PostPending { get; } = [];
+
+    /// <summary>
+    /// How many separate pending regions are kept before two are merged (B318).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>One rectangle was the bug.</b> A union of rects is a bounding box, so
+    /// a fast stroke that sweeps right and hooks back left produced a box
+    /// spanning both legs even though the ink changed along a thin ribbon. The
+    /// owner's capture of 2026-08-26 caught it: a band averaging <b>1.4%</b> of
+    /// the mark, and a slowest pass over <b>2638×1323 px — 55.3% of it</b>,
+    /// forty times the average. Band-local stopped being band-local exactly on
+    /// the strokes that needed it.
+    /// </para>
+    /// <para>
+    /// Small on purpose. Each rect costs a crop, a pass and a paste, so a long
+    /// list would trade one oversized pass for a hundred tiny ones; and the
+    /// shapes being covered are a few strokes of travel, not an arbitrary
+    /// region. Eight holds a zig-zag without pretending to be a region
+    /// rasteriser.
+    /// </para>
+    /// </remarks>
+    private const int MaxPendingRegions = 8;
+
+    /// <summary>
+    /// Add a region the stamping has touched, merging only where merging is
+    /// nearly free (B318).
+    /// </summary>
+    /// <remarks>
+    /// Two rects are merged when their union costs little more than keeping
+    /// them apart — overlapping or touching bands, which is the common case
+    /// along a straight stroke. A rect that would balloon the union is kept
+    /// separate instead, which is the whole point: the pass should follow the
+    /// ink, not the diagonal of the pen's travel.
+    /// </remarks>
+    internal void AddPending(SKRectI region)
+    {
+        if (region.Width <= 0 || region.Height <= 0) return;
+
+        for (var i = 0; i < PostPending.Count; i++)
+        {
+            var merged = UnionRect(PostPending[i], region);
+            if (Area(merged) <= Area(PostPending[i]) + Area(region))
+            {
+                PostPending[i] = merged;
+                Coalesce(i);
+                return;
+            }
+        }
+
+        PostPending.Add(region);
+        if (PostPending.Count > MaxPendingRegions) MergeCheapestPair();
+    }
+
+    /// <summary>
+    /// After growing one rect, absorb any others it now overlaps — otherwise a
+    /// stroke crossing its own path leaves two rects covering the same pixels
+    /// and the pass does that area twice.
+    /// </summary>
+    private void Coalesce(int index)
+    {
+        for (var j = PostPending.Count - 1; j >= 0; j--)
+        {
+            if (j == index) continue;
+            var merged = UnionRect(PostPending[index], PostPending[j]);
+            if (Area(merged) > Area(PostPending[index]) + Area(PostPending[j])) continue;
+            PostPending[index] = merged;
+            PostPending.RemoveAt(j);
+            if (j < index) index--;
+        }
+    }
+
+    /// <summary>Merge the two whose union wastes the least, to stay under the cap.</summary>
+    private void MergeCheapestPair()
+    {
+        var bestI = 0;
+        var bestJ = 1;
+        var bestWaste = long.MaxValue;
+        for (var i = 0; i < PostPending.Count; i++)
+        {
+            for (var j = i + 1; j < PostPending.Count; j++)
+            {
+                var waste = Area(UnionRect(PostPending[i], PostPending[j]))
+                            - Area(PostPending[i]) - Area(PostPending[j]);
+                if (waste >= bestWaste) continue;
+                bestWaste = waste;
+                bestI = i;
+                bestJ = j;
+            }
+        }
+
+        PostPending[bestI] = UnionRect(PostPending[bestI], PostPending[bestJ]);
+        PostPending.RemoveAt(bestJ);
+    }
+
+    private static long Area(SKRectI r) => (long)r.Width * r.Height;
 
     /// <summary>
     /// The brush the last pass ran with, serialized (B313).
@@ -315,7 +411,7 @@ sealed class LivePaintSession
         // mark rather than a band — which is exactly what a null PostUsed means
         // to StartLivePostProcess (B313).
         PostUsed = null;
-        PostPending = null;
+        PostPending.Clear();
     }
 
     /// <summary>Cost of the last pass, milliseconds — reported by the performance panel.</summary>
@@ -441,7 +537,7 @@ sealed class LivePaintSession
             ClearRegion(canvas, PostUsed);
         }
         PostUsed = null;
-        PostPending = null;
+        PostPending.Clear();
         PostBrushStamp = null;
         PostCostMs = 0;
         PostStampedCount = -1;

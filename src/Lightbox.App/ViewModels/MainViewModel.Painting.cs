@@ -1302,15 +1302,13 @@ public partial class MainViewModel
     /// a canvas resized while the worker ran — has to hand the region back, or
     /// the preview keeps a patch that no later pass has any reason to revisit.
     /// </remarks>
-    private void NotePostProcessLost(SKRectI? region)
+    private void NotePostProcessLost(IReadOnlyList<SKRectI>? regions)
     {
-        if (region is { } lost) NotePostProcessDirty(lost);
+        if (regions is null) return;
+        foreach (var lost in regions) _live.AddPending(lost);
     }
 
-    private void NotePostProcessDirty(SKRectI region) =>
-        _live.PostPending = _live.PostPending is { } prior
-            ? LivePaintSession.UnionRect(prior, region)
-            : region;
+    private void NotePostProcessDirty(SKRectI region) => _live.AddPending(region);
 
     private static bool NeedsLivePostProcess(BrushSettings brush) =>
         brush.Medium.Kind != MediumKind.None
@@ -2400,62 +2398,76 @@ public partial class MainViewModel
             // ones and disagree with the commit.
             && _live.PostBrushStamp == stamp;
 
-        var rect = mark;
+        // B318: several regions rather than one, because a union of rects is a
+        // bounding box and a fast stroke that doubles back produced a box
+        // spanning both legs — 55.3% of the mark on a band averaging 1.4%.
+        var rects = new List<SKRectI>();
         if (bandLocal)
         {
-            if (_live.PostPending is not { } pending)
-            {
-                // The dabs have not moved since the last pass took its copy.
-                _live.PostQueued = false;
-                return;
-            }
-
             var halo = BrushEngine.LivePassHalo(whole.Brush);
-            rect = SKRectI.Intersect(
-                new SKRectI(
-                    pending.Left - halo, pending.Top - halo,
-                    pending.Right + halo, pending.Bottom + halo),
-                mark);
-            if (rect.Width <= 0 || rect.Height <= 0)
+            foreach (var pending in _live.PostPending)
             {
-                _live.PostQueued = false;
-                return;
+                var grown = SKRectI.Intersect(
+                    new SKRectI(
+                        pending.Left - halo, pending.Top - halo,
+                        pending.Right + halo, pending.Bottom + halo),
+                    mark);
+                if (grown.Width > 0 && grown.Height > 0) rects.Add(grown);
             }
         }
-
-        if (CopyRegion(dabs, rect) is not { } dabsCrop)
+        else
         {
+            rects.Add(mark);
+        }
+
+        if (rects.Count == 0)
+        {
+            // The dabs have not moved since the last pass took its copies.
             _live.PostQueued = false;
             return;
         }
 
-        // Recorded here rather than at the finish, because what B313 changes is
-        // how much of the mark a pass READS — and it reads it whether or not the
-        // result survives long enough to be pasted.
-        // Tracked independently rather than as a pair: the biggest pass and the
-        // biggest mark do not have to be the same event, and pinning the mark to
-        // whichever pass happened to be largest would report the mark as it was
-        // three events in — which is the shape a first, whole-mark pass has.
-        var passPixels = (long)rect.Width * rect.Height;
-        var markPixels = (long)mark.Width * mark.Height;
-        if (passPixels > LivePostWorstPixels) LivePostWorstPixels = passPixels;
-        if (markPixels > LivePostWorstMarkPixels) LivePostWorstMarkPixels = markPixels;
-        LivePostPixels += passPixels;
-        LivePostMarkPixels += markPixels;
-        _passMarkPixels = markPixels;
-
         // Taken now, restored if the pass never runs — a region dropped here is
         // a patch of preview nothing would ever come back to. A whole-mark pass
-        // restores the whole mark rather than the band that provoked it,
+        // restores the whole mark rather than the bands that provoked it,
         // because that is what its failure leaves unprocessed.
-        var restoreIfLost = bandLocal ? _live.PostPending : mark;
-        _live.PostPending = null;
+        var restoreIfLost = bandLocal ? new List<SKRectI>(_live.PostPending) : [mark];
+        _live.PostPending.Clear();
+
+        var crops = new SKBitmap?[rects.Count];
+        var prints = new SKBitmap?[rects.Count];
+        var caps = BrushEngine.NeedsFootprintCap(whole.Brush);
+        var markPixels = (long)mark.Width * mark.Height;
+        for (var i = 0; i < rects.Count; i++)
+        {
+            crops[i] = CopyRegion(dabs, rects[i]);
+            // B293: the footprint the live path has been accumulating, cropped
+            // on the thread that owns it, exactly as the dabs are. Absent for a
+            // brush that does not cap, in which case the engine rebuilds and the
+            // only cost is the one that was always there.
+            if (caps && _live.Coverage is { } coverage) prints[i] = CopyRegion(coverage, rects[i]);
+
+            // Recorded here rather than at the finish, because what B313 changes
+            // is how much of the mark a pass READS — and it reads it whether or
+            // not the result survives long enough to be pasted. The pass and the
+            // mark are tracked independently: the biggest of each need not be
+            // the same event, and pinning the mark to whichever pass happened to
+            // be largest would report it as it was three events in.
+            var passPixels = (long)rects[i].Width * rects[i].Height;
+            if (passPixels > LivePostWorstPixels) LivePostWorstPixels = passPixels;
+            LivePostPixels += passPixels;
+            LivePostMarkPixels += markPixels;
+        }
+
+        if (markPixels > LivePostWorstMarkPixels) LivePostWorstMarkPixels = markPixels;
+        _passMarkPixels = markPixels;
 
         // targetPixels is the committed layer: the medium re-wets what is
         // already there, exactly as it will on commit. Copied because the
         // frame cache owns the original and may evict it mid-pass. Only a
         // medium reads it, and copying a mark-sized region every pass for a
-        // brush that never looks at it was pure cost (B313).
+        // brush that never looks at it was pure cost (B313). A medium never
+        // takes the band route, so there is exactly one rect here.
         SKBitmap? beneathCrop = null;
         var beneathOrigin = default(SKPointI);
         if (whole.Brush.Medium.Kind != MediumKind.None
@@ -2463,20 +2475,9 @@ public partial class MainViewModel
             && _cache.Get(frame, Scene.Width, Scene.Height) is { } beneath)
         {
             var needed = Lightbox.Raster.Media.MediumSimulator.ExistingRegionNeeded(
-                rect, Scene.Width, Scene.Height);
+                rects[0], Scene.Width, Scene.Height);
             beneathCrop = CopyRegion(beneath, needed);
             if (beneathCrop is not null) beneathOrigin = needed.Location;
-        }
-
-        // B293: the footprint the live path has been accumulating, cropped on the
-        // thread that owns it, exactly as the dabs and the layer beneath are.
-        // Absent for a brush that does not cap, and absent if the buffer is not
-        // the size the pass wants - in which case the engine rebuilds and the
-        // only cost is the one that was always there.
-        SKBitmap? footprintCrop = null;
-        if (BrushEngine.NeedsFootprintCap(whole.Brush) && _live.Coverage is { } coverage)
-        {
-            footprintCrop = CopyRegion(coverage, rect);
         }
 
         var generation = _live.PostGeneration;
@@ -2494,24 +2495,30 @@ public partial class MainViewModel
             // idempotent, so that costs nothing.
             _live.PostQueued = false;
             NotePostProcessLost(restoreIfLost);
-            dabsCrop.Dispose();
+            foreach (var crop in crops) crop?.Dispose();
+            foreach (var print in prints) print?.Dispose();
             beneathCrop?.Dispose();
-            footprintCrop?.Dispose();
         }
         return;
 
         void Work()
         {
-            SKImage? processed = null;
+            var processed = new SKImage?[rects.Count];
             var started = System.Diagnostics.Stopwatch.GetTimestamp();
             try
             {
                 // The dabs are already stamped, so the pass runs the effects
                 // over them rather than re-stamping every dab — the cost stops
-                // growing with the length of the stroke.
-                processed = BrushEngine.PostProcessRegion(
-                    dabsCrop, whole, rect, beneathCrop, rect.Location, beneathOrigin,
-                    footprintCrop);
+                // growing with the length of the stroke. One region at a time,
+                // because several thin ribbons are what a doubling-back stroke
+                // actually changed and the box around them is not (B318).
+                for (var i = 0; i < rects.Count; i++)
+                {
+                    if (crops[i] is not { } crop) continue;
+                    processed[i] = BrushEngine.PostProcessRegion(
+                        crop, whole, rects[i], beneathCrop, rects[i].Location, beneathOrigin,
+                        prints[i]);
+                }
             }
             catch
             {
@@ -2520,7 +2527,8 @@ public partial class MainViewModel
             }
             finally
             {
-                dabsCrop.Dispose();
+                foreach (var crop in crops) crop?.Dispose();
+                foreach (var print in prints) print?.Dispose();
                 beneathCrop?.Dispose();
             }
             var costMs = (System.Diagnostics.Stopwatch.GetTimestamp() - started)
@@ -2530,7 +2538,7 @@ public partial class MainViewModel
             // single-flight flag and stop the next pass from ever starting.
             Avalonia.Threading.Dispatcher.UIThread.Post(
                 () => FinishLivePostProcess(
-                    processed, rect, count, generation, costMs, info, stamp, restoreIfLost),
+                    processed, rects, count, generation, costMs, info, stamp, restoreIfLost),
                 Avalonia.Threading.DispatcherPriority.Input);
         }
     }
@@ -2540,12 +2548,43 @@ public partial class MainViewModel
     /// stroke it belongs to is already over.
     /// </summary>
     private void FinishLivePostProcess(
-        SKImage? processed, SKRectI rect, int count, int generation, double costMs,
-        SKImageInfo computedAgainst, string brushStamp, SKRectI? restoreIfLost)
+        SKImage?[] processed, IReadOnlyList<SKRectI> rects, int count, int generation, double costMs,
+        SKImageInfo computedAgainst, string brushStamp, IReadOnlyList<SKRectI>? restoreIfLost)
     {
         _live.PostQueued = false;
-        using var image = processed;
-        if (image is null)
+        var images = processed;
+        try
+        {
+            FinishLivePostProcessCore(
+                images, rects, count, generation, costMs, computedAgainst, brushStamp, restoreIfLost);
+        }
+        finally
+        {
+            foreach (var image in images) image?.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// The body of the finish, with disposal lifted out (B318).
+    /// </summary>
+    /// <remarks>
+    /// A pass now returns one image per pending region, and every early return
+    /// below has to release all of them. A <c>using</c> per image cannot express
+    /// that over an array, and a <c>finally</c> around a body that returns in
+    /// five places is the honest shape — the alternative is five copies of the
+    /// same loop, four of which would eventually be missed.
+    /// </remarks>
+    private void FinishLivePostProcessCore(
+        SKImage?[] processed, IReadOnlyList<SKRectI> rects, int count, int generation, double costMs,
+        SKImageInfo computedAgainst, string brushStamp, IReadOnlyList<SKRectI>? restoreIfLost)
+    {
+        var landed = false;
+        foreach (var image in processed)
+        {
+            if (image is not null) landed = true;
+        }
+
+        if (!landed)
         {
             NotePostProcessLost(restoreIfLost);
             return;
@@ -2591,16 +2630,32 @@ public partial class MainViewModel
             // pixel covered twice is written twice with the same value rather
             // than having the effect applied to its own output.
             using var replace = new SKPaint { BlendMode = SKBlendMode.Src };
-            canvas.DrawImage(image, rect.Left, rect.Top, replace);
+            for (var i = 0; i < processed.Length && i < rects.Count; i++)
+            {
+                if (processed[i] is not { } image) continue;
+                canvas.DrawImage(image, rects[i].Left, rects[i].Top, replace);
+            }
+
             canvas.Flush();
         }
 
         _live.PostCostMs = costMs;
         _live.PostStampedCount = count;
         _live.PostBrushStamp = brushStamp;
-        _live.PostUsed = _live.PostUsed is { } already
-            ? LivePaintSession.UnionRect(already, rect)
-            : rect;
+
+        var widest = 0;
+        var tallest = 0;
+        for (var i = 0; i < processed.Length && i < rects.Count; i++)
+        {
+            if (processed[i] is null) continue;
+            _live.PostUsed = _live.PostUsed is { } already
+                ? LivePaintSession.UnionRect(already, rects[i])
+                : rects[i];
+            _publish.MarkDirty(rects[i]);
+            if (rects[i].Width > widest) widest = rects[i].Width;
+            if (rects[i].Height > tallest) tallest = rects[i].Height;
+        }
+
         LivePostPasses++;
         LivePostTotalMs += costMs;
         if (costMs > LivePostWorstMs)
@@ -2608,13 +2663,14 @@ public partial class MainViewModel
             LivePostWorstMs = costMs;
             // The geometry of the SLOWEST pass, not of the largest: those are
             // the same question only if cost follows area, and whether it does
-            // is exactly what is in doubt.
-            LivePostWorstMsWidth = rect.Width;
-            LivePostWorstMsHeight = rect.Height;
+            // is exactly what is in doubt. With several regions in one pass this
+            // is the biggest of them, which is the one that would explain a slow
+            // pass if area were the reason.
+            LivePostWorstMsWidth = widest;
+            LivePostWorstMsHeight = tallest;
             LivePostWorstMsMarkPixels = _passMarkPixels;
         }
 
-        _publish.MarkDirty(rect);
         // Through the coalescing path, not straight to PublishSnapshot. A
         // direct publish here put an extra frame on the wire for every pass on
         // top of the one the pointer event had already queued, and publishing
