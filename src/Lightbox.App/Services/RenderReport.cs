@@ -1024,8 +1024,32 @@ internal static class RenderReport
                     $"    compositing it        mean {ph.ComposeMs / n,7:0.##} ms   (the CPU blend, on this thread)");
                 sb.AppendLine(
                     $"    handing it over       mean {ph.HandoffMs / n,7:0.##} ms   (snapshot swap and retire)");
+                // Derived rather than measured, so the four ALWAYS sum to the
+                // whole and a cost cannot hide between two stamps. The first
+                // version of this split printed three numbers adding to 2.52 ms
+                // of a 22.63 ms build and said nothing about the other 20 —
+                // which was the frame capture, recording from inside the window
+                // that was timing it.
+                var rest = comp.TotalMs - ph.DescribeMs - ph.ComposeMs - ph.HandoffMs;
+                sb.AppendLine(
+                    $"    everything else       mean {rest / n,7:0.##} ms   (whatever the three above do not cover)");
                 var describe = ph.DescribeMs / Math.Max(1e-9, comp.TotalMs);
                 var compose = ph.ComposeMs / Math.Max(1e-9, comp.TotalMs);
+                var other = rest / Math.Max(1e-9, comp.TotalMs);
+                if (other >= 0.5)
+                {
+                    sb.AppendLine(
+                        $"  >> {other * 100:0}% of the build is in NEITHER describing, compositing nor");
+                    sb.AppendLine(
+                        "     handing over. Something between those steps is the cost, and no");
+                    sb.AppendLine(
+                        "     fix aimed at any of the three would touch it. Split it further");
+                    sb.AppendLine(
+                        "     before acting — the phases here exist because the single number");
+                    sb.AppendLine(
+                        "     above it stopped naming its own cause.");
+                }
+                else
                 if (compose >= 0.5)
                 {
                     sb.AppendLine(

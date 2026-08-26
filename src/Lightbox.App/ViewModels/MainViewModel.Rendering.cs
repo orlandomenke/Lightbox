@@ -897,17 +897,6 @@ public partial class MainViewModel
         Performance.RecordPublish(sw.Elapsed.TotalMilliseconds);
         _publish.LastPublishClip = usedClip;
         _publish.LastPublished = fingerprint;
-        // Off unless somebody armed it from the Help menu, and a no-op in one
-        // branch when they have not. Placed here rather than at the handoff so
-        // the buffers recorded are the ones this composite actually read.
-        if (Capture.Armed)
-        {
-            Capture.Note(
-                image, _live.Scratch, _live.PostScratch,
-                $"route {plan.Route} clip {usedClip} dirty {dirty} "
-                + $"points {_strokeBuilder.Current?.Points.Count ?? 0} "
-                + $"passRendered {_live.PostStampedCount} passes {LivePostPasses}");
-        }
         // Everything from here is the handoff: the snapshot swap, the retired
         // images being disposed, and the invalidate. Timed apart from the
         // composite above because one number for both is what sent B156 after
@@ -959,6 +948,21 @@ public partial class MainViewModel
             BuildHandoffMs += (System.Diagnostics.Stopwatch.GetTimestamp() - handoffFrom)
                               * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
             NoteComposeCost();
+            // AFTER the build is timed, and that is not tidiness. Recording
+            // costs three scaled blits of document-sized bitmaps, and inside
+            // the window it added ~20 ms to a 22.63 ms "building each frame"
+            // on the owner's machine — an instrument that made the thing it
+            // was measuring look four times worse than it is, on 1,279 of
+            // 1,337 publishes. The buffers are unchanged by the handoff, so
+            // recording here records exactly what the composite read.
+            if (Capture.Armed)
+            {
+                Capture.Note(
+                    image, _live.Scratch, _live.PostScratch,
+                    $"route {plan.Route} clip {usedClip} dirty {dirty} "
+                    + $"points {_strokeBuilder.Current?.Points.Count ?? 0} "
+                    + $"passRendered {_live.PostStampedCount} passes {LivePostPasses}");
+            }
             handler(snapshot);
         }
         else
