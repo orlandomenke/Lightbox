@@ -52,5 +52,10 @@ __pycache__/
 # and a stale sheet is worse than none, because it looks current. Regenerate in a few seconds.
 artifacts/
 
-# Throwaway A/B build output — see the composition commit. Never committed.
+# Throwaway build output from `dotnet build -o <dir>`, used to hand the owner a
+# runnable binary while another copy of the app holds the ordinary bin/ folder
+# open. Committed twice by accident — 107 binaries the first time — so the rule
+# is a shape rather than a list of the names used so far.
 /ab/
+/run/
+/run*/
