@@ -573,6 +573,52 @@ public partial class MainViewModel
     internal bool ComposeMeanIsDistorted => _buildTally.MeanIsDistorted;
 
     /// <summary>
+    /// The whole publish cycle — one publish to the next — so every part of it
+    /// can be measured as a share of something rather than in isolation.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Because the parts stopped adding up.</b> After the dam's release was
+    /// made prompt, the owner's capture read a hold of 28.31 ms and a
+    /// <c>publish -&gt; drawn</c> of 31.92 — which together allow about sixteen
+    /// publishes a second, and the session managed nine and a half. Roughly
+    /// <b>forty-five milliseconds a cycle</b> is in neither, and no number in
+    /// the report went anywhere near it.
+    /// </para>
+    /// <para>
+    /// So the cycle is measured whole and the known parts are subtracted from
+    /// it, the same discipline the frame build's phases were given after three
+    /// of them summed to 2.52 ms of 22.63 and the report said nothing about the
+    /// difference. A remainder that has to be printed cannot be a blind spot.
+    /// </para>
+    /// </remarks>
+    private readonly Services.Tally _cycleTally = new();
+
+    /// <summary>
+    /// From the dam letting go to the publish it released actually running.
+    /// </summary>
+    /// <remarks>
+    /// <b>The prime suspect, and it is there by choice.</b> The announcement now
+    /// jumps ahead of pointer input, but <c>NoteFramePresented</c> releases the
+    /// dam and then goes through <c>RequestSnapshot</c>, whose own post stays at
+    /// Input — deliberately, because B73's ordering says a released publish must
+    /// land behind the events already queued. So the release is prompt and the
+    /// publish it triggers still waits for every queued pointer event, each
+    /// paying its own stamping. Whether that is most of the missing time or a
+    /// slice of it is exactly what this says.
+    /// </remarks>
+    private readonly Services.Tally _releaseToPublishTally = new();
+
+    /// <inheritdoc cref="_cycleTally"/>
+    internal Services.Tally CycleTally => _cycleTally;
+
+    /// <inheritdoc cref="_releaseToPublishTally"/>
+    internal Services.Tally ReleaseToPublishTally => _releaseToPublishTally;
+
+    /// <summary>When the dam last let go, for the split above. Zero when it has not.</summary>
+    internal long DamReleasedAtTicks { get; set; }
+
+    /// <summary>
     /// The three phases inside one frame build, so a slow build names its own
     /// cause instead of being one number (B321's split, one level down).
     /// </summary>
@@ -632,7 +678,21 @@ public partial class MainViewModel
         // built from the current state, which includes whatever the deferral
         // was waiting to show.
         _publish.WaitingForPresent = false;
-        _publish.LastPublishTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+        var publishAt = System.Diagnostics.Stopwatch.GetTimestamp();
+        // Before LastPublishTicks is overwritten, because that field IS the
+        // previous publish until this line moves it.
+        if (_publish.LastPublishTicks != 0)
+        {
+            _cycleTally.Add((publishAt - _publish.LastPublishTicks)
+                            * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
+        }
+        if (DamReleasedAtTicks != 0)
+        {
+            _releaseToPublishTally.Add((publishAt - DamReleasedAtTicks)
+                                       * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
+            DamReleasedAtTicks = 0;
+        }
+        _publish.LastPublishTicks = publishAt;
 
         // Belt to the release at the end of this method: if an exception left
         // holds behind, the next publish must not stack a second set on top.

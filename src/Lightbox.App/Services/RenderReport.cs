@@ -86,6 +86,9 @@ internal static class RenderReport
         (int Deferrals, int ByPresent, int ByTimer, int Released,
          double HeldTotalMs, double HeldWorstMs,
          double LateTotalMs, double LateWorstMs)? Dam = null,
+        (double CycleMedianMs, double CycleMeanMs, long Cycles,
+         double ReleaseToPublishMedianMs, double ReleaseToPublishMeanMs,
+         double EventIntervalMedianMs, long Events)? Cycle = null,
         (int Count, double TotalMs, double WorstMs, double MedianMs, bool MeanDistorted)? Compose = null,
         (double DescribeMs, double ComposeMs, double HandoffMs)? BuildPhases = null,
         Rendering.PublishTally? PublishesByCaller = null);
@@ -1158,6 +1161,32 @@ internal static class RenderReport
         }
         if (s.Publishes > 0)
         {
+            if (facts.Cycle is { Cycles: > 4 } cyc)
+            {
+                // The whole loop, so every part above is a share of something
+                // rather than a number on its own. Median, because the cycle is
+                // a latency distribution and one stall moves its mean without
+                // moving any cycle that actually happened.
+                sb.AppendLine(
+                    $"  publish -> publish      median {cyc.CycleMedianMs,7:0.##} ms   mean {cyc.CycleMeanMs,7:0.##} ms   ({cyc.Cycles} cycles — the whole loop)");
+                sb.AppendLine(
+                    $"    dam let go -> publish  median {cyc.ReleaseToPublishMedianMs,7:0.##} ms   mean {cyc.ReleaseToPublishMeanMs,7:0.##} ms");
+                if (cyc.Events > 4)
+                {
+                    sb.AppendLine(
+                        $"    the pen delivers every  median {cyc.EventIntervalMedianMs,7:0.##} ms   ({cyc.Events} intervals, pauses excluded)");
+                }
+                if (cyc.CycleMedianMs > 0 && cyc.EventIntervalMedianMs > 0)
+                {
+                    var eventsPerCycle = cyc.CycleMedianMs / cyc.EventIntervalMedianMs;
+                    sb.AppendLine(
+                        $"  >> A cycle is {eventsPerCycle:0.#} pen events long. THAT is the chunkiness — how");
+                    sb.AppendLine(
+                        "     much ink arrives at once — and it is set by the cycle rather than by");
+                    sb.AppendLine(
+                        "     any of the latencies above it.");
+                }
+            }
             sb.AppendLine($"  event -> publish        mean {s.WaitToPublish.MeanMs,7:0.##} ms   worst {s.WaitToPublish.WorstMs,7:0.##} ms   (oldest event carried)");
             sb.AppendLine($"    newest event          mean {s.TipToPublish.MeanMs,7:0.##} ms   worst {s.TipToPublish.WorstMs,7:0.##} ms");
         }

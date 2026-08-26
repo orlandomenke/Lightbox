@@ -1307,6 +1307,38 @@ public partial class MainViewModel
         if (region is { } lost) NotePostProcessDirty(lost);
     }
 
+    /// <summary>
+    /// How often the pen actually delivers, so a slow publish cycle can be told
+    /// from a pen that is not asking for one.
+    /// </summary>
+    /// <remarks>
+    /// <b>Context for the cycle, and the thing that stops a wrong conclusion.</b>
+    /// "Nine and a half publishes a second against a cycle that should allow
+    /// sixteen" only means something if events are arriving fast enough to want
+    /// sixteen. If the tablet delivers every 60 ms there is nothing to fix in
+    /// the pipeline and the arithmetic was measuring the hand. Measured on
+    /// arrival, before any filtering, so it is the pen's cadence and not this
+    /// application's opinion of it.
+    /// </remarks>
+    internal Services.Tally EventIntervalTally => _eventIntervalTally;
+
+    private readonly Services.Tally _eventIntervalTally = new();
+    private long _lastEventAt;
+
+    private void NoteEventArrival()
+    {
+        var now = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (_lastEventAt != 0)
+        {
+            var gap = (now - _lastEventAt) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            // A gap this long is the artist pausing, lifting or thinking, not a
+            // delivery interval — counting it would report the pen as slower
+            // than it is and hide the cadence the pipeline has to keep up with.
+            if (gap < 250) _eventIntervalTally.Add(gap);
+        }
+        _lastEventAt = now;
+    }
+
     private void NotePostProcessDirty(SKRectI region) =>
         _live.PostPending = _live.PostPending is { } prior
             ? LivePaintSession.UnionRect(prior, region)
@@ -1693,6 +1725,7 @@ public partial class MainViewModel
         // B189: clocked on arrival so the render report can price the whole
         // pen→screen chain on the artist's machine, not just the stamp.
         var arrived = Rendering.StrokeToScreen.EventArrived();
+        NoteEventArrival();
         foreach (var s in samples)
         {
             var (fx, fy) = _stabilizer.FilterLive(s.X, s.Y);
@@ -2807,6 +2840,9 @@ public partial class MainViewModel
     {
         if (byPresent) DamReleasedByPresent++;
         else DamReleasedByTimer++;
+        // Stamped here rather than at the publish, because the gap between the
+        // two is the thing being measured.
+        DamReleasedAtTicks = System.Diagnostics.Stopwatch.GetTimestamp();
         if (_damBeganAt == 0) return;
         var now = System.Diagnostics.Stopwatch.GetTimestamp();
         var held = (now - _damBeganAt) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
