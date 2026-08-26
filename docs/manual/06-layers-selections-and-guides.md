@@ -513,8 +513,25 @@ the artwork. Holding **Ctrl** for the eyedropper is a borrow rather than a
 choice and leaves the transform alone.
 
 **Scope** decides what moves: this cel, all layers at this frame, a marked cel
-range, or the whole animation. With a selection active, only the strokes inside
-it move — and they move whole, so connected drawings stay connected.
+range, or the whole animation.
+
+**With a selection up, only what is inside it moves.** Draw a box across half a
+line, drag, and half the line goes — the half you boxed. The other half stays
+exactly where it was. It works with any of the selection shapes, and however
+little of a drawing you take: a marquee over one corner of one line moves that
+corner.
+
+**The line is not cut in two to do it**, which is the same answer copying a
+region gives and for the same reason. The record still holds one line, carrying
+your selection as its clip, so nothing about the mark itself changes — a brush
+with scatter or jitter lands its grain exactly where it always did, and a later
+change of mind can still reach the rest of the line. A stroke that sits *wholly*
+inside the selection simply moves, with no clip and nothing left behind.
+
+**An eraser travels with the ink it carved.** If you rub a bite out of a line
+and then move the line, the bite goes too — and if you move only part of it, the
+part left behind keeps its own edge. Rubbed-out paint never comes back, whatever
+you select and wherever you drag it.
 
 **Lines picked with the Arrow can be transformed too**, and then the scope is
 this drawing, because a line lives on one. If you have both an area selected and

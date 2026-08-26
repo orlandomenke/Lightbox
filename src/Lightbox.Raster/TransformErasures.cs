@@ -78,33 +78,162 @@ public static class TransformErasures
     public static IReadOnlyList<int> MovingWithin(
         IReadOnlyList<Stroke> strokes, bool[] mask, int w, int h)
     {
+        var reading = new RegionReading(strokes, mask, w, h);
         var moving = new List<int>();
-        var erasures = StrokePicker.ErasurePositions(strokes);
         for (var i = 0; i < strokes.Count; i++)
         {
-            var stroke = strokes[i];
-            if (IsErasure(stroke) || stroke.Tool == ToolKind.Gradient)
-            {
-                if (TransformOps.MajorityInside(stroke, mask, w, h)) moving.Add(i);
-                continue;
-            }
-
-            var survivors = 0;
-            var inside = 0;
-            foreach (var p in stroke.Points)
-            {
-                if (ErasedAt(strokes, erasures, i, p)) continue;
-                survivors++;
-                var x = (int)Math.Round(p.X);
-                var y = (int)Math.Round(p.Y);
-                if (x >= 0 && x < w && y >= 0 && y < h && mask[y * w + x]) inside++;
-            }
-            // A stroke none of whose ink survives is not on the canvas, so no
-            // region can mean it — moving it would turn absence back into paint.
-            if (survivors == 0) continue;
-            if (inside * 2 >= survivors) moving.Add(i);
+            if (reading.Reaches(i)) moving.Add(i);
         }
         return moving;
+    }
+
+    /// <summary>
+    /// One region asked of one drawing, prepared once.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Prepared rather than asked per stroke</b>, because both questions it
+    /// answers need the same two things: where every erasure sits, and where a
+    /// given stroke sits in the record. Computing either inside a per-stroke
+    /// call makes the walk quadratic in the stroke count — the shape of
+    /// performance fault invariant 6 is about, and easy to introduce here
+    /// because each individual call still looks cheap.
+    /// </para>
+    /// <para>
+    /// <b>The mark is sampled, not the vertices.</b> A stroke records the
+    /// points the pen reported, and the ink between two of them is just as
+    /// much on the canvas as the ink at them. Asking only about vertices meant
+    /// a marquee dropped between two of them found nothing at all — the
+    /// reported "the transform does not trigger" in its purest form, on a
+    /// drawing where the line is plainly under the box. Sampling along each
+    /// segment costs one pass proportional to ink length, which is what
+    /// drawing that ink already costs.
+    /// </para>
+    /// </remarks>
+    public sealed class RegionReading
+    {
+        private readonly IReadOnlyList<Stroke> _strokes;
+        private readonly List<int> _erasures;
+        private readonly Dictionary<Stroke, int> _positions = [];
+        private readonly bool[] _mask;
+        private readonly int _w;
+        private readonly int _h;
+
+        public RegionReading(IReadOnlyList<Stroke> strokes, bool[] mask, int w, int h)
+        {
+            _strokes = strokes;
+            _mask = mask;
+            _w = w;
+            _h = h;
+            _erasures = StrokePicker.ErasurePositions(strokes);
+            for (var i = 0; i < strokes.Count; i++) _positions[strokes[i]] = i;
+        }
+
+        /// <summary>Does the region reach any of this stroke's visible mark?</summary>
+        /// <remarks>
+        /// <b>A gradient is judged by what it covers, not by where its points
+        /// are.</b> Its two points are the ends of the axis the ramp runs
+        /// along, and the ramp colours the whole layer wherever they sit —
+        /// counting them is how a selection drawn straight over a visible
+        /// gradient came back <em>"nothing to transform in this scope"</em>
+        /// with the colour plainly inside the marquee. Restated here rather
+        /// than left to <see cref="Across"/> because a walk along the axis is
+        /// exactly the wrong question, and it looks like the right one.
+        /// </remarks>
+        public bool Reaches(int position)
+        {
+            if (_strokes[position].Tool == ToolKind.Gradient) return Array.IndexOf(_mask, true) >= 0;
+            var (inside, _, any) = Across(position);
+            return any && inside;
+        }
+
+        /// <summary>
+        /// Does the region cut through this stroke — some visible mark inside
+        /// and some outside? Those are the ones a clipping transform splits;
+        /// everything else moves whole.
+        /// </summary>
+        public bool Crosses(Stroke stroke)
+        {
+            if (!_positions.TryGetValue(stroke, out var position)) return false;
+            // A gradient is never split, and moves whole as it always has.
+            //
+            // Not an oversight and not consistency for its own sake: a gradient
+            // has no location. It is a property of the layer — the ramp colours
+            // everything wherever its two axis points sit — so "the part of it
+            // inside the selection" is not something the record can say apart
+            // from the ramp itself. Dividing one by a clip is expressible and
+            // was tried; it turns every region-limited move on a layer with a
+            // background gradient into a shifted rectangle of background, which
+            // is a decision about what a marquee means over a fill rather than
+            // the stroke bug this work was about. B7's own note already made
+            // the gradient the special case here; it stays one.
+            if (stroke.Tool == ToolKind.Gradient) return false;
+            var (inside, outside, _) = Across(position);
+            return inside && outside;
+        }
+
+        /// <summary>
+        /// Whether the stroke's visible mark falls inside the region, outside
+        /// it, or both — and whether it has any visible mark at all.
+        /// </summary>
+        /// <remarks>
+        /// <b>Erasures are read on their raw points</b>, as everywhere else in
+        /// this file: they have no ink of their own to survive. Ink is read on
+        /// the segments between points a later erasure has not taken away
+        /// (B297's rule), and a segment with an erased end is skipped rather
+        /// than half-walked — conservative in the one direction that matters,
+        /// since the failure mode of guessing the other way is rubbed-out
+        /// paint coming back.
+        /// </remarks>
+        private (bool Inside, bool Outside, bool Any) Across(int position)
+        {
+            var stroke = _strokes[position];
+            var raw = IsErasure(stroke) || stroke.Tool == ToolKind.Gradient;
+            bool inside = false, outside = false, any = false;
+            StrokePoint? previous = null;
+            foreach (var point in stroke.Points)
+            {
+                if (!raw && ErasedAt(_strokes, _erasures, position, point))
+                {
+                    previous = null;
+                    continue;
+                }
+                any = true;
+                Note(point.X, point.Y, ref inside, ref outside);
+                if (previous is { } from) Walk(from, point, ref inside, ref outside);
+                previous = point;
+                if (inside && outside) break;   // nothing further can change the answer
+            }
+            return (inside, outside, any);
+        }
+
+        /// <summary>The mark between two recorded points, at about a pixel a step.</summary>
+        private void Walk(StrokePoint from, StrokePoint to, ref bool inside, ref bool outside)
+        {
+            var dx = to.X - from.X;
+            var dy = to.Y - from.Y;
+            var steps = (int)Math.Ceiling(Math.Max(Math.Abs(dx), Math.Abs(dy)));
+            if (steps <= 1) return;
+            for (var i = 1; i < steps; i++)
+            {
+                var t = (double)i / steps;
+                Note(from.X + (dx * t), from.Y + (dy * t), ref inside, ref outside);
+                if (inside && outside) return;
+            }
+        }
+
+        private void Note(double x, double y, ref bool inside, ref bool outside)
+        {
+            if (InsideMask(x, y)) inside = true;
+            else outside = true;
+        }
+
+        private bool InsideMask(double x, double y)
+        {
+            var px = (int)Math.Round(x);
+            var py = (int)Math.Round(y);
+            return px >= 0 && px < _w && py >= 0 && py < _h && _mask[(py * _w) + px];
+        }
     }
 
     /// <summary>
@@ -123,13 +252,47 @@ public static class TransformErasures
     }
 
     /// <summary>
+    /// The two clips a stroke the region cuts through is split into: the part
+    /// that travels and the part left where it was.
+    /// </summary>
+    /// <param name="Moved">
+    /// Clip for the copy that moves — the selection, carried through the same
+    /// transform as the ink so it keeps covering the same paint.
+    /// </param>
+    /// <param name="Stayed">
+    /// Clip for the original, which does not move: everything the selection
+    /// does <em>not</em> cover. Null would mean "no clip", which here would
+    /// mean the whole stroke stays and the whole stroke moves — the ink
+    /// duplicated rather than divided.
+    /// </param>
+    public readonly record struct RegionClips(string? Moved, string? Stayed);
+
+    /// <summary>
     /// Transform every stroke of <paramref name="frame"/> that passes
     /// <paramref name="filter"/>, leaving a stay copy of each moved erasure
     /// that was erasing something that stays. Returns how many strokes moved
     /// (copies not counted).
     /// </summary>
+    /// <param name="split">
+    /// Asked, per moving stroke, whether the region cuts through it and with
+    /// which two clips — null for a stroke that moves whole. Absent entirely
+    /// (the default) is the old whole-stroke behaviour, which is what a caller
+    /// with no region to clip to wants.
+    /// </param>
+    /// <remarks>
+    /// <b>B319. Why the clip rather than a cut.</b> A stroke the region cuts
+    /// through becomes two entries carrying complementary clips, not two
+    /// shorter strokes. Cutting the polyline would change the mark itself:
+    /// <c>Hash01</c> seeds every dab dynamic from position and a cut restarts
+    /// the dab walk, so scatter, size, flow, roundness, rotation and all three
+    /// colour jitters re-roll along both halves. Two clipped copies of one
+    /// stroke re-render dab for dab as the original did, which is what
+    /// invariant 2 is protecting, and it is the same answer the line clipboard
+    /// already gives for a partial copy.
+    /// </remarks>
     public static int TransformFrame(
-        Frame frame, TransformOps.PointMap map, double sizeScale, Func<Stroke, bool> filter)
+        Frame frame, TransformOps.PointMap map, double sizeScale, Func<Stroke, bool> filter,
+        Func<Stroke, RegionClips?>? split = null)
     {
         var strokes = TransformOps.StrokesOf(frame);
         // Every filter decision is taken before anything moves: the region
@@ -140,21 +303,61 @@ public static class TransformErasures
         var moves = new bool[record.Length];
         for (var i = 0; i < record.Length; i++) moves[i] = filter(record[i]);
 
+        // Same rule, same reason: which strokes the region cuts through is
+        // asked of the drawing the artist selected, not of one being rewritten
+        // under the loop below.
+        var splits = new RegionClips?[record.Length];
+        if (split is not null)
+        {
+            for (var i = 0; i < record.Length; i++)
+            {
+                if (moves[i]) splits[i] = split(record[i]);
+            }
+        }
+
+        var result = new List<Stroke>(strokes.Count);
         var count = 0;
         for (var i = 0; i < record.Length; i++)
         {
-            if (!moves[i]) continue;
             var stroke = record[i];
+            if (!moves[i])
+            {
+                result.Add(stroke);
+                continue;
+            }
+
+            if (splits[i] is { } clips)
+            {
+                // The part left behind keeps the stroke's identity and its
+                // place in the record; the part that travels is the copy. That
+                // way round because the record's order is what the artist sees
+                // as depth — the copy slots in directly after its original, so
+                // moving a shape cannot bring it in front of art it was behind.
+                stroke.ClipId = clips.Stayed;
+                result.Add(stroke);
+
+                var moved = stroke.Clone();
+                moved.ClipId = clips.Moved;
+                TransformOps.TransformStroke(moved, map, sizeScale);
+                result.Add(moved);
+                count++;
+                continue;
+            }
+
             if (IsErasure(stroke) && ErasesStayingInk(frame, record, moves, i))
             {
                 // Directly beneath the moved original, so the copy erases
                 // exactly what the original erased: everything laid before it,
                 // and nothing laid after.
-                strokes.Insert(strokes.IndexOf(stroke), stroke.Clone());
+                result.Add(stroke.Clone());
             }
             TransformOps.TransformStroke(stroke, map, sizeScale);
+            result.Add(stroke);
             count++;
         }
+
+        strokes.Clear();
+        strokes.AddRange(result);
         return count;
     }
 

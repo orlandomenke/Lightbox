@@ -549,6 +549,47 @@ public partial class MainViewModel
     }
 
     /// <summary>
+    /// The complement: everything the selection does <em>not</em> cover.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B319.</b> What the part of a stroke left behind by a region-limited
+    /// transform is clipped to. Its opposite number is
+    /// <see cref="PrepareClipForSelection"/> carried through the transform, and
+    /// the pair has to be complementary or the split either duplicates ink
+    /// (both clips covering the seam) or loses it (neither).
+    /// </para>
+    /// <para>
+    /// Built by inverting the mask and re-tracing, the same way
+    /// <c>InvertSelection</c> does, rather than by wrapping the contours in a
+    /// page-sized ring: the selection may be concave, multiple or already
+    /// holed, and a mask says what a polygon library would otherwise have to
+    /// be trusted to say. The complement is bounded by the page, which is
+    /// right — ink outside it cannot be seen anyway.
+    /// </para>
+    /// <para>
+    /// <b>The feather is carried, not dropped.</b> Two complementary masks
+    /// blurred by the same sigma sum back to about one across the seam, so a
+    /// feathered selection cross-fades between the part that went and the part
+    /// that stayed. Hard-edging this half would leave the softness of the
+    /// moved half showing as a bright line along the boundary.
+    /// </para>
+    /// </remarks>
+    private (string Id, ClipRegion Region)? PrepareClipOutsideSelection()
+    {
+        if (!HasSelection) return null;
+        int w = Scene.Width, h = Scene.Height;
+        var mask = MaskFromContours(_selectionContours, w, h);
+        for (var i = 0; i < mask.Length; i++) mask[i] = !mask[i];
+        var region = new ClipRegion
+        {
+            Contours = ToDocument(FloodFill.TraceAllContours(mask, w, h)),
+            Feather = SelectionFeather,
+        };
+        return (RegisterClip(region), region);
+    }
+
+    /// <summary>
     /// Give a clip region its content-hashed id and make it resolvable.
     /// </summary>
     /// <remarks>

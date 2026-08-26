@@ -743,6 +743,7 @@ public partial class MainViewModel
     private void EndTransformSession()
     {
         TransformActive = false;
+        _previewSplit = null;
         _transform.End();
         // Commit and cancel both land here, so the chrome's preview matrix
         // cannot outlive the session however it ends. On a commit the raise
@@ -884,14 +885,14 @@ public partial class MainViewModel
         TransformSession.Parts? parts;
         if (frame is Frame painted && _transform.Filter is { } filter)
         {
-            var moving = painted.Strokes.Where(filter).ToList();
-            // Every erasure joins the static half, moving or not: an erasure
-            // caught by the marquee travels with the moving strokes it carves,
-            // but the ink it rubbed out of the strokes that STAY must not
-            // reappear the moment it leaves — that ghost is exactly what the
-            // commit's stay copy prevents (TransformErasures), and the preview
-            // has to show what the commit will produce.
-            var rest = painted.Strokes.Where(s => !filter(s) || IsErasure(s)).ToList();
+            // B319. The preview is built from the same split the commit will
+            // write, on clones, rather than from a rule of its own. Before
+            // this, the two halves were "every stroke the filter catches" and
+            // "everything else, plus every erasure" — a fair approximation of
+            // a transform that moved whole strokes, and a description of
+            // nothing at all once a stroke can be divided between them. The
+            // clones are thrown away; only their pixels are wanted.
+            var (moving, rest) = PreviewSplit(painted, filter);
             SKBitmap stay;
             if (painted.PngBase64 is { Length: > 0 })
             {
@@ -922,6 +923,81 @@ public partial class MainViewModel
 
         if (parts is not null) _transform.Remember(frame.Id, parts);
         return parts;
+    }
+
+    /// <summary>
+    /// The two stroke lists a live drag draws: what travels with the gizmo,
+    /// and what is left behind under it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Clones throughout, and the record is not touched.</b> A preview that
+    /// edited strokes would be an edit, which invariant 1 forbids before the
+    /// commit says so — these exist to be rasterized and dropped.
+    /// </para>
+    /// <para>
+    /// <b>The erasure rule that used to live here is gone, because the split
+    /// subsumes it.</b> Every erasure joined the static half whether it moved
+    /// or not, so that ink it had rubbed out of staying strokes could not
+    /// reappear when it left. With a crossing erasure divided into a part that
+    /// travels and a part that stays, the part that stays is still sitting on
+    /// the ink it erased — no special case, and no erasure wrongly pinned in
+    /// place when the artist selected the whole of it.
+    /// </para>
+    /// </remarks>
+    private (List<Stroke> Moving, List<Stroke> Staying) PreviewSplit(
+        Frame painted, Func<Stroke, bool> filter)
+    {
+        var moving = new List<Stroke>();
+        var rest = new List<Stroke>();
+        // Identity: the drag has not been decided yet, so the clips are built
+        // for where the ink stands. The gizmo's matrix moves the moving half's
+        // pixels, so its clip must not move with it here as well.
+        //
+        // Built once per session, not once per frame. The split does not depend
+        // on which drawing is being previewed — it inverts and re-traces a
+        // canvas-sized mask, which at 4K is millions of booleans and a contour
+        // walk, and a scope of "the whole animation" would have paid for it
+        // once per drawing in the scope for an identical answer. The selection
+        // cannot change mid-session; the canvas belongs to the transform.
+        _previewSplit ??= RegionSplit(filter, (x, y) => (x, y));
+        var split = _previewSplit?.For(painted);
+        foreach (var stroke in painted.Strokes)
+        {
+            if (!filter(stroke))
+            {
+                rest.Add(stroke);
+                continue;
+            }
+
+            // Every caught erasure is in BOTH halves, and this is the line the
+            // preview cannot do without: the copy that travels carves the ink
+            // it travels with, and the original standing still keeps holding
+            // down what it erased in place. Dropping it from the static half —
+            // which is what "the moving strokes move" naively means — reveals
+            // every stroke it was rubbing out, as a ghost that appears the
+            // instant the drag starts. The commit says the same thing two
+            // ways: a crossing erasure keeps its original unclipped, and a
+            // wholly-caught one leaves a stay copy (TransformErasures).
+            if (IsErasure(stroke)) rest.Add(stroke);
+
+            if (split?.Invoke(stroke) is { } clips)
+            {
+                if (!IsErasure(stroke))
+                {
+                    var stayed = stroke.Clone(newId: false);
+                    stayed.ClipId = clips.Stayed;
+                    rest.Add(stayed);
+                }
+
+                var travelling = stroke.Clone(newId: false);
+                travelling.ClipId = clips.Moved;
+                moving.Add(travelling);
+                continue;
+            }
+            moving.Add(stroke);
+        }
+        return (moving, rest);
     }
 
     /// <summary>Commit a move/scale/rotate/mirror (mirror = negative scale) around a pivot.</summary>
@@ -1025,7 +1101,13 @@ public partial class MainViewModel
         // Invalidate before the edit so the Changed refresh re-renders from
         // the transformed record.
         foreach (var frame in frames) InvalidateFrameRender(frame.Id);
-        _editor.Perform(_ =>
+        // The clips a marquee splits a crossing stroke into, built once for the
+        // whole commit — the selection carried through the transform for the
+        // part that travels, its complement for the part that stays. Null when
+        // the subject is picked lines rather than a region: clicking a line
+        // means that line, all of it, so there is nothing to clip it to.
+        var split = RegionSplit(filter, map);
+        _editor.Perform(doc =>
         {
             foreach (var frame in frames)
             {
@@ -1034,13 +1116,22 @@ public partial class MainViewModel
                 // rubbed-out ink down, so erased strokes outside the selection
                 // do not come back (the ghost the preview split also guards).
                 if (filter is null) TransformOps.TransformFrame(frame, map, sizeScale);
-                else TransformErasures.TransformFrame(frame, map, sizeScale, filter);
+                else TransformErasures.TransformFrame(frame, map, sizeScale, filter, split?.For(frame));
                 // Raster baselines resample once per commit; a region-limited
                 // transform moves strokes only (baseline pixels stay put).
                 if (filter is null && frame is Frame { PngBase64.Length: > 0 } painted)
                 {
                     ResampleBaseline(painted, baselineMatrix);
                 }
+            }
+            // After the frames, because the split only discovers which clips it
+            // needs while it is walking them. A clip is part of the record
+            // (invariant 3), so one the strokes now reference and the document
+            // does not would reload as an unclipped stroke — the whole line
+            // back, at both positions.
+            if (split is not null)
+            {
+                foreach (var (id, region) in split.Used) doc.ClipRegions.TryAdd(id, region);
             }
         });
         // The selection outline rides along so a follow-up transform lines up.
@@ -1066,6 +1157,139 @@ public partial class MainViewModel
         AiStatus = HasStrokeSelection && !HasSelection
             ? $"Transformed {TransformSubject}."
             : $"Transformed {frames.Count} drawing{(frames.Count == 1 ? "" : "s")}.";
+    }
+
+    /// <summary>
+    /// The plan for splitting the strokes a marquee cuts through: which ones
+    /// cross, the clip each half gets, and the regions the document has to
+    /// keep so they still resolve after a reload.
+    /// </summary>
+    /// <remarks>
+    /// <b>B319.</b> Held as an object rather than a bare delegate because the
+    /// clips are discovered while the frames are being walked — a stroke that
+    /// already carried a clip needs the two intersected, and the intersection
+    /// is a region nobody has seen before. <see cref="Used"/> is what the
+    /// commit writes to <c>Doc.ClipRegions</c> once the walk is done.
+    /// </remarks>
+    private sealed class SelectionSplit(
+        MainViewModel vm, bool[] mask, int width, int height,
+        (string Id, ClipRegion Region) inside,
+        (string Id, ClipRegion Region) outside,
+        TransformOps.PointMap map)
+    {
+        public Dictionary<string, ClipRegion> Used { get; } = [];
+
+        /// <summary>The per-stroke question, bound to one frame's record.</summary>
+        /// <remarks>
+        /// Bound per frame because "does the region cut this stroke" is asked
+        /// of a stroke's <em>visible</em> ink, and what is visible depends on
+        /// the erasures around it — which is a property of the list, not of
+        /// the stroke (B297's rule, and the reason the filter takes a record).
+        /// </remarks>
+        public Func<Stroke, TransformErasures.RegionClips?> For(Frame frame)
+        {
+            var reading = new TransformErasures.RegionReading(frame.Strokes, mask, width, height);
+            return stroke =>
+            {
+                if (!reading.Crosses(stroke)) return null;
+
+                // An erasure is not divided — it is duplicated, and the
+                // original is left exactly as it was.
+                //
+                // B320's second lesson, and it cost two of B290's tests to
+                // learn. An erasure's mark is an absence, so erasing twice is
+                // erasing once and a duplicate is free; but clipping the half
+                // left behind to "outside the selection" takes its carve off
+                // everything INSIDE the selection that did not travel — and
+                // wholly rubbed-out ink is exactly that, since rule three says
+                // a stroke with no surviving ink is never caught. The lasso
+                // then lifted the eraser off a line it was holding down and
+                // the line came back, which is the bug this whole class exists
+                // to prevent, reintroduced through its own fix.
+                var stayed = IsErasure(stroke)
+                    ? stroke.ClipId
+                    : stroke.ClipId is { } already
+                        ? vm.ClipMeeting(already, outside.Id, outside.Region)
+                        : outside.Id;
+                var travelling = stroke.ClipId is { } clipped
+                    ? vm.ClipMeeting(clipped, inside.Id, inside.Region)
+                    : inside.Id;
+                // Intersected where the stroke IS, then carried to where it is
+                // going. The other order would meet a clip standing at the old
+                // position with a region that has already moved.
+                var moved = MapClip(travelling, map);
+
+                Remember(stayed);
+                Remember(moved);
+                return new TransformErasures.RegionClips(moved, stayed);
+            };
+        }
+
+        /// <summary>
+        /// Null is a real answer — an erasure's half left behind keeps
+        /// whatever clip it already had, and usually that is none.
+        /// </summary>
+        private void Remember(string? id)
+        {
+            if (id is null || Used.ContainsKey(id)) return;
+            if (ClipRegionRegistry.Resolve(id) is { } region) Used[id] = region;
+        }
+
+        /// <summary>The same region, carried through the transform.</summary>
+        /// <remarks>
+        /// The clip has to travel with the ink or the moved copy is carved by a
+        /// stencil standing still: drag a selection to the right and the ink
+        /// would be cut off at the boundary it started behind. Contours are
+        /// document coordinates here — <c>PrepareClipForSelection</c> has
+        /// already added the origin — which is the space the map works in.
+        /// </remarks>
+        private static string MapClip(string id, TransformOps.PointMap map)
+        {
+            if (ClipRegionRegistry.Resolve(id) is not { } region) return id;
+            var moved = new ClipRegion
+            {
+                Contours =
+                [
+                    .. region.Contours.Select(contour => contour
+                        .Select(p =>
+                        {
+                            var (x, y) = map(p.X, p.Y);
+                            return p with { X = x, Y = y };
+                        })
+                        .ToList()),
+                ],
+                Feather = region.Feather,
+            };
+            return RegisterClip(moved);
+        }
+    }
+
+    /// <summary>
+    /// The split plan for this commit, or null when there is nothing to clip
+    /// to.
+    /// </summary>
+    /// <remarks>
+    /// Null for a transform with no filter (the whole drawing moves, so no
+    /// boundary exists) and for one filtered by picked lines rather than a
+    /// region: clicking a line means that line, all of it, however much of it
+    /// the last marquee happened to cover. That asymmetry is the manual's, and
+    /// it is why this asks <see cref="HasSelection"/> rather than testing the
+    /// filter.
+    /// </remarks>
+    /// <summary>
+    /// The live drag's split, kept for the length of the session — see
+    /// <see cref="PreviewSplit"/> for why it is not rebuilt per frame.
+    /// </summary>
+    private SelectionSplit? _previewSplit;
+
+    private SelectionSplit? RegionSplit(Func<Stroke, bool>? filter, TransformOps.PointMap map)
+    {
+        if (filter is null || !HasSelection) return null;
+        if (PrepareClipForSelection() is not { } inside) return null;
+        if (PrepareClipOutsideSelection() is not { } outside) return null;
+        int w = Scene.Width, h = Scene.Height;
+        return new SelectionSplit(
+            this, MaskFromContours(_selectionContours, w, h), w, h, inside, outside, map);
     }
 
     private SKSamplingOptions SamplingFor(TransformSampling mode) => mode switch
