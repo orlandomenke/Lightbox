@@ -86,6 +86,7 @@ internal static class RenderReport
         (int Deferrals, int ByPresent, int ByTimer, int Released,
          double HeldTotalMs, double HeldWorstMs)? Dam = null,
         (int Count, double TotalMs, double WorstMs)? Compose = null,
+        (double DescribeMs, double ComposeMs, double HandoffMs)? BuildPhases = null,
         Rendering.PublishTally? PublishesByCaller = null);
 
     /// <summary>
@@ -1011,6 +1012,46 @@ internal static class RenderReport
         {
             sb.AppendLine(
                 $"building each frame      mean {comp.TotalMs / comp.Count,7:0.##} ms   worst {comp.WorstMs,7:0.##} ms   (UI thread, before the publish)");
+            // Split, because the one number stopped naming its own cause once
+            // it became the largest item in the chain. The three are different
+            // fixes and the report should say which one is being asked for.
+            if (facts.BuildPhases is { } ph)
+            {
+                var n = comp.Count;
+                sb.AppendLine(
+                    $"    describing it         mean {ph.DescribeMs / n,7:0.##} ms   (pass list, stack fold, cel fetches)");
+                sb.AppendLine(
+                    $"    compositing it        mean {ph.ComposeMs / n,7:0.##} ms   (the CPU blend, on this thread)");
+                sb.AppendLine(
+                    $"    handing it over       mean {ph.HandoffMs / n,7:0.##} ms   (snapshot swap and retire)");
+                var describe = ph.DescribeMs / Math.Max(1e-9, comp.TotalMs);
+                var compose = ph.ComposeMs / Math.Max(1e-9, comp.TotalMs);
+                if (compose >= 0.5)
+                {
+                    sb.AppendLine(
+                        $"  >> The CPU composite is {compose * 100:0}% of the build, and it runs on the");
+                    sb.AppendLine(
+                        "     UI thread — the same thread the pen is delivering into. That is");
+                    sb.AppendLine(
+                        "     B125 stage 6's ground: the ring route never reaches the card.");
+                }
+                else if (describe >= 0.5)
+                {
+                    sb.AppendLine(
+                        $"  >> Describing the frame is {describe * 100:0}% of the build, so the cost is in");
+                    sb.AppendLine(
+                        "     the pass list, the stack fold or the cel fetches rather than in any");
+                    sb.AppendLine(
+                        "     blending. Moving the composite would not move this.");
+                }
+                else
+                {
+                    sb.AppendLine(
+                        "  >> No single phase of the build dominates, so the build is broadly");
+                    sb.AppendLine(
+                        "     costly rather than blocked on one step. Read the three above.");
+                }
+            }
         }
 
         sb.AppendLine($"  stamping the dabs       mean {s.Stamp.MeanMs,7:0.##} ms   worst {s.Stamp.WorstMs,7:0.##} ms");

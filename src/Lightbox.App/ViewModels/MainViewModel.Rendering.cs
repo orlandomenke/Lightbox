@@ -542,6 +542,36 @@ public partial class MainViewModel
     internal double ComposeWorstMs { get; private set; }
 
     /// <summary>
+    /// The three phases inside one frame build, so a slow build names its own
+    /// cause instead of being one number (B321's split, one level down).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Asked because the one number stopped discriminating.</b> B321 split
+    /// the pen-to-screen wait and the split is what caught its own verdict
+    /// being wrong. Its remaining term, "building each frame", then grew from
+    /// 11.27 ms to 27.73 ms on the owner's machine and is now the largest work
+    /// item in the chain — seven times the draw — and there is nothing in the
+    /// report that says which of the three things it does is responsible.
+    /// </para>
+    /// <para>
+    /// The three are genuinely different fixes, which is the point of
+    /// separating them: <b>describing</b> is the pass list, the stack fold and
+    /// the cel fetches, and a cost here is cache or bookkeeping;
+    /// <b>compositing</b> is the CPU blend on the UI thread, and a cost here is
+    /// B125 stage 6, which is architectural and expensive; <b>handing off</b>
+    /// is the snapshot swap and the retire, and a cost here is neither.
+    /// </para>
+    /// </remarks>
+    internal double BuildDescribeMs { get; private set; }
+
+    /// <inheritdoc cref="BuildDescribeMs"/>
+    internal double BuildComposeMs { get; private set; }
+
+    /// <inheritdoc cref="BuildDescribeMs"/>
+    internal double BuildHandoffMs { get; private set; }
+
+    /// <summary>
     /// Close off one frame's build, timed from the publish stamp (B321).
     /// </summary>
     /// <remarks>
@@ -769,6 +799,12 @@ public partial class MainViewModel
 
         var seq = _publish.NextSequence();
         var background = SceneRenderer.BackgroundOf(scene);
+        // Everything above this line is describing the frame: the pass list,
+        // the stack fold and the cel fetches. Timed from the publish stamp for
+        // NoteComposeCost's reason — one clock, no drift between the parts and
+        // the whole (B321).
+        BuildDescribeMs += (System.Diagnostics.Stopwatch.GetTimestamp() - _publish.LastPublishTicks)
+                           * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var composeScope = Profile(_profilingTick, Services.TickProfile.Phase.Compose);
         SKRectI? usedClip = null;
@@ -852,6 +888,7 @@ public partial class MainViewModel
             }, renderScale, cameraView, plan.Origin);
         }
         sw.Stop();
+        BuildComposeMs += sw.Elapsed.TotalMilliseconds;
         composeScope?.Dispose();
         if (Environment.GetEnvironmentVariable("LIGHTBOX_PERFTRACE") is not null)
         {
@@ -875,6 +912,7 @@ public partial class MainViewModel
         // images being disposed, and the invalidate. Timed apart from the
         // composite above because one number for both is what sent B156 after
         // the wrong half.
+        var handoffFrom = System.Diagnostics.Stopwatch.GetTimestamp();
         using var handoffScope = Profile(_profilingTick, Services.TickProfile.Phase.Handoff);
         if (SnapshotChanged is { } handler)
         {
@@ -918,6 +956,8 @@ public partial class MainViewModel
             // has re-measured since. The rest of the chain is instrumented end
             // to end now, and a gap in the middle is the one place a cost can
             // still hide.
+            BuildHandoffMs += (System.Diagnostics.Stopwatch.GetTimestamp() - handoffFrom)
+                              * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
             NoteComposeCost();
             handler(snapshot);
         }
