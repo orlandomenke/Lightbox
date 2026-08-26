@@ -155,19 +155,25 @@ public static class TransformErasures
         public bool Crosses(Stroke stroke)
         {
             if (!_positions.TryGetValue(stroke, out var position)) return false;
-            // A gradient is never split, and moves whole as it always has.
+            // A gradient crosses unless the region is the whole page.
             //
-            // Not an oversight and not consistency for its own sake: a gradient
-            // has no location. It is a property of the layer — the ramp colours
-            // everything wherever its two axis points sit — so "the part of it
-            // inside the selection" is not something the record can say apart
-            // from the ramp itself. Dividing one by a clip is expressible and
-            // was tried; it turns every region-limited move on a layer with a
-            // background gradient into a shifted rectangle of background, which
-            // is a decision about what a marquee means over a fill rather than
-            // the stroke bug this work was about. B7's own note already made
-            // the gradient the special case here; it stays one.
-            if (stroke.Tool == ToolKind.Gradient) return false;
+            // B323, and the owner's call against the recommendation — recorded
+            // in Q166 with what it costs, which is this: a region move on a
+            // layer carrying a background gradient now leaves a visible
+            // rectangle of shifted background, and that is a surprise if you
+            // were only moving a character. What buys it is that a marquee
+            // means one thing everywhere. Photoshop moves the pixels you
+            // selected whatever laid them down, and a gradient that alone
+            // ignored the selection was the odd one out once strokes stopped
+            // doing so.
+            //
+            // Judged by what it covers rather than by where its points are —
+            // the same reading B7 gave it, pointed the other way. Its two
+            // points are the ends of the axis the ramp runs along, so walking
+            // between them says nothing about which part of the layer the
+            // marquee took; what matters is whether any of the page is left
+            // out of the region, because that is the part that stays.
+            if (stroke.Tool == ToolKind.Gradient) return Array.IndexOf(_mask, false) >= 0;
             var (inside, outside, _) = Across(position);
             return inside && outside;
         }
