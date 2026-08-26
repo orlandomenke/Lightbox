@@ -171,6 +171,18 @@ sealed class LivePaintSession
         CoverageCanvas.Flush();
     }
 
+    /// <summary>
+    /// The coverage buffer's own tail backup (B293).
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="TailBackup"/> because the two hold different
+    /// pixels over the same rectangle: one is the dab scratch's ink, the other
+    /// the footprint's coverage. They share the cut and the lent region, since
+    /// both come from the same dabs and the same <c>RangeBounds</c> - what they
+    /// cannot share is the copy.
+    /// </remarks>
+    internal SKBitmap? CoverageTailBackup { get; set; }
+
     internal SKBitmap? TailBackup { get; set; }
 
     internal SKRectI? TailRegion { get; set; }
@@ -250,6 +262,22 @@ sealed class LivePaintSession
     internal SKBitmap? PostScratch { get; set; }
 
     internal SKRectI? PostUsed { get; set; }
+
+    /// <summary>Make <see cref="PostScratch"/> exist at this size (B293).</summary>
+    /// <remarks>
+    /// The worker path allocates it when a result comes back; the cap-only path
+    /// writes into it directly and has no such moment, so it asks. Pooled the
+    /// same way - <see cref="ResetPostProcess"/> wipes the used region rather
+    /// than dropping the bitmap.
+    /// </remarks>
+    internal void EnsurePostScratch(int width, int height)
+    {
+        if (PostScratch is not null && PostScratch.Width == width && PostScratch.Height == height) return;
+        PostScratch?.Dispose();
+        PostScratch = new SKBitmap(
+            new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        PostUsed = null;
+    }
 
     /// <summary>Cost of the last pass, milliseconds — reported by the performance panel.</summary>
     internal double PostCostMs { get; set; }

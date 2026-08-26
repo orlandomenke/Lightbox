@@ -33,6 +33,7 @@ if (filter is null || "brushes".Contains(filter, StringComparison.OrdinalIgnoreC
 if (filter is not null && "livestamp".Contains(filter, StringComparison.OrdinalIgnoreCase))
 {
     Console.WriteLine("Splitting one pointer event by phase...");
+    Console.WriteLine(FootprintPassCost.Report());
     Console.WriteLine(LiveStampSplit.Report());
     Console.WriteLine(LiveStampSplit.Presets());
     Console.WriteLine(LiveStampSplit.BuildOrFill());

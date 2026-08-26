@@ -1162,6 +1162,33 @@ public partial class MainViewModel
     /// stroke. Texture and granulation are pointwise and could be incremental,
     /// but they are cheap enough to come along for the ride.
     /// </summary>
+    /// <summary>
+    /// Whether the footprint ceiling is the <em>only</em> reason this brush
+    /// needs a live post-process (B293).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Soft round and Airbrush are this, and between them they are most of
+    /// what an artist reaches for that is not Ink.</b> No granulation, no wet
+    /// edge, no texture, no medium - so the whole worker round-trip, three
+    /// rect-sized copies and an image back, exists to run a capping that costs
+    /// under three milliseconds. Pencil is not this: it carries granulation at
+    /// 0.15 and keeps the pass.
+    /// </para>
+    /// <para>
+    /// Written as "needs the pass, and everything else about the pass is
+    /// absent" rather than as its own list of conditions, so a term added to
+    /// <see cref="NeedsLivePostProcess"/> later cannot quietly leave a brush on
+    /// the shortcut that has stopped qualifying for it.
+    /// </para>
+    /// </remarks>
+    private static bool CapIsTheWholePass(BrushSettings brush) =>
+        BrushEngine.NeedsFootprintCap(brush)
+        && brush.Medium.Kind == MediumKind.None
+        && brush.WetEdge <= 0
+        && brush.TextureSurface is null
+        && brush.Granulation <= 0;
+
     private static bool NeedsLivePostProcess(BrushSettings brush) =>
         brush.Medium.Kind != MediumKind.None
         || brush.WetEdge > 0
@@ -1297,7 +1324,12 @@ public partial class MainViewModel
             // stroke, so the buffer that holds it starts empty here rather than
             // being rebuilt per event. Only for the brushes that use it - every
             // other brush pays nothing for this line.
-            if (BrushEngine.DrawsAsOneSilhouette(CurrentToolSettings))
+            // Both routes accumulate a running maximum and the two are mutually
+            // exclusive by construction - NeedsFootprintCap requires
+            // !DrawsAsOneSilhouette - so one buffer with one lifetime serves
+            // them, and only the shader that fills it differs (B293).
+            if (BrushEngine.DrawsAsOneSilhouette(CurrentToolSettings)
+                || BrushEngine.NeedsFootprintCap(CurrentToolSettings))
             {
                 _live.BeginCoverage(Scene.Width, Scene.Height);
             }
@@ -1643,7 +1675,14 @@ public partial class MainViewModel
         else _publish.InvalidateWholeCanvas();
         _live.StampedCount = points.Count;
 
-        if (_live.Composite is null && NeedsLivePostProcess(live.Brush)) RequestLivePostProcess();
+        // The cap-only brushes never queue a pass: StampLiveDabs has already
+        // done the capping in place, band-local and on this thread (B293).
+        if (_live.Composite is null
+            && NeedsLivePostProcess(live.Brush)
+            && !CapIsTheWholePass(live.Brush))
+        {
+            RequestLivePostProcess();
+        }
     }
 
     /// <summary>
@@ -1898,9 +1937,31 @@ public partial class MainViewModel
 
         // The per-dab route, unchanged: it stamps only the dabs in its own
         // range with SrcOver, so a settled prefix was never a problem for it.
+        // B293: a soft brush's footprint is accumulated once across the stroke
+        // rather than rebuilt from every dab on every post-process pass, which
+        // was 94% of that pass. It is a running maximum, so the same settled cut
+        // and tail rollback the dab scratch uses below serve it exactly - each
+        // step here has its twin a few lines down.
+        var lentBefore = _live.TailRegion;
+        var carriesFootprint = BrushEngine.NeedsFootprintCap(live.Brush)
+            && _live.CoverageCanvas is not null
+            && _live.Coverage is not null;
+
         // 1. Take back the tail lent out last time. Only the part of the buffer this
         // tail actually used: the backup is sized to the largest tail seen, so drawing
         // the whole thing would scale a bigger image into a smaller rect.
+        if (carriesFootprint && _live.TailRegion is { } coverLent && _live.CoverageTailBackup is not null)
+        {
+            using var restore = SKImage.FromBitmap(_live.CoverageTailBackup);
+            using var src = new SKPaint { BlendMode = SKBlendMode.Src };
+            _live.CoverageCanvas!.DrawImage(
+                restore,
+                new SKRect(0, 0, coverLent.Width, coverLent.Height),
+                new SKRect(coverLent.Left, coverLent.Top, coverLent.Right, coverLent.Bottom),
+                src);
+            _live.CoverageCanvas.Flush();
+        }
+
         if (_live.TailRegion is { } lent && _live.TailBackup is not null)
         {
             using var restore = SKImage.FromBitmap(_live.TailBackup);
@@ -1915,8 +1976,14 @@ public partial class MainViewModel
         }
 
         // 2. Everything whose position has stopped moving, permanently.
+        var settledFrom = _live.StableDabs;
         BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, stable);
         _live.StableDabs = Math.Max(_live.StableDabs, Math.Min(stable, dabs.Count));
+        if (carriesFootprint)
+        {
+            BrushEngine.AccumulateFootprint(_live.CoverageCanvas!, live, dabs, settledFrom, stable);
+            _live.CoverageCanvas!.Flush();
+        }
 
         // 3. The rest on loan, so the mark reaches the pen tip.
         if (BrushEngine.RangeBounds(dabs, _live.StableDabs, live.Brush, info) is { } tail
@@ -1959,7 +2026,86 @@ public partial class MainViewModel
 
             BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, dabs.Count);
             _live.ScratchCanvas.Flush();
+
+            // 3b. The footprint's own copy of the same loan.
+            if (carriesFootprint)
+            {
+                if (_live.CoverageTailBackup is null
+                    || _live.CoverageTailBackup.Width < tail.Width
+                    || _live.CoverageTailBackup.Height < tail.Height)
+                {
+                    _live.CoverageTailBackup?.Dispose();
+                    _live.CoverageTailBackup = new SKBitmap(new SKImageInfo(
+                        Math.Max(tail.Width, 64), Math.Max(tail.Height, 64),
+                        SKColorType.Rgba8888, SKAlphaType.Premul));
+                }
+
+                using (var region = new SKBitmap())
+                {
+                    if (_live.Coverage!.ExtractSubset(region, tail))
+                    {
+                        using var px = region.PeekPixels();
+                        using var view = px is null ? null : SKImage.FromPixels(px);
+                        if (view is not null)
+                        {
+                            using var into = new SKCanvas(_live.CoverageTailBackup);
+                            using var src = new SKPaint { BlendMode = SKBlendMode.Src };
+                            into.DrawImage(view, 0, 0, src);
+                            into.Flush();
+                        }
+                    }
+                }
+
+                BrushEngine.AccumulateFootprint(_live.CoverageCanvas!, live, dabs, _live.StableDabs, dabs.Count);
+                _live.CoverageCanvas!.Flush();
+            }
         }
+
+        // 4. For a brush whose only post-process is the ceiling, apply it here
+        // and skip the worker entirely (B293). The band is everything the three
+        // steps above could have touched: the newly settled dabs' reach, the
+        // region lent last time and the one lent now.
+        if (carriesFootprint && CapIsTheWholePass(live.Brush) && _live.Scratch is { } inkSource)
+        {
+            var changed = BrushEngine.RangeBounds(dabs, settledFrom, live.Brush, info);
+            if (lentBefore is { } was) changed = changed is { } g ? SKRectI.Union(g, was) : was;
+            if (_live.TailRegion is { } now) changed = changed is { } g ? SKRectI.Union(g, now) : now;
+
+            if (changed is { } band)
+            {
+                _live.EnsurePostScratch(Scene.Width, Scene.Height);
+                if (_live.PostScratch is { } capped && _live.Coverage is { } ceiling)
+                {
+                    // Re-copied from the UNCAPPED scratch rather than capped
+                    // again in place: capping is not idempotent across a growing
+                    // footprint, so a second pass over already-capped pixels
+                    // would hold the mark down to the ceiling it had last time.
+                    using (var into = new SKCanvas(capped))
+                    using (var src = new SKPaint { BlendMode = SKBlendMode.Src })
+                    using (var region = new SKBitmap())
+                    {
+                        var lift = SKRectI.Intersect(band, new SKRectI(0, 0, inkSource.Width, inkSource.Height));
+                        if (lift.Width > 0 && lift.Height > 0 && inkSource.ExtractSubset(region, lift))
+                        {
+                            using var px = region.PeekPixels();
+                            using var view = px is null ? null : SKImage.FromPixels(px);
+                            if (view is not null) into.DrawImage(view, lift.Left, lift.Top, src);
+                        }
+
+                        into.Flush();
+                    }
+
+                    BrushEngine.CapToFootprintBand(capped, ceiling, band);
+                    _live.PostUsed = _live.PostUsed is { } prior
+                        ? LivePaintSession.UnionRect(prior, band)
+                        : band;
+                    // Above zero is what makes the compositor read PostScratch
+                    // instead of the raw dabs (ScenePassBuilder).
+                    _live.PostStampedCount = dabs.Count;
+                }
+            }
+        }
+
         _live.DabCount = dabs.Count;
     }
 
@@ -2070,6 +2216,17 @@ public partial class MainViewModel
             if (beneathCrop is not null) beneathOrigin = needed.Location;
         }
 
+        // B293: the footprint the live path has been accumulating, cropped on the
+        // thread that owns it, exactly as the dabs and the layer beneath are.
+        // Absent for a brush that does not cap, and absent if the buffer is not
+        // the size the pass wants - in which case the engine rebuilds and the
+        // only cost is the one that was always there.
+        SKBitmap? footprintCrop = null;
+        if (BrushEngine.NeedsFootprintCap(whole.Brush) && _live.Coverage is { } coverage)
+        {
+            footprintCrop = CopyRegion(coverage, rect);
+        }
+
         var generation = _live.PostGeneration;
         try
         {
@@ -2086,6 +2243,7 @@ public partial class MainViewModel
             _live.PostQueued = false;
             dabsCrop.Dispose();
             beneathCrop?.Dispose();
+            footprintCrop?.Dispose();
         }
         return;
 
@@ -2099,7 +2257,8 @@ public partial class MainViewModel
                 // over them rather than re-stamping every dab — the cost stops
                 // growing with the length of the stroke.
                 processed = BrushEngine.PostProcessRegion(
-                    dabsCrop, whole, rect, beneathCrop, rect.Location, beneathOrigin);
+                    dabsCrop, whole, rect, beneathCrop, rect.Location, beneathOrigin,
+                    footprintCrop);
             }
             catch
             {
