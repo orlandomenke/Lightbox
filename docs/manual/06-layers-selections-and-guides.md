@@ -378,6 +378,14 @@ the clip is part of the record, so a reload paints the same shape. The wand
 shows the region it would take as a faint, still dashed outline before you
 click — faint and still so it cannot be read as a selection you already made.
 
+**The polygon shows its working.** The first click puts a small ring where the
+vertex landed, and from then on a dashed band follows the pointer from the last
+vertex you placed, so between clicks you can see the segment you are about to
+commit to. The ring stays on the first vertex because that is the one you
+double-click back to when you close the shape. **Escape** abandons a polygon
+you have started; so does reaching for another selection shape, since none of
+the others can finish it.
+
 **Ctrl+D deselects, whatever tool you are holding.** Worth saying plainly
 because a selection clips painting: if the brush seems to have stopped working,
 the usual reason is a selection still up somewhere off screen, and Ctrl+D is

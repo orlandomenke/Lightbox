@@ -40,7 +40,24 @@ public static class SelectionAnts
     /// <param name="gizmoUp">
     /// A transform gizmo is on screen, so the committed outline is not drawn.
     /// </param>
+    /// <param name="dragOrigin">
+    /// The paper's top-left in stroke coordinates, subtracted from the drag
+    /// shape.
+    /// </param>
     /// <remarks>
+    /// <para>
+    /// <b>B317. Why only the drag shape is shifted.</b> The two halves of this
+    /// path arrive in different spaces and always have: the base was traced off
+    /// a surface mask, and the drag shape is built by the canvas from
+    /// <c>ViewToDoc</c>, which adds the origin because every tool that picks a
+    /// line wants the space the record is written in. The renderer draws in
+    /// surface pixels, so the base was right and the drag shape was one origin
+    /// out — invisible at origin zero, which is why it survived the fix that
+    /// corrected the same skew on the committed contours (SelectionOriginTests).
+    /// Converted here rather than at the source because the shape is also
+    /// <em>reported</em> on release, where document coordinates are what
+    /// <c>ApplySelectionShape</c> expects.
+    /// </para>
     /// <para>
     /// <b>Why the outline hides rather than riding along under a gizmo.</b> It
     /// still rides — the matrix is applied everywhere else, and the commit
@@ -62,7 +79,7 @@ public static class SelectionAnts
     /// </remarks>
     public static SKPath? FramePath(
         SKPath? basePath, SKMatrix? preview, IReadOnlyList<StrokePoint> dragShape,
-        bool gizmoUp = false)
+        bool gizmoUp = false, (double X, double Y) dragOrigin = default)
     {
         SKPath? path = null;
         if (basePath is not null && !gizmoUp)
@@ -73,10 +90,12 @@ public static class SelectionAnts
         if (dragShape.Count >= 3)
         {
             path ??= new SKPath { FillType = SKPathFillType.EvenOdd };
-            path.MoveTo((float)dragShape[0].X, (float)dragShape[0].Y);
+            path.MoveTo(
+                (float)(dragShape[0].X - dragOrigin.X), (float)(dragShape[0].Y - dragOrigin.Y));
             for (var i = 1; i < dragShape.Count; i++)
             {
-                path.LineTo((float)dragShape[i].X, (float)dragShape[i].Y);
+                path.LineTo(
+                    (float)(dragShape[i].X - dragOrigin.X), (float)(dragShape[i].Y - dragOrigin.Y));
             }
             path.Close();
         }
@@ -84,19 +103,53 @@ public static class SelectionAnts
     }
 
     /// <summary>
-    /// The open polygon-in-progress trail, or null below two vertices. Open
-    /// rather than closed because the polygon is not a region yet — closing
-    /// it is the double-click's job.
+    /// The open polygon-in-progress trail: the vertices placed so far, a ring
+    /// on the first one, and the rubber band from the last one to the pointer.
+    /// Null only when no vertex has been placed. Open rather than closed
+    /// because the polygon is not a region yet — closing it is the
+    /// double-click's job.
     /// </summary>
-    public static SKPath? OpenPath(IReadOnlyList<StrokePoint> polygon)
+    /// <param name="cursor">
+    /// Where the pointer is, in the same surface pixels as
+    /// <paramref name="polygon"/>; null when it is off the canvas or unknown,
+    /// which draws the trail without a band rather than nothing at all.
+    /// </param>
+    /// <param name="vertexRadius">
+    /// Radius of the ring on the first vertex, in surface pixels — the caller
+    /// divides by the view scale so it stays one size on screen. Zero draws no
+    /// ring.
+    /// </param>
+    /// <remarks>
+    /// <b>B315. It returned null below two vertices</b>, so the whole of the
+    /// first click was invisible: no mark where the vertex landed and no band
+    /// to say a polygon was being drawn. The tool read as broken until the
+    /// second click, which is when the first segment finally appeared — and an
+    /// artist who concluded the first click had missed and clicked again got a
+    /// polygon starting one vertex late.
+    /// <para>
+    /// The ring goes on the <em>first</em> vertex rather than on every one
+    /// because it is the one with a job: it is the point a double-click closes
+    /// back to, so it has to be findable after the trail has wandered. Marking
+    /// them all would draw beads down a line whose shape is already visible.
+    /// </para>
+    /// </remarks>
+    public static SKPath? OpenPath(
+        IReadOnlyList<StrokePoint> polygon,
+        (double X, double Y)? cursor = null,
+        float vertexRadius = 0f)
     {
-        if (polygon.Count < 2) return null;
+        if (polygon.Count == 0) return null;
         var path = new SKPath();
+        if (vertexRadius > 0)
+        {
+            path.AddCircle((float)polygon[0].X, (float)polygon[0].Y, vertexRadius);
+        }
         path.MoveTo((float)polygon[0].X, (float)polygon[0].Y);
         for (var i = 1; i < polygon.Count; i++)
         {
             path.LineTo((float)polygon[i].X, (float)polygon[i].Y);
         }
+        if (cursor is { } to) path.LineTo((float)to.X, (float)to.Y);
         return path;
     }
 }
