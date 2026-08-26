@@ -111,6 +111,8 @@ internal static class ScenePassBuilder
         List<LayerShapes.ShapeSpec>? Shapes = null,
         SKBitmap? MaskScratch = null,
         bool MaskScratchErases = false,
+        SKBitmap? MaskTip = null,
+        SKPath? MaskCorridor = null,
         Lightbox.Core.Effects.EffectStack? Fx = null,
         bool Adjusts = false);
 
@@ -211,6 +213,7 @@ internal static class ScenePassBuilder
         SKBitmap? Scratch = null,
         SKBitmap? PostScratch = null,
         int PostStampedCount = -1,
+        SKPath? TipCorridor = null,
         Stroke? Shape = null,
         Stroke? Gradient = null,
         Stroke? Text = null,
@@ -254,7 +257,13 @@ internal static class ScenePassBuilder
         {
             // The layer's own mask is always the first shape when it has one,
             // and a mask edit only exists on a layer that does.
-            shapes[0] = shapes[0] with { Scratch = scratch, ScratchErases = spec.MaskScratchErases };
+            shapes[0] = shapes[0] with
+            {
+                Scratch = scratch,
+                ScratchErases = spec.MaskScratchErases,
+                Tip = spec.MaskTip,
+                Corridor = spec.MaskCorridor,
+            };
         }
         return new(
             spec.CelFrame is { } frame
@@ -508,10 +517,14 @@ internal static class ScenePassBuilder
             // ordinary layer, and for a stack whose every use is disabled.
             var fx = layer.HasLiveEffects ? layer.Effects : null;
             var overlay = maskEditHere ? null : OverlayFor(live, isActive);
+            // The same split the layer overlay takes, for the same reason
+            // (B322): a mask painted with a granulating or wet brush would
+            // otherwise show its coverage as of the last completed pass, and
+            // a mask mark's whole point is what it reveals.
+            var maskSettled = maskEditHere && live.BrushStroke is not null
+                && live.PostStampedCount > 0 && live.PostScratch is not null;
             var maskScratch = maskEditHere && live.BrushStroke is not null
-                ? (live.PostStampedCount > 0 && live.PostScratch is not null
-                    ? live.PostScratch
-                    : live.Scratch)
+                ? (maskSettled ? live.PostScratch : live.Scratch)
                 : null;
             var maskErases = maskEditHere && live.BrushStroke?.Tool == ToolKind.Eraser;
 
@@ -559,6 +572,8 @@ internal static class ScenePassBuilder
                 SceneRenderer.ToSkia(layer.BlendMode), overlay, parallax,
                 SourceFrame: tileFrame, Shapes: shapes,
                 MaskScratch: maskScratch, MaskScratchErases: maskErases,
+                MaskTip: maskSettled ? live.Scratch : null,
+                MaskCorridor: maskSettled ? live.TipCorridor : null,
                 Fx: fx));
 
             // Draw-over puts them above instead. Under is how a lightbox works
@@ -668,21 +683,32 @@ internal static class ScenePassBuilder
 
         if (live.BrushStroke is { } stroke)
         {
-            // Prefer the fully rendered stroke when a pass has completed —
-            // medium, wet edge and texture included — and fall back to raw
-            // dabs only for the first few events of a heavy brush, before
-            // the first pass lands.
-            var source = live.PostStampedCount > 0 && live.PostScratch is not null
-                ? live.PostScratch
-                : live.Scratch;
+            // The fully rendered stroke where a pass has been — medium, wet
+            // edge and texture included — and the raw dabs everywhere else,
+            // which is the tip the pen is currently laying down (B322).
+            //
+            // This used to be one source or the other for the whole overlay,
+            // and that is the defect: a brush with an effect showed the mark
+            // as of the last completed pass, with everything stamped since it
+            // simply absent. Ink was the only brush that tracked the pen, and
+            // only because it has no pass to be behind. LivePaintSession has
+            // always described the intended behaviour — "the artist sees the
+            // true mark converging a fraction behind the tip rather than
+            // seeing flat dabs until pen-up" — and this is its missing half.
+            var settled = live.PostStampedCount > 0 && live.PostScratch is not null;
             // Everything the commit will mask the stroke with, applied
             // now: an artist cannot judge a mark they are not being shown.
             return new StrokeOverlay(
-                source,
+                settled ? live.PostScratch! : live.Scratch,
                 stroke.Brush.Opacity,
                 stroke.Tool == ToolKind.Eraser,
                 stroke.AlphaLocked,
-                stroke.ClipId is null ? null : ClipRegionRegistry.Resolve(stroke.ClipId));
+                stroke.ClipId is null ? null : ClipRegionRegistry.Resolve(stroke.ClipId),
+                // Before the first pass the processed buffer holds nothing and
+                // the raw scratch IS the whole overlay, so there is no tip to
+                // draw separately and no region to keep it out of.
+                Tip: settled ? live.Scratch : null,
+                Corridor: settled ? live.TipCorridor : null);
         }
 
         return null;

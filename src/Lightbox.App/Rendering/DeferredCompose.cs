@@ -186,6 +186,14 @@ public readonly record struct DeferredCompose(
                 if (overlay.Opacity < 1.0)
                     overlayPaint.Color = overlayPaint.Color.WithAlpha((byte)(overlay.Opacity * 255));
                 canvas.DrawBitmap(overlay.Scratch, visible, visible, overlayPaint);
+
+                // The stretch of mark laid down since the last pass, where the
+                // pass has not been to render it properly yet (B322).
+                if (overlay.BeginTip(canvas))
+                {
+                    canvas.DrawBitmap(overlay.Tip!, visible, visible, overlayPaint);
+                    canvas.Restore();
+                }
             }
 
             if (needsIsolation) canvas.Restore();

@@ -1337,6 +1337,7 @@ public partial class MainViewModel
     /// </summary>
     internal (int Settled, int Total) LiveDabCutForTests => (_live.StableDabs, _live.DabCount);
 
+
     /// <param name="eraseWithCurrentBrush">
     /// Alt was held. The stroke erases but keeps the brush's own size, shape
     /// and dynamics — unlike switching to the eraser, which brings its own.

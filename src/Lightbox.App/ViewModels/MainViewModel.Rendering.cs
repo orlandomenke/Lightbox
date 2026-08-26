@@ -361,6 +361,77 @@ public partial class MainViewModel
     /// hazard recorded in B170, and an assert that fires on every unbounded
     /// stroke would be noise rather than a tripwire.
     /// </remarks>
+    /// <summary>
+    /// The stretch of the stroke the live post-process has not rendered yet, as
+    /// a corridor along the pen's own travel — the shape the raw tip is drawn
+    /// inside (B322).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Along the travel, and that is the whole of what the first two attempts
+    /// got wrong.</b> Both of them bounded the tip by the pass's <em>band</em>:
+    /// first by its bounding rect, then by an exact region union of the bands.
+    /// A band is a rectangle, so its edge can run <em>parallel</em> to a stroke
+    /// for hundreds of pixels — flat raw ink on one side of a dead-straight
+    /// line, granulated mark on the other. Measured on a scribble with a
+    /// straight-edge detector, the longest axis-aligned seam inside the live
+    /// mark went from 166–296 px with no tip at all to 455–653 px with a
+    /// band-bounded one. That is the artifact the owner reported twice, and no
+    /// amount of exactness in the region fixes it, because the boundary is the
+    /// wrong <em>shape</em>.
+    /// </para>
+    /// <para>
+    /// A corridor's boundary is the stroke's own outline down its length, where
+    /// the raw and processed marks agree to within their effect, and a single
+    /// round cap across it at the back — one stroke-width of arc, which is what
+    /// "converging a fraction behind the tip" is supposed to look like. The cap
+    /// deliberately reaches back over the settled mark by half a width so the
+    /// two overlap rather than butt together.
+    /// </para>
+    /// <para>
+    /// Rebuilt per publish from a handful of points rather than kept as state:
+    /// the report puts 17 events on each publish, the path is a polyline of
+    /// what arrived since the last pass, and a stroked polyline of that length
+    /// is far cheaper than the region algebra it replaces.
+    /// </para>
+    /// </remarks>
+    private SKPath? TipCorridor()
+    {
+        if (_strokeBuilder.Current is not { } live || !_strokeBuilder.IsActive) return null;
+        var from = _live.PostStampedCount;
+        // Nothing rendered yet: the raw scratch IS the whole overlay and there
+        // is no tip to bound. Nothing new since the last pass: no tip either.
+        if (from <= 0 || from >= live.Points.Count) return null;
+
+        var path = new SKPath();
+        // One point back, so the corridor starts where the pass stopped rather
+        // than a segment ahead of it.
+        path.MoveTo((float)live.Points[from - 1].X, (float)live.Points[from - 1].Y);
+        for (var i = from; i < live.Points.Count; i++)
+        {
+            path.LineTo((float)live.Points[i].X, (float)live.Points[i].Y);
+        }
+
+        // Wide enough that no dab of this stretch is clipped: the brush at full
+        // pressure, whatever scatter throws sideways, and the wet edge's own
+        // reach past the dabs. Erring wide costs a little raw ink over settled
+        // mark ALONG the stroke, where the two agree in shape; erring narrow
+        // shaves the tip's own edge, which is visible.
+        var width = (float)(live.Brush.Size * (1.0 + live.Brush.Scatter) * 1.6)
+            + BrushEngine.LivePassHalo(live.Brush) * 2f + 8f;
+        using var pen = new SKPaint
+        {
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(width, 4f),
+            StrokeCap = SKStrokeCap.Round,
+            StrokeJoin = SKStrokeJoin.Round,
+        };
+        var corridor = new SKPath();
+        pen.GetFillPath(path, corridor);
+        path.Dispose();
+        return corridor;
+    }
+
     [System.Diagnostics.Conditional("DEBUG")]
     private static void AssertNoLiveScratchCrossesTheThread(List<RenderPass> passes)
     {
@@ -637,6 +708,7 @@ public partial class MainViewModel
             ThroughCamera: ViewThroughCamera);
         var live = new ScenePassBuilder.LiveEdit(
             _live.Composite, _live.Scratch, _live.PostScratch, _live.PostStampedCount,
+            TipCorridor(),
             _liveShape, _liveGradient, LiveTextPaint, _strokeBuilder.Current,
             _transform.Preview, _transform.Frames,
             // The moving/staying split stays behind a delegate because building

@@ -21,15 +21,61 @@ namespace Lightbox.App.Rendering;
 /// The selection the stroke was started under, or null. Also constant for the
 /// stroke's lifetime.
 /// </param>
+/// <param name="Tip">
+/// The raw dabs, drawn only where <paramref name="Settled"/> says no live
+/// post-process pass has been yet — the stretch of mark the pen has laid down
+/// since the last pass landed. Null when there is no pass to be behind, in
+/// which case <paramref name="Scratch"/> is already the raw dabs and is the
+/// whole answer.
+/// </param>
+/// <param name="Corridor">
+/// The shape the tip is drawn inside: a corridor along the pen's travel since
+/// the last pass, in document space. Along the stroke rather than around a
+/// rectangle, because a rectangle's edge can run parallel to a stroke for
+/// hundreds of pixels and show flat ink against finished mark down a
+/// dead-straight line — which is what an artist reads as a tile. Null with a
+/// non-null tip means nothing bounds it.
+/// </param>
 public sealed record StrokeOverlay(
     SKBitmap Scratch,
     double Opacity,
     bool Erases,
     bool AlphaLocked = false,
-    ClipRegion? Clip = null)
+    ClipRegion? Clip = null,
+    SKBitmap? Tip = null,
+    SKPath? Corridor = null)
 {
     /// <summary>Whether this overlay needs an isolated layer to be masked in.</summary>
     public bool NeedsMask => AlphaLocked || Clip is not null;
+
+    /// <summary>
+    /// Clip this canvas to <see cref="Corridor"/>, ready for <see cref="Tip"/>
+    /// to be drawn into it. Returns false when there is no tip to draw, in
+    /// which case the canvas is untouched and there is nothing to restore.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A begin/end pair rather than a method taking the draw as a delegate,
+    /// because the three compositors each blit differently — a plain view, a
+    /// viewport sub-rectangle, a resident texture — and a closure here would
+    /// be allocated on every composite, which is a per-pointer-event path.
+    /// Caller restores: <c>if (overlay.BeginTip(canvas)) { …; canvas.Restore(); }</c>.
+    /// </para>
+    /// <para>
+    /// Antialiased, and safe to be: the corridor is built wider than the mark
+    /// it carries, so its edge falls on empty scratch down the stroke's length
+    /// and only the round cap at the back crosses ink — where a soft edge is
+    /// what makes the raw tip blend into the settled mark instead of stepping
+    /// into it.
+    /// </para>
+    /// </remarks>
+    public bool BeginTip(SKCanvas canvas)
+    {
+        if (Tip is null) return false;
+        canvas.Save();
+        if (Corridor is not null) canvas.ClipPath(Corridor, SKClipOperation.Intersect, antialias: true);
+        return true;
+    }
 }
 
 /// <summary>One compositing pass: a layer bitmap with optional tint, opacity and blend mode.</summary>
@@ -70,9 +116,15 @@ public sealed record StrokeOverlay(
 /// look is what it reveals or hides. <paramref name="ScratchErases"/> is the
 /// eraser's half: the dabs remove coverage instead of adding it.
 /// </param>
+/// <param name="Tip">
+/// The raw dabs of that mask stroke, drawn inside <paramref name="Corridor"/>
+/// — <see cref="StrokeOverlay.Tip"/>'s half of B322, on the mask.
+/// </param>
+/// <param name="Corridor">The pen's travel since the last pass, in document space.</param>
 public sealed record PassShape(
     SKBitmap Mask, bool Inverted = false,
-    SKBitmap? Scratch = null, bool ScratchErases = false);
+    SKBitmap? Scratch = null, bool ScratchErases = false,
+    SKBitmap? Tip = null, SKPath? Corridor = null);
 
 /// <param name="Shapes">
 /// Alpha shapes carving this pass — a layer mask, a clipping base — or null
@@ -489,6 +541,16 @@ public static class SceneRenderer
                 BlendMode = shape.ScratchErases ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
             };
             DrawLayer(canvas, shape.Scratch, dabs);
+            if (shape.Tip is not null)
+            {
+                canvas.Save();
+                if (shape.Corridor is not null)
+                {
+                    canvas.ClipPath(shape.Corridor, SKClipOperation.Intersect, antialias: true);
+                }
+                DrawLayer(canvas, shape.Tip, dabs);
+                canvas.Restore();
+            }
             canvas.Restore();
         }
     }
@@ -514,6 +576,11 @@ public static class SceneRenderer
         if (!overlay.NeedsMask)
         {
             DrawLayer(canvas, overlay.Scratch, strokePaint);
+            if (overlay.BeginTip(canvas))
+            {
+                DrawLayer(canvas, overlay.Tip!, strokePaint);
+                canvas.Restore();
+            }
             return;
         }
 
@@ -539,6 +606,11 @@ public static class SceneRenderer
         }
 
         DrawLayer(canvas, overlay.Scratch, null);
+        if (overlay.BeginTip(canvas))
+        {
+            DrawLayer(canvas, overlay.Tip!, null);
+            canvas.Restore();
+        }
 
         if (overlay.AlphaLocked)
         {
@@ -795,6 +867,24 @@ public static class SceneRenderer
                             SKRect.Create(src.Left, src.Top, src.Width, src.Height),
                             Linear, strokePaint);
                     }
+                }
+
+                // The stretch of mark laid down since the last pass, where the
+                // pass has not been to render it properly yet (B322).
+                if (overlay.BeginTip(canvas))
+                {
+                    if (src.Width > 0 && src.Height > 0)
+                    {
+                        using var tip = SKImage.FromBitmap(overlay.Tip!);
+                        if (tip is not null)
+                        {
+                            canvas.DrawImage(
+                                tip, src,
+                                SKRect.Create(src.Left, src.Top, src.Width, src.Height),
+                                Linear, strokePaint);
+                        }
+                    }
+                    canvas.Restore();
                 }
             }
 
