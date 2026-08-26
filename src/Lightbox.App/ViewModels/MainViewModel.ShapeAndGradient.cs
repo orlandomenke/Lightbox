@@ -187,7 +187,11 @@ public partial class MainViewModel
                     RemoveStrokeById(doc, frameId, stroke.Id);
                     if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
                 },
-                affectedFrameId: frameId);
+                affectedFrameId: frameId,
+                // B327, the same declaration the brush commit makes: the revert
+                // removes one stroke, so the pixels that can move are the ones
+                // that stroke could reach.
+                repaintBounds: RepaintBoundsOf(stroke));
         }
         finally
         {

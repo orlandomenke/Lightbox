@@ -68,7 +68,12 @@ public sealed class FrameBitmapCache : IDisposable
     /// </summary>
     public EvictionOrder Eviction { get; set; } = EvictionOrder.LeastRecent;
 
-    private readonly record struct Entry(string Key, string FrameId, SKBitmap Bmp);
+    /// <param name="Width">Document width this render was made at — B327 needs it
+    /// to replay a stroke into the same coordinate space the entry was built in.</param>
+    /// <param name="Height">Document height, likewise.</param>
+    /// <param name="OutputScale">Surface pixels per document unit, likewise.</param>
+    private readonly record struct Entry(
+        string Key, string FrameId, SKBitmap Bmp, int Width, int Height, double OutputScale);
 
     private readonly Dictionary<string, LinkedListNode<Entry>> _map = [];
     private readonly LinkedList<Entry> _lru = [];
@@ -315,7 +320,7 @@ public sealed class FrameBitmapCache : IDisposable
         Misses++;
         var source = PoseResolver?.Invoke(frame, celIndex) ?? frame;
         var bmp = Render(source, width, height, outputScale, celIndex, backdrop);
-        var newNode = _lru.AddFirst(new Entry(key, frame.Id, bmp));
+        var newNode = _lru.AddFirst(new Entry(key, frame.Id, bmp, width, height, outputScale));
         _map[key] = newNode;
         CachedBytes += BytesOf(bmp);
 
@@ -397,7 +402,7 @@ public sealed class FrameBitmapCache : IDisposable
         var bytes = BytesOf(bmp);
         if (_lru.Count >= MaxFrames || CachedBytes + bytes > ByteBudget) return false;
 
-        var node = _lru.AddLast(new Entry(key, frame.Id, bmp));
+        var node = _lru.AddLast(new Entry(key, frame.Id, bmp, width, height, outputScale));
         _map[key] = node;
         CachedBytes += bytes;
         return true;
@@ -453,6 +458,84 @@ public sealed class FrameBitmapCache : IDisposable
             if (node.Value.FrameId == frameId) return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// Rebuild one rectangle of every held render of <paramref name="frame"/>,
+    /// instead of throwing them away. Returns whether that was possible; false
+    /// means the caller should <see cref="Invalidate(string)"/> as before.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B327.</b> Undo dropped the frame's bitmap, so the next publish stamped
+    /// every stroke on it again — 3 092 ms per Ctrl+Z at 1 600 strokes. This
+    /// patches the reverted mark's footprint instead, which is what committing
+    /// the mark cost in the first place.
+    /// </para>
+    /// <para>
+    /// <b>A posed frame is refused here rather than inside the rasterizer,</b>
+    /// because the reason is the cache's own: <see cref="PoseResolver"/> means
+    /// the pixels held under this id were rendered from a <em>substitute</em>
+    /// frame, so replaying this one's strokes into them would mix two drawings.
+    /// </para>
+    /// <para>
+    /// <b>An entry that cannot be patched is dropped, never left half-done.</b>
+    /// <c>FrameRasterizer.RepaintRegion</c> makes every refusal before it paints
+    /// anything, so a false there means that bitmap is untouched and removing it
+    /// is exactly today's behaviour for it.
+    /// </para>
+    /// </remarks>
+    /// <param name="region">The rectangle to rebuild, in document coordinates.</param>
+    internal bool RepaintRegion(Frame frame, SKRectI region)
+    {
+        if (Rig.IsPosed(frame)) return false;
+        if (!FrameRasterizer.CanRepaintRegion(frame)) return false;
+
+        var patched = false;
+        var node = _lru.First;
+        while (node is not null)
+        {
+            var next = node.Next;
+            var entry = node.Value;
+            if (entry.FrameId == frame.Id)
+            {
+                var target = Clamped(region, entry.OutputScale, entry.Bmp.Width, entry.Bmp.Height);
+                if (FrameRasterizer.RepaintRegion(
+                        entry.Bmp, frame, target, entry.Width, entry.Height, entry.OutputScale))
+                {
+                    patched = true;
+                }
+                else
+                {
+                    RemoveNode(node);
+                }
+            }
+            node = next;
+        }
+        return patched;
+    }
+
+    /// <summary>A document-space rectangle as surface pixels inside the bitmap.</summary>
+    /// <remarks>
+    /// Outward to whole pixels before clamping — a mark that covers part of a
+    /// pixel dirties all of it, and rounding inward would leave a hairline of the
+    /// old drawing along the edge of the repaint.
+    /// </remarks>
+    private static SKRectI Clamped(SKRectI region, double outputScale, int width, int height)
+    {
+        var scaled = outputScale == 1.0
+            ? region
+            : new SKRectI(
+                (int)Math.Floor(region.Left * outputScale),
+                (int)Math.Floor(region.Top * outputScale),
+                (int)Math.Ceiling(region.Right * outputScale),
+                (int)Math.Ceiling(region.Bottom * outputScale));
+
+        var left = Math.Clamp(scaled.Left, 0, width);
+        var top = Math.Clamp(scaled.Top, 0, height);
+        var right = Math.Clamp(scaled.Right, 0, width);
+        var bottom = Math.Clamp(scaled.Bottom, 0, height);
+        return new SKRectI(left, top, right, bottom);
     }
 
     public void Invalidate(string frameId)

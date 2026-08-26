@@ -492,7 +492,12 @@ public partial class MainViewModel
         if (!scope.Any) return;
         if (scope.FrameId is { } frameId)
         {
-            InvalidateFrameRender(frameId);
+            // B327: the step's own account of what it could have moved. Undo of a
+            // stroke then repaints that mark's footprint rather than re-stamping
+            // every stroke on the drawing, which is what made Ctrl+Z cost 3 s on a
+            // finished one. Null for a step that cannot say, and that is the old
+            // behaviour unchanged.
+            InvalidateFrameRender(frameId, scope.RepaintBounds);
             _dirtyThumbIds.Add(frameId);
         }
         else if (scope.FrameContentUnchanged)

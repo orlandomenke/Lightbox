@@ -376,7 +376,13 @@ public partial class MainViewModel
                     RemoveStrokeById(doc, frameId, stroke.Id);
                     if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
                 },
-                affectedFrameId: frameId);
+                affectedFrameId: frameId,
+                // B327. A fill's Points ARE its outer contour — out of surface
+                // space, per invariant 1 — so its reach is its real extent, and
+                // the holes are inside it by construction. True of the
+                // fill-below path too: the insert goes under the line work, but
+                // the revert still takes out one stroke.
+                repaintBounds: RepaintBoundsOf(stroke));
         }
         finally
         {
