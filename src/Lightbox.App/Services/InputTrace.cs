@@ -425,9 +425,23 @@ internal static class InputTrace
             _worstStall = 0;
             _blockedMs = 0;
             _stalls = 0;
+            // <b>Default, not Background, and B312 is why.</b> Avalonia runs
+            // Render > Loaded > Default > Input > Background, so a beat at
+            // Background yields to every pointer event and every render - which
+            // is precisely the state this is supposed to measure, and it cannot
+            // measure a state it is in. The reporter's capture of 2026-08-25
+            // printed "UI-thread stalls 3, worst 10888 ms" beside "longest
+            // silence 53 ms" and 1,698 delivered moves: a 10.9-second block in a
+            // 15.2-second trace that never stopped answering.
+            //
+            // Default sits ABOVE Input here (the reverse of WPF - see
+            // MainViewModel.RequestSnapshot for the same surprise costing a
+            // frame), so a beat is not queued behind the events it is timing.
+            // What is left is genuine unresponsiveness: one long operation, a
+            // blocking wait, a render that will not end.
             _heartbeat ??= new Avalonia.Threading.DispatcherTimer(
                 TimeSpan.FromMilliseconds(HeartbeatMs),
-                Avalonia.Threading.DispatcherPriority.Background,
+                Avalonia.Threading.DispatcherPriority.Default,
                 (_, _) => Beat());
             _heartbeat.Start();
         }
@@ -583,7 +597,15 @@ internal static class InputTrace
         double WorstStallMs,
         double BlockedMs,
         double LongestSilenceMs,
-        IReadOnlyList<string> Verdicts);
+        IReadOnlyList<string> Verdicts,
+        /// <summary>
+        /// Stall claims the event stream overturned (B312) — a late beat over a
+        /// window in which the canvas was demonstrably still answering. Counted
+        /// rather than dropped: a report that quietly showed fewer stalls would
+        /// look like a fixed application, where this says the thread was busy
+        /// rather than stuck, which is a real finding with a different fix.
+        /// </summary>
+        int RefutedStalls = 0);
 
     /// <summary>A popup that lived shorter than this collapsed rather than closed.</summary>
     internal const double CollapsedPopupMs = 500;
@@ -666,14 +688,125 @@ internal static class InputTrace
                 .OrderByDescending(d => d.Events)
                 .ToList();
 
+            // B312: a stall is a claim about the whole thread, and the entries
+            // beside it can refute it. Counted here rather than at record time
+            // because only the finished ring knows what else arrived.
+            var (stalls, worst, blocked, refuted) = StallsTheEventsAllow(entries);
+
             return new Summary(
                 seconds, kept, _count > Capacity, deviceList,
                 alternations, moves, samples, shifted, enters, exits, decided, assigned,
-                opened, collapsed, shortest, _stalls, _worstStall, _blockedMs, silence,
+                opened, collapsed, shortest, stalls, worst, blocked, silence,
                 Verdicts(
                     seconds, deviceList, alternations, enters, exits, assigned,
-                    opened, collapsed, _stalls, _worstStall, silence));
+                    opened, collapsed, stalls, worst, silence),
+                refuted);
         }
+    }
+
+    /// <summary>
+    /// The stalls the rest of the trace does not contradict (B312).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A heartbeat measures one thing and the report used to claim
+    /// another.</b> A late beat says background work did not run; "the UI thread
+    /// was blocked" says nothing at all ran. Those are the same sentence only
+    /// while nothing else is competing, and the moment an artist is drawing they
+    /// are not: pointer events arrive at over a hundred a second and every one
+    /// of them outranks a background job.
+    /// </para>
+    /// <para>
+    /// <b>So the entries arbitrate.</b> A stall of <em>d</em> ending at
+    /// <em>t</em> asserts that nothing ran in <c>(t - d, t)</c>. Any pointer
+    /// event delivered inside that window is a thread that was demonstrably
+    /// answering, and the claim is refused rather than reported. The reporter's
+    /// capture of 2026-08-25 is the case: a 10,888 ms stall over a window
+    /// carrying 1,698 delivered moves, printed two lines from a
+    /// <c>longest silence</c> of 53 ms that flatly contradicted it.
+    /// </para>
+    /// <para>
+    /// <b>Refused ones are counted, not dropped.</b> A trace that quietly showed
+    /// fewer stalls would look like a fixed application; the number of claims
+    /// the events overturned is itself the diagnosis, and it says the thread was
+    /// busy rather than stuck - which is a real finding with a different fix.
+    /// </para>
+    /// <para>
+    /// Only real input counts as evidence. A <c>Note</c>, a cursor decision or
+    /// another <c>Stall</c> is written by this file and proves nothing about the
+    /// dispatcher having drained.
+    /// </para>
+    /// </remarks>
+    private static (int Stalls, double Worst, double Blocked, int Refuted) StallsTheEventsAllow(
+        Entry[] entries)
+    {
+        static bool IsDelivered(Kind kind) => kind
+            is Kind.Move or Kind.Sample or Kind.Enter or Kind.Exit
+            or Kind.Press or Kind.Release or Kind.CaptureLost;
+
+        int stalls = 0, refuted = 0;
+        double worst = 0, blocked = 0;
+
+        foreach (var stall in entries)
+        {
+            if (stall.Kind != Kind.Stall) continue;
+            if (!TryReadStallMs(stall.Detail, out var ms)) continue;
+
+            var from = stall.Seconds - ms / 1000.0;
+            var answered = false;
+            foreach (var other in entries)
+            {
+                if (!IsDelivered(other.Kind)) continue;
+                if (other.Seconds <= from || other.Seconds >= stall.Seconds) continue;
+                answered = true;
+                break;
+            }
+
+            if (answered)
+            {
+                refuted++;
+                continue;
+            }
+
+            stalls++;
+            blocked += ms;
+            if (ms > worst) worst = ms;
+        }
+
+        return (stalls, worst, blocked, refuted);
+    }
+
+    /// <summary>
+    /// The millisecond figure back out of a stall's own sentence.
+    /// </summary>
+    /// <remarks>
+    /// Parsed rather than carried in a field because <see cref="Entry"/> is a
+    /// fixed record written on the pointer path, and widening it for one kind of
+    /// entry would cost every event in the ring the space. The sentence is
+    /// written a few lines above by this same file, so the format is not a
+    /// guess - and a figure that would not parse is skipped rather than assumed,
+    /// which keeps a malformed entry from inventing a stall.
+    /// </remarks>
+    private static bool TryReadStallMs(string? detail, out double ms)
+    {
+        ms = 0;
+        if (string.IsNullOrEmpty(detail)) return false;
+        var start = -1;
+        for (var i = 0; i < detail.Length; i++)
+        {
+            if (!char.IsDigit(detail[i])) continue;
+            start = i;
+            break;
+        }
+
+        if (start < 0) return false;
+        var end = start;
+        while (end < detail.Length && char.IsDigit(detail[end])) end++;
+        return double.TryParse(
+            detail.AsSpan(start, end - start),
+            System.Globalization.NumberStyles.Integer,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out ms);
     }
 
     /// <summary>
@@ -741,7 +874,9 @@ internal static class InputTrace
             verdicts.Add(
                 $"The UI thread was blocked {stalls} time(s), worst {worstStall / 1000:F1} s — the "
                 + "application really did stop answering, and any silence in the event list around "
-                + "that point is the freeze rather than the pointer being elsewhere.");
+                + "that point is the freeze rather than the pointer being elsewhere. Every one of "
+                + "these survived being checked against the events either side of it (B312), so "
+                + "none is background work merely losing its turn.");
         }
         else if (silence > 2000)
         {
@@ -833,6 +968,16 @@ internal static class InputTrace
             sb.AppendLine($"  UI-thread stalls      {summary.Stalls}"
                 + (summary.Stalls > 0 ? $", worst {summary.WorstStallMs:F0} ms" : "")
                 + $" (over {StallMs:F0} ms)");
+            // B312: printed whenever it is non-zero, because a late beat the
+            // events overturned is not nothing — it is the thread being busy
+            // rather than stuck, which is a different fault with a different fix.
+            if (summary.RefutedStalls > 0)
+            {
+                sb.AppendLine(
+                    $"  late beats overruled   {summary.RefutedStalls}"
+                    + "  <-- the canvas was still answering across them, so they were"
+                    + " the thread being BUSY, not blocked");
+            }
             // The filter's own count, so a trace says whether it engaged rather
             // than leaving "the churn is gone" and "the pen was not used" to
             // look identical.
