@@ -1898,6 +1898,9 @@ public sealed partial class CanvasControl : Control
         var gpuWork = _pendingGpuWork;
         _pendingGpuWork = null;
 
+        // B321: the midpoint of publish -> drawn — see PresentLatency.Enqueued.
+        _presentWait.Enqueued(snapshot.Seq);
+
         context.Custom(new DrawOp(
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
@@ -3864,43 +3867,6 @@ public sealed partial class CanvasControl : Control
     /// </remarks>
     public event Action<long>? SnapshotPresented;
 
-    private void NoteRendered(long seq)
-    {
-        // Before the early return below, which is about keeping the high-water
-        // mark monotonic. A frame that arrived out of order was still drawn, and
-        // dropping it here would flatter the average by counting only the
-        // frames that behaved.
-        _presentWait.Rendered(seq);
-        StrokeToScreen.Shared.Rendered(seq);
-
-        long current;
-        do
-        {
-            current = Interlocked.Read(ref _lastRenderedSeq);
-            if (seq <= current) return;
-        }
-        while (Interlocked.CompareExchange(ref _lastRenderedSeq, seq, current) != current);
-
-        // Only when the high-water mark moved: a cursor repaint re-draws the
-        // same snapshot many times a second, and the publisher only cares that
-        // a NEW frame reached the screen. The deferral race is safe by
-        // ordering — a publish can only be deferred while its draw's
-        // notification has not been processed yet, so the post that releases
-        // it is always already queued.
-        if (SnapshotPresented is null) return;
-        Avalonia.Threading.Dispatcher.UIThread.Post(
-            () => SnapshotPresented?.Invoke(seq),
-            Avalonia.Threading.DispatcherPriority.Input);
-    }
-
-    /// <summary>Frame times arrive from the render thread; marshal to the UI thread to publish them.</summary>
-    private void ReportFrameTime(double milliseconds)
-    {
-        if (FrameRendered is null) return;
-        Avalonia.Threading.Dispatcher.UIThread.Post(
-            () => FrameRendered?.Invoke(milliseconds),
-            Avalonia.Threading.DispatcherPriority.Background);
-    }
 
     private sealed partial class DrawOp(
         Rect bounds, RenderSnapshot snapshot, ViewState view, BrushCursor? cursor,

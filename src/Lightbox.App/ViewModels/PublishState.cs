@@ -144,6 +144,37 @@ sealed class PublishState
     /// <summary>Newest seq the canvas has reported drawn. UI thread.</summary>
     internal long PresentedSeq { get; private set; }
 
+    /// <summary>
+    /// Asks the canvas what it has actually drawn, rather than what it has got
+    /// round to saying (B321).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Null in every headless test and wherever no canvas is attached, which is
+    /// the same condition <see cref="CanvasIsBehind"/> already treats as "no
+    /// consumer to pace to" — so the pacing behaves exactly as it did before
+    /// this existed unless a real canvas is on the other end.
+    /// </para>
+    /// <para>
+    /// A delegate rather than a reference to the control: this object is in the
+    /// view-model layer and knowing about <c>CanvasControl</c> would invert the
+    /// dependency the decomposition drew. The window supplies it, as it does the
+    /// present event.
+    /// </para>
+    /// </remarks>
+    internal Func<long>? RenderedSeqProbe { get; set; }
+
+    /// <summary>
+    /// Take the canvas's own high-water mark, if it is ahead of what we were
+    /// told. Monotonic: a probe that answered lower would be a lost draw rather
+    /// than a rewind.
+    /// </summary>
+    private void AdoptRenderedSeq()
+    {
+        if (RenderedSeqProbe?.Invoke() is not { } drawn) return;
+        if (drawn > PresentedSeq) PresentedSeq = drawn;
+    }
+
     /// <summary>A coalesced publish is waiting for the canvas to catch up.</summary>
     internal bool WaitingForPresent { get; set; }
 
@@ -162,6 +193,11 @@ sealed class PublishState
     /// </remarks>
     internal bool CanvasIsBehind(double damMs)
     {
+        // B321: ask before judging. The canvas may have drawn the frame this
+        // dam is waiting on and simply not have been given a dispatcher turn to
+        // say so — mid-stroke that turn queues behind the artist's own pointer
+        // events, which is precisely when the pacing is deciding.
+        AdoptRenderedSeq();
         if (PresentedSeq == 0) return false;
         if (_sequence <= PresentedSeq) return false;
         return (System.Diagnostics.Stopwatch.GetTimestamp() - LastPublishTicks)

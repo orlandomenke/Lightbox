@@ -29,6 +29,22 @@ public partial class MainWindow
 
 
 
+    /// <summary>
+    /// Tell the publisher how to pace itself to this canvas.
+    /// </summary>
+    /// <remarks>
+    /// <b>B189</b> gave it the signal: the publisher holds its coalesced
+    /// publishes until the canvas has actually drawn the last one, and
+    /// <c>SnapshotPresented</c> is how it learns that. <b>B321</b> gave it the
+    /// same truth without the dispatcher hop, for when the dam is deciding
+    /// mid-stroke and the message has not had a turn yet.
+    /// </remarks>
+    private void WireCanvasPacing()
+    {
+        Canvas.SnapshotPresented += seq => _vm.NoteFramePresented(seq);
+        _vm.SetRenderedSeqProbe(() => Canvas.LastRenderedSeq);
+    }
+
     private void InitialisePanels()
     {
         foreach (var panel in PanelPool.Children.OfType<Docker>().ToList())
@@ -329,6 +345,7 @@ public partial class MainWindow
             (_vm.DamDeferrals, _vm.DamReleasedByPresent, _vm.DamReleasedByTimer,
              _vm.DamReleasedByPresent + _vm.DamReleasedByTimer,
              _vm.DamHeldTotalMs, _vm.DamHeldWorstMs),
+            (_vm.ComposeCount, _vm.ComposeTotalMs, _vm.ComposeWorstMs),
             _vm.ReportPublishTally);
     }
 
