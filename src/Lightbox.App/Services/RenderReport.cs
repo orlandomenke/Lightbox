@@ -83,6 +83,8 @@ internal static class RenderReport
          int Waits, double WaitTotalMs, double WaitWorstMs,
          long Pixels, long MarkPixels,
          int WorstW, int WorstH, long WorstMarkPixels, int WorstTail)? LivePost = null,
+        (int Deferrals, int ByPresent, int ByTimer, int Released,
+         double HeldTotalMs, double HeldWorstMs)? Dam = null,
         Rendering.PublishTally? PublishesByCaller = null);
 
     /// <summary>
@@ -962,6 +964,22 @@ internal static class RenderReport
         sb.AppendLine($"  stamping the dabs       mean {s.Stamp.MeanMs,7:0.##} ms   worst {s.Stamp.WorstMs,7:0.##} ms");
         var perPublish = s.Publishes == 0 ? 0 : (double)s.Events / s.Publishes;
         sb.AppendLine($"publishes carrying ink    {s.Publishes}  ({perPublish:0.#} events per publish)");
+        if (facts.Dam is { Deferrals: > 0 } dam)
+        {
+            var held = dam.Released == 0 ? 0 : dam.HeldTotalMs / dam.Released;
+            sb.AppendLine(
+                $"  publish held back       {dam.Deferrals} times   mean {held:0.##} ms   worst {dam.HeldWorstMs:0.##} ms");
+            sb.AppendLine(
+                $"    released by the screen  {dam.ByPresent}      by the 250 ms backstop  {dam.ByTimer}");
+            if (dam.ByTimer > dam.ByPresent)
+            {
+                sb.AppendLine("  !! the BACKSTOP is pacing the canvas, not the screen. That timer");
+                sb.AppendLine("     exists for a window that has stopped presenting at all, so a");
+                sb.AppendLine("     drawing canvas reaching it means the present notification is");
+                sb.AppendLine("     not arriving or not matching the frame it waited on — and the");
+                sb.AppendLine("     update rate is then a constant nobody chose as one.");
+            }
+        }
         if (s.Publishes > 0)
         {
             sb.AppendLine($"  event -> publish        mean {s.WaitToPublish.MeanMs,7:0.##} ms   worst {s.WaitToPublish.WorstMs,7:0.##} ms   (oldest event carried)");

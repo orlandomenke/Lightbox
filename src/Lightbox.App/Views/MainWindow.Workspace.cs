@@ -326,6 +326,9 @@ public partial class MainWindow
              _vm.LivePostPixels, _vm.LivePostMarkPixels,
              _vm.LivePostWorstMsWidth, _vm.LivePostWorstMsHeight,
              _vm.LivePostWorstMsMarkPixels, _vm.LiveWorstProvisionalTail),
+            (_vm.DamDeferrals, _vm.DamReleasedByPresent, _vm.DamReleasedByTimer,
+             _vm.DamReleasedByPresent + _vm.DamReleasedByTimer,
+             _vm.DamHeldTotalMs, _vm.DamHeldWorstMs),
             _vm.ReportPublishTally);
     }
 

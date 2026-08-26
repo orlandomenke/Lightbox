@@ -2706,6 +2706,12 @@ public partial class MainViewModel
         // dispatcher — which is what was making everything else late.
         if (_publish.CanvasIsBehind(PublishDamMs))
         {
+            if (!_publish.WaitingForPresent)
+            {
+                DamDeferrals++;
+                _damBeganAt = System.Diagnostics.Stopwatch.GetTimestamp();
+            }
+
             _publish.WaitingForPresent = true;
             ArmPublishDam();
             return;
@@ -2736,9 +2742,59 @@ public partial class MainViewModel
     /// <see cref="Rendering.CanvasControl.SnapshotPresented"/>). Releases the
     /// deferred publish, if one is waiting and this is the frame it waited on.
     /// </summary>
+    /// <summary>
+    /// Which half of the dam is doing the work (B321).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The pacing is meant to follow the screen; the quarter-second timer is
+    /// only its liveness backstop.</b> <see cref="PublishDamMs"/> says so in as
+    /// many words — <i>"far above any real present interval, so it only fires
+    /// when presentation has genuinely stopped"</i>. The owner's Ink capture
+    /// publishes once every <b>241 ms</b>, which is that backstop and not any
+    /// screen: 136 publishes over 3,675 pointer events, about four canvas
+    /// updates a second while drawing.
+    /// </para>
+    /// <para>
+    /// A coincidence of numbers is not a diagnosis, so these count it directly.
+    /// If the timer is releasing most deferrals then the present notification is
+    /// either not arriving or not matching, and the canvas is being paced by a
+    /// constant that was never meant to pace anything.
+    /// </para>
+    /// </remarks>
+    internal int DamReleasedByPresent { get; private set; }
+
+    /// <summary>Deferrals released by the liveness timer instead.</summary>
+    internal int DamReleasedByTimer { get; private set; }
+
+    /// <summary>Publishes the dam actually held back.</summary>
+    internal int DamDeferrals { get; private set; }
+
+    /// <summary>How long a deferral waited before something released it.</summary>
+    internal double DamHeldTotalMs { get; private set; }
+
+    /// <summary>The longest single deferral.</summary>
+    internal double DamHeldWorstMs { get; private set; }
+
+    private long _damBeganAt;
+
+    /// <summary>Close off a deferral and record how long it lasted.</summary>
+    private void NoteDamReleased(bool byPresent)
+    {
+        if (byPresent) DamReleasedByPresent++;
+        else DamReleasedByTimer++;
+        if (_damBeganAt == 0) return;
+        var held = (System.Diagnostics.Stopwatch.GetTimestamp() - _damBeganAt)
+                   * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+        DamHeldTotalMs += held;
+        if (held > DamHeldWorstMs) DamHeldWorstMs = held;
+        _damBeganAt = 0;
+    }
+
     internal void NoteFramePresented(long seq)
     {
         if (!_publish.NotePresented(seq)) return;
+        NoteDamReleased(byPresent: true);
         // Through RequestSnapshot rather than straight to PublishSnapshot, so
         // the released publish still lands behind whatever pointer events are
         // already queued — B73's ordering, preserved under pacing.
@@ -2782,6 +2838,7 @@ public partial class MainViewModel
     {
         _publish.DamArmed = false;
         if (!_publish.TakeDeferral()) return;
+        NoteDamReleased(byPresent: false);
         // Through RequestSnapshot so a canvas that is merely slow (published
         // again inside the dam window) re-defers and re-arms rather than
         // stacking a second frame in flight.
