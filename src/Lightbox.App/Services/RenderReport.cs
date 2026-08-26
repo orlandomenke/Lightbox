@@ -85,7 +85,7 @@ internal static class RenderReport
          int WorstW, int WorstH, long WorstMarkPixels, int WorstTail)? LivePost = null,
         (int Deferrals, int ByPresent, int ByTimer, int Released,
          double HeldTotalMs, double HeldWorstMs)? Dam = null,
-        (int Count, double TotalMs, double WorstMs)? Compose = null,
+        (int Count, double TotalMs, double WorstMs, double MedianMs, bool MeanDistorted)? Compose = null,
         (double DescribeMs, double ComposeMs, double HandoffMs)? BuildPhases = null,
         Rendering.PublishTally? PublishesByCaller = null);
 
@@ -1011,7 +1011,23 @@ internal static class RenderReport
         if (facts.Compose is { Count: > 0 } comp)
         {
             sb.AppendLine(
-                $"building each frame      mean {comp.TotalMs / comp.Count,7:0.##} ms   worst {comp.WorstMs,7:0.##} ms   (UI thread, before the publish)");
+                $"building each frame      mean {comp.TotalMs / comp.Count,7:0.##} ms   median {comp.MedianMs,7:0.##} ms   worst {comp.WorstMs,7:0.##} ms   (UI thread, before the publish)");
+            // Said out loud rather than left to whoever notices the two columns
+            // disagree. A mean over a latency distribution with stalls in it
+            // describes no frame that ever happened, and one taken on this
+            // machine put 5.4 ms on a 3.2 ms build from a single 2-second
+            // stall — which the report then explained confidently and wrongly.
+            if (comp.MeanDistorted)
+            {
+                sb.AppendLine(
+                    "  !! the mean is more than twice the median, so a stall is doing the");
+                sb.AppendLine(
+                    "     talking rather than the typical frame. Read the MEDIAN as the cost");
+                sb.AppendLine(
+                    "     and the WORST as the thing to chase; the phase split below is");
+                sb.AppendLine(
+                    "     built from means and inherits the same distortion.");
+            }
             // Split, because the one number stopped naming its own cause once
             // it became the largest item in the chain. The three are different
             // fixes and the report should say which one is being asked for.
@@ -1042,10 +1058,14 @@ internal static class RenderReport
                 // B125 stage 6's ground" about a build of 3.49 ms: it was
                 // recommending an architectural project to win 2.88 ms. A
                 // phase can be almost all of something negligible.
-                if (comp.TotalMs / comp.Count < MaterialBuildMs)
+                // Judged on the MEDIAN: whether the build is worth attacking is a
+                // question about the typical frame, and the mean answers a
+                // different one whenever the session contains a stall.
+                var typical = comp.MedianMs > 0 ? comp.MedianMs : comp.TotalMs / comp.Count;
+                if (typical < MaterialBuildMs)
                 {
                     sb.AppendLine(
-                        $"  >> The whole build is {comp.TotalMs / comp.Count:0.##} ms, so none of this is worth");
+                        $"  >> A typical build is {typical:0.##} ms, so none of this is worth");
                     sb.AppendLine(
                         "     attacking however the share falls. The time is elsewhere — read");
                     sb.AppendLine(

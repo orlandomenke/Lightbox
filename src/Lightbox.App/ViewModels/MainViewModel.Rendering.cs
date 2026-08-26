@@ -532,14 +532,32 @@ public partial class MainViewModel
     /// tally. Never pass it by hand — the value's worth is that it cannot lie
     /// about where the call came from.
     /// </param>
-    /// <summary>How many frames the UI thread has built, and what they cost (B321).</summary>
-    internal int ComposeCount { get; private set; }
+    /// <summary>
+    /// Every frame the UI thread has built and what each cost (B321) — as a
+    /// distribution, not a running total.
+    /// </summary>
+    /// <remarks>
+    /// A <see cref="Services.Tally"/> rather than three fields because the mean
+    /// alone was read off this and believed: one 2,062 ms stall in a session of
+    /// 381 publishes put 5.4 ms on a build whose typical cost is 3.2, and the
+    /// report drew a confident and wrong conclusion from it.
+    /// </remarks>
+    private readonly Services.Tally _buildTally = new();
 
-    /// <summary>Total milliseconds spent building them.</summary>
-    internal double ComposeTotalMs { get; private set; }
+    /// <inheritdoc cref="_buildTally"/>
+    internal int ComposeCount => (int)_buildTally.Count;
 
-    /// <summary>The most expensive single build.</summary>
-    internal double ComposeWorstMs { get; private set; }
+    /// <inheritdoc cref="_buildTally"/>
+    internal double ComposeTotalMs => _buildTally.TotalMs;
+
+    /// <inheritdoc cref="_buildTally"/>
+    internal double ComposeWorstMs => _buildTally.WorstMs;
+
+    /// <inheritdoc cref="_buildTally"/>
+    internal double ComposeMedianMs => _buildTally.MedianMs;
+
+    /// <inheritdoc cref="Services.Tally.MeanIsDistorted"/>
+    internal bool ComposeMeanIsDistorted => _buildTally.MeanIsDistorted;
 
     /// <summary>
     /// The three phases inside one frame build, so a slow build names its own
@@ -584,9 +602,7 @@ public partial class MainViewModel
     {
         var ms = (System.Diagnostics.Stopwatch.GetTimestamp() - _publish.LastPublishTicks)
                  * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
-        ComposeCount++;
-        ComposeTotalMs += ms;
-        if (ms > ComposeWorstMs) ComposeWorstMs = ms;
+        _buildTally.Add(ms);
     }
 
     public void PublishSnapshot(
@@ -948,25 +964,16 @@ public partial class MainViewModel
             BuildHandoffMs += (System.Diagnostics.Stopwatch.GetTimestamp() - handoffFrom)
                               * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
             NoteComposeCost();
-            // AFTER the build is timed, and that is not tidiness. Recording
-            // costs three scaled blits of document-sized bitmaps, and inside
-            // the window it added ~20 ms to a 22.63 ms "building each frame"
-            // on the owner's machine — an instrument that made the thing it
-            // was measuring look four times worse than it is, on 1,279 of
-            // 1,337 publishes. The buffers are unchanged by the handoff, so
-            // recording here records exactly what the composite read.
-            if (Capture.Armed)
-            {
-                Capture.Note(
-                    image, _live.Scratch, _live.PostScratch,
-                    $"route {plan.Route} clip {usedClip} dirty {dirty} "
-                    + $"points {_strokeBuilder.Current?.Points.Count ?? 0} "
-                    + $"passRendered {_live.PostStampedCount} passes {LivePostPasses}");
-            }
+            Record();
             handler(snapshot);
         }
         else
         {
+            // Recorded here too, before the image below is freed. A capture
+            // that only worked when a canvas happened to be listening is a
+            // diagnostic with a silent hole in it, and three tests found the
+            // hole the same minute it was made.
+            Record();
             // No canvas attached (headless or IPC-only): nobody would ever
             // free this image, and a live snapshot makes the next repaint
             // duplicate the whole buffer. A deferred composite needs no
@@ -974,6 +981,26 @@ public partial class MainViewModel
             // this path has ever been.
             image?.Dispose();
             if (flattenedOwned is not null) foreach (var b in flattenedOwned) b.Dispose();
+        }
+
+        // Kept as a local so both arms above record the same thing from the
+        // same state, rather than one of them drifting.
+        //
+        // Called AFTER the build is timed, and that is not tidiness. Recording
+        // costs three scaled blits of document-sized bitmaps, and from inside
+        // the timed window it added ~20 ms to a 22.63 ms "building each frame"
+        // on the owner's machine — an instrument that made the thing it was
+        // measuring look four times worse than it is, on 1,279 of 1,337
+        // publishes. The buffers are unchanged by the handoff, so recording
+        // here records exactly what the composite read.
+        void Record()
+        {
+            if (!Capture.Armed) return;
+            Capture.Note(
+                image, _live.Scratch, _live.PostScratch,
+                $"route {plan.Route} clip {usedClip} dirty {dirty} "
+                + $"points {_strokeBuilder.Current?.Points.Count ?? 0} "
+                + $"passRendered {_live.PostStampedCount} passes {LivePostPasses}");
         }
 
         // The snapshot above holds its own pins on every bitmap still in the

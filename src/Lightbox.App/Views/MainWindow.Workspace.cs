@@ -345,7 +345,8 @@ public partial class MainWindow
             (_vm.DamDeferrals, _vm.DamReleasedByPresent, _vm.DamReleasedByTimer,
              _vm.DamReleasedByPresent + _vm.DamReleasedByTimer,
              _vm.DamHeldTotalMs, _vm.DamHeldWorstMs),
-            (_vm.ComposeCount, _vm.ComposeTotalMs, _vm.ComposeWorstMs),
+            (_vm.ComposeCount, _vm.ComposeTotalMs, _vm.ComposeWorstMs,
+             _vm.ComposeMedianMs, _vm.ComposeMeanIsDistorted),
             (_vm.BuildDescribeMs, _vm.BuildComposeMs, _vm.BuildHandoffMs),
             _vm.ReportPublishTally);
     }
