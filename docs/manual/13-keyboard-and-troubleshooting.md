@@ -247,6 +247,37 @@ reading it:
   tablet driver or the operating system adds before that is invisible to it, so
   a clean section with a lagging hand points outside the application.
 
+### If the mark itself looks wrong, record the frames
+
+The render report answers *how long*. When the problem is *what it looks like* —
+a rectangle inside a stroke, a patch of the mark missing, a seam where there
+should be none — it says nothing useful, and a screenshot rarely helps either,
+because the thing is gone before your hand leaves the pen.
+
+**Help → Record frames while drawing** starts keeping the last couple of seconds
+of frames. Draw until you see the problem, then press **F10** — the key rather
+than the menu on purpose, so you can stop the pen where the problem is instead
+of where the menu is. Both write to the same folder as everything else on this
+page.
+
+What comes out is a numbered sequence of images, oldest first, and a small
+`index.txt` describing them. Each frame is up to three pictures, and it is the
+second and third that make this worth doing:
+
+- `-screen` is what was composited for the canvas — the artifact, as you saw it.
+- `-raw` is the dab scratch: the marks the brush laid down, before any medium,
+  wet edge, texture or granulation.
+- `-processed` is what the wet-media pass rendered.
+
+Mark that is in `-raw` and missing from `-screen` is ink that reached the
+compositor and did not get drawn. Mark that looks wrong in `-processed` is the
+medium. That one distinction is usually the whole diagnosis, and it cannot be
+made from a photograph of the screen.
+
+Recording is off until you switch it on, and switching it on again starts a
+fresh recording — so a second attempt at catching something is never read
+through the first.
+
 ### If the pointer flickers or hover panels collapse, record an input trace
 
 On some tablets — Huion's are the ones reported so far — the brush ring and the

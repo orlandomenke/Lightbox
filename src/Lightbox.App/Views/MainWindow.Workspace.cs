@@ -375,6 +375,40 @@ public partial class MainWindow
     /// arrives — a hidden window — the report is still written, without a probe,
     /// because the facts and the session totals are most of its value.
     /// </remarks>
+    /// <summary>
+    /// Start or stop keeping the last published frames and the buffers behind
+    /// them.
+    /// </summary>
+    private void OnToggleFrameCapture(object? sender, RoutedEventArgs e)
+    {
+        var on = sender is MenuItem { IsChecked: true };
+        _vm.Capture.Arm(on);
+        _vm.AiStatus = on
+            ? "Recording frames. Draw until the problem shows, then press F10."
+            : "Stopped recording frames. F10 still writes out what was recorded.";
+    }
+
+    /// <summary>
+    /// Write the recorded frames out. Bound to F10 as well as to the menu, for
+    /// the reason <c>ShortcutMap</c> gives: the artifact is mid-stroke and a
+    /// trip to a menu is a trip away from it.
+    /// </summary>
+    private void OnWriteFrameCapture(object? sender, RoutedEventArgs e) => WriteFrameCapture();
+
+    /// <inheritdoc cref="OnWriteFrameCapture"/>
+    internal void WriteFrameCapture()
+    {
+        if (!_vm.Capture.Armed && _vm.Capture.Recorded == 0)
+        {
+            _vm.AiStatus = "Nothing recorded — turn on Help ▸ Record frames while drawing first";
+            return;
+        }
+        var path = _vm.Capture.Write(Services.DiagnosticLog.Directory);
+        _vm.AiStatus = path is null
+            ? "Could not write the frame capture"
+            : $"{_vm.Capture.Recorded} frames recorded, the last few written to {path}";
+    }
+
     private void OnWriteRenderReport(object? sender, RoutedEventArgs e)
     {
         var t = Canvas.PresentedFrameTotals;

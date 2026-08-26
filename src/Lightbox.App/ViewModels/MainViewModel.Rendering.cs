@@ -860,6 +860,17 @@ public partial class MainViewModel
         Performance.RecordPublish(sw.Elapsed.TotalMilliseconds);
         _publish.LastPublishClip = usedClip;
         _publish.LastPublished = fingerprint;
+        // Off unless somebody armed it from the Help menu, and a no-op in one
+        // branch when they have not. Placed here rather than at the handoff so
+        // the buffers recorded are the ones this composite actually read.
+        if (Capture.Armed)
+        {
+            Capture.Note(
+                image, _live.Scratch, _live.PostScratch,
+                $"route {plan.Route} clip {usedClip} dirty {dirty} "
+                + $"points {_strokeBuilder.Current?.Points.Count ?? 0} "
+                + $"passRendered {_live.PostStampedCount} passes {LivePostPasses}");
+        }
         // Everything from here is the handoff: the snapshot swap, the retired
         // images being disposed, and the invalidate. Timed apart from the
         // composite above because one number for both is what sent B156 after

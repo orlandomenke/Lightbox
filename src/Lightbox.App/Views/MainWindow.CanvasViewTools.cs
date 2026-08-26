@@ -410,6 +410,10 @@ public partial class MainWindow
                 ToggleInputTrace();
                 e.Handled = true;
                 break;
+            case "diagnostics.writeFrames":
+                WriteFrameCapture();
+                e.Handled = true;
+                break;
             case "image.resizeCanvas":
                 _ = ResizeAsync(ViewModels.ResizeMode.Canvas);
                 e.Handled = true;

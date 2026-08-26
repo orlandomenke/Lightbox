@@ -201,6 +201,12 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Measured repaint cost, shown as headroom in the info strip.</summary>
     public PerformanceMonitor Performance { get; } = new();
 
+    /// <summary>
+    /// The last few published frames and the buffers behind them, for looking
+    /// at an artifact after it has gone. Off until armed from the Help menu.
+    /// </summary>
+    internal Services.FrameCapture Capture { get; } = new();
+
     /// <summary>Unified selection manager for canvas objects.</summary>
     public SelectionManager Selection => _selectionManager;
 
