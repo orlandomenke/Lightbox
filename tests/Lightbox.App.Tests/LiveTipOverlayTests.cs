@@ -76,12 +76,10 @@ public class LiveTipOverlayTests(ITestOutputHelper output)
     /// A stroke mid-flight on a brush with an effect: the pass has completed
     /// once for the body, and the pen has moved on since.
     /// </summary>
-    private static ScenePassBuilder.LiveEdit MidStroke(
-        SKBitmap raw, SKBitmap processed, SKBitmap? tip = null) =>
+    private static ScenePassBuilder.LiveEdit MidStroke(SKBitmap raw, SKBitmap processed) =>
         new(
             Scratch: raw,
             PostScratch: processed,
-            TipScratch: tip,
             // Above zero is what makes OverlayFor prefer the processed buffer.
             // Below it — the first events of a stroke, before any pass has
             // landed — the raw scratch is used and the tip is present, which is
@@ -132,11 +130,8 @@ public class LiveTipOverlayTests(ITestOutputHelper output)
     {
         using var raw = Filled(Body, Tip);
         using var processed = Filled(Body);
-        // What the app builds at publish time: the dabs the pass has not seen,
-        // stamped fresh rather than copied out of the shared scratch.
-        using var tipDabs = Filled(Tip);
 
-        using var screen = Composed(MidStroke(raw, processed, tipDabs));
+        using var screen = Composed(MidStroke(raw, processed));
 
         var body = AnyInk(screen, Body);
         var tip = AnyInk(screen, Tip);
@@ -180,8 +175,7 @@ public class LiveTipOverlayTests(ITestOutputHelper output)
             canvas.DrawRect(SKRect.Create(Body.Left, Body.Top, Body.Width, Body.Height), paint);
         }
 
-        using var tip = Filled(Tip);
-        using var screen = Composed(MidStroke(raw, processed, tip));
+        using var screen = Composed(MidStroke(raw, processed));
         var centre = screen.GetPixel(Body.Left + (Body.Width / 2), Body.Top + (Body.Height / 2));
         output.WriteLine($"body centre: alpha {centre.Alpha} (the pass left 128)");
 
@@ -217,8 +211,7 @@ public class LiveTipOverlayTests(ITestOutputHelper output)
             canvas.DrawRect(SKRect.Create(Body.Left, Body.Top, Body.Width, Body.Height), paint);
         }
 
-        using var tip = Filled(Tip);
-        using var screen = Composed(MidStroke(raw, processed, tip));
+        using var screen = Composed(MidStroke(raw, processed));
         var centre = screen.GetPixel(Body.Left + (Body.Width / 2), Body.Top + (Body.Height / 2));
         output.WriteLine($"body centre after the fix: {centre}");
 

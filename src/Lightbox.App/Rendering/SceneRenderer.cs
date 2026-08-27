@@ -26,34 +26,8 @@ public sealed record StrokeOverlay(
     double Opacity,
     bool Erases,
     bool AlphaLocked = false,
-    ClipRegion? Clip = null,
-    SKBitmap? Tip = null)
+    ClipRegion? Clip = null)
 {
-    /// <summary>
-    /// The dabs stamped since the last live post-process pass completed, or
-    /// null when there is nothing outstanding (B322).
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <b>Two bitmaps because the mark has two ages, and one of them was being
-    /// dropped.</b> <see cref="Scratch"/> is what the pass made of the stroke up
-    /// to the dab it had reached; this is everything stamped since, still raw.
-    /// The overlay used to carry whichever single buffer was further along,
-    /// which meant that once any pass had landed the newest dabs were not dim or
-    /// approximate — they were not drawn at all, and the mark stood still for
-    /// about nine pointer events and then jumped.
-    /// </para>
-    /// <para>
-    /// <b>Kept apart rather than merged, and that is the whole design.</b> Every
-    /// effect here reduces alpha somewhere against the raw dabs, so simply
-    /// showing raw wherever the processed buffer is thin fills back in what the
-    /// pass deliberately took out. The tip is the dabs the pass has <em>not
-    /// seen</em>, so drawing it over the processed body adds mark where there is
-    /// none instead of arguing with mark that is already right.
-    /// </para>
-    /// </remarks>
-    public SKBitmap? Tip { get; init; } = Tip;
-
     /// <summary>Whether this overlay needs an isolated layer to be masked in.</summary>
     public bool NeedsMask => AlphaLocked || Clip is not null;
 }
@@ -539,22 +513,7 @@ public static class SceneRenderer
     {
         if (!overlay.NeedsMask)
         {
-            if (overlay.Tip is not { } plainTip)
-            {
-                DrawLayer(canvas, overlay.Scratch, strokePaint);
-                return;
-            }
-
-            // **One isolated group for both halves, and it is not a tidy-up.**
-            // Drawn separately, the stroke's opacity would apply to each, so
-            // anywhere the tip laps back over the processed body the mark would
-            // come out darker than the commit — a visible seam that moves with
-            // the pen. Composited into one layer, the opacity applies to their
-            // union exactly once, which is what the commit does.
-            canvas.SaveLayer(strokePaint);
-            DrawLayer(canvas, overlay.Scratch, null);
-            DrawLayer(canvas, plainTip, null);
-            canvas.Restore();
+            DrawLayer(canvas, overlay.Scratch, strokePaint);
             return;
         }
 
@@ -580,9 +539,6 @@ public static class SceneRenderer
         }
 
         DrawLayer(canvas, overlay.Scratch, null);
-        // Inside the isolation, so the alpha lock and the selection cut the
-        // whole mark rather than only the part a pass happens to have reached.
-        if (overlay.Tip is { } maskedTip) DrawLayer(canvas, maskedTip, null);
 
         if (overlay.AlphaLocked)
         {

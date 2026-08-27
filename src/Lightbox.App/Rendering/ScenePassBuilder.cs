@@ -218,8 +218,7 @@ internal static class ScenePassBuilder
         SKMatrix? TransformPreview = null,
         IReadOnlyList<Frame>? TransformFrames = null,
         Func<Frame, TransformSplit?>? PartsFor = null,
-        bool MaskEditing = false,
-        SKBitmap? TipScratch = null)
+        bool MaskEditing = false)
     {
         internal static readonly LiveEdit None = new();
     }
@@ -673,13 +672,9 @@ internal static class ScenePassBuilder
             // medium, wet edge and texture included — and fall back to raw
             // dabs only for the first few events of a heavy brush, before
             // the first pass lands.
-            var processed = live.PostStampedCount > 0 && live.PostScratch is not null;
-            var source = processed ? live.PostScratch! : live.Scratch;
-            // B322: the dabs the pass has not seen yet, carried beside the body
-            // rather than instead of it. Only when a pass has landed — before
-            // that the raw scratch above IS the whole mark and a tip would be
-            // the same dabs drawn twice.
-            var tip = processed ? live.TipScratch : null;
+            var source = live.PostStampedCount > 0 && live.PostScratch is not null
+                ? live.PostScratch
+                : live.Scratch;
             // Everything the commit will mask the stroke with, applied
             // now: an artist cannot judge a mark they are not being shown.
             return new StrokeOverlay(
@@ -687,8 +682,7 @@ internal static class ScenePassBuilder
                 stroke.Brush.Opacity,
                 stroke.Tool == ToolKind.Eraser,
                 stroke.AlphaLocked,
-                stroke.ClipId is null ? null : ClipRegionRegistry.Resolve(stroke.ClipId),
-                tip);
+                stroke.ClipId is null ? null : ClipRegionRegistry.Resolve(stroke.ClipId));
         }
 
         return null;
