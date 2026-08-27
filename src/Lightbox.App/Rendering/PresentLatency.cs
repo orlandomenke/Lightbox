@@ -313,6 +313,15 @@ internal sealed class PresentLatency
     /// comes round on its own.
     /// </param>
     /// <param name="QueueWorstMs">The worst wait to be picked up.</param>
+    /// <param name="QueueP10Ms">
+    /// The tenth percentile of the wait to be picked up, and with
+    /// <see cref="QueueP90Ms"/> the pair that says what
+    /// <see cref="QueueBestMs"/> could not: whether the wait is two clumps with
+    /// nothing between them (a refresh usually caught, sometimes missed) or a
+    /// spread that fills the range (a queue). B321 predicted the minimum would
+    /// settle it and it did not.
+    /// </param>
+    /// <param name="QueueP90Ms">The ninetieth percentile of the same wait.</param>
     /// <param name="KeyedDrawMeanMs">
     /// The draw, counted only for frames that were published — unlike
     /// <see cref="DrawMeanMs"/>, which includes the cursor repaints of a
@@ -326,7 +335,8 @@ internal sealed class PresentLatency
         double MedianMs = 0, double ToEnqueueMedianMs = 0,
         int Queued = 0, double QueueMeanMs = 0, double QueueMedianMs = 0,
         double QueueBestMs = 0, double QueueWorstMs = 0,
-        double KeyedDrawMeanMs = 0);
+        double KeyedDrawMeanMs = 0,
+        double QueueP10Ms = 0, double QueueP90Ms = 0);
 
     /// <param name="Which">What arrived while these frames were waiting.</param>
     /// <param name="Count">How many frames.</param>
@@ -369,7 +379,9 @@ internal sealed class PresentLatency
                     _queue.MedianMs,
                     _queue.BestMs,
                     _queue.WorstMs,
-                    _keyedDraw.MeanMs);
+                    _keyedDraw.MeanMs,
+                    _queue.PercentileMs(0.1),
+                    _queue.PercentileMs(0.9));
             }
         }
     }

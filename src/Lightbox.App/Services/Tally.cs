@@ -109,6 +109,33 @@ internal sealed class Tally
     }
 
     /// <summary>
+    /// The sample at <paramref name="fraction"/> through the sorted session —
+    /// 0.1 for the tenth percentile, 0.9 for the ninetieth (B321).
+    /// </summary>
+    /// <remarks>
+    /// <b>Written because a minimum turned out not to discriminate.</b> B321
+    /// predicted that a wait held for the screen would never get short, and
+    /// read the opposite off two captures: a median of exactly one refresh
+    /// beside a best of under a millisecond. Both of two very different things
+    /// produce that pair — a wait that is usually gated and occasionally races
+    /// through, and a queue that is usually busy and occasionally empty — and
+    /// the single smallest sample cannot tell them apart. The spread can: the
+    /// first is two clumps with nothing between them, the second fills the
+    /// range. One sample is an anecdote; the tenth and ninetieth are the shape.
+    /// </remarks>
+    public double PercentileMs(double fraction)
+    {
+        if (_kept == 0) return 0;
+        var copy = new double[_kept];
+        Array.Copy(_samples, copy, _kept);
+        Array.Sort(copy);
+        // Nearest-rank, clamped: with few samples every percentile collapses
+        // onto the ones that exist, which is honest rather than interpolated.
+        var rank = (int)Math.Round(fraction * (_kept - 1), MidpointRounding.AwayFromZero);
+        return copy[Math.Clamp(rank, 0, _kept - 1)];
+    }
+
+    /// <summary>
     /// Whether the mean is being pulled somewhere no sample went — the signal
     /// that a stall is doing the talking rather than the typical frame.
     /// </summary>

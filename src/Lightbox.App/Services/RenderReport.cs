@@ -420,7 +420,18 @@ internal static class RenderReport
         // A tenth of a refresh of slack: below that the two are the same number
         // measured twice, and claiming a difference would be reading noise.
         var slack = period * 0.1;
-        if (measured <= floor + slack)
+        var atFloor = measured <= floor + slack;
+
+        // **A gate never gets short and this one does**, which is the finding
+        // of 2026-08-27 and a correction to what this section used to say. The
+        // two clauses below were once independent, so a capture could be told
+        // in one breath that it was at an unimprovable floor and that its
+        // pick-up wait was a queue with something in it. Both were printed
+        // together on the owner's first capture. A section that can contradict
+        // itself is worse than one that says less.
+        var gateLike = stats.Queued == 0 || stats.QueueBestMs > stats.QueueMedianMs * 0.5;
+
+        if (atFloor && gateLike)
         {
             sb.AppendLine("  >> AT THE FLOOR. The frame is not slow to produce — it is waiting");
             sb.AppendLine("     for the screen, twice, and the work between the waits is small");
@@ -428,29 +439,35 @@ internal static class RenderReport
             sb.AppendLine("     nothing; only removing a hop, or presenting without waiting for");
             sb.AppendLine("     the refresh, would move it. See B321.");
         }
+        else if (atFloor)
+        {
+            sb.AppendLine("  >> THE TYPICAL FRAME IS AT THE FLOOR, AND IT IS NOT A GATE.");
+            sb.AppendLine("     The median pick-up is about a refresh, so the usual frame does");
+            sb.AppendLine("     wait for the screen — but the best is near zero, so a hand-over");
+            sb.AppendLine("     CAN be picked up at once. That is a race the frame usually");
+            sb.AppendLine("     loses, not a floor it cannot pass, and winning it more often");
+            sb.AppendLine("     would take about a refresh off. Read p10 and p90 above: two");
+            sb.AppendLine("     clumps with nothing between them is a missed commit, a filled");
+            sb.AppendLine("     range is a queue. See B321.");
+        }
         else
         {
             sb.AppendLine(
                 $"  >> {measured - floor:0.##} ms ABOVE the floor, so some of this is a cost rather than a");
             sb.AppendLine("     cadence. The phases above say which one is carrying it.");
-        }
-
-        if (stats.Queued > 0)
-        {
-            // The discriminator, and the reason `best` is tallied at all: a
-            // queue empties sometimes and a gate never does.
-            if (stats.QueueBestMs > stats.QueueMedianMs * 0.5)
-            {
-                sb.AppendLine("     The wait to be picked up never gets short — its best case is");
-                sb.AppendLine("     close to its typical one — so the render thread is not busy,");
-                sb.AppendLine("     it is being held. That is a gate, not a queue.");
-            }
-            else
+            if (!gateLike)
             {
                 sb.AppendLine("     The wait to be picked up DOES get short sometimes, so the render");
                 sb.AppendLine("     thread is being kept busy rather than held. That is a queue and");
                 sb.AppendLine("     it has something in it worth finding.");
             }
+        }
+
+        if (atFloor && gateLike && stats.Queued > 0)
+        {
+            sb.AppendLine("     The wait to be picked up never gets short — its best case is");
+            sb.AppendLine("     close to its typical one — so the render thread is not busy,");
+            sb.AppendLine("     it is being held. That is a gate, not a queue.");
         }
 
         sb.AppendLine();
@@ -955,6 +972,8 @@ internal static class RenderReport
             {
                 sb.AppendLine(
                     $"      waiting to be picked up  {stats.QueueMeanMs:0.##} ms   median {stats.QueueMedianMs:0.##} ms   best {stats.QueueBestMs:0.##} ms");
+                sb.AppendLine(
+                    $"        its spread             p10 {stats.QueueP10Ms:0.##} ms   p90 {stats.QueueP90Ms:0.##} ms");
                 sb.AppendLine(
                     $"      then drawing             {stats.KeyedDrawMeanMs:0.##} ms   (this frame's own draw)");
             }
