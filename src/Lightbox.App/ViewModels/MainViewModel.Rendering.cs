@@ -726,6 +726,36 @@ public partial class MainViewModel
     /// <inheritdoc cref="BuildDescribeMs"/>
     internal double BuildHandoffMs { get; private set; }
 
+    private double _buildStartDescribeMs;
+    private double _buildStartComposeMs;
+    private double _buildStartHandoffMs;
+    private long _buildStartMisses;
+
+    /// <summary>
+    /// The single worst frame build, broken into the phases IT spent its time
+    /// in, and whether a frame-cache miss happened inside it (B332).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The hypothesis this exists to refute.</b> `FrameBitmapCache.Get`
+    /// counts a miss and then renders the whole frame synchronously on the
+    /// calling thread, which mid-stroke is the UI thread inside the phase the
+    /// report calls <em>describing it</em>. If that is the stall, the worst
+    /// build is a describe-dominated build with a miss in it. If the worst
+    /// build carries no miss, or spends its time compositing, the hypothesis is
+    /// wrong and B332 says so.
+    /// </para>
+    /// <para>
+    /// <b>Recorded for the worst build rather than averaged, because averaging
+    /// is what hid this.</b> A mean over a thousand two-millisecond builds and
+    /// one six-second one describes the thousand. Nothing in four captures
+    /// could say which phase the six seconds was in, and the entry that
+    /// depended on it guessed.
+    /// </para>
+    /// </remarks>
+    internal (double TotalMs, double DescribeMs, double ComposeMs, double HandoffMs, long Misses)
+        WorstBuild { get; private set; }
+
     /// <summary>
     /// Close off one frame's build, timed from the publish stamp (B321).
     /// </summary>
@@ -740,6 +770,18 @@ public partial class MainViewModel
         var ms = (System.Diagnostics.Stopwatch.GetTimestamp() - _publish.LastPublishTicks)
                  * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
         _buildTally.Add(ms);
+
+        // B332. Deltas rather than totals: the phase counters accumulate across
+        // the session, so only the difference belongs to this build.
+        if (ms > WorstBuild.TotalMs)
+        {
+            WorstBuild = (
+                ms,
+                BuildDescribeMs - _buildStartDescribeMs,
+                BuildComposeMs - _buildStartComposeMs,
+                BuildHandoffMs - _buildStartHandoffMs,
+                _cache.Misses - _buildStartMisses);
+        }
     }
 
     public void PublishSnapshot(
@@ -779,6 +821,18 @@ public partial class MainViewModel
             DamReleasedAtTicks = 0;
         }
         _publish.LastPublishTicks = publishAt;
+
+        // **B332: the worst build has to name its own phase.** Everything the
+        // report says about where a build's time goes is a MEAN over every
+        // build, and the distribution is 2 ms typical against six SECONDS
+        // worst — so the mean describes the typical frame and says nothing
+        // about the stall, which is the only part an artist feels. Four
+        // captures blamed "describing it" on that basis and none of them could
+        // have distinguished a slow phase from one slow frame.
+        _buildStartDescribeMs = BuildDescribeMs;
+        _buildStartComposeMs = BuildComposeMs;
+        _buildStartHandoffMs = BuildHandoffMs;
+        _buildStartMisses = _cache.Misses;
 
         // Belt to the release at the end of this method: if an exception left
         // holds behind, the next publish must not stack a second set on top.

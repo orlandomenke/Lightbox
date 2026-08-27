@@ -103,6 +103,8 @@ internal static class RenderReport
          double EventIntervalMedianMs, long Events)? Cycle = null,
         (int Count, double TotalMs, double WorstMs, double MedianMs, bool MeanDistorted)? Compose = null,
         (double DescribeMs, double ComposeMs, double HandoffMs)? BuildPhases = null,
+        (double TotalMs, double DescribeMs, double ComposeMs, double HandoffMs, long Misses)?
+            WorstBuild = null,
         Rendering.PublishTally? PublishesByCaller = null);
 
     /// <summary>
@@ -1212,6 +1214,65 @@ internal static class RenderReport
                 var rest = comp.TotalMs - ph.DescribeMs - ph.ComposeMs - ph.HandoffMs;
                 sb.AppendLine(
                     $"    everything else       mean {rest / n,7:0.##} ms   (whatever the three above do not cover)");
+
+                // **B332: the same split for the ONE build that stalled.** Every
+                // number above is a mean over every build, and the distribution
+                // here is two milliseconds typical against several SECONDS worst.
+                // A mean over a thousand fast builds and one catastrophic one
+                // describes the thousand. Four captures blamed "describing it"
+                // for a six-second stall on exactly that evidence, which could
+                // not have told a slow phase from one slow frame.
+                if (facts.WorstBuild is { TotalMs: > 0 } w)
+                {
+                    sb.AppendLine("");
+                    sb.AppendLine(
+                        $"  the WORST build alone   {w.TotalMs,8:0.##} ms   — where that one frame went:");
+                    var wRest = w.TotalMs - w.DescribeMs - w.ComposeMs - w.HandoffMs;
+                    sb.AppendLine(
+                        $"    describing it         {w.DescribeMs,8:0.##} ms   ({w.DescribeMs / w.TotalMs * 100:0}%)"
+                        + $"   frame-cache misses in it: {w.Misses}");
+                    sb.AppendLine(
+                        $"    compositing it        {w.ComposeMs,8:0.##} ms   ({w.ComposeMs / w.TotalMs * 100:0}%)");
+                    sb.AppendLine(
+                        $"    handing it over       {w.HandoffMs,8:0.##} ms   ({w.HandoffMs / w.TotalMs * 100:0}%)");
+                    sb.AppendLine(
+                        $"    everything else       {wRest,8:0.##} ms   ({wRest / w.TotalMs * 100:0}%)");
+
+                    // The verdict is written as a test of B332 rather than a
+                    // description, so a capture can refute it.
+                    var describeShare = w.DescribeMs / Math.Max(1e-9, w.TotalMs);
+                    if (w.Misses > 0 && describeShare > 0.5)
+                    {
+                        sb.AppendLine(
+                            "  >> B332 CONFIRMED by this capture: the worst build spent its time");
+                        sb.AppendLine(
+                            "     DESCRIBING the frame and a frame-cache miss happened inside it.");
+                        sb.AppendLine(
+                            "     FrameBitmapCache.Get renders a missed frame synchronously on the");
+                        sb.AppendLine(
+                            "     calling thread, which here is the UI thread mid-stroke. That is the");
+                        sb.AppendLine(
+                            "     jump. RenderDetached already exists to do it off-thread.");
+                    }
+                    else if (w.Misses == 0 && describeShare > 0.5)
+                    {
+                        sb.AppendLine(
+                            "  >> B332 is HALF right: the stall is in describing the frame, but no");
+                        sb.AppendLine(
+                            "     cache miss happened inside it — so it is the pass list, the stack");
+                        sb.AppendLine(
+                            "     fold or a cel fetch that did not miss. Look there, not at the cache.");
+                    }
+                    else
+                    {
+                        sb.AppendLine(
+                            "  >> B332 is REFUTED by this capture: the worst build did not spend its");
+                        sb.AppendLine(
+                            "     time describing the frame. Read the split above and chase the phase");
+                        sb.AppendLine(
+                            "     it actually names. Do not fix the cache on the strength of a mean.");
+                    }
+                }
                 var describe = ph.DescribeMs / Math.Max(1e-9, comp.TotalMs);
                 var compose = ph.ComposeMs / Math.Max(1e-9, comp.TotalMs);
                 var other = rest / Math.Max(1e-9, comp.TotalMs);

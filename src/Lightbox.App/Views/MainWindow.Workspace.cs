@@ -369,6 +369,7 @@ public partial class MainWindow
             (_vm.ComposeCount, _vm.ComposeTotalMs, _vm.ComposeWorstMs,
              _vm.ComposeMedianMs, _vm.ComposeMeanIsDistorted),
             (_vm.BuildDescribeMs, _vm.BuildComposeMs, _vm.BuildHandoffMs),
+            _vm.WorstBuild,
             _vm.ReportPublishTally);
     }
 
