@@ -190,15 +190,55 @@ public class PresentFloorTests(ITestOutputHelper output) : IDisposable
     }
 
     /// <summary>
-    /// <b>The owner's capture of 2026-08-27, and the reason B321 did not
-    /// close.</b> The median pick-up is a refresh to within a millisecond, so
-    /// the typical frame really is at the floor — and the best is 1.25 ms, so
-    /// the wait is not a gate. This section used to print both verdicts at
-    /// once: an unimprovable floor, and a queue with something in it worth
-    /// finding. They cannot both be true and a reader cannot act on either.
+    /// <b>The owner's capture of 2026-08-27 09:16, and the one that closed
+    /// B321.</b> Eighty per cent of the pick-up waits sit between 13.67 and
+    /// 16.94 ms — a 3.3 ms band just under one refresh — with a median of 16.22
+    /// and a single 1.61 ms outlier below the tenth percentile. That is a gate,
+    /// and the frame is at the floor.
+    /// </summary>
+    /// <remarks>
+    /// <b>This test exists because the verdict was wrong in the other direction
+    /// first.</b> Reading the minimum, the report called this same capture "not
+    /// a gate" on the strength of that one outlier. A gate with a rare escape is
+    /// still a gate for every frame that does not take it, and nobody watches
+    /// the fastest frame.
+    /// </remarks>
+    [Fact]
+    public void TheOwnersCaptureReadsAsAGateAtTheFloor()
+    {
+        var text = Section(AtTheFloor with
+        {
+            Presented = 423,
+            MeanMs = 29.59,
+            MedianMs = 29.19,
+            WorstMs = 256.32,
+            ToEnqueueMeanMs = 8.66,
+            ToEnqueueMedianMs = 8.37,
+            QueueMeanMs = 16.2,
+            QueueMedianMs = 16.22,
+            QueueBestMs = 1.61,
+            QueueP10Ms = 13.67,
+            QueueP90Ms = 16.94,
+            KeyedDrawMeanMs = 4.73,
+        });
+        output.WriteLine(text);
+
+        Assert.Contains("AT THE FLOOR", text);
+        Assert.Contains("That is a gate, not a queue", text);
+        Assert.Contains("p10 13.67 ms   p90 16.94 ms", text);
+        Assert.Contains("1.75 refreshes", text);
+        // The reading this capture refuted.
+        Assert.DoesNotContain("IT IS NOT A GATE", text);
+    }
+
+    /// <summary>
+    /// The opposite distribution, and it has to stay reachable or the verdict
+    /// above is a rubber stamp: a median of a refresh with a tenth of frames
+    /// coming through in under a millisecond really is a race, and would reopen
+    /// B321.
     /// </summary>
     [Fact]
-    public void AFloorThatIsNotAGateIsReportedAsARaceRatherThanAFloor()
+    public void ATenthOfFramesComingThroughFastReadsAsARaceRatherThanAFloor()
     {
         var text = Section(AtTheFloor with
         {
@@ -208,19 +248,38 @@ public class PresentFloorTests(ITestOutputHelper output) : IDisposable
             ToEnqueueMedianMs = 8.53,
             QueueMeanMs = 15.59,
             QueueMedianMs = 15.78,
-            QueueBestMs = 1.25,
-            QueueP10Ms = 1.6,
+            QueueBestMs = 0.4,
+            QueueP10Ms = 0.9,
             QueueP90Ms = 16.4,
             KeyedDrawMeanMs = 4.71,
         });
         output.WriteLine(text);
 
         Assert.Contains("IT IS NOT A GATE", text);
-        Assert.Contains("a race the frame usually", text);
-        Assert.Contains("p10 1.6 ms   p90 16.4 ms", text);
-        // The contradiction that made this test necessary.
-        Assert.DoesNotContain("AT THE FLOOR.", text);
+        Assert.Contains("a race that most of them lose", text);
+        Assert.Contains("p10 0.9 ms   p90 16.4 ms", text);
         Assert.DoesNotContain("That is a gate, not a queue", text);
+    }
+
+    /// <summary>
+    /// <b>One outlier may not overturn the spread.</b> The minimum said "not a
+    /// gate" about a capture whose every decile said otherwise, and this pins
+    /// that it no longer can.
+    /// </summary>
+    [Fact]
+    public void ASingleFastFrameDoesNotMakeAGateIntoARace()
+    {
+        var gated = AtTheFloor with
+        {
+            QueueMedianMs = 16.22, QueueP10Ms = 13.67, QueueP90Ms = 16.94,
+            MedianMs = 29.19, ToEnqueueMedianMs = 8.37, KeyedDrawMeanMs = 4.73,
+        };
+
+        var withOutlier = Section(gated with { QueueBestMs = 0.2 });
+        var without = Section(gated with { QueueBestMs = 13.4 });
+
+        Assert.Contains("That is a gate, not a queue", withOutlier);
+        Assert.Contains("That is a gate, not a queue", without);
     }
 
     /// <summary>

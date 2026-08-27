@@ -209,6 +209,12 @@ Closing that gap further is a matter of the frame reaching the screen sooner
 rather than of the brush being quicker: the drawing itself is about four
 milliseconds of the thirty-six.
 
+Most of the rest is **waiting for your monitor**, twice — once for Lightbox to
+be asked to paint, and once for the finished frame to be taken up. Measured on
+a 60 Hz screen that is about one and three quarter refreshes, and it is set by
+the refresh rate rather than by anything Lightbox can do faster. A quicker
+machine will not shorten it. A faster monitor would.
+
 ### When the app changes it for you
 
 If the canvas cannot keep up, Lightbox turns the quality down to Half once and
