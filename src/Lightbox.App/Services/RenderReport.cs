@@ -2123,6 +2123,17 @@ internal static class RenderReport
             ? "  (the final blit — see the compositing line below for where blending happened)"
             : "  (this is the FINAL BLIT only — compositing is on the CPU, which is the default)");
         sb.AppendLine($"durable frame (B122)      {DurableFrameState(facts)}");
+        // **A launch-time fact, printed at launch** (B322). The live-tip arm is
+        // fixed for the process by an environment variable, and until this line
+        // existed the only place it appeared was the live-tip block — which needs
+        // a stroke on a brush with an effect before it says anything. Two
+        // captures were taken as an A/B, both on the default arm, and nothing in
+        // the file said so until after the drawing was done. A setting chosen
+        // before the window opens belongs beside the other two that are.
+        sb.AppendLine(
+            $"live tip stamped at       {(Rendering.LiveTipScale.PreviewScale ? "preview resolution" : "document resolution")}"
+            + $"   ({Rendering.LiveTipScale.Variable}"
+            + $"{(Rendering.LiveTipScale.PreviewScale ? "=preview" : " unset — the default")})");
         if (facts.GpuSurfaceRequestFailed)
         {
             sb.AppendLine("  !! a GPU surface was asked for and could not be created, so the");

@@ -143,6 +143,19 @@ which is a weak test and still far better than none.
 ### brush
 
 - [ ] **B322** `P1` `brush` A brush with an effect shows the mark as of the last pass, so its tip is missing while the pen moves `evidence: manual`
+  - **THE ARMS WERE CAPTURED, THE CHEAPER ONE WORKS, AND THE ARTIST CANNOT TELL THEM APART. 2026-08-27 22:52-22:59.** Four captures, the same build, the flag the only difference:
+
+    | | arm | drawn | too far behind | us a dab | budget buys | restamp median |
+    | --- | --- | --- | --- | --- | --- | --- |
+    | 22:52 | document | 497 of 660 | 163 — **25%** | 39.8 | 75 | 0.41 ms |
+    | 22:53 | document | 660 of 786 | 126 — **16%** | 53.4 | 56 | 0.43 ms |
+    | 22:59 | document | 406 of 519 | 113 — **22%** | 60.3 | 49 | 0.80 ms |
+    | **22:57** | **preview** | **533 of 590** | **57 — 9.7%** | **15.76** | **190** | **0.12 ms** |
+
+    Refusals roughly halved and the stamp got **3.4x** cheaper, exactly as the offline measurement predicted. The owner: *"for both arms the preview did still jump"*, and *"I wasn't able to feel or see any discernable difference between A & B."*
+  - **So the entry's premise is wrong, and this is the finding of the whole three days.** B322 assumed the jump the artist feels is the missing tip. **It is not.** Every capture carries a `building each frame` **worst of 3.2 to 6.4 seconds** against a median of 2 ms — a UI-thread stall two thousand times the typical frame, on a pen delivering every 5 ms. A preview drawn on 90% of publishes cannot help a mark that freezes for six seconds and then arrives in one step. **B332** carries the mechanism: a frame-cache miss renders the whole frame synchronously on the calling thread.
+  - **The in-app estimator agreed with the offline one, which is worth keeping.** 39.8, 53.4 and 60.3 us a dab across three captures at document resolution, against the offline 45-50; and 15.76 at preview resolution against the offline 11. Two methods, different machines-states, same order. **The measurement work in this entry is sound** — it was aimed at the wrong quantity, which is a different failure from measuring badly and the one nobody caught for three days.
+  - **What that leaves for B322 itself.** The machinery is finished, tested, and demonstrably does what it claims: the newest dabs reach the screen on 84-90% of publishes where they previously did not at all, and the preview arm makes that cheap enough to be worth keeping. What it does not do is fix what the owner reported, because that was never this defect. **Q170 is answered by the capture rather than by the eye: no discernible difference, so the resolution seam costs nothing visible** and the cheaper arm is free headroom. Whether it becomes the default is still the owner's call, and it should be made knowing it buys margin rather than a fix.
   - **THE PREMISE OF THE SEVENTH ATTEMPT WAS WRONG, AND THE ESTIMATE WAS RIGHT ALL ALONG.** This entry has recorded three arithmetic errors in the per-dab cost and the session of 2026-08-27 18:00 was briefed to expect a fourth. There is not one. The owner's capture of 17:26 — **all fast strokes**, size 70+ — reported `live tip drawn 11 of 23, too far behind 12` with **87.46 us a dab (marginal)**, and that figure is very nearly correct. `LiveTipDabCostTests` stamps the same `BrushEngine.StampDabRange` call outside the application, in Release, on the owner's 3840x2160 document: a size-70 wet dab costs **about 45-50 us at the margin** over a fixed 0.15-0.33 ms an operation. The application's 87.46 is that cost seen through 3- and 15-dab stamps, which is all its own budget of 34 ever admitted, **and through a machine that is never idle**. **Two independent measurements agree to within the load between them.**
   - **So the constant was never the bug — the dab is genuinely that dear, and no budget covers a fast stroke at size 70.** Against the capture's own numbers:
 
@@ -338,6 +351,22 @@ which is a weak test and still far better than none.
 
 ### canvas
 
+- [ ] **B332** `P1` `canvas` A frame-cache miss re-renders the whole frame on the UI thread, and that is the jump the artist feels `evidence: AMissDoesNotRenderOnTheCallingThread, TheWorstBuildNamesItsOwnPhase, ACommittedStrokeDoesNotStallTheNextOne`
+  - **P1, and it is the symptom B322 has been chasing for three days.** Four captures on 2026-08-27, two arms of B322's fix, and the owner's verdict on both: *"for both arms the preview did still jump"* and *"I wasn't able to feel or see any discernable difference between A & B."* The tip was drawn on 90% of publishes in the best of them. **A preview that is present 90% of the time cannot fix a stall**, and the stalls are enormous:
+
+    | capture | arm | building each frame, median | **worst** |
+    | --- | --- | --- | --- |
+    | 22:52 | document | 2.30 ms | **4942 ms** |
+    | 22:53 | document | 2.35 ms | **5015 ms** |
+    | 22:57 | preview | 2.00 ms | **6354 ms** |
+    | 22:59 | document | 2.74 ms | **3170 ms** |
+
+    Three to six **seconds** on the UI thread, against a median of two milliseconds and a pen delivering every 5.1. That is what "it jumps" is: the mark freezes for seconds and then arrives in one step. Nothing about a tip, a budget or a dab's cost touches it.
+  - **The mechanism, read off the code rather than inferred from the timings.** `FrameBitmapCache.Get` increments `Misses` and then calls `Render(source, ...)` **synchronously on the calling thread**. During a stroke that thread is the UI thread, inside the phase the report calls *describing it (pass list, stack fold, cel fetches)*. So a miss is a full frame rasterization from the stroke record — at 3840x2160, with wet-edge strokes whose post-process runs over the whole mark — in the middle of drawing.
+  - **The counts line up and the coincidence is worth stating as a coincidence.** Every one of the four captures reads `had to render 5 (0.3-0.4%)` and `thrown out 1`, in a scene of **5 strokes**. One miss per committed stroke, and several multi-second stalls per session. That is consistent with a miss causing the stall and it is **not proof** — the report attributes phases by mean only, so no number in any capture says which phase the worst build spent its time in.
+  - **The decisive next step is instrumentation, not a fix.** Attribute the *worst* build to a phase, the way B330 gave every phase of the chain a median. If the worst build is `describing it` on a publish that also missed, the mechanism above is confirmed and the fix is to render off the UI thread — `RenderDetached` already exists for exactly that and its own remarks explain why it is safe (rendering is a pure function of the stroke record, invariant 2). If it is not, this entry is wrong and something else stalls for five seconds.
+  - **Why this is filed rather than fixed in the branch that found it.** B322's branch was finished and had a pull request open before this surfaced; the one-objective rule says the answer to finding something else is a new branch. The entry it came from cannot close on it either way, which is the more important point: **B322's tip machinery works and does not fix the reported symptom.**
+  - Cost: M for the instrumentation and the move off the UI thread; the risk is entirely in what a publish does while a frame it wants is still rendering, which is B148's ground rather than new.
 - [ ] **B255** `P1` `canvas` Hovering a menu with a pen tablet freezes the app for up to 6 seconds `evidence: manual`
   - **Measured, 2026-08-17, second `InputTrace` run on the reporter's Huion machine** — 56.7 s, 15,268 events, and this bug is the reason the stall watch was added to the instrument at all. The reporter had said the application "froze for a little while"; the first trace could not tell a freeze from a pointer resting over a menu, and the heartbeat that settled it found **22 UI-thread stalls, worst 6,103 ms**.
   - **The cause is not a correlation, it is an identity.** Every stall over three seconds is preceded by ~100 popup opens per second; the rate in windows away from any stall is **0.0/s**:
