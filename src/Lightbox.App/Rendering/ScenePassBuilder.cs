@@ -218,7 +218,9 @@ internal static class ScenePassBuilder
         SKMatrix? TransformPreview = null,
         IReadOnlyList<Frame>? TransformFrames = null,
         Func<Frame, TransformSplit?>? PartsFor = null,
-        bool MaskEditing = false)
+        bool MaskEditing = false,
+        SKBitmap? TipScratch = null,
+        SKRectI? TipBounds = null)
     {
         internal static readonly LiveEdit None = new();
     }
@@ -672,9 +674,16 @@ internal static class ScenePassBuilder
             // medium, wet edge and texture included — and fall back to raw
             // dabs only for the first few events of a heavy brush, before
             // the first pass lands.
-            var source = live.PostStampedCount > 0 && live.PostScratch is not null
-                ? live.PostScratch
-                : live.Scratch;
+            var processed = live.PostStampedCount > 0 && live.PostScratch is not null;
+            var source = processed ? live.PostScratch! : live.Scratch;
+            // B322: the dabs the pass has not seen, carried beside the body
+            // rather than instead of it — and only when a pass has landed, since
+            // before that the raw scratch above already IS the whole mark. Both
+            // the bitmap and its rectangle or neither: an unbounded draw is half
+            // the leak that killed the fourth attempt.
+            var tip = processed ? live.TipScratch : null;
+            var tipBounds = tip is null ? null : live.TipBounds;
+            if (tipBounds is null) tip = null;
             // Everything the commit will mask the stroke with, applied
             // now: an artist cannot judge a mark they are not being shown.
             return new StrokeOverlay(
@@ -682,7 +691,9 @@ internal static class ScenePassBuilder
                 stroke.Brush.Opacity,
                 stroke.Tool == ToolKind.Eraser,
                 stroke.AlphaLocked,
-                stroke.ClipId is null ? null : ClipRegionRegistry.Resolve(stroke.ClipId));
+                stroke.ClipId is null ? null : ClipRegionRegistry.Resolve(stroke.ClipId),
+                tip,
+                tipBounds);
         }
 
         return null;

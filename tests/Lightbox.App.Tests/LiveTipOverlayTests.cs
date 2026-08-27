@@ -49,6 +49,9 @@ public class LiveTipOverlayTests(ITestOutputHelper output)
     /// </summary>
     private static readonly SKRectI Tip = new(40, 20, 56, 28);
 
+    /// <summary>Ink deliberately outside any declared tip bounds.</summary>
+    private static readonly SKRectI Stray = new(4, 4, 20, 12);
+
     private static SKBitmap Filled(params SKRectI[] marks)
     {
         var bmp = new SKBitmap(new SKImageInfo(W, H, SKColorType.Bgra8888, SKAlphaType.Premul));
@@ -76,10 +79,13 @@ public class LiveTipOverlayTests(ITestOutputHelper output)
     /// A stroke mid-flight on a brush with an effect: the pass has completed
     /// once for the body, and the pen has moved on since.
     /// </summary>
-    private static ScenePassBuilder.LiveEdit MidStroke(SKBitmap raw, SKBitmap processed) =>
+    private static ScenePassBuilder.LiveEdit MidStroke(
+        SKBitmap raw, SKBitmap processed, SKBitmap? tip = null, SKRectI? tipBounds = null) =>
         new(
             Scratch: raw,
             PostScratch: processed,
+            TipScratch: tip,
+            TipBounds: tip is null ? null : tipBounds ?? Tip,
             // Above zero is what makes OverlayFor prefer the processed buffer.
             // Below it — the first events of a stroke, before any pass has
             // landed — the raw scratch is used and the tip is present, which is
@@ -120,53 +126,76 @@ public class LiveTipOverlayTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// <b>B322 pinned as it currently behaves, on purpose.</b> The body of the
-    /// mark is on screen and the newest dabs are not — not faint, not
-    /// unprocessed, absent.
+    /// <b>B322's defect, and now its fix.</b> The body of the mark is on screen
+    /// and so are the dabs stamped since the last pass — which for a day and a
+    /// half were not drawn at all, so the mark stood still under the nib and
+    /// then jumped.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// <b>This asserts the defect, and it is meant to.</b> The alternative was a
-    /// test asserting the cure, which is red for as long as the bug is open and
-    /// therefore cannot live on a branch anyone can merge — so the repro that
-    /// took a day and a half to obtain would have been thrown away with the
-    /// fourth failed fix. Pinned this way it costs nothing, and
-    /// <c>OutputScaleTests</c> is the precedent: it renders a thing the wrong way
-    /// round deliberately, to keep the reason written down.
-    /// </para>
-    /// <para>
-    /// <b>When this test fails, B322 has been fixed.</b> That is the signal, not
-    /// a regression. Invert the assertion, tick the entry, and keep the two
-    /// guards below — they are the constraints a fix has to satisfy and they do
-    /// not change.
-    /// </para>
-    /// <para>
-    /// <b>What it does NOT check, which is what killed the fourth attempt.</b>
-    /// The tip here is a small fixed rectangle, so nothing in this file measures
-    /// whether producing it is <em>bounded</em> work. A fix defined as "the dabs
-    /// since the last pass" passed all three of these and then restamped 99% of
-    /// the stroke on every publish, because at 1263 points the pass had rendered
-    /// ten. A fifth attempt needs a test that GROWS the stroke; see B322.
-    /// </para>
+    /// <b>This test was pinned the other way round until the bound existed.</b>
+    /// It asserted the defect, because a test asserting the cure is red while the
+    /// bug is open and cannot live on a branch anyone can merge — and its own
+    /// remarks said that when it failed, B322 had been fixed and it should be
+    /// inverted. That is what happened. The two guards below did not move.
     /// </remarks>
     [Fact]
-    public void TheNewestDabsAreMissingWhileAPassIsOutstanding()
+    public void TheNewestDabsReachTheScreenWhileAPassIsOutstanding()
     {
         using var raw = Filled(Body, Tip);
         using var processed = Filled(Body);
+        using var tipDabs = Filled(Tip);
 
-        using var screen = Composed(MidStroke(raw, processed));
+        using var screen = Composed(MidStroke(raw, processed, tipDabs));
 
         var body = AnyInk(screen, Body);
         var tip = AnyInk(screen, Tip);
         output.WriteLine($"body on screen: {body}, tip on screen: {tip}");
 
         Assert.True(body, "the settled body of the stroke is not being shown at all");
+        Assert.True(tip, "the dabs stamped since the last pass are not on screen — B322");
+    }
+
+    /// <summary>
+    /// <b>And the fallback still shows the body.</b> When the pass has fallen
+    /// further behind than the budget, no tip is built at all — today's
+    /// behaviour, deliberately, because adding work proportional to the mark is
+    /// worst exactly when the machine is already behind. The mark must not
+    /// vanish along with the tip.
+    /// </summary>
+    [Fact]
+    public void WithNoTipTheBodyIsStillDrawn()
+    {
+        using var raw = Filled(Body, Tip);
+        using var processed = Filled(Body);
+
+        using var screen = Composed(MidStroke(raw, processed));
+
+        Assert.True(AnyInk(screen, Body), "the body vanished when the tip was refused");
+        Assert.False(AnyInk(screen, Tip), "a tip was drawn when none was supplied");
+    }
+
+    /// <summary>
+    /// <b>Only the tip's own rectangle is drawn from the tip buffer.</b> The
+    /// buffer is document-sized and pooled, so drawing all of it would cost a
+    /// full canvas blit per frame however few dabs it holds — the half of the
+    /// fourth attempt's leak that bounding the stamp alone would have left
+    /// behind. Ink outside the declared bounds must not reach the screen.
+    /// </summary>
+    [Fact]
+    public void InkOutsideTheDeclaredTipBoundsIsNotDrawn()
+    {
+        using var raw = Filled(Body);
+        using var processed = Filled(Body);
+        // A buffer carrying ink in two places, declared as covering only one.
+        using var tipDabs = Filled(Tip, Stray);
+
+        using var screen = Composed(MidStroke(raw, processed, tipDabs, Tip));
+
+        Assert.True(AnyInk(screen, Tip), "the declared tip was not drawn");
         Assert.False(
-            tip,
-            "the newest dabs ARE on screen — B322 appears to be fixed. That is good "
-            + "news and this test is now wrong: invert it, tick the entry, and keep "
-            + "the two guards below.");
+            AnyInk(screen, Stray),
+            "ink outside the declared bounds reached the screen, so the draw is not "
+            + "bounded by them and the blit is full-canvas after all");
     }
 
     /// <summary>

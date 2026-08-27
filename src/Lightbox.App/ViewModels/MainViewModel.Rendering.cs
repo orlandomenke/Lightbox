@@ -851,7 +851,9 @@ public partial class MainViewModel
             // `this` allocates a closure and a delegate on every publish, and a
             // publish happens per pointer event while drawing.
             _passTransformSplit ??= TransformSplitFor,
-            MaskEditing: EditingLayerMask);
+            MaskEditing: EditingLayerMask,
+            TipScratch: BuildLiveTip(),
+            TipBounds: _live.TipUsed);
 
         var built = ScenePassBuilder.Describe(scene, passState, _cache, _tileFallbacks, live);
         var tileNativeDoc = built.TileNative;
@@ -1502,5 +1504,79 @@ public partial class MainViewModel
         using var below = SceneRenderer.Compose(
             scene.Width, scene.Height, passes, SKColors.Transparent);
         return SKBitmap.FromImage(below);
+    }
+
+    /// <summary>How often the live tip was drawn, refused, and how far behind the pass was (B322).</summary>
+    internal int LiveTipDrawn { get; private set; }
+
+    /// <summary>Publishes where the pass was too far behind to draw a tip within the budget.</summary>
+    internal int LiveTipTooFarBehind { get; private set; }
+
+    /// <summary>Every outstanding-dab count seen, so the report can say where the budget should sit.</summary>
+    internal Services.Tally LiveTipOutstanding { get; } = new();
+
+    /// <summary>
+    /// The dabs stamped since the last completed pass, drawn raw so the tip of
+    /// the mark is on screen while the pass catches up (B322).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>What it may cost is decided before anything is stamped</b>, by
+    /// <see cref="Rendering.LiveTipPlan"/>, and that separation is the whole
+    /// lesson of the fourth attempt: the rule "draw what is outstanding" is
+    /// unbounded and self-amplifying, and it was buried in the code that acted
+    /// on it where no test could reach it.
+    /// </para>
+    /// <para>
+    /// <b>Restamped rather than copied.</b> Copying the region the new dabs
+    /// occupy out of the shared scratch brings the older dabs overlapping it
+    /// forward too, and those are the pixels the pass has already finished —
+    /// hard seams between processed and raw, which is the third attempt that
+    /// reached the owner and was called worse than the bug.
+    /// </para>
+    /// <para>
+    /// <b>Per publish, not per pointer event.</b> The per-event path carries the
+    /// settled-prefix cut and the tail lend-and-take-back; this is only ever read
+    /// when a frame is built.
+    /// </para>
+    /// </remarks>
+    private SKBitmap? BuildLiveTip()
+    {
+        if (_live.PostScratch is null) { _live.TipUsed = null; return null; }
+        if (_strokeBuilder.Current is not { } stroke) { _live.TipUsed = null; return null; }
+        if (_live.Dabs is not { Count: > 0 } dabs) { _live.TipUsed = null; return null; }
+
+        // Q168, 2026-08-27: the effects whose raw tip breaks live-matches-committed
+        // keep today's behaviour. The owner's call over a recommendation to show
+        // the tip everywhere and compare after the pass had landed.
+        if (BrushEngine.LiveTipWouldDivergeTooFar(stroke.Brush)) { _live.TipUsed = null; return null; }
+
+        var (range, why, outstanding) = Rendering.LiveTipPlan.For(_live.PostStampedCount, dabs.Count);
+        if (outstanding > 0) LiveTipOutstanding.Add(outstanding);
+        if (why == Rendering.LiveTipPlan.Skip.TooFarBehind) LiveTipTooFarBehind++;
+        if (range is not { } plan)
+        {
+            _live.ResetTip();
+            return null;
+        }
+
+        var info = new SKImageInfo(
+            Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        var canvas = _live.BeginTip(info.Width, info.Height);
+        try
+        {
+            BrushEngine.StampDabRange(canvas, stroke, dabs, plan.From, plan.To);
+            canvas.Flush();
+        }
+        finally
+        {
+            canvas.Dispose();
+        }
+
+        _live.TipUsed = BrushEngine.RangeBounds(dabs, plan.From, stroke.Brush, info);
+        if (_live.TipUsed is null) return null;
+
+        LiveTipDrawn++;
+        return _live.TipScratch;
     }
 }

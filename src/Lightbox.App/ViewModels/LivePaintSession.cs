@@ -318,6 +318,63 @@ sealed class LivePaintSession
         PostPending = null;
     }
 
+    /// <summary>The dabs stamped since the last completed pass, raw (B322).</summary>
+    /// <remarks>
+    /// <para>
+    /// Document-sized and pooled across the stroke, so a publish costs a wipe of
+    /// the last rectangle rather than an allocation. What is DRAWN from it is
+    /// bounded separately by <see cref="TipUsed"/> — see
+    /// <c>StrokeOverlay.TipBounds</c>, which explains why bounding one without
+    /// the other fixes half a leak.
+    /// </para>
+    /// </remarks>
+    internal SKBitmap? TipScratch { get; set; }
+
+    /// <summary>What <see cref="TipScratch"/> holds, so a rebuild wipes only that and a draw covers only that.</summary>
+    internal SKRectI? TipUsed { get; set; }
+
+    /// <summary>Make <see cref="TipScratch"/> exist at this size, wiped of the last rebuild.</summary>
+    internal SKCanvas BeginTip(int width, int height)
+    {
+        if (TipScratch is not null && (TipScratch.Width != width || TipScratch.Height != height))
+        {
+            TipScratch.Dispose();
+            TipScratch = null;
+            TipUsed = null;
+        }
+
+        TipScratch ??= new SKBitmap(
+            new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul));
+
+        var canvas = new SKCanvas(TipScratch);
+        // Only what the last rebuild touched. Clearing the whole buffer would be
+        // a full-canvas wipe per publish, which is the shape of cost this fix
+        // exists to avoid rather than to introduce somewhere else.
+        if (TipUsed is { } used)
+        {
+            canvas.Save();
+            canvas.ClipRect(SKRect.Create(used.Left, used.Top, used.Width, used.Height));
+            canvas.Clear(SKColors.Transparent);
+            canvas.Restore();
+        }
+
+        TipUsed = null;
+        return canvas;
+    }
+
+    /// <summary>Forget the tip, wiping what it last held.</summary>
+    internal void ResetTip()
+    {
+        if (TipScratch is not null && TipUsed is { } used)
+        {
+            using var canvas = new SKCanvas(TipScratch);
+            canvas.ClipRect(SKRect.Create(used.Left, used.Top, used.Width, used.Height));
+            canvas.Clear(SKColors.Transparent);
+        }
+
+        TipUsed = null;
+    }
+
     /// <summary>Cost of the last pass, milliseconds — reported by the performance panel.</summary>
     internal double PostCostMs { get; set; }
 
@@ -406,6 +463,10 @@ sealed class LivePaintSession
         // stroke reads it, so holding it saves an allocation per stroke without
         // any state surviving.
         ResetPostProcess();
+        // B322: the tip belongs to one stroke. A leftover would compose over the
+        // next stroke's first frames — the stale-scratch failure OverlayFor's own
+        // remarks record for B39.
+        ResetTip();
     }
 
     /// <summary>

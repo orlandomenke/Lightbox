@@ -83,6 +83,8 @@ internal static class RenderReport
          int Waits, double WaitTotalMs, double WaitWorstMs,
          long Pixels, long MarkPixels,
          int WorstW, int WorstH, long WorstMarkPixels, int WorstTail)? LivePost = null,
+        (int Drawn, int TooFarBehind, double OutstandingMedian, double OutstandingWorst,
+         long Samples)? LiveTip = null,
         (int Deferrals, int ByPresent, int ByTimer, int Released,
          double HeldTotalMs, double HeldWorstMs,
          double LateTotalMs, double LateWorstMs, int ByEvent)? Dam = null,
@@ -1318,6 +1320,30 @@ internal static class RenderReport
             sb.AppendLine($"  event -> publish        mean {s.WaitToPublish.MeanMs,7:0.##} ms   worst {s.WaitToPublish.WorstMs,7:0.##} ms   (oldest event carried)");
             sb.AppendLine($"    newest event          mean {s.TipToPublish.MeanMs,7:0.##} ms   worst {s.TipToPublish.WorstMs,7:0.##} ms");
         }
+        // B322: how often the newest dabs reached the screen, and how far behind
+        // the pass was when they did not. **The budget is a guess until this line
+        // is read** — nothing recorded how many dabs are typically outstanding,
+        // and the fourth attempt's "about nine events" assumption survived all
+        // the way to a person's machine precisely because no capture could
+        // contradict it.
+        if (facts.LiveTip is { Samples: > 0 } tip)
+        {
+            var total = tip.Drawn + tip.TooFarBehind;
+            sb.AppendLine(
+                $"live tip drawn            {tip.Drawn} of {total}   too far behind {tip.TooFarBehind}"
+                + $"   (budget {Rendering.LiveTipPlan.MaxDabs} dabs)");
+            sb.AppendLine(
+                $"  dabs outstanding        median {tip.OutstandingMedian,7:0.#}   worst {tip.OutstandingWorst,7:0.#}");
+            if (total > 8 && tip.TooFarBehind > tip.Drawn)
+            {
+                sb.AppendLine("  >> The budget refused MORE publishes than it served, so the tip is");
+                sb.AppendLine("     mostly not being drawn and B322 is only half fixed here. Raise it");
+                sb.AppendLine("     only if the median above is close to it — if the median is many");
+                sb.AppendLine("     times the budget then the pass is not keeping up at all, and no");
+                sb.AppendLine("     tip size fixes that.");
+            }
+        }
+
         if (s.Drawn > 0)
         {
             sb.AppendLine($"  publish -> drawn        mean {s.WaitToDraw.MeanMs,7:0.##} ms   worst {s.WaitToDraw.WorstMs,7:0.##} ms");

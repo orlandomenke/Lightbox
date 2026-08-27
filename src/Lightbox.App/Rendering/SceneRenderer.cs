@@ -26,8 +26,35 @@ public sealed record StrokeOverlay(
     double Opacity,
     bool Erases,
     bool AlphaLocked = false,
-    ClipRegion? Clip = null)
+    ClipRegion? Clip = null,
+    SKBitmap? Tip = null,
+    SKRectI? TipBounds = null)
 {
+    /// <summary>
+    /// The dabs stamped since the last live post-process pass finished, drawn
+    /// raw over <see cref="Scratch"/> so the mark reaches the pen (B322).
+    /// </summary>
+    /// <remarks>
+    /// Null whenever the pass has caught up, whenever none has landed yet, and
+    /// whenever it has fallen further behind than <c>LiveTipPlan.MaxDabs</c> —
+    /// see that type for why the last of those is a fallback rather than a
+    /// truncation.
+    /// </remarks>
+    public SKBitmap? Tip { get; init; } = Tip;
+
+    /// <summary>
+    /// The document rectangle <see cref="Tip"/> actually covers.
+    /// </summary>
+    /// <remarks>
+    /// <b>Required, not an optimisation.</b> The tip buffer is document-sized so
+    /// it can be pooled across a stroke, and drawing all of it costs a full
+    /// canvas blit per frame however few dabs it holds — which is how B322's
+    /// fourth attempt took compositing from 3.77 ms to 16.1 even before its
+    /// unbounded stamping is counted. Bounding the stamp without bounding the
+    /// draw fixes half a leak.
+    /// </remarks>
+    public SKRectI? TipBounds { get; init; } = TipBounds;
+
     /// <summary>Whether this overlay needs an isolated layer to be masked in.</summary>
     public bool NeedsMask => AlphaLocked || Clip is not null;
 }
@@ -513,7 +540,22 @@ public static class SceneRenderer
     {
         if (!overlay.NeedsMask)
         {
-            DrawLayer(canvas, overlay.Scratch, strokePaint);
+            if (overlay is not { Tip: { } plainTip, TipBounds: { } plainWhere })
+            {
+                DrawLayer(canvas, overlay.Scratch, strokePaint);
+                return;
+            }
+
+            // **One isolated group for both halves, and it is not a tidy-up.**
+            // Drawn separately, the stroke's opacity would apply to each, so
+            // anywhere the tip laps back over the processed body the mark would
+            // come out darker than the commit — a seam that moves with the pen.
+            // Composited into one layer the opacity applies to their union
+            // exactly once, which is what the commit does.
+            canvas.SaveLayer(strokePaint);
+            DrawLayer(canvas, overlay.Scratch, null);
+            DrawLayerRegion(canvas, plainTip, plainWhere, null);
+            canvas.Restore();
             return;
         }
 
@@ -539,6 +581,12 @@ public static class SceneRenderer
         }
 
         DrawLayer(canvas, overlay.Scratch, null);
+        // Inside the isolation, so the alpha lock and the selection cut the
+        // whole mark rather than only the part a pass happens to have reached.
+        if (overlay is { Tip: { } maskedTip, TipBounds: { } maskedWhere })
+        {
+            DrawLayerRegion(canvas, maskedTip, maskedWhere, null);
+        }
 
         if (overlay.AlphaLocked)
         {
@@ -584,6 +632,31 @@ public static class SceneRenderer
     /// mutable bitmap on every call. The view is a live window onto the same
     /// pixels and never outlives this call.
     /// </summary>
+    /// <summary>Draw one rectangle of a bitmap where it belongs, and nothing else.</summary>
+    private static void DrawLayerRegion(
+        SKCanvas canvas, SKBitmap bitmap, SKRectI where, SKPaint? paint)
+    {
+        var clipped = SKRectI.Intersect(where, new SKRectI(0, 0, bitmap.Width, bitmap.Height));
+        if (clipped.IsEmpty) return;
+
+        var rect = SKRect.Create(clipped.Left, clipped.Top, clipped.Width, clipped.Height);
+        using var pixels = bitmap.PeekPixels();
+        if (pixels is not null)
+        {
+            using var view = SKImage.FromPixels(pixels);
+            if (view is not null)
+            {
+                // Source and destination are the same rectangle: this is the
+                // bitmap drawn where it already is, with everything outside the
+                // rectangle left alone. The canvas carries the compose scale.
+                canvas.DrawImage(view, rect, rect, Downscale, paint);
+                return;
+            }
+        }
+
+        canvas.DrawBitmap(bitmap, rect, rect, paint);
+    }
+
     private static void DrawLayer(SKCanvas canvas, SKBitmap bitmap, SKPaint? paint)
     {
         using var pixels = bitmap.PeekPixels();
