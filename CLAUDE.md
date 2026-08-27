@@ -122,7 +122,7 @@ session start when it is stale.
 | What is this supposed to *look* like? | read `docs/design/ui-reference.png`, then `.claude/quality/DESIGN.md` — the image is the source, the file is the rules read off it |
 | What does an AI request cost? | read `docs/DESIGN-ai-payload.md` — do not re-derive it |
 | Why is compositing on the CPU, and what would move it? | read `docs/DESIGN-gpu-compositing.md` — B125's design note, decisions included |
-| Why does a brush stamp twice, and when does it not? | read `docs/DESIGN-two-stage-brush.md` — asked repeatedly; do not re-derive it |
+| Why does a brush stamp twice? | read `docs/DESIGN-two-stage-brush.md` — do not re-derive it |
 | What should I pick up next? | `python3 scripts/roadmap.py next` |
 | Why is a rule below the way it is? | the skill that carries its reasons — `branching`, `scope-call`, `ai-work`, `brush-measurement`, `optional-settings` |
 

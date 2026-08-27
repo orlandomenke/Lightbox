@@ -362,6 +362,17 @@ which is a weak test and still far better than none.
     | 22:59 | document | 2.74 ms | **3170 ms** |
 
     Three to six **seconds** on the UI thread, against a median of two milliseconds and a pen delivering every 5.1. That is what "it jumps" is: the mark freezes for seconds and then arrives in one step. Nothing about a tip, a budget or a dab's cost touches it.
+  - **CONFIRMED on the owner's machine, 2026-08-27 23:10, by the instrument built to refute it.** The worst build of the capture, attributed to the phase that one frame spent its time in rather than to a mean over every frame:
+
+    ```
+    the WORST build alone    3308.68 ms   — where that one frame went:
+      describing it          3308.08 ms   (100%)   frame-cache misses in it: 2
+      compositing it               0 ms   (0%)
+      handing it over           0.01 ms   (0%)
+      everything else           0.58 ms   (0%)
+    ```
+
+    **One hundred per cent of a 3.3-second stall, in describing the frame, with two cache misses inside it.** Two misses at the 797 ms measured on a lighter synthetic frame is 1.6 s; this document carries two layers and longer strokes, so about 1.65 s a miss. The mechanism, the cost and the attribution now agree, and the report's verdict line was written to be able to say the opposite.
   - **MEASURED 2026-08-27, and a miss costs 797 ms.** `FrameCacheMissCostTests` calls `FrameBitmapCache.RenderDetached` — the same render a miss performs, exposed for the prewarmer — on the owner's document size with five heavy strokes: **855, 797, 809 ms**, best of three **797 ms**. Against a typical build of **2 ms** that is **422x**, and against a pen delivering every 5 ms it is **159 events' worth of silence**. The synthetic frame is if anything lighter than the owner's, which carried two layers and longer strokes, so 3.2-6.4 seconds is a small multiple of this rather than a different phenomenon.
   - **That is the whole verdict on B322's three days.** The tip budget was argued down from 128 dabs to 3 milliseconds to 11 microseconds a dab, and the largest saving any of it bought was about **13 ms a publish**. One cache miss is **797**. Sixty publishes' worth of the entire optimisation, in one frame, on the thread the pen is waiting on.
   - **The mechanism, read off the code rather than inferred from the timings.** `FrameBitmapCache.Get` increments `Misses` and then calls `Render(source, ...)` **synchronously on the calling thread**. During a stroke that thread is the UI thread, inside the phase the report calls *describing it (pass list, stack fold, cel fetches)*. So a miss is a full frame rasterization from the stroke record — at 3840x2160, with wet-edge strokes whose post-process runs over the whole mark — in the middle of drawing.
