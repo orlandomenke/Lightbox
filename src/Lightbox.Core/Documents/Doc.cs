@@ -357,6 +357,49 @@ public sealed class Doc
     /// survives serialization.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// This document with the drawings, and the reference material, taken out.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>What a stroke render resolves that is not in the stroke.</b> A mark
+    /// reaches for a brush tip, a texture, a clip region, a palette swatch, a
+    /// gradient ramp, a line treatment, a simulation — all of them by id, all of
+    /// them stored here, and every one of them editable in place while the id
+    /// stays put. Recolour a swatch and the pixels of a stroke drawn years ago
+    /// change without the stroke changing at all (B151). So a checkpoint's
+    /// fingerprint has to cover this, and covering it by listing the registries
+    /// would be a list somebody has to remember to extend.
+    /// </para>
+    /// <para>
+    /// <b>Hence subtraction rather than enumeration.</b> Everything is in unless
+    /// it is taken out here, so a registry added next year is fingerprinted
+    /// without anybody thinking about it. The cost of the coarseness is stated
+    /// and accepted: editing a swatch no stroke uses drops every checkpoint in
+    /// the document, which is one slow reopen. Being slow is the direction this
+    /// is allowed to be wrong in.
+    /// </para>
+    /// <para>
+    /// Three things come out, and each has to earn it. <b>Layers</b> hold the
+    /// drawings, which the fingerprint hashes directly and precisely — leaving
+    /// them in would hash every stroke of every cel to validate one.
+    /// <b>Reference material</b> is imported photographs and boards: megabytes
+    /// that no render of a drawing reads. <b>The playhead</b> is stamped into the
+    /// document by every save (<c>StampPlayhead</c>), so leaving it in would
+    /// change the fingerprint on the very act that writes the checkpoint, and
+    /// nothing would ever validate.
+    /// </para>
+    /// </remarks>
+    internal Doc RenderShell()
+    {
+        var shell = (Doc)MemberwiseClone();
+        shell.Scene = Scene.RenderShell();
+        shell.ReferenceSheets = [];
+        shell.ReferenceBoard = null;
+        shell.PlayheadFrame = null;
+        return shell;
+    }
+
     public Doc Clone()
     {
         var copy = (Doc)MemberwiseClone();

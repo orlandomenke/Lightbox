@@ -987,6 +987,7 @@ public partial class ConfigureWindow : Window
         PlaybackQualityBox.SelectedItem = _vm.PlaybackQualityChoice;
         UndoDepthBox.Value = _vm.UndoDepth;
         CacheBudgetBox.Value = _vm.FrameCacheBudgetMb;
+        RasterCheckpointsBox.IsChecked = _vm.RasterCheckpoints;
         GpuCompositeBox.ItemsSource = _vm.GpuCompositingChoices;
         GpuCompositeBox.SelectedItem = _vm.GpuCompositingMode;
         DesktopCompositorBox.IsChecked = _vm.PresentThroughDesktopCompositor;
@@ -1008,6 +1009,15 @@ public partial class ConfigureWindow : Window
         _vm.AiStatus = on
             ? "Lightbox will present through the desktop compositor at the next start"
             : "Lightbox will present straight to the screen at the next start";
+    }
+
+    /// <summary>
+    /// Whether a save stores a rendering beside a big drawing's strokes (B30).
+    /// </summary>
+    private void OnRasterCheckpointsChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_loadingPerformance || _vm is null) return;
+        _vm.RasterCheckpoints = RasterCheckpointsBox.IsChecked == true;
     }
 
     private void OnGpuCompositeChanged(object? sender, SelectionChangedEventArgs e)

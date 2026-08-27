@@ -188,6 +188,40 @@ document saved before the change is plain JSON and **opens exactly as it always
 did** — Lightbox looks at the file's own bytes, not its age or its name, so
 both kinds coexist and a resave simply produces the smaller form.
 
+## Large paintings open from a stored rendering
+
+A drawing is a list of strokes and the picture is worked out from them, which is
+what keeps every mark editable and re-colourable however old it is. The bill is
+that opening a drawing means painting every stroke again. On an animation cel
+that is a few milliseconds and you will never notice. On a painting you have
+been building for a week it is the slowest thing the application does — around
+ten thousand painterly strokes takes about a hundred seconds.
+
+So when a drawing passes **250 strokes**, saving also stores a picture of the
+strokes it has so far, beside them in the same file. Reopening starts from that
+picture and paints only what came after it. Measured on a thousand-stroke
+painting the difference is **8.5 seconds against 30 milliseconds**.
+
+Three things worth knowing, because they are what the feature promises rather
+than what it does:
+
+- **The strokes are still the artwork.** The stored picture is a shortcut and
+  nothing more. Deleting it changes nothing except how long the drawing takes to
+  appear, and every export is painted from the strokes regardless.
+- **It costs file size** — roughly one full-canvas image per drawing big enough
+  to qualify, which on a big painting is most of the file. Turn it off in
+  **Edit ▸ Configure ▸ Performance** if you would rather have the megabytes;
+  turning it off also takes the stored pictures out of what is already open.
+- **It arrives just after the save, not during it.** Making the picture costs
+  what opening the drawing costs, so it happens in the background and Ctrl+S
+  never waits for it. That means if you save a large painting for the first time
+  and quit within a few seconds, the picture may not have reached the file yet —
+  the next save of any kind puts it there. Nothing is lost either way; the
+  drawing simply opens the slow way once more.
+
+You will not see it work. There is no badge and no progress bar, because the
+only thing it changes is a wait that is no longer there.
+
 ## Autosave
 
 Under **Edit**. Choose off, 30 seconds, 1, 5 or 15 minutes. Zero is a real

@@ -93,6 +93,23 @@ public sealed class FrameConverter : JsonConverter<Frame>
         if (root.TryGetProperty("correctives", out var correctives))
             frame.Correctives = JsonSerializer.Deserialize<List<Corrective>>(correctives.GetRawText(), options);
 
+        // Derived pixels, so a checkpoint that will not parse is dropped rather
+        // than thrown on: the drawing still renders, from the record, exactly as
+        // it would have. B137's rule, applied to the one field in the document
+        // that is allowed to be missing.
+        if (root.TryGetProperty("checkpoint", out var checkpoint))
+        {
+            try
+            {
+                frame.Checkpoint =
+                    JsonSerializer.Deserialize<StrokeCheckpoint>(checkpoint.GetRawText(), options);
+            }
+            catch (JsonException)
+            {
+                frame.Checkpoint = null;
+            }
+        }
+
         return frame;
     }
 
@@ -148,6 +165,12 @@ public sealed class FrameConverter : JsonConverter<Frame>
         {
             writer.WritePropertyName("correctives");
             JsonSerializer.Serialize(writer, value.Correctives, options);
+        }
+
+        if (value.Checkpoint is { IsUsable: true } snapshot)
+        {
+            writer.WritePropertyName("checkpoint");
+            JsonSerializer.Serialize(writer, snapshot, options);
         }
 
         writer.WriteEndObject();

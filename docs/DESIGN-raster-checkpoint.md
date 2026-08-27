@@ -1,18 +1,79 @@
 # The raster checkpoint: making a painting cheap to reopen
 
-Status: **designed and decided, nothing built.** Opened 2026-08-08 after B30 was
-measured against a painting rather than a frame of line art; the five open
-decisions were answered the same day and are recorded in **Q60**. The decision to
-design before implementing was deliberate: this adds a cache *inside* the artwork,
-and a cache that can be silently wrong is worse than one that is slow.
+Status: **built, 2026-08-26.** Opened 2026-08-08 after B30 was measured against a
+painting rather than a frame of line art; the five open decisions were answered
+the same day and are recorded in **Q60**. The decision to design before
+implementing was deliberate: this adds a cache *inside* the artwork, and a cache
+that can be silently wrong is worse than one that is slow.
 
-| | Decided |
-| --- | --- |
-| Where the pixels live | **In the document**, in a new field beside the strokes |
-| When one is taken | **On save, rendered on a background thread** — the save returns first |
-| What invalidates it | **Any edit it covers drops it**; the next save makes a fresh one |
-| Undo limit | **A memory budget, not a step count** |
-| The clone stall found on the way | **Filed as B142** — fixed 2026-08-08, 615 ms → 5.8 ms |
+| | Decided | As built |
+| --- | --- | --- |
+| Where the pixels live | **In the document**, in a new field beside the strokes | `Frame.Checkpoint`, a `StrokeCheckpoint` — as designed |
+| When one is taken | **On save, rendered on a background thread** — the save returns first | `CheckpointService`, requested by the three save paths — as designed |
+| What invalidates it | **Any edit it covers drops it**; the next save makes a fresh one | **Changed — see below.** Nothing drops it; validity is *recomputed* |
+| Undo limit | **A memory budget, not a step count** | Still unbuilt, and still not this |
+| The clone stall found on the way | **Filed as B142** — fixed 2026-08-08, 615 ms → 5.8 ms | Was the enabler: the plan deep-copies its prefix on the UI thread |
+
+**What it bought, measured on a 1 000-stroke painting at 1280×720: 8 452 ms
+replayed against 30.6 ms checkpointed — 276×, for 1.1 MB stored.** And flat, which
+is the durable half: 500 strokes cost 40.6 ms and 2 000 cost 42.3 ms, `1.04×` for
+four times the record, because nothing on that path walks the record.
+
+## Two things this document got wrong, and what replaced them
+
+Kept rather than quietly corrected, because both are the kind of mistake that
+recurs.
+
+### The invalidation funnel was the wrong shape
+
+This document specified: *"`AfterStrokeEdit` already exists as the funnel the
+selection actions go through and is where the drop belongs."* That is an
+invalidation design, and every invalidation design has the same failure — the
+day somebody adds an edit path and does not call the funnel, a checkpoint
+survives an edit it should not have, and the symptom is **stale art on an
+artist's canvas**. Silent, rare, and ranked in `BUGS.md` as worse than being
+slow.
+
+**As built, nothing is required to remember anything.** `CheckpointFingerprint`
+hashes what the pixels were made from, stores it with them, and *recomputes it*
+before the checkpoint is ever used. A missed call site can now only leave a stale
+checkpoint lingering in a file until the next save replaces it — it cannot cause
+one to be used. The eager drop still exists, but as tidying rather than as the
+mechanism, which is the important difference.
+
+**The fingerprint subtracts rather than enumerates.** It covers the drawing's
+covered strokes exactly, plus the whole document with the drawings and the
+reference material removed (`Doc.RenderShell`). Listing the registries a render
+resolves — tips, textures, clips, swatches, ramps, treatments, sims — would be a
+list somebody has to extend, and B151 is what a stroke-only hash misses: a stroke
+records a *swatch*, so recolouring the swatch changes the art while every byte of
+every stroke stays put. The cost of the coarseness is stated and taken: editing a
+swatch nothing uses drops every checkpoint in the document, which is one slow
+reopen.
+
+**And it nearly shipped doing nothing at all.** `StampPlayhead` writes the
+artist's timeline position into the document on every save — so a fingerprint over
+the whole document changes on the very act that stores the checkpoint, and every
+checkpoint written is invalid the moment it is read back. The failure looks
+exactly like the feature not being implemented. `Doc.RenderShell` takes the
+playhead out, and a test holds it out.
+
+### "A checkpoint is a PNG" needed one more sentence
+
+The pixels are premultiplied and PNG is defined as straight alpha, so the two do
+not meet without a decision. Both available answers turn out to round-trip
+exactly — verified exhaustively over all 65 536 legal (alpha, channel) pairs — so
+this is not the disaster it first looked like, and the first measurement of it
+here was **wrong in the way `DESIGN-performance.md` warns about**: a 250-stroke
+painting appeared to lose 3.27 million bytes with a worst channel error of 157,
+which was not precision loss at all but `SKBitmap.Decode` returning `Bgra8888`
+and the comparison reading red as blue. *What else is in this measurement*, before
+*what is wrong with the code*.
+
+What survives is the rule: **every decode names the `SKImageInfo` it wants**
+rather than accepting the decoder's choice. `CheckpointCodec` is the only thing
+allowed to touch the field, and the field is called `PixelsBase64` rather than
+`pngBase64` precisely so that reaching for `PngCodec` looks wrong.
 
 ## The problem, measured
 
@@ -333,6 +394,13 @@ ids, and accept the checkpoint only when the frame's leading strokes still hash
 the same. `AfterStrokeEdit` already exists as the funnel the selection actions go
 through and is where the drop belongs.
 
+*(2026-08-26, as built: the second half of that is right and the third is not.
+Acceptance is by recomputing the hash, which is what shipped — over the strokes'
+serialized bytes rather than their ids, so an in-place edit that keeps an id is
+caught too, and over the document's registries as well, so a swatch recolour is.
+The funnel is not the mechanism; see "Two things this document got wrong" at the
+top.)*
+
 ### Undo is bounded by memory, not by step count
 
 Measured, because the intuition here is wrong too. On a 5 000-stroke painting:
@@ -377,6 +445,16 @@ undo restores a whole document tree and then forces the rebuild B30 measures.
   1 is gone.
 - **A checkpoint is never authored, exported, or sent to a model.** `Flatten` and
   every export path work from the record.
+  *(2026-08-26, as built: both halves are true by construction rather than by
+  rule, which is better than the design asked for. Export cannot reach one
+  because the exporters build their own `FrameBitmapCache` and set only
+  `PoseResolver` — the checkpoint hook is a second delegate they never set, so
+  acquiring one would take a deliberate edit. A model cannot see one because the
+  AI wire format is a hand-written `StrokeDto` built from `Stroke` alone: a
+  `Frame` never crosses to a model at all, so there is no path for the field to
+  travel down. The cost of the first is that exporting one large painting still
+  waits the full replay; that is named as B30's remainder rather than fixed
+  here.)*
 - **It is per cel, not per document**, or an animation with one heavy cel cannot
   use it.
 
