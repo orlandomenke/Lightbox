@@ -106,8 +106,8 @@ internal static class RenderReport
          double EventIntervalMedianMs, long Events)? Cycle = null,
         (int Count, double TotalMs, double WorstMs, double MedianMs, bool MeanDistorted)? Compose = null,
         (double DescribeMs, double ComposeMs, double HandoffMs)? BuildPhases = null,
-        (double TotalMs, double DescribeMs, double ComposeMs, double HandoffMs, long Misses)?
-            WorstBuild = null,
+        (double TotalMs, double DescribeMs, double ComposeMs, double HandoffMs, long Misses,
+            double AtSeconds, int StrokePoints, int StrokeDabs)? WorstBuild = null,
         Rendering.PublishTally? PublishesByCaller = null);
 
     /// <summary>
@@ -1230,6 +1230,29 @@ internal static class RenderReport
                     sb.AppendLine("");
                     sb.AppendLine(
                         $"  the WORST build alone   {w.TotalMs,8:0.##} ms   — where that one frame went:");
+                    sb.AppendLine(
+                        $"    it happened at        {w.AtSeconds,8:0.#} s into the session"
+                        + $"   with {w.StrokePoints} points and {w.StrokeDabs} dabs under the pen");
+                    if (w.StrokePoints == 0)
+                    {
+                        sb.AppendLine(
+                            "  >> NO stroke was in flight, so this is not a cost that grows with the");
+                        sb.AppendLine(
+                            "     mark. Look at what happens between strokes: opening, committing,");
+                        sb.AppendLine(
+                            "     clearing, or the first publish of a frame nothing had rendered.");
+                    }
+                    else
+                    {
+                        sb.AppendLine(
+                            $"  >> A stroke WAS in flight at {w.StrokePoints} points, so the stall lands");
+                        sb.AppendLine(
+                            "     mid-mark. Compare that count against the stroke you felt it on: if");
+                        sb.AppendLine(
+                            "     it is early, the trigger is the stroke STARTING rather than its");
+                        sb.AppendLine(
+                            "     length; if it is deep, the cost grows with the mark.");
+                    }
                     var wRest = w.TotalMs - w.DescribeMs - w.ComposeMs - w.HandoffMs;
                     sb.AppendLine(
                         $"    describing it         {w.DescribeMs,8:0.##} ms   ({w.DescribeMs / w.TotalMs * 100:0}%)"

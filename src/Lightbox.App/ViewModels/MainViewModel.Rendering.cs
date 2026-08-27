@@ -757,8 +757,10 @@ public partial class MainViewModel
     /// depended on it guessed.
     /// </para>
     /// </remarks>
-    internal (double TotalMs, double DescribeMs, double ComposeMs, double HandoffMs, long Misses)
-        WorstBuild { get; private set; }
+    internal (double TotalMs, double DescribeMs, double ComposeMs, double HandoffMs, long Misses,
+        double AtSeconds, int StrokePoints, int StrokeDabs) WorstBuild { get; private set; }
+
+    private static readonly long AppStartedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
 
     /// <summary>
     /// Close off one frame's build, timed from the publish stamp (B321).
@@ -779,12 +781,24 @@ public partial class MainViewModel
         // the session, so only the difference belongs to this build.
         if (ms > WorstBuild.TotalMs)
         {
+            // **When, and what was under the pen.** The owner reports the stall on
+            // the FIRST long stroke after opening and on subsequent long ones,
+            // mid-stroke, after the start of the mark has already drawn. A
+            // first-render story cannot explain the second half of that and a
+            // stroke-length story cannot explain a build with cache misses in
+            // it, so the report has to carry both facts about the same frame
+            // instead of leaving them to be inferred from two other numbers.
+            var live = _strokeBuilder.Current;
             WorstBuild = (
                 ms,
                 BuildDescribeMs - _buildStartDescribeMs,
                 BuildComposeMs - _buildStartComposeMs,
                 BuildHandoffMs - _buildStartHandoffMs,
-                _cache.Misses - _buildStartMisses);
+                _cache.Misses - _buildStartMisses,
+                (System.Diagnostics.Stopwatch.GetTimestamp() - AppStartedTicks)
+                    / (double)System.Diagnostics.Stopwatch.Frequency,
+                live?.Points.Count ?? 0,
+                _live.StableDabs);
         }
     }
 
