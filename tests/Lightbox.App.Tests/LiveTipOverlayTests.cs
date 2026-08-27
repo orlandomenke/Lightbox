@@ -129,6 +129,51 @@ public class LiveTipOverlayTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// <b>The discriminating case, and the reason the cheap fix may not be the
+    /// right one.</b> Every effect here <em>reduces</em> alpha somewhere against
+    /// the raw dabs — the footprint ceiling caps coverage, the wet edge lightens
+    /// the interior to darken its rim, granulation modulates it down, a medium
+    /// erodes. So a fix that simply shows raw dabs wherever the processed buffer
+    /// is thin will fill those back in and the effect will look weaker while the
+    /// pen moves, then snap when the pass lands. That is the same class of fault
+    /// as the tiles, just soft-edged, and it is what tells a one-blit fix apart
+    /// from one that tracks which dabs are new.
+    /// </summary>
+    [Fact]
+    public void WhereTheEffectThinnedTheMarkTheRawDabsDoNotFillItBackIn()
+    {
+        using var raw = Filled(Body, Tip);
+
+        // The pass has been here and made the mark HALF as opaque — the shape a
+        // ceiling or a wet-edge interior leaves behind.
+        using var processed = new SKBitmap(new SKImageInfo(W, H, SKColorType.Bgra8888, SKAlphaType.Premul));
+        using (var canvas = new SKCanvas(processed))
+        {
+            canvas.Clear(SKColors.Transparent);
+            using var paint = new SKPaint
+            {
+                Color = SKColors.Black.WithAlpha(128),
+                IsAntialias = false,
+                BlendMode = SKBlendMode.Src,
+            };
+            canvas.DrawRect(SKRect.Create(Body.Left, Body.Top, Body.Width, Body.Height), paint);
+        }
+
+        var overlay = OverlayFrom(MidStroke(raw, processed));
+        Assert.NotNull(overlay);
+
+        var centre = overlay!.Scratch.GetPixel(
+            Body.Left + (Body.Width / 2), Body.Top + (Body.Height / 2));
+        output.WriteLine($"body centre: alpha {centre.Alpha} (the pass left 128)");
+
+        Assert.True(
+            centre.Alpha <= 160,
+            $"the body reads alpha {centre.Alpha} where the pass left 128 — raw dabs are "
+            + "showing through what the effect deliberately thinned, so the mark will "
+            + "look wrong while the pen moves and snap when the pass lands");
+    }
+
+    /// <summary>
     /// <b>And the processed body has to survive whatever shows the tip.</b> This
     /// is the assertion the first attempted fix would have failed: copying the
     /// raw dabs forward over a bounding rectangle overwrote finished wet edge
