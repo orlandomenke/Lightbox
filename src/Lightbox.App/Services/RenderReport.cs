@@ -84,7 +84,9 @@ internal static class RenderReport
          long Pixels, long MarkPixels,
          int WorstW, int WorstH, long WorstMarkPixels, int WorstTail)? LivePost = null,
         (int Drawn, int TooFarBehind, int NoPass,
-         double OutstandingMedian, double OutstandingWorst)? LiveTip = null,
+         double OutstandingMedian, double OutstandingWorst,
+         double OutstandingP90, double OutstandingP99,
+         double StampMedianMs, double StampWorstMs)? LiveTip = null,
         (int Deferrals, int ByPresent, int ByTimer, int Released,
          double HeldTotalMs, double HeldWorstMs,
          double LateTotalMs, double LateWorstMs, int ByEvent)? Dam = null,
@@ -1349,7 +1351,24 @@ internal static class RenderReport
                     $"live tip drawn            {tip.Drawn} of {considered}   too far behind {tip.TooFarBehind}"
                     + $"   (budget {Rendering.LiveTipPlan.MaxDabs} dabs)");
                 sb.AppendLine(
-                    $"  dabs outstanding        median {tip.OutstandingMedian,7:0.#}   worst {tip.OutstandingWorst,7:0.#}");
+                    $"  dabs outstanding        median {tip.OutstandingMedian,7:0.#}   p90 {tip.OutstandingP90,7:0.#}"
+                    + $"   p99 {tip.OutstandingP99,7:0.#}   worst {tip.OutstandingWorst,7:0.#}");
+                // What the budget is protecting, timed. Without this the only
+                // way to choose it is caution, and caution set it to a value
+                // that refused the strokes the fix exists for.
+                sb.AppendLine(
+                    $"  restamping the tip cost median {tip.StampMedianMs,7:0.##} ms   worst {tip.StampWorstMs,7:0.##} ms");
+                if (tip.StampMedianMs > 0 && tip.OutstandingMedian > 0)
+                {
+                    var perDab = tip.StampMedianMs / tip.OutstandingMedian;
+                    sb.AppendLine(
+                        $"  >> About {perDab * 1000:0.##} us a dab, so a budget of {tip.OutstandingP99:0} — the p99"
+                        + $" above — would cost about {perDab * tip.OutstandingP99:0.##} ms a publish.");
+                    sb.AppendLine(
+                        "     Set the budget against that, not against caution: refusing a publish");
+                    sb.AppendLine(
+                        "     turns the fix off during exactly the fast strokes it exists for.");
+                }
             }
 
             if (considered > 8 && tip.TooFarBehind > tip.Drawn)

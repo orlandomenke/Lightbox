@@ -1531,6 +1531,21 @@ public partial class MainViewModel
     internal Services.Tally LiveTipOutstanding { get; } = new();
 
     /// <summary>
+    /// What restamping the tip actually costs, so the budget is set from a
+    /// measurement rather than from caution (B322).
+    /// </summary>
+    /// <remarks>
+    /// <b>The budget's whole job is to keep this bounded, and until it was timed
+    /// nobody could say what value did that.</b> 128 was picked to be obviously
+    /// safe and turned the fix off during exactly the fast strokes it exists
+    /// for — the owner reported no preview at all mid-stroke while slow strokes
+    /// showed it throughout, which is this refusal seen from the pen. Read
+    /// against the outstanding count's own spread, this says how far the budget
+    /// can move before the stamp stops being free.
+    /// </remarks>
+    internal Services.Tally LiveTipStampMs { get; } = new();
+
+    /// <summary>
     /// The dabs stamped since the last completed pass, drawn raw so the tip of
     /// the mark is on screen while the pass catches up (B322).
     /// </summary>
@@ -1583,6 +1598,7 @@ public partial class MainViewModel
 
         var info = new SKImageInfo(
             Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        var startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
         var canvas = _live.BeginTip(info.Width, info.Height);
         try
         {
@@ -1593,6 +1609,10 @@ public partial class MainViewModel
         {
             canvas.Dispose();
         }
+
+        LiveTipStampMs.Add(
+            (System.Diagnostics.Stopwatch.GetTimestamp() - startedAt)
+            * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
 
         _live.TipUsed = BrushEngine.RangeBounds(dabs, plan.From, stroke.Brush, info);
         if (_live.TipUsed is null) return null;
