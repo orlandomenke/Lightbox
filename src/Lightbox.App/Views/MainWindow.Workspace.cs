@@ -325,6 +325,7 @@ public partial class MainWindow
             _vm.TickProfile.Snapshot(),
             _vm.TickProfile.Ticks,
             _vm.FrameCacheTraffic,
+            (_vm.FrameRegionRepaints, _vm.FrameRenderDrops),
             _vm.SceneShape,
             Canvas.AnimationFrames,
             // The work the tick breakdown cannot see: drawing the composited

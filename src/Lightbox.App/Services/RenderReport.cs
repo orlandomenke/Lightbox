@@ -68,6 +68,7 @@ internal static class RenderReport
         IReadOnlyList<TickProfile.PhaseStats>? TickPhases = null,
         int TickCount = 0,
         (long Hits, long Misses, long Evictions, long Bytes, long Budget)? FrameCache = null,
+        (int Repaired, int Dropped)? FrameEdits = null,
         (int Frames, int Layers, int Strokes, double Fps)? Scene = null,
         (long Requested, long Delivered)? AnimationFrames = null,
         double RenderMedianMs = 0,
@@ -1916,6 +1917,39 @@ internal static class RenderReport
             sb.AppendLine($"  served from memory      {cache.Hits}");
             sb.AppendLine($"  had to render           {cache.Misses}  ({missShare:0.#}%)");
             sb.AppendLine($"  thrown out              {cache.Evictions}");
+            // **B332: where the misses come from.** A miss renders the whole
+            // frame synchronously on the calling thread — 797 ms measured on a
+            // lighter frame than the owner's, and 100% of a 3.3 second stall in
+            // the capture that confirmed it. So the question is not how many
+            // misses there are but what CAUSED them, and the leading candidate
+            // is a committed stroke the incremental repaint could not patch.
+            if (facts.FrameEdits is { } edits && edits.Repaired + edits.Dropped > 0)
+            {
+                var edited = edits.Repaired + edits.Dropped;
+                sb.AppendLine(
+                    $"  edits repaired in place {edits.Repaired} of {edited}   dropped whole {edits.Dropped}"
+                    + $"   (a drop is what makes the next lookup miss)");
+                if (edits.Dropped > 0)
+                {
+                    sb.AppendLine(
+                        "  >> Every DROP costs a full frame render on the UI thread the next time");
+                    sb.AppendLine(
+                        "     anything asks for this frame — and the next publish always does, so");
+                    sb.AppendLine(
+                        "     there is no window to warm it in. Widening the repaint (B327) is the");
+                    sb.AppendLine(
+                        "     fix that changes nothing visible; warming after the fact is not.");
+                }
+                else
+                {
+                    sb.AppendLine(
+                        "  >> Every edit was patched in place, so the misses above came from");
+                    sb.AppendLine(
+                        "     somewhere else — a new size or scale key, or a frame never held.");
+                    sb.AppendLine(
+                        "     B332's drop path is NOT the cause here; find the key that changed.");
+                }
+            }
         }
 
         // B167 phase 2. Printed beside the frame cache because they answer the
