@@ -1255,6 +1255,45 @@ public partial class MainViewModel
     /// restamp the whole stroke per publish while every test passed: a mean
     /// cannot show you that a cost is proportional to something.
     /// </remarks>
+    /// <summary>
+    /// The per-event stamp, split into the work that is bounded by the dabs and
+    /// the work that is bounded by the tail RECTANGLE (B189).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The dab count is not the cost, and that is why B189 has resisted
+    /// measurement.</b> An event stamps a bounded number of dabs — B321 pinned
+    /// the provisional tail at exactly 2.0 events at every pen speed — but it
+    /// also performs <b>three bitmap copies over the tail rectangle</b>: restore
+    /// the coverage backup, restore the scratch backup, and take a fresh backup
+    /// for the next event. Those are area work, and the tail rectangle spans the
+    /// distance the pen covered in those two events, so <b>it grows with pen
+    /// speed while the dab count does not</b>.
+    /// </para>
+    /// <para>
+    /// That is the shape the owner reports: long fast strokes stall, short ones
+    /// are close to fine. Counting dabs cannot see it; the gap attribution put
+    /// 94% of a 1221 ms silence inside the stamp, and this is where inside.
+    /// </para>
+    /// </remarks>
+    private static double Ms(long since) =>
+        (System.Diagnostics.Stopwatch.GetTimestamp() - since) * 1000.0
+        / System.Diagnostics.Stopwatch.Frequency;
+
+    internal Services.Tally StampRestoreMs { get; } = new();
+
+    /// <inheritdoc cref="StampRestoreMs"/>
+    internal Services.Tally StampSettledMs { get; } = new();
+
+    /// <inheritdoc cref="StampRestoreMs"/>
+    internal Services.Tally StampBackupMs { get; } = new();
+
+    /// <inheritdoc cref="StampRestoreMs"/>
+    internal Services.Tally StampTailMs { get; } = new();
+
+    /// <summary>The tail rectangle's area in megapixels, per event (B189).</summary>
+    internal Services.Tally StampTailMpx { get; } = new();
+
     internal Services.Tally LiveStampSettled { get; } = new();
 
     /// <summary>
@@ -2223,6 +2262,7 @@ public partial class MainViewModel
         // 1. Take back the tail lent out last time. Only the part of the buffer this
         // tail actually used: the backup is sized to the largest tail seen, so drawing
         // the whole thing would scale a bigger image into a smaller rect.
+        var restoreAt = System.Diagnostics.Stopwatch.GetTimestamp();
         if (carriesFootprint && _live.TailRegion is { } coverLent && _live.CoverageTailBackup is not null)
         {
             using var restore = SKImage.FromBitmap(_live.CoverageTailBackup);
@@ -2248,7 +2288,10 @@ public partial class MainViewModel
             _live.TailRegion = null;
         }
 
+        StampRestoreMs.Add(Ms(restoreAt));
+
         // 2. Everything whose position has stopped moving, permanently.
+        var settledAt = System.Diagnostics.Stopwatch.GetTimestamp();
         var settledFrom = _live.StableDabs;
         BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, stable);
         _live.StableDabs = Math.Max(_live.StableDabs, Math.Min(stable, dabs.Count));
@@ -2258,7 +2301,10 @@ public partial class MainViewModel
             _live.CoverageCanvas!.Flush();
         }
 
+        StampSettledMs.Add(Ms(settledAt));
+
         // 3. The rest on loan, so the mark reaches the pen tip.
+        var backupAt = System.Diagnostics.Stopwatch.GetTimestamp();
         var reStamped = 0;
         if (BrushEngine.RangeBounds(dabs, _live.StableDabs, live.Brush, info) is { } tail
             && _live.Scratch is not null)
@@ -2298,6 +2344,13 @@ public partial class MainViewModel
                 }
             }
 
+            // The backup is area work over the tail rectangle, which spans the
+            // distance the pen covered in two events — so it grows with SPEED
+            // while the dab count does not. Timed apart from the dabs for
+            // exactly that reason.
+            StampBackupMs.Add(Ms(backupAt));
+            StampTailMpx.Add(tail.Width * (double)tail.Height / 1_000_000.0);
+            var tailAt = System.Diagnostics.Stopwatch.GetTimestamp();
             BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, dabs.Count);
             // Counted HERE and not from the tail's size below, because the tail
             // is only re-stamped when RangeBounds gives it a rectangle. Counting
@@ -2306,6 +2359,7 @@ public partial class MainViewModel
             // and subtracting it in another (B329).
             reStamped = Math.Max(0, dabs.Count - _live.StableDabs);
             _live.ScratchCanvas.Flush();
+            StampTailMs.Add(Ms(tailAt));
 
             // 3b. The footprint's own copy of the same loan.
             if (carriesFootprint)

@@ -71,6 +71,8 @@ internal static class RenderReport
         (int Repaired, int Dropped)? FrameEdits = null,
         IReadOnlyList<string>? FrameDropCallers = null,
         (int Slow, int SlowWithMiss)? SlowBuilds = null,
+        (double RestoreMs, double SettledMs, double BackupMs, double TailMs, double TailMpx,
+            double TailMpxP90)? StampParts = null,
         IReadOnlyList<(double Ms, double AtSeconds, int Points, int Dabs, long Misses, double DescribeMs)>?
             SlowBuildLog = null,
         (double LostMs, double SessionMs)? StallCensus = null,
@@ -1535,6 +1537,44 @@ internal static class RenderReport
         }
 
         sb.AppendLine($"  stamping the dabs       median {s.Stamp.MedianMs,7:0.##} ms   mean {s.Stamp.MeanMs,7:0.##} ms   worst {s.Stamp.WorstMs,7:0.##} ms");
+        // **B189: what an event's stamp is MADE of.** The dab count is bounded —
+        // B321 pinned the provisional tail at 2.0 events at every pen speed — but
+        // an event also performs three bitmap copies over the tail RECTANGLE,
+        // which spans the distance the pen covered in those two events. That is
+        // area work that grows with speed while the dab count does not, and it
+        // is invisible to every dab-based number above.
+        if (facts.StampParts is { } sp)
+        {
+            var whole = sp.RestoreMs + sp.SettledMs + sp.BackupMs + sp.TailMs;
+            sb.AppendLine(
+                $"    restoring the tail    median {sp.RestoreMs,7:0.##} ms   (copy back what was on loan)");
+            sb.AppendLine(
+                $"    stamping the settled  median {sp.SettledMs,7:0.##} ms   (dabs that stopped moving)");
+            sb.AppendLine(
+                $"    backing up the tail   median {sp.BackupMs,7:0.##} ms   (copy out, for the next event)");
+            sb.AppendLine(
+                $"    stamping the tail     median {sp.TailMs,7:0.##} ms   (the dabs on loan)");
+            sb.AppendLine(
+                $"    the tail rectangle    median {sp.TailMpx,7:0.###} Mpx   p90 {sp.TailMpxP90,7:0.###} Mpx");
+            if (whole > 0)
+            {
+                var copies = (sp.RestoreMs + sp.BackupMs) / whole * 100;
+                sb.AppendLine(
+                    $"  >> {copies:0}% of an event's stamp is COPYING the tail rectangle, not stamping dabs.");
+                sb.AppendLine(copies > 40
+                    ? "     That cost is an AREA and the rectangle spans two events of pen travel,"
+                    : "     The dabs are the cost here, so the tail copies are not the lever.");
+                if (copies > 40)
+                {
+                    sb.AppendLine(
+                        "     so it grows with SPEED while the dab count does not. That is why a");
+                    sb.AppendLine(
+                        "     long fast stroke stalls and a short one does not, and no dab-based");
+                    sb.AppendLine(
+                        "     number in this file can see it. B189.");
+                }
+            }
+        }
         // **What that one number is made of** (B322 attempt 6). A mean cannot
         // show that a cost is proportional to something, which is exactly the
         // blindness that let the fourth attempt restamp the whole stroke per
