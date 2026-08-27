@@ -520,6 +520,7 @@ public partial class MainViewModel
     /// <summary>A stroke has begun. Wall clock, for lining up with a recording.</summary>
     internal void NoteStrokeBegan()
     {
+        _strokeFirstPublishSeen = false;
         _strokeBeganAt = DateTime.Now;
         _strokeBeganTicks = System.Diagnostics.Stopwatch.GetTimestamp();
         _strokeInkShown = false;
@@ -567,6 +568,7 @@ public partial class MainViewModel
     private readonly List<(double Ms, double AtSeconds, int Points, int Outstanding, bool TipRefused,
         bool Missed, long EventsInGap, double StampMs)> _previewGaps = [];
 
+    private bool _strokeFirstPublishSeen;
     private long _lastGapEvents;
     private double _lastGapStampMs;
 
@@ -610,6 +612,21 @@ public partial class MainViewModel
         // Only while a stroke is in flight: a gap with the pen up is the
         // application idling, which is correct and is not a stall.
         if (_strokeBuilder.Current is not { } live || !_strokeBuilder.IsActive) return;
+
+        // **And never the FIRST publish of a stroke, which is the artifact that
+        // nearly cost a night chasing the wrong layer.** BeginStroke publishes
+        // the opening dab, and the interval back from it reaches into the pause
+        // BEFORE the pen went down. Every such row read zero pointer events --
+        // correctly, because the artist was not drawing yet -- and four of them
+        // in a row was read as input starvation. One was 40 seconds long, which
+        // should have been the tell and was explained away instead.
+        if (live.Points.Count < 2)
+        {
+            _strokeFirstPublishSeen = true;
+            return;
+        }
+
+        if (!_strokeFirstPublishSeen) return;
         if (ms <= StallMs && !refusedNow) return;
         if (_previewGaps.Count >= 24) return;
 

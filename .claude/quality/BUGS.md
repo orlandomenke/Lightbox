@@ -365,7 +365,10 @@ which is a weak test and still far better than none.
 
 ### canvas
 
-- [ ] **B333** `P1` `canvas` The gap at the start of a stroke is input starvation, not rendering `evidence: AStrokeOpeningGapIsCountedAgainstInput, TheEventIntervalTallyDeclaresWhatItExcludes`
+- [ ] **B333** `P3` `canvas` The gap at the start of a stroke is input starvation, not rendering `evidence: AStrokeOpeningGapIsCountedAgainstInput, TheEventIntervalTallyDeclaresWhatItExcludes`
+  - **RETRACTED 2026-08-28 00:46, and the entry is almost certainly an artifact of its own instrument.** Wall-clock timestamps put every zero-event gap at the exact instant a stroke BEGAN, and made them longer than the strokes themselves — 1961 ms against a 472 ms stroke, 6104 against 1088. `BeginStroke` publishes the opening dab and the gap counter measured back from it to the previous publish, **which is the pause before the pen went down**. No pointer events arrived during it because the artist was not drawing yet.
+  - **The tell was there and was explained away.** One of these gaps was **40 seconds**; it was noted as "the pen left down while the artist did something else" and set aside instead of being followed. A 40-second reading is not a slightly odd sample, it is the instrument telling you what it is really measuring. Dropped to P3 pending a capture on the corrected build; if the zero-event gaps disappear entirely, this entry should be closed as never having existed.
+  - **What it nearly cost.** The owner was one capture away from being told to investigate their tablet driver. The gap counter now ignores the first publish of a stroke, so an interval that reaches into the idle before the pen went down can no longer be reported as a stall during drawing.
   - **Measured 2026-08-28 00:14, and it closes a question five days of render work could not.** The owner has described the same thing throughout: *"It draws the start of the stroke but as soon as that is drawn it stalls."* Counting pointer events inside each preview gap answers it:
 
     ```
