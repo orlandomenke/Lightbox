@@ -87,7 +87,19 @@ public class LiveTipOverlayTests(ITestOutputHelper output)
             PostStampedCount: 1,
             BrushStroke: new Stroke { Tool = ToolKind.Brush });
 
-    private static StrokeOverlay? OverlayFrom(ScenePassBuilder.LiveEdit live)
+    /// <summary>
+    /// Build the pass list and <b>compose it the way the canvas does</b>.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not an assertion about which bitmap the overlay carries.
+    /// The first draft of these tests read <c>overlay.Scratch</c> directly,
+    /// which bakes today's one-bitmap design into the test and would have to be
+    /// rewritten by the very fix it is meant to judge — and a test rewritten to
+    /// suit a fix has stopped being evidence. What an artist sees is the
+    /// composite, so that is what is measured, and any fix that puts the tip on
+    /// screen passes regardless of how it carries it there.
+    /// </remarks>
+    private static SKBitmap Composed(ScenePassBuilder.LiveEdit live)
     {
         var layer = new Layer { Name = "art" };
         layer.Cels.Add(new Cel { Frame = new Frame() });
@@ -99,7 +111,12 @@ public class LiveTipOverlayTests(ITestOutputHelper output)
 
         var result = ScenePassBuilder.Build(
             scene, state, new FrameBitmapCache(), new TileFallbackTally(), live);
-        return result.Passes.Select(p => p.Overlay).FirstOrDefault(o => o is not null);
+        Assert.Contains(result.Passes, p => p.Overlay is not null);
+
+        using var image = SceneRenderer.Compose(W, H, result.Passes, SKColors.Transparent);
+        var shot = new SKBitmap(new SKImageInfo(W, H, SKColorType.Rgba8888, SKAlphaType.Premul));
+        Assert.True(image.ReadPixels(shot.Info, shot.GetPixels(), shot.RowBytes, 0, 0));
+        return shot;
     }
 
     /// <summary>
@@ -114,11 +131,10 @@ public class LiveTipOverlayTests(ITestOutputHelper output)
         using var raw = Filled(Body, Tip);
         using var processed = Filled(Body);
 
-        var overlay = OverlayFrom(MidStroke(raw, processed));
-        Assert.NotNull(overlay);
+        using var screen = Composed(MidStroke(raw, processed));
 
-        var body = AnyInk(overlay!.Scratch, Body);
-        var tip = AnyInk(overlay.Scratch, Tip);
+        var body = AnyInk(screen, Body);
+        var tip = AnyInk(screen, Tip);
         output.WriteLine($"body on screen: {body}, tip on screen: {tip}");
 
         Assert.True(body, "the settled body of the stroke is not being shown at all");
@@ -159,11 +175,8 @@ public class LiveTipOverlayTests(ITestOutputHelper output)
             canvas.DrawRect(SKRect.Create(Body.Left, Body.Top, Body.Width, Body.Height), paint);
         }
 
-        var overlay = OverlayFrom(MidStroke(raw, processed));
-        Assert.NotNull(overlay);
-
-        var centre = overlay!.Scratch.GetPixel(
-            Body.Left + (Body.Width / 2), Body.Top + (Body.Height / 2));
+        using var screen = Composed(MidStroke(raw, processed));
+        var centre = screen.GetPixel(Body.Left + (Body.Width / 2), Body.Top + (Body.Height / 2));
         output.WriteLine($"body centre: alpha {centre.Alpha} (the pass left 128)");
 
         Assert.True(
@@ -198,11 +211,8 @@ public class LiveTipOverlayTests(ITestOutputHelper output)
             canvas.DrawRect(SKRect.Create(Body.Left, Body.Top, Body.Width, Body.Height), paint);
         }
 
-        var overlay = OverlayFrom(MidStroke(raw, processed));
-        Assert.NotNull(overlay);
-
-        var centre = overlay!.Scratch.GetPixel(
-            Body.Left + (Body.Width / 2), Body.Top + (Body.Height / 2));
+        using var screen = Composed(MidStroke(raw, processed));
+        var centre = screen.GetPixel(Body.Left + (Body.Width / 2), Body.Top + (Body.Height / 2));
         output.WriteLine($"body centre after the fix: {centre}");
 
         Assert.True(centre.Alpha > 0, "the body vanished");
