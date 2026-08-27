@@ -987,11 +987,18 @@ public partial class ConfigureWindow : Window
         PlaybackQualityBox.SelectedItem = _vm.PlaybackQualityChoice;
         UndoDepthBox.Value = _vm.UndoDepth;
         CacheBudgetBox.Value = _vm.FrameCacheBudgetMb;
+        RasterCheckpointsBox.IsChecked = _vm.RasterCheckpoints;
         GpuCompositeBox.ItemsSource = _vm.GpuCompositingChoices;
         GpuCompositeBox.SelectedItem = _vm.GpuCompositingMode;
         _loadingPerformance = false;
         RefreshGpuCompositeHint();
         RefreshMeasured();
+    }
+
+    private void OnRasterCheckpointsChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_loadingPerformance || _vm is null) return;
+        _vm.RasterCheckpoints = RasterCheckpointsBox.IsChecked == true;
     }
 
     private void OnGpuCompositeChanged(object? sender, SelectionChangedEventArgs e)

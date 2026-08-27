@@ -48,10 +48,16 @@ public class DocCloneTests(ITestOutputHelper output)
     /// practice — nothing edits a baked sample, it is replaced or dropped", and that
     /// it can be a megabyte of base64. <see cref="Stroke.Clone"/> has always shared
     /// it.</item>
+    /// <item><see cref="StrokeCheckpoint"/> is <see cref="BakedSample"/>'s argument
+    /// exactly, one level up and larger: several megabytes of pixels, never edited —
+    /// a checkpoint is replaced or dropped — and, unlike the others,
+    /// <b>derived</b>, so the worst a shared reference can cost is a stale cache
+    /// that the fingerprint refuses anyway. Copying it per undo snapshot would buy a
+    /// guarantee nothing needs and pay megabytes a step for it.</item>
     /// </list>
     /// </remarks>
     private static readonly HashSet<Type> DeliberatelyShared =
-        [typeof(AnchorPoint), typeof(ShapeBox), typeof(BakedSample)];
+        [typeof(AnchorPoint), typeof(ShapeBox), typeof(BakedSample), typeof(StrokeCheckpoint)];
 
     /// <summary>A document with something in every optional block, so nothing is untested by being absent.</summary>
     private static Doc Populated()
@@ -85,6 +91,11 @@ public class DocCloneTests(ITestOutputHelper output)
             },
             Baked = new BakedSample { PngBase64 = "AAAA", X = 1, Y = 2 },
         });
+
+        frame.Checkpoint = new StrokeCheckpoint
+        {
+            Strokes = 1, Fingerprint = "deadbeef", PixelsBase64 = "AAAA", Width = 8, Height = 8,
+        };
 
         doc.Scene.Camera = new Camera { Keys = [new CameraKey { Frame = 0, X = 1 }] };
         doc.Scene.Markers.Add(new FrameMarker { Frame = 0, Color = "#ff0000" });

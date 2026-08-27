@@ -210,6 +210,7 @@ public partial class MainViewModel
                 // its badge, which is now the truth rather than a stale flag.
                 if (tab.Source is not null) tab.MarkSaved();
             }
+            RequestCheckpoints();
             AiStatus = $"Saved “{project.Name}”.";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -391,6 +392,7 @@ public partial class MainViewModel
             StampPlayhead(tab);
             DocJson.Save(tab.Doc, path);
             tab.MarkSaved();
+            RequestCheckpoints();
             AiStatus = $"Saved {System.IO.Path.GetFileName(path)}.";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -551,6 +553,43 @@ public partial class MainViewModel
     /// </remarks>
     public event Action? LastDocumentClosed;
 
+    /// <summary>
+    /// Renders raster checkpoints after a save, so reopening a painting does not
+    /// replay every stroke (B30).
+    /// </summary>
+    /// <remarks>
+    /// Declared in this partial rather than beside the other services in
+    /// <c>MainViewModel.cs</c>, because that file is one of the four the monolith
+    /// ratchet holds shut and its instruction is that new work goes into a partial.
+    /// This is the partial that uses it.
+    /// </remarks>
+    private readonly CheckpointService _checkpoints;
+
+    /// <summary>
+    /// A document has just been written: take checkpoints for whatever in it is
+    /// big enough to want one (B30).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>After the write rather than inside it</b>, because rendering a
+    /// checkpoint costs what opening the painting costs and Q60's constraint is
+    /// that saving must never stall. The render is off-thread and its result is
+    /// attached to the document in memory, so it reaches disk on the next save of
+    /// any kind — including an autosave tick. Save once and quit immediately and
+    /// there is no checkpoint in the file, which is a slow open and never a wrong
+    /// one.
+    /// </para>
+    /// <para>
+    /// Called from the three places a document is written — <c>Save</c>, a
+    /// project save, and the picker's <c>NotifySaved</c> — rather than from
+    /// <c>DocumentTab.MarkSaved</c>, which looks like the funnel and is not: it
+    /// also fires when a document is <em>opened</em>, and re-rendering a
+    /// checkpoint the file already carries is the one piece of work this whole
+    /// feature exists to avoid.
+    /// </para>
+    /// </remarks>
+    private void RequestCheckpoints() => _checkpoints.Request();
+
     /// <summary>The active document was written to disk: adopt the name, clear the dirty dot.</summary>
     public void NotifySaved(string filePath)
     {
@@ -558,6 +597,7 @@ public partial class MainViewModel
         tab.FilePath = filePath;
         tab.Title = TitleFromPath(filePath);
         tab.MarkSaved();
+        RequestCheckpoints();
         Remember(filePath, RecentKind.Document);
         // B99's other half. A document adopted at creation has to be released
         // when the artist gives it a home outside the project — otherwise its row

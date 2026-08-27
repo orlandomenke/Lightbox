@@ -120,6 +120,16 @@
         </StackPanel>
 
         <StackPanel Spacing="6">
+          <TextBlock Text="Store a rendering with large drawings" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="A drawing is a list of strokes, so opening one paints every mark again — fine for an animation cel, minutes for a finished painting. Saving stores a picture of the strokes so far beside them, and reopening starts from it. The strokes stay the artwork: the picture is only ever a shortcut, and turning this off removes the ones already stored." />
+          <CheckBox x:Name="RasterCheckpointsBox" Content="Store a rendering on save"
+                    IsCheckedChanged="OnRasterCheckpointsChanged" />
+          <TextBlock x:Name="RasterCheckpointsHint" FontSize="11" Opacity="0.6" TextWrapping="Wrap"
+                     Text="Costs file size — roughly one full-canvas image per drawing big enough to qualify." />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
           <TextBlock Text="Composite layers on the GPU" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
                      Text="Blending layers on the graphics card helps most on a large canvas with many layers — but the layer images have to reach the card first, and on a laptop with shared graphics memory that transfer competes with the drawing itself. It is not faster everywhere. Left on Automatic, Lightbox blends the same layers both ways once at startup and keeps whichever this machine is quicker at." />

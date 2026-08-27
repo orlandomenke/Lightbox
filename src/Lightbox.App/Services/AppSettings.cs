@@ -112,6 +112,31 @@ public sealed class AppSettings
     public bool AutosaveInPlace { get; set; }
 
     /// <summary>
+    /// Whether a save stores a rendering of a big drawing beside its strokes, so
+    /// reopening it does not replay every mark (B30).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>On by default, which is the opposite of Photoshop's answer to the same
+    /// question, and deliberately.</b> Adobe writes a PSD's flattened composite
+    /// only when <em>Maximize File Compatibility</em> is on, because for them it
+    /// buys interoperability with other applications and costs size. Here it
+    /// buys the difference between a painting that opens now and one that opens
+    /// in a hundred seconds, and it has to survive travelling to another machine
+    /// to do that — which is exactly why Q60 put the pixels in the document
+    /// rather than in a sidecar.
+    /// </para>
+    /// <para>
+    /// So the switch is for the artist who would rather have the megabytes: a
+    /// checkpointed painting is mostly checkpoint by weight, since the stroke
+    /// record gzips about six times over (Q65) and a checkpoint is already
+    /// compressed. Turning it off takes the stored pixels out of the open
+    /// document as well as stopping new ones — absent, not merely unused.
+    /// </para>
+    /// </remarks>
+    public bool RasterCheckpoints { get; set; } = true;
+
+    /// <summary>
     /// The pitch a new grid guide is made with, in document pixels.
     /// </summary>
     /// <remarks>

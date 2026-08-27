@@ -140,6 +140,18 @@ three other threads rasterise is measuring the wrong thing.
 | First event of a stroke, 4K, after a stroke crossing the canvas | ≤ 2× the steady-state repaint | 41 k px² / ~2 ms (6.0 M px² / 129 ms before the compose-ring catch-up) |
 | Pointer event on an alpha-locked layer, 4K | 20 ms | ~2.6 ms (~1.8 ms unmasked — the live mask's SaveLayer costs ~0.8 ms) |
 | Whole wet-media stroke + commit, 4K, 90 px, 20 events | 12000 ms | ~2250 ms over 20 live passes |
+| Opening a checkpointed painting, 1 000 strokes, 720p | 200 ms | ~31 ms (8 452 ms replayed — B30) |
+
+**The checkpointed open is budgeted, and the replay beside it deliberately is
+not.** B30's fix stores a rendering of a drawing's leading strokes beside them,
+so opening one is a fingerprint, a PNG decode and a blit rather than ten thousand
+re-stamped dabs. Two things follow for how it is measured. The budget goes on the
+*fast* path only: pinning the ratio would mean a future speed-up to the brush
+engine — an unambiguous win — failing the test for bringing the two numbers
+closer together. And the number that actually matters is the **exponent**, not
+the milliseconds: 500 strokes costs 40.6 ms and 2 000 costs 42.3 ms, `1.04x for
+4x the record`, because nothing on that path walks the record at all. A
+regression here arrives at 8 000 ms, not at 250.
 
 **The wet-media pass no longer grows with the stroke.** It used to re-render
 through `BrushEngine.StampStroke`, re-stamping every dab each time;

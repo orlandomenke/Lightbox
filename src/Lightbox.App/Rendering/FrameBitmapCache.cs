@@ -286,6 +286,29 @@ public sealed class FrameBitmapCache : IDisposable
     /// </remarks>
     public Func<Frame, int, Frame>? PoseResolver { get; set; }
 
+    /// <summary>
+    /// This frame's raster checkpoint, if it still describes the drawing — the
+    /// one hook that lets a cache miss start from stored pixels instead of
+    /// replaying ten thousand strokes (B30). Set by the view model to
+    /// <c>FrameCheckpoints.Usable</c> against the open document; null replays
+    /// the record, which is what every other caller of the rasterizer does.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A delegate rather than a document reference</b>, for the reason
+    /// <see cref="PoseResolver"/> is one: this cache holds pixels and knows
+    /// nothing about which document they came from, and giving it one would make
+    /// every test that renders a frame construct a document first. The view model
+    /// owns the document; the cache asks a question.
+    /// </para>
+    /// <para>
+    /// <b>Consulted only on a miss</b>, so a hit costs nothing, and the answer is
+    /// rendered rather than stored — the entry that comes back is an ordinary
+    /// cached bitmap that no longer refers to the checkpoint at all.
+    /// </para>
+    /// </remarks>
+    public Func<Frame, StrokeCheckpoint?>? CheckpointResolver { get; set; }
+
     /// <param name="celIndex">
     /// Where on the timeline this cel is being shown. Only matters to a frame
     /// that places a symbol; see <see cref="KeyOf"/>.
@@ -319,7 +342,13 @@ public sealed class FrameBitmapCache : IDisposable
 
         Misses++;
         var source = PoseResolver?.Invoke(frame, celIndex) ?? frame;
-        var bmp = Render(source, width, height, outputScale, celIndex, backdrop);
+        // Asked of the frame as recorded, never of a posed copy: a pose is a
+        // transient render of the drawing and the checkpoint answers to what is
+        // in the document. `FrameCheckpoints.CanCheckpoint` refuses bound frames
+        // outright, so in practice a posed frame has no checkpoint to find — this
+        // keeps that true by construction rather than by coincidence.
+        var checkpoint = ReferenceEquals(source, frame) ? CheckpointResolver?.Invoke(frame) : null;
+        var bmp = Render(source, width, height, outputScale, celIndex, backdrop, checkpoint);
         var newNode = _lru.AddFirst(new Entry(key, frame.Id, bmp, width, height, outputScale));
         _map[key] = newNode;
         CachedBytes += BytesOf(bmp);
@@ -409,11 +438,13 @@ public sealed class FrameBitmapCache : IDisposable
     }
 
     private static SKBitmap Render(
-        Frame frame, int width, int height, double outputScale, int celIndex, SKBitmap? backdrop) =>
+        Frame frame, int width, int height, double outputScale, int celIndex, SKBitmap? backdrop,
+        StrokeCheckpoint? checkpoint = null) =>
         // Baseline-then-strokes, in one call. The vector arm used to skip
         // straight to `Rasterize` because a `VectorFrame` had no baseline to
         // consider; `Materialize` treats an absent one as nothing to draw.
-        FrameRasterizer.Materialize(frame, width, height, outputScale, celIndex, backdrop);
+        FrameRasterizer.Materialize(
+            frame, width, height, outputScale, celIndex, backdrop, checkpoint);
 
     /// <summary>
     /// The byte budget wins. It used to be gated behind the frame floor, so at
