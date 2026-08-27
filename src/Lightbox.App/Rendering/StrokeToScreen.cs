@@ -87,12 +87,17 @@ internal sealed class StrokeToScreen
 
     // Sum and worst per segment. Counts differ: stamps are per event, the
     // waits are per publish, and pen→screen only exists for drawn frames.
-    private double _stampTotalMs, _stampWorstMs;
-    private double _toPublishTotalMs, _toPublishWorstMs;
-    private double _tipToPublishTotalMs, _tipToPublishWorstMs;
-    private double _toDrawTotalMs, _toDrawWorstMs;
-    private double _totalTotalMs, _totalWorstMs;
-    private double _tipTotalMs, _tipWorstMs;
+    // B330: a Tally each, rather than a total and a worst. Every one of these
+    // phases is a latency distribution with stalls in it, and a mean over one of
+    // those describes no event that ever happened — which is the whole reason
+    // `Tally` exists, and it had been applied everywhere except the chain an
+    // artist's lag is actually read from.
+    private readonly Services.Tally _stamp = new();
+    private readonly Services.Tally _toPublish = new();
+    private readonly Services.Tally _tipToPublish = new();
+    private readonly Services.Tally _toDraw = new();
+    private readonly Services.Tally _total = new();
+    private readonly Services.Tally _tip = new();
 
     /// <summary>A pointer event has reached the stroke handler. UI thread.</summary>
     /// <returns>The timestamp to hand back to <see cref="Stamped"/>.</returns>
@@ -105,8 +110,7 @@ internal sealed class StrokeToScreen
         lock (_gate)
         {
             _events++;
-            _stampTotalMs += ms;
-            if (ms > _stampWorstMs) _stampWorstMs = ms;
+            _stamp.Add(ms);
             // The oldest waiting event wins: it is the mark furthest behind
             // the pen, so it is the honest anchor for the publish's latency.
             // The newest is kept beside it — staleness without the coalescing
@@ -139,10 +143,8 @@ internal sealed class StrokeToScreen
             _pending[slot] = (seq, _oldestTicks, _newestTicks, now, _batched);
 
             _publishes++;
-            _toPublishTotalMs += wait;
-            if (wait > _toPublishWorstMs) _toPublishWorstMs = wait;
-            _tipToPublishTotalMs += tipWait;
-            if (tipWait > _tipToPublishWorstMs) _tipToPublishWorstMs = tipWait;
+            _toPublish.Add(wait);
+            _tipToPublish.Add(tipWait);
 
             _oldestTicks = 0;
             _newestTicks = 0;
@@ -166,12 +168,9 @@ internal sealed class StrokeToScreen
                 _pending[i] = default;
 
                 _drawn++;
-                _toDrawTotalMs += draw;
-                if (draw > _toDrawWorstMs) _toDrawWorstMs = draw;
-                _totalTotalMs += total;
-                if (total > _totalWorstMs) _totalWorstMs = total;
-                _tipTotalMs += tip;
-                if (tip > _tipWorstMs) _tipWorstMs = tip;
+                _toDraw.Add(draw);
+                _total.Add(total);
+                _tip.Add(tip);
                 return;
             }
         }
@@ -190,19 +189,32 @@ internal sealed class StrokeToScreen
             _publishes = 0;
             _drawn = 0;
             _superseded = 0;
-            _stampTotalMs = _stampWorstMs = 0;
-            _toPublishTotalMs = _toPublishWorstMs = 0;
-            _tipToPublishTotalMs = _tipToPublishWorstMs = 0;
-            _toDrawTotalMs = _toDrawWorstMs = 0;
-            _totalTotalMs = _totalWorstMs = 0;
-            _tipTotalMs = _tipWorstMs = 0;
+            _stamp.Reset();
+            _toPublish.Reset();
+            _tipToPublish.Reset();
+            _toDraw.Reset();
+            _total.Reset();
+            _tip.Reset();
         }
     }
 
     /// <param name="Count">How many times this segment was measured.</param>
     /// <param name="MeanMs">Its average.</param>
     /// <param name="WorstMs">Its worst single case.</param>
-    public readonly record struct Segment(int Count, double MeanMs, double WorstMs);
+    /// <param name="MedianMs">
+    /// What a typical one cost (B330). Printed beside the mean because a mean
+    /// over a latency distribution with stalls in it describes no event that
+    /// ever happened — the report already said so about the frame build, which
+    /// had a median, while every phase of the pen-to-screen chain had only a
+    /// mean and could therefore name the wrong one.
+    /// </param>
+    /// <param name="MeanIsDistorted">
+    /// Whether the mean is more than twice the median, i.e. whether quoting it
+    /// is quoting an event rather than a cost.
+    /// </param>
+    public readonly record struct Segment(
+        int Count, double MeanMs, double WorstMs,
+        double MedianMs = 0, bool MeanIsDistorted = false);
 
     /// <param name="Events">Pointer events stamped during live strokes.</param>
     /// <param name="Publishes">Publishes that carried fresh ink.</param>
@@ -234,18 +246,24 @@ internal sealed class StrokeToScreen
             {
                 return new Stats(
                     _events, _publishes, _drawn, _superseded,
-                    Seg(_events, _stampTotalMs, _stampWorstMs),
-                    Seg(_publishes, _toPublishTotalMs, _toPublishWorstMs),
-                    Seg(_drawn, _toDrawTotalMs, _toDrawWorstMs),
-                    Seg(_drawn, _totalTotalMs, _totalWorstMs),
-                    Seg(_publishes, _tipToPublishTotalMs, _tipToPublishWorstMs),
-                    Seg(_drawn, _tipTotalMs, _tipWorstMs));
+                    Seg(_events, _stamp),
+                    Seg(_publishes, _toPublish),
+                    Seg(_drawn, _toDraw),
+                    Seg(_drawn, _total),
+                    Seg(_publishes, _tipToPublish),
+                    Seg(_drawn, _tip));
             }
         }
     }
 
-    private static Segment Seg(int count, double total, double worst) =>
-        new(count, count == 0 ? 0 : total / count, worst);
+    /// <summary>
+    /// One phase's numbers. <paramref name="count"/> stays the caller's own —
+    /// events, publishes or drawn frames — because a phase can be sampled fewer
+    /// times than it happened and the report's denominators are about the chain
+    /// rather than about the tally.
+    /// </summary>
+    private static Segment Seg(int count, Services.Tally t) =>
+        new(count, t.MeanMs, t.WorstMs, t.MedianMs, t.MeanIsDistorted);
 
     private static double Ms(long ticks) => ticks * 1000.0 / Stopwatch.Frequency;
 }

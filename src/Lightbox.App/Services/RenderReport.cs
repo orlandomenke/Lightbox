@@ -1143,6 +1143,28 @@ internal static class RenderReport
         }
 
         sb.AppendLine($"pointer events stamped    {s.Events}");
+        // B330: which of the numbers below cannot be quoted as costs. Each phase
+        // is a latency distribution with stalls in it, and until these carried a
+        // median the only honest reading was "some of this is a stall and you
+        // cannot tell which line". The frame build had this warning already; the
+        // chain an artist's lag is actually read from did not.
+        var distorted = new List<string>();
+        if (s.Stamp.MeanIsDistorted) distorted.Add("stamping");
+        if (s.WaitToPublish.MeanIsDistorted) distorted.Add("event -> publish");
+        if (s.WaitToDraw.MeanIsDistorted) distorted.Add("publish -> drawn");
+        if (s.PenToScreen.MeanIsDistorted) distorted.Add("PEN -> SCREEN");
+        if (s.TipToScreen.MeanIsDistorted) distorted.Add("TIP -> SCREEN");
+        if (distorted.Count > 0)
+        {
+            sb.AppendLine(
+                $"  !! a stall is doing the talking in: {string.Join(", ", distorted)}.");
+            sb.AppendLine(
+                "     Their means are more than twice their medians, so read the MEDIAN as");
+            sb.AppendLine(
+                "     the cost and the WORST as the thing to chase. Quoting one of those");
+            sb.AppendLine(
+                "     means is quoting an event rather than a cost.");
+        }
         // B321: the UI thread's own half. Everything else in this section is a
         // wait; this is the work that happens before any of it.
         if (facts.Compose is { Count: > 0 } comp)
@@ -1250,7 +1272,7 @@ internal static class RenderReport
             }
         }
 
-        sb.AppendLine($"  stamping the dabs       mean {s.Stamp.MeanMs,7:0.##} ms   worst {s.Stamp.WorstMs,7:0.##} ms");
+        sb.AppendLine($"  stamping the dabs       median {s.Stamp.MedianMs,7:0.##} ms   mean {s.Stamp.MeanMs,7:0.##} ms   worst {s.Stamp.WorstMs,7:0.##} ms");
         // **What that one number is made of** (B322 attempt 6). A mean cannot
         // show that a cost is proportional to something, which is exactly the
         // blindness that let the fourth attempt restamp the whole stroke per
@@ -1281,21 +1303,21 @@ internal static class RenderReport
             var perEvent = shape.SettledMedian + shape.ProvisionalMedian;
             if (perEvent > 0)
             {
-                // **No microseconds-per-dab here, deliberately.** The obvious
-                // line divides `stamping the dabs` by this, and that is a MEAN
-                // over a MEDIAN — the stamp's mean sits beside a worst ten times
-                // its own size, so the quotient would carry every stall into a
-                // per-dab figure and read as precision. StrokeToScreen.Segment
-                // has no median to divide with; until it does, the two
-                // distributions are printed and no third number is invented from
-                // them. The tip's own 16.8 us a dab IS median over median and can
-                // be compared against.
+                // **Median over median, which B330 made possible.** This line
+                // used to refuse to divide at all, because the only figure the
+                // stamp carried was a mean and a mean over a median drags every
+                // stall into a number printed as precision. It has a median now,
+                // so the division is between like statistics — with the caveat
+                // below, which is real and not a formality.
                 sb.AppendLine(
-                    $"  >> A typical event stamps {perEvent:0.#} dabs. No per-dab cost is derived:");
+                    $"  >> A typical event stamps {perEvent:0.#} dabs at {s.Stamp.MedianMs:0.##} ms,"
+                    + $" so about {s.Stamp.MedianMs / perEvent * 1000:0.#} us a dab.");
                 sb.AppendLine(
-                    "     the stamp is timed as a mean only, and a mean over a median is the");
+                    "     A ratio of medians is not the median of the ratio: it is the right");
                 sb.AppendLine(
-                    "     mistake this report exists to avoid.");
+                    "     order of magnitude for sizing a budget and the wrong thing to quote");
+                sb.AppendLine(
+                    "     as a per-dab cost to three figures.");
             }
 
             // The suspicion the paint path records, answered.
@@ -1407,8 +1429,8 @@ internal static class RenderReport
                         "     any of the latencies above it.");
                 }
             }
-            sb.AppendLine($"  event -> publish        mean {s.WaitToPublish.MeanMs,7:0.##} ms   worst {s.WaitToPublish.WorstMs,7:0.##} ms   (oldest event carried)");
-            sb.AppendLine($"    newest event          mean {s.TipToPublish.MeanMs,7:0.##} ms   worst {s.TipToPublish.WorstMs,7:0.##} ms");
+            sb.AppendLine($"  event -> publish        median {s.WaitToPublish.MedianMs,7:0.##} ms   mean {s.WaitToPublish.MeanMs,7:0.##} ms   worst {s.WaitToPublish.WorstMs,7:0.##} ms");
+            sb.AppendLine($"    newest event          median {s.TipToPublish.MedianMs,7:0.##} ms   mean {s.TipToPublish.MeanMs,7:0.##} ms   worst {s.TipToPublish.WorstMs,7:0.##} ms");
         }
         // B322: how often the newest dabs reached the screen, and how far behind
         // the pass was when they did not. **The budget is a guess until this line
@@ -1489,10 +1511,10 @@ internal static class RenderReport
 
         if (s.Drawn > 0)
         {
-            sb.AppendLine($"  publish -> drawn        mean {s.WaitToDraw.MeanMs,7:0.##} ms   worst {s.WaitToDraw.WorstMs,7:0.##} ms");
-            sb.AppendLine($"  PEN -> SCREEN           mean {s.PenToScreen.MeanMs,7:0.##} ms   worst {s.PenToScreen.WorstMs,7:0.##} ms"
+            sb.AppendLine($"  publish -> drawn        median {s.WaitToDraw.MedianMs,7:0.##} ms   mean {s.WaitToDraw.MeanMs,7:0.##} ms   worst {s.WaitToDraw.WorstMs,7:0.##} ms");
+            sb.AppendLine($"  PEN -> SCREEN           median {s.PenToScreen.MedianMs,7:0.##} ms   mean {s.PenToScreen.MeanMs,7:0.##} ms   worst {s.PenToScreen.WorstMs,7:0.##} ms"
                           + $"   ({s.Drawn} drawn, {s.Superseded} replaced first)");
-            sb.AppendLine($"  TIP -> SCREEN           mean {s.TipToScreen.MeanMs,7:0.##} ms   worst {s.TipToScreen.WorstMs,7:0.##} ms");
+            sb.AppendLine($"  TIP -> SCREEN           median {s.TipToScreen.MedianMs,7:0.##} ms   mean {s.TipToScreen.MeanMs,7:0.##} ms   worst {s.TipToScreen.WorstMs,7:0.##} ms");
             // B189's second capture is why these are two numbers: the oldest
             // anchor grew from 4.7 to 11.4 events of coalescing when the
             // publish pacing landed, and read as MORE lag while the tip's was
