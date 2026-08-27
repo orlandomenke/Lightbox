@@ -389,13 +389,7 @@ public partial class MainViewModel
     /// it. Only the full-render cache takes the hint: the tiles and the
     /// thumbnail are cheap to rebuild and the bake only wants telling.
     /// </param>
-    private void InvalidateFrameRender(
-        string frameId, GeometryOps.BBox? repaintBounds = null,
-        // B332: which call site dropped the frame. Giving the rebake its bounds
-        // did not move "0 of 1", so the drop comes from somewhere else and
-        // there are a dozen call sites that pass no bounds. The same defaulted
-        // parameter that found the cache's asker in one capture.
-        [System.Runtime.CompilerServices.CallerMemberName] string by = "")
+    private void InvalidateFrameRender(string frameId, GeometryOps.BBox? repaintBounds = null)
     {
         _publish.BumpRenderEpoch();
         // Before the cache work rather than after it (B327). A warm in flight was
@@ -411,7 +405,6 @@ public partial class MainViewModel
         else
         {
             FrameRenderDrops++;
-            if (_dropCallers.Count < 8) _dropCallers.Add(by + (repaintBounds is null ? " (no bounds)" : " (bounds refused)"));
             _cache.Invalidate(frameId);
         }
         _tileFrames.Invalidate(frameId);
@@ -460,25 +453,6 @@ public partial class MainViewModel
 
     /// <inheritdoc cref="FrameRegionRepaints"/>
     internal int FrameRenderDrops { get; private set; }
-
-    private readonly List<string> _dropCallers = [];
-
-    /// <summary>Which call sites dropped a whole frame, and whether they had bounds (B332).</summary>
-    internal IReadOnlyList<string> FrameDropCallers => _dropCallers;
-
-    /// <summary>Lookups served the last good render rather than stalling (B332).</summary>
-    internal long FrameCacheStaleServed => _cache.StaleServed;
-
-    /// <summary>Builds over 100 ms, and how many of those had a cache miss in them (B332).</summary>
-    /// <remarks>
-    /// <b>The worst build is one frame; this is the shape of all of them.</b> The
-    /// capture that confirmed B332 had a 5,378 ms worst with two misses in it —
-    /// and a MEAN of 42.68 ms against a median of 2.42, which is many slow
-    /// builds rather than one. If every slow build carries a miss, B332 is the
-    /// whole story. If most of them do not, something else stalls too and
-    /// fixing the cache will not stop the jumping.
-    /// </remarks>
-    internal (int Slow, int SlowWithMiss) SlowBuilds { get; private set; }
 
     /// <summary>What the frame cache last had to render, and why (B332).</summary>
     internal IReadOnlyList<(string FrameId, int Width, int Height, double Scale, int Cel, string Why)>
@@ -803,12 +777,6 @@ public partial class MainViewModel
 
         // B332. Deltas rather than totals: the phase counters accumulate across
         // the session, so only the difference belongs to this build.
-        if (ms > 100)
-        {
-            var missed = _cache.Misses - _buildStartMisses > 0;
-            SlowBuilds = (SlowBuilds.Slow + 1, SlowBuilds.SlowWithMiss + (missed ? 1 : 0));
-        }
-
         if (ms > WorstBuild.TotalMs)
         {
             WorstBuild = (
@@ -1262,28 +1230,6 @@ public partial class MainViewModel
         // later fetch evicting an earlier one is deferred disposal, not a
         // use-after-free.
         ReleaseFetchHolds();
-
-        // **B332: whatever was served stale now needs a real render, off this
-        // thread.** The cache handed back the last good pixels rather than
-        // stopping for 797 ms to rebuild them; this is the other half of that
-        // bargain, and without it the canvas would show the stale frame
-        // forever. Requested after the publish rather than during it, so the
-        // frame on screen is never waiting on the queue.
-        if (_cache.TakeRefills() is { Count: > 0 } refills)
-        {
-            var refillJobs = new List<Services.WarmRequest>(refills.Count);
-            foreach (var r in refills)
-            {
-                // The warm path renders at scale 1; a refill at any other scale
-                // would come back the wrong size and be refused on arrival, so
-                // it stays synchronous rather than silently never arriving.
-                if (r.Scale != 1.0) continue;
-                refillJobs.Add(new Services.WarmRequest(
-                    r.Frame, r.Width, r.Height, r.Cel, Services.WarmProduct.Bitmap));
-            }
-
-            if (refillJobs.Count > 0) _prewarm.Request(refillJobs);
-        }
 
         // Last, and after the frame is on its way to the screen: the worker
         // starts on the frames after this one while the artist is looking at

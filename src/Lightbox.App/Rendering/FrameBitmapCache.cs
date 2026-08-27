@@ -363,17 +363,6 @@ public sealed class FrameBitmapCache : IDisposable
             return node.Value.Bmp;
         }
 
-        // **B332: serve the last good render rather than stalling for it.**
-        // Before the miss is counted, because a lookup that never rendered is
-        // not a miss — it is the fix working, and folding the two together
-        // would hide exactly the number that says so.
-        if (_stale.TryGetValue(key, out var lastGood))
-        {
-            StaleServed++;
-            _refills.Add((frame, width, height, outputScale, celIndex));
-            return lastGood;
-        }
-
         Misses++;
         // **B332: a miss is 797 ms of whole-frame render on this thread, so the
         // report has to be able to say WHICH lookup paid it.** The counters said
@@ -404,7 +393,6 @@ public sealed class FrameBitmapCache : IDisposable
         var newNode = _lru.AddFirst(new Entry(key, frame.Id, bmp, width, height, outputScale));
         _map[key] = newNode;
         CachedBytes += BytesOf(bmp);
-        DropStale(key);
 
         Evict();
         return bmp;
@@ -487,9 +475,6 @@ public sealed class FrameBitmapCache : IDisposable
         var node = _lru.AddLast(new Entry(key, frame.Id, bmp, width, height, outputScale));
         _map[key] = node;
         CachedBytes += bytes;
-        // The warm IS the refill B332 asked for, so the stale copy it was
-        // standing in for is released here rather than waiting for an eviction.
-        DropStale(key);
         return true;
     }
 
@@ -631,79 +616,9 @@ public sealed class FrameBitmapCache : IDisposable
         while (node is not null)
         {
             var next = node.Next;
-            if (node.Value.FrameId == frameId) RemoveNode(node, keepAsStale: true);
+            if (node.Value.FrameId == frameId) RemoveNode(node);
             node = next;
         }
-    }
-
-    /// <summary>
-    /// The last good render of a key that has since been invalidated (B332).
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <b>Kept so a miss has something to show instead of stalling.</b> An
-    /// invalidation is usually correct — clearing a layer really does change the
-    /// whole frame — and the defect is not that it happens but that <b>recovery
-    /// from it is synchronous on whoever asks next</b>, which mid-stroke is the
-    /// UI thread. Measured at 797 ms for one frame and 5.8 seconds for a build
-    /// that missed two, which is the freeze the owner reported.
-    /// </para>
-    /// <para>
-    /// <b>What the artist sees while a refill is in flight is the frame one edit
-    /// stale</b> — the cleared layer still showing for a moment, rather than the
-    /// application stopping for six seconds. That is the trade, and it is the
-    /// one thing here that is a matter of taste rather than of measurement.
-    /// </para>
-    /// <para>
-    /// <b>Bounded, because an unbounded one is the leak this whole entry is
-    /// about.</b> One stale bitmap per key, the oldest dropped past the cap, and
-    /// every one released the moment a real render replaces it.
-    /// </para>
-    /// </remarks>
-    private readonly Dictionary<string, SKBitmap> _stale = [];
-
-    private const int MaxStale = 8;
-
-    private readonly List<(Frame Frame, int Width, int Height, double Scale, int Cel)> _refills = [];
-
-    /// <summary>How many lookups were served a stale render rather than stalling (B332).</summary>
-    public long StaleServed { get; private set; }
-
-    /// <summary>
-    /// The lookups that were served stale and still need a real render, handed
-    /// over once so the caller can queue them off the UI thread (B332).
-    /// </summary>
-    public IReadOnlyList<(Frame Frame, int Width, int Height, double Scale, int Cel)> TakeRefills()
-    {
-        if (_refills.Count == 0) return [];
-        var copy = _refills.ToArray();
-        _refills.Clear();
-        return copy;
-    }
-
-    private void KeepStale(string key, SKBitmap bmp)
-    {
-        if (_stale.TryGetValue(key, out var previous))
-        {
-            _stale.Remove(key);
-            DisposeOrDefer(previous);
-        }
-
-        if (_stale.Count >= MaxStale)
-        {
-            var oldest = _stale.Keys.First();
-            var dropped = _stale[oldest];
-            _stale.Remove(oldest);
-            DisposeOrDefer(dropped);
-        }
-
-        _stale[key] = bmp;
-    }
-
-    private void DropStale(string key)
-    {
-        if (!_stale.Remove(key, out var bmp)) return;
-        DisposeOrDefer(bmp);
     }
 
     public void Clear()
@@ -715,27 +630,16 @@ public sealed class FrameBitmapCache : IDisposable
         foreach (var entry in _lru) DisposeOrDefer(entry.Bmp);
         _lru.Clear();
         _map.Clear();
-        // The stale copies go the same way and for the same reason: a document
-        // close tears this down in one go, and a bitmap nothing owns is the
-        // leak, whichever list was holding it.
-        foreach (var bmp in _stale.Values) DisposeOrDefer(bmp);
-        _stale.Clear();
-        _refills.Clear();
         CachedBytes = 0;
     }
 
-    private void RemoveNode(LinkedListNode<Entry> node, bool keepAsStale = false)
+    private void RemoveNode(LinkedListNode<Entry> node)
     {
         Evictions++;
         _map.Remove(node.Value.Key);
         _lru.Remove(node);
         CachedBytes -= BytesOf(node.Value.Bmp);
-        // An eviction is the cache deciding it does not want these pixels, so
-        // they go. An INVALIDATION is the document saying they are out of date,
-        // and out of date is still something to show while the replacement
-        // renders — which is the whole of B332's fix.
-        if (keepAsStale) KeepStale(node.Value.Key, node.Value.Bmp);
-        else DisposeOrDefer(node.Value.Bmp);
+        DisposeOrDefer(node.Value.Bmp);
     }
 
     public void Dispose() => Clear();
