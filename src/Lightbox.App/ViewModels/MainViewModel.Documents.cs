@@ -1051,6 +1051,23 @@ public partial class MainViewModel
     /// that had missed everything up to that point — which is the opposite of
     /// what somebody turning this on wants.
     /// </remarks>
+    /// <summary>
+    /// Present through the desktop compositor rather than straight to the
+    /// screen. Read once at startup by <c>Program</c>, so changing it here
+    /// only takes effect at the next start (<see cref="AppSettings"/>).
+    /// </summary>
+    public bool PresentThroughDesktopCompositor
+    {
+        get => Settings.PresentThroughDesktopCompositor;
+        set
+        {
+            if (Settings.PresentThroughDesktopCompositor == value) return;
+            Settings.PresentThroughDesktopCompositor = value;
+            Settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
     public bool ShowDiagnosticsConsole
     {
         get => Settings.ShowDiagnosticsConsole;

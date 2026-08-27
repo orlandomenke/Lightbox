@@ -119,6 +119,21 @@
           </DockPanel>
         </StackPanel>
 
+        <!--
+          An escape hatch, not a preference, which is why it is phrased as a
+          thing to turn ON rather than as a choice between two paths: the
+          measured answer is the default and this exists for a driver that
+          refuses a swap chain. Restart-only — a platform option is fixed for
+          the life of the process.
+        -->
+        <StackPanel Spacing="6">
+          <TextBlock Text="Present through the desktop compositor" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="Lightbox normally presents each frame straight to the screen, which measured 21 ms faster from publish to glass and delivered 43% more frames while drawing. Turn this on only if the window will not draw or the picture tears — some graphics drivers refuse the direct path. Takes effect at the next start." />
+          <CheckBox x:Name="DesktopCompositorBox" Content="Use the desktop compositor instead"
+                    IsCheckedChanged="OnDesktopCompositorChanged" />
+        </StackPanel>
+
         <StackPanel Spacing="6">
           <TextBlock Text="Store a rendering with large drawings" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"

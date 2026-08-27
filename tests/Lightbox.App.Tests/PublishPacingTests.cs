@@ -30,10 +30,26 @@ namespace Lightbox.App.Tests;
 [Collection("BrushState")]
 public class PublishPacingTests(ITestOutputHelper output) : BrushStateIsolated
 {
-    private static MainViewModel Ready()
+    /// <summary>
+    /// A view model with the dam <b>one frame deep</b>, which is what every
+    /// assertion below is about.
+    /// </summary>
+    /// <remarks>
+    /// <b>Pinned rather than left to the default, because the default moved.</b>
+    /// Two frames in flight ship as of 2026-08-27 — measured to halve the
+    /// publish cycle and the ink-per-publish — and three tests here failed the
+    /// moment it did, for a reason that had nothing to do with what they
+    /// assert. <c>AReleaseInsideTheDamReDefersRatherThanStackingASecondFrame</c>
+    /// is the clearest case: at a depth of two a second frame is exactly what
+    /// is allowed, so the claim stops meaning anything without a depth beside
+    /// it. These pin the MECHANISM at its simplest; the shipped depth has its
+    /// own guard in <see cref="TheShippedDepthIsBoundedToo"/>.
+    /// </remarks>
+    private static MainViewModel Ready(int depth = 1)
     {
         var vm = new MainViewModel(null)
         {
+            InFlightDepth = depth,
             SmoothStrokes = false,
             ColorHex = "#101010",
             BrushSize = 12,
@@ -297,5 +313,40 @@ public class PublishPacingTests(ITestOutputHelper output) : BrushStateIsolated
 
         vm.EndStroke();
         Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>
+    /// The shipped depth is a bound, not an absence of one.
+    /// </summary>
+    /// <remarks>
+    /// Everything above pins the dam at one frame, which leaves the value that
+    /// actually ships untested — and "we raised the depth" is one keystroke
+    /// from "we removed the dam", which is the state B189 measured at 935
+    /// wasted publishes of 1921. This asserts the shipped depth holds a third
+    /// frame back, whatever that depth becomes.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheShippedDepthIsBoundedToo()
+    {
+        var depth = PublishState.DefaultInFlightDepth;
+        var vm = Ready(depth);
+        var seqs = new List<long>();
+        vm.SnapshotChanged += s => seqs.Add(s.Seq);
+
+        vm.BeginStroke(50, 50, 1);
+        Dispatcher.UIThread.RunJobs();
+        Move(vm, 60, 50);
+        Assert.NotEmpty(seqs);
+        vm.NoteFramePresented(seqs[^1]);
+
+        // Enough events to fill the pipeline several times over, against a
+        // canvas that draws nothing more.
+        var before = seqs.Count;
+        for (var i = 0; i < depth + 6; i++) Move(vm, 70 + i * 10, 50);
+
+        var got = seqs.Count - before;
+        output.WriteLine($"depth {depth}: {got} publishes from {depth + 6} events against a still canvas");
+        Assert.True(depth is >= 1 and <= 4, $"a depth of {depth} is outside anything measured");
+        Assert.Equal(depth, got);
     }
 }

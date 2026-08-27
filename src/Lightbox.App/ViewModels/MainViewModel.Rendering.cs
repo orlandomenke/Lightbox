@@ -610,14 +610,121 @@ public partial class MainViewModel
     /// tally. Never pass it by hand — the value's worth is that it cannot lie
     /// about where the call came from.
     /// </param>
-    /// <summary>How many frames the UI thread has built, and what they cost (B321).</summary>
-    internal int ComposeCount { get; private set; }
+    /// <summary>
+    /// The last few published frames and the buffers behind them, for looking
+    /// at an artifact after it has gone. Off until armed from the Help menu.
+    /// </summary>
+    /// <remarks>
+    /// Here rather than in <c>MainViewModel.cs</c> because that file is under a
+    /// ratchet and this is new work: the rule is that new work goes into a
+    /// partial rather than onto the end of a file that is already too big. The
+    /// publish path this records from is in this partial anyway, which makes it
+    /// the right home rather than merely an available one.
+    /// </remarks>
+    internal Services.FrameCapture Capture { get; } = new();
 
-    /// <summary>Total milliseconds spent building them.</summary>
-    internal double ComposeTotalMs { get; private set; }
+    /// <summary>
+    /// Every frame the UI thread has built and what each cost (B321) — as a
+    /// distribution, not a running total.
+    /// </summary>
+    /// <remarks>
+    /// A <see cref="Services.Tally"/> rather than three fields because the mean
+    /// alone was read off this and believed: one 2,062 ms stall in a session of
+    /// 381 publishes put 5.4 ms on a build whose typical cost is 3.2, and the
+    /// report drew a confident and wrong conclusion from it.
+    /// </remarks>
+    private readonly Services.Tally _buildTally = new();
 
-    /// <summary>The most expensive single build.</summary>
-    internal double ComposeWorstMs { get; private set; }
+    /// <inheritdoc cref="_buildTally"/>
+    internal int ComposeCount => (int)_buildTally.Count;
+
+    /// <inheritdoc cref="_buildTally"/>
+    internal double ComposeTotalMs => _buildTally.TotalMs;
+
+    /// <inheritdoc cref="_buildTally"/>
+    internal double ComposeWorstMs => _buildTally.WorstMs;
+
+    /// <inheritdoc cref="_buildTally"/>
+    internal double ComposeMedianMs => _buildTally.MedianMs;
+
+    /// <inheritdoc cref="Services.Tally.MeanIsDistorted"/>
+    internal bool ComposeMeanIsDistorted => _buildTally.MeanIsDistorted;
+
+    /// <summary>
+    /// The whole publish cycle — one publish to the next — so every part of it
+    /// can be measured as a share of something rather than in isolation.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Because the parts stopped adding up.</b> After the dam's release was
+    /// made prompt, the owner's capture read a hold of 28.31 ms and a
+    /// <c>publish -&gt; drawn</c> of 31.92 — which together allow about sixteen
+    /// publishes a second, and the session managed nine and a half. Roughly
+    /// <b>forty-five milliseconds a cycle</b> is in neither, and no number in
+    /// the report went anywhere near it.
+    /// </para>
+    /// <para>
+    /// So the cycle is measured whole and the known parts are subtracted from
+    /// it, the same discipline the frame build's phases were given after three
+    /// of them summed to 2.52 ms of 22.63 and the report said nothing about the
+    /// difference. A remainder that has to be printed cannot be a blind spot.
+    /// </para>
+    /// </remarks>
+    private readonly Services.Tally _cycleTally = new();
+
+    /// <summary>
+    /// From the dam letting go to the publish it released actually running.
+    /// </summary>
+    /// <remarks>
+    /// <b>The prime suspect, and it is there by choice.</b> The announcement now
+    /// jumps ahead of pointer input, but <c>NoteFramePresented</c> releases the
+    /// dam and then goes through <c>RequestSnapshot</c>, whose own post stays at
+    /// Input — deliberately, because B73's ordering says a released publish must
+    /// land behind the events already queued. So the release is prompt and the
+    /// publish it triggers still waits for every queued pointer event, each
+    /// paying its own stamping. Whether that is most of the missing time or a
+    /// slice of it is exactly what this says.
+    /// </remarks>
+    private readonly Services.Tally _releaseToPublishTally = new();
+
+    /// <inheritdoc cref="_cycleTally"/>
+    internal Services.Tally CycleTally => _cycleTally;
+
+    /// <inheritdoc cref="_releaseToPublishTally"/>
+    internal Services.Tally ReleaseToPublishTally => _releaseToPublishTally;
+
+    /// <summary>When the dam last let go, for the split above. Zero when it has not.</summary>
+    internal long DamReleasedAtTicks { get; set; }
+
+    /// <summary>
+    /// The three phases inside one frame build, so a slow build names its own
+    /// cause instead of being one number (B321's split, one level down).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Asked because the one number stopped discriminating.</b> B321 split
+    /// the pen-to-screen wait and the split is what caught its own verdict
+    /// being wrong. Its remaining term, "building each frame", then grew from
+    /// 11.27 ms to 27.73 ms on the owner's machine and is now the largest work
+    /// item in the chain — seven times the draw — and there is nothing in the
+    /// report that says which of the three things it does is responsible.
+    /// </para>
+    /// <para>
+    /// The three are genuinely different fixes, which is the point of
+    /// separating them: <b>describing</b> is the pass list, the stack fold and
+    /// the cel fetches, and a cost here is cache or bookkeeping;
+    /// <b>compositing</b> is the CPU blend on the UI thread, and a cost here is
+    /// B125 stage 6, which is architectural and expensive; <b>handing off</b>
+    /// is the snapshot swap and the retire, and a cost here is neither.
+    /// </para>
+    /// </remarks>
+    internal double BuildDescribeMs { get; private set; }
+
+    /// <inheritdoc cref="BuildDescribeMs"/>
+    internal double BuildComposeMs { get; private set; }
+
+    /// <inheritdoc cref="BuildDescribeMs"/>
+    internal double BuildHandoffMs { get; private set; }
 
     /// <summary>
     /// Close off one frame's build, timed from the publish stamp (B321).
@@ -632,9 +739,7 @@ public partial class MainViewModel
     {
         var ms = (System.Diagnostics.Stopwatch.GetTimestamp() - _publish.LastPublishTicks)
                  * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
-        ComposeCount++;
-        ComposeTotalMs += ms;
-        if (ms > ComposeWorstMs) ComposeWorstMs = ms;
+        _buildTally.Add(ms);
     }
 
     public void PublishSnapshot(
@@ -650,8 +755,30 @@ public partial class MainViewModel
         // Any publish satisfies a deferred one — the snapshot it hands over is
         // built from the current state, which includes whatever the deferral
         // was waiting to show.
+        // A publish satisfies whatever deferral was open, however it came to be
+        // let through — and until now only two of the three ways closed the
+        // BOOKS on it. The pointer-event path (CanvasIsBehind answering false
+        // because AdoptRenderedSeq saw the draw) published and left the tally
+        // open, so `publish held back` was a mean over the quarter of deferrals
+        // that happened to go through the announcement or the timer. Measured
+        // 2026-08-27: 1,568 deferrals against 388 accounted releases.
+        if (_publish.WaitingForPresent) NoteDamReleased(byPresent: true, byEvent: true);
         _publish.WaitingForPresent = false;
-        _publish.LastPublishTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+        var publishAt = System.Diagnostics.Stopwatch.GetTimestamp();
+        // Before LastPublishTicks is overwritten, because that field IS the
+        // previous publish until this line moves it.
+        if (_publish.LastPublishTicks != 0)
+        {
+            _cycleTally.Add((publishAt - _publish.LastPublishTicks)
+                            * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
+        }
+        if (DamReleasedAtTicks != 0)
+        {
+            _releaseToPublishTally.Add((publishAt - DamReleasedAtTicks)
+                                       * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
+            DamReleasedAtTicks = 0;
+        }
+        _publish.LastPublishTicks = publishAt;
 
         // Belt to the release at the end of this method: if an exception left
         // holds behind, the next publish must not stack a second set on top.
@@ -847,6 +974,12 @@ public partial class MainViewModel
 
         var seq = _publish.NextSequence();
         var background = SceneRenderer.BackgroundOf(scene);
+        // Everything above this line is describing the frame: the pass list,
+        // the stack fold and the cel fetches. Timed from the publish stamp for
+        // NoteComposeCost's reason — one clock, no drift between the parts and
+        // the whole (B321).
+        BuildDescribeMs += (System.Diagnostics.Stopwatch.GetTimestamp() - _publish.LastPublishTicks)
+                           * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var composeScope = Profile(_profilingTick, Services.TickProfile.Phase.Compose);
         SKRectI? usedClip = null;
@@ -930,6 +1063,7 @@ public partial class MainViewModel
             }, renderScale, cameraView, plan.Origin);
         }
         sw.Stop();
+        BuildComposeMs += sw.Elapsed.TotalMilliseconds;
         composeScope?.Dispose();
         if (Environment.GetEnvironmentVariable("LIGHTBOX_PERFTRACE") is not null)
         {
@@ -942,6 +1076,7 @@ public partial class MainViewModel
         // images being disposed, and the invalidate. Timed apart from the
         // composite above because one number for both is what sent B156 after
         // the wrong half.
+        var handoffFrom = System.Diagnostics.Stopwatch.GetTimestamp();
         using var handoffScope = Profile(_profilingTick, Services.TickProfile.Phase.Handoff);
         if (SnapshotChanged is { } handler)
         {
@@ -985,11 +1120,19 @@ public partial class MainViewModel
             // has re-measured since. The rest of the chain is instrumented end
             // to end now, and a gap in the middle is the one place a cost can
             // still hide.
+            BuildHandoffMs += (System.Diagnostics.Stopwatch.GetTimestamp() - handoffFrom)
+                              * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
             NoteComposeCost();
+            Record();
             handler(snapshot);
         }
         else
         {
+            // Recorded here too, before the image below is freed. A capture
+            // that only worked when a canvas happened to be listening is a
+            // diagnostic with a silent hole in it, and three tests found the
+            // hole the same minute it was made.
+            Record();
             // No canvas attached (headless or IPC-only): nobody would ever
             // free this image, and a live snapshot makes the next repaint
             // duplicate the whole buffer. A deferred composite needs no
@@ -997,6 +1140,26 @@ public partial class MainViewModel
             // this path has ever been.
             image?.Dispose();
             if (flattenedOwned is not null) foreach (var b in flattenedOwned) b.Dispose();
+        }
+
+        // Kept as a local so both arms above record the same thing from the
+        // same state, rather than one of them drifting.
+        //
+        // Called AFTER the build is timed, and that is not tidiness. Recording
+        // costs three scaled blits of document-sized bitmaps, and from inside
+        // the timed window it added ~20 ms to a 22.63 ms "building each frame"
+        // on the owner's machine — an instrument that made the thing it was
+        // measuring look four times worse than it is, on 1,279 of 1,337
+        // publishes. The buffers are unchanged by the handoff, so recording
+        // here records exactly what the composite read.
+        void Record()
+        {
+            if (!Capture.Armed) return;
+            Capture.Note(
+                image, _live.Scratch, _live.PostScratch,
+                $"route {plan.Route} clip {usedClip} dirty {dirty} "
+                + $"points {_strokeBuilder.Current?.Points.Count ?? 0} "
+                + $"passRendered {_live.PostStampedCount} passes {LivePostPasses}");
         }
 
         // The snapshot above holds its own pins on every bitmap still in the

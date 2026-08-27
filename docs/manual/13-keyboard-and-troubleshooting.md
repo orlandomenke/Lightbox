@@ -170,6 +170,45 @@ Nothing you save is affected either way. Exports, thumbnails and the file on
 disk are produced by the processor whatever this is set to, so a picture that
 came out of the graphics card is never the picture that gets written down.
 
+### Presenting straight to the screen
+
+**Configure → Performance → Present through the desktop compositor** is off,
+and that is deliberate: Lightbox hands each finished frame directly to the
+screen rather than to Windows' desktop compositor, which would hold it for its
+own rhythm on top of Lightbox's.
+
+It is worth the milliseconds. Measured on one machine across two sessions of
+about six thousand pen events each — same brush, same drawing — going direct
+took the wait between a frame being ready and being on screen from **52 ms to
+31 ms**, and delivered **544 frames where the compositor route delivered 381**.
+Ink arrived in batches of 11 pen events instead of 17, which is the half you
+feel as the mark appearing in lumps rather than as it simply being late.
+
+**Turn it on only if something is visibly wrong** — the window will not draw,
+or the picture tears. Some graphics drivers refuse the direct path. The
+trade-off is window transparency and blur effects, which Lightbox does not use,
+so there is nothing else to lose by it. Either way it takes effect at the next
+start, and **Help → Write a render report** names which path the session
+actually ran under, on the `composition` line at the top.
+
+### Why fast strokes still trail a little
+
+The mark keeps up with the pen because Lightbox sends the canvas a new frame
+about every 17 milliseconds — one screen refresh — rather than waiting for each
+one to be drawn before starting the next. What that does **not** change is how
+long a frame takes to reach the glass, which is around 36 milliseconds from the
+newest pen position to ink on screen.
+
+That is why a slow stroke looks attached and a fast one trails. The delay is
+the same either way; what differs is how far your hand has travelled during it.
+At a gentle pace that is a few pixels and invisible. At speed it is a visible
+gap between the nib and the last ink — and the faster you go, the wider it
+looks, without anything having got slower.
+
+Closing that gap further is a matter of the frame reaching the screen sooner
+rather than of the brush being quicker: the drawing itself is about four
+milliseconds of the thirty-six.
+
 ### When the app changes it for you
 
 If the canvas cannot keep up, Lightbox turns the quality down to Half once and
@@ -246,6 +285,37 @@ reading it:
 - **The measurement starts when the event reaches Lightbox.** Anything the
   tablet driver or the operating system adds before that is invisible to it, so
   a clean section with a lagging hand points outside the application.
+
+### If the mark itself looks wrong, record the frames
+
+The render report answers *how long*. When the problem is *what it looks like* —
+a rectangle inside a stroke, a patch of the mark missing, a seam where there
+should be none — it says nothing useful, and a screenshot rarely helps either,
+because the thing is gone before your hand leaves the pen.
+
+**Help → Record frames while drawing** starts keeping the last couple of seconds
+of frames. Draw until you see the problem, then press **F10** — the key rather
+than the menu on purpose, so you can stop the pen where the problem is instead
+of where the menu is. Both write to the same folder as everything else on this
+page.
+
+What comes out is a numbered sequence of images, oldest first, and a small
+`index.txt` describing them. Each frame is up to three pictures, and it is the
+second and third that make this worth doing:
+
+- `-screen` is what was composited for the canvas — the artifact, as you saw it.
+- `-raw` is the dab scratch: the marks the brush laid down, before any medium,
+  wet edge, texture or granulation.
+- `-processed` is what the wet-media pass rendered.
+
+Mark that is in `-raw` and missing from `-screen` is ink that reached the
+compositor and did not get drawn. Mark that looks wrong in `-processed` is the
+medium. That one distinction is usually the whole diagnosis, and it cannot be
+made from a photograph of the screen.
+
+Recording is off until you switch it on, and switching it on again starts a
+fresh recording — so a second attempt at catching something is never read
+through the first.
 
 ### If the pointer flickers or hover panels collapse, record an input trace
 

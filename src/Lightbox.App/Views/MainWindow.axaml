@@ -806,6 +806,10 @@
         -->
         <MenuItem Header="Write a render report" Click="OnWriteRenderReport"
                   ToolTip.Tip="Measures this machine's drawing path and writes it to the diagnostics folder" />
+        <MenuItem Header="Record frames while drawing" ToggleType="CheckBox" Click="OnToggleFrameCapture"
+                  ToolTip.Tip="Keeps the last frames and the brush buffers behind them, for looking at afterwards" />
+        <MenuItem Header="Write out the last frames drawn" Click="OnWriteFrameCapture" InputGesture="F10"
+                  ToolTip.Tip="Writes those frames to the diagnostics folder as images (see OnWriteFrameCapture)" />
         <!--
           Absent unless diagnostics are on, the same way the Project menu items
           are absent without a project: an item you can click that then does
