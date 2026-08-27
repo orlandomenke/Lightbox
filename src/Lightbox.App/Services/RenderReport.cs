@@ -69,6 +69,11 @@ internal static class RenderReport
         int TickCount = 0,
         (long Hits, long Misses, long Evictions, long Bytes, long Budget)? FrameCache = null,
         (int Repaired, int Dropped)? FrameEdits = null,
+        IReadOnlyList<string>? FrameDropCallers = null,
+        (int Slow, int SlowWithMiss)? SlowBuilds = null,
+        IReadOnlyList<(double Ms, double AtSeconds, int Points, int Dabs, long Misses, double DescribeMs)>?
+            SlowBuildLog = null,
+        (double LostMs, double SessionMs)? StallCensus = null,
         IReadOnlyList<(string FrameId, int Width, int Height, double Scale, int Cel, string Why)>?
             FrameCacheMisses = null,
         (int Frames, int Layers, int Strokes, double Fps)? Scene = null,
@@ -1228,6 +1233,77 @@ internal static class RenderReport
                 if (facts.WorstBuild is { TotalMs: > 0 } w)
                 {
                     sb.AppendLine("");
+                    if (facts.SlowBuilds is { } slow)
+                    {
+                        // Printed at zero as well: "no line" and "no slow builds"
+                        // are the same silence, and this is the line that says
+                        // whether the stalling is one freeze or continuous.
+                        sb.AppendLine(
+                            $"  stalls (over {ViewModels.MainViewModel.StallMs:0} ms)      {slow.Slow}"
+                            + $"   of which a cache miss was inside: {slow.SlowWithMiss}");
+                        if (facts.StallCensus is { SessionMs: > 0 } census)
+                        {
+                            // **The number the artist would recognise.** Everything
+                            // else here is a rate; this is how much of their time
+                            // the application spent not responding.
+                            sb.AppendLine(
+                                $"    time lost to them     {census.LostMs / 1000:0.##} s of"
+                                + $" {census.SessionMs / 1000:0.#} s drawing"
+                                + $"   ({100 * census.LostMs / census.SessionMs:0.#}%)");
+                        }
+                        if (slow.Slow == 0)
+                        {
+                            sb.AppendLine(
+                                "  >> NOT ONE build stalled, so whatever is being felt is not the frame");
+                            sb.AppendLine(
+                                "     build at all. Read the chain below instead.");
+                        }
+                        else if (slow.SlowWithMiss < slow.Slow)
+                        {
+                            sb.AppendLine(
+                                $"  >> {slow.Slow - slow.SlowWithMiss} slow builds had NO cache miss in them, so B332 is not the");
+                            sb.AppendLine(
+                                "     whole story and fixing the cache will not stop the jumping.");
+                        }
+                        else
+                        {
+                            sb.AppendLine(
+                                "  >> EVERY slow build had a cache miss in it, so B332 accounts for");
+                            sb.AppendLine(
+                                "     all of the stalling and the cache is the only thing to fix.");
+                        }
+                    }
+
+                    // **All of them, not just the worst.** Two populations look
+                    // identical in a single sample and obvious in a list: stalls
+                    // at zero points are something between strokes, stalls at
+                    // deep point counts are a cost that grows with the mark, and
+                    // the artist reports both.
+                    if (facts.SlowBuildLog is { Count: > 0 } log)
+                    {
+                        sb.AppendLine("    every stall, in order:");
+                        sb.AppendLine(
+                            "         at        ms   describing    points     dabs   misses");
+                        foreach (var b in log)
+                        {
+                            sb.AppendLine(
+                                $"    {b.AtSeconds,7:0.#} s {b.Ms,9:0} {b.DescribeMs,12:0}"
+                                + $" {b.Points,9} {b.Dabs,8} {b.Misses,8}");
+                        }
+
+                        var midStroke = log.Count(b => b.Points > 0);
+                        var withMiss = log.Count(b => b.Misses > 0);
+                        sb.AppendLine(
+                            $"  >> {midStroke} of {log.Count} landed mid-stroke, {withMiss} of {log.Count} had a cache miss.");
+                        if (midStroke > 0 && withMiss < log.Count)
+                        {
+                            sb.AppendLine(
+                                "     Stalls with a stroke in flight and NO miss are a second fault, and");
+                            sb.AppendLine(
+                                "     they are the ones that would feel like lag rather than a freeze.");
+                        }
+                    }
+
                     sb.AppendLine(
                         $"  the WORST build alone   {w.TotalMs,8:0.##} ms   — where that one frame went:");
                     sb.AppendLine(
@@ -1962,6 +2038,11 @@ internal static class RenderReport
                         "     anything asks for this frame — and the next publish always does, so");
                     sb.AppendLine(
                         "     there is no window to warm it in. Widening the repaint (B327) is the");
+                    if (facts.FrameDropCallers is { Count: > 0 } who)
+                    {
+                        sb.AppendLine($"     dropped by: {string.Join(", ", who)}");
+                    }
+
                     sb.AppendLine(
                         "     fix that changes nothing visible; warming after the fact is not.");
                 }

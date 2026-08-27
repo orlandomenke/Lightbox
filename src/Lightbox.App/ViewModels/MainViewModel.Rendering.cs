@@ -389,7 +389,12 @@ public partial class MainViewModel
     /// it. Only the full-render cache takes the hint: the tiles and the
     /// thumbnail are cheap to rebuild and the bake only wants telling.
     /// </param>
-    private void InvalidateFrameRender(string frameId, GeometryOps.BBox? repaintBounds = null)
+    private void InvalidateFrameRender(
+        string frameId, GeometryOps.BBox? repaintBounds = null,
+        // B332: which call site dropped the frame. A dozen of them pass no
+        // bounds, and reading the code picked the wrong one twice; the compiler
+        // fills this in at every call site for nothing.
+        [System.Runtime.CompilerServices.CallerMemberName] string by = "")
     {
         _publish.BumpRenderEpoch();
         // Before the cache work rather than after it (B327). A warm in flight was
@@ -405,6 +410,11 @@ public partial class MainViewModel
         else
         {
             FrameRenderDrops++;
+            if (_dropCallers.Count < 8)
+            {
+                _dropCallers.Add(by + (repaintBounds is null ? " (no bounds)" : " (bounds refused)"));
+            }
+
             _cache.Invalidate(frameId);
         }
         _tileFrames.Invalidate(frameId);
@@ -453,6 +463,63 @@ public partial class MainViewModel
 
     /// <inheritdoc cref="FrameRegionRepaints"/>
     internal int FrameRenderDrops { get; private set; }
+
+    private readonly List<string> _dropCallers = [];
+
+    /// <summary>Which call sites dropped a whole frame, and whether they had bounds (B332).</summary>
+    internal IReadOnlyList<string> FrameDropCallers => _dropCallers;
+
+    /// <summary>
+    /// Builds over 100 ms, and how many of those had a cache miss in them (B332).
+    /// </summary>
+    /// <remarks>
+    /// <b>The worst build is one frame; this is the shape of all of them.</b> It
+    /// is the line that separates "one freeze" from "it lags continuously", and
+    /// the owner reports both. Lost once to a revert that swept it up with the
+    /// fix it was measuring, which is its own lesson: an instrument committed
+    /// alongside a fix dies with the fix.
+    /// </remarks>
+    internal (int Slow, int SlowWithMiss) SlowBuilds { get; private set; }
+
+    /// <summary>
+    /// What counts as a stall: three screen refreshes at 60 Hz (B332).
+    /// </summary>
+    /// <remarks>
+    /// <b>Defined by what the artist can see rather than by a round number.</b>
+    /// One refresh is 16.67 ms and the chain already spends about 1.7 of them
+    /// getting a finished frame to the glass (B321), so a build inside one
+    /// refresh is invisible by construction. Three is the point where the mark
+    /// visibly stops following the nib. A hundred milliseconds — the first
+    /// threshold here — was chosen because it is a round number, and it counted
+    /// one stall in a session the owner described as continuously laggy.
+    /// </remarks>
+    internal const double StallMs = 50.0;
+
+    /// <summary>Milliseconds lost to stalls, and the session's length (B332).</summary>
+    internal (double LostMs, double SessionMs) StallCensus =>
+        (_stallLostMs,
+         (System.Diagnostics.Stopwatch.GetTimestamp() - AppStartedTicks)
+            * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
+
+    private double _stallLostMs;
+
+    private readonly List<(double Ms, double AtSeconds, int Points, int Dabs, long Misses, double DescribeMs)>
+        _slowBuildLog = [];
+
+    /// <summary>
+    /// Every build over 100 ms, not just the worst one (B332).
+    /// </summary>
+    /// <remarks>
+    /// <b>The owner's suggestion, and it is better than what it replaces.</b> The
+    /// worst build is one anecdote: it said "0 points under the pen" and settled
+    /// nothing, because the artist reports stalling on long strokes AND a freeze
+    /// between them, and one sample cannot show two populations. A list shows
+    /// whether the stalls cluster at zero points (something between strokes) or
+    /// spread across deep ones (a cost that grows with the mark), and whether
+    /// the ones with misses are a different size from the ones without.
+    /// </remarks>
+    internal IReadOnlyList<(double Ms, double AtSeconds, int Points, int Dabs, long Misses, double DescribeMs)>
+        SlowBuildLog => _slowBuildLog;
 
     /// <summary>What the frame cache last had to render, and why (B332).</summary>
     internal IReadOnlyList<(string FrameId, int Width, int Height, double Scale, int Cel, string Why)>
@@ -779,6 +846,27 @@ public partial class MainViewModel
 
         // B332. Deltas rather than totals: the phase counters accumulate across
         // the session, so only the difference belongs to this build.
+        if (ms > StallMs)
+        {
+            var missesHere = _cache.Misses - _buildStartMisses;
+            SlowBuilds = (SlowBuilds.Slow + 1, SlowBuilds.SlowWithMiss + (missesHere > 0 ? 1 : 0));
+            // Capped, because a list that grows with the fault is the shape of
+            // cost this whole entry is about. Twelve is enough to see a pattern
+            // and small enough that a bad session cannot make it a leak.
+            _stallLostMs += ms;
+            if (_slowBuildLog.Count < 20)
+            {
+                _slowBuildLog.Add((
+                    ms,
+                    (System.Diagnostics.Stopwatch.GetTimestamp() - AppStartedTicks)
+                        / (double)System.Diagnostics.Stopwatch.Frequency,
+                    _strokeBuilder.Current?.Points.Count ?? 0,
+                    _live.StableDabs,
+                    missesHere,
+                    BuildDescribeMs - _buildStartDescribeMs));
+            }
+        }
+
         if (ms > WorstBuild.TotalMs)
         {
             // **When, and what was under the pen.** The owner reports the stall on
