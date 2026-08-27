@@ -1172,7 +1172,7 @@ internal static class RenderReport
         {
             sb.AppendLine("  each stroke, by the clock:");
             sb.AppendLine(
-                "      began         first ink      lasted    points     dabs");
+                "      began        following      lasted    points     dabs");
             foreach (var st in strokes)
             {
                 var firstInk = st.ToFirstInkMs < 0 ? "  never" : $"{st.ToFirstInkMs,6:0} ms";
@@ -1184,9 +1184,9 @@ internal static class RenderReport
             sb.AppendLine(
                 "  >> Line these up with a screen recording: began is when the pen went");
             sb.AppendLine(
-                "     down, first ink is how long before anything of that stroke reached");
+                "     down, following is how long before the mark started FOLLOWING it.");
             sb.AppendLine(
-                "     the screen. A large first ink IS the gap at the start of a stroke.");
+                "     The opening dab is published by BeginStroke itself and says nothing.");
         }
         // B330: which of the numbers below cannot be quoted as costs. Each phase
         // is a latency distribution with stalls in it, and until these carried a

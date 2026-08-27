@@ -525,10 +525,24 @@ public partial class MainViewModel
         _strokeInkShown = false;
     }
 
-    /// <summary>A publish carrying this stroke's ink has been handed over.</summary>
+    /// <summary>
+    /// A publish showing the mark FOLLOWING the pen, not the opening dab (B189).
+    /// </summary>
+    /// <remarks>
+    /// <b>The first version of this could only ever return zero, which is worse
+    /// than no measurement at all.</b> BeginStroke publishes on its last line, so
+    /// timing from the stroke's start to the next publish timed my own next
+    /// statement: every row read 0 ms while the owner watched the mark hang at
+    /// the start of a stroke. What they describe is the SECOND publish -- the
+    /// opening dab lands and then the mark stops following -- so that is what is
+    /// timed here, and a stroke that never gets one reads never rather than zero.
+    /// </remarks>
     internal void NoteStrokeInkShown()
     {
         if (_strokeInkShown || _strokeBeganTicks == 0) return;
+        // More than the opening dab. One point is what BeginStroke already
+        // published, and calling that ink on screen is what made this vacuous.
+        if ((_strokeBuilder.Current?.Points.Count ?? 0) < 2) return;
         _strokeInkShown = true;
         _strokeFirstInkMs = (System.Diagnostics.Stopwatch.GetTimestamp() - _strokeBeganTicks)
                             * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
