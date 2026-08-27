@@ -351,7 +351,7 @@ public partial class MainWindow
              _vm.LiveTipNewDabs.WorstMs,
              _vm.LiveTipAdded, _vm.LiveTipRebuilt,
              _vm.LiveTipDabsAdded.MedianMs, _vm.LiveTipDabsRebuilt.MedianMs,
-             _vm.LiveTipDabsStamped.MedianMs),
+             _vm.LiveTipDabsStamped.MedianMs, _vm.LiveTipMarginalMs),
             (_vm.LiveStampSettled.MedianMs, _vm.LiveStampSettled.PercentileMs(0.9),
              _vm.LiveStampProvisional.MedianMs, _vm.LiveStampProvisional.PercentileMs(0.9),
              _vm.LiveStampProvisional.WorstMs, _vm.LiveStampProvisional.Count,

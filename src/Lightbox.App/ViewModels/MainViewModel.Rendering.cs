@@ -1604,6 +1604,37 @@ public partial class MainViewModel
     internal Services.Tally LiveTipDabsStamped { get; } = new();
 
     /// <summary>
+    /// Milliseconds per dab, measured over the stamp alone (B322).
+    /// </summary>
+    /// <remarks>
+    /// <b>Marginal, not average.</b> The average over the whole operation
+    /// includes creating a canvas, wiping the last rectangle and taking bounds
+    /// — costs that do not move with the dab count — so dividing it by a small
+    /// count reports the fixed part as though it were per-dab. That is how the
+    /// budget came to allow 51 dabs on a brush whose dabs cost 5.45 us, and it
+    /// refused 107 publishes of 225 on the owner's machine.
+    /// </remarks>
+    internal Services.Tally LiveTipStampOnlyMs { get; } = new();
+
+    /// <summary>
+    /// What one dab costs at the margin: the stamping time over the dabs
+    /// stamped, across the session (B322).
+    /// </summary>
+    /// <remarks>
+    /// <b>Weighted by dab count on purpose.</b> Marginal cost is what a budget
+    /// in milliseconds must be divided by, and it is only visible where enough
+    /// dabs were stamped to swamp the setup. Both earlier attempts at this
+    /// number divided a total that carried a constant — first the whole
+    /// operation over the outstanding run, then the whole operation over the
+    /// dabs — and both produced a per-dab figure an order of magnitude too high
+    /// and a budget that refused affordable work.
+    /// </remarks>
+    internal double LiveTipMarginalMs =>
+        LiveTipDabsStamped.TotalMs > 0
+            ? LiveTipStampOnlyMs.TotalMs / LiveTipDabsStamped.TotalMs
+            : 0;
+
+    /// <summary>
     /// The dabs stamped since the last completed pass, drawn raw so the tip of
     /// the mark is on screen while the pass catches up (B322).
     /// </summary>
@@ -1663,9 +1694,7 @@ public partial class MainViewModel
         // The cost of a dab, measured on this brush rather than assumed: the
         // budget is a time and this is what converts it into dabs. Zero until
         // something has been stamped, which LiveTipPlan reads as "be generous".
-        var perDabMs = LiveTipDabsStamped.MedianMs > 0
-            ? LiveTipStampMs.MedianMs / LiveTipDabsStamped.MedianMs
-            : 0;
+        var perDabMs = LiveTipMarginalMs;
         var (range, planStampFrom, why, outstanding) = Rendering.LiveTipPlan.For(
             _live.PostStampedDabs, dabs.Count, _live.TipFrom, _live.TipStampedTo, perDabMs);
         if (outstanding > 0) LiveTipOutstanding.Add(outstanding);
@@ -1696,12 +1725,24 @@ public partial class MainViewModel
         var stampedFrom = canAdd ? planStampFrom : plan.From;
         var canvas = canAdd ? _live.ContinueTip() : _live.BeginTip(info.Width, info.Height);
         if (canvas is null) return null;
+
+        // **The stamp is timed apart from the setup, and that separation is the
+        // difference between a working budget and a useless one.** Creating the
+        // canvas, wiping the previous rectangle and taking the bounds cost the
+        // same whether one dab is stamped or a thousand. Timing the whole
+        // operation and dividing by the dab count therefore reports the FIXED
+        // cost as if it were marginal: on the owner's capture, 0.47 ms over 8
+        // dabs read as 58 us a dab where the same brush measured 5.45 on a
+        // busier publish — and a 3 ms budget bought 51 dabs instead of 550.
+        var stampFromTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+        var stamped = 0;
         try
         {
             if (stampedFrom < plan.To)
             {
                 BrushEngine.StampDabRange(canvas, stroke, dabs, stampedFrom, plan.To);
                 canvas.Flush();
+                stamped = plan.To - stampedFrom;
             }
         }
         finally
@@ -1709,9 +1750,20 @@ public partial class MainViewModel
             canvas.Dispose();
         }
 
-        LiveTipStampMs.Add(
-            (System.Diagnostics.Stopwatch.GetTimestamp() - startedAt)
-            * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
+        var now = System.Diagnostics.Stopwatch.GetTimestamp();
+        var freq = System.Diagnostics.Stopwatch.Frequency;
+        LiveTipStampMs.Add((now - startedAt) * 1000.0 / freq);
+        if (stamped > 0)
+        {
+            // **The stamp's own duration, not a ratio.** The per-dab cost is
+            // then total time over total dabs, which weights the publishes that
+            // stamped a lot — where marginal cost actually lives. A median of
+            // per-publish ratios is dominated by the small publishes, and
+            // whatever fixed cost remains inside the stamp gets divided by five
+            // there: on a model with 50 us of setup and a true 6 us a dab, the
+            // median of ratios reads 8.6 and the weighted figure 6.5.
+            LiveTipStampOnlyMs.Add((now - stampFromTicks) * 1000.0 / freq);
+        }
 
         // Counted apart, because the saving this attempt exists for is entirely
         // in how often each happens — and the report's prediction of it (1.21 ms

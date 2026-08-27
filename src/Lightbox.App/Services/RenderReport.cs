@@ -89,7 +89,8 @@ internal static class RenderReport
          double StampMedianMs, double StampWorstMs,
          double NewDabsMedian, double NewDabsP90, double NewDabsWorst,
          int Added, int Rebuilt,
-         double DabsAddedMedian, double DabsRebuiltMedian, double DabsStampedMedian)? LiveTip = null,
+         double DabsAddedMedian, double DabsRebuiltMedian, double DabsStampedMedian,
+         double MarginalMs)? LiveTip = null,
         (double SettledMedian, double SettledP90,
          double ProvisionalMedian, double ProvisionalP90, double ProvisionalWorst,
          long Events, int WholeMarkEvents,
@@ -1498,11 +1499,15 @@ internal static class RenderReport
                     // and leaving the old divisor in place overstated the per-dab
                     // cost by exactly the saving — 27.9 us reported against 91.5
                     // actual, on a capture where the saving was 3.3x.
-                    var stamped = tip.DabsStampedMedian > 0 ? tip.DabsStampedMedian : tip.OutstandingMedian;
-                    var perDab = stamped > 0 ? tip.StampMedianMs / stamped : 0;
+                    // The MARGINAL cost, measured over the stamp alone. The
+                    // average over the whole operation carries the fixed setup,
+                    // and dividing that by a small dab count reported 58 us a
+                    // dab on a brush whose dabs cost 5.45 — which bought a
+                    // budget of 51 dabs and refused half the publishes.
+                    var perDab = tip.MarginalMs;
                     sb.AppendLine(
-                        $"  >> About {perDab * 1000:0.##} us a dab, so a budget of {tip.OutstandingP99:0} — the p99"
-                        + $" above — would cost about {perDab * tip.OutstandingP99:0.##} ms a publish.");
+                        $"  >> About {perDab * 1000:0.##} us a dab (marginal), so {Rendering.LiveTipPlan.MaxMs} ms"
+                        + $" allows {Rendering.LiveTipPlan.Allowance(perDab)} dabs a publish.");
                     sb.AppendLine(
                         "     Set the budget against that, not against caution: refusing a publish");
                     sb.AppendLine(
