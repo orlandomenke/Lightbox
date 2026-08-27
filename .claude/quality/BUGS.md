@@ -143,6 +143,20 @@ which is a weak test and still far better than none.
 ### brush
 
 - [ ] **B322** `P1` `brush` A brush with an effect shows the mark as of the last pass, so its tip is missing while the pen moves `evidence: manual`
+  - **THE REPEATED STALLING IS THIS ENTRY, AND IT TOOK AN INSTRUMENT THAT MEASURES ABSENCE RATHER THAN SLOWNESS TO SEE IT.** 2026-08-28 00:06, on the owner's observation that the preview stalled several times in a session whose build census found one stall, and their suggestion that the others *"perhaps had another cause and were not reported as a stall per se"*. Counting the moments the mark stopped moving under the pen instead of the frames that took too long to make:
+
+    ```
+    the preview stopped 24 times while the pen was down:
+           at    gap ms   points  outstanding   why
+         28.1 s      3086        1            0   publish gapped
+         28.3 s        16       59           94   TIP REFUSED (frame was on time)
+         28.7 s       173      140          106   TIP REFUSED (frame was on time)
+         29.4 s        73      266           51   publish gapped
+    >> 18 of 24 were the tip being REFUSED, not a slow frame.
+    ```
+
+    **Eighteen of twenty-four, on frames that were never late.** They carried a mark that had stopped growing, which no timer on the build can see — which is exactly why a build census counted one stall in a session the artist experienced as stalling repeatedly, and why five days of timing work never found it.
+  - **And the outstanding counts are the finding within the finding.** The refusals land at **16 to 168 dabs outstanding**, over a stroke only 266 points long. That is not a fast stroke with a huge backlog; it is an ordinary one. On the document-resolution arm the budget is 3 ms over the ~55 us a dab measured in situ — **about 55 dabs** — so a run of sixty refuses. On the preview arm the same 3 ms buys **about 190** at the measured 15.8 us, which covers all but two rows of that table. **The arm the owner could not tell apart by eye should erase three quarters of these**, and nothing had measured the right quantity to say so until now.
   - **THE ARMS WERE CAPTURED, THE CHEAPER ONE WORKS, AND THE ARTIST CANNOT TELL THEM APART. 2026-08-27 22:52-22:59.** Four captures, the same build, the flag the only difference:
 
     | | arm | drawn | too far behind | us a dab | budget buys | restamp median |
