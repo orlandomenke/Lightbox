@@ -1700,10 +1700,10 @@ public partial class MainViewModel
         var perDabMs = LiveTipMarginalMs;
 
         // **The arm this run is drawing** — document resolution, or the scale
-        // the frame is composed at. A size-70 dab measures 62.48 us into a
-        // document-sized buffer and 24.7 into the composed one, so the same
-        // budget buys 2.5x the tip. See LiveTipScale, and B322 for why it is a
-        // flag and not simply the cheaper default.
+        // the frame is composed at. A size-70 dab measures about 45-50 us into
+        // a document-sized buffer and about 11 into the composed one, so the
+        // same budget buys 4.2x the tip. See LiveTipScale, and B322 for why it
+        // is a flag and not simply the cheaper default.
         var tipScale = Rendering.LiveTipScale.For(ComposeScale);
 
         // A scale change makes what the buffer holds unusable — it is the wrong

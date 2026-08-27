@@ -7,13 +7,20 @@ namespace Lightbox.App.Rendering;
 /// <remarks>
 /// <para>
 /// <b>The tip's cost is an area, and B322 died on it three times before anyone
-/// measured the area.</b> A size-70 dab costs <b>62.48 us</b> stamped into a
-/// 3840x2160 buffer and <b>24.7 us</b> stamped into the 1440x810 surface the
-/// artist is actually looking at — 2.5x, measured in Release on the owner's
-/// machine by <c>LiveTipDabCostTests</c>. Covering the median outstanding run
-/// of a fast size-70 stroke is 17.13 ms at document scale and 6.73 at preview
-/// scale, against a publish cycle of about 20 ms. That is the difference
-/// between a budget that refuses half the publishes and one that does not.
+/// measured the area.</b> A size-70 dab costs about <b>45-50 us</b> stamped
+/// into a 3840x2160 buffer and about <b>11 us</b> stamped into the 1440x810
+/// surface the artist is actually looking at — <b>4.2x</b>, measured in Release
+/// on the owner's machine by <c>LiveTipDabCostTests</c>. Covering the median
+/// outstanding run of a fast size-70 stroke is about <b>12.5 ms</b> at document
+/// scale and <b>3.0</b> at preview scale, against a 3 ms budget: the cheaper arm
+/// brings the typical fast-stroke publish inside the budget that already exists,
+/// where the dearer one cannot be brought inside any budget at all.
+/// </para>
+/// <para>
+/// <b>The absolute figures move about 15% run to run and the ratio does not</b>,
+/// which is why the test asserts the ratio and prints the rest. Timings taken as
+/// medians rather than minima read roughly 25% higher, and inside the full
+/// four-assembly suite about fourfold higher — contention only ever adds.
 /// </para>
 /// <para>
 /// <b>It is invariant 7's cheap side, not a breach of it.</b> The surface is

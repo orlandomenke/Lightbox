@@ -14,12 +14,12 @@ B322 draws the dabs the post-process pass has not reached yet, so the tip of the
 mark is under the nib instead of lagging behind it. A budget decides whether
 that is affordable, and on a fast stroke with a large brush it is not:
 
-| | dabs | cost at the measured 62.48 us a dab | of a 44 ms publish cycle |
+| | dabs | cost at the measured ~45 us a dab | of a 44 ms publish cycle |
 | --- | --- | --- | --- |
-| outstanding, median | 268 | **17.13 ms** | 39% |
-| outstanding, p90 | 2072 | **129.84 ms** | 295% |
+| outstanding, median | 268 | **12.5 ms** | 28% |
+| outstanding, p90 | 2072 | **94.4 ms** | 215% |
 
-A 3 ms budget buys 42 dabs. Six attempts treated that as a constant chosen
+A 3 ms budget buys 59 dabs. Six attempts treated that as a constant chosen
 badly; `LiveTipDabCostTests` establishes that it is not a constant at all but an
 area, and that no value of the budget covers a fast stroke at size 70.
 
@@ -46,5 +46,6 @@ could have supplied.
 
 The cost of a dab, which is the only quantity in the table above that is not
 fixed. See **Q170**: stamping the tip at the resolution it is displayed rather
-than at the document's is a measured 2.5x, and it changes the area rather than
-rationing the dabs — so it satisfies this decision instead of working around it.
+than at the document's is a measured **4.2x**, which puts the median outstanding
+run inside the existing 3 ms budget. It changes the area rather than rationing
+the dabs, so it satisfies this decision instead of working around it.

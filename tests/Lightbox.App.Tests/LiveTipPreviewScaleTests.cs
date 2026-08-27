@@ -13,11 +13,11 @@ namespace Lightbox.App.Tests;
 /// <para>
 /// <b>Why an arm rather than a fix.</b> Six attempts at B322 treated the tip's
 /// cost as a constant to be chosen better. It is not a constant, it is an area:
-/// <c>LiveTipDabCostTests</c> measures a size-70 dab at <b>62.48 us</b> into a
-/// 3840x2160 buffer and <b>24.7 us</b> into the 1440x810 surface the artist is
-/// actually looking at. Covering a fast stroke's median outstanding run is
-/// 17.13 ms one way and 6.73 the other. No value of the budget bridges that;
-/// only the area does.
+/// <c>LiveTipDabCostTests</c> measures a size-70 dab at about <b>45-50 us</b>
+/// into a 3840x2160 buffer and about <b>11 us</b> into the 1440x810 surface the
+/// artist is actually looking at. Covering a fast stroke's median outstanding
+/// run is about <b>12.5 ms</b> one way and <b>3.0</b> the other, against a 3 ms
+/// budget. No value of the budget bridges the first; only the area does.
 /// </para>
 /// <para>
 /// <b>What these tests hold, and what they cannot.</b> They pin that a tip
@@ -163,7 +163,7 @@ public class LiveTipPreviewScaleTests(ITestOutputHelper output)
 
     /// <summary>
     /// <b>The saving is view-dependent, and the arm says so honestly.</b> At
-    /// fit-to-window there is 2.5x in it; composing 1:1 there is nothing in it,
+    /// fit-to-window there is 4.2x in it; composing 1:1 there is nothing in it,
     /// and a tip buffer larger than the document would be worse than useless.
     /// </summary>
     [Theory]
