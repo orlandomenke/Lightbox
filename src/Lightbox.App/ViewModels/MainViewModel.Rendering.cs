@@ -851,7 +851,8 @@ public partial class MainViewModel
             // `this` allocates a closure and a delegate on every publish, and a
             // publish happens per pointer event while drawing.
             _passTransformSplit ??= TransformSplitFor,
-            MaskEditing: EditingLayerMask);
+            MaskEditing: EditingLayerMask,
+            TipScratch: BuildLiveTip());
 
         var built = ScenePassBuilder.Describe(scene, passState, _cache, _tileFallbacks, live);
         var tileNativeDoc = built.TileNative;
@@ -1502,5 +1503,66 @@ public partial class MainViewModel
         using var below = SceneRenderer.Compose(
             scene.Width, scene.Height, passes, SKColors.Transparent);
         return SKBitmap.FromImage(below);
+    }
+
+    /// <summary>
+    /// The dabs stamped since the last completed live pass, drawn raw so the
+    /// tip of the mark is on screen while the pass catches up (B322).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Null is the normal answer and the cheap one.</b> A brush with no
+    /// post-process never has an outstanding pass, so this returns before
+    /// touching a bitmap — Ink pays nothing for a fix it does not need. It also
+    /// returns null before the first pass lands, because until then the raw
+    /// scratch already is the whole mark and a tip would be the same dabs drawn
+    /// a second time.
+    /// </para>
+    /// <para>
+    /// <b>Restamped rather than copied.</b> Copying the region the new dabs
+    /// occupy out of the shared scratch brings the older dabs that overlap it
+    /// forward too, and those are exactly the pixels the pass has already
+    /// finished — that is the shape of the fix the owner ran and reported as
+    /// worse than the bug, hard rectangular seams between processed and raw.
+    /// Stamping the range fresh gives the new dabs and nothing else.
+    /// </para>
+    /// <para>
+    /// <b>Per publish, not per pointer event.</b> The per-event path carries the
+    /// settled-prefix cut and the tail lend-and-take-back, and maintaining a
+    /// second buffer through those is delicate for no gain: this is only ever
+    /// read when a frame is built.
+    /// </para>
+    /// </remarks>
+    private SKBitmap? BuildLiveTip()
+    {
+        if (_live.PostStampedCount <= 0 || _live.PostScratch is null) return null;
+        if (_strokeBuilder.Current is not { } stroke) return null;
+        if (_live.Dabs is not { Count: > 0 } dabs) return null;
+
+        var from = _live.PostStampedCount;
+        if (from >= dabs.Count)
+        {
+            // The pass has caught up: nothing is outstanding, and a stale tip
+            // would keep drawing dabs the body already carries.
+            _live.ResetTip();
+            return null;
+        }
+
+        var info = new SKImageInfo(
+            Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        var canvas = _live.BeginTip(info.Width, info.Height);
+        if (canvas is null) return null;
+        try
+        {
+            BrushEngine.StampDabRange(canvas, stroke, dabs, from, dabs.Count);
+            canvas.Flush();
+        }
+        finally
+        {
+            canvas.Dispose();
+        }
+
+        _live.TipUsed = BrushEngine.RangeBounds(dabs, from, stroke.Brush, info);
+        return _live.TipScratch;
     }
 }
