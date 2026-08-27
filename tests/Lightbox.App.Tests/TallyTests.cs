@@ -97,4 +97,41 @@ public class TallyTests(ITestOutputHelper output)
         Assert.Equal(2, t.Count);
         Assert.Equal(1.5, t.MeanMs, 6);
     }
+
+    /// <summary>
+    /// <b>The best is the one statistic that separates a queue from a gate</b>
+    /// (B321): something merely busy is sometimes free, and something waiting
+    /// for the screen never is. It has to survive the reservoir, so it is kept
+    /// as a running minimum rather than read off the samples.
+    /// </summary>
+    [Fact]
+    public void TheBestIsTheSmallestEverRecorded()
+    {
+        var t = Of(9, 3, 12, 7);
+        output.WriteLine($"best {t.BestMs:0.##}  mean {t.MeanMs:0.##}  worst {t.WorstMs:0.##}");
+        Assert.Equal(3, t.BestMs, 6);
+
+        // Past the reservoir, where the sample itself may no longer be held.
+        var long_ = new Tally();
+        long_.Add(0.25);
+        for (var i = 0; i < 20000; i++) long_.Add(40);
+        Assert.Equal(0.25, long_.BestMs, 6);
+    }
+
+    /// <summary>
+    /// Nothing recorded is not a best of zero pretending to be a fast one — but
+    /// it is also the only value a fresh tally can honestly report, so the rule
+    /// is the same as the median's: callers read a count first.
+    /// </summary>
+    [Fact]
+    public void AnEmptyTallyHasNoBest()
+    {
+        var t = new Tally();
+        Assert.Equal(0, t.BestMs);
+
+        t.Add(5);
+        Assert.Equal(5, t.BestMs, 6);
+        t.Reset();
+        Assert.Equal(0, t.BestMs);
+    }
 }

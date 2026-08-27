@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Lightbox.App.Services;
 
 namespace Lightbox.App.Rendering;
 
@@ -51,8 +52,7 @@ internal sealed class PresentLatency
     private int _next;
     private int _presented;
     private int _superseded;
-    private double _totalMs;
-    private double _worstMs;
+    private readonly Tally _wait = new();
 
     // B321: the wait split in two at the moment the UI thread hands the draw
     // over. A frame handed to the canvas waits 70-88 ms to be drawn in every
@@ -61,17 +61,27 @@ internal sealed class PresentLatency
     // scheduling the visual pass (the wait is before the hand-over) or the
     // render thread being slow (after it). The report could not tell them apart
     // and neither could anyone reading it.
-    private int _enqueuedCount;
-    private double _toEnqueueTotalMs;
-    private double _toEnqueueWorstMs;
+    private readonly Tally _toEnqueue = new();
+
+    // And the compositor's half split once more, at the moment the render
+    // thread actually picks the draw up (B321). This is the step the floor
+    // verdict turns on: `then in the compositor` is a queue wait plus a draw,
+    // the draw is measured, and until this existed the difference between them
+    // was a subtraction with nothing to attribute it to. A queue wait whose
+    // BEST case is as long as its typical one is not a queue at all — it is the
+    // frame being held for the next refresh, which is a cadence and takes no fix.
+    private readonly Tally _queue = new();
 
     // And the compositor's half split again, because "in the compositor" is a
     // queue wait plus a draw, and those are not the same finding: a draw of a
     // few milliseconds sitting inside thirty is the frame waiting for vsync,
     // twice — which is a cadence, not a cost, and wants no fix at all.
-    private int _drawCount;
-    private double _drawTotalMs;
-    private double _drawWorstMs;
+    private readonly Tally _draw = new();
+
+    // The same draw, counted only for frames that were published. The unkeyed
+    // tally above also carries the cursor repaints a hovering pen provokes, and
+    // those are real draws but they are not what a published frame paid.
+    private readonly Tally _keyedDraw = new();
 
     // The same three numbers again, split by what happened while the frame was
     // waiting. See Cohort.
@@ -139,10 +149,7 @@ internal sealed class PresentLatency
 
                 var now = Stopwatch.GetTimestamp();
                 _pending[i].Enqueued = now;
-                var ms = (now - _pending[i].Ticks) * 1000.0 / Stopwatch.Frequency;
-                _enqueuedCount++;
-                _toEnqueueTotalMs += ms;
-                if (ms > _toEnqueueWorstMs) _toEnqueueWorstMs = ms;
+                _toEnqueue.Add((now - _pending[i].Ticks) * 1000.0 / Stopwatch.Frequency);
                 return;
             }
         }
@@ -162,14 +169,41 @@ internal sealed class PresentLatency
     {
         lock (_gate)
         {
-            _drawCount++;
-            _drawTotalMs += milliseconds;
-            if (milliseconds > _drawWorstMs) _drawWorstMs = milliseconds;
+            _draw.Add(milliseconds);
         }
     }
 
     /// <summary>That frame has been drawn.</summary>
-    public void Rendered(long seq)
+    /// <remarks>
+    /// For a caller that cannot say when the draw began — the test helper, and
+    /// nothing on the real path. It times the draw as having taken no time at
+    /// all, which leaves the queue wait reading as the whole of the compositor's
+    /// half; that is a visible absurdity rather than a plausible wrong number,
+    /// which is the point.
+    /// </remarks>
+    public void Rendered(long seq) => Rendered(seq, Stopwatch.GetTimestamp());
+
+    /// <summary>
+    /// That frame has been drawn, and the draw began at
+    /// <paramref name="drawStartedTicks"/> (B321).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The render thread's own start stamp, taken inside the draw op before it
+    /// paints anything. Passing it in rather than sampling the clock here is
+    /// what makes the three phases <em>sum</em> to the total instead of merely
+    /// sitting near it — and a decomposition whose parts do not add up is how
+    /// this bug's first two verdicts were written.
+    /// </para>
+    /// <para>
+    /// The draw is also tallied unkeyed by <see cref="Drew"/>, and the two are
+    /// deliberately not the same number: that one counts every draw including
+    /// the cursor repaints of a hovering pen, this one counts only the draws
+    /// that finished a published frame. Reading them side by side says whether
+    /// a session's drawing cost is about the artwork or about the chrome.
+    /// </para>
+    /// </remarks>
+    public void Rendered(long seq, long drawStartedTicks)
     {
         var (canvas, elsewhere) = InputPulse.Read();
         lock (_gate)
@@ -178,8 +212,21 @@ internal sealed class PresentLatency
             {
                 if (_pending[i].Seq != seq || _pending[i].Ticks == 0) continue;
 
-                var ms = (Stopwatch.GetTimestamp() - _pending[i].Ticks)
-                    * 1000.0 / Stopwatch.Frequency;
+                var now = Stopwatch.GetTimestamp();
+                var ms = (now - _pending[i].Ticks) * 1000.0 / Stopwatch.Frequency;
+                if (now >= drawStartedTicks)
+                {
+                    _keyedDraw.Add((now - drawStartedTicks) * 1000.0 / Stopwatch.Frequency);
+                }
+
+                // Only when the hand-over was seen for this same frame: without
+                // it the subtraction would be against a publish timestamp and
+                // would silently restate the whole wait as a queue.
+                if (_pending[i].Enqueued != 0 && drawStartedTicks >= _pending[i].Enqueued)
+                {
+                    _queue.Add((drawStartedTicks - _pending[i].Enqueued)
+                        * 1000.0 / Stopwatch.Frequency);
+                }
 
                 // Canvas input wins the tie: if both arrived, the canvas one is
                 // the candidate explanation and attributing the frame anywhere
@@ -191,8 +238,7 @@ internal sealed class PresentLatency
 
                 _pending[i] = default;
                 _presented++;
-                _totalMs += ms;
-                if (ms > _worstMs) _worstMs = ms;
+                _wait.Add(ms);
 
                 var c = (int)cohort;
                 _cohortCount[c]++;
@@ -211,17 +257,14 @@ internal sealed class PresentLatency
             _next = 0;
             _presented = 0;
             _superseded = 0;
-            _totalMs = 0;
-            _worstMs = 0;
+            _wait.Reset();
             Array.Clear(_cohortCount);
             Array.Clear(_cohortTotal);
             Array.Clear(_cohortWorst);
-            _enqueuedCount = 0;
-            _toEnqueueTotalMs = 0;
-            _toEnqueueWorstMs = 0;
-            _drawCount = 0;
-            _drawTotalMs = 0;
-            _drawWorstMs = 0;
+            _toEnqueue.Reset();
+            _queue.Reset();
+            _draw.Reset();
+            _keyedDraw.Reset();
         }
         InputPulse.Reset();
     }
@@ -246,11 +289,44 @@ internal sealed class PresentLatency
     /// cannot choose between them.
     /// </param>
     /// <param name="ToEnqueueWorstMs">The worst single wait before hand-over.</param>
+    /// <param name="MedianMs">
+    /// The typical wait. Printed beside the mean because a mean over a latency
+    /// distribution with one stall in it describes no frame that ever happened
+    /// — see <see cref="Services.Tally"/>, which was written after that mistake
+    /// was made twice in a day.
+    /// </param>
+    /// <param name="ToEnqueueMedianMs">The typical wait before hand-over.</param>
+    /// <param name="Queued">
+    /// Frames whose wait between the hand-over and the start of the draw was
+    /// timed (B321).
+    /// </param>
+    /// <param name="QueueMeanMs">
+    /// Of the compositor's half, how much elapsed before the render thread
+    /// began drawing. The rest is <see cref="KeyedDrawMeanMs"/>, and the two
+    /// account for it exactly.
+    /// </param>
+    /// <param name="QueueMedianMs">The typical wait to be picked up.</param>
+    /// <param name="QueueBestMs">
+    /// The shortest one seen, which is the discriminator this whole split was
+    /// built for: near zero means the render thread was merely busy, and a best
+    /// case as long as the typical one means it was waiting for a moment that
+    /// comes round on its own.
+    /// </param>
+    /// <param name="QueueWorstMs">The worst wait to be picked up.</param>
+    /// <param name="KeyedDrawMeanMs">
+    /// The draw, counted only for frames that were published — unlike
+    /// <see cref="DrawMeanMs"/>, which includes the cursor repaints of a
+    /// hovering pen.
+    /// </param>
     public readonly record struct Stats(
         int Presented, int Superseded, double MeanMs, double WorstMs,
         IReadOnlyList<CohortStats>? ByCohort = null,
         int Enqueued = 0, double ToEnqueueMeanMs = 0, double ToEnqueueWorstMs = 0,
-        int Draws = 0, double DrawMeanMs = 0, double DrawWorstMs = 0);
+        int Draws = 0, double DrawMeanMs = 0, double DrawWorstMs = 0,
+        double MedianMs = 0, double ToEnqueueMedianMs = 0,
+        int Queued = 0, double QueueMeanMs = 0, double QueueMedianMs = 0,
+        double QueueBestMs = 0, double QueueWorstMs = 0,
+        double KeyedDrawMeanMs = 0);
 
     /// <param name="Which">What arrived while these frames were waiting.</param>
     /// <param name="Count">How many frames.</param>
@@ -277,15 +353,23 @@ internal sealed class PresentLatency
                 return new Stats(
                     _presented,
                     _superseded,
-                    _presented == 0 ? 0 : _totalMs / _presented,
-                    _worstMs,
+                    _wait.MeanMs,
+                    _wait.WorstMs,
                     cohorts,
-                    _enqueuedCount,
-                    _enqueuedCount == 0 ? 0 : _toEnqueueTotalMs / _enqueuedCount,
-                    _toEnqueueWorstMs,
-                    _drawCount,
-                    _drawCount == 0 ? 0 : _drawTotalMs / _drawCount,
-                    _drawWorstMs);
+                    (int)_toEnqueue.Count,
+                    _toEnqueue.MeanMs,
+                    _toEnqueue.WorstMs,
+                    (int)_draw.Count,
+                    _draw.MeanMs,
+                    _draw.WorstMs,
+                    _wait.MedianMs,
+                    _toEnqueue.MedianMs,
+                    (int)_queue.Count,
+                    _queue.MeanMs,
+                    _queue.MedianMs,
+                    _queue.BestMs,
+                    _queue.WorstMs,
+                    _keyedDraw.MeanMs);
             }
         }
     }
