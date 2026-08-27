@@ -84,6 +84,28 @@ internal static class LiveTipScale
         return composeScale > 0 && composeScale < 1.0 ? composeScale : 1.0;
     }
 
+    /// <summary>
+    /// The tip buffer's size in pixels, for a document of
+    /// <paramref name="width"/> by <paramref name="height"/> at
+    /// <paramref name="scale"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Rounded OUTWARD, and that is the whole reason this is a function
+    /// rather than two lines at the call site.</b> A document dimension times a
+    /// scale is almost never whole, and rounding down loses the last row and
+    /// column of the buffer — which is where the newest dab sits whenever the
+    /// pen is heading right or down. It would show as the tip being clipped on
+    /// two edges and nowhere else, at some zoom levels and not others, which is
+    /// a bug nobody would find from a report.
+    /// </remarks>
+    internal static (int Width, int Height) BufferSize(int width, int height, double scale)
+    {
+        if (scale >= 1.0) return (width, height);
+        return (
+            Math.Max(1, (int)Math.Ceiling(width * scale)),
+            Math.Max(1, (int)Math.Ceiling(height * scale)));
+    }
+
     /// <summary>How the render report names the arm that ran.</summary>
     internal static string Describe(double tipScale) =>
         tipScale >= 1.0

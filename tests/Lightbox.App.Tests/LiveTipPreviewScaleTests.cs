@@ -178,6 +178,34 @@ public class LiveTipPreviewScaleTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// <b>The buffer is rounded outward, and the failure it prevents would be
+    /// invisible in a report.</b> A document dimension times a compose scale is
+    /// almost never whole. Round down and the buffer loses its last row and
+    /// column — exactly where the newest dab sits when the pen heads right or
+    /// down — so the tip would be clipped on two edges, at some zoom levels and
+    /// not others, with every count in the report still reading correctly.
+    /// </summary>
+    [Theory]
+    [InlineData(3840, 2160, 0.375, 1440, 810)]
+    // 0.4 of 3840 is 1536 exactly; 0.4 of 2161 is 864.4 and must not become 864.
+    [InlineData(3840, 2161, 0.4, 1536, 865)]
+    [InlineData(1001, 1001, 0.333, 334, 334)]
+    // At or above 1 the buffer is the document, with no arithmetic at all.
+    [InlineData(3840, 2160, 1.0, 3840, 2160)]
+    // A scale small enough to round to nothing still has to be a real bitmap.
+    [InlineData(3, 3, 0.001, 1, 1)]
+    public void TheBufferIsRoundedOutwardAndNeverToNothing(
+        int width, int height, double scale, int expectedWidth, int expectedHeight)
+    {
+        var (w, h) = LiveTipScale.BufferSize(width, height, scale);
+        Assert.Equal(expectedWidth, w);
+        Assert.Equal(expectedHeight, h);
+        Assert.True(
+            w >= width * scale && h >= height * scale,
+            "the buffer must cover the scaled document rather than fall inside it");
+    }
+
+    /// <summary>
     /// The report has to name which arm ran, or two captures that differ only in
     /// the tip's resolution are indistinguishable afterwards.
     /// </summary>

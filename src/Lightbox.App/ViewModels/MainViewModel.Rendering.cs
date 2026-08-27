@@ -1632,6 +1632,21 @@ public partial class MainViewModel
     /// dabs — and both produced a per-dab figure an order of magnitude too high
     /// and a budget that refused affordable work.
     /// </remarks>
+    /// <summary>
+    /// The scale the tip was last actually stamped at, for the report (B322).
+    /// </summary>
+    /// <remarks>
+    /// <b>Recorded rather than recomputed, because the two can disagree.</b> The
+    /// report is written after the fact and the compose scale follows the view,
+    /// so asking <c>LiveTipScale.For(ComposeScale)</c> at report time answers
+    /// for the zoom the artist happens to be at <em>now</em> rather than the one
+    /// they drew at. The arm would still be named correctly and the number
+    /// beside it could be wrong — which is precisely the class of error this
+    /// entry has made four times, and it is not worth making a fifth for one
+    /// saved field.
+    /// </remarks>
+    internal double ReportTipScale { get; private set; } = 1.0;
+
     internal double LiveTipMarginalMs =>
         LiveTipDabsStamped.TotalMs > 0
             ? LiveTipStampOnlyMs.TotalMs / LiveTipDabsStamped.TotalMs
@@ -1732,10 +1747,8 @@ public partial class MainViewModel
         // rectangle. Only the BUFFER shrinks.
         var info = new SKImageInfo(
             Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        var tipWidth = tipScale >= 1.0
-            ? Scene.Width : Math.Max(1, (int)Math.Ceiling(Scene.Width * tipScale));
-        var tipHeight = tipScale >= 1.0
-            ? Scene.Height : Math.Max(1, (int)Math.Ceiling(Scene.Height * tipScale));
+        var (tipWidth, tipHeight) =
+            Rendering.LiveTipScale.BufferSize(Scene.Width, Scene.Height, tipScale);
         // **Add what arrived, rebuild only when the pass moved** (attempt 6).
         // The tip keeps its contents between publishes, so an ordinary publish
         // stamps the difference rather than the whole outstanding run. A pass
@@ -1756,6 +1769,7 @@ public partial class MainViewModel
         // Set after BeginTip, which wipes the last rectangle through the OLD
         // scale — the buffer it is wiping is still the old one.
         _live.TipScale = tipScale;
+        ReportTipScale = tipScale;
 
         // **The SURFACE carries the scale, never the geometry** (invariant 7).
         // Dab coordinates reach Hash01 untouched, so scatter, size, flow,
