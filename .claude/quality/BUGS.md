@@ -313,6 +313,7 @@ which is a weak test and still far better than none.
   - Cost: S for a solid-tip-only fix behind a measured coverage threshold; M if the sparse case wants its own treatment.
 
 - [ ] **B259** `P2` `canvas` Publish pacing fails intermittently under a full-solution test run `evidence: IPacingClock, PublishPacingIsDrivenByAnInjectableClock`
+  - **A second test, 2026-08-27, and it is not the pacing one — so this entry is about a class rather than about `PublishPacingTests`.** `CheckpointOpenCostTests.ACheckpointedOpenCostsTheSameAtFourTimesTheHistory` failed in a full-solution Release run — *"a checkpointed open grew 2.55x for four times the strokes (20.8 ms to 53.0 ms)"* — and passed **3 of 3** run on its own immediately afterwards. Same distinguishing condition this entry already names: four assemblies on the box at once. It arrived with the checkpoint work merged the same day, so it is new surface rather than a long-standing sighting, and the fix this entry proposes — an injectable clock rather than a looser tolerance — applies to it unchanged.
   - **Evidence.** `PublishPacingTests.EventsWhileTheCanvasIsBehindComposeNothingUntilItCatchesUp`
     failed once in a `dotnet test Lightbox.sln -c Release` run (3276 of 3277 App
     tests passing) and passed on every targeted re-run — 7/7 alone, 3277/3277 for
