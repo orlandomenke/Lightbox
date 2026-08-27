@@ -1276,6 +1276,43 @@ public partial class MainViewModel
     /// 94% of a 1221 ms silence inside the stamp, and this is where inside.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Put a lent tail back, without copying the backup buffer to do it (B189).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This was <c>SKImage.FromBitmap</c>, and that copies.</b> The backup
+    /// buffer is sized to the <em>largest tail the stroke has ever seen</em> and
+    /// never shrinks, so once one fast segment has grown it, every later event
+    /// copied all of it — including the slow segments that needed a fraction.
+    /// The measurement that found it: restoring cost <b>1.08 ms</b> a median
+    /// event against <b>0.06 ms</b> to back the same rectangle up, an eighteen-
+    /// fold asymmetry for work that ought to be symmetric.
+    /// </para>
+    /// <para>
+    /// <b>The backup path had already learned this and said so.</b> Ten lines
+    /// down: <em>"SKImage.FromBitmap on the whole scratch sets up a 33 MB image
+    /// at 4K, every pointer event, to read back a region a few hundred pixels
+    /// across."</em> That lesson was applied to the copy out and not to the copy
+    /// back. <c>PeekPixels</c> wraps the pixels where <c>FromBitmap</c>
+    /// duplicates them, and the source rectangle already bounds what is read.
+    /// </para>
+    /// </remarks>
+    private static void RestoreTail(SKCanvas canvas, SKBitmap backup, SKRectI where)
+    {
+        using var pixels = backup.PeekPixels();
+        using var restore = pixels is null ? null : SKImage.FromPixels(pixels);
+        if (restore is null) return;
+
+        using var src = new SKPaint { BlendMode = SKBlendMode.Src };
+        canvas.DrawImage(
+            restore,
+            new SKRect(0, 0, where.Width, where.Height),
+            new SKRect(where.Left, where.Top, where.Right, where.Bottom),
+            src);
+        canvas.Flush();
+    }
+
     private static double Ms(long since) =>
         (System.Diagnostics.Stopwatch.GetTimestamp() - since) * 1000.0
         / System.Diagnostics.Stopwatch.Frequency;
@@ -2265,26 +2302,12 @@ public partial class MainViewModel
         var restoreAt = System.Diagnostics.Stopwatch.GetTimestamp();
         if (carriesFootprint && _live.TailRegion is { } coverLent && _live.CoverageTailBackup is not null)
         {
-            using var restore = SKImage.FromBitmap(_live.CoverageTailBackup);
-            using var src = new SKPaint { BlendMode = SKBlendMode.Src };
-            _live.CoverageCanvas!.DrawImage(
-                restore,
-                new SKRect(0, 0, coverLent.Width, coverLent.Height),
-                new SKRect(coverLent.Left, coverLent.Top, coverLent.Right, coverLent.Bottom),
-                src);
-            _live.CoverageCanvas.Flush();
+            RestoreTail(_live.CoverageCanvas!, _live.CoverageTailBackup, coverLent);
         }
 
         if (_live.TailRegion is { } lent && _live.TailBackup is not null)
         {
-            using var restore = SKImage.FromBitmap(_live.TailBackup);
-            using var src = new SKPaint { BlendMode = SKBlendMode.Src };
-            _live.ScratchCanvas.DrawImage(
-                restore,
-                new SKRect(0, 0, lent.Width, lent.Height),
-                new SKRect(lent.Left, lent.Top, lent.Right, lent.Bottom),
-                src);
-            _live.ScratchCanvas.Flush();
+            RestoreTail(_live.ScratchCanvas, _live.TailBackup, lent);
             _live.TailRegion = null;
         }
 
