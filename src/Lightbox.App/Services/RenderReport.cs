@@ -69,6 +69,9 @@ internal static class RenderReport
         int TickCount = 0,
         (long Hits, long Misses, long Evictions, long Bytes, long Budget)? FrameCache = null,
         (int Repaired, int Dropped)? FrameEdits = null,
+        IReadOnlyList<string>? FrameDropCallers = null,
+        (int Slow, int SlowWithMiss)? SlowBuilds = null,
+        long? StaleServed = null,
         IReadOnlyList<(string FrameId, int Width, int Height, double Scale, int Cel, string Why)>?
             FrameCacheMisses = null,
         (int Frames, int Layers, int Strokes, double Fps)? Scene = null,
@@ -1228,6 +1231,31 @@ internal static class RenderReport
                 if (facts.WorstBuild is { TotalMs: > 0 } w)
                 {
                     sb.AppendLine("");
+                    if (facts.SlowBuilds is { Slow: > 0 } slow)
+                    {
+                        // **The worst build is one frame; this is every slow one.**
+                        // A capture with a 5,378 ms worst and a 42.68 ms mean
+                        // against a 2.42 median has MANY slow builds, and the
+                        // worst one's attribution says nothing about the rest.
+                        sb.AppendLine(
+                            $"  builds over 100 ms      {slow.Slow}   of which a cache miss was inside:"
+                            + $" {slow.SlowWithMiss}");
+                        if (slow.SlowWithMiss < slow.Slow)
+                        {
+                            sb.AppendLine(
+                                $"  >> {slow.Slow - slow.SlowWithMiss} slow builds had NO cache miss in them, so B332 is not the");
+                            sb.AppendLine(
+                                "     whole story and fixing the cache will not stop the jumping.");
+                        }
+                        else
+                        {
+                            sb.AppendLine(
+                                "  >> EVERY slow build had a cache miss in it, so B332 accounts for");
+                            sb.AppendLine(
+                                "     all of the stalling and the cache is the only thing to fix.");
+                        }
+                    }
+
                     sb.AppendLine(
                         $"  the WORST build alone   {w.TotalMs,8:0.##} ms   — where that one frame went:");
                     var wRest = w.TotalMs - w.DescribeMs - w.ComposeMs - w.HandoffMs;
@@ -1918,6 +1946,16 @@ internal static class RenderReport
             sb.AppendLine($"frame cache               {cache.Bytes / (1024 * 1024)} MB held of {cache.Budget / (1024 * 1024)} MB");
             sb.AppendLine($"  served from memory      {cache.Hits}");
             sb.AppendLine($"  had to render           {cache.Misses}  ({missShare:0.#}%)");
+            if (facts.StaleServed is { } stale)
+            {
+                // **The number that says the fix worked.** Each of these would
+                // have been a full frame render on the UI thread — 797 ms
+                // measured — and is instead the last good pixels handed back
+                // while a worker rebuilds. Printed even at zero: a missing line
+                // and a working cache look identical otherwise.
+                sb.AppendLine(
+                    $"  served stale, rebuilding {stale}   (each one a stall B332 did NOT take)");
+            }
             sb.AppendLine($"  thrown out              {cache.Evictions}");
             // **B332: where the misses come from.** A miss renders the whole
             // frame synchronously on the calling thread — 797 ms measured on a
@@ -1939,6 +1977,11 @@ internal static class RenderReport
                         "     anything asks for this frame — and the next publish always does, so");
                     sb.AppendLine(
                         "     there is no window to warm it in. Widening the repaint (B327) is the");
+                    if (facts.FrameDropCallers is { Count: > 0 } who)
+                    {
+                        sb.AppendLine($"     dropped by: {string.Join(", ", who)}");
+                    }
+
                     sb.AppendLine(
                         "     fix that changes nothing visible; warming after the fact is not.");
                 }
