@@ -422,14 +422,21 @@ internal static class RenderReport
         var slack = period * 0.1;
         var atFloor = measured <= floor + slack;
 
-        // **A gate never gets short and this one does**, which is the finding
-        // of 2026-08-27 and a correction to what this section used to say. The
-        // two clauses below were once independent, so a capture could be told
-        // in one breath that it was at an unimprovable floor and that its
-        // pick-up wait was a queue with something in it. Both were printed
-        // together on the owner's first capture. A section that can contradict
-        // itself is worse than one that says less.
-        var gateLike = stats.Queued == 0 || stats.QueueBestMs > stats.QueueMedianMs * 0.5;
+        // **The tenth percentile, and emphatically not the minimum.** This test
+        // has now been wrong twice in one day in two opposite directions, and
+        // the second time is the instructive one: reading the single smallest
+        // sample, it called a wait whose p10 is 13.67 ms and p90 16.94 ms — 80%
+        // of it inside a 3.3 ms band under one refresh — "not a gate", on the
+        // strength of one 1.61 ms outlier below the tenth percentile. A gate
+        // with a rare escape is still a gate for every frame that does not take
+        // it, and the artist watches the typical frame.
+        //
+        // The clauses below were also once independent, so a capture could be
+        // told in one breath that it sat at an unimprovable floor and that its
+        // pick-up was a queue with something in it. Both printed together on
+        // the owner's first capture. A section that can contradict itself is
+        // worse than one that says less.
+        var gateLike = stats.Queued == 0 || stats.QueueP10Ms > stats.QueueMedianMs * 0.5;
 
         if (atFloor && gateLike)
         {
@@ -442,13 +449,11 @@ internal static class RenderReport
         else if (atFloor)
         {
             sb.AppendLine("  >> THE TYPICAL FRAME IS AT THE FLOOR, AND IT IS NOT A GATE.");
-            sb.AppendLine("     The median pick-up is about a refresh, so the usual frame does");
-            sb.AppendLine("     wait for the screen — but the best is near zero, so a hand-over");
-            sb.AppendLine("     CAN be picked up at once. That is a race the frame usually");
-            sb.AppendLine("     loses, not a floor it cannot pass, and winning it more often");
-            sb.AppendLine("     would take about a refresh off. Read p10 and p90 above: two");
-            sb.AppendLine("     clumps with nothing between them is a missed commit, a filled");
-            sb.AppendLine("     range is a queue. See B321.");
+            sb.AppendLine("     The median pick-up is about a refresh, but a TENTH of frames are");
+            sb.AppendLine("     picked up in well under half of one — so this is not the screen");
+            sb.AppendLine("     holding every frame, it is a race that most of them lose. Winning");
+            sb.AppendLine("     it more often would take about a refresh off. See B321, which");
+            sb.AppendLine("     closed on the opposite reading and would reopen on this one.");
         }
         else
         {
@@ -465,9 +470,10 @@ internal static class RenderReport
 
         if (atFloor && gateLike && stats.Queued > 0)
         {
-            sb.AppendLine("     The wait to be picked up never gets short — its best case is");
-            sb.AppendLine("     close to its typical one — so the render thread is not busy,");
-            sb.AppendLine("     it is being held. That is a gate, not a queue.");
+            sb.AppendLine("     The wait to be picked up never gets short — nine frames in ten");
+            sb.AppendLine("     sit within a whisker of the typical one — so the render thread is");
+            sb.AppendLine("     not busy, it is being held. That is a gate, not a queue, and the");
+            sb.AppendLine("     stray fast one below is an outlier rather than a way through.");
         }
 
         sb.AppendLine();
