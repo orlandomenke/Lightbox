@@ -36,7 +36,7 @@ public sealed record StrokeOverlay(
     /// </summary>
     /// <remarks>
     /// Null whenever the pass has caught up, whenever none has landed yet, and
-    /// whenever it has fallen further behind than <c>LiveTipPlan.MaxDabs</c> —
+    /// whenever restamping it would cost more than <c>LiveTipPlan.MaxMs</c> —
     /// see that type for why the last of those is a fallback rather than a
     /// truncation.
     /// </remarks>

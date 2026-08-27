@@ -154,6 +154,17 @@ which is a weak test and still far better than none.
     B313 made the pass read only the band that moved. On the last capture it read **66% of the mark, and 100% at its worst** — so the band-local optimisation is present and not engaging.
   - **The mechanism is a loop, which is why it runs away rather than settling.** `PostPending` accumulates every dirty region since the last pass. The pass is dispatched at Input priority and waits **119.97 ms** to start, because the UI thread is stamping 7.34 ms per event against a pen delivering every 8.94 — **82% occupied**. Everything drawn during that wait is added to the band. So a starved pass gets a bigger band, a bigger band takes longer, and a longer pass is starved for longer. Nothing in the chain bounds it.
   - **What it costs the artist, and why it is filed from B322 rather than inside it.** With the pass 1100 dabs behind, the live tip cannot help: the budget refuses 40 publishes of 46 and B322's own report line says so — *"if the median is many times the budget then the pass is not keeping up at all, and no tip size fixes that."* **This is the bug under B322**, and B322 cannot be finished while it stands. Owner's call of 2026-08-27, offered the alternatives: chase the pass, not the tip.
+  - **THE CAUSE, found 2026-08-27 15:11, and it was the budget rather than anything it was guarding.** The owner: *"To be clear on smaller sizes it also still jumps. It's just less visible."* That sentence rules out a size-specific fault and points at something proportional to speed, which is what the captures then showed:
+
+    | | cost of a dab | 128 dabs is | one publish wants | outcome |
+    | --- | --- | --- | --- | --- |
+    | small brush | 56.26 us | 7.20 ms | 10 dabs (0.56 ms) | drawn |
+    | size 70+ | **5.45 us** | 0.70 ms | **278 dabs (1.52 ms)** | **refused** |
+    | middle | 17.70 us | 2.27 ms | **158 dabs (2.81 ms)** | **refused** |
+
+    **A single publish's new dabs exceeded the entire budget the moment the brush grew or the hand sped up** — so even the cheap addition path was refused, for one and a half milliseconds of work. A fixed dab count was also the wrong *unit*: a dab measured between 5.45 us and 176 across these captures purely with the brush, so 128 meant anywhere from 0.7 ms to 7.2.
+  - **The budget is a time now — 3 ms a publish, 15% of the measured cycle — converted to dabs through the cost measured on the brush in hand**, with a generous allowance before anything has been timed, because refusing at the start of a stroke refuses at the worst moment. `TheAllowanceFollowsWhatADabActuallyCosts` pins it at all three measured costs and `TheSizeSeventyCaptureIsNoLongerRefused` at the exact case.
+  - **And this is why the band investigation found nothing.** Band 0.01–0.03 Mpx, pass at 9.4 ms, `1.1x` growth while waiting — the pass was never the problem in the captures where the preview was missing. **B331 is real and was not what the artist was feeling.** The instrument built to settle it did its job by exonerating it.
   - **It is not constant — it is size-dependent, and a healthy capture proves the machinery is sound.** Three captures within twenty minutes on the same build lineage:
 
     | | passes | mean | of the mark | live tip drawn |

@@ -41,9 +41,9 @@ public class LiveTipPlanTests(ITestOutputHelper output)
 
                 Assert.True(r.Count > 0, $"an empty range was planned for post {post}, count {count}");
                 Assert.True(
-                    r.Count <= LiveTipPlan.MaxDabs,
+                    r.Count <= LiveTipPlan.UntimedDabs,
                     $"post {post}, count {count} planned {r.Count} dabs — above the budget "
-                    + $"of {LiveTipPlan.MaxDabs}, which is invariant 6 broken the way B322's "
+                    + $"of {LiveTipPlan.UntimedDabs}, which is invariant 6 broken the way B322's "
                     + "fourth attempt broke it");
                 Assert.True(r.From >= post && r.To <= count, $"range {r} escapes [{post}, {count})");
                 worst = Math.Max(worst, r.Count);
@@ -93,11 +93,11 @@ public class LiveTipPlanTests(ITestOutputHelper output)
     [Fact]
     public void JustOverTheBudgetDrawsNothingRatherThanATruncatedTip()
     {
-        var (justUnder, _, _, _) = LiveTipPlan.For(1, 1 + LiveTipPlan.MaxDabs);
-        var (justOver, _, why, _) = LiveTipPlan.For(1, 2 + LiveTipPlan.MaxDabs);
+        var (justUnder, _, _, _) = LiveTipPlan.For(1, 1 + LiveTipPlan.UntimedDabs);
+        var (justOver, _, why, _) = LiveTipPlan.For(1, 2 + LiveTipPlan.UntimedDabs);
 
         Assert.NotNull(justUnder);
-        Assert.Equal(LiveTipPlan.MaxDabs, justUnder!.Value.Count);
+        Assert.Equal(LiveTipPlan.UntimedDabs, justUnder!.Value.Count);
         Assert.Null(justOver);
         Assert.Equal(LiveTipPlan.Skip.TooFarBehind, why);
     }
@@ -147,7 +147,7 @@ public class LiveTipPlanTests(ITestOutputHelper output)
         Assert.Equal(2000, outstanding);
         Assert.Equal(2080, stampFrom);
         Assert.True(
-            range!.Value.To - stampFrom <= LiveTipPlan.MaxDabs,
+            range!.Value.To - stampFrom <= LiveTipPlan.UntimedDabs,
             "the work planned is above the budget even though only the delta is stamped");
     }
 
@@ -181,11 +181,63 @@ public class LiveTipPlanTests(ITestOutputHelper output)
                     var (range, from, _, _) = LiveTipPlan.For(post, count, post, held);
                     if (range is not { } r) continue;
                     Assert.True(
-                        r.To - from <= LiveTipPlan.MaxDabs,
+                        r.To - from <= LiveTipPlan.UntimedDabs,
                         $"post {post}, count {count}, held to {held} planned {r.To - from} dabs");
                     Assert.True(from >= r.From && from <= r.To, $"stampFrom {from} escapes {r}");
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// <b>The budget is a time, and a dab count was both the wrong unit and the
+    /// wrong size.</b> A dab measured between 5.45 us and 176 across the owner's
+    /// captures, purely with the brush, so a fixed 128 was 0.7 ms on one brush
+    /// and 7.2 ms on another — and smaller than a single publish's new dabs the
+    /// moment the brush grew, refusing 1.52 ms of work.
+    /// </summary>
+    [Theory]
+    [InlineData(0.00545, 550)]    // size 70: 278 dabs a publish were refused at 128
+    [InlineData(0.0177, 169)]     // the middle capture: 158 wanted
+    [InlineData(0.05626, 53)]     // a small brush: 10 wanted, so a small allowance is fine
+    public void TheAllowanceFollowsWhatADabActuallyCosts(double perDabMs, int atLeast)
+    {
+        var allowed = LiveTipPlan.Allowance(perDabMs);
+        output.WriteLine($"{perDabMs * 1000:0.##} us a dab -> {allowed} dabs for {LiveTipPlan.MaxMs} ms");
+
+        Assert.True(allowed >= atLeast, $"only {allowed} dabs allowed at {perDabMs * 1000:0.##} us");
+        // And it never buys more than the time budget, whatever the cost says.
+        Assert.True(allowed * perDabMs <= LiveTipPlan.MaxMs + 0.001,
+            $"{allowed} dabs at {perDabMs} ms each is {allowed * perDabMs} ms, over the budget");
+    }
+
+    /// <summary>
+    /// Nothing timed yet means the start of a stroke, which is the worst moment
+    /// to refuse: there is no measurement precisely because nothing has been
+    /// drawn, and the first events are when a missing preview is most obvious.
+    /// </summary>
+    [Fact]
+    public void AnUntimedBrushGetsAGenerousAllowance()
+    {
+        Assert.Equal(LiveTipPlan.UntimedDabs, LiveTipPlan.Allowance(0));
+        Assert.True(LiveTipPlan.UntimedDabs >= 500, "the untimed allowance is stingy again");
+    }
+
+    /// <summary>
+    /// The owner's size-70 capture, as numbers: 278 new dabs a publish, refused
+    /// by the old 128 and drawn now.
+    /// </summary>
+    [Fact]
+    public void TheSizeSeventyCaptureIsNoLongerRefused()
+    {
+        const double perDab = 0.00545;
+        var (range, from, why, _) = LiveTipPlan.For(
+            postStampedCount: 1000, dabCount: 1278, tipFrom: 1000, tipStampedTo: 1000,
+            perDabMs: perDab);
+        output.WriteLine($"278 new dabs at {perDab * 1000:0.##} us -> {why}");
+
+        Assert.Equal(LiveTipPlan.Skip.None, why);
+        Assert.NotNull(range);
+        Assert.Equal(278, range!.Value.To - from);
     }
 }

@@ -50,7 +50,43 @@ internal static class LiveTipPlan
     /// leaving it unmeasured is how the fourth attempt's nine-events assumption
     /// survived long enough to reach a person.
     /// </remarks>
-    public const int MaxDabs = 128;
+    /// <summary>
+    /// What one publish may spend restamping the tip, in milliseconds.
+    /// </summary>
+    /// <remarks>
+    /// <b>A time, because a dab count was the wrong unit and the wrong size.</b>
+    /// The measured cost of a dab ranges from 5.45 us to 176 across the owner's
+    /// captures, entirely with the brush — so a fixed count of 128 was 0.7 ms on
+    /// one brush and 7.2 ms on another. Worse, it was smaller than a single
+    /// publish's worth of new dabs the moment the brush grew: 278 wanted against
+    /// 128 allowed, for a measured 1.52 ms of work. **The tip was refused on
+    /// affordable work in every capture where the preview was missing.** Three
+    /// milliseconds is 15% of the measured 20 ms publish cycle and covers every
+    /// case those captures contain.
+    /// </remarks>
+    public const double MaxMs = 3.0;
+
+    /// <summary>
+    /// The allowance before any dab has been timed — deliberately generous.
+    /// </summary>
+    /// <remarks>
+    /// Refusing at the start of a stroke is refusing at the worst moment: there
+    /// is no measurement yet precisely because nothing has been drawn, and the
+    /// first events of a stroke are when a missing preview is most obvious.
+    /// </remarks>
+    public const int UntimedDabs = 512;
+
+    /// <summary>
+    /// How many dabs <see cref="MaxMs"/> buys at the measured cost per dab.
+    /// </summary>
+    /// <param name="perDabMs">
+    /// Median stamp cost over median dabs stamped, or zero when nothing has been
+    /// timed yet.
+    /// </param>
+    public static int Allowance(double perDabMs) =>
+        perDabMs > 0
+            ? Math.Clamp((int)(MaxMs / perDabMs), 32, 40_000)
+            : UntimedDabs;
 
     /// <param name="From">First dab the pass has not seen.</param>
     /// <param name="To">One past the last dab stamped.</param>
@@ -103,8 +139,10 @@ internal static class LiveTipPlan
     /// </para>
     /// </remarks>
     public static (Range? Range, int StampFrom, Skip Why, int Outstanding) For(
-        int postStampedCount, int dabCount, int tipFrom = -1, int tipStampedTo = -1)
+        int postStampedCount, int dabCount, int tipFrom = -1, int tipStampedTo = -1,
+        double perDabMs = 0)
     {
+        var budget = Allowance(perDabMs);
         // Below zero means no pass has landed. OverlayFor shows the raw scratch
         // in that case, which already carries every dab, so a tip would be the
         // same ink drawn twice.
@@ -121,7 +159,7 @@ internal static class LiveTipPlan
 
         var stampFrom = canAdd ? tipStampedTo : postStampedCount;
         var work = dabCount - stampFrom;
-        if (work > MaxDabs) return (null, 0, Skip.TooFarBehind, outstanding);
+        if (work > budget) return (null, 0, Skip.TooFarBehind, outstanding);
 
         return (new Range(postStampedCount, dabCount), stampFrom, Skip.None, outstanding);
     }

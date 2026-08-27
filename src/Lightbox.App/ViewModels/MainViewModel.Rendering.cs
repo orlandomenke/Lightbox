@@ -1660,8 +1660,14 @@ public partial class MainViewModel
         // answers a question nobody asked — and answered it as "the whole
         // stroke", which is what the fourth attempt then restamped every
         // publish. See LivePaintSession.PostStampedDabs and B329.
+        // The cost of a dab, measured on this brush rather than assumed: the
+        // budget is a time and this is what converts it into dabs. Zero until
+        // something has been stamped, which LiveTipPlan reads as "be generous".
+        var perDabMs = LiveTipDabsStamped.MedianMs > 0
+            ? LiveTipStampMs.MedianMs / LiveTipDabsStamped.MedianMs
+            : 0;
         var (range, planStampFrom, why, outstanding) = Rendering.LiveTipPlan.For(
-            _live.PostStampedDabs, dabs.Count, _live.TipFrom, _live.TipStampedTo);
+            _live.PostStampedDabs, dabs.Count, _live.TipFrom, _live.TipStampedTo, perDabMs);
         if (outstanding > 0) LiveTipOutstanding.Add(outstanding);
         if (why == Rendering.LiveTipPlan.Skip.TooFarBehind) LiveTipTooFarBehind++;
         if (why == Rendering.LiveTipPlan.Skip.NoPassYet) LiveTipNoPass++;

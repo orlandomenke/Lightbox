@@ -1481,7 +1481,7 @@ internal static class RenderReport
             {
                 sb.AppendLine(
                     $"live tip drawn            {tip.Drawn} of {considered}   too far behind {tip.TooFarBehind}"
-                    + $"   (budget {Rendering.LiveTipPlan.MaxDabs} dabs)");
+                    + $"   (budget {Rendering.LiveTipPlan.MaxMs} ms a publish)");
                 sb.AppendLine(
                     $"  dabs outstanding        median {tip.OutstandingMedian,7:0.#}   p90 {tip.OutstandingP90,7:0.#}"
                     + $"   p99 {tip.OutstandingP99,7:0.#}   worst {tip.OutstandingWorst,7:0.#}");
