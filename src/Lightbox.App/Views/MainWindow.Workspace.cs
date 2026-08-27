@@ -350,7 +350,7 @@ public partial class MainWindow
              _vm.LiveTipNewDabs.MedianMs, _vm.LiveTipNewDabs.PercentileMs(0.9),
              _vm.LiveTipNewDabs.WorstMs),
             (_vm.DamDeferrals, _vm.DamReleasedByPresent, _vm.DamReleasedByTimer,
-             _vm.DamReleasedByPresent + _vm.DamReleasedByTimer,
+             _vm.DamHoldsTimed,
              _vm.DamHeldTotalMs, _vm.DamHeldWorstMs,
              _vm.DamLateTotalMs, _vm.DamLateWorstMs, _vm.DamReleasedByEvent),
             (_vm.CycleTally.MedianMs, _vm.CycleTally.MeanMs, _vm.CycleTally.Count,

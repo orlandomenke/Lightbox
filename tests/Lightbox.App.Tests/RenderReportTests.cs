@@ -67,7 +67,11 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         (int Hits, int Misses, long Bytes)? textureResidency = null,
         (long Frames, long Flattens)? awaitingUnpin = null,
         (int Frames, int Flattens)? pinned = null,
-        PublishTally? publishesByCaller = null) =>
+        PublishTally? publishesByCaller = null,
+        Lightbox.App.Rendering.StrokeToScreen.Stats? strokeWait = null,
+        (int Deferrals, int ByPresent, int ByTimer, int HoldsTimed,
+         double HeldTotalMs, double HeldWorstMs,
+         double LateTotalMs, double LateWorstMs, int ByEvent)? dam = null) =>
         new(backend, backend != "GPU", onGpu, gpuFailed, maxTexture,
             docWidth, docHeight, 1.0, "Full", 1.0, durableEnabled, hasPresented,
             Pacing: pacing, PresentWait: presentWait,
@@ -75,7 +79,8 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
             AnimationFrames: animationFrames, RenderMedianMs: renderMedianMs,
             TextureResidency: textureResidency, GpuCompositeOptedIn: gpuCompositeOptedIn,
             AwaitingUnpin: awaitingUnpin, Pinned: pinned,
-            PublishesByCaller: publishesByCaller);
+            PublishesByCaller: publishesByCaller,
+            StrokeWait: strokeWait, Dam: dam);
 
     /// <summary>
     /// The four states behind one boolean, and the reason this test exists: the
