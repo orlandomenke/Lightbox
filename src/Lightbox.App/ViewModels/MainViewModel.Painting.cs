@@ -1244,6 +1244,36 @@ public partial class MainViewModel
     internal int LiveWorstProvisionalTail { get; private set; }
 
     /// <summary>
+    /// Dabs stamped once and left alone, per pointer event (B322 attempt 6).
+    /// </summary>
+    /// <remarks>
+    /// <b>The stamp path reports one mean and one worst, and that is not enough
+    /// to see a leak in it.</b> `stamping the dabs` was 4.8 ms against a pen
+    /// delivering every 5.46 ms, which is near saturation, and nothing said
+    /// whether that is a fixed cost per event or one that grows with the mark.
+    /// The same single-number blindness is what let B322's fourth attempt
+    /// restamp the whole stroke per publish while every test passed: a mean
+    /// cannot show you that a cost is proportional to something.
+    /// </remarks>
+    internal Services.Tally LiveStampSettled { get; } = new();
+
+    /// <summary>
+    /// Dabs re-stamped every event because they are still provisional, per
+    /// event (B322 attempt 6).
+    /// </summary>
+    /// <remarks>
+    /// <b>This is the number the code beside it has been guessing about.</b> The
+    /// comment where the tail is counted says it is *"suspected to grow with pen
+    /// speed, which would make a fast stroke cost more per event than a slow one
+    /// for reasons nothing else in the report explains"* — a suspicion recorded
+    /// in 2026 and never measured, because only the worst was kept and one
+    /// sample cannot show a distribution. A median far below the p90 means the
+    /// tail spikes on fast strokes and the stamp is not bounded work; the two
+    /// close together means it is, and the fast-stroke cost is elsewhere.
+    /// </remarks>
+    internal Services.Tally LiveStampProvisional { get; } = new();
+
+    /// <summary>
     /// The priority the live post-process is queued at (B313).
     /// </summary>
     /// <remarks>
@@ -2238,6 +2268,13 @@ public partial class MainViewModel
         // one for reasons nothing else in the report explains.
         var provisional = dabs.Count - _live.StableDabs;
         if (provisional > LiveWorstProvisionalTail) LiveWorstProvisionalTail = provisional;
+
+        // B322 attempt 6: both halves as distributions, not just the worst of
+        // one of them. Recorded here rather than beside each StampDabRange call
+        // so a settled prefix that never moved still counts as zero — a stamp
+        // that did nothing is data about whether the cost is fixed.
+        LiveStampSettled.Add(Math.Max(0, _live.StableDabs - settledFrom));
+        LiveStampProvisional.Add(Math.Max(0, provisional));
 
         // For a brush whose only post-process is the ceiling, apply it here and
         // skip the worker entirely (B293).

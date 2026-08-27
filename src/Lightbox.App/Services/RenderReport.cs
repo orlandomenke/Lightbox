@@ -88,6 +88,9 @@ internal static class RenderReport
          double OutstandingP90, double OutstandingP99,
          double StampMedianMs, double StampWorstMs,
          double NewDabsMedian, double NewDabsP90, double NewDabsWorst)? LiveTip = null,
+        (double SettledMedian, double SettledP90,
+         double ProvisionalMedian, double ProvisionalP90, double ProvisionalWorst,
+         long Events)? StampShape = null,
         (int Deferrals, int ByPresent, int ByTimer, int HoldsTimed,
          double HeldTotalMs, double HeldWorstMs,
          double LateTotalMs, double LateWorstMs, int ByEvent)? Dam = null,
@@ -1248,6 +1251,48 @@ internal static class RenderReport
         }
 
         sb.AppendLine($"  stamping the dabs       mean {s.Stamp.MeanMs,7:0.##} ms   worst {s.Stamp.WorstMs,7:0.##} ms");
+        // **What that one number is made of** (B322 attempt 6). A mean cannot
+        // show that a cost is proportional to something, which is exactly the
+        // blindness that let the fourth attempt restamp the whole stroke per
+        // publish with every test green. The settled half is stamped once; the
+        // provisional half is re-stamped every event, and the comment beside it
+        // in the paint path has suspected since it was written that the tail
+        // grows with pen speed without anyone measuring it.
+        if (facts.StampShape is { Events: > 8 } shape)
+        {
+            sb.AppendLine(
+                $"    settled per event     median {shape.SettledMedian,7:0.#}   p90 {shape.SettledP90,7:0.#}   dabs (stamped once)");
+            sb.AppendLine(
+                $"    provisional per event median {shape.ProvisionalMedian,7:0.#}   p90 {shape.ProvisionalP90,7:0.#}"
+                + $"   worst {shape.ProvisionalWorst,7:0.#}   dabs (re-stamped EVERY event)");
+
+            var perEvent = shape.SettledMedian + shape.ProvisionalMedian;
+            if (perEvent > 0)
+            {
+                sb.AppendLine(
+                    $"  >> A typical event stamps {perEvent:0.#} dabs, so {s.Stamp.MeanMs / perEvent * 1000:0.#} us a dab.");
+            }
+
+            // The suspicion the paint path records, answered.
+            if (shape.ProvisionalMedian > 0 && shape.ProvisionalP90 > shape.ProvisionalMedian * 3)
+            {
+                sb.AppendLine(
+                    $"  >> The provisional tail SPIKES — p90 is {shape.ProvisionalP90 / shape.ProvisionalMedian:0.#}x the median — so a fast");
+                sb.AppendLine(
+                    "     stroke really does cost more per event than a slow one, and the stamp");
+                sb.AppendLine(
+                    "     is not bounded work. That is the cost to chase before any preview fix.");
+            }
+            else if (shape.ProvisionalMedian > 0)
+            {
+                sb.AppendLine(
+                    "  >> The provisional tail is steady between the median and the p90, so the");
+                sb.AppendLine(
+                    "     stamp costs about the same per event however fast the pen moves. A");
+                sb.AppendLine(
+                    "     fast stroke's cost is then elsewhere, not here.");
+            }
+        }
         var perPublish = s.Publishes == 0 ? 0 : (double)s.Events / s.Publishes;
         sb.AppendLine($"publishes carrying ink    {s.Publishes}  ({perPublish:0.#} events per publish)");
         if (facts.Dam is { Deferrals: > 0 } dam)
