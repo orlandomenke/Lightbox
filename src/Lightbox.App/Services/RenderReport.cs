@@ -1683,11 +1683,22 @@ internal static class RenderReport
                         sb.AppendLine("     Dispatch it sooner, or stop the band accruing while it waits —");
                         sb.AppendLine("     making the pass itself faster treats the wrong end.");
                     }
-                    else
+                    else if (share >= 25)
                     {
                         sb.AppendLine("  >> The band was already this large when the pass was asked for, so");
                         sb.AppendLine("     the wait is not what made it big. Whatever is dirtying that much");
                         sb.AppendLine("     of the mark per event is the cause, and the pass is its victim.");
+                    }
+                    else
+                    {
+                        // **Says nothing alarming about a healthy capture**, which
+                        // the first version did: it announced that something was
+                        // dirtying "that much of the mark" over a band of 2.2%.
+                        // A verdict that fires whatever the numbers say is not a
+                        // verdict, and this section has had three of those.
+                        sb.AppendLine("  >> The band is small and did not grow while the pass waited, so");
+                        sb.AppendLine("     nothing here is wrong. B331's pathology is a band that reaches");
+                        sb.AppendLine("     most of the mark; this capture is not showing it.");
                     }
                 }
                 if (share > 50)
