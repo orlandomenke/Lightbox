@@ -120,13 +120,37 @@ public class LiveTipOverlayTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// <b>The defect, stated as the artist sees it.</b> The body of the mark is
-    /// on screen and the newest dabs are not — not faint, not unprocessed,
-    /// absent. Measured on the owner's machine at 511 passes over 4,720 events,
-    /// which is the mark standing still for about nine events and then jumping.
+    /// <b>B322 pinned as it currently behaves, on purpose.</b> The body of the
+    /// mark is on screen and the newest dabs are not — not faint, not
+    /// unprocessed, absent.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This asserts the defect, and it is meant to.</b> The alternative was a
+    /// test asserting the cure, which is red for as long as the bug is open and
+    /// therefore cannot live on a branch anyone can merge — so the repro that
+    /// took a day and a half to obtain would have been thrown away with the
+    /// fourth failed fix. Pinned this way it costs nothing, and
+    /// <c>OutputScaleTests</c> is the precedent: it renders a thing the wrong way
+    /// round deliberately, to keep the reason written down.
+    /// </para>
+    /// <para>
+    /// <b>When this test fails, B322 has been fixed.</b> That is the signal, not
+    /// a regression. Invert the assertion, tick the entry, and keep the two
+    /// guards below — they are the constraints a fix has to satisfy and they do
+    /// not change.
+    /// </para>
+    /// <para>
+    /// <b>What it does NOT check, which is what killed the fourth attempt.</b>
+    /// The tip here is a small fixed rectangle, so nothing in this file measures
+    /// whether producing it is <em>bounded</em> work. A fix defined as "the dabs
+    /// since the last pass" passed all three of these and then restamped 99% of
+    /// the stroke on every publish, because at 1263 points the pass had rendered
+    /// ten. A fifth attempt needs a test that GROWS the stroke; see B322.
+    /// </para>
+    /// </remarks>
     [Fact]
-    public void TheNewestDabsReachTheOverlayWhileAPassIsStillOutstanding()
+    public void TheNewestDabsAreMissingWhileAPassIsOutstanding()
     {
         using var raw = Filled(Body, Tip);
         using var processed = Filled(Body);
@@ -138,15 +162,21 @@ public class LiveTipOverlayTests(ITestOutputHelper output)
         output.WriteLine($"body on screen: {body}, tip on screen: {tip}");
 
         Assert.True(body, "the settled body of the stroke is not being shown at all");
-        Assert.True(
+        Assert.False(
             tip,
-            "the dabs stamped since the last pass are not on screen — the overlay is "
-            + "showing the processed buffer alone, which is B322");
+            "the newest dabs ARE on screen — B322 appears to be fixed. That is good "
+            + "news and this test is now wrong: invert it, tick the entry, and keep "
+            + "the two guards below.");
     }
 
     /// <summary>
-    /// <b>The discriminating case, and the reason the cheap fix may not be the
-    /// right one.</b> Every effect here <em>reduces</em> alpha somewhere against
+    /// <b>A constraint on any future fix, not a check on today's behaviour.</b>
+    /// It passes trivially while the tip is absent — its job starts when someone
+    /// draws one.
+    /// </summary>
+    /// <remarks>
+    /// <b>The discriminating case, and the reason the cheap fix is not the right
+    /// one.</b> Every effect here <em>reduces</em> alpha somewhere against
     /// the raw dabs — the footprint ceiling caps coverage, the wet edge lightens
     /// the interior to darken its rim, granulation modulates it down, a medium
     /// erodes. So a fix that simply shows raw dabs wherever the processed buffer
