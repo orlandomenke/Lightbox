@@ -74,6 +74,8 @@ internal static class RenderReport
         IReadOnlyList<(double Ms, double AtSeconds, int Points, int Dabs, long Misses, double DescribeMs)>?
             SlowBuildLog = null,
         (double LostMs, double SessionMs)? StallCensus = null,
+        IReadOnlyList<(double Ms, double AtSeconds, int Points, int Outstanding, bool TipRefused, bool Missed)>?
+            PreviewGaps = null,
         IReadOnlyList<(string FrameId, int Width, int Height, double Scale, int Cel, string Why)>?
             FrameCacheMisses = null,
         (int Frames, int Layers, int Strokes, double Fps)? Scene = null,
@@ -1295,6 +1297,43 @@ internal static class RenderReport
                             sb.AppendLine(
                                 $"    {b.AtSeconds,7:0.#} s {b.Ms,9:0} {b.DescribeMs,12:0}"
                                 + $" {b.Points,9} {b.Dabs,8} {b.Misses,8}");
+                        }
+
+                        // **What the artist actually saw stop.** A build census
+                        // counts frames that took too long to make; this counts
+                        // moments the mark stopped moving under the pen. The two
+                        // sets barely overlap, and the owner reported several
+                        // stalls in a session whose build census found one.
+                        if (facts.PreviewGaps is { Count: > 0 } gaps)
+                        {
+                            sb.AppendLine("");
+                            sb.AppendLine(
+                                $"  the preview stopped {gaps.Count} times while the pen was down:");
+                            sb.AppendLine(
+                                "         at    gap ms   points  outstanding   why");
+                            foreach (var g in gaps)
+                            {
+                                var why = g.TipRefused
+                                    ? (g.Missed ? "tip refused + cache miss" : "TIP REFUSED (frame was on time)")
+                                    : g.Missed ? "cache miss" : "publish gapped";
+                                sb.AppendLine(
+                                    $"    {g.AtSeconds,7:0.#} s {g.Ms,9:0} {g.Points,8} {g.Outstanding,12}   {why}");
+                            }
+
+                            var refused = gaps.Count(g => g.TipRefused);
+                            sb.AppendLine(
+                                $"  >> {refused} of {gaps.Count} were the tip being REFUSED, not a slow frame.");
+                            if (refused > 0)
+                            {
+                                sb.AppendLine(
+                                    "     Those frames arrived on time carrying a mark that had stopped");
+                                sb.AppendLine(
+                                    "     growing, which no timer on the build can see. That is B322,");
+                                sb.AppendLine(
+                                    "     and it is why a build census counts one stall in a session");
+                                sb.AppendLine(
+                                    "     the artist experienced as stalling repeatedly.");
+                            }
                         }
 
                         var midStroke = log.Count(b => b.Points > 0);

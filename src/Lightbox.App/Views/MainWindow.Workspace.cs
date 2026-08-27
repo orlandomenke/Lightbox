@@ -330,6 +330,7 @@ public partial class MainWindow
             _vm.SlowBuilds,
             _vm.SlowBuildLog,
             _vm.StallCensus,
+            _vm.PreviewGaps,
             _vm.FrameCacheMissLog,
             _vm.SceneShape,
             Canvas.AnimationFrames,

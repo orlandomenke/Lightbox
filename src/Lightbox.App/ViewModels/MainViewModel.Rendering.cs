@@ -495,6 +495,52 @@ public partial class MainViewModel
     /// </remarks>
     internal const double StallMs = 50.0;
 
+    private readonly List<(double Ms, double AtSeconds, int Points, int Outstanding, bool TipRefused, bool Missed)>
+        _previewGaps = [];
+
+    private long _lastTipRefusals;
+    private long _lastCycleMisses;
+
+    /// <summary>
+    /// Every gap between publishes long enough to see, while a stroke was in
+    /// flight, and what was missing from it (B332).
+    /// </summary>
+    /// <remarks>
+    /// <b>The census the artist would recognise.</b> A build census counts
+    /// frames that took too long to make; this counts moments where the mark
+    /// stopped moving under the pen, which is a different set and the one being
+    /// complained about. A publish that gapped shows as a large Ms; a publish
+    /// that arrived on time with no tip shows as TipRefused, and those do not
+    /// overlap — the second is a frame that was never late at all.
+    /// </remarks>
+    internal IReadOnlyList<(double Ms, double AtSeconds, int Points, int Outstanding, bool TipRefused, bool Missed)>
+        PreviewGaps => _previewGaps;
+
+    private void NotePreviewGap(long publishAt)
+    {
+        var ms = (publishAt - _publish.LastPublishTicks) * 1000.0
+                 / System.Diagnostics.Stopwatch.Frequency;
+        var refusedNow = LiveTipTooFarBehind > _lastTipRefusals;
+        var missedNow = _cache.Misses > _lastCycleMisses;
+        _lastTipRefusals = LiveTipTooFarBehind;
+        _lastCycleMisses = _cache.Misses;
+
+        // Only while a stroke is in flight: a gap with the pen up is the
+        // application idling, which is correct and is not a stall.
+        if (_strokeBuilder.Current is not { } live || !_strokeBuilder.IsActive) return;
+        if (ms <= StallMs && !refusedNow) return;
+        if (_previewGaps.Count >= 24) return;
+
+        _previewGaps.Add((
+            ms,
+            (System.Diagnostics.Stopwatch.GetTimestamp() - AppStartedTicks)
+                / (double)System.Diagnostics.Stopwatch.Frequency,
+            live.Points.Count,
+            Math.Max(0, _live.PostStampedDabs > 0 ? _live.StableDabs - _live.PostStampedDabs : 0),
+            refusedNow,
+            missedNow));
+    }
+
     /// <summary>Milliseconds lost to stalls, and the session's length (B332).</summary>
     internal (double LostMs, double SessionMs) StallCensus =>
         (_stallLostMs,
@@ -917,6 +963,15 @@ public partial class MainViewModel
         // previous publish until this line moves it.
         if (_publish.LastPublishTicks != 0)
         {
+            // **B332/B322: a preview stall is not a slow frame.** The owner
+            // reported the preview freezing several times in a session whose
+            // build census found ONE stall — because a frame that arrives on
+            // time carrying a mark that has stopped growing is not slow, it is
+            // empty. Two ways that happens: the publish itself gapped, or it
+            // arrived without a tip because the budget refused one. Both are
+            // invisible to a timer on the build, and both are what the artist
+            // calls stalling.
+            NotePreviewGap(publishAt);
             _cycleTally.Add((publishAt - _publish.LastPublishTicks)
                             * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
         }
