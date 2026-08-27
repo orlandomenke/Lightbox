@@ -454,6 +454,10 @@ public partial class MainViewModel
     /// <inheritdoc cref="FrameRegionRepaints"/>
     internal int FrameRenderDrops { get; private set; }
 
+    /// <summary>What the frame cache last had to render, and why (B332).</summary>
+    internal IReadOnlyList<(string FrameId, int Width, int Height, double Scale, int Cel, string Why)>
+        FrameCacheMissLog => _cache.RecentMisses;
+
     private bool TryRepaintFrameRegion(string frameId, GeometryOps.BBox? repaintBounds)
     {
         if (repaintBounds is not { } bounds) return false;

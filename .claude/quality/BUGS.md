@@ -362,6 +362,19 @@ which is a weak test and still far better than none.
     | 22:59 | document | 2.74 ms | **3170 ms** |
 
     Three to six **seconds** on the UI thread, against a median of two milliseconds and a pen delivering every 5.1. That is what "it jumps" is: the mark freezes for seconds and then arrives in one step. Nothing about a tip, a budget or a dab's cost touches it.
+  - **FIRST ROOT CAUSE FOUND IN THE CODE, and it explains the 0-of-1 repair rate exactly.** The capture of 23:21 reads `edits repaired in place 0 of 1   dropped whole 1` — when the invalidate path runs it never repairs. `MainViewModel.Documents.RebakeLiveSamples` is why: it calls **`InvalidateFrameRender(painted.Id)` with no bounds**, and `TryRepaintFrameRegion`'s first line is `if (repaintBounds is not { } bounds) return false`. **The repair is unreachable from that call site by construction**, so the frame is dropped whole and the next lookup pays a full render on the UI thread. It fires whenever a frame carries a stroke with `SampleSource.AllLayersLive`, on every edit — the document-wide guard in front of it was removed on measurement grounds, which is right and is not the problem.
+  - **The misses are not one thing, and that is the finding rather than an obstacle.** Five misses, two key sizes, two frames:
+
+    ```
+    frame f_1a0451  960x540@1     cel 0   not held
+    frame f_1a0451  960x540@1     cel 0   not held
+    frame f_1a03dc  3840x2160@1   cel 0   not held
+    frame f_1a0451  3840x2160@1   cel 0   not held
+    frame f_1a0451  3840x2160@1   cel 0   not held
+    ```
+
+    The **same drawing at two sizes**, neither of which is the thumbnail path — `ThumbSource` and the navigator both ask at `Scene.Width, Scene.Height`. Who asks at exactly a quarter is not yet known and two rounds of grepping did not find it, so `Get` now takes a `[CallerMemberName]` and the miss log names the caller. **One defaulted parameter in place of a third round of guessing.**
+  - **The owner's instruction, 2026-08-27, and it is the right one:** *"the most important part is to find the root cause. Without the root cause we are always circumventing which could bite down the line."* Offered three fixes — render off the UI thread (covers every cause), chase the causes one at a time, or widen the repaint alone — and refused all three in favour of finding out why. Recorded because two of those would have shipped while the quarter-size asker was still unexplained.
   - **CONFIRMED on the owner's machine, 2026-08-27 23:10, by the instrument built to refute it.** The worst build of the capture, attributed to the phase that one frame spent its time in rather than to a mean over every frame:
 
     ```

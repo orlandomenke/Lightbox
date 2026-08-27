@@ -69,6 +69,8 @@ internal static class RenderReport
         int TickCount = 0,
         (long Hits, long Misses, long Evictions, long Bytes, long Budget)? FrameCache = null,
         (int Repaired, int Dropped)? FrameEdits = null,
+        IReadOnlyList<(string FrameId, int Width, int Height, double Scale, int Cel, string Why)>?
+            FrameCacheMisses = null,
         (int Frames, int Layers, int Strokes, double Fps)? Scene = null,
         (long Requested, long Delivered)? AnimationFrames = null,
         double RenderMedianMs = 0,
@@ -1923,7 +1925,7 @@ internal static class RenderReport
             // the capture that confirmed it. So the question is not how many
             // misses there are but what CAUSED them, and the leading candidate
             // is a committed stroke the incremental repaint could not patch.
-            if (facts.FrameEdits is { } edits && edits.Repaired + edits.Dropped > 0)
+            if (facts.FrameEdits is { } edits)
             {
                 var edited = edits.Repaired + edits.Dropped;
                 sb.AppendLine(
@@ -1940,14 +1942,48 @@ internal static class RenderReport
                     sb.AppendLine(
                         "     fix that changes nothing visible; warming after the fact is not.");
                 }
-                else
+                else if (edited > 0)
                 {
                     sb.AppendLine(
                         "  >> Every edit was patched in place, so the misses above came from");
                     sb.AppendLine(
-                        "     somewhere else — a new size or scale key, or a frame never held.");
+                        "     somewhere else. B332's drop path is NOT the cause here.");
+                }
+                else
+                {
                     sb.AppendLine(
-                        "     B332's drop path is NOT the cause here; find the key that changed.");
+                        "  >> NO edit went through the invalidate path at all this session, so");
+                    sb.AppendLine(
+                        "     committing a stroke is not what caused the misses. Printed at zero");
+                    sb.AppendLine(
+                        "     on purpose: a missing line is produced equally by \"nothing happened\"");
+                    sb.AppendLine(
+                        "     and \"the counter is not wired\", and a capture cannot tell them apart.");
+                }
+
+                // What the misses actually WERE. Five misses and a stall is a
+                // fact about cost; this is the fact about cause, and the three
+                // causes need three different fixes.
+                if (facts.FrameCacheMisses is { Count: > 0 } misses)
+                {
+                    sb.AppendLine($"  the last {misses.Count} misses, and what each was for:");
+                    foreach (var m in misses)
+                    {
+                        sb.AppendLine(
+                            $"    frame {m.FrameId[..Math.Min(8, m.FrameId.Length)]}"
+                            + $"  {m.Width}x{m.Height}@{m.Scale:0.###}  cel {m.Cel}   {m.Why}");
+                    }
+
+                    var sizes = misses.Select(m => $"{m.Width}x{m.Height}@{m.Scale:0.###}").Distinct().Count();
+                    if (sizes > 1)
+                    {
+                        sb.AppendLine(
+                            $"  >> {sizes} DIFFERENT sizes or scales among them, so the cache is being");
+                        sb.AppendLine(
+                            "     asked for the same drawing at keys it does not hold. Each new key is");
+                        sb.AppendLine(
+                            "     a full render on the calling thread. That is the fix to chase.");
+                    }
                 }
             }
         }
