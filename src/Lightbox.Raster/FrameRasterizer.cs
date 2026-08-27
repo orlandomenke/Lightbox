@@ -221,15 +221,41 @@ public static class FrameRasterizer
     /// all layers. Null everywhere that has no stack to hand — a thumbnail, a
     /// symbol tile — and those fall back to sampling the layer itself.
     /// </param>
+    /// <param name="checkpoint">
+    /// A rendering of the frame's leading strokes to start from instead of
+    /// replaying them (B30), <b>already validated by the caller</b> through
+    /// <see cref="FrameCheckpoints.Usable"/>. Null is the ordinary case and the
+    /// default: this is opt-in, so a caller that has not thought about it — an
+    /// export, a thumbnail, a symbol tile — gets the record replayed in full, as
+    /// it always has been.
+    /// </param>
     public static SKBitmap Materialize(
         Frame frame, int width, int height, double outputScale = 1.0, int celIndex = 0,
-        SKBitmap? backdrop = null)
+        SKBitmap? backdrop = null, StrokeCheckpoint? checkpoint = null)
     {
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
         var scaled = Scaled(info, outputScale);
         var bitmap = new SKBitmap(scaled);
         using var canvas = new SKCanvas(bitmap);
         canvas.Clear(SKColors.Transparent);
+
+        var replayFrom = 0;
+        if (checkpoint is not null && CheckpointApplies(frame, checkpoint, outputScale, width, height))
+        {
+            using var stored = FrameCheckpoints.Pixels(checkpoint);
+            if (stored is not null)
+            {
+                // Drawn 1:1, never scaled — `CheckpointApplies` has established
+                // the surface is document-sized. A checkpoint is the only image
+                // in this method that must not be resampled: it is a rendering of
+                // strokes, so if it does not fit, the answer is the strokes.
+                canvas.DrawBitmap(stored, 0, 0);
+                replayFrom = checkpoint.Strokes;
+            }
+            // Null means the pixels would not decode, and that is not an error:
+            // `replayFrom` stays 0 and the whole record is replayed onto a canvas
+            // nothing has been drawn on. B137's rule (see `CheckpointCodec`).
+        }
 
         if (!string.IsNullOrEmpty(frame.PngBase64))
         {
@@ -244,9 +270,10 @@ public static class FrameRasterizer
                 new SKRect(0, 0, scaled.Width, scaled.Height),
                 new SKSamplingOptions(SKFilterMode.Linear));
         }
-        foreach (var stroke in frame.Strokes)
+        for (var i = replayFrom; i < frame.Strokes.Count; i++)
         {
-            BrushEngine.StampStroke(canvas, stroke, info, bitmap, outputScale: outputScale, backdrop: backdrop);
+            BrushEngine.StampStroke(
+                canvas, frame.Strokes[i], info, bitmap, outputScale: outputScale, backdrop: backdrop);
         }
         // Placements last, over the strokes. A placement is a drawing put on
         // top of this cel, not one mixed into it — and the ordering has to be
@@ -256,4 +283,45 @@ public static class FrameRasterizer
         canvas.Flush();
         return bitmap;
     }
+
+    /// <summary>
+    /// Whether a validated checkpoint may be used for <em>this</em> render.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The caller has already established that the checkpoint describes the
+    /// record (<see cref="FrameCheckpoints.Usable"/>). What is left is whether
+    /// it describes the render being asked for, which is a different question
+    /// and is asked here so no call site can forget it.
+    /// </para>
+    /// <para>
+    /// <b>Output scale is the one that matters, and it is invariant 7.</b> A
+    /// checkpoint is pixels at document resolution. Above 1× the strokes are
+    /// re-rasterised sharp rather than magnified — that is what lets a camera
+    /// push past 100% without revealing pixels, and what makes an export at 4K
+    /// from a screen-sized document a real render. Starting one of those from a
+    /// stored image would blow the image up and quietly hand back the one thing
+    /// the whole geometry-as-truth bet exists to avoid. So: 1× or the record.
+    /// </para>
+    /// <para>
+    /// The rest is belt and braces on the same conclusion — the drawing must
+    /// still have the strokes the checkpoint claims, and the surface must be the
+    /// size those pixels were drawn for.
+    /// </para>
+    /// </remarks>
+    private static bool CheckpointApplies(
+        Frame frame, StrokeCheckpoint checkpoint, double outputScale, int width, int height) =>
+        outputScale == 1.0
+        && checkpoint.IsUsable
+        && checkpoint.Strokes <= frame.Strokes.Count
+        && checkpoint.Width == width
+        && checkpoint.Height == height
+        // A baseline is drawn *after* the checkpoint below and would land on top
+        // of it, which is the one ordering this method can produce that is simply
+        // wrong. `FrameCheckpoints.CanCheckpoint` refuses to make a checkpoint for
+        // a frame with a baseline, so this cannot arise from the application — it
+        // takes a hand-edited file. Refusing here costs a replay and means the
+        // render path does not depend on the writer having been careful.
+        && !frame.HasBaseline;
+
 }

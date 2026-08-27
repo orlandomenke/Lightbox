@@ -502,6 +502,47 @@ public partial class MainViewModel
         }
     }
 
+    /// <summary>
+    /// Whether a save stores a rendering beside a big drawing's strokes (B30).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Turning it off takes the stored pixels out</b>, rather than leaving
+    /// megabytes in the document behind a switch that says no. That is what
+    /// "optional" has to mean here — absent, not merely unused — and it is free
+    /// to do, because a checkpoint is derived state and deleting one changes no
+    /// pixel. The open documents lose theirs now and the file loses them at its
+    /// next save; nothing is marked dirty for it, since the artwork did not
+    /// change and claiming unsaved work over a cache would be a lie.
+    /// </para>
+    /// <para>
+    /// Turning it back on asks for the render immediately rather than waiting
+    /// for the next save, because somebody who has just ticked the box is asking
+    /// for the thing the box describes.
+    /// </para>
+    /// </remarks>
+    public bool RasterCheckpoints
+    {
+        get => Settings.RasterCheckpoints;
+        set
+        {
+            if (Settings.RasterCheckpoints == value) return;
+            Settings.RasterCheckpoints = value;
+            Settings.Save();
+            _checkpoints.Enabled = value;
+            if (value)
+            {
+                _checkpoints.Request();
+            }
+            else
+            {
+                foreach (var tab in Tabs) Services.CheckpointService.Clear(tab.Doc);
+            }
+            OnPropertyChanged();
+            RefreshDocumentStats();
+        }
+    }
+
     // ---- info strip ------------------------------------------------------------
 
     /// <summary>"3840 × 2160 px · 72 ppi" for the info strip.</summary>

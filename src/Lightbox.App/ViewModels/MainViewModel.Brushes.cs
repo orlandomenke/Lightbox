@@ -157,6 +157,13 @@ public partial class MainViewModel
                 _editor.Doc, frame, cel, _cache.Rig,
                 cel == CurrentFrameIndex ? _bonePreviewPose : null,
                 ghostOverBudget: _bonePreviewPose is not null && cel == CurrentFrameIndex);
+        // B30: a cache miss on a painting replays every stroke — 10.7 ms each,
+        // 106 seconds at ten thousand — so a drawing big enough to have a
+        // checkpoint starts from it instead. Reads `_editor` at call time, like
+        // the pose resolver above, so switching tabs switches documents with it.
+        // The trust decision lives entirely in `FrameCheckpoints.Usable`, which
+        // recomputes what the pixels were made from rather than believing them.
+        _cache.CheckpointResolver = frame => FrameCheckpoints.Usable(_editor.Doc, frame);
         // A blur reads neighbours, so a document with live kernel effects
         // dirties more than the stroke touched. Asked per mark rather than
         // cached, because a keyed radius changes per frame; a document with
@@ -202,6 +209,13 @@ public partial class MainViewModel
             () => SaveTargetTab?.FilePath)
         {
             InPlace = Settings.AutosaveInPlace,
+        };
+        // B30: the render happens after the write, never inside it, because it
+        // costs what opening the painting costs. Reads the save target rather
+        // than the active tab — a save can target a tab that is not in front.
+        _checkpoints = new CheckpointService(() => SaveTargetTab?.Doc ?? Doc)
+        {
+            Enabled = Settings.RasterCheckpoints,
         };
         LoadTimingPresets();
         ColorPicker = new ColorPickerViewModel();

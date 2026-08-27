@@ -469,6 +469,19 @@ public sealed class Scene
     /// authored a camera does not gain an empty one by being cloned — the same
     /// "absent unless used" rule the serializer follows.
     /// </remarks>
+    /// <summary>This scene with the drawings taken out — see <c>Doc.RenderShell</c>.</summary>
+    /// <remarks>
+    /// The strips come out with them: a reference strip is imported footage
+    /// shown beside the timeline, and no render of a drawing reads one.
+    /// </remarks>
+    internal Scene RenderShell()
+    {
+        var shell = (Scene)MemberwiseClone();
+        shell.Layers = [];
+        shell.References = null;
+        return shell;
+    }
+
     public Scene Clone()
     {
         var copy = (Scene)MemberwiseClone();

@@ -200,6 +200,27 @@ public sealed class Frame
     [System.Text.Json.Serialization.JsonIgnore]
     public bool HasCorrectives => Correctives is { Count: > 0 };
 
+    /// <summary>
+    /// A rendering of this drawing's leading strokes, or null — and null is
+    /// every drawing that has never been big enough to be worth one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Absent unless used, the camera's rule, and here it carries real weight:
+    /// a checkpoint is a full-canvas image, so writing one on every cel of a
+    /// two-hundred-drawing sequence would trade a problem paintings have for a
+    /// problem animations do not. <c>FrameCheckpoints</c> holds the threshold
+    /// and the reasoning behind it.
+    /// </para>
+    /// <para>
+    /// <b>Derived, so nothing may read it as content.</b> It is not provenance
+    /// and it is not a baseline — see <see cref="StrokeCheckpoint"/> for why
+    /// those are different fields — and every question of the form "did this
+    /// drawing come from outside" is still <see cref="HasBaseline"/>'s.
+    /// </para>
+    /// </remarks>
+    public StrokeCheckpoint? Checkpoint { get; set; }
+
     /// <summary>Whether this drawing carries imported or flattened pixels.</summary>
     /// <remarks>
     /// <b>This is what "did this come from outside" should be asked of</b>, rather
