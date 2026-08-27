@@ -92,7 +92,8 @@ internal static class RenderReport
          double DabsAddedMedian, double DabsRebuiltMedian, double DabsStampedMedian)? LiveTip = null,
         (double SettledMedian, double SettledP90,
          double ProvisionalMedian, double ProvisionalP90, double ProvisionalWorst,
-         long Events, int WholeMarkEvents)? StampShape = null,
+         long Events, int WholeMarkEvents,
+         double BandAtQueue, double BandAtStart, long Bands)? StampShape = null,
         (int Deferrals, int ByPresent, int ByTimer, int HoldsTimed,
          double HeldTotalMs, double HeldWorstMs,
          double LateTotalMs, double LateWorstMs, int ByEvent)? Dam = null,
@@ -1634,7 +1635,10 @@ internal static class RenderReport
                     // B314 moved it to Input, which is worse than saying
                     // nothing: a reader would chase a fix that already landed.
                     // A long wait now means a busy dispatcher, not starvation.
-                    sb.AppendLine("  !! a pass spends longer waiting to start than running. Since");
+                    // B331: the band at both ends of that wait, which is the pair
+                // that says which way the loop runs. Printed next to the wait
+                // because the two are only meaningful together.
+                sb.AppendLine("  !! a pass spends longer waiting to start than running. Since");
                     sb.AppendLine("     B314 it is posted at Input priority, so this is not");
                     sb.AppendLine("     starvation — it is the UI thread being busy with something");
                     sb.AppendLine("     else when the pass comes due.");
@@ -1646,6 +1650,46 @@ internal static class RenderReport
                 var share = 100.0 * wet.Pixels / wet.MarkPixels;
                 sb.AppendLine(
                     $"  of the mark re-processed  {share:0.#}%   (band-local passes read only what moved)");
+                // **B331: the band at both ends of the wait.** `PostPending` grows
+                // until a pass consumes it, and the pass waits behind the artist's
+                // own events to be dispatched. Whether the band is large because the
+                // pass was late, or the pass was late because the band was large, is
+                // the question B331 refuses to answer by inference — these two say it.
+                // **One sample is enough, and requiring more was a mistake.** This
+                // asked for five before it would print, and a starved pass — the
+                // whole subject of B331 — produces FEW passes by definition. The
+                // owner's capture of 14:58 had four, so the measurement built to
+                // diagnose the pathology stayed silent in the worst example of it
+                // anyone had produced. A threshold that hides the case of interest
+                // is not caution.
+                if (facts.StampShape is { Bands: > 0 } bands && bands.BandAtQueue >= 0)
+                {
+                    var grew = bands.BandAtQueue > 0 ? bands.BandAtStart / bands.BandAtQueue : 0;
+                    sb.AppendLine(
+                        $"  the band when queued    {bands.BandAtQueue / 1e6,7:0.##} Mpx"
+                        + $"   when it started {bands.BandAtStart / 1e6,7:0.##} Mpx   ({grew:0.#}x)");
+                    if (bands.Bands < 5)
+                    {
+                        sb.AppendLine(
+                            $"     (only {bands.Bands} pass(es) — few passes is itself the symptom, so this");
+                        sb.AppendLine(
+                            "      is reported rather than withheld; read it as a direction, not a rate)");
+                    }
+
+                    if (grew >= 2)
+                    {
+                        sb.AppendLine("  >> The band GREW while the pass waited to start, so the wait is");
+                        sb.AppendLine("     what makes it large and the pass being slow is the consequence.");
+                        sb.AppendLine("     Dispatch it sooner, or stop the band accruing while it waits —");
+                        sb.AppendLine("     making the pass itself faster treats the wrong end.");
+                    }
+                    else
+                    {
+                        sb.AppendLine("  >> The band was already this large when the pass was asked for, so");
+                        sb.AppendLine("     the wait is not what made it big. Whatever is dirtying that much");
+                        sb.AppendLine("     of the mark per event is the cause, and the pass is its victim.");
+                    }
+                }
                 if (share > 50)
                 {
                     sb.AppendLine("  !! the pass is reading most of the mark every time, so it grows");

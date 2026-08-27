@@ -1274,6 +1274,28 @@ public partial class MainViewModel
     internal Services.Tally LiveStampProvisional { get; } = new();
 
     /// <summary>
+    /// Pixels the pending band covered when the pass was asked for, and when it
+    /// actually began (B331).
+    /// </summary>
+    /// <remarks>
+    /// <b>The pair exists because neither number alone can say which way the
+    /// loop runs.</b> `PostPending` accumulates every dirty region until a pass
+    /// consumes it, and the pass waits to be dispatched behind the artist's own
+    /// events. If the band is already the whole mark when it is queued, the
+    /// wait is not what made it large. If it is small when queued and large when
+    /// it starts, the wait is the cause and the pass being slow is the
+    /// consequence rather than the other way round. B331 is filed deliberately
+    /// without that answer.
+    /// </remarks>
+    internal Services.Tally LiveBandAtQueue { get; } = new();
+
+    /// <summary>The same band, measured when the pass began.</summary>
+    internal Services.Tally LiveBandAtStart { get; } = new();
+
+    private static double AreaOf(SKRectI? r) =>
+        r is { } b && b.Width > 0 && b.Height > 0 ? (double)b.Width * b.Height : 0;
+
+    /// <summary>
     /// Events that took the whole-mark route, which has no settled/provisional
     /// split for the shape above to describe (B322 attempt 6).
     /// </summary>
@@ -2427,6 +2449,14 @@ public partial class MainViewModel
         if (_live.PostQueued) return;
         _live.PostQueued = true;
         _postQueuedAt = System.Diagnostics.Stopwatch.GetTimestamp();
+        // B331: the band as it stands when the pass is asked for. Paired with
+        // the same measurement taken when it actually starts, this separates
+        // the two directions of a loop nobody has been able to tell apart —
+        // whether the band is large because the pass was late, or the pass was
+        // late because the band was large. Everything else about that loop has
+        // been inferred, and this entry has already taken the convenient
+        // reading of an ambiguous pair four times in one day.
+        LiveBandAtQueue.Add(AreaOf(_live.PostPending));
         Avalonia.Threading.Dispatcher.UIThread.Post(
             StartLivePostProcess, LivePostPriority);
     }
@@ -2543,6 +2573,10 @@ public partial class MainViewModel
                 _live.PostQueued = false;
                 return;
             }
+
+            // Before the halo and before the intersect, so it is the same
+            // quantity the queue-time sample took (B331).
+            LiveBandAtStart.Add(AreaOf(pending));
 
             var halo = BrushEngine.LivePassHalo(whole.Brush);
             rect = SKRectI.Intersect(
