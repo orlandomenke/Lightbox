@@ -1680,6 +1680,7 @@ public partial class MainViewModel
         _live.EffectSettled = 0;
         _live.SmudgeCarry = default;
         _live.SmudgeRegion = null;
+        NoteStrokeBegan();
         FlushLivePreview();
         PublishSnapshot();
     }
@@ -3211,6 +3212,7 @@ public partial class MainViewModel
 
     public void EndStroke()
     {
+        NoteStrokeEnded(_strokeBuilder.Current?.Points.Count ?? 0, _live.StableDabs);
         var stroke = _strokeBuilder.End();
         _live.ClearEffectState();
         if (stroke is null) return;

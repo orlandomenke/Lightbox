@@ -71,6 +71,9 @@ internal static class RenderReport
         (int Repaired, int Dropped)? FrameEdits = null,
         IReadOnlyList<string>? FrameDropCallers = null,
         (int Slow, int SlowWithMiss)? SlowBuilds = null,
+        DateTime LaunchedAt = default,
+        IReadOnlyList<(DateTime Began, double ToFirstInkMs, double LastedMs, int Points, int Dabs)>?
+            StrokeLog = null,
         (double RestoreMs, double SettledMs, double BackupMs, double TailMs, double TailMpx,
             double TailMpxP90)? StampParts = null,
         IReadOnlyList<(double Ms, double AtSeconds, int Points, int Dabs, long Misses, double DescribeMs)>?
@@ -1161,6 +1164,30 @@ internal static class RenderReport
         }
 
         sb.AppendLine($"pointer events stamped    {s.Events}");
+        // **Wall clock, so a screen recording can be read beside this file.**
+        // Every other time here is measured from launch and a video has no idea
+        // when the application started. The owner recorded a session and could
+        // not tell which stroke on screen was which row in the report.
+        if (facts.StrokeLog is { Count: > 0 } strokes)
+        {
+            sb.AppendLine("  each stroke, by the clock:");
+            sb.AppendLine(
+                "      began         first ink      lasted    points     dabs");
+            foreach (var st in strokes)
+            {
+                var firstInk = st.ToFirstInkMs < 0 ? "  never" : $"{st.ToFirstInkMs,6:0} ms";
+                sb.AppendLine(
+                    $"    {st.Began:HH:mm:ss.fff}   {firstInk}   {st.LastedMs,7:0} ms"
+                    + $" {st.Points,9} {st.Dabs,8}");
+            }
+
+            sb.AppendLine(
+                "  >> Line these up with a screen recording: began is when the pen went");
+            sb.AppendLine(
+                "     down, first ink is how long before anything of that stroke reached");
+            sb.AppendLine(
+                "     the screen. A large first ink IS the gap at the start of a stroke.");
+        }
         // B330: which of the numbers below cannot be quoted as costs. Each phase
         // is a latency distribution with stalls in it, and until these carried a
         // median the only honest reading was "some of this is a stall and you
@@ -1312,14 +1339,15 @@ internal static class RenderReport
                             sb.AppendLine(
                                 $"  the preview stopped {gaps.Count} times while the pen was down:");
                             sb.AppendLine(
-                                "         at    gap ms   points  outstanding  events  stamping   why");
+                                "     clock            at    gap ms   points  outstanding  events  stamping   why");
                             foreach (var g in gaps)
                             {
                                 var why = g.TipRefused
                                     ? (g.Missed ? "tip refused + cache miss" : "TIP REFUSED (frame was on time)")
                                     : g.Missed ? "cache miss" : "publish gapped";
                                 sb.AppendLine(
-                                    $"    {g.AtSeconds,7:0.#} s {g.Ms,9:0} {g.Points,8} {g.Outstanding,12}"
+                                    $"  {facts.LaunchedAt.AddSeconds(g.AtSeconds):HH:mm:ss.fff}"
+                                    + $" {g.AtSeconds,7:0.#} s {g.Ms,9:0} {g.Points,8} {g.Outstanding,12}"
                                     + $" {g.EventsInGap,7} {g.StampMs,9:0}   {why}");
                             }
 

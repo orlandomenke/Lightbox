@@ -495,6 +495,61 @@ public partial class MainViewModel
     /// </remarks>
     internal const double StallMs = 50.0;
 
+    /// <summary>
+    /// When each stroke began, when its first ink reached the screen, and when
+    /// it ended — in WALL CLOCK, so a screen recording can be lined up with it
+    /// (B189/B333).
+    /// </summary>
+    /// <remarks>
+    /// <b>Wall clock and not session seconds, which is the whole point.</b> Every
+    /// other time in this report is measured from launch, and a video file has
+    /// no idea when the application started. The owner recorded a session and
+    /// could not tell which stroke on screen was which row in the file. These
+    /// are the two facts that let a recording and a report be read together.
+    /// </remarks>
+    internal IReadOnlyList<(DateTime Began, double ToFirstInkMs, double LastedMs, int Points, int Dabs)>
+        StrokeLog => _strokeLog;
+
+    private readonly List<(DateTime Began, double ToFirstInkMs, double LastedMs, int Points, int Dabs)>
+        _strokeLog = [];
+
+    private DateTime _strokeBeganAt;
+    private long _strokeBeganTicks;
+    private bool _strokeInkShown;
+
+    /// <summary>A stroke has begun. Wall clock, for lining up with a recording.</summary>
+    internal void NoteStrokeBegan()
+    {
+        _strokeBeganAt = DateTime.Now;
+        _strokeBeganTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+        _strokeInkShown = false;
+    }
+
+    /// <summary>A publish carrying this stroke's ink has been handed over.</summary>
+    internal void NoteStrokeInkShown()
+    {
+        if (_strokeInkShown || _strokeBeganTicks == 0) return;
+        _strokeInkShown = true;
+        _strokeFirstInkMs = (System.Diagnostics.Stopwatch.GetTimestamp() - _strokeBeganTicks)
+                            * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+    }
+
+    private double _strokeFirstInkMs;
+
+    /// <summary>The stroke has ended; close its row.</summary>
+    internal void NoteStrokeEnded(int points, int dabs)
+    {
+        if (_strokeBeganTicks == 0 || _strokeLog.Count >= 32) return;
+        _strokeLog.Add((
+            _strokeBeganAt,
+            _strokeInkShown ? _strokeFirstInkMs : -1,
+            (System.Diagnostics.Stopwatch.GetTimestamp() - _strokeBeganTicks)
+                * 1000.0 / System.Diagnostics.Stopwatch.Frequency,
+            points,
+            dabs));
+        _strokeBeganTicks = 0;
+    }
+
     private readonly List<(double Ms, double AtSeconds, int Points, int Outstanding, bool TipRefused,
         bool Missed, long EventsInGap, double StampMs)> _previewGaps = [];
 
@@ -890,6 +945,9 @@ public partial class MainViewModel
 
     private static readonly long AppStartedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
 
+    /// <summary>Wall clock at launch, so session seconds can be turned into a time of day (B189).</summary>
+    internal static readonly DateTime AppStartedAt = DateTime.Now;
+
     /// <summary>
     /// Close off one frame's build, timed from the publish stamp (B321).
     /// </summary>
@@ -986,7 +1044,8 @@ public partial class MainViewModel
             // arrived without a tip because the budget refused one. Both are
             // invisible to a timer on the build, and both are what the artist
             // calls stalling.
-            NotePreviewGap(publishAt);
+            if (_strokeBuilder.IsActive) NoteStrokeInkShown();
+        NotePreviewGap(publishAt);
             _cycleTally.Add((publishAt - _publish.LastPublishTicks)
                             * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
         }
