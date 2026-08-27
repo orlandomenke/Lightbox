@@ -366,6 +366,7 @@ which is a weak test and still far better than none.
 ### canvas
 
 - [ ] **B333** `P3` `canvas` The gap at the start of a stroke is input starvation, not rendering `evidence: AStrokeOpeningGapIsCountedAgainstInput, TheEventIntervalTallyDeclaresWhatItExcludes`
+  - **CONFIRMED AN ARTIFACT by the capture of 00:50 on the corrected build: not one zero-event gap remains.** The preview stopped **3** times in a 104-second session, at 52, 60 and 34 ms, every one of them with pointer events inside it. The four zero-event gaps of the previous capture were the pause before the pen went down, and they are gone the moment the first publish of a stroke stops being counted. **This entry should be closed as never having existed**; it is left open only so the retraction is read before the claim.
   - **RETRACTED 2026-08-28 00:46, and the entry is almost certainly an artifact of its own instrument.** Wall-clock timestamps put every zero-event gap at the exact instant a stroke BEGAN, and made them longer than the strokes themselves — 1961 ms against a 472 ms stroke, 6104 against 1088. `BeginStroke` publishes the opening dab and the gap counter measured back from it to the previous publish, **which is the pause before the pen went down**. No pointer events arrived during it because the artist was not drawing yet.
   - **The tell was there and was explained away.** One of these gaps was **40 seconds**; it was noted as "the pen left down while the artist did something else" and set aside instead of being followed. A 40-second reading is not a slightly odd sample, it is the instrument telling you what it is really measuring. Dropped to P3 pending a capture on the corrected build; if the zero-event gaps disappear entirely, this entry should be closed as never having existed.
   - **What it nearly cost.** The owner was one capture away from being told to investigate their tablet driver. The gap counter now ignores the first publish of a stroke, so an interval that reaches into the idle before the pen went down can no longer be reported as a stall during drawing.
@@ -465,6 +466,17 @@ which is a weak test and still far better than none.
   - **`evidence: manual`, and the distinction is the point.** `PenEchoFilterTests` holds the *policy* — that a mouse move within 200 ms of a pen is dropped, that a pen-less machine can never engage the filter, that a button is never dropped, and that the reflected members still resolve. None of that is the *cure*: whether dropping those events actually stops Avalonia recomputing pointer-over, and so stops the submenu thrash, is Avalonia's behaviour on Windows with a tablet attached, and this repository has none of the three. Naming those tests here would tick the box on a freeze nobody has watched stop. What closes it is a traced minute on the reporter's machine showing `UI-thread stalls 0` with `echo events dropped` in the thousands.
 
 - [ ] **B189** `P1` `canvas` Drawing trails the pen across every brush, and no number the suite owns can see it `evidence: manual`
+  - **FIRST FIX LANDED AND MEASURED, 2026-08-28 00:50.** `RestoreTail` wraps the backup's pixels instead of duplicating them, and the whole session moved with it:
+
+    | | before | after |
+    | --- | --- | --- |
+    | restoring the tail | 1.08 ms | **0.12 ms** |
+    | share of an event spent copying | 65% | **11%** |
+    | the preview stopped | 24 times | **3 times** |
+    | time lost to stalls | 15.7% of the session | **1.1%** |
+
+    The report's own verdict flipped with it — *"The dabs are the cost here, so the tail copies are not the lever"* — which they were, and now are not. **This entry stays open**: the stamp median is still 2.68 ms against a pen delivering every 5.7, so the headroom is thin and the next fast stroke will find it.
+  - **What is left, stated as the next session's starting point.** Two strokes in that capture read `following: never` — 00:50:06 (the first of the session) and 00:50:19 (the first after a thirteen-second pause) — while every other stroke started following in **28-39 ms**, about two refreshes. Both `never` strokes are short and both sit beside the session's single build stall: **1131 ms, two cache misses, no stroke in flight**. So B332's freeze does not merely coincide with a stroke, it **eats the whole first stroke after an idle**, and the artist sees a mark that never follows rather than a mark that pauses. That is the sharpest remaining lead and it belongs to **B332**, not here.
   - **A NUMBER NOW EXISTS, and it says the stamp is twice the pen's budget.** 2026-08-28 00:22. The title's complaint — no number the suite owns can see it — held because every figure in the report is a distribution over a whole session, and the artist experiences individual silences. Counting the gaps where the mark stopped moving under the pen, and attributing each one to what the UI thread was doing inside it:
 
     ```
