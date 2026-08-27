@@ -495,8 +495,10 @@ public partial class MainViewModel
     /// </remarks>
     internal const double StallMs = 50.0;
 
-    private readonly List<(double Ms, double AtSeconds, int Points, int Outstanding, bool TipRefused, bool Missed)>
-        _previewGaps = [];
+    private readonly List<(double Ms, double AtSeconds, int Points, int Outstanding, bool TipRefused,
+        bool Missed, long EventsInGap)> _previewGaps = [];
+
+    private long _lastGapEvents;
 
     private long _lastTipRefusals;
     private long _lastCycleMisses;
@@ -513,8 +515,8 @@ public partial class MainViewModel
     /// that arrived on time with no tip shows as TipRefused, and those do not
     /// overlap — the second is a frame that was never late at all.
     /// </remarks>
-    internal IReadOnlyList<(double Ms, double AtSeconds, int Points, int Outstanding, bool TipRefused, bool Missed)>
-        PreviewGaps => _previewGaps;
+    internal IReadOnlyList<(double Ms, double AtSeconds, int Points, int Outstanding, bool TipRefused,
+        bool Missed, long EventsInGap)> PreviewGaps => _previewGaps;
 
     private void NotePreviewGap(long publishAt)
     {
@@ -522,8 +524,15 @@ public partial class MainViewModel
                  / System.Diagnostics.Stopwatch.Frequency;
         var refusedNow = LiveTipTooFarBehind > _lastTipRefusals;
         var missedNow = _cache.Misses > _lastCycleMisses;
+        // **The split that decides where a gap comes from.** Events during the
+        // gap means the app had input and did not publish, which is ours. NO
+        // events means nothing arrived to publish, which is the pen, the driver
+        // or the OS — and the pen-interval tally cannot say so because it drops
+        // anything over 250 ms as a pause.
+        var eventsInGap = PointerEventsReceived - _lastGapEvents;
         _lastTipRefusals = LiveTipTooFarBehind;
         _lastCycleMisses = _cache.Misses;
+        _lastGapEvents = PointerEventsReceived;
 
         // Only while a stroke is in flight: a gap with the pen up is the
         // application idling, which is correct and is not a stall.
@@ -538,7 +547,8 @@ public partial class MainViewModel
             live.Points.Count,
             Math.Max(0, _live.PostStampedDabs > 0 ? _live.StableDabs - _live.PostStampedDabs : 0),
             refusedNow,
-            missedNow));
+            missedNow,
+            eventsInGap));
     }
 
     /// <summary>Milliseconds lost to stalls, and the session's length (B332).</summary>

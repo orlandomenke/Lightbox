@@ -74,8 +74,8 @@ internal static class RenderReport
         IReadOnlyList<(double Ms, double AtSeconds, int Points, int Dabs, long Misses, double DescribeMs)>?
             SlowBuildLog = null,
         (double LostMs, double SessionMs)? StallCensus = null,
-        IReadOnlyList<(double Ms, double AtSeconds, int Points, int Outstanding, bool TipRefused, bool Missed)>?
-            PreviewGaps = null,
+        IReadOnlyList<(double Ms, double AtSeconds, int Points, int Outstanding, bool TipRefused,
+            bool Missed, long EventsInGap)>? PreviewGaps = null,
         IReadOnlyList<(string FrameId, int Width, int Height, double Scale, int Cel, string Why)>?
             FrameCacheMisses = null,
         (int Frames, int Layers, int Strokes, double Fps)? Scene = null,
@@ -1310,14 +1310,35 @@ internal static class RenderReport
                             sb.AppendLine(
                                 $"  the preview stopped {gaps.Count} times while the pen was down:");
                             sb.AppendLine(
-                                "         at    gap ms   points  outstanding   why");
+                                "         at    gap ms   points  outstanding  events   why");
                             foreach (var g in gaps)
                             {
                                 var why = g.TipRefused
                                     ? (g.Missed ? "tip refused + cache miss" : "TIP REFUSED (frame was on time)")
                                     : g.Missed ? "cache miss" : "publish gapped";
                                 sb.AppendLine(
-                                    $"    {g.AtSeconds,7:0.#} s {g.Ms,9:0} {g.Points,8} {g.Outstanding,12}   {why}");
+                                    $"    {g.AtSeconds,7:0.#} s {g.Ms,9:0} {g.Points,8} {g.Outstanding,12}"
+                                    + $" {g.EventsInGap,7}   {why}");
+                            }
+
+                            // **Ours or the pen's.** A gap with no events in it is
+                            // not the application being slow — nothing arrived to
+                            // draw. The pen-interval tally cannot say this: it
+                            // drops anything over 250 ms as a pause, which is
+                            // exactly the silence being complained about.
+                            var starved = gaps.Count(g => g.EventsInGap == 0);
+                            if (starved > 0)
+                            {
+                                sb.AppendLine(
+                                    $"  >> {starved} of {gaps.Count} had NO pointer event arrive during them at all.");
+                                sb.AppendLine(
+                                    "     Those are not slow frames and not a refused tip: nothing came");
+                                sb.AppendLine(
+                                    "     in to draw. The pen, the driver or the OS held the input, and");
+                                sb.AppendLine(
+                                    "     the pen-interval median above cannot see it because it drops");
+                                sb.AppendLine(
+                                    "     anything over 250 ms as an artist's pause. See B255.");
                             }
 
                             var refused = gaps.Count(g => g.TipRefused);
