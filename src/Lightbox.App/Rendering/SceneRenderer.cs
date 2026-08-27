@@ -28,7 +28,8 @@ public sealed record StrokeOverlay(
     bool AlphaLocked = false,
     ClipRegion? Clip = null,
     SKBitmap? Tip = null,
-    SKRectI? TipBounds = null)
+    SKRectI? TipBounds = null,
+    double TipScale = 1.0)
 {
     /// <summary>
     /// The dabs stamped since the last live post-process pass finished, drawn
@@ -54,6 +55,20 @@ public sealed record StrokeOverlay(
     /// draw fixes half a leak.
     /// </remarks>
     public SKRectI? TipBounds { get; init; } = TipBounds;
+
+    /// <summary>
+    /// The scale <see cref="Tip"/> was stamped at, where 1.0 is document
+    /// resolution (B322).
+    /// </summary>
+    /// <remarks>
+    /// <b><see cref="TipBounds"/> stays in document space whatever this is.</b>
+    /// The bounds say where the mark belongs and the scale says how many pixels
+    /// were spent describing it — keeping the two apart is what lets the tip be
+    /// stamped at the size it is shown without any other part of the composite
+    /// learning a second coordinate space. See <c>LiveTipScale</c> for why the
+    /// cheaper arm exists and why it is a flag.
+    /// </remarks>
+    public double TipScale { get; init; } = TipScale;
 
     /// <summary>Whether this overlay needs an isolated layer to be masked in.</summary>
     public bool NeedsMask => AlphaLocked || Clip is not null;
@@ -554,7 +569,7 @@ public static class SceneRenderer
             // exactly once, which is what the commit does.
             canvas.SaveLayer(strokePaint);
             DrawLayer(canvas, overlay.Scratch, null);
-            DrawLayerRegion(canvas, plainTip, plainWhere, null);
+            DrawTipRegion(canvas, plainTip, plainWhere, overlay.TipScale, null);
             canvas.Restore();
             return;
         }
@@ -585,7 +600,7 @@ public static class SceneRenderer
         // whole mark rather than only the part a pass happens to have reached.
         if (overlay is { Tip: { } maskedTip, TipBounds: { } maskedWhere })
         {
-            DrawLayerRegion(canvas, maskedTip, maskedWhere, null);
+            DrawTipRegion(canvas, maskedTip, maskedWhere, overlay.TipScale, null);
         }
 
         if (overlay.AlphaLocked)
@@ -655,6 +670,69 @@ public static class SceneRenderer
         }
 
         canvas.DrawBitmap(bitmap, rect, rect, paint);
+    }
+
+    /// <summary>
+    /// Draw the live tip, which may hold fewer pixels than the document rectangle
+    /// it covers (B322).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Destination in document space, source in the tip's own.</b> The canvas
+    /// already carries the compose scale, so the destination is the same
+    /// rectangle every other layer uses and the mark lands exactly where the
+    /// processed body expects it. Only the source rectangle knows the tip was
+    /// stamped smaller.
+    /// </para>
+    /// <para>
+    /// At <c>scale == 1</c> this is <see cref="DrawLayerRegion"/> — same
+    /// rectangle both sides — and takes that path, so the default arm is not
+    /// paying for a multiply or a resample it does not need.
+    /// </para>
+    /// </remarks>
+    private static void DrawTipRegion(
+        SKCanvas canvas, SKBitmap bitmap, SKRectI where, double scale, SKPaint? paint)
+    {
+        if (scale >= 1.0)
+        {
+            DrawLayerRegion(canvas, bitmap, where, paint);
+            return;
+        }
+
+        // Outward on both edges: a document rectangle rarely lands on whole tip
+        // pixels, and rounding inward would shave the rim off the newest dab.
+        var src = SKRectI.Intersect(
+            new SKRectI(
+                (int)Math.Floor(where.Left * scale),
+                (int)Math.Floor(where.Top * scale),
+                (int)Math.Ceiling(where.Right * scale),
+                (int)Math.Ceiling(where.Bottom * scale)),
+            new SKRectI(0, 0, bitmap.Width, bitmap.Height));
+        if (src.IsEmpty) return;
+
+        // The destination is the source mapped back, NOT the caller's rectangle:
+        // the two differ by the rounding above, and drawing the grown source into
+        // the ungrown destination would squash the tip by a pixel or two and put
+        // the newest ink slightly out of register with the body behind it.
+        var dst = SKRect.Create(
+            (float)(src.Left / scale), (float)(src.Top / scale),
+            (float)(src.Width / scale), (float)(src.Height / scale));
+
+        using var pixels = bitmap.PeekPixels();
+        if (pixels is not null)
+        {
+            using var view = SKImage.FromPixels(pixels);
+            if (view is not null)
+            {
+                canvas.DrawImage(
+                    view, SKRect.Create(src.Left, src.Top, src.Width, src.Height), dst,
+                    Downscale, paint);
+                return;
+            }
+        }
+
+        canvas.DrawBitmap(
+            bitmap, SKRect.Create(src.Left, src.Top, src.Width, src.Height), dst, paint);
     }
 
     private static void DrawLayer(SKCanvas canvas, SKBitmap bitmap, SKPaint? paint)

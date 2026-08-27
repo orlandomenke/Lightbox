@@ -220,7 +220,8 @@ internal static class ScenePassBuilder
         Func<Frame, TransformSplit?>? PartsFor = null,
         bool MaskEditing = false,
         SKBitmap? TipScratch = null,
-        SKRectI? TipBounds = null)
+        SKRectI? TipBounds = null,
+        double TipScale = 1.0)
     {
         internal static readonly LiveEdit None = new();
     }
@@ -693,7 +694,8 @@ internal static class ScenePassBuilder
                 stroke.AlphaLocked,
                 stroke.ClipId is null ? null : ClipRegionRegistry.Resolve(stroke.ClipId),
                 tip,
-                tipBounds);
+                tipBounds,
+                live.TipScale);
         }
 
         return null;

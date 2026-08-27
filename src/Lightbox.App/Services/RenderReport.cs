@@ -90,7 +90,7 @@ internal static class RenderReport
          double NewDabsMedian, double NewDabsP90, double NewDabsWorst,
          int Added, int Rebuilt,
          double DabsAddedMedian, double DabsRebuiltMedian, double DabsStampedMedian,
-         double MarginalMs)? LiveTip = null,
+         double MarginalMs, double TipScale)? LiveTip = null,
         (double SettledMedian, double SettledP90,
          double ProvisionalMedian, double ProvisionalP90, double ProvisionalWorst,
          long Events, int WholeMarkEvents,
@@ -1483,6 +1483,11 @@ internal static class RenderReport
                 sb.AppendLine(
                     $"live tip drawn            {tip.Drawn} of {considered}   too far behind {tip.TooFarBehind}"
                     + $"   (budget {Rendering.LiveTipPlan.MaxMs} ms a publish)");
+                // **Which arm ran.** Two builds that differ only in the tip's
+                // resolution produce reports that are otherwise identical, and a
+                // capture that cannot say which one it is describes neither.
+                sb.AppendLine(
+                    $"  stamped at              {Rendering.LiveTipScale.Describe(tip.TipScale)}");
                 sb.AppendLine(
                     $"  dabs outstanding        median {tip.OutstandingMedian,7:0.#}   p90 {tip.OutstandingP90,7:0.#}"
                     + $"   p99 {tip.OutstandingP99,7:0.#}   worst {tip.OutstandingWorst,7:0.#}");

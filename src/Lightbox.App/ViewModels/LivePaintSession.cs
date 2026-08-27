@@ -360,6 +360,32 @@ sealed class LivePaintSession
     /// <summary>How far the tip's contents run, exclusive.</summary>
     internal int TipStampedTo { get; set; } = -1;
 
+    /// <summary>
+    /// The scale <see cref="TipScratch"/> was stamped at, where 1.0 is document
+    /// resolution (B322).
+    /// </summary>
+    /// <remarks>
+    /// <b><see cref="TipUsed"/> stays in DOCUMENT space regardless.</b> It is
+    /// read by the compositor, which works in document coordinates, and by the
+    /// wipes below, which convert it here rather than making every caller
+    /// remember which space it is in. See <c>LiveTipScale</c>.
+    /// </remarks>
+    internal double TipScale { get; set; } = 1.0;
+
+    /// <summary>
+    /// <paramref name="used"/>, a document rectangle, in the tip buffer's own
+    /// pixels — grown outward so a wipe never leaves a rim of the last rebuild.
+    /// </summary>
+    private SKRectI InTipPixels(SKRectI used)
+    {
+        if (TipScale >= 1.0) return used;
+        return new SKRectI(
+            (int)Math.Floor(used.Left * TipScale),
+            (int)Math.Floor(used.Top * TipScale),
+            (int)Math.Ceiling(used.Right * TipScale),
+            (int)Math.Ceiling(used.Bottom * TipScale));
+    }
+
     /// <summary>Make <see cref="TipScratch"/> exist at this size, wiped of the last rebuild.</summary>
     internal SKCanvas BeginTip(int width, int height)
     {
@@ -379,8 +405,9 @@ sealed class LivePaintSession
         // exists to avoid rather than to introduce somewhere else.
         if (TipUsed is { } used)
         {
+            var wipe = InTipPixels(used);
             canvas.Save();
-            canvas.ClipRect(SKRect.Create(used.Left, used.Top, used.Width, used.Height));
+            canvas.ClipRect(SKRect.Create(wipe.Left, wipe.Top, wipe.Width, wipe.Height));
             canvas.Clear(SKColors.Transparent);
             canvas.Restore();
         }
@@ -405,8 +432,9 @@ sealed class LivePaintSession
     {
         if (TipScratch is not null && TipUsed is { } used)
         {
+            var wipe = InTipPixels(used);
             using var canvas = new SKCanvas(TipScratch);
-            canvas.ClipRect(SKRect.Create(used.Left, used.Top, used.Width, used.Height));
+            canvas.ClipRect(SKRect.Create(wipe.Left, wipe.Top, wipe.Width, wipe.Height));
             canvas.Clear(SKColors.Transparent);
         }
 

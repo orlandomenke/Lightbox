@@ -853,7 +853,10 @@ public partial class MainViewModel
             _passTransformSplit ??= TransformSplitFor,
             MaskEditing: EditingLayerMask,
             TipScratch: BuildLiveTip(),
-            TipBounds: _live.TipUsed);
+            TipBounds: _live.TipUsed,
+            // Read AFTER BuildLiveTip, which is what sets it. Argument evaluation
+            // is left to right, so this is the scale the tip above was stamped at.
+            TipScale: _live.TipScale);
 
         var built = ScenePassBuilder.Describe(scene, passState, _cache, _tileFallbacks, live);
         var tileNativeDoc = built.TileNative;
@@ -1695,8 +1698,26 @@ public partial class MainViewModel
         // budget is a time and this is what converts it into dabs. Zero until
         // something has been stamped, which LiveTipPlan reads as "be generous".
         var perDabMs = LiveTipMarginalMs;
+
+        // **The arm this run is drawing** — document resolution, or the scale
+        // the frame is composed at. A size-70 dab measures 62.48 us into a
+        // document-sized buffer and 24.7 into the composed one, so the same
+        // budget buys 2.5x the tip. See LiveTipScale, and B322 for why it is a
+        // flag and not simply the cheaper default.
+        var tipScale = Rendering.LiveTipScale.For(ComposeScale);
+
+        // A scale change makes what the buffer holds unusable — it is the wrong
+        // size, and BeginTip will drop it. Told to the PLAN rather than handled
+        // after it, because the plan is what budgets the work: letting it
+        // believe an addition were possible would budget a delta and then stamp
+        // a rebuild, which is exactly the mismatch that turned this fix off in
+        // attempts 5 and 6.
+        var reusable = _live.TipScratch is not null && _live.TipScale == tipScale;
         var (range, planStampFrom, why, outstanding) = Rendering.LiveTipPlan.For(
-            _live.PostStampedDabs, dabs.Count, _live.TipFrom, _live.TipStampedTo, perDabMs);
+            _live.PostStampedDabs, dabs.Count,
+            reusable ? _live.TipFrom : -1,
+            reusable ? _live.TipStampedTo : -1,
+            perDabMs);
         if (outstanding > 0) LiveTipOutstanding.Add(outstanding);
         if (why == Rendering.LiveTipPlan.Skip.TooFarBehind) LiveTipTooFarBehind++;
         if (why == Rendering.LiveTipPlan.Skip.NoPassYet) LiveTipNoPass++;
@@ -1706,8 +1727,15 @@ public partial class MainViewModel
             return null;
         }
 
+        // Document space, and it stays document space: RangeBounds clamps the
+        // drawn rectangle against the document and the compositor reads that
+        // rectangle. Only the BUFFER shrinks.
         var info = new SKImageInfo(
             Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        var tipWidth = tipScale >= 1.0
+            ? Scene.Width : Math.Max(1, (int)Math.Ceiling(Scene.Width * tipScale));
+        var tipHeight = tipScale >= 1.0
+            ? Scene.Height : Math.Max(1, (int)Math.Ceiling(Scene.Height * tipScale));
         // **Add what arrived, rebuild only when the pass moved** (attempt 6).
         // The tip keeps its contents between publishes, so an ordinary publish
         // stamps the difference rather than the whole outstanding run. A pass
@@ -1719,12 +1747,22 @@ public partial class MainViewModel
         // about what THIS publish stamps and that depends on whether the buffer
         // can be added to. Keeping the decision in one place is what stops the
         // two from disagreeing about which dabs the buffer holds.
-        var canAdd = planStampFrom > plan.From && _live.TipScratch is not null;
+        var canAdd = planStampFrom > plan.From && reusable;
 
         var startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
         var stampedFrom = canAdd ? planStampFrom : plan.From;
-        var canvas = canAdd ? _live.ContinueTip() : _live.BeginTip(info.Width, info.Height);
+        var canvas = canAdd ? _live.ContinueTip() : _live.BeginTip(tipWidth, tipHeight);
         if (canvas is null) return null;
+        // Set after BeginTip, which wipes the last rectangle through the OLD
+        // scale — the buffer it is wiping is still the old one.
+        _live.TipScale = tipScale;
+
+        // **The SURFACE carries the scale, never the geometry** (invariant 7).
+        // Dab coordinates reach Hash01 untouched, so scatter, size, flow,
+        // roundness, rotation and the three colour jitters all re-roll
+        // identically and the tip is the same mark drawn smaller. Multiplying
+        // the coordinates instead would be a different mark.
+        if (tipScale < 1.0) canvas.Scale((float)tipScale);
 
         // **The stamp is timed apart from the setup, and that separation is the
         // difference between a working budget and a useless one.** Creating the
