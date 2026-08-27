@@ -2813,6 +2813,34 @@ public partial class MainViewModel
     /// <summary>The longest single deferral.</summary>
     internal double DamHeldWorstMs { get; private set; }
 
+    /// <summary>
+    /// How many holds went into <see cref="DamHeldTotalMs"/> — the denominator
+    /// its mean must be taken over, and nothing else (B328).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>It exists because the report divided that total by a different number
+    /// and printed a mean above its own worst.</b> The denominator was
+    /// <c>ByPresent + ByTimer</c>, which was every release until B321 added a
+    /// third way for one to end — a pointer event asking — and on the owner's
+    /// captures that third way was 66%, 73% and 76% of all releases. The
+    /// printed mean came out 3-4x high: 94.28 ms where the truth was 31.73,
+    /// 94.24 where it was 25.42, and 67.3 where it was 16.36 beside a worst of
+    /// 47.16. It read as the dam being the largest cost in the chain, and it
+    /// was quoted as one.
+    /// </para>
+    /// <para>
+    /// So the count is incremented on the line below the total rather than
+    /// derived from the release counters, which is what makes the two unable to
+    /// drift again: a fourth way to release a deferral cannot be added without
+    /// this moving too. It is deliberately NOT <see cref="DamDeferrals"/>
+    /// either — a release with no deferral behind it returns before the total
+    /// is touched, so that would be a second wrong denominator with a more
+    /// plausible name.
+    /// </para>
+    /// </remarks>
+    internal int DamHoldsTimed { get; private set; }
+
     private long _damBeganAt;
 
     /// <summary>
@@ -2855,6 +2883,7 @@ public partial class MainViewModel
         var now = System.Diagnostics.Stopwatch.GetTimestamp();
         var held = (now - _damBeganAt) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
         DamHeldTotalMs += held;
+        DamHoldsTimed++;   // B328: beside the total, so the two cannot drift.
         if (held > DamHeldWorstMs) DamHeldWorstMs = held;
 
         // How long the frame had already been drawn when this released. Bounded

@@ -344,7 +344,7 @@ public partial class MainWindow
              _vm.LivePostWorstMsWidth, _vm.LivePostWorstMsHeight,
              _vm.LivePostWorstMsMarkPixels, _vm.LiveWorstProvisionalTail),
             (_vm.DamDeferrals, _vm.DamReleasedByPresent, _vm.DamReleasedByTimer,
-             _vm.DamReleasedByPresent + _vm.DamReleasedByTimer,
+             _vm.DamHoldsTimed,
              _vm.DamHeldTotalMs, _vm.DamHeldWorstMs,
              _vm.DamLateTotalMs, _vm.DamLateWorstMs, _vm.DamReleasedByEvent),
             (_vm.CycleTally.MedianMs, _vm.CycleTally.MeanMs, _vm.CycleTally.Count,

@@ -83,7 +83,7 @@ internal static class RenderReport
          int Waits, double WaitTotalMs, double WaitWorstMs,
          long Pixels, long MarkPixels,
          int WorstW, int WorstH, long WorstMarkPixels, int WorstTail)? LivePost = null,
-        (int Deferrals, int ByPresent, int ByTimer, int Released,
+        (int Deferrals, int ByPresent, int ByTimer, int HoldsTimed,
          double HeldTotalMs, double HeldWorstMs,
          double LateTotalMs, double LateWorstMs, int ByEvent)? Dam = null,
         (double CycleMedianMs, double CycleMeanMs, long Cycles,
@@ -1241,9 +1241,26 @@ internal static class RenderReport
         sb.AppendLine($"publishes carrying ink    {s.Publishes}  ({perPublish:0.#} events per publish)");
         if (facts.Dam is { Deferrals: > 0 } dam)
         {
-            var held = dam.Released == 0 ? 0 : dam.HeldTotalMs / dam.Released;
+            // B328: over the holds that were TIMED, not over some subset of the
+            // ways a deferral can end. Divided by `ByPresent + ByTimer` this
+            // read 67.3 ms beside a worst of 47.16 — an impossibility that sat
+            // in three captures before anyone noticed it was one.
+            var held = dam.HoldsTimed == 0 ? 0 : dam.HeldTotalMs / dam.HoldsTimed;
             sb.AppendLine(
                 $"  publish held back       {dam.Deferrals} times   mean {held:0.##} ms   worst {dam.HeldWorstMs:0.##} ms");
+            // **The impossibility, said out loud** (B328). An average above the
+            // largest single sample cannot happen, so if it is printed the
+            // accounting is broken and every conclusion drawn from the pair is
+            // void. It sat in three captures unremarked and was quoted as a
+            // finding before anyone noticed it could not be true. A reader
+            // should not have to do this subtraction themselves.
+            if (dam.HoldsTimed > 0 && held > dam.HeldWorstMs)
+            {
+                sb.AppendLine("  !! that mean is ABOVE the worst, which is impossible — the total");
+                sb.AppendLine("     and the count it is divided by have drifted apart. Treat both");
+                sb.AppendLine("     as void and fix the accounting before reading anything into");
+                sb.AppendLine("     them. See B328.");
+            }
             sb.AppendLine(
                 $"    released by the screen  {dam.ByPresent}      by the 250 ms backstop  {dam.ByTimer}"
                 + (dam.ByEvent > 0 ? $"      by a pointer event asking  {dam.ByEvent}" : ""));
