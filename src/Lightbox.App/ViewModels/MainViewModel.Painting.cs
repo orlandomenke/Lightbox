@@ -2275,6 +2275,9 @@ public partial class MainViewModel
                     // Above zero is what makes the compositor read PostScratch
                     // instead of the raw dabs (ScenePassBuilder).
                     _live.PostStampedCount = dabs.Count;
+                    // B322: and in the dab unit explicitly, which here happens
+                    // to be the same number — the cap-only path counts dabs.
+                    _live.PostStampedDabs = dabs.Count;
                 }
             }
         }
@@ -2412,6 +2415,9 @@ public partial class MainViewModel
             Points = [.. live.Points],
         };
         var count = whole.Points.Count;
+        // B322: the same instant, in the dab list's own unit. `count` above is
+        // POINTS — see PostStampedDabs for why that distinction cost a day.
+        var dabsAtPass = _live.Dabs?.Count ?? 0;
 
         if (BrushEngine.PostProcessBounds(whole, info) is not { } mark)
         {
@@ -2567,7 +2573,8 @@ public partial class MainViewModel
             // single-flight flag and stop the next pass from ever starting.
             Avalonia.Threading.Dispatcher.UIThread.Post(
                 () => FinishLivePostProcess(
-                    processed, rect, count, generation, costMs, info, stamp, restoreIfLost),
+                    processed, rect, count, generation, costMs, info, stamp, restoreIfLost,
+                    dabsAtPass),
                 Avalonia.Threading.DispatcherPriority.Input);
         }
     }
@@ -2578,7 +2585,8 @@ public partial class MainViewModel
     /// </summary>
     private void FinishLivePostProcess(
         SKImage? processed, SKRectI rect, int count, int generation, double costMs,
-        SKImageInfo computedAgainst, string brushStamp, SKRectI? restoreIfLost)
+        SKImageInfo computedAgainst, string brushStamp, SKRectI? restoreIfLost,
+        int dabsAtPass)
     {
         _live.PostQueued = false;
         using var image = processed;
@@ -2634,6 +2642,7 @@ public partial class MainViewModel
 
         _live.PostCostMs = costMs;
         _live.PostStampedCount = count;
+        _live.PostStampedDabs = dabsAtPass;
         _live.PostBrushStamp = brushStamp;
         _live.PostUsed = _live.PostUsed is { } already
             ? LivePaintSession.UnionRect(already, rect)

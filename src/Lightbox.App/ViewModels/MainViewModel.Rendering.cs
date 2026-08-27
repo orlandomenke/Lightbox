@@ -1512,6 +1512,21 @@ public partial class MainViewModel
     /// <summary>Publishes where the pass was too far behind to draw a tip within the budget.</summary>
     internal int LiveTipTooFarBehind { get; private set; }
 
+    /// <summary>
+    /// Publishes where no live pass had run at all, so a tip was neither needed
+    /// nor possible (B322).
+    /// </summary>
+    /// <remarks>
+    /// <b>Counted because its absence was read as a result.</b> The first capture
+    /// of the fifth attempt printed no tip line, and the tip line's absence is
+    /// produced equally by "the fix did nothing" and "this brush never had the
+    /// bug". The owner had drawn with an Airbrush, which takes no post-process
+    /// pass — every dab was already on screen and there was nothing to fix — and
+    /// the report could not say so. A diagnostic that is silent in two different
+    /// situations reports neither.
+    /// </remarks>
+    internal int LiveTipNoPass { get; private set; }
+
     /// <summary>Every outstanding-dab count seen, so the report can say where the budget should sit.</summary>
     internal Services.Tally LiveTipOutstanding { get; } = new();
 
@@ -1551,9 +1566,15 @@ public partial class MainViewModel
         // the tip everywhere and compare after the pass had landed.
         if (BrushEngine.LiveTipWouldDivergeTooFar(stroke.Brush)) { _live.TipUsed = null; return null; }
 
-        var (range, why, outstanding) = Rendering.LiveTipPlan.For(_live.PostStampedCount, dabs.Count);
+        // **PostStampedDabs, not PostStampedCount.** The older field is points on
+        // one path and dabs on the other, so subtracting it from a dab count
+        // answers a question nobody asked — and answered it as "the whole
+        // stroke", which is what the fourth attempt then restamped every
+        // publish. See LivePaintSession.PostStampedDabs and B329.
+        var (range, why, outstanding) = Rendering.LiveTipPlan.For(_live.PostStampedDabs, dabs.Count);
         if (outstanding > 0) LiveTipOutstanding.Add(outstanding);
         if (why == Rendering.LiveTipPlan.Skip.TooFarBehind) LiveTipTooFarBehind++;
+        if (why == Rendering.LiveTipPlan.Skip.NoPassYet) LiveTipNoPass++;
         if (range is not { } plan)
         {
             _live.ResetTip();
