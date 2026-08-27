@@ -75,7 +75,7 @@ internal static class RenderReport
             SlowBuildLog = null,
         (double LostMs, double SessionMs)? StallCensus = null,
         IReadOnlyList<(double Ms, double AtSeconds, int Points, int Outstanding, bool TipRefused,
-            bool Missed, long EventsInGap)>? PreviewGaps = null,
+            bool Missed, long EventsInGap, double StampMs)>? PreviewGaps = null,
         IReadOnlyList<(string FrameId, int Width, int Height, double Scale, int Cel, string Why)>?
             FrameCacheMisses = null,
         (int Frames, int Layers, int Strokes, double Fps)? Scene = null,
@@ -1310,7 +1310,7 @@ internal static class RenderReport
                             sb.AppendLine(
                                 $"  the preview stopped {gaps.Count} times while the pen was down:");
                             sb.AppendLine(
-                                "         at    gap ms   points  outstanding  events   why");
+                                "         at    gap ms   points  outstanding  events  stamping   why");
                             foreach (var g in gaps)
                             {
                                 var why = g.TipRefused
@@ -1318,7 +1318,7 @@ internal static class RenderReport
                                     : g.Missed ? "cache miss" : "publish gapped";
                                 sb.AppendLine(
                                     $"    {g.AtSeconds,7:0.#} s {g.Ms,9:0} {g.Points,8} {g.Outstanding,12}"
-                                    + $" {g.EventsInGap,7}   {why}");
+                                    + $" {g.EventsInGap,7} {g.StampMs,9:0}   {why}");
                             }
 
                             // **Ours or the pen's.** A gap with no events in it is
@@ -1326,6 +1326,35 @@ internal static class RenderReport
                             // draw. The pen-interval tally cannot say this: it
                             // drops anything over 250 ms as a pause, which is
                             // exactly the silence being complained about.
+                            // **What the thread was DOING, not what it produced.**
+                            // A gap with input in it is ours; the next question is
+                            // whether the time went on stamping the mark or on
+                            // something else entirely, and a mean times a count
+                            // cannot answer that — which is how this entry got the
+                            // per-dab cost wrong three times.
+                            var busiest = gaps
+                                .Where(g => g.EventsInGap > 0 && g.Ms > 200)
+                                .OrderByDescending(g => g.Ms)
+                                .FirstOrDefault();
+                            if (busiest.Ms > 0)
+                            {
+                                var share = 100 * busiest.StampMs / busiest.Ms;
+                                sb.AppendLine(
+                                    $"  >> The worst gap the app owns: {busiest.Ms:0} ms with"
+                                    + $" {busiest.EventsInGap} events in it, of which"
+                                    + $" {busiest.StampMs:0} ms ({share:0}%) was stamping.");
+                                sb.AppendLine(share > 60
+                                    ? "     The mark itself is the cost, so this is B189's ground."
+                                    : "     Stamping is NOT most of it, so the thread was busy with");
+                                if (share <= 60)
+                                {
+                                    sb.AppendLine(
+                                        "     something else while the pen waited — look at the pass, the");
+                                    sb.AppendLine(
+                                        "     dam and the compositor before touching the brush engine.");
+                                }
+                            }
+
                             var starved = gaps.Count(g => g.EventsInGap == 0);
                             if (starved > 0)
                             {
