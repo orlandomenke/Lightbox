@@ -190,6 +190,40 @@ public class PresentFloorTests(ITestOutputHelper output) : IDisposable
     }
 
     /// <summary>
+    /// <b>The owner's capture of 2026-08-27, and the reason B321 did not
+    /// close.</b> The median pick-up is a refresh to within a millisecond, so
+    /// the typical frame really is at the floor — and the best is 1.25 ms, so
+    /// the wait is not a gate. This section used to print both verdicts at
+    /// once: an unimprovable floor, and a queue with something in it worth
+    /// finding. They cannot both be true and a reader cannot act on either.
+    /// </summary>
+    [Fact]
+    public void AFloorThatIsNotAGateIsReportedAsARaceRatherThanAFloor()
+    {
+        var text = Section(AtTheFloor with
+        {
+            MeanMs = 32.11,
+            MedianMs = 29.09,
+            ToEnqueueMeanMs = 11.82,
+            ToEnqueueMedianMs = 8.53,
+            QueueMeanMs = 15.59,
+            QueueMedianMs = 15.78,
+            QueueBestMs = 1.25,
+            QueueP10Ms = 1.6,
+            QueueP90Ms = 16.4,
+            KeyedDrawMeanMs = 4.71,
+        });
+        output.WriteLine(text);
+
+        Assert.Contains("IT IS NOT A GATE", text);
+        Assert.Contains("a race the frame usually", text);
+        Assert.Contains("p10 1.6 ms   p90 16.4 ms", text);
+        // The contradiction that made this test necessary.
+        Assert.DoesNotContain("AT THE FLOOR.", text);
+        Assert.DoesNotContain("That is a gate, not a queue", text);
+    }
+
+    /// <summary>
     /// No refresh rate, no floor. A build machine with no display must not be
     /// handed an arithmetic that quietly assumed 60 Hz — the number would look
     /// exactly as authoritative as a real one.
@@ -243,7 +277,8 @@ public class PresentFloorTests(ITestOutputHelper output) : IDisposable
         MedianMs: 28.5, ToEnqueueMedianMs: 9.2,
         Queued: 300, QueueMeanMs: 14.8, QueueMedianMs: 14.6,
         QueueBestMs: 13.9, QueueWorstMs: 44,
-        KeyedDrawMeanMs: 4.3);
+        KeyedDrawMeanMs: 4.3,
+        QueueP10Ms: 13.9, QueueP90Ms: 15.6);
 
     private string Section(PresentLatency.Stats stats, int hz = 60)
     {
