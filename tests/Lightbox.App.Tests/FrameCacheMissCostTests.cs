@@ -34,9 +34,15 @@ namespace Lightbox.App.Tests;
 /// </remarks>
 public class FrameCacheMissCostTests(ITestOutputHelper output)
 {
-    // The owner's document.
-    private const int Width = 3840;
-    private const int Height = 2160;
+    // **Half the owner's document on each side, a quarter of the pixels.**
+    // The 4K figures are recorded in B332 and were taken once, deliberately; a
+    // guard that runs on every CI job does not need to re-measure them. At
+    // 3840x2160 this rendered eight full frames of 33 MB each and the CI runner
+    // died on "MSBUILD error MSB4166: Child node exited prematurely" twice --
+    // an out-of-memory dressed as an infrastructure failure, which is the worst
+    // kind to leave in a suite because it reads as somebody else's flake.
+    private const int Width = 1920;
+    private const int Height = 1080;
 
     /// <summary>The brush the owner reported the jump on: large, with a live effect.</summary>
     private static BrushSettings Heavy() => new()
@@ -89,7 +95,7 @@ public class FrameCacheMissCostTests(ITestOutputHelper output)
         using (var warm = FrameBitmapCache.RenderDetached(new Frame(), 64, 64)) { }
 
         var runs = new List<double>();
-        for (var i = 0; i < 3; i++)
+        for (var i = 0; i < 2; i++)
         {
             var t0 = System.Diagnostics.Stopwatch.GetTimestamp();
             using var bmp = FrameBitmapCache.RenderDetached(frame, Width, Height);
@@ -101,49 +107,21 @@ public class FrameCacheMissCostTests(ITestOutputHelper output)
 
         var best = runs.Min();
         output.WriteLine("");
-        output.WriteLine($"one frame-cache miss at {Width}x{Height}, 5 heavy strokes: {best:0.#} ms (best of 3)");
+        output.WriteLine($"one frame-cache miss at {Width}x{Height}, 5 heavy strokes: {best:0.#} ms (best of 2)");
         output.WriteLine($"  a pen event arrives every ~5 ms, so that is {best / 5:0} events' worth");
         output.WriteLine($"  the captures' worst build was 3170-6354 ms");
 
-        // Deliberately not a budget. The assertion is only that the measurement
-        // happened and is a real duration — what it MEANS is B332's business and
-        // belongs in the ledger beside the capture, not in a threshold here that
-        // would need moving on every machine.
-        Assert.True(best > 0, "the render did not take measurable time, so nothing was measured");
-    }
-
-    /// <summary>
-    /// <b>The comparison that turns the number above into a verdict.</b> A miss
-    /// is only a stall if it is enormous beside the frame build it happens
-    /// inside — the captures put that at a 2 ms median.
-    /// </summary>
-    [Fact]
-    [Trait("Category", "Performance")]
-    public void AMissCostsVastlyMoreThanTheFrameBuildItHappensInside()
-    {
-        var frame = FiveStrokes();
-        using (var warm = FrameBitmapCache.RenderDetached(new Frame(), 64, 64)) { }
-
-        var missMs = double.MaxValue;
-        for (var i = 0; i < 3; i++)
-        {
-            var t0 = System.Diagnostics.Stopwatch.GetTimestamp();
-            using var bmp = FrameBitmapCache.RenderDetached(frame, Width, Height);
-            missMs = Math.Min(
-                missMs,
-                (System.Diagnostics.Stopwatch.GetTimestamp() - t0)
-                * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
-        }
-
-        // The median build in all four of the owner's captures, 2026-08-27.
+        // **The comparison that turns the number into a verdict**, folded into the
+        // one measurement rather than paying for a second set of renders. The
+        // median build in all four of the owner's captures was about 2 ms.
         const double TypicalBuildMs = 2.0;
-        output.WriteLine($"a miss costs {missMs:0.#} ms against a {TypicalBuildMs} ms typical build");
-        output.WriteLine($"  ratio: {missMs / TypicalBuildMs:0}x");
+        output.WriteLine($"  against a {TypicalBuildMs} ms typical build that is {best / TypicalBuildMs:0}x");
 
         Assert.True(
-            missMs > TypicalBuildMs * 20,
-            $"a frame-cache miss ({missMs:0.#} ms) is not dramatically dearer than the typical "
+            best > TypicalBuildMs * 20,
+            $"a frame-cache miss ({best:0.#} ms) is not dramatically dearer than the typical "
             + $"build ({TypicalBuildMs} ms), so it cannot be the multi-second stall B332 blames "
             + "it for and that entry needs a different mechanism");
     }
+
 }
