@@ -365,6 +365,22 @@ which is a weak test and still far better than none.
 
 ### canvas
 
+- [ ] **B333** `P1` `canvas` The gap at the start of a stroke is input starvation, not rendering `evidence: AStrokeOpeningGapIsCountedAgainstInput, TheEventIntervalTallyDeclaresWhatItExcludes`
+  - **Measured 2026-08-28 00:14, and it closes a question five days of render work could not.** The owner has described the same thing throughout: *"It draws the start of the stroke but as soon as that is drawn it stalls."* Counting pointer events inside each preview gap answers it:
+
+    ```
+           at    gap ms   points  outstanding  events   why
+        155.1 s      2009        1            0       0   publish gapped
+        155.2 s       112       28            0      13   publish gapped
+        156.9 s       879      369         1249      63   TIP REFUSED
+    >> 1 of 24 had NO pointer event arrive during them at all.
+    ```
+
+    **Two seconds, one point into a stroke, with ZERO pointer events arriving.** Nothing came in to draw. That gap is not a slow frame, not a refused tip, not a cache miss and not the pass — **the pen, the driver or the OS held the input**, and no work on the brush engine, the frame cache, the live tip or the post-process pass can touch it.
+  - **Why nothing had seen it.** `the pen delivers every` excludes intervals over 250 ms as *"the artist pausing, lifting or thinking"* — correct for measuring a cadence and exactly wrong for finding a stall, because the silence being complained about is longer than the threshold that hides it. The report has been declaring a healthy 5.7 ms pen interval across a session containing a two-second input blackout.
+  - **B255 is the same input path** — *"Hovering a menu with a pen tablet freezes the app for up to 6 seconds"* — and this is its second sighting under a different gesture. Whether they are one defect is not established; what is established is that the render pipeline is not where either lives.
+  - **What is still ours, and it is the next thing to chase.** `879 ms at 369 points with 1249 dabs outstanding and 63 events arriving` — the application received sixty-three pointer events and published nothing for nearly a second. That one is app-side, mid-stroke, and correlates with a large outstanding run. Cost: unknown, and it wants the same treatment — split the gap by what the UI thread was doing, not by what it produced.
+  - What would close this entry: a counter that attributes a gap to input rather than to rendering, and an event-interval tally that declares what it excluded instead of silently reporting health.
 - [ ] **B332** `P1` `canvas` A frame-cache miss re-renders the whole frame on the UI thread, and that is the jump the artist feels `evidence: AMissDoesNotRenderOnTheCallingThread, TheWorstBuildNamesItsOwnPhase, ACommittedStrokeDoesNotStallTheNextOne`
   - **P1, and it is the symptom B322 has been chasing for three days.** Four captures on 2026-08-27, two arms of B322's fix, and the owner's verdict on both: *"for both arms the preview did still jump"* and *"I wasn't able to feel or see any discernable difference between A & B."* The tip was drawn on 90% of publishes in the best of them. **A preview that is present 90% of the time cannot fix a stall**, and the stalls are enormous:
 
