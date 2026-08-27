@@ -86,7 +86,8 @@ internal static class RenderReport
         (int Drawn, int TooFarBehind, int NoPass,
          double OutstandingMedian, double OutstandingWorst,
          double OutstandingP90, double OutstandingP99,
-         double StampMedianMs, double StampWorstMs)? LiveTip = null,
+         double StampMedianMs, double StampWorstMs,
+         double NewDabsMedian, double NewDabsP90, double NewDabsWorst)? LiveTip = null,
         (int Deferrals, int ByPresent, int ByTimer, int Released,
          double HeldTotalMs, double HeldWorstMs,
          double LateTotalMs, double LateWorstMs, int ByEvent)? Dam = null,
@@ -1368,6 +1369,24 @@ internal static class RenderReport
                         "     Set the budget against that, not against caution: refusing a publish");
                     sb.AppendLine(
                         "     turns the fix off during exactly the fast strokes it exists for.");
+
+                    // B322 attempt 6: what the same tip would cost if it kept
+                    // what it had instead of being rebuilt every publish.
+                    sb.AppendLine(
+                        $"  new dabs per publish    median {tip.NewDabsMedian,7:0.#}   p90 {tip.NewDabsP90,7:0.#}"
+                        + $"   worst {tip.NewDabsWorst,7:0.#}");
+                    if (tip.NewDabsP90 > 0)
+                    {
+                        var rebuilt = perDab * tip.OutstandingP90;
+                        var accumulated = perDab * tip.NewDabsP90;
+                        sb.AppendLine(
+                            $"  >> At the p90 a REBUILT tip stamps {tip.OutstandingP90:0} dabs ({rebuilt:0.##} ms);"
+                            + $" one that ACCUMULATED");
+                        sb.AppendLine(
+                            $"     would stamp {tip.NewDabsP90:0} ({accumulated:0.##} ms). That ratio is whether the fast");
+                        sb.AppendLine(
+                            "     stroke case is reachable by keeping the tip instead of rebuilding it.");
+                    }
                 }
             }
 

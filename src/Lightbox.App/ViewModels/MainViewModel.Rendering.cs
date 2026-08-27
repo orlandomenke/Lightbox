@@ -1546,6 +1546,37 @@ public partial class MainViewModel
     internal Services.Tally LiveTipStampMs { get; } = new();
 
     /// <summary>
+    /// Dabs added between one publish and the next, which is what a tip that
+    /// ACCUMULATED would have to stamp (B322, attempt 6).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The one number that says whether the fast-stroke case is reachable.</b>
+    /// The tip is rebuilt from scratch every publish, so it stamps the whole
+    /// outstanding run each time — 783 dabs at the p90, 16.8 us each, 13 ms a
+    /// publish against a 20.7 ms cycle. That is why the budget refuses fast
+    /// strokes and why the preview vanishes in them.
+    /// </para>
+    /// <para>
+    /// A tip that kept what it had and stamped only what arrived since would
+    /// pay <em>this</em> instead, and the total over a stroke would be
+    /// proportional to its dabs rather than to the sum of every outstanding
+    /// run. If this median is small while the outstanding median is not, the
+    /// sixth attempt is worth building. If they are the same, it is not, and
+    /// the fast case needs a different idea entirely.
+    /// </para>
+    /// <para>
+    /// Recorded on <b>every</b> publish of a live stroke, including the ones the
+    /// budget refuses — those are precisely the fast strokes the question is
+    /// about, and measuring only the publishes that drew a tip would sample the
+    /// slow ones and answer confidently about the wrong case.
+    /// </para>
+    /// </remarks>
+    internal Services.Tally LiveTipNewDabs { get; } = new();
+
+    private int _lastPublishDabs = -1;
+
+    /// <summary>
     /// The dabs stamped since the last completed pass, drawn raw so the tip of
     /// the mark is on screen while the pass catches up (B322).
     /// </summary>
@@ -1572,9 +1603,25 @@ public partial class MainViewModel
     /// </remarks>
     private SKBitmap? BuildLiveTip()
     {
+        if (_strokeBuilder.Current is not { } stroke || _live.Dabs is not { Count: > 0 } dabs)
+        {
+            // Between strokes: forget where the last one had got to, or the
+            // first publish of the next would report its whole dab list as new.
+            _lastPublishDabs = -1;
+            _live.TipUsed = null;
+            return null;
+        }
+
+        // Before every early return below, because the refused publishes are the
+        // fast strokes and they are what attempt 6 needs to know about.
+        if (_lastPublishDabs >= 0 && dabs.Count >= _lastPublishDabs)
+        {
+            LiveTipNewDabs.Add(dabs.Count - _lastPublishDabs);
+        }
+
+        _lastPublishDabs = dabs.Count;
+
         if (_live.PostScratch is null) { _live.TipUsed = null; return null; }
-        if (_strokeBuilder.Current is not { } stroke) { _live.TipUsed = null; return null; }
-        if (_live.Dabs is not { Count: > 0 } dabs) { _live.TipUsed = null; return null; }
 
         // Q168, 2026-08-27: the effects whose raw tip breaks live-matches-committed
         // keep today's behaviour. The owner's call over a recommendation to show
