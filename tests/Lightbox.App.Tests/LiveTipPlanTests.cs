@@ -36,7 +36,7 @@ public class LiveTipPlanTests(ITestOutputHelper output)
         {
             foreach (var count in new[] { 0, 1, 10, 11, 128, 129, 1263, 10_000, 1_000_000 })
             {
-                var (range, _, _) = LiveTipPlan.For(post, count);
+                var (range, _, _, _) = LiveTipPlan.For(post, count);
                 if (range is not { } r) continue;
 
                 Assert.True(r.Count > 0, $"an empty range was planned for post {post}, count {count}");
@@ -61,7 +61,7 @@ public class LiveTipPlanTests(ITestOutputHelper output)
     [Fact]
     public void TheCaptureThatKilledTheFourthAttemptPlansNothing()
     {
-        var (range, why, outstanding) = LiveTipPlan.For(10, 1263);
+        var (range, _, why, outstanding) = LiveTipPlan.For(10, 1263);
         output.WriteLine($"outstanding {outstanding}, planned {range?.Count ?? 0}, because {why}");
 
         Assert.Null(range);
@@ -76,7 +76,7 @@ public class LiveTipPlanTests(ITestOutputHelper output)
     [Fact]
     public void AShortOutstandingRunIsDrawn()
     {
-        var (range, why, outstanding) = LiveTipPlan.For(400, 440);
+        var (range, _, why, outstanding) = LiveTipPlan.For(400, 440);
         output.WriteLine($"outstanding {outstanding}, planned {range?.Count ?? 0}, because {why}");
 
         Assert.Equal(LiveTipPlan.Skip.None, why);
@@ -93,8 +93,8 @@ public class LiveTipPlanTests(ITestOutputHelper output)
     [Fact]
     public void JustOverTheBudgetDrawsNothingRatherThanATruncatedTip()
     {
-        var (justUnder, _, _) = LiveTipPlan.For(1, 1 + LiveTipPlan.MaxDabs);
-        var (justOver, why, _) = LiveTipPlan.For(1, 2 + LiveTipPlan.MaxDabs);
+        var (justUnder, _, _, _) = LiveTipPlan.For(1, 1 + LiveTipPlan.MaxDabs);
+        var (justOver, _, why, _) = LiveTipPlan.For(1, 2 + LiveTipPlan.MaxDabs);
 
         Assert.NotNull(justUnder);
         Assert.Equal(LiveTipPlan.MaxDabs, justUnder!.Value.Count);
@@ -111,7 +111,7 @@ public class LiveTipPlanTests(ITestOutputHelper output)
     [InlineData(0, 500)]
     public void NothingIsPlannedBeforeTheFirstPass(int post, int count)
     {
-        var (range, why, _) = LiveTipPlan.For(post, count);
+        var (range, _, why, _) = LiveTipPlan.For(post, count);
         Assert.Null(range);
         Assert.Equal(LiveTipPlan.Skip.NoPassYet, why);
     }
@@ -122,8 +122,70 @@ public class LiveTipPlanTests(ITestOutputHelper output)
     [InlineData(500, 499)]
     public void NothingIsPlannedOnceThePassHasCaughtUp(int post, int count)
     {
-        var (range, why, _) = LiveTipPlan.For(post, count);
+        var (range, _, why, _) = LiveTipPlan.For(post, count);
         Assert.Null(range);
         Assert.Equal(LiveTipPlan.Skip.NothingOutstanding, why);
+    }
+
+    /// <summary>
+    /// <b>The budget bounds what THIS publish stamps, not the outstanding run.</b>
+    /// A tip that can be added to only stamps the delta, so a long outstanding
+    /// run must not refuse it — that refusal is why fast strokes had no preview
+    /// through two attempts, on the strength of a cost that no longer existed.
+    /// </summary>
+    [Fact]
+    public void ALongOutstandingRunIsDrawnWhenTheTipCanSimplyBeAddedTo()
+    {
+        // 2000 dabs outstanding — far past the budget — but the tip already
+        // holds all but the last 20 of them.
+        var (range, stampFrom, why, outstanding) = LiveTipPlan.For(
+            postStampedCount: 100, dabCount: 2100, tipFrom: 100, tipStampedTo: 2080);
+        output.WriteLine($"outstanding {outstanding}, stamping from {stampFrom}, because {why}");
+
+        Assert.Equal(LiveTipPlan.Skip.None, why);
+        Assert.NotNull(range);
+        Assert.Equal(2000, outstanding);
+        Assert.Equal(2080, stampFrom);
+        Assert.True(
+            range!.Value.To - stampFrom <= LiveTipPlan.MaxDabs,
+            "the work planned is above the budget even though only the delta is stamped");
+    }
+
+    /// <summary>
+    /// And a rebuild of the same run is still refused, because a rebuild really
+    /// does stamp all of it.
+    /// </summary>
+    [Fact]
+    public void TheSameRunIsRefusedWhenTheTipMustBeRebuilt()
+    {
+        var (range, _, why, _) = LiveTipPlan.For(
+            postStampedCount: 100, dabCount: 2100, tipFrom: 40, tipStampedTo: 2080);
+
+        Assert.Null(range);
+        Assert.Equal(LiveTipPlan.Skip.TooFarBehind, why);
+    }
+
+    /// <summary>
+    /// The bound holds over the whole input space for additions too — the
+    /// property the first version of this file proved for rebuilds only.
+    /// </summary>
+    [Fact]
+    public void NoAdditionAsksForMoreThanTheBudgetEither()
+    {
+        foreach (var post in new[] { 1, 10, 500, 5000 })
+        {
+            foreach (var count in new[] { 1, 200, 5000, 100_000 })
+            {
+                foreach (var held in new[] { -1, 0, post, post + 5, count - 1, count })
+                {
+                    var (range, from, _, _) = LiveTipPlan.For(post, count, post, held);
+                    if (range is not { } r) continue;
+                    Assert.True(
+                        r.To - from <= LiveTipPlan.MaxDabs,
+                        $"post {post}, count {count}, held to {held} planned {r.To - from} dabs");
+                    Assert.True(from >= r.From && from <= r.To, $"stampFrom {from} escapes {r}");
+                }
+            }
+        }
     }
 }

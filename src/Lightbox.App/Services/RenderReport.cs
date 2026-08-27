@@ -89,7 +89,7 @@ internal static class RenderReport
          double StampMedianMs, double StampWorstMs,
          double NewDabsMedian, double NewDabsP90, double NewDabsWorst,
          int Added, int Rebuilt,
-         double DabsAddedMedian, double DabsRebuiltMedian)? LiveTip = null,
+         double DabsAddedMedian, double DabsRebuiltMedian, double DabsStampedMedian)? LiveTip = null,
         (double SettledMedian, double SettledP90,
          double ProvisionalMedian, double ProvisionalP90, double ProvisionalWorst,
          long Events, int WholeMarkEvents)? StampShape = null,
@@ -1491,7 +1491,14 @@ internal static class RenderReport
                     $"  restamping the tip cost median {tip.StampMedianMs,7:0.##} ms   worst {tip.StampWorstMs,7:0.##} ms");
                 if (tip.StampMedianMs > 0 && tip.OutstandingMedian > 0)
                 {
-                    var perDab = tip.StampMedianMs / tip.OutstandingMedian;
+                    // **Divided by what was STAMPED, not by what was outstanding.**
+                    // Those were the same number while the tip was rebuilt every
+                    // publish; attempt 6 stamps a fraction of the outstanding run,
+                    // and leaving the old divisor in place overstated the per-dab
+                    // cost by exactly the saving — 27.9 us reported against 91.5
+                    // actual, on a capture where the saving was 3.3x.
+                    var stamped = tip.DabsStampedMedian > 0 ? tip.DabsStampedMedian : tip.OutstandingMedian;
+                    var perDab = stamped > 0 ? tip.StampMedianMs / stamped : 0;
                     sb.AppendLine(
                         $"  >> About {perDab * 1000:0.##} us a dab, so a budget of {tip.OutstandingP99:0} — the p99"
                         + $" above — would cost about {perDab * tip.OutstandingP99:0.##} ms a publish.");
@@ -1527,12 +1534,31 @@ internal static class RenderReport
                             sb.AppendLine(
                                 $"    dabs stamped            adding median {tip.DabsAddedMedian,6:0.#}"
                                 + $"   rebuilding median {tip.DabsRebuiltMedian,6:0.#}");
-                            if (tip.Rebuilt > tip.Added)
+                            // **Judged by what each path COSTS, not by how often it runs.**
+                            // The first version compared the counts, saw 53 rebuilds against
+                            // 47 additions, and announced "attempt 6 has not paid" on a
+                            // capture where it stamped 17.6 dabs a publish against the 57.5
+                            // a rebuilt tip would have — a 3.3x saving reported as a failure.
+                            // A rebuild is cheap precisely because it happens when the pass
+                            // has just reset the outstanding run.
+                            if (tip.DabsStampedMedian > 0 && tip.OutstandingMedian > 0)
                             {
-                                sb.AppendLine("  >> More publishes REBUILD than add, so the tip is invalidated");
-                                sb.AppendLine("     about as often as it is used and attempt 6 has not paid.");
-                                sb.AppendLine("     The pass completes roughly per publish; keeping the tip");
-                                sb.AppendLine("     cannot help until that changes.");
+                                var saving = tip.OutstandingMedian / tip.DabsStampedMedian;
+                                sb.AppendLine(
+                                    $"    dabs stamped a publish  {tip.DabsStampedMedian,6:0.#} against {tip.OutstandingMedian,6:0.#}"
+                                    + $" outstanding — {saving:0.#}x");
+                                if (saving < 1.2)
+                                {
+                                    sb.AppendLine("  >> The tip is stamping about as much as a rebuilt one would,");
+                                    sb.AppendLine("     so keeping it between publishes has bought nothing here.");
+                                }
+                                else
+                                {
+                                    sb.AppendLine(
+                                        $"  >> Keeping the tip saves {saving:0.#}x the stamping a rebuild would cost,");
+                                    sb.AppendLine("     whichever path a publish takes. A rebuild is cheap because it");
+                                    sb.AppendLine("     happens exactly when the pass has just reset the outstanding run.");
+                                }
                             }
                             else
                             {

@@ -1589,6 +1589,21 @@ public partial class MainViewModel
     internal Services.Tally LiveTipDabsRebuilt { get; } = new();
 
     /// <summary>
+    /// Dabs the tip stamped per publish, whichever path it took — the divisor
+    /// for anything per-dab, and the number to compare against the outstanding
+    /// run (B322 attempt 6).
+    /// </summary>
+    /// <remarks>
+    /// <b>Because the report kept dividing by the wrong thing.</b> When the tip
+    /// was rebuilt every publish, dabs stamped WAS the outstanding run and the
+    /// report divided by that. Attempt 6 stamps a fraction of it, and the
+    /// divisor was not changed with the mechanism — so a per-dab cost came out
+    /// 3.3x high and a verdict compared how OFTEN each path ran instead of what
+    /// each cost, and announced a saving of 3.3x as "attempt 6 has not paid".
+    /// </remarks>
+    internal Services.Tally LiveTipDabsStamped { get; } = new();
+
+    /// <summary>
     /// The dabs stamped since the last completed pass, drawn raw so the tip of
     /// the mark is on screen while the pass catches up (B322).
     /// </summary>
@@ -1645,7 +1660,8 @@ public partial class MainViewModel
         // answers a question nobody asked — and answered it as "the whole
         // stroke", which is what the fourth attempt then restamped every
         // publish. See LivePaintSession.PostStampedDabs and B329.
-        var (range, why, outstanding) = Rendering.LiveTipPlan.For(_live.PostStampedDabs, dabs.Count);
+        var (range, planStampFrom, why, outstanding) = Rendering.LiveTipPlan.For(
+            _live.PostStampedDabs, dabs.Count, _live.TipFrom, _live.TipStampedTo);
         if (outstanding > 0) LiveTipOutstanding.Add(outstanding);
         if (why == Rendering.LiveTipPlan.Skip.TooFarBehind) LiveTipTooFarBehind++;
         if (why == Rendering.LiveTipPlan.Skip.NoPassYet) LiveTipNoPass++;
@@ -1664,13 +1680,14 @@ public partial class MainViewModel
         // those dabs are in the processed body now, and leaving them in the tip
         // would draw raw ink over finished pixels, which is the artifact three
         // earlier attempts produced.
-        var canAdd = _live.TipFrom == plan.From
-            && _live.TipStampedTo >= plan.From
-            && _live.TipStampedTo <= plan.To
-            && _live.TipScratch is not null;
+        // The plan already decided this — it had to, because the budget is now
+        // about what THIS publish stamps and that depends on whether the buffer
+        // can be added to. Keeping the decision in one place is what stops the
+        // two from disagreeing about which dabs the buffer holds.
+        var canAdd = planStampFrom > plan.From && _live.TipScratch is not null;
 
         var startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
-        var stampedFrom = canAdd ? _live.TipStampedTo : plan.From;
+        var stampedFrom = canAdd ? planStampFrom : plan.From;
         var canvas = canAdd ? _live.ContinueTip() : _live.BeginTip(info.Width, info.Height);
         if (canvas is null) return null;
         try
@@ -1693,8 +1710,10 @@ public partial class MainViewModel
         // Counted apart, because the saving this attempt exists for is entirely
         // in how often each happens — and the report's prediction of it (1.21 ms
         // against 5.11) assumed every publish was an addition and ignored these.
-        if (canAdd) { LiveTipAdded++; LiveTipDabsAdded.Add(plan.To - stampedFrom); }
-        else { LiveTipRebuilt++; LiveTipDabsRebuilt.Add(plan.To - stampedFrom); }
+        var stampedNow = plan.To - stampedFrom;
+        if (canAdd) { LiveTipAdded++; LiveTipDabsAdded.Add(stampedNow); }
+        else { LiveTipRebuilt++; LiveTipDabsRebuilt.Add(stampedNow); }
+        LiveTipDabsStamped.Add(stampedNow);
 
         _live.TipFrom = plan.From;
         _live.TipStampedTo = plan.To;
