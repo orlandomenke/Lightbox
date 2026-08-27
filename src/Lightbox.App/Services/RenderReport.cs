@@ -90,7 +90,7 @@ internal static class RenderReport
          double NewDabsMedian, double NewDabsP90, double NewDabsWorst)? LiveTip = null,
         (double SettledMedian, double SettledP90,
          double ProvisionalMedian, double ProvisionalP90, double ProvisionalWorst,
-         long Events)? StampShape = null,
+         long Events, int WholeMarkEvents)? StampShape = null,
         (int Deferrals, int ByPresent, int ByTimer, int HoldsTimed,
          double HeldTotalMs, double HeldWorstMs,
          double LateTotalMs, double LateWorstMs, int ByEvent)? Dam = null,
@@ -1260,6 +1260,18 @@ internal static class RenderReport
         // grows with pen speed without anyone measuring it.
         if (facts.StampShape is { Events: > 8 } shape)
         {
+            // What this shape does not cover, said before it is read.
+            if (shape.WholeMarkEvents > 0)
+            {
+                var total = shape.Events + shape.WholeMarkEvents;
+                sb.AppendLine(
+                    $"    (the split below covers {shape.Events} of {total} events — {shape.WholeMarkEvents} took the");
+                sb.AppendLine(
+                    "     whole-mark route, which stamps its silhouette in one piece and has");
+                sb.AppendLine(
+                    "     no settled/provisional split to report)");
+            }
+
             sb.AppendLine(
                 $"    settled per event     median {shape.SettledMedian,7:0.#}   p90 {shape.SettledP90,7:0.#}   dabs (stamped once)");
             sb.AppendLine(
@@ -1269,8 +1281,21 @@ internal static class RenderReport
             var perEvent = shape.SettledMedian + shape.ProvisionalMedian;
             if (perEvent > 0)
             {
+                // **No microseconds-per-dab here, deliberately.** The obvious
+                // line divides `stamping the dabs` by this, and that is a MEAN
+                // over a MEDIAN — the stamp's mean sits beside a worst ten times
+                // its own size, so the quotient would carry every stall into a
+                // per-dab figure and read as precision. StrokeToScreen.Segment
+                // has no median to divide with; until it does, the two
+                // distributions are printed and no third number is invented from
+                // them. The tip's own 16.8 us a dab IS median over median and can
+                // be compared against.
                 sb.AppendLine(
-                    $"  >> A typical event stamps {perEvent:0.#} dabs, so {s.Stamp.MeanMs / perEvent * 1000:0.#} us a dab.");
+                    $"  >> A typical event stamps {perEvent:0.#} dabs. No per-dab cost is derived:");
+                sb.AppendLine(
+                    "     the stamp is timed as a mean only, and a mean over a median is the");
+                sb.AppendLine(
+                    "     mistake this report exists to avoid.");
             }
 
             // The suspicion the paint path records, answered.

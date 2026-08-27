@@ -1274,6 +1274,46 @@ public partial class MainViewModel
     internal Services.Tally LiveStampProvisional { get; } = new();
 
     /// <summary>
+    /// Events that took the whole-mark route, which has no settled/provisional
+    /// split for the shape above to describe (B322 attempt 6).
+    /// </summary>
+    /// <remarks>
+    /// <b>Here so the report can say what it did NOT measure.</b> A silhouette
+    /// brush stamps its mark in one piece and returns long before the per-dab
+    /// bookkeeping; without this counter the shape would be a median over
+    /// whatever minority of events took the other route, printed with no hint
+    /// that most of the session is missing from it. That is the failure this
+    /// session already made once, when a tip line's silence meant both "never
+    /// drawn" and "never applicable" and was read as the second.
+    /// </remarks>
+    internal int LiveStampWholeMarkEvents { get; private set; }
+
+    /// <summary>
+    /// Dabs the live stroke produced, so a test can check the counters above
+    /// against the thing they are counting (B322 attempt 6).
+    /// </summary>
+    /// <remarks>
+    /// Exposed for the conservation check in <c>StampShapeAccountingTests</c>:
+    /// every dab settles exactly once, so the settled counts must sum to this.
+    /// A counter left after an early return, or reading a stale index, breaks
+    /// that sum and nothing else in the suite would notice.
+    /// </remarks>
+    internal int LiveDabCountForTest => _live.Dabs?.Count ?? 0;
+
+    /// <summary>
+    /// How far the settled prefix has reached, for the same check
+    /// (B322 attempt 6).
+    /// </summary>
+    /// <remarks>
+    /// The exact conservation law is <c>sum(settled) == StableDabs</c>, and the
+    /// remainder up to the dab count is the tail still on loan. Asserting
+    /// against the dab count alone is wrong and was written that way first: the
+    /// final tail never settles until the stroke commits, so a correct counter
+    /// looked like it was losing ten dabs.
+    /// </remarks>
+    internal int LiveStableDabsForTest => _live.StableDabs;
+
+    /// <summary>
     /// The priority the live post-process is queued at (B313).
     /// </summary>
     /// <remarks>
@@ -2123,6 +2163,13 @@ public partial class MainViewModel
             }
 
             _live.DabCount = dabs.Count;
+            // This route stamps the mark as one silhouette and has no settled /
+            // provisional split at all, so the shape below cannot describe it.
+            // Counted rather than ignored: a median taken over the handful of
+            // events that DID take the other route, presented as though it
+            // covered the session, is how a report comes to be confidently wrong
+            // about a brush it never measured.
+            LiveStampWholeMarkEvents++;
             return;
         }
 
@@ -2177,6 +2224,7 @@ public partial class MainViewModel
         }
 
         // 3. The rest on loan, so the mark reaches the pen tip.
+        var reStamped = 0;
         if (BrushEngine.RangeBounds(dabs, _live.StableDabs, live.Brush, info) is { } tail
             && _live.Scratch is not null)
         {
@@ -2216,6 +2264,12 @@ public partial class MainViewModel
             }
 
             BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, dabs.Count);
+            // Counted HERE and not from the tail's size below, because the tail
+            // is only re-stamped when RangeBounds gives it a rectangle. Counting
+            // `dabs.Count - StableDabs` regardless would report work that did not
+            // happen — the same shape of error as measuring a range in one unit
+            // and subtracting it in another (B329).
+            reStamped = Math.Max(0, dabs.Count - _live.StableDabs);
             _live.ScratchCanvas.Flush();
 
             // 3b. The footprint's own copy of the same loan.
@@ -2274,7 +2328,7 @@ public partial class MainViewModel
         // so a settled prefix that never moved still counts as zero — a stamp
         // that did nothing is data about whether the cost is fixed.
         LiveStampSettled.Add(Math.Max(0, _live.StableDabs - settledFrom));
-        LiveStampProvisional.Add(Math.Max(0, provisional));
+        LiveStampProvisional.Add(reStamped);
 
         // For a brush whose only post-process is the ceiling, apply it here and
         // skip the worker entirely (B293).
