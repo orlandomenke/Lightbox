@@ -87,7 +87,9 @@ internal static class RenderReport
          double OutstandingMedian, double OutstandingWorst,
          double OutstandingP90, double OutstandingP99,
          double StampMedianMs, double StampWorstMs,
-         double NewDabsMedian, double NewDabsP90, double NewDabsWorst)? LiveTip = null,
+         double NewDabsMedian, double NewDabsP90, double NewDabsWorst,
+         int Added, int Rebuilt,
+         double DabsAddedMedian, double DabsRebuiltMedian)? LiveTip = null,
         (double SettledMedian, double SettledP90,
          double ProvisionalMedian, double ProvisionalP90, double ProvisionalWorst,
          long Events, int WholeMarkEvents)? StampShape = null,
@@ -1320,24 +1322,43 @@ internal static class RenderReport
                     "     as a per-dab cost to three figures.");
             }
 
-            // The suspicion the paint path records, answered.
-            if (shape.ProvisionalMedian > 0 && shape.ProvisionalP90 > shape.ProvisionalMedian * 3)
+            // **The tail is judged against the event's OWN dabs, not against its
+            // own spread** — and the first version of this got that wrong. It
+            // compared the provisional median with the provisional p90, saw 5.6x,
+            // and concluded the stamp was unbounded. Both numbers rise together
+            // on a fast stroke because a fast event simply contains more dabs;
+            // the question is whether the tail is growing *relative to* the work,
+            // which is the ratio below. B321 had already settled this — the tail
+            // is 2.0 events at every pen speed (`ProvisionalTailTests`) and its
+            // large dab counts "are just what a fast stroke is" — and the wrong
+            // verdict nearly sent a session to re-derive a ruled-out result.
+            if (shape.SettledMedian > 0 && shape.ProvisionalMedian > 0)
             {
+                var atMedian = shape.ProvisionalMedian / shape.SettledMedian;
+                var atP90 = shape.SettledP90 > 0 ? shape.ProvisionalP90 / shape.SettledP90 : atMedian;
                 sb.AppendLine(
-                    $"  >> The provisional tail SPIKES — p90 is {shape.ProvisionalP90 / shape.ProvisionalMedian:0.#}x the median — so a fast");
-                sb.AppendLine(
-                    "     stroke really does cost more per event than a slow one, and the stamp");
-                sb.AppendLine(
-                    "     is not bounded work. That is the cost to chase before any preview fix.");
-            }
-            else if (shape.ProvisionalMedian > 0)
-            {
-                sb.AppendLine(
-                    "  >> The provisional tail is steady between the median and the p90, so the");
-                sb.AppendLine(
-                    "     stamp costs about the same per event however fast the pen moves. A");
-                sb.AppendLine(
-                    "     fast stroke's cost is then elsewhere, not here.");
+                    $"    tail per settled dab  {atMedian:0.##}x at the median, {atP90:0.##}x at the p90");
+
+                if (atP90 > atMedian * 1.5)
+                {
+                    sb.AppendLine(
+                        "  >> The tail grows RELATIVE to the event's own dabs on a fast stroke, so");
+                    sb.AppendLine(
+                        "     the lending policy is the cost and not merely the dab count. That is");
+                    sb.AppendLine(
+                        "     a real regression against ProvisionalTailTests — check it first.");
+                }
+                else
+                {
+                    sb.AppendLine(
+                        "  >> The tail holds its ratio to the event's own dabs, so it is behaving");
+                    sb.AppendLine(
+                        "     exactly as designed and the stamp is bounded by what the event");
+                    sb.AppendLine(
+                        "     contains. A fast event holds more dabs; that is what a fast stroke");
+                    sb.AppendLine(
+                        "     IS, and it is ruled out as a fault in B321. Do not re-derive it.");
+                }
             }
         }
         var perPublish = s.Publishes == 0 ? 0 : (double)s.Events / s.Publishes;
@@ -1489,12 +1510,38 @@ internal static class RenderReport
                         var rebuilt = perDab * tip.OutstandingP90;
                         var accumulated = perDab * tip.NewDabsP90;
                         sb.AppendLine(
-                            $"  >> At the p90 a REBUILT tip stamps {tip.OutstandingP90:0} dabs ({rebuilt:0.##} ms);"
-                            + $" one that ACCUMULATED");
+                            $"  >> At the p90 a REBUILT tip would stamp {tip.OutstandingP90:0} dabs ({rebuilt:0.##} ms);"
+                            + $" an accumulated one");
                         sb.AppendLine(
-                            $"     would stamp {tip.NewDabsP90:0} ({accumulated:0.##} ms). That ratio is whether the fast");
-                        sb.AppendLine(
-                            "     stroke case is reachable by keeping the tip instead of rebuilding it.");
+                            $"     {tip.NewDabsP90:0} ({accumulated:0.##} ms) — the prediction attempt 6 was built on.");
+
+                        // **What it actually did**, which that prediction could not say: it
+                        // assumed every publish was an addition and ignored the rebuilds a
+                        // completed pass forces. The saving is entirely in their ratio.
+                        var decisions = tip.Added + tip.Rebuilt;
+                        if (decisions > 0)
+                        {
+                            sb.AppendLine(
+                                $"  added to the tip          {tip.Added} of {decisions}   rebuilt {tip.Rebuilt}"
+                                + $"   (a completed pass forces a rebuild)");
+                            sb.AppendLine(
+                                $"    dabs stamped            adding median {tip.DabsAddedMedian,6:0.#}"
+                                + $"   rebuilding median {tip.DabsRebuiltMedian,6:0.#}");
+                            if (tip.Rebuilt > tip.Added)
+                            {
+                                sb.AppendLine("  >> More publishes REBUILD than add, so the tip is invalidated");
+                                sb.AppendLine("     about as often as it is used and attempt 6 has not paid.");
+                                sb.AppendLine("     The pass completes roughly per publish; keeping the tip");
+                                sb.AppendLine("     cannot help until that changes.");
+                            }
+                            else
+                            {
+                                sb.AppendLine(
+                                    $"  >> {tip.Added * 100.0 / decisions:0}% of publishes only added, so the tip survives");
+                                sb.AppendLine("     between passes and the saving is real. The gap between the two");
+                                sb.AppendLine("     medians above is what attempt 6 bought.");
+                            }
+                        }
                     }
                 }
             }

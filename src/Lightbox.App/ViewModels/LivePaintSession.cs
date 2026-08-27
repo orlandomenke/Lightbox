@@ -333,6 +333,33 @@ sealed class LivePaintSession
     /// <summary>What <see cref="TipScratch"/> holds, so a rebuild wipes only that and a draw covers only that.</summary>
     internal SKRectI? TipUsed { get; set; }
 
+    /// <summary>
+    /// The dab the tip's contents start at, and the dab they run to (B322
+    /// attempt 6).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The tip is kept between publishes rather than rebuilt from nothing.</b>
+    /// Attempt 5 restamped the whole outstanding run every publish, which at the
+    /// p90 was 669 dabs for 5.11 ms; stamping only what arrived since is 158 for
+    /// 1.21. The pair below is what makes that possible — the buffer knows what
+    /// it already contains, so a publish adds the difference.
+    /// </para>
+    /// <para>
+    /// <b><see cref="TipFrom"/> is the half that cannot drift.</b> When a pass
+    /// completes, the dabs it processed are in the body now, and leaving them in
+    /// the tip as well would draw raw ink over finished pixels — the artifact
+    /// three attempts produced and the owner rejected. So a change in the pass's
+    /// position forces a rebuild rather than an addition, and the two cases are
+    /// counted separately because the saving is entirely in how often each
+    /// happens.
+    /// </para>
+    /// </remarks>
+    internal int TipFrom { get; set; } = -1;
+
+    /// <summary>How far the tip's contents run, exclusive.</summary>
+    internal int TipStampedTo { get; set; } = -1;
+
     /// <summary>Make <see cref="TipScratch"/> exist at this size, wiped of the last rebuild.</summary>
     internal SKCanvas BeginTip(int width, int height)
     {
@@ -359,7 +386,18 @@ sealed class LivePaintSession
         }
 
         TipUsed = null;
+        TipFrom = -1;
+        TipStampedTo = -1;
         return canvas;
+    }
+
+    /// <summary>
+    /// A canvas onto the tip without wiping what it holds, for adding the dabs
+    /// that arrived since the last publish (B322 attempt 6).
+    /// </summary>
+    internal SKCanvas? ContinueTip()
+    {
+        return TipScratch is null ? null : new SKCanvas(TipScratch);
     }
 
     /// <summary>Forget the tip, wiping what it last held.</summary>
@@ -373,6 +411,8 @@ sealed class LivePaintSession
         }
 
         TipUsed = null;
+        TipFrom = -1;
+        TipStampedTo = -1;
     }
 
     /// <summary>Cost of the last pass, milliseconds — reported by the performance panel.</summary>

@@ -1576,6 +1576,18 @@ public partial class MainViewModel
 
     private int _lastPublishDabs = -1;
 
+    /// <summary>Publishes that added to the tip rather than rebuilding it (B322 attempt 6).</summary>
+    internal int LiveTipAdded { get; private set; }
+
+    /// <summary>Publishes that had to rebuild it because the pass had moved.</summary>
+    internal int LiveTipRebuilt { get; private set; }
+
+    /// <summary>Dabs stamped by an addition, and by a rebuild — the two costs, kept apart.</summary>
+    internal Services.Tally LiveTipDabsAdded { get; } = new();
+
+    /// <summary>Dabs stamped by a rebuild.</summary>
+    internal Services.Tally LiveTipDabsRebuilt { get; } = new();
+
     /// <summary>
     /// The dabs stamped since the last completed pass, drawn raw so the tip of
     /// the mark is on screen while the pass catches up (B322).
@@ -1645,12 +1657,29 @@ public partial class MainViewModel
 
         var info = new SKImageInfo(
             Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        // **Add what arrived, rebuild only when the pass moved** (attempt 6).
+        // The tip keeps its contents between publishes, so an ordinary publish
+        // stamps the difference rather than the whole outstanding run. A pass
+        // completing is the one thing that invalidates what is already there —
+        // those dabs are in the processed body now, and leaving them in the tip
+        // would draw raw ink over finished pixels, which is the artifact three
+        // earlier attempts produced.
+        var canAdd = _live.TipFrom == plan.From
+            && _live.TipStampedTo >= plan.From
+            && _live.TipStampedTo <= plan.To
+            && _live.TipScratch is not null;
+
         var startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
-        var canvas = _live.BeginTip(info.Width, info.Height);
+        var stampedFrom = canAdd ? _live.TipStampedTo : plan.From;
+        var canvas = canAdd ? _live.ContinueTip() : _live.BeginTip(info.Width, info.Height);
+        if (canvas is null) return null;
         try
         {
-            BrushEngine.StampDabRange(canvas, stroke, dabs, plan.From, plan.To);
-            canvas.Flush();
+            if (stampedFrom < plan.To)
+            {
+                BrushEngine.StampDabRange(canvas, stroke, dabs, stampedFrom, plan.To);
+                canvas.Flush();
+            }
         }
         finally
         {
@@ -1661,6 +1690,20 @@ public partial class MainViewModel
             (System.Diagnostics.Stopwatch.GetTimestamp() - startedAt)
             * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
 
+        // Counted apart, because the saving this attempt exists for is entirely
+        // in how often each happens — and the report's prediction of it (1.21 ms
+        // against 5.11) assumed every publish was an addition and ignored these.
+        if (canAdd) { LiveTipAdded++; LiveTipDabsAdded.Add(plan.To - stampedFrom); }
+        else { LiveTipRebuilt++; LiveTipDabsRebuilt.Add(plan.To - stampedFrom); }
+
+        _live.TipFrom = plan.From;
+        _live.TipStampedTo = plan.To;
+
+        // From plan.From and not from stampedFrom: the tip holds everything back
+        // to the pass's position, so the rectangle drawn from it has to cover
+        // all of that. Bounding it to this publish's addition alone would clip
+        // the older part of the tip off the screen every publish — a mark that
+        // flickers down to its newest dabs, which is worse than the bug.
         _live.TipUsed = BrushEngine.RangeBounds(dabs, plan.From, stroke.Brush, info);
         if (_live.TipUsed is null) return null;
 

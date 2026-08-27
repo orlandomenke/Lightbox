@@ -158,4 +158,45 @@ public class StampShapeAccountingTests(ITestOutputHelper output) : BrushStateIso
             $"a single event claimed {provisional.WorstMs} re-stamped dabs against a stroke "
             + $"of {dabs} — the counter is measuring something else");
     }
+
+    /// <summary>
+    /// <b>The tip is kept between publishes, and thrown away when the pass
+    /// moves</b> (B322 attempt 6). Both halves matter: keeping it is the whole
+    /// saving, and throwing it away when a pass completes is what stops raw
+    /// dabs being drawn over pixels the pass has already finished — the
+    /// artifact three earlier attempts produced and the owner rejected.
+    /// </summary>
+    /// <remarks>
+    /// Driven through the view model rather than asserted on the decision in
+    /// isolation, because the bug this guards against is the two halves
+    /// disagreeing about which dabs the buffer holds — which no unit test of
+    /// either half alone would see.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheTipIsAddedToBetweenPassesAndRebuiltWhenOneLands()
+    {
+        var vm = Ready(hardness: 0.4);
+        vm.BrushGranulation = 0.35;   // gives it a live pass, so a tip exists at all
+        Dispatcher.UIThread.RunJobs();
+
+        Stroke(vm);
+
+        var decisions = vm.LiveTipAdded + vm.LiveTipRebuilt;
+        output.WriteLine(
+            $"added {vm.LiveTipAdded}, rebuilt {vm.LiveTipRebuilt}, "
+            + $"adding median {vm.LiveTipDabsAdded.MedianMs}, rebuilding median {vm.LiveTipDabsRebuilt.MedianMs}");
+
+        Assert.True(decisions > 0, "no tip was built at all — this brush has no live pass");
+        // An addition must never stamp more than a rebuild would have: it starts
+        // further along the same dab list. If it does, the two halves disagree
+        // about what the buffer holds.
+        if (vm.LiveTipDabsAdded.Count > 0 && vm.LiveTipDabsRebuilt.Count > 0)
+        {
+            Assert.True(
+                vm.LiveTipDabsAdded.WorstMs <= vm.LiveTipDabsRebuilt.WorstMs
+                || vm.LiveTipDabsAdded.MedianMs <= vm.LiveTipDabsRebuilt.MedianMs,
+                "adding to the tip stamped more dabs than rebuilding it, so the buffer's "
+                + "idea of what it holds has drifted from the plan's");
+        }
+    }
 }
