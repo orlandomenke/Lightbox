@@ -83,6 +83,18 @@ internal static class RenderReport
          int Waits, double WaitTotalMs, double WaitWorstMs,
          long Pixels, long MarkPixels,
          int WorstW, int WorstH, long WorstMarkPixels, int WorstTail)? LivePost = null,
+        (int Drawn, int TooFarBehind, int NoPass,
+         double OutstandingMedian, double OutstandingWorst,
+         double OutstandingP90, double OutstandingP99,
+         double StampMedianMs, double StampWorstMs,
+         double NewDabsMedian, double NewDabsP90, double NewDabsWorst,
+         int Added, int Rebuilt,
+         double DabsAddedMedian, double DabsRebuiltMedian, double DabsStampedMedian,
+         double MarginalMs)? LiveTip = null,
+        (double SettledMedian, double SettledP90,
+         double ProvisionalMedian, double ProvisionalP90, double ProvisionalWorst,
+         long Events, int WholeMarkEvents,
+         double BandAtQueue, double BandAtStart, long Bands)? StampShape = null,
         (int Deferrals, int ByPresent, int ByTimer, int HoldsTimed,
          double HeldTotalMs, double HeldWorstMs,
          double LateTotalMs, double LateWorstMs, int ByEvent)? Dam = null,
@@ -1135,6 +1147,28 @@ internal static class RenderReport
         }
 
         sb.AppendLine($"pointer events stamped    {s.Events}");
+        // B330: which of the numbers below cannot be quoted as costs. Each phase
+        // is a latency distribution with stalls in it, and until these carried a
+        // median the only honest reading was "some of this is a stall and you
+        // cannot tell which line". The frame build had this warning already; the
+        // chain an artist's lag is actually read from did not.
+        var distorted = new List<string>();
+        if (s.Stamp.MeanIsDistorted) distorted.Add("stamping");
+        if (s.WaitToPublish.MeanIsDistorted) distorted.Add("event -> publish");
+        if (s.WaitToDraw.MeanIsDistorted) distorted.Add("publish -> drawn");
+        if (s.PenToScreen.MeanIsDistorted) distorted.Add("PEN -> SCREEN");
+        if (s.TipToScreen.MeanIsDistorted) distorted.Add("TIP -> SCREEN");
+        if (distorted.Count > 0)
+        {
+            sb.AppendLine(
+                $"  !! a stall is doing the talking in: {string.Join(", ", distorted)}.");
+            sb.AppendLine(
+                "     Their means are more than twice their medians, so read the MEDIAN as");
+            sb.AppendLine(
+                "     the cost and the WORST as the thing to chase. Quoting one of those");
+            sb.AppendLine(
+                "     means is quoting an event rather than a cost.");
+        }
         // B321: the UI thread's own half. Everything else in this section is a
         // wait; this is the work that happens before any of it.
         if (facts.Compose is { Count: > 0 } comp)
@@ -1242,7 +1276,93 @@ internal static class RenderReport
             }
         }
 
-        sb.AppendLine($"  stamping the dabs       mean {s.Stamp.MeanMs,7:0.##} ms   worst {s.Stamp.WorstMs,7:0.##} ms");
+        sb.AppendLine($"  stamping the dabs       median {s.Stamp.MedianMs,7:0.##} ms   mean {s.Stamp.MeanMs,7:0.##} ms   worst {s.Stamp.WorstMs,7:0.##} ms");
+        // **What that one number is made of** (B322 attempt 6). A mean cannot
+        // show that a cost is proportional to something, which is exactly the
+        // blindness that let the fourth attempt restamp the whole stroke per
+        // publish with every test green. The settled half is stamped once; the
+        // provisional half is re-stamped every event, and the comment beside it
+        // in the paint path has suspected since it was written that the tail
+        // grows with pen speed without anyone measuring it.
+        if (facts.StampShape is { Events: > 8 } shape)
+        {
+            // What this shape does not cover, said before it is read.
+            if (shape.WholeMarkEvents > 0)
+            {
+                var total = shape.Events + shape.WholeMarkEvents;
+                sb.AppendLine(
+                    $"    (the split below covers {shape.Events} of {total} events — {shape.WholeMarkEvents} took the");
+                sb.AppendLine(
+                    "     whole-mark route, which stamps its silhouette in one piece and has");
+                sb.AppendLine(
+                    "     no settled/provisional split to report)");
+            }
+
+            sb.AppendLine(
+                $"    settled per event     median {shape.SettledMedian,7:0.#}   p90 {shape.SettledP90,7:0.#}   dabs (stamped once)");
+            sb.AppendLine(
+                $"    provisional per event median {shape.ProvisionalMedian,7:0.#}   p90 {shape.ProvisionalP90,7:0.#}"
+                + $"   worst {shape.ProvisionalWorst,7:0.#}   dabs (re-stamped EVERY event)");
+
+            var perEvent = shape.SettledMedian + shape.ProvisionalMedian;
+            if (perEvent > 0)
+            {
+                // **Median over median, which B330 made possible.** This line
+                // used to refuse to divide at all, because the only figure the
+                // stamp carried was a mean and a mean over a median drags every
+                // stall into a number printed as precision. It has a median now,
+                // so the division is between like statistics — with the caveat
+                // below, which is real and not a formality.
+                sb.AppendLine(
+                    $"  >> A typical event stamps {perEvent:0.#} dabs at {s.Stamp.MedianMs:0.##} ms,"
+                    + $" so about {s.Stamp.MedianMs / perEvent * 1000:0.#} us a dab.");
+                sb.AppendLine(
+                    "     A ratio of medians is not the median of the ratio: it is the right");
+                sb.AppendLine(
+                    "     order of magnitude for sizing a budget and the wrong thing to quote");
+                sb.AppendLine(
+                    "     as a per-dab cost to three figures.");
+            }
+
+            // **The tail is judged against the event's OWN dabs, not against its
+            // own spread** — and the first version of this got that wrong. It
+            // compared the provisional median with the provisional p90, saw 5.6x,
+            // and concluded the stamp was unbounded. Both numbers rise together
+            // on a fast stroke because a fast event simply contains more dabs;
+            // the question is whether the tail is growing *relative to* the work,
+            // which is the ratio below. B321 had already settled this — the tail
+            // is 2.0 events at every pen speed (`ProvisionalTailTests`) and its
+            // large dab counts "are just what a fast stroke is" — and the wrong
+            // verdict nearly sent a session to re-derive a ruled-out result.
+            if (shape.SettledMedian > 0 && shape.ProvisionalMedian > 0)
+            {
+                var atMedian = shape.ProvisionalMedian / shape.SettledMedian;
+                var atP90 = shape.SettledP90 > 0 ? shape.ProvisionalP90 / shape.SettledP90 : atMedian;
+                sb.AppendLine(
+                    $"    tail per settled dab  {atMedian:0.##}x at the median, {atP90:0.##}x at the p90");
+
+                if (atP90 > atMedian * 1.5)
+                {
+                    sb.AppendLine(
+                        "  >> The tail grows RELATIVE to the event's own dabs on a fast stroke, so");
+                    sb.AppendLine(
+                        "     the lending policy is the cost and not merely the dab count. That is");
+                    sb.AppendLine(
+                        "     a real regression against ProvisionalTailTests — check it first.");
+                }
+                else
+                {
+                    sb.AppendLine(
+                        "  >> The tail holds its ratio to the event's own dabs, so it is behaving");
+                    sb.AppendLine(
+                        "     exactly as designed and the stamp is bounded by what the event");
+                    sb.AppendLine(
+                        "     contains. A fast event holds more dabs; that is what a fast stroke");
+                    sb.AppendLine(
+                        "     IS, and it is ruled out as a fault in B321. Do not re-derive it.");
+                }
+            }
+        }
         var perPublish = s.Publishes == 0 ? 0 : (double)s.Events / s.Publishes;
         sb.AppendLine($"publishes carrying ink    {s.Publishes}  ({perPublish:0.#} events per publish)");
         if (facts.Dam is { Deferrals: > 0 } dam)
@@ -1332,15 +1452,148 @@ internal static class RenderReport
                         "     any of the latencies above it.");
                 }
             }
-            sb.AppendLine($"  event -> publish        mean {s.WaitToPublish.MeanMs,7:0.##} ms   worst {s.WaitToPublish.WorstMs,7:0.##} ms   (oldest event carried)");
-            sb.AppendLine($"    newest event          mean {s.TipToPublish.MeanMs,7:0.##} ms   worst {s.TipToPublish.WorstMs,7:0.##} ms");
+            sb.AppendLine($"  event -> publish        median {s.WaitToPublish.MedianMs,7:0.##} ms   mean {s.WaitToPublish.MeanMs,7:0.##} ms   worst {s.WaitToPublish.WorstMs,7:0.##} ms");
+            sb.AppendLine($"    newest event          median {s.TipToPublish.MedianMs,7:0.##} ms   mean {s.TipToPublish.MeanMs,7:0.##} ms   worst {s.TipToPublish.WorstMs,7:0.##} ms");
         }
+        // B322: how often the newest dabs reached the screen, and how far behind
+        // the pass was when they did not. **The budget is a guess until this line
+        // is read** — nothing recorded how many dabs are typically outstanding,
+        // and the fourth attempt's "about nine events" assumption survived all
+        // the way to a person's machine precisely because no capture could
+        // contradict it.
+        // **Printed even when it is all zeroes**, which is the correction the
+        // first real capture forced. A missing line is produced equally by "the
+        // tip was never drawn" and "this brush never needed one", and the owner
+        // had drawn with a brush that takes no post-process pass at all. The
+        // report said nothing and the silence was read as a result.
+        if (facts.LiveTip is { } tip)
+        {
+            var considered = tip.Drawn + tip.TooFarBehind;
+            if (considered == 0)
+            {
+                sb.AppendLine(
+                    $"live tip                  not applicable — no post-process pass ran in {tip.NoPass} publishes");
+                sb.AppendLine(
+                    "  This brush has no live effect, so every dab was already on screen and");
+                sb.AppendLine(
+                    "  B322 cannot arise. To exercise it, draw with granulation or a wet edge.");
+            }
+            else
+            {
+                sb.AppendLine(
+                    $"live tip drawn            {tip.Drawn} of {considered}   too far behind {tip.TooFarBehind}"
+                    + $"   (budget {Rendering.LiveTipPlan.MaxMs} ms a publish)");
+                sb.AppendLine(
+                    $"  dabs outstanding        median {tip.OutstandingMedian,7:0.#}   p90 {tip.OutstandingP90,7:0.#}"
+                    + $"   p99 {tip.OutstandingP99,7:0.#}   worst {tip.OutstandingWorst,7:0.#}");
+                // What the budget is protecting, timed. Without this the only
+                // way to choose it is caution, and caution set it to a value
+                // that refused the strokes the fix exists for.
+                sb.AppendLine(
+                    $"  restamping the tip cost median {tip.StampMedianMs,7:0.##} ms   worst {tip.StampWorstMs,7:0.##} ms");
+                if (tip.StampMedianMs > 0 && tip.OutstandingMedian > 0)
+                {
+                    // **Divided by what was STAMPED, not by what was outstanding.**
+                    // Those were the same number while the tip was rebuilt every
+                    // publish; attempt 6 stamps a fraction of the outstanding run,
+                    // and leaving the old divisor in place overstated the per-dab
+                    // cost by exactly the saving — 27.9 us reported against 91.5
+                    // actual, on a capture where the saving was 3.3x.
+                    // The MARGINAL cost, measured over the stamp alone. The
+                    // average over the whole operation carries the fixed setup,
+                    // and dividing that by a small dab count reported 58 us a
+                    // dab on a brush whose dabs cost 5.45 — which bought a
+                    // budget of 51 dabs and refused half the publishes.
+                    var perDab = tip.MarginalMs;
+                    sb.AppendLine(
+                        $"  >> About {perDab * 1000:0.##} us a dab (marginal), so {Rendering.LiveTipPlan.MaxMs} ms"
+                        + $" allows {Rendering.LiveTipPlan.Allowance(perDab)} dabs a publish.");
+                    sb.AppendLine(
+                        "     Set the budget against that, not against caution: refusing a publish");
+                    sb.AppendLine(
+                        "     turns the fix off during exactly the fast strokes it exists for.");
+
+                    // B322 attempt 6: what the same tip would cost if it kept
+                    // what it had instead of being rebuilt every publish.
+                    sb.AppendLine(
+                        $"  new dabs per publish    median {tip.NewDabsMedian,7:0.#}   p90 {tip.NewDabsP90,7:0.#}"
+                        + $"   worst {tip.NewDabsWorst,7:0.#}");
+                    if (tip.NewDabsP90 > 0)
+                    {
+                        var rebuilt = perDab * tip.OutstandingP90;
+                        var accumulated = perDab * tip.NewDabsP90;
+                        sb.AppendLine(
+                            $"  >> At the p90 a REBUILT tip would stamp {tip.OutstandingP90:0} dabs ({rebuilt:0.##} ms);"
+                            + $" an accumulated one");
+                        sb.AppendLine(
+                            $"     {tip.NewDabsP90:0} ({accumulated:0.##} ms) — the prediction attempt 6 was built on.");
+
+                        // **What it actually did**, which that prediction could not say: it
+                        // assumed every publish was an addition and ignored the rebuilds a
+                        // completed pass forces. The saving is entirely in their ratio.
+                        var decisions = tip.Added + tip.Rebuilt;
+                        if (decisions > 0)
+                        {
+                            sb.AppendLine(
+                                $"  added to the tip          {tip.Added} of {decisions}   rebuilt {tip.Rebuilt}"
+                                + $"   (a completed pass forces a rebuild)");
+                            sb.AppendLine(
+                                $"    dabs stamped            adding median {tip.DabsAddedMedian,6:0.#}"
+                                + $"   rebuilding median {tip.DabsRebuiltMedian,6:0.#}");
+                            // **Judged by what each path COSTS, not by how often it runs.**
+                            // The first version compared the counts, saw 53 rebuilds against
+                            // 47 additions, and announced "attempt 6 has not paid" on a
+                            // capture where it stamped 17.6 dabs a publish against the 57.5
+                            // a rebuilt tip would have — a 3.3x saving reported as a failure.
+                            // A rebuild is cheap precisely because it happens when the pass
+                            // has just reset the outstanding run.
+                            if (tip.DabsStampedMedian > 0 && tip.OutstandingMedian > 0)
+                            {
+                                var saving = tip.OutstandingMedian / tip.DabsStampedMedian;
+                                sb.AppendLine(
+                                    $"    dabs stamped a publish  {tip.DabsStampedMedian,6:0.#} against {tip.OutstandingMedian,6:0.#}"
+                                    + $" outstanding — {saving:0.#}x");
+                                if (saving < 1.2)
+                                {
+                                    sb.AppendLine("  >> The tip is stamping about as much as a rebuilt one would,");
+                                    sb.AppendLine("     so keeping it between publishes has bought nothing here.");
+                                }
+                                else
+                                {
+                                    sb.AppendLine(
+                                        $"  >> Keeping the tip saves {saving:0.#}x the stamping a rebuild would cost,");
+                                    sb.AppendLine("     whichever path a publish takes. A rebuild is cheap because it");
+                                    sb.AppendLine("     happens exactly when the pass has just reset the outstanding run.");
+                                }
+                            }
+                            else
+                            {
+                                sb.AppendLine(
+                                    $"  >> {tip.Added * 100.0 / decisions:0}% of publishes only added, so the tip survives");
+                                sb.AppendLine("     between passes and the saving is real. The gap between the two");
+                                sb.AppendLine("     medians above is what attempt 6 bought.");
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (considered > 8 && tip.TooFarBehind > tip.Drawn)
+            {
+                sb.AppendLine("  >> The budget refused MORE publishes than it served, so the tip is");
+                sb.AppendLine("     mostly not being drawn and B322 is only half fixed here. Raise it");
+                sb.AppendLine("     only if the median above is close to it — if the median is many");
+                sb.AppendLine("     times the budget then the pass is not keeping up at all, and no");
+                sb.AppendLine("     tip size fixes that.");
+            }
+        }
+
         if (s.Drawn > 0)
         {
-            sb.AppendLine($"  publish -> drawn        mean {s.WaitToDraw.MeanMs,7:0.##} ms   worst {s.WaitToDraw.WorstMs,7:0.##} ms");
-            sb.AppendLine($"  PEN -> SCREEN           mean {s.PenToScreen.MeanMs,7:0.##} ms   worst {s.PenToScreen.WorstMs,7:0.##} ms"
+            sb.AppendLine($"  publish -> drawn        median {s.WaitToDraw.MedianMs,7:0.##} ms   mean {s.WaitToDraw.MeanMs,7:0.##} ms   worst {s.WaitToDraw.WorstMs,7:0.##} ms");
+            sb.AppendLine($"  PEN -> SCREEN           median {s.PenToScreen.MedianMs,7:0.##} ms   mean {s.PenToScreen.MeanMs,7:0.##} ms   worst {s.PenToScreen.WorstMs,7:0.##} ms"
                           + $"   ({s.Drawn} drawn, {s.Superseded} replaced first)");
-            sb.AppendLine($"  TIP -> SCREEN           mean {s.TipToScreen.MeanMs,7:0.##} ms   worst {s.TipToScreen.WorstMs,7:0.##} ms");
+            sb.AppendLine($"  TIP -> SCREEN           median {s.TipToScreen.MedianMs,7:0.##} ms   mean {s.TipToScreen.MeanMs,7:0.##} ms   worst {s.TipToScreen.WorstMs,7:0.##} ms");
             // B189's second capture is why these are two numbers: the oldest
             // anchor grew from 4.7 to 11.4 events of coalescing when the
             // publish pacing landed, and read as MORE lag while the tip's was
@@ -1387,7 +1640,10 @@ internal static class RenderReport
                     // B314 moved it to Input, which is worse than saying
                     // nothing: a reader would chase a fix that already landed.
                     // A long wait now means a busy dispatcher, not starvation.
-                    sb.AppendLine("  !! a pass spends longer waiting to start than running. Since");
+                    // B331: the band at both ends of that wait, which is the pair
+                // that says which way the loop runs. Printed next to the wait
+                // because the two are only meaningful together.
+                sb.AppendLine("  !! a pass spends longer waiting to start than running. Since");
                     sb.AppendLine("     B314 it is posted at Input priority, so this is not");
                     sb.AppendLine("     starvation — it is the UI thread being busy with something");
                     sb.AppendLine("     else when the pass comes due.");
@@ -1399,6 +1655,57 @@ internal static class RenderReport
                 var share = 100.0 * wet.Pixels / wet.MarkPixels;
                 sb.AppendLine(
                     $"  of the mark re-processed  {share:0.#}%   (band-local passes read only what moved)");
+                // **B331: the band at both ends of the wait.** `PostPending` grows
+                // until a pass consumes it, and the pass waits behind the artist's
+                // own events to be dispatched. Whether the band is large because the
+                // pass was late, or the pass was late because the band was large, is
+                // the question B331 refuses to answer by inference — these two say it.
+                // **One sample is enough, and requiring more was a mistake.** This
+                // asked for five before it would print, and a starved pass — the
+                // whole subject of B331 — produces FEW passes by definition. The
+                // owner's capture of 14:58 had four, so the measurement built to
+                // diagnose the pathology stayed silent in the worst example of it
+                // anyone had produced. A threshold that hides the case of interest
+                // is not caution.
+                if (facts.StampShape is { Bands: > 0 } bands && bands.BandAtQueue >= 0)
+                {
+                    var grew = bands.BandAtQueue > 0 ? bands.BandAtStart / bands.BandAtQueue : 0;
+                    sb.AppendLine(
+                        $"  the band when queued    {bands.BandAtQueue / 1e6,7:0.##} Mpx"
+                        + $"   when it started {bands.BandAtStart / 1e6,7:0.##} Mpx   ({grew:0.#}x)");
+                    if (bands.Bands < 5)
+                    {
+                        sb.AppendLine(
+                            $"     (only {bands.Bands} pass(es) — few passes is itself the symptom, so this");
+                        sb.AppendLine(
+                            "      is reported rather than withheld; read it as a direction, not a rate)");
+                    }
+
+                    if (grew >= 2)
+                    {
+                        sb.AppendLine("  >> The band GREW while the pass waited to start, so the wait is");
+                        sb.AppendLine("     what makes it large and the pass being slow is the consequence.");
+                        sb.AppendLine("     Dispatch it sooner, or stop the band accruing while it waits —");
+                        sb.AppendLine("     making the pass itself faster treats the wrong end.");
+                    }
+                    else if (share >= 25)
+                    {
+                        sb.AppendLine("  >> The band was already this large when the pass was asked for, so");
+                        sb.AppendLine("     the wait is not what made it big. Whatever is dirtying that much");
+                        sb.AppendLine("     of the mark per event is the cause, and the pass is its victim.");
+                    }
+                    else
+                    {
+                        // **Says nothing alarming about a healthy capture**, which
+                        // the first version did: it announced that something was
+                        // dirtying "that much of the mark" over a band of 2.2%.
+                        // A verdict that fires whatever the numbers say is not a
+                        // verdict, and this section has had three of those.
+                        sb.AppendLine("  >> The band is small and did not grow while the pass waited, so");
+                        sb.AppendLine("     nothing here is wrong. B331's pathology is a band that reaches");
+                        sb.AppendLine("     most of the mark; this capture is not showing it.");
+                    }
+                }
                 if (share > 50)
                 {
                     sb.AppendLine("  !! the pass is reading most of the mark every time, so it grows");

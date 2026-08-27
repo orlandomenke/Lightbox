@@ -386,6 +386,25 @@ from the fast ones. Hover a brush and the tooltip names what it is paying for �
 pen-lift" — because that is the thing you can turn off if you want the speed
 back.
 
+### What a textured brush shows you while you draw
+
+A wet edge or a grain pass runs a little behind your hand, so the newest part of
+the mark reaches the screen before the finish does. You see the ink land under
+the nib and then settle into its texture a moment later.
+
+**On a fast stroke the newest part can drop out entirely** — the mark stops
+under your pen and catches up when you slow down or lift. The faster you go the
+more of the mark this affects. It is not lost: everything you drew is there the
+instant the pen stops, and the committed stroke is unaffected. It is the preview
+falling behind, not the drawing.
+
+Slower and shorter strokes show the mark the whole way. Smaller brushes hold up
+better than large ones, because the finish has less to compute.
+
+*Planned:* keeping the preview under the pen at any speed. The passes that fake
+a medium — wet edge and grain — currently do this; a **simulated medium** or a
+**paper texture** does not, and shows the mark as of its last finished pass.
+
 It is a price tag, not a warning. These brushes exist because the coupling is
 what makes a mark expressive, and an artist reaching for one has decided the
 trade is worth it. The badge is so that decision is made knowingly rather than

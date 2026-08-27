@@ -851,7 +851,9 @@ public partial class MainViewModel
             // `this` allocates a closure and a delegate on every publish, and a
             // publish happens per pointer event while drawing.
             _passTransformSplit ??= TransformSplitFor,
-            MaskEditing: EditingLayerMask);
+            MaskEditing: EditingLayerMask,
+            TipScratch: BuildLiveTip(),
+            TipBounds: _live.TipUsed);
 
         var built = ScenePassBuilder.Describe(scene, passState, _cache, _tileFallbacks, live);
         var tileNativeDoc = built.TileNative;
@@ -1502,5 +1504,287 @@ public partial class MainViewModel
         using var below = SceneRenderer.Compose(
             scene.Width, scene.Height, passes, SKColors.Transparent);
         return SKBitmap.FromImage(below);
+    }
+
+    /// <summary>How often the live tip was drawn, refused, and how far behind the pass was (B322).</summary>
+    internal int LiveTipDrawn { get; private set; }
+
+    /// <summary>Publishes where the pass was too far behind to draw a tip within the budget.</summary>
+    internal int LiveTipTooFarBehind { get; private set; }
+
+    /// <summary>
+    /// Publishes where no live pass had run at all, so a tip was neither needed
+    /// nor possible (B322).
+    /// </summary>
+    /// <remarks>
+    /// <b>Counted because its absence was read as a result.</b> The first capture
+    /// of the fifth attempt printed no tip line, and the tip line's absence is
+    /// produced equally by "the fix did nothing" and "this brush never had the
+    /// bug". The owner had drawn with an Airbrush, which takes no post-process
+    /// pass — every dab was already on screen and there was nothing to fix — and
+    /// the report could not say so. A diagnostic that is silent in two different
+    /// situations reports neither.
+    /// </remarks>
+    internal int LiveTipNoPass { get; private set; }
+
+    /// <summary>Every outstanding-dab count seen, so the report can say where the budget should sit.</summary>
+    internal Services.Tally LiveTipOutstanding { get; } = new();
+
+    /// <summary>
+    /// What restamping the tip actually costs, so the budget is set from a
+    /// measurement rather than from caution (B322).
+    /// </summary>
+    /// <remarks>
+    /// <b>The budget's whole job is to keep this bounded, and until it was timed
+    /// nobody could say what value did that.</b> 128 was picked to be obviously
+    /// safe and turned the fix off during exactly the fast strokes it exists
+    /// for — the owner reported no preview at all mid-stroke while slow strokes
+    /// showed it throughout, which is this refusal seen from the pen. Read
+    /// against the outstanding count's own spread, this says how far the budget
+    /// can move before the stamp stops being free.
+    /// </remarks>
+    internal Services.Tally LiveTipStampMs { get; } = new();
+
+    /// <summary>
+    /// Dabs added between one publish and the next, which is what a tip that
+    /// ACCUMULATED would have to stamp (B322, attempt 6).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The one number that says whether the fast-stroke case is reachable.</b>
+    /// The tip is rebuilt from scratch every publish, so it stamps the whole
+    /// outstanding run each time — 783 dabs at the p90, 16.8 us each, 13 ms a
+    /// publish against a 20.7 ms cycle. That is why the budget refuses fast
+    /// strokes and why the preview vanishes in them.
+    /// </para>
+    /// <para>
+    /// A tip that kept what it had and stamped only what arrived since would
+    /// pay <em>this</em> instead, and the total over a stroke would be
+    /// proportional to its dabs rather than to the sum of every outstanding
+    /// run. If this median is small while the outstanding median is not, the
+    /// sixth attempt is worth building. If they are the same, it is not, and
+    /// the fast case needs a different idea entirely.
+    /// </para>
+    /// <para>
+    /// Recorded on <b>every</b> publish of a live stroke, including the ones the
+    /// budget refuses — those are precisely the fast strokes the question is
+    /// about, and measuring only the publishes that drew a tip would sample the
+    /// slow ones and answer confidently about the wrong case.
+    /// </para>
+    /// </remarks>
+    internal Services.Tally LiveTipNewDabs { get; } = new();
+
+    private int _lastPublishDabs = -1;
+
+    /// <summary>Publishes that added to the tip rather than rebuilding it (B322 attempt 6).</summary>
+    internal int LiveTipAdded { get; private set; }
+
+    /// <summary>Publishes that had to rebuild it because the pass had moved.</summary>
+    internal int LiveTipRebuilt { get; private set; }
+
+    /// <summary>Dabs stamped by an addition, and by a rebuild — the two costs, kept apart.</summary>
+    internal Services.Tally LiveTipDabsAdded { get; } = new();
+
+    /// <summary>Dabs stamped by a rebuild.</summary>
+    internal Services.Tally LiveTipDabsRebuilt { get; } = new();
+
+    /// <summary>
+    /// Dabs the tip stamped per publish, whichever path it took — the divisor
+    /// for anything per-dab, and the number to compare against the outstanding
+    /// run (B322 attempt 6).
+    /// </summary>
+    /// <remarks>
+    /// <b>Because the report kept dividing by the wrong thing.</b> When the tip
+    /// was rebuilt every publish, dabs stamped WAS the outstanding run and the
+    /// report divided by that. Attempt 6 stamps a fraction of it, and the
+    /// divisor was not changed with the mechanism — so a per-dab cost came out
+    /// 3.3x high and a verdict compared how OFTEN each path ran instead of what
+    /// each cost, and announced a saving of 3.3x as "attempt 6 has not paid".
+    /// </remarks>
+    internal Services.Tally LiveTipDabsStamped { get; } = new();
+
+    /// <summary>
+    /// Milliseconds per dab, measured over the stamp alone (B322).
+    /// </summary>
+    /// <remarks>
+    /// <b>Marginal, not average.</b> The average over the whole operation
+    /// includes creating a canvas, wiping the last rectangle and taking bounds
+    /// — costs that do not move with the dab count — so dividing it by a small
+    /// count reports the fixed part as though it were per-dab. That is how the
+    /// budget came to allow 51 dabs on a brush whose dabs cost 5.45 us, and it
+    /// refused 107 publishes of 225 on the owner's machine.
+    /// </remarks>
+    internal Services.Tally LiveTipStampOnlyMs { get; } = new();
+
+    /// <summary>
+    /// What one dab costs at the margin: the stamping time over the dabs
+    /// stamped, across the session (B322).
+    /// </summary>
+    /// <remarks>
+    /// <b>Weighted by dab count on purpose.</b> Marginal cost is what a budget
+    /// in milliseconds must be divided by, and it is only visible where enough
+    /// dabs were stamped to swamp the setup. Both earlier attempts at this
+    /// number divided a total that carried a constant — first the whole
+    /// operation over the outstanding run, then the whole operation over the
+    /// dabs — and both produced a per-dab figure an order of magnitude too high
+    /// and a budget that refused affordable work.
+    /// </remarks>
+    internal double LiveTipMarginalMs =>
+        LiveTipDabsStamped.TotalMs > 0
+            ? LiveTipStampOnlyMs.TotalMs / LiveTipDabsStamped.TotalMs
+            : 0;
+
+    /// <summary>
+    /// The dabs stamped since the last completed pass, drawn raw so the tip of
+    /// the mark is on screen while the pass catches up (B322).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>What it may cost is decided before anything is stamped</b>, by
+    /// <see cref="Rendering.LiveTipPlan"/>, and that separation is the whole
+    /// lesson of the fourth attempt: the rule "draw what is outstanding" is
+    /// unbounded and self-amplifying, and it was buried in the code that acted
+    /// on it where no test could reach it.
+    /// </para>
+    /// <para>
+    /// <b>Restamped rather than copied.</b> Copying the region the new dabs
+    /// occupy out of the shared scratch brings the older dabs overlapping it
+    /// forward too, and those are the pixels the pass has already finished —
+    /// hard seams between processed and raw, which is the third attempt that
+    /// reached the owner and was called worse than the bug.
+    /// </para>
+    /// <para>
+    /// <b>Per publish, not per pointer event.</b> The per-event path carries the
+    /// settled-prefix cut and the tail lend-and-take-back; this is only ever read
+    /// when a frame is built.
+    /// </para>
+    /// </remarks>
+    private SKBitmap? BuildLiveTip()
+    {
+        if (_strokeBuilder.Current is not { } stroke || _live.Dabs is not { Count: > 0 } dabs)
+        {
+            // Between strokes: forget where the last one had got to, or the
+            // first publish of the next would report its whole dab list as new.
+            _lastPublishDabs = -1;
+            _live.TipUsed = null;
+            return null;
+        }
+
+        // Before every early return below, because the refused publishes are the
+        // fast strokes and they are what attempt 6 needs to know about.
+        if (_lastPublishDabs >= 0 && dabs.Count >= _lastPublishDabs)
+        {
+            LiveTipNewDabs.Add(dabs.Count - _lastPublishDabs);
+        }
+
+        _lastPublishDabs = dabs.Count;
+
+        if (_live.PostScratch is null) { _live.TipUsed = null; return null; }
+
+        // Q168, 2026-08-27: the effects whose raw tip breaks live-matches-committed
+        // keep today's behaviour. The owner's call over a recommendation to show
+        // the tip everywhere and compare after the pass had landed.
+        if (BrushEngine.LiveTipWouldDivergeTooFar(stroke.Brush)) { _live.TipUsed = null; return null; }
+
+        // **PostStampedDabs, not PostStampedCount.** The older field is points on
+        // one path and dabs on the other, so subtracting it from a dab count
+        // answers a question nobody asked — and answered it as "the whole
+        // stroke", which is what the fourth attempt then restamped every
+        // publish. See LivePaintSession.PostStampedDabs and B329.
+        // The cost of a dab, measured on this brush rather than assumed: the
+        // budget is a time and this is what converts it into dabs. Zero until
+        // something has been stamped, which LiveTipPlan reads as "be generous".
+        var perDabMs = LiveTipMarginalMs;
+        var (range, planStampFrom, why, outstanding) = Rendering.LiveTipPlan.For(
+            _live.PostStampedDabs, dabs.Count, _live.TipFrom, _live.TipStampedTo, perDabMs);
+        if (outstanding > 0) LiveTipOutstanding.Add(outstanding);
+        if (why == Rendering.LiveTipPlan.Skip.TooFarBehind) LiveTipTooFarBehind++;
+        if (why == Rendering.LiveTipPlan.Skip.NoPassYet) LiveTipNoPass++;
+        if (range is not { } plan)
+        {
+            _live.ResetTip();
+            return null;
+        }
+
+        var info = new SKImageInfo(
+            Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        // **Add what arrived, rebuild only when the pass moved** (attempt 6).
+        // The tip keeps its contents between publishes, so an ordinary publish
+        // stamps the difference rather than the whole outstanding run. A pass
+        // completing is the one thing that invalidates what is already there —
+        // those dabs are in the processed body now, and leaving them in the tip
+        // would draw raw ink over finished pixels, which is the artifact three
+        // earlier attempts produced.
+        // The plan already decided this — it had to, because the budget is now
+        // about what THIS publish stamps and that depends on whether the buffer
+        // can be added to. Keeping the decision in one place is what stops the
+        // two from disagreeing about which dabs the buffer holds.
+        var canAdd = planStampFrom > plan.From && _live.TipScratch is not null;
+
+        var startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
+        var stampedFrom = canAdd ? planStampFrom : plan.From;
+        var canvas = canAdd ? _live.ContinueTip() : _live.BeginTip(info.Width, info.Height);
+        if (canvas is null) return null;
+
+        // **The stamp is timed apart from the setup, and that separation is the
+        // difference between a working budget and a useless one.** Creating the
+        // canvas, wiping the previous rectangle and taking the bounds cost the
+        // same whether one dab is stamped or a thousand. Timing the whole
+        // operation and dividing by the dab count therefore reports the FIXED
+        // cost as if it were marginal: on the owner's capture, 0.47 ms over 8
+        // dabs read as 58 us a dab where the same brush measured 5.45 on a
+        // busier publish — and a 3 ms budget bought 51 dabs instead of 550.
+        var stampFromTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+        var stamped = 0;
+        try
+        {
+            if (stampedFrom < plan.To)
+            {
+                BrushEngine.StampDabRange(canvas, stroke, dabs, stampedFrom, plan.To);
+                canvas.Flush();
+                stamped = plan.To - stampedFrom;
+            }
+        }
+        finally
+        {
+            canvas.Dispose();
+        }
+
+        var now = System.Diagnostics.Stopwatch.GetTimestamp();
+        var freq = System.Diagnostics.Stopwatch.Frequency;
+        LiveTipStampMs.Add((now - startedAt) * 1000.0 / freq);
+        if (stamped > 0)
+        {
+            // **The stamp's own duration, not a ratio.** The per-dab cost is
+            // then total time over total dabs, which weights the publishes that
+            // stamped a lot — where marginal cost actually lives. A median of
+            // per-publish ratios is dominated by the small publishes, and
+            // whatever fixed cost remains inside the stamp gets divided by five
+            // there: on a model with 50 us of setup and a true 6 us a dab, the
+            // median of ratios reads 8.6 and the weighted figure 6.5.
+            LiveTipStampOnlyMs.Add((now - stampFromTicks) * 1000.0 / freq);
+        }
+
+        // Counted apart, because the saving this attempt exists for is entirely
+        // in how often each happens — and the report's prediction of it (1.21 ms
+        // against 5.11) assumed every publish was an addition and ignored these.
+        var stampedNow = plan.To - stampedFrom;
+        if (canAdd) { LiveTipAdded++; LiveTipDabsAdded.Add(stampedNow); }
+        else { LiveTipRebuilt++; LiveTipDabsRebuilt.Add(stampedNow); }
+        LiveTipDabsStamped.Add(stampedNow);
+
+        _live.TipFrom = plan.From;
+        _live.TipStampedTo = plan.To;
+
+        // From plan.From and not from stampedFrom: the tip holds everything back
+        // to the pass's position, so the rectangle drawn from it has to cover
+        // all of that. Bounding it to this publish's addition alone would clip
+        // the older part of the tip off the screen every publish — a mark that
+        // flickers down to its newest dabs, which is worse than the bug.
+        _live.TipUsed = BrushEngine.RangeBounds(dabs, plan.From, stroke.Brush, info);
+        if (_live.TipUsed is null) return null;
+
+        LiveTipDrawn++;
+        return _live.TipScratch;
     }
 }

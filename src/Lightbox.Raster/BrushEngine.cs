@@ -2655,6 +2655,24 @@ public static class BrushEngine
         brush.TextureSurface is not null || TextureRegistry.Resolve(brush.TextureId) is not null;
 
     /// <summary>
+    /// Whether this brush's live post-process changes the mark by more than a
+    /// raw tip could stand in for (B322, Q168).
+    /// </summary>
+    /// <remarks>
+    /// <b>Measured, not reasoned.</b> A raw tip is by construction a difference
+    /// from the processed commit, and the line it must not cross is
+    /// <c>LiveMediumPixelTests</c>' one part in 255, averaged. Granulation and
+    /// the wet edge stay inside it; a simulated medium came out at 1.87 and a
+    /// paper texture breaches it too, because an untextured tip over a textured
+    /// body is exactly what that test looks for. Those two keep the old
+    /// behaviour and B322 stays open for them — the owner's call of 2026-08-27,
+    /// over a recommendation to show the tip everywhere and have those tests
+    /// compare after the pass had landed.
+    /// </remarks>
+    public static bool LiveTipWouldDivergeTooFar(BrushSettings brush) =>
+        brush.Medium.Kind != MediumKind.None || HasTexture(brush);
+
+    /// <summary>
     /// An imported texture, tiled in <em>document</em> coordinates.
     /// </summary>
     /// <remarks>

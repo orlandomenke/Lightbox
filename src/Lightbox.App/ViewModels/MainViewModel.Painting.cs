@@ -1244,6 +1244,98 @@ public partial class MainViewModel
     internal int LiveWorstProvisionalTail { get; private set; }
 
     /// <summary>
+    /// Dabs stamped once and left alone, per pointer event (B322 attempt 6).
+    /// </summary>
+    /// <remarks>
+    /// <b>The stamp path reports one mean and one worst, and that is not enough
+    /// to see a leak in it.</b> `stamping the dabs` was 4.8 ms against a pen
+    /// delivering every 5.46 ms, which is near saturation, and nothing said
+    /// whether that is a fixed cost per event or one that grows with the mark.
+    /// The same single-number blindness is what let B322's fourth attempt
+    /// restamp the whole stroke per publish while every test passed: a mean
+    /// cannot show you that a cost is proportional to something.
+    /// </remarks>
+    internal Services.Tally LiveStampSettled { get; } = new();
+
+    /// <summary>
+    /// Dabs re-stamped every event because they are still provisional, per
+    /// event (B322 attempt 6).
+    /// </summary>
+    /// <remarks>
+    /// <b>This is the number the code beside it has been guessing about.</b> The
+    /// comment where the tail is counted says it is *"suspected to grow with pen
+    /// speed, which would make a fast stroke cost more per event than a slow one
+    /// for reasons nothing else in the report explains"* — a suspicion recorded
+    /// in 2026 and never measured, because only the worst was kept and one
+    /// sample cannot show a distribution. A median far below the p90 means the
+    /// tail spikes on fast strokes and the stamp is not bounded work; the two
+    /// close together means it is, and the fast-stroke cost is elsewhere.
+    /// </remarks>
+    internal Services.Tally LiveStampProvisional { get; } = new();
+
+    /// <summary>
+    /// Pixels the pending band covered when the pass was asked for, and when it
+    /// actually began (B331).
+    /// </summary>
+    /// <remarks>
+    /// <b>The pair exists because neither number alone can say which way the
+    /// loop runs.</b> `PostPending` accumulates every dirty region until a pass
+    /// consumes it, and the pass waits to be dispatched behind the artist's own
+    /// events. If the band is already the whole mark when it is queued, the
+    /// wait is not what made it large. If it is small when queued and large when
+    /// it starts, the wait is the cause and the pass being slow is the
+    /// consequence rather than the other way round. B331 is filed deliberately
+    /// without that answer.
+    /// </remarks>
+    internal Services.Tally LiveBandAtQueue { get; } = new();
+
+    /// <summary>The same band, measured when the pass began.</summary>
+    internal Services.Tally LiveBandAtStart { get; } = new();
+
+    private static double AreaOf(SKRectI? r) =>
+        r is { } b && b.Width > 0 && b.Height > 0 ? (double)b.Width * b.Height : 0;
+
+    /// <summary>
+    /// Events that took the whole-mark route, which has no settled/provisional
+    /// split for the shape above to describe (B322 attempt 6).
+    /// </summary>
+    /// <remarks>
+    /// <b>Here so the report can say what it did NOT measure.</b> A silhouette
+    /// brush stamps its mark in one piece and returns long before the per-dab
+    /// bookkeeping; without this counter the shape would be a median over
+    /// whatever minority of events took the other route, printed with no hint
+    /// that most of the session is missing from it. That is the failure this
+    /// session already made once, when a tip line's silence meant both "never
+    /// drawn" and "never applicable" and was read as the second.
+    /// </remarks>
+    internal int LiveStampWholeMarkEvents { get; private set; }
+
+    /// <summary>
+    /// Dabs the live stroke produced, so a test can check the counters above
+    /// against the thing they are counting (B322 attempt 6).
+    /// </summary>
+    /// <remarks>
+    /// Exposed for the conservation check in <c>StampShapeAccountingTests</c>:
+    /// every dab settles exactly once, so the settled counts must sum to this.
+    /// A counter left after an early return, or reading a stale index, breaks
+    /// that sum and nothing else in the suite would notice.
+    /// </remarks>
+    internal int LiveDabCountForTest => _live.Dabs?.Count ?? 0;
+
+    /// <summary>
+    /// How far the settled prefix has reached, for the same check
+    /// (B322 attempt 6).
+    /// </summary>
+    /// <remarks>
+    /// The exact conservation law is <c>sum(settled) == StableDabs</c>, and the
+    /// remainder up to the dab count is the tail still on loan. Asserting
+    /// against the dab count alone is wrong and was written that way first: the
+    /// final tail never settles until the stroke commits, so a correct counter
+    /// looked like it was losing ten dabs.
+    /// </remarks>
+    internal int LiveStableDabsForTest => _live.StableDabs;
+
+    /// <summary>
     /// The priority the live post-process is queued at (B313).
     /// </summary>
     /// <remarks>
@@ -2093,6 +2185,13 @@ public partial class MainViewModel
             }
 
             _live.DabCount = dabs.Count;
+            // This route stamps the mark as one silhouette and has no settled /
+            // provisional split at all, so the shape below cannot describe it.
+            // Counted rather than ignored: a median taken over the handful of
+            // events that DID take the other route, presented as though it
+            // covered the session, is how a report comes to be confidently wrong
+            // about a brush it never measured.
+            LiveStampWholeMarkEvents++;
             return;
         }
 
@@ -2147,6 +2246,7 @@ public partial class MainViewModel
         }
 
         // 3. The rest on loan, so the mark reaches the pen tip.
+        var reStamped = 0;
         if (BrushEngine.RangeBounds(dabs, _live.StableDabs, live.Brush, info) is { } tail
             && _live.Scratch is not null)
         {
@@ -2186,6 +2286,12 @@ public partial class MainViewModel
             }
 
             BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, dabs.Count);
+            // Counted HERE and not from the tail's size below, because the tail
+            // is only re-stamped when RangeBounds gives it a rectangle. Counting
+            // `dabs.Count - StableDabs` regardless would report work that did not
+            // happen — the same shape of error as measuring a range in one unit
+            // and subtracting it in another (B329).
+            reStamped = Math.Max(0, dabs.Count - _live.StableDabs);
             _live.ScratchCanvas.Flush();
 
             // 3b. The footprint's own copy of the same loan.
@@ -2239,6 +2345,13 @@ public partial class MainViewModel
         var provisional = dabs.Count - _live.StableDabs;
         if (provisional > LiveWorstProvisionalTail) LiveWorstProvisionalTail = provisional;
 
+        // B322 attempt 6: both halves as distributions, not just the worst of
+        // one of them. Recorded here rather than beside each StampDabRange call
+        // so a settled prefix that never moved still counts as zero — a stamp
+        // that did nothing is data about whether the cost is fixed.
+        LiveStampSettled.Add(Math.Max(0, _live.StableDabs - settledFrom));
+        LiveStampProvisional.Add(reStamped);
+
         // For a brush whose only post-process is the ceiling, apply it here and
         // skip the worker entirely (B293).
         if (carriesFootprint && CapIsTheWholePass(live.Brush) && _live.Scratch is { } inkSource)
@@ -2275,6 +2388,9 @@ public partial class MainViewModel
                     // Above zero is what makes the compositor read PostScratch
                     // instead of the raw dabs (ScenePassBuilder).
                     _live.PostStampedCount = dabs.Count;
+                    // B322: and in the dab unit explicitly, which here happens
+                    // to be the same number — the cap-only path counts dabs.
+                    _live.PostStampedDabs = dabs.Count;
                 }
             }
         }
@@ -2333,6 +2449,14 @@ public partial class MainViewModel
         if (_live.PostQueued) return;
         _live.PostQueued = true;
         _postQueuedAt = System.Diagnostics.Stopwatch.GetTimestamp();
+        // B331: the band as it stands when the pass is asked for. Paired with
+        // the same measurement taken when it actually starts, this separates
+        // the two directions of a loop nobody has been able to tell apart —
+        // whether the band is large because the pass was late, or the pass was
+        // late because the band was large. Everything else about that loop has
+        // been inferred, and this entry has already taken the convenient
+        // reading of an ambiguous pair four times in one day.
+        LiveBandAtQueue.Add(AreaOf(_live.PostPending));
         Avalonia.Threading.Dispatcher.UIThread.Post(
             StartLivePostProcess, LivePostPriority);
     }
@@ -2412,6 +2536,9 @@ public partial class MainViewModel
             Points = [.. live.Points],
         };
         var count = whole.Points.Count;
+        // B322: the same instant, in the dab list's own unit. `count` above is
+        // POINTS — see PostStampedDabs for why that distinction cost a day.
+        var dabsAtPass = _live.Dabs?.Count ?? 0;
 
         if (BrushEngine.PostProcessBounds(whole, info) is not { } mark)
         {
@@ -2446,6 +2573,10 @@ public partial class MainViewModel
                 _live.PostQueued = false;
                 return;
             }
+
+            // Before the halo and before the intersect, so it is the same
+            // quantity the queue-time sample took (B331).
+            LiveBandAtStart.Add(AreaOf(pending));
 
             var halo = BrushEngine.LivePassHalo(whole.Brush);
             rect = SKRectI.Intersect(
@@ -2567,7 +2698,8 @@ public partial class MainViewModel
             // single-flight flag and stop the next pass from ever starting.
             Avalonia.Threading.Dispatcher.UIThread.Post(
                 () => FinishLivePostProcess(
-                    processed, rect, count, generation, costMs, info, stamp, restoreIfLost),
+                    processed, rect, count, generation, costMs, info, stamp, restoreIfLost,
+                    dabsAtPass),
                 Avalonia.Threading.DispatcherPriority.Input);
         }
     }
@@ -2578,7 +2710,8 @@ public partial class MainViewModel
     /// </summary>
     private void FinishLivePostProcess(
         SKImage? processed, SKRectI rect, int count, int generation, double costMs,
-        SKImageInfo computedAgainst, string brushStamp, SKRectI? restoreIfLost)
+        SKImageInfo computedAgainst, string brushStamp, SKRectI? restoreIfLost,
+        int dabsAtPass)
     {
         _live.PostQueued = false;
         using var image = processed;
@@ -2634,6 +2767,7 @@ public partial class MainViewModel
 
         _live.PostCostMs = costMs;
         _live.PostStampedCount = count;
+        _live.PostStampedDabs = dabsAtPass;
         _live.PostBrushStamp = brushStamp;
         _live.PostUsed = _live.PostUsed is { } already
             ? LivePaintSession.UnionRect(already, rect)

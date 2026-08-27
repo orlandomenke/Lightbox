@@ -318,10 +318,132 @@ sealed class LivePaintSession
         PostPending = null;
     }
 
+    /// <summary>The dabs stamped since the last completed pass, raw (B322).</summary>
+    /// <remarks>
+    /// <para>
+    /// Document-sized and pooled across the stroke, so a publish costs a wipe of
+    /// the last rectangle rather than an allocation. What is DRAWN from it is
+    /// bounded separately by <see cref="TipUsed"/> — see
+    /// <c>StrokeOverlay.TipBounds</c>, which explains why bounding one without
+    /// the other fixes half a leak.
+    /// </para>
+    /// </remarks>
+    internal SKBitmap? TipScratch { get; set; }
+
+    /// <summary>What <see cref="TipScratch"/> holds, so a rebuild wipes only that and a draw covers only that.</summary>
+    internal SKRectI? TipUsed { get; set; }
+
+    /// <summary>
+    /// The dab the tip's contents start at, and the dab they run to (B322
+    /// attempt 6).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The tip is kept between publishes rather than rebuilt from nothing.</b>
+    /// Attempt 5 restamped the whole outstanding run every publish, which at the
+    /// p90 was 669 dabs for 5.11 ms; stamping only what arrived since is 158 for
+    /// 1.21. The pair below is what makes that possible — the buffer knows what
+    /// it already contains, so a publish adds the difference.
+    /// </para>
+    /// <para>
+    /// <b><see cref="TipFrom"/> is the half that cannot drift.</b> When a pass
+    /// completes, the dabs it processed are in the body now, and leaving them in
+    /// the tip as well would draw raw ink over finished pixels — the artifact
+    /// three attempts produced and the owner rejected. So a change in the pass's
+    /// position forces a rebuild rather than an addition, and the two cases are
+    /// counted separately because the saving is entirely in how often each
+    /// happens.
+    /// </para>
+    /// </remarks>
+    internal int TipFrom { get; set; } = -1;
+
+    /// <summary>How far the tip's contents run, exclusive.</summary>
+    internal int TipStampedTo { get; set; } = -1;
+
+    /// <summary>Make <see cref="TipScratch"/> exist at this size, wiped of the last rebuild.</summary>
+    internal SKCanvas BeginTip(int width, int height)
+    {
+        if (TipScratch is not null && (TipScratch.Width != width || TipScratch.Height != height))
+        {
+            TipScratch.Dispose();
+            TipScratch = null;
+            TipUsed = null;
+        }
+
+        TipScratch ??= new SKBitmap(
+            new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul));
+
+        var canvas = new SKCanvas(TipScratch);
+        // Only what the last rebuild touched. Clearing the whole buffer would be
+        // a full-canvas wipe per publish, which is the shape of cost this fix
+        // exists to avoid rather than to introduce somewhere else.
+        if (TipUsed is { } used)
+        {
+            canvas.Save();
+            canvas.ClipRect(SKRect.Create(used.Left, used.Top, used.Width, used.Height));
+            canvas.Clear(SKColors.Transparent);
+            canvas.Restore();
+        }
+
+        TipUsed = null;
+        TipFrom = -1;
+        TipStampedTo = -1;
+        return canvas;
+    }
+
+    /// <summary>
+    /// A canvas onto the tip without wiping what it holds, for adding the dabs
+    /// that arrived since the last publish (B322 attempt 6).
+    /// </summary>
+    internal SKCanvas? ContinueTip()
+    {
+        return TipScratch is null ? null : new SKCanvas(TipScratch);
+    }
+
+    /// <summary>Forget the tip, wiping what it last held.</summary>
+    internal void ResetTip()
+    {
+        if (TipScratch is not null && TipUsed is { } used)
+        {
+            using var canvas = new SKCanvas(TipScratch);
+            canvas.ClipRect(SKRect.Create(used.Left, used.Top, used.Width, used.Height));
+            canvas.Clear(SKColors.Transparent);
+        }
+
+        TipUsed = null;
+        TipFrom = -1;
+        TipStampedTo = -1;
+    }
+
     /// <summary>Cost of the last pass, milliseconds — reported by the performance panel.</summary>
     internal double PostCostMs { get; set; }
 
     internal int PostStampedCount { get; set; } = -1;
+
+    /// <summary>
+    /// How many <em>dabs</em> the last completed pass had processed — the same
+    /// moment <see cref="PostStampedCount"/> describes, counted in the unit the
+    /// dab list uses (B322).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Separate because <see cref="PostStampedCount"/> is not in that unit,
+    /// and is not even in one unit.</b> The worker path sets it from
+    /// <c>Points.Count</c> and the cap-only path from <c>dabs.Count</c>; nothing
+    /// depended on which, because its only readers tested it against
+    /// <c>Points.Count</c> or against zero. B322's fourth attempt asked it a
+    /// quantitative question — how many dabs are outstanding — and got points
+    /// subtracted from dabs, so the answer was always about the whole stroke.
+    /// It restamped the lot on every publish and took pen-to-screen from 63 ms
+    /// to 991.
+    /// </para>
+    /// <para>
+    /// So this exists rather than the older field being repaired: the two
+    /// meanings are load-bearing in their own paths and untangling them is
+    /// B329's job, not a prerequisite for drawing a tip.
+    /// </para>
+    /// </remarks>
+    internal int PostStampedDabs { get; set; } = -1;
 
     internal bool PostQueued { get; set; }
 
@@ -406,6 +528,10 @@ sealed class LivePaintSession
         // stroke reads it, so holding it saves an allocation per stroke without
         // any state surviving.
         ResetPostProcess();
+        // B322: the tip belongs to one stroke. A leftover would compose over the
+        // next stroke's first frames — the stale-scratch failure OverlayFor's own
+        // remarks record for B39.
+        ResetTip();
     }
 
     /// <summary>
