@@ -1,0 +1,169 @@
+using Lightbox.App.Services;
+using Lightbox.App.Rendering;
+using Lightbox.Core.Documents;
+using SkiaSharp;
+
+namespace Lightbox.App.Tests;
+
+/// <summary>
+/// B322, demonstrated at the seam where it happens rather than through a screen.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>The defect had no repro for a day and a half, and three attempted fixes
+/// were judged without one.</b> Two throwaway pixel harnesses were built to see
+/// it end to end; both had the bug rather than the app — one drew off a canvas
+/// it never resized and read its own crop edges as artifacts, the other
+/// measured a straight-edge detector against a scribble that clamped to the
+/// margin, so it found the straight line it had itself drawn, in the baseline
+/// too. With a harness that did neither, the three candidate fixes were
+/// indistinguishable and <em>none</em> of them, including no fix at all, showed
+/// any unrendered mark. A harness that cannot see the defect cannot judge a fix
+/// for it.
+/// </para>
+/// <para>
+/// <b>So this does not go through a screen.</b> B322 is not a timing failure and
+/// not a rendering failure — it is a choice, made on one line of
+/// <c>OverlayFor</c>: the live overlay carries either the processed buffer or
+/// the raw dab scratch, never both. Everything stamped since the last completed
+/// pass is in the scratch and nowhere else, so it is not dimmed or approximate,
+/// it is <b>absent</b>. Constructing that state directly and asking which mark
+/// reaches the overlay is deterministic, needs no worker, no clock and no
+/// window, and fails for exactly one reason.
+/// </para>
+/// <para>
+/// These are written to FAIL on the current build. That is the point: the
+/// repro comes first, and the fix is what turns them green.
+/// </para>
+/// </remarks>
+public class LiveTipOverlayTests(ITestOutputHelper output)
+{
+    private const int W = 64, H = 48;
+
+    /// <summary>Where the settled body of the stroke is — in both buffers.</summary>
+    private static readonly SKRectI Body = new(4, 20, 24, 28);
+
+    /// <summary>
+    /// Where the newest dabs are — stamped since the last pass completed, so
+    /// they exist in the raw scratch and cannot exist in the processed one.
+    /// </summary>
+    private static readonly SKRectI Tip = new(40, 20, 56, 28);
+
+    private static SKBitmap Filled(params SKRectI[] marks)
+    {
+        var bmp = new SKBitmap(new SKImageInfo(W, H, SKColorType.Bgra8888, SKAlphaType.Premul));
+        using var canvas = new SKCanvas(bmp);
+        canvas.Clear(SKColors.Transparent);
+        using var paint = new SKPaint { Color = SKColors.Black, IsAntialias = false };
+        foreach (var m in marks) canvas.DrawRect(SKRect.Create(m.Left, m.Top, m.Width, m.Height), paint);
+        return bmp;
+    }
+
+    private static bool AnyInk(SKBitmap bmp, SKRectI where)
+    {
+        for (var y = where.Top; y < where.Bottom; y++)
+        {
+            for (var x = where.Left; x < where.Right; x++)
+            {
+                if (bmp.GetPixel(x, y).Alpha > 0) return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// A stroke mid-flight on a brush with an effect: the pass has completed
+    /// once for the body, and the pen has moved on since.
+    /// </summary>
+    private static ScenePassBuilder.LiveEdit MidStroke(SKBitmap raw, SKBitmap processed) =>
+        new(
+            Scratch: raw,
+            PostScratch: processed,
+            // Above zero is what makes OverlayFor prefer the processed buffer.
+            // Below it — the first events of a stroke, before any pass has
+            // landed — the raw scratch is used and the tip is present, which is
+            // why the defect only shows once a stroke is under way.
+            PostStampedCount: 1,
+            BrushStroke: new Stroke { Tool = ToolKind.Brush });
+
+    private static StrokeOverlay? OverlayFrom(ScenePassBuilder.LiveEdit live)
+    {
+        var layer = new Layer { Name = "art" };
+        layer.Cels.Add(new Cel { Frame = new Frame() });
+        var scene = new Scene { Width = W, Height = H, FrameCount = 1 };
+        scene.Layers.Add(layer);
+
+        var state = new ScenePassBuilder.State(
+            0, layer.Id, false, false, false, new OnionSettings { Enabled = false }, false);
+
+        var result = ScenePassBuilder.Build(
+            scene, state, new FrameBitmapCache(), new TileFallbackTally(), live);
+        return result.Passes.Select(p => p.Overlay).FirstOrDefault(o => o is not null);
+    }
+
+    /// <summary>
+    /// <b>The defect, stated as the artist sees it.</b> The body of the mark is
+    /// on screen and the newest dabs are not — not faint, not unprocessed,
+    /// absent. Measured on the owner's machine at 511 passes over 4,720 events,
+    /// which is the mark standing still for about nine events and then jumping.
+    /// </summary>
+    [Fact]
+    public void TheNewestDabsReachTheOverlayWhileAPassIsStillOutstanding()
+    {
+        using var raw = Filled(Body, Tip);
+        using var processed = Filled(Body);
+
+        var overlay = OverlayFrom(MidStroke(raw, processed));
+        Assert.NotNull(overlay);
+
+        var body = AnyInk(overlay!.Scratch, Body);
+        var tip = AnyInk(overlay.Scratch, Tip);
+        output.WriteLine($"body on screen: {body}, tip on screen: {tip}");
+
+        Assert.True(body, "the settled body of the stroke is not being shown at all");
+        Assert.True(
+            tip,
+            "the dabs stamped since the last pass are not on screen — the overlay is "
+            + "showing the processed buffer alone, which is B322");
+    }
+
+    /// <summary>
+    /// <b>And the processed body has to survive whatever shows the tip.</b> This
+    /// is the assertion the first attempted fix would have failed: copying the
+    /// raw dabs forward over a bounding rectangle overwrote finished wet edge
+    /// and granulation with flat ink, in rectangles, several times a second.
+    /// The owner's verdict was that it was worse than the bug.
+    /// </summary>
+    [Fact]
+    public void ShowingTheTipDoesNotPaintRawDabsOverTheProcessedBody()
+    {
+        // The body differs between the buffers: processed is what the pass
+        // made of it, raw is the flat dabs underneath. If the fix lets raw
+        // pixels win anywhere in the body, this sees it.
+        using var raw = Filled(Body, Tip);
+        using var processed = new SKBitmap(new SKImageInfo(W, H, SKColorType.Bgra8888, SKAlphaType.Premul));
+        using (var canvas = new SKCanvas(processed))
+        {
+            canvas.Clear(SKColors.Transparent);
+            // A distinguishable "processed" colour: what the effect made of the
+            // body. Raw ink is black, so any black inside the body is the fix
+            // having overwritten the pass's work.
+            using var paint = new SKPaint { Color = new SKColor(0, 0, 255), IsAntialias = false };
+            canvas.DrawRect(SKRect.Create(Body.Left, Body.Top, Body.Width, Body.Height), paint);
+        }
+
+        var overlay = OverlayFrom(MidStroke(raw, processed));
+        Assert.NotNull(overlay);
+
+        var centre = overlay!.Scratch.GetPixel(
+            Body.Left + (Body.Width / 2), Body.Top + (Body.Height / 2));
+        output.WriteLine($"body centre after the fix: {centre}");
+
+        Assert.True(centre.Alpha > 0, "the body vanished");
+        Assert.True(
+            centre.Blue > centre.Red,
+            $"the body reads {centre} — the processed pixels have been overwritten by raw "
+            + "dabs, which is the artifact the owner reported as worse than the bug");
+    }
+}
