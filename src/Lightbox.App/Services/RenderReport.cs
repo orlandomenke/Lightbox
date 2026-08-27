@@ -1268,9 +1268,15 @@ internal static class RenderReport
                         else
                         {
                             sb.AppendLine(
-                                "  >> EVERY slow build had a cache miss in it, so B332 accounts for");
+                                "  >> EVERY stall in the BUILD had a cache miss in it, so B332 accounts");
                             sb.AppendLine(
-                                "     all of the stalling and the cache is the only thing to fix.");
+                                "     for the freezing. It does NOT account for lag: this counter only");
+                            sb.AppendLine(
+                                "     sees the frame build, and a chain that is late everywhere else");
+                            sb.AppendLine(
+                                "     shows up as one stall here and a slow median below. Read");
+                            sb.AppendLine(
+                                "     'already drawn, still held' before concluding the cache is all.");
                         }
                     }
 
