@@ -1255,6 +1255,111 @@ public partial class MainViewModel
     /// restamp the whole stroke per publish while every test passed: a mean
     /// cannot show you that a cost is proportional to something.
     /// </remarks>
+    /// <summary>
+    /// The per-event stamp, split into the work that is bounded by the dabs and
+    /// the work that is bounded by the tail RECTANGLE (B189).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The dab count is not the cost, and that is why B189 has resisted
+    /// measurement.</b> An event stamps a bounded number of dabs — B321 pinned
+    /// the provisional tail at exactly 2.0 events at every pen speed — but it
+    /// also performs <b>three bitmap copies over the tail rectangle</b>: restore
+    /// the coverage backup, restore the scratch backup, and take a fresh backup
+    /// for the next event. Those are area work, and the tail rectangle spans the
+    /// distance the pen covered in those two events, so <b>it grows with pen
+    /// speed while the dab count does not</b>.
+    /// </para>
+    /// <para>
+    /// That is the shape the owner reports: long fast strokes stall, short ones
+    /// are close to fine. Counting dabs cannot see it; the gap attribution put
+    /// 94% of a 1221 ms silence inside the stamp, and this is where inside.
+    /// </para>
+    /// </remarks>
+    /// <summary>
+    /// Put a lent tail back, without copying the backup buffer to do it (B189).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This was <c>SKImage.FromBitmap</c>, and that copies.</b> The backup
+    /// buffer is sized to the <em>largest tail the stroke has ever seen</em> and
+    /// never shrinks, so once one fast segment has grown it, every later event
+    /// copied all of it — including the slow segments that needed a fraction.
+    /// The measurement that found it: restoring cost <b>1.08 ms</b> a median
+    /// event against <b>0.06 ms</b> to back the same rectangle up, an eighteen-
+    /// fold asymmetry for work that ought to be symmetric.
+    /// </para>
+    /// <para>
+    /// <b>The backup path had already learned this and said so.</b> Ten lines
+    /// down: <em>"SKImage.FromBitmap on the whole scratch sets up a 33 MB image
+    /// at 4K, every pointer event, to read back a region a few hundred pixels
+    /// across."</em> That lesson was applied to the copy out and not to the copy
+    /// back. <c>PeekPixels</c> wraps the pixels where <c>FromBitmap</c>
+    /// duplicates them, and the source rectangle already bounds what is read.
+    /// </para>
+    /// </remarks>
+    private static void RestoreTail(SKCanvas canvas, SKBitmap backup, SKRectI where)
+    {
+        using var pixels = backup.PeekPixels();
+        using var restore = pixels is null ? null : SKImage.FromPixels(pixels);
+        if (restore is null) return;
+
+        using var src = new SKPaint { BlendMode = SKBlendMode.Src };
+        canvas.DrawImage(
+            restore,
+            new SKRect(0, 0, where.Width, where.Height),
+            new SKRect(where.Left, where.Top, where.Right, where.Bottom),
+            src);
+        canvas.Flush();
+    }
+
+    private static double Ms(long since) =>
+        (System.Diagnostics.Stopwatch.GetTimestamp() - since) * 1000.0
+        / System.Diagnostics.Stopwatch.Frequency;
+
+    /// <summary>
+    /// The scale the footprint was last actually accumulated at (B189).
+    /// </summary>
+    /// <remarks>
+    /// Recorded rather than re-derived at report time, because it is fixed when
+    /// the stroke begins and the artist can zoom afterwards — asking
+    /// <c>LiveFootprintScale.For(ComposeScale)</c> when the file is written
+    /// would answer for a view that was not the one the dabs were stamped
+    /// under. The tip's arm is recorded for the same reason and cost a day
+    /// before it was (B322).
+    /// </remarks>
+    internal double LiveFootprintScaleUsed { get; private set; } = 1.0;
+
+    /// <summary>Colour dabs into the scratch, per event (B189).</summary>
+    internal Services.Tally StampColourMs { get; } = new();
+
+    /// <summary>
+    /// The SECOND walk over the same dabs: the footprint accumulation (B189).
+    /// </summary>
+    /// <remarks>
+    /// <b>A footprint is a running maximum of the tip's coverage</b>, kept so a
+    /// soft brush can be capped to it (Q157, B293, B299) — and it is built by
+    /// walking the same dabs again into a second document-sized buffer. Timed
+    /// apart because if it is half the stamp then the lever for B189 is this
+    /// buffer rather than the brush, and the report has been quoting a per-dab
+    /// cost that silently included both walks.
+    /// </remarks>
+    internal Services.Tally StampFootprintMs { get; } = new();
+
+    internal Services.Tally StampRestoreMs { get; } = new();
+
+    /// <inheritdoc cref="StampRestoreMs"/>
+    internal Services.Tally StampSettledMs { get; } = new();
+
+    /// <inheritdoc cref="StampRestoreMs"/>
+    internal Services.Tally StampBackupMs { get; } = new();
+
+    /// <inheritdoc cref="StampRestoreMs"/>
+    internal Services.Tally StampTailMs { get; } = new();
+
+    /// <summary>The tail rectangle's area in megapixels, per event (B189).</summary>
+    internal Services.Tally StampTailMpx { get; } = new();
+
     internal Services.Tally LiveStampSettled { get; } = new();
 
     /// <summary>
@@ -1591,7 +1696,17 @@ public partial class MainViewModel
             if (BrushEngine.DrawsAsOneSilhouette(CurrentToolSettings)
                 || BrushEngine.NeedsFootprintCap(CurrentToolSettings))
             {
-                _live.BeginCoverage(Scene.Width, Scene.Height);
+                // B189: the footprint route's coverage is a ceiling nobody
+                // looks at, so it may follow the compose scale; the silhouette
+                // route's coverage IS the mark and may not. Fixed for the
+                // stroke — the ceiling and its rollbacks have to agree about
+                // where a pixel is, and a zoom mid-stroke would move it.
+                _live.BeginCoverage(
+                    Scene.Width, Scene.Height,
+                    BrushEngine.NeedsFootprintCap(CurrentToolSettings)
+                        ? Rendering.LiveFootprintScale.For(ComposeScale)
+                        : 1.0);
+                LiveFootprintScaleUsed = _live.CoverageScale;
             }
         }
         _live.ResetPostProcess();
@@ -1604,6 +1719,7 @@ public partial class MainViewModel
         _live.EffectSettled = 0;
         _live.SmudgeCarry = default;
         _live.SmudgeRegion = null;
+        NoteStrokeBegan();
         FlushLivePreview();
         PublishSnapshot();
     }
@@ -2223,42 +2339,49 @@ public partial class MainViewModel
         // 1. Take back the tail lent out last time. Only the part of the buffer this
         // tail actually used: the backup is sized to the largest tail seen, so drawing
         // the whole thing would scale a bigger image into a smaller rect.
+        var restoreAt = System.Diagnostics.Stopwatch.GetTimestamp();
         if (carriesFootprint && _live.TailRegion is { } coverLent && _live.CoverageTailBackup is not null)
         {
-            using var restore = SKImage.FromBitmap(_live.CoverageTailBackup);
-            using var src = new SKPaint { BlendMode = SKBlendMode.Src };
-            _live.CoverageCanvas!.DrawImage(
-                restore,
-                new SKRect(0, 0, coverLent.Width, coverLent.Height),
-                new SKRect(coverLent.Left, coverLent.Top, coverLent.Right, coverLent.Bottom),
-                src);
-            _live.CoverageCanvas.Flush();
+            // The coverage buffer may be smaller than the document (B189), and
+            // the backup was taken over exactly this rectangle in exactly this
+            // conversion — so the round trip is a copy either way.
+            RestoreTail(_live.CoverageCanvas!, _live.CoverageTailBackup, _live.ToCoverage(coverLent));
         }
 
         if (_live.TailRegion is { } lent && _live.TailBackup is not null)
         {
-            using var restore = SKImage.FromBitmap(_live.TailBackup);
-            using var src = new SKPaint { BlendMode = SKBlendMode.Src };
-            _live.ScratchCanvas.DrawImage(
-                restore,
-                new SKRect(0, 0, lent.Width, lent.Height),
-                new SKRect(lent.Left, lent.Top, lent.Right, lent.Bottom),
-                src);
-            _live.ScratchCanvas.Flush();
+            RestoreTail(_live.ScratchCanvas, _live.TailBackup, lent);
             _live.TailRegion = null;
         }
 
+        StampRestoreMs.Add(Ms(restoreAt));
+
         // 2. Everything whose position has stopped moving, permanently.
+        var settledAt = System.Diagnostics.Stopwatch.GetTimestamp();
         var settledFrom = _live.StableDabs;
         BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, stable);
         _live.StableDabs = Math.Max(_live.StableDabs, Math.Min(stable, dabs.Count));
+        StampColourMs.Add(Ms(settledAt));
         if (carriesFootprint)
         {
-            BrushEngine.AccumulateFootprint(_live.CoverageCanvas!, live, dabs, settledFrom, stable);
+            // **Timed apart, because every dab is stamped TWICE.** Once as
+            // colour into the scratch and once as a footprint into the coverage
+            // buffer, both document-sized. The report's ratio of medians put an
+            // event's stamp at 176 us a dab where a plain StampDabRange measures
+            // 45-50 on the same brush and canvas, and a second walk over the
+            // same dabs is the size of the difference. Whether it IS the
+            // difference is what this says.
+            var footprintAt = System.Diagnostics.Stopwatch.GetTimestamp();
+            BrushEngine.AccumulateFootprint(
+                _live.CoverageCanvas!, live, dabs, settledFrom, stable, _live.CoverageScale);
             _live.CoverageCanvas!.Flush();
+            StampFootprintMs.Add(Ms(footprintAt));
         }
 
+        StampSettledMs.Add(Ms(settledAt));
+
         // 3. The rest on loan, so the mark reaches the pen tip.
+        var backupAt = System.Diagnostics.Stopwatch.GetTimestamp();
         var reStamped = 0;
         if (BrushEngine.RangeBounds(dabs, _live.StableDabs, live.Brush, info) is { } tail
             && _live.Scratch is not null)
@@ -2298,6 +2421,13 @@ public partial class MainViewModel
                 }
             }
 
+            // The backup is area work over the tail rectangle, which spans the
+            // distance the pen covered in two events — so it grows with SPEED
+            // while the dab count does not. Timed apart from the dabs for
+            // exactly that reason.
+            StampBackupMs.Add(Ms(backupAt));
+            StampTailMpx.Add(tail.Width * (double)tail.Height / 1_000_000.0);
+            var tailAt = System.Diagnostics.Stopwatch.GetTimestamp();
             BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, dabs.Count);
             // Counted HERE and not from the tail's size below, because the tail
             // is only re-stamped when RangeBounds gives it a rectangle. Counting
@@ -2306,23 +2436,30 @@ public partial class MainViewModel
             // and subtracting it in another (B329).
             reStamped = Math.Max(0, dabs.Count - _live.StableDabs);
             _live.ScratchCanvas.Flush();
+            StampTailMs.Add(Ms(tailAt));
 
             // 3b. The footprint's own copy of the same loan.
             if (carriesFootprint)
             {
+                // B189: the coverage buffer's own pixels, which are fewer than
+                // the document's when the footprint follows the compose scale.
+                // Sized off THIS rectangle rather than the document one, or the
+                // backup would be four times the size it needs and the copy
+                // would give back what the smaller buffer just saved.
+                var coverTail = _live.ToCoverage(tail);
                 if (_live.CoverageTailBackup is null
-                    || _live.CoverageTailBackup.Width < tail.Width
-                    || _live.CoverageTailBackup.Height < tail.Height)
+                    || _live.CoverageTailBackup.Width < coverTail.Width
+                    || _live.CoverageTailBackup.Height < coverTail.Height)
                 {
                     _live.CoverageTailBackup?.Dispose();
                     _live.CoverageTailBackup = new SKBitmap(new SKImageInfo(
-                        Math.Max(tail.Width, 64), Math.Max(tail.Height, 64),
+                        Math.Max(coverTail.Width, 64), Math.Max(coverTail.Height, 64),
                         SKColorType.Rgba8888, SKAlphaType.Premul));
                 }
 
                 using (var region = new SKBitmap())
                 {
-                    if (_live.Coverage!.ExtractSubset(region, tail))
+                    if (_live.Coverage!.ExtractSubset(region, coverTail))
                     {
                         using var px = region.PeekPixels();
                         using var view = px is null ? null : SKImage.FromPixels(px);
@@ -2336,8 +2473,15 @@ public partial class MainViewModel
                     }
                 }
 
-                BrushEngine.AccumulateFootprint(_live.CoverageCanvas!, live, dabs, _live.StableDabs, dabs.Count);
+                // The tail's own second walk, which nothing timed until now: it
+                // sits after StampTailMs closes, so it was invisible to the
+                // split that named the tail copies.
+                var tailFootprintAt = System.Diagnostics.Stopwatch.GetTimestamp();
+                BrushEngine.AccumulateFootprint(
+                    _live.CoverageCanvas!, live, dabs, _live.StableDabs, dabs.Count,
+                    _live.CoverageScale);
                 _live.CoverageCanvas!.Flush();
+                StampFootprintMs.Add(Ms(tailFootprintAt));
             }
         }
 
@@ -2394,7 +2538,9 @@ public partial class MainViewModel
                         into.Flush();
                     }
 
-                    BrushEngine.CapToFootprintBand(capped, ceiling, band);
+                    BrushEngine.CapToFootprintBand(
+                        capped, ceiling, band,
+                        new Lightbox.Raster.FootprintSpace(_live.CoverageScale, 0, 0));
                     _live.PostUsed = _live.PostUsed is { } prior
                         ? LivePaintSession.UnionRect(prior, band)
                         : band;
@@ -2655,9 +2801,20 @@ public partial class MainViewModel
         // the size the pass wants - in which case the engine rebuilds and the
         // only cost is the one that was always there.
         SKBitmap? footprintCrop = null;
+        var footprintSpace = Lightbox.Raster.FootprintSpace.Document;
         if (BrushEngine.NeedsFootprintCap(whole.Brush) && _live.Coverage is { } coverage)
         {
-            footprintCrop = CopyRegion(coverage, rect);
+            // B189: cropped in the buffer's own pixels, which are fewer than the
+            // document's when the footprint follows the compose scale. The crop
+            // lands on a whole buffer pixel and the region rarely does, so the
+            // sub-pixel remainder travels with it — dropping it would slide the
+            // ceiling up to a document pixel and a half off the rim it caps.
+            var cropRect = _live.ToCoverage(rect);
+            footprintCrop = CopyRegion(coverage, cropRect);
+            footprintSpace = new Lightbox.Raster.FootprintSpace(
+                _live.CoverageScale,
+                (rect.Left * _live.CoverageScale) - cropRect.Left,
+                (rect.Top * _live.CoverageScale) - cropRect.Top);
         }
 
         var generation = _live.PostGeneration;
@@ -2692,7 +2849,7 @@ public partial class MainViewModel
                 // growing with the length of the stroke.
                 processed = BrushEngine.PostProcessRegion(
                     dabsCrop, whole, rect, beneathCrop, rect.Location, beneathOrigin,
-                    footprintCrop);
+                    footprintCrop, footprintSpace);
             }
             catch
             {
@@ -3134,6 +3291,7 @@ public partial class MainViewModel
 
     public void EndStroke()
     {
+        NoteStrokeEnded(_strokeBuilder.Current?.Points.Count ?? 0, _live.StableDabs);
         var stroke = _strokeBuilder.End();
         _live.ClearEffectState();
         if (stroke is null) return;
