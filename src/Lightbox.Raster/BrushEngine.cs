@@ -1052,18 +1052,45 @@ public static class BrushEngine
     /// there for which brushes may have a non-zero one and why most may not.
     /// </param>
     public static int StableCount(
-        IReadOnlyList<Dab> now, IReadOnlyList<Dab>? before, double tolerance)
+        IReadOnlyList<Dab> now, IReadOnlyList<Dab>? before, double tolerance) =>
+        StableCount(now, before, tolerance, out _);
+
+    /// <inheritdoc cref="StableCount(IReadOnlyList{Dab}, IReadOnlyList{Dab}, double)"/>
+    /// <param name="exact">
+    /// What the answer would have been with no tolerance at all — the
+    /// difference between the two is what settling on a near miss bought this
+    /// event.
+    /// </param>
+    /// <remarks>
+    /// <b>An out-parameter rather than a second call, and that is a cost
+    /// decision.</b> This runs per pointer event on the path B189 exists to make
+    /// cheaper, and asking the question twice would walk the settled prefix
+    /// twice — adding work proportional to the mark to a per-event path, which
+    /// is the shape invariant 6 forbids and the shape a previous attempt in this
+    /// entry was reverted for. Tracked inside the loop that already runs, it
+    /// costs one comparison per dab it was already looking at.
+    /// </remarks>
+    public static int StableCount(
+        IReadOnlyList<Dab> now, IReadOnlyList<Dab>? before, double tolerance, out int exact)
     {
+        exact = 0;
         if (now.Count == 0) return 0;
-        if (before is null) return 1;
+        if (before is null)
+        {
+            exact = 1;
+            return 1;
+        }
 
         var agreed = 0;
         var shared = Math.Min(now.Count, before.Count);
         if (tolerance <= 0)
         {
             while (agreed < shared && now[agreed].Pos == before[agreed].Pos) agreed++;
-            return Math.Max(1, agreed);
+            exact = Math.Max(1, agreed);
+            return exact;
         }
+
+        var stillExact = true;
 
         // Squared, so the loop does no square roots — this runs per pointer
         // event over a growing list.
@@ -1096,9 +1123,20 @@ public static class BrushEngine
 
             double dx = a.Pos.X - b.Pos.X, dy = a.Pos.Y - b.Pos.Y;
             if ((dx * dx) + (dy * dy) > limit) break;
+
+            // Where the exact rule would have stopped, tracked as the tolerant
+            // loop passes the same dab — see the remarks for why this is not a
+            // second walk.
+            if (stillExact && a.Pos != b.Pos)
+            {
+                stillExact = false;
+                exact = Math.Max(1, agreed);
+            }
+
             agreed++;
         }
 
+        if (stillExact) exact = Math.Max(1, agreed);
         return Math.Max(1, agreed);
     }
 

@@ -77,7 +77,7 @@ internal static class RenderReport
             StrokeLog = null,
         (double RestoreMs, double SettledMs, double BackupMs, double TailMs, double TailMpx,
             double TailMpxP90, double ColourMs, double FootprintMs,
-            double FootprintScale)? StampParts = null,
+            double FootprintScale, double SettleTolerance, double SettledEarly)? StampParts = null,
         IReadOnlyList<(double Ms, double AtSeconds, int Points, int Dabs, long Misses, double DescribeMs)>?
             SlowBuildLog = null,
         (double LostMs, double SessionMs)? StallCensus = null,
@@ -1626,6 +1626,30 @@ internal static class RenderReport
                 + $"   (the same dabs, walked twice)");
             sb.AppendLine(
                 $"    the footprint went    into {Rendering.LiveFootprintScale.Describe(sp.FootprintScale)}");
+
+            // **B189: which settle rule the brush under the pen actually got.**
+            // Printed here rather than left to be inferred from the provisional
+            // count, because two captures once ran the same arm and agreed with
+            // each other, and nothing in the file said so.
+            if (sp.SettleTolerance > 0)
+            {
+                sb.AppendLine(
+                    $"    dabs settled early    median {sp.SettledEarly,7:0.#}"
+                    + $"   (within {sp.SettleTolerance:0.##} px of where they already were)");
+                sb.AppendLine(
+                    "  >> Those are dabs the EXACT rule would have taken back and drawn again");
+                sb.AppendLine(
+                    "     this event. Densify looks one point ahead, so a dab is final once the");
+                sb.AppendLine(
+                    "     next point arrives — the exact rule needs one more event to notice.");
+            }
+            else
+            {
+                sb.AppendLine(
+                    "    settling              the EXACT rule — this brush has a dynamic seeded");
+                sb.AppendLine(
+                    "                          from dab position, so nothing may settle early (B45)");
+            }
             var twoWalks = sp.ColourMs + sp.FootprintMs;
             if (twoWalks > 0 && sp.FootprintMs > 0)
             {
