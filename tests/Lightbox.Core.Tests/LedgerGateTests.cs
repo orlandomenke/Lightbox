@@ -102,6 +102,62 @@ public class LedgerGateTests(ITestOutputHelper output)
         return (0, "");
     }
 
+    /// <summary>
+    /// The allocator's own scenarios still hold — including the one where a
+    /// branch stacked on another branch corrects an inherited entry's title
+    /// (B338).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why this runs the script's selftest rather than restating it here.</b>
+    /// The thing under test is git reasoning — what <c>merge-base</c> returns
+    /// between two branches and which ids that makes inherited — and it needs a
+    /// real repository with real branches to mean anything. <c>bugs.py
+    /// selftest</c> builds one; a C# fixture that mocked git away would have
+    /// passed on the day this broke, which is the same argument the script's own
+    /// docstring makes about itself.
+    /// </para>
+    /// <para>
+    /// <b>What B338 was.</b> An id is exempt from the clash check when both
+    /// branches already had it — but "already had it" was asked only of the
+    /// merge-base with the default branch. A branch stacked on another shares
+    /// every id the branch beneath filed and none of them are on <c>main</c>
+    /// yet, so the only thing left identifying the entry as this branch's own
+    /// was its <em>title</em>. Correcting a title — most of what this ledger is
+    /// for — therefore read as two branches allocating one number, and
+    /// <c>.githooks/pre-push</c> runs <c>ids --fix</c> unprompted, so it
+    /// renumbered mid-push. Caught in a diff while uncommitted; committed, the
+    /// ledger would have carried two entries for one bug with every check green.
+    /// </para>
+    /// <para>
+    /// <b>The selftest holds both halves</b>, and the second is the one that
+    /// keeps the repair honest: a retitled inherited entry must not be reported,
+    /// and two branches that each ran <c>bugs.py new</c> off <c>main</c> must
+    /// still be. A fix that only satisfied the first would have widened the
+    /// guard into silence.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void TheAllocatorsOwnScenariosStillHold()
+    {
+        var (code, said) = Bugs("selftest");
+
+        Assert.True(
+            code == 0,
+            "bugs.py selftest reported a failure — the id allocator no longer behaves "
+            + "the way the scenarios in it describe:\n" + said);
+
+        // Named individually, so a scenario silently disappearing from the
+        // script cannot leave this passing on the ones that remain.
+        foreach (var scenario in new[] { "mid-merge:", "committed:", "in-range:", "retitled:", "allocated:" })
+        {
+            Assert.True(
+                said.Contains(scenario, StringComparison.Ordinal),
+                $"the selftest no longer runs the '{scenario}' scenario, so this test is "
+                + "green over less than it was written to cover");
+        }
+    }
+
     /// <summary>A ledger holding exactly the entries given, and nothing else.</summary>
     private static string Ledger(params (string Id, string Title)[] entries)
     {
