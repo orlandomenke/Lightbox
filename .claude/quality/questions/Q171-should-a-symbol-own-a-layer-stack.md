@@ -67,9 +67,21 @@ cels.
 `docs/DESIGN-symbol-layers.md`, written before the code for the reason
 `DESIGN-symbols.md` was: the record change is the whole decision. It settles
 `Symbol.Layers` over a narrower `SymbolLayer` (the `PaintedFrame`/`VectorFrame`
-lesson), the compositor-lives-in-App constraint and the three ways out of it,
-the read-both-write-narrow serialization rule that keeps every existing symbol
-byte-identical, and seven steps L1–L7.
+lesson), the read-both-write-narrow serialization rule that keeps every existing
+symbol byte-identical, and seven steps L1–L7.
+
+**Its first draft was wrong, and the owner's answer is what caught it.** The
+draft recommended restricting what a symbol layer may carry so compositing could
+stay inside `Lightbox.Raster`, and costed moving the compositor down as its own
+project. Asked which kind of "effect layer" a head actually has, the owner said
+**live** effects — so a symbol that cannot hold one cannot hold the artwork the
+feature exists for, and the restriction was buying nothing at full price.
+
+The move was then costed by compiling it: all 2,856 lines build inside Raster
+with three errors, every one a `Services.*` policy call — two memory budgets
+that are already settable properties, and a diagnostic note. The recommendation
+is now to move it, and the note keeps the rejected options because their reasons
+are still true.
 
 ## The guard, which landed first
 

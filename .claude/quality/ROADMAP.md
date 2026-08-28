@@ -948,10 +948,20 @@ nobody was asking for.
 
 **Designed 2026-08-28, not yet built: a symbol owns a layer stack (Q171).**
 `docs/DESIGN-symbol-layers.md` settles it in seven steps — the record
-(`Symbol.Layers` reusing the document's own `Layer`, not a narrower one), the
-loader restriction that keeps symbol compositing inside `Lightbox.Raster`, the
-render pass where only `Render` changes, capture from a `LayerLink`, and a
-detach that rebuilds the stack. Effort L.
+(`Symbol.Layers` reusing the document's own `Layer`, not a narrower one), **the
+compositor moving down into `Lightbox.Raster`**, the symbol render pass where
+only `Render` changes, capture from a `LayerLink`, and a detach that rebuilds
+the stack. Effort L.
+  - **The move was costed by compiling it, not by reading it**, after the first
+    draft guessed the opposite way round. All 2,856 lines of the compositor
+    build inside Raster with three errors — two memory budgets that are already
+    settable properties and one diagnostic note, none of them rendering.
+    `GpuComposite` depends on SkiaSharp alone; the `MainViewModel` reference in
+    `SceneRenderer` is a doc comment. It is in App because that is where it was
+    written, not because it belongs there.
+  - The payoff is wider than symbols: `SpriteSheetExporter.ComposeFrame` stops
+    being a private reimplementation of compositing, and the canvas, the export
+    and the symbol pass all reach one.
 The owner went looking for the Animate workflow — a head is a lines layer, a
 colour layer and two effect layers, and all four are one reusable thing — and
 found three independent reasons it cannot be said. `MakeSymbolFromDrawing` takes
