@@ -117,7 +117,9 @@ internal static class RenderReport
          double LateTotalMs, double LateWorstMs, int ByEvent)? Dam = null,
         (double CycleMedianMs, double CycleMeanMs, long Cycles,
          double ReleaseToPublishMedianMs, double ReleaseToPublishMeanMs,
-         double EventIntervalMedianMs, long Events)? Cycle = null,
+         double EventIntervalMedianMs, long Events,
+         int RefusedByDam, int RefusedByPost, int RefusedByBoth, int LetThrough,
+         double AskedMedianMs, double AskedMeanMs, double AskedWorstMs)? Cycle = null,
         (int Count, double TotalMs, double WorstMs, double MedianMs, bool MeanDistorted)? Compose = null,
         (double DescribeMs, double ComposeMs, double HandoffMs)? BuildPhases = null,
         (double TotalMs, double DescribeMs, double ComposeMs, double HandoffMs, long Misses,
@@ -505,6 +507,110 @@ internal static class RenderReport
             sb.AppendLine("     sit within a whisker of the typical one — so the render thread is");
             sb.AppendLine("     not busy, it is being held. That is a gate, not a queue, and the");
             sb.AppendLine("     stray fast one below is an outlier rather than a way through.");
+        }
+
+        sb.AppendLine();
+    }
+
+    /// <summary>
+    /// Which gate turned pen events away, so the cycle stops having three
+    /// explanations and no way to choose between them (B178).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The section this replaces could describe the cycle and not attribute
+    /// it.</b> On the owner's capture of 2026-08-28 it said a cycle was 5.2 pen
+    /// events long and the dam's own line offered two candidate reasons for its
+    /// 27%, in one breath, with nothing able to decide. Four events in five
+    /// produced no publish and no counter said which gate ate them.
+    /// </para>
+    /// <para>
+    /// <b>Refusals, not shares of a duration.</b> A duration split would have to
+    /// apportion overlapping waits and would invent precision; a count of which
+    /// gate said no is exact, and it is the thing that names the next fix.
+    /// </para>
+    /// </remarks>
+    private static void AppendWhoAteTheCycle(
+        StringBuilder sb,
+        (double CycleMedianMs, double CycleMeanMs, long Cycles,
+         double ReleaseToPublishMedianMs, double ReleaseToPublishMeanMs,
+         double EventIntervalMedianMs, long Events,
+         int RefusedByDam, int RefusedByPost, int RefusedByBoth, int LetThrough,
+         double AskedMedianMs, double AskedMeanMs, double AskedWorstMs) cyc)
+    {
+        var refused = cyc.RefusedByDam + cyc.RefusedByPost + cyc.RefusedByBoth;
+        var asked = refused + cyc.LetThrough;
+        if (asked == 0) return;
+
+        sb.AppendLine(
+            $"    asked to publish        {asked}   went out {cyc.LetThrough}   turned away {refused}");
+        sb.AppendLine(
+            $"      by the dam                        {cyc.RefusedByDam}");
+        sb.AppendLine(
+            $"      by a publish already posted       {cyc.RefusedByPost}   (the dam would have let these go)");
+        // **Printed only when it is not zero, because it should never not be.**
+        // The two gates cannot refuse the same request: the sequence number
+        // only advances inside PublishSnapshot, and the posted flag is already
+        // down by then, so a pending post always sees the same gap the dam saw
+        // when it let that post through. The counter stays because it is the
+        // cheapest possible tripwire on that reasoning — an assumption held by
+        // argument, with a number watching it.
+        if (cyc.RefusedByBoth > 0)
+        {
+            sb.AppendLine(
+                $"      by both at once                   {cyc.RefusedByBoth}");
+            sb.AppendLine("  !! that bucket is supposed to be unreachable — the two gates cannot");
+            sb.AppendLine("     refuse the same request unless the in-flight depth changed while a");
+            sb.AppendLine("     publish was posted. Something in the pacing moved; the split above");
+            sb.AppendLine("     is no longer a clean attribution. See B178.");
+        }
+        sb.AppendLine(
+            $"    asked -> published     median {cyc.AskedMedianMs,7:0.##} ms   mean {cyc.AskedMeanMs,7:0.##} ms   worst {cyc.AskedWorstMs,7:0.##} ms");
+        sb.AppendLine(
+            $"    the publish route      {Rendering.PublishRoute.Describe()}");
+
+        // The verdict, and it names one gate rather than listing suspects. The
+        // three arms are mutually exclusive by construction: a request is
+        // refused by the post alone, by the pacing (either of the two buckets
+        // that involve it), or it is not refused at all.
+        var pacing = cyc.RefusedByDam + cyc.RefusedByBoth;
+        if (cyc.RefusedByPost > pacing && cyc.RefusedByPost > cyc.LetThrough)
+        {
+            sb.AppendLine("  >> THE DISPATCHER is setting the rate, not the pacing. Most refused");
+            sb.AppendLine("     events were inside the in-flight depth and were turned away only");
+            sb.AppendLine("     because a publish was posted and had not run. That post sits at");
+            sb.AppendLine("     Input priority behind a continuous stream of pointer input, so it");
+            sb.AppendLine("     comes round about once a round trip. LIGHTBOX_PUBLISH=inline hands");
+            sb.AppendLine("     the pacing back to the dam; compare the two captures.");
+        }
+        else if (pacing > cyc.RefusedByPost && pacing > cyc.LetThrough)
+        {
+            sb.AppendLine("  >> THE PACING is setting the rate. Most refused events were over the");
+            sb.AppendLine("     in-flight depth, so the cycle is bounded by publish -> drawn and the");
+            sb.AppendLine("     depth above it. Read the floor section before raising the depth: if");
+            sb.AppendLine("     the draw is at the screen's floor then a deeper pipeline buys");
+            sb.AppendLine("     throughput at the price of latency, which is the wrong trade for a");
+            sb.AppendLine("     live stroke. LIGHTBOX_INFLIGHT is how that was settled before.");
+        }
+        else if (refused * 4 < asked)
+        {
+            sb.AppendLine("  >> NEITHER GATE is the constraint — almost every event that asked got");
+            sb.AppendLine("     a publish. The cycle is then the rate the pen is delivering at, and");
+            sb.AppendLine("     the chunkiness above is the tablet's own, not the application's.");
+        }
+        else
+        {
+            sb.AppendLine("  >> The two gates are turning away comparable numbers, so neither owns");
+            sb.AppendLine("     the cycle on its own and fixing one will move it by less than its");
+            sb.AppendLine("     share. Draw a longer stroke before acting on this — the split is a");
+            sb.AppendLine("     count, and a short capture splits small numbers.");
+        }
+
+        if (cyc.RefusedByPost > 0 && cyc.AskedMedianMs > cyc.CycleMedianMs / 2)
+        {
+            sb.AppendLine("     The post itself waits longer than half a cycle, which is the same");
+            sb.AppendLine("     finding measured a second way: the gap between asking and");
+            sb.AppendLine("     publishing IS most of the loop.");
         }
 
         sb.AppendLine();
@@ -1858,6 +1964,8 @@ internal static class RenderReport
                     sb.AppendLine(
                         "     any of the latencies above it.");
                 }
+
+                AppendWhoAteTheCycle(sb, cyc);
             }
             sb.AppendLine($"  event -> publish        median {s.WaitToPublish.MedianMs,7:0.##} ms   mean {s.WaitToPublish.MeanMs,7:0.##} ms   worst {s.WaitToPublish.WorstMs,7:0.##} ms");
             sb.AppendLine($"    newest event          median {s.TipToPublish.MedianMs,7:0.##} ms   mean {s.TipToPublish.MeanMs,7:0.##} ms   worst {s.TipToPublish.WorstMs,7:0.##} ms");
@@ -2623,6 +2731,11 @@ internal static class RenderReport
                 ? "preview resolution   (the default — set "
                     + Rendering.LiveFootprintScale.Variable + "=full to pin it)"
                 : "document resolution   (" + Rendering.LiveFootprintScale.Variable + "=full)"));
+        // Same reason, same lesson (B178). The publish route is fixed for the
+        // process too, and the cycle block that would otherwise name it needs
+        // five publishes before it prints anything at all.
+        sb.AppendLine(
+            $"publishes go out          {Rendering.PublishRoute.Describe()}");
         if (facts.GpuSurfaceRequestFailed)
         {
             sb.AppendLine("  !! a GPU surface was asked for and could not be created, so the");

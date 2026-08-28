@@ -3075,7 +3075,21 @@ public partial class MainViewModel
 
     private void RequestSnapshot()
     {
-        if (_snapshotQueued) return;
+        if (_snapshotQueued)
+        {
+            // **Which gate turned this event away, and would the other one have
+            // turned it away too (B178).** The cycle is 5.2 pen events long and
+            // the report can name three suspects for that without being able to
+            // choose between them. This is the split that chooses: a request the
+            // dam would have let through, refused only because a publish is
+            // already posted and has not run, is the DISPATCHER setting the
+            // rate. One the dam would have held anyway is the PACING setting it,
+            // whatever the post is doing.
+            if (_publish.WouldHoldAnyway()) RequestsRefusedByBoth++;
+            else RequestsRefusedByPost++;
+            return;
+        }
+
         // B189's other half: pace the publish to the canvas's consumption.
         // B73 made one publish cover a burst of events; this makes the bursts
         // themselves wait for the screen. Without it the first capture showed
@@ -3096,16 +3110,94 @@ public partial class MainViewModel
             }
 
             _publish.WaitingForPresent = true;
+            RequestsRefusedByDam++;
             ArmPublishDam();
             return;
         }
+
+        RequestsLetThrough++;
         _snapshotQueued = true;
+        // **How long the post itself waits (B178).** Nothing measured this, and
+        // it is the one segment of the cycle that was never priced: the report
+        // could say the stamp was cheap and the draw was prompt, and still not
+        // say what the gap between them was spent on.
+        var askedAt = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (PublishesInline)
+        {
+            // The experiment arm. Publishing straight from the pointer event
+            // makes the DAM the only pacer; the posted arm stacks a second one
+            // in front of it, and which of the two is setting the rate is
+            // exactly what this branch exists to find out.
+            try
+            {
+                AskedToPublishTally.Add(0);
+                PublishSnapshot();
+            }
+            finally
+            {
+                _snapshotQueued = false;
+            }
+
+            return;
+        }
+
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             _snapshotQueued = false;
+            AskedToPublishTally.Add(
+                (System.Diagnostics.Stopwatch.GetTimestamp() - askedAt)
+                * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
             PublishSnapshot();
         }, Avalonia.Threading.DispatcherPriority.Input);
     }
+
+    /// <summary>
+    /// Requests the dam turned away, requests a pending post turned away, and
+    /// requests that went out — the three-way split of every
+    /// <c>RequestSnapshot</c> in the session (B178).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The aggregate the report already prints cannot attribute the cycle,
+    /// and it says so in two voices at once.</b> The owner's capture of
+    /// 2026-08-28: 1,065 pen events, 204 publishes, a cycle of <b>29.26 ms</b>
+    /// against a pen delivering every <b>5.68</b> — so about four events in five
+    /// produced no publish, and nothing recorded which gate ate them. The dam's
+    /// own line offered two explanations for its 27% and could not choose
+    /// between them either.
+    /// </para>
+    /// <para>
+    /// <b>Three buckets, because two would be ambiguous.</b> A request refused
+    /// while a publish is posted may or may not also have been over the
+    /// in-flight depth, and lumping those together would let a dispatcher
+    /// finding be manufactured out of pacing. <see cref="RequestsRefusedByPost"/>
+    /// counts only the ones the dam would have let through.
+    /// </para>
+    /// </remarks>
+    internal int RequestsRefusedByDam { get; private set; }
+
+    /// <inheritdoc cref="RequestsRefusedByDam"/>
+    internal int RequestsRefusedByPost { get; private set; }
+
+    /// <inheritdoc cref="RequestsRefusedByDam"/>
+    internal int RequestsRefusedByBoth { get; private set; }
+
+    /// <inheritdoc cref="RequestsRefusedByDam"/>
+    internal int RequestsLetThrough { get; private set; }
+
+    /// <summary>
+    /// From posting the publish to the publish running — the dispatcher's own
+    /// share of the cycle (B178). Zero by construction on the inline arm.
+    /// </summary>
+    internal Services.Tally AskedToPublishTally { get; } = new();
+
+    /// <summary>
+    /// Which publish route this view model takes (see
+    /// <see cref="Rendering.PublishRoute"/>). Settable so a test can drive both
+    /// arms in one process — the environment variable behind the default is
+    /// read once per process and is not a seam at all.
+    /// </summary>
+    internal bool PublishesInline { get; set; } = Rendering.PublishRoute.Inline;
 
     /// <summary>
     /// Milliseconds a deferred publish will wait on a canvas that has stopped

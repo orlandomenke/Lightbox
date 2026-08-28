@@ -650,6 +650,33 @@ than a plain one of the same size, and there is nothing wrong with it.
 
 **Help → Write a render report** says which of the two your brush got, under
 `stamping the dabs`.
+### If a fast stroke arrives in clumps rather than flowing
+
+There is a difference between ink being **late** and ink being **lumpy**, and
+they feel alike but have different causes. Late means the mark trails your hand
+by a visible distance. Lumpy means each piece of the mark appears promptly, but
+several pen-lengths of it appear at once — the line grows in steps instead of
+flowing.
+
+If a long fast stroke looks like it is being laid down in short segments, that
+is the second one. Your tablet reports its position far more often than the
+screen can show a new picture, so some grouping is normal and unavoidable. What
+is not normal is grouping five or more reports into one update, which is roughly
+one update per full trip out to the screen and back, when Lightbox is set up to
+manage two of those trips at once.
+
+**Help → Write a render report** now says which of two things is doing the
+grouping: the deliberate pacing that waits for the screen, or the queue that the
+update joins on its way there. The `asked to publish` block counts both, and the
+line under it names one of them outright.
+
+`LIGHTBOX_PUBLISH=inline` starts Lightbox with the second one taken out, so only
+the deliberate pacing remains. It is off unless you set it, and it is an
+experiment rather than a better setting: it can make Lightbox build pictures that
+are replaced before they are ever shown, which is wasted work that eventually
+costs you more than it saves. The report counts those too, as `replaced first` on
+the `PEN -> SCREEN` line. Draw the same fast stroke once each way and compare
+what you see, not only what the file says.
 
 
 It names which parts of the drawing are done by your graphics card and which by
