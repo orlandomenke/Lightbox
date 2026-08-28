@@ -2208,7 +2208,15 @@ public partial class MainViewModel
         // backup-and-replace the scratch already used, moved one level down onto
         // the coverage buffer.
         var wholeMark = BrushEngine.DrawsAsOneSilhouette(live.Brush);
-        var stable = BrushEngine.StableCount(dabs, _live.Dabs);
+        // B189: a dab that drifted a fraction of a pixel is settled, for a brush
+        // with nothing seeded from its position. At size 500 an event re-stamps
+        // as many dabs as it adds, each costing 1245 us, and the worst of them
+        // moved 0.099 px — half the most expensive thing an event does, spent on
+        // a change to antialiasing at the rim. SettleTolerance is zero for every
+        // brush where that is not true, which is B45's rule kept rather than
+        // relaxed.
+        var stable = BrushEngine.StableCount(
+            dabs, _live.Dabs, BrushEngine.SettleTolerance(live.Brush));
         _live.Dabs = dabs;
 
         if (wholeMark && _live.CoverageCanvas is { } coverage && _live.Coverage is { } buffer)

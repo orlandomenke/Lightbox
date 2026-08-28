@@ -1042,16 +1042,135 @@ public static class BrushEngine
     /// point, which nothing later can move, so a tap inks immediately.
     /// </para>
     /// </remarks>
-    public static int StableCount(IReadOnlyList<Dab> now, IReadOnlyList<Dab>? before)
+    public static int StableCount(IReadOnlyList<Dab> now, IReadOnlyList<Dab>? before) =>
+        StableCount(now, before, 0);
+
+    /// <inheritdoc cref="StableCount(IReadOnlyList{Dab}, IReadOnlyList{Dab})"/>
+    /// <param name="tolerance">
+    /// How far a dab may drift and still count as settled, in document pixels.
+    /// <b>Zero unless <see cref="SettleTolerance"/> says otherwise</b> — see
+    /// there for which brushes may have a non-zero one and why most may not.
+    /// </param>
+    public static int StableCount(
+        IReadOnlyList<Dab> now, IReadOnlyList<Dab>? before, double tolerance)
     {
         if (now.Count == 0) return 0;
         if (before is null) return 1;
 
         var agreed = 0;
         var shared = Math.Min(now.Count, before.Count);
-        while (agreed < shared && now[agreed].Pos == before[agreed].Pos) agreed++;
+        if (tolerance <= 0)
+        {
+            while (agreed < shared && now[agreed].Pos == before[agreed].Pos) agreed++;
+            return Math.Max(1, agreed);
+        }
+
+        // Squared, so the loop does no square roots — this runs per pointer
+        // event over a growing list.
+        var limit = tolerance * tolerance;
+        while (agreed < shared)
+        {
+            var a = now[agreed];
+            var b = before[agreed];
+
+            // **Position tolerates; everything else does not.** Pressure decides
+            // radius and alpha, heading decides rotation when the tip follows
+            // direction, and load feeds the medium — none of them is a
+            // sub-pixel quantity that a reader would fail to notice, and none
+            // of them is what this exists to forgive.
+            //
+            // **Equals, not ==, and that is not a style choice.** `heading` is
+            // `double.NaN` for every brush that does not follow direction — the
+            // deliberate "no heading" value, checked with `double.IsNaN` where
+            // it is used — and `NaN != NaN` is true, so `!=` broke the loop at
+            // the first dab of every ordinary stroke. It made the settled
+            // prefix SHORTER than the exact rule it was meant to lengthen, and
+            // it presented as the tolerance being useless rather than as a
+            // comparison bug. `double.Equals` treats NaN as equal to itself.
+            if (!a.Pressure.Equals(b.Pressure)
+                || !a.Heading.Equals(b.Heading)
+                || !a.Load.Equals(b.Load))
+            {
+                break;
+            }
+
+            double dx = a.Pos.X - b.Pos.X, dy = a.Pos.Y - b.Pos.Y;
+            if ((dx * dx) + (dy * dy) > limit) break;
+            agreed++;
+        }
+
         return Math.Max(1, agreed);
     }
+
+    /// <summary>
+    /// How far a dab of this brush may drift and still be treated as settled by
+    /// the live preview (B189).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Zero for any brush with a dynamic seeded from the dab's own
+    /// position</b>, which is what <see cref="StableCount"/>'s exact comparison
+    /// exists for and is not being relaxed. B45 measured it: with scatter at
+    /// 0.35 on a 30 px brush a sub-pixel move throws the dab up to ten pixels
+    /// somewhere else, because <see cref="Hash01"/> re-rolls from the IEEE-754
+    /// bits of the new position. Scatter, size, flow, rotation, roundness and
+    /// all three colour jitters are seeded that way, so any of them makes the
+    /// answer zero.
+    /// </para>
+    /// <para>
+    /// <b>For a brush with none of them, a sub-pixel move is a sub-pixel
+    /// move</b> — the dab is the same circle a fraction of a pixel over, and
+    /// re-stamping buys a change to antialiasing at the rim and nothing else.
+    /// Measured on a curving stroke at 60 px an event, the worst any re-stamped
+    /// dab moved was <b>0.099 px</b>, while an event at size 500 re-stamps as
+    /// many dabs as it adds — so <b>half</b> of the most expensive thing an
+    /// event does is redrawing dabs that went a tenth of a pixel, at 1245 us
+    /// each (<c>HowOftenABigDabIsDrawnAgainTests</c>,
+    /// <c>WhatOneEventCostsAtEachBrushSizeTests</c>).
+    /// </para>
+    /// <para>
+    /// <b>A quarter of a pixel, and flat rather than a fraction of the
+    /// brush.</b> What the artist can see is a displacement on screen, not a
+    /// proportion of the mark: a quarter pixel is a quarter pixel at 100% zoom
+    /// and less at every zoom below it, whether the brush is 2 px or 500. A
+    /// tolerance scaled to brush size would licence a 12 px error on a big
+    /// brush to save time on a small one, which is backwards — the small brush
+    /// is the cheap case.
+    /// </para>
+    /// <para>
+    /// <b>It moves the preview and not the art.</b> The error does not
+    /// accumulate: each dab settles wherever it was when it settled, at most
+    /// one tolerance from where the record will put it, and the commit
+    /// re-renders every dab from the record through <c>StampStroke</c>. So the
+    /// finished stroke is exactly what it always was, and the live one is at
+    /// worst a quarter pixel ahead of itself for as long as the pen is down.
+    /// </para>
+    /// </remarks>
+    public static double SettleTolerance(BrushSettings brush) =>
+        HasPositionSeededDynamics(brush) ? 0 : 0.25;
+
+    /// <summary>
+    /// Whether anything about how this brush's dabs are drawn is seeded from
+    /// the dab's own position.
+    /// </summary>
+    /// <remarks>
+    /// The list is every <see cref="Hash01"/> seed in the dab path, and it is
+    /// deliberately conservative: <c>ColorJitter</c> only bites when a secondary
+    /// colour is set, and is counted anyway. A new dynamic added without a line
+    /// here would silently make <see cref="SettleTolerance"/> wrong, which is
+    /// the failure mode to watch for — <c>EveryPositionSeededDynamicIsListed</c>
+    /// fails when a jitter field is added to the model and not to this.
+    /// </remarks>
+    public static bool HasPositionSeededDynamics(BrushSettings brush) =>
+        brush.Scatter > 0
+        || brush.SizeJitter > 0
+        || brush.FlowJitter > 0
+        || brush.RotationJitter > 0
+        || brush.RoundnessJitter > 0
+        || brush.ColorJitter > 0
+        || brush.HueJitter > 0
+        || brush.SaturationJitter > 0
+        || brush.BrightnessJitter > 0;
 
     /// <summary>Every pixel the dabs from <paramref name="from"/> onward can touch.</summary>
     /// <remarks>
