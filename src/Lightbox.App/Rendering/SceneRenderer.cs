@@ -29,7 +29,9 @@ public sealed record StrokeOverlay(
     ClipRegion? Clip = null,
     SKBitmap? Tip = null,
     SKRectI? TipBounds = null,
-    double TipScale = 1.0)
+    double TipScale = 1.0,
+    SKBitmap? Unprocessed = null,
+    SKRectI? ProcessedBounds = null)
 {
     /// <summary>
     /// The dabs stamped since the last live post-process pass finished, drawn
@@ -69,6 +71,34 @@ public sealed record StrokeOverlay(
     /// cheaper arm exists and why it is a flag.
     /// </remarks>
     public double TipScale { get; init; } = TipScale;
+
+    /// <summary>
+    /// The raw stamped dabs, shown wherever the processed body has not reached
+    /// (B332).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Because the body claims more than it holds.</b> A live pass writes only
+    /// the band it processed (B313) and then records every dab that existed when
+    /// it was queued as done. The tip starts exactly where that claim ends, so no
+    /// DAB falls between them — but a dab whose PIXELS no band ever wrote is in
+    /// neither. Measured on the owner's machine 2026-08-28: three audited
+    /// publishes in eleven were missing ink, worst <b>4.5% of everything
+    /// stamped</b>, which is the mark visibly vanishing mid-stroke and jumping
+    /// back when a later pass happens to cover it.
+    /// </para>
+    /// <para>
+    /// <b>Strictly additive, which is what makes it safe.</b> Inside
+    /// <see cref="ProcessedBounds"/> the processed pixels replace this exactly as
+    /// before; outside it, today shows nothing at all, so raw ink can only be an
+    /// improvement on absence. It is the same bargain the tip already makes for
+    /// the newest dabs, extended to any region the pass has not yet covered.
+    /// </para>
+    /// </remarks>
+    public SKBitmap? Unprocessed { get; init; } = Unprocessed;
+
+    /// <summary>What the processed body actually covers, or null for all of it.</summary>
+    public SKRectI? ProcessedBounds { get; init; } = ProcessedBounds;
 
     /// <summary>Whether this overlay needs an isolated layer to be masked in.</summary>
     public bool NeedsMask => AlphaLocked || Clip is not null;
@@ -555,21 +585,26 @@ public static class SceneRenderer
     {
         if (!overlay.NeedsMask)
         {
-            if (overlay is not { Tip: { } plainTip, TipBounds: { } plainWhere })
+            if (overlay is not { Tip: { } plainTip, TipBounds: { } plainWhere }
+                && overlay.Unprocessed is null)
             {
                 DrawLayer(canvas, overlay.Scratch, strokePaint);
                 return;
             }
 
-            // **One isolated group for both halves, and it is not a tidy-up.**
+            // **One isolated group for every half, and it is not a tidy-up.**
             // Drawn separately, the stroke's opacity would apply to each, so
             // anywhere the tip laps back over the processed body the mark would
             // come out darker than the commit — a seam that moves with the pen.
             // Composited into one layer the opacity applies to their union
             // exactly once, which is what the commit does.
             canvas.SaveLayer(strokePaint);
-            DrawLayer(canvas, overlay.Scratch, null);
-            DrawTipRegion(canvas, plainTip, plainWhere, overlay.TipScale, null);
+            DrawBody(canvas, overlay);
+            if (overlay is { Tip: { } t1, TipBounds: { } w1 })
+            {
+                DrawTipRegion(canvas, t1, w1, overlay.TipScale, null);
+            }
+
             canvas.Restore();
             return;
         }
@@ -595,7 +630,7 @@ public static class SceneRenderer
             }
         }
 
-        DrawLayer(canvas, overlay.Scratch, null);
+        DrawBody(canvas, overlay);
         // Inside the isolation, so the alpha lock and the selection cut the
         // whole mark rather than only the part a pass happens to have reached.
         if (overlay is { Tip: { } maskedTip, TipBounds: { } maskedWhere })
@@ -690,6 +725,39 @@ public static class SceneRenderer
     /// paying for a multiply or a resample it does not need.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// The mark's body: the raw stamped dabs, with the processed result laid
+    /// over exactly where a pass has covered (B332).
+    /// </summary>
+    /// <remarks>
+    /// <b>Order and blend mode are both load-bearing.</b> The raw ink goes down
+    /// first so nothing stamped is ever missing; the processed body then
+    /// REPLACES it — <c>Src</c>, clipped to what the passes have actually
+    /// covered — because an effect usually reduces alpha and drawing it over
+    /// with SrcOver would let raw ink show through a mark the pass had
+    /// deliberately thinned. Inside that rectangle the result is identical to
+    /// what shipped before; outside it, what shipped before was nothing.
+    /// </remarks>
+    private static void DrawBody(SKCanvas canvas, StrokeOverlay overlay)
+    {
+        if (overlay.Unprocessed is not { } raw)
+        {
+            DrawLayer(canvas, overlay.Scratch, null);
+            return;
+        }
+
+        DrawLayer(canvas, raw, null);
+        using var replace = new SKPaint { BlendMode = SKBlendMode.Src };
+        if (overlay.ProcessedBounds is { } covered)
+        {
+            DrawLayerRegion(canvas, overlay.Scratch, covered, replace);
+        }
+        else
+        {
+            DrawLayer(canvas, overlay.Scratch, replace);
+        }
+    }
+
     private static void DrawTipRegion(
         SKCanvas canvas, SKBitmap bitmap, SKRectI where, double scale, SKPaint? paint)
     {
