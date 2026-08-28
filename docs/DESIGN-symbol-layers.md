@@ -347,6 +347,77 @@ guards the axis this feature is most likely to damage by accident.
 
 ---
 
+## The outside: a placed symbol and the rig
+
+Everything above is about a symbol's **inside**, where `BoneId` is refused. The
+owner asked the other half, and it is a fair and different question:
+
+> I am fine with a symbol not containing bones. But an imported symbol can still
+> be attached to a bone?
+
+**Today, no — and it is two gaps, not one.** Both were measured rather than
+assumed:
+
+| Route | State |
+| --- | --- |
+| A placement on a rigged layer follows the bone | **No.** `Skinning.PoseFrameForRender` loops `frame.Strokes` and transforms stroke control points. The word `Placement` does not appear in `Skinning.cs`. |
+| A symbol pinned to a named point that rides a bone | **Half.** `VariantAttachment` (Q143) pins a symbol to an anchor and is built and working. But `Anchors.ResolvedAt` reads the anchor stored on each *drawing*, and nothing applies the armature to it — `ROADMAP.md` lists *anchors riding bones* as still to come in bones phase 1. |
+
+So a symbol rides a point the artist moves per drawing, which works and is the
+normal thing for frame-by-frame. It does not ride a bone the artist poses.
+
+### The decision: anchors carry it, and placements do not gain a `BoneId`
+
+**Anchors ride bones, and a symbol pinned to an anchor comes along for free.**
+
+The alternative — `SymbolPlacement.BoneId`, posed directly — is rejected. It is a
+second mechanism for pinning a symbol to a character, doing what anchors already
+do, and the sword would then have two answers to "what am I attached to" that
+can disagree. Anchors also already carry a *direction* (Q144), so
+`FollowingTheAimTurnsThePlacementAndItsOffset` means rotation arrives with the
+position rather than needing its own field.
+
+This is not new work invented here. It is bones phase 1 work this feature
+**depends on**, and it pays for itself twice over: the limb-length guide is
+parked on the same item.
+
+### Why this is cheap, and why the determinism argument does not apply
+
+Worth stating because it is the opposite of the situation everywhere else in
+this note.
+
+Posing a **stroke** is expensive and dangerous: control points move, so
+`Hash01` reseeds unless the dynamics are seeded from bind-pose coordinates —
+which is exactly the trap `docs/DESIGN-bones.md` spends its length on.
+
+Posing a **placement** is neither. A placement is *already* a transform —
+position, angle, scale about a pivot — and `SymbolRasterizer` renders the symbol
+in symbol space and then applies that transform to the finished image. So a bone
+moving a placement changes the matrix and nothing else:
+
+- **No seed moves**, because no coordinate is rewritten. Invariant 2 is not in
+  play at all.
+- **The render cache still hits.** The key is
+  `symbol|version|frame|size|scale`, and posing changes none of those — a bone
+  swinging a sword through a hundred frames re-renders the sword zero times.
+
+The expensive half of rigging is already paid for by the design that made
+symbols deterministic.
+
+### The one thing that still needs deciding
+
+**Does a plain placement on a rigged layer follow that layer's bone, or does
+pinning have to be explicit through an anchor?**
+
+The recommendation is **explicit**: a placement follows a bone only when it is
+attached to an anchor that rides one. Implicit would mean that rigging a layer
+silently moves every symbol anybody ever dropped on it, including the background
+prop that was only there because that layer happened to be selected — and
+"my scenery moved when I posed the arm" is a bug report nobody enjoys.
+
+Left as a question rather than built, because it belongs to the bones work and
+not to this note.
+
 ## Steps
 
 Each is a commit, green, with its evidence anchors.
@@ -397,9 +468,11 @@ file still means the same thing.
 - **Nesting.** A symbol containing a placement of another symbol is still
   refused by the loader. A layer stack does not change the cycle check, the
   depth limit or the dependency graph, and those are still the reason.
-- **Rigging a symbol's layers.** `BoneId` is refused: a rigged symbol placed
-  twice is two poses of one armature, and the record has no way to say that.
-  Its own question.
+- **Rigging a symbol's layers.** `BoneId` is refused *inside* a symbol: a rigged
+  symbol placed twice is two poses of one armature, and the record has no way to
+  say that. Its own question. The **outside** of it — a placed symbol following a
+  bone — has a section above and an answer: anchors carry it, and it waits on
+  bones phase 1.
 - **`Depth` inside a symbol.** Multiplane depth is a property of a *scene's*
   camera, and a symbol has no camera. Whether a placed symbol's internal depths
   should compose with the placing document's is a real question with no obvious

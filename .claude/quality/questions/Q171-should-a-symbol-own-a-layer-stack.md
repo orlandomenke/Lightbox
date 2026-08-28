@@ -83,6 +83,27 @@ that are already settable properties, and a diagnostic note. The recommendation
 is now to move it, and the note keeps the rejected options because their reasons
 are still true.
 
+## The outside, asked after the design landed
+
+*"I am fine with a symbol not containing bones. But an imported symbol can still
+be attached to a bone?"* — the owner, once the inside was settled.
+
+Measured: **no, and it is two gaps.** `Skinning.PoseFrameForRender` transforms
+stroke control points and never reads `frame.Placements`, so a placement on a
+rigged layer does not move; and `VariantAttachment` pins a symbol to an anchor
+(built, working) but anchors do not ride bones yet — the roadmap has that as
+still-to-come in bones phase 1.
+
+The design takes **anchors carry it**, and refuses `SymbolPlacement.BoneId` as a
+second mechanism for the same pinning. The happy surprise recorded with it: a
+placement is already a transform, so posing one moves a matrix, reseeds no
+`Hash01` and does not even miss the render cache. The expensive half of rigging
+was already paid for by the design that made symbols deterministic.
+
+Still open and left to the bones work: whether a *plain* placement on a rigged
+layer follows that layer's bone. The recommendation is no — pinning should be
+explicit, or rigging a layer silently moves every prop anybody dropped on it.
+
 ## The guard, which landed first
 
 The stack is L–XL and the corruption was live, so the guard went in ahead of it
