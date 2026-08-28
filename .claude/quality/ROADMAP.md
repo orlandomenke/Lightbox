@@ -907,6 +907,17 @@ stroke coordinates, and which you get is decided by what you grabbed.
 Break-link is the one place in the application where a mark is allowed to
 change, and it is written down where it happens.
 
+**Corrected 2026-08-28: "S4 is in" was half true for two years of merges.**
+`BreakLink` was built, correct and covered by four tests — and took a
+`SymbolPlacement` that nothing in the application ever handed it. No button, no
+`ShortcutMap` entry, no MCP verb, while `docs/manual/09-symbols.md` described it
+as a thing an artist does. It is CLAUDE.md's registry rule failing in its usual
+shape: the feature worked, nothing was red, and there was no address for it. Now
+`BreakSelectedLink` carries the selection lookup, **Edit ▸ Break symbol link**
+is the address, `edit.breakSymbolLink` is the registration, and
+`TheBreakLinkCommandActsOnTheSelectedPlacement` asserts on the half that was
+missing rather than the half that was never broken.
+
 S5 is in: the browser panel, absent unless a project is open. Make a symbol
 from the current drawing, find one by kind or by name or by tag, place it,
 delete it. The six libraries below are the kind filter, which is why they all
@@ -934,6 +945,19 @@ but that is only defensible now the artist is told how many there are. Scope is
 symbol → document; symbol → symbol edges do not exist while nesting is refused,
 and the note saying the graph "needs nesting first" was true only of the half
 nobody was asking for.
+
+**Decided 2026-08-28 and not yet built: a symbol owns a layer stack (Q171).**
+The owner went looking for the Animate workflow — a head is a lines layer, a
+colour layer and two effect layers, and all four are one reusable thing — and
+found three independent reasons it cannot be said. `MakeSymbolFromDrawing` takes
+the active layer alone; `OpenSymbol` builds the editing tab with exactly one
+layer; and `SyncEditedSymbol` does `Layers.SelectMany(l => l.Cels)`. That third
+one is a **defect, not a limit**: nothing guards `AddLayer` in a symbol tab, so
+a lines layer and a colour layer are folded into the frame list and become
+frames 1 and 2 of an animation. Measured at `afba7436` — one frame and one
+layer in, two frames out. Q171 takes the Flash model (a symbol carries its own
+layers, detaching rebuilds the stack) over flattening-with-a-warning, and the
+guard is owed before the stack is.
 
 Still open, and deliberately: symbols containing symbols. The two items below
 are **not** unstarted — they are undecided, and the decision is in

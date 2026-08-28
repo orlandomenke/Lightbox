@@ -41,6 +41,16 @@ public partial class MainWindow
         _vm.MakeSymbolFromDrawing(name);
     }
 
+    /// <summary>
+    /// Break the selected placement's link, making it ordinary strokes.
+    /// </summary>
+    /// <remarks>
+    /// A one-way door with no confirmation, deliberately: it is a single undo
+    /// step, and a prompt in front of something undo already covers is a prompt
+    /// an artist learns to dismiss. The status line says what happened.
+    /// </remarks>
+    private void OnBreakSymbolLink(object? sender, RoutedEventArgs e) => _vm.BreakSelectedLink();
+
     private void OnDeleteSymbol(object? sender, RoutedEventArgs e)
     {
         if (_vm.SymbolBrowser.Selected is { } row) _vm.DeleteSymbol(row.Model);

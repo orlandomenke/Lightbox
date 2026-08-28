@@ -378,6 +378,15 @@ public sealed class ShortcutMap
             new("edit.cutLines", "Cut selected lines (never the cel)", "Edit", null),
             new("edit.pasteLines", "Paste lines onto a new layer", "Edit", null),
 
+            // No default gesture, for the reason the three above have none: it
+            // is a one-way door, and a destructive act does not get a key
+            // nobody asked for. It is here because until now it was in no
+            // registry at all — `BreakLink` existed, was tested, and was
+            // documented in the manual, while nothing in the application could
+            // reach it. A command outside this map cannot be seen, searched or
+            // rebound, which is exactly how it stayed invisible.
+            new("edit.breakSymbolLink", "Break a placed symbol's link (make it ordinary strokes)", "Edit", null),
+
             // Everything the board window does (Q87), in its own scope. Here
             // rather than wired straight to the window's key handler, because a
             // command that is not in this map cannot be found, searched or

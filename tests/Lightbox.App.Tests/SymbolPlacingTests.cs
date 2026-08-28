@@ -565,6 +565,66 @@ public class SymbolPlacingTests : IDisposable
 
     // ---- letting go of the link --------------------------------------------------
 
+    /// <summary>
+    /// The command the menu and the shortcut map bind to actually breaks the
+    /// link.
+    /// </summary>
+    /// <remarks>
+    /// <b>The gap this closes is the one no other test could see.</b>
+    /// <c>BreakLink</c> was built, correct and covered by the four tests below
+    /// — and it took a <c>SymbolPlacement</c> that nothing in the application
+    /// ever handed it. The manual described the feature and the roadmap ticked
+    /// it, while an artist had no way to reach it at all. Asserting on
+    /// <c>BreakLink</c> is asserting on the half that was never broken; this
+    /// asserts on the half that was missing.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheBreakLinkCommandActsOnTheSelectedPlacement()
+    {
+        var vm = WithSymbol(out var sword);
+        vm.PlaceSymbol(sword.Id, 100, 60);
+        Assert.True(vm.CanBreakSelectedLink);
+
+        vm.BreakSelectedLink();
+
+        var frame = FrameOf(vm);
+        Assert.Null(frame.Placements);
+        Assert.Single(frame.Strokes);
+        Assert.False(vm.CanBreakSelectedLink);
+    }
+
+    [AvaloniaFact]
+    public void BreakingTheLinkIsOfferedOnlyWithAPlacementSelected()
+    {
+        // The menu greys rather than hides, so the enablement is the whole of
+        // what stops the command firing into nothing.
+        var vm = WithSymbol(out _);
+
+        Assert.False(vm.CanBreakSelectedLink);
+
+        vm.BreakSelectedLink();
+
+        Assert.Empty(FrameOf(vm).Strokes);
+    }
+
+    /// <summary>Break link is in the registry the Configure window reads.</summary>
+    /// <remarks>
+    /// CLAUDE.md's registry rule, as a test rather than as a habit: a command
+    /// outside <c>ShortcutMap</c> cannot be seen, searched or rebound, which is
+    /// precisely how this one stayed invisible while looking finished.
+    /// </remarks>
+    [AvaloniaFact]
+    public void BreakLinkIsRegisteredSoItCanBeFoundAndRebound()
+    {
+        var entry = new Lightbox.App.Services.ShortcutMap()
+            .Definitions.SingleOrDefault(d => d.Id == "edit.breakSymbolLink");
+
+        Assert.NotNull(entry);
+        // No default gesture: it is a one-way door, and a destructive act does
+        // not get a key nobody asked for. Registered is the point, not bound.
+        Assert.Null(entry!.Default);
+    }
+
     [AvaloniaFact]
     public void BreakingTheLinkLeavesOrdinaryStrokes()
     {
