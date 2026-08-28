@@ -269,4 +269,80 @@ public class WhichGateAteTheCycleTests(ITestOutputHelper output) : BrushStateIso
         posted.EndStroke();
         Dispatcher.UIThread.RunJobs();
     }
+
+    /// <summary>
+    /// What the inline arm gives up, and the reason it is not the default
+    /// (B335).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This test exists because the default was switched and had to be
+    /// switched back.</b> The A/B was decisive on the thing it measured — the
+    /// cycle 28.84 to 22.12 ms, ink arriving every 2.0 pen events instead of
+    /// 5.4, the worst pen-to-screen 479 ms to 79, and the owner reporting the
+    /// stutter simply gone. Then the suite failed eight tests, and two of them
+    /// were guarantees this work had no business overruling.
+    /// </para>
+    /// <para>
+    /// <b>This is the first of the two: B73's coalescing.</b> A burst of
+    /// already-queued pointer events becomes one full compose per event.
+    /// <c>StrokeLatencyTests.APenBurstIsOneFrameNotOnePerEvent</c> is where that
+    /// guarantee lives and it is the test that fails; this one states the same
+    /// fact from the route's side, so that anyone flipping the default meets the
+    /// reason here rather than discovering it in an unrelated file.
+    /// </para>
+    /// <para>
+    /// <b>The other blocker is not visible from here at all</b>, which is worth
+    /// knowing before trying to fix this one: <c>builtin-smudge</c> and
+    /// <c>builtin-blender</c> stop matching their own commits, because a brush
+    /// that samples the layer beneath depends on <em>when</em> the publish
+    /// happens. Rate-limiting this route to the refresh interval would satisfy
+    /// the burst below and would not touch that.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheInlineArmGivesUpTheBurstCoalescing()
+    {
+        const int Events = 15;
+
+        int PublishesInABurst(MainViewModel vm)
+        {
+            var count = 0;
+            vm.SnapshotChanged += _ => count++;
+            vm.BeginStroke(50, 50, 1);
+            Dispatcher.UIThread.RunJobs();
+
+            var before = count;
+            // No dispatcher turn between them: a burst delivered in one go, the
+            // case B73 is about.
+            for (var i = 0; i < Events; i++) vm.MoveStroke(60 + (i * 8), 50, 1);
+            var published = count - before;
+
+            Dispatcher.UIThread.RunJobs();
+            vm.EndStroke();
+            Dispatcher.UIThread.RunJobs();
+            return published;
+        }
+
+        var shipped = PublishesInABurst(Ready(depth: 2));
+        var inline = PublishesInABurst(Ready(depth: 2, inline: true));
+
+        output.WriteLine($"a burst of {Events} events, no dispatcher turn:");
+        output.WriteLine($"  the route this build ships   {shipped} publishes");
+        output.WriteLine($"  LIGHTBOX_PUBLISH=inline      {inline} publishes");
+
+        // B73's own bar, from StrokeLatencyTests: a couple for a burst is
+        // coalescing working, one per event is the defect.
+        Assert.True(
+            shipped <= 3,
+            $"the shipped route published {shipped} of {Events} queued events, so B73's "
+            + "coalescing has been given up by default — which is exactly what this "
+            + "test exists to stop happening quietly. See B335.");
+
+        Assert.True(
+            inline > shipped,
+            $"the inline arm published {inline} against the shipped route's {shipped}, "
+            + "so the two arms behave identically here and this test is measuring "
+            + "nothing");
+    }
 }

@@ -650,33 +650,37 @@ than a plain one of the same size, and there is nothing wrong with it.
 
 **Help → Write a render report** says which of the two your brush got, under
 `stamping the dabs`.
-### If a fast stroke arrives in clumps rather than flowing
+### Ink that is late, and ink that is lumpy
 
-There is a difference between ink being **late** and ink being **lumpy**, and
-they feel alike but have different causes. Late means the mark trails your hand
-by a visible distance. Lumpy means each piece of the mark appears promptly, but
-several pen-lengths of it appear at once — the line grows in steps instead of
-flowing.
+These feel alike and are not the same thing, and it is worth being able to tell
+them apart before reporting one.
 
-If a long fast stroke looks like it is being laid down in short segments, that
-is the second one. Your tablet reports its position far more often than the
-screen can show a new picture, so some grouping is normal and unavoidable. What
-is not normal is grouping five or more reports into one update, which is roughly
-one update per full trip out to the screen and back, when Lightbox is set up to
-manage two of those trips at once.
+**Late** means the mark trails your hand by a visible distance, but grows
+smoothly. **Lumpy** means each piece appears promptly and several pen-lengths of
+it appear at once — the line grows in steps instead of flowing.
 
-**Help → Write a render report** now says which of two things is doing the
-grouping: the deliberate pacing that waits for the screen, or the queue that the
-update joins on its way there. The `asked to publish` block counts both, and the
-line under it names one of them outright.
+Your tablet reports its position far more often than the screen can show a new
+picture, so a little grouping is normal and unavoidable. Lightbox currently sends
+a new picture about every fifth report your pen makes, because each update joins
+a queue on its way out and a moving pen fills that queue faster than it drains.
 
-`LIGHTBOX_PUBLISH=inline` starts Lightbox with the second one taken out, so only
-the deliberate pacing remains. It is off unless you set it, and it is an
-experiment rather than a better setting: it can make Lightbox build pictures that
-are replaced before they are ever shown, which is wasted work that eventually
-costs you more than it saves. The report counts those too, as `replaced first` on
-the `PEN -> SCREEN` line. Draw the same fast stroke once each way and compare
-what you see, not only what the file says.
+If a long fast stroke looks like it is being laid down in segments,
+**Help → Write a render report** says what is causing it. The `asked to publish`
+block counts every pen movement that did not produce a new picture and names what
+stopped it, and the line under it says outright which one is setting your rate.
+
+`LIGHTBOX_PUBLISH=inline` starts Lightbox with that queue taken out, so an update
+is made by the pen movement that asked for it. On the machine it was measured on
+the worst delay between a pen movement and the ink appearing went from **479 ms
+to 79**, and visible stuttering stopped.
+
+**It is off unless you set it, and it is not finished.** Two things it currently
+gets wrong: a burst of pen reports that arrive together makes Lightbox build one
+picture each instead of one for the lot, which is wasted work exactly when there
+is least time for it; and a brush that samples what is underneath it — the smudge
+and the blender — previews slightly differently from the mark it finally saves.
+Dry brushes are unaffected. Use it if a fast stroke is what is bothering you, and
+know what it costs.
 
 
 It names which parts of the drawing are done by your graphics card and which by

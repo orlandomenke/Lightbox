@@ -569,12 +569,23 @@ internal static class RenderReport
         sb.AppendLine(
             $"    the publish route      {Rendering.PublishRoute.Describe()}");
 
-        // The verdict, and it names one gate rather than listing suspects. The
-        // three arms are mutually exclusive by construction: a request is
-        // refused by the post alone, by the pacing (either of the two buckets
-        // that involve it), or it is not refused at all.
+        // **The verdict ranks the two gates against EACH OTHER, and only then
+        // against the events that got through.** The first version compared
+        // each gate to letThrough as well, and the owner's inline capture
+        // caught it out at once: 110 refusals by the dam against 0 by the post
+        // read as "the two gates are turning away comparable numbers", because
+        // 110 is not greater than 111. Those are two different questions —
+        // which gate is the constraint, and whether either is — and a verdict
+        // that mixes them can call a wholly one-sided split balanced.
         var pacing = cyc.RefusedByDam + cyc.RefusedByBoth;
-        if (cyc.RefusedByPost > pacing && cyc.RefusedByPost > cyc.LetThrough)
+        var post = cyc.RefusedByPost;
+        if (refused * 4 < asked)
+        {
+            sb.AppendLine("  >> NEITHER GATE is the constraint — almost every event that asked got");
+            sb.AppendLine("     a publish. The cycle is then the rate the pen is delivering at, and");
+            sb.AppendLine("     the chunkiness above is the tablet's own, not the application's.");
+        }
+        else if (post >= pacing * 2)
         {
             sb.AppendLine("  >> THE DISPATCHER is setting the rate, not the pacing. Most refused");
             sb.AppendLine("     events were inside the in-flight depth and were turned away only");
@@ -583,7 +594,7 @@ internal static class RenderReport
             sb.AppendLine("     comes round about once a round trip. LIGHTBOX_PUBLISH=inline hands");
             sb.AppendLine("     the pacing back to the dam; compare the two captures.");
         }
-        else if (pacing > cyc.RefusedByPost && pacing > cyc.LetThrough)
+        else if (pacing >= post * 2)
         {
             sb.AppendLine("  >> THE PACING is setting the rate. Most refused events were over the");
             sb.AppendLine("     in-flight depth, so the cycle is bounded by publish -> drawn and the");
@@ -592,25 +603,43 @@ internal static class RenderReport
             sb.AppendLine("     throughput at the price of latency, which is the wrong trade for a");
             sb.AppendLine("     live stroke. LIGHTBOX_INFLIGHT is how that was settled before.");
         }
-        else if (refused * 4 < asked)
-        {
-            sb.AppendLine("  >> NEITHER GATE is the constraint — almost every event that asked got");
-            sb.AppendLine("     a publish. The cycle is then the rate the pen is delivering at, and");
-            sb.AppendLine("     the chunkiness above is the tablet's own, not the application's.");
-        }
         else
         {
-            sb.AppendLine("  >> The two gates are turning away comparable numbers, so neither owns");
-            sb.AppendLine("     the cycle on its own and fixing one will move it by less than its");
-            sb.AppendLine("     share. Draw a longer stroke before acting on this — the split is a");
-            sb.AppendLine("     count, and a short capture splits small numbers.");
+            // Named rather than shrugged at: "both" is a real answer and the
+            // larger half is still where the next fix goes. What it must not
+            // say is that removing that half fixes the cycle — the other gate
+            // is waiting behind it, which is precisely what the two arms of
+            // 2026-08-28 measured (28.84 ms to 22.12, not to a refresh).
+            var larger = post > pacing ? "the posted publish" : "the pacing";
+            sb.AppendLine(
+                $"  >> BOTH GATES BIND, and {larger} is the larger"
+                + $" ({Math.Max(post, pacing)} against {Math.Min(post, pacing)}).");
+            sb.AppendLine("     Removing it moves the cycle by roughly its share and no further,");
+            sb.AppendLine("     because the other is waiting behind it. Expect an improvement");
+            sb.AppendLine("     rather than a fix, and read this split again on the build that has");
+            sb.AppendLine("     it — the gate that was second becomes the whole answer.");
         }
 
-        if (cyc.RefusedByPost > 0 && cyc.AskedMedianMs > cyc.CycleMedianMs / 2)
+        if (post > 0 && cyc.AskedMedianMs > cyc.CycleMedianMs / 2)
         {
             sb.AppendLine("     The post itself waits longer than half a cycle, which is the same");
             sb.AppendLine("     finding measured a second way: the gap between asking and");
             sb.AppendLine("     publishing IS most of the loop.");
+        }
+        else if (post > 0 && cyc.AskedWorstMs > cyc.CycleMedianMs * 4)
+        {
+            // **The median is the statistic that hides this one** — the mirror
+            // of the lesson Tally itself was written for. The owner's default
+            // arm posted a publish that waited 470.57 ms beside a median of
+            // 3.94: a typical post is prompt, a rare one is a stall, and only
+            // the rare one is felt. The check above reads the median and did
+            // not fire on the largest finding in that capture.
+            sb.AppendLine(
+                $"     The TYPICAL post is quick ({cyc.AskedMedianMs:0.##} ms) and a rare one stalls:");
+            sb.AppendLine(
+                $"     the worst waited {cyc.AskedWorstMs:0.##} ms, {cyc.AskedWorstMs / Math.Max(1e-9, cyc.CycleMedianMs):0.#} whole cycles. Nobody feels a median,");
+            sb.AppendLine("     and that tail is the ink stopping. It is invisible to every other");
+            sb.AppendLine("     line in this section.");
         }
 
         sb.AppendLine();

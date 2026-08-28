@@ -32,7 +32,7 @@ public class TheCycleVerdictNamesOneGateTests(ITestOutputHelper output)
     /// </summary>
     private static string CycleSection(
         int refusedByDam, int refusedByPost, int refusedByBoth, int letThrough,
-        double cycleMedianMs = 29.26, double askedMedianMs = 1.0)
+        double cycleMedianMs = 29.26, double askedMedianMs = 1.0, double? askedWorstMs = null)
     {
         var dir = Path.Combine(Path.GetTempPath(), "lightbox-cycle-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
@@ -50,7 +50,7 @@ public class TheCycleVerdictNamesOneGateTests(ITestOutputHelper output)
                 strokeWait: strokes,
                 cycle: (cycleMedianMs, 304.04, 238, 0, 8.89, 5.68, 1065,
                         refusedByDam, refusedByPost, refusedByBoth, letThrough,
-                        askedMedianMs, askedMedianMs, askedMedianMs * 3)))!;
+                        askedMedianMs, askedMedianMs, askedWorstMs ?? askedMedianMs * 3)))!;
             return File.ReadAllText(path);
         }
         finally
@@ -69,7 +69,7 @@ public class TheCycleVerdictNamesOneGateTests(ITestOutputHelper output)
             ("dispatcher", CycleSection(refusedByDam: 40, refusedByPost: 700, refusedByBoth: 0, letThrough: 204)),
             ("pacing", CycleSection(refusedByDam: 700, refusedByPost: 40, refusedByBoth: 0, letThrough: 204)),
             ("neither", CycleSection(refusedByDam: 10, refusedByPost: 10, refusedByBoth: 0, letThrough: 900)),
-            ("split", CycleSection(refusedByDam: 400, refusedByPost: 400, refusedByBoth: 0, letThrough: 204)),
+            ("both", CycleSection(refusedByDam: 400, refusedByPost: 400, refusedByBoth: 0, letThrough: 204)),
         };
 
         // Every arm's own opening words. If one of these never appears in any
@@ -80,7 +80,7 @@ public class TheCycleVerdictNamesOneGateTests(ITestOutputHelper output)
             "THE DISPATCHER is setting the rate",
             "THE PACING is setting the rate",
             "NEITHER GATE is the constraint",
-            "The two gates are turning away comparable numbers",
+            "BOTH GATES BIND",
         };
 
         foreach (var (name, text) in verdicts)
@@ -97,6 +97,66 @@ public class TheCycleVerdictNamesOneGateTests(ITestOutputHelper output)
                 all.Any(t => t.Contains(opening, StringComparison.Ordinal)),
                 $"no shape of capture produced \"{opening}\", so that arm of the verdict is "
                 + "unreachable and the report can never say it");
+        }
+    }
+
+    /// <summary>
+    /// The two captures the owner took on 2026-08-28, one per arm, read the way
+    /// they should.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The inline arm is why this test exists.</b> Its split is 110 refusals
+    /// by the dam against <b>0</b> by the post — as one-sided as a split can
+    /// be — and the first version of the verdict called it <i>"the two gates are
+    /// turning away comparable numbers"</i>. It compared each gate to the
+    /// events that got through as well as to the other gate, and 110 is not
+    /// greater than 111. A verdict that can call nought-against-a-hundred-and-ten
+    /// balanced would have sent the next branch to look for a dispatcher fault
+    /// that the same capture had already removed.
+    /// </para>
+    /// <para>
+    /// <b>And the default arm's verdict is deliberately not the stronger one.</b>
+    /// 179 against 130 is the post ahead, not the post alone, and the two arms
+    /// measured exactly that: taking the post out moved the cycle 28.84 ms to
+    /// 22.12, an improvement rather than a fix, with the dam then holding 110 of
+    /// the 221 that asked. The report has to say "both, and this one is larger"
+    /// or the next reader over-claims what removing it buys.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void TheOwnersTwoArmsReadTheWayTheyShould()
+    {
+        // render-report-20260828-123419 — the default, posted arm.
+        var posted = CycleSection(
+            refusedByDam: 130, refusedByPost: 179, refusedByBoth: 0, letThrough: 66,
+            cycleMedianMs: 28.84, askedMedianMs: 3.94, askedWorstMs: 470.57);
+
+        // render-report-20260828-123500 — LIGHTBOX_PUBLISH=inline.
+        var inline = CycleSection(
+            refusedByDam: 110, refusedByPost: 0, refusedByBoth: 0, letThrough: 111,
+            cycleMedianMs: 22.12, askedMedianMs: 0, askedWorstMs: 0);
+
+        Assert.Contains("BOTH GATES BIND, and the posted publish is the larger (179 against 130)", posted);
+        Assert.DoesNotContain("THE DISPATCHER is setting the rate", posted);
+
+        Assert.Contains("THE PACING is setting the rate", inline);
+        Assert.DoesNotContain("BOTH GATES BIND", inline);
+
+        // And the tail the median hid. 3.94 ms typical, 470.57 ms worst: the
+        // half-a-cycle check reads the median and stays silent on it.
+        Assert.DoesNotContain("The post itself waits longer than half a cycle", posted);
+        Assert.Contains("a rare one stalls", posted);
+        Assert.Contains("470.57 ms", posted);
+
+        foreach (var line in posted.Split('\n').Where(l => l.Contains(">>") || l.Contains("rare one")))
+        {
+            output.WriteLine("posted: " + line.Trim());
+        }
+
+        foreach (var line in inline.Split('\n').Where(l => l.Contains(">>")))
+        {
+            output.WriteLine("inline: " + line.Trim());
         }
     }
 
