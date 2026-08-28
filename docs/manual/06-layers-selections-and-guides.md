@@ -554,6 +554,13 @@ move.
 Because strokes are geometry, a transform is **lossless**: rotating and
 rotating back leaves no softening.
 
+**A line painted under a selection keeps its clip, and the clip comes with
+it.** Painting inside a marquee leaves the line holding that shape as a stencil
+for ever after, which is what makes a reload paint what you saw. Move or rotate
+that line and the stencil turns with it, so the mark you end up with is the one
+the drag was showing you — rather than the old stencil cutting the new
+position, which used to leave that one line looking as though it had jumped.
+
 ---
 
 ## Guides

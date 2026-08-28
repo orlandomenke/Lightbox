@@ -960,7 +960,7 @@ public partial class MainViewModel
         // walk, and a scope of "the whole animation" would have paid for it
         // once per drawing in the scope for an identical answer. The selection
         // cannot change mid-session; the canvas belongs to the transform.
-        _previewSplit ??= RegionSplit(filter, (x, y) => (x, y));
+        _previewSplit ??= RegionSplit(filter, new ClipTravel((x, y) => (x, y)));
         var split = _previewSplit?.For(painted);
         foreach (var stroke in painted.Strokes)
         {
@@ -1106,7 +1106,11 @@ public partial class MainViewModel
         // part that travels, its complement for the part that stays. Null when
         // the subject is picked lines rather than a region: clicking a line
         // means that line, all of it, so there is nothing to clip it to.
-        var split = RegionSplit(filter, map);
+        // Every stencil the moving ink is cut by goes where the ink goes — B340.
+        // Shared with the split below so a region that is both a stroke's own
+        // clip and a boundary the marquee cuts is carried once.
+        var travel = new ClipTravel(map);
+        var split = RegionSplit(filter, travel);
         _editor.Perform(doc =>
         {
             foreach (var frame in frames)
@@ -1115,8 +1119,9 @@ public partial class MainViewModel
                 // a moved erasure leaves a stay copy where it was still holding
                 // rubbed-out ink down, so erased strokes outside the selection
                 // do not come back (the ghost the preview split also guards).
-                if (filter is null) TransformOps.TransformFrame(frame, map, sizeScale);
-                else TransformErasures.TransformFrame(frame, map, sizeScale, filter, split?.For(frame));
+                if (filter is null) TransformOps.TransformFrame(frame, map, sizeScale, null, travel.Carry);
+                else TransformErasures.TransformFrame(
+                    frame, map, sizeScale, filter, split?.For(frame), travel.Carry);
                 // Raster baselines resample once per commit; a region-limited
                 // transform moves strokes only (baseline pixels stay put).
                 if (filter is null && frame is Frame { PngBase64.Length: > 0 } painted)
@@ -1133,6 +1138,7 @@ public partial class MainViewModel
             {
                 foreach (var (id, region) in split.Used) doc.ClipRegions.TryAdd(id, region);
             }
+            foreach (var (id, region) in travel.Used) doc.ClipRegions.TryAdd(id, region);
         });
         // The selection outline rides along so a follow-up transform lines up.
         if (HasSelection)
@@ -1175,7 +1181,7 @@ public partial class MainViewModel
         MainViewModel vm, bool[] mask, int width, int height,
         (string Id, ClipRegion Region) inside,
         (string Id, ClipRegion Region) outside,
-        TransformOps.PointMap map)
+        ClipTravel travel)
     {
         public Dictionary<string, ClipRegion> Used { get; } = [];
 
@@ -1217,7 +1223,7 @@ public partial class MainViewModel
                 // Intersected where the stroke IS, then carried to where it is
                 // going. The other order would meet a clip standing at the old
                 // position with a region that has already moved.
-                var moved = MapClip(travelling, map);
+                var moved = travel.Carry(travelling);
 
                 Remember(stayed);
                 Remember(moved);
@@ -1234,18 +1240,44 @@ public partial class MainViewModel
             if (id is null || Used.ContainsKey(id)) return;
             if (ClipRegionRegistry.Resolve(id) is { } region) Used[id] = region;
         }
+    }
 
-        /// <summary>The same region, carried through the transform.</summary>
-        /// <remarks>
-        /// The clip has to travel with the ink or the moved copy is carved by a
-        /// stencil standing still: drag a selection to the right and the ink
-        /// would be cut off at the boundary it started behind. Contours are
-        /// document coordinates here — <c>PrepareClipForSelection</c> has
-        /// already added the origin — which is the space the map works in.
-        /// </remarks>
-        private static string MapClip(string id, TransformOps.PointMap map)
+    /// <summary>
+    /// One transform's clip regions, carried through it — the same map the ink
+    /// gets, applied to the stencils the ink is cut by.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The clip has to travel with the ink or the moved copy is carved by a
+    /// stencil standing still: drag a selection to the right and the ink
+    /// would be cut off at the boundary it started behind. Contours are
+    /// document coordinates here — <c>PrepareClipForSelection</c> has
+    /// already added the origin — which is the space the map works in.
+    /// </para>
+    /// <para>
+    /// <b>Once per region, not once per stroke (B340).</b> Carrying one costs a
+    /// serialize and a SHA-256 over its contours, which for the complement of a
+    /// selection is the whole page's outline; a drawing where forty strokes
+    /// share a clip would have paid for it forty times for an identical answer.
+    /// </para>
+    /// <para>
+    /// <see cref="Used"/> is what the commit writes to <c>Doc.ClipRegions</c>.
+    /// A clip the strokes now reference and the document does not would reload
+    /// as an unclipped stroke — invariant 3, and the same reason
+    /// <see cref="SelectionSplit.Used"/> exists.
+    /// </para>
+    /// </remarks>
+    private sealed class ClipTravel(TransformOps.PointMap map)
+    {
+        private readonly Dictionary<string, string> _carried = [];
+
+        public Dictionary<string, ClipRegion> Used { get; } = [];
+
+        /// <summary>The same region, standing where the map puts it.</summary>
+        public string Carry(string id)
         {
-            if (ClipRegionRegistry.Resolve(id) is not { } region) return id;
+            if (_carried.TryGetValue(id, out var already)) return already;
+            if (ClipRegionRegistry.Resolve(id) is not { } region) return _carried[id] = id;
             var moved = new ClipRegion
             {
                 Contours =
@@ -1260,7 +1292,9 @@ public partial class MainViewModel
                 ],
                 Feather = region.Feather,
             };
-            return RegisterClip(moved);
+            var carried = RegisterClip(moved);
+            Used[carried] = moved;
+            return _carried[id] = carried;
         }
     }
 
@@ -1282,14 +1316,14 @@ public partial class MainViewModel
     /// </summary>
     private SelectionSplit? _previewSplit;
 
-    private SelectionSplit? RegionSplit(Func<Stroke, bool>? filter, TransformOps.PointMap map)
+    private SelectionSplit? RegionSplit(Func<Stroke, bool>? filter, ClipTravel travel)
     {
         if (filter is null || !HasSelection) return null;
         if (PrepareClipForSelection() is not { } inside) return null;
         if (PrepareClipOutsideSelection() is not { } outside) return null;
         int w = Scene.Width, h = Scene.Height;
         return new SelectionSplit(
-            this, MaskFromContours(_selectionContours, w, h), w, h, inside, outside, map);
+            this, MaskFromContours(_selectionContours, w, h), w, h, inside, outside, travel);
     }
 
     private SKSamplingOptions SamplingFor(TransformSampling mode) => mode switch
