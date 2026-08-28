@@ -42,6 +42,20 @@ public partial class MainViewModel
     [ObservableProperty]
     private bool _smartFill = true;
 
+    // Every one of these changes what a click would flood, so the ghost
+    // outline under the pointer is wrong the instant it moves. Found while
+    // measuring the preview: the trace was only ever forgotten on a document
+    // change, so an artist who nudged the tolerance and watched the outline saw
+    // it sit still — the one thing a preview must not do, since its whole claim
+    // is that it shows what the click will take.
+    partial void OnFillToleranceChanged(double value) => ForgetFillPreviewRegion();
+
+    partial void OnFillGapPxChanged(double value) => ForgetFillPreviewRegion();
+
+    partial void OnFillGrowPxChanged(double value) => ForgetFillPreviewRegion();
+
+    partial void OnSmartFillChanged(bool value) => ForgetFillPreviewRegion();
+
     /// <summary>Insert the fill under the line work (tucks beneath the line); off = fill on top, preserving lines.</summary>
     [ObservableProperty]
     private bool _fillBelowLines = true;
