@@ -615,6 +615,24 @@ which of the two ran, near the top of the `live tip` block, along with how often
 the ink under the nib was drawn and how often it was skipped — so running the
 same build twice, once each way, is a real comparison rather than an impression.
 
+### Soft brushes while the pen is down
+
+A soft brush is kept from hardening where its own dabs overlap: Lightbox tracks
+the shape a single dab of that brush would leave and never lets the stroke go
+darker than that. Without it a soft edge comes out about half as wide as the
+brush you set, which reads as the brush being harder than it is.
+
+While the pen is down, that tracking is done at the size the drawing is being
+**shown** rather than at its full size, which is about four times cheaper and is
+roughly a third of the work each pen movement costs. The edge is the same width
+either way — measured, on the settings where the hardening is worst — and the
+finished stroke is worked out at full size the moment you lift the pen, so
+nothing about the saved drawing changes.
+
+Set `LIGHTBOX_FOOTPRINT_SCALE=full` to do it at full size all the time. Like the
+setting above it does nothing when you are zoomed in to 100%, and **Help → Write
+a render report** names which of the two ran.
+
 
 It names which parts of the drawing are done by your graphics card and which by
 the processor — and those are not the same question. The status strip says

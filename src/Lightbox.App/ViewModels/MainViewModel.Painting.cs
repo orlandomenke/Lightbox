@@ -1317,6 +1317,19 @@ public partial class MainViewModel
         (System.Diagnostics.Stopwatch.GetTimestamp() - since) * 1000.0
         / System.Diagnostics.Stopwatch.Frequency;
 
+    /// <summary>
+    /// The scale the footprint was last actually accumulated at (B189).
+    /// </summary>
+    /// <remarks>
+    /// Recorded rather than re-derived at report time, because it is fixed when
+    /// the stroke begins and the artist can zoom afterwards — asking
+    /// <c>LiveFootprintScale.For(ComposeScale)</c> when the file is written
+    /// would answer for a view that was not the one the dabs were stamped
+    /// under. The tip's arm is recorded for the same reason and cost a day
+    /// before it was (B322).
+    /// </remarks>
+    internal double LiveFootprintScaleUsed { get; private set; } = 1.0;
+
     /// <summary>Colour dabs into the scratch, per event (B189).</summary>
     internal Services.Tally StampColourMs { get; } = new();
 
@@ -1683,7 +1696,17 @@ public partial class MainViewModel
             if (BrushEngine.DrawsAsOneSilhouette(CurrentToolSettings)
                 || BrushEngine.NeedsFootprintCap(CurrentToolSettings))
             {
-                _live.BeginCoverage(Scene.Width, Scene.Height);
+                // B189: the footprint route's coverage is a ceiling nobody
+                // looks at, so it may follow the compose scale; the silhouette
+                // route's coverage IS the mark and may not. Fixed for the
+                // stroke — the ceiling and its rollbacks have to agree about
+                // where a pixel is, and a zoom mid-stroke would move it.
+                _live.BeginCoverage(
+                    Scene.Width, Scene.Height,
+                    BrushEngine.NeedsFootprintCap(CurrentToolSettings)
+                        ? Rendering.LiveFootprintScale.For(ComposeScale)
+                        : 1.0);
+                LiveFootprintScaleUsed = _live.CoverageScale;
             }
         }
         _live.ResetPostProcess();
@@ -2319,7 +2342,10 @@ public partial class MainViewModel
         var restoreAt = System.Diagnostics.Stopwatch.GetTimestamp();
         if (carriesFootprint && _live.TailRegion is { } coverLent && _live.CoverageTailBackup is not null)
         {
-            RestoreTail(_live.CoverageCanvas!, _live.CoverageTailBackup, coverLent);
+            // The coverage buffer may be smaller than the document (B189), and
+            // the backup was taken over exactly this rectangle in exactly this
+            // conversion — so the round trip is a copy either way.
+            RestoreTail(_live.CoverageCanvas!, _live.CoverageTailBackup, _live.ToCoverage(coverLent));
         }
 
         if (_live.TailRegion is { } lent && _live.TailBackup is not null)
@@ -2346,7 +2372,8 @@ public partial class MainViewModel
             // same dabs is the size of the difference. Whether it IS the
             // difference is what this says.
             var footprintAt = System.Diagnostics.Stopwatch.GetTimestamp();
-            BrushEngine.AccumulateFootprint(_live.CoverageCanvas!, live, dabs, settledFrom, stable);
+            BrushEngine.AccumulateFootprint(
+                _live.CoverageCanvas!, live, dabs, settledFrom, stable, _live.CoverageScale);
             _live.CoverageCanvas!.Flush();
             StampFootprintMs.Add(Ms(footprintAt));
         }
@@ -2414,19 +2441,25 @@ public partial class MainViewModel
             // 3b. The footprint's own copy of the same loan.
             if (carriesFootprint)
             {
+                // B189: the coverage buffer's own pixels, which are fewer than
+                // the document's when the footprint follows the compose scale.
+                // Sized off THIS rectangle rather than the document one, or the
+                // backup would be four times the size it needs and the copy
+                // would give back what the smaller buffer just saved.
+                var coverTail = _live.ToCoverage(tail);
                 if (_live.CoverageTailBackup is null
-                    || _live.CoverageTailBackup.Width < tail.Width
-                    || _live.CoverageTailBackup.Height < tail.Height)
+                    || _live.CoverageTailBackup.Width < coverTail.Width
+                    || _live.CoverageTailBackup.Height < coverTail.Height)
                 {
                     _live.CoverageTailBackup?.Dispose();
                     _live.CoverageTailBackup = new SKBitmap(new SKImageInfo(
-                        Math.Max(tail.Width, 64), Math.Max(tail.Height, 64),
+                        Math.Max(coverTail.Width, 64), Math.Max(coverTail.Height, 64),
                         SKColorType.Rgba8888, SKAlphaType.Premul));
                 }
 
                 using (var region = new SKBitmap())
                 {
-                    if (_live.Coverage!.ExtractSubset(region, tail))
+                    if (_live.Coverage!.ExtractSubset(region, coverTail))
                     {
                         using var px = region.PeekPixels();
                         using var view = px is null ? null : SKImage.FromPixels(px);
@@ -2444,7 +2477,9 @@ public partial class MainViewModel
                 // sits after StampTailMs closes, so it was invisible to the
                 // split that named the tail copies.
                 var tailFootprintAt = System.Diagnostics.Stopwatch.GetTimestamp();
-                BrushEngine.AccumulateFootprint(_live.CoverageCanvas!, live, dabs, _live.StableDabs, dabs.Count);
+                BrushEngine.AccumulateFootprint(
+                    _live.CoverageCanvas!, live, dabs, _live.StableDabs, dabs.Count,
+                    _live.CoverageScale);
                 _live.CoverageCanvas!.Flush();
                 StampFootprintMs.Add(Ms(tailFootprintAt));
             }
@@ -2503,7 +2538,9 @@ public partial class MainViewModel
                         into.Flush();
                     }
 
-                    BrushEngine.CapToFootprintBand(capped, ceiling, band);
+                    BrushEngine.CapToFootprintBand(
+                        capped, ceiling, band,
+                        new Lightbox.Raster.FootprintSpace(_live.CoverageScale, 0, 0));
                     _live.PostUsed = _live.PostUsed is { } prior
                         ? LivePaintSession.UnionRect(prior, band)
                         : band;
@@ -2764,9 +2801,20 @@ public partial class MainViewModel
         // the size the pass wants - in which case the engine rebuilds and the
         // only cost is the one that was always there.
         SKBitmap? footprintCrop = null;
+        var footprintSpace = Lightbox.Raster.FootprintSpace.Document;
         if (BrushEngine.NeedsFootprintCap(whole.Brush) && _live.Coverage is { } coverage)
         {
-            footprintCrop = CopyRegion(coverage, rect);
+            // B189: cropped in the buffer's own pixels, which are fewer than the
+            // document's when the footprint follows the compose scale. The crop
+            // lands on a whole buffer pixel and the region rarely does, so the
+            // sub-pixel remainder travels with it — dropping it would slide the
+            // ceiling up to a document pixel and a half off the rim it caps.
+            var cropRect = _live.ToCoverage(rect);
+            footprintCrop = CopyRegion(coverage, cropRect);
+            footprintSpace = new Lightbox.Raster.FootprintSpace(
+                _live.CoverageScale,
+                (rect.Left * _live.CoverageScale) - cropRect.Left,
+                (rect.Top * _live.CoverageScale) - cropRect.Top);
         }
 
         var generation = _live.PostGeneration;
@@ -2801,7 +2849,7 @@ public partial class MainViewModel
                 // growing with the length of the stroke.
                 processed = BrushEngine.PostProcessRegion(
                     dabsCrop, whole, rect, beneathCrop, rect.Location, beneathOrigin,
-                    footprintCrop);
+                    footprintCrop, footprintSpace);
             }
             catch
             {

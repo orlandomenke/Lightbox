@@ -714,7 +714,7 @@ public static class BrushEngine
     public static SKImage? PostProcessRegion(
         SKBitmap dabs, Stroke stroke, SKRectI rect, SKBitmap? targetPixels,
         SKPointI origin = default, SKPointI beneathOrigin = default,
-        SKBitmap? footprintPixels = null)
+        SKBitmap? footprintPixels = null, FootprintSpace? footprintSpace = null)
     {
         var brush = stroke.Brush;
 
@@ -756,7 +756,10 @@ public static class BrushEngine
             if (footprintPixels is not null)
             {
                 using var carried = footprintPixels.PeekPixels();
-                if (carried is not null) CapToFootprint(scratch, carried, local);
+                if (carried is not null)
+                {
+                    CapToFootprint(scratch, carried, local, footprintSpace ?? FootprintSpace.Document);
+                }
             }
             else
             {
@@ -1527,10 +1530,27 @@ public static class BrushEngine
     /// against with a size check.
     /// </para>
     /// </remarks>
-    public static void CapToFootprintBand(SKBitmap mark, SKBitmap footprint, SKRectI band)
+    public static void CapToFootprintBand(SKBitmap mark, SKBitmap footprint, SKRectI band) =>
+        CapToFootprintBand(mark, footprint, band, FootprintSpace.Document);
+
+    /// <inheritdoc cref="CapToFootprintBand(SKBitmap, SKBitmap, SKRectI)"/>
+    /// <param name="space">
+    /// Where a mark pixel finds its ceiling, when the footprint is not the
+    /// mark's size (B189). <see cref="FootprintSpace.Document"/> is the two
+    /// buffers agreeing and takes the original index-for-index path.
+    /// </param>
+    public static void CapToFootprintBand(
+        SKBitmap mark, SKBitmap footprint, SKRectI band, FootprintSpace space)
     {
         band = SKRectI.Intersect(band, new SKRectI(0, 0, mark.Width, mark.Height));
-        band = SKRectI.Intersect(band, new SKRectI(0, 0, footprint.Width, footprint.Height));
+        // Only when the two index the same pixels. A scaled footprint is
+        // smaller than the mark by construction, so intersecting the band with
+        // its bounds would clip the mark to the top-left corner of itself.
+        if (space.IsDocument)
+        {
+            band = SKRectI.Intersect(band, new SKRectI(0, 0, footprint.Width, footprint.Height));
+        }
+
         if (band.Width <= 0 || band.Height <= 0) return;
 
         using var markPix = mark.PeekPixels();
@@ -1540,6 +1560,8 @@ public static class BrushEngine
         var ink = markPix.GetPixelSpan<byte>();
         var cap = capPix.GetPixelSpan<byte>();
         int inkRow = markPix.RowBytes, capRow = capPix.RowBytes;
+        var direct = space.IsDocument;
+        int capW = capPix.Width, capH = capPix.Height;
 
         for (var y = band.Top; y < band.Bottom; y++)
         {
@@ -1553,7 +1575,9 @@ public static class BrushEngine
 
                 // The footprint's red channel is the running maximum; see
                 // StampFootprint for why the shape lives in a colour channel.
-                var ceiling = cap[cRow + x * 4];
+                var ceiling = direct
+                    ? cap[cRow + x * 4]
+                    : space.CeilingAt(cap, capRow, capW, capH, x, y);
                 if (alpha <= ceiling) continue;
 
                 var scale = ceiling / (float)alpha;
@@ -1582,7 +1606,12 @@ public static class BrushEngine
     /// that crop is read where it lies: a rect-sized copy to hand it over would
     /// give back a slice of what removing the rebuild just saved.
     /// </remarks>
-    internal static void CapToFootprint(SKSurface scratch, SKPixmap capPix, SKImageInfo local)
+    internal static void CapToFootprint(SKSurface scratch, SKPixmap capPix, SKImageInfo local) =>
+        CapToFootprint(scratch, capPix, local, FootprintSpace.Document);
+
+    /// <inheritdoc cref="CapToFootprint(SKSurface, SKPixmap, SKImageInfo)"/>
+    internal static void CapToFootprint(
+        SKSurface scratch, SKPixmap capPix, SKImageInfo local, FootprintSpace space)
     {
         scratch.Canvas.Flush();
 
@@ -1592,7 +1621,11 @@ public static class BrushEngine
         // Both surfaces are made together by every caller, so this never fires —
         // and a span loop is the wrong place to find that out. A footprint one
         // row short would read off the end of its buffer rather than fail.
-        if (capPix.Width < local.Width || capPix.Height < local.Height
+        // A scaled footprint is asked for the extent it has to cover rather
+        // than for the mark's size, which it is smaller than on purpose.
+        var needW = (int)Math.Ceiling((local.Width * space.Scale) + space.OffsetX);
+        var needH = (int)Math.Ceiling((local.Height * space.Scale) + space.OffsetY);
+        if (capPix.Width < needW || capPix.Height < needH
             || markPix.Width < local.Width || markPix.Height < local.Height)
         {
             return;
@@ -1601,6 +1634,8 @@ public static class BrushEngine
         var mark = markPix.GetPixelSpan<byte>();
         var cap = capPix.GetPixelSpan<byte>();
         int markRow = markPix.RowBytes, capRow = capPix.RowBytes;
+        var direct = space.IsDocument;
+        int capW = capPix.Width, capH = capPix.Height;
 
         for (var y = 0; y < local.Height; y++)
         {
@@ -1614,7 +1649,9 @@ public static class BrushEngine
 
                 // The footprint's red channel is the running maximum; see
                 // StampFootprint for why the shape lives in a colour channel.
-                var ceiling = cap[cRow + x * 4];
+                var ceiling = direct
+                    ? cap[cRow + x * 4]
+                    : space.CeilingAt(cap, capRow, capW, capH, x, y);
                 if (alpha <= ceiling) continue;
 
                 var scale = ceiling / (float)alpha;
@@ -1979,6 +2016,46 @@ public static class BrushEngine
     public static void AccumulateFootprint(
         SKCanvas footprint, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to) =>
         StampDabRange(footprint, stroke, dabs, from, to, footprint, footprintOnly: true);
+
+    /// <summary>
+    /// The same, into a buffer smaller than the document by
+    /// <paramref name="scale"/> (B189).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Invariant 7's cheap side, not a breach of it.</b> The dab list arrives
+    /// already walked, so every position, scatter offset, rotation and jitter
+    /// was seeded by <c>Hash01</c> from document coordinates before this is
+    /// called. All that changes is the surface the same gradient is rasterised
+    /// onto — the footprint is the same shape at a smaller size, never a
+    /// re-rolled one.
+    /// </para>
+    /// <para>
+    /// Saved and restored rather than left on the canvas, because the same
+    /// canvas takes the tail rollback, which works in the buffer's own pixels
+    /// and must not be scaled twice.
+    /// </para>
+    /// </remarks>
+    public static void AccumulateFootprint(
+        SKCanvas footprint, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to, double scale)
+    {
+        if (scale >= 1.0)
+        {
+            AccumulateFootprint(footprint, stroke, dabs, from, to);
+            return;
+        }
+
+        var saved = footprint.Save();
+        try
+        {
+            footprint.Scale((float)scale);
+            StampDabRange(footprint, stroke, dabs, from, to, footprint, footprintOnly: true);
+        }
+        finally
+        {
+            footprint.RestoreToCount(saved);
+        }
+    }
 
     private static void StampDabs(
         SKCanvas canvas, Stroke stroke, SKCanvas? footprint = null, bool footprintOnly = false) =>

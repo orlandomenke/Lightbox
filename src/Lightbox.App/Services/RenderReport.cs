@@ -76,7 +76,8 @@ internal static class RenderReport
         IReadOnlyList<(DateTime Began, double ToFirstInkMs, double LastedMs, int Points, int Dabs)>?
             StrokeLog = null,
         (double RestoreMs, double SettledMs, double BackupMs, double TailMs, double TailMpx,
-            double TailMpxP90, double ColourMs, double FootprintMs)? StampParts = null,
+            double TailMpxP90, double ColourMs, double FootprintMs,
+            double FootprintScale)? StampParts = null,
         IReadOnlyList<(double Ms, double AtSeconds, int Points, int Dabs, long Misses, double DescribeMs)>?
             SlowBuildLog = null,
         (double LostMs, double SessionMs)? StallCensus = null,
@@ -1623,6 +1624,8 @@ internal static class RenderReport
             sb.AppendLine(
                 $"    of which colour       median {sp.ColourMs,7:0.##} ms   and footprint {sp.FootprintMs,7:0.##} ms"
                 + $"   (the same dabs, walked twice)");
+            sb.AppendLine(
+                $"    the footprint went    into {Rendering.LiveFootprintScale.Describe(sp.FootprintScale)}");
             var twoWalks = sp.ColourMs + sp.FootprintMs;
             if (twoWalks > 0 && sp.FootprintMs > 0)
             {
@@ -2586,6 +2589,16 @@ internal static class RenderReport
             $"live tip stamped at       {(Rendering.LiveTipScale.PreviewScale ? "preview resolution" : "document resolution")}"
             + $"   ({Rendering.LiveTipScale.Variable}"
             + $"{(Rendering.LiveTipScale.PreviewScale ? "=preview" : " unset — the default")})");
+        // The same launch-time fact for the OTHER buffer that follows the
+        // compose scale (B189). Default on, which is the opposite of the tip's
+        // default, so the line says which rather than leaving it to be inferred
+        // from the absence of a variable.
+        sb.AppendLine(
+            "live footprint at         "
+            + (Rendering.LiveFootprintScale.FollowsPreview
+                ? "preview resolution   (the default — set "
+                    + Rendering.LiveFootprintScale.Variable + "=full to pin it)"
+                : "document resolution   (" + Rendering.LiveFootprintScale.Variable + "=full)"));
         if (facts.GpuSurfaceRequestFailed)
         {
             sb.AppendLine("  !! a GPU surface was asked for and could not be created, so the");

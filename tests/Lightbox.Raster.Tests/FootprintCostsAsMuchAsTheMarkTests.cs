@@ -108,6 +108,45 @@ public class FootprintCostsAsMuchAsTheMarkTests(ITestOutputHelper output)
             share > 15,
             $"the footprint is only {share:0}% of the dab work here, so the in-app split's 56% "
             + "was mostly its Flush and B189's remaining cost is in the colour stamp instead");
+
+        // **What dropping the coverage buffer's resolution would buy**, measured
+        // rather than assumed. The owner's instruction, 2026-08-28: measure the
+        // real gain before changing what any mark looks like. This is the same
+        // method that predicted the tip's saving offline and was then confirmed
+        // in situ at 33.69 us a dab, so it is the cheapest honest answer — and
+        // it needs no change to the cap's pixel loop, which is what a flagged
+        // in-app arm would require.
+        const double ComposeScale = 0.375;
+        var small = new SKImageInfo(
+            (int)Math.Ceiling(Width * ComposeScale), (int)Math.Ceiling(Height * ComposeScale),
+            SKColorType.Rgba8888, SKAlphaType.Opaque);
+        using var smallCoverage = SKSurface.Create(small);
+        Assert.NotNull(smallCoverage);
+        smallCoverage!.Canvas.Clear(SKColors.Black);
+        smallCoverage.Canvas.Scale((float)ComposeScale);
+        BrushEngine.AccumulateFootprint(smallCoverage.Canvas, stroke, dabs, 0, 32);
+
+        var scaled = double.MaxValue;
+        for (var i = 0; i < 5; i++)
+        {
+            var t = System.Diagnostics.Stopwatch.GetTimestamp();
+            BrushEngine.AccumulateFootprint(smallCoverage.Canvas, stroke, dabs, 0, Range);
+            scaled = Math.Min(scaled, Ms(t));
+        }
+
+        output.WriteLine("");
+        output.WriteLine(
+            $"    footprint at {ComposeScale} scale  {scaled,8:0.##} ms   ({scaled * 1000 / Range,6:0} us a dab)"
+            + $"   {footprint / scaled:0.#}x cheaper");
+        var saved = footprint - scaled;
+        output.WriteLine(
+            $"  >> that is {saved:0.##} ms off {colour + footprint:0.##} ms of dab work,"
+            + $" or {100 * saved / (colour + footprint):0}% of an event's stamping");
+
+        Assert.True(
+            scaled < footprint,
+            "accumulating the footprint over fewer pixels did not cost less, so the resolution "
+            + "is not the lever and B189 needs a different idea");
     }
 
     private static double Ms(long since) =>
