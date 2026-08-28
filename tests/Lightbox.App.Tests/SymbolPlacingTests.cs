@@ -42,7 +42,7 @@ public class SymbolPlacingTests : IDisposable
         Name = "Sword",
         PivotX = 0,
         PivotY = 0,
-        Frames = [new Frame { Strokes = [Bar(0, 0, swatchId)] }],
+        Layers = Symbol.Flat("Sword", [new Frame { Strokes = [Bar(0, 0, swatchId)] }]),
     };
 
     private MainViewModel WithSymbol(out Symbol symbol)
@@ -337,7 +337,7 @@ public class SymbolPlacingTests : IDisposable
         var vm = WithSymbol(out var sword);
         var first = vm.PlaceSymbol(sword.Id, 40, 40)!;
         var second = vm.PlaceSymbol(sword.Id, 200, 40)!;
-        var before = ((Frame)sword.Frames[0]).Strokes[0].Points[0].X;
+        var before = sword.AllFrames.First().Strokes[0].Points[0].X;
 
         vm.BeginMove(50, 40, wholeLayer: false);
         vm.UpdateMove(90, 40, axisLock: false);
@@ -345,7 +345,7 @@ public class SymbolPlacingTests : IDisposable
 
         Assert.Equal(80, first.X);
         Assert.Equal(200, second.X);
-        Assert.Equal(before, ((Frame)sword.Frames[0]).Strokes[0].Points[0].X);
+        Assert.Equal(before, sword.AllFrames.First().Strokes[0].Points[0].X);
     }
 
     [AvaloniaFact]
@@ -552,7 +552,7 @@ public class SymbolPlacingTests : IDisposable
         var second = vm.PlaceSymbol(sword.Id, 200, 60)!;
         vm.Selection.AddPlacementToSelection(first.Id);
         vm.Selection.AddPlacementToSelection(second.Id);
-        var before = ((Frame)sword.Frames[0]).Strokes[0].Points[0].X;
+        var before = sword.AllFrames.First().Strokes[0].Points[0].X;
 
         vm.BeginMove(110, 60, wholeLayer: false);
         vm.UpdateMove(160, 60, axisLock: false);
@@ -560,7 +560,7 @@ public class SymbolPlacingTests : IDisposable
 
         Assert.Equal(150, first.X);
         Assert.Equal(250, second.X);
-        Assert.Equal(before, ((Frame)sword.Frames[0]).Strokes[0].Points[0].X);
+        Assert.Equal(before, sword.AllFrames.First().Strokes[0].Points[0].X);
     }
 
     // ---- letting go of the link --------------------------------------------------
@@ -698,12 +698,12 @@ public class SymbolPlacingTests : IDisposable
         var placement = vm.PlaceSymbol(sword.Id, 100, 60)!;
         placement.ScaleX = 2;
         placement.ScaleY = 2;
-        var width = ((Frame)sword.Frames[0]).Strokes[0].Brush.Size;
+        var width = sword.AllFrames.First().Strokes[0].Brush.Size;
 
         vm.BreakLink(placement);
 
         Assert.Equal(width * 2, FrameOf(vm).Strokes[0].Brush.Size);
-        Assert.Equal(width, ((Frame)sword.Frames[0]).Strokes[0].Brush.Size);
+        Assert.Equal(width, sword.AllFrames.First().Strokes[0].Brush.Size);
     }
 
     private static int UndoDepth(MainViewModel vm)

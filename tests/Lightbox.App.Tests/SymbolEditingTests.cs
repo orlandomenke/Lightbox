@@ -45,10 +45,12 @@ public class SymbolEditingTests : IDisposable
         var vm = VmLayers.PaperVm();
         var project = ProjectIo.Create("Knight", _root);
         symbol = new Symbol { Name = "Sword", Fps = 12 };
+        var drawings = new List<Frame>();
         for (var i = 0; i < frames; i++)
         {
-            symbol.Frames.Add(new Frame { Strokes = [Bar(30 + i * 10)] });
+            drawings.Add(new Frame { Strokes = [Bar(30 + i * 10)] });
         }
+        symbol.Layers = Symbol.Flat("Sword", drawings);
         project.Symbols[symbol.Id] = symbol;
         vm.ProjectDocker.Project = project;
         vm.RefreshProjectResources();
@@ -92,7 +94,7 @@ public class SymbolEditingTests : IDisposable
 
         vm.OpenSymbol(sword);
 
-        Assert.Same(sword.Frames[0], vm.Doc.Scene.Layers[0].Cels[0].Frame);
+        Assert.Same(sword.Layers[0].Cels[0].Frame, vm.Doc.Scene.Layers[0].Cels[0].Frame);
     }
 
     [AvaloniaFact]
@@ -140,7 +142,7 @@ public class SymbolEditingTests : IDisposable
         vm.AddPaintedLayerCommand.Execute(null);
 
         Assert.Single(vm.Doc.Scene.Layers);
-        Assert.Single(sword.Frames);
+        Assert.Single(sword.AllFrames);
     }
 
     [AvaloniaFact]
@@ -182,7 +184,7 @@ public class SymbolEditingTests : IDisposable
         vm.AppendExternalStrokes(own, 0, [Bar(70)]);
 
         // Two frames in, two frames out — not four.
-        Assert.Equal(2, sword.Frames.Count);
+        Assert.Equal(2, sword.FrameCount);
     }
 
     /// <summary>
@@ -205,8 +207,8 @@ public class SymbolEditingTests : IDisposable
 
         vm.AppendExternalStrokes(own, 0, [Bar(70)]);
 
-        Assert.Single(sword.Frames);
-        Assert.DoesNotContain(intruder, sword.Frames);
+        Assert.Single(sword.AllFrames);
+        Assert.DoesNotContain(intruder, sword.AllFrames);
     }
 
     /// <summary>
@@ -326,7 +328,7 @@ public class SymbolEditingTests : IDisposable
         vm.Doc.Scene.Layers[0].Cels.Add(new Cel { Frame = new Frame { Strokes = [Bar(90)] } });
         Edit(vm, Bar(95));
 
-        Assert.Equal(2, sword.Frames.Count);
+        Assert.Equal(2, sword.FrameCount);
     }
 
     [AvaloniaFact]

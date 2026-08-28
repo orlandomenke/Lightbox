@@ -53,17 +53,18 @@ public class SymbolRenderTests : IDisposable
         Name = "Sword",
         PivotX = 10,
         PivotY = 10,
-        Frames = [new Frame { Strokes = [.. strokes] }],
+        Layers = Symbol.Flat("Sword", [new Frame { Strokes = [.. strokes] }]),
     };
 
     private static Symbol Cycle(int frames)
     {
         var symbol = new Symbol { Name = "Walk", PivotX = 0, PivotY = 0 };
+        var drawings = new List<Frame>();
         for (var i = 0; i < frames; i++)
         {
             // One frame per row, so which frame rendered is readable from a
             // single pixel rather than from a hash.
-            symbol.Frames.Add(new Frame
+            drawings.Add(new Frame
             {
                 Strokes =
                 [
@@ -77,6 +78,7 @@ public class SymbolRenderTests : IDisposable
                 ],
             });
         }
+        symbol.Layers = Symbol.Flat("Walk", drawings);
         return symbol;
     }
 
@@ -262,7 +264,7 @@ public class SymbolRenderTests : IDisposable
         var frame = Placing(new SymbolPlacement { SymbolId = sword.Id, X = 60, Y = 60 });
 
         using var before = Render(frame);
-        ((Frame)sword.Frames[0]).Strokes.Add(Jittery(10, 40));
+        sword.AllFrames.First().Strokes.Add(Jittery(10, 40));
         sword.Version++;
         using var after = Render(frame);
 
@@ -281,7 +283,7 @@ public class SymbolRenderTests : IDisposable
         var frame = Placing(new SymbolPlacement { SymbolId = sword.Id, X = 60, Y = 60 });
         using var before = Render(frame);
 
-        ((Frame)sword.Frames[0]).Strokes.Add(Jittery(10, 40));
+        sword.AllFrames.First().Strokes.Add(Jittery(10, 40));
         using var after = Render(frame);
 
         Assert.Equal(InkCount(before), InkCount(after));

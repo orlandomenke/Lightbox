@@ -307,7 +307,7 @@ public static class ProjectIo
             // graph that all have to be right before anything renders, and
             // dropping the placement is a smaller lie than rendering an
             // unbounded recursion.
-            foreach (var frame in symbol.Frames) frame.Placements = null;
+            foreach (var frame in symbol.AllFrames) frame.Placements = null;
             project.Symbols[id] = symbol;
         }
     }
@@ -718,7 +718,7 @@ public static class ProjectIo
             // like any others, so they have to join the walk below. Leaving
             // them out gave an exported sword the literal colours its strokes
             // were carrying rather than the ones it was painted in.
-            .Concat(symbols.SelectMany(s => s.Frames).SelectMany(StrokesOf))
+            .Concat(symbols.SelectMany(s => s.AllFrames).SelectMany(StrokesOf))
             .ToList();
 
         var swatches = strokes.Select(s => s.SwatchId).OfType<string>().ToHashSet();
