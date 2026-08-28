@@ -119,6 +119,116 @@ public class SymbolEditingTests : IDisposable
         Assert.Equal(12, vm.Doc.Scene.Fps);
     }
 
+    // ---- one layer, and layers are never frames -----------------------------------
+
+    /// <summary>
+    /// Adding a layer inside a symbol tab is refused.
+    /// </summary>
+    /// <remarks>
+    /// <b>What this stops is not an error message — it is silent corruption.</b>
+    /// A symbol's frame list is *time*, so before the guard a second layer here
+    /// was folded into it and became frame 2 of the animation, for every
+    /// placement of the symbol in the project. Measured before the fix: one
+    /// frame and one layer in, two frames out.
+    /// </remarks>
+    [AvaloniaFact]
+    public void AddingALayerInsideASymbolTabIsRefused()
+    {
+        var vm = WithSymbol(out var sword);
+        vm.OpenSymbol(sword);
+
+        vm.AddPaintedLayerCommand.Execute(null);
+
+        Assert.Single(vm.Doc.Scene.Layers);
+        Assert.Single(sword.Frames);
+    }
+
+    [AvaloniaFact]
+    public void AddingALayerIsStillOrdinaryOutsideASymbolTab()
+    {
+        // The guard is about the symbol tab, not about symbols existing. A
+        // project with a symbol in it must still make layers the ordinary way.
+        var vm = WithSymbol(out _);
+        var before = vm.Doc.Scene.Layers.Count;
+
+        vm.AddPaintedLayerCommand.Execute(null);
+
+        Assert.Equal(before + 1, vm.Doc.Scene.Layers.Count);
+    }
+
+    /// <summary>
+    /// A layer that arrives by some other door still does not become a frame.
+    /// </summary>
+    /// <remarks>
+    /// Refusing the gesture is not the same as making the fold impossible —
+    /// a paste inserts a layer too, and so will the next feature nobody has
+    /// written yet. The sync is the sink, so the sync is where it is closed.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ALayerArrivingByAnotherRouteDoesNotBecomeAFrame()
+    {
+        var vm = WithSymbol(out var sword, frames: 2);
+        vm.OpenSymbol(sword);
+        var own = vm.ActiveTab!.SymbolLayerId!;
+
+        // Straight into the scene, the way a paste would put it there.
+        vm.Doc.Scene.Layers.Add(new Layer
+        {
+            Name = "Pasted",
+            Cels = [new Cel { Frame = new Frame { Strokes = [Bar(90)] } },
+                    new Cel { Frame = new Frame { Strokes = [Bar(95)] } }],
+        });
+
+        vm.AppendExternalStrokes(own, 0, [Bar(70)]);
+
+        // Two frames in, two frames out — not four.
+        Assert.Equal(2, sword.Frames.Count);
+    }
+
+    /// <summary>
+    /// The symbol's own layer is read even when another is inserted above it.
+    /// </summary>
+    /// <remarks>
+    /// Why <see cref="DocumentTab.SymbolLayerId"/> is an id and not the number
+    /// zero: a paste inserts at the active index, so index 0 would quietly make
+    /// the pasted work the symbol and the artist's drawing an extra frame of it
+    /// — the same corruption wearing a different hat.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheSymbolsOwnLayerIsReadEvenWithAnotherInsertedAboveIt()
+    {
+        var vm = WithSymbol(out var sword);
+        vm.OpenSymbol(sword);
+        var own = vm.ActiveTab!.SymbolLayerId!;
+        var intruder = new Frame { Strokes = [Bar(95)] };
+        vm.Doc.Scene.Layers.Insert(0, new Layer { Name = "Pasted", Cels = [new Cel { Frame = intruder }] });
+
+        vm.AppendExternalStrokes(own, 0, [Bar(70)]);
+
+        Assert.Single(sword.Frames);
+        Assert.DoesNotContain(intruder, sword.Frames);
+    }
+
+    /// <summary>
+    /// Placing a multi-frame symbol still imports it as an animation.
+    /// </summary>
+    /// <remarks>
+    /// The guard is on the symbol's own tab and must not reach the document
+    /// side of the feature: importing a cycle expands the *timeline*
+    /// (<c>AppendFrame</c>), which is a different axis from the one the guard
+    /// protects. When Q171's layer stack lands this is the path that grows to
+    /// carry it, so it is worth a test that says it still works today.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ImportingACycleStillLandsItAcrossTheTimeline()
+    {
+        var vm = WithSymbol(out var walk, frames: 4);
+
+        vm.PlaceSymbol(walk.Id, 40, 40);
+
+        Assert.True(vm.Doc.Scene.FrameCount >= 4);
+    }
+
     [AvaloniaFact]
     public void ASymbolTabHasNoPaperBehindIt()
     {

@@ -80,6 +80,36 @@ The strokes leave the drawing and a placement of the new symbol takes their
 place. Nothing about the picture changes at that moment — the mark is the same
 mark, in the same position.
 
+## What a symbol can hold
+
+A symbol holds **one layer's drawing**, and as many frames of it as you like.
+That is the shape to plan around, and it is worth knowing before you build a
+library:
+
+- **Make symbol takes the layer you are on**, and only the strokes on it. If
+  your head is a lines layer, a colour layer and two effect layers, *Make
+  symbol* captures whichever one is active and leaves the other three where
+  they are.
+- **A symbol needs strokes.** A drawing that is imported pixels with nothing
+  drawn on it cannot become a symbol — you will be told there is nothing to
+  make one from.
+- **Frames are time, not layers.** The list inside a symbol is its animation, a
+  drawing per frame. See *Cycles* below.
+
+> **Planned.** A symbol that owns a whole layer stack — lines, colour, shading
+> and effects captured together and still separate inside the symbol, the way
+> Flash and Animate do it — is decided and not yet built. Until it is, the
+> nearest thing is to keep the parts as separate symbols and place them
+> together, or to link the layers in the Layers docker so they behave as one
+> while you work.
+
+**A symbol's own tab has one layer, and adding another is refused** — there is
+nowhere in a symbol for a second one to go, so *New layer* tells you as much
+rather than making one. Draw on the layer that is there. If a layer does end up
+in a symbol tab some other way, a paste for instance, only the symbol's own
+layer is saved into it and you are told which one that was; merge the others
+down if you want to keep them.
+
 ## Placing, moving, and letting go
 
 - **Place** puts the selected symbol in the middle of the current drawing.
@@ -94,8 +124,15 @@ mark, in the same position.
   only from on top of one of them. The group is one undo step, so taking the
   move back takes all of it back.
 - **Break link** turns a placement back into ordinary strokes on that drawing.
-  It is the honest way to get something you can edit stroke by stroke, and it
-  is a one-way door: the result is a drawing, not a symbol.
+  Select the placed symbol first — the Arrow tool picks one up — then
+  **Edit ▸ Break symbol link**. It is the honest way to get something you can
+  edit stroke by stroke, and it is a one-way door: the result is a drawing, not
+  a symbol. There is no key on it by default, and there is one to give it in
+  Configure ▸ Shortcuts if you use it often.
+  - It breaks **the frame you are looking at**. Breaking a placement of an
+    animated symbol gives you that one drawing, not the cycle.
+  - It gives you strokes on **one layer**, because a symbol holds one layer's
+    drawing — see *What a symbol can hold* below.
 
 A placement can be moved, scaled, rotated, faded and time-offset. It cannot
 have one of its strokes nudged — that would be a different drawing, and

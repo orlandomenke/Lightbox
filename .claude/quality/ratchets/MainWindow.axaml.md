@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4886
+budget: 4891
 
 ## Why it is here despite being XAML
 
@@ -280,3 +280,15 @@ leaves a number nobody can account for. So every reason above stays, and
   nowhere else to live, which is this file's standing exception; the same
   change's view-model property did have somewhere — it went to
   `MainViewModel.Rendering.cs` and left that ratchet untouched at 611.
+- **4,886 → 4,891** (2026-08-28): **Edit ▸ Break symbol link** — the menu item
+  that finally gives `BreakLink` an address. Five lines: a two-line comment and
+  a three-line `MenuItem`. It is grouped with Transform and reuses that block's
+  separator rather than opening one of its own, which is the line this change
+  did not have to spend.
+  The reasoning that would have made it twelve is in `BreakSelectedLink` in
+  `MainViewModel.Symbols.cs` and in the S4 correction in `ROADMAP.md`, which is
+  where a reader chasing *why a built and tested command was unreachable for
+  two years of merges* ends up anyway. A menu item has nowhere else to live —
+  this file's standing exception — and it is the exact case the exception is
+  for: the feature existed and the missing five lines were the whole of what
+  kept an artist from it.

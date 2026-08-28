@@ -390,6 +390,9 @@ public sealed partial class MainViewModel
         {
             Kind = DocumentTabKind.Symbol,
             Symbol = symbol,
+            // Which layer is the symbol, so the sync never has to guess. See
+            // DocumentTab.SymbolLayerId for why index 0 is not good enough.
+            SymbolLayerId = layer.Id,
         });
     }
 
@@ -422,13 +425,37 @@ public sealed partial class MainViewModel
     /// </remarks>
     private void SyncEditedSymbol()
     {
-        if (ActiveTab is not { Kind: DocumentTabKind.Symbol, Symbol: { } symbol }) return;
-        var frames = Doc.Scene.Layers
-            .SelectMany(l => l.Cels)
-            .Select(c => c.Frame)
-            .OfType<Frame>()
-            .ToList();
+        if (ActiveTab is not { Kind: DocumentTabKind.Symbol, Symbol: { } symbol } tab) return;
+
+        // One layer, by id — never `SelectMany` over all of them.
+        //
+        // It used to read every layer's cels into one flat list, and a symbol's
+        // frame list is *time*: a second layer in this tab therefore became
+        // extra frames of the animation rather than a stack. A lines layer and
+        // a colour layer went in and came out as frames 1 and 2, silently, for
+        // every placement of the symbol in the project. Adding a layer here is
+        // refused now (see AddLayer), but refusing the gesture is not the same
+        // as making the fold impossible — a paste is another door, and so is
+        // the next feature nobody has written yet. This is the sink, so this is
+        // where it is closed.
+        //
+        // Q171 takes the Flash model: when a symbol owns a layer stack, the
+        // whole of this reads that stack instead, and the guard comes out.
+        var layers = Doc.Scene.Layers;
+        var own = layers.FirstOrDefault(l => l.Id == tab.SymbolLayerId) ?? layers.FirstOrDefault();
+        if (own is null) return;
+
+        var frames = own.Cels.Select(c => c.Frame).OfType<Frame>().ToList();
         if (frames.Count == 0) return;
+
+        if (layers.Count > 1)
+        {
+            // Said rather than swallowed. The drawing is still there in the tab
+            // for the artist to merge down or move; what it is not is part of
+            // the symbol, and finding that out at reload would be worse.
+            AiStatus = $"Only “{own.Name}” is saved into this symbol — a symbol holds one layer. "
+                + "Merge the others down to keep them.";
+        }
 
         symbol.Frames = frames;
         symbol.Fps = Doc.Scene.Fps;
@@ -893,6 +920,12 @@ public sealed partial class MainViewModel
 
         if (PlacementAt(x, y) is not { } placement) return false;
         _selectedPlacementId = placement.Id;
+        // Picking one up is the gesture that arms Edit ▸ Break symbol link, so
+        // the selection has to be announced here as well as after an edit —
+        // this is the only path that changes it without going through
+        // AfterPlacementChange. Two notifications on a press, not on a move.
+        OnPropertyChanged(nameof(SelectedPlacement));
+        OnPropertyChanged(nameof(CanBreakSelectedLink));
         _placementDrag = (x, y, [(placement.Id, placement.X, placement.Y)]);
         _placementDragKeyed = false;
         AiStatus = "Moving a placed symbol — the symbol itself is unchanged.";
@@ -1062,6 +1095,37 @@ public sealed partial class MainViewModel
         return true;
     }
 
+    /// <summary>
+    /// Break the link on the placement the artist has selected.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The reason this exists separately from <see cref="BreakLink"/>.</b>
+    /// The method took a placement and nothing in the application ever handed
+    /// it one — it was reachable from the tests and from nowhere else, while
+    /// the manual documented it as a thing an artist does and the roadmap
+    /// ticked S4 as including it. That is `CLAUDE.md`'s registry rule failing
+    /// in its usual shape: the feature worked, nothing was red, and there was
+    /// no address for it.
+    /// </para>
+    /// <para>
+    /// So the command is what the menu and <c>ShortcutMap</c> bind to, and it
+    /// carries the selection lookup that every caller would otherwise repeat.
+    /// </para>
+    /// </remarks>
+    public void BreakSelectedLink()
+    {
+        if (SelectedPlacement is not { } placement)
+        {
+            AiStatus = "Select a placed symbol first — the Arrow tool picks one up.";
+            return;
+        }
+        BreakLink(placement);
+    }
+
+    /// <summary>Whether there is a placement selected to break.</summary>
+    public bool CanBreakSelectedLink => SelectedPlacement is not null;
+
     /// <summary>The symbol's strokes with the placement's transform written into them.</summary>
     private static List<Stroke> BakedStrokes(Symbol symbol, int frameIndex, SymbolPlacement placement)
     {
@@ -1110,6 +1174,10 @@ public sealed partial class MainViewModel
         RefreshThumbnails();
         OnPropertyChanged(nameof(PlacementsHere));
         OnPropertyChanged(nameof(SelectedPlacement));
+        // The menu's enablement rides the selection, so it has to move with it
+        // — an entry that greys out a beat late reads as the command being
+        // broken rather than as the selection having changed.
+        OnPropertyChanged(nameof(CanBreakSelectedLink));
         OnPropertyChanged(nameof(OutdatedPlacements));
         OnPropertyChanged(nameof(StalePlacementReport));
     }
