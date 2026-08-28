@@ -1330,6 +1330,30 @@ public partial class MainViewModel
     /// </remarks>
     internal double LiveFootprintScaleUsed { get; private set; } = 1.0;
 
+    /// <summary>
+    /// The settle tolerance the current brush is getting, in document pixels
+    /// (B189).
+    /// </summary>
+    /// <remarks>
+    /// Zero means the exact rule — this brush has a dynamic seeded from the
+    /// dab's position, so a sub-pixel move can throw a dab ten pixels away and
+    /// nothing may be settled early. See <c>BrushEngine.SettleTolerance</c>.
+    /// </remarks>
+    internal double LiveSettleTolerance { get; private set; }
+
+    /// <summary>
+    /// Dabs an event settled that the exact rule would have re-stamped (B189).
+    /// </summary>
+    /// <remarks>
+    /// <b>The saving, per event, rather than a claim about it.</b> Offline this
+    /// takes a thirty-event stroke's re-stamping from 45 dabs to 6 at size 500
+    /// and from 320 to 49 at size 70, with not one pixel of the preview
+    /// differing — because <c>Densify</c> looks one point ahead, so the exact
+    /// rule holds a dab provisional for one event after it has already stopped
+    /// moving.
+    /// </remarks>
+    internal Services.Tally LiveSettledEarly { get; } = new();
+
     /// <summary>Colour dabs into the scratch, per event (B189).</summary>
     internal Services.Tally StampColourMs { get; } = new();
 
@@ -2208,7 +2232,25 @@ public partial class MainViewModel
         // backup-and-replace the scratch already used, moved one level down onto
         // the coverage buffer.
         var wholeMark = BrushEngine.DrawsAsOneSilhouette(live.Brush);
-        var stable = BrushEngine.StableCount(dabs, _live.Dabs);
+        // B189: a dab that drifted a fraction of a pixel is settled, for a brush
+        // with nothing seeded from its position. At size 500 an event re-stamps
+        // as many dabs as it adds, each costing 1245 us, and the worst of them
+        // moved 0.099 px — half the most expensive thing an event does, spent on
+        // a change to antialiasing at the rim. SettleTolerance is zero for every
+        // brush where that is not true, which is B45's rule kept rather than
+        // relaxed.
+        var settleTolerance = BrushEngine.SettleTolerance(live.Brush);
+        var stable = BrushEngine.StableCount(dabs, _live.Dabs, settleTolerance, out var exactStable);
+
+        // **The arm, in the file, while the stroke is happening.** B322 cost a
+        // whole round of captures because the tip's arm only appeared in a block
+        // that needed an effect brush to say anything, so an A/B ran the same arm
+        // twice and nothing said so. This is the same instrument for the same
+        // reason: what the exact rule would have settled is tracked inside the
+        // loop that already runs, so the report can name what the tolerance
+        // bought rather than leaving it to be inferred from a ratio.
+        LiveSettleTolerance = settleTolerance;
+        if (_live.Dabs is not null) LiveSettledEarly.Add(Math.Max(0, stable - exactStable));
         _live.Dabs = dabs;
 
         if (wholeMark && _live.CoverageCanvas is { } coverage && _live.Coverage is { } buffer)

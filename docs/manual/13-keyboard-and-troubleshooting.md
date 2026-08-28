@@ -633,6 +633,24 @@ Set `LIGHTBOX_FOOTPRINT_SCALE=full` to do it at full size all the time. Like the
 setting above it does nothing when you are zoomed in to 100%, and **Help → Write
 a render report** names which of the two ran.
 
+### Why a scattered brush can feel heavier than a plain one
+
+While you are drawing, the newest part of a stroke is provisional: the last few
+dabs can still shift very slightly as the next bit of your movement arrives, so
+Lightbox draws them again each time. For most brushes a shift that small is just
+a shift that small, and Lightbox stops redrawing a dab as soon as it has
+essentially stopped moving — which is worth a great deal at large sizes, where a
+single dab is expensive.
+
+For a brush with **scatter, or with size, flow, rotation, roundness or colour
+variation**, it cannot. Those effects are worked out from exactly where the dab
+landed, so a shift of a fraction of a pixel can move a dab somewhere else
+entirely, and the only safe answer is to redraw it. That brush will feel heavier
+than a plain one of the same size, and there is nothing wrong with it.
+
+**Help → Write a render report** says which of the two your brush got, under
+`stamping the dabs`.
+
 
 It names which parts of the drawing are done by your graphics card and which by
 the processor — and those are not the same question. The status strip says
