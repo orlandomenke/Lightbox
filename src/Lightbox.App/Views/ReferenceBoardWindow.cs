@@ -778,6 +778,20 @@ public sealed class ReferenceBoardWindow : Window
                 // on a site whose pages all share one social card that answer is
                 // the site’s own logo (B344). Which it was is the difference
                 // between a wrong picture and an unexplained one.
+                if (got.NamedByAPage)
+                {
+                    // A page named it, so the picture is a guess — and what the
+                    // drag carried is the whole diagnosis if the guess was wrong
+                    // (B344). Logged here rather than only on failure, because a
+                    // wrong picture that arrives looks like success and would
+                    // otherwise leave no trace at all. Format names and sizes,
+                    // never the values: a drag carries the address of whatever
+                    // the artist was looking at.
+                    Services.DiagnosticLog.WriteNote(
+                        "reference-board-drop",
+                        "a page named the picture; the drag carried "
+                            + Services.WebImageDrop.DescribeFormats(e.DataTransfer));
+                }
                 Say(got.NamedByAPage
                     ? $"Pinned “{name}” — the picture that page names. "
                       + "Drag the image itself if that is not the one."

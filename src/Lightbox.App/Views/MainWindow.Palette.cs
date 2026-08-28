@@ -199,6 +199,15 @@ public partial class MainWindow
                 // A picture a *page* named is that site’s answer to what the
                 // page is about, and on a site whose pages all share one social
                 // card that answer is the site’s own logo (B344).
+                if (got.NamedByAPage)
+                {
+                    // Same as the board (B344): a picture a page named is a
+                    // guess, and a wrong guess that arrives looks like success.
+                    Services.DiagnosticLog.WriteNote(
+                        "reference-drop",
+                        "a page named the picture; the drag carried "
+                            + Services.WebImageDrop.DescribeFormats(data));
+                }
                 _vm.AiStatus = got.NamedByAPage
                     ? $"Drawing against “{name}” — the picture that page names. "
                       + "Drag the image itself if that is not the one."

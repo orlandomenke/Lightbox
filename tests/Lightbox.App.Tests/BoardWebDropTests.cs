@@ -216,6 +216,9 @@ public class BoardWebDropTests : BrushStateIsolated
 
         Assert.Contains("NamedByAPage", drop);
         Assert.Contains("that page names", drop);
+        // And it leaves a trace: a wrong guess that arrives looks like
+        // success, so the failure log is no use unless the guess logs too.
+        Assert.Contains("a page named the picture", drop);
     }
 
     /// <summary>The body of the board’s drop handler, for the guards that read it.</summary>
