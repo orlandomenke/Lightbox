@@ -6,6 +6,11 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
 
+  <!-- Follows Lightbox.App: the compositor lives in Lightbox.Raster now. -->
+  <ItemGroup>
+    <Using Include="Lightbox.Raster" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Avalonia.Headless.XUnit" Version="12.1.1" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />

@@ -161,7 +161,7 @@ public sealed class ClipStorageTests : BrushStateIsolated
         vm.Doc.Scene.References = [strip];
         Lightbox.Raster.ReferenceStripRegistry.Register(strip.Id, sheet);
 
-        using var cache = new Lightbox.App.Rendering.FrameBitmapCache();
+        using var cache = new FrameBitmapCache();
 
         SKColor At00(SKImage image)
         {

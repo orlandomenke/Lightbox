@@ -561,7 +561,7 @@ public class PsdImportTests(ITestOutputHelper output)
     /// </summary>
     private static SKBitmap Rendered(Doc doc)
     {
-        using var cache = new Lightbox.App.Rendering.FrameBitmapCache();
+        using var cache = new FrameBitmapCache();
         using var image = SequenceExporter.RenderFrame(doc, cache, 0);
         var info = new SKImageInfo(image.Width, image.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
         var bitmap = new SKBitmap(info);

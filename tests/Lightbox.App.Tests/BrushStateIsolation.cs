@@ -18,7 +18,7 @@ namespace Lightbox.App.Tests;
 public class BrushStateCollection;
 
 /// <summary>
-/// <see cref="Lightbox.App.Rendering.FrameBitmapCache.ByteBudget"/> is a
+/// <see cref="FrameBitmapCache.ByteBudget"/> is a
 /// process-wide preference, so a class that lowers it to force eviction lowers
 /// it for every class running beside it.
 /// </summary>

@@ -521,8 +521,8 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
     public void TheResidencySectionDoesNotClaimTheGpuIsUnusedWhenItWasUsed()
     {
         Setup();
-        Lightbox.App.Rendering.GpuComposite.ResetCounters();
-        Lightbox.App.Rendering.GpuComposite.CountCompositeForTests(onGpu: true, times: 310);
+        GpuComposite.ResetCounters();
+        GpuComposite.CountCompositeForTests(onGpu: true, times: 310);
         try
         {
             var path = RenderReport.WriteStartup(
@@ -541,7 +541,7 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         }
         finally
         {
-            Lightbox.App.Rendering.GpuComposite.ResetCounters();
+            GpuComposite.ResetCounters();
         }
     }
 
@@ -553,7 +553,7 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
     public void WithNothingOnTheCardItStillSaysSo()
     {
         Setup();
-        Lightbox.App.Rendering.GpuComposite.ResetCounters();
+        GpuComposite.ResetCounters();
 
         var path = RenderReport.WriteStartup(
             Facts(backend: "GPU", gpuCompositeOptedIn: true, textureResidency: null));
@@ -639,7 +639,7 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         Assert.DoesNotContain("NOT an ordinary capture", ordinary);
 
         Environment.SetEnvironmentVariable(
-            Lightbox.App.Rendering.GpuComposite.BudgetedVariable, "1");
+            GpuComposite.BudgetedVariable, "1");
         try
         {
             RenderReport.ResetForTests();
@@ -652,7 +652,7 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         finally
         {
             Environment.SetEnvironmentVariable(
-                Lightbox.App.Rendering.GpuComposite.BudgetedVariable, null);
+                GpuComposite.BudgetedVariable, null);
         }
     }
 }

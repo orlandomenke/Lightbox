@@ -1,4 +1,4 @@
-namespace Lightbox.App.Services;
+namespace Lightbox.Raster;
 
 /// <summary>
 /// How much memory a cache may take, derived from the machine it is running on
@@ -39,10 +39,10 @@ namespace Lightbox.App.Services;
 /// failing.
 /// </para>
 /// </remarks>
-internal static class MemoryBudget
+public static class MemoryBudget
 {
     /// <summary>The minimum spec's memory, in bytes — 8 GB (Q64).</summary>
-    internal const long MinimumSpecBytes = 8L * 1024 * 1024 * 1024;
+    public const long MinimumSpecBytes = 8L * 1024 * 1024 * 1024;
 
     /// <summary>
     /// Memory this process may use, as the runtime understands it.
@@ -52,7 +52,7 @@ internal static class MemoryBudget
     /// physical total: it respects a container limit or a cgroup, which is the
     /// number that actually matters when the answer is wrong.
     /// </remarks>
-    internal static long Available =>
+    public static long Available =>
         GC.GetGCMemoryInfo().TotalAvailableMemoryBytes is > 0 and var b
             ? b
             : MinimumSpecBytes;
@@ -69,7 +69,7 @@ internal static class MemoryBudget
     /// The most it can usefully spend. A cache larger than the working set is
     /// memory held for nothing.
     /// </param>
-    internal static long Share(double fraction, long floorBytes, long ceilingBytes)
+    public static long Share(double fraction, long floorBytes, long ceilingBytes)
     {
         if (ceilingBytes < floorBytes) (floorBytes, ceilingBytes) = (ceilingBytes, floorBytes);
         var share = (long)(Available * Math.Clamp(fraction, 0, 1));
@@ -94,10 +94,10 @@ internal static class MemoryBudget
     /// decided they would rather have the memory back is allowed to say so.
     /// </para>
     /// </remarks>
-    internal const long FrameCacheFloorBytes = 256L * 1024 * 1024;
+    public const long FrameCacheFloorBytes = 256L * 1024 * 1024;
 
     /// <inheritdoc cref="FrameCacheFloorBytes"/>
-    internal const long FrameCacheCeilingBytes = 4L * 1024 * 1024 * 1024;
+    public const long FrameCacheCeilingBytes = 4L * 1024 * 1024 * 1024;
 
     /// <summary>
     /// Rendered frames kept in memory, so scrubbing and onion skin stay instant.
@@ -107,7 +107,7 @@ internal static class MemoryBudget
     /// one. The floor is 256 MB, which holds a handful of 4K frames — below that
     /// a large document thrashes and the cache is doing harm rather than nothing.
     /// </remarks>
-    internal static long FrameCache() =>
+    public static long FrameCache() =>
         Share(1.0 / 8, FrameCacheFloorBytes, FrameCacheCeilingBytes);
 
     /// <summary>
@@ -134,7 +134,7 @@ internal static class MemoryBudget
     /// constant this replaced; what changes is that it now grows.
     /// </para>
     /// </remarks>
-    internal static long TileCache() =>
+    public static long TileCache() =>
         Share(1.0 / 32, 128L * 1024 * 1024, 2L * 1024 * 1024 * 1024);
 
     /// <summary>
@@ -155,7 +155,7 @@ internal static class MemoryBudget
     /// the cache worth having at all.
     /// </para>
     /// </remarks>
-    internal static long FlattenCache() =>
+    public static long FlattenCache() =>
         Share(1.0 / 64, 64L * 1024 * 1024, 512L * 1024 * 1024);
 
     /// <summary>
@@ -168,6 +168,6 @@ internal static class MemoryBudget
     /// allocation. The floor is 64 MB — two 4K layers — because below that the
     /// residency never survives a frame and the feature is pure overhead.
     /// </remarks>
-    internal static long LayerTextures() =>
+    public static long LayerTextures() =>
         Share(1.0 / 16, 64L * 1024 * 1024, 1L * 1024 * 1024 * 1024);
 }

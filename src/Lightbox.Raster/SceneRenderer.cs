@@ -1,8 +1,7 @@
 using Lightbox.Core.Documents;
-using Lightbox.Raster;
 using SkiaSharp;
 
-namespace Lightbox.App.Rendering;
+namespace Lightbox.Raster;
 
 /// <summary>
 /// The in-progress stroke drawn on top of its layer. Kept separate from the
@@ -297,7 +296,7 @@ public static class SceneRenderer
     /// carrying it.
     /// </para>
     /// </remarks>
-    internal static void DrawOne(
+    public static void DrawOne(
         SKSurface surface, SKCanvas canvas, RenderPass pass, double scale, SKMatrix? transform)
     {
         // An adjustment pass reads the surface it is being drawn onto, so
@@ -871,7 +870,7 @@ public static class SceneRenderer
     /// off unless the artist has switched GPU compositing on.
     /// </para>
     /// </remarks>
-    internal static SKImage ComposeTiled(
+    public static SKImage ComposeTiled(
         IReadOnlyList<RenderPass> passes,
         SKColor background,
         double renderScale,
@@ -1068,7 +1067,7 @@ public static class SceneRenderer
     /// re-checked — the same idiom the ordinary-layer arm above uses, and the
     /// reason it is an idiom is that two checks of one invariant can disagree.
     /// </param>
-    internal static void DrawWhole(
+    public static void DrawWhole(
         SKCanvas canvas, RenderPass pass, SKPaint? paint,
         LayerTextureCache? resident = null, GRContext? gpu = null)
     {

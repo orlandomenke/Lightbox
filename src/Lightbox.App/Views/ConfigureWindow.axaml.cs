@@ -1023,7 +1023,7 @@ public partial class ConfigureWindow : Window
     private void OnGpuCompositeChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_loadingPerformance || _vm is null) return;
-        if (GpuCompositeBox.SelectedItem is Rendering.GpuComposeMode mode)
+        if (GpuCompositeBox.SelectedItem is GpuComposeMode mode)
         {
             _vm.GpuCompositingMode = mode;
         }
@@ -1046,7 +1046,7 @@ public partial class ConfigureWindow : Window
     {
         if (_vm is null) return;
 
-        if (_vm.GpuCompositingMode == Rendering.GpuComposeMode.Off)
+        if (_vm.GpuCompositingMode == GpuComposeMode.Off)
         {
             GpuCompositeHint.Text = "Layers are blended on the processor.";
             return;
@@ -1060,7 +1060,7 @@ public partial class ConfigureWindow : Window
             return;
         }
 
-        if (_vm.GpuCompositingMode == Rendering.GpuComposeMode.On)
+        if (_vm.GpuCompositingMode == GpuComposeMode.On)
         {
             GpuCompositeHint.Text =
                 "On, whatever this machine measures. Play a scene back, then "
@@ -1072,10 +1072,10 @@ public partial class ConfigureWindow : Window
         // status bar reading "GPU" and meaning only that Avalonia can blit
         // misled the owner once already, and B125's entry records that as part
         // of the bug rather than incidental to it.
-        GpuCompositeHint.Text = Rendering.GpuComposite.AutoProbe switch
+        GpuCompositeHint.Text = GpuComposite.AutoProbe switch
         {
             null => "Automatic. Nothing has been drawn yet, so this machine has not been measured.",
-            { } probe when Rendering.GpuComposite.AutoDecision == true =>
+            { } probe when GpuComposite.AutoDecision == true =>
                 $"Automatic: the card blended {probe.Speedup:F1}x faster than the processor here, "
                 + "so it is being used. Help ▸ Write a render report says what it did.",
             { HadContext: false } =>

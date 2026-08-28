@@ -3,7 +3,7 @@ using Lightbox.Core.Effects;
 using Lightbox.Raster.Effects;
 using SkiaSharp;
 
-namespace Lightbox.App.Rendering;
+namespace Lightbox.Raster;
 
 /// <summary>
 /// The effect half of what <see cref="LayerShapes"/> is for shapes: one place
@@ -13,13 +13,13 @@ namespace Lightbox.App.Rendering;
 /// cannot look different in two of them. The canvas publish asks the same
 /// questions through <see cref="ScenePassBuilder"/>'s specs.
 /// </summary>
-internal static class EffectPasses
+public static class EffectPasses
 {
     /// <summary>
     /// Whether anything in the document filters anything right now — the
     /// tile path's document-level gate, beside the camera's.
     /// </summary>
-    internal static bool AnyLive(Scene scene) =>
+    public static bool AnyLive(Scene scene) =>
         (scene.Effects is { } fx && fx.AppliesAnything)
         || scene.Layers.Exists(l => l.HasLiveEffects);
 
@@ -28,7 +28,7 @@ internal static class EffectPasses
     /// every ordinary layer — and for an adjustment layer, whose stack
     /// belongs to the backdrop, not to content it does not have.
     /// </summary>
-    internal static SKImageFilter? SelfFilter(Layer layer, int frame) =>
+    public static SKImageFilter? SelfFilter(Layer layer, int frame) =>
         layer.HasLiveEffects && !layer.IsAdjustment
             ? EffectRegistry.FilterFor(layer.Effects, frame)
             : null;
@@ -38,7 +38,7 @@ internal static class EffectPasses
     /// (Q155) — glow, stroke, shadow, bevel decorate the carved silhouette —
     /// or null for a layer with none.
     /// </summary>
-    internal static SKImageFilter? SelfStyle(Layer layer, int frame) =>
+    public static SKImageFilter? SelfStyle(Layer layer, int frame) =>
         layer.HasLiveEffects && !layer.IsAdjustment
             ? EffectRegistry.StyleFor(layer.Effects, frame)
             : null;
@@ -48,14 +48,14 @@ internal static class EffectPasses
     /// or null when it currently draws nothing (no live stack, hidden, or a
     /// clipped adjustment over an empty base).
     /// </summary>
-    internal static RenderPass? AdjustmentPass(
+    public static RenderPass? AdjustmentPass(
         Scene scene, int layerIndex, int frameIndex, FrameBitmapCache cache) =>
         AdjustmentPass(
             scene.Layers, scene.IsLayerVisible, layerIndex, frameIndex, cache,
             scene.Width, scene.Height);
 
     /// <summary>The layer-list form, for the compositors <see cref="LayerShapes"/> already serves that way.</summary>
-    internal static RenderPass? AdjustmentPass(
+    public static RenderPass? AdjustmentPass(
         IReadOnlyList<Layer> layers, Func<Layer, bool> visible, int layerIndex,
         int frameIndex, FrameBitmapCache cache, int width, int height)
     {
@@ -74,7 +74,7 @@ internal static class EffectPasses
     /// grade, before the camera draw — or null for the document that never
     /// grades, which must not pay for one.
     /// </summary>
-    internal static RenderPass? SceneStackPass(Scene scene, int frameIndex) =>
+    public static RenderPass? SceneStackPass(Scene scene, int frameIndex) =>
         scene.Effects is { } fx && fx.AppliesAnything
             ? new RenderPass(null, null, 1.0, AdjustStack: fx, EffectFrame: frameIndex)
             : null;

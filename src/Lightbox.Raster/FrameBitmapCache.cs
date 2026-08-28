@@ -1,9 +1,8 @@
 using System.Globalization;
 using Lightbox.Core.Documents;
-using Lightbox.Raster;
 using SkiaSharp;
 
-namespace Lightbox.App.Rendering;
+namespace Lightbox.Raster;
 
 /// <summary>
 /// frameId → materialized SKBitmap, LRU-evicted. Owned and used by the UI
@@ -17,7 +16,7 @@ public sealed class FrameBitmapCache : IDisposable
     /// nothing at 960×540 (100 MB) and 3 GB at 4K. Small documents therefore
     /// keep a deep cache while large ones stay within a sane footprint.
     /// </summary>
-    public static long ByteBudget { get; set; } = Services.MemoryBudget.FrameCache();
+    public static long ByteBudget { get; set; } = MemoryBudget.FrameCache();
 
     /// <summary>
     /// Keep at least this many where the budget allows, so onion skin does not
@@ -523,7 +522,7 @@ public sealed class FrameBitmapCache : IDisposable
     /// would also pass on a build that repainted everything unconditionally,
     /// which is the cost the targeted invalidation exists to avoid.
     /// </remarks>
-    internal bool Holds(string frameId)
+    public bool Holds(string frameId)
     {
         for (var node = _lru.First; node is not null; node = node.Next)
         {
@@ -558,7 +557,7 @@ public sealed class FrameBitmapCache : IDisposable
     /// </para>
     /// </remarks>
     /// <param name="region">The rectangle to rebuild, in document coordinates.</param>
-    internal bool RepaintRegion(Frame frame, SKRectI region)
+    public bool RepaintRegion(Frame frame, SKRectI region)
     {
         if (Rig.IsPosed(frame)) return false;
         if (!FrameRasterizer.CanRepaintRegion(frame)) return false;

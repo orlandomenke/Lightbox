@@ -301,7 +301,7 @@ public sealed class AppSettings
     /// cannot be right on <em>every</em> machine, and that is what Auto is for.
     /// </para>
     /// <para>
-    /// <b>Auto is not "on".</b> <see cref="Rendering.GpuComposeProbe"/> blends the
+    /// <b>Auto is not "on".</b> <see cref="GpuComposeProbe"/> blends the
     /// same passes both ways on the machine it is running on and takes the
     /// faster, which is the only thing that catches a software rasteriser
     /// reporting itself as a GPU. An explicit choice always wins over it.
@@ -313,7 +313,7 @@ public sealed class AppSettings
     /// </remarks>
     [System.Text.Json.Serialization.JsonConverter(
         typeof(System.Text.Json.Serialization.JsonStringEnumConverter))]
-    public Rendering.GpuComposeMode GpuCompositingMode { get; set; } = Rendering.GpuComposeMode.Auto;
+    public GpuComposeMode GpuCompositingMode { get; set; } = GpuComposeMode.Auto;
 
     /// <summary>
     /// Record the pen's tilt and the hand's speed <em>even when the brush in
@@ -452,7 +452,7 @@ public sealed class AppSettings
     /// leave every existing install pinned to the processor for good, which is the
     /// exact outcome defaulting to Auto exists to prevent. <c>true</c> is
     /// unambiguous: nothing wrote it but a person ticking the box, so it becomes
-    /// <see cref="Rendering.GpuComposeMode.On"/>.
+    /// <see cref="GpuComposeMode.On"/>.
     /// </para>
     /// <para>
     /// The old key is cleared as it is read, so the next save drops it from the
@@ -462,9 +462,9 @@ public sealed class AppSettings
     /// </remarks>
     private void MigrateGpuCompositing()
     {
-        if (LegacyGpuCompositing == true && GpuCompositingMode == Rendering.GpuComposeMode.Auto)
+        if (LegacyGpuCompositing == true && GpuCompositingMode == GpuComposeMode.Auto)
         {
-            GpuCompositingMode = Rendering.GpuComposeMode.On;
+            GpuCompositingMode = GpuComposeMode.On;
         }
         LegacyGpuCompositing = null;
     }

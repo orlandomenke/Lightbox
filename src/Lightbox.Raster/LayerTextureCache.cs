@@ -1,7 +1,6 @@
-using Lightbox.Raster;
 using SkiaSharp;
 
-namespace Lightbox.App.Rendering;
+namespace Lightbox.Raster;
 
 /// <summary>
 /// Keeps layer rasters resident on the GPU, so a frame that shows the same
@@ -80,23 +79,23 @@ public sealed class LayerTextureCache : IDisposable
     /// falling back to CPU, so the failure mode is "no faster" rather than
     /// "broken".
     /// </remarks>
-    internal long BudgetBytes { get; set; } = Services.MemoryBudget.LayerTextures();
+    public long BudgetBytes { get; set; } = MemoryBudget.LayerTextures();
 
-    internal long ResidentBytes { get; private set; }
+    public long ResidentBytes { get; private set; }
 
-    internal int Count => _entries.Count;
+    public int Count => _entries.Count;
 
     /// <summary>Textures served without an upload.</summary>
-    internal int Hits { get; private set; }
+    public int Hits { get; private set; }
 
     /// <summary>Textures uploaded because nothing resident matched.</summary>
-    internal int Misses { get; private set; }
+    public int Misses { get; private set; }
 
     /// <summary>Textures dropped to stay inside the budget.</summary>
-    internal int Evictions { get; private set; }
+    public int Evictions { get; private set; }
 
     /// <summary>Uploads the context refused. A miss that could not be filled.</summary>
-    internal int FailedUploads { get; private set; }
+    public int FailedUploads { get; private set; }
 
     public LayerTextureCache(Uploader? upload = null) => _upload = upload ?? DefaultUpload;
 
@@ -189,14 +188,14 @@ public sealed class LayerTextureCache : IDisposable
     /// Drop everything. For a lost or replaced graphics context, where every
     /// texture handle is already invalid.
     /// </summary>
-    internal void Clear()
+    public void Clear()
     {
         foreach (var (_, entry) in _entries) entry.Image.Dispose();
         _entries.Clear();
         ResidentBytes = 0;
     }
 
-    internal void ResetCounters()
+    public void ResetCounters()
     {
         Hits = 0;
         Misses = 0;

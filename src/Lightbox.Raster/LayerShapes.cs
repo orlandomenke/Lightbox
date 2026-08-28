@@ -2,7 +2,7 @@ using Lightbox.Core.Documents;
 using Lightbox.Core.Timeline;
 using SkiaSharp;
 
-namespace Lightbox.App.Rendering;
+namespace Lightbox.Raster;
 
 /// <summary>
 /// The one place that answers "what carves this layer's output" — its own
@@ -28,10 +28,10 @@ namespace Lightbox.App.Rendering;
 /// compositing a fully carved bitmap.
 /// </para>
 /// </remarks>
-internal static class LayerShapes
+public static class LayerShapes
 {
     /// <summary>A shape described but not fetched: a frame whose render carves the pass.</summary>
-    internal readonly record struct ShapeSpec(Frame Frame, bool Inverted);
+    public readonly record struct ShapeSpec(Frame Frame, bool Inverted);
 
     /// <summary>
     /// The shapes carving <paramref name="scene"/>.Layers[<paramref name="layerIndex"/>]
@@ -41,14 +41,14 @@ internal static class LayerShapes
     /// nothing at all this frame (a clipped layer over an empty or hidden
     /// base): skip the pass.
     /// </summary>
-    internal static List<ShapeSpec>? For(Scene scene, int layerIndex, int frameIndex) =>
+    public static List<ShapeSpec>? For(Scene scene, int layerIndex, int frameIndex) =>
         For(scene.Layers, scene.IsLayerVisible, layerIndex, frameIndex);
 
     /// <summary>
     /// The layer-list form, for compositors that hold layers without a scene
     /// around them (a reference view of another document).
     /// </summary>
-    internal static List<ShapeSpec>? For(
+    public static List<ShapeSpec>? For(
         IReadOnlyList<Layer> layers, Func<Layer, bool> visible, int layerIndex, int frameIndex)
     {
         var layer = layers[layerIndex];
@@ -86,7 +86,7 @@ internal static class LayerShapes
     /// unclipped rather than vanishing, so dragging a layer to the bottom of
     /// the stack degrades visibly instead of silently.
     /// </summary>
-    internal static Layer? BaseOf(IReadOnlyList<Layer> layers, int layerIndex)
+    public static Layer? BaseOf(IReadOnlyList<Layer> layers, int layerIndex)
     {
         for (var i = layerIndex - 1; i >= 0; i--)
         {
@@ -101,7 +101,7 @@ internal static class LayerShapes
     /// warm-ahead runs per lookahead frame per layer during playback, and a
     /// discarded list there is a discarded list per tick).
     /// </summary>
-    internal static bool Carves(Scene scene, int layerIndex)
+    public static bool Carves(Scene scene, int layerIndex)
     {
         var layer = scene.Layers[layerIndex];
         return layer.IsMasked
@@ -109,7 +109,7 @@ internal static class LayerShapes
     }
 
     /// <summary>The described shapes with their fetches done, ready for a <see cref="RenderPass"/>.</summary>
-    internal static List<PassShape>? Resolve(
+    public static List<PassShape>? Resolve(
         List<ShapeSpec>? specs, FrameBitmapCache cache, int width, int height, int celIndex = 0)
     {
         if (specs is null || specs.Count == 0) return null;
