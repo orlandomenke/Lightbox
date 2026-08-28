@@ -154,17 +154,68 @@ sealed class LivePaintSession
     /// <inheritdoc cref="Coverage"/>
     internal SKCanvas? CoverageCanvas { get; private set; }
 
-    /// <summary>Make the coverage buffer exist at this size, and empty.</summary>
-    internal void BeginCoverage(int width, int height)
+    /// <summary>
+    /// Coverage-buffer pixels per document pixel (B189).
+    /// </summary>
+    /// <remarks>
+    /// <b>1.0 for the silhouette route, which has no choice.</b> That route's
+    /// coverage <em>is</em> the mark — <c>CoverageToInk</c> turns it into the
+    /// pixels the artist sees — so it must be the document's size. The footprint
+    /// route's coverage is only a ceiling, read once per pixel and never shown,
+    /// which is what lets it follow the compose scale instead. The two routes
+    /// are mutually exclusive by construction, so one buffer with one scale
+    /// serves both.
+    /// </remarks>
+    internal double CoverageScale { get; private set; } = 1.0;
+
+    /// <summary>
+    /// A document rectangle in the coverage buffer's own pixels.
+    /// </summary>
+    /// <remarks>
+    /// <b>Rounded outward, and used for both halves of the tail rollback.</b>
+    /// The backup is taken over this rectangle and restored over the same one,
+    /// so the round trip is exact whatever the rounding did; what would not
+    /// survive is one side rounding differently from the other, which would
+    /// rescale the backup by a fraction of a pixel every event and smear the
+    /// ceiling along the stroke.
+    /// </remarks>
+    internal SKRectI ToCoverage(SKRectI doc)
     {
-        if (Coverage is null || Coverage.Width != width || Coverage.Height != height)
+        if (Coverage is null) return doc;
+        if (CoverageScale >= 1.0)
+        {
+            return SKRectI.Intersect(doc, new SKRectI(0, 0, Coverage.Width, Coverage.Height));
+        }
+
+        var scaled = new SKRectI(
+            (int)Math.Floor(doc.Left * CoverageScale),
+            (int)Math.Floor(doc.Top * CoverageScale),
+            (int)Math.Ceiling(doc.Right * CoverageScale),
+            (int)Math.Ceiling(doc.Bottom * CoverageScale));
+        return SKRectI.Intersect(scaled, new SKRectI(0, 0, Coverage.Width, Coverage.Height));
+    }
+
+    /// <summary>Make the coverage buffer exist at this size, and empty.</summary>
+    /// <param name="scale">
+    /// Coverage pixels per document pixel; see <see cref="CoverageScale"/>.
+    /// </param>
+    internal void BeginCoverage(int width, int height, double scale = 1.0)
+    {
+        var (bufferWidth, bufferHeight) =
+            FootprintSpace.BufferSize(width, height, scale);
+
+        if (Coverage is null || Coverage.Width != bufferWidth || Coverage.Height != bufferHeight)
         {
             CoverageCanvas?.Dispose();
             Coverage?.Dispose();
             Coverage = new SKBitmap(
-                new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Opaque));
+                new SKImageInfo(bufferWidth, bufferHeight, SKColorType.Rgba8888, SKAlphaType.Opaque));
             CoverageCanvas = new SKCanvas(Coverage);
         }
+
+        // Set after the allocation, so a buffer reused at the same size still
+        // picks up a scale that changed — the artist can zoom between strokes.
+        CoverageScale = scale;
 
         // Black is coverage zero, which the colour matrix turns into alpha zero.
         CoverageCanvas!.Clear(SKColors.Black);

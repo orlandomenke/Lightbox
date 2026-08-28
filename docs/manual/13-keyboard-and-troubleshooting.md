@@ -615,6 +615,78 @@ which of the two ran, near the top of the `live tip` block, along with how often
 the ink under the nib was drawn and how often it was skipped — so running the
 same build twice, once each way, is a real comparison rather than an impression.
 
+### Soft brushes while the pen is down
+
+A soft brush is kept from hardening where its own dabs overlap: Lightbox tracks
+the shape a single dab of that brush would leave and never lets the stroke go
+darker than that. Without it a soft edge comes out about half as wide as the
+brush you set, which reads as the brush being harder than it is.
+
+While the pen is down, that tracking is done at the size the drawing is being
+**shown** rather than at its full size, which is about four times cheaper and is
+roughly a third of the work each pen movement costs. The edge is the same width
+either way — measured, on the settings where the hardening is worst — and the
+finished stroke is worked out at full size the moment you lift the pen, so
+nothing about the saved drawing changes.
+
+Set `LIGHTBOX_FOOTPRINT_SCALE=full` to do it at full size all the time. Like the
+setting above it does nothing when you are zoomed in to 100%, and **Help → Write
+a render report** names which of the two ran.
+
+### Why a scattered brush can feel heavier than a plain one
+
+While you are drawing, the newest part of a stroke is provisional: the last few
+dabs can still shift very slightly as the next bit of your movement arrives, so
+Lightbox draws them again each time. For most brushes a shift that small is just
+a shift that small, and Lightbox stops redrawing a dab as soon as it has
+essentially stopped moving — which is worth a great deal at large sizes, where a
+single dab is expensive.
+
+For a brush with **scatter, or with size, flow, rotation, roundness or colour
+variation**, it cannot. Those effects are worked out from exactly where the dab
+landed, so a shift of a fraction of a pixel can move a dab somewhere else
+entirely, and the only safe answer is to redraw it. That brush will feel heavier
+than a plain one of the same size, and there is nothing wrong with it.
+
+**Help → Write a render report** says which of the two your brush got, under
+`stamping the dabs`.
+### Ink that is late, and ink that is lumpy
+
+These feel alike and are not the same thing, and it is worth being able to tell
+them apart before reporting one.
+
+**Late** means the mark trails your hand by a visible distance, but grows
+smoothly. **Lumpy** means each piece appears promptly and several pen-lengths of
+it appear at once — the line grows in steps instead of flowing.
+
+Your tablet reports its position far more often than the screen can show a new
+picture, so a little grouping is normal and unavoidable. Lightbox currently sends
+a new picture about every fifth report your pen makes, because each update joins
+a queue on its way out and a moving pen fills that queue faster than it drains.
+
+If a long fast stroke looks like it is being laid down in segments,
+**Help → Write a render report** says what is causing it. The `asked to publish`
+block counts every pen movement that did not produce a new picture and names what
+stopped it, and the line under it says outright which one is setting your rate.
+
+`LIGHTBOX_PUBLISH=inline` starts Lightbox with that queue taken out, so an update
+is made by the pen movement that asked for it. On the machine it was measured on
+the worst delay between a pen movement and the ink appearing went from **479 ms
+to 79**, and visible stuttering stopped.
+
+**It is off unless you set it, and one thing about it is still unfinished**: a
+burst of pen reports that arrive together makes Lightbox build one picture each
+instead of one for the lot, which is wasted work at exactly the moment there is
+least time for it. Use it if a fast stroke is what is bothering you, and know
+what it costs.
+
+It used to have a second problem — the smudge and the blender previewed slightly
+differently from the mark they saved — and that one is fixed. It turned out not
+to be about this setting at all: those brushes revise the part of the stroke just
+behind your pen, and Lightbox was only repainting the part in front of it. What
+you saved was always correct; only the preview was stale, by an amount too small
+to see.
+
 
 It names which parts of the drawing are done by your graphics card and which by
 the processor — and those are not the same question. The status strip says

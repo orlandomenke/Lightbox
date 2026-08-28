@@ -71,6 +71,13 @@ internal static class RenderReport
         (int Repaired, int Dropped)? FrameEdits = null,
         IReadOnlyList<string>? FrameDropCallers = null,
         (int Slow, int SlowWithMiss)? SlowBuilds = null,
+        (int Audited, int WithLoss, double WorstLossPercent, double LastLossPercent)? InkAudit = null,
+        DateTime LaunchedAt = default,
+        IReadOnlyList<(DateTime Began, double ToFirstInkMs, double LastedMs, int Points, int Dabs)>?
+            StrokeLog = null,
+        (double RestoreMs, double SettledMs, double BackupMs, double TailMs, double TailMpx,
+            double TailMpxP90, double ColourMs, double FootprintMs,
+            double FootprintScale, double SettleTolerance, double SettledEarly)? StampParts = null,
         IReadOnlyList<(double Ms, double AtSeconds, int Points, int Dabs, long Misses, double DescribeMs)>?
             SlowBuildLog = null,
         (double LostMs, double SessionMs)? StallCensus = null,
@@ -110,7 +117,9 @@ internal static class RenderReport
          double LateTotalMs, double LateWorstMs, int ByEvent)? Dam = null,
         (double CycleMedianMs, double CycleMeanMs, long Cycles,
          double ReleaseToPublishMedianMs, double ReleaseToPublishMeanMs,
-         double EventIntervalMedianMs, long Events)? Cycle = null,
+         double EventIntervalMedianMs, long Events,
+         int RefusedByDam, int RefusedByPost, int RefusedByBoth, int LetThrough,
+         double AskedMedianMs, double AskedMeanMs, double AskedWorstMs)? Cycle = null,
         (int Count, double TotalMs, double WorstMs, double MedianMs, bool MeanDistorted)? Compose = null,
         (double DescribeMs, double ComposeMs, double HandoffMs)? BuildPhases = null,
         (double TotalMs, double DescribeMs, double ComposeMs, double HandoffMs, long Misses,
@@ -498,6 +507,139 @@ internal static class RenderReport
             sb.AppendLine("     sit within a whisker of the typical one — so the render thread is");
             sb.AppendLine("     not busy, it is being held. That is a gate, not a queue, and the");
             sb.AppendLine("     stray fast one below is an outlier rather than a way through.");
+        }
+
+        sb.AppendLine();
+    }
+
+    /// <summary>
+    /// Which gate turned pen events away, so the cycle stops having three
+    /// explanations and no way to choose between them (B178).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The section this replaces could describe the cycle and not attribute
+    /// it.</b> On the owner's capture of 2026-08-28 it said a cycle was 5.2 pen
+    /// events long and the dam's own line offered two candidate reasons for its
+    /// 27%, in one breath, with nothing able to decide. Four events in five
+    /// produced no publish and no counter said which gate ate them.
+    /// </para>
+    /// <para>
+    /// <b>Refusals, not shares of a duration.</b> A duration split would have to
+    /// apportion overlapping waits and would invent precision; a count of which
+    /// gate said no is exact, and it is the thing that names the next fix.
+    /// </para>
+    /// </remarks>
+    private static void AppendWhoAteTheCycle(
+        StringBuilder sb,
+        (double CycleMedianMs, double CycleMeanMs, long Cycles,
+         double ReleaseToPublishMedianMs, double ReleaseToPublishMeanMs,
+         double EventIntervalMedianMs, long Events,
+         int RefusedByDam, int RefusedByPost, int RefusedByBoth, int LetThrough,
+         double AskedMedianMs, double AskedMeanMs, double AskedWorstMs) cyc)
+    {
+        var refused = cyc.RefusedByDam + cyc.RefusedByPost + cyc.RefusedByBoth;
+        var asked = refused + cyc.LetThrough;
+        if (asked == 0) return;
+
+        sb.AppendLine(
+            $"    asked to publish        {asked}   went out {cyc.LetThrough}   turned away {refused}");
+        sb.AppendLine(
+            $"      by the dam                        {cyc.RefusedByDam}");
+        sb.AppendLine(
+            $"      by a publish already posted       {cyc.RefusedByPost}   (the dam would have let these go)");
+        // **Printed only when it is not zero, because it should never not be.**
+        // The two gates cannot refuse the same request: the sequence number
+        // only advances inside PublishSnapshot, and the posted flag is already
+        // down by then, so a pending post always sees the same gap the dam saw
+        // when it let that post through. The counter stays because it is the
+        // cheapest possible tripwire on that reasoning — an assumption held by
+        // argument, with a number watching it.
+        if (cyc.RefusedByBoth > 0)
+        {
+            sb.AppendLine(
+                $"      by both at once                   {cyc.RefusedByBoth}");
+            sb.AppendLine("  !! that bucket is supposed to be unreachable — the two gates cannot");
+            sb.AppendLine("     refuse the same request unless the in-flight depth changed while a");
+            sb.AppendLine("     publish was posted. Something in the pacing moved; the split above");
+            sb.AppendLine("     is no longer a clean attribution. See B178.");
+        }
+        sb.AppendLine(
+            $"    asked -> published     median {cyc.AskedMedianMs,7:0.##} ms   mean {cyc.AskedMeanMs,7:0.##} ms   worst {cyc.AskedWorstMs,7:0.##} ms");
+        sb.AppendLine(
+            $"    the publish route      {Rendering.PublishRoute.Describe()}");
+
+        // **The verdict ranks the two gates against EACH OTHER, and only then
+        // against the events that got through.** The first version compared
+        // each gate to letThrough as well, and the owner's inline capture
+        // caught it out at once: 110 refusals by the dam against 0 by the post
+        // read as "the two gates are turning away comparable numbers", because
+        // 110 is not greater than 111. Those are two different questions —
+        // which gate is the constraint, and whether either is — and a verdict
+        // that mixes them can call a wholly one-sided split balanced.
+        var pacing = cyc.RefusedByDam + cyc.RefusedByBoth;
+        var post = cyc.RefusedByPost;
+        if (refused * 4 < asked)
+        {
+            sb.AppendLine("  >> NEITHER GATE is the constraint — almost every event that asked got");
+            sb.AppendLine("     a publish. The cycle is then the rate the pen is delivering at, and");
+            sb.AppendLine("     the chunkiness above is the tablet's own, not the application's.");
+        }
+        else if (post >= pacing * 2)
+        {
+            sb.AppendLine("  >> THE DISPATCHER is setting the rate, not the pacing. Most refused");
+            sb.AppendLine("     events were inside the in-flight depth and were turned away only");
+            sb.AppendLine("     because a publish was posted and had not run. That post sits at");
+            sb.AppendLine("     Input priority behind a continuous stream of pointer input, so it");
+            sb.AppendLine("     comes round about once a round trip. LIGHTBOX_PUBLISH=inline hands");
+            sb.AppendLine("     the pacing back to the dam; compare the two captures.");
+        }
+        else if (pacing >= post * 2)
+        {
+            sb.AppendLine("  >> THE PACING is setting the rate. Most refused events were over the");
+            sb.AppendLine("     in-flight depth, so the cycle is bounded by publish -> drawn and the");
+            sb.AppendLine("     depth above it. Read the floor section before raising the depth: if");
+            sb.AppendLine("     the draw is at the screen's floor then a deeper pipeline buys");
+            sb.AppendLine("     throughput at the price of latency, which is the wrong trade for a");
+            sb.AppendLine("     live stroke. LIGHTBOX_INFLIGHT is how that was settled before.");
+        }
+        else
+        {
+            // Named rather than shrugged at: "both" is a real answer and the
+            // larger half is still where the next fix goes. What it must not
+            // say is that removing that half fixes the cycle — the other gate
+            // is waiting behind it, which is precisely what the two arms of
+            // 2026-08-28 measured (28.84 ms to 22.12, not to a refresh).
+            var larger = post > pacing ? "the posted publish" : "the pacing";
+            sb.AppendLine(
+                $"  >> BOTH GATES BIND, and {larger} is the larger"
+                + $" ({Math.Max(post, pacing)} against {Math.Min(post, pacing)}).");
+            sb.AppendLine("     Removing it moves the cycle by roughly its share and no further,");
+            sb.AppendLine("     because the other is waiting behind it. Expect an improvement");
+            sb.AppendLine("     rather than a fix, and read this split again on the build that has");
+            sb.AppendLine("     it — the gate that was second becomes the whole answer.");
+        }
+
+        if (post > 0 && cyc.AskedMedianMs > cyc.CycleMedianMs / 2)
+        {
+            sb.AppendLine("     The post itself waits longer than half a cycle, which is the same");
+            sb.AppendLine("     finding measured a second way: the gap between asking and");
+            sb.AppendLine("     publishing IS most of the loop.");
+        }
+        else if (post > 0 && cyc.AskedWorstMs > cyc.CycleMedianMs * 4)
+        {
+            // **The median is the statistic that hides this one** — the mirror
+            // of the lesson Tally itself was written for. The owner's default
+            // arm posted a publish that waited 470.57 ms beside a median of
+            // 3.94: a typical post is prompt, a rare one is a stall, and only
+            // the rare one is felt. The check above reads the median and did
+            // not fire on the largest finding in that capture.
+            sb.AppendLine(
+                $"     The TYPICAL post is quick ({cyc.AskedMedianMs:0.##} ms) and a rare one stalls:");
+            sb.AppendLine(
+                $"     the worst waited {cyc.AskedWorstMs:0.##} ms, {cyc.AskedWorstMs / Math.Max(1e-9, cyc.CycleMedianMs):0.#} whole cycles. Nobody feels a median,");
+            sb.AppendLine("     and that tail is the ink stopping. It is invisible to every other");
+            sb.AppendLine("     line in this section.");
         }
 
         sb.AppendLine();
@@ -1159,6 +1301,62 @@ internal static class RenderReport
         }
 
         sb.AppendLine($"pointer events stamped    {s.Events}");
+        // **B332/B322: ink that was stamped and is not on screen.** Every other
+        // number in this file measures WHEN something happened; the owner
+        // reports ink DISAPPEARING, which no timer can see. `live tip drawn 505
+        // of 505` with zero stalls sat beside "the first dabs are visible but
+        // stop and disappear soon thereafter", and both were true.
+        if (facts.InkAudit is { Audited: > 0 } ink)
+        {
+            sb.AppendLine(
+                $"ink audit                 {ink.Audited} publishes checked,"
+                + $" {ink.WithLoss} with ink missing");
+            sb.AppendLine(
+                $"  worst missing           {ink.WorstLossPercent:0.#}% of the stamped ink"
+                + $"   (last {ink.LastLossPercent:0.#}%)");
+            if (ink.WorstLossPercent > 1)
+            {
+                sb.AppendLine(
+                    "  >> INK THAT WAS STAMPED IS NOT ON SCREEN. Not late — absent. A pass");
+                sb.AppendLine(
+                    "     writes only the band it processed and then records every dab below");
+                sb.AppendLine(
+                    "     it as done, so a dab whose pixels no band ever wrote is in neither");
+                sb.AppendLine(
+                    "     the body nor the tip. That is the mark vanishing while you draw.");
+            }
+            else
+            {
+                sb.AppendLine(
+                    "  >> Everything stamped is on screen, so what the artist sees is LATE");
+                sb.AppendLine(
+                    "     ink rather than absent ink. Read PEN -> SCREEN, not this.");
+            }
+        }
+        // **Wall clock, so a screen recording can be read beside this file.**
+        // Every other time here is measured from launch and a video has no idea
+        // when the application started. The owner recorded a session and could
+        // not tell which stroke on screen was which row in the report.
+        if (facts.StrokeLog is { Count: > 0 } strokes)
+        {
+            sb.AppendLine("  each stroke, by the clock:");
+            sb.AppendLine(
+                "      began        following      lasted    points     dabs");
+            foreach (var st in strokes)
+            {
+                var firstInk = st.ToFirstInkMs < 0 ? "  never" : $"{st.ToFirstInkMs,6:0} ms";
+                sb.AppendLine(
+                    $"    {st.Began:HH:mm:ss.fff}   {firstInk}   {st.LastedMs,7:0} ms"
+                    + $" {st.Points,9} {st.Dabs,8}");
+            }
+
+            sb.AppendLine(
+                "  >> Line these up with a screen recording: began is when the pen went");
+            sb.AppendLine(
+                "     down, following is how long before the mark started FOLLOWING it.");
+            sb.AppendLine(
+                "     The opening dab is published by BeginStroke itself and says nothing.");
+        }
         // B330: which of the numbers below cannot be quoted as costs. Each phase
         // is a latency distribution with stalls in it, and until these carried a
         // median the only honest reading was "some of this is a stall and you
@@ -1310,14 +1508,15 @@ internal static class RenderReport
                             sb.AppendLine(
                                 $"  the preview stopped {gaps.Count} times while the pen was down:");
                             sb.AppendLine(
-                                "         at    gap ms   points  outstanding  events  stamping   why");
+                                "     clock            at    gap ms   points  outstanding  events  stamping   why");
                             foreach (var g in gaps)
                             {
                                 var why = g.TipRefused
                                     ? (g.Missed ? "tip refused + cache miss" : "TIP REFUSED (frame was on time)")
                                     : g.Missed ? "cache miss" : "publish gapped";
                                 sb.AppendLine(
-                                    $"    {g.AtSeconds,7:0.#} s {g.Ms,9:0} {g.Points,8} {g.Outstanding,12}"
+                                    $"  {facts.LaunchedAt.AddSeconds(g.AtSeconds):HH:mm:ss.fff}"
+                                    + $" {g.AtSeconds,7:0.#} s {g.Ms,9:0} {g.Points,8} {g.Outstanding,12}"
                                     + $" {g.EventsInGap,7} {g.StampMs,9:0}   {why}");
                             }
 
@@ -1535,6 +1734,91 @@ internal static class RenderReport
         }
 
         sb.AppendLine($"  stamping the dabs       median {s.Stamp.MedianMs,7:0.##} ms   mean {s.Stamp.MeanMs,7:0.##} ms   worst {s.Stamp.WorstMs,7:0.##} ms");
+        // **B189: what an event's stamp is MADE of.** The dab count is bounded —
+        // B321 pinned the provisional tail at 2.0 events at every pen speed — but
+        // an event also performs three bitmap copies over the tail RECTANGLE,
+        // which spans the distance the pen covered in those two events. That is
+        // area work that grows with speed while the dab count does not, and it
+        // is invisible to every dab-based number above.
+        if (facts.StampParts is { } sp)
+        {
+            var whole = sp.RestoreMs + sp.SettledMs + sp.BackupMs + sp.TailMs;
+            sb.AppendLine(
+                $"    restoring the tail    median {sp.RestoreMs,7:0.##} ms   (copy back what was on loan)");
+            sb.AppendLine(
+                $"    stamping the settled  median {sp.SettledMs,7:0.##} ms   (dabs that stopped moving)");
+            sb.AppendLine(
+                $"    backing up the tail   median {sp.BackupMs,7:0.##} ms   (copy out, for the next event)");
+            sb.AppendLine(
+                $"    stamping the tail     median {sp.TailMs,7:0.##} ms   (the dabs on loan)");
+            sb.AppendLine(
+                $"    the tail rectangle    median {sp.TailMpx,7:0.###} Mpx   p90 {sp.TailMpxP90,7:0.###} Mpx");
+            // **Every dab is walked twice.** Colour into the scratch, footprint
+            // into the coverage buffer, both document-sized. Split because the
+            // per-dab figure above has always included both.
+            sb.AppendLine(
+                $"    of which colour       median {sp.ColourMs,7:0.##} ms   and footprint {sp.FootprintMs,7:0.##} ms"
+                + $"   (the same dabs, walked twice)");
+            sb.AppendLine(
+                $"    the footprint went    into {Rendering.LiveFootprintScale.Describe(sp.FootprintScale)}");
+
+            // **B189: which settle rule the brush under the pen actually got.**
+            // Printed here rather than left to be inferred from the provisional
+            // count, because two captures once ran the same arm and agreed with
+            // each other, and nothing in the file said so.
+            if (sp.SettleTolerance > 0)
+            {
+                sb.AppendLine(
+                    $"    dabs settled early    median {sp.SettledEarly,7:0.#}"
+                    + $"   (within {sp.SettleTolerance:0.##} px of where they already were)");
+                sb.AppendLine(
+                    "  >> Those are dabs the EXACT rule would have taken back and drawn again");
+                sb.AppendLine(
+                    "     this event. Densify looks one point ahead, so a dab is final once the");
+                sb.AppendLine(
+                    "     next point arrives — the exact rule needs one more event to notice.");
+            }
+            else
+            {
+                sb.AppendLine(
+                    "    settling              the EXACT rule — this brush has a dynamic seeded");
+                sb.AppendLine(
+                    "                          from dab position, so nothing may settle early (B45)");
+            }
+            var twoWalks = sp.ColourMs + sp.FootprintMs;
+            if (twoWalks > 0 && sp.FootprintMs > 0)
+            {
+                var share = sp.FootprintMs / twoWalks * 100;
+                sb.AppendLine(
+                    $"  >> The footprint is {share:0}% of the dab work. It is a running maximum kept");
+                sb.AppendLine(
+                    share > 35
+                        ? "     so a soft brush can be capped to it, and at this share it is the"
+                        : "     so a soft brush can be capped to it, and at this share it is NOT");
+                sb.AppendLine(
+                    share > 35
+                        ? "     lever for B189 rather than the brush or the canvas size."
+                        : "     where B189's cost is. Look at the colour stamp instead.");
+            }
+            if (whole > 0)
+            {
+                var copies = (sp.RestoreMs + sp.BackupMs) / whole * 100;
+                sb.AppendLine(
+                    $"  >> {copies:0}% of an event's stamp is COPYING the tail rectangle, not stamping dabs.");
+                sb.AppendLine(copies > 40
+                    ? "     That cost is an AREA and the rectangle spans two events of pen travel,"
+                    : "     The dabs are the cost here, so the tail copies are not the lever.");
+                if (copies > 40)
+                {
+                    sb.AppendLine(
+                        "     so it grows with SPEED while the dab count does not. That is why a");
+                    sb.AppendLine(
+                        "     long fast stroke stalls and a short one does not, and no dab-based");
+                    sb.AppendLine(
+                        "     number in this file can see it. B189.");
+                }
+            }
+        }
         // **What that one number is made of** (B322 attempt 6). A mean cannot
         // show that a cost is proportional to something, which is exactly the
         // blindness that let the fourth attempt restamp the whole stroke per
@@ -1709,6 +1993,8 @@ internal static class RenderReport
                     sb.AppendLine(
                         "     any of the latencies above it.");
                 }
+
+                AppendWhoAteTheCycle(sb, cyc);
             }
             sb.AppendLine($"  event -> publish        median {s.WaitToPublish.MedianMs,7:0.##} ms   mean {s.WaitToPublish.MeanMs,7:0.##} ms   worst {s.WaitToPublish.WorstMs,7:0.##} ms");
             sb.AppendLine($"    newest event          median {s.TipToPublish.MedianMs,7:0.##} ms   mean {s.TipToPublish.MeanMs,7:0.##} ms   worst {s.TipToPublish.WorstMs,7:0.##} ms");
@@ -2464,6 +2750,21 @@ internal static class RenderReport
             $"live tip stamped at       {(Rendering.LiveTipScale.PreviewScale ? "preview resolution" : "document resolution")}"
             + $"   ({Rendering.LiveTipScale.Variable}"
             + $"{(Rendering.LiveTipScale.PreviewScale ? "=preview" : " unset — the default")})");
+        // The same launch-time fact for the OTHER buffer that follows the
+        // compose scale (B189). Default on, which is the opposite of the tip's
+        // default, so the line says which rather than leaving it to be inferred
+        // from the absence of a variable.
+        sb.AppendLine(
+            "live footprint at         "
+            + (Rendering.LiveFootprintScale.FollowsPreview
+                ? "preview resolution   (the default — set "
+                    + Rendering.LiveFootprintScale.Variable + "=full to pin it)"
+                : "document resolution   (" + Rendering.LiveFootprintScale.Variable + "=full)"));
+        // Same reason, same lesson (B178). The publish route is fixed for the
+        // process too, and the cycle block that would otherwise name it needs
+        // five publishes before it prints anything at all.
+        sb.AppendLine(
+            $"publishes go out          {Rendering.PublishRoute.Describe()}");
         if (facts.GpuSurfaceRequestFailed)
         {
             sb.AppendLine("  !! a GPU surface was asked for and could not be created, so the");
