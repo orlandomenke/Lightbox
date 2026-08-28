@@ -62,6 +62,29 @@ detaches to a single drawing rather than to its cycle. That stays true until the
 stack lands; it is a separate question whether detaching a cycle should produce
 cels.
 
+## The guard, which landed first
+
+The stack is L–XL and the corruption was live, so the guard went in ahead of it
+(2026-08-28) in two halves:
+
+- **`AddLayer` refuses in a symbol tab** and says why. This is the door an
+  artist actually walks through.
+- **`SyncEditedSymbol` reads one layer by id**, `DocumentTab.SymbolLayerId`,
+  instead of `SelectMany`-ing every layer's cels into the frame list. Refusing
+  the gesture is not the same as making the fold impossible — a paste inserts a
+  layer too — so the sink is closed as well as the door.
+
+**By id, not index 0**, and that is the part that would have been got wrong: a
+paste inserts at the *active* index, so reading `Layers[0]` would have made the
+pasted work the symbol and the artist's drawing an extra frame of it. Ids
+survive undo where references do not, because `Layer.Clone` is a
+`MemberwiseClone`.
+
+Both halves come out when the stack lands. The import path — placing a cycle,
+which expands the timeline via `AppendFrame` — is untouched and keeps its own
+test, because that is the other axis and the one the stack will eventually
+travel on.
+
 ## Not in this answer
 
 - **Nesting.** The type has always allowed it and the loader refuses it. A

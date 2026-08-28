@@ -390,6 +390,9 @@ public sealed partial class MainViewModel
         {
             Kind = DocumentTabKind.Symbol,
             Symbol = symbol,
+            // Which layer is the symbol, so the sync never has to guess. See
+            // DocumentTab.SymbolLayerId for why index 0 is not good enough.
+            SymbolLayerId = layer.Id,
         });
     }
 
@@ -422,13 +425,37 @@ public sealed partial class MainViewModel
     /// </remarks>
     private void SyncEditedSymbol()
     {
-        if (ActiveTab is not { Kind: DocumentTabKind.Symbol, Symbol: { } symbol }) return;
-        var frames = Doc.Scene.Layers
-            .SelectMany(l => l.Cels)
-            .Select(c => c.Frame)
-            .OfType<Frame>()
-            .ToList();
+        if (ActiveTab is not { Kind: DocumentTabKind.Symbol, Symbol: { } symbol } tab) return;
+
+        // One layer, by id — never `SelectMany` over all of them.
+        //
+        // It used to read every layer's cels into one flat list, and a symbol's
+        // frame list is *time*: a second layer in this tab therefore became
+        // extra frames of the animation rather than a stack. A lines layer and
+        // a colour layer went in and came out as frames 1 and 2, silently, for
+        // every placement of the symbol in the project. Adding a layer here is
+        // refused now (see AddLayer), but refusing the gesture is not the same
+        // as making the fold impossible — a paste is another door, and so is
+        // the next feature nobody has written yet. This is the sink, so this is
+        // where it is closed.
+        //
+        // Q171 takes the Flash model: when a symbol owns a layer stack, the
+        // whole of this reads that stack instead, and the guard comes out.
+        var layers = Doc.Scene.Layers;
+        var own = layers.FirstOrDefault(l => l.Id == tab.SymbolLayerId) ?? layers.FirstOrDefault();
+        if (own is null) return;
+
+        var frames = own.Cels.Select(c => c.Frame).OfType<Frame>().ToList();
         if (frames.Count == 0) return;
+
+        if (layers.Count > 1)
+        {
+            // Said rather than swallowed. The drawing is still there in the tab
+            // for the artist to merge down or move; what it is not is part of
+            // the symbol, and finding that out at reload would be worse.
+            AiStatus = $"Only “{own.Name}” is saved into this symbol — a symbol holds one layer. "
+                + "Merge the others down to keep them.";
+        }
 
         symbol.Frames = frames;
         symbol.Fps = Doc.Scene.Fps;

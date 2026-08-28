@@ -956,8 +956,20 @@ one is a **defect, not a limit**: nothing guards `AddLayer` in a symbol tab, so
 a lines layer and a colour layer are folded into the frame list and become
 frames 1 and 2 of an animation. Measured at `afba7436` — one frame and one
 layer in, two frames out. Q171 takes the Flash model (a symbol carries its own
-layers, detaching rebuilds the stack) over flattening-with-a-warning, and the
-guard is owed before the stack is.
+layers, detaching rebuilds the stack) over flattening-with-a-warning.
+
+**The guard landed 2026-08-28, ahead of the stack.** Two halves, because
+refusing the gesture is not the same as making the fold impossible: `AddLayer`
+refuses in a symbol tab and says why, and `SyncEditedSymbol` reads **one layer
+by id** — `DocumentTab.SymbolLayerId` — instead of `SelectMany`-ing over all of
+them. The id rather than index 0 is the part worth keeping: a paste inserts at
+the active index, so index 0 would have made the pasted work the symbol and the
+artist's drawing an extra frame of it, which is the same corruption wearing a
+different hat. A layer arriving by any other door is now reported and left out
+rather than folded in. Both halves come out when the stack lands; the import
+path is untouched and keeps its own test
+(`ImportingACycleStillLandsItAcrossTheTimeline`), because expanding the
+timeline is the other axis and is where the stack will eventually arrive.
 
 Still open, and deliberately: symbols containing symbols. The two items below
 are **not** unstarted — they are undecided, and the decision is in
