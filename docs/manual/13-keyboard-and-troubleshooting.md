@@ -674,13 +674,18 @@ is made by the pen movement that asked for it. On the machine it was measured on
 the worst delay between a pen movement and the ink appearing went from **479 ms
 to 79**, and visible stuttering stopped.
 
-**It is off unless you set it, and it is not finished.** Two things it currently
-gets wrong: a burst of pen reports that arrive together makes Lightbox build one
-picture each instead of one for the lot, which is wasted work exactly when there
-is least time for it; and a brush that samples what is underneath it — the smudge
-and the blender — previews slightly differently from the mark it finally saves.
-Dry brushes are unaffected. Use it if a fast stroke is what is bothering you, and
-know what it costs.
+**It is off unless you set it, and one thing about it is still unfinished**: a
+burst of pen reports that arrive together makes Lightbox build one picture each
+instead of one for the lot, which is wasted work at exactly the moment there is
+least time for it. Use it if a fast stroke is what is bothering you, and know
+what it costs.
+
+It used to have a second problem — the smudge and the blender previewed slightly
+differently from the mark they saved — and that one is fixed. It turned out not
+to be about this setting at all: those brushes revise the part of the stroke just
+behind your pen, and Lightbox was only repainting the part in front of it. What
+you saved was always correct; only the preview was stale, by an amount too small
+to see.
 
 
 It names which parts of the drawing are done by your graphics card and which by

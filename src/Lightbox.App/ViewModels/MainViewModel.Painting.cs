@@ -1603,6 +1603,14 @@ public partial class MainViewModel
     /// </summary>
     internal (int Settled, int Total) LiveDabCutForTests => (_live.StableDabs, _live.DabCount);
 
+    /// <summary>
+    /// The effect brushes' working surface, for B337: whether publishing a
+    /// frame leaves it as it found it. A read-only seam — the same shape as the
+    /// dab counters above, and for the same reason, which is that the question
+    /// cannot be asked from outside without one.
+    /// </summary>
+    internal SKBitmap? LiveCompositeForTests => _live.Composite;
+
     /// <param name="eraseWithCurrentBrush">
     /// Alt was held. The stroke erases but keeps the brush's own size, shape
     /// and dynamics — unlike switching to the eraser, which brings its own.
@@ -2133,6 +2141,14 @@ public partial class MainViewModel
         //    so drawing all of it would scale a bigger image into a smaller rect.
         if (_live.SmudgeRegion is { } lent && _live.SmudgeBackup is not null)
         {
+            // **B337: what this rewrites has to be repainted, and it is behind
+            // the pen.** The caller marks only the new segment dirty, which is
+            // right for a brush that lays ink forward and wrong for one that
+            // takes its own tail back — those pixels change on the composite
+            // and, unmarked, the compositor keeps showing the previous ones.
+            // Invisible until publishes happen more than once per stroke, which
+            // is why it survived from B69/B89 to here.
+            _publish.MarkDirty(lent);
             using var restore = SKImage.FromBitmap(_live.SmudgeBackup);
             using var src = new SKPaint { BlendMode = SKBlendMode.Src };
             canvas.DrawImage(
@@ -2142,6 +2158,15 @@ public partial class MainViewModel
                 src);
             canvas.Flush();
             _live.SmudgeRegion = null;
+        }
+
+        // Everything this event will re-stamp: the dabs the settled cut is about
+        // to absorb, and the tail lent out after them. Taken from the PREVIOUS
+        // settled cut, which is still what _live.EffectSettled holds here — the
+        // caller advances it after this returns.
+        if (BrushEngine.RangeBounds(dabs, _live.EffectSettled, live.Brush, info) is { } rewritten)
+        {
+            _publish.MarkDirty(rewritten);
         }
 
         // 2. Everything whose position has stopped moving, permanently — and the carry it ends on
