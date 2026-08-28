@@ -220,10 +220,15 @@ note, `docs/DESIGN-symbol-layers.md`, because the record change is as large as
 the one this document settled.
 
 The short of it: `Symbol.Layers` replaces `Symbol.Frames`, reusing the
-document's own `Layer` rather than a narrower one; the loader refuses the
-eleven layer properties whose rendering lives in `Lightbox.App` and therefore
-out of `SymbolRasterizer`'s reach; and only `Render` changes in the render
-pass, so the placed-twice-is-pixel-identical promise below is untouched.
+document's own `Layer` rather than a narrower one; the **compositor moves down
+into `Lightbox.Raster`** so a symbol's layers render through the same pass the
+canvas and the exporter use; and only `Render` changes in the symbol pass, so
+the placed-twice-is-pixel-identical promise below is untouched.
+
+The move was costed by compiling it rather than by reading it: all 2,856 lines
+of the compositor build inside Raster with three errors, and all three are
+`Services.*` policy calls — a memory budget and a diagnostic note — none of them
+rendering.
 
 ## Animated symbols as a reference underlay
 

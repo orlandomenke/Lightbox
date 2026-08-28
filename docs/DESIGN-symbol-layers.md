@@ -72,17 +72,25 @@ would be a type rather than a reason.
 So the type is shared, and **what a symbol layer may carry is decided by the
 loader, not by the record** — which is exactly how nesting is already handled.
 
-### What a symbol layer may carry, in the first cut
+### What a symbol layer may carry
 
-Allowed: `Name`, `Visible`, `Opacity`, `BlendMode`, `Cels`, `Locked`,
-`AlphaLocked`, `OnionEnabled`.
+**Everything the compositor can render**, which after the move in the next
+section means opacity, blend mode, visibility, masks, live effects, clipping to
+the layer below, and adjustment layers. A head keeps its lines, its colour, its
+shading and its *live* effect layers, and all of it travels with the symbol.
 
-**Refused at load, loudly:** `Mask`, `Effects`, `Adjusts`, `ClipToBelow`,
-`Depth`, `BoneId`, `SimId`, `GroupId`, `LinkId`, `IsBackground`,
-`OmitFromExport`.
+Four are still refused at load, and each for a reason that is not about
+rendering:
 
-This is not squeamishness, it is the next section: those eleven are exactly the
-properties whose rendering lives somewhere `SymbolRasterizer` cannot reach.
+| Refused | Why |
+| --- | --- |
+| `BoneId` | A rigged symbol placed twice is two poses of one armature, and the record has no way to say that. Its own question, much larger than this one. |
+| `SimId` | A simulation is a thing that runs over a timeline; a symbol placed with a frame offset would need two of them out of step. Same shape of problem as bones. |
+| `GroupId`, `LinkId` | Both name something in the *document's* layer list. Inside a symbol they would point at nothing, and a dangling id that renders fine is worse than a refusal. |
+| `IsBackground`, `OmitFromExport` | Both are statements about a document's output, and a symbol is not a document. `OmitFromExport` inside a symbol has no meaning that is not already the layer's visibility. |
+
+`Depth` is the one genuinely open question and it is deferred rather than
+refused — see *Not in this cut*.
 
 ---
 
@@ -104,26 +112,89 @@ And symbol rendering genuinely has to work from inside Raster:
 `FrameRasterizer.StampPlacements` calls `SymbolRasterizer`, so moving symbol
 rasterization up into App is not available.
 
-Three ways out, and the choice matters more than it looks:
+### The measurement that settled it
 
-| | What it costs |
+The first draft of this note recommended *restricting what a symbol layer
+carries* so compositing could stay in Raster, and costed "move the compositor
+down" as **its own project**. Both were wrong, and the owner's answer to the
+question the draft raised is what forced the check: the effect layers in a head
+are **live** effects, not hand-painted ones, so a symbol that cannot hold one is
+a symbol that cannot hold the artwork this feature exists for.
+
+So the cost of moving was measured rather than guessed. Every file the
+compositor needs was compiled *inside* `Lightbox.Raster` as a spike:
+
+| File | Lines |
 | --- | --- |
-| **Restrict what a symbol layer carries, composite in Raster** (recommended) | Opacity and blend mode are Skia, which Raster already has. One rendering path, no new seam. The price is that effects, masks and adjustment layers do not work *inside* a symbol in this cut. |
-| Invert it: an interface in Core, App supplies the compositor | The `IPixelResampler` pattern, which this codebase already uses for exactly this shape of problem. But a symbol rendered with no compositor registered — a Raster unit test, the MCP server — needs a fallback, and a fallback *is* a second rendering path. Two paths that are supposed to agree and are only checked when someone remembers. |
-| Move the compositor down into Raster | The honest long-term answer and much the largest. `EffectPasses` and `LayerShapes` reach into scene-level state; pulling them down is its own project with its own design note. |
+| `SceneRenderer` | 1102 |
+| `FrameBitmapCache` | 646 |
+| `GpuComposite` | 331 |
+| `GpuComposeProbe` | 263 |
+| `LayerTextureCache` | 208 |
+| `LayerShapes` | 124 |
+| `CameraTransform` | 101 |
+| `EffectPasses` | 81 |
+| **Total** | **2,856** |
 
-**Take the first.** It buys the whole feature the question asked for — lines,
-colour, shading and effects *as separate layers* — and defers only the ability to
-put a live blur inside a symbol, which nobody has asked for. It also leaves the
-second and third options open: the restriction is a loader rule, so lifting it
-later changes no stored file.
+**All 2,856 lines compile inside Raster with exactly three errors, and all three
+are the same thing:**
 
-The failure to avoid is the second option's fallback. This application has one
-pixel path on purpose.
+```
+FrameBitmapCache.cs:20    Services.MemoryBudget.FrameCache()
+LayerTextureCache.cs:83   Services.MemoryBudget.LayerTextures()
+GpuComposeProbe.cs:145    Services.DiagnosticLog.WriteNote(…)
+```
 
----
+Not one of them is rendering. Two are the **default value of a settable
+property** — how much memory to spend — and the third is where to write a
+diagnostic note. `GpuComposite` turns out to depend on `SkiaSharp` alone, with
+no Avalonia anywhere; `CameraTransform` is Core plus Skia; the two references to
+`LiveTipPlan` and `MainViewModel` in `SceneRenderer` are **in doc comments**.
+
+The compositor is not in App because it belongs there. It is in App because
+that is where it was written.
+
+### The decision
+
+**Move the compositor down into `Lightbox.Raster`,** and invert the three policy
+calls:
+
+- `FrameBitmapCache.ByteBudget` and `LayerTextureCache.BudgetBytes` already are
+  `{ get; set; }`. Raster carries a conservative default; App sets the measured
+  one at startup. This is the `IPixelResampler` shape — Core or Raster declares
+  what it needs, the layer that knows the machine supplies it — and it is one
+  line each.
+- `GpuComposeProbe`'s note becomes a nullable sink that App wires to
+  `DiagnosticLog`. A diagnostic that is absent writes nothing, which is already
+  what `DiagnosticLog`'s own contract promises: *nothing here throws, a log that
+  can break the application is worse than no log.*
+
+What this buys, beyond symbols: `SpriteSheetExporter.ComposeFrame` stops being a
+private reimplementation of compositing in the App project, and the export path,
+the canvas path and the symbol path all reach the same one.
+
+**The two rejected options, kept because the reasons are still true:**
+
+| | Why not |
+| --- | --- |
+| Restrict what a symbol layer carries | It was the first draft's recommendation and the owner's answer killed it: live effect layers inside a symbol are the *point*, not a nice-to-have. Restricting would have shipped a feature that could not hold the artwork it was built for. |
+| Invert with an interface, App supplies the compositor | A symbol rendered with no compositor registered — a Raster unit test, the MCP server — needs a fallback, and a fallback **is** a second rendering path. Two paths that are supposed to agree and are only checked when someone remembers. This application has one pixel path on purpose. |
+
+### What this does not license
+
+The move is **mechanical and must stay mechanical**. It is a file move, a
+namespace change, three inversions, and the `using` lines that follow — no
+behaviour change, no tidying, no "while I am here". Compositing is the most
+load-bearing code in the application and the whole argument for moving it is
+that nothing about it changes.
+
+The guard on that is the existing suite: `SpriteSheetExportTests`, the effect
+compose-cost tests and the render tests all exercise this code and none of them
+should need editing. **If a test needs its expectations changed, the move stopped
+being mechanical and should be stopped and re-read.**
 
 ## Rendering, which is smaller than it looks
+
 
 `SymbolRasterizer` already funnels every placement through one method:
 
@@ -286,9 +357,15 @@ Round-trip and absence tests. **No rendering, no UI** — every existing symbol
 still renders through the old path because a one-layer stack is what it already
 was.
 
-**L2 — the loader's restriction.** The eleven refused properties, refused
-loudly, with the reason in the message. Cheap, and it has to precede L3 or L3
-silently renders a mask as nothing.
+**L2 — the compositor moves down.** The eight files into `Lightbox.Raster`, the
+three policy calls inverted, `SpriteSheetExporter.ComposeFrame` rewired to the
+moved one. **Mechanical, and the guard is that no existing test changes its
+expectations** — if one does, stop and re-read. Then the four refused properties
+above, refused loudly at load, with the reason in the message.
+
+This is the step with the risk in it, and it is worth doing on its own branch
+with the whole suite green before L3 starts. It touches nothing about symbols;
+it is the thing that makes L3 possible.
 
 **L3 — the render pass.** `Render` composites the stack in symbol space.
 `SymbolRenderTests`' placed-twice-is-identical test passes **unchanged**, and a
@@ -320,11 +397,14 @@ file still means the same thing.
 - **Nesting.** A symbol containing a placement of another symbol is still
   refused by the loader. A layer stack does not change the cycle check, the
   depth limit or the dependency graph, and those are still the reason.
-- **Effects, masks and adjustment layers inside a symbol.** The loader refuses
-  them, and lifting that is the compositor-in-Raster project.
-- **Rigging a symbol's layers.** `BoneId` is refused for the same reason, and it
-  is a much larger question — a rigged symbol placed twice is two poses of one
-  armature, which the record has no way to say.
+- **Rigging a symbol's layers.** `BoneId` is refused: a rigged symbol placed
+  twice is two poses of one armature, and the record has no way to say that.
+  Its own question.
+- **`Depth` inside a symbol.** Multiplane depth is a property of a *scene's*
+  camera, and a symbol has no camera. Whether a placed symbol's internal depths
+  should compose with the placing document's is a real question with no obvious
+  answer, so it is refused for now and marked as the one to revisit — unlike
+  the other three, refusing it is a guess rather than a reason.
 - **Detaching a cycle into cels.** A different axis from detaching a drawing.
 
 ---
@@ -338,8 +418,15 @@ L4, rather than adding a special case to the engine. Determinism outranks this
 feature, and it outranked the pillar that introduced symbols too: that is the
 clause that killed the original S3 and produced the better answer.
 
-The second thing that would change it: if the eleven refused properties turn out
-to include one an artist reaches for immediately — a mask is the candidate —
-then the restriction is buying less than it costs, and the `IPixelResampler`
-inversion becomes worth its fallback risk. That is a question to answer with a
-real complaint, not in advance.
+The second thing that would change it is L2. The spike says the compositor moves
+with three inversions and no behaviour change, and a spike is a compile, not a
+test run. **If moving it makes any existing test change its expectations, the
+move is not mechanical after all** — and then the honest answer is to stop,
+because "restrict what a symbol can hold" is still available and is a smaller
+thing to be wrong about than compositing.
+
+This note has already been wrong once in exactly that direction: the first draft
+recommended the restriction and costed the move as its own project, on a guess.
+The measurement took twenty minutes and reversed it. The lesson is cheap to
+state and was not free to learn — *this repository costs its refactors by
+compiling them, not by looking at them.*
