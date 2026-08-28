@@ -498,6 +498,14 @@ code the click runs — same tolerance, same gap setting, same smart-fill
 sampling — so the click gives you exactly the tinted region, never a surprise.
 Moving inside a region costs nothing (the answer cannot change until you cross
 its edge); the trace runs in the background, so a fast hand never waits on it.
+**Change tolerance, gap, overfill or smart fill and the outline re-traces where
+you are standing**, rather than waiting for you to cross into somewhere else —
+the point of the preview is that the control beside it and the shape under your
+pointer agree.
+
+**What the trace costs follows the region, not the page.** Hovering a small
+enclosed area is quick whatever size the canvas is; a fill that covers half the
+drawing takes longer, because there is more of it.
 The magic wand previews the same way, as a faint, still dashed outline —
 dashes mean selection, and it stays faint and still so it cannot be mistaken
 for one you have already made.
