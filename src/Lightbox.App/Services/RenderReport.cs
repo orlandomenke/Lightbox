@@ -71,6 +71,7 @@ internal static class RenderReport
         (int Repaired, int Dropped)? FrameEdits = null,
         IReadOnlyList<string>? FrameDropCallers = null,
         (int Slow, int SlowWithMiss)? SlowBuilds = null,
+        (int Audited, int WithLoss, double WorstLossPercent, double LastLossPercent)? InkAudit = null,
         DateTime LaunchedAt = default,
         IReadOnlyList<(DateTime Began, double ToFirstInkMs, double LastedMs, int Points, int Dabs)>?
             StrokeLog = null,
@@ -1164,6 +1165,38 @@ internal static class RenderReport
         }
 
         sb.AppendLine($"pointer events stamped    {s.Events}");
+        // **B332/B322: ink that was stamped and is not on screen.** Every other
+        // number in this file measures WHEN something happened; the owner
+        // reports ink DISAPPEARING, which no timer can see. `live tip drawn 505
+        // of 505` with zero stalls sat beside "the first dabs are visible but
+        // stop and disappear soon thereafter", and both were true.
+        if (facts.InkAudit is { Audited: > 0 } ink)
+        {
+            sb.AppendLine(
+                $"ink audit                 {ink.Audited} publishes checked,"
+                + $" {ink.WithLoss} with ink missing");
+            sb.AppendLine(
+                $"  worst missing           {ink.WorstLossPercent:0.#}% of the stamped ink"
+                + $"   (last {ink.LastLossPercent:0.#}%)");
+            if (ink.WorstLossPercent > 1)
+            {
+                sb.AppendLine(
+                    "  >> INK THAT WAS STAMPED IS NOT ON SCREEN. Not late — absent. A pass");
+                sb.AppendLine(
+                    "     writes only the band it processed and then records every dab below");
+                sb.AppendLine(
+                    "     it as done, so a dab whose pixels no band ever wrote is in neither");
+                sb.AppendLine(
+                    "     the body nor the tip. That is the mark vanishing while you draw.");
+            }
+            else
+            {
+                sb.AppendLine(
+                    "  >> Everything stamped is on screen, so what the artist sees is LATE");
+                sb.AppendLine(
+                    "     ink rather than absent ink. Read PEN -> SCREEN, not this.");
+            }
+        }
         // **Wall clock, so a screen recording can be read beside this file.**
         // Every other time here is measured from launch and a video has no idea
         // when the application started. The owner recorded a session and could

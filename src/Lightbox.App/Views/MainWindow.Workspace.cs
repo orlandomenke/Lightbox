@@ -328,6 +328,7 @@ public partial class MainWindow
             (_vm.FrameRegionRepaints, _vm.FrameRenderDrops),
             _vm.FrameDropCallers,
             _vm.SlowBuilds,
+            _vm.InkAuditResult,
             ViewModels.MainViewModel.AppStartedAt,
             _vm.StrokeLog,
             (_vm.StampRestoreMs.MedianMs, _vm.StampSettledMs.MedianMs, _vm.StampBackupMs.MedianMs,
