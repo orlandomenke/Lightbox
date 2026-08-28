@@ -71,7 +71,12 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         Lightbox.App.Rendering.StrokeToScreen.Stats? strokeWait = null,
         (int Deferrals, int ByPresent, int ByTimer, int HoldsTimed,
          double HeldTotalMs, double HeldWorstMs,
-         double LateTotalMs, double LateWorstMs, int ByEvent)? dam = null) =>
+         double LateTotalMs, double LateWorstMs, int ByEvent)? dam = null,
+        (double CycleMedianMs, double CycleMeanMs, long Cycles,
+         double ReleaseToPublishMedianMs, double ReleaseToPublishMeanMs,
+         double EventIntervalMedianMs, long Events,
+         int RefusedByDam, int RefusedByPost, int RefusedByBoth, int LetThrough,
+         double AskedMedianMs, double AskedMeanMs, double AskedWorstMs)? cycle = null) =>
         new(backend, backend != "GPU", onGpu, gpuFailed, maxTexture,
             docWidth, docHeight, 1.0, "Full", 1.0, durableEnabled, hasPresented,
             Pacing: pacing, PresentWait: presentWait,
@@ -80,7 +85,7 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
             TextureResidency: textureResidency, GpuCompositeOptedIn: gpuCompositeOptedIn,
             AwaitingUnpin: awaitingUnpin, Pinned: pinned,
             PublishesByCaller: publishesByCaller,
-            StrokeWait: strokeWait, Dam: dam);
+            StrokeWait: strokeWait, Dam: dam, Cycle: cycle);
 
     /// <summary>
     /// The four states behind one boolean, and the reason this test exists: the

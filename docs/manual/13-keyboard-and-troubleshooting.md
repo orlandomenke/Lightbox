@@ -650,6 +650,37 @@ than a plain one of the same size, and there is nothing wrong with it.
 
 **Help → Write a render report** says which of the two your brush got, under
 `stamping the dabs`.
+### Ink that is late, and ink that is lumpy
+
+These feel alike and are not the same thing, and it is worth being able to tell
+them apart before reporting one.
+
+**Late** means the mark trails your hand by a visible distance, but grows
+smoothly. **Lumpy** means each piece appears promptly and several pen-lengths of
+it appear at once — the line grows in steps instead of flowing.
+
+Your tablet reports its position far more often than the screen can show a new
+picture, so a little grouping is normal and unavoidable. Lightbox currently sends
+a new picture about every fifth report your pen makes, because each update joins
+a queue on its way out and a moving pen fills that queue faster than it drains.
+
+If a long fast stroke looks like it is being laid down in segments,
+**Help → Write a render report** says what is causing it. The `asked to publish`
+block counts every pen movement that did not produce a new picture and names what
+stopped it, and the line under it says outright which one is setting your rate.
+
+`LIGHTBOX_PUBLISH=inline` starts Lightbox with that queue taken out, so an update
+is made by the pen movement that asked for it. On the machine it was measured on
+the worst delay between a pen movement and the ink appearing went from **479 ms
+to 79**, and visible stuttering stopped.
+
+**It is off unless you set it, and it is not finished.** Two things it currently
+gets wrong: a burst of pen reports that arrive together makes Lightbox build one
+picture each instead of one for the lot, which is wasted work exactly when there
+is least time for it; and a brush that samples what is underneath it — the smudge
+and the blender — previews slightly differently from the mark it finally saves.
+Dry brushes are unaffected. Use it if a fast stroke is what is bothering you, and
+know what it costs.
 
 
 It names which parts of the drawing are done by your graphics card and which by

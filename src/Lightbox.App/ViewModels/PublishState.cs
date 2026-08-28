@@ -269,6 +269,34 @@ sealed class PublishState
     }
 
     /// <summary>
+    /// Would the in-flight depth have held this publish, asked without any of
+    /// the deferral bookkeeping (B178)?
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// For attribution only, and deliberately partial: it asks the depth
+    /// question and <em>not</em> the liveness one. A request refused because a
+    /// publish is already posted has not started a deferral, so there is no
+    /// 250 ms clock running for it to be measured against — and answering
+    /// "the dam would have let it through" on the strength of an expired
+    /// backstop would credit the dispatcher with a request the pacing had
+    /// genuinely queued.
+    /// </para>
+    /// <para>
+    /// <see cref="AdoptRenderedSeq"/> first, for the reason
+    /// <see cref="CanvasIsBehind"/> does: the canvas may have drawn the frame
+    /// and not yet had a dispatcher turn to say so, and counting that as the
+    /// pacing holding would be the very misattribution B321 fixed.
+    /// </para>
+    /// </remarks>
+    internal bool WouldHoldAnyway()
+    {
+        AdoptRenderedSeq();
+        if (PresentedSeq == 0) return false;
+        return _sequence - PresentedSeq >= InFlightDepth;
+    }
+
+    /// <summary>
     /// Record that the canvas drew a frame. True when a deferred publish is now due.
     /// </summary>
     /// <remarks>
