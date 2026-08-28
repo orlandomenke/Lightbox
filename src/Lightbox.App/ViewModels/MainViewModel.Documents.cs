@@ -1023,17 +1023,17 @@ public partial class MainViewModel
         AlwaysRecordPenAxes || PenAxisUse.NeedsSpeed(CurrentToolSettings);
 
     /// <summary>The three answers, for the Configure window's picker.</summary>
-    public IReadOnlyList<Rendering.GpuComposeMode> GpuCompositingChoices { get; } =
-        Enum.GetValues<Rendering.GpuComposeMode>();
+    public IReadOnlyList<GpuComposeMode> GpuCompositingChoices { get; } =
+        Enum.GetValues<GpuComposeMode>();
 
-    public Rendering.GpuComposeMode GpuCompositingMode
+    public GpuComposeMode GpuCompositingMode
     {
         get => Settings.GpuCompositingMode;
         set
         {
             if (Settings.GpuCompositingMode == value) return;
             Settings.GpuCompositingMode = value;
-            Rendering.GpuComposite.Mode = value;
+            GpuComposite.Mode = value;
             Settings.Save();
             OnPropertyChanged();
             // The composite path may have changed under the canvas, so what is

@@ -23,6 +23,11 @@ public sealed class App : Application
             // and a no-op on every machine where the churn does not happen.
             SubmenuCloseGrace.Install();
 
+            // The GPU probe writes one line about what this machine can do, and
+            // it lives in Raster now, which has no log to write to. Wired here
+            // rather than moved: writing a log file is an application's job.
+            GpuComposeProbe.Note = Services.DiagnosticLog.WriteNote;
+
             // Eight fixed shapes with no input, ~160 ms to bake on a background
             // thread of its own. Started here so the first artist to open the
             // tip library is not the one who waits for them.

@@ -138,12 +138,12 @@ public class MemoryBudgetTests(ITestOutputHelper output)
     [Fact]
     public void TheCachesTakeTheirDefaultsFromTheDerivation()
     {
-        output.WriteLine($"frames {Rendering.FrameBitmapCache.ByteBudget / Mb} MB, " +
+        output.WriteLine($"frames {FrameBitmapCache.ByteBudget / Mb} MB, " +
                          $"tiles {Rendering.TileFrameCache.ByteBudget / Mb} MB");
 
         // Static, so another test may have pinned them; the range is what holds
         // either way, and pinning outside it would itself be the bug.
-        Assert.InRange(Rendering.FrameBitmapCache.ByteBudget, 64 * Mb, 4 * Gb);
+        Assert.InRange(FrameBitmapCache.ByteBudget, 64 * Mb, 4 * Gb);
         Assert.InRange(Rendering.TileFrameCache.ByteBudget, 64 * Mb, 2 * Gb);
     }
 
@@ -159,7 +159,7 @@ public class MemoryBudgetTests(ITestOutputHelper output)
     public void TheSettingsCeilingIsTheDerivationsCeiling()
     {
         var vm = new ViewModels.MainViewModel(null);
-        var previous = Rendering.FrameBitmapCache.ByteBudget;
+        var previous = FrameBitmapCache.ByteBudget;
         try
         {
             vm.FrameCacheBudgetMb = int.MaxValue;
@@ -170,7 +170,7 @@ public class MemoryBudgetTests(ITestOutputHelper output)
         }
         finally
         {
-            Rendering.FrameBitmapCache.ByteBudget = previous;
+            FrameBitmapCache.ByteBudget = previous;
         }
     }
 }

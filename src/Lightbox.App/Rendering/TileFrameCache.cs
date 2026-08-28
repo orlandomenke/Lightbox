@@ -44,10 +44,10 @@ public sealed class TileFrameCache : IDisposable
     /// </summary>
     /// <remarks>
     /// Derived from the machine rather than fixed at 256 MB — see
-    /// <see cref="Services.MemoryBudget"/> for why a constant chosen on one
+    /// <see cref="MemoryBudget"/> for why a constant chosen on one
     /// laptop is the wrong default for a tool meant to run in production.
     /// </remarks>
-    public static long ByteBudget { get; set; } = Services.MemoryBudget.TileCache();
+    public static long ByteBudget { get; set; } = MemoryBudget.TileCache();
 
     /// <summary>
     /// Which end of the queue eviction takes from. Same policy, same enum and

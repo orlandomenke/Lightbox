@@ -806,19 +806,19 @@ internal static class RenderReport
     /// </remarks>
     private static void AppendCompositor(StringBuilder sb, Facts facts)
     {
-        var gpu = Rendering.GpuComposite.GpuComposites;
-        var cpu = Rendering.GpuComposite.CpuComposites;
+        var gpu = GpuComposite.GpuComposites;
+        var cpu = GpuComposite.CpuComposites;
 
         // What was asked for, and — on Automatic — what this machine answered.
         // Printed whichever way it went, because "the processor is blending" has
         // three different causes and only one of them is a setting.
-        var mode = Rendering.GpuComposite.Mode;
+        var mode = GpuComposite.Mode;
         sb.AppendLine($"compositing asked for     {mode}");
-        if (Rendering.GpuComposite.AutoProbe is { } probe)
+        if (GpuComposite.AutoProbe is { } probe)
         {
             sb.AppendLine($"  probe: {probe.Describe()}");
         }
-        else if (mode == Rendering.GpuComposeMode.Auto)
+        else if (mode == GpuComposeMode.Auto)
         {
             sb.AppendLine("  probe: has not run this session — nothing has been drawn yet.");
         }
@@ -852,23 +852,23 @@ internal static class RenderReport
             sb.AppendLine("  !! reached the path and fell back every time — see the refusals below.");
             return;
         }
-        if (Rendering.GpuComposite.RefusedAllocations > 0)
+        if (GpuComposite.RefusedAllocations > 0)
         {
             sb.AppendLine(
-                $"  !! {Rendering.GpuComposite.RefusedAllocations} GPU surface(s) refused and fell back to the processor.");
+                $"  !! {GpuComposite.RefusedAllocations} GPU surface(s) refused and fell back to the processor.");
         }
-        if (Rendering.GpuComposite.RefusedTooLarge > 0)
+        if (GpuComposite.RefusedTooLarge > 0)
         {
             sb.AppendLine(
-                $"  !! {Rendering.GpuComposite.RefusedTooLarge} composite(s) were larger than this card's textures.");
+                $"  !! {GpuComposite.RefusedTooLarge} composite(s) were larger than this card's textures.");
         }
         // A fallback with no refusal behind it is a different thing entirely, and
         // "fell back" reads like a failure either way. Say which one it was: with
         // both refusal tallies at zero, the card was never asked — those publishes
         // ran on a lease that had no graphics context, which is ordinary.
         if (cpu > 0
-            && Rendering.GpuComposite.RefusedAllocations == 0
-            && Rendering.GpuComposite.RefusedTooLarge == 0)
+            && GpuComposite.RefusedAllocations == 0
+            && GpuComposite.RefusedTooLarge == 0)
         {
             sb.AppendLine("  none of those were refusals — the card was never asked, because those");
             sb.AppendLine("  publishes drew on a lease with no graphics context. Nothing is failing.");
@@ -970,12 +970,12 @@ internal static class RenderReport
         // watched two reports get read against each other as though they came
         // from the same build — and a discriminator whose state is invisible
         // turns a decisive experiment back into an argument.
-        if (Rendering.GpuComposite.Budgeted || Rendering.GpuComposite.ResidencyDisabled)
+        if (GpuComposite.Budgeted || GpuComposite.ResidencyDisabled)
         {
             sb.AppendLine("diagnostic mode           NOT an ordinary capture (B179)");
-            if (Rendering.GpuComposite.Budgeted)
+            if (GpuComposite.Budgeted)
                 sb.AppendLine("  compose surfaces are BUDGETED — Skia accounts for and may purge them");
-            if (Rendering.GpuComposite.ResidencyDisabled)
+            if (GpuComposite.ResidencyDisabled)
                 sb.AppendLine("  layer residency is OFF — every layer is uploaded again per frame");
         }
 
@@ -1080,9 +1080,9 @@ internal static class RenderReport
             //
             // So it now says what it can actually see, and asks the other counter
             // rather than asserting a route.
-            if (Rendering.GpuComposite.GpuComposites > 0)
+            if (GpuComposite.GpuComposites > 0)
             {
-                sb.AppendLine($"  But {Rendering.GpuComposite.GpuComposites} publish(es) DID composite on the card, so this is not");
+                sb.AppendLine($"  But {GpuComposite.GpuComposites} publish(es) DID composite on the card, so this is not");
                 sb.AppendLine("  \"the GPU is unused\" — it is the blend running on the card while every");
                 sb.AppendLine("  layer is uploaded again for it. Residency is what stops the re-upload,");
                 sb.AppendLine("  so a zero here next to a non-zero above is a wiring fault, not a");

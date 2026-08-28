@@ -4,6 +4,17 @@
     <InternalsVisibleTo Include="Lightbox.App.Tests" />
   </ItemGroup>
 
+  <!--
+    The compositor moved from Lightbox.App/Rendering into Lightbox.Raster, where
+    the one pixel path already lives (Q171 / DESIGN-symbol-layers.md). Seventy-three
+    files referenced those types without a `using Lightbox.Raster;`, and adding
+    seventy-three usings would have buried an eight-file move in an eighty-file diff.
+    One global using instead: the project already references Raster in every build.
+  -->
+  <ItemGroup>
+    <Using Include="Lightbox.Raster" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Lightbox.Core\Lightbox.Core.csproj" />
     <ProjectReference Include="..\Lightbox.Raster\Lightbox.Raster.csproj" />

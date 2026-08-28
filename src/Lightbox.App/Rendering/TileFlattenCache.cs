@@ -56,12 +56,12 @@ public sealed class TileFlattenCache : IDisposable
     /// <b>These are viewport-sized bitmaps, which is exactly the memory problem
     /// B144 built tiles to avoid</b> — an unbounded cache here would reintroduce
     /// it one level up. Derived from the machine
-    /// (<see cref="Services.MemoryBudget"/>) and the meanest share of the four,
+    /// (<see cref="MemoryBudget"/>) and the meanest share of the four,
     /// because a flatten is a convenience: missing costs one composite of tiles
     /// that are already in memory, where a frame-cache miss costs a whole frame
     /// replayed from its stroke record.
     /// </remarks>
-    public static long ByteBudget { get; set; } = Services.MemoryBudget.FlattenCache();
+    public static long ByteBudget { get; set; } = MemoryBudget.FlattenCache();
 
     private readonly record struct Key(string FrameId, long Stamp, int Level, SKRectI Viewport);
 

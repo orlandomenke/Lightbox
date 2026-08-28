@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using SkiaSharp;
 
-namespace Lightbox.App.Rendering;
+namespace Lightbox.Raster;
 
 /// <summary>
 /// What one machine's graphics hardware said when asked to blend, measured
@@ -16,7 +16,7 @@ namespace Lightbox.App.Rendering;
 /// <param name="CpuMs">Fastest run of the identical work on a raster surface.</param>
 /// <param name="Side">The square the probe blended, in pixels.</param>
 /// <param name="Layers">How many passes it blended per run.</param>
-internal readonly record struct GpuProbeResult(
+public readonly record struct GpuProbeResult(
     bool HadContext,
     bool SurfaceRefused,
     double GpuMs,
@@ -25,10 +25,10 @@ internal readonly record struct GpuProbeResult(
     int Layers)
 {
     /// <summary>How many times faster the card was. Zero when there is no answer.</summary>
-    internal double Speedup => GpuMs > 0 && CpuMs > 0 ? CpuMs / GpuMs : 0;
+    public double Speedup => GpuMs > 0 && CpuMs > 0 ? CpuMs / GpuMs : 0;
 
     /// <summary>One line for the render report, and the same line for the log.</summary>
-    internal string Describe() =>
+    public string Describe() =>
         !HadContext ? "no graphics context — the compositor stays on the processor"
         : SurfaceRefused ? "the driver refused a surface — the compositor stays on the processor"
         : GpuMs <= 0 || CpuMs <= 0 ? "the probe returned no timing — the compositor stays on the processor"
@@ -75,7 +75,7 @@ internal readonly record struct GpuProbeResult(
 /// every machine, including the ones it exists to refuse.
 /// </para>
 /// </remarks>
-internal static class GpuComposeProbe
+public static class GpuComposeProbe
 {
     /// <summary>
     /// How much faster the card has to be before it is worth using.
@@ -90,13 +90,13 @@ internal static class GpuComposeProbe
     /// competing for. Refusing is cheap here: the CPU path is what export
     /// already uses, so it cannot rot.
     /// </remarks>
-    internal const double RequiredSpeedup = 1.5;
+    public const double RequiredSpeedup = 1.5;
 
     /// <summary>The square the probe blends. Big enough to measure, small enough to pay once.</summary>
-    internal const int Side = 1024;
+    public const int Side = 1024;
 
     /// <summary>Passes per run — a background, a character, an overlay.</summary>
-    internal const int Layers = 3;
+    public const int Layers = 3;
 
     /// <summary>Runs per backend; the fastest is taken, per the charter's argument.</summary>
     private const int Iterations = 3;
@@ -135,18 +135,36 @@ internal static class GpuComposeProbe
     /// measured, and measuring them anyway would spend the frame for nothing.
     /// </para>
     /// </remarks>
-    internal static void RunOnce(GRContext? gpu)
+    public static void RunOnce(GRContext? gpu)
     {
         if (_ran) return;
         if (GpuComposite.Mode != GpuComposeMode.Auto) return;
         _ran = true;
         var result = Run(gpu);
         GpuComposite.NoteProbe(result);
-        Services.DiagnosticLog.WriteNote("gpu-compose-probe", result.Describe());
+        Note?.Invoke("gpu-compose-probe", result.Describe());
     }
 
+    /// <summary>
+    /// Where the probe's one line goes, or null for nowhere.
+    /// </summary>
+    /// <remarks>
+    /// <b>The one thing this file needed that Raster does not have.</b> The probe
+    /// used to call <c>Services.DiagnosticLog</c> directly, which is in
+    /// <c>Lightbox.App</c> and therefore unreachable from here — and a diagnostic
+    /// is the one dependency worth inverting rather than moving, because writing
+    /// a log file is an application's job and compositing pixels is not.
+    /// <para>
+    /// Null writes nothing, which is already what <c>DiagnosticLog</c>'s own
+    /// contract promises: <i>nothing here throws, a log that can break the
+    /// application is worse than no log.</i> <c>App.RegisterDiagnostics</c> wires
+    /// it at startup, so the note an artist can send in is unchanged.
+    /// </para>
+    /// </remarks>
+    public static Action<string, string>? Note { get; set; }
+
     /// <summary>Test seam: let the probe run again.</summary>
-    internal static void ForgetForTests()
+    public static void ForgetForTests()
     {
         _ran = false;
         GpuComposite.ForgetProbeForTests();
@@ -161,7 +179,7 @@ internal static class GpuComposeProbe
     /// any of this — the same constraint that made <c>GpuCompositeTests</c>
     /// assert the policy and not the speed.
     /// </remarks>
-    internal static bool Decide(in GpuProbeResult result) =>
+    public static bool Decide(in GpuProbeResult result) =>
         result.HadContext
         && !result.SurfaceRefused
         && result.GpuMs > 0
@@ -173,7 +191,7 @@ internal static class GpuComposeProbe
     /// Never throws: a diagnostic that can take the compositor down is worse
     /// than no diagnostic.
     /// </summary>
-    internal static GpuProbeResult Run(GRContext? gpu)
+    public static GpuProbeResult Run(GRContext? gpu)
     {
         if (gpu is null) return new GpuProbeResult(false, false, 0, 0, Side, Layers);
         try

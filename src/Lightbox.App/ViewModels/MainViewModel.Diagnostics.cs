@@ -475,7 +475,7 @@ public partial class MainViewModel
     /// <remarks>
     /// <para>
     /// <b>The artist's setting stays the final word</b> — the derivation in
-    /// <see cref="Services.MemoryBudget"/> decides the <em>default</em>, which is
+    /// <see cref="MemoryBudget"/> decides the <em>default</em>, which is
     /// the part that was wrong.
     /// </para>
     /// <para>
@@ -494,7 +494,7 @@ public partial class MainViewModel
         set
         {
             var clamped = Math.Clamp(
-                value, 64, (int)(Services.MemoryBudget.FrameCacheCeilingBytes / (1024 * 1024)));
+                value, 64, (int)(MemoryBudget.FrameCacheCeilingBytes / (1024 * 1024)));
             if (FrameCacheBudgetMb == clamped) return;
             FrameBitmapCache.ByteBudget = clamped * 1024L * 1024L;
             OnPropertyChanged();

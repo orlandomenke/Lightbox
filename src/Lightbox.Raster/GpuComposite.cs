@@ -1,6 +1,6 @@
 using SkiaSharp;
 
-namespace Lightbox.App.Rendering;
+namespace Lightbox.Raster;
 
 /// <summary>
 /// Whether a composite should go to a GPU surface on <em>this</em> machine.
@@ -62,7 +62,7 @@ public enum GpuComposeMode
     Off,
 }
 
-internal static class GpuComposite
+public static class GpuComposite
 {
     /// <summary>
     /// The opt-in. An environment variable rather than a setting, deliberately:
@@ -70,21 +70,21 @@ internal static class GpuComposite
     /// by accident. Same reasoning, and the same precedent, as
     /// <c>LIGHTBOX_DURABLE_FRAME</c> after B130.
     /// </summary>
-    internal const string OptInVariable = "LIGHTBOX_GPU_COMPOSITE";
+    public const string OptInVariable = "LIGHTBOX_GPU_COMPOSITE";
 
     /// <summary>Times the GPU surface was asked for and refused.</summary>
-    internal static int RefusedAllocations { get; private set; }
+    public static int RefusedAllocations { get; private set; }
 
     /// <summary>Times a document was too large for the context's textures.</summary>
-    internal static int RefusedTooLarge { get; private set; }
+    public static int RefusedTooLarge { get; private set; }
 
     /// <summary>Composites that ran on a GPU surface.</summary>
-    internal static int GpuComposites { get; private set; }
+    public static int GpuComposites { get; private set; }
 
     /// <summary>Composites that ran on a CPU surface.</summary>
-    internal static int CpuComposites { get; private set; }
+    public static int CpuComposites { get; private set; }
 
-    internal static void ResetCounters()
+    public static void ResetCounters()
     {
         RefusedAllocations = 0;
         RefusedTooLarge = 0;
@@ -103,7 +103,7 @@ internal static class GpuComposite
     /// wording now depends on this counter, so the wording has to be testable
     /// without one.
     /// </remarks>
-    internal static void CountCompositeForTests(bool onGpu, int times = 1)
+    public static void CountCompositeForTests(bool onGpu, int times = 1)
     {
         if (onGpu) GpuComposites += times;
         else CpuComposites += times;
@@ -130,9 +130,9 @@ internal static class GpuComposite
     /// for one capture and not a fix.
     /// </para>
     /// </remarks>
-    internal const string BudgetedVariable = "LIGHTBOX_GPU_BUDGETED";
+    public const string BudgetedVariable = "LIGHTBOX_GPU_BUDGETED";
 
-    internal static bool Budgeted =>
+    public static bool Budgeted =>
         Environment.GetEnvironmentVariable(BudgetedVariable) is "1" or "true" or "TRUE";
 
     /// <summary>
@@ -156,9 +156,9 @@ internal static class GpuComposite
     /// report can touch.
     /// </para>
     /// </remarks>
-    internal const string NoResidencyVariable = "LIGHTBOX_NO_RESIDENCY";
+    public const string NoResidencyVariable = "LIGHTBOX_NO_RESIDENCY";
 
-    internal static bool ResidencyDisabled =>
+    public static bool ResidencyDisabled =>
         Environment.GetEnvironmentVariable(NoResidencyVariable) is "1" or "true" or "TRUE";
 
     private static bool? _override;
@@ -182,7 +182,7 @@ internal static class GpuComposite
     /// the friction that stops a measurement from happening.
     /// </para>
     /// </remarks>
-    internal static bool OptedIn =>
+    public static bool OptedIn =>
         _override ?? (ForcedByEnvironment || Mode switch
         {
             GpuComposeMode.On => true,
@@ -214,7 +214,7 @@ internal static class GpuComposite
     /// cannot survive, and it happened on the one bug the experiment was for.
     /// </para>
     /// </remarks>
-    internal static GpuComposeMode Mode
+    public static GpuComposeMode Mode
     {
         get => _mode;
         set
@@ -230,13 +230,13 @@ internal static class GpuComposite
     private static bool? _autoDecision;
 
     /// <summary>The probe's measurement, or null when it has not run this session.</summary>
-    internal static GpuProbeResult? AutoProbe { get; private set; }
+    public static GpuProbeResult? AutoProbe { get; private set; }
 
     /// <summary>
     /// Whether <see cref="GpuComposeMode.Auto"/> has decided, and which way —
     /// null until the probe has run.
     /// </summary>
-    internal static bool? AutoDecision => _autoDecision;
+    public static bool? AutoDecision => _autoDecision;
 
     /// <summary>
     /// Record what the machine said. Called once per session from the draw op,
@@ -247,7 +247,7 @@ internal static class GpuComposite
     /// them: composites made before the verdict landed were made under the other
     /// answer, and a report that mixes them says something untrue about both.
     /// </remarks>
-    internal static void NoteProbe(in GpuProbeResult result)
+    public static void NoteProbe(in GpuProbeResult result)
     {
         AutoProbe = result;
         var decided = GpuComposeProbe.Decide(result);
@@ -262,7 +262,7 @@ internal static class GpuComposite
     /// forgetting the verdict is a change of answer, and a tally that survives
     /// one describes composites made under a verdict that no longer holds.
     /// </remarks>
-    internal static void ForgetProbeForTests()
+    public static void ForgetProbeForTests()
     {
         AutoProbe = null;
         _autoDecision = null;
@@ -270,7 +270,7 @@ internal static class GpuComposite
     }
 
     /// <summary>For tests: force the opt-in on or off, or null to read the real answer.</summary>
-    internal static bool? OptInOverride
+    public static bool? OptInOverride
     {
         get => _override;
         set => _override = value;
@@ -284,7 +284,7 @@ internal static class GpuComposite
     /// can be asserted on without a graphics context — which is the only way it
     /// gets tested at all in this repository.
     /// </remarks>
-    internal static bool Wants(GRContext? gpu, SKImageInfo info)
+    public static bool Wants(GRContext? gpu, SKImageInfo info)
     {
         if (!OptedIn || gpu is null) return false;
         if (info.Width <= 0 || info.Height <= 0) return false;
@@ -302,7 +302,7 @@ internal static class GpuComposite
     /// Create the surface the policy asks for, falling back to CPU rather than
     /// failing. A slow frame beats no frame; a missing frame is a black canvas.
     /// </summary>
-    internal static SKSurface CreateSurface(GRContext? gpu, SKImageInfo info, out bool gpuBacked)
+    public static SKSurface CreateSurface(GRContext? gpu, SKImageInfo info, out bool gpuBacked)
     {
         if (Wants(gpu, info))
         {

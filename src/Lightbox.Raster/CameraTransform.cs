@@ -1,7 +1,7 @@
 using Lightbox.Core.Documents;
 using SkiaSharp;
 
-namespace Lightbox.App.Rendering;
+namespace Lightbox.Raster;
 
 /// <summary>
 /// Turns a camera framing into the matrix a composite is drawn under, and maps
