@@ -71,18 +71,6 @@ public class FillCostFollowsTheRegionTests(ITestOutputHelper output)
     /// <summary>The shipped defaults — gap closing and overfill both on.</summary>
     private static FloodFill.Options Shipped => new(32, 4, 2);
 
-    private static double Best(int runs, Action a)
-    {
-        var best = double.MaxValue;
-        for (var i = 0; i < runs; i++)
-        {
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            a();
-            best = Math.Min(best, sw.Elapsed.TotalMilliseconds);
-        }
-        return best;
-    }
-
     [Fact]
     [Trait("Category", "Performance")]
     public void ASmallFillCostsFarLessThanALargeOneOnTheSamePage()
@@ -96,8 +84,14 @@ public class FillCostFollowsTheRegionTests(ITestOutputHelper output)
         Assert.NotNull(small);
         Assert.True(big!.Area > small!.Area * 10, "the two regions are not different enough to compare");
 
-        var bigMs = Best(3, () => FloodFill.Fill(wide, 150, 100, Shipped));
-        var smallMs = Best(3, () => FloodFill.Fill(fine, 24, 16, Shipped));
+        // Alternated, not measured one after the other: two minima taken apart
+        // are two measurements of two different machines, and this suite runs
+        // beside three others.
+        var (bigMs, smallMs) = Bench.PairedFastestMs(
+            3,
+            () => FloodFill.Fill(wide, 150, 100, Shipped),
+            () => FloodFill.Fill(fine, 24, 16, Shipped),
+            log: output);
         output.WriteLine(
             $"{big.Area} px in {bigMs:F1} ms; {small.Area} px in {smallMs:F1} ms "
             + $"— {smallMs / bigMs:F2}× for {(double)small.Area / big.Area:P1} of the area");
@@ -186,14 +180,25 @@ public class FillCostFollowsTheRegionTests(ITestOutputHelper output)
     /// generous — the far end of the slider may cost several times the default,
     /// and must not cost hundreds.
     /// </para>
+    /// <para>
+    /// <b>Paired, because the denominator here is small.</b> The shipped
+    /// setting runs in a couple of milliseconds, so a millisecond of contention
+    /// landing on that side and not the other moves the quotient several fold —
+    /// which is how this went red once in a full-solution run and green on its
+    /// own. <see cref="Bench.PairedFastestMs"/> alternates the two so any load
+    /// divides out.
+    /// </para>
     /// </remarks>
     [Fact]
     [Trait("Category", "Performance")]
     public void TurningTheGapUpDoesNotGoQuadratic()
     {
         using var page = Ruled(6);
-        var shipped = Best(3, () => FloodFill.Fill(page, 100, 60, new FloodFill.Options(32, 4, 2)));
-        var wide = Best(3, () => FloodFill.Fill(page, 100, 60, new FloodFill.Options(32, 64, 2)));
+        var (shipped, wide) = Bench.PairedFastestMs(
+            3,
+            () => FloodFill.Fill(page, 100, 60, new FloodFill.Options(32, 4, 2)),
+            () => FloodFill.Fill(page, 100, 60, new FloodFill.Options(32, 64, 2)),
+            log: output);
         output.WriteLine(
             $"gap 4 in {shipped:F1} ms, gap 64 in {wide:F1} ms — {wide / shipped:F1}×");
         Assert.True(
