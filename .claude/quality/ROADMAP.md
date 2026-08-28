@@ -946,7 +946,12 @@ symbol → document; symbol → symbol edges do not exist while nesting is refus
 and the note saying the graph "needs nesting first" was true only of the half
 nobody was asking for.
 
-**Decided 2026-08-28 and not yet built: a symbol owns a layer stack (Q171).**
+**Designed 2026-08-28, not yet built: a symbol owns a layer stack (Q171).**
+`docs/DESIGN-symbol-layers.md` settles it in seven steps — the record
+(`Symbol.Layers` reusing the document's own `Layer`, not a narrower one), the
+loader restriction that keeps symbol compositing inside `Lightbox.Raster`, the
+render pass where only `Render` changes, capture from a `LayerLink`, and a
+detach that rebuilds the stack. Effort L.
 The owner went looking for the Animate workflow — a head is a lines layer, a
 colour layer and two effect layers, and all four are one reusable thing — and
 found three independent reasons it cannot be said. `MakeSymbolFromDrawing` takes

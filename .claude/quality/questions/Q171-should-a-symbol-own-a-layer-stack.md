@@ -62,6 +62,15 @@ detaches to a single drawing rather than to its cycle. That stays true until the
 stack lands; it is a separate question whether detaching a cycle should produce
 cels.
 
+## The design
+
+`docs/DESIGN-symbol-layers.md`, written before the code for the reason
+`DESIGN-symbols.md` was: the record change is the whole decision. It settles
+`Symbol.Layers` over a narrower `SymbolLayer` (the `PaintedFrame`/`VectorFrame`
+lesson), the compositor-lives-in-App constraint and the three ways out of it,
+the read-both-write-narrow serialization rule that keeps every existing symbol
+byte-identical, and seven steps L1–L7.
+
 ## The guard, which landed first
 
 The stack is L–XL and the corruption was live, so the guard went in ahead of it

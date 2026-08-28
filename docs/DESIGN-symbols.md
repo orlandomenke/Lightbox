@@ -211,6 +211,20 @@ being the same mark as the original, and it is the cheaper of the two.
 
 ---
 
+## A symbol with layers
+
+*The question that outgrew this document.* A symbol holds one layer's drawing,
+and an artwork is usually several — lines, colour, shading, effects. Q171 takes
+the Flash model and gives a symbol its own layer stack; the design is its own
+note, `docs/DESIGN-symbol-layers.md`, because the record change is as large as
+the one this document settled.
+
+The short of it: `Symbol.Layers` replaces `Symbol.Frames`, reusing the
+document's own `Layer` rather than a narrower one; the loader refuses the
+eleven layer properties whose rendering lives in `Lightbox.App` and therefore
+out of `SymbolRasterizer`'s reach; and only `Render` changes in the render
+pass, so the placed-twice-is-pixel-identical promise below is untouched.
+
 ## Animated symbols as a reference underlay
 
 *Written up after the question "are symbols only single images, or could we make
