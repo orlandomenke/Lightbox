@@ -1317,6 +1317,22 @@ public partial class MainViewModel
         (System.Diagnostics.Stopwatch.GetTimestamp() - since) * 1000.0
         / System.Diagnostics.Stopwatch.Frequency;
 
+    /// <summary>Colour dabs into the scratch, per event (B189).</summary>
+    internal Services.Tally StampColourMs { get; } = new();
+
+    /// <summary>
+    /// The SECOND walk over the same dabs: the footprint accumulation (B189).
+    /// </summary>
+    /// <remarks>
+    /// <b>A footprint is a running maximum of the tip's coverage</b>, kept so a
+    /// soft brush can be capped to it (Q157, B293, B299) — and it is built by
+    /// walking the same dabs again into a second document-sized buffer. Timed
+    /// apart because if it is half the stamp then the lever for B189 is this
+    /// buffer rather than the brush, and the report has been quoting a per-dab
+    /// cost that silently included both walks.
+    /// </remarks>
+    internal Services.Tally StampFootprintMs { get; } = new();
+
     internal Services.Tally StampRestoreMs { get; } = new();
 
     /// <inheritdoc cref="StampRestoreMs"/>
@@ -2319,10 +2335,20 @@ public partial class MainViewModel
         var settledFrom = _live.StableDabs;
         BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, stable);
         _live.StableDabs = Math.Max(_live.StableDabs, Math.Min(stable, dabs.Count));
+        StampColourMs.Add(Ms(settledAt));
         if (carriesFootprint)
         {
+            // **Timed apart, because every dab is stamped TWICE.** Once as
+            // colour into the scratch and once as a footprint into the coverage
+            // buffer, both document-sized. The report's ratio of medians put an
+            // event's stamp at 176 us a dab where a plain StampDabRange measures
+            // 45-50 on the same brush and canvas, and a second walk over the
+            // same dabs is the size of the difference. Whether it IS the
+            // difference is what this says.
+            var footprintAt = System.Diagnostics.Stopwatch.GetTimestamp();
             BrushEngine.AccumulateFootprint(_live.CoverageCanvas!, live, dabs, settledFrom, stable);
             _live.CoverageCanvas!.Flush();
+            StampFootprintMs.Add(Ms(footprintAt));
         }
 
         StampSettledMs.Add(Ms(settledAt));
@@ -2414,8 +2440,13 @@ public partial class MainViewModel
                     }
                 }
 
+                // The tail's own second walk, which nothing timed until now: it
+                // sits after StampTailMs closes, so it was invisible to the
+                // split that named the tail copies.
+                var tailFootprintAt = System.Diagnostics.Stopwatch.GetTimestamp();
                 BrushEngine.AccumulateFootprint(_live.CoverageCanvas!, live, dabs, _live.StableDabs, dabs.Count);
                 _live.CoverageCanvas!.Flush();
+                StampFootprintMs.Add(Ms(tailFootprintAt));
             }
         }
 

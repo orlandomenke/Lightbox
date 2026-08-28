@@ -76,7 +76,7 @@ internal static class RenderReport
         IReadOnlyList<(DateTime Began, double ToFirstInkMs, double LastedMs, int Points, int Dabs)>?
             StrokeLog = null,
         (double RestoreMs, double SettledMs, double BackupMs, double TailMs, double TailMpx,
-            double TailMpxP90)? StampParts = null,
+            double TailMpxP90, double ColourMs, double FootprintMs)? StampParts = null,
         IReadOnlyList<(double Ms, double AtSeconds, int Points, int Dabs, long Misses, double DescribeMs)>?
             SlowBuildLog = null,
         (double LostMs, double SessionMs)? StallCensus = null,
@@ -1617,6 +1617,27 @@ internal static class RenderReport
                 $"    stamping the tail     median {sp.TailMs,7:0.##} ms   (the dabs on loan)");
             sb.AppendLine(
                 $"    the tail rectangle    median {sp.TailMpx,7:0.###} Mpx   p90 {sp.TailMpxP90,7:0.###} Mpx");
+            // **Every dab is walked twice.** Colour into the scratch, footprint
+            // into the coverage buffer, both document-sized. Split because the
+            // per-dab figure above has always included both.
+            sb.AppendLine(
+                $"    of which colour       median {sp.ColourMs,7:0.##} ms   and footprint {sp.FootprintMs,7:0.##} ms"
+                + $"   (the same dabs, walked twice)");
+            var twoWalks = sp.ColourMs + sp.FootprintMs;
+            if (twoWalks > 0 && sp.FootprintMs > 0)
+            {
+                var share = sp.FootprintMs / twoWalks * 100;
+                sb.AppendLine(
+                    $"  >> The footprint is {share:0}% of the dab work. It is a running maximum kept");
+                sb.AppendLine(
+                    share > 35
+                        ? "     so a soft brush can be capped to it, and at this share it is the"
+                        : "     so a soft brush can be capped to it, and at this share it is NOT");
+                sb.AppendLine(
+                    share > 35
+                        ? "     lever for B189 rather than the brush or the canvas size."
+                        : "     where B189's cost is. Look at the colour stamp instead.");
+            }
             if (whole > 0)
             {
                 var copies = (sp.RestoreMs + sp.BackupMs) / whole * 100;
