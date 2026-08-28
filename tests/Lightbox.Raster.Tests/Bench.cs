@@ -141,6 +141,63 @@ internal static class Bench
         return quiet;
     }
 
+    /// <summary>
+    /// The fastest of <paramref name="runs"/> for each of two actions, measured
+    /// alternately so that both see the same machine.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A ratio needs its two sides sampled together, and the minimum alone
+    /// does not give it that.</b> Taking the fastest of several runs is what
+    /// makes a single measurement survive a loaded machine — but two minima
+    /// taken minutes apart are two measurements of two different machines, and
+    /// whatever contention landed on one and not the other goes straight into
+    /// the quotient. Alternating the two puts any load on both sides, where it
+    /// divides out instead of accumulating.
+    /// </para>
+    /// <para>
+    /// <b>Measured, on B339's checkpointed-open ratio.</b> Taken apart, three
+    /// consecutive trials on an idle box read 1.45, 1.97 and 2.40 — against a
+    /// ceiling of 2.5, with nothing else running. Alternated, the same quantity
+    /// read 1.47, 1.55, 1.63. The excursions are what pairing removes.
+    /// </para>
+    /// <para>
+    /// <b>What it does not remove is a floor</b>, and that is worth knowing
+    /// before reaching for this: the ratio above settled at ~1.55 because half
+    /// of what it timed genuinely grows with the input. Pairing makes a ratio
+    /// *repeatable*; it cannot make it *mean* something it does not. If the
+    /// paired number is stable and not where the claim says it should be, the
+    /// claim and the measurement disagree about what is being timed.
+    /// </para>
+    /// </remarks>
+    public static (double A, double B) PairedFastestMs(
+        int runs, Action a, Action b, bool warm = true, ITestOutputHelper? log = null)
+    {
+        if (warm)
+        {
+            a();
+            b();
+        }
+
+        var bestA = double.MaxValue;
+        var bestB = double.MaxValue;
+        var sw = new Stopwatch();
+        for (var i = 0; i < runs; i++)
+        {
+            sw.Restart();
+            a();
+            sw.Stop();
+            bestA = Math.Min(bestA, sw.Elapsed.TotalMilliseconds);
+
+            sw.Restart();
+            b();
+            sw.Stop();
+            bestB = Math.Min(bestB, sw.Elapsed.TotalMilliseconds);
+        }
+        log?.WriteLine($"paired fastest of {runs}: {bestA:0.00} ms / {bestB:0.00} ms");
+        return (bestA, bestB);
+    }
+
     public static double FastestMs(
         int runs, Action action, Action? before = null, bool warm = true, ITestOutputHelper? log = null)
     {

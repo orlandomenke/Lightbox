@@ -110,33 +110,104 @@ public class CheckpointOpenCostTests(ITestOutputHelper o)
     }
 
     /// <summary>
-    /// The fast path does not grow with what came before it.
+    /// The render side of a checkpointed open does not grow with what came
+    /// before it.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <b>The exponent is the durable claim and the milliseconds are not</b> — a
     /// time is a property of this container, a slope is a property of the code.
-    /// Opening a checkpointed painting has to cost the same whether it holds five
-    /// hundred strokes or four thousand, because none of what it does depends on
-    /// the count. If this ever fails, something is walking the record again.
+    /// Decoding a checkpoint and blitting it has to cost the same whether the
+    /// frame holds five hundred strokes or two thousand, because none of what it
+    /// does depends on the count. If this fails, something is walking the record
+    /// again.
+    /// </para>
+    /// <para>
+    /// <b>B339: what this used to time, and why that made it flake.</b> It timed
+    /// the whole open — <c>Usable</c> and then <c>Materialize</c> — and asserted
+    /// the total was constant. But <c>Usable</c> hashes every stroke the
+    /// checkpoint covers: it is <em>deliberately</em> linear in the record,
+    /// because serializing the strokes is how the fast path earns the right to
+    /// skip replaying them. So the assertion was that a quantity half of which
+    /// grows with n shall not grow with n, and it passed only while the constant
+    /// half was still the larger one.
+    /// </para>
+    /// <para>
+    /// Measured 2026-08-28 at 1280x720, fastest of several runs each:
+    /// </para>
+    /// <code>
+    ///   strokes    whole open    fingerprint    decode+blit
+    ///       500      30.41 ms    12.53 (41%)       15.21 ms
+    ///      1000      29.55 ms    15.30 (52%)       12.87 ms
+    ///      2000      32.22 ms    18.53 (58%)       12.18 ms
+    ///      4000      52.08 ms    38.83 (75%)       16.39 ms
+    /// </code>
+    /// <para>
+    /// The right-hand column is flat, which is the claim. The middle one is not,
+    /// and by four thousand strokes it is three quarters of what was being
+    /// asserted constant — so the old ratio was headed for a permanent failure
+    /// as paintings got bigger, and contention only decided which run got there
+    /// first. Three consecutive trials of the old shape on an <em>idle</em> box
+    /// read 1.45, 1.97 and 2.40 against its 2.5 ceiling.
+    /// </para>
+    /// <para>
+    /// <b>The fingerprint is not now unwatched.</b> It is an absolute cost that
+    /// grows linearly, so it belongs under an absolute ceiling rather than a
+    /// constancy ratio — which is exactly what
+    /// <see cref="OpeningACheckpointedPaintingIsNotPayingForItsHistory"/> is:
+    /// 200 ms for the whole open, fingerprint included. A linear term is fine
+    /// under a ceiling and can never be fine under "this shall not grow".
+    /// </para>
+    /// <para>
+    /// <b>Why 1.5x.</b> Paired, this reads 0.83-1.05 idle and 0.84-0.89 with
+    /// every core deliberately busy — a true 1.0 with noise either side. The
+    /// failure it exists to catch is not marginal: with the checkpoint refused
+    /// entirely, a 500-stroke open costs 1 835 ms against 15 ms, or 122x, and
+    /// the mildest version — per-stroke work creeping into the blit — reads 4x
+    /// for four times the record. 1.5 is well clear of the worst honest
+    /// measurement and nowhere near the cheapest dishonest one.
+    /// </para>
     /// </remarks>
     [Fact]
     public void ACheckpointedOpenCostsTheSameAtFourTimesTheHistory()
     {
-        var small = Measure(500);
-        var large = Measure(2000);
-        o.WriteLine($"500 strokes {small,8:F1} ms");
-        o.WriteLine($"2000        {large,8:F1} ms   ({large / small:F2}x for 4x the record)");
+        var small = Ready(500);
+        var large = Ready(2000);
 
-        // Two doublings of the record may not double the open. Generous because
-        // it is a ratio of two small numbers on a shared runner; a genuine
-        // regression here is linear and would read at 4x, not 2x.
+        // Alternated rather than one side and then the other: this is a ratio,
+        // and two minima taken apart are two measurements of two machines.
+        var (s, l) = Bench.PairedFastestMs(
+            5,
+            () => { using var bitmap = FrameRasterizer.Materialize(small.Frame, W, H, checkpoint: small.Resolved); },
+            () => { using var bitmap = FrameRasterizer.Materialize(large.Frame, W, H, checkpoint: large.Resolved); });
+
+        // The cost that legitimately grows, printed beside the one that must
+        // not, so a reader can see where the rest of an open goes.
+        var printSmall = Bench.FastestMs(3, () =>
+            GC.KeepAlive(FrameCheckpoints.Usable(small.Doc, small.Frame)));
+        var printLarge = Bench.FastestMs(3, () =>
+            GC.KeepAlive(FrameCheckpoints.Usable(large.Doc, large.Frame)));
+
+        o.WriteLine($"decode+blit   500 {s,8:F1} ms   2000 {l,8:F1} ms   ({l / s:F2}x for 4x the record)");
+        o.WriteLine($"fingerprint   500 {printSmall,8:F1} ms   2000 {printLarge,8:F1} ms   "
+            + $"({printLarge / printSmall:F2}x — linear on purpose, budgeted absolutely elsewhere)");
+
         Assert.True(
-            large < small * 2.5,
-            $"a checkpointed open grew {large / small:F2}x for four times the strokes "
-            + $"({small:F1} ms to {large:F1} ms)");
+            l < s * 1.5,
+            $"the render side of a checkpointed open grew {l / s:F2}x for four times the "
+            + $"strokes ({s:F1} ms to {l:F1} ms) — something is walking the record again");
     }
 
-    private static double Measure(int strokes)
+    /// <summary>
+    /// A painting with a checkpoint already rendered, and that checkpoint
+    /// already resolved against it.
+    /// </summary>
+    /// <remarks>
+    /// Resolving is <see cref="FrameCheckpoints.Usable"/>, and it is hoisted out
+    /// here on purpose: it hashes the record, so leaving it inside a timed
+    /// region is what B339 was.
+    /// </remarks>
+    private static (Frame Frame, Doc Doc, StrokeCheckpoint Resolved) Ready(int strokes)
     {
         var frame = Painting(strokes);
         var doc = DocumentFactory.CreateDoc(W, H);
@@ -144,10 +215,8 @@ public class CheckpointOpenCostTests(ITestOutputHelper o)
         doc.Scene.Layers.Add(new Layer { Cels = { new Cel { Frame = frame } } });
         frame.Checkpoint = FrameCheckpoints.Render(FrameCheckpoints.Plan(doc, frame)!);
 
-        return Bench.FastestMs(3, () =>
-        {
-            using var bitmap = FrameRasterizer.Materialize(
-                frame, W, H, checkpoint: FrameCheckpoints.Usable(doc, frame));
-        });
+        var resolved = FrameCheckpoints.Usable(doc, frame);
+        Assert.NotNull(resolved);
+        return (frame, doc, resolved!);
     }
 }
