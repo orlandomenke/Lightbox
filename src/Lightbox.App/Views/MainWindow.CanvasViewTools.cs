@@ -525,6 +525,9 @@ public partial class MainWindow
             case "edit.pasteLines":
                 _vm.PasteLinesAsLayer();
                 break;
+            case "edit.breakSymbolLink":
+                _vm.BreakSelectedLink();
+                break;
             case "select.none":
                 _vm.DeselectCommand.Execute(null);
                 break;

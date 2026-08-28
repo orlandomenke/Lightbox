@@ -893,6 +893,12 @@ public sealed partial class MainViewModel
 
         if (PlacementAt(x, y) is not { } placement) return false;
         _selectedPlacementId = placement.Id;
+        // Picking one up is the gesture that arms Edit ▸ Break symbol link, so
+        // the selection has to be announced here as well as after an edit —
+        // this is the only path that changes it without going through
+        // AfterPlacementChange. Two notifications on a press, not on a move.
+        OnPropertyChanged(nameof(SelectedPlacement));
+        OnPropertyChanged(nameof(CanBreakSelectedLink));
         _placementDrag = (x, y, [(placement.Id, placement.X, placement.Y)]);
         _placementDragKeyed = false;
         AiStatus = "Moving a placed symbol — the symbol itself is unchanged.";
@@ -1062,6 +1068,37 @@ public sealed partial class MainViewModel
         return true;
     }
 
+    /// <summary>
+    /// Break the link on the placement the artist has selected.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The reason this exists separately from <see cref="BreakLink"/>.</b>
+    /// The method took a placement and nothing in the application ever handed
+    /// it one — it was reachable from the tests and from nowhere else, while
+    /// the manual documented it as a thing an artist does and the roadmap
+    /// ticked S4 as including it. That is `CLAUDE.md`'s registry rule failing
+    /// in its usual shape: the feature worked, nothing was red, and there was
+    /// no address for it.
+    /// </para>
+    /// <para>
+    /// So the command is what the menu and <c>ShortcutMap</c> bind to, and it
+    /// carries the selection lookup that every caller would otherwise repeat.
+    /// </para>
+    /// </remarks>
+    public void BreakSelectedLink()
+    {
+        if (SelectedPlacement is not { } placement)
+        {
+            AiStatus = "Select a placed symbol first — the Arrow tool picks one up.";
+            return;
+        }
+        BreakLink(placement);
+    }
+
+    /// <summary>Whether there is a placement selected to break.</summary>
+    public bool CanBreakSelectedLink => SelectedPlacement is not null;
+
     /// <summary>The symbol's strokes with the placement's transform written into them.</summary>
     private static List<Stroke> BakedStrokes(Symbol symbol, int frameIndex, SymbolPlacement placement)
     {
@@ -1110,6 +1147,10 @@ public sealed partial class MainViewModel
         RefreshThumbnails();
         OnPropertyChanged(nameof(PlacementsHere));
         OnPropertyChanged(nameof(SelectedPlacement));
+        // The menu's enablement rides the selection, so it has to move with it
+        // — an entry that greys out a beat late reads as the command being
+        // broken rather than as the selection having changed.
+        OnPropertyChanged(nameof(CanBreakSelectedLink));
         OnPropertyChanged(nameof(OutdatedPlacements));
         OnPropertyChanged(nameof(StalePlacementReport));
     }

@@ -367,6 +367,11 @@
           <MenuItem Header="_Reset" Click="OnTransformReset" IsEnabled="{Binding TransformActive}"
                     ToolTip.Tip="Back to the untransformed frame, without leaving the session" />
         </MenuItem>
+        <!-- Beside Transform: both change what is selected. Why it took this
+             long to get an address at all is in BreakSelectedLink. -->
+        <MenuItem Header="_Break symbol link" Click="OnBreakSymbolLink"
+                  IsEnabled="{Binding CanBreakSelectedLink}"
+                  ToolTip.Tip="Turn the selected placed symbol into ordinary strokes on this drawing. One way — the result is a drawing, not a symbol." />
         <Separator />
         <MenuItem Header="Brush _library…" Click="OnBrushLibraryClicked" />
         <MenuItem Header="Brush _tips…" Click="OnBrushTipsClicked" />
