@@ -1403,6 +1403,21 @@ public partial class MainViewModel
         // use-after-free.
         ReleaseFetchHolds();
 
+        // **B332: fill the cache before the pen arrives, never while it is
+        // moving.** The freeze is a whole-frame render on the UI thread, and the
+        // capture of 2026-08-28 00:50 shows what it costs the artist: the two
+        // strokes that read `following: never` are the first of the session and
+        // the first after a thirteen-second pause, both sitting beside the one
+        // 1131 ms build with two cache misses in it. Every other stroke began
+        // following in 28-39 ms. **The freeze does not interrupt a stroke, it
+        // eats the first one after an idle.**
+        //
+        // So the moment to pay for it is the idle itself, off this thread. That
+        // is what the prewarmer already does for the playhead, and unlike every
+        // other attempt on this entry it has NO visible trade: nothing stale is
+        // shown, because nothing is shown at all until the pixels exist.
+        WarmWhatTheNextStrokeWillNeed();
+
         // Last, and after the frame is on its way to the screen: the worker
         // starts on the frames after this one while the artist is looking at
         // this one. Queued from here rather than from the playback tick so that
@@ -1422,6 +1437,48 @@ public partial class MainViewModel
     /// to be wasted — and every one of them ends in the pixels being freed here
     /// rather than leaked.
     /// </remarks>
+    /// <summary>
+    /// Render the frames the next stroke will ask for, off the UI thread, while
+    /// nobody is drawing (B332).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Only while idle, and that is the whole of its safety.</b> Adding work
+    /// during a stroke is what took B322's fourth attempt from 2.41 ms a frame
+    /// to 23.06; this runs when no stroke is in flight and nothing is playing,
+    /// so the worst it can cost is a worker rendering a frame nobody ends up
+    /// needing.
+    /// </para>
+    /// <para>
+    /// <b>And it asks for nothing already held or already coming.</b> The
+    /// prewarmer's <c>Request</c> supersedes its queue, so calling it every
+    /// publish would restart the same render forever; <c>IsBusy</c> is the
+    /// guard. Frames that sample the layers beneath are skipped because
+    /// <c>CanCache</c> refuses them by design and a warm would be discarded on
+    /// arrival.
+    /// </para>
+    /// </remarks>
+    private void WarmWhatTheNextStrokeWillNeed()
+    {
+        if (IsPlaying || _strokeBuilder.IsActive || _prewarm.IsBusy) return;
+
+        var scene = Scene;
+        List<Services.WarmRequest>? jobs = null;
+        foreach (var layer in scene.Layers)
+        {
+            if (!scene.IsLayerVisible(layer)) continue;
+            if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is not { } frame) continue;
+            if (!FrameBitmapCache.CanCache(frame)) continue;
+            if (_cache.Holds(frame, scene.Width, scene.Height, 1.0, CurrentFrameIndex)) continue;
+
+            jobs ??= [];
+            jobs.Add(new Services.WarmRequest(
+                frame, scene.Width, scene.Height, CurrentFrameIndex, Services.WarmProduct.Bitmap));
+        }
+
+        if (jobs is { Count: > 0 }) _prewarm.Request(jobs);
+    }
+
     private void TakeWarmedFrames() => _prewarm.Drain(warmed =>
     {
         var want = warmed.Request;
