@@ -769,6 +769,49 @@ def move_in_dir(folder: Path, moves: dict[str, str],
     return said
 
 
+def shared_ids(ledger: Ledger, elsewhere: list[str], base: str | None) -> set[str]:
+    """Ids this branch did not allocate: ones it already had when it parted company.
+
+    **The merge-base is the whole idea, and using only the default branch's was
+    the bug.** An id both sides carry because it was already on `main` is shared
+    rather than clashed — that much was right. But a branch stacked on another
+    branch shares every id the branch beneath it filed, and none of those are on
+    `main` yet, so the default-branch base cannot see them. The two branches then
+    look like independent allocators of the same number.
+
+    B338 is that, observed: B337 was filed on the publish-cycle branch and
+    retitled on the branch stacked above it, and `ids --fix` — which the pre-push
+    hook runs on its own — renumbered it mid-push. It was uncommitted and caught
+    in a diff. Committed, the ledger would have carried two entries for one bug
+    with every check green, which is the silent-duplication mirror of the silent
+    deletion the branching rules already warn about.
+
+    So the question is asked once per ref rather than once: an id present where
+    HEAD parted from **any** ref it is being compared against was inherited, not
+    allocated. That is strictly more permissive than before and cannot start
+    reporting a clash the old form missed — it only stops reporting ones that
+    were never clashes.
+
+    A genuine collision still fires, because two branches that each ran
+    `bugs.py new` have no common ancestor holding that id: it is absent from
+    every merge-base between them, however recently they diverged.
+    """
+    bases: list[str] = [base] if base is not None else []
+    if ledger.path.is_relative_to(ROOT):
+        for spec in [*elsewhere, *_other_ref_tips()]:
+            # `elsewhere` may name a file rather than a ref — that is how a test
+            # hands in a fixture — and a path has no merge-base. Ask git and let
+            # it decline.
+            if (found := _git("merge-base", "HEAD", spec)) and (found := found.strip()):
+                bases.append(found)
+
+    ids: set[str] = set()
+    for spec in bases:
+        if (text := ledger.at(spec)) is not None:
+            ids |= {entry_id for entry_id, _ in ledger.reader(text)}
+    return ids
+
+
 def clashing_ids(ledger: Ledger, mine: list[tuple[str, str]],
                  elsewhere: list[str], base: str | None) -> dict[str, str]:
     """Ids this branch created that another branch created too — id -> its title.
@@ -787,12 +830,18 @@ def clashing_ids(ledger: Ledger, mine: list[tuple[str, str]],
 
     A matching title is the same entry rather than a collision, which is what my
     own branch looks like once it has been pushed.
+
+    **A title is a claim, and claims get corrected** — which is most of what this
+    ledger is for. So the title match alone is not enough to recognise my own
+    entry, and B338 is what happens when it is relied on: B337 was filed on one
+    branch, its mechanism refuted, and its title corrected on the branch that did
+    the measuring. The two branches then disagreed about the title of an entry
+    they both already had, and the id read as allocated twice. `shared_ids` is
+    the part that settles it without consulting the title at all.
     """
     if base is None and not elsewhere:
         return {}
-    base_ids = set()
-    if base is not None and (text := ledger.at(base)) is not None:
-        base_ids = {entry_id for entry_id, _ in ledger.reader(text)}
+    base_ids = shared_ids(ledger, elsewhere, base)
 
     theirs: dict[str, set[str]] = {}
     for text in ledger_texts(ledger, elsewhere)[1:]:
@@ -995,6 +1044,97 @@ def cmd_selftest() -> int:
             failures.append(f"both entries moved — one must keep the number: {ids}")
         else:
             print(f"  in-range:   {ids[0]} / {ids[1]} — one kept the number, one moved")
+
+    # ---- 4. a stacked branch that RETITLES an inherited entry ----------------
+    #
+    # B338, and it is the case every earlier scenario is blind to. Nothing is
+    # duplicated and nothing collides: one entry, filed on a branch, inherited by
+    # a branch stacked on it, and its title corrected there because the
+    # measurement refuted what the title claimed. The id is absent from the
+    # merge-base with `main` — the branch beneath has not merged — so the only
+    # thing left saying "this is my own entry" was the title, and editing a title
+    # is most of what this ledger is for.
+    #
+    # It fired for real on 2026-08-28 and the pre-push hook runs `--fix` on its
+    # own, so it renumbered mid-push. Uncommitted, it was caught in a diff;
+    # committed, the ledger would have held two entries for one bug with every
+    # check green.
+    #
+    # `--fix` is deliberately NOT used here: the claim is that nothing is
+    # reported in the first place. Repairing a clash correctly is scenarios 1-3;
+    # this one is about not seeing one.
+    inherited = "B" + "20"
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp)
+        run(repo, "git", "init", "-q", "-b", "main")
+        run(repo, "git", "config", "user.email", "t@t")
+        run(repo, "git", "config", "user.name", "t")
+        ledger_dir = repo / ".claude" / "quality"
+        ledger_dir.mkdir(parents=True)
+        (ledger_dir / "BUGS.md").write_text("# Bugs\n\n", encoding="utf-8")
+        (repo / "scripts").mkdir()
+        here = Path(__file__).resolve().parent
+        for module in ("bugs.py", "evidence.py"):
+            shutil.copy2(here / module, repo / "scripts" / module)
+        run(repo, "git", "add", "-A")
+        run(repo, "git", "commit", "-qm", "seed")
+
+        # The lower branch files it. This never reaches `main`, which is the
+        # whole point — a stack in flight.
+        run(repo, "git", "checkout", "-q", "-b", "lower")
+        (ledger_dir / "BUGS.md").write_text(
+            "# Bugs\n\n"
+            f"- [ ] **{inherited}** `P2` `canvas` the mechanism I guessed at "
+            "`evidence: none yet`\n",
+            encoding="utf-8")
+        run(repo, "git", "add", "-A")
+        run(repo, "git", "commit", "-qm", "file it")
+
+        # The branch above it corrects the title, having measured.
+        run(repo, "git", "checkout", "-q", "-b", "upper")
+        (ledger_dir / "BUGS.md").write_text(
+            "# Bugs\n\n"
+            f"- [ ] **{inherited}** `P2` `canvas` what it turned out to be "
+            "`evidence: none yet`\n",
+            encoding="utf-8")
+        run(repo, "git", "add", "-A")
+        run(repo, "git", "commit", "-qm", "retitle it")
+
+        report = subprocess.run(
+            [sys.executable, str(repo / "scripts" / "bugs.py"), "ids"],
+            cwd=repo, capture_output=True, text=True,
+            encoding="utf-8", errors="replace").stdout
+
+        if "CLASHES" in report:
+            failures.append(
+                "a retitled entry inherited from the branch beneath was reported as "
+                "a clash — `ids --fix` would renumber it and split one bug in two")
+        else:
+            print(f"  retitled:   {inherited} inherited and reworded — not a clash")
+
+        # And the guard has to still catch a real one, or it has been widened
+        # into uselessness: a second branch off `main` that allocates the same
+        # number independently shares no ancestor holding it.
+        run(repo, "git", "checkout", "-q", "-b", "unrelated", "main")
+        (ledger_dir / "BUGS.md").write_text(
+            "# Bugs\n\n"
+            f"- [ ] **{inherited}** `P1` `export` a different bug entirely "
+            "`evidence: none yet`\n",
+            encoding="utf-8")
+        run(repo, "git", "add", "-A")
+        run(repo, "git", "commit", "-qm", "same number, different bug")
+
+        report = subprocess.run(
+            [sys.executable, str(repo / "scripts" / "bugs.py"), "ids"],
+            cwd=repo, capture_output=True, text=True,
+            encoding="utf-8", errors="replace").stdout
+
+        if "CLASHES" not in report:
+            failures.append(
+                "two branches allocating the same id independently was NOT reported — "
+                "the fix for B338 has widened the guard into silence")
+        else:
+            print(f"  allocated:  {inherited} taken twice off main — still a clash")
 
     for line in failures:
         print(f"  FAILED  {line}")
