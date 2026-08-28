@@ -182,9 +182,12 @@ never breaks because the file moved.
 
 That includes pictures that were never saved anywhere: **drag an image
 straight out of a browser** and Lightbox fetches it and imports it the same
-way, named after the file in its address. Drag the picture itself, not the
-page — a link to a page is not an image, and the status line says so when a
-drop had nothing readable in it.
+way, named after the file in its address. Sites like Pinterest wrap their
+pictures in links, so a drag off one carries the page as well as the picture
+— Lightbox takes the picture. A drag carrying only a page still works: the
+page is read for the image it names, and because that is the site’s guess
+rather than your choice, the status line says so. It also says so when a drop
+had nothing readable in it at all.
 
 Lightbox finds the frames in it by reading the gaps between the drawings, and
 puts the first on the frame you are on, the second on the next, and so on. The
@@ -262,7 +265,13 @@ and tries all of it before giving up. What decides is whether the bytes are a
 picture, not what anything is called, so a browser's nameless temporary works
 like any other. When the address turns out to be the *page* the picture lives
 on — which is what many sites, Pinterest among them, put in a drag — the page
-is read for the image it names and that is fetched instead. Only when every one
+is read for the image it names and that is fetched instead. **The picture wins
+over the page it sat on:** such a drag carries both addresses, and every one of
+them is tried as a picture before any of them is read as a page. When the answer
+did come from reading a page, the board names the picture it took, because that
+is the site’s own answer to *what is this page about* — on a site whose pages
+all share one social card it can be the site’s logo rather than the picture you
+were looking at. Drag the image itself if that happens. Only when every one
 of those fails does the drop refuse, and then the board's own toolbar says which
 way it failed rather than leaving you wondering; what the drag was carrying is
 written to the diagnostics log, which is the thing to attach if a drop that

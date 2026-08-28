@@ -187,17 +187,25 @@ public partial class MainWindow
         IReadOnlyList<Uri> uris, byte[]? embedded, Avalonia.Input.IDataTransfer? data)
     {
         _vm.AiStatus = "Fetching the image…";
-        foreach (var uri in uris)
+        // Every candidate is tried as a picture before any of them is read as a
+        // *page* for the image it names (B285, put in this order by B344) — a
+        // drag off a site that wraps its pictures in links carries both, and the
+        // picture is the one the artist meant.
+        if (await Services.WebImageDrop.FetchFirstImageAsync(uris) is { } got)
         {
-            // A candidate that fetches as a *page* is read once for the image
-            // it names (B285) \u2014 that is what a drag off any site that wraps
-            // its pictures in links carries.
-            if (await Services.WebImageDrop.FetchImageAsync(uri) is not { } got) continue;
             var name = Services.WebImageDrop.NameFor(got.Source);
-            if (!_vm.ImportReferenceImageBytes(name, got.Bytes)) continue;
-            _vm.AiStatus = $"Drawing against \u201c{name}\u201d.";
-            _vm.ReferenceDockerVisible = true;
-            return;
+            if (_vm.ImportReferenceImageBytes(name, got.Bytes))
+            {
+                // A picture a *page* named is that site’s answer to what the
+                // page is about, and on a site whose pages all share one social
+                // card that answer is the site’s own logo (B344).
+                _vm.AiStatus = got.NamedByAPage
+                    ? $"Drawing against “{name}” — the picture that page names. "
+                      + "Drag the image itself if that is not the one."
+                    : $"Drawing against “{name}”.";
+                _vm.ReferenceDockerVisible = true;
+                return;
+            }
         }
         // Last: the picture the drag was carrying itself (B294). Behind the
         // fetch because it may be a thumbnail, in front of a refusal because a

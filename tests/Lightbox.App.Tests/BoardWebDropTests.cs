@@ -195,14 +195,37 @@ public class BoardWebDropTests : BrushStateIsolated
     [Fact]
     public void ADropResolvesAPageToTheImageItNames()
     {
+        var drop = DropSource();
+
+        // FetchAsync hands back whatever the site sends. FetchFirstImageAsync is
+        // the one that reads a fetched *page* for the image it names (B285),
+        // which is what a drag off Pinterest and its kin carries — and that
+        // tries every address the drag holds as a picture before reading any of
+        // them as a page (B344), so the picture beats the page it sat on.
+        Assert.Contains("FetchFirstImageAsync", drop);
+    }
+
+    [Fact]
+    public void APictureFoundByReadingAPageIsAnnouncedAsAGuess()
+    {
+        // A page’s og:image is that site’s answer to “what is this page
+        // about”. On a site whose pages all share one social card it is the
+        // site’s own logo, and pinning that silently is indistinguishable from
+        // pinning the right picture (B344). The board says which it was.
+        var drop = DropSource();
+
+        Assert.Contains("NamedByAPage", drop);
+        Assert.Contains("that page names", drop);
+    }
+
+    /// <summary>The body of the board’s drop handler, for the guards that read it.</summary>
+    private static string DropSource()
+    {
         var drop = Regex.Match(
             BoardWindowSource(), @"private async void OnDrop\(object\? sender, DragEventArgs e\)\s*\{(.+?)\n    \}",
             RegexOptions.Singleline);
 
-        Assert.True(drop.Success, "OnDrop has moved — this guard needs to follow it");
-        // FetchAsync hands back whatever the site sends; FetchImageAsync is the
-        // one that reads a fetched *page* for the image it names (B285), which
-        // is what a drag off Pinterest and its kin carries.
-        Assert.Contains("FetchImageAsync", drop.Groups[1].Value);
+        Assert.True(drop.Success, "OnDrop has moved — these guards need to follow it");
+        return drop.Groups[1].Value;
     }
 }

@@ -761,19 +761,27 @@ public sealed class ReferenceBoardWindow : Window
 
         // One tile per drop, not one per candidate: the candidates are the same
         // picture described three ways, so pinning them all would put up
-        // duplicates. Same reasoning as the canvas's web drop. A candidate that
-        // fetches as a *page* is read once for the image it names (B285) —
-        // that is what a drag off any site that wraps its pictures in links
-        // carries.
+        // duplicates. Same reasoning as the canvas’s web drop. Every candidate
+        // is tried as a picture before any of them is read as a *page* for the
+        // image it names (B285, put in this order by B344) — a drag off a site
+        // that wraps its pictures in links carries both, and the picture is the
+        // one the artist meant.
         var uris = DroppedWebImages(e);
         if (uris.Count > 0) Say("Fetching the picture…");
-        foreach (var uri in uris)
+        if (await Services.WebImageDrop.FetchFirstImageAsync(uris) is { } got)
         {
-            if (await Services.WebImageDrop.FetchImageAsync(uri) is not { } got) continue;
-            if (BoardModel.AddImageBytes(
-                    Services.WebImageDrop.NameFor(got.Source), got.Bytes, (at.X, at.Y)) is not null)
+            var name = Services.WebImageDrop.NameFor(got.Source);
+            if (BoardModel.AddImageBytes(name, got.Bytes, (at.X, at.Y)) is not null)
             {
-                Say("");
+                // A picture the drag named outright is the picture. One a *page*
+                // named is that site’s answer to “what is this page about”, and
+                // on a site whose pages all share one social card that answer is
+                // the site’s own logo (B344). Which it was is the difference
+                // between a wrong picture and an unexplained one.
+                Say(got.NamedByAPage
+                    ? $"Pinned “{name}” — the picture that page names. "
+                      + "Drag the image itself if that is not the one."
+                    : "");
                 return;
             }
         }

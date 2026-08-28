@@ -244,4 +244,99 @@ public class WebImageDropTests
         Assert.True(WebImageDrop.LooksLikeImage(PngBytes()));
         Assert.False(WebImageDrop.LooksLikeImage(System.Text.Encoding.UTF8.GetBytes("<html>a page</html>")));
     }
+
+    // ---- the picture, or the page it sat on (B344) -------------------------------
+
+    /// <summary>A distinguishable picture, so a test can say which one arrived.</summary>
+    private static byte[] PngBytes(byte red)
+    {
+        using var bmp = new SKBitmap(8, 8, SKColorType.Rgba8888, SKAlphaType.Premul);
+        bmp.Erase(new SKColor(red, 10, 10));
+        using var img = SKImage.FromBitmap(bmp);
+        using var data = img.Encode(SKEncodedImageFormat.Png, 100);
+        return data.ToArray();
+    }
+
+    private static Uri ImageUri(byte[] png) =>
+        new("data:image/png;base64," + Convert.ToBase64String(png));
+
+    [Fact]
+    public async Task ADirectAddressBeatsAPageThatOnlyNamesOne()
+    {
+        // B344 in miniature. A drag off a site that wraps its pictures in links
+        // carries two addresses: the <a>’s page and the <img>’s picture. The
+        // page names a picture of its own — its og:image — and on a site whose
+        // pages all share one social card that is the *site’s* graphic rather
+        // than this page’s. Resolving the candidates strictly in order pinned
+        // the card: Pinterest’s facebook_share_image.png, a collage of stock
+        // photographs, in place of the pin the artist dragged.
+        var pin = PngBytes(200);
+        var siteCard = PngBytes(40);
+        var page = PageUri($"""<meta property="og:image" content="{ImageUri(siteCard).OriginalString}">""");
+
+        var got = await WebImageDrop.FetchFirstImageAsync([page, ImageUri(pin)]);
+
+        Assert.NotNull(got);
+        Assert.Equal(pin, got.Value.Bytes);
+        Assert.False(got.Value.NamedByAPage);
+    }
+
+    [Fact]
+    public async Task APageIsStillReadWhenNoAddressIsItselfAPicture()
+    {
+        // B285 stands. The pass order only decides which answer wins where
+        // there is a choice, and a drag carrying nothing but a page has none.
+        var named = PngBytes(90);
+        var page = PageUri($"""<meta property="og:image" content="{ImageUri(named).OriginalString}">""");
+
+        var got = await WebImageDrop.FetchFirstImageAsync([page]);
+
+        Assert.NotNull(got);
+        Assert.Equal(named, got.Value.Bytes);
+        Assert.True(got.Value.NamedByAPage, "a picture found by reading a page is a guess and must say so");
+    }
+
+    [Fact]
+    public void ADragOffALinkWrappedPictureListsThePageBeforeThePicture()
+    {
+        // Why the fix is two fetch passes and not a reordering of this list:
+        // this *is* the order a browser hands over. The platform’s URL format
+        // carries the anchor’s page, and the picture is only in the HTML
+        // fragment. The list is not wrong — resolving it strictly in order was.
+        var uris = WebImageDrop.ImageUris(
+            "https://www.pinterest.com/pin/1100989440182181227/",
+            "https://www.pinterest.com/pin/1100989440182181227/",
+            """<img src="https://i.pinimg.com/1200x/0a/e7/0e/0ae70ecdae6a543db6d96a2fef663316.jpg">""");
+
+        Assert.Equal(2, uris.Count);
+        Assert.Equal("https://www.pinterest.com/pin/1100989440182181227/", uris[0].AbsoluteUri);
+        Assert.Equal(
+            "https://i.pinimg.com/1200x/0a/e7/0e/0ae70ecdae6a543db6d96a2fef663316.jpg", uris[1].AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task TheOrderWithinAPassStandsSoALinkStraightToTheFileBeatsItsThumbnail()
+    {
+        // The other half of why it is two passes: a gallery whose link points
+        // straight at the full-resolution file should still win over the
+        // thumbnail it wraps, because both of those are pictures outright.
+        var full = PngBytes(220);
+        var thumb = PngBytes(60);
+        var uris = WebImageDrop.ImageUris(
+            ImageUri(full).OriginalString, null, $"""<img src="{ImageUri(thumb).OriginalString}">""");
+
+        var got = await WebImageDrop.FetchFirstImageAsync(uris);
+
+        Assert.NotNull(got);
+        Assert.Equal(full, got.Value.Bytes);
+        Assert.False(got.Value.NamedByAPage);
+    }
+
+    [Fact]
+    public async Task ADragWithNoPictureAnywhereResolvesToNothing()
+    {
+        Assert.Null(await WebImageDrop.FetchFirstImageAsync(
+            [PageUri("<html><body>no picture here</body></html>")]));
+        Assert.Null(await WebImageDrop.FetchFirstImageAsync([]));
+    }
 }

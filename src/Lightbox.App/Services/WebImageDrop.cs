@@ -454,24 +454,95 @@ public static partial class WebImageDrop
     public const int MaxPageParseBytes = 8 * 1024 * 1024;
 
     /// <summary>
-    /// The picture behind a dropped URI, with the address it was finally found
-    /// at. When the URI fetches but does not decode — the drag carried the
-    /// <em>page</em> the picture lives on, which is what any site that wraps
+    /// The picture behind a single dropped URI, with the address it was finally
+    /// found at. When the URI fetches but does not decode — the drag carried
+    /// the <em>page</em> the picture lives on, which is what any site that wraps
     /// its images in links puts in a drag (B285) — the page is read once for
     /// the image it names and the best candidate that decodes is returned.
     /// One level only, never a page named by a page.
     /// </summary>
-    public static async Task<(byte[] Bytes, Uri Source)?> FetchImageAsync(Uri uri)
-    {
-        var bytes = await FetchAsync(uri);
-        if (bytes is null) return null;
-        if (LooksLikeImage(bytes)) return (bytes, uri);
-        if (bytes.Length > MaxPageParseBytes) return null;
+    public static async Task<(byte[] Bytes, Uri Source)?> FetchImageAsync(Uri uri) =>
+        await FetchFirstImageAsync([uri]) is { } got ? (got.Bytes, got.Source) : null;
 
+    /// <summary>How many of a drag’s candidate addresses are fetched before it gives up.</summary>
+    /// <remarks>A drag carries one picture described a few ways; this bounds a pathological one.</remarks>
+    public const int MaxDropCandidates = 8;
+
+    /// <summary>
+    /// The picture a whole drag was pointing at, the address it was found at,
+    /// and whether that address came from reading a <em>page</em> rather than
+    /// from the drag itself.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Every address is tried as a picture before any of them is read as a
+    /// page (B344).</b> A drag off a site that wraps its images in links —
+    /// Pinterest, most galleries — carries both: the <c>&lt;a&gt;</c>’s page
+    /// URL in the platform’s URL format, and the <c>&lt;img&gt;</c>’s real
+    /// address in the HTML fragment. Taking the candidates strictly in order
+    /// fetched the page first, and B285’s page read then answered it with
+    /// <c>og:image</c> — which on a site whose pages all share one social card
+    /// is the <em>site’s</em> graphic, not the page’s. Pinterest’s is
+    /// <c>facebook_share_image.png</c>, a collage of stock photographs under the
+    /// Pinterest logo, and that is what went up on the wall instead of the pin
+    /// the artist dragged.
+    /// </para>
+    /// <para>
+    /// So an address that <em>is</em> a picture beats an address that merely
+    /// <em>names</em> one, whichever format carried it. Within each pass the
+    /// original order stands, because it is still the better guess: a gallery
+    /// whose link points straight at the full-resolution JPEG should win over
+    /// the thumbnail it wraps, and both of those are direct addresses.
+    /// </para>
+    /// <para>
+    /// B285 is untouched. A drag carrying nothing but a page URL has no direct
+    /// address to prefer, so it still resolves through the page — the pass
+    /// order only decides which answer wins when there is a choice.
+    /// </para>
+    /// </remarks>
+    public static async Task<(byte[] Bytes, Uri Source, bool NamedByAPage)?> FetchFirstImageAsync(
+        IReadOnlyList<Uri> candidates)
+    {
+        // A page met on the first pass is kept rather than re-fetched on the
+        // second: the bytes are already in hand. What is *held* is capped at one
+        // page's worth in total, so a drag naming several large pages cannot
+        // make a drop cost more memory than reading a single page always did;
+        // past the cap the address is remembered and fetched again if it is
+        // ever reached, which costs a fetch and never a wrong answer.
+        var pages = new List<(byte[]? Kept, Uri At)>();
+        var held = 0L;
         var tried = 0;
-        foreach (var candidate in ImageUrisInPage(System.Text.Encoding.UTF8.GetString(bytes), uri))
+        foreach (var uri in candidates)
         {
-            if (candidate == uri) continue;
+            if (++tried > MaxDropCandidates) break;
+            if (await FetchAsync(uri) is not { } bytes) continue;
+            if (LooksLikeImage(bytes)) return (bytes, uri, false);
+            if (bytes.Length > MaxPageParseBytes) continue;
+            var room = held + bytes.Length <= MaxPageParseBytes;
+            if (room) held += bytes.Length;
+            pages.Add((room ? bytes : null, uri));
+        }
+        foreach (var (kept, at) in pages)
+        {
+            if ((kept ?? await FetchAsync(at)) is not { } page) continue;
+            if (await ImageNamedByPageAsync(page, at) is { } named)
+            {
+                return (named.Bytes, named.Source, true);
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The best image a fetched page names, fetched and decoded (B285), or null.
+    /// One level only, never a page named by a page.
+    /// </summary>
+    private static async Task<(byte[] Bytes, Uri Source)?> ImageNamedByPageAsync(byte[] page, Uri at)
+    {
+        var tried = 0;
+        foreach (var candidate in ImageUrisInPage(Encoding.UTF8.GetString(page), at))
+        {
+            if (candidate == at) continue;
             if (++tried > MaxPageCandidates) break;
             var inner = await FetchAsync(candidate);
             if (inner is not null && LooksLikeImage(inner)) return (inner, candidate);
