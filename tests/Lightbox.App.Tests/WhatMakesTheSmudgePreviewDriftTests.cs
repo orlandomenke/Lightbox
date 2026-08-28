@@ -107,7 +107,7 @@ public class WhatMakesTheSmudgePreviewDriftTests(ITestOutputHelper output) : Bru
     /// publish" from "anything else the turn happened to run".
     /// </param>
     private (int Differing, int Worst, long LiveSum, long CommitSum, int Publishes, int Passes)
-        Drag(string presetId, DispatcherPriority? drain)
+        Drag(string presetId, DispatcherPriority? drain, bool wholeCanvas = false)
     {
         var vm = Ready();
         var work = new Queue<Action>();
@@ -137,6 +137,10 @@ public class WhatMakesTheSmudgePreviewDriftTests(ITestOutputHelper output) : Bru
                  { (160, 118), (205, 126), (250, 134), (292, 142), (330, 150) })
         {
             vm.MoveStroke(mx, my, 1);
+            // The hypothesis, tested by removing the variable: if the drift is
+            // the dirty rectangle missing pixels the smudge rewrote behind the
+            // pen, then repainting everything makes it disappear.
+            if (wholeCanvas) vm.MarkWholeCanvasDirtyForTests();
             if (drain is { } p) Dispatcher.UIThread.RunJobs(p);
         }
 
@@ -222,7 +226,7 @@ public class WhatMakesTheSmudgePreviewDriftTests(ITestOutputHelper output) : Bru
     [AvaloniaTheory]
     [InlineData("builtin-smudge")]
     [InlineData("builtin-blender")]
-    public void ItIsThePublishAndNotAnythingElseOnTheQueue(string presetId)
+    public void ThePreviewMatchesTheCommitHoweverOftenWePublish(string presetId)
     {
         var coalesced = Drag(presetId, null);
         var perEvent = Drag(presetId, DispatcherPriority.Background);
@@ -241,18 +245,21 @@ public class WhatMakesTheSmudgePreviewDriftTests(ITestOutputHelper output) : Bru
         output.WriteLine(
             $"  post-process passes queued: {coalesced.Passes} / {perEvent.Passes} / {aboveInput.Passes}");
 
-        // The clean arms stay clean. If either of these ever differs, the drift
-        // has spread beyond the publish and the eliminations above are void.
+        // **This is the regression test, and it is the inversion its own earlier
+        // version asked for.** While B337 was open this asserted that the
+        // per-event arm still diverged, so the diagnostic could not pass while
+        // inert. The fix landed and the assertion turned over.
         Assert.Equal(0, coalesced.Differing);
         Assert.Equal(0, aboveInput.Differing);
+        Assert.Equal(0, perEvent.Differing);
 
-        // Not inert: the arm that runs the publish has to actually show the
-        // defect, or this test is passing because nothing happened.
+        // Inertness, which the "must still diverge" line used to provide for
+        // free and now has to be stated: if the arms published the same number
+        // of times, the variable was never moved and three zeroes prove nothing.
         Assert.True(
-            perEvent.Differing > 0,
-            "publishing once per pointer event no longer diverges from the commit — "
-            + "if that is a fix, B337 closes and this assertion becomes the regression "
-            + "test with the comparison inverted");
+            perEvent.Publishes > coalesced.Publishes,
+            $"every arm published {perEvent.Publishes} times, so the publish rate was "
+            + "never varied and the equalities above are trivial");
 
         // These brushes take no worker pass at all, which is what removed the
         // first explanation the entry was filed with.
@@ -263,6 +270,29 @@ public class WhatMakesTheSmudgePreviewDriftTests(ITestOutputHelper output) : Bru
     /// Publishing leaves the effect brushes' working surface exactly as it found
     /// it — so the drift is in how the frame is composed, not in the mark.
     /// </summary>
+    [AvaloniaTheory]
+    [InlineData("builtin-smudge")]
+    [InlineData("builtin-blender")]
+    public void TheNarrowRepaintNowAgreesWithTheBlanketOne(string presetId)
+    {
+        var narrow = Drag(presetId, DispatcherPriority.Background);
+        var blanket = Drag(presetId, DispatcherPriority.Background, wholeCanvas: true);
+
+        output.WriteLine($"{presetId}: narrow repaint   {narrow.Differing} px differ");
+        output.WriteLine($"{presetId}: whole canvas     {blanket.Differing} px differ");
+        output.WriteLine($"{presetId}: live sums        {narrow.LiveSum} / {blanket.LiveSum}");
+
+        // **How the fault was located, kept as the test that it stays fixed.**
+        // Repainting everything was the experiment that identified the dirty
+        // rectangle as the culprit: it made the drift vanish while nothing else
+        // changed. The fix marks the pixels the smudge rewrites behind the pen
+        // instead, so the narrow repaint must now produce the SAME image as the
+        // blanket one — not merely a matching pixel count.
+        Assert.Equal(0, narrow.Differing);
+        Assert.Equal(0, blanket.Differing);
+        Assert.Equal(blanket.LiveSum, narrow.LiveSum);
+    }
+
     [AvaloniaTheory]
     [InlineData("builtin-smudge")]
     [InlineData("builtin-blender")]
