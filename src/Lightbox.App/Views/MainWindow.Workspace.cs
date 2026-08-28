@@ -325,6 +325,13 @@ public partial class MainWindow
             _vm.TickProfile.Snapshot(),
             _vm.TickProfile.Ticks,
             _vm.FrameCacheTraffic,
+            (_vm.FrameRegionRepaints, _vm.FrameRenderDrops),
+            _vm.FrameDropCallers,
+            _vm.SlowBuilds,
+            _vm.SlowBuildLog,
+            _vm.StallCensus,
+            _vm.PreviewGaps,
+            _vm.FrameCacheMissLog,
             _vm.SceneShape,
             Canvas.AnimationFrames,
             // The work the tick breakdown cannot see: drawing the composited
@@ -351,7 +358,8 @@ public partial class MainWindow
              _vm.LiveTipNewDabs.WorstMs,
              _vm.LiveTipAdded, _vm.LiveTipRebuilt,
              _vm.LiveTipDabsAdded.MedianMs, _vm.LiveTipDabsRebuilt.MedianMs,
-             _vm.LiveTipDabsStamped.MedianMs, _vm.LiveTipMarginalMs),
+             _vm.LiveTipDabsStamped.MedianMs, _vm.LiveTipMarginalMs,
+             _vm.ReportTipScale),
             (_vm.LiveStampSettled.MedianMs, _vm.LiveStampSettled.PercentileMs(0.9),
              _vm.LiveStampProvisional.MedianMs, _vm.LiveStampProvisional.PercentileMs(0.9),
              _vm.LiveStampProvisional.WorstMs, _vm.LiveStampProvisional.Count,
@@ -368,6 +376,7 @@ public partial class MainWindow
             (_vm.ComposeCount, _vm.ComposeTotalMs, _vm.ComposeWorstMs,
              _vm.ComposeMedianMs, _vm.ComposeMeanIsDistorted),
             (_vm.BuildDescribeMs, _vm.BuildComposeMs, _vm.BuildHandoffMs),
+            _vm.WorstBuild,
             _vm.ReportPublishTally);
     }
 

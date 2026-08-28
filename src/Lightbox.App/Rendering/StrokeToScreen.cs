@@ -99,6 +99,9 @@ internal sealed class StrokeToScreen
     private readonly Services.Tally _total = new();
     private readonly Services.Tally _tip = new();
 
+    /// <summary>Milliseconds spent stamping since launch, for gap attribution (B332).</summary>
+    public double StampedTotalMs { get; private set; }
+
     /// <summary>A pointer event has reached the stroke handler. UI thread.</summary>
     /// <returns>The timestamp to hand back to <see cref="Stamped"/>.</returns>
     public static long EventArrived() => Stopwatch.GetTimestamp();
@@ -111,6 +114,14 @@ internal sealed class StrokeToScreen
         {
             _events++;
             _stamp.Add(ms);
+            // **A running total, for attributing a gap rather than describing a
+            // session** (B332). Every other figure here is a distribution over
+            // the whole run; this one exists to be subtracted from itself, so a
+            // caller can ask how much of one 879 ms silence the UI thread spent
+            // stamping. Without it the only honest answer is a mean times a
+            // count, and this entry has been wrong four times doing exactly
+            // that.
+            StampedTotalMs += ms;
             // The oldest waiting event wins: it is the mark furthest behind
             // the pen, so it is the honest anchor for the publish's latency.
             // The newest is kept beside it — staleness without the coalescing

@@ -68,6 +68,16 @@ internal static class RenderReport
         IReadOnlyList<TickProfile.PhaseStats>? TickPhases = null,
         int TickCount = 0,
         (long Hits, long Misses, long Evictions, long Bytes, long Budget)? FrameCache = null,
+        (int Repaired, int Dropped)? FrameEdits = null,
+        IReadOnlyList<string>? FrameDropCallers = null,
+        (int Slow, int SlowWithMiss)? SlowBuilds = null,
+        IReadOnlyList<(double Ms, double AtSeconds, int Points, int Dabs, long Misses, double DescribeMs)>?
+            SlowBuildLog = null,
+        (double LostMs, double SessionMs)? StallCensus = null,
+        IReadOnlyList<(double Ms, double AtSeconds, int Points, int Outstanding, bool TipRefused,
+            bool Missed, long EventsInGap, double StampMs)>? PreviewGaps = null,
+        IReadOnlyList<(string FrameId, int Width, int Height, double Scale, int Cel, string Why)>?
+            FrameCacheMisses = null,
         (int Frames, int Layers, int Strokes, double Fps)? Scene = null,
         (long Requested, long Delivered)? AnimationFrames = null,
         double RenderMedianMs = 0,
@@ -90,7 +100,7 @@ internal static class RenderReport
          double NewDabsMedian, double NewDabsP90, double NewDabsWorst,
          int Added, int Rebuilt,
          double DabsAddedMedian, double DabsRebuiltMedian, double DabsStampedMedian,
-         double MarginalMs)? LiveTip = null,
+         double MarginalMs, double TipScale)? LiveTip = null,
         (double SettledMedian, double SettledP90,
          double ProvisionalMedian, double ProvisionalP90, double ProvisionalWorst,
          long Events, int WholeMarkEvents,
@@ -103,6 +113,8 @@ internal static class RenderReport
          double EventIntervalMedianMs, long Events)? Cycle = null,
         (int Count, double TotalMs, double WorstMs, double MedianMs, bool MeanDistorted)? Compose = null,
         (double DescribeMs, double ComposeMs, double HandoffMs)? BuildPhases = null,
+        (double TotalMs, double DescribeMs, double ComposeMs, double HandoffMs, long Misses,
+            double AtSeconds, int StrokePoints, int StrokeDabs)? WorstBuild = null,
         Rendering.PublishTally? PublishesByCaller = null);
 
     /// <summary>
@@ -1212,6 +1224,252 @@ internal static class RenderReport
                 var rest = comp.TotalMs - ph.DescribeMs - ph.ComposeMs - ph.HandoffMs;
                 sb.AppendLine(
                     $"    everything else       mean {rest / n,7:0.##} ms   (whatever the three above do not cover)");
+
+                // **B332: the same split for the ONE build that stalled.** Every
+                // number above is a mean over every build, and the distribution
+                // here is two milliseconds typical against several SECONDS worst.
+                // A mean over a thousand fast builds and one catastrophic one
+                // describes the thousand. Four captures blamed "describing it"
+                // for a six-second stall on exactly that evidence, which could
+                // not have told a slow phase from one slow frame.
+                if (facts.WorstBuild is { TotalMs: > 0 } w)
+                {
+                    sb.AppendLine("");
+                    if (facts.SlowBuilds is { } slow)
+                    {
+                        // Printed at zero as well: "no line" and "no slow builds"
+                        // are the same silence, and this is the line that says
+                        // whether the stalling is one freeze or continuous.
+                        sb.AppendLine(
+                            $"  stalls (over {ViewModels.MainViewModel.StallMs:0} ms)      {slow.Slow}"
+                            + $"   of which a cache miss was inside: {slow.SlowWithMiss}");
+                        if (facts.StallCensus is { SessionMs: > 0 } census)
+                        {
+                            // **The number the artist would recognise.** Everything
+                            // else here is a rate; this is how much of their time
+                            // the application spent not responding.
+                            sb.AppendLine(
+                                $"    time lost to them     {census.LostMs / 1000:0.##} s of"
+                                + $" {census.SessionMs / 1000:0.#} s drawing"
+                                + $"   ({100 * census.LostMs / census.SessionMs:0.#}%)");
+                        }
+                        if (slow.Slow == 0)
+                        {
+                            sb.AppendLine(
+                                "  >> NOT ONE build stalled, so whatever is being felt is not the frame");
+                            sb.AppendLine(
+                                "     build at all. Read the chain below instead.");
+                        }
+                        else if (slow.SlowWithMiss < slow.Slow)
+                        {
+                            sb.AppendLine(
+                                $"  >> {slow.Slow - slow.SlowWithMiss} slow builds had NO cache miss in them, so B332 is not the");
+                            sb.AppendLine(
+                                "     whole story and fixing the cache will not stop the jumping.");
+                        }
+                        else
+                        {
+                            sb.AppendLine(
+                                "  >> EVERY stall in the BUILD had a cache miss in it, so B332 accounts");
+                            sb.AppendLine(
+                                "     for the freezing. It does NOT account for lag: this counter only");
+                            sb.AppendLine(
+                                "     sees the frame build, and a chain that is late everywhere else");
+                            sb.AppendLine(
+                                "     shows up as one stall here and a slow median below. Read");
+                            sb.AppendLine(
+                                "     'already drawn, still held' before concluding the cache is all.");
+                        }
+                    }
+
+                    // **All of them, not just the worst.** Two populations look
+                    // identical in a single sample and obvious in a list: stalls
+                    // at zero points are something between strokes, stalls at
+                    // deep point counts are a cost that grows with the mark, and
+                    // the artist reports both.
+                    if (facts.SlowBuildLog is { Count: > 0 } log)
+                    {
+                        sb.AppendLine("    every stall, in order:");
+                        sb.AppendLine(
+                            "         at        ms   describing    points     dabs   misses");
+                        foreach (var b in log)
+                        {
+                            sb.AppendLine(
+                                $"    {b.AtSeconds,7:0.#} s {b.Ms,9:0} {b.DescribeMs,12:0}"
+                                + $" {b.Points,9} {b.Dabs,8} {b.Misses,8}");
+                        }
+
+                        // **What the artist actually saw stop.** A build census
+                        // counts frames that took too long to make; this counts
+                        // moments the mark stopped moving under the pen. The two
+                        // sets barely overlap, and the owner reported several
+                        // stalls in a session whose build census found one.
+                        if (facts.PreviewGaps is { Count: > 0 } gaps)
+                        {
+                            sb.AppendLine("");
+                            sb.AppendLine(
+                                $"  the preview stopped {gaps.Count} times while the pen was down:");
+                            sb.AppendLine(
+                                "         at    gap ms   points  outstanding  events  stamping   why");
+                            foreach (var g in gaps)
+                            {
+                                var why = g.TipRefused
+                                    ? (g.Missed ? "tip refused + cache miss" : "TIP REFUSED (frame was on time)")
+                                    : g.Missed ? "cache miss" : "publish gapped";
+                                sb.AppendLine(
+                                    $"    {g.AtSeconds,7:0.#} s {g.Ms,9:0} {g.Points,8} {g.Outstanding,12}"
+                                    + $" {g.EventsInGap,7} {g.StampMs,9:0}   {why}");
+                            }
+
+                            // **Ours or the pen's.** A gap with no events in it is
+                            // not the application being slow — nothing arrived to
+                            // draw. The pen-interval tally cannot say this: it
+                            // drops anything over 250 ms as a pause, which is
+                            // exactly the silence being complained about.
+                            // **What the thread was DOING, not what it produced.**
+                            // A gap with input in it is ours; the next question is
+                            // whether the time went on stamping the mark or on
+                            // something else entirely, and a mean times a count
+                            // cannot answer that — which is how this entry got the
+                            // per-dab cost wrong three times.
+                            var busiest = gaps
+                                .Where(g => g.EventsInGap > 0 && g.Ms > 200)
+                                .OrderByDescending(g => g.Ms)
+                                .FirstOrDefault();
+                            if (busiest.Ms > 0)
+                            {
+                                var share = 100 * busiest.StampMs / busiest.Ms;
+                                sb.AppendLine(
+                                    $"  >> The worst gap the app owns: {busiest.Ms:0} ms with"
+                                    + $" {busiest.EventsInGap} events in it, of which"
+                                    + $" {busiest.StampMs:0} ms ({share:0}%) was stamping.");
+                                sb.AppendLine(share > 60
+                                    ? "     The mark itself is the cost, so this is B189's ground."
+                                    : "     Stamping is NOT most of it, so the thread was busy with");
+                                if (share <= 60)
+                                {
+                                    sb.AppendLine(
+                                        "     something else while the pen waited — look at the pass, the");
+                                    sb.AppendLine(
+                                        "     dam and the compositor before touching the brush engine.");
+                                }
+                            }
+
+                            var starved = gaps.Count(g => g.EventsInGap == 0);
+                            if (starved > 0)
+                            {
+                                sb.AppendLine(
+                                    $"  >> {starved} of {gaps.Count} had NO pointer event arrive during them at all.");
+                                sb.AppendLine(
+                                    "     Those are not slow frames and not a refused tip: nothing came");
+                                sb.AppendLine(
+                                    "     in to draw. The pen, the driver or the OS held the input, and");
+                                sb.AppendLine(
+                                    "     the pen-interval median above cannot see it because it drops");
+                                sb.AppendLine(
+                                    "     anything over 250 ms as an artist's pause. See B255.");
+                            }
+
+                            var refused = gaps.Count(g => g.TipRefused);
+                            sb.AppendLine(
+                                $"  >> {refused} of {gaps.Count} were the tip being REFUSED, not a slow frame.");
+                            if (refused > 0)
+                            {
+                                sb.AppendLine(
+                                    "     Those frames arrived on time carrying a mark that had stopped");
+                                sb.AppendLine(
+                                    "     growing, which no timer on the build can see. That is B322,");
+                                sb.AppendLine(
+                                    "     and it is why a build census counts one stall in a session");
+                                sb.AppendLine(
+                                    "     the artist experienced as stalling repeatedly.");
+                            }
+                        }
+
+                        var midStroke = log.Count(b => b.Points > 0);
+                        var withMiss = log.Count(b => b.Misses > 0);
+                        sb.AppendLine(
+                            $"  >> {midStroke} of {log.Count} landed mid-stroke, {withMiss} of {log.Count} had a cache miss.");
+                        if (midStroke > 0 && withMiss < log.Count)
+                        {
+                            sb.AppendLine(
+                                "     Stalls with a stroke in flight and NO miss are a second fault, and");
+                            sb.AppendLine(
+                                "     they are the ones that would feel like lag rather than a freeze.");
+                        }
+                    }
+
+                    sb.AppendLine(
+                        $"  the WORST build alone   {w.TotalMs,8:0.##} ms   — where that one frame went:");
+                    sb.AppendLine(
+                        $"    it happened at        {w.AtSeconds,8:0.#} s into the session"
+                        + $"   with {w.StrokePoints} points and {w.StrokeDabs} dabs under the pen");
+                    if (w.StrokePoints == 0)
+                    {
+                        sb.AppendLine(
+                            "  >> NO stroke was in flight, so this is not a cost that grows with the");
+                        sb.AppendLine(
+                            "     mark. Look at what happens between strokes: opening, committing,");
+                        sb.AppendLine(
+                            "     clearing, or the first publish of a frame nothing had rendered.");
+                    }
+                    else
+                    {
+                        sb.AppendLine(
+                            $"  >> A stroke WAS in flight at {w.StrokePoints} points, so the stall lands");
+                        sb.AppendLine(
+                            "     mid-mark. Compare that count against the stroke you felt it on: if");
+                        sb.AppendLine(
+                            "     it is early, the trigger is the stroke STARTING rather than its");
+                        sb.AppendLine(
+                            "     length; if it is deep, the cost grows with the mark.");
+                    }
+                    var wRest = w.TotalMs - w.DescribeMs - w.ComposeMs - w.HandoffMs;
+                    sb.AppendLine(
+                        $"    describing it         {w.DescribeMs,8:0.##} ms   ({w.DescribeMs / w.TotalMs * 100:0}%)"
+                        + $"   frame-cache misses in it: {w.Misses}");
+                    sb.AppendLine(
+                        $"    compositing it        {w.ComposeMs,8:0.##} ms   ({w.ComposeMs / w.TotalMs * 100:0}%)");
+                    sb.AppendLine(
+                        $"    handing it over       {w.HandoffMs,8:0.##} ms   ({w.HandoffMs / w.TotalMs * 100:0}%)");
+                    sb.AppendLine(
+                        $"    everything else       {wRest,8:0.##} ms   ({wRest / w.TotalMs * 100:0}%)");
+
+                    // The verdict is written as a test of B332 rather than a
+                    // description, so a capture can refute it.
+                    var describeShare = w.DescribeMs / Math.Max(1e-9, w.TotalMs);
+                    if (w.Misses > 0 && describeShare > 0.5)
+                    {
+                        sb.AppendLine(
+                            "  >> B332 CONFIRMED by this capture: the worst build spent its time");
+                        sb.AppendLine(
+                            "     DESCRIBING the frame and a frame-cache miss happened inside it.");
+                        sb.AppendLine(
+                            "     FrameBitmapCache.Get renders a missed frame synchronously on the");
+                        sb.AppendLine(
+                            "     calling thread, which here is the UI thread mid-stroke. That is the");
+                        sb.AppendLine(
+                            "     jump. RenderDetached already exists to do it off-thread.");
+                    }
+                    else if (w.Misses == 0 && describeShare > 0.5)
+                    {
+                        sb.AppendLine(
+                            "  >> B332 is HALF right: the stall is in describing the frame, but no");
+                        sb.AppendLine(
+                            "     cache miss happened inside it — so it is the pass list, the stack");
+                        sb.AppendLine(
+                            "     fold or a cel fetch that did not miss. Look there, not at the cache.");
+                    }
+                    else
+                    {
+                        sb.AppendLine(
+                            "  >> B332 is REFUTED by this capture: the worst build did not spend its");
+                        sb.AppendLine(
+                            "     time describing the frame. Read the split above and chase the phase");
+                        sb.AppendLine(
+                            "     it actually names. Do not fix the cache on the strength of a mean.");
+                    }
+                }
                 var describe = ph.DescribeMs / Math.Max(1e-9, comp.TotalMs);
                 var compose = ph.ComposeMs / Math.Max(1e-9, comp.TotalMs);
                 var other = rest / Math.Max(1e-9, comp.TotalMs);
@@ -1483,6 +1741,11 @@ internal static class RenderReport
                 sb.AppendLine(
                     $"live tip drawn            {tip.Drawn} of {considered}   too far behind {tip.TooFarBehind}"
                     + $"   (budget {Rendering.LiveTipPlan.MaxMs} ms a publish)");
+                // **Which arm ran.** Two builds that differ only in the tip's
+                // resolution produce reports that are otherwise identical, and a
+                // capture that cannot say which one it is describes neither.
+                sb.AppendLine(
+                    $"  stamped at              {Rendering.LiveTipScale.Describe(tip.TipScale)}");
                 sb.AppendLine(
                     $"  dabs outstanding        median {tip.OutstandingMedian,7:0.#}   p90 {tip.OutstandingP90,7:0.#}"
                     + $"   p99 {tip.OutstandingP99,7:0.#}   worst {tip.OutstandingWorst,7:0.#}");
@@ -1850,6 +2113,78 @@ internal static class RenderReport
             sb.AppendLine($"  served from memory      {cache.Hits}");
             sb.AppendLine($"  had to render           {cache.Misses}  ({missShare:0.#}%)");
             sb.AppendLine($"  thrown out              {cache.Evictions}");
+            // **B332: where the misses come from.** A miss renders the whole
+            // frame synchronously on the calling thread — 797 ms measured on a
+            // lighter frame than the owner's, and 100% of a 3.3 second stall in
+            // the capture that confirmed it. So the question is not how many
+            // misses there are but what CAUSED them, and the leading candidate
+            // is a committed stroke the incremental repaint could not patch.
+            if (facts.FrameEdits is { } edits)
+            {
+                var edited = edits.Repaired + edits.Dropped;
+                sb.AppendLine(
+                    $"  edits repaired in place {edits.Repaired} of {edited}   dropped whole {edits.Dropped}"
+                    + $"   (a drop is what makes the next lookup miss)");
+                if (edits.Dropped > 0)
+                {
+                    sb.AppendLine(
+                        "  >> Every DROP costs a full frame render on the UI thread the next time");
+                    sb.AppendLine(
+                        "     anything asks for this frame — and the next publish always does, so");
+                    sb.AppendLine(
+                        "     there is no window to warm it in. Widening the repaint (B327) is the");
+                    if (facts.FrameDropCallers is { Count: > 0 } who)
+                    {
+                        sb.AppendLine($"     dropped by: {string.Join(", ", who)}");
+                    }
+
+                    sb.AppendLine(
+                        "     fix that changes nothing visible; warming after the fact is not.");
+                }
+                else if (edited > 0)
+                {
+                    sb.AppendLine(
+                        "  >> Every edit was patched in place, so the misses above came from");
+                    sb.AppendLine(
+                        "     somewhere else. B332's drop path is NOT the cause here.");
+                }
+                else
+                {
+                    sb.AppendLine(
+                        "  >> NO edit went through the invalidate path at all this session, so");
+                    sb.AppendLine(
+                        "     committing a stroke is not what caused the misses. Printed at zero");
+                    sb.AppendLine(
+                        "     on purpose: a missing line is produced equally by \"nothing happened\"");
+                    sb.AppendLine(
+                        "     and \"the counter is not wired\", and a capture cannot tell them apart.");
+                }
+
+                // What the misses actually WERE. Five misses and a stall is a
+                // fact about cost; this is the fact about cause, and the three
+                // causes need three different fixes.
+                if (facts.FrameCacheMisses is { Count: > 0 } misses)
+                {
+                    sb.AppendLine($"  the last {misses.Count} misses, and what each was for:");
+                    foreach (var m in misses)
+                    {
+                        sb.AppendLine(
+                            $"    frame {m.FrameId[..Math.Min(8, m.FrameId.Length)]}"
+                            + $"  {m.Width}x{m.Height}@{m.Scale:0.###}  cel {m.Cel}   {m.Why}");
+                    }
+
+                    var sizes = misses.Select(m => $"{m.Width}x{m.Height}@{m.Scale:0.###}").Distinct().Count();
+                    if (sizes > 1)
+                    {
+                        sb.AppendLine(
+                            $"  >> {sizes} DIFFERENT sizes or scales among them, so the cache is being");
+                        sb.AppendLine(
+                            "     asked for the same drawing at keys it does not hold. Each new key is");
+                        sb.AppendLine(
+                            "     a full render on the calling thread. That is the fix to chase.");
+                    }
+                }
+            }
         }
 
         // B167 phase 2. Printed beside the frame cache because they answer the
@@ -2118,6 +2453,17 @@ internal static class RenderReport
             ? "  (the final blit — see the compositing line below for where blending happened)"
             : "  (this is the FINAL BLIT only — compositing is on the CPU, which is the default)");
         sb.AppendLine($"durable frame (B122)      {DurableFrameState(facts)}");
+        // **A launch-time fact, printed at launch** (B322). The live-tip arm is
+        // fixed for the process by an environment variable, and until this line
+        // existed the only place it appeared was the live-tip block — which needs
+        // a stroke on a brush with an effect before it says anything. Two
+        // captures were taken as an A/B, both on the default arm, and nothing in
+        // the file said so until after the drawing was done. A setting chosen
+        // before the window opens belongs beside the other two that are.
+        sb.AppendLine(
+            $"live tip stamped at       {(Rendering.LiveTipScale.PreviewScale ? "preview resolution" : "document resolution")}"
+            + $"   ({Rendering.LiveTipScale.Variable}"
+            + $"{(Rendering.LiveTipScale.PreviewScale ? "=preview" : " unset — the default")})");
         if (facts.GpuSurfaceRequestFailed)
         {
             sb.AppendLine("  !! a GPU surface was asked for and could not be created, so the");

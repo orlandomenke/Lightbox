@@ -591,6 +591,31 @@ always names the one it actually used.
 | `Loaded` | A step above normal. Worth trying if playback feels late but steady. |
 | `Render` | Level with the work that puts frames on screen. This was the setting before, and it is the one to try if you want to see the stutter come back. |
 
+### If a brush with an effect loses its preview mid-stroke
+
+A brush with a wet edge, granulation, a paper texture or a simulated medium is
+drawn in two steps: the dabs, then the effect over them. The second step runs
+just behind your hand, so what is on screen is the mark **as of the last time
+that step finished**. Draw slowly and it keeps up and you never see it. Draw
+fast, especially at a large size, and the newest part of the stroke can be
+missing until you slow down or lift off.
+
+Lightbox draws those newest dabs plainly in the gap so there is ink under the
+nib, and it will skip doing so when catching up would cost more than it is
+worth — which is exactly when a stroke is fast. `LIGHTBOX_TIP_SCALE=preview`
+starts Lightbox with that ink drawn at the size it is being **shown** rather
+than at the full size of the drawing, which measures about four times cheaper
+and so gets skipped far less often. The cost is that the newest dabs are
+slightly coarser than the finished mark behind them, for the fraction of a
+second before the effect catches up and replaces them.
+
+It is off unless you set it, and it does nothing at all when you are zoomed in
+to 100%, where the two sizes are the same. **Help → Write a render report** names
+which of the two ran, near the top of the `live tip` block, along with how often
+the ink under the nib was drawn and how often it was skipped — so running the
+same build twice, once each way, is a real comparison rather than an impression.
+
+
 It names which parts of the drawing are done by your graphics card and which by
 the processor — and those are not the same question. The status strip says
 **GPU** when your card is putting finished frames on screen, which it usually is;

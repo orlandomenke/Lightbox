@@ -816,7 +816,20 @@ public partial class MainViewModel
             if (exposed is { } painted && LiveStrokes(painted) is { Count: > 0 } live)
             {
                 Rebake(live, below, scene.Width, scene.Height);
-                InvalidateFrameRender(painted.Id);
+                // **With the bounds, and B332 is why.** This used to invalidate
+                // with none, and `TryRepaintFrameRegion`'s first line refuses a
+                // null — so the incremental repaint (B327) was unreachable from
+                // this call site *by construction* and the whole frame was
+                // dropped every time. The owner's capture read `edits repaired
+                // in place 0 of 1`: not "usually fails", never succeeds.
+                //
+                // A drop costs the next lookup a full frame render on the UI
+                // thread — 797 ms measured on a lighter frame than the owner's,
+                // and 100% of a 7.0 second stall in the capture that found this.
+                // Rebaking re-freezes these strokes against the stack beneath,
+                // so what changed is exactly their own footprints and nothing
+                // else on the frame.
+                InvalidateFrameRender(painted.Id, RebakedBounds(live));
                 _dirtyThumbIds.Add(painted.Id);
             }
             // An adjustment layer exposes no drawing and still belongs in the
@@ -826,6 +839,33 @@ public partial class MainViewModel
                 below.Add((layer, exposed));
             }
         }
+    }
+
+    /// <summary>
+    /// The region a rebake changed: the union of the rebaked strokes' own
+    /// footprints (B332).
+    /// </summary>
+    /// <remarks>
+    /// <b>Null when any one of them cannot say where it is</b>, which is the
+    /// answer that keeps the old whole-frame behaviour rather than patching a
+    /// region that does not cover the change. A repaint that misses part of what
+    /// moved is worse than a drop: the drop is slow and correct, and the partial
+    /// patch is fast and wrong.
+    /// </remarks>
+    private GeometryOps.BBox? RebakedBounds(List<Stroke> live)
+    {
+        GeometryOps.BBox? union = null;
+        foreach (var stroke in live)
+        {
+            if (RepaintBoundsOf(stroke) is not { } b) return null;
+            union = union is { } u
+                ? new GeometryOps.BBox(
+                    Math.Min(u.MinX, b.MinX), Math.Min(u.MinY, b.MinY),
+                    Math.Max(u.MaxX, b.MaxX), Math.Max(u.MaxY, b.MaxY))
+                : b;
+        }
+
+        return union;
     }
 
     private static List<Stroke> LiveStrokes(Frame frame) =>

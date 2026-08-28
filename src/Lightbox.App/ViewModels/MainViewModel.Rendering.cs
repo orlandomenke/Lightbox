@@ -389,7 +389,12 @@ public partial class MainViewModel
     /// it. Only the full-render cache takes the hint: the tiles and the
     /// thumbnail are cheap to rebuild and the bake only wants telling.
     /// </param>
-    private void InvalidateFrameRender(string frameId, GeometryOps.BBox? repaintBounds = null)
+    private void InvalidateFrameRender(
+        string frameId, GeometryOps.BBox? repaintBounds = null,
+        // B332: which call site dropped the frame. A dozen of them pass no
+        // bounds, and reading the code picked the wrong one twice; the compiler
+        // fills this in at every call site for nothing.
+        [System.Runtime.CompilerServices.CallerMemberName] string by = "")
     {
         _publish.BumpRenderEpoch();
         // Before the cache work rather than after it (B327). A warm in flight was
@@ -405,6 +410,11 @@ public partial class MainViewModel
         else
         {
             FrameRenderDrops++;
+            if (_dropCallers.Count < 8)
+            {
+                _dropCallers.Add(by + (repaintBounds is null ? " (no bounds)" : " (bounds refused)"));
+            }
+
             _cache.Invalidate(frameId);
         }
         _tileFrames.Invalidate(frameId);
@@ -453,6 +463,128 @@ public partial class MainViewModel
 
     /// <inheritdoc cref="FrameRegionRepaints"/>
     internal int FrameRenderDrops { get; private set; }
+
+    private readonly List<string> _dropCallers = [];
+
+    /// <summary>Which call sites dropped a whole frame, and whether they had bounds (B332).</summary>
+    internal IReadOnlyList<string> FrameDropCallers => _dropCallers;
+
+    /// <summary>
+    /// Builds over 100 ms, and how many of those had a cache miss in them (B332).
+    /// </summary>
+    /// <remarks>
+    /// <b>The worst build is one frame; this is the shape of all of them.</b> It
+    /// is the line that separates "one freeze" from "it lags continuously", and
+    /// the owner reports both. Lost once to a revert that swept it up with the
+    /// fix it was measuring, which is its own lesson: an instrument committed
+    /// alongside a fix dies with the fix.
+    /// </remarks>
+    internal (int Slow, int SlowWithMiss) SlowBuilds { get; private set; }
+
+    /// <summary>
+    /// What counts as a stall: three screen refreshes at 60 Hz (B332).
+    /// </summary>
+    /// <remarks>
+    /// <b>Defined by what the artist can see rather than by a round number.</b>
+    /// One refresh is 16.67 ms and the chain already spends about 1.7 of them
+    /// getting a finished frame to the glass (B321), so a build inside one
+    /// refresh is invisible by construction. Three is the point where the mark
+    /// visibly stops following the nib. A hundred milliseconds — the first
+    /// threshold here — was chosen because it is a round number, and it counted
+    /// one stall in a session the owner described as continuously laggy.
+    /// </remarks>
+    internal const double StallMs = 50.0;
+
+    private readonly List<(double Ms, double AtSeconds, int Points, int Outstanding, bool TipRefused,
+        bool Missed, long EventsInGap, double StampMs)> _previewGaps = [];
+
+    private long _lastGapEvents;
+    private double _lastGapStampMs;
+
+    private long _lastTipRefusals;
+    private long _lastCycleMisses;
+
+    /// <summary>
+    /// Every gap between publishes long enough to see, while a stroke was in
+    /// flight, and what was missing from it (B332).
+    /// </summary>
+    /// <remarks>
+    /// <b>The census the artist would recognise.</b> A build census counts
+    /// frames that took too long to make; this counts moments where the mark
+    /// stopped moving under the pen, which is a different set and the one being
+    /// complained about. A publish that gapped shows as a large Ms; a publish
+    /// that arrived on time with no tip shows as TipRefused, and those do not
+    /// overlap — the second is a frame that was never late at all.
+    /// </remarks>
+    internal IReadOnlyList<(double Ms, double AtSeconds, int Points, int Outstanding, bool TipRefused,
+        bool Missed, long EventsInGap, double StampMs)> PreviewGaps => _previewGaps;
+
+    private void NotePreviewGap(long publishAt)
+    {
+        var ms = (publishAt - _publish.LastPublishTicks) * 1000.0
+                 / System.Diagnostics.Stopwatch.Frequency;
+        var refusedNow = LiveTipTooFarBehind > _lastTipRefusals;
+        var missedNow = _cache.Misses > _lastCycleMisses;
+        // **The split that decides where a gap comes from.** Events during the
+        // gap means the app had input and did not publish, which is ours. NO
+        // events means nothing arrived to publish, which is the pen, the driver
+        // or the OS — and the pen-interval tally cannot say so because it drops
+        // anything over 250 ms as a pause.
+        var eventsInGap = PointerEventsReceived - _lastGapEvents;
+        var stampedTotal = Rendering.StrokeToScreen.Shared.StampedTotalMs;
+        var stampInGap = stampedTotal - _lastGapStampMs;
+        _lastTipRefusals = LiveTipTooFarBehind;
+        _lastCycleMisses = _cache.Misses;
+        _lastGapEvents = PointerEventsReceived;
+        _lastGapStampMs = stampedTotal;
+
+        // Only while a stroke is in flight: a gap with the pen up is the
+        // application idling, which is correct and is not a stall.
+        if (_strokeBuilder.Current is not { } live || !_strokeBuilder.IsActive) return;
+        if (ms <= StallMs && !refusedNow) return;
+        if (_previewGaps.Count >= 24) return;
+
+        _previewGaps.Add((
+            ms,
+            (System.Diagnostics.Stopwatch.GetTimestamp() - AppStartedTicks)
+                / (double)System.Diagnostics.Stopwatch.Frequency,
+            live.Points.Count,
+            Math.Max(0, _live.PostStampedDabs > 0 ? _live.StableDabs - _live.PostStampedDabs : 0),
+            refusedNow,
+            missedNow,
+            eventsInGap,
+            stampInGap));
+    }
+
+    /// <summary>Milliseconds lost to stalls, and the session's length (B332).</summary>
+    internal (double LostMs, double SessionMs) StallCensus =>
+        (_stallLostMs,
+         (System.Diagnostics.Stopwatch.GetTimestamp() - AppStartedTicks)
+            * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
+
+    private double _stallLostMs;
+
+    private readonly List<(double Ms, double AtSeconds, int Points, int Dabs, long Misses, double DescribeMs)>
+        _slowBuildLog = [];
+
+    /// <summary>
+    /// Every build over 100 ms, not just the worst one (B332).
+    /// </summary>
+    /// <remarks>
+    /// <b>The owner's suggestion, and it is better than what it replaces.</b> The
+    /// worst build is one anecdote: it said "0 points under the pen" and settled
+    /// nothing, because the artist reports stalling on long strokes AND a freeze
+    /// between them, and one sample cannot show two populations. A list shows
+    /// whether the stalls cluster at zero points (something between strokes) or
+    /// spread across deep ones (a cost that grows with the mark), and whether
+    /// the ones with misses are a different size from the ones without.
+    /// </remarks>
+    internal IReadOnlyList<(double Ms, double AtSeconds, int Points, int Dabs, long Misses, double DescribeMs)>
+        SlowBuildLog => _slowBuildLog;
+
+    /// <summary>What the frame cache last had to render, and why (B332).</summary>
+    internal IReadOnlyList<(string FrameId, int Width, int Height, double Scale, int Cel, string Why)>
+        FrameCacheMissLog => _cache.RecentMisses;
 
     private bool TryRepaintFrameRegion(string frameId, GeometryOps.BBox? repaintBounds)
     {
@@ -726,6 +858,38 @@ public partial class MainViewModel
     /// <inheritdoc cref="BuildDescribeMs"/>
     internal double BuildHandoffMs { get; private set; }
 
+    private double _buildStartDescribeMs;
+    private double _buildStartComposeMs;
+    private double _buildStartHandoffMs;
+    private long _buildStartMisses;
+
+    /// <summary>
+    /// The single worst frame build, broken into the phases IT spent its time
+    /// in, and whether a frame-cache miss happened inside it (B332).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The hypothesis this exists to refute.</b> `FrameBitmapCache.Get`
+    /// counts a miss and then renders the whole frame synchronously on the
+    /// calling thread, which mid-stroke is the UI thread inside the phase the
+    /// report calls <em>describing it</em>. If that is the stall, the worst
+    /// build is a describe-dominated build with a miss in it. If the worst
+    /// build carries no miss, or spends its time compositing, the hypothesis is
+    /// wrong and B332 says so.
+    /// </para>
+    /// <para>
+    /// <b>Recorded for the worst build rather than averaged, because averaging
+    /// is what hid this.</b> A mean over a thousand two-millisecond builds and
+    /// one six-second one describes the thousand. Nothing in four captures
+    /// could say which phase the six seconds was in, and the entry that
+    /// depended on it guessed.
+    /// </para>
+    /// </remarks>
+    internal (double TotalMs, double DescribeMs, double ComposeMs, double HandoffMs, long Misses,
+        double AtSeconds, int StrokePoints, int StrokeDabs) WorstBuild { get; private set; }
+
+    private static readonly long AppStartedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+
     /// <summary>
     /// Close off one frame's build, timed from the publish stamp (B321).
     /// </summary>
@@ -740,6 +904,51 @@ public partial class MainViewModel
         var ms = (System.Diagnostics.Stopwatch.GetTimestamp() - _publish.LastPublishTicks)
                  * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
         _buildTally.Add(ms);
+
+        // B332. Deltas rather than totals: the phase counters accumulate across
+        // the session, so only the difference belongs to this build.
+        if (ms > StallMs)
+        {
+            var missesHere = _cache.Misses - _buildStartMisses;
+            SlowBuilds = (SlowBuilds.Slow + 1, SlowBuilds.SlowWithMiss + (missesHere > 0 ? 1 : 0));
+            // Capped, because a list that grows with the fault is the shape of
+            // cost this whole entry is about. Twelve is enough to see a pattern
+            // and small enough that a bad session cannot make it a leak.
+            _stallLostMs += ms;
+            if (_slowBuildLog.Count < 20)
+            {
+                _slowBuildLog.Add((
+                    ms,
+                    (System.Diagnostics.Stopwatch.GetTimestamp() - AppStartedTicks)
+                        / (double)System.Diagnostics.Stopwatch.Frequency,
+                    _strokeBuilder.Current?.Points.Count ?? 0,
+                    _live.StableDabs,
+                    missesHere,
+                    BuildDescribeMs - _buildStartDescribeMs));
+            }
+        }
+
+        if (ms > WorstBuild.TotalMs)
+        {
+            // **When, and what was under the pen.** The owner reports the stall on
+            // the FIRST long stroke after opening and on subsequent long ones,
+            // mid-stroke, after the start of the mark has already drawn. A
+            // first-render story cannot explain the second half of that and a
+            // stroke-length story cannot explain a build with cache misses in
+            // it, so the report has to carry both facts about the same frame
+            // instead of leaving them to be inferred from two other numbers.
+            var live = _strokeBuilder.Current;
+            WorstBuild = (
+                ms,
+                BuildDescribeMs - _buildStartDescribeMs,
+                BuildComposeMs - _buildStartComposeMs,
+                BuildHandoffMs - _buildStartHandoffMs,
+                _cache.Misses - _buildStartMisses,
+                (System.Diagnostics.Stopwatch.GetTimestamp() - AppStartedTicks)
+                    / (double)System.Diagnostics.Stopwatch.Frequency,
+                live?.Points.Count ?? 0,
+                _live.StableDabs);
+        }
     }
 
     public void PublishSnapshot(
@@ -769,6 +978,15 @@ public partial class MainViewModel
         // previous publish until this line moves it.
         if (_publish.LastPublishTicks != 0)
         {
+            // **B332/B322: a preview stall is not a slow frame.** The owner
+            // reported the preview freezing several times in a session whose
+            // build census found ONE stall — because a frame that arrives on
+            // time carrying a mark that has stopped growing is not slow, it is
+            // empty. Two ways that happens: the publish itself gapped, or it
+            // arrived without a tip because the budget refused one. Both are
+            // invisible to a timer on the build, and both are what the artist
+            // calls stalling.
+            NotePreviewGap(publishAt);
             _cycleTally.Add((publishAt - _publish.LastPublishTicks)
                             * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
         }
@@ -779,6 +997,18 @@ public partial class MainViewModel
             DamReleasedAtTicks = 0;
         }
         _publish.LastPublishTicks = publishAt;
+
+        // **B332: the worst build has to name its own phase.** Everything the
+        // report says about where a build's time goes is a MEAN over every
+        // build, and the distribution is 2 ms typical against six SECONDS
+        // worst — so the mean describes the typical frame and says nothing
+        // about the stall, which is the only part an artist feels. Four
+        // captures blamed "describing it" on that basis and none of them could
+        // have distinguished a slow phase from one slow frame.
+        _buildStartDescribeMs = BuildDescribeMs;
+        _buildStartComposeMs = BuildComposeMs;
+        _buildStartHandoffMs = BuildHandoffMs;
+        _buildStartMisses = _cache.Misses;
 
         // Belt to the release at the end of this method: if an exception left
         // holds behind, the next publish must not stack a second set on top.
@@ -853,7 +1083,10 @@ public partial class MainViewModel
             _passTransformSplit ??= TransformSplitFor,
             MaskEditing: EditingLayerMask,
             TipScratch: BuildLiveTip(),
-            TipBounds: _live.TipUsed);
+            TipBounds: _live.TipUsed,
+            // Read AFTER BuildLiveTip, which is what sets it. Argument evaluation
+            // is left to right, so this is the scale the tip above was stamped at.
+            TipScale: _live.TipScale);
 
         var built = ScenePassBuilder.Describe(scene, passState, _cache, _tileFallbacks, live);
         var tileNativeDoc = built.TileNative;
@@ -1629,6 +1862,21 @@ public partial class MainViewModel
     /// dabs — and both produced a per-dab figure an order of magnitude too high
     /// and a budget that refused affordable work.
     /// </remarks>
+    /// <summary>
+    /// The scale the tip was last actually stamped at, for the report (B322).
+    /// </summary>
+    /// <remarks>
+    /// <b>Recorded rather than recomputed, because the two can disagree.</b> The
+    /// report is written after the fact and the compose scale follows the view,
+    /// so asking <c>LiveTipScale.For(ComposeScale)</c> at report time answers
+    /// for the zoom the artist happens to be at <em>now</em> rather than the one
+    /// they drew at. The arm would still be named correctly and the number
+    /// beside it could be wrong — which is precisely the class of error this
+    /// entry has made four times, and it is not worth making a fifth for one
+    /// saved field.
+    /// </remarks>
+    internal double ReportTipScale { get; private set; } = 1.0;
+
     internal double LiveTipMarginalMs =>
         LiveTipDabsStamped.TotalMs > 0
             ? LiveTipStampOnlyMs.TotalMs / LiveTipDabsStamped.TotalMs
@@ -1695,8 +1943,26 @@ public partial class MainViewModel
         // budget is a time and this is what converts it into dabs. Zero until
         // something has been stamped, which LiveTipPlan reads as "be generous".
         var perDabMs = LiveTipMarginalMs;
+
+        // **The arm this run is drawing** — document resolution, or the scale
+        // the frame is composed at. A size-70 dab measures about 45-50 us into
+        // a document-sized buffer and about 11 into the composed one, so the
+        // same budget buys 4.2x the tip. See LiveTipScale, and B322 for why it
+        // is a flag and not simply the cheaper default.
+        var tipScale = Rendering.LiveTipScale.For(ComposeScale);
+
+        // A scale change makes what the buffer holds unusable — it is the wrong
+        // size, and BeginTip will drop it. Told to the PLAN rather than handled
+        // after it, because the plan is what budgets the work: letting it
+        // believe an addition were possible would budget a delta and then stamp
+        // a rebuild, which is exactly the mismatch that turned this fix off in
+        // attempts 5 and 6.
+        var reusable = _live.TipScratch is not null && _live.TipScale == tipScale;
         var (range, planStampFrom, why, outstanding) = Rendering.LiveTipPlan.For(
-            _live.PostStampedDabs, dabs.Count, _live.TipFrom, _live.TipStampedTo, perDabMs);
+            _live.PostStampedDabs, dabs.Count,
+            reusable ? _live.TipFrom : -1,
+            reusable ? _live.TipStampedTo : -1,
+            perDabMs);
         if (outstanding > 0) LiveTipOutstanding.Add(outstanding);
         if (why == Rendering.LiveTipPlan.Skip.TooFarBehind) LiveTipTooFarBehind++;
         if (why == Rendering.LiveTipPlan.Skip.NoPassYet) LiveTipNoPass++;
@@ -1706,8 +1972,13 @@ public partial class MainViewModel
             return null;
         }
 
+        // Document space, and it stays document space: RangeBounds clamps the
+        // drawn rectangle against the document and the compositor reads that
+        // rectangle. Only the BUFFER shrinks.
         var info = new SKImageInfo(
             Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        var (tipWidth, tipHeight) =
+            Rendering.LiveTipScale.BufferSize(Scene.Width, Scene.Height, tipScale);
         // **Add what arrived, rebuild only when the pass moved** (attempt 6).
         // The tip keeps its contents between publishes, so an ordinary publish
         // stamps the difference rather than the whole outstanding run. A pass
@@ -1719,12 +1990,23 @@ public partial class MainViewModel
         // about what THIS publish stamps and that depends on whether the buffer
         // can be added to. Keeping the decision in one place is what stops the
         // two from disagreeing about which dabs the buffer holds.
-        var canAdd = planStampFrom > plan.From && _live.TipScratch is not null;
+        var canAdd = planStampFrom > plan.From && reusable;
 
         var startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
         var stampedFrom = canAdd ? planStampFrom : plan.From;
-        var canvas = canAdd ? _live.ContinueTip() : _live.BeginTip(info.Width, info.Height);
+        var canvas = canAdd ? _live.ContinueTip() : _live.BeginTip(tipWidth, tipHeight);
         if (canvas is null) return null;
+        // Set after BeginTip, which wipes the last rectangle through the OLD
+        // scale — the buffer it is wiping is still the old one.
+        _live.TipScale = tipScale;
+        ReportTipScale = tipScale;
+
+        // **The SURFACE carries the scale, never the geometry** (invariant 7).
+        // Dab coordinates reach Hash01 untouched, so scatter, size, flow,
+        // roundness, rotation and the three colour jitters all re-roll
+        // identically and the tip is the same mark drawn smaller. Multiplying
+        // the coordinates instead would be a different mark.
+        if (tipScale < 1.0) canvas.Scale((float)tipScale);
 
         // **The stamp is timed apart from the setup, and that separation is the
         // difference between a working budget and a useless one.** Creating the

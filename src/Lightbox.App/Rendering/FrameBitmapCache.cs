@@ -213,6 +213,23 @@ public sealed class FrameBitmapCache : IDisposable
     /// <inheritdoc cref="Hits"/>
     public long Misses { get; private set; }
 
+    private readonly List<(string FrameId, int Width, int Height, double Scale, int Cel, string Why)>
+        _recentMisses = [];
+
+    /// <summary>
+    /// The last few lookups that had to render, and why (B332).
+    /// </summary>
+    /// <remarks>
+    /// A miss costs a full frame rasterization on the calling thread — 797 ms
+    /// measured, and 100% of a 4.9 second stall in the capture that confirmed
+    /// it. The count alone cannot say whether the cause is an edit dropping the
+    /// entry, a size or scale nobody asked for before, or a brush that samples
+    /// the layers beneath and is deliberately never cached. Those are three
+    /// different fixes.
+    /// </remarks>
+    public IReadOnlyList<(string FrameId, int Width, int Height, double Scale, int Cel, string Why)>
+        RecentMisses => _recentMisses;
+
     /// <inheritdoc cref="Hits"/>
     public long Evictions { get; private set; }
 
@@ -323,7 +340,13 @@ public sealed class FrameBitmapCache : IDisposable
     /// </param>
     public SKBitmap Get(
         Frame frame, int width, int height, double outputScale = 1.0, int celIndex = 0,
-        SKBitmap? backdrop = null)
+        SKBitmap? backdrop = null,
+        // **B332: who asked.** A miss is a whole-frame render on the calling
+        // thread — 797 ms measured — and the capture that proved it could say
+        // the size and the frame but not the caller. Two rounds of grepping for
+        // "who asks at 960x540" is what this one defaulted parameter replaces,
+        // and the compiler fills it in at every call site for free.
+        [System.Runtime.CompilerServices.CallerMemberName] string asker = "")
     {
         // Dropped rather than returned uncached: every caller treats what comes
         // back as pixels the cache owns and none of them dispose it, so handing
@@ -341,6 +364,24 @@ public sealed class FrameBitmapCache : IDisposable
         }
 
         Misses++;
+        // **B332: a miss is 797 ms of whole-frame render on this thread, so the
+        // report has to be able to say WHICH lookup paid it.** The counters said
+        // five misses in a session and nothing about what they were for; the
+        // first guess (a committed stroke dropping the frame) turned out to be
+        // wrong, and there was no way to tell from the file. Kept as a short
+        // ring rather than a log: the last few are what a capture needs and an
+        // unbounded list during a stroke is the shape of cost this whole entry
+        // is about.
+        if (_recentMisses.Count >= 8) _recentMisses.RemoveAt(0);
+        _recentMisses.Add((
+            frame.Id,
+            width,
+            height,
+            outputScale,
+            celIndex,
+            SamplesLive(frame)
+                ? $"asked by {asker} — samples all layers live, never cached by design"
+                : $"asked by {asker}"));
         var source = PoseResolver?.Invoke(frame, celIndex) ?? frame;
         // Asked of the frame as recorded, never of a posed copy: a pose is a
         // transient render of the drawing and the checkpoint answers to what is

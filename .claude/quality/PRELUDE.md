@@ -1,6 +1,6 @@
 # CLAUDE.md — the per-session prelude
 
-budget: 22354
+budget: 22450
 
 ## What this budgets, and why it is characters rather than lines
 
@@ -63,6 +63,19 @@ other's reason and leaves a number nobody can account for.
   collisions. `Absent by default is not the same as out of reach` was 7,988, and
   was really two unrelated things welded together: a scope philosophy and a
   protocol for asking the owner a question.
+
+- **22,354 → 22,450** (2026-08-27, B322/B332): +96 for one row in *Start here*
+  pointing at `docs/DESIGN-two-stage-brush.md`. The owner had asked why a brush
+  stamps twice on more than one occasion and said outright that the answer *"does
+  not stick"* — which it did not, because it had never been written down, so each
+  session re-derived it from the source and got it half right. The design note is
+  the reachable half; the row is the resident half, and without the row the note
+  is a file nobody opens. That is the split this ratchet exists to enforce rather
+  than an exception to it.
+
+  Trimmed before raising, which is the order the rule asks for: the row started at
+  136 characters and went in at 96 by dropping its editorial half. The other 40
+  were not worth a byte of every session forever.
 
 - **21,593 → 22,354** (2026-08-24, same change): +761 for the paragraph in *Start
   here* that states the resident/reachable split and points at this ratchet, and

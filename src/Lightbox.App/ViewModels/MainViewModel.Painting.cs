@@ -1417,8 +1417,21 @@ public partial class MainViewModel
     private readonly Services.Tally _eventIntervalTally = new();
     private long _lastEventAt;
 
+    /// <summary>
+    /// Pointer events the app has received, for telling an input-side gap from
+    /// an app-side one (B332).
+    /// </summary>
+    /// <remarks>
+    /// <b>The pen-interval tally cannot answer this and says so.</b> It excludes
+    /// gaps over 250 ms as "the artist pausing", which is right for a cadence
+    /// and wrong for a stall — a 500 ms silence at the start of a stroke is
+    /// exactly what it throws away, and that is the gap the owner feels.
+    /// </remarks>
+    internal long PointerEventsReceived { get; private set; }
+
     private void NoteEventArrival()
     {
+        PointerEventsReceived++;
         var now = System.Diagnostics.Stopwatch.GetTimestamp();
         if (_lastEventAt != 0)
         {
