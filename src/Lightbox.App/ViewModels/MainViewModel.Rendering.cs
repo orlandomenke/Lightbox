@@ -495,9 +495,166 @@ public partial class MainViewModel
     /// </remarks>
     internal const double StallMs = 50.0;
 
+    /// <summary>
+    /// Whether to audit the ink on screen against the ink that was stamped
+    /// (B332/B322). Off unless <c>LIGHTBOX_INK_AUDIT</c> is set.
+    /// </summary>
+    /// <remarks>
+    /// <b>Because the owner reports ink DISAPPEARING, and nothing in this file
+    /// can see that.</b> Every counter here measures when things happen, not
+    /// whether they are there: `live tip drawn 505 of 505` with zero stalls sat
+    /// beside *"the first dabs are visible but stop and disappear soon
+    /// thereafter"*. Late ink and absent ink are different faults and only one
+    /// of them is instrumented.
+    /// <para>
+    /// The dab accounting cannot be the hole — the tip starts exactly where the
+    /// pass claims to have finished, so no dab falls between them. What can is
+    /// the PIXELS: a pass writes only the band it processed (B313) and then
+    /// records `PostStampedDabs = dabsAtPass`, claiming every dab below that
+    /// line. Any of those whose pixels no band ever wrote is in neither the body
+    /// nor the tip.
+    /// </para>
+    /// <para>
+    /// Expensive on purpose and gated behind an environment variable, in a
+    /// build the owner runs deliberately. It samples rather than sweeps, and it
+    /// runs on one publish in eight.
+    /// </para>
+    /// </remarks>
+    internal static readonly bool InkAudit =
+        Environment.GetEnvironmentVariable("LIGHTBOX_INK_AUDIT") is "1" or "on";
+
+    /// <summary>Publishes audited, and the worst share of stamped ink that was missing.</summary>
+    internal (int Audited, int WithLoss, double WorstLossPercent, double LastLossPercent)
+        InkAuditResult { get; private set; }
+
+    private int _inkAuditTick;
+
+    /// <summary>
+    /// Compare the ink the compositor will show against the ink the stroke
+    /// actually stamped, and record what is missing (B332).
+    /// </summary>
+    private void AuditInk(SKBitmap? shown, SKRectI? tipBounds)
+    {
+        if (!InkAudit || _live.Scratch is null) return;
+        if (++_inkAuditTick % 8 != 0) return;
+        if (shown is null) return;
+
+        var stamped = _live.Scratch;
+        var w = Math.Min(stamped.Width, shown.Width);
+        var h = Math.Min(stamped.Height, shown.Height);
+
+        // **What the compositor actually draws, which this failed to model once
+        // already.** Written against the old composition — body, plus tip — it
+        // reported 95.4% of the ink missing on the very build that fixed the
+        // missing ink, because after B334 the raw scratch is drawn wherever the
+        // body has not covered. An instrument that has not learned the fix
+        // measures the bug it was built for forever.
+        var covered = _live.PostUsed;
+        long inked = 0, missing = 0;
+        // Every fourth pixel on both axes: a sixteenth of the work, and ink that
+        // vanishes is a region rather than a speckle.
+        for (var y = 0; y < h; y += 4)
+        {
+            for (var x = 0; x < w; x += 4)
+            {
+                if (stamped.GetPixel(x, y).Alpha <= 8) continue;
+                inked++;
+                if (shown.GetPixel(x, y).Alpha > 8) continue;
+                // The tip carries what the body has not processed, so ink inside
+                // its rectangle is accounted for even when the body lacks it.
+                if (tipBounds is { } t && x >= t.Left && x < t.Right && y >= t.Top && y < t.Bottom) continue;
+                // And outside what the passes have covered, the compositor draws
+                // the raw scratch itself (B334) — so ink there is on screen by
+                // construction, whatever the body holds.
+                if (covered is { } c && !(x >= c.Left && x < c.Right && y >= c.Top && y < c.Bottom)) continue;
+                missing++;
+            }
+        }
+
+        if (inked == 0) return;
+        var loss = 100.0 * missing / inked;
+        var prior = InkAuditResult;
+        InkAuditResult = (
+            prior.Audited + 1,
+            prior.WithLoss + (loss > 1 ? 1 : 0),
+            Math.Max(prior.WorstLossPercent, loss),
+            loss);
+    }
+
+    /// <summary>
+    /// When each stroke began, when its first ink reached the screen, and when
+    /// it ended — in WALL CLOCK, so a screen recording can be lined up with it
+    /// (B189/B333).
+    /// </summary>
+    /// <remarks>
+    /// <b>Wall clock and not session seconds, which is the whole point.</b> Every
+    /// other time in this report is measured from launch, and a video file has
+    /// no idea when the application started. The owner recorded a session and
+    /// could not tell which stroke on screen was which row in the file. These
+    /// are the two facts that let a recording and a report be read together.
+    /// </remarks>
+    internal IReadOnlyList<(DateTime Began, double ToFirstInkMs, double LastedMs, int Points, int Dabs)>
+        StrokeLog => _strokeLog;
+
+    private readonly List<(DateTime Began, double ToFirstInkMs, double LastedMs, int Points, int Dabs)>
+        _strokeLog = [];
+
+    private DateTime _strokeBeganAt;
+    private long _strokeBeganTicks;
+    private bool _strokeInkShown;
+
+    /// <summary>A stroke has begun. Wall clock, for lining up with a recording.</summary>
+    internal void NoteStrokeBegan()
+    {
+        _strokeFirstPublishSeen = false;
+        _strokeBeganAt = DateTime.Now;
+        _strokeBeganTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+        _strokeInkShown = false;
+    }
+
+    /// <summary>
+    /// A publish showing the mark FOLLOWING the pen, not the opening dab (B189).
+    /// </summary>
+    /// <remarks>
+    /// <b>The first version of this could only ever return zero, which is worse
+    /// than no measurement at all.</b> BeginStroke publishes on its last line, so
+    /// timing from the stroke's start to the next publish timed my own next
+    /// statement: every row read 0 ms while the owner watched the mark hang at
+    /// the start of a stroke. What they describe is the SECOND publish -- the
+    /// opening dab lands and then the mark stops following -- so that is what is
+    /// timed here, and a stroke that never gets one reads never rather than zero.
+    /// </remarks>
+    internal void NoteStrokeInkShown()
+    {
+        if (_strokeInkShown || _strokeBeganTicks == 0) return;
+        // More than the opening dab. One point is what BeginStroke already
+        // published, and calling that ink on screen is what made this vacuous.
+        if ((_strokeBuilder.Current?.Points.Count ?? 0) < 2) return;
+        _strokeInkShown = true;
+        _strokeFirstInkMs = (System.Diagnostics.Stopwatch.GetTimestamp() - _strokeBeganTicks)
+                            * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+    }
+
+    private double _strokeFirstInkMs;
+
+    /// <summary>The stroke has ended; close its row.</summary>
+    internal void NoteStrokeEnded(int points, int dabs)
+    {
+        if (_strokeBeganTicks == 0 || _strokeLog.Count >= 32) return;
+        _strokeLog.Add((
+            _strokeBeganAt,
+            _strokeInkShown ? _strokeFirstInkMs : -1,
+            (System.Diagnostics.Stopwatch.GetTimestamp() - _strokeBeganTicks)
+                * 1000.0 / System.Diagnostics.Stopwatch.Frequency,
+            points,
+            dabs));
+        _strokeBeganTicks = 0;
+    }
+
     private readonly List<(double Ms, double AtSeconds, int Points, int Outstanding, bool TipRefused,
         bool Missed, long EventsInGap, double StampMs)> _previewGaps = [];
 
+    private bool _strokeFirstPublishSeen;
     private long _lastGapEvents;
     private double _lastGapStampMs;
 
@@ -541,6 +698,21 @@ public partial class MainViewModel
         // Only while a stroke is in flight: a gap with the pen up is the
         // application idling, which is correct and is not a stall.
         if (_strokeBuilder.Current is not { } live || !_strokeBuilder.IsActive) return;
+
+        // **And never the FIRST publish of a stroke, which is the artifact that
+        // nearly cost a night chasing the wrong layer.** BeginStroke publishes
+        // the opening dab, and the interval back from it reaches into the pause
+        // BEFORE the pen went down. Every such row read zero pointer events --
+        // correctly, because the artist was not drawing yet -- and four of them
+        // in a row was read as input starvation. One was 40 seconds long, which
+        // should have been the tell and was explained away instead.
+        if (live.Points.Count < 2)
+        {
+            _strokeFirstPublishSeen = true;
+            return;
+        }
+
+        if (!_strokeFirstPublishSeen) return;
         if (ms <= StallMs && !refusedNow) return;
         if (_previewGaps.Count >= 24) return;
 
@@ -890,6 +1062,9 @@ public partial class MainViewModel
 
     private static readonly long AppStartedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
 
+    /// <summary>Wall clock at launch, so session seconds can be turned into a time of day (B189).</summary>
+    internal static readonly DateTime AppStartedAt = DateTime.Now;
+
     /// <summary>
     /// Close off one frame's build, timed from the publish stamp (B321).
     /// </summary>
@@ -986,7 +1161,13 @@ public partial class MainViewModel
             // arrived without a tip because the budget refused one. Both are
             // invisible to a timer on the build, and both are what the artist
             // calls stalling.
-            NotePreviewGap(publishAt);
+            if (_strokeBuilder.IsActive) NoteStrokeInkShown();
+        if (InkAudit && _strokeBuilder.IsActive)
+        {
+            AuditInk(_live.PostStampedCount > 0 ? _live.PostScratch : _live.Scratch, _live.TipUsed);
+        }
+
+        NotePreviewGap(publishAt);
             _cycleTally.Add((publishAt - _publish.LastPublishTicks)
                             * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
         }
@@ -1406,6 +1587,21 @@ public partial class MainViewModel
         // use-after-free.
         ReleaseFetchHolds();
 
+        // **B332: fill the cache before the pen arrives, never while it is
+        // moving.** The freeze is a whole-frame render on the UI thread, and the
+        // capture of 2026-08-28 00:50 shows what it costs the artist: the two
+        // strokes that read `following: never` are the first of the session and
+        // the first after a thirteen-second pause, both sitting beside the one
+        // 1131 ms build with two cache misses in it. Every other stroke began
+        // following in 28-39 ms. **The freeze does not interrupt a stroke, it
+        // eats the first one after an idle.**
+        //
+        // So the moment to pay for it is the idle itself, off this thread. That
+        // is what the prewarmer already does for the playhead, and unlike every
+        // other attempt on this entry it has NO visible trade: nothing stale is
+        // shown, because nothing is shown at all until the pixels exist.
+        WarmWhatTheNextStrokeWillNeed();
+
         // Last, and after the frame is on its way to the screen: the worker
         // starts on the frames after this one while the artist is looking at
         // this one. Queued from here rather than from the playback tick so that
@@ -1425,6 +1621,48 @@ public partial class MainViewModel
     /// to be wasted — and every one of them ends in the pixels being freed here
     /// rather than leaked.
     /// </remarks>
+    /// <summary>
+    /// Render the frames the next stroke will ask for, off the UI thread, while
+    /// nobody is drawing (B332).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Only while idle, and that is the whole of its safety.</b> Adding work
+    /// during a stroke is what took B322's fourth attempt from 2.41 ms a frame
+    /// to 23.06; this runs when no stroke is in flight and nothing is playing,
+    /// so the worst it can cost is a worker rendering a frame nobody ends up
+    /// needing.
+    /// </para>
+    /// <para>
+    /// <b>And it asks for nothing already held or already coming.</b> The
+    /// prewarmer's <c>Request</c> supersedes its queue, so calling it every
+    /// publish would restart the same render forever; <c>IsBusy</c> is the
+    /// guard. Frames that sample the layers beneath are skipped because
+    /// <c>CanCache</c> refuses them by design and a warm would be discarded on
+    /// arrival.
+    /// </para>
+    /// </remarks>
+    private void WarmWhatTheNextStrokeWillNeed()
+    {
+        if (IsPlaying || _strokeBuilder.IsActive || _prewarm.IsBusy) return;
+
+        var scene = Scene;
+        List<Services.WarmRequest>? jobs = null;
+        foreach (var layer in scene.Layers)
+        {
+            if (!scene.IsLayerVisible(layer)) continue;
+            if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is not { } frame) continue;
+            if (!FrameBitmapCache.CanCache(frame)) continue;
+            if (_cache.Holds(frame, scene.Width, scene.Height, 1.0, CurrentFrameIndex)) continue;
+
+            jobs ??= [];
+            jobs.Add(new Services.WarmRequest(
+                frame, scene.Width, scene.Height, CurrentFrameIndex, Services.WarmProduct.Bitmap));
+        }
+
+        if (jobs is { Count: > 0 }) _prewarm.Request(jobs);
+    }
+
     private void TakeWarmedFrames() => _prewarm.Drain(warmed =>
     {
         var want = warmed.Request;

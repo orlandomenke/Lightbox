@@ -71,6 +71,13 @@ internal static class RenderReport
         (int Repaired, int Dropped)? FrameEdits = null,
         IReadOnlyList<string>? FrameDropCallers = null,
         (int Slow, int SlowWithMiss)? SlowBuilds = null,
+        (int Audited, int WithLoss, double WorstLossPercent, double LastLossPercent)? InkAudit = null,
+        DateTime LaunchedAt = default,
+        IReadOnlyList<(DateTime Began, double ToFirstInkMs, double LastedMs, int Points, int Dabs)>?
+            StrokeLog = null,
+        (double RestoreMs, double SettledMs, double BackupMs, double TailMs, double TailMpx,
+            double TailMpxP90, double ColourMs, double FootprintMs,
+            double FootprintScale)? StampParts = null,
         IReadOnlyList<(double Ms, double AtSeconds, int Points, int Dabs, long Misses, double DescribeMs)>?
             SlowBuildLog = null,
         (double LostMs, double SessionMs)? StallCensus = null,
@@ -1159,6 +1166,62 @@ internal static class RenderReport
         }
 
         sb.AppendLine($"pointer events stamped    {s.Events}");
+        // **B332/B322: ink that was stamped and is not on screen.** Every other
+        // number in this file measures WHEN something happened; the owner
+        // reports ink DISAPPEARING, which no timer can see. `live tip drawn 505
+        // of 505` with zero stalls sat beside "the first dabs are visible but
+        // stop and disappear soon thereafter", and both were true.
+        if (facts.InkAudit is { Audited: > 0 } ink)
+        {
+            sb.AppendLine(
+                $"ink audit                 {ink.Audited} publishes checked,"
+                + $" {ink.WithLoss} with ink missing");
+            sb.AppendLine(
+                $"  worst missing           {ink.WorstLossPercent:0.#}% of the stamped ink"
+                + $"   (last {ink.LastLossPercent:0.#}%)");
+            if (ink.WorstLossPercent > 1)
+            {
+                sb.AppendLine(
+                    "  >> INK THAT WAS STAMPED IS NOT ON SCREEN. Not late — absent. A pass");
+                sb.AppendLine(
+                    "     writes only the band it processed and then records every dab below");
+                sb.AppendLine(
+                    "     it as done, so a dab whose pixels no band ever wrote is in neither");
+                sb.AppendLine(
+                    "     the body nor the tip. That is the mark vanishing while you draw.");
+            }
+            else
+            {
+                sb.AppendLine(
+                    "  >> Everything stamped is on screen, so what the artist sees is LATE");
+                sb.AppendLine(
+                    "     ink rather than absent ink. Read PEN -> SCREEN, not this.");
+            }
+        }
+        // **Wall clock, so a screen recording can be read beside this file.**
+        // Every other time here is measured from launch and a video has no idea
+        // when the application started. The owner recorded a session and could
+        // not tell which stroke on screen was which row in the report.
+        if (facts.StrokeLog is { Count: > 0 } strokes)
+        {
+            sb.AppendLine("  each stroke, by the clock:");
+            sb.AppendLine(
+                "      began        following      lasted    points     dabs");
+            foreach (var st in strokes)
+            {
+                var firstInk = st.ToFirstInkMs < 0 ? "  never" : $"{st.ToFirstInkMs,6:0} ms";
+                sb.AppendLine(
+                    $"    {st.Began:HH:mm:ss.fff}   {firstInk}   {st.LastedMs,7:0} ms"
+                    + $" {st.Points,9} {st.Dabs,8}");
+            }
+
+            sb.AppendLine(
+                "  >> Line these up with a screen recording: began is when the pen went");
+            sb.AppendLine(
+                "     down, following is how long before the mark started FOLLOWING it.");
+            sb.AppendLine(
+                "     The opening dab is published by BeginStroke itself and says nothing.");
+        }
         // B330: which of the numbers below cannot be quoted as costs. Each phase
         // is a latency distribution with stalls in it, and until these carried a
         // median the only honest reading was "some of this is a stall and you
@@ -1310,14 +1373,15 @@ internal static class RenderReport
                             sb.AppendLine(
                                 $"  the preview stopped {gaps.Count} times while the pen was down:");
                             sb.AppendLine(
-                                "         at    gap ms   points  outstanding  events  stamping   why");
+                                "     clock            at    gap ms   points  outstanding  events  stamping   why");
                             foreach (var g in gaps)
                             {
                                 var why = g.TipRefused
                                     ? (g.Missed ? "tip refused + cache miss" : "TIP REFUSED (frame was on time)")
                                     : g.Missed ? "cache miss" : "publish gapped";
                                 sb.AppendLine(
-                                    $"    {g.AtSeconds,7:0.#} s {g.Ms,9:0} {g.Points,8} {g.Outstanding,12}"
+                                    $"  {facts.LaunchedAt.AddSeconds(g.AtSeconds):HH:mm:ss.fff}"
+                                    + $" {g.AtSeconds,7:0.#} s {g.Ms,9:0} {g.Points,8} {g.Outstanding,12}"
                                     + $" {g.EventsInGap,7} {g.StampMs,9:0}   {why}");
                             }
 
@@ -1535,6 +1599,67 @@ internal static class RenderReport
         }
 
         sb.AppendLine($"  stamping the dabs       median {s.Stamp.MedianMs,7:0.##} ms   mean {s.Stamp.MeanMs,7:0.##} ms   worst {s.Stamp.WorstMs,7:0.##} ms");
+        // **B189: what an event's stamp is MADE of.** The dab count is bounded —
+        // B321 pinned the provisional tail at 2.0 events at every pen speed — but
+        // an event also performs three bitmap copies over the tail RECTANGLE,
+        // which spans the distance the pen covered in those two events. That is
+        // area work that grows with speed while the dab count does not, and it
+        // is invisible to every dab-based number above.
+        if (facts.StampParts is { } sp)
+        {
+            var whole = sp.RestoreMs + sp.SettledMs + sp.BackupMs + sp.TailMs;
+            sb.AppendLine(
+                $"    restoring the tail    median {sp.RestoreMs,7:0.##} ms   (copy back what was on loan)");
+            sb.AppendLine(
+                $"    stamping the settled  median {sp.SettledMs,7:0.##} ms   (dabs that stopped moving)");
+            sb.AppendLine(
+                $"    backing up the tail   median {sp.BackupMs,7:0.##} ms   (copy out, for the next event)");
+            sb.AppendLine(
+                $"    stamping the tail     median {sp.TailMs,7:0.##} ms   (the dabs on loan)");
+            sb.AppendLine(
+                $"    the tail rectangle    median {sp.TailMpx,7:0.###} Mpx   p90 {sp.TailMpxP90,7:0.###} Mpx");
+            // **Every dab is walked twice.** Colour into the scratch, footprint
+            // into the coverage buffer, both document-sized. Split because the
+            // per-dab figure above has always included both.
+            sb.AppendLine(
+                $"    of which colour       median {sp.ColourMs,7:0.##} ms   and footprint {sp.FootprintMs,7:0.##} ms"
+                + $"   (the same dabs, walked twice)");
+            sb.AppendLine(
+                $"    the footprint went    into {Rendering.LiveFootprintScale.Describe(sp.FootprintScale)}");
+            var twoWalks = sp.ColourMs + sp.FootprintMs;
+            if (twoWalks > 0 && sp.FootprintMs > 0)
+            {
+                var share = sp.FootprintMs / twoWalks * 100;
+                sb.AppendLine(
+                    $"  >> The footprint is {share:0}% of the dab work. It is a running maximum kept");
+                sb.AppendLine(
+                    share > 35
+                        ? "     so a soft brush can be capped to it, and at this share it is the"
+                        : "     so a soft brush can be capped to it, and at this share it is NOT");
+                sb.AppendLine(
+                    share > 35
+                        ? "     lever for B189 rather than the brush or the canvas size."
+                        : "     where B189's cost is. Look at the colour stamp instead.");
+            }
+            if (whole > 0)
+            {
+                var copies = (sp.RestoreMs + sp.BackupMs) / whole * 100;
+                sb.AppendLine(
+                    $"  >> {copies:0}% of an event's stamp is COPYING the tail rectangle, not stamping dabs.");
+                sb.AppendLine(copies > 40
+                    ? "     That cost is an AREA and the rectangle spans two events of pen travel,"
+                    : "     The dabs are the cost here, so the tail copies are not the lever.");
+                if (copies > 40)
+                {
+                    sb.AppendLine(
+                        "     so it grows with SPEED while the dab count does not. That is why a");
+                    sb.AppendLine(
+                        "     long fast stroke stalls and a short one does not, and no dab-based");
+                    sb.AppendLine(
+                        "     number in this file can see it. B189.");
+                }
+            }
+        }
         // **What that one number is made of** (B322 attempt 6). A mean cannot
         // show that a cost is proportional to something, which is exactly the
         // blindness that let the fourth attempt restamp the whole stroke per
@@ -2464,6 +2589,16 @@ internal static class RenderReport
             $"live tip stamped at       {(Rendering.LiveTipScale.PreviewScale ? "preview resolution" : "document resolution")}"
             + $"   ({Rendering.LiveTipScale.Variable}"
             + $"{(Rendering.LiveTipScale.PreviewScale ? "=preview" : " unset — the default")})");
+        // The same launch-time fact for the OTHER buffer that follows the
+        // compose scale (B189). Default on, which is the opposite of the tip's
+        // default, so the line says which rather than leaving it to be inferred
+        // from the absence of a variable.
+        sb.AppendLine(
+            "live footprint at         "
+            + (Rendering.LiveFootprintScale.FollowsPreview
+                ? "preview resolution   (the default — set "
+                    + Rendering.LiveFootprintScale.Variable + "=full to pin it)"
+                : "document resolution   (" + Rendering.LiveFootprintScale.Variable + "=full)"));
         if (facts.GpuSurfaceRequestFailed)
         {
             sb.AppendLine("  !! a GPU surface was asked for and could not be created, so the");
