@@ -1603,6 +1603,14 @@ public partial class MainViewModel
     /// </summary>
     internal (int Settled, int Total) LiveDabCutForTests => (_live.StableDabs, _live.DabCount);
 
+    /// <summary>
+    /// The effect brushes' working surface, for B337: whether publishing a
+    /// frame leaves it as it found it. A read-only seam — the same shape as the
+    /// dab counters above, and for the same reason, which is that the question
+    /// cannot be asked from outside without one.
+    /// </summary>
+    internal SKBitmap? LiveCompositeForTests => _live.Composite;
+
     /// <param name="eraseWithCurrentBrush">
     /// Alt was held. The stroke erases but keeps the brush's own size, shape
     /// and dynamics — unlike switching to the eraser, which brings its own.
