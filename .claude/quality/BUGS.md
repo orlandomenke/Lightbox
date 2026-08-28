@@ -466,6 +466,19 @@ which is a weak test and still far better than none.
   - **`evidence: manual`, and the distinction is the point.** `PenEchoFilterTests` holds the *policy* — that a mouse move within 200 ms of a pen is dropped, that a pen-less machine can never engage the filter, that a button is never dropped, and that the reflected members still resolve. None of that is the *cure*: whether dropping those events actually stops Avalonia recomputing pointer-over, and so stops the submenu thrash, is Avalonia's behaviour on Windows with a tablet attached, and this repository has none of the three. Naming those tests here would tick the box on a freeze nobody has watched stop. What closes it is a traced minute on the reporter's machine showing `UI-thread stalls 0` with `echo events dropped` in the thousands.
 
 - [ ] **B189** `P1` `canvas` Drawing trails the pen across every brush, and no number the suite owns can see it `evidence: manual`
+  - **THE MECHANISM, MEASURED 2026-08-28 01:0x: the dab walk is O(the whole mark) on a per-pointer-event path.** `MainViewModel.Painting` calls `BrushEngine.WalkDabs(live, _live.Densify)` once per event and gets a **fresh `List<Dab>` covering every dab laid so far**. `IncrementalDensify` spares it re-densifying the *points* — that is what `_live.Densify` is for — but nothing spares it rebuilding the dab list. `DabWalkGrowsWithTheStrokeTests`:
+
+    ```
+      points     dabs   best ms   us per event
+          50       40     0.033             33
+         800      640     0.502            502
+      the walk grew 15.2x while the stroke grew 16x
+    ```
+
+    **Linear, with no constant worth speaking of.** At the 1089 dabs of the owner's long stroke that is about 0.85 ms an event, and it keeps rising for as long as the stroke does. That is **invariant 6 broken** — painting is bounded work — in the one path that runs per pointer event, and it is why a long stroke degrades while a short one never does.
+  - **It also closes the arithmetic the instrumentation opened.** The stamp's parts sum to 1.54 ms (restore 0.12 + settled 0.70 + backup 0.05 + tail 0.67) against a measured median of **2.68**. The walk is the only per-event operation left that touches the whole stroke, and at the lengths in that capture it is the right size to be the difference.
+  - **The fix is an incremental dab walk beside the incremental densify, and here is the trap it must survive.** `WalkDabs` is a fold whose state is **`previous`, `heading` and `travelled`** — *and* the enumerator `SampledDabPositions` carries its own `acc`, `prev` and per-pressure `step`/`fidelity`. **Both folds must be resumed, not just the outer one.** Resuming with a state variable missing does not throw; it moves a dab, and `IncrementalDabWalkTests` already records what that costs: *"every dab dynamic is seeded from the dab's position, so a sub-pixel move re-rolled scatter and threw the dab up to ten pixels elsewhere."*
+  - **What makes it safe to build is that correctness is decidable offline.** The property is exact equality with a full walk — dab for dab, bit for bit — across densities, brushes and append patterns, which needs no capture and no eye. **Not built tonight**: it is a refactor of the engine's hot path and the owner is asleep; a measurement that is right is worth more than a fix that might be. Cost: M, and the risk is entirely in the resumed fold rather than in the caching.
   - **FIRST FIX LANDED AND MEASURED, 2026-08-28 00:50.** `RestoreTail` wraps the backup's pixels instead of duplicating them, and the whole session moved with it:
 
     | | before | after |
