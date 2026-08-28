@@ -103,9 +103,12 @@ library:
 > together, or to link the layers in the Layers docker so they behave as one
 > while you work.
 
-**Do not add a layer inside a symbol's own tab.** A symbol has no second layer
-to put it on, so the drawings on it are folded into the frame list and become
-extra frames of the animation instead. Draw on the one layer that is there.
+**A symbol's own tab has one layer, and adding another is refused** — there is
+nowhere in a symbol for a second one to go, so *New layer* tells you as much
+rather than making one. Draw on the layer that is there. If a layer does end up
+in a symbol tab some other way, a paste for instance, only the symbol's own
+layer is saved into it and you are told which one that was; merge the others
+down if you want to keep them.
 
 ## Placing, moving, and letting go
 
