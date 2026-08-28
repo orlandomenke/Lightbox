@@ -505,7 +505,9 @@ pointer agree.
 
 **What the trace costs follows the region, not the page.** Hovering a small
 enclosed area is quick whatever size the canvas is; a fill that covers half the
-drawing takes longer, because there is more of it.
+drawing takes longer, because there is more of it. **Filling under your lines
+costs about what filling over them does** — the drawing is patched where the
+colour landed rather than rebuilt from the first stroke.
 The magic wand previews the same way, as a faint, still dashed outline —
 dashes mean selection, and it stays faint and still so it cannot be mistaken
 for one you have already made.

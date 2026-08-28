@@ -360,16 +360,12 @@ public partial class MainViewModel
         if (clip is not null) stroke.ClipId = clip.Value.Id;
         var below = FillBelowLines;
 
-        // Fill-above stamps incrementally onto the cached frame; fill-below
-        // changes stroke order, so only that path pays a frame re-render.
-        if (below)
-        {
-            InvalidateFrameRender(target.Id);
-        }
-        else
-        {
-            AppendToFrameRender(target, stroke);
-        }
+        // Fill-above stamps incrementally onto the cached frame. Fill-below
+        // cannot: the fill goes under the line work, and the cached bitmap is
+        // already flattened, so drawing it underneath would put any earlier
+        // fill or gradient on top of the new one. It repaints instead — see
+        // after the edit, which is where it has to happen.
+        if (!below) AppendToFrameRender(target, stroke);
 
         var frameId = target.Id;
         var addedClip = false;
@@ -402,6 +398,25 @@ public partial class MainViewModel
         {
             _committingScopedEdit = false;
         }
+
+        // B343. The fill is in the record now, so the drawing can be rebuilt
+        // over the rectangle it covers rather than thrown away and re-stamped
+        // whole — the same patch B327 built for undo, which replays the strokes
+        // that reach a region in record order and therefore puts the fill back
+        // at the depth the insert gave it.
+        //
+        // <b>After the edit, and that is the whole of the fix.</b> This call
+        // used to sit above, beside the append, where the record did not yet
+        // contain the stroke: a region repaint there would have rebuilt the
+        // rectangle from a drawing with no fill in it. Bounds could not be
+        // passed until it moved, so it dropped the frame and the next publish
+        // re-rasterized every stroke — 61.8 ms against 5.6 for the same fill
+        // placed above the lines.
+        //
+        // The bounds are the ones the undo step already declares: a fill's
+        // points ARE its outer contour, so its reach is its real extent.
+        if (below) InvalidateFrameRender(frameId, RepaintBoundsOf(stroke));
+
         _dirtyThumbIds.Add(target.Id);
         PublishSnapshot();
         RefreshThumbnails();
