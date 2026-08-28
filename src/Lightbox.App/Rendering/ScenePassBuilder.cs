@@ -221,7 +221,8 @@ internal static class ScenePassBuilder
         bool MaskEditing = false,
         SKBitmap? TipScratch = null,
         SKRectI? TipBounds = null,
-        double TipScale = 1.0)
+        double TipScale = 1.0,
+        SKRectI? PostUsed = null)
     {
         internal static readonly LiveEdit None = new();
     }
@@ -687,6 +688,15 @@ internal static class ScenePassBuilder
             if (tipBounds is null) tip = null;
             // Everything the commit will mask the stroke with, applied
             // now: an artist cannot judge a mark they are not being shown.
+            // B332: the raw dabs travel WITH the processed body rather than
+            // instead of it. A pass writes only the band it processed and then
+            // records every dab below it as done, so a dab whose pixels no band
+            // ever wrote is in neither the body nor the tip — measured at 4.5%
+            // of the stamped ink missing on the owner's machine. Handing the
+            // raw scratch over as well lets the compositor show it wherever the
+            // body has not reached, which is strictly more than it showed
+            // before and never less.
+            var unprocessed = processed ? live.Scratch : null;
             return new StrokeOverlay(
                 source,
                 stroke.Brush.Opacity,
@@ -695,7 +705,9 @@ internal static class ScenePassBuilder
                 stroke.ClipId is null ? null : ClipRegionRegistry.Resolve(stroke.ClipId),
                 tip,
                 tipBounds,
-                live.TipScale);
+                live.TipScale,
+                unprocessed,
+                live.PostUsed);
         }
 
         return null;

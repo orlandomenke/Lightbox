@@ -1267,7 +1267,10 @@ public partial class MainViewModel
             TipBounds: _live.TipUsed,
             // Read AFTER BuildLiveTip, which is what sets it. Argument evaluation
             // is left to right, so this is the scale the tip above was stamped at.
-            TipScale: _live.TipScale);
+            TipScale: _live.TipScale,
+            // B334: what the passes have actually covered, so the compositor can
+            // show the raw stamped ink everywhere they have not.
+            PostUsed: _live.PostUsed);
 
         var built = ScenePassBuilder.Describe(scene, passState, _cache, _tileFallbacks, live);
         var tileNativeDoc = built.TileNative;
