@@ -296,9 +296,15 @@ public static class TransformErasures
     /// invariant 2 is protecting, and it is the same answer the line clipboard
     /// already gives for a partial copy.
     /// </remarks>
+    /// <param name="mapClip">
+    /// A stroke's own clip, carried through the same map — B340. Not applied
+    /// to a stroke the region cuts through: <paramref name="split"/> has
+    /// already decided both halves' clips, and mapping again would move the
+    /// travelling half's stencil twice.
+    /// </param>
     public static int TransformFrame(
         Frame frame, TransformOps.PointMap map, double sizeScale, Func<Stroke, bool> filter,
-        Func<Stroke, RegionClips?>? split = null)
+        Func<Stroke, RegionClips?>? split = null, Func<string, string>? mapClip = null)
     {
         var strokes = TransformOps.StrokesOf(frame);
         // Every filter decision is taken before anything moves: the region
@@ -357,7 +363,7 @@ public static class TransformErasures
                 // and nothing laid after.
                 result.Add(stroke.Clone());
             }
-            TransformOps.TransformStroke(stroke, map, sizeScale);
+            TransformOps.TransformStroke(stroke, map, sizeScale, mapClip);
             result.Add(stroke);
             count++;
         }

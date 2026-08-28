@@ -85,7 +85,25 @@ public static class TransformOps
     /// brush size scaled by <paramref name="sizeScale"/> so line weight
     /// follows the geometry.
     /// </summary>
-    public static void TransformStroke(Stroke stroke, PointMap map, double sizeScale = 1)
+    /// <param name="mapClip">
+    /// The same map, applied to the stroke's clip region — given the id of a
+    /// region, hand back the id of that region moved. Null leaves the clip
+    /// alone, which is right only for a caller that has already decided where
+    /// the clip goes.
+    /// </param>
+    /// <remarks>
+    /// <b>B340. A clip is geometry the stroke carries, not a setting.</b> The
+    /// points moved and the stencil did not, so a whole-layer rotation cut a
+    /// clipped mark against the boundary it used to sit behind — the ink
+    /// visible after the commit was a different part of the stroke from the
+    /// ink visible during the drag, which reads on the canvas as one line
+    /// jumping somewhere else while everything around it rotated correctly.
+    /// A clipping transform of a <em>region</em> already knew this (B319's
+    /// <c>MapClip</c>); every other transform did not, and the Move tool
+    /// commits through the same path.
+    /// </remarks>
+    public static void TransformStroke(
+        Stroke stroke, PointMap map, double sizeScale = 1, Func<string, string>? mapClip = null)
     {
         MapPoints(stroke.Points, map);
         if (stroke.Holes is not null)
@@ -93,6 +111,7 @@ public static class TransformOps
             foreach (var hole in stroke.Holes) MapPoints(hole, map);
         }
         MapPath(stroke, map);
+        if (mapClip is not null && stroke.ClipId is { } clip) stroke.ClipId = mapClip(clip);
         if (Math.Abs(sizeScale - 1) > 1e-9)
         {
             stroke.Brush.Size = Math.Clamp(stroke.Brush.Size * sizeScale, 0.1, 2000);
@@ -164,14 +183,17 @@ public static class TransformOps
     /// (null = all). Returns how many strokes moved. The raster baseline of a
     /// painted frame is NOT touched here — the caller resamples it.
     /// </summary>
-    public static int TransformFrame(Frame frame, PointMap map, double sizeScale = 1, Func<Stroke, bool>? filter = null)
+    /// <inheritdoc cref="TransformStroke" path="/param[@name='mapClip']"/>
+    public static int TransformFrame(
+        Frame frame, PointMap map, double sizeScale = 1, Func<Stroke, bool>? filter = null,
+        Func<string, string>? mapClip = null)
     {
         var strokes = StrokesOf(frame);
         var count = 0;
         foreach (var stroke in strokes)
         {
             if (filter is not null && !filter(stroke)) continue;
-            TransformStroke(stroke, map, sizeScale);
+            TransformStroke(stroke, map, sizeScale, mapClip);
             count++;
         }
         return count;
