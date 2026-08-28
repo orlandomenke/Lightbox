@@ -230,4 +230,62 @@ public sealed class TransformClipsToTheSelectionTests(ITestOutputHelper output) 
         Assert.Null(strokes[0].ClipId);
         Assert.Equal(300, strokes[0].Points[0].Y, 3);
     }
+
+    // ---- the seam ------------------------------------------------------------
+
+    /// <summary>
+    /// The half that travelled and the half left behind still add up to the
+    /// line — no ink duplicated at the boundary, and none lost.
+    /// </summary>
+    /// <remarks>
+    /// <b>B341 built the outside clip a different way and this is what had to
+    /// stay true.</b> It used to be a page-sized mask, inverted and re-traced;
+    /// it is now the page rectangle with the selection's own rings punched out
+    /// of it, read even-odd. The reason that is safe is exactly this property:
+    /// the two clips have to be complementary or the split either shows the ink
+    /// twice along the seam or drops a line of it, and the pair now meets along
+    /// one polyline instead of two that were merely close.
+    /// <para>
+    /// <b>Total alpha, not a pixel count.</b> Counting pixels above a threshold
+    /// says 6,594 before and 6,626 after — thirty-two more, which is two
+    /// columns of a sixteen-pixel line and looks like duplicated ink. It is
+    /// not: an antialiased clip gives one side coverage α and the other 1−α, so
+    /// both sides clear a threshold and neither is holding a whole pixel's
+    /// worth. Summed, the seam cancels, which is the property being asserted —
+    /// and the reason a pixel count is the wrong instrument for a soft edge
+    /// (the brush-measurement skill's rule, pointed at a clip).
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheTwoHalvesOfASplitLineAddUpToTheWholeLine()
+    {
+        var vm = Drawn();
+        var whole = InkTotal(vm);
+
+        vm.ApplySelectionShape(Box(250, 150, 380, 250), false, false);
+        Assert.True(vm.BeginTransform(), $"refused with: {vm.AiStatus}");
+        vm.CommitTransformAffine(0, 0, 1, 1, 0, 0, 300);
+
+        var split = InkTotal(vm);
+        output.WriteLine(
+            $"whole line {whole:N0} alpha; the two halves {split:N0} — {(split - whole) / whole * 100:F2}%");
+        Assert.InRange(split, whole * 0.999, whole * 1.001);
+    }
+
+    /// <summary>Every pixel's alpha, added up — the ink on the page.</summary>
+    private static double InkTotal(MainViewModel vm)
+    {
+        Lightbox.App.Rendering.RenderSnapshot? latest = null;
+        void Capture(Lightbox.App.Rendering.RenderSnapshot s) => latest = s;
+        vm.SnapshotChanged += Capture;
+        vm.PublishSnapshot();
+        vm.SnapshotChanged -= Capture;
+        using var bmp = SkiaSharp.SKBitmap.FromImage(latest!.Image);
+        double total = 0;
+        for (var y = 0; y < bmp.Height; y++)
+        {
+            for (var x = 0; x < bmp.Width; x++) total += bmp.GetPixel(x, y).Alpha;
+        }
+        return total;
+    }
 }

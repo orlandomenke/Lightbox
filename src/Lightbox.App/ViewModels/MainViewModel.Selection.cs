@@ -479,11 +479,31 @@ public partial class MainViewModel
                 surface.Canvas.DrawPath(path, paint);
             }
         }
-        using var image = surface.Snapshot();
-        using var bmp = SKBitmap.FromImage(image);
-        var pixels = bmp.Pixels;
+        // B341: alpha is read straight out of the surface's own bytes. The
+        // obvious `bmp.Pixels` materialises an SKColor for every pixel first —
+        // a page-sized managed array, two million of them at 1920×1080, thrown
+        // away one field later. This is the same question asked of the bytes
+        // that are already there.
         var mask = new bool[w * h];
-        for (var i = 0; i < mask.Length; i++) mask[i] = pixels[i].Alpha > 127;
+        var alpha = new byte[w * h];
+        var read = new SKImageInfo(w, h, SKColorType.Alpha8, SKAlphaType.Unpremul);
+        unsafe
+        {
+            fixed (byte* target = alpha)
+            {
+                if (!surface.ReadPixels(read, (IntPtr)target, w, 0, 0))
+                {
+                    // A surface that will not hand its bytes over is not worth
+                    // failing over — fall back to the slow, always-available road.
+                    using var image = surface.Snapshot();
+                    using var bmp = SKBitmap.FromImage(image);
+                    var pixels = bmp.Pixels;
+                    for (var i = 0; i < mask.Length; i++) mask[i] = pixels[i].Alpha > 127;
+                    return mask;
+                }
+            }
+        }
+        for (var i = 0; i < mask.Length; i++) mask[i] = alpha[i] > 127;
         return mask;
     }
 
@@ -560,12 +580,24 @@ public partial class MainViewModel
     /// (both clips covering the seam) or loses it (neither).
     /// </para>
     /// <para>
-    /// Built by inverting the mask and re-tracing, the same way
-    /// <c>InvertSelection</c> does, rather than by wrapping the contours in a
-    /// page-sized ring: the selection may be concave, multiple or already
-    /// holed, and a mask says what a polygon library would otherwise have to
-    /// be trusted to say. The complement is bounded by the page, which is
-    /// right — ink outside it cannot be seen anyway.
+    /// <b>The page, with the selection punched out of it — and B341 is why it
+    /// is not a mask any more.</b> This used to invert a page-sized mask and
+    /// re-trace it, on the reasoning that a selection may be concave, multiple
+    /// or already holed and a mask says what a polygon library would have to be
+    /// trusted to say. That reasoning had a hole in it: contours here are read
+    /// <b>even-odd</b> (<c>BrushEngine.PathFromContours</c>), so a page
+    /// rectangle followed by the selection's own rings already <em>is</em> the
+    /// complement, concave, disjoint, holed and all — the fill rule does the
+    /// work a trace was being paid for. It was 130 ms of a region transform's
+    /// first drag and the same again on its commit, to describe a rectangle
+    /// with a hole in it.
+    /// </para>
+    /// <para>
+    /// It is also strictly <em>more</em> complementary than the traced version
+    /// was. A mask trace walks pixel centres and simplifies, so the two halves
+    /// met along two polylines that were merely close; they now meet along the
+    /// same one, and an antialiased seam that gave one side coverage α gives
+    /// the other exactly 1−α.
     /// </para>
     /// <para>
     /// <b>The feather is carried, not dropped.</b> Two complementary masks
@@ -579,11 +611,14 @@ public partial class MainViewModel
     {
         if (!HasSelection) return null;
         int w = Scene.Width, h = Scene.Height;
-        var mask = MaskFromContours(_selectionContours, w, h);
-        for (var i = 0; i < mask.Length; i++) mask[i] = !mask[i];
+        List<List<StrokePoint>> complement =
+        [
+            [new(0, 0, 1), new(w, 0, 1), new(w, h, 1), new(0, h, 1)],
+            .. _selectionContours.Select(contour => new List<StrokePoint>(contour)),
+        ];
         var region = new ClipRegion
         {
-            Contours = ToDocument(FloodFill.TraceAllContours(mask, w, h)),
+            Contours = ToDocument(complement),
             Feather = SelectionFeather,
         };
         return (RegisterClip(region), region);
