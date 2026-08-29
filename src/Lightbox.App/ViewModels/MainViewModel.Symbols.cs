@@ -372,11 +372,15 @@ public sealed partial class MainViewModel
         }
         if (symbol.Layers[0].Cels.Count == 0) symbol.Layers[0].Cels.Add(new Cel { Frame = new Frame() });
 
-        // The symbol's own layer, shared rather than copied — the arrangement
+        // The symbol's own layers, shared rather than copied — the arrangement
         // `TheTabEditsTheSymbolsOwnFramesRatherThanCopies` asserts, one level up
-        // from the frames it used to be about. L4 opens the whole stack; until
-        // then a symbol has exactly one layer and this is it.
-        var layer = symbol.Layers[0];
+        // from the frames it used to be about.
+        //
+        // <b>A list of its own, holding the same layers.</b> Sharing the list
+        // itself would mean adding a layer in this tab mutated the symbol before
+        // the edit funnel had run, and undo would have nothing to put back —
+        // `SyncEditedSymbol` is what moves the stack across, once, per edit.
+        var own = new List<Layer>(symbol.Layers);
 
         var wrapper = new Doc
         {
@@ -392,16 +396,13 @@ public sealed partial class MainViewModel
                 // it looks like in use — and would be baked into nothing, since
                 // the paper is a layer and this scene has none.
                 TransparentBackground = true,
-                Layers = [layer],
+                Layers = own,
             },
         };
         AddTab(new DocumentTab(new DocumentEditor(wrapper), $"Symbol / {symbol.Name}")
         {
             Kind = DocumentTabKind.Symbol,
             Symbol = symbol,
-            // Which layer is the symbol, so the sync never has to guess. See
-            // DocumentTab.SymbolLayerId for why index 0 is not good enough.
-            SymbolLayerId = layer.Id,
         });
     }
 
@@ -434,43 +435,26 @@ public sealed partial class MainViewModel
     /// </remarks>
     private void SyncEditedSymbol()
     {
-        if (ActiveTab is not { Kind: DocumentTabKind.Symbol, Symbol: { } symbol } tab) return;
+        if (ActiveTab is not { Kind: DocumentTabKind.Symbol, Symbol: { } symbol }) return;
 
-        // One layer, by id — never `SelectMany` over all of them.
+        // The whole stack, read back from the tab's own scene.
         //
-        // It used to read every layer's cels into one flat list, and a symbol's
-        // frame list is *time*: a second layer in this tab therefore became
-        // extra frames of the animation rather than a stack. A lines layer and
-        // a colour layer went in and came out as frames 1 and 2, silently, for
-        // every placement of the symbol in the project. Adding a layer here is
-        // refused now (see AddLayer), but refusing the gesture is not the same
-        // as making the fold impossible — a paste is another door, and so is
-        // the next feature nobody has written yet. This is the sink, so this is
-        // where it is closed.
+        // <b>Re-read rather than trusted</b>, and that is the load-bearing half:
+        // undo replaces a layer wholesale, so anything this method remembered
+        // between edits — a reference, an index, an id — would be pointing at an
+        // object the document no longer contains. Taking the list as it stands
+        // is the same arrangement the frame list had before the stack existed,
+        // one level up.
         //
-        // Q171 takes the Flash model: when a symbol owns a layer stack, the
-        // whole of this reads that stack instead, and the guard comes out.
+        // This is where a lines layer, a colour layer and two effect layers stop
+        // being four drawings and start being one symbol. The guard that used to
+        // stand here — read one layer by id, refuse the rest — is gone with the
+        // axis it was protecting: there is somewhere for a second layer to go now.
         var layers = Doc.Scene.Layers;
-        var own = layers.FirstOrDefault(l => l.Id == tab.SymbolLayerId) ?? layers.FirstOrDefault();
-        if (own is null) return;
+        if (layers.Count == 0) return;
+        if (!layers.Any(l => l.Cels.Any(c => c.Frame is not null))) return;
 
-        var frames = own.Cels.Select(c => c.Frame).OfType<Frame>().ToList();
-        if (frames.Count == 0) return;
-
-        if (layers.Count > 1)
-        {
-            // Said rather than swallowed. The drawing is still there in the tab
-            // for the artist to merge down or move; what it is not is part of
-            // the symbol, and finding that out at reload would be worse.
-            AiStatus = $"Only “{own.Name}” is saved into this symbol — a symbol holds one layer. "
-                + "Merge the others down to keep them.";
-        }
-
-        // Into the symbol's own layer. Still one layer until L4 — the guard
-        // above is what keeps it that way — so this is the frame list moving
-        // one level down rather than a stack being written.
-        if (symbol.Layers.Count == 0) symbol.Layers.Add(new Layer { Name = symbol.Name });
-        symbol.Layers[0].Cels = [.. frames.Select(f => new Cel { Frame = f })];
+        symbol.Layers = [.. layers];
         symbol.Fps = Doc.Scene.Fps;
         symbol.Version++;
         SymbolBrowser.RefreshThumbs();
