@@ -1085,14 +1085,50 @@ public partial class MainWindow
     private static readonly DataFormat<LayerRow> LayerRowDragFormat =
         DataFormat.CreateInProcessFormat<LayerRow>("lightbox-layer-row");
 
-    private LayerRow? _layerDragCandidate;
+    /// <summary>
+    /// A folder header being carried.
+    /// </summary>
+    /// <remarks>
+    /// Its own format rather than a common base, because the two are dropped
+    /// differently everywhere — a layer can be filed into a folder and a folder
+    /// cannot be filed into anything, so every handler has to tell them apart in
+    /// any case. Two formats make that a <c>TryGetValue</c> rather than a cast.
+    /// </remarks>
+    private static readonly DataFormat<GroupRow> GroupRowDragFormat =
+        DataFormat.CreateInProcessFormat<GroupRow>("lightbox-layer-group");
+
+    private object? _layerDragCandidate;
     private Point _layerDragFrom;
     private PointerPressedEventArgs? _layerDragPress;
 
+    /// <summary>
+    /// Arm a folder header the way a layer row is armed.
+    /// </summary>
+    /// <remarks>
+    /// <b>Folders could be dropped on and never picked up.</b> A header was a
+    /// drop target from the day folders landed, so the docker taught that
+    /// dragging works here and then refused the one row an artist most wants to
+    /// move — the whole block at once.
+    /// </remarks>
+    private void OnGroupRowPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is not GroupRow header) return;
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        if (e.KeyModifiers is not KeyModifiers.None) return;
+        _layerDragCandidate = header;
+        _layerDragFrom = e.GetCurrentPoint(this).Position;
+        _layerDragPress = e;
+    }
+
+    private void OnGroupRowMoved(object? sender, PointerEventArgs e) => OnLayerRowMoved(sender, e);
+
+    private void OnGroupRowReleased(object? sender, PointerReleasedEventArgs e) =>
+        OnLayerRowReleased(sender, e);
+
     private async void OnLayerRowMoved(object? sender, PointerEventArgs e)
     {
-        if (_layerDragPress is not { } press || _layerDragCandidate is not { } row) return;
-        if ((sender as Control)?.DataContext is not LayerRow over || !ReferenceEquals(over, row)) return;
+        if (_layerDragPress is not { } press || _layerDragCandidate is not { } carried) return;
+        if ((sender as Control)?.DataContext is not { } over || !ReferenceEquals(over, carried)) return;
         var point = e.GetCurrentPoint(this);
         // A move with the button up means the release happened somewhere this
         // handler never saw; disarm rather than wait (the cel drag's lesson).
@@ -1109,7 +1145,17 @@ public partial class MainWindow
         try
         {
             var transfer = new DataTransfer();
-            transfer.Add(DataTransferItem.Create(LayerRowDragFormat, row));
+            switch (carried)
+            {
+                case LayerRow row:
+                    transfer.Add(DataTransferItem.Create(LayerRowDragFormat, row));
+                    break;
+                case GroupRow header:
+                    transfer.Add(DataTransferItem.Create(GroupRowDragFormat, header));
+                    break;
+                default:
+                    return;
+            }
             await DragDrop.DoDragDropAsync(press, transfer, DragDropEffects.Move);
         }
         catch (Exception ex)
@@ -1118,6 +1164,10 @@ public partial class MainWindow
         }
         finally
         {
+            // Every exit, including the throw: a ghost or an insertion line left
+            // behind reads as a rendering fault rather than as a stuck drag, and
+            // points nowhere near the handler that leaked it.
+            EndLayerDragFeedback();
             _layerDragCandidate = null;
             _layerDragPress = null;
         }
@@ -1131,6 +1181,20 @@ public partial class MainWindow
 
     private static LayerRow? DraggedLayerOf(DragEventArgs e) =>
         e.DataTransfer is { } transfer ? transfer.TryGetValue(LayerRowDragFormat) : null;
+
+    private static GroupRow? DraggedGroupOf(DragEventArgs e) =>
+        e.DataTransfer is { } transfer ? transfer.TryGetValue(GroupRowDragFormat) : null;
+
+    /// <summary>The name to put on the ghost, or null when this is not our drag.</summary>
+    private static string? DraggedLayerName(DragEventArgs e) =>
+        DraggedLayerOf(e)?.Name ?? DraggedGroupOf(e)?.Name;
+
+    /// <summary>Put down whatever the drag was showing.</summary>
+    private void EndLayerDragFeedback()
+    {
+        DragGhost.Hide();
+        _vm.ClearLayerDropHints();
+    }
 
     /// <summary>
     /// The row or folder header under the drop pointer, with its visual so the
@@ -1146,27 +1210,82 @@ public partial class MainWindow
         return (control?.DataContext, control);
     }
 
+    /// <summary>
+    /// Where down a row the pointer is, 0 at its top edge and 1 at its bottom.
+    /// </summary>
+    private static double FractionDown(DragEventArgs e, Control container) =>
+        container.Bounds.Height <= 0
+            ? 0.5
+            : e.GetPosition(container).Y / container.Bounds.Height;
+
+    /// <summary>
+    /// What this drop would do, given what is in hand and what is under it.
+    /// </summary>
+    private static LayerDropHint HintFor(DragEventArgs e, object? item, Control? container)
+    {
+        if (item is null || container is null) return LayerDropHint.None;
+        var draggingFolder = DraggedGroupOf(e) is not null;
+        // Dropping a folder on one of its own rows, or on its own header, is
+        // the gesture that means nothing — say so rather than drawing a line
+        // the drop will decline to honour.
+        if (DraggedGroupOf(e) is { } carried)
+        {
+            var ownId = carried.Group.Id;
+            if (item is GroupRow header && header.Group.Id == ownId) return LayerDropHint.None;
+            if (item is LayerRow member && member.Layer.GroupId == ownId) return LayerDropHint.None;
+        }
+        if (DraggedLayerOf(e) is { } layer && ReferenceEquals(layer, item)) return LayerDropHint.None;
+        return LayerDropPlan.Resolve(FractionDown(e, container), item is GroupRow, draggingFolder);
+    }
+
     private void OnLayerDragOver(object? sender, DragEventArgs e)
     {
-        var (item, _) = LayerDropTargetOf(e);
-        e.DragEffects = DraggedLayerOf(e) is not null && item is not null
-            ? DragDropEffects.Move
-            : DragDropEffects.None;
+        var (item, container) = LayerDropTargetOf(e);
+        var ours = DraggedLayerName(e) is not null;
+        var hint = ours ? HintFor(e, item, container) : LayerDropHint.None;
+
+        e.DragEffects = hint == LayerDropHint.None ? DragDropEffects.None : DragDropEffects.Move;
         e.Handled = true;
+        if (!ours) return;
+
+        // Both halves of the feedback, the same pair the panel docking shows:
+        // the ghost says what is moving, the hint says where it would land.
+        _vm.ShowLayerDropHint(hint == LayerDropHint.None ? null : item, hint);
+        if (DraggedLayerName(e) is { } name) DragGhost.Show(name, e.GetPosition(this));
     }
+
+    /// <summary>
+    /// The pointer left the panel without dropping. Avalonia does not raise a
+    /// drop, so the feedback has to be taken down here as well.
+    /// </summary>
+    private void OnLayerDragLeave(object? sender, DragEventArgs e) => EndLayerDragFeedback();
 
     private void OnLayerDrop(object? sender, DragEventArgs e)
     {
-        if (DraggedLayerOf(e) is not { } dragged) return;
         e.Handled = true;
-        switch (LayerDropTargetOf(e))
+        var (item, container) = LayerDropTargetOf(e);
+        var hint = HintFor(e, item, container);
+        EndLayerDragFeedback();
+        if (hint == LayerDropHint.None) return;
+
+        // Read off the same rule the line was drawn from, so what lands is what
+        // was shown — the pick ring's principle, applied to a drop.
+        if (DraggedGroupOf(e) is { } group && item is not null)
         {
-            case (LayerRow target, { } container) when !ReferenceEquals(target, dragged):
-                var above = e.GetPosition(container).Y < container.Bounds.Height / 2;
-                _vm.DropLayerOnRow(dragged, target, above);
+            _vm.DropGroupBeside(group.Group, item, hint == LayerDropHint.Above);
+            return;
+        }
+        if (DraggedLayerOf(e) is not { } dragged) return;
+        switch (item)
+        {
+            case LayerRow target:
+                _vm.DropLayerOnRow(dragged, target, hint == LayerDropHint.Above);
                 break;
-            case (GroupRow header, _):
+            case GroupRow header when hint == LayerDropHint.Into:
                 _vm.MoveLayerIntoGroup(dragged.Layer, header.Group);
+                break;
+            case GroupRow header:
+                _vm.DropLayerBesideGroup(dragged, header, hint == LayerDropHint.Above);
                 break;
         }
     }

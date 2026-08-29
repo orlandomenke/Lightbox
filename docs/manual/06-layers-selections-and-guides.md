@@ -55,12 +55,29 @@ alone. Right-clicking a layer you have not selected is not a trap.
 ### Reordering by dragging
 
 Rows also **drag**: pick a layer up and drop it where it should go. Dropping on
-the upper half of a row lands above that row, the lower half lands below it,
-and dropping on a folder header files the layer into that folder. The layer
-takes the folder of wherever it lands — dropping between a folder's members
-joins the folder, dropping beside a loose row leaves it — and the whole drop is
-one undo step. A drag moves the one row you picked up; the ▲/▼ buttons remain
-the way to move a multi-selection as a block.
+the upper half of a row lands above that row, the lower half lands below it.
+The layer takes the folder of wherever it lands — dropping between a folder's
+members joins the folder, dropping beside a loose row leaves it — and the whole
+drop is one undo step. A drag moves the one row you picked up; the ▲/▼ buttons
+remain the way to move a multi-selection as a block.
+
+**A folder header drags too, and takes the whole folder with it.** The block
+keeps its own order and lands above or below wherever you drop it. Folders do
+not go inside other folders, so a folder in your hand always lands *beside* what
+is under the pointer, never in it.
+
+**A folder header is three targets, not two.** Its middle files a layer into the
+folder — the common case, so it is the part you get by aiming at the row. The
+top and bottom quarters put the layer above or below the whole folder instead,
+which is how you get a layer to sit just outside a folder without hunting for
+whatever row happens to be next to it.
+
+**While you drag, two things tell you what will happen**: a small label under
+the pointer naming what you picked up, and a line on the row you are over
+showing which side it will land on. A folder about to swallow what you are
+carrying lights up instead of drawing a line, because "inside" is not an edge.
+If neither appears, the drop will not do anything — dragging a folder onto one
+of its own rows, for instance.
 
 **The onion-skin toggle (◉) is the exception: it is always one layer**, even
 with several selected. The eye and the locks describe the drawing, and picking

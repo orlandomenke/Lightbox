@@ -1,0 +1,83 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    The layers docker's rows: a layer, a folder header, and what a drag over
+    either of them says it would do.
+
+    Lifted out of MainWindow.axaml whole rather than split. The comment below
+    already records why these live in one place — three inline copies drifted
+    apart once — and leaving half of them behind in the window would have been
+    that mistake with an extra file. It moved because the window is on a
+    ratchet: B346 added the drop styles, the file may shrink but not grow, and
+    the honest answer to "it has to grow" is to take something out of it.
+  -->
+
+  <!--
+    A row is as tall as its icon tile and no taller.
+
+    `Padding="2,0"` rather than `2`: the horizontal 2 keeps the first icon off
+    the edge, the vertical 0 is the density. The tile is already 26 with the
+    glyph centred in it, so vertical padding was buying nothing but height —
+    4 px a row, which is a whole extra row every eight layers.
+
+    Declared here rather than on each template, which is also why the three
+    inline copies are gone. They were identical by luck: the layers docker,
+    the group row and the timeline's layer column each wrote their own, so a
+    change to one silently split the lists that are meant to line up.
+  -->
+  <Style Selector="Border.layerRow">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="Padding" Value="2,0" />
+  </Style>
+  <Style Selector="Border.layerRow.active">
+    <Setter Property="Background" Value="{StaticResource SelectionBrush}" />
+  </Style>
+  <Style Selector="Border.layerRow.hiddenLayer">
+    <Setter Property="Opacity" Value="0.35" />
+  </Style>
+  <!-- Cyan, not the warning amber: locked is a STATE the artist chose, not
+       a problem the app is reporting, and amber made every locked layer read
+       as something going wrong. -->
+  <Style Selector="Border.layerRow.lockedLayer">
+    <Setter Property="BorderBrush" Value="{StaticResource AccentCyanBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+  <Style Selector="Border.groupRow.lockedLayer">
+    <Setter Property="BorderBrush" Value="{StaticResource AccentCyanBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+  <Style Selector="Border.groupRow">
+    <Setter Property="Background" Value="{StaticResource GroupRowBrush}" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="Padding" Value="2,0" />
+  </Style>
+  <Style Selector="Border.groupRow.hiddenLayer">
+    <Setter Property="Opacity" Value="0.35" />
+  </Style>
+  <Style Selector="Border.layerRow.grouped">
+    <Setter Property="Margin" Value="14,0,0,0" />
+  </Style>
+  <!-- Where a dragged row or folder would land. A LINE on the edge it would
+       land against, because that is the one reading with no ambiguity: a
+       highlighted row says "this row is involved" and leaves which side to
+       guess at. Accent rather than the selection brush, so it cannot be
+       mistaken for the row already being selected. -->
+  <Style Selector="Border.dropAbove">
+    <Setter Property="BorderBrush" Value="{StaticResource AccentCoralBrush}" />
+    <Setter Property="BorderThickness" Value="0,2,0,0" />
+  </Style>
+  <Style Selector="Border.dropBelow">
+    <Setter Property="BorderBrush" Value="{StaticResource AccentCoralBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,2" />
+  </Style>
+  <!-- Into a folder is the one drop that is not an edge, so it is the one
+       that lights the row instead of drawing a line beside it. -->
+  <Style Selector="Border.groupRow.dropInto">
+    <Setter Property="Background" Value="{StaticResource SelectionBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource AccentCoralBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+</Styles>
