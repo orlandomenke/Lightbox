@@ -421,6 +421,160 @@ public class SymbolRenderTests : IDisposable
 
     // ---- pixel comparison ------------------------------------------------------------
 
+    // ---- the stack (Q171 / L3) ---------------------------------------------------
+
+    /// <summary>A flat stroke of one colour, so a composite reads off one pixel.</summary>
+    private static Stroke Flat(string colour, double y) => new()
+    {
+        Tool = ToolKind.Brush,
+        Color = colour,
+        Points = [new StrokePoint(20, y, 1), new StrokePoint(120, y, 1)],
+        Brush = new BrushSettings { Size = 20, Hardness = 1, Opacity = 1, Flow = 1, Spacing = 0.1 },
+    };
+
+    private static Symbol Stacked(params Layer[] layers) =>
+        new() { Name = "Head", PivotX = 0, PivotY = 0, Layers = [.. layers] };
+
+    private static Layer Sheet(string name, Stroke stroke, double opacity = 1, bool visible = true) =>
+        new()
+        {
+            Name = name,
+            Opacity = opacity,
+            Visible = visible,
+            Cels = [new Cel { Frame = new Frame { Strokes = [stroke] } }],
+        };
+
+    /// <summary>
+    /// A symbol's layers composite, and the one on top is on top.
+    /// </summary>
+    /// <remarks>
+    /// Q171's headline in pixels. Two sheets of solid colour at the same place:
+    /// what comes out is the upper one, which is the whole of "the stack is a
+    /// stack" — a flattened frame list would have shown them as two frames of an
+    /// animation and rendered only one per cel.
+    /// </remarks>
+    [Fact]
+    public void ASymbolsLayersCompositeInStackOrder()
+    {
+        var symbol = Stacked(
+            Sheet("Colour", Flat("#2040c0", 60)),
+            Sheet("Lines", Flat("#c02040", 60)));
+        SymbolRegistry.Register(symbol);
+
+        using var bitmap = Render(Placing(new SymbolPlacement { SymbolId = symbol.Id, X = 0, Y = 0 }));
+
+        var ink = Ink(bitmap);
+        Assert.NotNull(ink);
+        var middle = bitmap.GetPixel(ink!.Value.MidX, ink.Value.MidY);
+        // The top layer's red, not the bottom layer's blue.
+        Assert.True(middle.Red > middle.Blue, $"expected the upper layer on top, got {middle}");
+    }
+
+    /// <summary>Every visible layer reaches the pixels, and a hidden one does not.</summary>
+    /// <remarks>
+    /// <b>Two bands, deliberately.</b> Asserting one band would pass on the
+    /// build before this one, which drew a symbol's <em>first</em> layer and
+    /// called it done — so a test that only looked at the bottom stroke could
+    /// not tell a composite from a single drawing. The upper band is the half
+    /// that fails without the stack.
+    /// </remarks>
+    [Fact]
+    public void EveryVisibleLayerReachesThePixelsAndAHiddenOneDoesNot()
+    {
+        var both = Stacked(Sheet("Colour", Flat("#2040c0", 40)), Sheet("Lines", Flat("#c02040", 110)));
+        SymbolRegistry.Register(both);
+        using var stacked = Render(Placing(new SymbolPlacement { SymbolId = both.Id }));
+
+        Assert.True(InkInBand(stacked, 40) > 0, "the lower layer is missing");
+        Assert.True(InkInBand(stacked, 110) > 0, "the upper layer is missing — this is a composite, not one drawing");
+
+        SymbolRegistry.Clear();
+        var hidden = Stacked(
+            Sheet("Colour", Flat("#2040c0", 40)),
+            Sheet("Lines", Flat("#c02040", 110), visible: false));
+        SymbolRegistry.Register(hidden);
+        using var one = Render(Placing(new SymbolPlacement { SymbolId = hidden.Id }));
+
+        Assert.True(InkInBand(one, 40) > 0);
+        Assert.Equal(0, InkInBand(one, 110));
+    }
+
+    /// <summary>
+    /// A layer's opacity is honoured inside a symbol.
+    /// </summary>
+    /// <remarks>
+    /// The cheap half of "the compositor came down into this assembly": before
+    /// L2 a symbol could not have read this value at all, because the thing that
+    /// knows what opacity means lived somewhere Raster could not reach.
+    /// </remarks>
+    [Fact]
+    public void ALayersOpacityIsHonouredInsideASymbol()
+    {
+        var solid = Stacked(Sheet("Lines", Flat("#c02040", 60)));
+        SymbolRegistry.Register(solid);
+        using var opaque = Render(Placing(new SymbolPlacement { SymbolId = solid.Id }));
+        var opaqueInk = InkCount(opaque);
+
+        SymbolRegistry.Clear();
+        var faded = Stacked(Sheet("Lines", Flat("#c02040", 60), opacity: 0.25));
+        SymbolRegistry.Register(faded);
+        using var thin = Render(Placing(new SymbolPlacement { SymbolId = faded.Id }));
+
+        var ink = Ink(thin);
+        Assert.NotNull(ink);
+        Assert.True(InkCount(thin) > 0);
+        // Same coverage, less alpha — a fade, not a smaller mark.
+        Assert.Equal(opaqueInk, InkCount(thin));
+        Assert.True(thin.GetPixel(ink!.Value.MidX, ink.Value.MidY).Alpha < 200);
+    }
+
+    /// <summary>
+    /// Two layers of different lengths: the shorter one holds.
+    /// </summary>
+    /// <remarks>
+    /// A colour layer holding one drawing under a moving line is the ordinary
+    /// way to work, and it is the case a flattened frame list could not say at
+    /// all — it would have made the symbol four frames long and shown the colour
+    /// on its own for two of them.
+    /// </remarks>
+    [Fact]
+    public void AShorterLayerHoldsUnderALongerOne()
+    {
+        // A colour layer holding one drawing under a moving line is the ordinary
+        // way to work, and it is the case a flat frame list could not say at all:
+        // it would have made this a two-frame symbol showing the colour alone on
+        // one of them. Asserted in pixels on the *second* cel, where the hold is.
+        // Three bands well clear of each other: a size-20 stroke reaches ten
+        // rows either side, so bands any closer would read each other's ink.
+        var colour = Sheet("Colour", Flat("#2040c0", 30));
+        var lines = Sheet("Lines", Flat("#c02040", 80));
+        lines.Cels.Add(new Cel { Frame = new Frame { Strokes = [Flat("#c02040", 130)] } });
+        var symbol = Stacked(colour, lines);
+        SymbolRegistry.Register(symbol);
+
+        Assert.Equal(2, symbol.FrameCount);
+        using var second = Render(Placing(new SymbolPlacement { SymbolId = symbol.Id }), celIndex: 1);
+
+        // The colour held from cel one, and the line moved to its second pose.
+        Assert.True(InkInBand(second, 30) > 0, "the held colour layer is missing");
+        Assert.True(InkInBand(second, 130) > 0, "the moving line is missing");
+        Assert.Equal(0, InkInBand(second, 80));
+    }
+
+    /// <summary>Non-transparent pixels within a few rows of a given y.</summary>
+    private static int InkInBand(SKBitmap bitmap, int y, int reach = 14)
+    {
+        var count = 0;
+        for (var yy = Math.Max(0, y - reach); yy < Math.Min(bitmap.Height, y + reach); yy++)
+        {
+            for (var x = 0; x < bitmap.Width; x++)
+            {
+                if (bitmap.GetPixel(x, yy).Alpha != 0) count++;
+            }
+        }
+        return count;
+    }
+
     private static bool Same(SKBitmap a, SKBitmap b) => SameShiftedBy(a, b, 0, 0);
 
     /// <summary>
