@@ -104,6 +104,14 @@ public partial class MainWindow
         Canvas.ShapeDragMoved += _vm.MoveShape;
         Canvas.ShapeDragEnded += _vm.EndShape;
         Canvas.TextPlaced += _vm.BeginText;
+        // A press starts a caret; the sweep after it carries the far end of a
+        // selection, and a double-click takes the word. All three land on the
+        // same block, because BeginText picks up whatever the press was over.
+        Canvas.TextDragged += _vm.DragTextSelectionTo;
+        Canvas.TextWordPicked += OnTextWordPicked;
+        // The Arrow's double-click, beside the one that opens a line for node
+        // editing — same gesture, same reasoning.
+        Canvas.SetEnterTextEdit(_vm.EnterTypeAt);
 
         // Typed characters, which are not the same thing as keys: a keyboard
         // layout, a dead key and an input method all resolve here and nowhere
@@ -111,6 +119,22 @@ public partial class MainWindow
         // them; only the text tool listens.
         AddHandler(
             TextInputEvent, OnCanvasTextInput, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+    }
+
+    /// <summary>
+    /// A double-click with the text tool: open the block if it is not already
+    /// open, then take the word under the pointer.
+    /// </summary>
+    /// <remarks>
+    /// Both halves, because the first click of a double-click has already been
+    /// delivered as a press — so the session is usually up by now, and the only
+    /// case that is not is a double-click that arrives without its first press
+    /// reaching us. Asking again costs a hit test and removes the case.
+    /// </remarks>
+    private void OnTextWordPicked(double x, double y)
+    {
+        if (!_vm.TextSessionActive) _vm.BeginText(x, y);
+        _vm.SelectTextWordAt(x, y);
     }
 
     private void OnCanvasTextInput(object? sender, TextInputEventArgs e)
@@ -192,17 +216,26 @@ public partial class MainWindow
             case Key.Delete:
                 _vm.TextDeleteForward();
                 return TextKey.Consumed;
+            // Shift is the one modifier that does not make a key a shortcut:
+            // it extends the selection instead, which is why it is read here
+            // rather than folded into `accel` above.
             case Key.Left:
-                _vm.MoveTextCaret(-1);
+                _vm.MoveTextCaret(-1, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
                 return TextKey.Consumed;
             case Key.Right:
-                _vm.MoveTextCaret(1);
+                _vm.MoveTextCaret(1, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
                 return TextKey.Consumed;
             case Key.Home:
-                _vm.TextCaretToEdge(end: false);
+                _vm.TextCaretToEdge(end: false, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
                 return TextKey.Consumed;
             case Key.End:
-                _vm.TextCaretToEdge(end: true);
+                _vm.TextCaretToEdge(end: true, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+                return TextKey.Consumed;
+            // Ctrl+A while a caret is up is "select this type", not the
+            // canvas-wide Select All — the same reading every application gives
+            // it, and the reason it is caught before the shortcut dispatch.
+            case Key.A when e.KeyModifiers.HasFlag(KeyModifiers.Control):
+                _vm.SelectAllText();
                 return TextKey.Consumed;
         }
 

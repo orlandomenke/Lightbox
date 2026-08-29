@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Lightbox.App.Services;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Geometry;
+using Lightbox.Core.Timeline;
 using Lightbox.Raster;
 using Lightbox.Raster.Text;
 using SkiaSharp;
@@ -48,6 +49,26 @@ public partial class MainViewModel
     /// <summary>Where the caret sits, as an index into the element's text.</summary>
     private int _textCaret;
 
+    /// <summary>
+    /// The other end of the selection, or the caret's own position when nothing
+    /// is selected.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>An anchor and a caret, not a start and an end.</b> Which end moves is
+    /// what Shift+arrow and a drag both need to know, and a normalised pair
+    /// forgets it — extend left past the anchor and a start/end pair would
+    /// silently swap which end the next keystroke moves. <see cref="TextSelection"/>
+    /// is the ordered view for everything that only wants the range.
+    /// </para>
+    /// <para>
+    /// Not in the record, and it must not be: a selection is where the artist is
+    /// looking, not something the document says. It lives exactly as long as the
+    /// typing session.
+    /// </para>
+    /// </remarks>
+    private int _textAnchor;
+
     private SKTypeface? _liveTextFace;
 
     /// <summary>The strokes a retype will replace, and the frame they are on.</summary>
@@ -63,6 +84,15 @@ public partial class MainViewModel
     internal TextElement? LiveText => _liveText;
 
     internal int TextCaret => _textCaret;
+
+    internal int TextAnchor => _textAnchor;
+
+    /// <summary>The selected range, low end first, or an empty range at the caret.</summary>
+    internal (int Start, int End) TextSelection =>
+        _textCaret <= _textAnchor ? (_textCaret, _textAnchor) : (_textAnchor, _textCaret);
+
+    /// <summary>Whether any characters are selected.</summary>
+    internal bool HasTextSelection => _textCaret != _textAnchor;
 
     internal Stroke? LiveTextPaint => _liveTextPaint;
 
@@ -345,6 +375,10 @@ public partial class MainViewModel
         if (TypeAt(target, x, y) is { } existing)
         {
             BeginRetyping(target, existing);
+            // Where you clicked, not the end of the block. Picking type up
+            // always landed the caret after the last character, so editing the
+            // first word of a caption meant arrowing back through all of it.
+            PlaceTextCaretAt(x, y);
             return;
         }
 
@@ -362,6 +396,7 @@ public partial class MainViewModel
                 : new FontRef(),
         };
         _textCaret = 0;
+        _textAnchor = 0;
         _retyping = null;
         _retypingFrameId = null;
         _liveTextFace ??= SKTypeface.Default;
@@ -382,13 +417,41 @@ public partial class MainViewModel
         AiStatus = "Type. Esc or a click elsewhere sets it.";
     }
 
+    /// <summary>
+    /// Open the type under a point for editing, switching to the Text tool.
+    /// </summary>
+    /// <returns>Whether there was any type there to open.</returns>
+    /// <remarks>
+    /// <b>The Arrow's double-click, and the second way in.</b> Photoshop's
+    /// gesture: the arrow is what you are holding while you arrange a page, and
+    /// having to go back to the tool rail to fix a typo is the interruption
+    /// worth removing. It switches the tool rather than typing behind the
+    /// arrow's back, so what the artist is holding always matches what the next
+    /// keystroke will do.
+    /// </remarks>
+    public bool EnterTypeAt(double x, double y)
+    {
+        if (IsPlaying) return false;
+        if (ActiveLayer is not { } layer) return false;
+        if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is not { } exposed) return false;
+        if (TypeAt(exposed, x, y) is null) return false;
+        if (!CanEdit(layer, "type on it")) return false;
+
+        ActiveTool = ToolId.Text;
+        BeginText(x, y);
+        return TextSessionActive;
+    }
+
     /// <summary>Pick up type already on the canvas and put the caret at its end.</summary>
     private void BeginRetyping(Frame target, TextElement element)
     {
         var glyphs = StrokesOf(target).Where(s => s.TextId == element.Id).ToList();
 
         _liveText = element.Clone();
+        // The caller places the caret when it knows where the click landed;
+        // the end of the block is the answer for everything that does not.
         _textCaret = _liveText.Text.Length;
+        _textAnchor = _textCaret;
         _retyping = glyphs;
         _retypingFrameId = target.Id;
         _retypingOriginal = element;
@@ -444,21 +507,86 @@ public partial class MainViewModel
     /// was painted under — so clicking the hole in an "o" misses it, exactly as
     /// clicking the hole in a flood fill does.
     /// </remarks>
-    private TextElement? TypeAt(Frame target, double x, double y)
+    /// <summary>
+    /// How far outside a block's box still counts as pointing at it.
+    /// </summary>
+    /// <remarks>
+    /// The box is the em box, so a descender or an accent can sit a hair
+    /// outside it, and a caret aimed at the last letter of a line lands on the
+    /// far edge. Small enough that two blocks a line apart do not overlap.
+    /// </remarks>
+    private const double TypeBoxSlack = 4;
+
+    /// <summary>
+    /// The type a point is pointing at, topmost first — <b>by its box</b>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This used to hit-test glyph outlines, and that is what made the tool
+    /// feel limited.</b> Clicking the gap between two letters, or the inside of
+    /// an "o", missed every contour and started a <em>second</em> block on top
+    /// of the first — so the way to retype a word was to aim at the ink of one
+    /// of its letters. It also meant there was nothing to show on hover: the
+    /// shape that responded was forty separate glyph outlines.
+    /// </para>
+    /// <para>
+    /// The box is what an artist sees and aims at, so the box is what answers.
+    /// Its extent comes from <c>TextLayout</c> rather than from the strokes,
+    /// because a block whose glyphs are all spaces has no contours at all and
+    /// still has somewhere to put a caret.
+    /// </para>
+    /// </remarks>
+    internal TextElement? TypeAt(Frame target, double x, double y)
     {
         if (_editor.Doc.Texts is not { } texts) return null;
 
         var strokes = StrokesOf(target);
+        var seen = new HashSet<string>();
         for (var i = strokes.Count - 1; i >= 0; i--)
         {
             var stroke = strokes[i];
             if (stroke.TextId is not { } id || !texts.TryGetValue(id, out var element)) continue;
-
-            var contours = new List<IReadOnlyList<StrokePoint>> { stroke.Points };
-            if (stroke.Holes is not null) contours.AddRange(stroke.Holes);
-            if (GeometryOps.ContainsEvenOdd(contours, x, y)) return element;
+            if (!seen.Add(id)) continue;   // one block, many glyph strokes
+            if (BoxOf(element) is { } box
+                && x >= box.Left - TypeBoxSlack && x <= box.Right + TypeBoxSlack
+                && y >= box.Top - TypeBoxSlack && y <= box.Bottom + TypeBoxSlack)
+            {
+                return element;
+            }
         }
         return null;
+    }
+
+    /// <summary>An element's em box in document coordinates, or null with no face.</summary>
+    internal SKRect? BoxOf(TextElement element) =>
+        TextLayout.Of(element, FaceFor(element)).Box;
+
+    /// <summary>
+    /// The typeface to measure an element with.
+    /// </summary>
+    /// <remarks>
+    /// The live face when it is the element being typed, and the registry's
+    /// answer otherwise — a block set in a font this session has not loaded
+    /// still has to be findable, or the artist cannot click on it to fix it.
+    /// </remarks>
+    private SKTypeface FaceFor(TextElement element) =>
+        _liveText is not null && _liveText.Id == element.Id && _liveTextFace is not null
+            ? _liveTextFace
+            : FontRegistry.Resolve(element.Font) ?? _liveTextFace ?? SKTypeface.Default;
+
+    /// <summary>
+    /// The box the Text tool would enter if it were clicked here, or null.
+    /// </summary>
+    /// <remarks>
+    /// What the canvas outlines on hover. Asked of the exposed frame read-only:
+    /// a hover must never key a held cel, which is the same rule the fill
+    /// preview follows.
+    /// </remarks>
+    internal SKRect? TypeBoxUnder(double x, double y)
+    {
+        if (ActiveLayer is not { } layer) return null;
+        if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is not { } frame) return null;
+        return TypeAt(frame, x, y) is { } element ? BoxOf(element) : null;
     }
 
     private Stroke TextPaintPrototype() => new()
@@ -475,61 +603,164 @@ public partial class MainViewModel
         Label = "text",
     };
 
-    /// <summary>Type characters in at the caret.</summary>
+    /// <summary>Type characters in at the caret, replacing any selection.</summary>
     public void TypeIntoText(string characters)
     {
         if (_liveText is not { } text || characters.Length == 0) return;
         // Control characters arrive here on some platforms and are not letters.
         var typed = new string([.. characters.Where(c => !char.IsControl(c))]);
         if (typed.Length == 0) return;
-
-        text.Text = text.Text.Insert(Math.Clamp(_textCaret, 0, text.Text.Length), typed);
-        _textCaret = Math.Clamp(_textCaret, 0, text.Text.Length) + typed.Length;
-        RenderTextPreview();
+        TypeControl(typed);
     }
 
     /// <summary>Break the line at the caret.</summary>
     public void TextNewline() => TypeControl("\n");
 
+    /// <remarks>
+    /// <b>Typing over a selection replaces it</b>, which is the behaviour that
+    /// makes a selection worth having: select a word, type, and the word is
+    /// gone. Every insertion goes through here so none of them can forget —
+    /// there is no second path that inserts at the caret and leaves the
+    /// highlighted text sitting behind the new letters.
+    /// </remarks>
     private void TypeControl(string characters)
     {
         if (_liveText is not { } text) return;
-        text.Text = text.Text.Insert(Math.Clamp(_textCaret, 0, text.Text.Length), characters);
-        _textCaret = Math.Clamp(_textCaret, 0, text.Text.Length) + characters.Length;
+        DeleteTextSelection();
+        var at = Math.Clamp(_textCaret, 0, text.Text.Length);
+        text.Text = text.Text.Insert(at, characters);
+        PutCaret(at + characters.Length);
         RenderTextPreview();
     }
 
-    /// <summary>Take back the character before the caret.</summary>
+    /// <summary>Take back the selection, or the character before the caret.</summary>
     public void TextBackspace()
     {
-        if (_liveText is not { } text || _textCaret <= 0 || text.Text.Length == 0) return;
+        if (_liveText is not { } text) return;
+        if (DeleteTextSelection())
+        {
+            RenderTextPreview();
+            return;
+        }
+        if (_textCaret <= 0 || text.Text.Length == 0) return;
         var at = Math.Clamp(_textCaret, 1, text.Text.Length);
         text.Text = text.Text.Remove(at - 1, 1);
-        _textCaret = at - 1;
+        PutCaret(at - 1);
         RenderTextPreview();
     }
 
-    /// <summary>Take out the character after the caret.</summary>
+    /// <summary>Take out the selection, or the character after the caret.</summary>
     public void TextDeleteForward()
     {
-        if (_liveText is not { } text || _textCaret >= text.Text.Length) return;
+        if (_liveText is not { } text) return;
+        if (DeleteTextSelection())
+        {
+            RenderTextPreview();
+            return;
+        }
+        if (_textCaret >= text.Text.Length) return;
         text.Text = text.Text.Remove(_textCaret, 1);
         RenderTextPreview();
     }
 
+    /// <summary>
+    /// Take out whatever is selected, leaving the caret where it was.
+    /// </summary>
+    /// <returns>Whether anything was removed.</returns>
+    private bool DeleteTextSelection()
+    {
+        if (_liveText is not { } text || !HasTextSelection) return false;
+        var (start, end) = TextSelection;
+        start = Math.Clamp(start, 0, text.Text.Length);
+        end = Math.Clamp(end, start, text.Text.Length);
+        if (end == start) return false;
+        text.Text = text.Text.Remove(start, end - start);
+        PutCaret(start);
+        return true;
+    }
+
+    /// <summary>Move the caret and drop the selection with it.</summary>
+    private void PutCaret(int index)
+    {
+        var length = _liveText?.Text.Length ?? 0;
+        _textCaret = Math.Clamp(index, 0, length);
+        _textAnchor = _textCaret;
+    }
+
     /// <param name="by">Negative to go back, positive to go on.</param>
-    public void MoveTextCaret(int by)
+    /// <param name="extend">
+    /// Shift is down: move the caret and leave the anchor, so the selection
+    /// grows or shrinks from the end being moved.
+    /// </param>
+    /// <remarks>
+    /// <b>Without Shift, an arrow collapses a selection to its edge rather than
+    /// stepping from the caret.</b> Select a word, press Right, and the caret
+    /// goes to the end of the word — not one character past whichever end
+    /// happened to be the caret. Every text field behaves this way and the
+    /// difference is only ever noticed when it is wrong.
+    /// </remarks>
+    public void MoveTextCaret(int by, bool extend = false)
     {
         if (_liveText is not { } text) return;
+        if (!extend && HasTextSelection)
+        {
+            var (start, end) = TextSelection;
+            PutCaret(by < 0 ? start : end);
+            RenderTextPreview();
+            return;
+        }
         _textCaret = Math.Clamp(_textCaret + by, 0, text.Text.Length);
+        if (!extend) _textAnchor = _textCaret;
         RenderTextPreview();
     }
 
     /// <summary>To the start or the end of the whole block.</summary>
-    public void TextCaretToEdge(bool end)
+    public void TextCaretToEdge(bool end, bool extend = false)
     {
         if (_liveText is not { } text) return;
         _textCaret = end ? text.Text.Length : 0;
+        if (!extend) _textAnchor = _textCaret;
+        RenderTextPreview();
+    }
+
+    // ---- selecting ----------------------------------------------------------
+
+    /// <summary>Select everything in the block being typed.</summary>
+    public void SelectAllText()
+    {
+        if (_liveText is not { } text) return;
+        _textAnchor = 0;
+        _textCaret = text.Text.Length;
+        RenderTextPreview();
+    }
+
+    /// <summary>
+    /// Put the caret where a point lands, and start a selection there.
+    /// </summary>
+    /// <param name="extend">
+    /// Shift is down, so this is the far end of a selection from wherever the
+    /// caret already was rather than a fresh one.
+    /// </param>
+    public void PlaceTextCaretAt(double x, double y, bool extend = false)
+    {
+        if (_liveText is not { } text) return;
+        var at = TextLayout.Of(text, _liveTextFace ?? SKTypeface.Default).IndexAt(x, y);
+        _textCaret = Math.Clamp(at, 0, text.Text.Length);
+        if (!extend) _textAnchor = _textCaret;
+        RenderTextPreview();
+    }
+
+    /// <summary>Drag the far end of a selection to a point.</summary>
+    public void DragTextSelectionTo(double x, double y) => PlaceTextCaretAt(x, y, extend: true);
+
+    /// <summary>Take the word a point lands in — the double-click.</summary>
+    public void SelectTextWordAt(double x, double y)
+    {
+        if (_liveText is not { } text) return;
+        var at = TextLayout.Of(text, _liveTextFace ?? SKTypeface.Default).IndexAt(x, y);
+        var (start, end) = TextLayout.WordAt(text.Text, at);
+        _textAnchor = start;
+        _textCaret = end;
         RenderTextPreview();
     }
 
@@ -731,13 +962,18 @@ public partial class MainViewModel
         var face = _liveTextFace ?? SKTypeface.Default;
         var paint = (_liveTextPaint ?? TextPaintPrototype()).Clone();
         paint.Brush.Opacity = 1;
+        var layout = TextLayout.Of(text, face);
 
+        // Under the glyphs, which is the whole reason it is drawn first: a
+        // highlight over the letters would hide what is selected.
+        DrawTextSelection(layout);
         foreach (var glyph in TextBaker.Bake(text, face, paint))
         {
             BrushEngine.StampStroke(_live.ScratchCanvas, glyph, info);
         }
 
-        DrawTextCaret(text, face);
+        DrawTextBox(layout);
+        DrawTextCaret(text, layout);
         _live.ScratchCanvas.Flush();
         _live.ScratchUsed = new SKRectI(0, 0, Scene.Width, Scene.Height);
         _publish.InvalidateWholeCanvas();
@@ -761,11 +997,65 @@ public partial class MainViewModel
     /// a stroke is one bad commit away from being drawn into somebody's frame.
     /// Sized from the type so it stays visible at any point size.
     /// </remarks>
-    private void DrawTextCaret(TextElement text, SKTypeface face)
+    /// <summary>The bar behind the selected characters.</summary>
+    /// <remarks>
+    /// Painted into the live scratch alongside the caret rather than drawn by
+    /// the canvas as chrome, because it has to sit <em>under</em> the glyphs and
+    /// the glyphs are in the scratch. It is not in the record and never reaches
+    /// a commit — <c>CommitText</c> bakes from the element, not from these
+    /// pixels.
+    /// </remarks>
+    private void DrawTextSelection(TextLayout layout)
+    {
+        if (_live.ScratchCanvas is not { } canvas || !HasTextSelection) return;
+        var (start, end) = TextSelection;
+        using var paint = new SKPaint
+        {
+            Color = new SKColor(0x4A, 0x6E, 0xA9, 0x8C),
+            IsAntialias = false,
+        };
+        foreach (var rect in layout.SelectionRects(start, end)) canvas.DrawRect(rect, paint);
+    }
+
+    /// <summary>
+    /// The block's box, dashed, while it is being typed in.
+    /// </summary>
+    /// <remarks>
+    /// <b>The box you can see is the box that responds.</b> Hit-testing moved
+    /// from glyph outlines to this rectangle, so drawing it is what makes the
+    /// new rule legible — without it an artist would be aiming at a target the
+    /// application knows about and they do not. Dashed and thin so it reads as
+    /// chrome rather than as a rule somebody drew.
+    /// </remarks>
+    private void DrawTextBox(TextLayout layout)
     {
         if (_live.ScratchCanvas is not { } canvas) return;
+        var box = layout.Box;
+        if (box.Width <= 0 && box.Height <= 0) return;
+        using var paint = new SKPaint
+        {
+            Color = new SKColor(0x4A, 0x6E, 0xA9, 0xB4),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 1,
+            IsAntialias = false,
+            PathEffect = SKPathEffect.CreateDash([4, 4], 0),
+        };
+        canvas.DrawRect(
+            new SKRect(
+                box.Left - (float)TypeBoxSlack,
+                box.Top - (float)TypeBoxSlack,
+                box.Right + (float)TypeBoxSlack,
+                box.Bottom + (float)TypeBoxSlack),
+            paint);
+    }
 
-        var layout = TextLayout.Of(text, face);
+    private void DrawTextCaret(TextElement text, TextLayout layout)
+    {
+        if (_live.ScratchCanvas is not { } canvas) return;
+        // A caret inside a selection is noise — the highlight already says where
+        // the next keystroke lands, and every text field hides it.
+        if (HasTextSelection) return;
+
         var (x, baseline) = layout.Caret(_textCaret);
         var top = (float)(baseline + layout.Ascent);
         var bottom = (float)(baseline + layout.Descent);
