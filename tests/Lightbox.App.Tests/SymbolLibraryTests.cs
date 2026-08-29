@@ -39,7 +39,7 @@ public sealed class SymbolLibraryTests : BrushStateIsolated, IDisposable
             Points = [new StrokePoint(4, 4, 1), new StrokePoint(40, 40, 1)],
             Brush = new BrushSettings { Size = 8 },
         });
-        return new Symbol { Name = name, Kind = SymbolKind.Prop, Version = version, Frames = { frame } };
+        return new Symbol { Name = name, Kind = SymbolKind.Prop, Version = version, Layers = Symbol.Flat(name, [frame]) };
     }
 
     private MainViewModel WithProject()
@@ -64,8 +64,8 @@ public sealed class SymbolLibraryTests : BrushStateIsolated, IDisposable
 
         var loaded = back.Values.Single();
         Assert.Equal("Sword", loaded.Name);
-        Assert.Single(loaded.Frames);
-        Assert.Single(((Frame)loaded.Frames[0]).Strokes);
+        Assert.Single(loaded.AllFrames);
+        Assert.Single(loaded.AllFrames.First().Strokes);
     }
 
     [AvaloniaFact]
@@ -185,8 +185,8 @@ public sealed class SymbolLibraryTests : BrushStateIsolated, IDisposable
         File.Delete(_store);
 
         var mine = vm.ProjectDocker.Project!.Symbols[global.Id];
-        Assert.Single(mine.Frames);
-        Assert.Single(((Frame)mine.Frames[0]).Strokes);
+        Assert.Single(mine.AllFrames);
+        Assert.Single(mine.AllFrames.First().Strokes);
     }
 
     // ---- promoting and pulling -------------------------------------------------
@@ -291,7 +291,7 @@ public sealed class SymbolLibraryTests : BrushStateIsolated, IDisposable
         Assert.True(vm.Doc.Symbols!.ContainsKey(global.Id));
         // And it survives a save and reload with nothing else installed.
         var reloaded = Lightbox.Core.Serialization.DocJson.Deserialize(vm.SerializeDocument());
-        Assert.Single(reloaded.Symbols![global.Id].Frames);
+        Assert.Single(reloaded.Symbols![global.Id].AllFrames);
     }
 
     [AvaloniaFact]

@@ -37,7 +37,7 @@ public sealed class SymbolGraphTests : IDisposable
             Points = [new StrokePoint(4, 4, 1), new StrokePoint(20, 20, 1)],
             Brush = new BrushSettings { Size = 6, Hardness = 1, Opacity = 1 },
         });
-        symbol.Frames.Add(frame);
+        symbol.Layers = Symbol.Flat(symbol.Name, [frame]);
         return symbol;
     }
 

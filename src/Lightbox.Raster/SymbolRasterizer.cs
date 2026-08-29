@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Timeline;
 using SkiaSharp;
 
 namespace Lightbox.Raster;
@@ -105,11 +106,11 @@ public static class SymbolRasterizer
             SymbolRegistry.NoteUnresolved(placement.SymbolId);
             return;
         }
-        if (symbol.Frames.Count == 0) return;
+        if (symbol.FrameCount == 0 || symbol.Layers.Count == 0) return;
         if (placement.Opacity <= 0) return;
 
         var index = placement.FrameIndexAt(celIndex, symbol.FrameCount);
-        if (index < 0 || index >= symbol.Frames.Count) return;
+        if (index < 0 || index >= symbol.FrameCount) return;
 
         var scale = RenderScale(placement, outputScale);
         if (Resolve(symbol, index, info, scale) is not { } rendered) return;
@@ -161,9 +162,9 @@ public static class SymbolRasterizer
         SymbolPlacement placement, SKImageInfo info, int celIndex, double outputScale = 1.0)
     {
         if (SymbolRegistry.Resolve(placement.SymbolId) is not { } symbol) return null;
-        if (symbol.Frames.Count == 0) return null;
+        if (symbol.Layers.Count == 0) return null;
         var index = placement.FrameIndexAt(celIndex, symbol.FrameCount);
-        if (index < 0 || index >= symbol.Frames.Count) return null;
+        if (index < 0 || index >= symbol.FrameCount) return null;
         var scale = RenderScale(placement, outputScale);
         if (Resolve(symbol, index, info, scale) is not { } rendered) return null;
 
@@ -236,15 +237,40 @@ public static class SymbolRasterizer
             $"{symbol.Id}|v{symbol.Version}|f{index}|{info.Width}x{info.Height}@{scale}");
         if (Cache.TryGetValue(key, out var hit)) return hit;
 
-        if (Render(symbol.Frames[index], info, scale) is not { } rendered) return null;
+        if (Render(symbol, index, info, scale) is not { } rendered) return null;
         if (Cache.Count >= MaxCached) ClearCache();
         return Cache.GetOrAdd(key, rendered);
     }
 
     /// <summary>
-    /// Rasterise one of a symbol's frames and crop it to its ink.
+    /// Composite a symbol's layer stack at one moment, and crop it to its ink.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// <b>Q171's payoff, and it is one method.</b> A symbol holds a stack —
+    /// lines, colour, shading, effects — and this is where the stack becomes a
+    /// picture. Everything downstream is untouched: the ink crop, the cache key
+    /// and the placement matrix all sit after it, which is why giving a symbol
+    /// layers changed the rendering in exactly one place.
+    /// </para>
+    /// <para>
+    /// <b>The layer-list overloads, not the scene ones.</b> A symbol is
+    /// precisely what <see cref="LayerShapes"/> calls <i>layers without a scene
+    /// around them</i> — the shape built for a reference view of another
+    /// document — so masks, clipping, adjustment layers and per-layer effects
+    /// all arrive here without a symbol having to pretend to be a document. It
+    /// is also why the compositor had to come down into this assembly first:
+    /// none of this was reachable from Raster before.
+    /// </para>
+    /// <para>
+    /// <b>Determinism is untouched and that is not luck.</b> The composite
+    /// happens in <em>symbol space</em>, before the placement transform, so no
+    /// stroke coordinate is rewritten and no <c>Hash01</c> seed moves — the same
+    /// symbol placed twice is still the same mark twice. Scale is a canvas
+    /// scale on the compose surface rather than a multiplier on geometry, which
+    /// is invariant 7 pointed at this pass.
+    /// </para>
+    /// <para>
     /// Rendered at the placing document's size first, and cropped afterwards,
     /// rather than straight into a small surface. The full-size pass is what
     /// lets a smudge or blur stroke inside a symbol read the strokes beneath
@@ -252,16 +278,63 @@ public static class SymbolRasterizer
     /// pre-cropped surface would have them sampling the wrong place. The crop
     /// is what keeps the cached entry the size of a sword rather than the size
     /// of the canvas.
+    /// </para>
     /// </remarks>
-    private static Rendered? Render(Frame frame, SKImageInfo info, double scale)
+    private static Rendered? Render(Symbol symbol, int index, SKImageInfo info, double scale)
     {
-        // `Materialize` rather than `Rasterize`, and one call rather than two arms:
-        // it is baseline-then-strokes, and it already treats an absent baseline as
-        // nothing to draw. The vector arm used to call `Rasterize` only because a
-        // `VectorFrame` had no baseline field to consult.
-        using var full = FrameRasterizer.Materialize(frame, info.Width, info.Height, scale);
+        var layers = symbol.Layers;
+        if (layers.Count == 0) return null;
+
+        // Local, because the entry this method produces is itself cached by
+        // symbol, version, frame, size and scale — so this runs on a miss and
+        // the masks it holds have nothing to outlive.
+        using var masks = new FrameBitmapCache();
+        var passes = new List<RenderPass>(layers.Count);
+
+        for (var i = 0; i < layers.Count; i++)
+        {
+            var layer = layers[i];
+            if (!layer.Visible) continue;
+
+            // An adjustment layer filters what the loop has already composed,
+            // exactly as it does on a document.
+            if (layer.IsAdjustment)
+            {
+                if (EffectPasses.AdjustmentPass(
+                        layers, Shown, i, index, masks, info.Width, info.Height) is { } adjust)
+                {
+                    passes.Add(adjust);
+                }
+                continue;
+            }
+
+            if (ExposureSheet.ExposedFrame(layer, index) is not { } frame) continue;
+            // An empty shape list is a clipped layer over nothing at this frame,
+            // which draws nothing rather than drawing unclipped.
+            var shapes = LayerShapes.For(layers, Shown, i, index);
+            if (shapes is { Count: 0 }) continue;
+
+            passes.Add(new RenderPass(
+                masks.Get(frame, info.Width, info.Height, celIndex: index),
+                null,
+                layer.Opacity,
+                SceneRenderer.ToSkia(layer.BlendMode),
+                Shapes: LayerShapes.Resolve(shapes, masks, info.Width, info.Height, index),
+                Effect: EffectPasses.SelfFilter(layer, index),
+                Style: EffectPasses.SelfStyle(layer, index)));
+        }
+
+        if (passes.Count == 0) return null;
+
+        // Transparent, always: a symbol is placed over a drawing, and paper
+        // behind it would be a lie about what it looks like in use.
+        using var image = SceneRenderer.Compose(
+            info.Width, info.Height, passes, SKColors.Transparent, scale: scale);
+        using var full = SKBitmap.FromImage(image);
         if (full is null) return null;
         if (InkBounds(full) is not { } ink) return null;
+
+        static bool Shown(Layer layer) => layer.Visible;
 
         var cropped = new SKBitmap(
             new SKImageInfo(ink.Width, ink.Height, SKColorType.Rgba8888, SKAlphaType.Premul));

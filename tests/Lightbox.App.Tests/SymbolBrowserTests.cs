@@ -71,7 +71,7 @@ public class SymbolBrowserTests : IDisposable
             Name = name,
             Kind = kind,
             Tags = [.. tags],
-            Frames = [new Frame { Strokes = [Bar(40)] }],
+            Layers = Symbol.Flat("Sword", [new Frame { Strokes = [Bar(40)] }]),
         };
         vm.ProjectDocker.Project!.Symbols[symbol.Id] = symbol;
         vm.RefreshProjectResources();
@@ -113,7 +113,7 @@ public class SymbolBrowserTests : IDisposable
         // the same relay the project panel needed.
         var vm = new MainViewModel(null);
         var project = ProjectIo.Create("Knight", _root);
-        var sword = new Symbol { Name = "Sword", Frames = [new Frame { Strokes = [Bar(40)] }] };
+        var sword = new Symbol { Name = "Sword", Layers = Symbol.Flat("Sword", [new Frame { Strokes = [Bar(40)] }]) };
         project.Symbols[sword.Id] = sword;
 
         vm.ProjectDocker.Project = project;

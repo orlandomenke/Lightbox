@@ -420,6 +420,25 @@ not to this note.
 
 ## Steps
 
+**L1, L2 and L3 have landed.** A symbol owns a layer stack, the compositor lives
+in `Lightbox.Raster`, and a placement composites that stack. What is left is the
+ways in and out of it — the editing tab, capture, detach — and proving the file
+still means the same thing.
+
+Two things worth recording from building them:
+
+- **L3 is one method.** `SymbolRasterizer.Render` builds a `RenderPass` per
+  layer and hands them to `SceneRenderer.Compose`; the ink crop, the cache key
+  and the placement matrix are untouched, exactly as this note predicted. The
+  find that made it that small: `LayerShapes` and `EffectPasses` already carry
+  **layer-list overloads** written for "compositors that hold layers without a
+  scene around them" — a reference view of another document. A symbol is
+  precisely that, so masks, clipping, adjustment layers and per-layer effects
+  arrive without a symbol having to pretend to be a `Scene`.
+- **The stop condition did not fire.** `TheSameSymbolPlacedTwiceIsPixelIdentical`
+  passes unchanged: the composite happens in symbol space, before the placement
+  transform, so no coordinate is rewritten and no `Hash01` seed moves.
+
 Each is a commit, green, with its evidence anchors.
 
 **L1 — the record and the file.** `Symbol.Layers`, the converter reading `frames`

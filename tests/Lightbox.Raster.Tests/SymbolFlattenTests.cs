@@ -63,7 +63,7 @@ public class SymbolFlattenTests : IDisposable
         Name = "Sword",
         PivotX = 10,
         PivotY = 10,
-        Frames = [new Frame { Strokes = [Jittery(10, 10, swatchId, "#000000")] }],
+        Layers = Symbol.Flat("Sword", [new Frame { Strokes = [Jittery(10, 10, swatchId, "#000000")] }]),
     };
 
     private static Doc DocPlacing(Symbol symbol, double x = 70, double y = 50)

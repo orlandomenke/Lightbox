@@ -223,7 +223,9 @@ public sealed partial class MainViewModel
             // The strokes as they stand, in the coordinates they were drawn in.
             // Pivot at the origin, so a placement at (0, 0) puts them back
             // exactly where they were.
-            Frames = [new Frame { Strokes = [.. source.Strokes.Select(s => s.Clone())] }],
+            Layers = Symbol.Flat(
+                string.IsNullOrWhiteSpace(name) ? "Symbol" : name.Trim(),
+                [new Frame { Strokes = [.. source.Strokes.Select(s => s.Clone())] }]),
         };
 
         var taken = source.Strokes.ToList();
@@ -364,10 +366,17 @@ public sealed partial class MainViewModel
             ActiveTab = open;
             return;
         }
-        if (symbol.Frames.Count == 0) symbol.Frames.Add(new Frame());
+        if (symbol.Layers.Count == 0)
+        {
+            symbol.Layers.Add(new Layer { Name = symbol.Name, Kind = LayerKind.Painted });
+        }
+        if (symbol.Layers[0].Cels.Count == 0) symbol.Layers[0].Cels.Add(new Cel { Frame = new Frame() });
 
-        var layer = new Layer { Name = symbol.Name, Kind = LayerKind.Painted };
-        foreach (var frame in symbol.Frames) layer.Cels.Add(new Cel { Frame = frame });
+        // The symbol's own layer, shared rather than copied — the arrangement
+        // `TheTabEditsTheSymbolsOwnFramesRatherThanCopies` asserts, one level up
+        // from the frames it used to be about. L4 opens the whole stack; until
+        // then a symbol has exactly one layer and this is it.
+        var layer = symbol.Layers[0];
 
         var wrapper = new Doc
         {
@@ -377,7 +386,7 @@ public sealed partial class MainViewModel
                 Width = Scene.Width,
                 Height = Scene.Height,
                 Fps = symbol.Fps,
-                FrameCount = symbol.Frames.Count,
+                FrameCount = symbol.FrameCount,
                 // Transparent, always. A symbol is placed over a drawing, so a
                 // white sheet behind it while editing would be a lie about what
                 // it looks like in use — and would be baked into nothing, since
@@ -457,7 +466,11 @@ public sealed partial class MainViewModel
                 + "Merge the others down to keep them.";
         }
 
-        symbol.Frames = frames;
+        // Into the symbol's own layer. Still one layer until L4 — the guard
+        // above is what keeps it that way — so this is the frame list moving
+        // one level down rather than a stack being written.
+        if (symbol.Layers.Count == 0) symbol.Layers.Add(new Layer { Name = symbol.Name });
+        symbol.Layers[0].Cels = [.. frames.Select(f => new Cel { Frame = f })];
         symbol.Fps = Doc.Scene.Fps;
         symbol.Version++;
         SymbolBrowser.RefreshThumbs();
@@ -1064,10 +1077,10 @@ public sealed partial class MainViewModel
         var index = target.Placements.FindIndex(p => p.Id == placement.Id);
         if (index < 0) return false;
         if (SymbolRegistry.Resolve(placement.SymbolId) is not { } symbol) return false;
-        if (symbol.Frames.Count == 0) return false;
+        if (symbol.Layers.Count == 0) return false;
 
         var frameIndex = placement.FrameIndexAt(CurrentFrameIndex, symbol.FrameCount);
-        if (frameIndex < 0 || frameIndex >= symbol.Frames.Count) return false;
+        if (frameIndex < 0 || frameIndex >= symbol.FrameCount) return false;
         var baked = BakedStrokes(symbol, frameIndex, placement);
         if (baked.Count == 0) return false;
 
@@ -1129,7 +1142,10 @@ public sealed partial class MainViewModel
     /// <summary>The symbol's strokes with the placement's transform written into them.</summary>
     private static List<Stroke> BakedStrokes(Symbol symbol, int frameIndex, SymbolPlacement placement)
     {
-        var source = symbol.Frames[frameIndex].Strokes;
+        // L1: the one layer's drawing at this cel. L6 is where breaking a link
+        // rebuilds the whole stack; this keeps today's behaviour exactly.
+        if (symbol.FramesAt(frameIndex).FirstOrDefault() is not { } showing) return [];
+        var source = showing.Strokes;
         var cos = Math.Cos(placement.Angle * Math.PI / 180);
         var sin = Math.Sin(placement.Angle * Math.PI / 180);
         var scale = Math.Max(Math.Abs(placement.ScaleX), Math.Abs(placement.ScaleY));

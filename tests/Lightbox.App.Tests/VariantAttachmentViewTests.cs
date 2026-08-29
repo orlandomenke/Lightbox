@@ -45,7 +45,7 @@ public class VariantAttachmentViewTests(ITestOutputHelper output) : BrushStateIs
             Points = [new StrokePoint(0, 0, 1), new StrokePoint(1, 0, 1)],
             Brush = new BrushSettings { Size = 12, Opacity = 1 },
         });
-        return new Symbol { Name = "Pauldron", Frames = [frame] };
+        return new Symbol { Name = "Pauldron", Layers = Symbol.Flat("Pauldron", [frame]) };
     }
 
     /// <summary>
