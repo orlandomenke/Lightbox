@@ -25,7 +25,7 @@ public class SymbolScopeTests
             Name = name,
             Kind = SymbolKind.Prop,
             Version = version,
-            Frames = { frame },
+            Layers = Symbol.Flat("sym", [frame]),
         };
     }
 
@@ -47,7 +47,7 @@ public class SymbolScopeTests
         Assert.True(project.Symbols.ContainsKey("sym-1"));
         // ...and a different object, so the two cannot alias.
         Assert.NotSame(library["sym-1"], project.Symbols["sym-1"]);
-        Assert.NotSame(library["sym-1"].Frames[0], project.Symbols["sym-1"].Frames[0]);
+        Assert.NotSame(library["sym-1"].AllFrames.First(), project.Symbols["sym-1"].AllFrames.First());
     }
 
     [Fact]
@@ -60,13 +60,13 @@ public class SymbolScopeTests
         SymbolScopes.Adopt(project, global);
 
         // The library is deleted, edited, whatever — the project is unaffected.
-        global.Frames.Clear();
+        global.Layers.Clear();
         global.Name = "gone";
 
         var mine = project.Symbols[global.Id];
-        Assert.Single(mine.Frames);
+        Assert.Single(mine.AllFrames);
         Assert.Equal("Sword", mine.Name);
-        Assert.Single(((Frame)mine.Frames[0]).Strokes);
+        Assert.Single(mine.AllFrames.First().Strokes);
     }
 
     [Fact]
@@ -237,8 +237,8 @@ public class SymbolScopeTests
             .Deserialize<Dictionary<string, Symbol>>(json, DocJson.Options)!;
 
         var symbol = back.Values.Single();
-        Assert.Single(symbol.Frames);
-        Assert.Single(((Frame)symbol.Frames[0]).Strokes);
+        Assert.Single(symbol.AllFrames);
+        Assert.Single(symbol.AllFrames.First().Strokes);
     }
 
 

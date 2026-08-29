@@ -31,6 +31,7 @@ public static class DocJson
         };
         o.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
         o.Converters.Add(new FrameConverter());
+        o.Converters.Add(new SymbolConverter());
         return o;
     }
 

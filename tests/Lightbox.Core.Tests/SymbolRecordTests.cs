@@ -22,7 +22,7 @@ public class SymbolRecordTests
         Tags = ["knight", "act two"],
         PivotX = 12,
         PivotY = 40,
-        Frames = [new Frame { Strokes = [Line(0, 0, 10, 10)] }],
+        Layers = Symbol.Flat("Sword", [new Frame { Strokes = [Line(0, 0, 10, 10)] }]),
     };
 
     private static Stroke Line(double x0, double y0, double x1, double y1) => new()
@@ -150,7 +150,7 @@ public class SymbolRecordTests
             Assert.Equal(SymbolKind.Prop, read.Kind);
             Assert.Equal(["knight", "act two"], read.Tags);
             Assert.Equal(12, read.PivotX);
-            Assert.Single(((Frame)read.Frames[0]).Strokes);
+            Assert.Single(read.AllFrames.First().Strokes);
         }
         finally
         {
@@ -195,7 +195,7 @@ public class SymbolRecordTests
         {
             var project = ProjectIo.Create("Knight", root);
             var sword = Sword();
-            ((Frame)sword.Frames[0]).Placements =
+            sword.AllFrames.First().Placements =
                 [new SymbolPlacement { SymbolId = "sym_itself" }];
             project.Symbols[sword.Id] = sword;
             ProjectIo.Save(project);
@@ -203,7 +203,7 @@ public class SymbolRecordTests
             var back = ProjectIo.Load(root);
 
             var read = Assert.Single(back!.Symbols).Value;
-            Assert.Null(((Frame)read.Frames[0]).Placements);
+            Assert.Null(read.AllFrames.First().Placements);
         }
         finally
         {

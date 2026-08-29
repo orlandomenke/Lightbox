@@ -122,7 +122,7 @@ public class DocCloneTests(ITestOutputHelper output)
         };
         doc.Symbols = new Dictionary<string, Symbol>
         {
-            ["sym_1"] = new() { Name = "Sword", Tags = ["prop"], Frames = [new Frame()] },
+            ["sym_1"] = new() { Name = "Sword", Tags = ["prop"], Layers = Symbol.Flat("Sword", [new Frame()]) },
         };
         doc.Features = new Dictionary<string, bool> { ["camera"] = true };
         doc.ReferenceSheets.Add(new ReferenceSheet

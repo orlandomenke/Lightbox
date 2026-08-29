@@ -1,3 +1,5 @@
+using Lightbox.Core.Timeline;
+
 namespace Lightbox.Core.Documents;
 
 /// <summary>
@@ -58,15 +60,33 @@ public sealed class Symbol
     public List<string> Tags { get; set; } = [];
 
     /// <summary>
-    /// The drawing, or the drawings — one frame for a prop, several for a
-    /// cycle.
+    /// The drawing: a stack of layers, each with its own cels.
     /// </summary>
     /// <remarks>
-    /// Ordinary frames, so a symbol is edited with the ordinary tools and
-    /// renders through the ordinary pixel path. Nothing here is a second kind
-    /// of artwork.
+    /// <para>
+    /// <b>The document's own <see cref="Layer"/>, not a narrower one</b> (Q171).
+    /// A trimmed <c>SymbolLayer</c> was the tempting shape and it is the mistake
+    /// this codebase already made and undid: <c>PaintedFrame</c> and
+    /// <c>VectorFrame</c> were one class with abilities removed, the distinction
+    /// only ever decided what a frame could <i>not</i> hold, and it produced
+    /// B132. So the type is shared, and what a symbol layer may carry is a
+    /// loader rule rather than a second record.
+    /// </para>
+    /// <para>
+    /// <b>This used to be <c>List&lt;Frame&gt;</c>, and that list was the time
+    /// axis.</b> A symbol therefore had no layer axis at all, which is why a
+    /// second layer in a symbol tab used to be folded into the frame list and
+    /// come back as frame 2 of the animation. An artwork is lines, colour,
+    /// shading and effects; it was expressible everywhere in this application
+    /// except in the one place built for reusing it.
+    /// </para>
+    /// <para>
+    /// Ordinary layers of ordinary frames, so a symbol is still edited with the
+    /// ordinary tools and renders through the ordinary pixel path. Nothing here
+    /// is a second kind of artwork.
+    /// </para>
     /// </remarks>
-    public List<Frame> Frames { get; set; } = [];
+    public List<Layer> Layers { get; set; } = [];
 
     /// <summary>Frames per second, only meaningful with more than one frame.</summary>
     public int Fps { get; set; } = 12;
@@ -97,15 +117,67 @@ public sealed class Symbol
     /// How many frames a placement can offset into, at least one. Derived;
     /// never serialized.
     /// </summary>
+    /// <remarks>
+    /// The longest layer, because that is how long the animation is: a colour
+    /// layer holding one drawing under a twelve-frame line test does not make
+    /// the symbol one frame long.
+    /// </remarks>
     [System.Text.Json.Serialization.JsonIgnore]
-    public int FrameCount => Math.Max(1, Frames.Count);
+    public int FrameCount =>
+        Math.Max(1, Layers.Count == 0 ? 0 : Layers.Max(l => l.Cels.Count));
+
+    /// <summary>
+    /// Every drawing in this symbol, whatever layer it sits on. Derived; never
+    /// serialized.
+    /// </summary>
+    /// <remarks>
+    /// For the callers that mean <i>all the artwork</i> rather than <i>what
+    /// shows at time t</i> — collecting strokes so a flatten can inline their
+    /// swatches, say. <b>Never use it to decide what renders</b>: flattening the
+    /// stack into a sequence is exactly the bug the layer axis exists to fix.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IEnumerable<Frame> AllFrames =>
+        Layers.SelectMany(l => l.Cels).Select(c => c.Frame).OfType<Frame>();
+
+    /// <summary>
+    /// The drawings that show at <paramref name="index"/>, bottom layer first.
+    /// </summary>
+    /// <remarks>
+    /// Hidden layers are left out, and a layer shorter than the symbol holds its
+    /// last cel rather than disappearing — <see cref="ExposureSheet.ExposedFrame"/>
+    /// answers both, so a symbol times its drawings exactly as a document does.
+    /// </remarks>
+    public IEnumerable<Frame> FramesAt(int index)
+    {
+        foreach (var layer in Layers)
+        {
+            if (!layer.Visible) continue;
+            if (ExposureSheet.ExposedFrame(layer, index) is { } frame) yield return frame;
+        }
+    }
+
+    /// <summary>
+    /// One layer holding these drawings, in order.
+    /// </summary>
+    /// <remarks>
+    /// <b>Not a compatibility shim.</b> It is the shape every symbol had before
+    /// the stack and the shape a symbol made from one drawing still has, and two
+    /// production paths genuinely build it — <c>MakeSymbolFromDrawing</c> and the
+    /// old-file arm of <c>SymbolConverter</c>. Saying it once is what stops those
+    /// two drifting into building it differently, which is the whole reason a
+    /// one-layer symbol and a symbol read from an older file have to be the same
+    /// object in memory.
+    /// </remarks>
+    public static List<Layer> Flat(string name, IEnumerable<Frame> frames) =>
+        [new Layer { Name = name, Cels = [.. frames.Select(f => new Cel { Frame = f })] }];
 
     /// <summary>A copy holding no reference in common with this one.</summary>
     public Symbol Clone()
     {
         var copy = (Symbol)MemberwiseClone();
         copy.Tags = [.. Tags];
-        copy.Frames = Frames.Select(f => f.Clone()).ToList();
+        copy.Layers = Layers.Select(l => l.Clone()).ToList();
         return copy;
     }
 }

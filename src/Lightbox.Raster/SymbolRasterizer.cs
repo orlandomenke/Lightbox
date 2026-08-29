@@ -105,11 +105,11 @@ public static class SymbolRasterizer
             SymbolRegistry.NoteUnresolved(placement.SymbolId);
             return;
         }
-        if (symbol.Frames.Count == 0) return;
+        if (symbol.FrameCount == 0 || symbol.Layers.Count == 0) return;
         if (placement.Opacity <= 0) return;
 
         var index = placement.FrameIndexAt(celIndex, symbol.FrameCount);
-        if (index < 0 || index >= symbol.Frames.Count) return;
+        if (index < 0 || index >= symbol.FrameCount) return;
 
         var scale = RenderScale(placement, outputScale);
         if (Resolve(symbol, index, info, scale) is not { } rendered) return;
@@ -161,9 +161,9 @@ public static class SymbolRasterizer
         SymbolPlacement placement, SKImageInfo info, int celIndex, double outputScale = 1.0)
     {
         if (SymbolRegistry.Resolve(placement.SymbolId) is not { } symbol) return null;
-        if (symbol.Frames.Count == 0) return null;
+        if (symbol.Layers.Count == 0) return null;
         var index = placement.FrameIndexAt(celIndex, symbol.FrameCount);
-        if (index < 0 || index >= symbol.Frames.Count) return null;
+        if (index < 0 || index >= symbol.FrameCount) return null;
         var scale = RenderScale(placement, outputScale);
         if (Resolve(symbol, index, info, scale) is not { } rendered) return null;
 
@@ -236,7 +236,12 @@ public static class SymbolRasterizer
             $"{symbol.Id}|v{symbol.Version}|f{index}|{info.Width}x{info.Height}@{scale}");
         if (Cache.TryGetValue(key, out var hit)) return hit;
 
-        if (Render(symbol.Frames[index], info, scale) is not { } rendered) return null;
+        // L1: one drawing, which is what every symbol on disc has. L3 replaces
+        // this with a composite of `symbol.FramesAt(index)` — and nothing else
+        // in this file changes, because the crop, the cache key and the
+        // placement matrix all sit downstream of it.
+        if (symbol.FramesAt(index).FirstOrDefault() is not { } showing) return null;
+        if (Render(showing, info, scale) is not { } rendered) return null;
         if (Cache.Count >= MaxCached) ClearCache();
         return Cache.GetOrAdd(key, rendered);
     }

@@ -64,7 +64,7 @@ public sealed partial class SymbolRow : ObservableObject
     }
 
     /// <summary>Frame count, shown only when there is more than one.</summary>
-    public string? Length => Model.Frames.Count > 1 ? $"{Model.Frames.Count}f" : null;
+    public string? Length => Model.FrameCount > 1 ? $"{Model.FrameCount}f" : null;
 
     [ObservableProperty]
     private Bitmap? _thumb;
@@ -273,11 +273,14 @@ public sealed partial class SymbolBrowserViewModel : ObservableObject
 
     private static Bitmap? RenderThumb(Symbol symbol, SKImageInfo info)
     {
-        if (symbol.Frames.Count == 0) return null;
+        if (symbol.Layers.Count == 0) return null;
         // Through the ordinary pixel path, at the ordinary place: the tile is a
         // picture of what the symbol will actually look like, not a second
         // renderer's opinion of it.
-        using var bitmap = FrameRasterizer.Materialize(symbol.Frames[0], info.Width, info.Height);
+        // The tile shows frame one. L3 makes this the composite of the stack;
+        // until then a symbol has one layer and this is its first drawing.
+        if (symbol.FramesAt(0).FirstOrDefault() is not { } first) return null;
+        using var bitmap = FrameRasterizer.Materialize(first, info.Width, info.Height);
         return bitmap is null ? null : ThumbnailRenderer.RenderChecker(bitmap, 64, 48);
     }
 }
