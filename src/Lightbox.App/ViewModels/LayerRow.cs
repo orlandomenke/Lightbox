@@ -51,6 +51,29 @@ public sealed partial class GroupRow : ObservableObject
     public Avalonia.Media.IBrush ColorBrush =>
         Avalonia.Media.Brush.Parse(Color);
 
+
+    /// <summary>
+    /// What a drop here would do, while a drag is over this row.
+    /// </summary>
+    /// <remarks>
+    /// Held on the row rather than drawn by an overlay so it scrolls with the
+    /// docker for free and can be asserted without a visual tree — see
+    /// <see cref="LayerDropPlan"/>. Cleared from every exit of the drag,
+    /// because a line left behind reads as a rendering fault rather than as a
+    /// stuck state.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DropAbove))]
+    [NotifyPropertyChangedFor(nameof(DropBelow))]
+    [NotifyPropertyChangedFor(nameof(DropInto))]
+    private LayerDropHint _dropHint;
+
+    public bool DropAbove => DropHint == LayerDropHint.Above;
+
+    public bool DropBelow => DropHint == LayerDropHint.Below;
+
+    public bool DropInto => DropHint == LayerDropHint.Into;
+
     partial void OnNameChanged(string value)
     {
         if (!_syncing) _owner.CommitGroupRename(Group, value);
@@ -102,6 +125,28 @@ public sealed partial class LayerRow : ObservableObject
     public int SceneIndex { get; private set; }
 
     public ObservableCollection<FrameCell> Cells { get; } = [];
+
+    /// <summary>
+    /// What a drop here would do, while a drag is over this row.
+    /// </summary>
+    /// <remarks>
+    /// Held on the row rather than drawn by an overlay so it scrolls with the
+    /// docker for free and can be asserted without a visual tree — see
+    /// <see cref="LayerDropPlan"/>. Cleared from every exit of the drag,
+    /// because a line left behind reads as a rendering fault rather than as a
+    /// stuck state.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DropAbove))]
+    [NotifyPropertyChangedFor(nameof(DropBelow))]
+    [NotifyPropertyChangedFor(nameof(DropInto))]
+    private LayerDropHint _dropHint;
+
+    public bool DropAbove => DropHint == LayerDropHint.Above;
+
+    public bool DropBelow => DropHint == LayerDropHint.Below;
+
+    public bool DropInto => DropHint == LayerDropHint.Into;
 
     [ObservableProperty]
     private string _name = "";
