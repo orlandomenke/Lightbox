@@ -71,6 +71,11 @@ public sealed partial class CanvasControl : Control
             // The badge rides the brush ring, which is drawn by the render op
             // — so a mode flip must repaint the same way a size change does.
             PointerBadgeProperty,
+            // Same reasoning as the badge: the ink is drawn by the render op, so
+            // a ring that has decided to change colour has to ask for a repaint.
+            BrushCursorInkProperty,
+            BrushCursorContrastProperty,
+            BrushCursorWidthProperty,
             LazyRadiusProperty,
             SoloProperty,
             PickSampleHexProperty,
@@ -1854,7 +1859,10 @@ public sealed partial class CanvasControl : Control
                 (float)Math.Clamp(BrushCursorRoundness, 0.05, 1.0),
                 (float)BrushCursorAngle,
                 TipOutlinePath(BrushCursorTipId),
-                PointerIntent == CanvasCursorKind.Paint ? PointerBadge : CursorBadge.None);
+                PointerIntent == CanvasCursorKind.Paint ? PointerBadge : CursorBadge.None,
+                BrushCursorInk,
+                CursorContrast.ClampContrast(BrushCursorContrast),
+                CursorContrast.ClampWidth(BrushCursorWidth));
         }
         var pickRing = PickRingNow();
 
@@ -4678,7 +4686,7 @@ public sealed partial class CanvasControl : Control
         /// <summary>
         /// The pulled-string ("lazy mouse") gizmo: an amber dead-zone ring
         /// around the cursor, the string, and a blue ring where paint lands —
-        /// distinct from the white/black brush cursor.
+        /// coloured so neither can be mistaken for the brush ring.
         /// </summary>
         private void DrawLazyGizmo(SKCanvas canvas)
         {

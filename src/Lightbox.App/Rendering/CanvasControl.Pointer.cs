@@ -112,7 +112,10 @@ public sealed partial class CanvasControl
         float Roundness = 1f,
         float AngleDeg = 0f,
         SKPath? Outline = null,
-        CursorBadge Badge = CursorBadge.None);
+        CursorBadge Badge = CursorBadge.None,
+        CursorInk Ink = CursorInk.Dark,
+        double Contrast = CursorContrast.DefaultContrast,
+        double Width = CursorContrast.DefaultWidth);
 
     /// <summary>
     /// The +/− the pointer wears (<see cref="CursorBadge"/>): pushed from the
@@ -126,6 +129,53 @@ public sealed partial class CanvasControl
     {
         get => GetValue(PointerBadgeProperty);
         set => SetValue(PointerBadgeProperty, value);
+    }
+
+    /// <summary>
+    /// Which ink the brush ring is drawn in — pushed from the view model, which
+    /// is the only side that can see the artwork under the pointer.
+    /// </summary>
+    /// <remarks>
+    /// The decision is <see cref="CursorContrast.Choose"/> and the sampling is
+    /// the view model's; all that arrives here is the answer, so the control
+    /// still reads no pixels of its own.
+    /// </remarks>
+    public static readonly StyledProperty<CursorInk> BrushCursorInkProperty =
+        AvaloniaProperty.Register<CanvasControl, CursorInk>(nameof(BrushCursorInk));
+
+    public CursorInk BrushCursorInk
+    {
+        get => GetValue(BrushCursorInkProperty);
+        set => SetValue(BrushCursorInkProperty, value);
+    }
+
+    /// <summary>How far the ring's line stands off the artwork, 0 to 1.</summary>
+    /// <remarks>
+    /// A preference rather than a document value, and one of the two an artist
+    /// can turn from <b>Configure ▸ Drawing</b>. It never reaches a pixel of the
+    /// drawing, so unlike a brush setting it may be read at paint time
+    /// (invariant 4 is about settings that change the mark).
+    /// </remarks>
+    public static readonly StyledProperty<double> BrushCursorContrastProperty =
+        AvaloniaProperty.Register<CanvasControl, double>(
+            nameof(BrushCursorContrast), CursorContrast.DefaultContrast);
+
+    public double BrushCursorContrast
+    {
+        get => GetValue(BrushCursorContrastProperty);
+        set => SetValue(BrushCursorContrastProperty, value);
+    }
+
+    /// <summary>The width of the ring's line, in screen pixels.</summary>
+    /// <inheritdoc cref="BrushCursorContrastProperty" path="/remarks"/>
+    public static readonly StyledProperty<double> BrushCursorWidthProperty =
+        AvaloniaProperty.Register<CanvasControl, double>(
+            nameof(BrushCursorWidth), CursorContrast.DefaultWidth);
+
+    public double BrushCursorWidth
+    {
+        get => GetValue(BrushCursorWidthProperty);
+        set => SetValue(BrushCursorWidthProperty, value);
     }
 
     // ---- the pen's other axes (tilt and speed) ----------------------------------
@@ -406,74 +456,15 @@ public sealed partial class CanvasControl
 
     private sealed partial class DrawOp
     {
-        /// <summary>The brush ring — the pointer itself while paint hides the platform cursor.</summary>
-        private static void DrawBrushCursor(SKCanvas canvas, BrushCursor c)
-        {
-            using var dark = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1.2f,
-                Color = new SKColor(0, 0, 0, 200),
-            };
-            using var light = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1.2f,
-                Color = new SKColor(255, 255, 255, 200),
-            };
-
-            if (c.Outline is { } outline)
-            {
-                // Unit space to view space: the diameter is 2r, and the tip's own
-                // aspect is already in the traced contour — so roundness flattens
-                // it further rather than defining it, exactly as the engine
-                // multiplies roundness onto whatever tip it is stamping.
-                canvas.Save();
-                canvas.Translate(c.X, c.Y);
-                if (c.AngleDeg != 0) canvas.RotateDegrees(c.AngleDeg);
-                canvas.Scale(c.Radius * 2, c.Radius * 2 * c.Roundness);
-                // The stroke is scaled with the canvas, so undo it in the paint or
-                // a big brush gets a fat ring and a small one gets none.
-                dark.StrokeWidth = 1.2f / (c.Radius * 2);
-                light.StrokeWidth = 1.2f / (c.Radius * 2);
-                canvas.DrawPath(outline, dark);
-                canvas.Restore();
-
-                canvas.Save();
-                canvas.Translate(c.X, c.Y);
-                if (c.AngleDeg != 0) canvas.RotateDegrees(c.AngleDeg);
-                var inner = Math.Max(0.5f, c.Radius - 1.2f);
-                canvas.Scale(inner * 2, inner * 2 * c.Roundness);
-                canvas.DrawPath(outline, light);
-                canvas.Restore();
-                return;
-            }
-
-            if (c.Roundness < 0.999f || c.AngleDeg != 0)
-            {
-                canvas.Save();
-                canvas.Translate(c.X, c.Y);
-                if (c.AngleDeg != 0) canvas.RotateDegrees(c.AngleDeg);
-                canvas.DrawOval(new SKRect(-c.Radius, -c.Radius * c.Roundness, c.Radius, c.Radius * c.Roundness), dark);
-                var r = Math.Max(0.5f, c.Radius - 1.2f);
-                canvas.DrawOval(new SKRect(-r, -r * c.Roundness, r, r * c.Roundness), light);
-                canvas.Restore();
-                return;
-            }
-
-            canvas.DrawCircle(c.X, c.Y, c.Radius, dark);
-            canvas.DrawCircle(c.X, c.Y, Math.Max(0.5f, c.Radius - 1.2f), light);
-
-            // The +/− beside the ring, lower-right in screen pixels — the
-            // weight brush's mode visible where the artist is looking.
-            if (c.Badge is not CursorBadge.None)
-            {
-                var at = c.Radius * 0.7071f + 8f;
-                CursorBadgePainter.Draw(canvas, c.X + at, c.Y + at, c.Badge);
-            }
-        }
+        /// <summary>
+        /// The brush ring — the pointer itself while paint hides the platform
+        /// cursor. Drawn by <see cref="BrushRingPainter"/>, which is where it can
+        /// be rendered to a bare surface and looked at by a test.
+        /// </summary>
+        private static void DrawBrushCursor(SKCanvas canvas, BrushCursor c) =>
+            BrushRingPainter.Draw(
+                canvas, c.X, c.Y, c.Radius, c.Roundness, c.AngleDeg, c.Outline, c.Ink, c.Badge,
+                c.Contrast, c.Width);
     }
 
     private SKPath? TipOutlinePath(string? tipId)
