@@ -41,6 +41,11 @@ item that a painting app is simply expected to have lives here.
 ### Brush engine
 
 - [x] High-performance brush engine `evidence: BrushEngine, StampStroke, LargeCanvasPerformanceTests, PerformanceTests`
+- [ ] **What a swept soft mark's ceiling should be** `evidence: none yet`
+  - Q157 holds a soft mark down to the brush's own footprint, which fixed an edge that came out half as wide as a single dab. **B349 is what that ceiling prints**: the footprint is a maximum of dab shapes, and where the mark saturates it *becomes* that surface — ridges and all — which an artist reads as lines down an airbrushed patch.
+  - The cheap repairs are ruled out by measurement rather than by taste. A ripple is peak-to-trough, so an operator that never lowers the ceiling cannot flatten one; an operator that lowers it clips a lone dab against its own profile. Four were built and each fails one of the two. Sampling the footprint four times more finely does not help either — the ridges are the real shape of the maximum along the path, not a discretisation of it.
+  - So this is a question about the model: **is a ceiling per-point the right idea at all**, or should it build with the passes the way paint does? What comes out has to keep Q157's edge, keep B27's measured wash spread, and re-render every existing document the same way or say plainly that it does not. **A design note before any code.**
+  - Cost: **L**. B349 carries the measurements this starts from.
 - [x] Custom brush editor `evidence: BrushPageGeneral, BrushPageEffects, BrushPagePressure`
 - [x] Brush presets and tagging `evidence: BrushPreset, PresetStore, BuiltInPresets, BrushPresetList, BrushTagChoices, BrushPresetEditingTests, TagsPersistAndFeedTheFilterList, ABrushNobodyFiledWritesNoTagsKey`
   - "and tagging" was ticked against `BrushCategoryList`, which is the ⚙ window's page list and has nothing to do with tags. Tags are now free text on the preset, absent until one is filed, and the picker collects whatever exists rather than offering a vocabulary written here — the categories worth having are the ones an artist's work has.
