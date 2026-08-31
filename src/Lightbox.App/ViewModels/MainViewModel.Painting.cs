@@ -3576,6 +3576,13 @@ public partial class MainViewModel
     /// </remarks>
     private void DiscardErasureThatDidNothing(Stroke stroke)
     {
+        // The mark was appended to the cached bitmap, so its old pixels are
+        // held (Q167) — and no step is going to be pushed to file them under.
+        // Left pending they would be promoted by whichever edit commits next.
+        // MarkSnapshot.Swap would refuse them on the frame and the region, but
+        // an unowned patch waiting for somebody else's revision is the shape of
+        // bug that only shows up once those two checks stop agreeing.
+        _markSnapshots.Discard();
         // The cel goes back to being a hold. No refresh call here on purpose:
         // DiscardStep raises the editor's Changed event, which is the same
         // signal the keying itself fired, so everything that reacted to the

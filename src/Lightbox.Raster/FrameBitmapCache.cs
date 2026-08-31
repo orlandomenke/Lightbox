@@ -586,6 +586,40 @@ public sealed class FrameBitmapCache : IDisposable
         return patched;
     }
 
+    /// <summary>
+    /// Every cached rendering of one drawing, in the order the LRU holds them.
+    /// </summary>
+    /// <remarks>
+    /// <b>The same set <see cref="RepaintRegion"/> loops, exposed so that
+    /// <see cref="MarkSnapshot"/> saves and restores exactly what the replay
+    /// would have rebuilt.</b> There can be more than one — an editing render at
+    /// 1x and an export at 2x are separate entries under the same frame id — and
+    /// a snapshot that covered only the first would leave the two disagreeing
+    /// about a drawing the record describes once.
+    /// </remarks>
+    internal List<(string Key, SKBitmap Bmp, double OutputScale)> EntriesFor(string frameId)
+    {
+        var found = new List<(string, SKBitmap, double)>();
+        for (var node = _lru.First; node is not null; node = node.Next)
+        {
+            var entry = node.Value;
+            if (entry.FrameId == frameId) found.Add((entry.Key, entry.Bmp, entry.OutputScale));
+        }
+        return found;
+    }
+
+    /// <summary>
+    /// <inheritdoc cref="Clamped" path="/summary"/>
+    /// </summary>
+    /// <remarks>
+    /// <b>Shared with <see cref="MarkSnapshot"/> on purpose.</b> The rectangle a
+    /// snapshot saves and the rectangle an undo writes back have to be the same
+    /// one, and the cheapest way to guarantee that is for both to be this
+    /// function rather than two readings of the same rule.
+    /// </remarks>
+    internal static SKRectI ClampedRegion(SKRectI region, double outputScale, int width, int height)
+        => Clamped(region, outputScale, width, height);
+
     /// <summary>A document-space rectangle as surface pixels inside the bitmap.</summary>
     /// <remarks>
     /// Outward to whole pixels before clamping — a mark that covers part of a

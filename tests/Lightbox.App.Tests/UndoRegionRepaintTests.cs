@@ -76,10 +76,20 @@ public class UndoRegionRepaintTests : BrushStateIsolated
     }
 
     /// <summary>Warm the cache the way a publish would, so there is an entry to patch.</summary>
+    /// <remarks>
+    /// <b>And throw away the saved pixels, so this file keeps testing the replay
+    /// (Q167).</b> Undo now restores a mark's pixels from a snapshot and only
+    /// replays the record when it cannot — which would leave everything below
+    /// green while exercising none of B327's machinery, and the first change to
+    /// break the replay would be found by nobody. Clearing here is what keeps
+    /// these tests pointed at the path they were written for; the snapshot path
+    /// is <c>UndoMarkSnapshotTests</c>.
+    /// </remarks>
     private static void Warm(MainViewModel vm)
     {
         var scene = vm.Doc.Scene;
         vm.FrameCache.Get(vm.PaintedCel(), scene.Width, scene.Height);
+        vm.MarkSnapshots.Clear();
     }
 
     [AvaloniaFact]

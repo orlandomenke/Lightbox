@@ -390,7 +390,7 @@ public partial class MainViewModel
     /// thumbnail are cheap to rebuild and the bake only wants telling.
     /// </param>
     private void InvalidateFrameRender(
-        string frameId, GeometryOps.BBox? repaintBounds = null,
+        string frameId, GeometryOps.BBox? repaintBounds = null, long revision = 0,
         // B332: which call site dropped the frame. A dozen of them pass no
         // bounds, and reading the code picked the wrong one twice; the compiler
         // fills this in at every call site for nothing.
@@ -403,12 +403,22 @@ public partial class MainViewModel
         // *patched* entry is still there to be overwritten — so a stale warm could
         // land on top of the repair. Flushing first removes the question.
         _prewarm.Flush();
-        if (TryRepaintFrameRegion(frameId, repaintBounds))
+        if (TryRestoreFrameRegion(frameId, repaintBounds, revision))
+        {
+            FrameRegionRestores++;
+        }
+        else if (TryRepaintFrameRegion(frameId, repaintBounds))
         {
             FrameRegionRepaints++;
         }
         else
         {
+            // The bitmap is about to be rebuilt from the record, so no saved
+            // patch for this drawing describes a transition any more (Q167).
+            // Dropping them is what keeps the exchange in MarkSnapshot.Swap
+            // honest: it can only stay right while every transition goes
+            // through it.
+            _markSnapshots.Forget(frameId);
             FrameRenderDrops++;
             if (_dropCallers.Count < 8)
             {
@@ -463,6 +473,28 @@ public partial class MainViewModel
 
     /// <inheritdoc cref="FrameRegionRepaints"/>
     internal int FrameRenderDrops { get; private set; }
+
+    /// <summary>
+    /// Undos and redos served by swapping saved pixels back rather than by
+    /// replaying strokes (Q167) — the counter that says how often the fast path
+    /// actually fires, against <see cref="FrameRegionRepaints"/> for the replay
+    /// and <see cref="FrameRenderDrops"/> for the whole-drawing rebuild.
+    /// </summary>
+    internal int FrameRegionRestores { get; private set; }
+
+    /// <summary>
+    /// The pixels under each committed mark, so undo swaps them back rather
+    /// than replaying the strokes that cross them (Q167).
+    /// </summary>
+    /// <remarks>
+    /// Here rather than beside <c>_cache</c> in <c>MainViewModel.cs</c>, which
+    /// its ratchet asked for: the render-cache funnel it serves is in this file,
+    /// and that file is over its line limit.
+    /// </remarks>
+    private readonly MarkSnapshot _markSnapshots = new();
+
+    /// <inheritdoc cref="_markSnapshots"/>
+    internal MarkSnapshot MarkSnapshots => _markSnapshots;
 
     private readonly List<string> _dropCallers = [];
 
@@ -762,16 +794,46 @@ public partial class MainViewModel
     {
         if (repaintBounds is not { } bounds) return false;
         if (FrameById(Doc, frameId) is not { } frame) return false;
-
-        // Outward to whole pixels: a mark covering part of a pixel dirties all of
-        // it, and rounding inward leaves a hairline of the old drawing behind.
-        var rect = new SKRectI(
-            (int)Math.Floor(bounds.MinX),
-            (int)Math.Floor(bounds.MinY),
-            (int)Math.Ceiling(bounds.MaxX),
-            (int)Math.Ceiling(bounds.MaxY));
-        return _cache.RepaintRegion(frame, rect);
+        return _cache.RepaintRegion(frame, RegionOf(bounds));
     }
+
+    /// <summary>
+    /// Q167: put back the pixels saved under this step's mark, if they are still
+    /// held. Undo and redo both come here first, and both fall through to
+    /// B327's replay when they cannot be served.
+    /// </summary>
+    /// <remarks>
+    /// <b>Revision zero is not a step</b> — it is what <c>EditScope</c> reports
+    /// for a history jump that walked several, and for any edit that never had
+    /// pixels held. Both take the replay.
+    /// </remarks>
+    private bool TryRestoreFrameRegion(
+        string frameId, GeometryOps.BBox? repaintBounds, long revision)
+    {
+        if (revision == 0) return false;
+        if (repaintBounds is not { } bounds) return false;
+        if (FrameById(Doc, frameId) is not { } frame) return false;
+        return _markSnapshots.Swap(revision, _cache, frame, RegionOf(bounds));
+    }
+
+    /// <summary>
+    /// A mark's footprint as whole document pixels.
+    /// </summary>
+    /// <remarks>
+    /// <b>One function because three callers have to agree exactly.</b> The
+    /// rectangle a snapshot is saved from, the one an undo writes back into and
+    /// the one a replay rebuilds are the same rectangle; two readings of the
+    /// same rounding rule is how they would stop being.
+    /// <para>
+    /// Outward to whole pixels: a mark covering part of a pixel dirties all of
+    /// it, and rounding inward leaves a hairline of the old drawing behind.
+    /// </para>
+    /// </remarks>
+    private static SKRectI RegionOf(GeometryOps.BBox bounds) => new(
+        (int)Math.Floor(bounds.MinX),
+        (int)Math.Floor(bounds.MinY),
+        (int)Math.Ceiling(bounds.MaxX),
+        (int)Math.Ceiling(bounds.MaxY));
 
     /// <inheritdoc cref="InvalidateFrameRender"/>
     private void ClearFrameRenders()
@@ -788,6 +850,9 @@ public partial class MainViewModel
         _thumbs.Clear();
         _stackBake.Reset();
         _prewarm.Flush();
+        // Every bitmap a saved patch could be swapped into has just gone, so the
+        // patches describe nothing (Q167).
+        _markSnapshots.Clear();
     }
 
     /// <summary>
@@ -810,7 +875,17 @@ public partial class MainViewModel
         // free here: warms are only ever requested while playing.
         _prewarm.Flush();
         _tileFrames.Append(target, stroke, Scene.Width, Scene.Height);
-        FrameRasterizer.Append(_cache.Get(target, Scene.Width, Scene.Height), stroke);
+        var bitmap = _cache.Get(target, Scene.Width, Scene.Height);
+        // Q167, and the ordering is the whole of it: this is the last moment the
+        // pixels under the mark still exist, and Get above is what guarantees
+        // there is a bitmap to read them from. Held rather than filed, because
+        // the step this belongs to has not been pushed yet and so has no
+        // revision — see MarkSnapshot.Promote.
+        if (RepaintBoundsOf(stroke) is { } footprint)
+        {
+            _markSnapshots.Hold(_cache, target, RegionOf(footprint));
+        }
+        FrameRasterizer.Append(bitmap, stroke);
         // Almost always a no-op — the active layer's own segment is never
         // baked — but the same Frame can be exposed on another layer too, and
         // a bake covering that layer would otherwise keep the pre-stroke
