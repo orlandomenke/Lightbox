@@ -761,48 +761,37 @@ public sealed class ReferenceBoardWindow : Window
 
         // One tile per drop, not one per candidate: the candidates are the same
         // picture described three ways, so pinning them all would put up
-        // duplicates. Same reasoning as the canvas’s web drop. Every candidate
-        // is tried as a picture before any of them is read as a *page* for the
-        // image it names (B285, put in this order by B344) — a drag off a site
-        // that wraps its pictures in links carries both, and the picture is the
-        // one the artist meant.
+        // duplicates. Same reasoning as the canvas’s web drop.
+        //
+        // The order below is the whole of B344, and each step is more of a
+        // guess than the one above it:
+        //
+        //   1. an address that *is* a picture — the picture, at full size;
+        //   2. the picture the drag was carrying itself — the picture, possibly
+        //      only as big as the browser drew it under the cursor;
+        //   3. a picture some page *names* — which is that site’s answer to
+        //      “what is this page about”, and on Pinterest is the same collage
+        //      on every page it serves.
+        //
+        // It used to run 1, 3, 2, and that is what put the Pinterest logo on
+        // the wall: a drag off a feed or a board carries the page, the page
+        // names the site’s social card, the card decodes, and steps 1 and 2 —
+        // both of which had the real picture — were never reached.
         var uris = DroppedWebImages(e);
         if (uris.Count > 0) Say("Fetching the picture…");
-        if (await Services.WebImageDrop.FetchFirstImageAsync(uris) is { } got)
+        var search = await Services.WebImageDrop.SearchAddressesAsync(uris);
+        if (search.Direct is { } direct
+            && BoardModel.AddImageBytes(
+                Services.WebImageDrop.NameFor(direct.Source), direct.Bytes, (at.X, at.Y)) is not null)
         {
-            var name = Services.WebImageDrop.NameFor(got.Source);
-            if (BoardModel.AddImageBytes(name, got.Bytes, (at.X, at.Y)) is not null)
-            {
-                // A picture the drag named outright is the picture. One a *page*
-                // named is that site’s answer to “what is this page about”, and
-                // on a site whose pages all share one social card that answer is
-                // the site’s own logo (B344). Which it was is the difference
-                // between a wrong picture and an unexplained one.
-                if (got.NamedByAPage)
-                {
-                    // A page named it, so the picture is a guess — and what the
-                    // drag carried is the whole diagnosis if the guess was wrong
-                    // (B344). Logged here rather than only on failure, because a
-                    // wrong picture that arrives looks like success and would
-                    // otherwise leave no trace at all. Format names and sizes,
-                    // never the values: a drag carries the address of whatever
-                    // the artist was looking at.
-                    Services.DiagnosticLog.WriteNote(
-                        "reference-board-drop",
-                        "a page named the picture; the drag carried "
-                            + Services.WebImageDrop.DescribeFormats(e.DataTransfer));
-                }
-                Say(got.NamedByAPage
-                    ? $"Pinned “{name}” — the picture that page names. "
-                      + "Drag the image itself if that is not the one."
-                    : "");
-                return;
-            }
+            Say("");
+            return;
         }
 
-        // Last: the picture the drag was carrying itself, if it had one (B294).
-        // Behind the fetch because it may be a thumbnail, in front of a refusal
-        // because a thumbnail on the wall beats nothing on the wall.
+        // 2: the picture the drag was carrying itself (B294), now ahead of the
+        // page read rather than behind it. A thumbnail of the right picture
+        // beats a full-size wrong one, and the artist can still drop the
+        // image’s own address when they want it bigger.
         if (Services.WebImageDrop.EmbeddedImageIn(e.DataTransfer) is { } embedded
             && BoardModel.AddImageBytes("Web image", embedded, (at.X, at.Y)) is not null)
         {
@@ -810,12 +799,35 @@ public sealed class ReferenceBoardWindow : Window
             return;
         }
 
+        // 3: and only now, what a page says it is about.
+        if (await Services.WebImageDrop.ImageNamedByAPageAsync(search) is { } named)
+        {
+            var name = Services.WebImageDrop.NameFor(named.Source);
+            if (BoardModel.AddImageBytes(name, named.Bytes, (at.X, at.Y)) is not null)
+            {
+                // A page named it, so the picture is a guess — and what the drag
+                // carried is the whole diagnosis if the guess was wrong (B344).
+                // Logged on success, not only on failure, because a wrong picture
+                // that arrives looks like success and would leave no trace at all.
+                // Format names and sizes, never the values: a drag carries the
+                // address of whatever the artist was looking at.
+                Services.DiagnosticLog.WriteNote(
+                    "reference-board-drop",
+                    "a page named the picture; the drag carried "
+                        + Services.WebImageDrop.DescribeFormats(e.DataTransfer));
+                Say($"Pinned “{name}” — the picture that page names, which is a guess. "
+                    + "Drag the image itself, or paste its address, if that is not the one.");
+                return;
+            }
+        }
+
         // What it was carrying goes to the log, because the format names are the
         // whole diagnosis and no one can report them from memory (B294).
         Services.DiagnosticLog.WriteNote(
             "reference-board-drop", "carried " + Services.WebImageDrop.DescribeFormats(e.DataTransfer));
         Say(uris.Count > 0
-            ? "That picture could not be fetched — the site refused it, or named no image Lightbox can read."
+            ? "That picture could not be fetched — the site refused it, or named no image of its own "
+              + "that Lightbox can read. Opening the image on its own and dragging that usually works."
             : "That drop had no picture in it that Lightbox could read — what it did carry is in the "
               + "diagnostics log (Help ▸ Open the diagnostics folder).");
     }

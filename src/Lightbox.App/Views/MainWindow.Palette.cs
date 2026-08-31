@@ -187,43 +187,49 @@ public partial class MainWindow
         IReadOnlyList<Uri> uris, byte[]? embedded, Avalonia.Input.IDataTransfer? data)
     {
         _vm.AiStatus = "Fetching the image…";
-        // Every candidate is tried as a picture before any of them is read as a
-        // *page* for the image it names (B285, put in this order by B344) — a
-        // drag off a site that wraps its pictures in links carries both, and the
-        // picture is the one the artist meant.
-        if (await Services.WebImageDrop.FetchFirstImageAsync(uris) is { } got)
+        // Each step below is more of a guess than the one above it (B344):
+        // an address that *is* a picture, then the picture the drag carried
+        // itself, and only last a picture some page merely *names* — which is
+        // that site's answer to what the page is about, and on Pinterest is one
+        // collage served by every page. Running the page read second is what
+        // put that collage on the board.
+        var search = await Services.WebImageDrop.SearchAddressesAsync(uris);
+        if (search.Direct is { } direct)
         {
-            var name = Services.WebImageDrop.NameFor(got.Source);
-            if (_vm.ImportReferenceImageBytes(name, got.Bytes))
+            var name = Services.WebImageDrop.NameFor(direct.Source);
+            if (_vm.ImportReferenceImageBytes(name, direct.Bytes))
             {
-                // A picture a *page* named is that site’s answer to what the
-                // page is about, and on a site whose pages all share one social
-                // card that answer is the site’s own logo (B344).
-                if (got.NamedByAPage)
-                {
-                    // Same as the board (B344): a picture a page named is a
-                    // guess, and a wrong guess that arrives looks like success.
-                    Services.DiagnosticLog.WriteNote(
-                        "reference-drop",
-                        "a page named the picture; the drag carried "
-                            + Services.WebImageDrop.DescribeFormats(data));
-                }
-                _vm.AiStatus = got.NamedByAPage
-                    ? $"Drawing against “{name}” — the picture that page names. "
-                      + "Drag the image itself if that is not the one."
-                    : $"Drawing against “{name}”.";
+                _vm.AiStatus = $"Drawing against “{name}”.";
                 _vm.ReferenceDockerVisible = true;
                 return;
             }
         }
-        // Last: the picture the drag was carrying itself (B294). Behind the
-        // fetch because it may be a thumbnail, in front of a refusal because a
-        // thumbnail to draw against beats no reference at all.
+
+        // The picture the drag was carrying itself (B294), ahead of the page
+        // read: a thumbnail of the right picture beats a full-size wrong one.
         if (embedded is not null && _vm.ImportReferenceImageBytes("Web image", embedded))
         {
             _vm.AiStatus = "Drawing against the dropped picture.";
             _vm.ReferenceDockerVisible = true;
             return;
+        }
+
+        if (await Services.WebImageDrop.ImageNamedByAPageAsync(search) is { } named)
+        {
+            var name = Services.WebImageDrop.NameFor(named.Source);
+            if (_vm.ImportReferenceImageBytes(name, named.Bytes))
+            {
+                // Same as the board: a wrong guess that arrives looks like
+                // success, so it leaves a trace (B344).
+                Services.DiagnosticLog.WriteNote(
+                    "reference-drop",
+                    "a page named the picture; the drag carried "
+                        + Services.WebImageDrop.DescribeFormats(data));
+                _vm.AiStatus = $"Drawing against “{name}” — the picture that page names, which is "
+                    + "a guess. Drag the image itself if that is not the one.";
+                _vm.ReferenceDockerVisible = true;
+                return;
+            }
         }
 
         // Every candidate failed — refused by the site, or a page that names

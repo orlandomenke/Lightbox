@@ -314,16 +314,7 @@ public static partial class WebImageDrop
     /// </remarks>
     public static IReadOnlyList<Uri> ImageUrisInPage(string html, Uri page)
     {
-        var found = new List<Uri>();
-        foreach (Match m in MetaTag().Matches(html))
-        {
-            var key = AttrValue(m.Value, "property") ?? AttrValue(m.Value, "name");
-            if (key?.ToLowerInvariant()
-                is "og:image" or "og:image:secure_url" or "twitter:image" or "twitter:image:src")
-            {
-                AdmitOnPage(found, page, AttrValue(m.Value, "content"));
-            }
-        }
+        var found = new List<Uri>(MetaImagesInPage(html, page));
         foreach (Match m in LinkTag().Matches(html))
         {
             if (string.Equals(AttrValue(m.Value, "rel"), "image_src", StringComparison.OrdinalIgnoreCase))
@@ -334,6 +325,22 @@ public static partial class WebImageDrop
         foreach (Match m in ImgSrc().Matches(html))
         {
             AdmitOnPage(found, page, m.Groups[1].Value);
+        }
+        return found;
+    }
+
+    /// <summary>Only the images a page names in its <c>&lt;meta&gt;</c> tags, in order.</summary>
+    private static List<Uri> MetaImagesInPage(string html, Uri page)
+    {
+        var found = new List<Uri>();
+        foreach (Match m in MetaTag().Matches(html))
+        {
+            var key = AttrValue(m.Value, "property") ?? AttrValue(m.Value, "name");
+            if (key?.ToLowerInvariant()
+                is "og:image" or "og:image:secure_url" or "twitter:image" or "twitter:image:src")
+            {
+                AdmitOnPage(found, page, AttrValue(m.Value, "content"));
+            }
         }
         return found;
     }
@@ -455,11 +462,8 @@ public static partial class WebImageDrop
 
     /// <summary>
     /// The picture behind a single dropped URI, with the address it was finally
-    /// found at. When the URI fetches but does not decode — the drag carried
-    /// the <em>page</em> the picture lives on, which is what any site that wraps
-    /// its images in links puts in a drag (B285) — the page is read once for
-    /// the image it names and the best candidate that decodes is returned.
-    /// One level only, never a page named by a page.
+    /// found at — an address that is a picture, or failing that the picture a
+    /// page at that address names (B285).
     /// </summary>
     public static async Task<(byte[] Bytes, Uri Source)?> FetchImageAsync(Uri uri) =>
         await FetchFirstImageAsync([uri]) is { } got ? (got.Bytes, got.Source) : null;
@@ -469,46 +473,50 @@ public static partial class WebImageDrop
     public const int MaxDropCandidates = 8;
 
     /// <summary>
-    /// The picture a whole drag was pointing at, the address it was found at,
-    /// and whether that address came from reading a <em>page</em> rather than
-    /// from the drag itself.
+    /// A drag’s addresses, fetched as far as the point where the caller gets
+    /// to weigh what the drag was carrying <em>itself</em> against what a page
+    /// merely names (B344).
+    /// </summary>
+    public sealed class WebImageSearch
+    {
+        /// <summary>The picture found at one of the addresses outright, or null.</summary>
+        public (byte[] Bytes, Uri Source)? Direct { get; init; }
+
+        /// <summary>Pages met on the way, which may yet name a picture.</summary>
+        internal IReadOnlyList<(byte[]? Kept, Uri At)> Pages { get; init; } = [];
+
+        /// <summary>Whether any address turned out to be a page worth reading.</summary>
+        public bool AnyPages => Pages.Count > 0;
+    }
+
+    /// <summary>
+    /// Every address a drag carried, tried as a picture — and the pages met on
+    /// the way, kept for a caller that decides to read them.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Every address is tried as a picture before any of them is read as a
-    /// page (B344).</b> A drag off a site that wraps its images in links —
-    /// Pinterest, most galleries — carries both: the <c>&lt;a&gt;</c>’s page
-    /// URL in the platform’s URL format, and the <c>&lt;img&gt;</c>’s real
-    /// address in the HTML fragment. Taking the candidates strictly in order
-    /// fetched the page first, and B285’s page read then answered it with
-    /// <c>og:image</c> — which on a site whose pages all share one social card
-    /// is the <em>site’s</em> graphic, not the page’s. Pinterest’s is
-    /// <c>facebook_share_image.png</c>, a collage of stock photographs under the
-    /// Pinterest logo, and that is what went up on the wall instead of the pin
-    /// the artist dragged.
+    /// <b>An address that <em>is</em> a picture beats one that merely names one
+    /// (B344).</b> A drag off a site that wraps its images in links carries
+    /// both: the <c>&lt;a&gt;</c>’s page URL in the platform’s URL format, and
+    /// the <c>&lt;img&gt;</c>’s real address in the HTML fragment. Resolving them
+    /// strictly in order fetched the page first, B285’s page read answered it
+    /// with <c>og:image</c>, that decoded, and the real picture was never tried.
     /// </para>
     /// <para>
-    /// So an address that <em>is</em> a picture beats an address that merely
-    /// <em>names</em> one, whichever format carried it. Within each pass the
-    /// original order stands, because it is still the better guess: a gallery
-    /// whose link points straight at the full-resolution JPEG should win over
-    /// the thumbnail it wraps, and both of those are direct addresses.
-    /// </para>
-    /// <para>
-    /// B285 is untouched. A drag carrying nothing but a page URL has no direct
-    /// address to prefer, so it still resolves through the page — the pass
-    /// order only decides which answer wins when there is a choice.
+    /// Within this pass the original order stands, because it is still the
+    /// better guess: a gallery whose link points straight at the
+    /// full-resolution file should beat the thumbnail it wraps, and both of
+    /// those are pictures outright.
     /// </para>
     /// </remarks>
-    public static async Task<(byte[] Bytes, Uri Source, bool NamedByAPage)?> FetchFirstImageAsync(
-        IReadOnlyList<Uri> candidates)
+    public static async Task<WebImageSearch> SearchAddressesAsync(IReadOnlyList<Uri> candidates)
     {
-        // A page met on the first pass is kept rather than re-fetched on the
-        // second: the bytes are already in hand. What is *held* is capped at one
-        // page's worth in total, so a drag naming several large pages cannot
-        // make a drop cost more memory than reading a single page always did;
-        // past the cap the address is remembered and fetched again if it is
-        // ever reached, which costs a fetch and never a wrong answer.
+        // A page met here is kept rather than re-fetched later: the bytes are
+        // already in hand. What is *held* is capped at one page’s worth in
+        // total, so a drag naming several large pages cannot cost more memory
+        // than reading a single page always did; past the cap the address is
+        // remembered and fetched again if it is ever reached, which costs a
+        // fetch and never a wrong answer.
         var pages = new List<(byte[]? Kept, Uri At)>();
         var held = 0L;
         var tried = 0;
@@ -516,37 +524,114 @@ public static partial class WebImageDrop
         {
             if (++tried > MaxDropCandidates) break;
             if (await FetchAsync(uri) is not { } bytes) continue;
-            if (LooksLikeImage(bytes)) return (bytes, uri, false);
+            if (LooksLikeImage(bytes)) return new WebImageSearch { Direct = (bytes, uri), Pages = pages };
             if (bytes.Length > MaxPageParseBytes) continue;
             var room = held + bytes.Length <= MaxPageParseBytes;
             if (room) held += bytes.Length;
             pages.Add((room ? bytes : null, uri));
         }
-        foreach (var (kept, at) in pages)
+        return new WebImageSearch { Pages = pages };
+    }
+
+    /// <summary>
+    /// The picture a page named, for a search that found none at an address
+    /// outright (B285). The <em>last</em> resort, behind even the picture the
+    /// drag was carrying itself — see the remarks.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is a guess and the others are not (B344).</b> <c>og:image</c> is
+    /// a page’s answer to “what is this page about”, which on a great many
+    /// sites is one social card reused on every page. It is worth reading when
+    /// there is nothing else — that is B285 — and it must not outrank a picture
+    /// the artist was actually pointing at.
+    /// </remarks>
+    public static async Task<(byte[] Bytes, Uri Source)?> ImageNamedByAPageAsync(WebImageSearch search)
+    {
+        foreach (var (kept, at) in search.Pages)
         {
             if ((kept ?? await FetchAsync(at)) is not { } page) continue;
-            if (await ImageNamedByPageAsync(page, at) is { } named)
-            {
-                return (named.Bytes, named.Source, true);
-            }
+            if (await ImageNamedByPageAsync(page, at) is { } named) return named;
         }
         return null;
     }
 
     /// <summary>
+    /// The picture a drag was pointing at, addresses first and the page read
+    /// last. For callers with nothing of their own to weigh in between.
+    /// </summary>
+    public static async Task<(byte[] Bytes, Uri Source, bool NamedByAPage)?> FetchFirstImageAsync(
+        IReadOnlyList<Uri> candidates)
+    {
+        var search = await SearchAddressesAsync(candidates);
+        if (search.Direct is { } direct) return (direct.Bytes, direct.Source, false);
+        if (await ImageNamedByAPageAsync(search) is { } named) return (named.Bytes, named.Source, true);
+        return null;
+    }
+
+    /// <summary>
     /// The best image a fetched page names, fetched and decoded (B285), or null.
-    /// One level only, never a page named by a page.
+    /// One level only, never a page named by a page — and never the card the
+    /// site puts on every page (B344).
     /// </summary>
     private static async Task<(byte[] Bytes, Uri Source)?> ImageNamedByPageAsync(byte[] page, Uri at)
     {
+        var card = await SiteCardAsync(at);
         var tried = 0;
         foreach (var candidate in ImageUrisInPage(Encoding.UTF8.GetString(page), at))
         {
             if (candidate == at) continue;
+            // The face of the whole site is not the picture on this page.
+            if (card is not null && candidate == card) continue;
             if (++tried > MaxPageCandidates) break;
             var inner = await FetchAsync(candidate);
             if (inner is not null && LooksLikeImage(inner)) return (inner, candidate);
         }
         return null;
     }
+
+    /// <summary>What each host puts on its own front page, looked up once and remembered.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task<Uri?>> SiteCards =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The picture a site serves as the face of <em>every</em> page on it, or
+    /// null where it has none.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why a site’s front page is worth one fetch (B344).</b> A page’s
+    /// <c>og:image</c> is what that page says it is about, and a great many
+    /// sites answer that the same way everywhere: one social card, the logo
+    /// over some stock photographs. Pinterest is the plain case — its feed, its
+    /// search results and its boards all name
+    /// <c>s.pinimg.com/images/facebook_share_image.png</c>, so reading any of
+    /// them “for the image it names” yields the Pinterest logo rather than
+    /// anything the artist was looking at. That collage is what was reported.
+    /// </para>
+    /// <para>
+    /// The front page’s own <c>og:image</c> is the cheap general test, and it
+    /// needs no list of sites: an image that is also the front page’s is a card
+    /// about the <em>site</em>, so it cannot be the picture on this page. A site
+    /// whose front page names nothing, or cannot be reached, simply has no card
+    /// and nothing is rejected — the answer is then exactly what it was before.
+    /// </para>
+    /// <para>
+    /// One fetch per host, remembered for the session, and only ever on the
+    /// page-reading path, which is already the slow one and already a guess.
+    /// </para>
+    /// </remarks>
+    private static Task<Uri?> SiteCardAsync(Uri page) =>
+        SiteCards.GetOrAdd(page.GetLeftPart(UriPartial.Authority), FetchSiteCardAsync);
+
+    private static async Task<Uri?> FetchSiteCardAsync(string authority)
+    {
+        if (!Uri.TryCreate(authority + "/", UriKind.Absolute, out var root)) return null;
+        if (await FetchAsync(root) is not { } bytes) return null;
+        if (bytes.Length > MaxPageParseBytes || LooksLikeImage(bytes)) return null;
+        var meta = MetaImagesInPage(Encoding.UTF8.GetString(bytes), root);
+        return meta.Count > 0 ? meta[0] : null;
+    }
+
+    /// <summary>Forget the remembered site cards. Tests only.</summary>
+    internal static void ForgetSiteCards() => SiteCards.Clear();
 }

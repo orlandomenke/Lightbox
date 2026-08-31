@@ -1,3 +1,6 @@
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using Avalonia.Headless.XUnit;
 using Lightbox.App.Services;
 using Lightbox.Raster;
@@ -338,5 +341,180 @@ public class WebImageDropTests
         Assert.Null(await WebImageDrop.FetchFirstImageAsync(
             [PageUri("<html><body>no picture here</body></html>")]));
         Assert.Null(await WebImageDrop.FetchFirstImageAsync([]));
+    }
+
+    // ---- the face of a site is not the picture on a page (B344) ------------------
+
+    /// <summary>
+    /// A stand-in web site on the loopback interface, so the whole chain — a
+    /// page, the front page it shares a card with, and the pictures both name —
+    /// can be exercised for real without reaching the network.
+    /// </summary>
+    /// <remarks>
+    /// A raw <see cref="TcpListener"/> rather than <c>HttpListener</c>: the
+    /// latter wants a URL reservation on Windows and would make this test a
+    /// question of who is running it. Port 0 means the OS picks, so tests never
+    /// collide with each other or with anything already listening.
+    /// </remarks>
+    private sealed class LoopbackSite : IDisposable
+    {
+        private readonly TcpListener _listener;
+        private readonly Dictionary<string, (string Type, byte[] Body)> _routes = [];
+        private readonly CancellationTokenSource _stop = new();
+
+        public LoopbackSite()
+        {
+            _listener = new TcpListener(IPAddress.Loopback, 0);
+            _listener.Start();
+            Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
+            _ = Task.Run(ServeAsync);
+        }
+
+        private int Port { get; }
+
+        public Uri At(string path) => new($"http://127.0.0.1:{Port}{path}");
+
+        public Uri Png(string path, byte[] bytes)
+        {
+            _routes[path] = ("image/png", bytes);
+            return At(path);
+        }
+
+        public Uri Page(string path, string html)
+        {
+            _routes[path] = ("text/html", Encoding.UTF8.GetBytes(html));
+            return At(path);
+        }
+
+        private async Task ServeAsync()
+        {
+            while (!_stop.IsCancellationRequested)
+            {
+                TcpClient client;
+                try
+                {
+                    client = await _listener.AcceptTcpClientAsync(_stop.Token);
+                }
+                catch (Exception)
+                {
+                    return;
+                }
+                _ = Task.Run(async () =>
+                {
+                    using (client) await AnswerAsync(client);
+                });
+            }
+        }
+
+        private async Task AnswerAsync(TcpClient client)
+        {
+            try
+            {
+                using var stream = client.GetStream();
+                var buffer = new byte[8192];
+                var read = await stream.ReadAsync(buffer);
+                if (read <= 0) return;
+                var parts = Encoding.ASCII.GetString(buffer, 0, read).Split(' ');
+                var path = parts.Length > 1 ? parts[1] : "/";
+                var known = _routes.TryGetValue(path, out var route);
+                var body = known ? route.Body : [];
+                var header = Encoding.ASCII.GetBytes(
+                    $"HTTP/1.1 {(known ? "200 OK" : "404 Not Found")}\r\n"
+                    + $"Content-Type: {(known ? route.Type : "text/plain")}\r\n"
+                    + $"Content-Length: {body.Length}\r\nConnection: close\r\n\r\n");
+                await stream.WriteAsync(header);
+                await stream.WriteAsync(body);
+                await stream.FlushAsync();
+            }
+            catch (Exception)
+            {
+                // A test server that cannot answer fails the assertion, not the run.
+            }
+        }
+
+        public void Dispose()
+        {
+            _stop.Cancel();
+            _listener.Stop();
+            _stop.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task APageIsNotAnsweredWithTheCardTheSitePutsOnEveryPage()
+    {
+        // The reported failure, in miniature. Pinterest serves one og:image —
+        // a collage under its logo — from its feed, its search results and its
+        // boards alike, so reading any of them "for the image it names" answers
+        // with the Pinterest logo. The front page's own og:image gives that
+        // away, and knowing it needs no list of sites.
+        using var site = new LoopbackSite();
+        var card = PngBytes(20);
+        var real = PngBytes(230);
+        var cardAt = site.Png("/card.png", card);
+        var realAt = site.Png("/pin.png", real);
+        site.Page("/", $"""<meta property="og:image" content="{cardAt}">""");
+        var feed = site.Page(
+            "/feed", $"""<meta property="og:image" content="{cardAt}"><img src="{realAt}">""");
+
+        WebImageDrop.ForgetSiteCards();
+        var got = await WebImageDrop.FetchFirstImageAsync([feed]);
+
+        Assert.NotNull(got);
+        Assert.Equal(real, got.Value.Bytes);
+        Assert.Equal(realAt, got.Value.Source);
+    }
+
+    [Fact]
+    public async Task APageWhoseCardIsItsOnlyPictureIsRefusedRatherThanAnswered()
+    {
+        // When rejecting the card leaves nothing, a refusal is the honest
+        // outcome. A wrong picture is worse than none: the artist cannot tell
+        // it from Lightbox working, which is how this went unreported for so
+        // long and then needed a screenshot.
+        using var site = new LoopbackSite();
+        var cardAt = site.Png("/card.png", PngBytes(20));
+        site.Page("/", $"""<meta property="og:image" content="{cardAt}">""");
+        var feed = site.Page("/feed", $"""<meta property="og:image" content="{cardAt}">""");
+
+        WebImageDrop.ForgetSiteCards();
+
+        Assert.Null(await WebImageDrop.FetchFirstImageAsync([feed]));
+    }
+
+    [Fact]
+    public async Task ASiteWithNoCardOfItsOwnLosesNothing()
+    {
+        // B285 is untouched where the test does not apply: a front page naming
+        // no image means no card is known, so nothing is rejected and the
+        // page's og:image answers exactly as it did before.
+        using var site = new LoopbackSite();
+        var hero = PngBytes(140);
+        var heroAt = site.Png("/hero.png", hero);
+        site.Page("/", "<html><body>a front page naming nothing</body></html>");
+        var post = site.Page("/post", $"""<meta property="og:image" content="{heroAt}">""");
+
+        WebImageDrop.ForgetSiteCards();
+        var got = await WebImageDrop.FetchFirstImageAsync([post]);
+
+        Assert.NotNull(got);
+        Assert.Equal(hero, got.Value.Bytes);
+    }
+
+    [Fact]
+    public async Task AFrontPageThatCannotBeReachedRejectsNothing()
+    {
+        // The failure mode that would be worst: a site whose root 404s must not
+        // start refusing every picture its pages name.
+        using var site = new LoopbackSite();
+        var hero = PngBytes(150);
+        var heroAt = site.Png("/hero.png", hero);
+        var post = site.Page("/post", $"""<meta property="og:image" content="{heroAt}">""");
+
+        WebImageDrop.ForgetSiteCards();
+        var got = await WebImageDrop.FetchFirstImageAsync([post]);
+
+        Assert.NotNull(got);
+        Assert.Equal(hero, got.Value.Bytes);
     }
 }
