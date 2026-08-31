@@ -54,6 +54,10 @@ public sealed class SymbolConverter : JsonConverter<Symbol>
         if (root.TryGetProperty("pivotX", out var px) && px.TryGetDouble(out var x)) symbol.PivotX = x;
         if (root.TryGetProperty("pivotY", out var py) && py.TryGetDouble(out var y)) symbol.PivotY = y;
         if (root.TryGetProperty("version", out var v) && v.TryGetInt32(out var ver)) symbol.Version = ver;
+        if (root.TryGetProperty("clipRegions", out var clips) && clips.ValueKind == JsonValueKind.Object)
+        {
+            symbol.ClipRegions = clips.Deserialize<Dictionary<string, ClipRegion>>(options);
+        }
 
         // The stack, if this file has one.
         if (root.TryGetProperty("layers", out var layers) && layers.ValueKind == JsonValueKind.Array)
@@ -88,6 +92,14 @@ public sealed class SymbolConverter : JsonConverter<Symbol>
         if (value.PivotX != 0) writer.WriteNumber("pivotX", value.PivotX);
         if (value.PivotY != 0) writer.WriteNumber("pivotY", value.PivotY);
         writer.WriteNumber("version", value.Version);
+        // Q173: absent unless a capture actually clipped something. Orthogonal
+        // to the layers-or-frames choice below — a one-layer symbol can carry
+        // regions and still write the old shape for its drawings.
+        if (value.HasClipRegions)
+        {
+            writer.WritePropertyName("clipRegions");
+            JsonSerializer.Serialize(writer, value.ClipRegions, options);
+        }
 
         if (IsFlat(value, out var only))
         {

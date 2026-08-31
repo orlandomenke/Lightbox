@@ -38,7 +38,7 @@ public partial class MainWindow
     private async void OnMakeSymbol(object? sender, RoutedEventArgs e)
     {
         if (await PromptForText("Make symbol", "Name", "Symbol") is not { } name) return;
-        _vm.MakeSymbolFromDrawing(name);
+        _vm.MakeSymbolFromWhatIsChosen(name);
     }
 
     /// <summary>

@@ -323,6 +323,9 @@
         </MenuItem>
         <!-- Beside Transform: both change what is selected. Why it took this
              long to get an address at all is in BreakSelectedLink. -->
+        <!-- Beside Break symbol link: the two ends of the same idea. -->
+        <MenuItem Header="_Make symbol…" Click="OnMakeSymbol" InputGesture="F8"
+                  ToolTip.Tip="Turn the selection into a symbol, or the whole drawing if nothing is selected" />
         <MenuItem Header="_Break symbol link" Click="OnBreakSymbolLink"
                   IsEnabled="{Binding CanBreakSelectedLink}"
                   ToolTip.Tip="Turn the selected placed symbol into ordinary strokes on this drawing. One way — the result is a drawing, not a symbol." />

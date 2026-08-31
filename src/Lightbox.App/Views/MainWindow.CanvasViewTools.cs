@@ -561,6 +561,9 @@ public partial class MainWindow
             case "edit.breakSymbolLink":
                 _vm.BreakSelectedLink();
                 break;
+            case "edit.makeSymbol":
+                OnMakeSymbol(this, new RoutedEventArgs());
+                break;
             case "select.none":
                 _vm.DeselectCommand.Execute(null);
                 break;
