@@ -468,6 +468,13 @@ for it:
   **Roundness** and turned by **Tip rotation**.
 - **It is an outline, never a fill**, so nothing is hidden at the moment you are
   deciding where to put a mark.
+- **It is one line, and it changes colour rather than doubling up.** The usual
+  way to keep a cursor visible over anything is a dark outline with a light one
+  inside it, which costs you a band of drawing all the way round the brush —
+  right where you are trying to see an edge. Lightbox draws a single thin line
+  and inks it dark or light from the artwork under the pointer, so it stays
+  readable without covering as much. Over a mid tone it keeps whichever ink it
+  had, rather than flickering between the two.
 
 Two things it deliberately does not show, because they belong to the mark rather
 than to the brush: the per-dab jitter on roundness and rotation, which would make

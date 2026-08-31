@@ -245,6 +245,7 @@ public partial class MainViewModel
         _hoverScale = scale;
         RefreshPointerIntent();
         RefreshPickPreview();
+        RefreshCursorInk();
         RefreshFillPreview();
     }
 
@@ -255,6 +256,7 @@ public partial class MainViewModel
         _hoverPoint = null;
         RefreshPointerIntent();
         RefreshPickPreview();
+        RefreshCursorInk();
         RefreshFillPreview();
     }
 
@@ -284,6 +286,70 @@ public partial class MainViewModel
             PointerIntent == Rendering.CanvasCursorKind.Pick && _hoverPoint is { } p
                 ? PickedColorHexAt(p.X, p.Y)
                 : null;
+
+    /// <summary>
+    /// Which ink the brush ring is drawn in — see <see cref="CursorContrast"/>
+    /// for why there is only one line to ink.
+    /// </summary>
+    [ObservableProperty]
+    private CursorInk _brushCursorInk = CursorInk.Dark;
+
+    /// <summary>Where the ink was last decided, in stroke coordinates.</summary>
+    private (double X, double Y)? _inkSampledAt;
+
+    /// <summary>
+    /// Re-decide the ring's ink from the artwork under the pointer.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This adds a composite read to ordinary brush hover, which
+    /// <see cref="RefreshPickPreview"/> only paid for while the eyedropper was
+    /// armed</b> — so it is bounded twice over. It is called from the hover path,
+    /// which the canvas does not raise while a gesture is in flight, so no
+    /// pointer event during a stroke pays for it (invariant 6, and the same
+    /// reasoning as the note on <c>CanvasControl.PointerHovered</c>). And it
+    /// re-samples only after the pointer has moved a step scaled to the brush,
+    /// rather than on every document pixel crossed.
+    /// </para>
+    /// <para>
+    /// <b>Absent rather than stale is the wrong rule here</b>, which is where this
+    /// differs from the pick preview beside it. A ring whose ink dropped out the
+    /// moment the pointer crossed the edge of the paper would flash; the artwork
+    /// stops but the ring does not. So a sample that cannot be taken leaves the
+    /// last one standing, and the only thing cleared is the position, so the next
+    /// hover inside the paper samples immediately.
+    /// </para>
+    /// </remarks>
+    private void RefreshCursorInk()
+    {
+        // The eyedropper draws its own ring and hides the brush one, and it is
+        // already reading the composite for the swatch — sampling again here
+        // would be the same pixel fetched twice for two gizmos, one of which is
+        // not on screen.
+        if (_hoverPoint is not { } p || PointerIntent == CanvasCursorKind.Pick)
+        {
+            _inkSampledAt = null;
+            return;
+        }
+
+        // Scaled to the brush, because that is what makes the cost bounded
+        // without making the ring feel stale: a wide ring's centre crosses tones
+        // slowly, and a fine one is small enough that its ink barely shows.
+        var step = Math.Max(2.0, BrushCursorDiameter / 8);
+        if (_inkSampledAt is { } last &&
+            Math.Abs(p.X - last.X) < step && Math.Abs(p.Y - last.Y) < step)
+        {
+            return;
+        }
+
+        if (PickedColorHexAt(p.X, p.Y) is not { } hex) return;
+        if (ColorSpace.HexToRgb(hex) is not { } rgb) return;
+
+        _inkSampledAt = p;
+        static byte Channel(double v) => (byte)Math.Round(Math.Clamp(v, 0, 1) * 255);
+        BrushCursorInk = CursorContrast.Choose(
+            new SKColor(Channel(rgb.R), Channel(rgb.G), Channel(rgb.B)), BrushCursorInk);
+    }
 
     /// <summary>Whether a stroke coordinate falls inside the active selection.</summary>
     /// <remarks>
@@ -593,6 +659,10 @@ public partial class MainViewModel
         // eyedropper without moving the pointer still has to put the ring on —
         // and picking up the bucket has to trace what a click would flood.
         RefreshPickPreview();
+        // And the same for the ring the eyedropper was covering: putting the
+        // brush back has to re-ink it, which a pointer that has not moved will
+        // not do on its own.
+        RefreshCursorInk();
         RefreshFillPreview();
 
         // A borrow is not a decision — see MainViewModel.Momentary.cs. Everything
