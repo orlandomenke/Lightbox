@@ -658,11 +658,25 @@ it erases, transforms, exports, composites and re-renders exactly like anything
 you drew, and **a document renders identically on a machine with none of your
 fonts installed**. The words are in the picture, not a note about the picture.
 
-What stays behind is enough to type them again. Click type with the Text tool
-and you pick it up: the caret goes to the end of the words, the size and
-alignment come back with it, and setting it again replaces the letters rather
-than stacking new ones over the old. To remove type, pick it up, clear it, and
-set it.
+What stays behind is enough to type them again.
+
+**Click anywhere in a block of type and you are in it**, with the caret where
+you clicked. Anywhere means anywhere inside the block's box — the gaps between
+letters and the space inside an "o" included — so you do not have to hit the ink
+of a letter to correct a word. The size and alignment come back with it, and
+setting it again replaces the letters rather than stacking new ones over the
+old. To remove type, pick it up, clear it, and set it.
+
+**Double-click type with the Arrow and you are in it too**, and the Text tool
+comes with you. It is the same reach-into-it gesture the Arrow already uses to
+open a line for node editing, and it saves going back to the tool rail to fix a
+typo while you are arranging a page.
+
+**Selecting works the way it does anywhere else.** Drag across the letters to
+select a run, double-click to take a word, **Shift** with the arrows or Home and
+End to extend, **Ctrl+A** to take the whole block. Typing replaces what is
+selected, and so do Backspace and Delete. A dashed box shows the block you are
+in while you are in it.
 
 **Esc sets rather than discards**, which is the opposite of Photoshop. Setting
 is one undo step, so if you meant to throw the words away, **Ctrl+Z** does it —

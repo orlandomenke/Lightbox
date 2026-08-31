@@ -150,13 +150,26 @@ public class TextToolTests
 
         var glyph = Assert.Single(Glyphs(vm));
         // The middle of the letter's stem, which even-odd containment puts
-        // inside the contour rather than in the counter.
+        // inside the contour rather than in the counter. Kept as the aim even
+        // though hit-testing no longer needs it: a click that lands on the ink
+        // must still work, and it is the case that used to be the *only* one.
         var inside = Inside(glyph);
 
         vm.BeginText(inside.X, inside.Y);
 
         Assert.True(vm.TextSessionActive);
         Assert.Equal("O", vm.LiveText!.Text);
+
+        // B347: the caret lands where the click did, not at the end of the
+        // block. This test asserted 1 — the end — when the end was the only
+        // answer the tool had; what it is named for is that the click picked
+        // the type up, and that is unchanged. The rule it now pins is the
+        // stronger one: which side of the letter you aimed at decides.
+        var box = vm.BoxOf(Assert.Single(vm.PanelEditor.Doc.Texts!).Value)!.Value;
+        var middleY = (box.Top + box.Bottom) / 2;
+        vm.BeginText(box.Left + 1, middleY);
+        Assert.Equal(0, vm.TextCaret);
+        vm.BeginText(box.Right - 1, middleY);
         Assert.Equal(1, vm.TextCaret);
     }
 
@@ -172,6 +185,11 @@ public class TextToolTests
         var first = Assert.Single(Glyphs(vm));
 
         vm.BeginText(Inside(first).X, Inside(first).Y);
+        // Said out loud since B347, because the caret now lands where the click
+        // did: this test is about the letters being REPLACED rather than
+        // stacked, and it should not also be a hostage to which half of an "O"
+        // the hit-test helper happened to aim at.
+        vm.TextCaretToEdge(end: true);
         vm.TypeIntoText("K");
         vm.CommitText();
 
@@ -195,6 +213,10 @@ public class TextToolTests
         var glyph = Assert.Single(Glyphs(vm));
 
         vm.BeginText(Inside(glyph).X, Inside(glyph).Y);
+        // B347 gave the tool a selection, and this is what it is for: clearing
+        // a caption is Ctrl+A and Backspace rather than one Backspace per
+        // letter from an end the caret had to be sent to first.
+        vm.SelectAllText();
         vm.TextBackspace();
         vm.CommitText();
 
@@ -217,6 +239,7 @@ public class TextToolTests
         var first = Assert.Single(Glyphs(vm));
 
         vm.BeginText(Inside(first).X, Inside(first).Y);
+        vm.TextCaretToEdge(end: true);   // B347: the caret follows the click now
         vm.TypeIntoText("K");
         vm.CommitText();
         Assert.Equal("OK", Assert.Single(vm.PanelEditor.Doc.Texts!).Value.Text);

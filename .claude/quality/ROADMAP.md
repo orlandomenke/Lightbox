@@ -115,10 +115,6 @@ not to rebuild. What is missing is everything that *makes* a tip.
 - [x] The tip workshop, off the main menu like Configure `evidence: BrushTipsWindow, BrushTipsWindowTests, GeneratingATipPutsItInTheLibraryAsPixels, OnlyTheControlsTheShapeActuallyReadsAreShown, ThePreviewBakesSmallHoweverBigTheOutputIs`
 - [ ] Multi-capture tip sets blended by tilt and speed `evidence: BrushTipSet, TipSetBlend, TipSetTests, BlendingHappensAtTheSizeBeingDrawn, ASteadyTiltBlendsOnceAndReusesIt`
   - Needs tilt and speed in the record first. Blend at the mipmap level the dab samples, quantise the blend factor and cache by it — otherwise it is a million lerps per dab, and a tilt that wobbles a degree makes the mark shimmer.
-- [ ] A tip is choosable on **every** brush, the simulated media and the flats included `evidence: TipsOnEveryBrush, MediumTipTests, ASimulatedMediumTakesTheTipItIsGiven, AFlatBrushWithATipIsStillOneSilhouette, NoBrushKindRefusesThePicker`
-  - **Noted 2026-08-27 on the owner's instruction, and deliberately not scheduled.** Tips were taken off the medium brushes, the flats among them, and that is where the build stands. The intent is the opposite: an artist changes the tip of *any* brush, a watercolour or a gouache the same as a round. Where the current restriction actually lives is unverified — the shipped medium presets carry no `TipId`, and `DrawsAsOneSilhouette` declines the whole flat route the moment a tip is set, which are two different mechanisms and possibly two different pieces of work.
-  - **Why it belongs here rather than in `BUGS.md`.** It is not a defect: nothing is broken, a promise is unkept. The rule it answers to is the one in `CLAUDE.md` — *a project type sets defaults, never availability* — pointed at brush kinds instead of project types. A brush kind that cannot reach the tip picker is the same shape of mistake as a feature locked behind a manifest value, and the flats are the sharper case of the two because the silhouette route exists purely as an optimisation and is invisible to the artist.
-  - Cost: M, and the risk is entirely in the silhouette path — a tipped flat has to land the same mark the per-dab walk would, or the optimisation has become a difference the artist can see.
 
 ### Canvas
 
@@ -298,6 +294,27 @@ available in every project, defaulted for the ones that need it.
 - [x] Vector guides `evidence: Guide, GuidesSurviveASaveAndReload, ADocumentWithNoGuidesWritesNoGuideKey, AHiddenGuideStillSnaps`
 - [x] Rulers and guide editing `evidence: RulerStrip, TickStep, DraggingOutOfTheTopRulerLeavesAHorizontalGuide, LettingGoBackOnTheRulerThrowsTheGuideAway, AGuideIsMovedByGrabbingItOnTheCanvas, TheRulersAreAbsentUntilAskedFor`
 - [x] Text `evidence: TextElement, TextBaker, GlyphOutline, FontLibrary, EachGlyphIsOneContourFillCarryingItsElement, TypeRendersFromTheRecordWithNoFontAnywhere, ADocumentNobodyHasTypedInWritesNoTextKeys, AnOpenLicensedFontIsCarriedInTheDocumentThatUsesIt, ClickingTypeAlreadySetPicksItUpToRetype`
+- [ ] A paragraph box that reflows `evidence: ParagraphWidth, TextWrap, ParagraphTextTests, ADocumentThatNeverSetAWidthWritesNoWidthKey, DraggingTheBoxEdgeRewrapsTheWords, ACaretLandsWhereAWrappedLineBrokeIt`
+  - **Q172, the owner's call against the recommendation.** Type today is *point*
+    text: `X`, `Y`, alignment, and lines that break where somebody pressed
+    Enter. A column of type has to be broken by hand, which is exactly the case
+    — a title block, a caption column — where "Lightbox does not do that" sends
+    the work to another application.
+  - What it needs: an authored `ParagraphWidth` on `TextElement`, a line-breaking pass in
+    `TextLayout.Of`, and a resize gizmo on the box that rewraps as it is
+    dragged. Dragging the edge of point text is what turns it into paragraph
+    text, so there is no mode to choose.
+  - **`optional-settings` governs the field.** A width has to be absent from the
+    JSON of every document that never set one — the anchor above names the test
+    that says so — or every existing document grows a key for a feature it does
+    not use.
+  - **B347 is the half that is built**, and it is underneath this rather than
+    beside it: entering the box, placing the caret where you clicked and
+    selecting inside it are written against `TextLayout`, which does not care
+    *why* a line broke. Wrapping simply produces more lines. Cost: M, and the
+    risk is in the wrapping — where a line breaks decides where the caret goes,
+    so getting it wrong shows up as the caret landing in the wrong place rather
+    than as text merely looking odd.
   - Q149's question — *what carries the text: a stroke kind, a placement, or a
     vector-layer object* — resolved to **none of the three separately**
     (Q186–Q189, `docs/DESIGN-text.md`). A `TextElement` holds what was typed;

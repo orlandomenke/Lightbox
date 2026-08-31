@@ -2569,8 +2569,7 @@ public sealed partial class CanvasControl : Control
                     e.Handled = true;
                     return;
                 case CanvasToolMode.Text:
-                    PlaceText(x, y);
-                    e.Handled = true;
+                    PressText(e, x, y);
                     return;
                 case CanvasToolMode.Move:
                     // A guide under the pointer was already taken above; this is
@@ -2671,6 +2670,15 @@ public sealed partial class CanvasControl : Control
                         // something a single click can do by accident.
                         if (e.ClickCount >= 2 && _enterPathEdit is not null
                             && _enterPathEdit(x, y, DocTolerance(GrabPixels)))
+                        {
+                            e.Handled = true;
+                            return;
+                        }
+
+                        // And into type, on the same gesture and for the same
+                        // reason. Asked after the path so a line drawn over a
+                        // caption still opens as a line.
+                        if (e.ClickCount >= 2 && _enterTextEdit is not null && _enterTextEdit(x, y))
                         {
                             e.Handled = true;
                             return;
@@ -3213,6 +3221,7 @@ public sealed partial class CanvasControl : Control
                 e.Handled = true;
                 return;
             }
+            if (TextDragMoved(e)) return;
             if (_shapeDragging)
             {
                 var (sx, sy) = ViewToDoc(e.GetPosition(this));
@@ -3451,6 +3460,7 @@ public sealed partial class CanvasControl : Control
             e.Handled = true;
             return;
         }
+        if (TextDragReleased(e)) return;
         if (_shapeDragging)
         {
             _shapeDragging = false;

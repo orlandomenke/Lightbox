@@ -113,6 +113,152 @@ public sealed class TextLayout
         return (line.Left + line.Width, line.BaselineY);
     }
 
+    /// <summary>
+    /// The highlight behind a selected range: one rectangle per line it covers.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Per line rather than one shape, because a selection spanning three lines
+    /// is three bars and not a polygon — which is what every text field draws
+    /// and the only thing that reads correctly when the lines are different
+    /// widths.
+    /// </para>
+    /// <para>
+    /// <b>A line fully inside the range is highlighted past its last glyph</b>,
+    /// by a token width, so a selected line break is visible. Without it,
+    /// selecting three empty lines highlights nothing and the artist cannot see
+    /// that Backspace is about to take them.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<SKRect> SelectionRects(int start, int end)
+    {
+        var lo = Math.Min(start, end);
+        var hi = Math.Max(start, end);
+        if (hi <= lo) return [];
+
+        var rects = new List<SKRect>();
+        foreach (var line in Lines)
+        {
+            var lineEnd = line.Start + line.Length;
+            var from = Math.Max(lo, line.Start);
+            var to = Math.Min(hi, lineEnd);
+            if (to < from) continue;
+            // The break at the end of a line is inside the range: show it.
+            var breakSelected = hi > lineEnd;
+            if (to == from && !breakSelected) continue;
+
+            var left = EdgeOn(line, from);
+            var right = breakSelected ? line.Left + line.Width + BreakWidth : EdgeOn(line, to);
+            if (right <= left && !breakSelected) continue;
+
+            rects.Add(new SKRect(
+                (float)left,
+                (float)(line.BaselineY + Ascent),
+                (float)Math.Max(right, left + BreakWidth),
+                (float)(line.BaselineY + Descent)));
+        }
+        return rects;
+    }
+
+    /// <summary>How wide a selected line break shows as.</summary>
+    private const double BreakWidth = 4;
+
+    /// <summary>The x of a caret position, known to be on this line.</summary>
+    private static double EdgeOn(TextLine line, int index)
+    {
+        foreach (var glyph in line.Glyphs)
+        {
+            if (glyph.Cluster >= index) return glyph.X;
+        }
+        return line.Left + line.Width;
+    }
+
+    /// <summary>
+    /// The character position a point lands on — <see cref="Caret"/> run
+    /// backwards.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The half the tool was missing.</b> Type could say where the caret goes
+    /// for an index; nothing could say which index a click meant, so picking up
+    /// existing type put the caret at the end of it and there was nowhere for a
+    /// selection to start.
+    /// </para>
+    /// <para>
+    /// <b>Nearest edge, not the glyph you hit.</b> A caret sits between
+    /// characters, so a click in the left half of a letter means before it and
+    /// the right half means after — which is what makes clicking at the end of a
+    /// word put the caret at the end of the word rather than inside it. Measured
+    /// against each glyph's advance rather than its ink, because a comma and an
+    /// "m" both own the space they were allotted.
+    /// </para>
+    /// <para>
+    /// Vertically it is the nearest baseline rather than a band, so a click
+    /// above the first line or below the last still lands somewhere: there is no
+    /// "outside" for a caret to be, and refusing would mean a click just past
+    /// the descender doing nothing.
+    /// </para>
+    /// </remarks>
+    public int IndexAt(double x, double y)
+    {
+        if (Lines.Count == 0) return 0;
+
+        var line = Lines[0];
+        var best = double.MaxValue;
+        foreach (var candidate in Lines)
+        {
+            var distance = Math.Abs(y - candidate.BaselineY);
+            if (distance >= best) continue;
+            best = distance;
+            line = candidate;
+        }
+
+        var end = line.Start + line.Length;
+        if (line.Glyphs.Count == 0) return line.Start;
+
+        for (var i = 0; i < line.Glyphs.Count; i++)
+        {
+            var glyph = line.Glyphs[i];
+            var right = i + 1 < line.Glyphs.Count ? line.Glyphs[i + 1].X : line.Left + line.Width;
+            if (x >= right) continue;
+            // Past the glyph's midpoint means the caret belongs after it, which
+            // is the next glyph's cluster — or the end of the line for the last.
+            if (x <= (glyph.X + right) / 2) return glyph.Cluster;
+            return i + 1 < line.Glyphs.Count ? line.Glyphs[i + 1].Cluster : end;
+        }
+        return end;
+    }
+
+    /// <summary>
+    /// The word around a position, as the half-open range a double-click takes.
+    /// </summary>
+    /// <remarks>
+    /// Runs of word characters, runs of whitespace and runs of anything else are
+    /// each a unit, which is the rule every text field uses: double-clicking a
+    /// word takes the word, double-clicking the space between two takes the
+    /// space rather than nothing. A newline is never joined to the run beside
+    /// it — selecting across a line break by double-click is not something
+    /// anybody means.
+    /// </remarks>
+    public static (int Start, int End) WordAt(string text, int index)
+    {
+        if (text.Length == 0) return (0, 0);
+        var at = Math.Clamp(index, 0, text.Length);
+        // A caret at the very end has no character under it; take the one behind.
+        if (at == text.Length) at--;
+        if (text[at] == '\n') return (at, at + 1);
+
+        var kind = KindOf(text[at]);
+        var start = at;
+        while (start > 0 && text[start - 1] != '\n' && KindOf(text[start - 1]) == kind) start--;
+        var end = at + 1;
+        while (end < text.Length && text[end] != '\n' && KindOf(text[end]) == kind) end++;
+        return (start, end);
+    }
+
+    private static int KindOf(char c) =>
+        char.IsLetterOrDigit(c) || c == '\'' ? 0 : char.IsWhiteSpace(c) ? 1 : 2;
+
     /// <summary>Shape and place an element's text with a typeface.</summary>
     public static TextLayout Of(TextElement text, SKTypeface typeface)
     {
