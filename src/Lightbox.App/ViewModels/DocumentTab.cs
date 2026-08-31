@@ -103,34 +103,6 @@ public sealed partial class DocumentTab : ObservableObject
     /// </remarks>
     public Symbol? Symbol { get; init; }
 
-    /// <summary>
-    /// The layer in this tab's wrapper scene that <em>is</em> the symbol
-    /// (Symbol tabs only).
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <b>A symbol holds one layer's drawing</b> — <c>Symbol.Frames</c> is the
-    /// time axis and there is no layer axis (Q171). So the sync has to know
-    /// which layer to read, and it cannot be "index 0": a paste inserts at the
-    /// active index, so a second layer arriving there would silently make the
-    /// pasted work the symbol and the artist's drawing an extra frame of it.
-    /// </para>
-    /// <para>
-    /// By id rather than by reference, for the reason
-    /// <c>_selectedPlacementId</c> is: undo replaces the wrapper's layer
-    /// wholesale, and a reference kept across one points at an object the
-    /// document no longer contains. <c>Layer.Clone</c> is a
-    /// <c>MemberwiseClone</c>, so the id survives the round trip that the
-    /// object does not.
-    /// </para>
-    /// <para>
-    /// <b>This goes away when a symbol owns a layer stack</b>, which is Q171's
-    /// answer and is not built. Until then it is what keeps layers from
-    /// becoming frames.
-    /// </para>
-    /// </remarks>
-    public string? SymbolLayerId { get; init; }
-
     internal DocumentEditor Editor { get; set; }
 
     public Doc Doc => Editor.Doc;

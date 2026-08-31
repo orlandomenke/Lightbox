@@ -27,52 +27,6 @@
     <Style Selector="DockPanel.animationRow">
       <Setter Property="Margin" Value="16,0,0,0" />
     </Style>
-    <!--
-      A row is as tall as its icon tile and no taller.
-
-      `Padding="2,0"` rather than `2`: the horizontal 2 keeps the first icon off
-      the edge, the vertical 0 is the density. The tile is already 26 with the
-      glyph centred in it, so vertical padding was buying nothing but height —
-      4 px a row, which is a whole extra row every eight layers.
-
-      Declared here rather than on each template, which is also why the three
-      inline copies are gone. They were identical by luck: the layers docker,
-      the group row and the timeline's layer column each wrote their own, so a
-      change to one silently split the lists that are meant to line up.
-    -->
-    <Style Selector="Border.layerRow">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="CornerRadius" Value="3" />
-      <Setter Property="Padding" Value="2,0" />
-    </Style>
-    <Style Selector="Border.layerRow.active">
-      <Setter Property="Background" Value="{StaticResource SelectionBrush}" />
-    </Style>
-    <Style Selector="Border.layerRow.hiddenLayer">
-      <Setter Property="Opacity" Value="0.35" />
-    </Style>
-    <!-- Cyan, not the warning amber: locked is a STATE the artist chose, not
-         a problem the app is reporting, and amber made every locked layer read
-         as something going wrong. -->
-    <Style Selector="Border.layerRow.lockedLayer">
-      <Setter Property="BorderBrush" Value="{StaticResource AccentCyanBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-    </Style>
-    <Style Selector="Border.groupRow.lockedLayer">
-      <Setter Property="BorderBrush" Value="{StaticResource AccentCyanBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-    </Style>
-    <Style Selector="Border.groupRow">
-      <Setter Property="Background" Value="{StaticResource GroupRowBrush}" />
-      <Setter Property="CornerRadius" Value="3" />
-      <Setter Property="Padding" Value="2,0" />
-    </Style>
-    <Style Selector="Border.groupRow.hiddenLayer">
-      <Setter Property="Opacity" Value="0.35" />
-    </Style>
-    <Style Selector="Border.layerRow.grouped">
-      <Setter Property="Margin" Value="14,0,0,0" />
-    </Style>
     <Style Selector="Button.cel">
       <Setter Property="Background" Value="{StaticResource CelBrush}" />
     </Style>
@@ -3349,7 +3303,8 @@
                    a folder header files into the folder. -->
               <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <ItemsControl ItemsSource="{Binding LayerPanelItems}" Margin="4" DragDrop.AllowDrop="True"
-                              DragDrop.DragOver="OnLayerDragOver" DragDrop.Drop="OnLayerDrop">
+                              DragDrop.DragOver="OnLayerDragOver" DragDrop.Drop="OnLayerDrop"
+                              DragDrop.DragLeave="OnLayerDragLeave">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                       <StackPanel Orientation="Vertical" Spacing="2" />
@@ -3357,8 +3312,15 @@
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.DataTemplates>
                     <DataTemplate x:DataType="vm:GroupRow">
+                      <!-- The header drags the whole folder, and shows where it
+                           would land: a line above or below for "beside", the
+                           whole row lit for "into". -->
                       <Border Classes="groupRow" Classes.hiddenLayer="{Binding !Visible}"
                               Classes.lockedLayer="{Binding Locked}"
+                              Classes.dropAbove="{Binding DropAbove}" Classes.dropBelow="{Binding DropBelow}"
+                              Classes.dropInto="{Binding DropInto}"
+                              PointerPressed="OnGroupRowPressed"
+                              PointerMoved="OnGroupRowMoved" PointerReleased="OnGroupRowReleased"
                               BorderBrush="{Binding ColorBrush}" BorderThickness="4,0,0,0" CornerRadius="3">
                         <Border.ContextMenu>
                           <ContextMenu>
@@ -3428,6 +3390,7 @@
                     <DataTemplate x:DataType="vm:LayerRow">
                       <Border Classes="layerRow" Classes.active="{Binding IsActive}" Classes.grouped="{Binding IsGrouped}"
                               Classes.hiddenLayer="{Binding !Visible}" Classes.lockedLayer="{Binding EditsBlocked}" Classes.selected="{Binding IsSelected}"
+                              Classes.dropAbove="{Binding DropAbove}" Classes.dropBelow="{Binding DropBelow}"
                               Focusable="True"
                               PointerPressed="OnLayerRowPressed"
                               PointerMoved="OnLayerRowMoved" PointerReleased="OnLayerRowReleased">

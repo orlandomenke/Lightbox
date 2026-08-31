@@ -214,6 +214,140 @@ public partial class MainViewModel
         ActiveLayerIndex = Scene.Layers.FindIndex(l => l.Id == dragged.Id);
     }
 
+    /// <summary>
+    /// Drop a dragged folder beside a row or another folder: the whole block
+    /// moves, keeping its own order, and lands above or below the target's
+    /// block. One undo step.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Blocks, not rows, on both sides.</b> A folder is a run of layers
+    /// sharing a <c>GroupId</c>, and <c>RebuildLayerPanel</c> emits its header
+    /// where the first member appears — so a folder split around another layer
+    /// would draw one header with its members scattered under it. Landing beside
+    /// a <em>member</em> of some other folder therefore has to mean beside that
+    /// folder, not between two of its layers; anything else quietly breaks the
+    /// panel it is being dragged in.
+    /// </para>
+    /// <para>
+    /// <b>Nothing is filed into anything.</b> <c>Layer.GroupId</c> is one id, so
+    /// folders do not nest — a dragged folder passes other folders and never
+    /// joins them, which is why <see cref="LayerDropPlan"/> gives a header no
+    /// <c>Into</c> zone while one is in hand.
+    /// </para>
+    /// </remarks>
+    internal void DropGroupBeside(LayerGroup dragged, object target, bool above)
+    {
+        var moving = Scene.Layers.Where(l => l.GroupId == dragged.Id).ToList();
+        if (moving.Count == 0) return;
+        if (TargetBlock(target) is not { Count: > 0 } block) return;
+        if (block[0].GroupId == dragged.Id) return; // dropped on itself
+        if (!CanReorderPastPaper(moving[0], above ? block[^1] : block[0], above)) return;
+
+        var movingIds = moving.Select(l => l.Id).ToHashSet();
+        var anchorId = above ? block[^1].Id : block[0].Id;
+        _editor.Perform(doc =>
+        {
+            var layers = doc.Scene.Layers;
+            var run = layers.Where(l => movingIds.Contains(l.Id)).ToList();
+            if (run.Count == 0) return;
+            layers.RemoveAll(l => movingIds.Contains(l.Id));
+            var at = layers.FindIndex(l => l.Id == anchorId);
+            if (at < 0)
+            {
+                // The anchor went away mid-drag. Putting the folder back where
+                // it was is the only answer that cannot be wrong.
+                layers.AddRange(run);
+                return;
+            }
+            layers.InsertRange(above ? at + 1 : at, run);
+        }, label: "Move folder", frameContentUnchanged: true);
+        ActiveLayerIndex = Scene.Layers.FindIndex(l => movingIds.Contains(l.Id));
+    }
+
+    /// <summary>
+    /// The run of layers a drop target stands for, bottom-first: a folder's
+    /// members for a header or a grouped row, and the row itself for a loose
+    /// one.
+    /// </summary>
+    private List<Layer>? TargetBlock(object target) => target switch
+    {
+        GroupRow header => Scene.Layers.Where(l => l.GroupId == header.Group.Id).ToList(),
+        LayerRow row when row.Layer.GroupId is { } id =>
+            Scene.Layers.Where(l => l.GroupId == id).ToList(),
+        LayerRow row => [row.Layer],
+        _ => null,
+    };
+
+    /// <summary>
+    /// Drop a dragged layer beside a folder header — above or below the whole
+    /// folder rather than into it.
+    /// </summary>
+    /// <remarks>
+    /// The header's outer quarters, where <see cref="LayerDropPlan"/> says
+    /// <c>Above</c> or <c>Below</c> rather than <c>Into</c>. Without this the
+    /// only thing a header could do was swallow what was dropped on it, so
+    /// putting a layer immediately above a folder meant aiming at the last row
+    /// of whatever was above it.
+    /// </remarks>
+    internal void DropLayerBesideGroup(LayerRow draggedRow, GroupRow header, bool above)
+    {
+        var dragged = draggedRow.Layer;
+        var block = Scene.Layers.Where(l => l.GroupId == header.Group.Id).ToList();
+        if (block.Count == 0) return;
+        if (dragged.GroupId == header.Group.Id && block.Count == 1) return;
+        var anchor = above ? block[^1] : block[0];
+        if (!CanReorderPastPaper(dragged, anchor, above)) return;
+        var anchorId = anchor.Id;
+        _editor.Perform(doc =>
+        {
+            var layers = doc.Scene.Layers;
+            var from = layers.FindIndex(l => l.Id == dragged.Id);
+            if (from < 0) return;
+            var layer = layers[from];
+            layers.RemoveAt(from);
+            var at = layers.FindIndex(l => l.Id == anchorId);
+            if (at < 0)
+            {
+                layers.Insert(from, layer);
+                return;
+            }
+            layers.Insert(above ? at + 1 : at, layer);
+            // Beside a folder is outside it, whichever folder it came from.
+            layer.GroupId = null;
+        }, label: "Move layer", frameContentUnchanged: true);
+        ActiveLayerIndex = Scene.Layers.FindIndex(l => l.Id == dragged.Id);
+    }
+
+    /// <summary>Clear every row's drop hint — called from every exit of a drag.</summary>
+    internal void ClearLayerDropHints()
+    {
+        foreach (var item in LayerPanelItems)
+        {
+            switch (item)
+            {
+                case LayerRow row: row.DropHint = LayerDropHint.None; break;
+                case GroupRow header: header.DropHint = LayerDropHint.None; break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Show where the drop would land, on one row and nowhere else.
+    /// </summary>
+    internal void ShowLayerDropHint(object? target, LayerDropHint hint)
+    {
+        foreach (var item in LayerPanelItems)
+        {
+            var mine = ReferenceEquals(item, target) ? hint : LayerDropHint.None;
+            switch (item)
+            {
+                case LayerRow row: row.DropHint = mine; break;
+                case GroupRow header: header.DropHint = mine; break;
+            }
+        }
+    }
+
     // ---- layer folders ----------------------------------------------------------
 
     /// <summary>The docker's item list: folder headers followed by their (uncollapsed) member rows.</summary>
@@ -1226,21 +1360,6 @@ public partial class MainViewModel
     /// </remarks>
     private void AddLayer(LayerKind kind)
     {
-        // A symbol holds one layer's drawing (Q171), so there is nowhere in the
-        // record for a second one to go — and until this guard existed the sync
-        // folded it into the frame list, turning a colour layer into frame 2 of
-        // the animation for every placement in the project.
-        //
-        // Refused rather than allowed-and-dropped: the artist finds out now,
-        // while the drawing they were about to make is still hypothetical,
-        // instead of at the reload that has already lost it.
-        if (ActiveTab is { Kind: DocumentTabKind.Symbol })
-        {
-            AiStatus = "A symbol holds one layer. Draw on the layer that is here, "
-                + "or make the parts separate symbols and place them together.";
-            return;
-        }
-
         _editor.Perform(doc =>
         {
             var layer = new Layer

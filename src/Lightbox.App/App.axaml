@@ -72,6 +72,7 @@
     <!-- The control treatments: emphasis, badges, tabs. Sizes stay in
          Density.axaml — the two are different axes and compose. -->
     <StyleInclude Source="avares://Lightbox.App/Styles/Controls.axaml" />
+    <StyleInclude Source="avares://Lightbox.App/Styles/LayerRows.axaml" />
 
     <!-- The colour picker's body and the flyout field that reuses it. -->
     <StyleInclude Source="avares://Lightbox.App/Styles/ColorPicker.axaml" />

@@ -124,32 +124,34 @@ public class SymbolEditingTests : IDisposable
     // ---- one layer, and layers are never frames -----------------------------------
 
     /// <summary>
-    /// Adding a layer inside a symbol tab is refused.
+    /// Adding a layer inside a symbol tab adds a layer to the symbol.
     /// </summary>
     /// <remarks>
-    /// <b>What this stops is not an error message — it is silent corruption.</b>
-    /// A symbol's frame list is *time*, so before the guard a second layer here
-    /// was folded into it and became frame 2 of the animation, for every
-    /// placement of the symbol in the project. Measured before the fix: one
-    /// frame and one layer in, two frames out.
+    /// <b>This test used to assert the opposite, and that is the point.</b> A
+    /// symbol's frame list was *time* and had no layer axis, so a second layer
+    /// here was folded into it and came back as frame 2 of the animation — for
+    /// every placement of the symbol in the project. The guard refused the
+    /// gesture; Q171 gave it somewhere to go instead.
     /// </remarks>
     [AvaloniaFact]
-    public void AddingALayerInsideASymbolTabIsRefused()
+    public void AddingALayerInsideASymbolTabAddsALayerToTheSymbol()
     {
         var vm = WithSymbol(out var sword);
         vm.OpenSymbol(sword);
 
         vm.AddPaintedLayerCommand.Execute(null);
+        vm.AppendExternalStrokes(vm.ActiveLayerForIpc.Id, 0, [Bar(70)]);
 
-        Assert.Single(vm.Doc.Scene.Layers);
-        Assert.Single(sword.AllFrames);
+        Assert.Equal(2, vm.Doc.Scene.Layers.Count);
+        Assert.Equal(2, sword.Layers.Count);
+        // A layer, not a frame: the animation is one drawing long still.
+        Assert.Equal(1, sword.FrameCount);
     }
 
     [AvaloniaFact]
     public void AddingALayerIsStillOrdinaryOutsideASymbolTab()
     {
-        // The guard is about the symbol tab, not about symbols existing. A
-        // project with a symbol in it must still make layers the ordinary way.
+        // Never was about symbols existing, and still is not.
         var vm = WithSymbol(out _);
         var before = vm.Doc.Scene.Layers.Count;
 
@@ -159,19 +161,20 @@ public class SymbolEditingTests : IDisposable
     }
 
     /// <summary>
-    /// A layer that arrives by some other door still does not become a frame.
+    /// A layer arriving by another door is a layer too.
     /// </summary>
     /// <remarks>
-    /// Refusing the gesture is not the same as making the fold impossible —
-    /// a paste inserts a layer too, and so will the next feature nobody has
-    /// written yet. The sync is the sink, so the sync is where it is closed.
+    /// The inverse of the sink this file used to guard. A paste inserts a layer,
+    /// and what it now inserts is part of the symbol — with the frame count
+    /// unmoved, which is the half that says it went onto the layer axis and not
+    /// the time one.
     /// </remarks>
     [AvaloniaFact]
-    public void ALayerArrivingByAnotherRouteDoesNotBecomeAFrame()
+    public void ALayerArrivingByAnotherRouteJoinsTheStack()
     {
         var vm = WithSymbol(out var sword, frames: 2);
         vm.OpenSymbol(sword);
-        var own = vm.ActiveTab!.SymbolLayerId!;
+        var own = vm.Doc.Scene.Layers[0].Id;
 
         // Straight into the scene, the way a paste would put it there.
         vm.Doc.Scene.Layers.Add(new Layer
@@ -183,32 +186,35 @@ public class SymbolEditingTests : IDisposable
 
         vm.AppendExternalStrokes(own, 0, [Bar(70)]);
 
-        // Two frames in, two frames out — not four.
+        Assert.Equal(2, sword.Layers.Count);
+        // Two frames in, two frames out — the pasted layer went sideways, not
+        // onto the end of the animation.
         Assert.Equal(2, sword.FrameCount);
     }
 
     /// <summary>
-    /// The symbol's own layer is read even when another is inserted above it.
+    /// A layer inserted below the artist's keeps its place in the stack.
     /// </summary>
     /// <remarks>
-    /// Why <see cref="DocumentTab.SymbolLayerId"/> is an id and not the number
-    /// zero: a paste inserts at the active index, so index 0 would quietly make
-    /// the pasted work the symbol and the artist's drawing an extra frame of it
-    /// — the same corruption wearing a different hat.
+    /// Order is the whole meaning of a stack: colour under lines is a different
+    /// picture from lines under colour. The sync takes the scene's list as it
+    /// stands rather than remembering which layer was the symbol, so an insert
+    /// at the bottom arrives at the bottom.
     /// </remarks>
     [AvaloniaFact]
-    public void TheSymbolsOwnLayerIsReadEvenWithAnotherInsertedAboveIt()
+    public void ALayerInsertedBelowKeepsItsPlaceInTheStack()
     {
         var vm = WithSymbol(out var sword);
         vm.OpenSymbol(sword);
-        var own = vm.ActiveTab!.SymbolLayerId!;
-        var intruder = new Frame { Strokes = [Bar(95)] };
-        vm.Doc.Scene.Layers.Insert(0, new Layer { Name = "Pasted", Cels = [new Cel { Frame = intruder }] });
+        var own = vm.Doc.Scene.Layers[0];
+        var under = new Layer { Name = "Colour", Cels = [new Cel { Frame = new Frame { Strokes = [Bar(95)] } }] };
+        vm.Doc.Scene.Layers.Insert(0, under);
 
-        vm.AppendExternalStrokes(own, 0, [Bar(70)]);
+        vm.AppendExternalStrokes(own.Id, 0, [Bar(70)]);
 
-        Assert.Single(sword.AllFrames);
-        Assert.DoesNotContain(intruder, sword.AllFrames);
+        Assert.Equal(2, sword.Layers.Count);
+        Assert.Same(under, sword.Layers[0]);
+        Assert.Same(own, sword.Layers[1]);
     }
 
     /// <summary>

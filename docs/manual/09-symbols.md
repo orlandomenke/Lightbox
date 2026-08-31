@@ -82,33 +82,31 @@ mark, in the same position.
 
 ## What a symbol can hold
 
-A symbol holds **one layer's drawing**, and as many frames of it as you like.
-That is the shape to plan around, and it is worth knowing before you build a
-library:
+A symbol holds **a stack of layers**, each with as many drawings as you like —
+lines, colour, shading, effects, the same way an artwork is built anywhere else
+in the application. A head is one symbol, not four.
 
-- **Make symbol takes the layer you are on**, and only the strokes on it. If
-  your head is a lines layer, a colour layer and two effect layers, *Make
-  symbol* captures whichever one is active and leaves the other three where
-  they are.
+- **Layers are up, frames are along.** Adding a layer inside a symbol gives it
+  another sheet; adding a cel gives it another drawing in time. A colour layer
+  holding one drawing under a twelve-frame line test is a twelve-frame symbol,
+  not a thirteen-frame one.
+- **Everything a layer does, it does inside a symbol** — opacity, blend mode,
+  hiding, masks, clipping to the layer below, live effects and adjustment
+  layers. They travel with the symbol to every placement of it.
+- **Make symbol takes the layer you are on**, and only the strokes on it. To
+  get the rest of the stack in, open the symbol and build it there — see
+  *Editing one*.
 - **A symbol needs strokes.** A drawing that is imported pixels with nothing
   drawn on it cannot become a symbol — you will be told there is nothing to
   make one from.
-- **Frames are time, not layers.** The list inside a symbol is its animation, a
-  drawing per frame. See *Cycles* below.
 
-> **Planned.** A symbol that owns a whole layer stack — lines, colour, shading
-> and effects captured together and still separate inside the symbol, the way
-> Flash and Animate do it — is decided and not yet built. Until it is, the
-> nearest thing is to keep the parts as separate symbols and place them
-> together, or to link the layers in the Layers docker so they behave as one
-> while you work.
+Four things a symbol layer deliberately cannot do, because none of them mean
+anything inside one: **follow a bone**, **run a simulation**, sit in a document's
+layer folder or link, or be marked as background or out-of-export.
 
-**A symbol's own tab has one layer, and adding another is refused** — there is
-nowhere in a symbol for a second one to go, so *New layer* tells you as much
-rather than making one. Draw on the layer that is there. If a layer does end up
-in a symbol tab some other way, a paste for instance, only the symbol's own
-layer is saved into it and you are told which one that was; merge the others
-down if you want to keep them.
+> **Planned.** *Make symbol* from several layers at once — from a link in the
+> Layers docker, or a multi-selection — is decided and not yet built. Until it
+> is, make the symbol from one layer, open it, and add the others there.
 
 ## Placing, moving, and letting go
 
@@ -188,6 +186,11 @@ why a symbol is worth making instead of copying a drawing around.
 
 A symbol tab cannot be saved as a file of its own: it belongs to the project,
 and saving the project writes it.
+
+**The tab is a real layer stack.** Add layers, reorder them, set opacity and
+blend modes, mask one against another — it is the ordinary Layers docker over
+the symbol's own artwork, and every placement of the symbol shows the result.
+Adding a *cel* still adds a drawing in time; adding a *layer* adds a sheet.
 
 ## Knowing what changed under you
 
