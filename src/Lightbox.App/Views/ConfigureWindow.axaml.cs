@@ -1145,6 +1145,11 @@ public partial class ConfigureWindow : Window
         BrushScopeBox.ItemsSource = _vm.BrushMemoryChoices;
         BrushScopeBox.SelectedItem = _vm.BrushMemoryChoice;
         RecordPenAxesBox.IsChecked = _vm.AlwaysRecordPenAxes;
+        // Percent in the box, a fraction underneath: an artist thinks in
+        // percent and CursorContrast is the only place that should know the
+        // number is really an alpha.
+        RingContrastBox.Value = (decimal)Math.Round(_vm.BrushRingContrast * 100);
+        RingWidthBox.Value = (decimal)_vm.BrushRingWidth;
         GoogleFontsBox.IsChecked = _vm.Settings.Fonts.UseGoogleFonts;
         EmbedFontsBox.IsChecked = _vm.Settings.Fonts.EmbedOpenFonts;
         _loadingDrawing = false;
@@ -1156,6 +1161,18 @@ public partial class ConfigureWindow : Window
     {
         if (_loadingDrawing || _vm is null) return;
         _vm.AlwaysRecordPenAxes = RecordPenAxesBox.IsChecked == true;
+    }
+
+    private void OnRingContrastChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_loadingDrawing || _vm is null || e.NewValue is not { } value) return;
+        _vm.BrushRingContrast = (double)value / 100;
+    }
+
+    private void OnRingWidthChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_loadingDrawing || _vm is null || e.NewValue is not { } value) return;
+        _vm.BrushRingWidth = (double)value;
     }
 
     /// <summary>

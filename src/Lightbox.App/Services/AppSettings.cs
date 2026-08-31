@@ -354,6 +354,30 @@ public sealed class AppSettings
     public bool AlwaysRecordPenAxes { get; set; }
 
     /// <summary>
+    /// How far the brush ring's line stands off the artwork, 0 to 1.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Chrome, not a brush setting, which is why it lives here.</b> Invariant
+    /// 4 keeps anything that decides a pixel of the drawing on the stroke, so
+    /// changing a preference can never repaint finished work. The ring is drawn
+    /// over the composite and recorded nowhere, so it is free to be a preference
+    /// — and it has to be one, because the right answer depends on the panel and
+    /// the eyes in front of it rather than on the document.
+    /// </para>
+    /// <para>
+    /// Read at draw time through <c>CursorContrast.ClampContrast</c>: this is a
+    /// file an artist can open in an editor, and a 0 in it would make the ring
+    /// disappear with nothing in the interface to say why.
+    /// </para>
+    /// </remarks>
+    public double BrushRingContrast { get; set; } = Rendering.CursorContrast.DefaultContrast;
+
+    /// <summary>The width of the brush ring's line, in screen pixels.</summary>
+    /// <inheritdoc cref="BrushRingContrast" path="/remarks"/>
+    public double BrushRingWidth { get; set; } = Rendering.CursorContrast.DefaultWidth;
+
+    /// <summary>
     /// Mark the X-sheet's frame numbers where the camera or the armature is
     /// keyed.
     /// </summary>

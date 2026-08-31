@@ -49,12 +49,70 @@ public enum CursorInk
 /// </remarks>
 public static class CursorContrast
 {
-    /// <summary>How wide the ring's single line is, in screen pixels.</summary>
+    /// <summary>The line's width in screen pixels when nobody has said otherwise.</summary>
     /// <remarks>
     /// Thinner than the 1.2 px each of the two lines it replaces, because one
     /// line at full weight reads heavier than either half of a pair did.
     /// </remarks>
-    public const float StrokeWidth = 1.1f;
+    /// <remarks>
+    /// <b>double, not float, all the way through this type.</b> These reach a
+    /// settings file an artist reads, and a float round trip turns a stored 2.2
+    /// into 2.20000004768372 — in the JSON, and in the box on the page. Skia
+    /// wants a float and gets one at the last moment, which is the only place
+    /// the narrowing is invisible.
+    /// </remarks>
+    public const double DefaultWidth = 1.1;
+
+    /// <summary>The narrowest line worth offering, in screen pixels.</summary>
+    /// <remarks>
+    /// Below about half a pixel anti-aliasing is doing all the work: the line
+    /// stops getting thinner and starts getting fainter, which is the other
+    /// control. Two settings that do the same thing is how a preferences page
+    /// stops meaning anything.
+    /// </remarks>
+    public const double MinWidth = 0.5;
+
+    /// <summary>The widest, in screen pixels.</summary>
+    /// <remarks>
+    /// Three pixels is thicker than the pair this replaced, and it is offered
+    /// because a high-DPI panel and poor eyesight are both real — not because
+    /// it is a good default.
+    /// </remarks>
+    public const double MaxWidth = 3;
+
+    /// <summary>How opaque the dark ink is, 0 to 1, when nobody has said otherwise.</summary>
+    /// <remarks>
+    /// <b>Two thirds, not full.</b> A line the drawing shows through is one an
+    /// artist aims past; a solid one is one they look at. This is the number to
+    /// turn when the ring is either lost or in the way, and it is why the
+    /// control is called contrast rather than opacity: what is being set is how
+    /// far the ring stands off the artwork, and the alpha is only how that is
+    /// achieved.
+    /// </remarks>
+    public const double DefaultContrast = 0.65;
+
+    /// <summary>The faintest ring worth offering.</summary>
+    /// <remarks>
+    /// A quarter is already very faint over a low-contrast painting. Below it
+    /// the ring is not subtle, it is missing — and a control whose bottom end
+    /// cannot be told apart from a broken build is a support question.
+    /// </remarks>
+    public const double MinContrast = 0.25;
+
+    /// <summary>The strongest: solid ink, for a panel that needs it.</summary>
+    public const double MaxContrast = 1;
+
+    /// <summary>
+    /// How much more opaque the light ink is than the dark one at the same
+    /// setting.
+    /// </summary>
+    /// <remarks>
+    /// <b>Matched by eye, not by number.</b> White over dark artwork reads
+    /// fainter than black over light artwork at the same alpha, so one control
+    /// moving both equally would drift out of balance at one end. Carried here
+    /// so the two inks stay a pair however the artist sets them.
+    /// </remarks>
+    public const double LightUplift = 0.06;
 
     /// <summary>Below this luminance the ring goes <see cref="CursorInk.Light"/>.</summary>
     public const float ToLight = 0.45f;
@@ -67,16 +125,6 @@ public static class CursorContrast
     /// previous choice stands, and both inks are legible there anyway.
     /// </remarks>
     public const float ToDark = 0.55f;
-
-    /// <summary>The dark ink: black, held well below full so it reads as chrome.</summary>
-    public static readonly SKColor Dark = new(0, 0, 0, 165);
-
-    /// <summary>The light ink, a little stronger than the dark one.</summary>
-    /// <remarks>
-    /// White at the same alpha over dark artwork reads fainter than black does
-    /// over light artwork, so the two are matched by eye rather than by number.
-    /// </remarks>
-    public static readonly SKColor Light = new(255, 255, 255, 180);
 
     /// <summary>Perceived lightness of a colour, 0 (black) to 1 (white).</summary>
     /// <remarks>
@@ -100,6 +148,27 @@ public static class CursorContrast
         return previous;
     }
 
-    /// <summary>The colour to stroke with.</summary>
-    public static SKColor ColorFor(CursorInk ink) => ink == CursorInk.Light ? Light : Dark;
+    /// <summary>The colour to stroke with, at a given contrast.</summary>
+    public static SKColor ColorFor(CursorInk ink, double contrast = DefaultContrast)
+    {
+        var c = ClampContrast(contrast);
+        if (ink == CursorInk.Light) c = Math.Min(MaxContrast, c + LightUplift);
+        var alpha = (byte)Math.Round(c * 255);
+        return ink == CursorInk.Light
+            ? new SKColor(255, 255, 255, alpha)
+            : new SKColor(0, 0, 0, alpha);
+    }
+
+    /// <summary>A contrast that may have come from a settings file, brought inside the range.</summary>
+    /// <remarks>
+    /// Clamped rather than trusted, here rather than at each caller: the value
+    /// arrives from a JSON file an artist can edit, and a zero in it would make
+    /// the ring vanish with nothing in the interface to explain why.
+    /// </remarks>
+    public static double ClampContrast(double contrast) =>
+        double.IsNaN(contrast) ? DefaultContrast : Math.Clamp(contrast, MinContrast, MaxContrast);
+
+    /// <inheritdoc cref="ClampContrast"/>
+    public static double ClampWidth(double width) =>
+        double.IsNaN(width) ? DefaultWidth : Math.Clamp(width, MinWidth, MaxWidth);
 }

@@ -379,6 +379,26 @@
         </StackPanel>
 
         <StackPanel Spacing="6">
+          <TextBlock Text="The brush ring" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="The outline that follows the pointer is one line, and it inks itself dark or light from the artwork underneath so it stays readable without a second line under it. These two decide how much of the drawing it covers." />
+          <DockPanel ToolTip.Tip="How far the line stands off the artwork. Lower hides less of the drawing; higher is easier to find on a low-contrast panel.">
+            <NumericUpDown DockPanel.Dock="Right" x:Name="RingContrastBox" Width="120"
+                           Minimum="25" Maximum="100" Increment="5" FormatString="0"
+                           ValueChanged="OnRingContrastChanged" />
+            <TextBlock Text="Contrast (%)" VerticalAlignment="Center" />
+          </DockPanel>
+          <DockPanel ToolTip.Tip="How thick the line is, in screen pixels. It does not scale with zoom — the ring is chrome, not part of the drawing.">
+            <NumericUpDown DockPanel.Dock="Right" x:Name="RingWidthBox" Width="120"
+                           Minimum="0.5" Maximum="3" Increment="0.1" FormatString="0.0"
+                           ValueChanged="OnRingWidthChanged" />
+            <TextBlock Text="Width (pixels)" VerticalAlignment="Center" />
+          </DockPanel>
+          <TextBlock Text="Hover the canvas while you change these — the ring redraws as you type, so the answer is on screen rather than in this window."
+                     FontSize="10" Opacity="0.65" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
           <TextBlock Text="Where the brush lives" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
                      Text="Whether the brush belongs to the tool or to the drawing. Come back to a comic or a set of game assets after a fortnight and the question is not which brush you like, but which brush the work is drawn with." />

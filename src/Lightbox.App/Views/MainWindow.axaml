@@ -1894,7 +1894,9 @@
                                 BrushCursorTipId="{Binding BrushCursorTipId}"
                                 BrushCursorRoundness="{Binding BrushCursorRoundness}" BrushCursorAngle="{Binding BrushCursorAngle}"
                                 PickSampleHex="{Binding PickPreviewHex}" PickCurrentHex="{Binding ColorHex}"
-                                BrushCursorInk="{Binding BrushCursorInk}" />
+                                BrushCursorInk="{Binding BrushCursorInk}"
+                                BrushCursorContrast="{Binding BrushRingContrast}"
+                                BrushCursorWidth="{Binding BrushRingWidth}" />
           <!--
             Rulers, on top of the canvas rather than beside it, so turning them
             on cannot renumber the grid columns the docking rework already got

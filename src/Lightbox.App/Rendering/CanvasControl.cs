@@ -74,6 +74,8 @@ public sealed partial class CanvasControl : Control
             // Same reasoning as the badge: the ink is drawn by the render op, so
             // a ring that has decided to change colour has to ask for a repaint.
             BrushCursorInkProperty,
+            BrushCursorContrastProperty,
+            BrushCursorWidthProperty,
             LazyRadiusProperty,
             SoloProperty,
             PickSampleHexProperty,
@@ -1858,7 +1860,9 @@ public sealed partial class CanvasControl : Control
                 (float)BrushCursorAngle,
                 TipOutlinePath(BrushCursorTipId),
                 PointerIntent == CanvasCursorKind.Paint ? PointerBadge : CursorBadge.None,
-                BrushCursorInk);
+                BrushCursorInk,
+                CursorContrast.ClampContrast(BrushCursorContrast),
+                CursorContrast.ClampWidth(BrushCursorWidth));
         }
         var pickRing = PickRingNow();
 

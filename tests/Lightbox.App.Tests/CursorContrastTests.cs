@@ -1,7 +1,10 @@
+using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Lightbox.App.Rendering;
+using Lightbox.App.Services;
 using Lightbox.App.ViewModels;
+using Lightbox.App.Views;
 using SkiaSharp;
 
 namespace Lightbox.App.Tests;
@@ -29,7 +32,8 @@ namespace Lightbox.App.Tests;
 /// exactly the kind of question that was going unasked.
 /// </para>
 /// </remarks>
-public class CursorContrastTests
+[Collection("BrushState")]
+public class CursorContrastTests : BrushStateIsolated
 {
     // ---- which ink -------------------------------------------------------------------
 
@@ -86,13 +90,19 @@ public class CursorContrastTests
     /// Draw the ring on nothing and total up the ink it put on a ray from the
     /// centre outwards.
     /// </summary>
-    private static (int Total, int Bands) InkOnARayUpwards(float roundness, float angleDeg)
+    private static (int Total, int Bands) InkOnARayUpwards(
+        float roundness = 1f,
+        float angleDeg = 0f,
+        double contrast = CursorContrast.DefaultContrast,
+        double width = CursorContrast.DefaultWidth)
     {
         using var bmp = new SKBitmap(new SKImageInfo(160, 160, SKColorType.Rgba8888, SKAlphaType.Premul));
         using var canvas = new SKCanvas(bmp);
         canvas.Clear(SKColors.Transparent);
 
-        BrushRingPainter.Draw(canvas, 80, 80, radius: 50, roundness: roundness, angleDeg: angleDeg);
+        BrushRingPainter.Draw(
+            canvas, 80, 80, radius: 50, roundness: roundness, angleDeg: angleDeg,
+            contrast: contrast, width: width);
 
         var total = 0;
         var bands = 0;
@@ -140,10 +150,164 @@ public class CursorContrastTests
     public void TheRingCoversOneLinesWorthOfTheDrawing(float roundness)
     {
         var (total, bands) = InkOnARayUpwards(roundness, angleDeg: 0f);
-        var expected = CursorContrast.StrokeWidth * CursorContrast.Dark.Alpha;
+        var expected = CursorContrast.DefaultWidth * CursorContrast.ColorFor(CursorInk.Dark).Alpha;
 
         Assert.Equal(1, bands);
         Assert.InRange(total, expected * 0.8, expected * 1.6);
+    }
+
+    // ---- the two dials ----------------------------------------------------------------
+
+    /// <summary>
+    /// Contrast reaches the ink, and width reaches the line.
+    /// </summary>
+    /// <remarks>
+    /// <b>Measured through the painter rather than read back off the setting</b>,
+    /// which is the failure a preferences page actually has: a control that
+    /// stores a number nothing downstream reads. Both are proportional, so the
+    /// assertion is a ratio and not a pair of magic totals.
+    /// </remarks>
+    [Fact]
+    public void BothDialsChangeHowMuchOfTheDrawingTheRingCovers()
+    {
+        var faint = InkOnARayUpwards(contrast: 0.3f).Total;
+        var solid = InkOnARayUpwards(contrast: 0.9f).Total;
+        Assert.True(solid > faint * 2.5, $"contrast moved the ink from {faint} to {solid}, which is barely at all");
+
+        var thin = InkOnARayUpwards(width: CursorContrast.MinWidth).Total;
+        var thick = InkOnARayUpwards(width: 2.5f).Total;
+        Assert.True(thick > thin * 3, $"width moved the ink from {thin} to {thick}, which is barely at all");
+    }
+
+    /// <summary>
+    /// A number from outside the range never reaches the canvas.
+    /// </summary>
+    /// <remarks>
+    /// <b>settings.json is a file an artist can open in an editor</b>, and it is
+    /// also the file a half-written release upgrade leaves behind. A zero
+    /// contrast or a zero width there is a brush ring that is simply not on
+    /// screen, with nothing in the interface to say why — so the clamp is at the
+    /// read, not at the write.
+    /// </remarks>
+    [AvaloniaFact]
+    public void AValueFromOutsideTheRangeIsBroughtBackInside()
+    {
+        Assert.Equal(CursorContrast.MinContrast, CursorContrast.ClampContrast(0));
+        Assert.Equal(CursorContrast.MaxContrast, CursorContrast.ClampContrast(4));
+        Assert.Equal(CursorContrast.DefaultContrast, CursorContrast.ClampContrast(double.NaN));
+
+        Assert.Equal(CursorContrast.MinWidth, CursorContrast.ClampWidth(0));
+        Assert.Equal(CursorContrast.MaxWidth, CursorContrast.ClampWidth(99));
+        Assert.Equal(CursorContrast.DefaultWidth, CursorContrast.ClampWidth(double.NaN));
+
+        // And a stored zero comes back as the minimum rather than an invisible ring.
+        var vm = new MainViewModel(artist: null);
+        vm.Settings.BrushRingContrast = 0;
+        vm.Settings.BrushRingWidth = 0;
+        Assert.Equal(CursorContrast.MinContrast, vm.BrushRingContrast, 5);
+        Assert.Equal(CursorContrast.MinWidth, vm.BrushRingWidth, 5);
+    }
+
+    /// <summary>
+    /// Both survive being set and reloaded, as the number that was set.
+    /// </summary>
+    /// <remarks>
+    /// <b>Exact, and the exactness is the point.</b> These were clamped through
+    /// a <c>float</c> first, which stores 2.2 as 2.20000004768372 — in
+    /// settings.json, and in the box on the page, where an artist reads it back
+    /// and wonders what they typed. A tolerance of five decimal places passed on
+    /// that happily, which is why the assertion is equality and the serialized
+    /// text is checked as well.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheDialsPersistAsTheNumberThatWasSet()
+    {
+        var vm = new MainViewModel(artist: null) { BrushRingContrast = 0.4, BrushRingWidth = 2.2 };
+
+        var reopened = AppSettings.Load();
+        Assert.Equal(0.4, reopened.BrushRingContrast);
+        Assert.Equal(2.2, reopened.BrushRingWidth);
+
+        var json = vm.Settings.Serialize();
+        Assert.Contains("\"BrushRingContrast\": 0.4", json);
+        Assert.Contains("\"BrushRingWidth\": 2.2", json);
+    }
+
+    // ---- Configure ▸ Drawing ------------------------------------------------------------
+
+    /// <summary>The Drawing page, with a view model behind it.</summary>
+    /// <remarks>
+    /// Index 5 — Shortcuts, Performance, Features, Guides, Timeline, Drawing,
+    /// Export, Library, AI. Asserted rather than assumed in the first test below,
+    /// because an off-by-one here shows the wrong page and throws nothing.
+    /// </remarks>
+    private static (ConfigureWindow Window, MainViewModel Vm) OnDrawingPage()
+    {
+        var vm = new MainViewModel(artist: null);
+        var window = new ConfigureWindow(new ShortcutMap(), vm);
+        window.FindControl<ListBox>("CategoryList")!.SelectedIndex = 5;
+        return (window, vm);
+    }
+
+    [AvaloniaFact]
+    public void TheDrawingPageIsTheOneThatShowsAtItsIndex()
+    {
+        var (window, _) = OnDrawingPage();
+
+        Assert.True(window.FindControl<ScrollViewer>("DrawingPage")!.IsVisible);
+        Assert.False(window.FindControl<ScrollViewer>("PerformancePage")!.IsVisible);
+    }
+
+    /// <summary>It opens showing what is stored, not the default.</summary>
+    /// <remarks>
+    /// The other half of the failure a settings page has: a control that writes
+    /// correctly but always opens at the default, so an artist who set it last
+    /// week is told it never took.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ThePageOpensShowingTheStoredRingSettings()
+    {
+        var vm = new MainViewModel(artist: null) { BrushRingContrast = 0.4, BrushRingWidth = 2.2 };
+        var window = new ConfigureWindow(new ShortcutMap(), vm);
+        window.FindControl<ListBox>("CategoryList")!.SelectedIndex = 5;
+
+        Assert.Equal(40m, window.FindControl<NumericUpDown>("RingContrastBox")!.Value);
+        Assert.Equal(2.2m, window.FindControl<NumericUpDown>("RingWidthBox")!.Value);
+    }
+
+    /// <summary>Turning either box writes it back through the view model.</summary>
+    [AvaloniaFact]
+    public void TurningEitherBoxReachesTheSettings()
+    {
+        var (window, vm) = OnDrawingPage();
+
+        window.FindControl<NumericUpDown>("RingContrastBox")!.Value = 45m;
+        Assert.Equal(0.45, vm.BrushRingContrast, 5);
+        Assert.Equal(0.45, vm.Settings.BrushRingContrast, 5);
+
+        window.FindControl<NumericUpDown>("RingWidthBox")!.Value = 1.8m;
+        Assert.Equal(1.8, vm.BrushRingWidth, 5);
+        Assert.Equal(1.8, vm.Settings.BrushRingWidth, 5);
+    }
+
+    /// <summary>The box cannot ask for a value the ring would refuse.</summary>
+    /// <remarks>
+    /// The clamp downstream is the safety net for a hand-edited file; the range
+    /// on the control is what stops an artist reaching a setting that looks
+    /// broken. Both, because they fail differently.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheBoxesOfferOnlyTheRangeTheRingHonours()
+    {
+        var (window, _) = OnDrawingPage();
+
+        var contrast = window.FindControl<NumericUpDown>("RingContrastBox")!;
+        Assert.Equal((decimal)(CursorContrast.MinContrast * 100), contrast.Minimum);
+        Assert.Equal((decimal)(CursorContrast.MaxContrast * 100), contrast.Maximum);
+
+        var width = window.FindControl<NumericUpDown>("RingWidthBox")!;
+        Assert.Equal((decimal)CursorContrast.MinWidth, width.Minimum);
+        Assert.Equal((decimal)CursorContrast.MaxWidth, width.Maximum);
     }
 
     /// <summary>A turned tip is still one run of ink, not two.</summary>
@@ -217,7 +381,7 @@ public class CursorContrastTests
         // Nowhere does the ring replace the artwork: the ink's own alpha is the ceiling.
         Assert.True(peak <= alpha + 1, $"{ink} reached {peak} where its ink is only {alpha}");
         // And it is there: a line of width x opacity, wherever the coverage landed.
-        Assert.InRange(total, alpha * CursorContrast.StrokeWidth * 0.8, alpha * CursorContrast.StrokeWidth * 1.6);
+        Assert.InRange(total, alpha * CursorContrast.DefaultWidth * 0.8, alpha * CursorContrast.DefaultWidth * 1.6);
     }
 
     // ---- the ink reaches the ring ----------------------------------------------------

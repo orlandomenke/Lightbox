@@ -113,7 +113,9 @@ public sealed partial class CanvasControl
         float AngleDeg = 0f,
         SKPath? Outline = null,
         CursorBadge Badge = CursorBadge.None,
-        CursorInk Ink = CursorInk.Dark);
+        CursorInk Ink = CursorInk.Dark,
+        double Contrast = CursorContrast.DefaultContrast,
+        double Width = CursorContrast.DefaultWidth);
 
     /// <summary>
     /// The +/− the pointer wears (<see cref="CursorBadge"/>): pushed from the
@@ -145,6 +147,35 @@ public sealed partial class CanvasControl
     {
         get => GetValue(BrushCursorInkProperty);
         set => SetValue(BrushCursorInkProperty, value);
+    }
+
+    /// <summary>How far the ring's line stands off the artwork, 0 to 1.</summary>
+    /// <remarks>
+    /// A preference rather than a document value, and one of the two an artist
+    /// can turn from <b>Configure ▸ Drawing</b>. It never reaches a pixel of the
+    /// drawing, so unlike a brush setting it may be read at paint time
+    /// (invariant 4 is about settings that change the mark).
+    /// </remarks>
+    public static readonly StyledProperty<double> BrushCursorContrastProperty =
+        AvaloniaProperty.Register<CanvasControl, double>(
+            nameof(BrushCursorContrast), CursorContrast.DefaultContrast);
+
+    public double BrushCursorContrast
+    {
+        get => GetValue(BrushCursorContrastProperty);
+        set => SetValue(BrushCursorContrastProperty, value);
+    }
+
+    /// <summary>The width of the ring's line, in screen pixels.</summary>
+    /// <inheritdoc cref="BrushCursorContrastProperty" path="/remarks"/>
+    public static readonly StyledProperty<double> BrushCursorWidthProperty =
+        AvaloniaProperty.Register<CanvasControl, double>(
+            nameof(BrushCursorWidth), CursorContrast.DefaultWidth);
+
+    public double BrushCursorWidth
+    {
+        get => GetValue(BrushCursorWidthProperty);
+        set => SetValue(BrushCursorWidthProperty, value);
     }
 
     // ---- the pen's other axes (tilt and speed) ----------------------------------
@@ -432,7 +463,8 @@ public sealed partial class CanvasControl
         /// </summary>
         private static void DrawBrushCursor(SKCanvas canvas, BrushCursor c) =>
             BrushRingPainter.Draw(
-                canvas, c.X, c.Y, c.Radius, c.Roundness, c.AngleDeg, c.Outline, c.Ink, c.Badge);
+                canvas, c.X, c.Y, c.Radius, c.Roundness, c.AngleDeg, c.Outline, c.Ink, c.Badge,
+                c.Contrast, c.Width);
     }
 
     private SKPath? TipOutlinePath(string? tipId)

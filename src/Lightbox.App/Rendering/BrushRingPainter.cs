@@ -36,6 +36,8 @@ public static class BrushRingPainter
     /// — where <paramref name="roundness"/> and <paramref name="angleDeg"/>
     /// describe the ellipse the engine's round dab actually is.
     /// </param>
+    /// <param name="contrast">How far the line stands off the artwork, 0 to 1.</param>
+    /// <param name="width">The line's width in screen pixels.</param>
     public static void Draw(
         SKCanvas canvas,
         float x, float y, float radius,
@@ -43,14 +45,19 @@ public static class BrushRingPainter
         float angleDeg = 0f,
         SKPath? outline = null,
         CursorInk ink = CursorInk.Dark,
-        CursorBadge badge = CursorBadge.None)
+        CursorBadge badge = CursorBadge.None,
+        double contrast = CursorContrast.DefaultContrast,
+        double width = CursorContrast.DefaultWidth)
     {
+        // Clamped here as well as where the setting is read, because this is the
+        // last place before Skia and a zero-width stroke is a ring nobody can see.
+        var lineWidth = (float)CursorContrast.ClampWidth(width);
         using var paint = new SKPaint
         {
             IsAntialias = true,
             Style = SKPaintStyle.Stroke,
-            StrokeWidth = CursorContrast.StrokeWidth,
-            Color = CursorContrast.ColorFor(ink),
+            StrokeWidth = lineWidth,
+            Color = CursorContrast.ColorFor(ink, contrast),
         };
 
         if (outline is not null)
@@ -65,7 +72,7 @@ public static class BrushRingPainter
             canvas.Scale(radius * 2, radius * 2 * roundness);
             // The stroke is scaled with the canvas, so undo it in the paint or
             // a big brush gets a fat ring and a small one gets none.
-            paint.StrokeWidth = CursorContrast.StrokeWidth / (radius * 2);
+            paint.StrokeWidth = lineWidth / (radius * 2);
             canvas.DrawPath(outline, paint);
             canvas.Restore();
             return;

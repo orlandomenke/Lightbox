@@ -475,6 +475,12 @@ for it:
   and inks it dark or light from the artwork under the pointer, so it stays
   readable without covering as much. Over a mid tone it keeps whichever ink it
   had, rather than flickering between the two.
+- **How much it covers is yours to set.** **Edit → Configure → Drawing** has
+  **Contrast**, how far the line stands off the artwork, and **Width** in screen
+  pixels. The defaults are 65% and 1.1 px. Lower the contrast if the ring is in
+  the way on a bright drawing; raise it if you lose the ring on a dim panel. The
+  width does not scale with zoom — the ring is chrome, not part of the drawing.
+  Keep the canvas in view while you change either: the ring redraws as you type.
 
 Two things it deliberately does not show, because they belong to the mark rather
 than to the brush: the per-dab jitter on roundness and rotation, which would make

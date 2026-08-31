@@ -298,6 +298,46 @@ public partial class MainViewModel
     private (double X, double Y)? _inkSampledAt;
 
     /// <summary>
+    /// How far the ring's line stands off the artwork, 0 to 1 —
+    /// <b>Configure ▸ Drawing</b>.
+    /// </summary>
+    /// <remarks>
+    /// <b>A preference and not a brush setting.</b> Invariant 4 keeps anything
+    /// that decides a pixel on the stroke, so that changing a setting can never
+    /// repaint finished work; the ring is chrome drawn over the composite and
+    /// recorded nowhere, so it is free to be a preference — and it needs to be
+    /// one, because the right answer depends on the panel and the eyes in front
+    /// of it rather than on the drawing.
+    /// </remarks>
+    public double BrushRingContrast
+    {
+        get => Rendering.CursorContrast.ClampContrast(Settings.BrushRingContrast);
+        set
+        {
+            var clamped = Rendering.CursorContrast.ClampContrast(value);
+            if (Math.Abs(Settings.BrushRingContrast - clamped) < 1e-6) return;
+            Settings.BrushRingContrast = clamped;
+            Settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>The width of the ring's line in screen pixels — <b>Configure ▸ Drawing</b>.</summary>
+    /// <inheritdoc cref="BrushRingContrast" path="/remarks"/>
+    public double BrushRingWidth
+    {
+        get => Rendering.CursorContrast.ClampWidth(Settings.BrushRingWidth);
+        set
+        {
+            var clamped = Rendering.CursorContrast.ClampWidth(value);
+            if (Math.Abs(Settings.BrushRingWidth - clamped) < 1e-6) return;
+            Settings.BrushRingWidth = clamped;
+            Settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
     /// Re-decide the ring's ink from the artwork under the pointer.
     /// </summary>
     /// <remarks>
