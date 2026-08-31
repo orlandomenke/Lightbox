@@ -451,6 +451,30 @@ public sealed partial class CanvasControl
     /// cursor shows one brush at a time, so a dictionary would be a cache with no
     /// second entry.
     /// </remarks>
+    /// <remarks>
+    /// <b>B348: the retired path is dropped, never disposed, and that is the
+    /// whole fix.</b> This cache hands the live <see cref="SKPath"/> straight to
+    /// a <c>DrawOp</c>, which Avalonia runs on the <em>render</em> thread some
+    /// time after <c>Render</c> returned. Disposing it here — on the UI thread,
+    /// the moment the tip id changed — freed the native path out from under a
+    /// draw that was already queued with it, and <c>sk_canvas_draw_path</c>
+    /// dereferenced the hole. An access violation is not a managed exception, so
+    /// nothing was caught, nothing was logged, and the application simply went.
+    ///
+    /// Windows kept what the app could not: two records, 0xC0000005 at the same
+    /// fault offset on two different builds, both naming
+    /// <c>SkiaSharp.SkiaApi.sk_canvas_draw_path</c>. Reached by holding E to
+    /// erase and letting go — the release puts the eraser's own size back and
+    /// changes the cursor's tip, which is exactly this invalidation.
+    ///
+    /// Dropping the reference is correct where disposing is not: a queued
+    /// DrawOp holds its own managed reference, so the path cannot be collected
+    /// while a draw can still reach it, and it is finalised once none can. What
+    /// that costs is a handful of small native objects waiting for the GC per
+    /// session, because a tip changes on a deliberate action rather than per
+    /// frame — which is the trade correctness asks for and B74's caching was
+    /// never about.
+    /// </remarks>
     private string? _outlineTipId;
     private SKPath? _outlinePath;
 
@@ -467,18 +491,17 @@ public sealed partial class CanvasControl
                 c.Contrast, c.Width);
     }
 
-    private SKPath? TipOutlinePath(string? tipId)
+    internal SKPath? TipOutlinePath(string? tipId)
     {
         if (string.IsNullOrEmpty(tipId))
         {
-            _outlinePath?.Dispose();
+            // Dropped, not disposed — see the field's remarks (B348).
             _outlinePath = null;
             _outlineTipId = null;
             return null;
         }
         if (string.Equals(tipId, _outlineTipId, StringComparison.Ordinal)) return _outlinePath;
 
-        _outlinePath?.Dispose();
         _outlinePath = null;
         _outlineTipId = tipId;
 
@@ -495,6 +518,7 @@ public sealed partial class CanvasControl
             }
             path.Close();
         }
+        // This one may be disposed: it was never returned, so no draw can hold it.
         _outlinePath = path.IsEmpty ? null : path;
         if (_outlinePath is null) path.Dispose();
         return _outlinePath;
