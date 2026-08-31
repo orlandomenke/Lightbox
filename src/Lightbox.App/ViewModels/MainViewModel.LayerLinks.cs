@@ -160,6 +160,17 @@ public sealed partial class MainViewModel
     }
 
     /// <summary>How many layers are in the active layer's link.</summary>
+    /// <summary>The layers sharing the active layer's link, bottom of the stack first.</summary>
+    /// <remarks>
+    /// A link is already the declaration that these layers are one drawing, so
+    /// it is the natural unit for a capture — the artist has said the thing the
+    /// gesture needs to know before being asked.
+    /// </remarks>
+    public IReadOnlyList<Layer> LayersInActiveLink() =>
+        ActiveLayer?.LinkId is { } id
+            ? Scene.Layers.Where(l => l.LinkId == id).ToList()
+            : [];
+
     public int ActiveLinkSize =>
         ActiveLayer is { } layer ? Doc.Scene.LinkedWith(layer).Count() : 0;
 
