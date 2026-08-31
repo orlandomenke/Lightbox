@@ -98,8 +98,9 @@ way: it follows the tool, or the project, never the individual document — see
 ## When the canvas feels slow
 
 The info strip along the bottom reports what the app is actually doing:
-how much memory the rendered frames are using, and whether the canvas is being
-put on screen by the **GPU** or by the **CPU (software)**.
+how much memory the pictures are using — rendered frames, the canvas buffers,
+and the pixels held so undo can put a mark back — and whether the canvas is
+being put on screen by the **GPU** or by the **CPU (software)**.
 
 Software means no graphics context was available — usually an out-of-date
 driver, a virtual machine, or a remote desktop session. It is not a small

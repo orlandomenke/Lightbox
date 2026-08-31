@@ -631,7 +631,11 @@ public partial class MainViewModel
             // every stroke on the drawing, which is what made Ctrl+Z cost 3 s on a
             // finished one. Null for a step that cannot say, and that is the old
             // behaviour unchanged.
-            InvalidateFrameRender(frameId, scope.RepaintBounds);
+            // Q167: the revision names which step moved, so the pixels saved
+            // under that mark can be swapped back instead of the strokes
+            // crossing it being replayed. Zero for a step that had none held, or
+            // for a history jump that walked several — both take B327's replay.
+            InvalidateFrameRender(frameId, scope.RepaintBounds, scope.Revision);
             _dirtyThumbIds.Add(frameId);
         }
         else if (scope.FrameContentUnchanged)

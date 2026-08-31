@@ -136,10 +136,20 @@ public partial class MainViewModel
 
         if (_committingScopedEdit)
         {
+            // Q167. PushStep runs before this fires, so the editor's revision is
+            // already the committed mark's — which is the point of filing the
+            // held pixels here rather than at the five commit sites, each of
+            // which would have to read a number it has not been given yet.
+            _markSnapshots.Promote(_editor.Revision);
             MarkDocumentEdited();
             RefreshDocumentStats(); // memory grows as frames get cached
             return;
         }
+        // Anything reaching here is a structural or document-wide edit, and the
+        // pixels held for a mark that never became a delta step belong to
+        // nothing. Dropping them keeps the pending slot from surviving into an
+        // unrelated commit.
+        _markSnapshots.Discard();
         MarkDocumentEdited();
         _publish.InvalidateWholeCanvas(); // a document-wide change can move any pixel
         _composeRing.InvalidateAll();
@@ -467,6 +477,9 @@ public partial class MainViewModel
             var clamped = Math.Clamp(value, 5, 500);
             if (_editor.MaxUndo == clamped) return;
             foreach (var tab in Tabs) tab.Editor.MaxUndo = clamped;
+            // Q167: a step past the depth can never be undone, so holding its
+            // pixels is memory the artist pays for and cannot spend.
+            _markSnapshots.MaxSteps = clamped;
             OnPropertyChanged();
         }
     }
@@ -574,7 +587,11 @@ public partial class MainViewModel
             $"{scene.Layers.Count} layer{(scene.Layers.Count == 1 ? "" : "s")} · " +
             $"{drawings.Count} drawing{(drawings.Count == 1 ? "" : "s")}";
 
-        var bytes = _cache.CachedBytes + _composeRing.AllocatedBytes;
+        // The saved undo pixels are image bytes the app is holding too (Q167),
+        // and the strip is where an artist finds out what a document costs. Left
+        // out, the number reads low by exactly the amount a canvas-crossing mark
+        // adds — which is the one case where it is worth knowing.
+        var bytes = _cache.CachedBytes + _composeRing.AllocatedBytes + _markSnapshots.Bytes;
         var backend = Rendering.CanvasControl.GraphicsBackend;
         MemoryLabel = (bytes >= 1024L * 1024 * 1024
             ? $"{bytes / (1024.0 * 1024 * 1024):0.0} GB images"

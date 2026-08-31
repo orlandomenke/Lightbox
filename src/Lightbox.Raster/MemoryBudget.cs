@@ -159,6 +159,28 @@ public static class MemoryBudget
         Share(1.0 / 64, 64L * 1024 * 1024, 512L * 1024 * 1024);
 
     /// <summary>
+    /// Pixels saved under a mark so undo can put them back (Q167).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A sixty-fourth, and on ordinary drawings it will never engage.</b> A
+    /// scattered mark's patch is about 6 KB, so a full 64-step history costs
+    /// under half a megabyte — three orders of magnitude below this floor. What
+    /// the budget guards is the pathological mark: one crossing the whole canvas
+    /// is ~2 MB per step at 960x540 and ~33 MB at 4K, which is 126 MB and over
+    /// 2 GB across a full history.
+    /// </para>
+    /// <para>
+    /// <b>A miss here is cheap, which is what sizes it.</b> Trimming a snapshot
+    /// does not lose work or drop a picture — it sends that one undo back to
+    /// B327's replay, which is what every undo did before this existed. That is
+    /// the mildest failure of any of these caches, so it gets the meanest share.
+    /// </para>
+    /// </remarks>
+    public static long UndoSnapshots() =>
+        Share(1.0 / 64, 64L * 1024 * 1024, 512L * 1024 * 1024);
+
+    /// <summary>
     /// Layer rasters kept resident on the graphics card (B125 stage 5).
     /// </summary>
     /// <remarks>

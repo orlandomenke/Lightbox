@@ -268,9 +268,15 @@ public sealed class DocumentEditor
     /// the rest of the drawing's cached pixels alone; without one, the frame's
     /// bitmap is dropped and every stroke on it is stamped again.
     /// </param>
+    /// <param name="Revision">
+    /// Which step moved, so a caller holding pixels saved for it can find them
+    /// (Q167). Zero means "more than one step, or none" — a history jump walks
+    /// several and there is no single number that describes the result, so it
+    /// takes the rebuild rather than a restore that would be for the wrong one.
+    /// </param>
     public readonly record struct EditScope(
         bool Any, string? FrameId, bool FrameContentUnchanged = false,
-        GeometryOps.BBox? RepaintBounds = null)
+        GeometryOps.BBox? RepaintBounds = null, long Revision = 0)
     {
         public bool DocumentWide => Any && FrameId is null && !FrameContentUnchanged;
     }
@@ -287,7 +293,8 @@ public sealed class DocumentEditor
         _redo.Push(entry);
         Changed?.Invoke();
         return new EditScope(
-            true, entry.Step.FrameId, entry.Step.FrameContentUnchanged, entry.Step.RepaintBounds);
+            true, entry.Step.FrameId, entry.Step.FrameContentUnchanged, entry.Step.RepaintBounds,
+            entry.Revision);
     }
 
     public EditScope RedoScoped()
@@ -300,7 +307,8 @@ public sealed class DocumentEditor
         _undo.Push(entry);
         Changed?.Invoke();
         return new EditScope(
-            true, entry.Step.FrameId, entry.Step.FrameContentUnchanged, entry.Step.RepaintBounds);
+            true, entry.Step.FrameId, entry.Step.FrameContentUnchanged, entry.Step.RepaintBounds,
+            entry.Revision);
     }
 
     /// <summary>
@@ -414,6 +422,9 @@ public sealed class DocumentEditor
         void Take(EditScope scope)
         {
             if (!scope.Any) return;
+            // Revision drops to zero the moment a second step joins: the saved
+            // pixels for one step describe a transition, and a walk of several
+            // is not that transition. The rebuild is the honest answer here.
             merged = first ? scope
                 : new EditScope(true, merged.FrameId == scope.FrameId ? merged.FrameId : null);
             first = false;
