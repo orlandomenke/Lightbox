@@ -238,12 +238,17 @@ public partial class VideoExportWindow : Window
         var token = _cancel.Token;
         var doc = _doc;
         var target = path!;
+        // Captured on the UI thread for the worker's progress callback to post
+        // through — a static Dispatcher.UIThread read from the export thread
+        // can steal UI-thread ownership between two headless tests (B93; the
+        // long form is on ProjectWatcher._dispatcher).
+        var uiDispatcher = Avalonia.Threading.Dispatcher.UIThread;
         string? error;
         try
         {
             error = await Task.Run(() => VideoExporter.Export(
                 doc, settings, target, audio,
-                (done, total) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                (done, total) => uiDispatcher.Post(() =>
                 {
                     Progress.Value = total <= 0 ? 0 : done / (double)total;
                     StatusText.Text = $"Rendering frame {done} of {total}…";

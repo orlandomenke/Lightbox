@@ -17,7 +17,23 @@ public sealed class IpcServer : IAsyncDisposable
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _acceptLoop;
 
-    public IpcServer(IpcDocumentApi api, string? pipeName = null)
+        /// <summary>
+    /// The UI thread's dispatcher, captured at construction — construction runs
+    /// on the UI thread, and the callbacks below do not (B93).
+    /// </summary>
+    /// <remarks>
+    /// Never the static <c>Dispatcher.UIThread</c> from a callback: between two
+    /// headless tests Avalonia nulls its UI-thread binding, and the getter then
+    /// CREATES a dispatcher owned by whichever thread asked first — so a stray
+    /// callback reading it can steal UI-thread ownership and kill the next
+    /// test's setup inside <c>EnsureIsolatedApplication</c>. That race is B93,
+    /// reproduced on demand for the first time on 2026-08-31, and posting to a
+    /// captured instance is the whole of the fix: a post to a torn-down
+    /// dispatcher is swallowed, a read of the reset static is a poisoning.
+    /// </remarks>
+    private readonly Dispatcher _dispatcher = Dispatcher.UIThread;
+
+public IpcServer(IpcDocumentApi api, string? pipeName = null)
     {
         _api = api;
         _pipeName = pipeName ?? IpcProtocol.PipeName;
@@ -73,7 +89,7 @@ public sealed class IpcServer : IAsyncDisposable
                     {
                         var request = JsonSerializer.Deserialize<IpcProtocol.Request>(line, IpcProtocol.Json)
                                       ?? throw new JsonException("null request");
-                        response = await Dispatcher.UIThread.InvokeAsync(() => _api.Handle(request));
+                        response = await _dispatcher.InvokeAsync(() => _api.Handle(request));
                     }
                     catch (JsonException e)
                     {

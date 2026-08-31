@@ -69,6 +69,22 @@ public sealed class ProjectWatcher : IDisposable
 
     private readonly Action _refresh;
     private readonly DispatcherTimer _debounce;
+
+    /// <summary>
+    /// The UI thread's dispatcher, captured at construction — construction runs
+    /// on the UI thread, and the callbacks below do not (B93).
+    /// </summary>
+    /// <remarks>
+    /// Never the static <c>Dispatcher.UIThread</c> from a callback: between two
+    /// headless tests Avalonia nulls its UI-thread binding, and the getter then
+    /// CREATES a dispatcher owned by whichever thread asked first — so a stray
+    /// callback reading it can steal UI-thread ownership and kill the next
+    /// test's setup inside <c>EnsureIsolatedApplication</c>. That race is B93,
+    /// reproduced on demand for the first time on 2026-08-31, and posting to a
+    /// captured instance is the whole of the fix: a post to a torn-down
+    /// dispatcher is swallowed, a read of the reset static is a poisoning.
+    /// </remarks>
+    private readonly Dispatcher _dispatcher = Dispatcher.UIThread;
     private FileSystemWatcher? _watcher;
     private bool _pending;
 
@@ -155,12 +171,12 @@ public sealed class ProjectWatcher : IDisposable
     /// </remarks>
     public void Notify()
     {
-        if (Dispatcher.UIThread.CheckAccess())
+        if (_dispatcher.CheckAccess())
         {
             Mark();
             return;
         }
-        Dispatcher.UIThread.Post(Mark, DispatcherPriority.Background);
+        _dispatcher.Post(Mark, DispatcherPriority.Background);
     }
 
     private void Mark()

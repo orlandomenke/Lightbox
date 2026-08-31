@@ -90,19 +90,38 @@ public class PsdImportCostTests(Xunit.ITestOutputHelper output)
         // write-up above stops being true.
         var bytes = Fixture(1280, 720, 12);
 
-        var watch = Stopwatch.StartNew();
-        using (var parsed = Lightbox.Import.PsdReader.Read(bytes))
-        {
-            Assert.Equal(12, parsed.Layers.Count);
-        }
-        var parse = watch.ElapsedMilliseconds;
-
-        watch.Restart();
+        // Warm both arms once, unmeasured, and take the minimum of the timed
+        // runs. The claim is about steady state — parse is 1–3% of the work —
+        // and the first parse in the process is not that: it pays the JIT of
+        // the whole reader, which CI measured at 194 ms against the 10–12 ms
+        // every later parse costs (2026-08-31, the B259 shape: the same
+        // assertion had 20x headroom warm and failed cold by less than a
+        // millisecond). Minimum rather than mean for Bench.cs's reason —
+        // contention only ever adds time, so the fastest run is the least
+        // interfered one.
+        using (Lightbox.Import.PsdReader.Read(bytes)) { }
         PsdDocumentImport.Open(bytes, "measured");
-        var whole = watch.ElapsedMilliseconds;
+
+        long parse = long.MaxValue, whole = long.MaxValue;
+        for (var i = 0; i < 3; i++)
+        {
+            var watch = Stopwatch.StartNew();
+            using (var parsed = Lightbox.Import.PsdReader.Read(bytes))
+            {
+                Assert.Equal(12, parsed.Layers.Count);
+            }
+            parse = Math.Min(parse, watch.ElapsedMilliseconds);
+
+            watch.Restart();
+            PsdDocumentImport.Open(bytes, "measured");
+            whole = Math.Min(whole, watch.ElapsedMilliseconds);
+        }
 
         output.WriteLine($"parse {parse}ms of {whole}ms total — baselines are {whole - parse}ms");
-        Assert.True(parse < whole / 2, $"parse {parse}ms was not the smaller half of {whole}ms");
+        // Multiplied rather than divided: `parse < whole / 2` was integer
+        // division, so at 194 against 389 the test failed on 194 < 194 — a
+        // knife edge no ratio assertion should be allowed to sit on.
+        Assert.True(parse * 2 < whole, $"parse {parse}ms was not the smaller half of {whole}ms");
     }
 
     [Fact]

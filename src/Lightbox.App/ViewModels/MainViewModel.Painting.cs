@@ -2885,6 +2885,9 @@ public partial class MainViewModel
         }
 
         var generation = _live.PostGeneration;
+        // Read here, on the UI thread, for Work to post back through — see the
+        // comment at that post.
+        var uiDispatcher = Avalonia.Threading.Dispatcher.UIThread;
         try
         {
             LivePostRunner(Work);
@@ -2933,7 +2936,12 @@ public partial class MainViewModel
             // Input priority, not Background: the finish is a few blits, and a
             // finish starved by continuous pointer input would hold the
             // single-flight flag and stop the next pass from ever starting.
-            Avalonia.Threading.Dispatcher.UIThread.Post(
+            //
+            // The CAPTURED dispatcher, never the static: Work runs off the UI
+            // thread, and a static Dispatcher.UIThread read there can steal
+            // UI-thread ownership between two headless tests (B93 — the long
+            // form is on ProjectWatcher._dispatcher).
+            uiDispatcher.Post(
                 () => FinishLivePostProcess(
                     processed, rect, count, generation, costMs, info, stamp, restoreIfLost,
                     dabsAtPass),

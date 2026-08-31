@@ -106,7 +106,7 @@ public partial class CanvasControl
         // post is still at Input. Only the bookkeeping moves up — a message
         // saying something already true, which is worth nothing late and costs
         // one dispatcher turn per drawn frame to deliver early.
-        Avalonia.Threading.Dispatcher.UIThread.Post(
+        _uiDispatcher.Post(
             () => SnapshotPresented?.Invoke(seq),
             Avalonia.Threading.DispatcherPriority.Default);
     }
@@ -116,8 +116,23 @@ public partial class CanvasControl
     {
         _presentWait.Drew(milliseconds);   // B321: see PresentLatency.Drew.
         if (FrameRendered is null) return;
-        Avalonia.Threading.Dispatcher.UIThread.Post(
+        _uiDispatcher.Post(
             () => FrameRendered?.Invoke(milliseconds),
             Avalonia.Threading.DispatcherPriority.Background);
     }
+
+    /// <summary>
+    /// The UI thread's dispatcher, captured when the control is built — which
+    /// happens on the UI thread, where the two callers above do not run (B93).
+    /// </summary>
+    /// <remarks>
+    /// The render thread reporting a frame time between two headless tests must
+    /// post to the dispatcher this control belongs to, not read the static
+    /// <c>Dispatcher.UIThread</c> — the getter re-creates a dispatcher owned by
+    /// the calling thread while the harness has the binding nulled, which is
+    /// B93's whole mechanism. The long form is on
+    /// <c>ProjectWatcher._dispatcher</c>.
+    /// </remarks>
+    private readonly Avalonia.Threading.Dispatcher _uiDispatcher =
+        Avalonia.Threading.Dispatcher.UIThread;
 }
