@@ -51,6 +51,91 @@ public partial class MainWindow
     /// </remarks>
     private void OnBreakSymbolLink(object? sender, RoutedEventArgs e) => _vm.BreakSelectedLink();
 
+    /// <summary>
+    /// Make one symbol of the layers the docker has picked, or of the active
+    /// link's members.
+    /// </summary>
+    /// <remarks>
+    /// <b>The prompt is conditional on purpose.</b> A head drawn once across
+    /// four layers has the same answer whichever depth is chosen, so it is
+    /// captured without a word; only layers actually holding drawings on other
+    /// frames raise the question, because only then is there a question.
+    /// </remarks>
+    private async void OnMakeSymbolOfLayers(object? sender, RoutedEventArgs e)
+    {
+        var layers = _vm.SelectedLayerCount > 1
+            ? _vm.SelectedLayers
+            : _vm.LayersInActiveLink();
+        if (layers.Count < 2)
+        {
+            _vm.AiStatus = "Pick more than one layer, or link them, to make one symbol of them.";
+            return;
+        }
+
+        var depth = LayerCaptureDepth.ThisDrawing;
+        if (_vm.LayersHoldMoreThanTheDrawingOnShow(layers))
+        {
+            if (await AskLayerCaptureDepthAsync() is not { } chosen) return;
+            depth = chosen;
+        }
+
+        if (await PromptForText("Make symbol", "Name", "Symbol") is not { } name) return;
+        _vm.MakeSymbolFromLayers(name, layers, depth);
+    }
+
+    /// <summary>
+    /// How much of the picked layers to take, or null if the artist backed out.
+    /// </summary>
+    /// <remarks>
+    /// <b>Three outcomes rather than a yes/no</b>, because both answers are
+    /// things an artist means: a twelve-frame character captured whole is one
+    /// animated symbol, and captured at the playhead is one pose of it. Neither
+    /// is the "safe" one, so neither is Cancel — which is why this is not
+    /// <c>ConfirmAsync</c>, whose whole shape is built around a destructive verb
+    /// and a safe default.
+    /// </remarks>
+    private async Task<LayerCaptureDepth?> AskLayerCaptureDepthAsync()
+    {
+        LayerCaptureDepth? chosen = null;
+        var whole = new Button { Content = "Every drawing" };
+        var one = new Button { Content = "Only this one", IsDefault = true };
+        var cancel = new Button { Content = "Cancel", IsCancel = true };
+        var dialog = new Window
+        {
+            Title = "Make symbol",
+            SizeToContent = SizeToContent.WidthAndHeight,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            Content = new StackPanel
+            {
+                Margin = new Thickness(16),
+                Spacing = 12,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = "These layers hold drawings on other frames too.\n\n"
+                            + "Take every drawing on them, or only the one showing now?",
+                        MaxWidth = 380,
+                        TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                    },
+                    new StackPanel
+                    {
+                        Orientation = Avalonia.Layout.Orientation.Horizontal,
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                        Spacing = 8,
+                        Children = { cancel, whole, one },
+                    },
+                },
+            },
+        };
+        whole.Click += (_, _) => { chosen = LayerCaptureDepth.WholeLayers; dialog.Close(); };
+        one.Click += (_, _) => { chosen = LayerCaptureDepth.ThisDrawing; dialog.Close(); };
+        cancel.Click += (_, _) => dialog.Close();
+        await dialog.ShowDialog(this);
+        return chosen;
+    }
+
     private void OnDeleteSymbol(object? sender, RoutedEventArgs e)
     {
         if (_vm.SymbolBrowser.Selected is { } row) _vm.DeleteSymbol(row.Model);

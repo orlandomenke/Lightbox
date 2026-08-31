@@ -3485,6 +3485,10 @@
                               <MenuItem Header="Always export this layer" Click="OnLayerMenuExportAlways"
                                         ToolTip.Tip="Kept in even when background detection would drop it — for the asset whose background is the point: a backdrop, a sky, a tiling floor." />
                             </MenuItem>
+                            <MenuItem Header="Make symbol of these layers…"
+                                      Click="OnMakeSymbolOfLayers"
+                                      ToolTip.Tip="Lines, colour and effects become one thing you can place. Layers the capture empties go with it; layers still holding other drawings stay." />
+                            <Separator />
                             <!-- Linking, under a flyout: the same options the
                                  modifier gestures carry, named, so they are
                                  discoverable rather than folklore. -->
