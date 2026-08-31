@@ -387,6 +387,11 @@ public sealed class ShortcutMap
             // rebound, which is exactly how it stayed invisible.
             new("edit.breakSymbolLink", "Break a placed symbol's link (make it ordinary strokes)", "Edit", null),
 
+            // Flash put this on F8 and every artist arriving from it reaches for
+            // that key. Free here, and the gesture is the same one: what is
+            // selected becomes a symbol, or the whole drawing does if nothing is.
+            new("edit.makeSymbol", "Make a symbol of the selection, or of the drawing", "Edit", G(Key.F8)),
+
             // Everything the board window does (Q87), in its own scope. Here
             // rather than wired straight to the window's key handler, because a
             // command that is not in this map cannot be found, searched or

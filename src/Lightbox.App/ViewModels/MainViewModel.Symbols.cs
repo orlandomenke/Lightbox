@@ -260,6 +260,145 @@ public sealed partial class MainViewModel
     }
 
     /// <summary>
+    /// Make a symbol of the selection if there is one, and of the whole drawing
+    /// if there is not.
+    /// </summary>
+    /// <remarks>
+    /// <b>One gesture rather than two buttons</b>, and the same fall-through
+    /// Copy already uses: <c>CopySelectedLines</c> takes the selection when
+    /// there is one and the whole cel when there is not. An artist who has
+    /// lassoed the sword means the sword; an artist who has selected nothing
+    /// means the drawing. Asking which would be asking a question the selection
+    /// has already answered.
+    /// </remarks>
+    public Symbol? MakeSymbolFromWhatIsChosen(string name, SymbolKind kind = SymbolKind.Prop) =>
+        HasSelection || HasStrokeSelection
+            ? MakeSymbolFromSelection(name, kind)
+            : MakeSymbolFromDrawing(name, kind);
+
+    /// <summary>
+    /// Turn what is selected into a symbol, leaving a placement behind.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The gesture an artist reaches for mid-drawing:</b> the sword is
+    /// already drawn, inside a bigger picture, and it should have been a symbol.
+    /// Lasso it and it is one.
+    /// </para>
+    /// <para>
+    /// <b>No new tool was needed for this</b>, which is worth saying because
+    /// "a symbol selection tool" was the shape the request arrived in. The
+    /// Select tool, the marquee and the lasso already produce the selection,
+    /// and <see cref="SelectedStrokesForAnOperation"/> already resolves it —
+    /// carrying three rules that were expensive to get right: a marquee beats
+    /// picked lines (Q97), strokes are clipped at the boundary, and erasures are
+    /// left out because a copied erasure lands where there is nothing beneath it
+    /// to carve (Q102, B232). Reading it here is what stops this gesture and
+    /// Copy disagreeing about what "selected" means.
+    /// </para>
+    /// <para>
+    /// <b>The clip regions travel with the symbol</b> (Q173). A clipped stroke
+    /// carries a <c>ClipId</c>, and clip regions otherwise belong to the
+    /// document — so a symbol placed somewhere else would resolve them against
+    /// the wrong shapes. <see cref="Symbol.ClipRegions"/> is where they go and
+    /// <c>SymbolRegistry.Register</c> is what makes them resolvable.
+    /// </para>
+    /// <para>
+    /// <b>What is left behind is the existing answer, not a new one.</b> A boxed
+    /// region becomes a <see cref="ToolKind.ClearRegion"/> stroke, so a line
+    /// crossing the edge keeps the part outside it; picked lines are removed
+    /// outright, because picking a line means the line. Deleting the strokes a
+    /// marquee took would make a half-covered line vanish entirely — the
+    /// distinction <c>CutSelectedLines</c> already records.
+    /// </para>
+    /// </remarks>
+    public Symbol? MakeSymbolFromSelection(string name, SymbolKind kind = SymbolKind.Prop)
+    {
+        if (ProjectDocker.Project is not { } project)
+        {
+            AiStatus = "Symbols belong to a project — create one first.";
+            return null;
+        }
+        if (!CanEdit(ActiveLayer, "make a symbol")) return null;
+        if (PaintTargetOrKey() is not Frame source)
+        {
+            AiStatus = "Symbols can only be made on a painted layer.";
+            return null;
+        }
+
+        var boxed = HasSelection;
+        if (SelectedStrokesForAnOperation() is not { Count: > 0 } taken)
+        {
+            AiStatus = "Select some lines, or draw a selection round them, to make a symbol of.";
+            return null;
+        }
+
+        // The symbol owns its strokes: a marquee already handed us copies, but
+        // picked lines are the drawing's own and must not be shared with it.
+        var strokes = taken.Select(t => t.Clone()).ToList();
+
+        var symbol = new Symbol
+        {
+            Name = string.IsNullOrWhiteSpace(name) ? "Symbol" : name.Trim(),
+            Kind = kind,
+            Layers = Symbol.Flat(
+                string.IsNullOrWhiteSpace(name) ? "Symbol" : name.Trim(),
+                [new Frame { Strokes = strokes }]),
+        };
+
+        // Q173: whatever those strokes are clipped by comes with them.
+        var clips = strokes
+            .Select(k => k.ClipId)
+            .OfType<string>()
+            .Distinct()
+            .Select(id => (id, region: ClipRegionRegistry.Resolve(id)))
+            .Where(pair => pair.region is not null)
+            .ToDictionary(pair => pair.id, pair => pair.region!.Clone());
+        if (clips.Count > 0) symbol.ClipRegions = clips;
+
+        var placement = new SymbolPlacement { SymbolId = symbol.Id, SeenVersion = symbol.Version };
+        var frameId = source.Id;
+
+        // What comes out of the drawing, decided before the delta so both arms
+        // agree: a box leaves a carve behind, picked lines leave nothing.
+        var carve = boxed
+            ? StrokeShapedLikeTheSelection(ToolKind.ClearRegion, ColorHex, null, "symbol-from-selection")
+            : null;
+        var removedIds = boxed ? [] : taken.Select(t => t.Id).ToHashSet();
+        var removed = boxed ? [] : source.Strokes.Where(k => removedIds.Contains(k.Id)).ToList();
+
+        project.Symbols[symbol.Id] = symbol;
+        SymbolRegistry.Register(symbol);
+
+        _editor.PerformDelta(
+            apply: doc =>
+            {
+                if (FrameIn(doc, frameId) is not { } frame) return;
+                if (carve is not null) frame.Strokes.Add(carve);
+                else frame.Strokes.RemoveAll(k => removedIds.Contains(k.Id));
+                frame.Placements ??= [];
+                frame.Placements.Add(placement);
+            },
+            revert: doc =>
+            {
+                if (FrameIn(doc, frameId) is not { } frame) return;
+                frame.Placements?.RemoveAll(p => p.Id == placement.Id);
+                if (frame.Placements is { Count: 0 }) frame.Placements = null;
+                if (carve is not null) frame.Strokes.RemoveAll(k => k.Id == carve.Id);
+                else frame.Strokes.AddRange(removed);
+            },
+            affectedFrameId: frameId);
+
+        _selectedPlacementId = placement.Id;
+        DeselectCommand.Execute(null);
+        AfterPlacementChange(frameId);
+        SymbolBrowser.Refresh();
+        AiStatus = $"“{symbol.Name}” is a symbol now — {strokes.Count} "
+            + (strokes.Count == 1 ? "line" : "lines") + " taken out of this drawing.";
+        return symbol;
+    }
+
+    /// <summary>
     /// Where a symbol is placed, across every document in the project.
     /// </summary>
     /// <remarks>

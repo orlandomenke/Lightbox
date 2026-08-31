@@ -75,10 +75,25 @@ projects](02-documents-and-projects.md#everything-a-folder-can-decide).*
 
 ## Making one
 
-Draw something, then **Make symbol** in the panel's footer and give it a name.
-The strokes leave the drawing and a placement of the new symbol takes their
-place. Nothing about the picture changes at that moment — the mark is the same
-mark, in the same position.
+Draw something, then **Make symbol** — in the panel's footer, under **Edit**, or
+on **F8** — and give it a name. The strokes leave the drawing and a placement of
+the new symbol takes their place. Nothing about the picture changes at that
+moment: the mark is the same mark, in the same position.
+
+**It takes what you have selected, or the whole drawing if you have selected
+nothing.** So the usual way to pull a sword out of a picture you are already
+drawing is to lasso it and press F8. There is no separate tool to learn — the
+ordinary Select, marquee and lasso are what it reads.
+
+- **Picked lines** come out whole, because picking a line means the line.
+- **A boxed or lassoed region** takes what is inside it, and a line crossing the
+  edge keeps the part outside — the same thing Delete leaves behind, so the two
+  cannot disagree about what a selection means.
+- **Erasers are left out.** An eraser copied on its own would land where there is
+  nothing beneath it to rub out.
+
+A symbol made this way carries the shape it was clipped by, so it looks the same
+wherever you place it — including in a document it was not drawn in.
 
 ## What a symbol can hold
 

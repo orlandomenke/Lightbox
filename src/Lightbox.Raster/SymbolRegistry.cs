@@ -47,6 +47,15 @@ public static class SymbolRegistry
         Symbols[id] = symbol;
         // It resolves now, so the complaint about it is stale.
         Missing.TryRemove(id, out _);
+        // Q173: a symbol captured from a marquee carries the clip regions its
+        // own strokes reference, because clip regions otherwise come from the
+        // *document* and a symbol is placed into documents it was not made in.
+        // Registered here rather than at render time so there is one moment a
+        // symbol becomes resolvable and everything it needs arrives together.
+        if (symbol.ClipRegions is { Count: > 0 } regions)
+        {
+            ClipRegionRegistry.Register(regions);
+        }
     }
 
     /// <summary>Register under the symbol's own id.</summary>

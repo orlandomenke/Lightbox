@@ -88,6 +88,33 @@ public sealed class Symbol
     /// </remarks>
     public List<Layer> Layers { get; set; } = [];
 
+    /// <summary>
+    /// The clip regions this symbol's own strokes reference, or null.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Q173, and the reason a symbol needs its own.</b> A stroke clipped at
+    /// the edge of a marquee carries a <c>ClipId</c>, and clip regions otherwise
+    /// live in <c>Doc.ClipRegions</c> — reaching the renderer through
+    /// <c>ClipRegionRegistry.Register(Doc.ClipRegions)</c>, which is populated
+    /// from the <em>active document</em>. A symbol does not live in a document:
+    /// it sits in the project and is placed into whatever the artist has open.
+    /// So a symbol carrying clipped strokes and no regions of its own would
+    /// resolve its ids against a different document's shapes — the wrong shape
+    /// or none, depending on what happened to be open.
+    /// </para>
+    /// <para>
+    /// <b>Nullable, and absent from the file until a capture actually clips
+    /// something.</b> The camera's rule, for the umpteenth time: a symbol made
+    /// from a whole layer references no region and writes no key.
+    /// </para>
+    /// </remarks>
+    public Dictionary<string, ClipRegion>? ClipRegions { get; set; }
+
+    /// <summary>Whether this symbol carries clip regions. Derived; never serialized.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasClipRegions => ClipRegions is { Count: > 0 };
+
     /// <summary>Frames per second, only meaningful with more than one frame.</summary>
     public int Fps { get; set; } = 12;
 
@@ -178,6 +205,7 @@ public sealed class Symbol
         var copy = (Symbol)MemberwiseClone();
         copy.Tags = [.. Tags];
         copy.Layers = Layers.Select(l => l.Clone()).ToList();
+        copy.ClipRegions = ClipRegions?.ToDictionary(e => e.Key, e => e.Value.Clone());
         return copy;
     }
 }

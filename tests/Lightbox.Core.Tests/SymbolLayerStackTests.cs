@@ -164,6 +164,77 @@ public class SymbolLayerStackTests
         Assert.DoesNotContain("\"layers\"", json);
     }
 
+    // ---- the clips a capture brings with it (Q173) -------------------------------
+
+    [Fact]
+    public void ASymbolThatClipsNothingWritesNoClipRegionsKey()
+    {
+        // Absent unless used. A symbol made from whole lines references no
+        // region, so a project full of them grows no key.
+        var symbol = new Symbol { Name = "Sword", Layers = Symbol.Flat("Sword", [new Frame()]) };
+
+        Assert.DoesNotContain("\"clipRegions\"", Json(symbol));
+    }
+
+    /// <summary>A symbol carries the clips its strokes name, through a round trip.</summary>
+    /// <remarks>
+    /// Q173: clip regions otherwise live on the document and reach the renderer
+    /// from whichever one is open. A symbol is placed into documents it was not
+    /// made in, so the region has to travel with it or the sword resolves its
+    /// clip against a stranger's shapes.
+    /// </remarks>
+    [Fact]
+    public void ASymbolCarriesTheClipRegionsItsStrokesName()
+    {
+        // Clip regions are content-hashed and keyed by that hash, so the id is
+        // the dictionary key rather than a field on the region.
+        const string clipId = "clip_deadbeef";
+        var region = new ClipRegion
+        {
+            Contours = [[new StrokePoint(0, 0, 1), new StrokePoint(10, 0, 1), new StrokePoint(10, 10, 1)]],
+        };
+        var stroke = Line(0, 0);
+        stroke.ClipId = clipId;
+        var symbol = new Symbol
+        {
+            Name = "Sword",
+            Layers = Symbol.Flat("Sword", [new Frame { Strokes = [stroke] }]),
+            ClipRegions = new Dictionary<string, ClipRegion> { [clipId] = region },
+        };
+
+        var json = Json(symbol);
+        var read = Read(json);
+
+        Assert.Contains("\"clipRegions\"", json);
+        Assert.True(read.HasClipRegions);
+        Assert.True(read.ClipRegions!.ContainsKey(clipId));
+        Assert.Equal(clipId, read.AllFrames.First().Strokes[0].ClipId);
+    }
+
+    [Fact]
+    public void ClipRegionsAreIndependentOfTheLayersOrFramesChoice()
+    {
+        // The two keys answer different questions: one is how the drawings are
+        // arranged, the other is what they are clipped by. A one-layer symbol
+        // that clips something still writes the old shape for its drawings.
+        const string clipId = "clip_cafe";
+        var region = new ClipRegion { Contours = [[new StrokePoint(0, 0, 1)]] };
+        var stroke = Line(0, 0);
+        stroke.ClipId = clipId;
+        var symbol = new Symbol
+        {
+            Name = "Sword",
+            Layers = Symbol.Flat("Sword", [new Frame { Strokes = [stroke] }]),
+            ClipRegions = new Dictionary<string, ClipRegion> { [clipId] = region },
+        };
+
+        var json = Json(symbol);
+
+        Assert.Contains("\"frames\"", json);
+        Assert.DoesNotContain("\"layers\"", json);
+        Assert.Contains("\"clipRegions\"", json);
+    }
+
     [Fact]
     public void ALayerCarryingIntentIsWrittenAsAStackEvenAloneable()
     {

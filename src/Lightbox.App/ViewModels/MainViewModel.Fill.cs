@@ -139,13 +139,20 @@ public partial class MainViewModel
     /// Backspace means "the background as it is now" rather than "follow this
     /// swatch forever".
     /// </param>
-    private void StrokeOverWholeSelection(
+    /// <summary>
+    /// A stroke whose outline is the selection, ready to be performed — or
+    /// null when nothing is selected.
+    /// </summary>
+    /// <remarks>
+    /// Split out of <see cref="StrokeOverWholeSelection"/> so a capture can
+    /// build the same carve without performing it as its own undo step
+    /// (Q173). One construction, so the shape a Delete leaves behind and the
+    /// shape *Make symbol* leaves behind cannot drift apart.
+    /// </remarks>
+    private Stroke? StrokeShapedLikeTheSelection(
         ToolKind tool, string color, string? swatchId, string label)
     {
-        if (_selectionContours.Count == 0) return;
-        if (PaintTargetOrKey() is not { } target) return;
-        var scene = Scene;
-
+        if (_selectionContours.Count == 0) return null;
         var stroke = new Stroke
         {
             Tool = tool,
@@ -160,6 +167,17 @@ public partial class MainViewModel
             Label = label,
         };
         if (PrepareClipForSelection() is { } clip) stroke.ClipId = clip.Id;
+        return stroke;
+    }
+
+    private void StrokeOverWholeSelection(
+        ToolKind tool, string color, string? swatchId, string label)
+    {
+        if (_selectionContours.Count == 0) return;
+        if (PaintTargetOrKey() is not { } target) return;
+        var scene = Scene;
+
+        if (StrokeShapedLikeTheSelection(tool, color, swatchId, label) is not { } stroke) return;
 
         // B236, the area form: clearing a selection that held nothing is the
         // same act as rubbing out blank canvas, so it is recorded the same way
