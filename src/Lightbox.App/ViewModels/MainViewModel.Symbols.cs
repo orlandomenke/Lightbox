@@ -8,6 +8,21 @@ using SkiaSharp;
 
 namespace Lightbox.App.ViewModels;
 
+/// <summary>How much of a captured layer goes into the symbol.</summary>
+/// <remarks>
+/// Asked only when it would differ — a layer holding one drawing has the same
+/// answer either way, and a dialog in front of a gesture an artist uses often is
+/// a tax nobody agreed to. See <c>MakeSymbolFromLayers</c>.
+/// </remarks>
+public enum LayerCaptureDepth
+{
+    /// <summary>The drawing showing at the playhead, and nothing else.</summary>
+    ThisDrawing,
+
+    /// <summary>Every drawing on the layer, all the way along.</summary>
+    WholeLayers,
+}
+
 /// <summary>User's choice when placing a multi-frame symbol.</summary>
 public enum FrameImportChoice
 {
@@ -256,6 +271,154 @@ public sealed partial class MainViewModel
         AfterPlacementChange(frameId);
         SymbolBrowser.Refresh();
         AiStatus = $"“{symbol.Name}” is a symbol now. Editing it updates every placement of it.";
+        return symbol;
+    }
+
+    /// <summary>
+    /// Whether these layers hold anything beyond the drawing on show.
+    /// </summary>
+    /// <remarks>
+    /// What decides whether a capture has to ask. A head drawn once across four
+    /// layers has the same answer either way and is captured without a word; a
+    /// twelve-frame character does not, and the artist is the only one who knows
+    /// which they meant.
+    /// </remarks>
+    public bool LayersHoldMoreThanTheDrawingOnShow(IReadOnlyList<Layer> layers)
+    {
+        foreach (var layer in layers)
+        {
+            var showing = ExposureSheet.ExposedFrame(layer, CurrentFrameIndex);
+            if (layer.Cels.Select(c => c.Frame).OfType<Frame>().Any(f => !ReferenceEquals(f, showing)))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Turn several layers into one symbol, leaving a placement where they were.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The gesture the whole of Q171 was for:</b> a head is a lines layer, a
+    /// colour layer and two effect layers, and it should be one thing you can
+    /// place. The layers arrive bottom-first and stay that way inside the
+    /// symbol, because order is the whole meaning of a stack.
+    /// </para>
+    /// <para>
+    /// <b>What is left behind depends on what is left</b>, which is the owner's
+    /// rule and a better one than either option offered: a layer the capture
+    /// empties has nothing more to say and goes; a layer still holding drawings
+    /// on other frames keeps them and loses only what was taken. The lowest
+    /// selected layer always survives, because the placement has to live
+    /// somewhere and where the stack was is where it belongs.
+    /// </para>
+    /// </remarks>
+    public Symbol? MakeSymbolFromLayers(
+        string name, IReadOnlyList<Layer> layers, LayerCaptureDepth depth,
+        SymbolKind kind = SymbolKind.Prop)
+    {
+        if (ProjectDocker.Project is not { } project)
+        {
+            AiStatus = "Symbols belong to a project — create one first.";
+            return null;
+        }
+        if (layers.Count == 0) return null;
+        foreach (var layer in layers)
+        {
+            if (!CanEdit(layer, "make a symbol")) return null;
+        }
+
+        var index = CurrentFrameIndex;
+        var trimmed = string.IsNullOrWhiteSpace(name) ? "Symbol" : name.Trim();
+
+        // What the symbol gets: the layers whole, or one cel each.
+        var captured = new List<Layer>(layers.Count);
+        foreach (var layer in layers)
+        {
+            if (depth == LayerCaptureDepth.WholeLayers)
+            {
+                captured.Add(layer.Clone());
+                continue;
+            }
+            if (ExposureSheet.ExposedFrame(layer, index) is not { } showing) continue;
+            var one = layer.Clone();
+            one.Cels = [new Cel { Frame = showing.Clone() }];
+            captured.Add(one);
+        }
+        if (captured.Count == 0 || !captured.Any(l => l.Cels.Any(c => c.Frame is not null)))
+        {
+            AiStatus = "There is nothing on those layers to make a symbol from.";
+            return null;
+        }
+
+        var symbol = new Symbol { Name = trimmed, Kind = kind, Layers = captured };
+        // Q173: whatever those strokes are clipped by travels with them.
+        var clips = symbol.AllFrames
+            .SelectMany(f => f.Strokes)
+            .Select(k => k.ClipId)
+            .OfType<string>()
+            .Distinct()
+            .Select(id => (id, region: ClipRegionRegistry.Resolve(id)))
+            .Where(pair => pair.region is not null)
+            .ToDictionary(pair => pair.id, pair => pair.region!.Clone());
+        if (clips.Count > 0) symbol.ClipRegions = clips;
+
+        var host = layers[0];
+        var takenIds = layers.Select(l => l.Id).ToList();
+        var placement = new SymbolPlacement { SymbolId = symbol.Id, SeenVersion = symbol.Version };
+
+        project.Symbols[symbol.Id] = symbol;
+        SymbolRegistry.Register(symbol);
+
+        string? hostFrameId = null;
+        _editor.Perform(doc =>
+        {
+            foreach (var id in takenIds)
+            {
+                if (doc.Scene.Layers.FirstOrDefault(l => l.Id == id) is not { } live) continue;
+
+                if (depth == LayerCaptureDepth.WholeLayers)
+                {
+                    live.Cels.Clear();
+                }
+                else if (ExposureSheet.ExposedFrame(live, index) is { } showing)
+                {
+                    foreach (var cel in live.Cels)
+                    {
+                        if (ReferenceEquals(cel.Frame, showing)) cel.Frame = null;
+                    }
+                }
+            }
+
+            // The lowest stays to hold the placement — where the stack was is
+            // where the thing that replaced it belongs.
+            if (doc.Scene.Layers.FirstOrDefault(l => l.Id == host.Id) is not { } keep) return;
+            if (keep.Cels.Count == 0) keep.Cels.Add(new Cel());
+            keep.Cels[0].Frame ??= new Frame();
+            var target = keep.Cels[0].Frame!;
+            target.Placements ??= [];
+            target.Placements.Add(placement);
+            hostFrameId = target.Id;
+
+            // And any other captured layer with nothing left to say goes.
+            doc.Scene.Layers.RemoveAll(l =>
+                l.Id != host.Id
+                && takenIds.Contains(l.Id)
+                && !l.Cels.Any(c => c.Frame is not null));
+        });
+
+        var at = Scene.Layers.FindIndex(l => l.Id == host.Id);
+        if (at >= 0) ActiveLayerIndex = at;
+        _selectedPlacementId = placement.Id;
+        if (hostFrameId is { } landed) AfterPlacementChange(landed);
+        SymbolBrowser.Refresh();
+        var gone = takenIds.Count - Scene.Layers.Count(l => takenIds.Contains(l.Id));
+        var tail = gone > 0
+            ? " — " + gone + " emptied " + (gone == 1 ? "layer" : "layers") + " went with them."
+            : ".";
+        AiStatus = "\u201c" + symbol.Name + "\u201d is a symbol of " + captured.Count + " layers" + tail;
         return symbol;
     }
 

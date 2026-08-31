@@ -119,9 +119,22 @@ Four things a symbol layer deliberately cannot do, because none of them mean
 anything inside one: **follow a bone**, **run a simulation**, sit in a document's
 layer folder or link, or be marked as background or out-of-export.
 
-> **Planned.** *Make symbol* from several layers at once — from a link in the
-> Layers docker, or a multi-selection — is decided and not yet built. Until it
-> is, make the symbol from one layer, open it, and add the others there.
+### Several layers at once
+
+Pick the layers in the Layers docker, or link them, then right-click a layer and
+choose **Make symbol of these layers…**. Lines, colour, shading and effects
+become one thing you can place, in the order they were stacked.
+
+**What is left behind depends on what is left.** A layer the capture empties has
+nothing more to say and goes with it; a layer still holding drawings on other
+frames keeps them and loses only what was taken. The lowest layer always stays,
+because the placement has to live somewhere and where the stack was is where it
+belongs.
+
+If the layers hold drawings on other frames you are asked once whether to take
+**every drawing** — which makes an animated symbol — or **only the one showing**
+— which makes a still one. Layers holding a single drawing each are captured
+without a word, because both answers would give the same symbol.
 
 ## Placing, moving, and letting go
 
