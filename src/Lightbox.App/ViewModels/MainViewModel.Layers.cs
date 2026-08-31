@@ -1226,21 +1226,6 @@ public partial class MainViewModel
     /// </remarks>
     private void AddLayer(LayerKind kind)
     {
-        // A symbol holds one layer's drawing (Q171), so there is nowhere in the
-        // record for a second one to go — and until this guard existed the sync
-        // folded it into the frame list, turning a colour layer into frame 2 of
-        // the animation for every placement in the project.
-        //
-        // Refused rather than allowed-and-dropped: the artist finds out now,
-        // while the drawing they were about to make is still hypothetical,
-        // instead of at the reload that has already lost it.
-        if (ActiveTab is { Kind: DocumentTabKind.Symbol })
-        {
-            AiStatus = "A symbol holds one layer. Draw on the layer that is here, "
-                + "or make the parts separate symbols and place them together.";
-            return;
-        }
-
         _editor.Perform(doc =>
         {
             var layer = new Layer
