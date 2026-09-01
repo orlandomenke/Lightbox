@@ -2749,7 +2749,7 @@ internal static class RenderReport
         sb.AppendLine(
             $"live tip stamped at       {(Rendering.LiveTipScale.PreviewScale ? "preview resolution" : "document resolution")}"
             + $"   ({Rendering.LiveTipScale.Variable}"
-            + $"{(Rendering.LiveTipScale.PreviewScale ? "=preview" : " unset — the default")})");
+            + $"{(Rendering.LiveTipScale.PreviewScale ? " unset — the default since Q170" : "=document")})");
         // The same launch-time fact for the OTHER buffer that follows the
         // compose scale (B189). Default on, which is the opposite of the tip's
         // default, so the line says which rather than leaving it to be inferred
