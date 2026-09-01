@@ -603,15 +603,17 @@ missing until you slow down or lift off.
 
 Lightbox draws those newest dabs plainly in the gap so there is ink under the
 nib, and it will skip doing so when catching up would cost more than it is
-worth — which is exactly when a stroke is fast. `LIGHTBOX_TIP_SCALE=preview`
-starts Lightbox with that ink drawn at the size it is being **shown** rather
-than at the full size of the drawing, which measures about four times cheaper
-and so gets skipped far less often. The cost is that the newest dabs are
-slightly coarser than the finished mark behind them, for the fraction of a
-second before the effect catches up and replaces them.
+worth — which is exactly when a stroke is fast. That ink is drawn at the size
+it is being **shown** rather than at the full size of the drawing, which
+measures about four times cheaper and so gets skipped far less often. The cost
+is that the newest dabs are slightly coarser than the finished mark behind
+them, for the fraction of a second before the effect catches up and replaces
+them — compared side by side on a fast stroke, the two were indistinguishable,
+which is why this is the default.
 
-It is off unless you set it, and it does nothing at all when you are zoomed in
-to 100%, where the two sizes are the same. **Help → Write a render report** names
+Start Lightbox with `LIGHTBOX_TIP_SCALE=document` to draw that ink at full size
+instead. Neither setting does anything at all when you are zoomed in to 100%,
+where the two sizes are the same. **Help → Write a render report** names
 which of the two ran, near the top of the `live tip` block, along with how often
 the ink under the nib was drawn and how often it was skipped — so running the
 same build twice, once each way, is a real comparison rather than an impression.

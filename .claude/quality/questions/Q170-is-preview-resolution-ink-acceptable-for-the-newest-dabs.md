@@ -1,4 +1,4 @@
-# Q170 · Is preview-resolution ink acceptable for the newest dabs
+# Q170 · Is preview-resolution ink acceptable for the newest dabs — **answered 2026-09-02: yes, and it is the default**
 
 Raised by: B322's seventh attempt, 2026-08-27, after Q169 ruled out rationing
 the dabs.
@@ -48,3 +48,18 @@ until the owner has drawn the same fast stroke each way.
 This is the right call for a question about how a mark looks: no assertion in
 the suite answers it, five measured improvements on this entry changed nothing
 the artist could feel, and the ones that did were found in their captures.
+
+## Decided 2026-09-02: preview is the default
+
+Both arms were drawn on the owner's machine on 2026-08-27 (B322's captures of
+22:52–22:59): refusals roughly halved, the stamp 3.4x cheaper, and the owner's
+verdict was *"I wasn't able to feel or see any discernible difference between
+A & B."* Asked again on 2026-09-02, with the standard stated as *nothing less
+than Photoshop, Krita and Clip Studio responsiveness*: **make it the default.**
+
+So the variable inverts rather than disappears — `LIGHTBOX_TIP_SCALE=document`
+(or `full`, or `0`) pins the old arm, `preview` still names the new one so an
+old capture recipe keeps meaning what it meant, and unset is preview. The render
+report names which ran either way. At 100% zoom the two arms are the same
+pixels, so the decision costs nothing there and buys headroom everywhere else —
+headroom rather than a fix, which B322's entry is careful to say.

@@ -154,11 +154,17 @@ public class LiveTipPreviewScaleTests(ITestOutputHelper output)
     /// for is between two changed things.
     /// </summary>
     [Fact]
-    public void TheDefaultIsDocumentResolution()
+    public void TheDefaultIsPreviewResolutionAndDocumentIsTheOptOut()
     {
+        // Q170, decided 2026-09-02 on the owner's own captures: the cheaper arm
+        // is the default. The opt-out still pins document resolution at every
+        // compose scale, and the report names each arm for what it is.
+        Assert.True(LiveTipScale.PreviewScale);
+        Assert.Equal(0.375, LiveTipScale.For(0.375, previewScale: true));
         Assert.Equal(1.0, LiveTipScale.For(0.375, previewScale: false));
         Assert.Equal(1.0, LiveTipScale.For(1.0, previewScale: false));
         Assert.Contains("document resolution", LiveTipScale.Describe(1.0));
+        Assert.Contains("the default", LiveTipScale.Describe(0.375));
     }
 
     /// <summary>

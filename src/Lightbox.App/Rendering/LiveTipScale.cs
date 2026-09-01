@@ -31,13 +31,16 @@ namespace Lightbox.App.Rendering;
 /// on it for the same reason.
 /// </para>
 /// <para>
-/// <b>Why it is a flag rather than the default.</b> The tip's dabs land
+/// <b>Why it is the default now, and was a flag first.</b> The tip's dabs land
 /// rasterised at preview resolution beside a processed body rasterised at
 /// document resolution, until the pass catches up and replaces them. Whether
 /// that seam is acceptable is a question about how a mark looks, which is the
 /// owner's to answer and not a thing to measure — asked 2026-08-27, answered
-/// <em>show me both</em>. So both arms ship in one build and the report names
-/// which one ran.
+/// <em>show me both</em>, so both arms shipped in one build with the report
+/// naming which ran. The owner drew the same fast stroke each way (Q170):
+/// refusals halved, the stamp 3.4x cheaper, and <em>"I wasn't able to feel or
+/// see any discernible difference."</em> Decided 2026-09-02: preview is the
+/// default, and <c>LIGHTBOX_TIP_SCALE=document</c> is the way back.
 /// </para>
 /// <para>
 /// <b>The saving is view-dependent and the report says so.</b> At fit-to-window
@@ -52,18 +55,27 @@ internal static class LiveTipScale
     /// <summary>The environment variable that switches the arms.</summary>
     internal const string Variable = "LIGHTBOX_TIP_SCALE";
 
-    /// <summary>Whether the preview-scale arm is switched on for this run.</summary>
+    /// <summary>Whether the preview-scale arm is on for this run — it is unless opted out.</summary>
     /// <remarks>
     /// Read once. A capture is a whole session and an arm that could change
-    /// mid-run would produce a report describing neither.
+    /// mid-run would produce a report describing neither. Opt-out rather than
+    /// opt-in since Q170's decision; <c>document</c>, <c>full</c> or <c>0</c>
+    /// pin the old arm, and <c>preview</c> or <c>1</c> still name the new one
+    /// so an old capture recipe keeps meaning what it meant.
     /// </remarks>
     internal static readonly bool PreviewScale = Read();
 
     private static bool Read()
     {
         var value = Environment.GetEnvironmentVariable(Variable);
-        return value is not null
-            && (value.Equals("preview", StringComparison.OrdinalIgnoreCase) || value == "1");
+        if (value is null) return true;
+        if (value.Equals("document", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("full", StringComparison.OrdinalIgnoreCase)
+            || value == "0")
+        {
+            return false;
+        }
+        return true;
     }
 
     /// <summary>
@@ -109,6 +121,6 @@ internal static class LiveTipScale
     /// <summary>How the render report names the arm that ran.</summary>
     internal static string Describe(double tipScale) =>
         tipScale >= 1.0
-            ? $"document resolution (the default; set {Variable}=preview for the other arm)"
-            : $"preview resolution, scale {tipScale:0.###} ({Variable}=preview)";
+            ? $"document resolution ({Variable}=document, or composing at 1:1 where the arms are the same)"
+            : $"preview resolution, scale {tipScale:0.###} (the default; set {Variable}=document for the other arm)";
 }
