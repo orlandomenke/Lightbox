@@ -59,3 +59,8 @@ artifacts/
 /ab/
 /run/
 /run*/
+
+# Per-run TRX logs, written by `dotnet test --logger trx` so that
+# scripts/testcount.py can compare what a run reported against what discovery
+# finds (B269). One timestamped file per run, never a source of anything.
+tests/*/TestResults/
