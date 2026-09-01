@@ -14,6 +14,31 @@ namespace Lightbox.App.Services;
 /// </summary>
 public sealed class IpcDocumentApi(MainViewModel vm)
 {
+    /// <summary>
+    /// The view model, held weakly — B281. The server's accept loop parks a
+    /// native pipe read whose overlapped I/O is a strong GC handle, so it
+    /// outlives everything managed, including the per-test application it was
+    /// born in: a strong reference here therefore pinned the view model, the
+    /// window that owned it and the window's whole visual tree for the life of
+    /// the process, once per UI test. The dump that found it shows the chain
+    /// verbatim: ThreadPoolBoundHandleOverlapped → AcceptLoopAsync →
+    /// IpcServer → IpcDocumentApi → MainViewModel → MainWindow. Pending I/O
+    /// may pin the server, which is bytes; it must not pin the application.
+    /// In the running app the window disposes the server on close and the
+    /// view model outlives it anyway, so nothing observable changes there.
+    /// </summary>
+    private readonly WeakReference<MainViewModel> _vm = new(vm);
+
+    /// <summary>
+    /// The live view model, or an <see cref="InvalidOperationException"/> the
+    /// dispatcher maps to a failure response — which is what a client that
+    /// outlived the window it was talking to should hear.
+    /// </summary>
+    private MainViewModel Vm =>
+        _vm.TryGetTarget(out var target)
+            ? target
+            : throw new InvalidOperationException("The document this server belonged to is gone.");
+
     public IpcProtocol.Response Handle(IpcProtocol.Request request)
     {
         try
@@ -46,12 +71,12 @@ public sealed class IpcDocumentApi(MainViewModel vm)
         ?? throw new ArgumentException($"Op \"{request.Op}\" needs a payload.");
 
     private SceneInfo SceneInfo() =>
-        new(vm.Doc.Scene.Width, vm.Doc.Scene.Height, vm.Doc.Scene.Fps);
+        new(Vm.Doc.Scene.Width, Vm.Doc.Scene.Height, Vm.Doc.Scene.Fps);
 
     private Layer ResolveLayer(string? layerId)
     {
-        var layers = vm.Doc.Scene.Layers;
-        if (layerId is null) return vm.ActiveLayerForIpc;
+        var layers = Vm.Doc.Scene.Layers;
+        if (layerId is null) return Vm.ActiveLayerForIpc;
         return layers.FirstOrDefault(l => l.Id == layerId)
                ?? throw new ArgumentException($"No layer with id \"{layerId}\".");
     }
@@ -84,7 +109,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
     /// </remarks>
     private IpcProtocol.Response GetScene()
     {
-        var s = vm.Doc.Scene;
+        var s = Vm.Doc.Scene;
         return IpcProtocol.Response.Success(new
         {
             AppBuild = DiagnosticLog.Build,
@@ -92,7 +117,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
             s.Height,
             s.Fps,
             s.FrameCount,
-            CurrentFrame = vm.CurrentFrameIndex,
+            CurrentFrame = Vm.CurrentFrameIndex,
             Layers = s.Layers.Select(l => new
             {
                 l.Id,
@@ -140,11 +165,11 @@ public sealed class IpcDocumentApi(MainViewModel vm)
     private IpcProtocol.Response ImportCharacter(IpcProtocol.Request request)
     {
         var p = Payload<ImportCharacterRef>(request);
-        if (vm.ProjectDocker.Project is not { } project)
+        if (Vm.ProjectDocker.Project is not { } project)
             return IpcProtocol.Response.Fail("No project is open — an import needs somewhere to land.");
         var roots = p.Library is { Length: > 0 } one
             ? [one]
-            : (IReadOnlyList<string>)vm.Settings.Library.Roots;
+            : (IReadOnlyList<string>)Vm.Settings.Library.Roots;
         if (roots.Count == 0)
         {
             return IpcProtocol.Response.Fail(
@@ -182,7 +207,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                 + "you mean as \"library\".");
         }
         var result = Core.Projects.CharacterLibrary.Import(matches[0], project, p.ReplaceEdited);
-        vm.AfterLibraryImport(result);
+        Vm.AfterLibraryImport(result);
         return IpcProtocol.Response.Success(new
         {
             Folder = result.Folder.Name,
@@ -214,9 +239,9 @@ public sealed class IpcDocumentApi(MainViewModel vm)
     private IpcProtocol.Response RenderFrame(IpcProtocol.Request request)
     {
         var p = Payload<FrameRef>(request);
-        if (p.FrameIndex < 0 || p.FrameIndex >= vm.Doc.Scene.FrameCount)
-            return IpcProtocol.Response.Fail($"frameIndex must be 0..{vm.Doc.Scene.FrameCount - 1}.");
-        return IpcProtocol.Response.Success(new { PngBase64 = vm.RenderFramePng(p.FrameIndex) });
+        if (p.FrameIndex < 0 || p.FrameIndex >= Vm.Doc.Scene.FrameCount)
+            return IpcProtocol.Response.Fail($"frameIndex must be 0..{Vm.Doc.Scene.FrameCount - 1}.");
+        return IpcProtocol.Response.Success(new { PngBase64 = Vm.RenderFramePng(p.FrameIndex) });
     }
 
     private sealed class InsertPayload
@@ -243,7 +268,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
         if (frames.Count == 0)
             return IpcProtocol.Response.Fail("No usable inbetween frames in the payload (each needs 0<t<1 and at least one valid stroke).");
 
-        var inserted = vm.InsertExternalInbetweens(layer.Id, p.AIndex, frames.Select(f => f.Strokes).ToList());
+        var inserted = Vm.InsertExternalInbetweens(layer.Id, p.AIndex, frames.Select(f => f.Strokes).ToList());
         return IpcProtocol.Response.Success(new { Inserted = inserted });
     }
 
@@ -291,7 +316,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
             return IpcProtocol.Response.Fail(
                 $"Unknown role \"{p.Role}\" — use key, breakdown or inbetween.");
 
-        var outcome = vm.SetExternalKey(layer.Id, p.FrameIndex, role);
+        var outcome = Vm.SetExternalKey(layer.Id, p.FrameIndex, role);
         if (outcome == ExternalKeyOutcome.Refused)
             return IpcProtocol.Response.Fail($"Layer \"{layer.Name}\" cannot be edited.");
 
@@ -303,7 +328,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
             // Which of the two things happened, because they are different
             // edits with the same op and an agent cannot see the timeline.
             Created = outcome == ExternalKeyOutcome.Created,
-            FrameCount = vm.Doc.Scene.FrameCount,
+            FrameCount = Vm.Doc.Scene.FrameCount,
         });
     }
 
@@ -315,13 +340,13 @@ public sealed class IpcDocumentApi(MainViewModel vm)
         if (ExposureSheet.KeyIndexAtOrBefore(layer, p.FrameIndex) < 0)
             return IpcProtocol.Response.Fail(
                 $"No drawing at or before frame {p.FrameIndex} on layer \"{layer.Name}\" to hold.");
-        if (!vm.ExtendExternalExposure(layer.Id, p.FrameIndex))
+        if (!Vm.ExtendExternalExposure(layer.Id, p.FrameIndex))
             return IpcProtocol.Response.Fail($"Layer \"{layer.Name}\" cannot be edited.");
         return IpcProtocol.Response.Success(new
         {
             p.FrameIndex,
             LayerId = layer.Id,
-            FrameCount = vm.Doc.Scene.FrameCount,
+            FrameCount = Vm.Doc.Scene.FrameCount,
         });
     }
 
@@ -340,13 +365,13 @@ public sealed class IpcDocumentApi(MainViewModel vm)
             return IpcProtocol.Response.Fail(
                 $"Frame {p.FrameIndex} on layer \"{layer.Name}\" is not held — "
                 + "there is no hold after it to remove.");
-        if (!vm.ReduceExternalExposure(layer.Id, p.FrameIndex))
+        if (!Vm.ReduceExternalExposure(layer.Id, p.FrameIndex))
             return IpcProtocol.Response.Fail($"Layer \"{layer.Name}\" cannot be edited.");
         return IpcProtocol.Response.Success(new
         {
             p.FrameIndex,
             LayerId = layer.Id,
-            FrameCount = vm.Doc.Scene.FrameCount,
+            FrameCount = Vm.Doc.Scene.FrameCount,
         });
     }
 
@@ -357,7 +382,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
         if (p.Step < 1) return IpcProtocol.Response.Fail("step must be 1 or greater.");
         if (p.From < 0 || p.To < 0) return IpcProtocol.Response.Fail("from and to must be 0 or greater.");
 
-        var grew = vm.RetimeExternalExposure(layer.Id, p.From, p.To, p.Step);
+        var grew = Vm.RetimeExternalExposure(layer.Id, p.From, p.To, p.Step);
         if (grew < 0) return IpcProtocol.Response.Fail($"Layer \"{layer.Name}\" cannot be edited.");
         return IpcProtocol.Response.Success(new
         {
@@ -366,7 +391,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
             p.Step,
             LayerId = layer.Id,
             Grew = grew,
-            FrameCount = vm.Doc.Scene.FrameCount,
+            FrameCount = Vm.Doc.Scene.FrameCount,
         });
     }
 
@@ -377,7 +402,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
         // document, the same set the docker and the AI payload use.
         return IpcProtocol.Response.Success(new
         {
-            Sheets = vm.ReferenceSheetsView.Select(s => new
+            Sheets = Vm.ReferenceSheetsView.Select(s => new
             {
                 s.Id,
                 s.Name,
@@ -394,9 +419,9 @@ public sealed class IpcDocumentApi(MainViewModel vm)
     private IpcProtocol.Response RenderReferenceView(IpcProtocol.Request request)
     {
         var p = Payload<ViewRef>(request);
-        var view = vm.ReferenceSheetsView.SelectMany(s => s.Views).FirstOrDefault(v => v.Id == p.ViewId)
+        var view = Vm.ReferenceSheetsView.SelectMany(s => s.Views).FirstOrDefault(v => v.Id == p.ViewId)
                    ?? throw new ArgumentException($"No reference view with id \"{p.ViewId}\".");
-        return IpcProtocol.Response.Success(new { PngBase64 = vm.RenderReferenceViewPng(view) });
+        return IpcProtocol.Response.Success(new { PngBase64 = Vm.RenderReferenceViewPng(view) });
     }
 
     private IpcProtocol.Response DrawStrokes(IpcProtocol.Request request)
@@ -406,7 +431,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
         var strokes = StrokeWire.FromWire(p.Strokes, SceneInfo());
         if (strokes.Count == 0)
             return IpcProtocol.Response.Fail("No usable strokes in the payload.");
-        var added = vm.AppendExternalStrokes(layer.Id, p.FrameIndex, strokes);
+        var added = Vm.AppendExternalStrokes(layer.Id, p.FrameIndex, strokes);
         return added == 0
             ? IpcProtocol.Response.Fail("No drawing at or before that frame on this layer.")
             : IpcProtocol.Response.Success(new { Added = added });

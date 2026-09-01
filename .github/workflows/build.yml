@@ -156,7 +156,16 @@ jobs:
       # `--logger trx` writes each assembly's per-test record into its own
       # TestResults directory — the input the count guard below reads. Console
       # output is unchanged; the trx rides alongside it.
+      # B281: the App suite once grew a 14.4 GB heap of leaked per-test object
+      # graphs and OOM-killed 16 GB runners from below — the "canceled with no
+      # output" wedge. The leaks are fixed and guarded (ViewModelRetentionTests),
+      # and this cap is the backstop: the fixed suite runs green and FASTER
+      # under 4 GB, so 6 GB is pure headroom — and a future regression then dies
+      # in-process as a named OutOfMemoryException the count guard reds, instead
+      # of taking the runner down with nothing in the log.
       - run: dotnet test Lightbox.sln -c Release --logger trx
+        env:
+          DOTNET_GCHeapHardLimit: "0x180000000"
       # B269/B281: a full-solution run has been seen executing hundreds fewer
       # App tests than exist and still printing `Passed!` with exit 0 — and a
       # killed host prints `Passed!` too, one line after `Catastrophic

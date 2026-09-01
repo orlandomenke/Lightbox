@@ -92,7 +92,25 @@ public sealed class ProjectWatcher : IDisposable
     {
         _refresh = refresh;
         _debounce = new DispatcherTimer { Interval = debounce ?? DefaultDebounce };
-        _debounce.Tick += (_, _) => Flush();
+        // The tick holds this watcher WEAKLY, and that is B281's whole fix.
+        // A running DispatcherTimer is rooted by the dispatcher, so a tick
+        // closure that captured `this` kept the service - and through
+        // the refresh delegate, the docker and its view model - reachable for the life of the
+        // dispatcher. In the app that is one instance and harmless; in the
+        // test suite it was every MainViewModel ever constructed, ~2 MB each,
+        // ~8 GB of gen2 heap across a 4,200-test run, which is what was
+        // OOM-killing 16 GB CI runners (the B269 wedge) and this entry's own
+        // local exit-137 kills. Proven by A/B: 15/15 dropped view models
+        // survived a full GC with the strong tick, 1/15 with the timer
+        // stopped. When the owner is collected the tick stops the timer, so
+        // the dispatcher is left rooting only the timer object itself.
+        var weakSelf = new WeakReference<ProjectWatcher>(this);
+        var timer = _debounce;
+        _debounce.Tick += (_, _) =>
+        {
+            if (weakSelf.TryGetTarget(out var self)) self.Flush();
+            else timer.Stop();
+        };
     }
 
     /// <summary>The folder being watched, or null when nothing is.</summary>
@@ -133,14 +151,32 @@ public sealed class ProjectWatcher : IDisposable
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName
                     | NotifyFilters.LastWrite | NotifyFilters.Size,
             };
-            _watcher.Created += OnChanged;
-            _watcher.Deleted += OnChanged;
-            _watcher.Renamed += OnChanged;
-            _watcher.Changed += OnChanged;
+            // Weak wrappers rather than instance handlers (B281): the
+            // watcher's pending native I/O is a strong GC root, so an instance
+            // handler here would pin this watcher — and through `_refresh`,
+            // the docker and its whole view model — for the life of the
+            // process once the owner is abandoned unclosed, which is what
+            // every test that opens a project does. When the watcher is gone
+            // the wrapper switches the events off, which releases the native
+            // root itself.
+            var weakSelf = new WeakReference<ProjectWatcher>(this);
+            FileSystemEventHandler onChanged = (sender, e) =>
+            {
+                if (weakSelf.TryGetTarget(out var self)) self.Notify();
+                else if (sender is FileSystemWatcher fsw) fsw.EnableRaisingEvents = false;
+            };
+            _watcher.Created += onChanged;
+            _watcher.Deleted += onChanged;
+            _watcher.Renamed += (sender, e) => onChanged(sender, e);
+            _watcher.Changed += onChanged;
             // An overflow means events were dropped, so what is shown cannot be
             // trusted at all — which is the one case where a re-read is not
             // optional. Treated as a notification rather than as an error.
-            _watcher.Error += OnError;
+            _watcher.Error += (sender, e) =>
+            {
+                if (weakSelf.TryGetTarget(out var self)) self.Notify();
+                else if (sender is FileSystemWatcher fsw) fsw.EnableRaisingEvents = false;
+            };
             _watcher.EnableRaisingEvents = true;
             Root = root;
         }
@@ -153,10 +189,6 @@ public sealed class ProjectWatcher : IDisposable
             Stop();
         }
     }
-
-    private void OnChanged(object? sender, FileSystemEventArgs e) => Notify();
-
-    private void OnError(object? sender, ErrorEventArgs e) => Notify();
 
     /// <summary>
     /// Something on disk moved. Coalesced — the re-read happens once the burst
@@ -225,11 +257,8 @@ public sealed class ProjectWatcher : IDisposable
         if (_watcher is { } watcher)
         {
             watcher.EnableRaisingEvents = false;
-            watcher.Created -= OnChanged;
-            watcher.Deleted -= OnChanged;
-            watcher.Renamed -= OnChanged;
-            watcher.Changed -= OnChanged;
-            watcher.Error -= OnError;
+            // No explicit -= for the handlers: they are weak wrappers now
+            // (see Watch), and Dispose severs the native subscription whole.
             watcher.Dispose();
         }
         _watcher = null;

@@ -185,10 +185,51 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>
+    /// The weak wrapper this window's backend-report subscription lives in —
+    /// held so OnClosed can detach the same delegate it attached, and so the
+    /// wrapper can unsubscribe itself if the window is collected unclosed
+    /// (B281; the test suite never closes its windows).
+    /// </summary>
+    private Action? _backendDetected;
+
+    /// <summary>
+    /// Subscribe the startup render report to <c>BackendDetected</c>. The
+    /// backend is only knowable once a frame has been drawn, so the report
+    /// waits for that rather than for construction — and the event is static
+    /// while the handler wants the window, so a plain instance subscription
+    /// outlives the window and keeps it alive. The first defence was "detached
+    /// in OnClosed", which holds only for windows somebody closes, and the
+    /// test suite constructs thousands it never closes: B281's heap dump found
+    /// gigabytes of test MainWindows — visual trees, server compositors and
+    /// all — hanging off this one static's invocation list. So the
+    /// subscription holds the window WEAKLY and unsubscribes itself once the
+    /// window is collected; OnClosed below still detaches eagerly for the
+    /// windows that do close.
+    /// </summary>
+    private void WireBackendReport()
+    {
+        // The closure reads only locals — weakSelf and its own delegate — and
+        // that is load-bearing, not style: the first version unsubscribed via
+        // the `_backendDetected` FIELD, and reading an instance field makes the
+        // compiler capture `this`, so the "weak" wrapper strongly held the
+        // window it existed to release. A heap dump of the suite found all 153
+        // window carcasses hanging off exactly that captured `this`.
+        var weakSelf = new WeakReference<MainWindow>(this);
+        Action? handler = null;
+        handler = () =>
+        {
+            if (weakSelf.TryGetTarget(out var self)) self.WriteStartupRenderReport();
+            else Rendering.CanvasControl.BackendDetected -= handler;
+        };
+        _backendDetected = handler;
+        Rendering.CanvasControl.BackendDetected += handler;
+    }
+
     /// <summary>Let go of the static subscription this window took out.</summary>
     protected override void OnClosed(EventArgs e)
     {
-        Rendering.CanvasControl.BackendDetected -= WriteStartupRenderReport;
+        Rendering.CanvasControl.BackendDetected -= _backendDetected;
         base.OnClosed(e);
     }
 

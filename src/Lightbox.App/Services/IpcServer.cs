@@ -31,7 +31,7 @@ public sealed class IpcServer : IAsyncDisposable
     /// captured instance is the whole of the fix: a post to a torn-down
     /// dispatcher is swallowed, a read of the reset static is a poisoning.
     /// </remarks>
-    private readonly Dispatcher _dispatcher = Dispatcher.UIThread;
+    private readonly WeakReference<Dispatcher> _dispatcher = new(Dispatcher.UIThread);
 
 public IpcServer(IpcDocumentApi api, string? pipeName = null)
     {
@@ -89,7 +89,17 @@ public IpcServer(IpcDocumentApi api, string? pipeName = null)
                     {
                         var request = JsonSerializer.Deserialize<IpcProtocol.Request>(line, IpcProtocol.Json)
                                       ?? throw new JsonException("null request");
-                        response = await _dispatcher.InvokeAsync(() => _api.Handle(request));
+                        // Resolved weakly per request (B281): the accept loop's
+                        // pending native pipe read is a strong GC handle that
+                        // outlives the application this server was born in, so a
+                        // strong dispatcher reference here kept the dead app's
+                        // whole timer list — and through Avalonia's own tooltip
+                        // and caret timers, its windows — alive for the life of
+                        // the process. Pending I/O may pin this server; the
+                        // server holds nothing strongly.
+                        response = _dispatcher.TryGetTarget(out var dispatcher)
+                            ? await dispatcher.InvokeAsync(() => _api.Handle(request))
+                            : IpcProtocol.Response.Fail("The document this server belonged to is gone.");
                     }
                     catch (JsonException e)
                     {

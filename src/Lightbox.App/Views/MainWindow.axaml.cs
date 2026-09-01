@@ -139,15 +139,7 @@ public partial class MainWindow : Window
         Canvas.ViewportChanged += viewport => _vm.SetViewport(viewport);
         Canvas.FrameRendered += ms => _vm.RecordFrameTime(ms);
         WireCanvasPacing();
-        // The backend is only knowable once a frame has been drawn, so the
-        // startup report waits for that rather than for construction. One frame
-        // later than "startup", and the only point at which it has an answer.
-        //
-        // BackendDetected is static and this handler is an instance method, so
-        // the subscription would outlive the window and keep it alive. Detached
-        // in OnClosed — a diagnostic has no business being the reason a window
-        // cannot be collected.
-        Rendering.CanvasControl.BackendDetected += WriteStartupRenderReport;
+        WireBackendReport(); // weak, in MainWindow.Workspace.cs beside its field (B281)
         Canvas.CursorPressureChanged += (pressure, penDown) => _vm.SetCursorPressure(pressure, penDown);
 
         WireTransformSession(); // window side lives in MainWindow.Transform.cs
