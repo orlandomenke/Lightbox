@@ -249,7 +249,13 @@ public static partial class WebImageDrop
         return null;
     }
 
-    private static byte[]? AsPng(Avalonia.Media.Imaging.Bitmap bitmap)
+    /// <summary>
+    /// A clipboard or drag bitmap as PNG bytes, or null where it will not
+    /// encode. Internal because the paste door needs it too (B350): what the
+    /// platform hands over for a screenshot is a decoded bitmap, and every
+    /// import below this takes bytes.
+    /// </summary>
+    internal static byte[]? AsPng(Avalonia.Media.Imaging.Bitmap bitmap)
     {
         try
         {

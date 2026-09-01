@@ -651,6 +651,26 @@ public sealed class ReferenceBoardWindow : Window
                 if (step > 0) return;
             }
 
+            // A picture on the clipboard, in Avalonia's own *universal* image
+            // format first (B350). This is the one a screenshot arrives as:
+            // PrtScn, Win+Shift+S and the Snipping Tool all put a device
+            // independent bitmap on the Windows clipboard, and nothing at all
+            // named "image/png" — so the three names below, which are the
+            // freedesktop spellings passed to the platform verbatim, matched
+            // none of it and the commonest paste there is did nothing.
+            if (await data.TryGetValueAsync(DataFormat.Bitmap) is { } bitmap)
+            {
+                using (bitmap)
+                {
+                    if (Services.WebImageDrop.AsPng(bitmap) is { } png
+                        && BoardModel.AddImageBytes("Pasted", png, (centre.X, centre.Y)) is not null)
+                    {
+                        Say("");
+                        return;
+                    }
+                }
+            }
+
             foreach (var format in ClipboardImageFormats)
             {
                 if (await data.TryGetValueAsync(format) is not { Length: > 0 } bytes) continue;
@@ -693,7 +713,16 @@ public sealed class ReferenceBoardWindow : Window
         }
     }
 
-    /// <summary>What a copied picture arrives as, best first.</summary>
+    /// <summary>
+    /// The platform-named image formats, tried after <see cref="DataFormat.Bitmap"/>.
+    /// </summary>
+    /// <remarks>
+    /// These are <em>freedesktop</em> spellings, handed to the platform verbatim
+    /// — which is why they are the fallback rather than the answer (B350). They
+    /// still earn their place on X11, where a browser publishes exactly these
+    /// and the bytes come across already encoded, so taking them saves a decode
+    /// and re-encode round trip through <see cref="Avalonia.Media.Imaging.Bitmap"/>.
+    /// </remarks>
     private static readonly DataFormat<byte[]>[] ClipboardImageFormats =
     [
         DataFormat.CreateBytesPlatformFormat("image/png"),
