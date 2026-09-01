@@ -153,7 +153,18 @@ jobs:
             -o Acquire::http::Timeout=15 \
             -o Acquire::https::Timeout=15 || echo "apt-get update did not complete; installing from the indexes we have"
           sudo apt-get install -y --no-install-recommends libfontconfig1
-      - run: dotnet test Lightbox.sln -c Release
+      # `--logger trx` writes each assembly's per-test record into its own
+      # TestResults directory — the input the count guard below reads. Console
+      # output is unchanged; the trx rides alongside it.
+      - run: dotnet test Lightbox.sln -c Release --logger trx
+      # B269/B281: a full-solution run has been seen executing hundreds fewer
+      # App tests than exist and still printing `Passed!` with exit 0 — and a
+      # killed host prints `Passed!` too, one line after `Catastrophic
+      # failure`. So the summary line is not evidence that the suite ran. This
+      # compares the NAMES each assembly reported against what discovery finds
+      # on the same binaries, and reds the job on any test that went missing.
+      - name: Every discovered test ran
+        run: python3 scripts/testcount.py verify -c Release
       # The branch-name rules in branchstate.py have no C# suite to live in, and
       # a heuristic with no test is how the first version came to fire on
       # `chore/ledger-by-domain`. Costs a second.
@@ -165,6 +176,10 @@ jobs:
       # costs about a second.
       - name: Ledger id repair
         run: python3 scripts/bugs.py selftest
+      # The count guard's own shortfall detection, fed synthetic drops — kept
+      # honest the same way branchstate and bugs are.
+      - name: Count-guard rules
+        run: python3 scripts/testcount.py selftest
 
   # The derived documentation checks.
   #

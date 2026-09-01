@@ -1042,31 +1042,6 @@ which is a weak test and still far better than none.
   - Delete permanently is the worse half: the folder's directory goes, taking the sheet's file with it, while the dangling ref survives in the manifest.
   - Filed rather than fixed because it was found while the Q150 branch (delete clears version history) was in hand — one objective per branch; this is the next branch. The fix mirrors the documents path: Remove re-homes sheets to the project (`FolderId = null`), Delete detaches their refs (and, with Q150, clears their histories). Cost: S
 
-- [ ] **B269** `P2` `project` A full-solution test run sometimes executes hundreds fewer App tests than exist and still reports green `evidence: FullSuiteExecutionCountIsAsserted`
-  - **Evidence.** Two `dotnet test` runs from the repository root on 2026-08-20,
-    same container, trees differing only by additions: the first reported
-    `Lightbox.App.Tests` as **3489 passed / 3489 total**, the second — after a
-    merge that only *added* tests — **2889 / 2889**, exit 0, `Failed: 0,
-    Skipped: 0`. Discovery on the same tree (`dotnet test --list-tests`) finds
-    **3498**, and an immediate re-run of the assembly alone executed all
-    **3498 / 3498**. So a full-solution run silently dropped ~600 tests and
-    called the suite green.
-  - **Why it matters more than a flaky failure.** A red flake wastes a re-run;
-    this reports *success while proving less than it claims* — a regression in
-    any of the missing 600 would ride a green suite to `main`. It is B259's
-    condition (full-solution contention, four assemblies on the box at once)
-    with the opposite symptom: there a test ran and failed, here tests never
-    ran and nothing said so.
-  - **Two CI sightings of a third face, 2026-08-31: the App suite produced no output at all and the job was killed externally.** Runs 33396437531 (`main` at `49587c9e`, killed ~7 min after the App host started) and 33398306503 attempt 1 (PR #498 at `86b84fb5`, killed ~18 min in), both ending in `##[error]The operation was canceled.` with Core/Raster/Ai green and not one line from the App host. Neither matches the job's 45-minute ceiling, so the cancel came from below — a runner death, which is what an OOM kill looks like from outside (this entry's exit-137 lore, seen from GitHub's side instead of the shell's). A re-run of the identical PR commit then failed a *different* test (B259's PSD sighting), and a third run passed 4237/4237 — three runs, three outcomes, one commit. A third strike the same day, on PR #504's own first run (33439853081 attempt 1, App host silent for ~6 min, killed below the ceiling), re-run green 4264/4264 — three occurrences in one day across three unrelated trees says the rate is now high enough that this entry's executed-count guard is worth its own branch soon. Left with the same status as the rest of this entry: attributable only once that guard exists.
-  - **Filed rather than fixed** because it does not reproduce on demand — the
-    very next solution run executed everything — and the fix is an
-    investigation into how xunit v3 under VSTest loses cases under parallel
-    assembly runs, not an afternoon. What *can* be built without that answer
-    is the guard the anchor names: assert the executed count against the
-    discovered count (in CI or a wrapper), so an under-run turns red instead
-    of green. Until then, treat a full-solution total that disagrees with the
-    per-assembly counts as a failed run.
-
 - [ ] **B264** `P2` `project` `ids --fix` renumbers both sides of a clash and rewrites the other branch's citations when run mid-merge `evidence: merge_in_progress, cmd_selftest`
   - **Mid-merge, HEAD is still this branch's last commit**, so the merge base predates both sides — and every file the *other* side is bringing in reads as "added since the base", exactly like this branch's own. Both entries are marked ours, the repair moves both to one new id, a fresh duplicate appears, and the other branch's citations are rewritten in files this branch never touched.
   - **Observed 2026-08-19**, resolving `main` into the crop branch: it renamed both sides of a Q126 clash to Q130 and rewrote `docs/DESIGN-pen-dynamics.md`, which belonged to the pen-tilt question entirely. Repaired by hand — main's entry restored byte-identical, this branch's moved to Q128 with fourteen citations — but the tool would have done it to the next person.
@@ -1108,6 +1083,8 @@ which is a weak test and still far better than none.
   - **And the exit code, captured properly this time, separates the two mechanisms cleanly: the OOM variant exits `1`.** `dotnet test` returned **EXIT=1** while its own summary line said `Passed! - Failed: 0`. This entry's silent samples record exit **0**. So a short run can be attributed without guessing — `0` is this bug, `1` with a fatal line is the kill — **provided the exit code is captured rather than piped away.**
   - **What it contributes to the open question.** "Is the shortfall environment-shaped?" now has to be asked twice, because at least one shortfall mechanism here demonstrably *is* (memory), and it is not the one this bug describes. Whoever picks this up should therefore separate the samples by whether a fatal line was present before reasoning about causes, or two mechanisms get averaged into one.
   - **One methodological trap, found by falling into it.** The first run above was reported as `exit 0` and was not: the command was piped through `tail`, so the exit code observed was the pipe's last stage rather than `dotnet test`'s. Anything claiming an exit code for this bug should say how it was captured — `PIPESTATUS`, a bare invocation, or `set -o pipefail` — because a piped run cannot see the one number that would settle whether a short run failed or "passed".
+  - **The CI-facing half is guarded as of 2026-09-01 (B269's anchor):** the CI run writes TRX per assembly and `scripts/testcount.py verify` diffs reported names against discovery — this entry's own prescribed first step, running on every build now rather than waiting for an investigator. A CI run that goes short for *any* reason, silent or killed, turns red with the missing tests named. What stays open here is the research half — why the host grows — and this sandbox's own OOM kills, which the guard observes but cannot prevent.
+  - **"Not seen on CI yet" above is stale as of 2026-08-31/09-01:** four CI jobs in ~24 hours had the App host die producing no output, one carrying `The runner has received a shutdown signal` — the runner VM itself going down, on 16 GB hosted runners, which is the same footprint as this entry's local box. The sightings and their run ids are in B269.
   - Filed rather than fixed because it is a research task into the test harness rather than a defect with a place to stand — B60's shape — and because guessing at a fix here would produce exactly the false confidence the bug is about. Cost: M to localise, unknown to fix.
 
 - [ ] **B254** `P2` `ui` Hover flyouts ignore the pen and collapse as soon as they open on a Huion tablet `evidence: manual`
@@ -2754,6 +2731,32 @@ test reopens the bug.
   - **The fix is three lines and entirely test-side**: collect into a `ConcurrentQueue<double>` and assert over a snapshot (`seen.ToArray()`), renaming the test to `Solving_Reports_Progress_Without_Racing_Its_Own_Callbacks` — which is also this entry's evidence anchor, because the *existing* name resolves today and anchoring a fix to the broken test it repairs makes the ledger report the bug fixed the moment it is filed (which is what CI caught here). Filed rather than fixed because it was found while an unrelated branch was in hand (the effects catalogue) — one objective per branch, and this is its own. It is not the sim's defect and nothing in the shipped code changes. Cost: S
   - **Fixed 2026-08-24, on the branch that inherited it rather than on one of its own, and the reason is worth stating.** Merging `main` in put this test in a `brush` branch's suite, where it failed on **both local Release runs** — so "about one CI run in three" understates it: it reproduces every time on this container. A red test the branch cannot fix on its own branch (this session pushes to one branch only) is a PR that can never go green, so it is fixed here as the three test-side lines the entry already specified.
   - **The fix goes one step past the snapshot proposed above, and that step is the point.** A `ConcurrentQueue` plus `seen.ToArray()` removes the exception and keeps the asynchrony; collecting through a **synchronous `IProgress<double>`** removes the asynchrony, and `Solve` takes the interface rather than `Progress<T>` so that is a legitimate implementation of it. What it buys is the assertion the old test could not make: with nothing arriving late, the test can require that progress happened **at all** and that the last value is 1.0. **The old version passed on an empty list** — it would have gone green on a baker that reported nothing, which is the sanity-check-the-other-way trap `CLAUDE.md` names for brush measurement, here in a progress test.
+
+- [x] **B269** `P2` `project` A full-solution test run sometimes executes hundreds fewer App tests than exist and still reports green `evidence: FullSuiteExecutionCountIsAsserted`
+  - **Evidence.** Two `dotnet test` runs from the repository root on 2026-08-20,
+    same container, trees differing only by additions: the first reported
+    `Lightbox.App.Tests` as **3489 passed / 3489 total**, the second — after a
+    merge that only *added* tests — **2889 / 2889**, exit 0, `Failed: 0,
+    Skipped: 0`. Discovery on the same tree (`dotnet test --list-tests`) finds
+    **3498**, and an immediate re-run of the assembly alone executed all
+    **3498 / 3498**. So a full-solution run silently dropped ~600 tests and
+    called the suite green.
+  - **Why it matters more than a flaky failure.** A red flake wastes a re-run;
+    this reports *success while proving less than it claims* — a regression in
+    any of the missing 600 would ride a green suite to `main`. It is B259's
+    condition (full-solution contention, four assemblies on the box at once)
+    with the opposite symptom: there a test ran and failed, here tests never
+    ran and nothing said so.
+  - **Two CI sightings of a third face, 2026-08-31: the App suite produced no output at all and the job was killed externally.** Runs 33396437531 (`main` at `49587c9e`, killed ~7 min after the App host started) and 33398306503 attempt 1 (PR #498 at `86b84fb5`, killed ~18 min in), both ending in `##[error]The operation was canceled.` with Core/Raster/Ai green and not one line from the App host. Neither matches the job's 45-minute ceiling, so the cancel came from below — a runner death, which is what an OOM kill looks like from outside (this entry's exit-137 lore, seen from GitHub's side instead of the shell's). A re-run of the identical PR commit then failed a *different* test (B259's PSD sighting), and a third run passed 4237/4237 — three runs, three outcomes, one commit. A third strike the same day, on PR #504's own first run (33439853081 attempt 1, App host silent for ~6 min, killed below the ceiling), re-run green 4264/4264 — three occurrences in one day across three unrelated trees says the rate is now high enough that this entry's executed-count guard is worth its own branch soon. A **fourth strike on 2026-09-01** (`main` at `5ba1912b`, run 33487897705) finally carried the attribution the other three lacked: `##[error]The runner has received a shutdown signal` — nobody cancelled it, the runner agent itself died under the job, which is what an OS-level kill of the runner VM looks like from GitHub's side. Four strikes in ~24 hours, roughly one in three completed test jobs, and the profile converges with B281's local lore: a 16 GB box with no swap (which is exactly what `ubuntu-latest` public runners are), killed 6–7 minutes into the App suite at a point that wanders run to run.
+  - **The guard is built, 2026-09-01 — and names rather than counts, which is B281's own prescription.** The CI run now writes TRX per assembly (`--logger trx`) and `scripts/testcount.py verify` compares the *names* each assembly reported against what `--list-tests` discovery finds on the same binaries — so a shortfall reds the job with the missing tests listed, not a number, and theory pre-enumeration quirks cannot false-alarm it (a discovered `M` is covered by a reported `M(x: 1)`; both directions selftested). Names measured exact before trusting them: 1401/1401 and 133/133 with zero drift. A run that leaves **no TRX at all** — the wedge's face — fails the guard loudly too, and the guard cross-checks each TRX's own `Counters` against its result rows, which is the "run and never reported" split B281 asked to have separated. `FullSuiteExecutionCountIsAsserted` pins the *wiring* (deleting the verify step or the trx logger from build.yml reds it — proven by mutation), `testcount.py selftest` proves the comparison catches synthetic drops, and CI runs both.
+  - **What the anchor closing this entry does and does not claim.** It closes "…and still reports green": a short run can no longer pass. It does not close the question of *why* tests go missing — that is B281's research half (what makes the host grow), which stays open, now with a guard underneath it that converts every future occurrence into an attributed red with a name list instead of a mystery.
+  - **Filed rather than fixed** because it does not reproduce on demand — the
+    very next solution run executed everything — and the fix is an
+    investigation into how xunit v3 under VSTest loses cases under parallel
+    assembly runs, not an afternoon. What *can* be built without that answer
+    is the guard the anchor names: assert the executed count against the
+    discovered count (in CI or a wrapper), so an under-run turns red instead
+    of green. Built 2026-09-01 — see the closing bullets below.
 
 - [x] **B251** `P2` `project` Bones seem to load in a different spot than they were saved in `evidence: TheRigStandsWhereItWasSavedAfterAReload, PlayheadPersistenceTests`
   - Owner's report, 2026-08-17, "sometimes". The record was proven innocent first: `ArmatureRoundTripTests` builds a rig through the real gestures — offset child, glued child, re-aimed tip, moved joint, unglued shaft drag, springs, two pose keys — and solves it bit-identically (no tolerance) across `DocJson` serialize/parse, at bind and at keyed and between-key frames. The gestures all land editor steps, and `AttachEditor` ends in `OnDocumentChanged` → `RebuildRigIndex`, so the load path is clean too.
