@@ -256,7 +256,7 @@ view onto the wall rather than the whole of it.
 | Find something you have lost | **Fit** (`Ctrl+Shift+F`) zooms out until everything on the board is on screen |
 | Add a picture from disk | Drag files onto the board, or **Add image…** |
 | Add one from a web page | Drag the image off the page onto the board — as many times as you like |
-| Paste one | `Ctrl+V` — a copied file, a screenshot straight off the clipboard, or an image address copied out of a browser |
+| Paste one | `Ctrl+V` — a copied file, a screenshot (`PrtScn`, `Win+Shift+S`, the Snipping Tool), or an image address copied out of a browser |
 | Put a sheet back up | **Sheets ▾** lists everything in scope that is not on the wall |
 | Move around | Wheel zooms, middle-drag or drag the empty background pans |
 
