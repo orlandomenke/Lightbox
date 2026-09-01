@@ -171,10 +171,23 @@ public class RuntimeDeterminismTests(ITestOutputHelper output)
     /// are disqualified from the silhouette predicate and neither can see this.
     /// Had either moved, the diff would have been wrong.
     /// </para>
+    /// <para>
+    /// <b><c>jitter</c> and <c>soft</c> were re-recorded on 2026-09-02</b>, when
+    /// the soft brush's ceiling changed definition (B349,
+    /// <c>docs/DESIGN-swept-ceiling.md</c>): from the best any single dab does at
+    /// a pixel to the brush's falloff applied to the pixel's distance from the
+    /// edge of everything the stroke reached. Along a stroke that removes the
+    /// dab-pitch ripple, and between two passes of a sweep it removes the lines
+    /// the maximum printed; across a stroke through a dab centre, and for a lone
+    /// dab, it is the same value to the byte. Which scenarios moved is once more
+    /// exactly the set the change can reach: <c>soft</c> and <c>jitter</c> are
+    /// both capped, <c>hard-aa</c> is hardness 1 and has no falloff to cap, and
+    /// it came back byte-identical.
+    /// </para>
     /// </remarks>
     private const string Baseline = """
-        jitter=7CB9FDADF17861527AB11094451A34CA00CA025C80C302CD47472D8043507A09
-        soft=5654BE3493C388CE816199F745E9C56AC8D466FC4024DD0BD6155C3F4DA7749D
+        jitter=15176A73D634A7AFC7C6D56A22B514F919AA7B6AFD76B717E3E88E3DD7183E11
+        soft=34CD1D9656C67F76E742B54E996184B7E1DD2A3D36A2BDB544809541E2B95A30
         hard-aa=5C38D5CF0C9D9ADEA4F1C17F571792433222CC8ED3DD09B59DCDA24FABAB7F9F
         """;
 

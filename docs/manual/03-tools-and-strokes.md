@@ -420,6 +420,14 @@ becoming *denser than the brush's shape allows*, so an airbrush worked back and
 forth now settles into a soft-edged mark instead of hardening into a blob. Low
 flow behaves exactly as it did.
 
+**Sweeping back and forth is flat.** The ceiling is worked out from the whole
+mark — how far each pixel sits inside everything the stroke reached — rather
+than from the nearest stamp, so a large soft brush scrubbed side to side settles
+into one even tone. It used to print faint lines along the sweep and a hard rim
+where the middle met the fade, because between two passes no stamp was near and
+the ceiling dipped; that is gone, and a single stroke or a single dab renders
+exactly as before.
+
 **Simulated media are left alone** — with watercolour, gouache, oil or ink the
 edge you see is made by the paint pooling and flowing, not by the brush's fade,
 and holding the stamps back would starve the flow.

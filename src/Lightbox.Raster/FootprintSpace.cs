@@ -1,3 +1,4 @@
+using SkiaSharp;
 namespace Lightbox.Raster;
 
 /// <summary>
@@ -100,6 +101,35 @@ public readonly record struct FootprintSpace(double Scale, double OffsetX, doubl
     /// for why the shape lives in a colour channel rather than in alpha.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// The same lookup over a ceiling already computed for one window of the
+    /// footprint — one byte per cell, row-major, <paramref name="win"/> in the
+    /// footprint's own pixels (B349's swept ceiling).
+    /// </summary>
+    public byte CeilingAt(ReadOnlySpan<byte> window, SKRectI win, int x, int y)
+    {
+        var u = ((x + 0.5) * Scale) + OffsetX - 0.5 - win.Left;
+        var v = ((y + 0.5) * Scale) + OffsetY - 0.5 - win.Top;
+
+        var x0 = (int)Math.Floor(u);
+        var y0 = (int)Math.Floor(v);
+        var tx = u - x0;
+        var ty = v - y0;
+
+        var xa = Math.Clamp(x0, 0, win.Width - 1);
+        var xb = Math.Clamp(x0 + 1, 0, win.Width - 1);
+        var ya = Math.Clamp(y0, 0, win.Height - 1);
+        var yb = Math.Clamp(y0 + 1, 0, win.Height - 1);
+
+        double c00 = window[(ya * win.Width) + xa], c10 = window[(ya * win.Width) + xb];
+        double c01 = window[(yb * win.Width) + xa], c11 = window[(yb * win.Width) + xb];
+
+        var top = c00 + ((c10 - c00) * tx);
+        var bottom = c01 + ((c11 - c01) * tx);
+        var value = top + ((bottom - top) * ty);
+        return (byte)Math.Clamp(value + 0.5, 0, 255);
+    }
+
     public byte CeilingAt(
         ReadOnlySpan<byte> cap, int rowBytes, int width, int height, int x, int y)
     {

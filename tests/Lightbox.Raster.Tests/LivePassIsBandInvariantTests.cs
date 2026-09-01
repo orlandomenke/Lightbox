@@ -137,12 +137,23 @@ public class LivePassIsBandInvariantTests
             new SKRectI(band.Left - halo, band.Top - halo, band.Right + halo, band.Bottom + halo),
             whole);
 
+        // B349: the footprint crop reaches one brush radius past the pass, the
+        // way the live worker's does, because the swept ceiling measures each
+        // pixel's distance to the edge of the stroke's support and that edge
+        // can lie outside the pass. The space offsets say where the pass sits
+        // inside the larger crop — the same arithmetic MainViewModel uses.
+        var reach = carry ? BrushEngine.CeilingReachPx(brush, 1.0) : 0;
+        var cropRect = SKRectI.Intersect(
+            new SKRectI(grown.Left - reach, grown.Top - reach, grown.Right + reach, grown.Bottom + reach),
+            new SKRectI(0, 0, Width, Height));
+        var partSpace = new FootprintSpace(1.0, grown.Left - cropRect.Left, grown.Top - cropRect.Top);
+
         using var fullPrint = Crop(carried, whole);
-        using var partPrint = Crop(carried, grown);
+        using var partPrint = Crop(carried, cropRect);
         using var full = BrushEngine.PostProcessRegion(
             dabs, stroke, whole, null, default, default, fullPrint)!;
         using var part = BrushEngine.PostProcessRegion(
-            dabs, stroke, grown, null, default, default, partPrint)!;
+            dabs, stroke, grown, null, default, default, partPrint, carry ? partSpace : null)!;
         using var fullPx = SKBitmap.FromImage(full);
         using var partPx = SKBitmap.FromImage(part);
 
@@ -161,7 +172,7 @@ public class LivePassIsBandInvariantTests
         }
 
         _out.WriteLine(
-            $"{name,-22} at {at:0.00}  halo {halo,3}  pass {grown.Width}x{grown.Height}"
+            $"{name,-22} at {at:0.00}  halo {halo,3}  reach {reach,3}  pass {grown.Width}x{grown.Height}"
             + $" of {whole.Width}x{whole.Height}  worst {worst}/255");
         return worst;
     }

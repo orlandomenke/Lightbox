@@ -6,38 +6,26 @@ using Xunit.Abstractions;
 namespace Lightbox.Raster.Tests;
 
 /// <summary>
-/// B349. A soft brush swept back and forth shows ridges along the sweep and a
-/// hard rim, because the footprint ceiling is a running <em>maximum</em> of dab
-/// shapes and a maximum of overlapping bumps is bumpy. This measures a
-/// different <em>definition</em> of the ceiling against today's, on the reported
-/// gesture and on Q157's own constraints, before a line of it goes near the
-/// engine.
+/// B349. A soft brush swept back and forth showed ridges along the sweep and a
+/// hard rim, because the footprint ceiling was a running <em>maximum</em> of
+/// dab shapes and a maximum of overlapping bumps is bumpy. The ceiling is now
+/// the greater of that maximum and the dab's falloff applied to each pixel's
+/// distance inside the edge of the stroke's reach — flat where the maximum
+/// dipped, identical where it did not. <c>docs/DESIGN-swept-ceiling.md</c>
+/// carries the definition and the proof; this holds the measurements.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>The candidate: the dab's own shape, applied to the distance from the edge
-/// of everything the stroke reached.</b> Today's ceiling at a pixel is the best
-/// any single dab does there; the candidate is the dab's radial shape evaluated
-/// at how far inside the <em>union</em> of dab supports the pixel sits. For a
-/// lone dab the two are the same function. Across a straight stroke they are
-/// the same function. Between two passes of a sweep they differ: the maximum
-/// dips where no dab centre is, the distance to the outer edge does not.
+/// <b>Both ceilings are the engine's.</b> Reach zero asks
+/// <c>CapToFootprintBand</c> for the shape maximum alone, which is what every
+/// caller got before B349; the brush's <c>CeilingReachPx</c> asks for the
+/// swept ceiling. The two are compared on the same stamped mark, so the only
+/// thing that differs is the definition.
 /// </para>
 /// <para>
-/// <b>Provably never lower than today's</b>, which is why B349's impossibility
-/// argument does not bite: that argument is about operators on the max buffer,
-/// and lowering it clips a lone dab. This never lowers it — the disc around the
-/// nearest dab centre lies inside the union, so the distance to the union's
-/// edge is at least the distance to that disc's edge, and a falling shape of a
-/// larger argument is a larger value. The monotone test below holds that pixel
-/// by pixel, because a proof is not a measurement.
-/// </para>
-/// <para>
-/// <b>The shape is read off the engine's own footprint of one dab</b>, so the
-/// candidate uses exactly the curve today's ceiling uses and the only thing
-/// under test is the geometry the curve is applied to. The one free parameter
-/// is where the rasterised union's edge sits relative to the pixel grid, and
-/// the lone-dab test measures it rather than assumes it.
+/// <b>Ripple is B349's own metric</b>: the detrended peak-to-trough of a cut
+/// through the interior of the sweep, out of 255, with the cut kept clear of
+/// the outermost passes' own falloff so it reads the ceiling and not the edge.
 /// </para>
 /// </remarks>
 public class SweptCeilingTests(ITestOutputHelper output)
@@ -59,7 +47,7 @@ public class SweptCeilingTests(ITestOutputHelper output)
         var pts = new List<StrokePoint>();
         for (var k = 0; k < passes; k++)
         {
-            var y = 150 + k * pitch;
+            var y = 150 + (k * pitch);
             var forward = k % 2 == 0;
             for (double t = 0; t <= 600; t += 4.2)
             {
@@ -93,8 +81,7 @@ public class SweptCeilingTests(ITestOutputHelper output)
         return bmp;
     }
 
-    /// <summary>Today's ceiling: the running maximum the engine accumulates.</summary>
-    private static SKBitmap TodaysCeiling(Stroke stroke, IReadOnlyList<BrushEngine.Dab> dabs)
+    private static SKBitmap Footprint(Stroke stroke, IReadOnlyList<BrushEngine.Dab> dabs)
     {
         var bmp = new SKBitmap(new SKImageInfo(W, H, SKColorType.Rgba8888, SKAlphaType.Opaque));
         using var canvas = new SKCanvas(bmp);
@@ -104,194 +91,26 @@ public class SweptCeilingTests(ITestOutputHelper output)
         return bmp;
     }
 
-    /// <summary>
-    /// The dab's radial shape as today's ceiling records it, read off the
-    /// footprint of one dab: <c>table[r]</c> is the ceiling <c>r</c> pixels
-    /// from the centre, in 0..1. <c>outer</c> is the engine's own dab radius.
-    /// </summary>
-    private static (float[] Table, float Outer) Profile(BrushSettings brush)
+    /// <summary>The mark capped by the engine, at the given reach, and how long the cap took.</summary>
+    private static (SKBitmap Mark, double Ms) Capped(
+        Stroke stroke, IReadOnlyList<BrushEngine.Dab> dabs, SKBitmap footprint, int reach)
     {
-        var lone = Lone(brush);
-        var dabs = BrushEngine.WalkDabs(lone);
-        using var footprint = TodaysCeiling(lone, dabs);
-        var cx = (int)Math.Round(dabs[0].Pos.X);
-        var cy = (int)Math.Round(dabs[0].Pos.Y);
-        var outer = (float)BrushEngine.RadiusAt(brush, dabs[0].Pressure);
-        var n = (int)Math.Ceiling(outer) + 3;
-        // Skia evaluates the dab at pixel CENTRES, so the pixel r columns right
-        // of the centre samples the radial shape at sqrt((r+0.5)^2 + 0.5^2), not
-        // at r. The table is stored against that true radius and read back by
-        // interpolating on it; reading it as if it were r was a half-pixel
-        // shift, which in a soft falloff is several levels.
-        var table = new float[n];
-        for (var r = 0; r < n; r++) table[r] = footprint.GetPixel(cx + r, cy).Red / 255f;
-        return (table, outer);
+        // Timed warm and as a minimum of three, on fresh marks: the first call
+        // pays the JIT and a cold cache, and contention only ever adds.
+        var best = double.MaxValue;
+        SKBitmap? keep = null;
+        for (var i = 0; i < 3; i++)
+        {
+            var mark = Mark(stroke, dabs);
+            var sw = Stopwatch.StartNew();
+            BrushEngine.CapToFootprintBand(mark, footprint, new SKRectI(0, 0, W, H), FootprintSpace.Document, reach);
+            sw.Stop();
+            best = Math.Min(best, sw.Elapsed.TotalMilliseconds);
+            if (keep is null) keep = mark; else mark.Dispose();
+        }
+        return (keep!, best);
     }
 
-    private static float RadiusOfSample(int r) => MathF.Sqrt((r + 0.5f) * (r + 0.5f) + 0.25f);
-
-    private static float Sample(float[] table, float rho)
-    {
-        if (rho <= RadiusOfSample(0)) return table[0];
-        for (var i = 0; i + 1 < table.Length; i++)
-        {
-            float a = RadiusOfSample(i), b = RadiusOfSample(i + 1);
-            if (rho <= b)
-            {
-                var f = (rho - a) / (b - a);
-                return table[i] * (1 - f) + table[i + 1] * f;
-            }
-        }
-        return 0;
-    }
-
-    /// <summary>
-    /// The candidate ceiling: the union of every dab's support, and the shape
-    /// evaluated at each pixel's distance inside that union's edge.
-    /// </summary>
-    /// <param name="edgeOffset">
-    /// Where the rasterised union's edge sits relative to the nearest outside
-    /// sample, in supersampled pixels — the one calibration the lone-dab test
-    /// measures.
-    /// </param>
-    /// <remarks>
-    /// The union is taken at double resolution so its edge lands within a
-    /// quarter pixel of the geometric one; the distance transform is exact
-    /// Euclidean (Felzenszwalb and Huttenlocher's two-pass form), which is what
-    /// makes the result deterministic — no random access, no clock, the same
-    /// pixels for the same dabs every time (invariant 2).
-    /// </remarks>
-    private static (SKBitmap Ceiling, double Ms) CandidateCeiling(
-        IReadOnlyList<BrushEngine.Dab> dabs, float[] table, float outer, float edgeOffset)
-    {
-        var sw = Stopwatch.StartNew();
-        const int S = 5;
-        int w = W * S, h = H * S;
-        var inside = new bool[w * h];
-        foreach (var d in dabs)
-        {
-            var cx = d.Pos.X * S;
-            var cy = d.Pos.Y * S;
-            var r = outer * S;
-            int x0 = Math.Max(0, (int)Math.Floor(cx - r)), x1 = Math.Min(w - 1, (int)Math.Ceiling(cx + r));
-            int y0 = Math.Max(0, (int)Math.Floor(cy - r)), y1 = Math.Min(h - 1, (int)Math.Ceiling(cy + r));
-            var rr = r * r;
-            for (var y = y0; y <= y1; y++)
-            {
-                var dy = y + 0.5f - cy;
-                for (var x = x0; x <= x1; x++)
-                {
-                    var dx = x + 0.5f - cx;
-                    if (dx * dx + dy * dy <= rr) inside[y * w + x] = true;
-                }
-            }
-        }
-
-        var dist = ExactDistanceTransform(inside, w, h);
-
-        var bmp = new SKBitmap(new SKImageInfo(W, H, SKColorType.Rgba8888, SKAlphaType.Opaque));
-        var bytes = new byte[W * H * 4];
-        for (var y = 0; y < H; y++)
-        {
-            for (var x = 0; x < W; x++)
-            {
-                // The doc pixel's centre is exactly the centre supersample when
-                // S is odd — no quarter-pixel bias in where the shape is read.
-                var sx = x * S + S / 2;
-                var sy = y * S + S / 2;
-                var i = sy * w + sx;
-                float c = 0;
-                if (inside[i])
-                {
-                    var dEdge = (MathF.Sqrt(dist[i]) - edgeOffset) / S;
-                    if (dEdge < 0) dEdge = 0;
-                    c = Sample(table, outer - dEdge);
-                }
-                var v = (byte)Math.Clamp((int)MathF.Round(c * 255), 0, 255);
-                var o = (y * W + x) * 4;
-                bytes[o] = v; bytes[o + 1] = v; bytes[o + 2] = v; bytes[o + 3] = 255;
-            }
-        }
-        var handle = System.Runtime.InteropServices.GCHandle.Alloc(bytes, System.Runtime.InteropServices.GCHandleType.Pinned);
-        try
-        {
-            using var src = new SKBitmap();
-            src.InstallPixels(new SKImageInfo(W, H, SKColorType.Rgba8888, SKAlphaType.Opaque), handle.AddrOfPinnedObject(), W * 4);
-            src.CopyTo(bmp);
-        }
-        finally
-        {
-            handle.Free();
-        }
-        sw.Stop();
-        return (bmp, sw.Elapsed.TotalMilliseconds);
-    }
-
-    /// <summary>Squared Euclidean distance to the nearest outside cell, for every cell.</summary>
-    private static float[] ExactDistanceTransform(bool[] inside, int w, int h)
-    {
-        const float Inf = 1e12f;
-        var f = new float[w * h];
-        for (var i = 0; i < f.Length; i++) f[i] = inside[i] ? Inf : 0;
-
-        var buf = new float[Math.Max(w, h)];
-        var outp = new float[Math.Max(w, h)];
-        for (var x = 0; x < w; x++)
-        {
-            for (var y = 0; y < h; y++) buf[y] = f[y * w + x];
-            OneDimensional(buf, h, outp);
-            for (var y = 0; y < h; y++) f[y * w + x] = outp[y];
-        }
-        for (var y = 0; y < h; y++)
-        {
-            for (var x = 0; x < w; x++) buf[x] = f[y * w + x];
-            OneDimensional(buf, w, outp);
-            for (var x = 0; x < w; x++) f[y * w + x] = outp[x];
-        }
-        return f;
-    }
-
-    /// <summary>Felzenszwalb and Huttenlocher's lower-envelope pass over one line.</summary>
-    private static void OneDimensional(float[] f, int n, float[] d)
-    {
-        var v = new int[n];
-        var z = new float[n + 1];
-        var k = 0;
-        v[0] = 0;
-        z[0] = float.NegativeInfinity;
-        z[1] = float.PositiveInfinity;
-        for (var q = 1; q < n; q++)
-        {
-            float s;
-            while (true)
-            {
-                var p = v[k];
-                s = ((f[q] + q * (float)q) - (f[p] + p * (float)p)) / (2f * q - 2f * p);
-                if (s <= z[k]) { k--; continue; }
-                break;
-            }
-            k++;
-            v[k] = q;
-            z[k] = s;
-            z[k + 1] = float.PositiveInfinity;
-        }
-        k = 0;
-        for (var q = 0; q < n; q++)
-        {
-            while (z[k + 1] < q) k++;
-            var p = v[k];
-            d[q] = (q - p) * (float)(q - p) + f[p];
-        }
-    }
-
-    private static SKBitmap Capped(Stroke stroke, IReadOnlyList<BrushEngine.Dab> dabs, SKBitmap ceiling)
-    {
-        var mark = Mark(stroke, dabs);
-        BrushEngine.CapToFootprintBand(mark, ceiling, new SKRectI(0, 0, W, H));
-        return mark;
-    }
-
-    /// <summary>B349's metric: the detrended peak-to-trough of a cut through the interior, out of 255.</summary>
     private static double Ripple(SKBitmap mark, int x, int y0, int y1)
     {
         var n = y1 - y0 + 1;
@@ -299,193 +118,256 @@ public class SweptCeilingTests(ITestOutputHelper output)
         for (var i = 0; i < n; i++) ys[i] = mark.GetPixel(x, y0 + i).Alpha;
         double sx = 0, sy = 0, sxx = 0, sxy = 0;
         for (var i = 0; i < n; i++) { sx += i; sy += ys[i]; sxx += i * (double)i; sxy += i * ys[i]; }
-        var slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
-        var intercept = (sy - slope * sx) / n;
+        var slope = ((n * sxy) - (sx * sy)) / ((n * sxx) - (sx * sx));
+        var intercept = (sy - (slope * sx)) / n;
         double lo = double.MaxValue, hi = double.MinValue;
         for (var i = 0; i < n; i++)
         {
-            var r = ys[i] - (intercept + slope * i);
+            var r = ys[i] - (intercept + (slope * i));
             lo = Math.Min(lo, r); hi = Math.Max(hi, r);
         }
         return hi - lo;
-    }
-
-    private static (int Worst, (int X, int Y) At) MaxAbsDiff(SKBitmap a, SKBitmap b, Func<SKColor, int> read)
-    {
-        var worst = 0; var at = (0, 0);
-        for (var y = 0; y < H; y++)
-        {
-            for (var x = 0; x < W; x++)
-            {
-                var d = Math.Abs(read(a.GetPixel(x, y)) - read(b.GetPixel(x, y)));
-                if (d > worst) { worst = d; at = (x, y); }
-            }
-        }
-        return (worst, at);
     }
 
     public static TheoryData<string> Brushes() => new() { "Soft round", "Airbrush" };
 
     private static BrushSettings Named(string name) => name == "Airbrush" ? Airbrush() : SoftRound();
 
-    private static readonly float[] Offsets = [0f, 0.25f, 0.5f, 0.75f, 1.0f];
-
-    /// <summary>
-    /// The calibration, measured: for a lone dab the candidate and today's
-    /// ceiling are the same function, so the edge offset that makes them agree
-    /// is the one the rasterised union actually has.
-    /// </summary>
-    private float Calibrate(BrushSettings brush, string name, float[] table, float outer)
-    {
-        var lone = Lone(brush);
-        var dabs = BrushEngine.WalkDabs(lone);
-        using var todays = TodaysCeiling(lone, dabs);
-        var best = 0f; var bestWorst = int.MaxValue;
-        foreach (var off in Offsets)
-        {
-            var (candidate, _) = CandidateCeiling(dabs, table, outer, off);
-            using (candidate)
-            {
-                var (worst, at) = MaxAbsDiff(todays, candidate, c => c.Red);
-                output.WriteLine($"  {name}, lone dab, edge offset {off:0.00}: ceilings differ by at most {worst}/255 at {at}");
-                if (worst < bestWorst) { bestWorst = worst; best = off; }
-            }
-        }
-        output.WriteLine($"  {name}: calibrated edge offset {best:0.00} (worst {bestWorst}/255)");
-        return best;
-    }
-
     [Theory]
     [MemberData(nameof(Brushes))]
-    public void TheSweptInteriorIsFlatUnderTheCandidateAndRidgedUnderTodays(string name)
+    public void TheSweptInteriorIsFlatWhereTheShapeMaximumRidged(string name)
     {
         var brush = Named(name);
         Assert.True(BrushEngine.NeedsFootprintCap(brush), "this brush is not capped, so the test measures nothing");
-        var (table, outer) = Profile(brush);
-        var offset = Calibrate(brush, name, table, outer);
+        var outer = BrushEngine.RadiusAt(brush, 1);
+        var reach = BrushEngine.CeilingReachPx(brush, 1.0);
 
-        // The pitch that ridges worst under today's ceiling, found rather than
-        // assumed: a soft dab's flat core covers a tight pitch, so the ridge only
-        // appears once the passes are far enough apart for the maximum to dip.
+        // The pitch that ridged worst under the shape maximum, found rather
+        // than assumed: a soft dab's flat core covers a tight pitch, and the
+        // ridge only appears once the passes are far enough apart for the
+        // maximum to dip between them.
         double worstPitch = 0, worstRipple = -1;
         foreach (var pitch in new[] { 18.4, 24, 28, 32, 36, 40 })
         {
             var s = Sweep(brush, pitch);
             var d = BrushEngine.WalkDabs(s);
-            using var t = TodaysCeiling(s, d);
-            using var m = Capped(s, d, t);
-            int y0 = (int)(150 + outer) + 2, y1 = (int)(150 + 7 * pitch - outer) - 2;
-            var r = y1 - y0 > 8 ? Ripple(m, 450, y0, y1) : -1;
-            output.WriteLine($"  {name}, pitch {pitch:0.0}: today's ripple {r:0.0}/255");
-            if (r > worstRipple) { worstRipple = r; worstPitch = pitch; }
+            using var fp = Footprint(s, d);
+            var (m, _) = Capped(s, d, fp, reach: 0);
+            using (m)
+            {
+                int y0 = (int)(150 + outer) + 2, y1 = (int)(150 + (7 * pitch) - outer) - 2;
+                var r = y1 - y0 > 8 ? Ripple(m, 450, y0, y1) : -1;
+                output.WriteLine($"  {name}, pitch {pitch:0.0}: shape-maximum ripple {r:0.0}/255");
+                if (r > worstRipple) { worstRipple = r; worstPitch = pitch; }
+            }
         }
 
         var sweep = Sweep(brush, worstPitch);
         var dabs = BrushEngine.WalkDabs(sweep);
-        using var todays = TodaysCeiling(sweep, dabs);
-        var (candidate, ms) = CandidateCeiling(dabs, table, outer, offset);
-        using (candidate)
+        using var footprint = Footprint(sweep, dabs);
+        var (before, msBefore) = Capped(sweep, dabs, footprint, reach: 0);
+        var (after, msAfter) = Capped(sweep, dabs, footprint, reach);
+        using var uncapped = Mark(sweep, dabs);
+        using (before)
+        using (after)
         {
-            using var today = Capped(sweep, dabs, todays);
-            using var ours = Capped(sweep, dabs, candidate);
-
-            // Interior rows: clear of the outermost passes' own falloff, so the
-            // cut measures the ceiling's ripple and not the mark's edge.
-            int y0 = (int)(150 + outer) + 2, y1 = (int)(150 + 7 * worstPitch - outer) - 2;
-            using var uncapped = Mark(sweep, dabs);
-            var rToday = Ripple(today, 450, y0, y1);
-            var rOurs = Ripple(ours, 450, y0, y1);
+            int y0 = (int)(150 + outer) + 2, y1 = (int)(150 + (7 * worstPitch) - outer) - 2;
+            var rBefore = Ripple(before, 450, y0, y1);
+            var rAfter = Ripple(after, 450, y0, y1);
             var rNone = Ripple(uncapped, 450, y0, y1);
-            output.WriteLine($"{name} size 70, pitch {worstPitch:0.0}: ripple today {rToday:0.0}/255, candidate {rOurs:0.0}/255, uncapped {rNone:0.0}/255 — ceiling built in {ms:0.0} ms");
+            output.WriteLine(
+                $"{name} size 70, pitch {worstPitch:0.0}: ripple shape-maximum {rBefore:0.0}/255, swept {rAfter:0.0}/255, "
+                + $"uncapped {rNone:0.0}/255 — cap {msBefore:0.0} ms without the distance term, {msAfter:0.0} ms with");
 
+            // Never lower, pixel by pixel: the one thing B349 showed no repair of
+            // the old buffer could promise, and the definition's whole argument.
             var below = 0; var worstBelow = 0;
             for (var y = 0; y < H; y++)
             {
                 for (var x = 0; x < W; x++)
                 {
-                    var t = todays.GetPixel(x, y).Red;
-                    var c = candidate.GetPixel(x, y).Red;
-                    // Three levels: the union is rasterised at a fifth of a pixel,
-                    // which in the softest falloff is about that much.
-                    if (c + 3 < t) { below++; worstBelow = Math.Max(worstBelow, t - c); }
+                    int b = before.GetPixel(x, y).Alpha, a = after.GetPixel(x, y).Alpha;
+                    if (a < b) { below++; worstBelow = Math.Max(worstBelow, b - a); }
                 }
             }
-            output.WriteLine($"  pixels where the candidate is below today's by more than 3: {below} (worst by {worstBelow})");
-            Assert.True(below == 0, $"the candidate lowered the ceiling at {below} pixels, worst by {worstBelow} — that is the clipping B349 forbids");
+            output.WriteLine($"  pixels darker under the swept ceiling than under the shape maximum: {below} (worst by {worstBelow})");
+            Assert.True(below == 0, $"the swept ceiling lowered {below} pixels, worst by {worstBelow} — that is the clipping B349 forbids");
 
-            Assert.True(rToday >= 5, $"today's ceiling did not reproduce the ridge (ripple {rToday:0.0}) — the probe is not looking at the defect");
+            Assert.True(rBefore >= 5, $"the shape maximum did not reproduce the ridge (ripple {rBefore:0.0}) — the probe is not looking at the defect");
             // The floor is the mark itself: where the ceiling does not bind, the
-            // capped mark is the uncapped one, ripple included. The candidate
-            // may not ADD to that; the ridge today adds tens of levels.
-            Assert.True(rOurs <= rNone + 0.5, $"the candidate ripples at {rOurs:0.0}/255 over an uncapped {rNone:0.0}/255");
+            // capped mark is the uncapped one, ripple included. The swept
+            // ceiling may not ADD to that; the shape maximum added tens of levels.
+            Assert.True(rAfter <= rNone + 0.5, $"the swept ceiling ripples at {rAfter:0.0}/255 over an uncapped {rNone:0.0}/255");
         }
     }
 
+    /// <summary>
+    /// Q157's guard, restated against the engine: a lone dab and the
+    /// cross-profile of a straight stroke through a dab's centre are exactly
+    /// what the shape maximum gave — the swept ceiling coincides with it there
+    /// by construction, and the red channel floors it besides.
+    /// </summary>
     [Theory]
     [MemberData(nameof(Brushes))]
-    public void ALoneDabAndAStraightStrokeAreUnchangedByTheCandidate(string name)
+    public void ALoneDabAndAStraightStrokesProfileAreUnchanged(string name)
     {
         var brush = Named(name);
-        var (table, outer) = Profile(brush);
-        var offset = Calibrate(brush, name, table, outer);
+        var reach = BrushEngine.CeilingReachPx(brush, 1.0);
 
         {
             var lone = Lone(brush);
             var dabs = BrushEngine.WalkDabs(lone);
-            using var todays = TodaysCeiling(lone, dabs);
-            var (candidate, _) = CandidateCeiling(dabs, table, outer, offset);
-            using (candidate)
+            using var fp = Footprint(lone, dabs);
+            var (before, _) = Capped(lone, dabs, fp, 0);
+            var (after, _) = Capped(lone, dabs, fp, reach);
+            using (before)
+            using (after)
             {
-                using var today = Capped(lone, dabs, todays);
-                using var ours = Capped(lone, dabs, candidate);
-                var (worst, at) = MaxAbsDiff(today, ours, c => c.Alpha);
-                output.WriteLine($"{name}, lone dab: worst capped-pixel difference {worst}/255 at {at}");
-                Assert.True(worst <= 2, $"lone dab: the candidate moved a pixel by {worst} at {at}");
+                var worst = 0; var at = (0, 0);
+                for (var y = 0; y < H; y++)
+                {
+                    for (var x = 0; x < W; x++)
+                    {
+                        var d = Math.Abs(before.GetPixel(x, y).Alpha - after.GetPixel(x, y).Alpha);
+                        if (d > worst) { worst = d; at = (x, y); }
+                    }
+                }
+                output.WriteLine($"{name}, lone dab: worst difference {worst}/255 at {at}");
+                Assert.True(worst <= 2, $"lone dab: the swept ceiling moved a pixel by {worst} at {at}");
             }
         }
 
         {
-            // Q157 measures the cross-profile through a dab's centre, and that
-            // is where the two definitions coincide across a straight stroke.
-            // ALONG the stroke they do not: today's maximum reads F(0) on a dab
-            // centre and F(half a pitch) between two, which is the dab-pitch
-            // ripple B349 found finer sampling could not remove; the union's
-            // edge is the same distance away all along, so the candidate is
-            // flat there. That difference is the fix, so it is asserted as an
-            // improvement rather than as identity.
             var straight = Straight(brush);
             var dabs = BrushEngine.WalkDabs(straight);
-            using var todays = TodaysCeiling(straight, dabs);
-            var (candidate, _) = CandidateCeiling(dabs, table, outer, offset);
-            using (candidate)
+            using var fp = Footprint(straight, dabs);
+            var (before, _) = Capped(straight, dabs, fp, 0);
+            var (after, _) = Capped(straight, dabs, fp, reach);
+            using (before)
+            using (after)
             {
-                using var today = Capped(straight, dabs, todays);
-                using var ours = Capped(straight, dabs, candidate);
-
                 var mid = dabs[dabs.Count / 2];
                 var column = (int)Math.Round(mid.Pos.X);
                 var worst = 0; var at = 0;
                 for (var y = 0; y < H; y++)
                 {
-                    var d = Math.Abs(today.GetPixel(column, y).Alpha - ours.GetPixel(column, y).Alpha);
+                    var d = Math.Abs(before.GetPixel(column, y).Alpha - after.GetPixel(column, y).Alpha);
                     if (d > worst) { worst = d; at = y; }
                 }
                 output.WriteLine($"{name}, straight stroke, cross-profile through a dab centre: worst difference {worst}/255 at y={at}");
                 Assert.True(worst <= 2, $"straight stroke: the cross-profile moved by {worst} at y={at}");
 
-                // Along the centreline, between the first and last dab.
+                // ALONG the stroke the two differ, and the difference is the
+                // fix: the shape maximum reads F(0) on a dab centre and F(half a
+                // pitch) between two — the dab-pitch ripple B349 found finer
+                // sampling could not remove — while the stroke's edge is the
+                // same distance away all along.
                 var cy = (int)Math.Round(mid.Pos.Y);
                 int x0 = (int)Math.Ceiling(dabs[0].Pos.X) + 1, x1 = (int)Math.Floor(dabs[^1].Pos.X) - 1;
-                double AlongRipple(SKBitmap m)
+                double Along(SKBitmap m)
                 {
                     int lo = 255, hi = 0;
                     for (var x = x0; x <= x1; x++) { var a = m.GetPixel(x, cy).Alpha; lo = Math.Min(lo, a); hi = Math.Max(hi, a); }
                     return hi - lo;
                 }
-                double rToday = AlongRipple(today), rOurs = AlongRipple(ours);
-                output.WriteLine($"{name}, straight stroke, along the centreline: ripple today {rToday:0}/255, candidate {rOurs:0}/255");
-                Assert.True(rOurs <= rToday, "the candidate ripples more along the stroke than today's ceiling");
+                double rBefore = Along(before), rAfter = Along(after);
+                output.WriteLine($"{name}, straight stroke, along the centreline: ripple shape-maximum {rBefore:0}/255, swept {rAfter:0}/255");
+                Assert.True(rAfter <= rBefore, "the swept ceiling ripples more along the stroke than the shape maximum");
             }
+        }
+    }
+
+    /// <summary>
+    /// What the distance term adds to one live event. The live path caps a band
+    /// around the newest dabs (B313) against a footprint kept at the compose
+    /// scale (B189), so the window the term works over is the band plus one
+    /// reach, at that scale: about 90 px square fit-to-window at 4K, 240 px
+    /// square zoomed to 100%. The budget is on the <em>added</em> cost, because
+    /// the shape-maximum cap the band already pays is a fraction of a
+    /// millisecond and a ratio against it would say nothing; the promise this
+    /// guards is that nothing here makes the pen wait.
+    /// </summary>
+    [Theory]
+    [InlineData(0.375, 0.5)]
+    [InlineData(1.0, 2.0)]
+    [Trait("Category", "Performance")]
+    public void TheDistanceTermCostsOneLiveEventLessThanItsBudget(double scale, double budgetMs)
+    {
+        var brush = SoftRound();
+        var reach = BrushEngine.CeilingReachPx(brush, scale);
+        var sweep = Sweep(brush, 40);
+        var dabs = BrushEngine.WalkDabs(sweep);
+        var (fw, fh) = FootprintSpace.BufferSize(W, H, scale);
+        using var fp = new SKBitmap(new SKImageInfo(fw, fh, SKColorType.Rgba8888, SKAlphaType.Opaque));
+        using (var canvas = new SKCanvas(fp))
+        {
+            canvas.Clear(SKColors.Black);
+            BrushEngine.AccumulateFootprint(canvas, sweep, dabs, 0, dabs.Count, scale);
+            canvas.Flush();
+        }
+
+        // The band a size-70 brush's event covers in MainViewModel: the dabs
+        // laid since the last event plus the pass halo, which the owner's
+        // captures put at about 173 px square.
+        var band = new SKRectI(380, 200, 553, 373);
+        var space = new FootprintSpace(scale, 0, 0);
+        double plain = double.MaxValue, swept = double.MaxValue;
+        for (var i = 0; i < 5; i++)
+        {
+            using var a = Mark(sweep, dabs);
+            var sw = Stopwatch.StartNew();
+            BrushEngine.CapToFootprintBand(a, fp, band, space, 0);
+            sw.Stop();
+            plain = Math.Min(plain, sw.Elapsed.TotalMilliseconds);
+
+            using var b = Mark(sweep, dabs);
+            sw.Restart();
+            BrushEngine.CapToFootprintBand(b, fp, band, space, reach);
+            sw.Stop();
+            swept = Math.Min(swept, sw.Elapsed.TotalMilliseconds);
+        }
+
+        var added = Math.Max(0, swept - plain);
+        output.WriteLine(
+            $"scale {scale:0.000}, band {band.Width}x{band.Height}, reach {reach} buffer px: "
+            + $"cap {plain:0.000} ms with the shape maximum, {swept:0.000} ms with the swept ceiling — "
+            + $"the term adds {added:0.000} ms against a budget of {budgetMs:0.0}");
+        Assert.True(
+            added <= budgetMs,
+            $"the distance term adds {added:0.000} ms to one live event at scale {scale}, over its {budgetMs} ms budget");
+    }
+
+    /// <summary>
+    /// The band-local live path reads the same ceiling as the whole mark does:
+    /// a band's swept ceiling is exact once the support is known one reach
+    /// beyond it, and the engine reads that far from the buffer it is handed.
+    /// </summary>
+    [Fact]
+    public void ABandReadsTheSameSweptCeilingAsTheWholeMark()
+    {
+        var brush = SoftRound();
+        var reach = BrushEngine.CeilingReachPx(brush, 1.0);
+        var sweep = Sweep(brush, 40);
+        var dabs = BrushEngine.WalkDabs(sweep);
+        using var fp = Footprint(sweep, dabs);
+
+        var (whole, _) = Capped(sweep, dabs, fp, reach);
+        using var banded = Mark(sweep, dabs);
+        var band = new SKRectI(380, 200, 520, 330);
+        BrushEngine.CapToFootprintBand(banded, fp, band, FootprintSpace.Document, reach);
+
+        using (whole)
+        {
+            var worst = 0;
+            for (var y = band.Top; y < band.Bottom; y++)
+            {
+                for (var x = band.Left; x < band.Right; x++)
+                {
+                    worst = Math.Max(worst, Math.Abs(whole.GetPixel(x, y).Alpha - banded.GetPixel(x, y).Alpha));
+                }
+            }
+            output.WriteLine($"band against whole mark, over the band: worst difference {worst}/255");
+            Assert.Equal(0, worst);
         }
     }
 }
