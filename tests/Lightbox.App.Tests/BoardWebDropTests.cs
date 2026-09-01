@@ -195,14 +195,59 @@ public class BoardWebDropTests : BrushStateIsolated
     [Fact]
     public void ADropResolvesAPageToTheImageItNames()
     {
+        var drop = DropSource();
+
+        // FetchAsync hands back whatever the site sends. Reading a fetched
+        // *page* for the image it names is B285, which is what a drag off
+        // Pinterest and its kin carries — it is now the last resort rather
+        // than the second one (B344), but it is still there.
+        Assert.Contains("ImageNamedByAPageAsync", drop);
+    }
+
+    [Fact]
+    public void TheDragsOwnPictureBeatsAPagesGuessAboutItself()
+    {
+        // The heart of B344. Three sources, each more of a guess than the last:
+        // an address that *is* a picture, then the picture the drag carried
+        // itself, and only then a picture some page merely names. Running the
+        // page read second is what pinned Pinterest's logo — its feed, search
+        // and board pages all name one collage as their og:image, so a drag
+        // that carried a feed URL resolved to that collage and stopped, with
+        // the real picture still sitting unread in the drag.
+        var drop = DropSource();
+
+        var address = drop.IndexOf("SearchAddressesAsync", StringComparison.Ordinal);
+        var carried = drop.IndexOf("EmbeddedImageIn", StringComparison.Ordinal);
+        var named = drop.IndexOf("ImageNamedByAPageAsync", StringComparison.Ordinal);
+
+        Assert.True(address >= 0 && carried >= 0 && named >= 0, "all three sources must be reached");
+        Assert.True(address < carried, "an address that is a picture beats the drag's own copy of it");
+        Assert.True(carried < named, "the picture the drag carried beats a page's guess about the page");
+    }
+
+    [Fact]
+    public void APictureFoundByReadingAPageIsAnnouncedAsAGuess()
+    {
+        // A page's og:image is that site's answer to "what is this page
+        // about". On a site whose pages all share one social card it is the
+        // site's own logo, and pinning that silently is indistinguishable from
+        // pinning the right picture (B344). The board says which it was, and
+        // leaves a trace: a wrong guess that arrives looks like success, so the
+        // failure log is no use unless the guess logs too.
+        var drop = DropSource();
+
+        Assert.Contains("that page names", drop);
+        Assert.Contains("a page named the picture", drop);
+    }
+
+    /// <summary>The body of the board’s drop handler, for the guards that read it.</summary>
+    private static string DropSource()
+    {
         var drop = Regex.Match(
             BoardWindowSource(), @"private async void OnDrop\(object\? sender, DragEventArgs e\)\s*\{(.+?)\n    \}",
             RegexOptions.Singleline);
 
-        Assert.True(drop.Success, "OnDrop has moved — this guard needs to follow it");
-        // FetchAsync hands back whatever the site sends; FetchImageAsync is the
-        // one that reads a fetched *page* for the image it names (B285), which
-        // is what a drag off Pinterest and its kin carries.
-        Assert.Contains("FetchImageAsync", drop.Groups[1].Value);
+        Assert.True(drop.Success, "OnDrop has moved — these guards need to follow it");
+        return drop.Groups[1].Value;
     }
 }

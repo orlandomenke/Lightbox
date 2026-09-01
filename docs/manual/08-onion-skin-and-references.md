@@ -182,9 +182,15 @@ never breaks because the file moved.
 
 That includes pictures that were never saved anywhere: **drag an image
 straight out of a browser** and Lightbox fetches it and imports it the same
-way, named after the file in its address. Drag the picture itself, not the
-page — a link to a page is not an image, and the status line says so when a
-drop had nothing readable in it.
+way, named after the file in its address. Sites like Pinterest wrap their
+pictures in links, so a drag off one carries the page as well as the picture —
+Lightbox takes the picture, and falls back to reading the page only when there
+is nothing better. Because that fallback is the site's guess rather than your
+choice, the status line says so when it is used.
+
+**If a site fights you**, the route that always works is to open the image on
+its own — *Open image in new tab*, or **Copy image address** — and then drag
+that tab's picture in, or paste the address with `Ctrl+V`.
 
 Lightbox finds the frames in it by reading the gaps between the drawings, and
 puts the first on the frame you are on, the second on the next, and so on. The
@@ -262,8 +268,21 @@ and tries all of it before giving up. What decides is whether the bytes are a
 picture, not what anything is called, so a browser's nameless temporary works
 like any other. When the address turns out to be the *page* the picture lives
 on — which is what many sites, Pinterest among them, put in a drag — the page
-is read for the image it names and that is fetched instead. Only when every one
-of those fails does the drop refuse, and then the board's own toolbar says which
+is read for the image it names and that is fetched instead.
+
+**Reading a page is the last thing tried, not the second.** A drop learns the
+picture three ways, and each is more of a guess than the one before it: an
+address that *is* a picture, then the picture the drag is carrying itself, and
+only then a picture that some page merely *names*. That last one is the site's
+answer to *what is this page about* — and a great many sites answer it the same
+way on every page, with one social card. Pinterest is the plain case: its feed,
+its boards and its search results all name the same collage, so a drag off any
+of them used to pin the Pinterest logo. Lightbox now recognises that card by
+comparing it with the one the site's front page names, and refuses it; if that
+leaves nothing, the drop says so rather than pinning something you did not ask
+for. When a page's picture *is* taken, the board says so, because it is a guess.
+
+Only when every one of those fails does the drop refuse, and then the board's own toolbar says which
 way it failed rather than leaving you wondering; what the drag was carrying is
 written to the diagnostics log, which is the thing to attach if a drop that
 should work does not.
