@@ -769,14 +769,46 @@ public sealed class ReferenceBoardWindow : Window
         return Services.WebImageDrop.ImageUrisIn(e.DataTransfer);
     }
 
+    /// <summary>
+    /// The wall takes any drag that carries something, and the drop is what
+    /// decides whether there was a picture in it (B351).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This used to read the drag here and refuse the pointer when it could
+    /// not already see a picture, and the refusal was silent.</b> A drag the
+    /// board could not read never became a drop, so <c>OnDrop</c> never ran, so
+    /// nothing was said — and nothing reached the diagnostics log either. The
+    /// one case where the format names are the whole diagnosis was exactly the
+    /// case that produced none of them. B344 needed a screenshot to diagnose
+    /// for want of the line this refusal was swallowing.
+    /// </para>
+    /// <para>
+    /// <b>And the reading was not cheap.</b> Drag-over fires continuously while
+    /// the pointer moves, and the old test ran the whole read every time: every
+    /// format decoded to text, and <c>SKCodec.Create</c> over every byte member
+    /// to ask whether it was a picture. A codec probe per pointer event, to
+    /// answer a question the drop is about to ask properly anyway.
+    /// </para>
+    /// <para>
+    /// So the pointer says yes to anything carrying something and the drop
+    /// gives the answer. The asymmetry is the point: saying <em>no</em> to a
+    /// picture the board could have taken loses the picture and explains
+    /// nothing — <c>MainWindow.Palette</c> carries its own scar from
+    /// over-refusing — while saying <em>yes</em> to a drag that turns out to
+    /// hold nothing costs one sentence and a log line.
+    /// </para>
+    /// <para>
+    /// <b>The board only, deliberately.</b> The main window has a canvas, a
+    /// timeline and dockers with their own drop targets, and a window-level
+    /// handler that marks every drag handled would swallow theirs. The board
+    /// has exactly one drop target and moves its tiles with plain pointer
+    /// events, so there is nothing here to take a drag away from.
+    /// </para>
+    /// </remarks>
     private static void OnDragOver(object? sender, DragEventArgs e)
     {
-        if (DroppedFiles(e).Count == 0
-            && DroppedWebImages(e).Count == 0
-            && Services.WebImageDrop.EmbeddedImageIn(e.DataTransfer) is null)
-        {
-            return;
-        }
+        if (e.DataTransfer is not { Formats.Count: > 0 }) return;
         e.DragEffects = DragDropEffects.Copy;
         // Marked handled, as the canvas's own file drop does: an unhandled
         // drag-over leaves the effect for something else to overwrite.

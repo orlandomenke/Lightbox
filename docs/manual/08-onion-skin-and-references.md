@@ -266,6 +266,8 @@ browser and `Ctrl+V` here is a second route in when a drag will not do it, and i
 way a dropped address is. A picture *on* the clipboard still wins over an address on it: it needs no
 network and cannot be refused.
 
+**The board accepts the drag and then tells you.** The pointer will not refuse a drag on the way in, even one holding nothing Lightbox can use — because a cursor that says *no* explains nothing and leaves no trace. Let go, and the board says what happened.
+
 **A drop that brings nothing says so — on the board.** Browsers hand a picture
 over in more than one way — sometimes the file it cached, sometimes an address,
 sometimes the picture itself — and they label those differently on Windows, on
