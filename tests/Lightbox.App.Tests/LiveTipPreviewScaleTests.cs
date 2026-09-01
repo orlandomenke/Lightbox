@@ -96,7 +96,7 @@ public class LiveTipPreviewScaleTests(ITestOutputHelper output)
             TipScratch: tip,
             TipBounds: tipBounds,
             TipScale: tipScale,
-            PostStampedCount: 1,
+            PostStampedPoints: 1,
             BrushStroke: new Stroke { Tool = ToolKind.Brush });
 
     /// <summary>

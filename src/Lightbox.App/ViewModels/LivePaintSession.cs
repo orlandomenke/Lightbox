@@ -497,30 +497,40 @@ sealed class LivePaintSession
     /// <summary>Cost of the last pass, milliseconds — reported by the performance panel.</summary>
     internal double PostCostMs { get; set; }
 
-    internal int PostStampedCount { get; set; } = -1;
-
     /// <summary>
-    /// How many <em>dabs</em> the last completed pass had processed — the same
-    /// moment <see cref="PostStampedCount"/> describes, counted in the unit the
-    /// dab list uses (B322).
+    /// How many <em>pointer points</em> the stroke had when the last completed
+    /// pass took its snapshot — the scheduling guard's unit, and only that.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Separate because <see cref="PostStampedCount"/> is not in that unit,
-    /// and is not even in one unit.</b> The worker path sets it from
-    /// <c>Points.Count</c> and the cap-only path from <c>dabs.Count</c>; nothing
-    /// depended on which, because its only readers tested it against
-    /// <c>Points.Count</c> or against zero. B322's fourth attempt asked it a
-    /// quantitative question — how many dabs are outstanding — and got points
-    /// subtracted from dabs, so the answer was always about the whole stroke.
-    /// It restamped the lot on every publish and took pen-to-screen from 63 ms
-    /// to 991.
+    /// <b>One unit, on both paths, and the name says which (B329).</b> This was
+    /// <c>PostStampedCount</c>: points on the worker path, dabs on the cap-only
+    /// path, one field. Nothing noticed because its readers tested it against
+    /// <c>Points.Count</c> — which only the worker path reaches — or against
+    /// zero, which any unit passes. Then B322's fourth attempt asked it a
+    /// quantitative question, got points subtracted from dabs, and restamped
+    /// the whole stroke on every publish: pen-to-screen went from 63 ms to 991,
+    /// and most of a session went on finding out why.
     /// </para>
     /// <para>
-    /// So this exists rather than the older field being repaired: the two
-    /// meanings are load-bearing in their own paths and untangling them is
-    /// B329's job, not a prerequisite for drawing a tip.
+    /// Two readers, two questions, two fields: <em>has anything arrived since
+    /// the pass?</em> is a points question and lives here; <em>how many dabs has
+    /// the pass not seen?</em> is <see cref="PostStampedDabs"/>. Greater than
+    /// zero still means "a pass has landed", which is what the compositor asks.
     /// </para>
+    /// </remarks>
+    internal int PostStampedPoints { get; set; } = -1;
+
+    /// <summary>
+    /// How many <em>dabs</em> the last completed pass had processed — the same
+    /// moment <see cref="PostStampedPoints"/> describes, counted in the unit the
+    /// dab list uses (B322).
+    /// </summary>
+    /// <remarks>
+    /// The tip planner subtracts this from the dab count to learn what the pass
+    /// has not seen, so it has to be dabs and nothing else — the cap-only path
+    /// counts dabs natively, the worker path snapshots the dab list's length at
+    /// the instant it snapshots the points (B329).
     /// </remarks>
     internal int PostStampedDabs { get; set; } = -1;
 
@@ -649,7 +659,7 @@ sealed class LivePaintSession
         PostPending = null;
         PostBrushStamp = null;
         PostCostMs = 0;
-        PostStampedCount = -1;
+        PostStampedPoints = -1;
     }
 
     /// <summary>Clear one region of a canvas, or all of it when the region is null.</summary>

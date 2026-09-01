@@ -210,7 +210,7 @@ internal static class ScenePassBuilder
         SKBitmap? Composite = null,
         SKBitmap? Scratch = null,
         SKBitmap? PostScratch = null,
-        int PostStampedCount = -1,
+        int PostStampedPoints = -1,
         Stroke? Shape = null,
         Stroke? Gradient = null,
         Stroke? Text = null,
@@ -513,7 +513,7 @@ internal static class ScenePassBuilder
             var fx = layer.HasLiveEffects ? layer.Effects : null;
             var overlay = maskEditHere ? null : OverlayFor(live, isActive);
             var maskScratch = maskEditHere && live.BrushStroke is not null
-                ? (live.PostStampedCount > 0 && live.PostScratch is not null
+                ? (live.PostStampedPoints > 0 && live.PostScratch is not null
                     ? live.PostScratch
                     : live.Scratch)
                 : null;
@@ -676,7 +676,7 @@ internal static class ScenePassBuilder
             // medium, wet edge and texture included — and fall back to raw
             // dabs only for the first few events of a heavy brush, before
             // the first pass lands.
-            var processed = live.PostStampedCount > 0 && live.PostScratch is not null;
+            var processed = live.PostStampedPoints > 0 && live.PostScratch is not null;
             var source = processed ? live.PostScratch! : live.Scratch;
             // B322: the dabs the pass has not seen, carried beside the body
             // rather than instead of it — and only when a pass has landed, since
