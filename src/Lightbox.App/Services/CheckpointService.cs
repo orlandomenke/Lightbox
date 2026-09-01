@@ -36,7 +36,17 @@ namespace Lightbox.App.Services;
 /// </remarks>
 public sealed class CheckpointService(Func<Doc?> document, Action<Action>? post = null)
 {
-    private readonly Action<Action> _post = post ?? (action => Dispatcher.UIThread.Post(action));
+    // The dispatcher is captured here, at construction on the UI thread, and
+    // the default post closes over the instance rather than reading the static
+    // at call time — the worker calls _post off-thread, and a static read there
+    // can steal UI-thread ownership between two headless tests (B93; the long
+    // form is on ProjectWatcher._dispatcher).
+    private readonly Action<Action> _post =
+        post ?? ((Func<Action<Action>>)(() =>
+        {
+            var dispatcher = Dispatcher.UIThread;
+            return action => dispatcher.Post(action);
+        }))();
     private Task _work = Task.CompletedTask;
 
     /// <summary>
