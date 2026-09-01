@@ -52,7 +52,25 @@ public sealed class AutosaveService
         _inPlacePath = inPlacePath;
         _targetPath = targetPath ?? AutosavePath;
         _timer = new DispatcherTimer { Interval = interval ?? TimeSpan.FromSeconds(60) };
-        _timer.Tick += (_, _) => Flush();
+        // The tick holds this service WEAKLY, and that is B281's whole fix.
+        // A running DispatcherTimer is rooted by the dispatcher, so a tick
+        // closure that captured `this` kept the service - and through
+        // its document provider, the whole MainViewModel - reachable for the life of the
+        // dispatcher. In the app that is one instance and harmless; in the
+        // test suite it was every MainViewModel ever constructed, ~2 MB each,
+        // ~8 GB of gen2 heap across a 4,200-test run, which is what was
+        // OOM-killing 16 GB CI runners (the B269 wedge) and this entry's own
+        // local exit-137 kills. Proven by A/B: 15/15 dropped view models
+        // survived a full GC with the strong tick, 1/15 with the timer
+        // stopped. When the owner is collected the tick stops the timer, so
+        // the dispatcher is left rooting only the timer object itself.
+        var weakSelf = new WeakReference<AutosaveService>(this);
+        var timer = _timer;
+        _timer.Tick += (_, _) =>
+        {
+            if (weakSelf.TryGetTarget(out var self)) self.Flush();
+            else timer.Stop();
+        };
         if (interval != TimeSpan.Zero) _timer.Start();
     }
 
