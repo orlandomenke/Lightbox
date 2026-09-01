@@ -256,9 +256,15 @@ view onto the wall rather than the whole of it.
 | Find something you have lost | **Fit** (`Ctrl+Shift+F`) zooms out until everything on the board is on screen |
 | Add a picture from disk | Drag files onto the board, or **Add image…** |
 | Add one from a web page | Drag the image off the page onto the board — as many times as you like |
-| Paste one | `Ctrl+V` — a copied file, or a screenshot straight off the clipboard |
+| Paste one | `Ctrl+V` — a copied file, a screenshot straight off the clipboard, or an image address copied out of a browser |
 | Put a sheet back up | **Sheets ▾** lists everything in scope that is not on the wall |
 | Move around | Wheel zooms, middle-drag or drag the empty background pans |
+
+**Paste takes an address too.** `Ctrl+V` pins a copied file or a copied picture — a screenshot, most
+often — and, failing both, whatever address the clipboard is holding. So **Copy image address** in a
+browser and `Ctrl+V` here is a second route in when a drag will not do it, and it is fetched exactly the
+way a dropped address is. A picture *on* the clipboard still wins over an address on it: it needs no
+network and cannot be refused.
 
 **A drop that brings nothing says so — on the board.** Browsers hand a picture
 over in more than one way — sometimes the file it cached, sometimes an address,

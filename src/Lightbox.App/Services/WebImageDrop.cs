@@ -83,13 +83,50 @@ public static partial class WebImageDrop
     /// only cost is a candidate that does not fetch.
     /// </para>
     /// </remarks>
-    public static IReadOnlyList<Uri> ImageUrisIn(IDataTransfer? data)
+    public static IReadOnlyList<Uri> ImageUrisIn(IDataTransfer? data) =>
+        data is null ? [] : ImageUrisFrom(TextValuesIn(data));
+
+    /// <summary>
+    /// The same, for a clipboard (B345). A clipboard hands its values over
+    /// asynchronously, but it carries the formats a drag carries, so a copied
+    /// image address reads exactly like a dropped one — including the rule
+    /// that a picture beats the page it sat on (B344).
+    /// </summary>
+    public static async Task<IReadOnlyList<Uri>> ImageUrisInAsync(IAsyncDataTransfer? data)
     {
         if (data is null) return [];
+        var values = new List<(string Format, string Value)>();
+        foreach (var format in data.Formats)
+        {
+            foreach (var item in data.Items)
+            {
+                object? raw;
+                try
+                {
+                    raw = await item.TryGetRawAsync(format);
+                }
+                catch (Exception e) when (e is not OutOfMemoryException)
+                {
+                    // One unreadable format must not cost the paste the others.
+                    continue;
+                }
+                if (AsText(raw) is { Length: > 0 } value) values.Add((format.Identifier, value));
+            }
+        }
+        return ImageUrisFrom(values);
+    }
+
+    /// <summary>
+    /// The image candidates in whatever formats a transfer turned out to hold,
+    /// sorted into the three roles by what each identifier’s name contains
+    /// — the one thing every platform’s spelling has in common.
+    /// </summary>
+    private static IReadOnlyList<Uri> ImageUrisFrom(IEnumerable<(string Format, string Value)> values)
+    {
         var urls = new StringBuilder();
         var html = new StringBuilder();
         var text = new StringBuilder();
-        foreach (var (format, value) in TextValuesIn(data))
+        foreach (var (format, value) in values)
         {
             var id = format.ToLowerInvariant();
             var bucket = id.Contains("uri") || id.Contains("url") ? urls

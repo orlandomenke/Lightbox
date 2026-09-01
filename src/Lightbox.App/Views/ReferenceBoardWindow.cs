@@ -656,7 +656,36 @@ public sealed class ReferenceBoardWindow : Window
                 if (await data.TryGetValueAsync(format) is not { Length: > 0 } bytes) continue;
                 if (BoardModel.AddImageBytes("Pasted", bytes, (centre.X, centre.Y)) is not null) return;
             }
-            Say("There is no picture on the clipboard to pin up.");
+
+            // An *address* last (B345). “Copy image address” is how a browser
+            // hands over a picture it will not put on the clipboard whole, and
+            // it is what someone reaches for when a drag has already failed
+            // them. The clipboard carries the same formats a drag does, so the
+            // drop path’s own reader answers both — including the rule that a
+            // picture beats the page it sat on (B344).
+            var uris = await Services.WebImageDrop.ImageUrisInAsync(data);
+            if (uris.Count > 0)
+            {
+                Say("Fetching the picture…");
+                if (await Services.WebImageDrop.FetchFirstImageAsync(uris) is { } got)
+                {
+                    var name = Services.WebImageDrop.NameFor(got.Source);
+                    if (BoardModel.AddImageBytes(name, got.Bytes, (centre.X, centre.Y)) is not null)
+                    {
+                        Say(got.NamedByAPage
+                            ? $"Pinned “{name}” — the picture that page names. "
+                              + "Copy the image’s own address if that is not the one."
+                            : "");
+                        return;
+                    }
+                }
+                Say("That address could not be fetched — the site refused it, or named no image "
+                    + "Lightbox can read.");
+                return;
+            }
+
+            Say("There is nothing on the clipboard to pin up — copy a picture, a file, or an "
+                + "image address.");
         }
         catch (Exception ex)
         {
