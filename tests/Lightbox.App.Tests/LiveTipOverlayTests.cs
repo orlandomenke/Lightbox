@@ -90,7 +90,7 @@ public class LiveTipOverlayTests(ITestOutputHelper output)
             // Below it — the first events of a stroke, before any pass has
             // landed — the raw scratch is used and the tip is present, which is
             // why the defect only shows once a stroke is under way.
-            PostStampedCount: 1,
+            PostStampedPoints: 1,
             BrushStroke: new Stroke { Tool = ToolKind.Brush });
 
     /// <summary>

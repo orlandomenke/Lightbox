@@ -104,7 +104,7 @@ public class NoStampedInkGoesMissingTests
         using var screen = Composed(new ScenePassBuilder.LiveEdit(
             Scratch: stamped,
             PostScratch: processed,
-            PostStampedCount: 1,
+            PostStampedPoints: 1,
             PostUsed: Covered,
             TipScratch: tipDabs,
             TipBounds: Tip,
@@ -134,7 +134,7 @@ public class NoStampedInkGoesMissingTests
         using var screen = Composed(new ScenePassBuilder.LiveEdit(
             Scratch: stamped,
             PostScratch: processed,
-            PostStampedCount: 1,
+            PostStampedPoints: 1,
             PostUsed: Covered,
             BrushStroke: new Stroke { Tool = ToolKind.Brush }));
 
@@ -159,7 +159,7 @@ public class NoStampedInkGoesMissingTests
 
         using var screen = Composed(new ScenePassBuilder.LiveEdit(
             Scratch: stamped,
-            PostStampedCount: -1,
+            PostStampedPoints: -1,
             BrushStroke: new Stroke { Tool = ToolKind.Brush }));
 
         Assert.True(AnyInk(screen, Covered));

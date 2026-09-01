@@ -1239,7 +1239,7 @@ public partial class MainViewModel
             if (_strokeBuilder.IsActive) NoteStrokeInkShown();
         if (InkAudit && _strokeBuilder.IsActive)
         {
-            AuditInk(_live.PostStampedCount > 0 ? _live.PostScratch : _live.Scratch, _live.TipUsed);
+            AuditInk(_live.PostStampedPoints > 0 ? _live.PostScratch : _live.Scratch, _live.TipUsed);
         }
 
         NotePreviewGap(publishAt);
@@ -1327,7 +1327,7 @@ public partial class MainViewModel
             // composite is about to be drawn under the camera's matrix.
             ThroughCamera: ViewThroughCamera);
         var live = new ScenePassBuilder.LiveEdit(
-            _live.Composite, _live.Scratch, _live.PostScratch, _live.PostStampedCount,
+            _live.Composite, _live.Scratch, _live.PostScratch, _live.PostStampedPoints,
             _liveShape, _liveGradient, LiveTextPaint, _strokeBuilder.Current,
             _transform.Preview, _transform.Frames,
             // The moving/staying split stays behind a delegate because building
@@ -1653,7 +1653,7 @@ public partial class MainViewModel
                 image, _live.Scratch, _live.PostScratch,
                 $"route {plan.Route} clip {usedClip} dirty {dirty} "
                 + $"points {_strokeBuilder.Current?.Points.Count ?? 0} "
-                + $"passRendered {_live.PostStampedCount} passes {LivePostPasses}");
+                + $"passRendered {_live.PostStampedPoints} passes {LivePostPasses}");
         }
 
         // The snapshot above holds its own pins on every bitmap still in the
@@ -2250,7 +2250,7 @@ public partial class MainViewModel
         // the tip everywhere and compare after the pass had landed.
         if (BrushEngine.LiveTipWouldDivergeTooFar(stroke.Brush)) { _live.TipUsed = null; return null; }
 
-        // **PostStampedDabs, not PostStampedCount.** The older field is points on
+        // **PostStampedDabs, not PostStampedPoints.** The older field is points on
         // one path and dabs on the other, so subtracting it from a dab count
         // answers a question nobody asked — and answered it as "the whole
         // stroke", which is what the fourth attempt then restamped every

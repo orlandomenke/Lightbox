@@ -56,7 +56,7 @@ public class LivePaintSessionTests(Xunit.ITestOutputHelper output)
         // The bookkeeping does reset, and PostQueued deliberately does not — it tracks
         // a pass in flight on the dispatcher, which this method has no business cancelling.
         Assert.Null(live.PostUsed);
-        Assert.Equal(-1, live.PostStampedCount);
+        Assert.Equal(-1, live.PostStampedPoints);
         Assert.Equal(0, live.PostCostMs);
     }
 
@@ -125,7 +125,7 @@ public class LivePaintSessionTests(Xunit.ITestOutputHelper output)
         live.EffectDabs = [];
         live.EffectSettled = 5;
         live.SmudgeRegion = new SKRectI(0, 0, 1, 1);
-        live.PostStampedCount = 4;
+        live.PostStampedPoints = 4;
 
         live.ClearEffectState();
 
@@ -139,7 +139,7 @@ public class LivePaintSessionTests(Xunit.ITestOutputHelper output)
         Assert.Null(live.EffectDabs);
         Assert.Equal(0, live.EffectSettled);
         Assert.Null(live.SmudgeRegion);
-        Assert.Equal(-1, live.PostStampedCount);   // it resets the post-process too
+        Assert.Equal(-1, live.PostStampedPoints);   // it resets the post-process too
     }
 
     /// <summary>

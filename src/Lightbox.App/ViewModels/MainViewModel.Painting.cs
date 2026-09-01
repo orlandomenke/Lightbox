@@ -1451,6 +1451,17 @@ public partial class MainViewModel
     /// </remarks>
     internal int LiveDabCountForTest => _live.Dabs?.Count ?? 0;
 
+    /// <summary>The points the live stroke holds right now. Tests only.</summary>
+    internal int LivePointCountForTest => _strokeBuilder.Current?.Points.Count ?? 0;
+
+    /// <summary>
+    /// Where the last live pass stood, in both its units (B329). Tests only:
+    /// the pair is what lets a test say each field carries the unit its name
+    /// claims, on both the cap-only and the worker path.
+    /// </summary>
+    internal (int Points, int Dabs) LivePostStampedForTest =>
+        (_live.PostStampedPoints, _live.PostStampedDabs);
+
     /// <summary>
     /// How far the settled prefix has reached, for the same check
     /// (B322 attempt 6).
@@ -2612,10 +2623,13 @@ public partial class MainViewModel
                         ? LivePaintSession.UnionRect(prior, band)
                         : band;
                     // Above zero is what makes the compositor read PostScratch
-                    // instead of the raw dabs (ScenePassBuilder).
-                    _live.PostStampedCount = dabs.Count;
-                    // B322: and in the dab unit explicitly, which here happens
-                    // to be the same number — the cap-only path counts dabs.
+                    // instead of the raw dabs (ScenePassBuilder). Points here,
+                    // the same unit the worker path records — this line used
+                    // to write dabs into a field the guard compared with points
+                    // (B329).
+                    _live.PostStampedPoints = live.Points.Count;
+                    // And the dab count in its own field, which on this path is
+                    // simply the dabs just stamped.
                     _live.PostStampedDabs = dabs.Count;
                 }
             }
@@ -2740,7 +2754,7 @@ public partial class MainViewModel
 
         if (_strokeBuilder.Current is not { } live || !_strokeBuilder.IsActive
             || !NeedsLivePostProcess(live.Brush)
-            || _live.PostStampedCount == live.Points.Count // nothing new since last pass
+            || _live.PostStampedPoints == live.Points.Count // nothing new since last pass
             // The pass reads the dabs from the live scratch; the blur and
             // smudge brushes use the copy-based path instead and have none.
             || _live.Scratch is not { } dabs)
@@ -3011,7 +3025,7 @@ public partial class MainViewModel
         }
 
         _live.PostCostMs = costMs;
-        _live.PostStampedCount = count;
+        _live.PostStampedPoints = count;
         _live.PostStampedDabs = dabsAtPass;
         _live.PostBrushStamp = brushStamp;
         _live.PostUsed = _live.PostUsed is { } already
