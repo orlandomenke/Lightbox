@@ -338,6 +338,18 @@ public sealed class BrushLibraryTests(ITestOutputHelper output) : BrushStateIsol
         // brushes with 24 px tips parse in well under a tenth of a second, so a test built on
         // toy fixtures would have "proved" there was nothing to fix. The cost is in the tip —
         // decoding it and re-encoding it as PNG — and it grows with its area.
+        // Warm the reader before either arm is timed. The small arm runs first,
+        // so it used to pay every cold cost in the process — and on CI that was
+        // not noise: the 56-tip batch measured ~9 s where it costs ~40 ms warm,
+        // a 225x inflation, putting a 24 px brush at 160.5 ms against 136.5 ms
+        // for a 300 px one. Warm the honest per-brush ratio is ~180x the other
+        // way (0.7 ms against ~130 ms). B259's shape, sixth sighting,
+        // 2026-09-01: the assertion was measuring which arm ran first, not the
+        // cost model.
+        BrushImportJob.Read(Collection(2), cancel: TestContext.Current.CancellationToken);
+        BrushImportJob.Read(
+            [("warm.gbr", Gbr(300, "warm"))], cancel: TestContext.Current.CancellationToken);
+
         var small = Collection(56);
         var clockSmall = Stopwatch.StartNew();
         var readSmall = BrushImportJob.Read(small, cancel: TestContext.Current.CancellationToken);
@@ -364,9 +376,14 @@ public sealed class BrushLibraryTests(ITestOutputHelper output) : BrushStateIsol
         // The claim worth guarding is the shape, not the absolute: tip area dominates, so a
         // real collection is seconds of work and belongs off the UI thread. A per-brush cost
         // this size is also why the bar reports per file and offers a way out.
+        // Twice dearer rather than merely dearer: warm, the real per-brush
+        // ratio is ~180x (measured 3x on 2026-09-01: 0.7 ms against 126-133 ms),
+        // so a 2x bar keeps ninety-fold headroom while still catching the cost
+        // model inverting — where a threshold at 1.0x is a knife edge that
+        // hands the verdict to scheduling (B259).
         Assert.True(
-            each > msSmall / 56,
-            $"a 300 px tip ({each:F1} ms) was not dearer than a 24 px one ({msSmall / 56:F1} ms) — "
+            each > msSmall / 56 * 2,
+            $"a 300 px tip ({each:F1} ms) was not clearly dearer than a 24 px one ({msSmall / 56:F1} ms) — "
             + "the cost model in this file is wrong");
     }
 
