@@ -348,10 +348,25 @@ public partial class MainViewModel
     {
         if (SelectedBrushPreset?.Id == preset.Id)
         {
+            // "Give me this brush back" means the saved one, not the nudged
+            // one — so the tweak goes before the preset is put on (B71).
+            _brushes.Tweaks.Remove(preset.Id);
             OnSelectedBrushPresetChanged(preset);
             return;
         }
         SelectedBrushPreset = preset;
+    }
+
+    /// <summary>
+    /// Leaving a preset keeps what it was nudged to (B71), so coming back finds
+    /// it as it was left. Skipped under <see cref="BrushWorkingSet.Applying"/>,
+    /// where the assignment is bookkeeping and the caller has already decided
+    /// what the outgoing preset's tweak should be.
+    /// </summary>
+    partial void OnSelectedBrushPresetChanging(BrushPreset? oldValue, BrushPreset? newValue)
+    {
+        if (_brushes.IsApplying || oldValue is null || oldValue.Id == newValue?.Id) return;
+        StashTweak(oldValue);
     }
 
     partial void OnSelectedBrushPresetChanged(BrushPreset? value)
@@ -367,7 +382,7 @@ public partial class MainViewModel
             // the next mark tell the truth only until you changed brush.
             var antiAlias = AntiAliasing;
             var sampleSource = SmudgeSampleSource;
-            _brushes.Brush = value.Settings.Clone();
+            _brushes.Brush = SettingsToApply(value);
             _brushes.Brush.AntiAlias = antiAlias;
             _brushes.Brush.SampleSource = sampleSource;
             _brushes.Eraser.SampleSource = sampleSource;
@@ -1107,6 +1122,10 @@ public partial class MainViewModel
         };
         _brushes.UserPresets.Add(preset);
         BrushPresetChoices.Add(preset);
+        // The changes now live under the new name, so the brush they were made
+        // on goes back to what it says — "keeps both, the original untouched"
+        // would not be true if picking it later handed the changes back (B71).
+        if (SelectedBrushPreset is { } from) _brushes.Tweaks.Remove(from.Id);
         _brushes.Applying(() =>
         {
             SelectedBrushPreset = preset;

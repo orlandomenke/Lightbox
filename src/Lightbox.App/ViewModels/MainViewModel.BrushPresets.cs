@@ -342,8 +342,41 @@ public partial class MainViewModel
     public string BrushModifiedBadge => BrushIsModified ? "●" : "";
 
     public string BrushModifiedTip => BrushIsModified
-        ? $"Changed from “{SelectedBrushPreset?.Name}”. Update it, or save the changes as a new brush."
+        ? $"Changed from “{SelectedBrushPreset?.Name}”. The change stays with this brush while you use " +
+          $"others and after a restart. Update it, save it as a new brush, or pick “{SelectedBrushPreset?.Name}” " +
+          "again to get the saved one back."
         : "";
+
+    // ---- what a preset has been nudged to (B71) ---------------------------------
+
+    /// <summary>
+    /// Record the working settings against the preset they drifted from, or
+    /// forget them when they no longer differ.
+    /// </summary>
+    /// <remarks>
+    /// Called on every persist and at the moment of leaving a preset. The first
+    /// is what makes a tweak survive a restart, the second is what makes it
+    /// survive the switch — and both are needed, because not every edit path
+    /// persists (the curve editor and the tip picker write straight to the
+    /// settings). Comparing by value rather than remembering a "touched" flag
+    /// keeps the same rule the dot uses: a nudge put back is not a tweak.
+    /// </remarks>
+    private void StashTweak(BrushPreset? preset)
+    {
+        if (preset is null) return;
+        if (BrushComparison.SameMark(preset.Settings, CurrentToolSettings))
+        {
+            _brushes.Tweaks.Remove(preset.Id);
+        }
+        else
+        {
+            _brushes.Tweaks[preset.Id] = CurrentToolSettings.Clone();
+        }
+    }
+
+    /// <summary>The settings a preset should come on with: its tweak if it has one, else itself.</summary>
+    private BrushSettings SettingsToApply(BrushPreset preset) =>
+        _brushes.Tweaks.TryGetValue(preset.Id, out var tweak) ? tweak.Clone() : preset.Settings.Clone();
 
     /// <summary>Can the current preset be updated in place?</summary>
     public bool CanUpdateBrushPreset => SelectedBrushPreset is not null && BrushIsModified;
@@ -424,6 +457,7 @@ public partial class MainViewModel
     {
         if (preset.IsBuiltIn) return RevertBrushPreset();
         if (_brushes.UserPresets.RemoveAll(p => p.Id == preset.Id) == 0) return false;
+        _brushes.Tweaks.Remove(preset.Id);
 
         var at = BrushPresetChoices.IndexOf(preset);
         if (at >= 0) BrushPresetChoices.RemoveAt(at);
@@ -465,6 +499,7 @@ public partial class MainViewModel
 
         var removed = _brushes.UserPresets.RemoveAll(p => ids.Contains(p.Id));
         if (removed == 0) return 0;
+        foreach (var id in ids) _brushes.Tweaks.Remove(id);
 
         for (var i = BrushPresetChoices.Count - 1; i >= 0; i--)
         {
@@ -664,12 +699,19 @@ public partial class MainViewModel
 
     private void PersistBrushState()
     {
+        // The brush in hand is the one tweak that is otherwise only stashed on
+        // leaving it, and a session that ends without leaving it is exactly the
+        // one B71 was filed about.
+        StashTweak(SelectedBrushPreset);
         PresetStore.Save(new PresetStore.State
         {
             UserPresets = _brushes.UserPresets,
             LastBrushPresetId = SelectedBrushPreset?.Id,
             LastBrush = _brushes.Brush.Clone(),
             LastEraser = _brushes.Eraser.Clone(),
+            // Null rather than empty, so a store with nothing nudged carries no
+            // key — the same rule the palette and the project brush follow.
+            Tweaks = _brushes.Tweaks.Count == 0 ? null : new Dictionary<string, BrushSettings>(_brushes.Tweaks),
             SmoothingMode = _appStabilisation.Mode.ToString(),
             SmoothingWindow = _appStabilisation.Window,
             SmoothingStrength = _appStabilisation.Strength,
@@ -690,6 +732,13 @@ public partial class MainViewModel
             BrushPresetChoices.Add(preset);
         }
         RefreshTagChoices();
+        // Only for presets that still exist: a tweak whose brush was deleted
+        // by another session, or by a build that dropped a shipped brush, would
+        // otherwise sit in the file forever with nothing to apply it to.
+        foreach (var (id, tweak) in state.Tweaks ?? [])
+        {
+            if (BrushPresetChoices.Any(p => p.Id == id)) _brushes.Tweaks[id] = tweak;
+        }
         if (state.LastBrush is not null) _brushes.Brush = state.LastBrush.Clone();
         else _brushes.Brush = new BrushSettings { Size = 6, Hardness = 0.8 };
         if (state.LastEraser is not null) _brushes.Eraser = state.LastEraser.Clone();
