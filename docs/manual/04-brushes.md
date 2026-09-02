@@ -102,11 +102,15 @@ strength, radius, and for smudge how much of its own colour it adds. A smudge
 has no opacity in the usual sense, so showing you one would be a lie.
 
 **Smearing or dulling**, and **length**, are on the **⚙ → Effects** page rather
-than on the bar. Smearing drags a sample along the stroke so detail streaks;
-dulling lays down the colour under the dab so detail dissolves, which is what a
-blender is. Length is how far colour travels before the sample refreshes. They
-live with the brush because they are what make a brush *that* brush — the three
-values on the bar are the ones you adjust mid-drawing.
+than on the bar. Smearing copies what was under the last dab onto the next, so
+edges and texture streak — drag a smear across stripes and the stripes come
+with it. Dulling picks up one colour from under the dab and lays that down, so
+detail dissolves into a soft blend, which is what a blender is. Length is how
+far what the brush picked up travels before it fades. **Radius** belongs to
+dulling only — how wide an area it averages its colour over — so the row is not
+shown for a smearing brush. They live with the brush because they are what make
+a brush *that* brush — the three values on the bar are the ones you adjust
+mid-drawing.
 
 **Strength on an effect brush is flow, and flow there is not flow on a paint
 brush.** On a paint brush flow is how much pigment a dab lays; on a smudge or a
@@ -532,18 +536,28 @@ never change it: they are not what *you* were painting with.
 Smudge and blur move pixels that are already there rather than laying down
 colour.
 
+**A smear moves pixels; a blender moves a colour.** Drag the Smudge brush
+across the edge of a mark and the edge itself travels, texture and all — stripes
+stay stripes, a hard edge stays hard until it fades. The Blender (dulling) picks
+up one averaged colour and lays that down, so the same drag gives a soft blend
+with the detail gone. That is the difference between the two, and it is why a
+smudge that has not moved does nothing at all: a tap with the Smudge brush
+changes nothing, and a tap with the Blender softens whatever edge it lands on.
+
 **How far a smudge carries is set by two things, and they multiply.** *Strength*
 on the bar is how hard each dab pulls; *Length* on **⚙ → Effects** is how much of
 what it picked up survives into the next dab. Length is the one that decides the
-trail: at the default 0.5 a 20 px smudge carries colour about 15 px past the edge
-of a mark, at 0.75 about 26, and at 1.0 about 53 — at 1.0 the sample never fades,
-so colour travels as far as you drag it. Raise strength as well and both grow.
-If a smear dies sooner than you want, reach for Length first.
+trail: the shipped Smudge brush is 20 px at a length of 0.75 and carries colour
+about 18 px past the edge of a mark; at 0.5 it is about 8, and at 1.0 about 53 —
+at 1.0 what it carries never fades, so colour travels as far as you drag it.
+Raise strength as well and both grow. If a smear dies sooner than you want, reach
+for Length first.
 
-Dragging outward *does* thin the edge you dragged across, over roughly half a
-brush width. That is the tool working — it is what happens when you pull a finger
-through wet paint — and it stops at the edge: the body of the mark keeps its
-coverage however long you work over it.
+The body of a mark is a source, not a supply: however long you smear out of it,
+it keeps its coverage, because copying pixels out of it takes nothing away. The
+Blender is the one that thins the edge it is dragged across, over roughly half a
+brush width — the averaged colour it picks up at an edge is part transparent —
+and that stops at the edge; it never hollows out the body either.
 
 **Edit → Configure → Drawing** decides which pixels a smudge or blur reads:
 

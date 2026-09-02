@@ -3316,9 +3316,10 @@ public static class BrushEngine
         var strength = Math.Clamp(brush.Flow, 0, 1);
         if (strength <= 0) return;
 
+        // The commit drops the carry, so it need not be copied out (B92).
         StampSmudgeDabs(
             target, pixels, stroke, outputScale, strength, WalkDabs(stroke), 0, int.MaxValue, default,
-            origin);
+            origin, checkpoint: false);
     }
 
     /// <summary>
@@ -3331,7 +3332,42 @@ public static class BrushEngine
     /// second half is the caller's problem (restore what the unsettled tail wrote, then re-stamp);
     /// this is the first half, small enough to checkpoint every pointer event.
     /// </remarks>
-    public readonly record struct SmudgeCarry(SKColor Colour, bool Started);
+    public readonly record struct SmudgeCarry(SKColor Colour, bool Started, SmudgePatch? Patch = null);
+
+    /// <summary>
+    /// What a <em>smearing</em> smudge is carrying: the pixels that were under the previous dab,
+    /// in the dab's own frame, so laying them under the next dab is what moves them (B92).
+    /// </summary>
+    /// <remarks>
+    /// Immutable once handed out, and that is load-bearing rather than tidy. The live path
+    /// checkpoints one of these at the settled boundary and re-stamps the provisional tail from
+    /// it every pointer event; a patch the tail mutated in place would corrupt the checkpoint
+    /// it resumes from, and the commit would then disagree with the preview — B69's bug in a
+    /// new coat. <see cref="StampSmearDabs"/> works in pooled buffers and copies out once.
+    /// </remarks>
+    public sealed class SmudgePatch
+    {
+        internal SmudgePatch(int side, byte[] pixels)
+        {
+            Side = side;
+            Pixels = pixels;
+        }
+
+        /// <summary>Width and height, in surface pixels — the largest dab the brush can lay, plus a ring.</summary>
+        public int Side { get; }
+
+        /// <summary>
+        /// <em>Unpremultiplied</em> RGBA, <see cref="Side"/>² of it, row-major.
+        /// </summary>
+        /// <remarks>
+        /// Unpremultiplied on purpose, where everything else in this engine is premultiplied.
+        /// A trail fades dab over dab, and a premultiplied byte of a faded pixel has almost no
+        /// bits left for its hue — red 40 at alpha 41 is a 6 — so forty rounds of mixing there
+        /// walk the colour off. Unpremultiplied bytes keep a channel's precision whatever the
+        /// alpha, which is why the old colour-carrying path kept hue (B91) and this must too.
+        /// </remarks>
+        internal byte[] Pixels { get; }
+    }
 
     /// <summary>
     /// Stamp dabs <paramref name="from"/> (inclusive) to <paramref name="to"/> (exclusive) of a
@@ -3356,13 +3392,18 @@ public static class BrushEngine
     /// The document's top-left in stroke coordinates; zero for a document that has
     /// never been resized, which is every caller until one says otherwise.
     /// </param>
+    /// <param name="checkpoint">
+    /// Whether the returned carry must be usable to resume from. A smearing carry is a copy of
+    /// the patch (B92), so a caller that is going to drop the result — the provisional tail,
+    /// which is re-stamped from the settled checkpoint every event — says so and saves the copy.
+    /// </param>
     public static SmudgeCarry StampSmudgeRange(
         SKCanvas target, SKBitmap read, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to,
-        SmudgeCarry carry, SKPointI origin = default)
+        SmudgeCarry carry, SKPointI origin = default, bool checkpoint = true)
     {
         var strength = Math.Clamp(stroke.Brush.Flow, 0, 1);
         if (strength <= 0) return carry;
-        return StampSmudgeDabs(target, read, stroke, 1.0, strength, dabs, from, to, carry, origin);
+        return StampSmudgeDabs(target, read, stroke, 1.0, strength, dabs, from, to, carry, origin, checkpoint);
     }
 
     /// <summary>
@@ -3459,17 +3500,22 @@ public static class BrushEngine
 
     private static SmudgeCarry StampSmudgeDabs(
         SKCanvas target, SKBitmap pixels, Stroke stroke, double outputScale, double strength,
-        IReadOnlyList<Dab> dabs, int from, int to, SmudgeCarry carry, SKPointI origin)
+        IReadOnlyList<Dab> dabs, int from, int to, SmudgeCarry carry, SKPointI origin, bool checkpoint = true)
     {
         var brush = stroke.Brush;
 
-        // Krita's two Color Smudge algorithms. Smearing drags a sample along
-        // the stroke and refreshes it as it goes, so detail smears into
-        // streaks. Dulling takes one colour from under the dab and lays it
-        // down flat, so detail dissolves instead — that is what a blender
-        // brush wants, and it is why a blender built out of Smearing never
-        // quite behaves.
-        var dulling = brush.SmudgeMode == SmudgeMode.Dulling;
+        // Krita's two Color Smudge algorithms, and they differ in WHAT is laid
+        // down, not just in how it is mixed. Smearing copies the pixels that
+        // were under the previous dab onto this one, so edges and texture
+        // streak (B92, StampSmearDabs). Dulling takes one colour from under
+        // the dab and lays it down flat, so detail dissolves instead — that is
+        // what a blender brush wants, and it is why a blender built out of
+        // Smearing never quite behaves. This method is the dulling path.
+        if (brush.SmudgeMode != SmudgeMode.Dulling)
+        {
+            return StampSmearDabs(
+                target, pixels, stroke, outputScale, strength, dabs, from, to, carry, origin, checkpoint);
+        }
         var baseCarry = Math.Clamp(brush.SmudgeLength, 0, 1);
         var spread = (float)Math.Clamp(brush.SmudgeRadius, 0.05, 1);
         var baseRate = Math.Clamp(brush.ColorRate, 0, 1);
@@ -3512,9 +3558,9 @@ public static class BrushEngine
                 (float)(baseCarry * PressureResponse.Factor(brush, BrushDynamic.SmudgeLength, pressure));
             var colorRate = baseRate * PressureResponse.Factor(brush, BrushDynamic.ColorRate, pressure);
 
-            // Dulling deposits the colour under the dab rather than the
-            // colour it has been carrying, which is the whole difference.
-            var deposit = dulling ? MixPigment(sample, carried, carryOver * 0.5) : carried;
+            // Dulling deposits the colour under the dab, half-mixed with what
+            // it has been carrying, rather than the carried pixels themselves.
+            var deposit = MixPigment(sample, carried, carryOver * 0.5);
             if (colorRate > 0) deposit = MixPigment(deposit, ownColor, colorRate);
 
             if (deposit.Alpha > 0)
@@ -3531,6 +3577,310 @@ public static class BrushEngine
         }
 
         return new SmudgeCarry(carried, hasColor);
+    }
+
+    /// <summary>
+    /// Smearing: lay the pixels that were under the previous dab under this one (B92).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The patch is kept in the dab's own frame, so moving it costs nothing.</b> Pixel
+    /// <c>(u, v)</c> of the patch was read at <c>(u, v)</c> of the previous dab's box and is laid
+    /// down at <c>(u, v)</c> of this dab's box; the translation is the distance the pen moved,
+    /// and it never has to be computed. Everything else is the colour path's arithmetic done
+    /// per pixel rather than once: read what is under the dab before anything is deposited,
+    /// deposit toward the carried patch at the dab's own weight, then mix the carried patch
+    /// toward what was read by <c>1 − Length</c>. On flat colour the patch is flat and the two
+    /// paths agree. Where there is an edge or a texture the patch has it, and the deposit lays
+    /// it down one step further along — which is what a streak is, and what a scalar colour
+    /// could never produce.
+    /// </para>
+    /// <para>
+    /// <b>Dab centres are rounded to whole surface pixels and the patch moves by whole
+    /// pixels</b>, so what it carries is copied, never resampled. A bilinear move would soften
+    /// the patch a little on every dab, and there are some forty dabs over a pixel at ordinary
+    /// spacing — that is exactly the dissolve this replaces. Rounding the centres rather than
+    /// the steps keeps a slow drag honest: steps of 0.4 px would round to nothing forever,
+    /// positions do not.
+    /// </para>
+    /// <para>
+    /// The patch is sized from the brush, not from the range — the largest dab it can lay plus
+    /// a ring — so two pointer events hand each other the same frame. Bounded work, as
+    /// invariant 6 requires: one patch read, one dab box and one patch mix per dab, all of the
+    /// dab's own order.
+    /// </para>
+    /// </remarks>
+    private static SmudgeCarry StampSmearDabs(
+        SKCanvas target, SKBitmap pixels, Stroke stroke, double outputScale, double strength,
+        IReadOnlyList<Dab> dabs, int from, int to, SmudgeCarry carry, SKPointI origin, bool checkpoint)
+    {
+        var brush = stroke.Brush;
+        var s = (float)outputScale;
+        var baseCarry = Math.Clamp(brush.SmudgeLength, 0, 1);
+        var baseRate = Math.Clamp(brush.ColorRate, 0, 1);
+        var ownColor = StrokeColor(stroke);
+        var w0 = (float)Math.Clamp(strength, 0, 1);
+        if (w0 <= 0) return carry;
+
+        var half = (int)Math.Ceiling(DabReach(brush) * s) + 1;
+        var side = 2 * half + 1;
+        var length = side * side * 4;
+
+        var pool = System.Buffers.ArrayPool<byte>.Shared;
+        var patch = pool.Rent(length);
+        var pre = pool.Rent(length);
+        try
+        {
+            var started = carry.Started && carry.Patch is { } prior && prior.Side == side;
+            if (started) carry.Patch!.Pixels.AsSpan(0, length).CopyTo(patch);
+            var stamped = false;
+
+            for (var i = Math.Max(0, from); i < Math.Min(to, dabs.Count); i++)
+            {
+                var (pos, pressure, heading, _) = dabs[i];
+                var radius = (float)RadiusAt(brush, pressure);
+                if (radius <= 0) continue;
+
+                var surface = ToSurface(pos, origin);
+                var cx = surface.X * s;
+                var cy = surface.Y * s;
+                var icx = (int)MathF.Floor(cx + 0.5f);
+                var icy = (int)MathF.Floor(cy + 0.5f);
+
+                // 1. What is under the dab now, before anything is deposited — the
+                //    sample the colour path takes first, one per pixel.
+                ReadPatch(pixels, icx - half, icy - half, side, pre);
+                if (!started)
+                {
+                    // The first dab carries what is under it and so lays down nothing
+                    // that was not already there: a tap moves nothing, which is what a
+                    // smear that has not moved should do. Softening an edge in place
+                    // is dulling's job, and the blender is the brush for it.
+                    Unpremultiply(pre, patch, length);
+                    started = true;
+                }
+                stamped = true;
+
+                // Both per dab, because pressure is — see the dulling path.
+                var carryOver = (float)(baseCarry * PressureResponse.Factor(brush, BrushDynamic.SmudgeLength, pressure));
+                var colorRate = (float)(baseRate * PressureResponse.Factor(brush, BrushDynamic.ColorRate, pressure));
+
+                // 2. Lay the carried patch under this dab.
+                SmearDab(
+                    target, pixels, patch, side, half, icx, icy, new SKPoint(cx, cy), radius * s, brush, w0,
+                    ownColor, colorRate, heading, pressure, pos, dabs[i].Seed);
+
+                // 3. How much of the carried patch survives into the next dab — MixPigment's
+                //    arithmetic per pixel: lerp premultiplied, store unpremultiplied. At 0
+                //    the patch is replaced every dab and nothing travels; at 1 it is dragged
+                //    the length of the stroke.
+                for (var k = 0; k < length; k += 4)
+                {
+                    float preA = pre[k + 3];
+                    float ptA = patch[k + 3];
+                    // Nothing under the dab and nothing carried: most of the patch,
+                    // most of the time, and the divide below is the loop's cost.
+                    if (preA == 0f && ptA == 0f) continue;
+                    var ptScale = ptA / 255f;
+                    var a = preA + ((ptA - preA) * carryOver);
+                    if (a < 0.5f)
+                    {
+                        patch[k] = patch[k + 1] = patch[k + 2] = patch[k + 3] = 0;
+                        continue;
+                    }
+                    var r = pre[k] + (((patch[k] * ptScale) - pre[k]) * carryOver);
+                    var g = pre[k + 1] + (((patch[k + 1] * ptScale) - pre[k + 1]) * carryOver);
+                    var b = pre[k + 2] + (((patch[k + 2] * ptScale) - pre[k + 2]) * carryOver);
+                    var un = 255f / a;
+                    patch[k] = (byte)Math.Min(255f, (r * un) + 0.5f);
+                    patch[k + 1] = (byte)Math.Min(255f, (g * un) + 0.5f);
+                    patch[k + 2] = (byte)Math.Min(255f, (b * un) + 0.5f);
+                    patch[k + 3] = (byte)(a + 0.5f);
+                }
+            }
+
+            if (!stamped || !checkpoint) return carry;
+            // The checkpoint is a copy the caller may hold across events; the working
+            // buffers go back to the pool.
+            var kept = new byte[length];
+            patch.AsSpan(0, length).CopyTo(kept);
+            return new SmudgeCarry(default, true, new SmudgePatch(side, kept));
+        }
+        finally
+        {
+            pool.Return(patch);
+            pool.Return(pre);
+        }
+    }
+
+    /// <summary>Premultiplied RGBA in, unpremultiplied RGBA out, <paramref name="length"/> bytes of each.</summary>
+    private static void Unpremultiply(byte[] premul, byte[] into, int length)
+    {
+        for (var k = 0; k < length; k += 4)
+        {
+            float a = premul[k + 3];
+            if (a <= 0f)
+            {
+                into[k] = into[k + 1] = into[k + 2] = into[k + 3] = 0;
+                continue;
+            }
+            var un = 255f / a;
+            into[k] = (byte)Math.Min(255f, (premul[k] * un) + 0.5f);
+            into[k + 1] = (byte)Math.Min(255f, (premul[k + 1] * un) + 0.5f);
+            into[k + 2] = (byte)Math.Min(255f, (premul[k + 2] * un) + 0.5f);
+            into[k + 3] = premul[k + 3];
+        }
+    }
+
+    /// <summary>
+    /// Copy a <paramref name="side"/>-square block of premultiplied pixels whose top-left is
+    /// (<paramref name="left"/>, <paramref name="top"/>), transparent wherever it leaves the bitmap.
+    /// </summary>
+    private static void ReadPatch(SKBitmap pixels, int left, int top, int side, byte[] into)
+    {
+        var stride = side * 4;
+        using var pix = pixels.PeekPixels();
+        if (pix is null)
+        {
+            Array.Clear(into, 0, side * stride);
+            return;
+        }
+        var src = pix.GetPixelSpan();
+        var rowBytes = pix.RowBytes;
+        int w = pixels.Width, h = pixels.Height;
+        var x0 = Math.Max(0, left);
+        var x1 = Math.Min(w, left + side);
+        for (var v = 0; v < side; v++)
+        {
+            var y = top + v;
+            var row = into.AsSpan(v * stride, stride);
+            if (y < 0 || y >= h || x1 <= x0)
+            {
+                row.Clear();
+                continue;
+            }
+            var lead = (x0 - left) * 4;
+            var span = (x1 - x0) * 4;
+            if (lead > 0) row[..lead].Clear();
+            src.Slice((y * rowBytes) + (x0 * 4), span).CopyTo(row.Slice(lead, span));
+            if (lead + span < stride) row[(lead + span)..].Clear();
+        }
+    }
+
+    /// <summary>
+    /// One smearing dab: <c>dst = lerp(dst, patch, w)</c> over the dab's box, the patch first
+    /// mixed toward the brush's own colour by the colour rate.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="LerpDab"/> with the deposit read from the patch per pixel instead of held in
+    /// one colour; the weight, the rounding and the write-through-<c>Src</c> are its, and the
+    /// reasons are recorded there. The box is also clipped to the patch's extent, which a dab
+    /// within <see cref="DabReach"/> never reaches — but a box that could read past the patch
+    /// would be a fault that only showed as garbage at one brush size.
+    /// </remarks>
+    private static void SmearDab(
+        SKCanvas target, SKBitmap read, byte[] patch, int side, int half, int icx, int icy, SKPoint centre,
+        float r, BrushSettings brush, float w0, SKColor own, float colorRate, double headingDeg,
+        double pressure, SKPoint pos, SKPoint? seed)
+    {
+        target.Flush();
+        if (!target.GetDeviceClipBounds(out var clip) || clip.IsEmpty) return;
+        if (r <= 0) return;
+
+        var cx = centre.X;
+        var cy = centre.Y;
+        var hardness = (float)Math.Clamp(brush.Hardness, 0, 1);
+        var shape = new DabShape(
+            brush, new SKPoint(cx, cy), r, (float)RoundnessAt(brush, seed ?? pos, pressure), headingDeg,
+            seed ?? pos);
+
+        var left = Math.Max(Math.Max(clip.Left, (int)MathF.Floor(cx - r)), icx - half);
+        var top = Math.Max(Math.Max(clip.Top, (int)MathF.Floor(cy - r)), icy - half);
+        var right = Math.Min(Math.Min(clip.Right, (int)MathF.Ceiling(cx + r) + 1), icx + half + 1);
+        var bottom = Math.Min(Math.Min(clip.Bottom, (int)MathF.Ceiling(cy + r) + 1), icy + half + 1);
+        if (right <= left || bottom <= top) return;
+
+        using var readPix = read.PeekPixels();
+        if (readPix is null) return;
+        var srcRow = readPix.RowBytes;
+        var src = readPix.GetPixelSpan();
+
+        var info = new SKImageInfo(right - left, bottom - top, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var dab = new SKBitmap(info);
+        using var dabPix = dab.PeekPixels();
+        if (dabPix is null) return;
+        var dstRow = dabPix.RowBytes;
+        var dst = dabPix.GetPixelSpan<byte>();
+        var patchRow = side * 4;
+
+        // The brush's own colour, premultiplied, for the colour rate.
+        var oa = own.Alpha / 255f;
+        var oR = own.Red * oa;
+        var oG = own.Green * oa;
+        var oB = own.Blue * oa;
+        var oA = (float)own.Alpha;
+
+        for (var y = top; y < bottom; y++)
+        {
+            var sRow = y * srcRow;
+            var pRow = (y - top) * dstRow;
+            var qRow = (y - icy + half) * patchRow;
+            for (var x = left; x < right; x++)
+            {
+                var si = sRow + (x * 4);
+                var pi = pRow + ((x - left) * 4);
+                var qi = qRow + ((x - icx + half) * 4);
+
+                var dx = x + 0.5f - cx;
+                var dy = y + 0.5f - cy;
+                var d = MathF.Sqrt((dx * dx) + (dy * dy)) / r;
+
+                float w;
+                if (d > 1f)
+                {
+                    w = 0f;
+                }
+                else
+                {
+                    var falloff = hardness >= 0.999f || d <= hardness
+                        ? 1f
+                        : 1f - ((d - hardness) / (1f - hardness));
+                    w = w0 * Math.Clamp(falloff, 0f, 1f);
+                }
+                w = shape.At(x, y, w);
+
+                if (w <= 0f)
+                {
+                    dst[pi] = src[si];
+                    dst[pi + 1] = src[si + 1];
+                    dst[pi + 2] = src[si + 2];
+                    dst[pi + 3] = src[si + 3];
+                    continue;
+                }
+
+                // The patch is unpremultiplied; the lattice is not.
+                float dAl = patch[qi + 3];
+                var pScale = dAl / 255f;
+                float dr = patch[qi] * pScale, dg = patch[qi + 1] * pScale, db = patch[qi + 2] * pScale;
+                if (colorRate > 0f)
+                {
+                    dr += (oR - dr) * colorRate;
+                    dg += (oG - dg) * colorRate;
+                    db += (oB - db) * colorRate;
+                    dAl += (oA - dAl) * colorRate;
+                }
+
+                dst[pi] = (byte)(src[si] + ((dr - src[si]) * w) + 0.5f);
+                dst[pi + 1] = (byte)(src[si + 1] + ((dg - src[si + 1]) * w) + 0.5f);
+                dst[pi + 2] = (byte)(src[si + 2] + ((db - src[si + 2]) * w) + 0.5f);
+                dst[pi + 3] = (byte)(src[si + 3] + ((dAl - src[si + 3]) * w) + 0.5f);
+            }
+        }
+
+        using var image = SKImage.FromBitmap(dab);
+        using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
+        target.DrawImage(image, left, top, paint);
+        target.Flush(); // the next patch read must see this deposit
     }
 
     /// <summary>
