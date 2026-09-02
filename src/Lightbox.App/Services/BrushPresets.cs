@@ -351,7 +351,15 @@ public static class BuiltInPresets
             // flow an artist can steer is an order of magnitude below what
             // reads as "a bit of smudge" on a single dab. See the note in
             // CLAUDE.md on measuring below saturation.
-            Settings = new BrushSettings { Size = 20, Hardness = 0.5, Flow = 0.08, Spacing = 0.1, Kind = BrushKind.Smudge },
+            // Length 0.75 rather than the record's 0.5, and the number is measured (B92):
+            // a smear copies pixels, and copying does not get the trail the old
+            // colour-carrying smudge got for free from a sampler that reached back
+            // into the mark. At 0.75 a size-20 smear drags about as far as it did.
+            Settings = new BrushSettings
+            {
+                Size = 20, Hardness = 0.5, Flow = 0.08, Spacing = 0.1, Kind = BrushKind.Smudge,
+                SmudgeLength = 0.75,
+            },
         },
         new()
         {

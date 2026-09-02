@@ -149,6 +149,14 @@ public class TexturedBrushTests
 /// interesting case: it has nothing carried yet, so what it does decides
 /// whether the brush feels alive on contact or dead until you move.
 /// </summary>
+/// <remarks>
+/// The tap that softens a boundary is <b>dulling's</b> — it picks up an
+/// averaged colour and lays it down, so a tap has something to lay. Since B92 a
+/// smearing smudge copies the pixels under the previous dab onto the next, and
+/// a smear that has not moved has nothing to move: its tap changes nothing,
+/// which <c>SmearDetailTests.ASmearThatHasNotMovedChangesNothing</c> holds.
+/// Softening an edge in place is what the blender is for.
+/// </remarks>
 public class SmudgeFirstDabTests
 {
     private static SKBitmap TwoTone(int w = 200, int h = 120)
@@ -168,14 +176,14 @@ public class SmudgeFirstDabTests
         return bmp;
     }
 
-    private static Stroke Tap(double x, double y, double size) => new()
+    private static Stroke Tap(double x, double y, double size, SmudgeMode mode = SmudgeMode.Dulling) => new()
     {
         Tool = ToolKind.Brush,
         Color = "#ff0000", // must never appear: smudge carries canvas colour only
         Points = [new StrokePoint(x, y, 1)],
         Brush = new BrushSettings
         {
-            Kind = BrushKind.Smudge, Size = size, Hardness = 1, Flow = 1, Spacing = 0.1,
+            Kind = BrushKind.Smudge, Size = size, Hardness = 1, Flow = 1, Spacing = 0.1, SmudgeMode = mode,
         },
     };
 
@@ -213,11 +221,13 @@ public class SmudgeFirstDabTests
         Assert.Equal(before, canvas.GetPixel(40, 60));
     }
 
-    [Fact]
-    public void SmudgeNeverDepositsTheBrushColour()
+    [Theory]
+    [InlineData(SmudgeMode.Smearing)]
+    [InlineData(SmudgeMode.Dulling)]
+    public void SmudgeNeverDepositsTheBrushColour(SmudgeMode mode)
     {
         using var canvas = TwoTone();
-        var stroke = Tap(100, 60, 40);
+        var stroke = Tap(100, 60, 40, mode);
         stroke.Points = [new StrokePoint(60, 60, 1), new StrokePoint(140, 60, 1)];
 
         var info = new SKImageInfo(canvas.Width, canvas.Height, SKColorType.Rgba8888, SKAlphaType.Premul);

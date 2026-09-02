@@ -2225,7 +2225,7 @@ public partial class MainViewModel
             // The returned carry is deliberately dropped: these dabs are provisional, so the
             // checkpoint must stay at the settled boundary.
             BrushEngine.StampSmudgeRange(
-                canvas, composite, live, dabs, settled, dabs.Count, _live.SmudgeCarry);
+                canvas, composite, live, dabs, settled, dabs.Count, _live.SmudgeCarry, checkpoint: false);
             canvas.Flush();
         }
     }

@@ -8,8 +8,9 @@ namespace Lightbox.Core.Documents;
 public enum SmudgeMode
 {
     /// <summary>
-    /// Drag a sample along the stroke, refreshing it as it goes. Reads like
-    /// pulling a loaded brush through wet paint — detail smears into streaks.
+    /// Copy the pixels that were under the previous dab onto this one, fading
+    /// them by the smudge length as they go. Reads like pulling a loaded brush
+    /// through wet paint — edges and texture smear into streaks (B92).
     /// </summary>
     Smearing,
 
@@ -136,9 +137,10 @@ public sealed class BrushSettings
     public double SmudgeLength { get; set; } = 0.5;
 
     /// <summary>
-    /// 0..1: how far around the dab the brush samples, as a fraction of its
-    /// radius. Wider sampling blends more and preserves less detail. Was
-    /// hardcoded at 0.5.
+    /// 0..1: how far around the dab a <em>dulling</em> smudge averages its
+    /// colour, as a fraction of its radius. Wider sampling blends more and
+    /// preserves less detail. Smearing copies pixels one for one and reads
+    /// this not at all (B92). Was hardcoded at 0.5.
     /// </summary>
     public double SmudgeRadius { get; set; } = 0.5;
 

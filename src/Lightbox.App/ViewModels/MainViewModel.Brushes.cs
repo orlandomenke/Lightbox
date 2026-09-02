@@ -657,8 +657,23 @@ public partial class MainViewModel
     public SmudgeMode BrushSmudgeMode
     {
         get => GetBrushValue(s => s.SmudgeMode);
-        set => SetBrush(s => s.SmudgeMode = value);
+        set
+        {
+            SetBrush(s => s.SmudgeMode = value);
+            OnPropertyChanged(nameof(UsesSmudgeRadius));
+        }
     }
+
+    /// <summary>
+    /// Whether the radius row means anything for the brush in hand.
+    /// </summary>
+    /// <remarks>
+    /// Only a dulling smudge averages a colour over an area (B92): smearing
+    /// copies pixels one for one and has no radius, and blur's softness is its
+    /// strength. A control that changes nothing is worse than an absent one,
+    /// so the row goes.
+    /// </remarks>
+    public bool UsesSmudgeRadius => IsSmudgeBrush && BrushSmudgeMode == SmudgeMode.Dulling;
 
     public double BrushSmudgeLength
     {
@@ -1074,6 +1089,7 @@ public partial class MainViewModel
         nameof(BrushSecondaryColor), nameof(BrushColorJitter), nameof(BrushHueJitter),
         nameof(BrushSaturationJitter), nameof(BrushBrightnessJitter),
         nameof(IsSmudgeBrush), nameof(IsEffectBrush), nameof(ShowsEffectOptions), nameof(EffectStrength),
+        nameof(UsesSmudgeRadius),
         nameof(BrushSmudgeMode), nameof(BrushSmudgeLength),
         nameof(BrushSmudgeRadius), nameof(BrushColorRate),
         nameof(BrushMedium), nameof(MediumIsSimulated), nameof(MediumHasBody),

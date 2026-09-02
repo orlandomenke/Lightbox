@@ -1230,12 +1230,13 @@
                            FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="How hard each dab pulls (smudge and blender), or how much softening (blur). Effect-brush dabs overlap about ten deep, so small values go a long way." />
           </StackPanel>
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                      IsVisible="{Binding UsesSmudgeRadius}">
             <TextBlock Text="Radius" VerticalAlignment="Center" />
             <Slider Value="{Binding BrushSmudgeRadius}" Minimum="0.05" Maximum="1" Classes="param" VerticalAlignment="Center" />
             <NumericUpDown controls:FieldMath.Percent="True" Value="{Binding BrushSmudgeRadius}" Minimum="0.05" Maximum="1" Increment="0.05"
                            FormatString="0.00" Classes="value" VerticalAlignment="Center"
-                           ToolTip.Tip="How wide an area each dab samples. Wider blends more and keeps less detail." />
+                           ToolTip.Tip="How wide an area a dulling dab averages its colour over. Wider blends more and keeps less detail." />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
                       IsVisible="{Binding IsSmudgeBrush}">
@@ -2203,14 +2204,15 @@
                           <TextBlock Text="Smudge" FontWeight="SemiBold" FontSize="11" Opacity="0.8" />
                           <ComboBox ItemsSource="{Binding SmudgeModeChoices}" SelectedItem="{Binding BrushSmudgeMode}"
                                     HorizontalAlignment="Stretch"
-                                    ToolTip.Tip="Smearing drags a sample along the stroke, so detail streaks. Dulling lays down the colour under the dab, so detail dissolves — that is a blender." />
-                          <DockPanel ToolTip.Tip="How far colour travels before the sample refreshes.">
+                                    ToolTip.Tip="Smearing copies what was under the last dab onto the next, so edges and texture streak. Dulling lays down one colour taken from under the dab, so detail dissolves — that is a blender." />
+                          <DockPanel ToolTip.Tip="How far what the brush picked up travels before it fades.">
                             <TextBlock Text="Length" Width="90" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushSmudgeLength}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushSmudgeLength}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
-                          <DockPanel ToolTip.Tip="How wide an area each dab samples. Wider blends more and keeps less detail.">
+                          <DockPanel ToolTip.Tip="How wide an area a dulling dab averages its colour over. Wider blends more and keeps less detail."
+                                     IsVisible="{Binding UsesSmudgeRadius}">
                             <TextBlock Text="Radius" Width="90" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushSmudgeRadius}" Minimum="0.05" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />

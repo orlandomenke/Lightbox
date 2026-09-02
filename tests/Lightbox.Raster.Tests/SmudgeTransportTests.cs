@@ -95,6 +95,11 @@ public class SmudgeTransportTests(ITestOutputHelper output)
     /// The sharpest form of the bug: one dab straddling the edge, four of its five
     /// taps on bare canvas.
     /// </summary>
+    /// <remarks>
+    /// Dulling, because the five-tap sampler this guards is dulling's since B92 —
+    /// a smearing dab reads its pixels one for one and has no sampler to get wrong,
+    /// and a smear that has not moved deposits nothing (<c>SmearDetailTests</c>).
+    /// </remarks>
     [Theory]
     [InlineData(255, 255, 255)]   // white — was rgb(50,50,50)
     [InlineData(220, 40, 40)]     // red   — was rgb(40,5,5)
@@ -112,7 +117,7 @@ public class SmudgeTransportTests(ITestOutputHelper output)
             Brush = new BrushSettings
             {
                 Kind = BrushKind.Smudge, Size = 30, Hardness = 1, Flow = 1, Spacing = 0.5,
-                SmudgeRadius = 1.0,
+                SmudgeMode = SmudgeMode.Dulling, SmudgeRadius = 1.0,
             },
         };
         using (var canvas = new SKCanvas(bmp))
