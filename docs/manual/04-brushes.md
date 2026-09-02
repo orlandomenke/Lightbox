@@ -75,6 +75,14 @@ having are the ones your work has.
 An **●** next to the brush name means the settings have drifted from the brush
 they came from. It compares values, so putting a setting back clears it.
 
+**A nudged brush stays nudged.** Tune Pencil, switch to Airbrush for a while,
+come back, and Pencil is where you left it — and it still is after closing and
+reopening Lightbox. Every brush keeps its own changes this way, so an afternoon
+spent tuning three of them keeps three. The changes are kept *beside* the brush
+rather than written into it: the dot stays lit to say so, and **picking the same
+brush again in the picker** throws the changes away and gives you the saved one
+back.
+
 The **Presets** page then gives you three moves:
 
 | | |

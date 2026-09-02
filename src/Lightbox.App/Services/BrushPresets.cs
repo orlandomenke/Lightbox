@@ -440,6 +440,14 @@ public static class PresetStore
         public BrushSettings? LastBrush { get; set; }
         public BrushSettings? LastEraser { get; set; }
 
+        /// <summary>
+        /// Presets that have been nudged and not written back, by id (B71).
+        /// Null — and therefore absent from the file — when nothing is.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore(
+            Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public Dictionary<string, BrushSettings>? Tweaks { get; set; }
+
         // Stabilizer (input smoothing) — an app preference, not per-document.
         public string? SmoothingMode { get; set; }
         public int? SmoothingWindow { get; set; }
