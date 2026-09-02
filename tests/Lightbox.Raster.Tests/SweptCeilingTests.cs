@@ -287,9 +287,21 @@ public class SweptCeilingTests(ITestOutputHelper output)
     /// millisecond and a ratio against it would say nothing; the promise this
     /// guards is that nothing here makes the pen wait.
     /// </summary>
+    /// <remarks>
+    /// <b>The ceilings are set by breaking it, on the slowest machine that runs
+    /// this.</b> The first pair — 0.5 and 2.0 ms — were the owner's machine's
+    /// numbers (0.10 and 1.07 ms) with headroom, and the GitHub runner, about
+    /// twice as slow, measured 2.08 ms and went red on a merge with no code
+    /// change. What the guard has to tell apart is the fixed term from the
+    /// unbounded one it replaced — an exact transform over the whole window at
+    /// full resolution, which measured 6.7 and 16.8 ms here, so 13 and 34 on
+    /// the runner. 1.5 and 5.0 ms sit under that with a margin on both sides,
+    /// and the absolutes are printed so a drift inside the ceiling is still
+    /// visible in the log.
+    /// </remarks>
     [Theory]
-    [InlineData(0.375, 0.5)]
-    [InlineData(1.0, 2.0)]
+    [InlineData(0.375, 1.5)]
+    [InlineData(1.0, 5.0)]
     [Trait("Category", "Performance")]
     public void TheDistanceTermCostsOneLiveEventLessThanItsBudget(double scale, double budgetMs)
     {
