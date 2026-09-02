@@ -867,7 +867,22 @@ public sealed class ReferenceBoardWindow : Window
         // the wall: a drag off a feed or a board carries the page, the page
         // names the site’s social card, the card decodes, and steps 1 and 2 —
         // both of which had the real picture — were never reached.
+        // EVERYTHING THE DRAG HOLDS IS TAKEN NOW, BEFORE THE FIRST await (B352).
+        //
+        // The platform releases the drag’s data object when the drop returns,
+        // and this method returns at its first await — so every read after
+        // that point is a read of a corpse. It throws, `TryGetRaw` is caught,
+        // and the answer comes back empty rather than wrong, which is why it
+        // went unnoticed: `EmbeddedImageIn` could never find the picture the
+        // drag carried, and `DescribeFormats` wrote *"(unreadable)"* against
+        // every format in the diagnostics log — the one line that exists to
+        // diagnose a refused drop, reporting only that it was too late to ask.
+        //
+        // Read from `carried`, never from `e` again, below this line.
         var uris = DroppedWebImages(e);
+        var carriedPicture = Services.WebImageDrop.EmbeddedImageIn(e.DataTransfer);
+        var carriedFormats = Services.WebImageDrop.DescribeFormats(e.DataTransfer);
+
         if (uris.Count > 0) Say("Fetching the picture…");
         var search = await Services.WebImageDrop.SearchAddressesAsync(uris);
         if (search.Direct is { } direct
@@ -882,7 +897,7 @@ public sealed class ReferenceBoardWindow : Window
         // page read rather than behind it. A thumbnail of the right picture
         // beats a full-size wrong one, and the artist can still drop the
         // image’s own address when they want it bigger.
-        if (Services.WebImageDrop.EmbeddedImageIn(e.DataTransfer) is { } embedded
+        if (carriedPicture is { } embedded
             && BoardModel.AddImageBytes("Web image", embedded, (at.X, at.Y)) is not null)
         {
             Say("");
@@ -903,8 +918,7 @@ public sealed class ReferenceBoardWindow : Window
                 // address of whatever the artist was looking at.
                 Services.DiagnosticLog.WriteNote(
                     "reference-board-drop",
-                    "a page named the picture; the drag carried "
-                        + Services.WebImageDrop.DescribeFormats(e.DataTransfer));
+                    "a page named the picture; the drag carried " + carriedFormats);
                 Say($"Pinned “{name}” — the picture that page names, which is a guess. "
                     + "Drag the image itself, or paste its address, if that is not the one.");
                 return;
@@ -914,7 +928,7 @@ public sealed class ReferenceBoardWindow : Window
         // What it was carrying goes to the log, because the format names are the
         // whole diagnosis and no one can report them from memory (B294).
         Services.DiagnosticLog.WriteNote(
-            "reference-board-drop", "carried " + Services.WebImageDrop.DescribeFormats(e.DataTransfer));
+            "reference-board-drop", "carried " + carriedFormats);
         Say(uris.Count > 0
             ? "That picture could not be fetched — the site refused it, or named no image of its own "
               + "that Lightbox can read. Opening the image on its own and dragging that usually works."

@@ -214,13 +214,21 @@ public class BoardWebDropTests : BrushStateIsolated
         // and board pages all name one collage as their og:image, so a drag
         // that carried a feed URL resolved to that collage and stopped, with
         // the real picture still sitting unread in the drag.
+        //
+        // **This asks about precedence, not about read order (B352).** It used
+        // to compare where the three *reads* appear, which was the same thing
+        // until B352 had to hoist every read of the drag above the first await
+        // — the platform releases the drag's data object when the drop returns,
+        // and an async handler returns at its first await. So the payload is
+        // now taken first and *used* in order of how much of a guess it is.
+        // Comparing the reads would now fail on correct code, and did.
         var drop = DropSource();
 
-        var address = drop.IndexOf("SearchAddressesAsync", StringComparison.Ordinal);
-        var carried = drop.IndexOf("EmbeddedImageIn", StringComparison.Ordinal);
+        var address = drop.IndexOf("search.Direct", StringComparison.Ordinal);
+        var carried = drop.IndexOf("carriedPicture is", StringComparison.Ordinal);
         var named = drop.IndexOf("ImageNamedByAPageAsync", StringComparison.Ordinal);
 
-        Assert.True(address >= 0 && carried >= 0 && named >= 0, "all three sources must be reached");
+        Assert.True(address >= 0 && carried >= 0 && named >= 0, "all three sources must be consulted");
         Assert.True(address < carried, "an address that is a picture beats the drag's own copy of it");
         Assert.True(carried < named, "the picture the drag carried beats a page's guess about the page");
     }
