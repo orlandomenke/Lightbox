@@ -2616,9 +2616,14 @@ public partial class MainViewModel
                         into.Flush();
                     }
 
+                    // B349: with the brush's reach, the ceiling over this band
+                    // is the swept mark's — flat between passes — and it reads
+                    // the support beyond the band straight off the whole-stroke
+                    // coverage buffer, which is why no bigger band is needed.
                     BrushEngine.CapToFootprintBand(
                         capped, ceiling, band,
-                        new Lightbox.Raster.FootprintSpace(_live.CoverageScale, 0, 0));
+                        new Lightbox.Raster.FootprintSpace(_live.CoverageScale, 0, 0),
+                        BrushEngine.CeilingReachPx(live.Brush, _live.CoverageScale));
                     _live.PostUsed = _live.PostUsed is { } prior
                         ? LivePaintSession.UnionRect(prior, band)
                         : band;
@@ -2890,7 +2895,15 @@ public partial class MainViewModel
             // lands on a whole buffer pixel and the region rarely does, so the
             // sub-pixel remainder travels with it — dropping it would slide the
             // ceiling up to a document pixel and a half off the rim it caps.
-            var cropRect = _live.ToCoverage(rect);
+            // B349: grown by the brush's reach, because the swept ceiling
+            // measures each pixel's distance to the edge of the stroke's
+            // support, and that edge can lie outside the pass's own rect. The
+            // offset below is taken from the grown crop, so the mapping stays
+            // exact whatever the crop's size.
+            var reach = (int)Math.Ceiling(BrushEngine.RadiusAt(whole.Brush, 1)) + 2;
+            var grown = rect;
+            grown.Inflate(reach, reach);
+            var cropRect = _live.ToCoverage(grown);
             footprintCrop = CopyRegion(coverage, cropRect);
             footprintSpace = new Lightbox.Raster.FootprintSpace(
                 _live.CoverageScale,

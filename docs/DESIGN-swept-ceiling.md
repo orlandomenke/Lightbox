@@ -1,7 +1,7 @@
 # The ceiling of a swept soft mark (B349)
 
-*Design note, 2026-09-02. Measured before it was believed; the measurements are
-`tests/Lightbox.Raster.Tests/SweptCeilingTests.cs` and run in the suite.*
+*Design note, 2026-09-02, implemented the same day. Measured before it was believed;
+the measurements are `tests/Lightbox.Raster.Tests/SweptCeilingTests.cs` and run in the suite.*
 
 ## The defect, restated as geometry
 
@@ -126,6 +126,38 @@ measured under the existing per-event budgets before it ships, not estimated
 here** — that is the first step of the implementation branch, and the promise
 this note is written under is that nothing reaches the paint path that makes
 the pen wait.
+
+## Implemented, 2026-09-02, and what it measured
+
+The plan below landed as written, with three things learned on the way:
+
+- **The reach is `ceil(R) + 2`**, not `R`: one pixel for the dab's own
+  anti-aliased edge and one for the pixel-centre convention. `CeilingReachPx`
+  is the one place that says so, and every caller — commit, band, worker crop
+  — takes it from there.
+- **The live band never grew.** The band-local path already keeps the whole
+  stroke's coverage buffer for B313, so the transform reads the support beyond
+  the band from that buffer and the band itself stays the size it was. The
+  worker pass crops its footprint one reach larger and takes the space offset
+  from the grown crop, which is the only arithmetic that changed.
+- **A whole-canvas commit is bounded twice.** Above 400 k cells the transform
+  runs on a coarse grid, with the bias grown to match so the exact red channel
+  still owns the edge; and when the coarse step would pass a quarter of the
+  reach — a small brush across a huge canvas, where the ridge is a few percent
+  over a few pixels — the term stands down and the shape maximum alone is
+  used, which is free.
+
+| measured in-engine, warm, min of 3 | value |
+| --- | ---: |
+| distance term added to one size-70 live event, fit-to-window at 4K (0.375) | **0.10 ms** (0.54 → 0.64) |
+| the same zoomed to 100% | 1.07 ms (0.15 → 1.22) |
+| whole 900×460 commit window, Soft round / Airbrush | 3.2 / 6.6 ms (from 0.8 / 1.1) |
+| lone dab, cross-profile through a dab centre | 0/255 — identical |
+| band against whole mark, over the band | 0/255 |
+| pixels anywhere below the shape maximum | 0 |
+
+`SweptCeilingTests.TheDistanceTermCostsOneLiveEventLessThanItsBudget` holds
+the first two under 0.5 and 2.0 ms.
 
 ## Implementation plan
 

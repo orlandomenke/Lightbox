@@ -67,8 +67,16 @@ public class PreMergeDocumentTests(ITestOutputHelper output)
     // compensate (B307, BrushEngine.SubdividesForFidelity). Same standing as
     // Q157 above: this is a document saved by an older build, and the stepped
     // pixels it used to render were the defect rather than the reference.
-    private const string PaintedFingerprint = "8E29B8DA2A4EDF856BFB6C65E9A6C8A80293589A80DCD41C35C47C593DD618A8";
-    private const string VectorFingerprint = "D890EDB8CF159020F13BA05AF853C6D28A2F7FD2E22624EB709443669E3C3296";
+    // Re-recorded 2026-09-02, both moving a third time and for the same reason
+    // as the first: every brush in the fixture is hardness 0.8, so every stroke
+    // is capped, and the cap's ceiling is now the swept one (B349,
+    // docs/DESIGN-swept-ceiling.md) — the brush's falloff applied to how far
+    // inside the whole mark's reach a pixel sits, rather than the best any one
+    // dab does there. Along a capped stroke that flattens the dab-pitch ripple,
+    // and it can only ever raise a pixel; SweptCeilingTests counts the pixels
+    // that went down and finds none. Same standing as the entries above.
+    private const string PaintedFingerprint = "0089FA22053D9314E47DC731FC528DFCAC215AC6C966783E91DA2C148AF92EC2";
+    private const string VectorFingerprint = "E0B24E9D7D1CA6627AEB7FA71D131F62839A579038AAA9FFE1D1AB1A32EAB06E";
 
     private static Doc Load() => DocJson.Deserialize(
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "pre-merge-document.lightbox.json")));

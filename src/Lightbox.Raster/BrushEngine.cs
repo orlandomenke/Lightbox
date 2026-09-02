@@ -592,7 +592,7 @@ public static class BrushEngine
                 // dabs, so it takes the same transform rather than a rebuilt one.
                 InDocumentSpace(footprint.Canvas, dev, outputScale, origin, () =>
                     StampDabs(canvas, stroke, footprint.Canvas));
-                CapToFootprint(scratch, footprint, local);
+                CapToFootprint(scratch, footprint, local, CeilingReachPx(brush, outputScale));
             }
 
             // The medium replaces the flat texture effects: wet edge and
@@ -696,7 +696,13 @@ public static class BrushEngine
     /// samples stop matching the commit's.
     /// </param>
     /// <param name="footprintPixels">
-    /// The stroke's accumulated footprint, cropped to exactly
+    /// <b>B349: cropped to the rect plus the brush's reach</b>
+    /// (<see cref="CeilingReachPx"/> in document pixels), not to the rect alone.
+    /// The swept ceiling measures each pixel's distance to the edge of the
+    /// stroke's support, and that edge can lie outside the rect; a crop without
+    /// the reach still renders, but its ceiling degrades to the shape maximum
+    /// near the crop's edge, which is where a band would then disagree with the
+    /// whole mark. The stroke's accumulated footprint, cropped to exactly
     /// <paramref name="rect"/>, when the caller keeps one (B293). Null rebuilds
     /// it from every dab, which is what the commit and every export do and what
     /// the live path did until it hurt: stamping it cost <b>37-78 ms</b> a pass
@@ -758,7 +764,8 @@ public static class BrushEngine
                 using var carried = footprintPixels.PeekPixels();
                 if (carried is not null)
                 {
-                    CapToFootprint(scratch, carried, local, footprintSpace ?? FootprintSpace.Document);
+                    var space = footprintSpace ?? FootprintSpace.Document;
+                    CapToFootprint(scratch, carried, local, space, CeilingReachPx(brush, space.Scale));
                 }
             }
             else
@@ -770,7 +777,7 @@ public static class BrushEngine
                     footprint.Canvas.Clear(SKColors.Black);
                     InDocumentSpace(footprint.Canvas, surface, 1.0, origin, () =>
                         StampFootprintPass(footprint.Canvas, stroke));
-                    CapToFootprint(scratch, footprint, local);
+                    CapToFootprint(scratch, footprint, local, CeilingReachPx(brush, 1.0));
                 }
             }
         }
@@ -1690,14 +1697,27 @@ public static class BrushEngine
     public static void CapToFootprintBand(SKBitmap mark, SKBitmap footprint, SKRectI band) =>
         CapToFootprintBand(mark, footprint, band, FootprintSpace.Document);
 
+    /// <inheritdoc cref="CapToFootprintBand(SKBitmap, SKBitmap, SKRectI, FootprintSpace, int)"/>
+    public static void CapToFootprintBand(
+        SKBitmap mark, SKBitmap footprint, SKRectI band, FootprintSpace space) =>
+        CapToFootprintBand(mark, footprint, band, space, 0);
+
     /// <inheritdoc cref="CapToFootprintBand(SKBitmap, SKBitmap, SKRectI)"/>
     /// <param name="space">
     /// Where a mark pixel finds its ceiling, when the footprint is not the
     /// mark's size (B189). <see cref="FootprintSpace.Document"/> is the two
     /// buffers agreeing and takes the original index-for-index path.
     /// </param>
+    /// <param name="reachPx">
+    /// <see cref="CeilingReachPx"/> for the brush, or zero for the shape
+    /// maximum alone. With a reach, the ceiling is the greater of the shape
+    /// maximum and the swept-mark ceiling — the falloff applied to each pixel's
+    /// distance inside the edge of the stroke's reach — which is never lower
+    /// than the shape maximum and is flat where the maximum dips between
+    /// passes (B349, docs/DESIGN-swept-ceiling.md).
+    /// </param>
     public static void CapToFootprintBand(
-        SKBitmap mark, SKBitmap footprint, SKRectI band, FootprintSpace space)
+        SKBitmap mark, SKBitmap footprint, SKRectI band, FootprintSpace space, int reachPx)
     {
         band = SKRectI.Intersect(band, new SKRectI(0, 0, mark.Width, mark.Height));
         // Only when the two index the same pixels. A scaled footprint is
@@ -1714,11 +1734,42 @@ public static class BrushEngine
         using var capPix = footprint.PeekPixels();
         if (markPix is null || capPix is null) return;
 
-        var ink = markPix.GetPixelSpan<byte>();
-        var cap = capPix.GetPixelSpan<byte>();
-        int inkRow = markPix.RowBytes, capRow = capPix.RowBytes;
+        CapCore(
+            markPix.GetPixelSpan<byte>(), markPix.RowBytes, band,
+            capPix.GetPixelSpan<byte>(), capPix.RowBytes, capPix.Width, capPix.Height,
+            space, reachPx);
+    }
+
+    /// <summary>
+    /// The cap itself: every ink pixel in <paramref name="band"/> held down to
+    /// its ceiling, read either index-for-index or through the scaled lookup.
+    /// </summary>
+    private static void CapCore(
+        Span<byte> ink, int inkRow, SKRectI band,
+        ReadOnlySpan<byte> cap, int capRow, int capW, int capH,
+        FootprintSpace space, int reachPx)
+    {
         var direct = space.IsDocument;
-        int capW = capPix.Width, capH = capPix.Height;
+
+        // With a reach, the ceiling over the band's footprint window is built
+        // once — shape maximum and distance term together — and read from
+        // there. Without one, the shape maximum is read straight off the
+        // buffer, exactly as before B349.
+        byte[]? window = null;
+        var win = default(SKRectI);
+        if (reachPx > 0)
+        {
+            win = direct
+                ? band
+                : new SKRectI(
+                    (int)Math.Floor((band.Left * space.Scale) + space.OffsetX) - 1,
+                    (int)Math.Floor((band.Top * space.Scale) + space.OffsetY) - 1,
+                    (int)Math.Ceiling((band.Right * space.Scale) + space.OffsetX) + 1,
+                    (int)Math.Ceiling((band.Bottom * space.Scale) + space.OffsetY) + 1);
+            win.Inflate(reachPx, reachPx);
+            win = SKRectI.Intersect(win, new SKRectI(0, 0, capW, capH));
+            if (win.Width > 0 && win.Height > 0) window = SweptCeilingOver(cap, capRow, win, reachPx);
+        }
 
         for (var y = band.Top; y < band.Bottom; y++)
         {
@@ -1732,9 +1783,21 @@ public static class BrushEngine
 
                 // The footprint's red channel is the running maximum; see
                 // StampFootprint for why the shape lives in a colour channel.
-                var ceiling = direct
-                    ? cap[cRow + x * 4]
-                    : space.CeilingAt(cap, capRow, capW, capH, x, y);
+                byte ceiling;
+                if (window is null)
+                {
+                    ceiling = direct
+                        ? cap[cRow + x * 4]
+                        : space.CeilingAt(cap, capRow, capW, capH, x, y);
+                }
+                else if (direct)
+                {
+                    ceiling = window[((y - win.Top) * win.Width) + (x - win.Left)];
+                }
+                else
+                {
+                    ceiling = space.CeilingAt(window, win, x, y);
+                }
                 if (alpha <= ceiling) continue;
 
                 var scale = ceiling / (float)alpha;
@@ -1746,11 +1809,221 @@ public static class BrushEngine
         }
     }
 
-    internal static void CapToFootprint(SKSurface scratch, SKSurface footprint, SKImageInfo local)
+    /// <summary>
+    /// The ceiling of a swept mark over one window of the footprint buffer:
+    /// per cell, the greater of the shape maximum (red) and the falloff
+    /// applied to the cell's distance inside the edge of the stroke's support
+    /// (green), over the falloff width (blue). B349.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Never below the shape maximum, by construction twice over.</b> The
+    /// distance term is provably at least the shape maximum (the nearest dab's
+    /// whole disc lies inside the union), and it is then taken as a
+    /// <c>max</c> with the red channel anyway, so a pressure ramp or a
+    /// rasterised edge can only ever relax the ceiling relative to what it
+    /// was — never tighten it. A lone dab and the cross-profile of a straight
+    /// stroke therefore read exactly as they did (Q157's guard), and the
+    /// interior of a sweep reads flat.
+    /// </para>
+    /// <para>
+    /// <b>The distance is biased a pixel low on purpose.</b> The support is a
+    /// rasterised mask, so its edge is known to half a pixel; taking a pixel
+    /// off the measured distance means the term can only undershoot the true
+    /// ceiling near an edge, where the red channel then wins, and can never
+    /// overshoot it. Deep inside, where the term is what flattens the ridge,
+    /// a pixel off a distance already past the falloff width changes nothing.
+    /// </para>
+    /// <para>
+    /// <b>Bounded work.</b> Exact Euclidean distances by Felzenszwalb and
+    /// Huttenlocher's two separable passes, <c>O(cells)</c> with no allocation
+    /// beyond pooled lines, and a window the caller has already clipped to the
+    /// band plus its reach. A window past <see cref="CoarseEdtAbove"/> cells
+    /// is measured on a coarser grid — a distance field is smooth wherever it
+    /// is not already saturated — with the bias widened to the coarse step, so
+    /// a commit across a large canvas costs a few milliseconds rather than a
+    /// hitch on pen-up. Deterministic throughout (invariant 2): a pure function
+    /// of the mask, the same cells for the same dabs.
+    /// </para>
+    /// </remarks>
+    internal static byte[] SweptCeilingOver(ReadOnlySpan<byte> cap, int capRow, SKRectI win, int reachPx)
+    {
+        int w = win.Width, h = win.Height;
+        var ceiling = new byte[w * h];
+
+        // The coarse step: 1 for anything a live band produces, larger only
+        // for a whole-canvas commit window.
+        var step = 1;
+        while ((long)(w / step) * (h / step) > CoarseEdtAbove) step++;
+
+        // A step past a quarter of the reach would put the coarse bias past
+        // the brush's own falloff, and the term would never bind. That is a
+        // small brush swept across a very large canvas, where the ridge is a
+        // few percent over a few pixels and cannot be seen; the shape maximum
+        // alone is the honest answer there, and it is free.
+        if (step * 4 > Math.Max(1, reachPx))
+        {
+            for (var y = 0; y < h; y++)
+            {
+                var row = (win.Top + y) * capRow;
+                for (var x = 0; x < w; x++) ceiling[(y * w) + x] = cap[row + ((win.Left + x) * 4)];
+            }
+            return ceiling;
+        }
+
+        int cw = (w + step - 1) / step, ch = (h + step - 1) / step;
+
+        // The grid carries a one-cell ring of "outside" around the window.
+        // What lies beyond the window is unknown, and unknown has to read as
+        // near rather than far: a caller that hands over a crop without its
+        // reach then gets the shape maximum near the crop's edge instead of a
+        // ceiling raised to the core by an edge it could not see. With the
+        // reach the ring sits past the falloff width and changes nothing.
+        int gw = cw + 2, gh = ch + 2;
+        var pool = System.Buffers.ArrayPool<float>.Shared;
+        var f = pool.Rent(gw * gh);
+        try
+        {
+            const float Inf = 1e12f;
+            Array.Fill(f, 0f, 0, gw * gh);
+            for (var cy = 0; cy < ch; cy++)
+            {
+                var sy = Math.Min(h - 1, (cy * step) + (step / 2));
+                var row = (win.Top + sy) * capRow;
+                for (var cx = 0; cx < cw; cx++)
+                {
+                    var sx = Math.Min(w - 1, (cx * step) + (step / 2));
+                    var inside = cap[row + ((win.Left + sx) * 4) + 1] >= 128;
+                    f[((cy + 1) * gw) + cx + 1] = inside ? Inf : 0f;
+                }
+            }
+
+            ExactSquaredDistances(f, gw, gh);
+
+            // A pixel off for the rasterised edge, and the whole coarse step
+            // on top when the field was measured coarsely.
+            var bias = step == 1 ? 1f : step * 1.5f;
+            for (var y = 0; y < h; y++)
+            {
+                var row = (win.Top + y) * capRow;
+                var cy = Math.Min(ch - 1, y / step) + 1;
+                for (var x = 0; x < w; x++)
+                {
+                    var o = row + ((win.Left + x) * 4);
+                    var red = cap[o];
+                    var width = cap[o + 2];
+                    var term = 0;
+                    if (width > 0)
+                    {
+                        var d2 = f[(cy * gw) + Math.Min(cw - 1, x / step) + 1];
+                        if (d2 > 0f)
+                        {
+                            var d = (MathF.Sqrt(d2) * step) - bias;
+                            if (d > 0f) term = (int)MathF.Min(255f, (255f * d) / width);
+                        }
+                    }
+                    ceiling[(y * w) + x] = (byte)Math.Max(red, term);
+                }
+            }
+        }
+        finally
+        {
+            pool.Return(f);
+        }
+        return ceiling;
+    }
+
+    /// <summary>Cells above which the swept ceiling measures its distances on a coarser grid.</summary>
+    internal const long CoarseEdtAbove = 400_000;
+
+    /// <summary>
+    /// In place: <paramref name="f"/> holds 0 for outside cells and a large
+    /// value for inside ones, and comes back holding each cell's squared
+    /// Euclidean distance to the nearest outside cell.
+    /// </summary>
+    private static void ExactSquaredDistances(float[] f, int w, int h)
+    {
+        var n = Math.Max(w, h);
+        var pool = System.Buffers.ArrayPool<float>.Shared;
+        var t = pool.Rent(w * h);
+        var outp = pool.Rent(n);
+        var z = pool.Rent(n + 1);
+        var vPool = System.Buffers.ArrayPool<int>.Shared;
+        var v = vPool.Rent(n);
+        try
+        {
+            // Columns first, on a transposed copy, so each one-dimensional pass
+            // reads and writes a contiguous run — a strided column walk over a
+            // window this size is mostly cache misses.
+            for (var y = 0; y < h; y++)
+            {
+                var row = y * w;
+                for (var x = 0; x < w; x++) t[(x * h) + y] = f[row + x];
+            }
+            for (var x = 0; x < w; x++)
+            {
+                var col = x * h;
+                LowerEnvelope(t.AsSpan(col, h), h, outp, v, z);
+                outp.AsSpan(0, h).CopyTo(t.AsSpan(col, h));
+            }
+            for (var x = 0; x < w; x++)
+            {
+                var col = x * h;
+                for (var y = 0; y < h; y++) f[(y * w) + x] = t[col + y];
+            }
+            for (var y = 0; y < h; y++)
+            {
+                var row = y * w;
+                LowerEnvelope(f.AsSpan(row, w), w, outp, v, z);
+                outp.AsSpan(0, w).CopyTo(f.AsSpan(row, w));
+            }
+        }
+        finally
+        {
+            pool.Return(t);
+            pool.Return(outp);
+            pool.Return(z);
+            vPool.Return(v);
+        }
+    }
+
+    /// <summary>Felzenszwalb and Huttenlocher's one-dimensional squared-distance pass.</summary>
+    private static void LowerEnvelope(ReadOnlySpan<float> f, int n, float[] d, int[] v, float[] z)
+    {
+        var k = 0;
+        v[0] = 0;
+        z[0] = float.NegativeInfinity;
+        z[1] = float.PositiveInfinity;
+        for (var q = 1; q < n; q++)
+        {
+            float s;
+            while (true)
+            {
+                var p = v[k];
+                s = ((f[q] + (q * (float)q)) - (f[p] + (p * (float)p))) / ((2f * q) - (2f * p));
+                if (s <= z[k]) { k--; continue; }
+                break;
+            }
+            k++;
+            v[k] = q;
+            z[k] = s;
+            z[k + 1] = float.PositiveInfinity;
+        }
+        k = 0;
+        for (var q = 0; q < n; q++)
+        {
+            while (z[k + 1] < q) k++;
+            var p = v[k];
+            d[q] = ((q - p) * (float)(q - p)) + f[p];
+        }
+    }
+
+    internal static void CapToFootprint(
+        SKSurface scratch, SKSurface footprint, SKImageInfo local, int reachPx = 0)
     {
         footprint.Canvas.Flush();
         using var capPix = footprint.PeekPixels();
-        if (capPix is not null) CapToFootprint(scratch, capPix, local);
+        if (capPix is not null) CapToFootprint(scratch, capPix, local, FootprintSpace.Document, reachPx);
     }
 
     /// <summary>
@@ -1768,7 +2041,7 @@ public static class BrushEngine
 
     /// <inheritdoc cref="CapToFootprint(SKSurface, SKPixmap, SKImageInfo)"/>
     internal static void CapToFootprint(
-        SKSurface scratch, SKPixmap capPix, SKImageInfo local, FootprintSpace space)
+        SKSurface scratch, SKPixmap capPix, SKImageInfo local, FootprintSpace space, int reachPx = 0)
     {
         scratch.Canvas.Flush();
 
@@ -1788,36 +2061,11 @@ public static class BrushEngine
             return;
         }
 
-        var mark = markPix.GetPixelSpan<byte>();
-        var cap = capPix.GetPixelSpan<byte>();
-        int markRow = markPix.RowBytes, capRow = capPix.RowBytes;
-        var direct = space.IsDocument;
-        int capW = capPix.Width, capH = capPix.Height;
-
-        for (var y = 0; y < local.Height; y++)
-        {
-            var mRow = y * markRow;
-            var cRow = y * capRow;
-            for (var x = 0; x < local.Width; x++)
-            {
-                var mi = mRow + x * 4;
-                var alpha = mark[mi + 3];
-                if (alpha == 0) continue;
-
-                // The footprint's red channel is the running maximum; see
-                // StampFootprint for why the shape lives in a colour channel.
-                var ceiling = direct
-                    ? cap[cRow + x * 4]
-                    : space.CeilingAt(cap, capRow, capW, capH, x, y);
-                if (alpha <= ceiling) continue;
-
-                var scale = ceiling / (float)alpha;
-                mark[mi] = (byte)(mark[mi] * scale);
-                mark[mi + 1] = (byte)(mark[mi + 1] * scale);
-                mark[mi + 2] = (byte)(mark[mi + 2] * scale);
-                mark[mi + 3] = ceiling;
-            }
-        }
+        CapCore(
+            markPix.GetPixelSpan<byte>(), markPix.RowBytes,
+            new SKRectI(0, 0, local.Width, local.Height),
+            capPix.GetPixelSpan<byte>(), capPix.RowBytes, capPix.Width, capPix.Height,
+            space, reachPx);
     }
 
     /// <summary>
@@ -2714,15 +2962,50 @@ public static class BrushEngine
     private static void StampFootprint(
         SKCanvas footprint, SKPoint centre, float radius, float hardness, bool antiAlias)
     {
+        // Three facts in one draw, one per channel, each a running maximum
+        // under Lighten (B349, docs/DESIGN-swept-ceiling.md):
+        //   red    the dab's shape — today's ceiling, kept exactly as it was;
+        //   green  the dab's SUPPORT, a hard disc — whose union is what the
+        //          distance transform measures the edge of;
+        //   blue   the falloff width, in buffer pixels — the ramp's length, so
+        //          a distance inside the union's edge can be turned back into
+        //          the shape's value.
+        // The width is in the buffer's own unit, read off the canvas the way
+        // AccumulateCoverage reads its device scale, because the distances it
+        // will be divided into are measured in that unit.
+        var m = footprint.TotalMatrix;
+        var deviceScale = MathF.Sqrt(m.ScaleX * m.ScaleX + m.SkewY * m.SkewY);
+        if (deviceScale <= 0.0001f) deviceScale = 1f;
+        var width = (1f - Math.Clamp(hardness, 0f, 1f)) * radius * deviceScale;
+        var widthByte = (byte)Math.Clamp((int)MathF.Round(width), 0, 255);
+        var core = new SKColor(255, 255, widthByte);
+        var rim = new SKColor(0, 255, widthByte);
         using var paint = new SKPaint
         {
             IsAntialias = antiAlias,
             BlendMode = SKBlendMode.Lighten,
             Shader = SKShader.CreateRadialGradient(
-                centre, radius, [SKColors.White, SKColors.Black], [hardness, 1f], SKShaderTileMode.Clamp),
+                centre, radius, [core, rim], [hardness, 1f], SKShaderTileMode.Clamp),
         };
         footprint.DrawCircle(centre, radius, paint);
     }
+
+    /// <summary>
+    /// How far, in buffer pixels, the ceiling of a swept mark has to look
+    /// beyond a band to be exact inside it (B349).
+    /// </summary>
+    /// <remarks>
+    /// A pixel's distance to the edge of the stroke's reach only matters up to
+    /// the falloff width, which is at most the dab radius — beyond that the
+    /// ceiling is simply the core. So a band's ceiling is exact once the
+    /// support is known that far outside it, and this is that far, in the
+    /// footprint buffer's own pixels. Zero disables the distance term and
+    /// leaves the ceiling as the shape maximum alone, which is what every
+    /// caller got before B349 and what the tests that measure the old ceiling
+    /// still ask for.
+    /// </remarks>
+    public static int CeilingReachPx(BrushSettings brush, double bufferScale) =>
+        (int)Math.Ceiling(RadiusAt(brush, 1) * Math.Max(bufferScale, 0.0001)) + 2;
 
     private static void SetRoundPaint(SKPaint paint, SKPoint centre, float radius, float hardness, SKColor color)
     {

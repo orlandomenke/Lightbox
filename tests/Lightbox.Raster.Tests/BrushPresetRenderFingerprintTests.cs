@@ -105,10 +105,19 @@ public class BrushPresetRenderFingerprintTests(ITestOutputHelper output)
     // coverage every shape is built on, so a change confined to the texture
     // passes — moving "granulation" and "both" but not "plain" — would have been
     // the surprising outcome here, not this one.
-    [InlineData("plain", 0, 0, "60090100627C28B0")]
-    [InlineData("granulation", 0.35, 0, "C150BEB8AA461DCE")]
-    [InlineData("wet edge", 0, 0.7, "AA1D38B0188EAE38")]
-    [InlineData("both", 0.35, 0.7, "97DF45DE8CC8304C")]
+    // Re-recorded 2026-09-02, all four together again, when the ceiling stopped
+    // being the best any single dab does at a pixel and became the brush's
+    // falloff applied to how far inside the whole mark's reach the pixel sits
+    // (B349, docs/DESIGN-swept-ceiling.md). Every shape here is soft enough to
+    // be capped, and a capped stroke's falloff is now flat along its length
+    // instead of rippling at the dab pitch, so the change reaches the same
+    // coverage the 2026-08-24 entry did — and, by the note's argument, never
+    // lowers a pixel: SweptCeilingTests counts the pixels that went down and
+    // finds none.
+    [InlineData("plain", 0, 0, "21724733AC182E55")]
+    [InlineData("granulation", 0.35, 0, "AE467679339148C5")]
+    [InlineData("wet edge", 0, 0.7, "D7590BD1759815F2")]
+    [InlineData("both", 0.35, 0.7, "1B613354D6026991")]
     public void AShapeStillRendersWhatItDidBefore(
         string name, double granulation, double wetEdge, string expected)
     {
