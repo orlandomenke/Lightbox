@@ -51,6 +51,30 @@ sealed class BrushWorkingSet
     internal List<BrushPreset> UserPresets { get; } = [];
 
     /// <summary>
+    /// What each preset has been nudged to, by preset id — the settings in hand
+    /// the last time that preset was the one being edited, kept only while they
+    /// differ from the preset itself (B71).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A preset is a saved thing and a tweak is a working thing, and the two
+    /// used to have different lifetimes: the preset lived in the store, the
+    /// tweak lived in <see cref="Brush"/> and died the moment another preset was
+    /// chosen. So an artist who tuned three brushes over an afternoon kept one
+    /// of them. This is the other two — Krita's "dirty preset", where a nudged
+    /// brush stays nudged until it is reloaded or written back.
+    /// </para>
+    /// <para>
+    /// Keyed by preset id rather than kept on the preset, so a tweak never
+    /// leaks into the preset record: <c>Update</c> is still the only thing that
+    /// writes a preset, and picking the brush again in the picker is still the
+    /// thing that gives the saved one back. Absent for a brush left at what its
+    /// preset says, which is what lets the store write no key for it.
+    /// </para>
+    /// </remarks>
+    internal Dictionary<string, BrushSettings> Tweaks { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>
     /// True while a preset is being applied, so a bound setter knows the write came
     /// from the preset rather than from the artist.
     /// </summary>
